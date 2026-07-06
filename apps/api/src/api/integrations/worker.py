@@ -15,8 +15,7 @@ from api.config import Settings
 from api.errors import UpstreamError
 
 _METADATA_IDENTITY_URL = (
-    "http://metadata.google.internal/computeMetadata/v1/instance/"
-    "service-accounts/default/identity"
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity"
 )
 _TOKEN_REFRESH_MARGIN_S = 60
 

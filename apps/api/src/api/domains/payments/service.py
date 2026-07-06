@@ -376,9 +376,7 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
 # ---- 웹훅 대사 (reconciliation) ----
 
 
-async def reconcile_from_webhook(
-    session: AsyncSession, toss: TossClient, payload: dict
-) -> dict:
+async def reconcile_from_webhook(session: AsyncSession, toss: TossClient, payload: dict) -> dict:
     """Toss 상태 변경 통지 → 조회 재검증 → DB↔Toss 불일치 교정.
 
     페이로드는 힌트(paymentKey)로만 쓴다 — 진위·상태·금액은 전부 조회 API 기준

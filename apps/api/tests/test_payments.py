@@ -350,7 +350,10 @@ async def test_webhook_ignores_forged_and_mismatched_payloads(client, db_session
     )
     res = await client.post("/payments/webhook", json={"paymentKey": "forged-key"})
     assert res.json() == {
-        "handled": False, "action": None, "reason": "payment_not_found", "orders": None
+        "handled": False,
+        "action": None,
+        "reason": "payment_not_found",
+        "orders": None,
     }
 
     # paymentKey 없음
