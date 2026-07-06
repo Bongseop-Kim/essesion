@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from api.config import Settings, get_settings
 from api.db import build_engine
+from api.domains.auth.oauth import build_oauth
 from api.errors import register_error_handlers
 from api.integrations.gcs import build_gcs_client
 from api.integrations.solapi import build_solapi_client
@@ -43,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         generate_unique_id_function=_operation_id,
     )
     app.state.settings = settings
+    app.state.oauth = build_oauth(settings)
 
     # add_middleware는 나중에 추가한 것이 바깥 — RequestId가 최외곽
     app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)  # Authlib state
@@ -66,8 +68,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _include_routers(app: FastAPI) -> None:
-    # 도메인 라우터는 구현 단계마다 여기 추가
-    pass
+    from api.domains.auth.router import router as auth_router
+
+    app.include_router(auth_router)
 
 
 app = create_app()

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
 
     # Auth
-    jwt_secret: str = "dev-jwt-secret"
+    jwt_secret: str = "dev-jwt-secret-only-for-local-32b!"  # HS256 최소 32바이트
     access_ttl_minutes: int = 15
     refresh_ttl_days: int = 14
     session_secret: str = "dev-session-secret"  # Authlib OAuth state 쿠키용

@@ -36,7 +36,7 @@ class _TestSettings(Settings):
 def settings(pg_url: str) -> Settings:
     return _TestSettings(
         database_url=pg_url,
-        jwt_secret="test-jwt-secret",
+        jwt_secret="test-jwt-secret-0123456789abcdef",
         batch_token="test-batch-token",
         toss_secret_key="test-toss-secret",  # RealTossClient 사용 — respx로 목킹
     )

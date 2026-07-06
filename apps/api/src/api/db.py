@@ -1,6 +1,7 @@
 """엔진·세션·advisory lock.
 
-트랜잭션 규약: 커밋은 서비스/라우터 함수의 `async with session.begin():` 안에서만.
+트랜잭션 규약: SQLAlchemy autobegin(의존성의 첫 쿼리부터 트랜잭션) 위에서 서비스
+함수가 작업 후 **명시적으로 `await session.commit()`** — 커밋은 서비스 끝에서만.
 get_session teardown은 정리 전용 — 응답 전송 후 실행되므로 여기서 커밋하면
 "클라이언트는 200, DB는 유실" 사고가 난다.
 """
@@ -34,9 +35,7 @@ NUMBERING_LOCK = "num:{prefix}:{date}"
 
 
 async def advisory_xact_lock(session: AsyncSession, key: str) -> None:
-    """pg_advisory_xact_lock — 트랜잭션 커밋/롤백 시 자동 해제.
-
-    트랜잭션 밖에서 부르면 즉시 해제되어 무의미하므로 assert로 차단한다.
-    """
-    assert session.in_transaction(), "advisory lock은 session.begin() 안에서만 유효"
+    """pg_advisory_xact_lock — 실행 자체가 autobegin으로 트랜잭션을 열며,
+    락은 그 트랜잭션의 커밋/롤백 시 해제된다. 락 이후의 보호 작업은 반드시
+    같은 세션에서 commit 전에 끝낼 것."""
     await session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": key})
