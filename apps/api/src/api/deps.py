@@ -5,7 +5,7 @@
 """
 
 import uuid
-from typing import Annotated, Protocol
+from typing import Annotated, Any
 
 from db.models.auth import User
 from fastapi import Depends, Request
@@ -63,12 +63,11 @@ OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 AdminUser = Annotated[User, Depends(get_admin_user)]
 
 
-class _HasUserId(Protocol):
-    user_id: uuid.UUID
+def ensure_owner(row: Any, user: User) -> None:
+    """owner-only 리소스 접근 규칙 — 없으면 404, 남의 것이면 403(admin은 통과).
 
-
-def ensure_owner(row: _HasUserId | None, user: User) -> None:
-    """owner-only 리소스 접근 규칙 — 없으면 404, 남의 것이면 403(admin은 통과)."""
+    row는 user_id 컬럼을 가진 ORM 행 (Mapped 디스크립터가 Protocol과 안 맞아 Any).
+    """
     if row is None:
         raise NotFoundError()
     if user.role not in ADMIN_ROLES and row.user_id != user.id:

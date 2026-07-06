@@ -69,8 +69,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 def _include_routers(app: FastAPI) -> None:
     from api.domains.auth.router import router as auth_router
+    from api.domains.batch.router import router as batch_router
+    from api.domains.cart.router import router as cart_router
+    from api.domains.coupons.router import router as coupons_router
+    from api.domains.orders.router import router as orders_router
+    from api.domains.payments.router import router as payments_router
+    from api.domains.products.router import router as products_router
+    from api.domains.tokens.router import router as tokens_router
 
     app.include_router(auth_router)
+    app.include_router(products_router)
+    app.include_router(cart_router)
+    app.include_router(coupons_router)
+    app.include_router(orders_router)
+    app.include_router(payments_router)
+    app.include_router(tokens_router)
+    app.include_router(batch_router)
 
 
 app = create_app()
