@@ -5,6 +5,13 @@
     "clientKind": "git",
     "useIgnoreFile": true
   },
+  "files": {
+    "includes": [
+      "**",
+      "!packages/api-client/src",
+      "!packages/api-client/openapi.json"
+    ]
+  },
   "formatter": {
     "indentStyle": "space"
   },

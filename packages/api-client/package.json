@@ -1,0 +1,24 @@
+{
+  "name": "@essesion/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "openapi-ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5",
+    "zod": ">=4"
+  },
+  "devDependencies": {
+    "@essesion/tsconfig": "workspace:*",
+    "@hey-api/openapi-ts": "0.99.0",
+    "@tanstack/react-query": "catalog:",
+    "typescript": "catalog:",
+    "zod": "catalog:"
+  }
+}

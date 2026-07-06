@@ -31,6 +31,24 @@ jobs:
       - run: uv run pyright
       - run: uv run pytest
 
+  # api 스펙만 바뀌고 api-client 생성물이 안 바뀐 채 머지되는 것을 차단 (AGENTS.md 대원칙)
+  codegen-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: uv sync --all-packages
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm codegen
+      - run: git diff --exit-code -- packages/api-client
+
   osv-scan:
     runs-on: ubuntu-latest
     steps:
