@@ -4,12 +4,15 @@
 ③ admin/manager는 전체 접근(AdminUser). 정책: 미인증 401 / 남의 것 403 / 없는 것 404.
 """
 
+import hmac
 import uuid
 from typing import Annotated, Any
 
 from db.models.auth import User
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from sqlalchemy import select
 
 from api.config import Settings
@@ -74,9 +77,30 @@ def ensure_owner(row: Any, user: User) -> None:
         raise ForbiddenError()
 
 
-async def verify_batch_token(creds: BearerDep, settings: SettingsDep) -> None:
-    """Cloud Scheduler → /batch/* 보호. 4단계에서 OIDC 검증으로 교체하는 유일 지점."""
-    if creds is None or creds.credentials != settings.batch_token:
+_google_request = google_requests.Request()  # Google 인증서 캐시 재사용
+
+
+def verify_batch_token(creds: BearerDep, settings: SettingsDep) -> None:
+    """Cloud Scheduler → /batch/* 보호.
+
+    batch_oidc_audience 설정 시 Google OIDC id-token 검증 — api는 공개 서비스라
+    audience만으론 불충분(임의 SA가 같은 audience 토큰 발급 가능), 발신 SA email까지
+    고정한다. 미설정(로컬·테스트)은 batch_token 폴백. sync def — 인증서 fetch가
+    블로킹 HTTP라 FastAPI threadpool에서 실행돼야 한다.
+    """
+    if creds is None:
+        raise UnauthorizedError()
+    if settings.batch_oidc_audience:
+        try:
+            claims = id_token.verify_oauth2_token(
+                creds.credentials, _google_request, settings.batch_oidc_audience
+            )
+        except ValueError as exc:
+            raise UnauthorizedError() from exc
+        if claims.get("email") != settings.batch_invoker_email:
+            raise UnauthorizedError()
+        return
+    if not hmac.compare_digest(creds.credentials, settings.batch_token):
         raise UnauthorizedError()
 
 

@@ -4,12 +4,24 @@ request_id 전파(api→worker 추적) + Sentry(DSN 있을 때만)."""
 import json
 import logging
 import os
+import re
 import sys
 import uuid
 from contextvars import ContextVar
 from datetime import UTC, datetime
 
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
+
+# request_id는 워커에서 GCS object key(previews/{rid}/...)에 들어간다 — 인바운드
+# X-Request-ID를 무정제로 에코하면 `/`·`..` 경로 주입이 가능하므로 정제한다.
+_REQUEST_ID_RE = re.compile(r"[^A-Za-z0-9_-]+")
+_MAX_REQUEST_ID_LEN = 128
+
+
+def sanitize_request_id(raw: str) -> str:
+    """허용 문자(영숫자·`-`·`_`) 외는 `-`로 치환, 길이 상한, 빈 결과면 새 uuid 발급."""
+    clean = _REQUEST_ID_RE.sub("-", raw)[:_MAX_REQUEST_ID_LEN].strip("-_")
+    return clean or uuid.uuid4().hex
 
 
 class JsonFormatter(logging.Formatter):
@@ -50,7 +62,7 @@ class RequestIdMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
-        rid = headers.get(b"x-request-id", b"").decode() or uuid.uuid4().hex
+        rid = sanitize_request_id(headers.get(b"x-request-id", b"").decode())
         token = request_id_var.set(rid)
 
         async def send_with_rid(message):

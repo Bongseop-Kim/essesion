@@ -23,7 +23,7 @@
 
 - pnpm workspace + Turborepo 모노레포. `apps/store`(고객), `apps/admin`(관리자), `packages/shared`, `packages/supabase`. React 19 + Vite 7 + TypeScript, TanStack Query, react-router 7.
 - Supabase를 Auth·RLS·Storage·DB함수·Edge Functions에 폭넓게 사용(Realtime 미사용). 프론트가 supabase-js로 DB·Auth·Storage에 **직접 접근** → 이 층 전부가 교체 대상.
-- Edge Functions 15종: 이미지 생성(generate-tile 계열 3종), 주문 생성 3종, 견적, Toss 결제 확정/취소, 클레임 알림, 휴대폰 인증 2종, ImageKit 업로드 인증, 만료 이미지 정리, 회원 탈퇴.
+- Edge Functions 15종(최상위 디렉터리 13개 + generate-tile 서브펑션 2개 — `db/MAPPING.md`의 "13종"과 같은 대상, 계수 방식만 다름): 이미지 생성(generate-tile 계열 3종), 주문 생성 3종, 견적, Toss 결제 확정/취소, 클레임 알림, 휴대폰 인증 2종, ImageKit 업로드 인증, 만료 이미지 정리, 회원 탈퇴.
 - 주요 테이블군: profiles, shipping_addresses, products(+options/likes), coupons(+user_coupons), cart_items, orders(+items), repair_shipping, claims, inquiries, custom_order_pricing, motifs, admin_settings, quote_requests, design_chat, ai_generation_logs, design_tokens, seamless_generation_logs, seamless_sessions, token_purchases, images, langgraph_checkpoint 계열.
 - **중요**: 현재 YeongSeon은 seamless-tile 서비스를 HTTP로 호출하지 않는다. `/design`의 이미지 생성은 `generate-tile` 엣지 함수가 OpenAI/Google 이미지 API를 직접 호출하는데, **seamless-tile이 바로 그 대체재로 만들어진 것**이다(관리자의 `/seamless-logs`는 그 로그 뷰어). → 새 구조에서 `generate-tile` 계열은 완전 제거하고 `/design`은 seamless 워커 플로우로 연결한다.
 
@@ -151,7 +151,7 @@ essesion/
 |---|---|---|
 | supabase-js 직접 쿼리 | 상품/장바구니/주문/클레임/배송지/문의/견적/토큰내역/마이페이지 CRUD | `api` 도메인 모듈 (RLS 의미를 인가 코드로 재현) |
 | Edge Fn `create-order`·`create-custom-order`·`create-sample-order` | 주문 생성 3종 | `api` orders |
-| Edge Fn `confirm-payment`·`cancel-token-payment` | Toss 결제 확정/취소 | `api` payments — 웹훅 서명 검증 + 이벤트 ID 기록으로 멱등 처리(결제 이중 처리 방지) |
+| Edge Fn `confirm-payment`·`cancel-token-payment` | Toss 결제 확정/취소 | 확정은 `api` payments(+웹훅 조회 재검증 대사로 멱등 처리 — money.md §9). 취소는 `api` tokens의 환불 승인 경로(`tokens/ledger.py` — admin 승인 시 Toss cancel) |
 | Edge Fn `create-quote-request` / `notify-claim` | 견적 생성 / 클레임 알림 | `api` quotes / claims |
 | Edge Fn `send-phone-verification`·`verify-phone` | 휴대폰 인증 | `api` auth — Solapi(문자/카카오톡) 유지 |
 | Edge Fn `imagekit-auth` / `delete-account` / `cleanup-expired-images` | 업로드 인증 / 탈퇴 / 정리 배치 | ImageKit은 **제거** — 업로드는 api가 발급하는 GCS 서명 URL로 대체. 탈퇴는 `api`, 정리 배치는 Cloud Scheduler → api 엔드포인트 |
@@ -188,7 +188,7 @@ essesion/
 - **범위**: seamless 엔진(compose/candidates/placement), 래스터화, finalize, export, 모티프 검색. 재작성이되 알고리즘 명세(결정론 계약: 같은 intent+seed → byte-identical)는 보존. `generate-tile` 계열과 세션 그래프(LangGraph)는 승계하지 않는다 — 세션 상태는 api 소유(§2).
 - **stateless로**: 응답 캐시·in-flight 락·프로세스-로컬 레지스트리 지문 등은 승계하지 않는다(멱등이라 재계산 안전). 생성 예산·사용량 제한은 Postgres 공유 카운터로 정식화(프로세스-로컬 budget 락 금지). 인스턴스 수와 무관하게 동작해야 함.
 - **파이프라인 재설계**: 기존 finalize(yarn_dyed)가 compose+래스터를 요청당 4~5회 재실행하던 구조는 승계하지 않는다 — 중간 산출물(베이스 SVG·마스크 래스터)을 요청 내 재사용.
-- **컨테이너**: python 버전 핀 + 번들 폰트(NotoSansCJKkr) + resvg 인프로세스 래스터화(§3 — 동등성 확인 실패 시 librsvg 서브프로세스 폴백). Pillow 포함 전 의존성 핀(uv.lock) — finalize 결정론의 전제.
+- **컨테이너**: python 버전 핀 + resvg 인프로세스 래스터화(§3 — 동등성 확인 실패 시 librsvg 서브프로세스 폴백). Pillow 포함 전 의존성 핀(uv.lock) — finalize 결정론의 전제. 번들 폰트(NotoSansCJKkr)는 **텍스트 렌더링 도입 시에만 필요** — 현 엔진·sanitize는 `<text>`를 생성·허용하지 않아 불요(점검 F5).
 - **리소스 (초기 권고)**: CPU Cloud Run으로 충분(GPU 불필요 확정). `worker-generate`는 가볍게(1 vCPU / 1GB, 동시성 높게 — 지연 대부분이 외부 API 대기). `worker-finalize`는 메모리가 dpi²에 비례하므로 **2 vCPU / 4GB, 동시성 1~2, dpi 상한 600**(엔진 기본 300 유지)으로 시작하고 운영 실측 후 조정 — 1200dpi가 실제로 필요해지면 그때 8GB+로 상향.
 - **경계**: 둘 다 외부 노출 없음. generate는 api의 OIDC 동기 호출, finalize는 Cloud Tasks 푸시(OIDC 토큰 포함)만 수신. 타임아웃은 Recraft 120s 재시도까지 감안해 여유 있게.
 

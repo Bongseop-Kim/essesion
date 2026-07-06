@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from db.models.commerce import Claim, OrderItem
 
 from .factories import make_order, make_user
@@ -72,3 +73,72 @@ async def test_cancel_stale_pending(client, db_session):
     await db_session.refresh(stale)
     await db_session.refresh(fresh)
     assert stale.status == "취소" and fresh.status == "대기중"
+
+
+# ---- OIDC 모드 (배포 환경 — infra/scheduler.tf가 audience·email 주입) ----
+# Google 서명 토큰은 실물 생성이 불가하므로 verify_oauth2_token만 목킹
+# (RealTossClient를 respx로 목킹하는 기존 선례와 동급 — 인가 규칙 자체는 실경로).
+
+OIDC_AUDIENCE = "https://api-123456.asia-northeast3.run.app"
+OIDC_EMAIL = "scheduler-invoker@proj.iam.gserviceaccount.com"
+
+
+@pytest.fixture
+async def oidc_client(settings):
+    from api.main import create_app
+    from httpx import ASGITransport, AsyncClient
+
+    oidc_settings = settings.model_copy(
+        update={"batch_oidc_audience": OIDC_AUDIENCE, "batch_invoker_email": OIDC_EMAIL}
+    )
+    application = create_app(oidc_settings)
+    async with application.router.lifespan_context(application):
+        transport = ASGITransport(app=application)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            yield c
+
+
+def _fake_verify(claims_by_token):
+    def verify(token, request, audience):
+        assert audience == OIDC_AUDIENCE
+        if token not in claims_by_token:
+            raise ValueError("invalid token")
+        return claims_by_token[token]
+
+    return verify
+
+
+async def test_batch_oidc_valid_token(oidc_client, monkeypatch):
+    monkeypatch.setattr(
+        "api.deps.id_token.verify_oauth2_token", _fake_verify({"good": {"email": OIDC_EMAIL}})
+    )
+    res = await oidc_client.post(
+        "/batch/cancel-stale-orders", headers={"Authorization": "Bearer good"}
+    )
+    assert res.status_code == 200
+
+
+async def test_batch_oidc_wrong_email(oidc_client, monkeypatch):
+    monkeypatch.setattr(
+        "api.deps.id_token.verify_oauth2_token",
+        _fake_verify({"good": {"email": "attacker@other.iam.gserviceaccount.com"}}),
+    )
+    res = await oidc_client.post(
+        "/batch/cancel-stale-orders", headers={"Authorization": "Bearer good"}
+    )
+    assert res.status_code == 401
+
+
+async def test_batch_oidc_invalid_token(oidc_client, monkeypatch):
+    monkeypatch.setattr("api.deps.id_token.verify_oauth2_token", _fake_verify({}))
+    res = await oidc_client.post(
+        "/batch/cancel-stale-orders", headers={"Authorization": "Bearer forged"}
+    )
+    assert res.status_code == 401
+
+
+async def test_batch_oidc_disables_token_fallback(oidc_client, monkeypatch):
+    """OIDC 모드에서는 공유 시크릿(batch_token)이 더 이상 통하지 않는다."""
+    monkeypatch.setattr("api.deps.id_token.verify_oauth2_token", _fake_verify({}))
+    res = await oidc_client.post("/batch/cancel-stale-orders", headers=BATCH_HEADERS)
+    assert res.status_code == 401

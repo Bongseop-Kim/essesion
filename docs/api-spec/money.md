@@ -67,6 +67,7 @@
 3. **멱등 사전체크**: 전부 결제후 상태면 200 DONE(권위 매핑은 confirm 참조).
 4. 개별 status ∈ {대기중, 결제중} 아니면 409 `Order is not payable`.
 5. **금액 검증**: `Σ total_price != amount` → 400 `Amount mismatch`.
+5-1. **샘플 매핑 사전검증**: sample 주문은 sample_type의 후속 쿠폰 매핑(§4)이 존재해야 함 — 없으면 400 `invalid_sample`. Toss 승인 후에 터지면 "돈 받고 DB 미확정" 수동 개입 창이 생기므로 lock 전에 차단.
 6. **lock**: 대기중→결제중(+로그 'payment lock'); 결제중이면 already_locked; 결제후 상태({진행중,발송대기,발송중,수거예정,접수,완료})면 already_confirmed → Toss 호출 없이 200.
 7. **Toss 승인**: `POST https://api.tosspayments.com/v1/payments/confirm`, 헤더 `Authorization: Basic base64(TOSS_SECRET_KEY+":")`, body `{paymentKey, orderId(=group id), amount(=DB 재계산 합)}`. 멱등키 헤더 미사용(멱등성은 DB 상태로).
 8. 실패 → **unlock**(결제중→대기중 + 쿠폰 reserved→active + 로그 'payment unlock: approval failed') 후 Toss 상태코드 전달. 네트워크 예외 → unlock 후 502.

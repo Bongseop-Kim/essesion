@@ -21,11 +21,67 @@ resource "google_cloud_run_v2_service" "api" {
       resources {
         limits = { cpu = "1", memory = "512Mi" }
       }
+      # Scheduler OIDC 검증용 — batch_audience는 scheduler.tf locals와 정확히 일치해야 함
+      env {
+        name  = "BATCH_OIDC_AUDIENCE"
+        value = local.batch_audience
+      }
+      env {
+        name  = "BATCH_INVOKER_EMAIL"
+        value = google_service_account.scheduler.email
+      }
     }
   }
 
   lifecycle {
     ignore_changes = [template[0].containers[0].image, client, client_version]
+  }
+  depends_on = [google_project_service.apis]
+}
+
+# 스키마 적용 잡 — api 이미지 재사용(db/·alembic 포함), deploy.yml이 이미지 갱신 후 execute --wait.
+# 실패한 실행의 자동 재시도 금지(max_retries=0) — CI가 중단하고 사람이 개입.
+resource "google_cloud_run_v2_job" "migrate" {
+  name     = "migrate"
+  location = var.region
+
+  template {
+    template {
+      service_account = google_service_account.api.email # cloudsql.client·secretAccessor 보유
+      max_retries     = 0
+      timeout         = "600s"
+
+      containers {
+        image   = local.placeholder_image
+        command = ["alembic"]
+        args    = ["-c", "db/alembic.ini", "upgrade", "head"]
+
+        env {
+          name = "DATABASE_URL"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.database_url.secret_id
+              version = "latest"
+            }
+          }
+        }
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+      }
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [google_sql_database_instance.main.connection_name]
+        }
+      }
+    }
+  }
+
+  lifecycle {
+    # 잡은 template가 이중 중첩 — 서비스 경로 복붙 금지
+    ignore_changes = [template[0].template[0].containers[0].image, client, client_version]
   }
   depends_on = [google_project_service.apis]
 }

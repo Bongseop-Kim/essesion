@@ -144,6 +144,8 @@ async def confirm_payment(
     if total != body.amount:
         raise DomainError("Amount mismatch", code="amount_mismatch")
 
+    await _ensure_sample_orders_couponable(session, orders)
+
     # ---- lock: 대기중→결제중 (커밋해 Toss 호출 동안 상태 유지) ----
     orders = await _group_orders(session, body.payment_group_id, for_update=True)
     already_confirmed = False
@@ -334,13 +336,30 @@ async def _grant_purchased_tokens(session: AsyncSession, order: Order) -> int:
     return token_amount
 
 
-async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> bool:
-    """샘플 결제 확정 → 후속 정규주문 할인쿠폰 발급 (money.md §4)."""
+async def _sample_followup_key(
+    session: AsyncSession, order: Order
+) -> tuple[str | None, str | None]:
+    """샘플 주문의 후속 쿠폰 매핑 키 — 사전검증(confirm)과 발급이 같은 판정을 공유한다."""
     item = await session.scalar(select(OrderItem).where(OrderItem.order_id == order.id))
     data = (item.item_data or {}) if item else {}
     sample_type = data.get("sample_type")
     design_type = (data.get("options") or {}).get("design_type")
-    mapping_key = (sample_type, None if sample_type == "sewing" else design_type)
+    return (sample_type, None if sample_type == "sewing" else design_type)
+
+
+async def _ensure_sample_orders_couponable(session: AsyncSession, orders: list[Order]) -> None:
+    """샘플 주문의 sample_type 매핑을 Toss 승인 전에 검증 — 승인 후 터지면
+    "돈 받고 DB 미확정" 수동 개입 창이 생긴다 (money.md §5 사전검증)."""
+    for order in orders:
+        if order.order_type != "sample":
+            continue
+        if await _sample_followup_key(session, order) not in SAMPLE_FOLLOWUP_COUPON:
+            raise DomainError("Unsupported sample_type", code="invalid_sample")
+
+
+async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> bool:
+    """샘플 결제 확정 → 후속 정규주문 할인쿠폰 발급 (money.md §4)."""
+    mapping_key = await _sample_followup_key(session, order)
     if mapping_key not in SAMPLE_FOLLOWUP_COUPON:
         raise DomainError("Unsupported sample_type", code="invalid_sample")
     coupon_name, pricing_key = SAMPLE_FOLLOWUP_COUPON[mapping_key]

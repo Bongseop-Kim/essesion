@@ -1,8 +1,13 @@
 """관리자 — 쿠폰 발급/회수·통계 (domains.md §10)."""
 
-from datetime import UTC, datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from .factories import auth_headers, make_admin, make_coupon, make_order, make_user
+
+# 엔드포인트가 stat_date를 KST 하루로 해석하므로(admin/router.py) 날짜도 KST로 생성
+# — UTC로 만들면 KST 00~09시(UTC 15~24시) 실행 시 하루 어긋나 flaky.
+KST = ZoneInfo("Asia/Seoul")
 
 
 async def test_bulk_issue_and_revoke(client, db_session, settings):
@@ -52,7 +57,7 @@ async def test_stats(client, db_session, settings):
     await make_order(db_session, user, total_price=10000)
     await make_order(db_session, user, order_type="token", total_price=2500)
     headers = auth_headers(admin, settings)
-    today = datetime.now(UTC).date().isoformat()
+    today = datetime.now(KST).date().isoformat()
 
     all_stats = await client.get("/admin/stats/today", params={"stat_date": today}, headers=headers)
     assert all_stats.json() == {"order_count": 2, "revenue": 12500}

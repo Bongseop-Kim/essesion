@@ -18,7 +18,7 @@
 - [x] 모노레포 스캐폴드: pnpm workspace(+catalogs) + Turborepo, uv workspace(apps/api·worker), mise 툴체인 핀
 - [x] 디렉토리 뼈대: `apps/{store,admin,api,worker}`, `packages/{api-client,shared,tsconfig}`, `db/`, `infra/`
 - [x] 로컬: docker compose(Postgres + pgvector)
-- [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료. **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
+- [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 3종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
 - [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *wrangler 설정·프록시 워커 완료. **5단계(프론트 배포)·도메인 확정 시 수행**: zone·routes·WAF 규칙(`infra/cloudflare/README.md`)*
 - [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 프리뷰(Cloudflare 프리뷰 URL + Cloud Run 태그 리비전) — *배포·프리뷰 잡은 GitHub vars 설정 전까지 자동 스킵*
 - [x] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
@@ -42,7 +42,7 @@
 - [x] 소셜 OAuth(Authlib): Google → Kakao → Apple → Naver 순 — *Google·Kakao 완료(사용자 지정), Apple·Naver는 준비물 도착 후 oauth.py에 등록만 추가*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
-- [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm(Toss 구조상 원천) + 자동 대사 2겹: ALREADY_PROCESSED 조회 복구, `/payments/webhook` 조회 재검증 대사(money.md §9). 웹훅 URL 등록은 4단계 스테이징 개통 시*
+- [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm(Toss 구조상 원천) + 자동 대사 2겹: ALREADY_PROCESSED 조회 복구, `/payments/webhook` 조회 재검증 대사(money.md §9). 웹훅 URL 등록은 4단계 스테이징 개통 시. 토큰 과금은 원장·환불(ledger)까지 완료 — `/design/generate` 차감 연동은 4단계(59행)*
 - [x] GCS 서명 업로드 URL 발급(ImageKit 대체) + 회원 탈퇴 + 정리 배치(Cloud Scheduler → api) — *배치 3종 `/batch/*`, 4단계에서 Scheduler OIDC 연결*
 - [x] OpenAPI 스펙 확정 → api-client 코드젠(Hey API + TanStack Query + zod) → **CI 드리프트 검사** — *`pnpm codegen`, ci.yml codegen-drift 잡*
 - [x] schemathesis CI 스텝 — *pytest 통합(tests/test_contract.py) — CI py 잡에 포함*
@@ -56,7 +56,7 @@
 - [ ] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *응답/in-flight lock 없음, finalize 예산은 DB 조건부 UPDATE. 모티프는 인메모리 registry(테스트용) — DB store로 교체 남음, recraft 예산 경로는 Recraft 구현 시 확정*
 - [x] GCS 연결(content-hash 키 + upsert) — *worker object store(DryRun/GCS) + fabric content-hash key + preview upload key 구현*
 - [ ] 두 서비스 배포: worker-generate(동기 OIDC, 1vCPU/1GB) + worker-finalize(Cloud Tasks 푸시, 2vCPU/4GB, 동시성 1~2, dpi 상한 600)
-- [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링/SSE), 세션 상태는 api 소유 — *worker client + Cloud Tasks REST enqueue(DryRun fallback) + job polling. SSE는 미구현*
+- [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링/SSE), 세션 상태는 api 소유 — *worker client + Cloud Tasks REST enqueue(DryRun fallback) + job polling. SSE는 미구현. **토큰 과금 연동(use_tokens/refund_failed_generation 호출)은 남음** — 점검 F4*
 
 ## 5. 프론트
 
