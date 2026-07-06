@@ -22,3 +22,10 @@ class PaymentConfirmResponse(BaseModel):
     success: bool = True
     orders: list[ConfirmedOrder]
     token_amount: int | None = None
+
+
+class WebhookResult(BaseModel):
+    handled: bool
+    action: str | None = None  # already_consistent | confirmed | canceled
+    reason: str | None = None
+    orders: int | None = None

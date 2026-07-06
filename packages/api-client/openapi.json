@@ -3901,6 +3901,52 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WebhookResult": {
+        "properties": {
+          "action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "handled": {
+            "title": "Handled",
+            "type": "boolean"
+          },
+          "orders": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orders"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "handled"
+        ],
+        "title": "WebhookResult",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -6662,6 +6708,50 @@
           }
         ],
         "summary": "Confirm Payment",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/payments/webhook": {
+      "post": {
+        "description": "Toss 상태 변경 웹훅 — 공개 엔드포인트(인증 없음).\n\n페이로드를 신뢰하지 않고 조회 API로 재검증하므로 위조 요청은 무해하다\n(Toss 공식 권장 검증 방식). 대시보드에 URL 등록은 스테이징 개통 시.",
+        "operationId": "toss_webhook",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Toss Webhook",
         "tags": [
           "payments"
         ]

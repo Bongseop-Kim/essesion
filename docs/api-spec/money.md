@@ -130,3 +130,6 @@
 - confirm 멱등 사전체크의 repair 상태는 RPC 권위 매핑(수거예정/발송대기)으로 통일 (엣지의 '발송대기' 고정은 버그였음).
 - use_design_tokens의 p_quality 파라미터는 비용 미반영 vestigial — 제거.
 - Toss 호출 금액은 항상 DB 재계산 합(원 동작 유지). 클라이언트 amount는 사전 일치 검증만.
+- **자동 대사 2겹 추가 (원문에 없던 보강 — 제품 관점 재검토로 결정)**:
+  - confirm 재시도가 `ALREADY_PROCESSED_PAYMENT`를 받으면 실패(→unlock→stale 취소 = "돈 받고 주문 취소") 대신 **조회 API로 상태·orderId·금액 검증 후 DB 확정**.
+  - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 부분취소·혼합상태·금액불일치는 자동 교정하지 않고 critical 로그(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL 등록은 스테이징 개통(4단계) 때.

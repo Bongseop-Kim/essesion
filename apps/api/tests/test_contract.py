@@ -19,9 +19,13 @@ schema = schemathesis.pytest.from_fixture("api_schema")
 
 @pytest.fixture
 async def api_schema(app, db_session, settings):
+    from api.integrations.toss import DryRunTossClient
+
     admin = await make_admin(db_session)
     _auth_headers.clear()
     _auth_headers.update(auth_headers(admin, settings))
+    # 퍼징이 /payments/webhook 등에서 실제 Toss로 나가지 않도록 DryRun으로 교체
+    app.state.toss = DryRunTossClient()
     return schemathesis.openapi.from_asgi("/openapi.json", app)
 
 

@@ -2202,6 +2202,28 @@ export type ValidationError = {
     type: string;
 };
 
+/**
+ * WebhookResult
+ */
+export type WebhookResult = {
+    /**
+     * Action
+     */
+    action?: string | null;
+    /**
+     * Handled
+     */
+    handled: boolean;
+    /**
+     * Orders
+     */
+    orders?: number | null;
+    /**
+     * Reason
+     */
+    reason?: string | null;
+};
+
 export type AdminListClaimsData = {
     body?: never;
     path?: never;
@@ -3757,6 +3779,36 @@ export type ConfirmPaymentResponses = {
 };
 
 export type ConfirmPaymentResponse = ConfirmPaymentResponses[keyof ConfirmPaymentResponses];
+
+export type TossWebhookData = {
+    /**
+     * Payload
+     */
+    body: {
+        [key: string]: unknown;
+    };
+    path?: never;
+    query?: never;
+    url: '/payments/webhook';
+};
+
+export type TossWebhookErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TossWebhookError = TossWebhookErrors[keyof TossWebhookErrors];
+
+export type TossWebhookResponses = {
+    /**
+     * Successful Response
+     */
+    200: WebhookResult;
+};
+
+export type TossWebhookResponse = TossWebhookResponses[keyof TossWebhookResponses];
 
 export type ListProductsData = {
     body?: never;

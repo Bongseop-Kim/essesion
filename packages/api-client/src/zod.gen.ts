@@ -1011,6 +1011,16 @@ export const zHttpValidationError = z.object({
 });
 
 /**
+ * WebhookResult
+ */
+export const zWebhookResult = z.object({
+    action: z.string().nullish(),
+    handled: z.boolean(),
+    orders: z.int().nullish(),
+    reason: z.string().nullish()
+});
+
+/**
  * Response Admin List Claims
  *
  * Successful Response
@@ -1548,6 +1558,16 @@ export const zConfirmPaymentBody = zPaymentConfirmRequest;
  * Successful Response
  */
 export const zConfirmPaymentResponse = zPaymentConfirmResponse;
+
+/**
+ * Payload
+ */
+export const zTossWebhookBody = z.record(z.string(), z.unknown());
+
+/**
+ * Successful Response
+ */
+export const zTossWebhookResponse = zWebhookResult;
 
 export const zListProductsQuery = z.object({
     category: z.enum([

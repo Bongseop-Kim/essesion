@@ -33,6 +33,8 @@ class TossClient(Protocol):
         self, payment_key: str, reason: str, cancel_amount: int | None = None
     ) -> TossResult: ...
 
+    async def get_payment(self, payment_key: str) -> TossResult: ...
+
     async def aclose(self) -> None: ...
 
 
@@ -61,6 +63,11 @@ class RealTossClient:
         res = await self._client.post(f"/v1/payments/{payment_key}/cancel", json=body)
         return TossResult(ok=res.is_success, status=res.status_code, body=res.json())
 
+    async def get_payment(self, payment_key: str) -> TossResult:
+        """결제 단건 조회 — 웹훅 페이로드 재검증·ALREADY_PROCESSED 복구용."""
+        res = await self._client.get(f"/v1/payments/{payment_key}")
+        return TossResult(ok=res.is_success, status=res.status_code, body=res.json())
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
@@ -75,6 +82,14 @@ class DryRunTossClient:
     ) -> TossResult:
         logger.info("DRYRUN toss cancel: reason=%s amount=%s", reason, cancel_amount)
         return TossResult(ok=True, status=200, body={"status": "CANCELED"})
+
+    async def get_payment(self, payment_key: str) -> TossResult:
+        logger.info("DRYRUN toss get_payment: %s", payment_key)
+        return TossResult(
+            ok=True,
+            status=200,
+            body={"paymentKey": payment_key, "status": "DONE", "orderId": "", "totalAmount": 0},
+        )
 
     async def aclose(self) -> None:
         pass
