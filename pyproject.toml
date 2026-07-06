@@ -25,3 +25,4 @@ pythonVersion = "3.13"
 # 모듈 'db'를 만들어 실제 db 패키지를 가린다. db 관련 테스트는 루트 tests/에.
 testpaths = ["apps", "libs", "tests"]
 addopts = "--import-mode=importlib" # api/worker 테스트 파일명 충돌 방지
+asyncio_mode = "auto"
