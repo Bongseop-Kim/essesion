@@ -196,9 +196,7 @@ async def _confirm(
         if order.status != "결제중":
             raise ConflictError(f"Order {order.order_number} is not payable", code="not_payable")
         post = post_map[order.id]
-        log_status(
-            session, order, post, changed_by=user.id, memo=f"payment confirmed: {masked}"
-        )
+        log_status(session, order, post, changed_by=user.id, memo=f"payment confirmed: {masked}")
         order.payment_key = body.payment_key
 
         token_amount = None
@@ -241,7 +239,10 @@ async def _unlock(session: AsyncSession, user: User, group_id: uuid.UUID) -> Non
     for order in orders:
         if order.status == "결제중":
             log_status(
-                session, order, "대기중", changed_by=user.id,
+                session,
+                order,
+                "대기중",
+                changed_by=user.id,
                 memo="payment unlock: approval failed",
             )
     coupon_ids = await _group_coupon_ids(session, [o.id for o in orders])

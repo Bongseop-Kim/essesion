@@ -36,9 +36,7 @@ def _refresh_expiry(settings: Settings) -> datetime:
     return datetime.now(UTC) + timedelta(days=settings.refresh_ttl_days)
 
 
-async def issue_refresh_token(
-    session: AsyncSession, user_id: uuid.UUID, settings: Settings
-) -> str:
+async def issue_refresh_token(session: AsyncSession, user_id: uuid.UUID, settings: Settings) -> str:
     raw, token_hash = new_refresh_token()
     session.add(
         RefreshToken(user_id=user_id, token_hash=token_hash, expires_at=_refresh_expiry(settings))
@@ -155,8 +153,6 @@ async def ensure_oauth_user(
         await session.flush()
         await grant_initial_tokens(session, user.id)
 
-    session.add(
-        UserIdentity(user_id=user.id, provider=provider, provider_user_id=provider_user_id)
-    )
+    session.add(UserIdentity(user_id=user.id, provider=provider, provider_user_id=provider_user_id))
     await session.commit()
     return user

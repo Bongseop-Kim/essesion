@@ -77,9 +77,7 @@ async def list_my_orders(
     user: CurrentUser,
     order_type: Literal["sale", "custom", "repair", "token", "sample"] | None = None,
 ) -> list[OrderOut]:
-    query = (
-        select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc())
-    )
+    query = select(Order).where(Order.user_id == user.id).order_by(Order.created_at.desc())
     if order_type:
         query = query.where(Order.order_type == order_type)
     orders = (await session.scalars(query)).all()
@@ -114,9 +112,7 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
 
 
 @router.post("/orders/{order_id}/confirm-purchase", response_model=OrderOut)
-async def confirm_purchase(
-    order_id: uuid.UUID, session: SessionDep, user: CurrentUser
-) -> OrderOut:
+async def confirm_purchase(order_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> OrderOut:
     return OrderOut.model_validate(await service.confirm_purchase(session, user, order_id))
 
 

@@ -12,9 +12,7 @@ from sqlalchemy.orm import InstrumentedAttribute
 from api.db import advisory_xact_lock
 
 
-async def generate_number(
-    session: AsyncSession, column: InstrumentedAttribute, prefix: str
-) -> str:
+async def generate_number(session: AsyncSession, column: InstrumentedAttribute, prefix: str) -> str:
     date_str = await session.scalar(select(func.to_char(func.now(), "YYYYMMDD")))
     await advisory_xact_lock(session, f"num:{prefix}:{date_str}")
     max_seq = await session.scalar(

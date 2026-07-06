@@ -338,9 +338,7 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
 async def request_refund(session: AsyncSession, user: User, order_id: uuid.UUID) -> dict:
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     order = await session.scalar(
-        select(Order)
-        .where(Order.id == order_id, Order.user_id == user.id)
-        .with_for_update()
+        select(Order).where(Order.id == order_id, Order.user_id == user.id).with_for_update()
     )
     if order is None:
         raise NotFoundError("주문을 찾을 수 없습니다")
@@ -389,9 +387,7 @@ async def request_refund(session: AsyncSession, user: User, order_id: uuid.UUID)
     if duplicate:
         raise DomainError("duplicate_refund_request", code="duplicate_refund")
 
-    order_item_id = await session.scalar(
-        select(OrderItem.id).where(OrderItem.order_id == order.id)
-    )
+    order_item_id = await session.scalar(select(OrderItem.id).where(OrderItem.order_id == order.id))
     claim = Claim(
         user_id=user.id,
         order_id=order.id,
@@ -422,9 +418,7 @@ async def cancel_refund_request(session: AsyncSession, user: User, claim_id: uui
     from api.deps import ensure_owner
 
     claim = await session.scalar(
-        select(Claim)
-        .where(Claim.id == claim_id, Claim.type == "token_refund")
-        .with_for_update()
+        select(Claim).where(Claim.id == claim_id, Claim.type == "token_refund").with_for_update()
     )
     ensure_owner(claim, user)
     assert claim is not None
@@ -470,9 +464,7 @@ async def approve_refund(
     if claim.status != "접수":
         raise ConflictError("접수 상태의 환불 요청만 승인할 수 있습니다", code="invalid_status")
 
-    order = await session.scalar(
-        select(Order).where(Order.id == claim.order_id).with_for_update()
-    )
+    order = await session.scalar(select(Order).where(Order.id == claim.order_id).with_for_update())
     if order is None or not order.payment_key:
         raise ConflictError("결제 정보가 없습니다", code="missing_payment_key")
     if refund_amount > order.total_price:

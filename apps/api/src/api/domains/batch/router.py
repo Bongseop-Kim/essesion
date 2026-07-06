@@ -3,7 +3,8 @@
 from datetime import UTC, datetime, timedelta
 
 from db.models.commerce import Claim, Order
-from fastapi import APIRouter
+from db.models.images import Image
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from sqlalchemy import and_, exists, not_, or_, select
 
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/batch", tags=["batch"], dependencies=[BatchAuth])
 
 AUTO_CONFIRM_AFTER = timedelta(days=7)
 STALE_PENDING_AFTER = timedelta(minutes=30)
+CLEANUP_BATCH_SIZE = 100
 
 
 class BatchResult(BaseModel):
@@ -23,9 +25,7 @@ class BatchResult(BaseModel):
 
 
 def _no_active_claim():
-    return not_(
-        exists().where(Claim.order_id == Order.id, Claim.status.in_(ACTIVE_CLAIM_STATUSES))
-    )
+    return not_(exists().where(Claim.order_id == Order.id, Claim.status.in_(ACTIVE_CLAIM_STATUSES)))
 
 
 @router.post("/auto-confirm-orders", response_model=BatchResult)
@@ -74,3 +74,34 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
         log_status(session, order, "취소", changed_by=None, memo="자동 취소 (대기중 30분 초과)")
     await session.commit()
     return BatchResult(processed=len(orders))
+
+
+@router.post("/cleanup-images", response_model=BatchResult)
+async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
+    """만료·클레임된 이미지 2단계 삭제(claim → GCS 삭제 → finalize) — domains.md §8."""
+    now = datetime.now(UTC)
+    targets = (
+        await session.scalars(
+            select(Image)
+            .where(
+                Image.deleted_at.is_(None),
+                or_(Image.expires_at < now, Image.deletion_claimed_at.isnot(None)),
+            )
+            .limit(CLEANUP_BATCH_SIZE)
+            .with_for_update(skip_locked=True)
+        )
+    ).all()
+
+    for image in targets:
+        if image.deletion_claimed_at is None:
+            image.deletion_claimed_at = now  # ① claim — 실패 시 다음 실행에서 재시도
+    await session.commit()
+
+    gcs = request.app.state.gcs
+    processed = 0
+    for image in targets:
+        if await gcs.delete_object(image.object_key):  # ② 스토리지 삭제 (멱등)
+            image.deleted_at = datetime.now(UTC)  # ③ finalize (soft delete)
+            processed += 1
+    await session.commit()
+    return BatchResult(processed=processed)

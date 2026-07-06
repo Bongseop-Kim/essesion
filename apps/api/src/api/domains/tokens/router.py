@@ -34,9 +34,7 @@ async def get_token_plans(session: SessionDep) -> list[TokenPlan]:
 async def create_token_order(
     body: TokenOrderCreateRequest, session: SessionDep, user: CurrentUser
 ) -> TokenOrderCreateResponse:
-    return TokenOrderCreateResponse(
-        **await ledger.create_token_order(session, user, body.plan_key)
-    )
+    return TokenOrderCreateResponse(**await ledger.create_token_order(session, user, body.plan_key))
 
 
 @router.get("/tokens/refundable-orders", response_model=list[RefundableTokenOrder])
@@ -56,9 +54,7 @@ async def request_token_refund(
 
 
 @router.post("/tokens/refund-requests/{claim_id}/cancel", status_code=204)
-async def cancel_token_refund(
-    claim_id: uuid.UUID, session: SessionDep, user: CurrentUser
-) -> None:
+async def cancel_token_refund(claim_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> None:
     await ledger.cancel_refund_request(session, user, claim_id)
 
 

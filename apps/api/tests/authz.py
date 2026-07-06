@@ -54,10 +54,76 @@ async def _token_refund_cancel(session: AsyncSession, owner: User) -> tuple[str,
     return f"/tokens/refund-requests/{claim.id}/cancel", None
 
 
+async def _quote_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.commerce import QuoteRequest, ShippingAddress
+
+    address = ShippingAddress(
+        user_id=owner.id,
+        recipient_name="r",
+        recipient_phone="01011112222",
+        postal_code="1",
+        address="a",
+        is_default=True,
+    )
+    session.add(address)
+    await session.flush()
+    quote = QuoteRequest(
+        user_id=owner.id,
+        quote_number=f"QUO-TEST-{owner.id.hex[:6]}",
+        shipping_address_id=address.id,
+        options={},
+        quantity=100,
+        contact_name="c",
+        contact_method="phone",
+        contact_value="01011112222",
+    )
+    session.add(quote)
+    await session.commit()
+    return f"/quotes/{quote.id}", None
+
+
+async def _inquiry_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.commerce import Inquiry
+
+    inquiry = Inquiry(user_id=owner.id, title="문의", content="내용")
+    session.add(inquiry)
+    await session.commit()
+    return f"/inquiries/{inquiry.id}", None
+
+
+async def _design_session_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.commit()
+    return f"/design/sessions/{design_session.id}", None
+
+
+async def _address_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.commerce import ShippingAddress
+
+    address = ShippingAddress(
+        user_id=owner.id,
+        recipient_name="r",
+        recipient_phone="01011112222",
+        postal_code="1",
+        address="a",
+        is_default=False,
+    )
+    session.add(address)
+    await session.commit()
+    return f"/users/me/addresses/{address.id}", None
+
+
 OWNER_CASES: list[OwnerCase] = [
     OwnerCase("orders_detail", "GET", _order_detail),
     OwnerCase("orders_confirm_purchase", "POST", _order_confirm_purchase),
     OwnerCase("token_refund_cancel", "POST", _token_refund_cancel),
+    OwnerCase("quotes_detail", "GET", _quote_detail),
+    OwnerCase("inquiries_detail", "GET", _inquiry_detail),
+    OwnerCase("design_session_detail", "GET", _design_session_detail),
+    OwnerCase("address_delete", "DELETE", _address_delete),
 ]
 
 ADMIN_CASES: list[AdminCase] = [
@@ -82,4 +148,8 @@ ADMIN_CASES: list[AdminCase] = [
             "info": "t",
         },
     ),
+    AdminCase("admin_claims_list", "GET", "/admin/claims"),
+    AdminCase("admin_quotes_list", "GET", "/admin/quotes"),
+    AdminCase("admin_stats_today", "GET", "/admin/stats/today?stat_date=2026-01-01"),
+    AdminCase("admin_users_list", "GET", "/admin/users"),
 ]
