@@ -1,0 +1,14 @@
+.git
+node_modules
+dist
+.turbo
+.venv
+__pycache__
+.env
+.env.*
+apps/store
+apps/admin
+packages
+infra
+docs
+.github

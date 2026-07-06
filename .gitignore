@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.turbo/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+.DS_Store
+.wrangler/
+.terraform/
+*.tfstate*
+*.tfvars
+!*.tfvars.example

@@ -1,0 +1,111 @@
+{
+ "intent_version": 1,
+ "canvas": {
+  "tile_mm": 48.0,
+  "dpi": 300
+ },
+ "seed": 20240,
+ "palette": {
+  "slots": [
+   {
+    "id": "ground",
+    "hex": "#103A40"
+   },
+   {
+    "id": "accent",
+    "hex": "#9CA084"
+   },
+   {
+    "id": "gold",
+    "hex": "#E0A93B"
+   },
+   {
+    "id": "ink",
+    "hex": "#1C140F"
+   },
+   {
+    "id": "teal",
+    "hex": "#1F9FAE"
+   },
+   {
+    "id": "plum",
+    "hex": "#C0445A"
+   },
+   {
+    "id": "sky",
+    "hex": "#3E6FA8"
+   },
+   {
+    "id": "leaf",
+    "hex": "#F0EEE6"
+   }
+  ]
+ },
+ "colorways": [
+  {
+   "id": "default",
+   "name": "default",
+   "mapping": {
+    "ground": "#103A40",
+    "accent": "#9CA084",
+    "gold": "#E0A93B",
+    "ink": "#1C140F",
+    "teal": "#1F9FAE",
+    "plum": "#C0445A",
+    "sky": "#3E6FA8",
+    "leaf": "#F0EEE6"
+   }
+  }
+ ],
+ "layers": [
+  {
+   "id": "ground",
+   "type": "background",
+   "z_order": 0,
+   "params": {
+    "color": "ground"
+   }
+  },
+  {
+   "id": "circle",
+   "type": "motif",
+   "z_order": 1,
+   "params": {
+    "motif_id": "recraft-508a8e471454",
+    "size_mm": 1.0,
+    "colors": {
+     "s0": "gold"
+    }
+   },
+   "placement": {
+    "type": "lattice",
+    "lattice": {
+     "cell_w_mm": 4,
+     "cell_h_mm": 4,
+     "drop_fraction": 0.5,
+     "drop_axis": "row"
+    }
+   }
+  },
+  {
+   "id": "bee",
+   "type": "motif",
+   "z_order": 2,
+   "params": {
+    "motif_id": "recraft-033b3870e911",
+    "size_mm": 4.6,
+    "colors": {
+     "s0": "leaf"
+    }
+   },
+   "placement": {
+    "type": "scatter",
+    "scatter": {
+     "mode": "poisson",
+     "min_dist_mm": 14,
+     "count": 7
+    }
+   }
+  }
+ ]
+}

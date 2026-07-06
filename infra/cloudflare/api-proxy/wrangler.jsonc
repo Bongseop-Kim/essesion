@@ -1,0 +1,10 @@
+{
+  "name": "essesion-api-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "vars": {
+    // tofu apply 후 Cloud Run api URL로 교체 (tofu output api_url)
+    "ORIGIN": "https://REPLACE-ME.run.app"
+  }
+  // 도메인 확정 후: "routes": [{ "pattern": "api.<domain>/*", "zone_name": "<domain>" }]
+}

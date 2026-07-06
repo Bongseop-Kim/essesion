@@ -1,0 +1,33 @@
+{
+ "warnings": [],
+ "candidates": [
+  {
+   "id": "f01fdab30e84e94f",
+   "layout_id": "8a7aaa006300",
+   "colorway_id": "default",
+   "seed": 20240,
+   "svg_file": "0.svg"
+  },
+  {
+   "id": "cd109b9abe3cea24",
+   "layout_id": "8a7aaa006300",
+   "colorway_id": "default",
+   "seed": 20241,
+   "svg_file": "1.svg"
+  },
+  {
+   "id": "e5e5340e08d67a7c",
+   "layout_id": "8a7aaa006300",
+   "colorway_id": "default",
+   "seed": 20242,
+   "svg_file": "2.svg"
+  },
+  {
+   "id": "f70efc6da0649dcd",
+   "layout_id": "8a7aaa006300",
+   "colorway_id": "default",
+   "seed": 20243,
+   "svg_file": "3.svg"
+  }
+ ]
+}

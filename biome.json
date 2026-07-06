@@ -1,0 +1,29 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!packages/api-client/src",
+      "!packages/api-client/openapi.json",
+      "!apps/worker/src/worker/assets",
+      "!apps/worker/src/worker/render/assets",
+      "!apps/worker/tests/golden",
+      "!apps/worker/tests/fixtures"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space"
+  },
+  "linter": {
+    "rules": {
+      "style": {
+        "noNonNullAssertion": "off"
+      }
+    }
+  }
+}

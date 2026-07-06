@@ -1,0 +1,15 @@
+# 로컬 개발용 Postgres + pgvector 하나만 — 에뮬레이터류 도입 금지 (ARCHITECTURE §4)
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: essesion
+      POSTGRES_PASSWORD: essesion
+      POSTGRES_DB: essesion
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

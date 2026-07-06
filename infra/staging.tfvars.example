@@ -1,0 +1,4 @@
+# cp staging.tfvars.example staging.tfvars 후 채우기 (tfvars는 gitignore)
+project_id      = "essesion-staging"
+billing_account = "XXXXXX-XXXXXX-XXXXXX"
+alert_email     = "bong0427@duegosystem.com"

@@ -1,0 +1,32 @@
+[project]
+name = "essesion-worker"
+version = "0.1.0"
+description = "이미지 생성 워커 — 한 코드베이스, generate/finalize 두 서비스로 배포 (ARCHITECTURE §2·§7)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "essesion-obs",
+    "essesion-db",
+    "pydantic-settings>=2.6",
+    "httpx>=0.28",
+    "google-cloud-storage>=2.18",
+    "pillow>=11",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv.sources]
+essesion-obs = { workspace = true }
+essesion-db = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/worker"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/worker/render/assets" = "worker/render/assets"
