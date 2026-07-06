@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     solapi_template_claim_rejected: str = ""
     solapi_template_quote_received: str = ""
     gcs_bucket: str = ""
+    worker_base_url: str = "http://localhost:8001"
+    worker_timeout_seconds: float = 180.0
+    worker_finalize_inline: bool = False
+    worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
+    design_finalize_budget: int = 10  # 세션당 finalize 상한 (worker-pipeline.md §5)
+    gcp_project_id: str = ""
+    gcp_region: str = "asia-northeast3"
+    cloud_tasks_queue: str = "finalize"
+    cloud_tasks_oidc_service_account: str = ""
+    worker_finalize_url: str = ""
 
     # Cloud Scheduler → /batch/* (4단계에서 OIDC 검증으로 교체)
     batch_token: str = "dev-batch-token"

@@ -49,14 +49,14 @@
 
 ## 4. worker
 
-- [ ] 엔진 재구현: compose/candidates/placement + 모티프 검색(pgvector)
-- [ ] resvg 인프로세스 래스터화 동등성 검증 → 실패 시 librsvg 서브프로세스 폴백
-- [ ] finalize 파이프라인 재설계(중간 산출물 재사용 — 4~5회 재실행 승계 금지) + export
-- [ ] **결정론 계약 대조 테스트**: 같은 intent+seed → byte-identical SVG (기존 seamless-tile 테스트 50+개 기준)
-- [ ] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터
-- [ ] GCS 연결(content-hash 키 + upsert)
+- [ ] 엔진 재구현: compose/candidates/placement + 모티프 검색(pgvector) — *compose/placement(4종)/seamless/validate/candidates 재작성 완료, 골든 25 intent를 계산으로 byte-identical 통과. pgvector motif resolver/store는 남음*
+- [ ] resvg 인프로세스 래스터화 동등성 검증 → 실패 시 librsvg 서브프로세스 폴백 — *librsvg(`rsvg-convert`) 서브프로세스 기준선 구현 + Dockerfile 설치 완료. resvg-py 판정은 남음*
+- [ ] finalize 파이프라인 재설계(중간 산출물 재사용 — 4~5회 재실행 승계 금지) + export — *export + deterministic plain render 완료. yarn_dyed texture/material_map 재설계는 남음*
+- [x] **결정론 계약 대조 테스트**: 같은 intent+seed → byte-identical SVG (기존 seamless-tile 테스트 50+개 기준) — *원본 엔진 재실행으로 추출한 골든 25종(+seed 변형·candidates 세트)을 엔진 계산으로 byte-identical 통과 + PYTHONHASHSEED 0/1/12345 교차. 원본 테스트 인벤토리 전체 이식은 후속*
+- [ ] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *응답/in-flight lock 없음, finalize 예산은 DB 조건부 UPDATE. 모티프는 인메모리 registry(테스트용) — DB store로 교체 남음, recraft 예산 경로는 Recraft 구현 시 확정*
+- [x] GCS 연결(content-hash 키 + upsert) — *worker object store(DryRun/GCS) + fabric content-hash key + preview upload key 구현*
 - [ ] 두 서비스 배포: worker-generate(동기 OIDC, 1vCPU/1GB) + worker-finalize(Cloud Tasks 푸시, 2vCPU/4GB, 동시성 1~2, dpi 상한 600)
-- [ ] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링/SSE), 세션 상태는 api 소유
+- [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링/SSE), 세션 상태는 api 소유 — *worker client + Cloud Tasks REST enqueue(DryRun fallback) + job polling. SSE는 미구현*
 
 ## 5. 프론트
 

@@ -89,4 +89,4 @@ print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회
 엔진: test_composition(2MB 캡), test_candidates(다양화), test_colorway, test_lattice, test_scatter, test_point_set, test_placement_path, test_wave, test_angle_snap, test_seamless, test_seamless_mvp(size>tile 거부), test_primitives, test_intent, test_render_svg, test_geometry, test_example_tile(오프라인 E2E).
 모티프·어댑터: test_motif_gate, test_motif_facets, test_motif_resolver, test_motif_pool, test_motif_store(+_pg, live opt-in), test_recraft_client/gate/intake, test_embedding, test_gemini_retry, test_adapters, test_multi_image_chat, test_multicolor, test_retrieval_eval(τ 보정).
 API·기타: test_api_generate(슬림 계약·캐시·오류 매핑), test_api_export, test_sanitize, test_health, test_config. (세션 3종 — test_sessions/test_session_persistence/test_time_travel — 은 미승계 범위.)
-픽스처: tests/fixtures/recraft_samples/*.svg 8개, motif_eval/{embeddings,labelset}.json — 재구현 레포로 복사해 대조에 사용.
+픽스처: tests/fixtures/recraft_samples/*.svg 3개(pig face flat, honeybee top, pelican bicycle side — 재구현 결정: 원본 8종 대신 원하는 스타일의 커스텀 샘플로 교체), motif_eval/{embeddings,labelset}.json — 재구현 레포로 복사해 대조에 사용.

@@ -1,0 +1,95 @@
+{
+ "intent_version": 1,
+ "canvas": {
+  "tile_mm": 48.0,
+  "dpi": 300
+ },
+ "seed": 20240,
+ "palette": {
+  "slots": [
+   {
+    "id": "ground",
+    "hex": "#103A40"
+   },
+   {
+    "id": "accent",
+    "hex": "#9CA084"
+   },
+   {
+    "id": "gold",
+    "hex": "#E0A93B"
+   },
+   {
+    "id": "ink",
+    "hex": "#1C140F"
+   },
+   {
+    "id": "teal",
+    "hex": "#1F9FAE"
+   },
+   {
+    "id": "plum",
+    "hex": "#C0445A"
+   },
+   {
+    "id": "sky",
+    "hex": "#3E6FA8"
+   },
+   {
+    "id": "leaf",
+    "hex": "#F0EEE6"
+   }
+  ]
+ },
+ "colorways": [
+  {
+   "id": "default",
+   "name": "default",
+   "mapping": {
+    "ground": "#103A40",
+    "accent": "#9CA084",
+    "gold": "#E0A93B",
+    "ink": "#1C140F",
+    "teal": "#1F9FAE",
+    "plum": "#C0445A",
+    "sky": "#3E6FA8",
+    "leaf": "#F0EEE6"
+   }
+  }
+ ],
+ "layers": [
+  {
+   "id": "ground",
+   "type": "background",
+   "z_order": 0,
+   "params": {
+    "color": "ground"
+   }
+  },
+  {
+   "id": "motif",
+   "type": "motif",
+   "z_order": 2,
+   "params": {
+    "motif_id": "recraft-832977800421",
+    "size_mm": 14.0,
+    "colors": {
+     "s0": "ink",
+     "s1": "leaf",
+     "s2": "gold",
+     "s3": "sky",
+     "s4": "plum",
+     "s5": "leaf"
+    }
+   },
+   "placement": {
+    "type": "scatter",
+    "scatter": {
+     "mode": "sateen",
+     "sateen_n": 5,
+     "sateen_step": 2
+    }
+   }
+  }
+ ]
+}

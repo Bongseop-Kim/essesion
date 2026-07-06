@@ -1,0 +1,86 @@
+{
+ "intent_version": 1,
+ "canvas": {
+  "tile_mm": 48.0,
+  "dpi": 300
+ },
+ "seed": 20240,
+ "palette": {
+  "slots": [
+   {
+    "id": "ground",
+    "hex": "#103A40"
+   },
+   {
+    "id": "accent",
+    "hex": "#9CA084"
+   },
+   {
+    "id": "gold",
+    "hex": "#E0A93B"
+   },
+   {
+    "id": "ink",
+    "hex": "#1C140F"
+   },
+   {
+    "id": "teal",
+    "hex": "#1F9FAE"
+   },
+   {
+    "id": "plum",
+    "hex": "#C0445A"
+   },
+   {
+    "id": "sky",
+    "hex": "#3E6FA8"
+   },
+   {
+    "id": "leaf",
+    "hex": "#F0EEE6"
+   }
+  ]
+ },
+ "colorways": [
+  {
+   "id": "default",
+   "name": "default",
+   "mapping": {
+    "ground": "#103A40",
+    "accent": "#9CA084",
+    "gold": "#E0A93B",
+    "ink": "#1C140F",
+    "teal": "#1F9FAE",
+    "plum": "#C0445A",
+    "sky": "#3E6FA8",
+    "leaf": "#F0EEE6"
+   }
+  }
+ ],
+ "layers": [
+  {
+   "id": "ground",
+   "type": "background",
+   "z_order": 0,
+   "params": {
+    "color": "ground"
+   }
+  },
+  {
+   "id": "stripe",
+   "type": "stripe",
+   "z_order": 1,
+   "params": {
+    "angle": -45,
+    "period_mm": 33.941125,
+    "bands": [
+     {
+      "offset_mm": 0,
+      "width_mm": 24,
+      "color": "accent"
+     }
+    ]
+   }
+  }
+ ]
+}

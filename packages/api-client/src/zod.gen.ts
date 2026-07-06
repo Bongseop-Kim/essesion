@@ -269,6 +269,18 @@ export const zCustomAmountResponse = z.object({
 });
 
 /**
+ * DesignGenerateRequest
+ */
+export const zDesignGenerateRequest = z.object({
+    candidate_count: z.int().optional().default(1),
+    colorway: z.string().nullish(),
+    intent: z.record(z.string(), z.unknown()).nullish(),
+    prompt: z.string().nullish(),
+    seed: z.int().nullish(),
+    session_id: z.uuid().nullish()
+});
+
+/**
  * DesignSessionOut
  */
 export const zDesignSessionOut = z.object({
@@ -310,6 +322,33 @@ export const zDesignTurnOut = z.object({
     payload: z.record(z.string(), z.unknown()),
     role: z.string(),
     seq: z.int()
+});
+
+/**
+ * FinalizeRequest
+ */
+export const zFinalizeRequest = z.object({
+    colorway_id: z.string().nullish(),
+    dpi: z.int().nullish(),
+    intent: z.record(z.string(), z.unknown()).nullish(),
+    production_method: z.string().nullish()
+});
+
+/**
+ * GenerationJobOut
+ */
+export const zGenerationJobOut = z.object({
+    attempts: z.int(),
+    created_at: z.iso.datetime(),
+    error_message: z.string().nullable(),
+    id: z.uuid(),
+    kind: z.string(),
+    params: z.record(z.string(), z.unknown()),
+    request_id: z.string().nullable(),
+    result: z.record(z.string(), z.unknown()).nullable(),
+    session_id: z.uuid().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
 });
 
 /**
@@ -1021,6 +1060,31 @@ export const zWebhookResult = z.object({
 });
 
 /**
+ * WorkerCandidateOut
+ */
+export const zWorkerCandidateOut = z.object({
+    colorway_id: z.string(),
+    design_index: z.int(),
+    id: z.string(),
+    layout_id: z.string(),
+    png_object_key: z.string().nullable(),
+    seed: z.int(),
+    source_fidelity: z.string(),
+    svg: z.string()
+});
+
+/**
+ * DesignGenerateOut
+ */
+export const zDesignGenerateOut = z.object({
+    candidates: z.array(zWorkerCandidateOut),
+    engine_version: z.string(),
+    registry_version: z.string(),
+    request_id: z.string(),
+    warnings: z.array(z.string()).optional().default([])
+});
+
+/**
  * Response Admin List Claims
  *
  * Successful Response
@@ -1362,6 +1426,22 @@ export const zListMyCouponsQuery = z.object({
  */
 export const zListMyCouponsResponse = z.array(zUserCouponOut);
 
+export const zGenerateDesignBody = zDesignGenerateRequest;
+
+/**
+ * Successful Response
+ */
+export const zGenerateDesignResponse = zDesignGenerateOut;
+
+export const zGetGenerationJobPath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetGenerationJobResponse = zGenerationJobOut;
+
 /**
  * Response List Design Sessions
  *
@@ -1393,6 +1473,17 @@ export const zUpdateDesignSessionPath = z.object({
  * Successful Response
  */
 export const zUpdateDesignSessionResponse = zDesignSessionOut;
+
+export const zCreateFinalizeJobBody = zFinalizeRequest;
+
+export const zCreateFinalizeJobPath = z.object({
+    session_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateFinalizeJobResponse = zGenerationJobOut;
 
 export const zListDesignTurnsPath = z.object({
     session_id: z.uuid()

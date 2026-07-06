@@ -9,7 +9,11 @@
     "includes": [
       "**",
       "!packages/api-client/src",
-      "!packages/api-client/openapi.json"
+      "!packages/api-client/openapi.json",
+      "!apps/worker/src/worker/assets",
+      "!apps/worker/src/worker/render/assets",
+      "!apps/worker/tests/golden",
+      "!apps/worker/tests/fixtures"
     ]
   },
   "formatter": {

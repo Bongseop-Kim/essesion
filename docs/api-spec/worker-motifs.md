@@ -28,17 +28,17 @@ motif_id = "recraft-" + sha256(geometry.encode()).hexdigest()[:12]
 - base `https://external.api.recraft.ai/v1`; generate `POST /images/generations`, vectorize `POST /images/vectorize`(multipart png). 헤더 `Authorization: Bearer {key}`. 타임아웃 **120s**. HTTP 재시도 없음.
 - generate payload: `{prompt, model: "recraftv4_1_vector", response_format: "url"|"b64_json", n: 1, size: "1024x1024"}` — style은 빈 문자열이면 **생략**(substyle 파라미터 없음).
 - 응답: url이면 별도 GET으로 SVG 다운로드. `<svg` 미포함이면 오류.
-- **프롬프트 원문**(spec dict → 개행 join):
+- **프롬프트**(spec dict → 개행 join — 재구현 결정 반영, 아래 gradient 항 참조):
 ```
 Draw ONE single, isolated object as one inline SVG. Output ONLY the SVG markup — no markdown, no prose, no <?xml?> prolog.
 CRITICAL: exactly ONE centered subject that FILLS the frame. It must NOT be a pattern, NOT repeated, NOT scattered or tiled, NOT a scene, collage or grid.
 NO background: do not draw any background rectangle, border or backdrop — the object sits on a transparent canvas.
-The root <svg> MUST have a viewBox. Multiple solid colors are allowed; use flat vector <path>/<g> shapes with solid fills. Avoid raster <image>, <text>, gradients and filters (they get flattened).
+The root <svg> MUST have a viewBox. Multiple solid colors are allowed; use flat vector <path>/<g> shapes with solid fills. Do NOT use raster <image>, <text>, gradients or filters.
 subject: {subject}
 scope: {scope}
 ```
   + view/expression/style/description 존재 시 `{key}: {value}` append. 게이트 실패 재프롬프트(1회만): `"Your previous SVG was rejected. Fix exactly these:\n- {error}"`.
-- **적합성 게이트/평탄화**: gradient→첫 stop 색, rgb()→#hex, style 속성 페인트 hoist, 비허용 속성 drop, filter/clipPath/mask/gradient defs/text·메타 drop, **전면 배경 도형 제거**(선두 filled shape 면적 ≥ viewBox 90%, 최소 1 drawable 유지), raster image → 오류. 깨끗한 SVG는 무변경 반환(id 계약 유지). 게이트 2회 실패 → RecraftError(502).
+- **적합성 게이트/정리**: gradient 사용은 변환하지 않고 오류(재프롬프트 1회), rgb()→#hex, style 속성 페인트 hoist, 비허용 속성 drop, filter/clipPath/mask/text·메타 drop, **전면 배경 도형 제거**(선두 filled shape 면적 ≥ viewBox 90%, 최소 1 drawable 유지), raster image → 오류. 깨끗한 SVG는 무변경 반환(id 계약 유지). 게이트 2회 실패 → RecraftError(502). (재구현 결정: 원본은 gradient를 첫 stop 색으로 평탄화하고 gradient defs를 drop — gradient 미사용 방침에 따라 평탄화 대신 오류로 대체, 프롬프트도 "Avoid ... (they get flattened)"에서 "Do NOT use ..." 금지형으로 조정.)
 - vectorize: 재프롬프트 없음(이미지 고정), 실패 시 해당 layer만 drop+경고. 입력 한도: 5MB/256~4096px/16M픽셀.
 - 캐시(결정론 freeze): spec canonical → motif_id, 이미지 sha256 → motif_id. (재구현: 프로세스-로컬 캐시 미승계 — content-hash id + DB upsert가 같은 멱등성 제공.)
 

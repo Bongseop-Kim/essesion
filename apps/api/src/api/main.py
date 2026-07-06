@@ -13,7 +13,9 @@ from api.domains.auth.oauth import build_oauth
 from api.errors import register_error_handlers
 from api.integrations.gcs import build_gcs_client
 from api.integrations.solapi import build_solapi_client
+from api.integrations.tasks import build_task_queue
 from api.integrations.toss import build_toss_client
+from api.integrations.worker import build_worker_client
 
 init_observability("api")
 
@@ -34,7 +36,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.toss = build_toss_client(settings)
         app.state.solapi = build_solapi_client(settings)
         app.state.gcs = build_gcs_client(settings)
+        app.state.worker = build_worker_client(settings)
+        app.state.tasks = build_task_queue(settings)
         yield
+        await app.state.worker.aclose()
         await app.state.toss.aclose()
         await engine.dispose()
 

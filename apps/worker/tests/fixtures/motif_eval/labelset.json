@@ -1,0 +1,241 @@
+{
+  "comment": "S19 motif-retrieval labelset. expected = motif id | [ids] | \"generate\".",
+  "corpus": [
+    {"id": "corpus-flower-5petal", "subject": "flower", "scope": "whole", "style": "flat", "description": "five-petal flower, flat"},
+    {"id": "corpus-flower-4petal", "subject": "flower", "scope": "whole", "style": "flat", "description": "four-petal flower, flat"},
+    {"id": "corpus-flower-6petal", "subject": "flower", "scope": "whole", "style": "flat", "description": "six-petal flower, flat"},
+    {"id": "corpus-leaf-pointed", "subject": "leaf", "scope": "whole", "style": "flat", "description": "pointed leaf, flat"},
+    {"id": "corpus-leaf-rounded", "subject": "leaf", "scope": "whole", "style": "flat", "description": "rounded leaf, flat"},
+    {"id": "corpus-star", "subject": "star", "scope": "whole", "style": "flat", "description": "five-pointed star, flat"},
+    {"id": "corpus-heart", "subject": "heart", "scope": "whole", "style": "flat", "description": "heart shape, flat"},
+    {"id": "corpus-butterfly", "subject": "butterfly", "scope": "whole", "style": "flat", "description": "butterfly with symmetrical wings, flat"},
+    {"id": "corpus-strawberry", "subject": "strawberry", "scope": "whole", "style": "flat", "description": "strawberry with seeds, flat"},
+    {"id": "corpus-cloud", "subject": "cloud", "scope": "whole", "style": "flat", "description": "fluffy cloud, flat"},
+    {"id": "corpus-sun", "subject": "sun", "scope": "whole", "style": "flat", "description": "sun with rays, flat"},
+    {"id": "corpus-bird", "subject": "bird", "scope": "whole", "style": "flat", "description": "bird in flight, flat"},
+    {"id": "corpus-fish", "subject": "fish", "scope": "whole", "style": "flat", "description": "fish silhouette, flat"},
+    {"id": "corpus-wave", "subject": "geometric wave", "scope": "whole", "style": "flat", "description": "geometric wave, flat"},
+    {"id": "corpus-polka-dot", "subject": "polka dot", "scope": "whole", "style": "flat", "description": "polka dot circle, flat"},
+    {"id": "corpus-cat-face", "subject": "cat", "scope": "partial", "style": "flat", "description": "cat face, flat"},
+    {"id": "corpus-giraffe-leg", "subject": "giraffe", "scope": "partial", "style": "flat", "description": "giraffe leg, flat"},
+    {"id": "corpus-flower-petal", "subject": "flower", "scope": "partial", "style": "flat", "description": "flower petal close-up, flat"}
+  ],
+  "queries": [
+    {
+      "name": "exact-flower-5petal",
+      "spec": {"subject": "flower", "scope": "whole", "style": "flat", "description": "five-petal flower, flat"},
+      "expected": "corpus-flower-5petal",
+      "category": "exact"
+    },
+    {
+      "name": "exact-star",
+      "spec": {"subject": "star", "scope": "whole", "style": "flat", "description": "five-pointed star, flat"},
+      "expected": "corpus-star",
+      "category": "exact"
+    },
+    {
+      "name": "exact-cat-face",
+      "spec": {"subject": "cat", "scope": "partial", "style": "flat", "description": "cat face, flat"},
+      "expected": "corpus-cat-face",
+      "category": "exact"
+    },
+    {
+      "name": "exact-leaf-rounded",
+      "spec": {"subject": "leaf", "scope": "whole", "style": "flat", "description": "rounded leaf, flat"},
+      "expected": "corpus-leaf-rounded",
+      "category": "exact"
+    },
+    {
+      "name": "paraphrase-flower-daisy",
+      "spec": {"subject": "flower", "scope": "whole", "description": "simple daisy blossom, flat"},
+      "expected": ["corpus-flower-5petal", "corpus-flower-4petal", "corpus-flower-6petal"],
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-flower-5petal",
+      "spec": {"subject": "flower", "scope": "whole", "description": "flower with five round petals, flat"},
+      "expected": "corpus-flower-5petal",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-cloud",
+      "spec": {"subject": "cloud", "scope": "whole", "description": "fluffy white cloud in the sky, flat"},
+      "expected": "corpus-cloud",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-butterfly",
+      "spec": {"subject": "butterfly", "scope": "whole", "description": "small orange butterfly with spotted wings, flat"},
+      "expected": "corpus-butterfly",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-star",
+      "spec": {"subject": "star", "scope": "whole", "description": "a five-point star shape, flat"},
+      "expected": "corpus-star",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-heart",
+      "spec": {"subject": "heart", "scope": "whole", "description": "cute simple heart icon, flat"},
+      "expected": "corpus-heart",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-leaf-pointed",
+      "spec": {"subject": "leaf", "scope": "whole", "description": "sharp pointed tree leaf, flat"},
+      "expected": "corpus-leaf-pointed",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-leaf-rounded",
+      "spec": {"subject": "leaf", "scope": "whole", "description": "soft rounded leaf shape, flat"},
+      "expected": "corpus-leaf-rounded",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-strawberry",
+      "spec": {"subject": "strawberry", "scope": "whole", "description": "ripe red strawberry with tiny seeds, flat"},
+      "expected": "corpus-strawberry",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-sun",
+      "spec": {"subject": "sun", "scope": "whole", "description": "bright sun with rays shining out, flat"},
+      "expected": "corpus-sun",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-bird",
+      "spec": {"subject": "bird", "scope": "whole", "description": "tiny bird silhouette flying, flat"},
+      "expected": "corpus-bird",
+      "category": "paraphrase"
+    },
+    {
+      "name": "paraphrase-cat-face",
+      "spec": {"subject": "cat", "scope": "partial", "description": "face of a cat, flat"},
+      "expected": "corpus-cat-face",
+      "category": "paraphrase"
+    },
+    {
+      "name": "near-wilted-flower",
+      "spec": {"subject": "flower", "scope": "whole", "description": "wilted dead flower, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-rose-thorny",
+      "spec": {"subject": "rose", "scope": "whole", "description": "rose with layered thorny stem, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-maple-leaf",
+      "spec": {"subject": "leaf", "scope": "whole", "description": "maple leaf with jagged lobes, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-dog-face",
+      "spec": {"subject": "dog", "scope": "partial", "description": "dog face, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-giraffe-neck",
+      "spec": {"subject": "giraffe", "scope": "partial", "description": "giraffe neck, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-shooting-star",
+      "spec": {"subject": "star", "scope": "whole", "description": "shooting star with long trail, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-orchid",
+      "spec": {"subject": "flower", "scope": "whole", "description": "exotic orchid flower with spiky petals, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-thunder-cloud",
+      "spec": {"subject": "cloud", "scope": "whole", "description": "dark thunderstorm cloud with lightning, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-crescent-moon",
+      "spec": {"subject": "moon", "scope": "whole", "description": "crescent moon shape, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "near-eagle-face",
+      "spec": {"subject": "eagle", "scope": "partial", "description": "eagle face with sharp beak, flat"},
+      "expected": "generate",
+      "category": "near-miss"
+    },
+    {
+      "name": "offcorpus-rocket-ship",
+      "spec": {"subject": "rocket ship", "scope": "whole", "description": "rocket ship, flat"},
+      "expected": "generate",
+      "category": "off-corpus"
+    },
+    {
+      "name": "offcorpus-coffee-cup",
+      "spec": {"subject": "coffee cup", "scope": "whole", "description": "coffee cup, flat"},
+      "expected": "generate",
+      "category": "off-corpus"
+    },
+    {
+      "name": "offcorpus-snowflake",
+      "spec": {"subject": "snowflake", "scope": "whole", "description": "snowflake, flat"},
+      "expected": "generate",
+      "category": "off-corpus"
+    },
+    {
+      "name": "offcorpus-electric-guitar",
+      "spec": {"subject": "electric guitar", "scope": "whole", "description": "electric guitar, flat"},
+      "expected": "generate",
+      "category": "off-corpus"
+    },
+    {
+      "name": "offcorpus-lighthouse",
+      "spec": {"subject": "lighthouse", "scope": "whole", "description": "lighthouse, flat"},
+      "expected": "generate",
+      "category": "off-corpus"
+    },
+    {
+      "name": "offcorpus-cactus",
+      "spec": {"subject": "cactus", "scope": "whole", "description": "cactus, flat"},
+      "expected": "generate",
+      "category": "off-corpus"
+    },
+    {
+      "name": "cross-butterfly-wing-partial",
+      "spec": {"subject": "butterfly", "scope": "partial", "description": "butterfly wing pattern, flat"},
+      "expected": "generate",
+      "category": "cross-scope"
+    },
+    {
+      "name": "cross-strawberry-partial",
+      "spec": {"subject": "strawberry", "scope": "partial", "description": "strawberry, flat"},
+      "expected": "generate",
+      "category": "cross-scope"
+    },
+    {
+      "name": "cross-star-closeup-partial",
+      "spec": {"subject": "star", "scope": "partial", "description": "star shape close-up, flat"},
+      "expected": "generate",
+      "category": "cross-scope"
+    },
+    {
+      "name": "cross-cat-whole-body",
+      "spec": {"subject": "cat", "scope": "whole", "description": "cat whole body, flat"},
+      "expected": "generate",
+      "category": "cross-scope"
+    }
+  ]
+}

@@ -31,7 +31,7 @@ apps/worker/src/worker/
 **0. 골든 확정** — 재구현의 채점표를 먼저 만든다.
 - 원본 레포에 uv 임시 venv를 만들어 gallery/json 25세트를 엔진에 재실행 → gallery/svg와 바이트 비교로 **골든 최신성 검증**(stale이면 재추출본을 골든으로).
 - seed 변형(0/1/12345)·colorway 변형·candidates(count=4) 산출물 골든 추가 추출(결정론 축 커버).
-- `apps/worker/tests/golden/`에 intent JSON + SVG 커밋, `tests/fixtures/`(recraft_samples 8종, motif_eval)를 복사.
+- `apps/worker/tests/golden/`에 intent JSON + SVG 커밋, `tests/fixtures/`(recraft_samples 3종: pig face flat, honeybee top, pelican bicycle side, motif_eval)를 복사.
 
 **1. worker 플러밍** — config(스펙 설정값 전부, 기본값으로 임포트 가능), db.py, 의존성 추가, obs 승계 확인. 테스트 conftest(migrated_postgres 재사용).
 
@@ -42,7 +42,7 @@ apps/worker/src/worker/
 
 **4. 모티프 계층** — geometry(bbox 파서) → registry(정규화 파이프라인·content-hash·slot 심볼 파생) → store(motifs 테이블, SQLAlchemy async — 원본 psycopg 동기에서 스택 통일) → facets/variant_group → fingerprint(epoch 메모) → glyphs(텍스트-as-모티프). recraft_samples 픽스처로 정규화·해시 일치 검증(원본과 같은 입력 → 같은 motif_id), store는 실DB 테스트.
 
-**5. 어댑터** — image 전처리 → gemini(JSON mode·백오프·designs 파싱, 프롬프트는 스펙 원문) → recraft(게이트·평탄화·재프롬프트 1회) → embedding(τ 텍스트 규칙) → resolver(래더: exact→hard filter→τ→generate). respx로 외부 API 목킹, 키 없으면 해당 어댑터만 비활성(intent-direct 경로는 키 없이 동작 — 테스트 전제).
+**5. 어댑터** — image 전처리 → gemini(JSON mode·백오프·designs 파싱, 프롬프트는 스펙 원문) → recraft(게이트·정리·재프롬프트 1회, gradient 변환 없음) → embedding(τ 텍스트 규칙) → resolver(래더: exact→hard filter→τ→generate). respx로 외부 API 목킹, 키 없으면 해당 어댑터만 비활성(intent-direct 경로는 키 없이 동작 — 테스트 전제).
 
 **6. 래스터 + resvg 동등성 판정** — rsvg-convert 서브프로세스 구현(기준선, 원본 플래그 그대로) → resvg-py 인프로세스 구현 → **판정 하네스**: 골든 SVG 25세트를 두 렌더러로 150/300dpi 래스터, 픽셀 완전 일치면 resvg 채택, 불일치면 librsvg 폴백 확정(+Dockerfile에 librsvg·판정 결과를 이 문서에 기록). mm_to_px·20,000px 캡·DPI 스탬프 재현.
 
@@ -73,7 +73,17 @@ apps/worker/src/worker/
 ## 검증 (완료 판정)
 
 - 골든 25세트(+seed/colorway/candidates 변형) 바이트 일치, PYTHONHASHSEED 교차 일치.
-- recraft_samples 8종 정규화 결과·motif_id가 원본과 일치.
+- recraft_samples 3종 정규화 결과·motif_id가 원본과 일치.
 - fabric 픽셀 결정론 + seam 임계 + 렌더 호출 수 감소.
 - stateless 확인: 프로세스-로컬 캐시·락 없음(코드 리뷰 항목), 예산은 DB 카운터.
 - 스테이징: api 경유 generate 동기 호출(OIDC) + finalize Cloud Tasks 왕복 + GCS 산출물 확인.
+
+## 진행 기록 — 2026-07-06
+
+- 완료(리뷰 후 재작업): 골든을 원본 엔진 직접 실행으로 재추출 — resolved intent JSON 25종 + 원시 `generate()` SVG 25종(+seed 1/12345 변형) + candidates 세트(4종) + motifs.json. 기존 gallery SVG는 DISPLAY_SCALE=4가 섞인 오염본이라 폐기.
+- 완료(리뷰 후 재작업): 엔진에서 골든 룩업 경로 제거, compose/placement(4종)/seamless/validate/candidates를 원본 알고리즘대로 재작성 — 골든 25종·seed 변형·candidates(id/warnings/svg)까지 전부 **계산으로** byte-identical 통과(31+개 테스트), PYTHONHASHSEED 0/1/12345 교차 일치.
+- 완료: `apps/worker`에 config/db/API 라우트, `rsvg-convert` 래스터 기준선(+resvg 폴백), export(scrub 경유), finalize task handler(처리중 상태 커밋 후 렌더·완료는 새 트랜잭션), GCS/DryRun object store. 미구현 경로(prompt→intent, /motifs/*, yarn_dyed)는 가짜 200 대신 501/명시적 오류.
+- 완료: api design 라우터에 worker `/generate` 동기 호출, finalize job 생성·조회(예산은 settings `design_finalize_budget` + 조건부 UPDATE로 원자 차감), Cloud Tasks REST enqueue(DryRun fallback), worker 클라이언트 OIDC id-token(메타데이터 서버, audience 설정 시) 연결.
+- 결정: recraft_samples는 원본 8종 대신 커스텀 3종(pig face flat, honeybee top, pelican bicycle side)으로 교체, gradient는 평탄화 없이 오류 처리(미사용 방침) — worker-motifs.md/worker-pipeline.md에 주석.
+- 판정: resvg-py 채택은 아직 미판정. 컨테이너는 우선 `librsvg2-bin` 폴백으로 고정.
+- 남음: pgvector motif resolver/store, Recraft/Gemini/OpenAI adapters, yarn_dyed fabric texture/material_map 재설계, 스테이징 `tofu apply` 후 실제 OIDC/Cloud Tasks/GCS 왕복 검증.

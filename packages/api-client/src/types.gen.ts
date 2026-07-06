@@ -728,6 +728,64 @@ export type CustomOrderCreateRequest = {
 };
 
 /**
+ * DesignGenerateOut
+ */
+export type DesignGenerateOut = {
+    /**
+     * Candidates
+     */
+    candidates: Array<WorkerCandidateOut>;
+    /**
+     * Engine Version
+     */
+    engine_version: string;
+    /**
+     * Registry Version
+     */
+    registry_version: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Warnings
+     */
+    warnings?: Array<string>;
+};
+
+/**
+ * DesignGenerateRequest
+ */
+export type DesignGenerateRequest = {
+    /**
+     * Candidate Count
+     */
+    candidate_count?: number;
+    /**
+     * Colorway
+     */
+    colorway?: string | null;
+    /**
+     * Intent
+     */
+    intent?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Prompt
+     */
+    prompt?: string | null;
+    /**
+     * Seed
+     */
+    seed?: number | null;
+    /**
+     * Session Id
+     */
+    session_id?: string | null;
+};
+
+/**
  * DesignSessionOut
  */
 export type DesignSessionOut = {
@@ -837,6 +895,84 @@ export type DesignTurnOut = {
      * Seq
      */
     seq: number;
+};
+
+/**
+ * FinalizeRequest
+ */
+export type FinalizeRequest = {
+    /**
+     * Colorway Id
+     */
+    colorway_id?: string | null;
+    /**
+     * Dpi
+     */
+    dpi?: number | null;
+    /**
+     * Intent
+     */
+    intent?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Production Method
+     */
+    production_method?: string | null;
+};
+
+/**
+ * GenerationJobOut
+ */
+export type GenerationJobOut = {
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Error Message
+     */
+    error_message: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: string;
+    /**
+     * Params
+     */
+    params: {
+        [key: string]: unknown;
+    };
+    /**
+     * Request Id
+     */
+    request_id: string | null;
+    /**
+     * Result
+     */
+    result: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Session Id
+     */
+    session_id: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
 };
 
 /**
@@ -2224,6 +2360,44 @@ export type WebhookResult = {
     reason?: string | null;
 };
 
+/**
+ * WorkerCandidateOut
+ */
+export type WorkerCandidateOut = {
+    /**
+     * Colorway Id
+     */
+    colorway_id: string;
+    /**
+     * Design Index
+     */
+    design_index: number;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Layout Id
+     */
+    layout_id: string;
+    /**
+     * Png Object Key
+     */
+    png_object_key: string | null;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Source Fidelity
+     */
+    source_fidelity: string;
+    /**
+     * Svg
+     */
+    svg: string;
+};
+
 export type AdminListClaimsData = {
     body?: never;
     path?: never;
@@ -3179,6 +3353,61 @@ export type ListMyCouponsResponses = {
 
 export type ListMyCouponsResponse = ListMyCouponsResponses[keyof ListMyCouponsResponses];
 
+export type GenerateDesignData = {
+    body: DesignGenerateRequest;
+    path?: never;
+    query?: never;
+    url: '/design/generate';
+};
+
+export type GenerateDesignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GenerateDesignError = GenerateDesignErrors[keyof GenerateDesignErrors];
+
+export type GenerateDesignResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignGenerateOut;
+};
+
+export type GenerateDesignResponse = GenerateDesignResponses[keyof GenerateDesignResponses];
+
+export type GetGenerationJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/design/jobs/{job_id}';
+};
+
+export type GetGenerationJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetGenerationJobError = GetGenerationJobErrors[keyof GetGenerationJobErrors];
+
+export type GetGenerationJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: GenerationJobOut;
+};
+
+export type GetGenerationJobResponse = GetGenerationJobResponses[keyof GetGenerationJobResponses];
+
 export type ListDesignSessionsData = {
     body?: never;
     path?: never;
@@ -3272,6 +3501,36 @@ export type UpdateDesignSessionResponses = {
 };
 
 export type UpdateDesignSessionResponse = UpdateDesignSessionResponses[keyof UpdateDesignSessionResponses];
+
+export type CreateFinalizeJobData = {
+    body: FinalizeRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/finalize';
+};
+
+export type CreateFinalizeJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateFinalizeJobError = CreateFinalizeJobErrors[keyof CreateFinalizeJobErrors];
+
+export type CreateFinalizeJobResponses = {
+    /**
+     * Successful Response
+     */
+    201: GenerationJobOut;
+};
+
+export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
 
 export type ListDesignTurnsData = {
     body?: never;
