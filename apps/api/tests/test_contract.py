@@ -26,6 +26,10 @@ async def api_schema(app, db_session, settings):
 
 
 @schema.parametrize()
-@hypothesis_settings(max_examples=3, deadline=None, suppress_health_check=list(HealthCheck))
+@hypothesis_settings(
+    max_examples=3,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
+)
 def test_api_contract(case):
     case.call_and_validate(headers=_auth_headers, checks=(not_a_server_error,))
