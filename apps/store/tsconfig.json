@@ -1,0 +1,4 @@
+{
+  "extends": "@essesion/tsconfig/base.json",
+  "include": ["src", "vite.config.ts"]
+}

@@ -1,0 +1,61 @@
+# 스테이징 배포 — 선행: tofu apply(infra/README.md) + GitHub vars/secrets 설정
+# vars: GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_DEPLOYER_SA, CLOUDFLARE_ACCOUNT_ID
+# secrets: CLOUDFLARE_API_TOKEN
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # WIF — 키 파일 없음
+
+concurrency: deploy-${{ github.ref }}
+
+jobs:
+  backend:
+    if: vars.GCP_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    env:
+      REGION: ${{ vars.GCP_REGION }}
+      IMAGE_BASE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/essesion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+      - name: Build and push images
+        run: |
+          docker build -t "$IMAGE_BASE/api:$GITHUB_SHA" --build-arg APP=api .
+          docker build -t "$IMAGE_BASE/worker:$GITHUB_SHA" --build-arg APP=worker .
+          docker push "$IMAGE_BASE/api:$GITHUB_SHA"
+          docker push "$IMAGE_BASE/worker:$GITHUB_SHA"
+      - name: Deploy Cloud Run
+        run: |
+          gcloud run deploy api --region "$REGION" --image "$IMAGE_BASE/api:$GITHUB_SHA"
+          gcloud run deploy worker-generate --region "$REGION" --image "$IMAGE_BASE/worker:$GITHUB_SHA"
+          gcloud run deploy worker-finalize --region "$REGION" --image "$IMAGE_BASE/worker:$GITHUB_SHA"
+
+  frontend:
+    if: vars.CLOUDFLARE_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo build
+      - run: pnpm -C apps/store exec wrangler deploy
+      - run: pnpm -C apps/admin exec wrangler deploy
+      - run: pnpm -C infra/cloudflare/api-proxy exec wrangler deploy

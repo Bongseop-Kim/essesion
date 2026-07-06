@@ -1,0 +1,10 @@
+// Cloudflare Workers 정적 자산 배포 (ARCHITECTURE §2 — Pages 아님)
+{
+  "name": "essesion-admin",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+  // 도메인 확정 후: "routes": [{ "pattern": "admin.<domain>", "custom_domain": true }]
+}

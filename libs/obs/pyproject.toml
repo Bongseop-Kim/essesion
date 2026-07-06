@@ -1,0 +1,13 @@
+[project]
+name = "essesion-obs"
+version = "0.1.0"
+description = "공용 관측 골격: JSON 구조화 로깅 + request_id 전파 + Sentry"
+requires-python = ">=3.13"
+dependencies = ["sentry-sdk>=2"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/obs"]

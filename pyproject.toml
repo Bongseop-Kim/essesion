@@ -1,0 +1,22 @@
+# uv workspace 루트 (virtual) — apps/api·worker + 공용 libs/ (ARCHITECTURE §4)
+[tool.uv.workspace]
+members = ["apps/api", "apps/worker", "libs/*"]
+
+[dependency-groups]
+dev = ["ruff>=0.12", "pyright>=1.1.400", "pytest>=8"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pyright]
+include = ["apps", "libs"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
+
+[tool.pytest.ini_options]
+testpaths = ["apps", "libs"]
+addopts = "--import-mode=importlib" # api/worker 테스트 파일명 충돌 방지

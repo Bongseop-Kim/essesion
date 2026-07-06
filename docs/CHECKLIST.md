@@ -4,28 +4,28 @@
 
 ## 0. 사전 준비 (리드타임 — 즉시 착수)
 
-- [ ] Apple Developer 계정 + Sign in with Apple 키·도메인 검증 신청
-- [ ] Naver 개발자 앱 등록
-- [ ] Google·Kakao 콘솔 확인, 새 redirect URI 등록 준비(도메인 확정 후 등록)
-- [ ] Toss 시크릿 키 확인 + 웹훅/콜백 URL 이전 계획
-- [ ] Solapi API 키 확보
-- [ ] 기존 생성 로그에서 finalize 실제 dpi 실측 → 워커 메모리 산정 근거
-- [ ] Supabase Auth 트랜잭션 이메일(가입 확인 등) 존재 여부 확인 → 필요 시 Resend
-- [ ] 기존 env 전체 수집 (YeongSeon + seamless-tile)
+- [x] Apple Developer 계정 + Sign in with Apple 키·도메인 검증 신청
+- [x] Naver 개발자 앱 등록
+- [x] Google·Kakao 콘솔 확인, 새 redirect URI 등록 준비(도메인 확정 후 등록)
+- [x] Toss 시크릿 키 확인 + 웹훅/콜백 URL 이전 계획
+- [x] Solapi API 키 확보
+- [x] 기존 생성 로그에서 finalize 실제 dpi 실측 → 워커 메모리 산정 근거
+- [x] Supabase Auth 트랜잭션 이메일(가입 확인 등) 존재 여부 확인 → 필요 시 Resend
+- [x] 기존 env 전체 수집 (YeongSeon + seamless-tile)
 
 ## 1. 골격
 
-- [ ] 모노레포 스캐폴드: pnpm workspace(+catalogs) + Turborepo, uv workspace(apps/api·worker), mise 툴체인 핀
-- [ ] 디렉토리 뼈대: `apps/{store,admin,api,worker}`, `packages/{api-client,shared,tsconfig}`, `db/`, `infra/`
-- [ ] 로컬: docker compose(Postgres + pgvector)
-- [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF
-- [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정
-- [ ] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 프리뷰(Cloudflare 프리뷰 URL + Cloud Run 태그 리비전)
-- [ ] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
-- [ ] Renovate 설정(묶음 PR)
-- [ ] GCP 예산 알림 1개 + uptime check 1개
-- [ ] Sentry 프로젝트(api·worker) 연결, JSON 구조화 로깅 + request_id 전파 골격
-- [ ] Secret Manager에 기존 env 배치
+- [x] 모노레포 스캐폴드: pnpm workspace(+catalogs) + Turborepo, uv workspace(apps/api·worker), mise 툴체인 핀
+- [x] 디렉토리 뼈대: `apps/{store,admin,api,worker}`, `packages/{api-client,shared,tsconfig}`, `db/`, `infra/`
+- [x] 로컬: docker compose(Postgres + pgvector)
+- [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료. **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
+- [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *wrangler 설정·프록시 워커 완료. **5단계(프론트 배포)·도메인 확정 시 수행**: zone·routes·WAF 규칙(`infra/cloudflare/README.md`)*
+- [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 프리뷰(Cloudflare 프리뷰 URL + Cloud Run 태그 리비전) — *배포·프리뷰 잡은 GitHub vars 설정 전까지 자동 스킵*
+- [x] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
+- [x] Renovate 설정(묶음 PR) — *레포에 Renovate GitHub App 설치 필요*
+- [ ] GCP 예산 알림 1개 + uptime check 1개 — *tofu에 포함, **4단계 apply 시 함께 생성***
+- [ ] Sentry 프로젝트(api·worker) 연결, JSON 구조화 로깅 + request_id 전파 골격 — *골격(`libs/obs`) 완료, 로컬은 DSN 없으면 no-op. **4단계 착수 시**: Sentry 프로젝트 생성·DSN 주입*
+- [ ] Secret Manager에 기존 env 배치 — *시크릿 컨테이너는 tofu 소유. **4단계 apply 후** `infra/README.md`의 gcloud 명령으로 값 주입 — 그전까지 로컬 `.env`*
 
 ## 2. 스키마 재설계
 

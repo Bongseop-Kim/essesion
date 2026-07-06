@@ -1,0 +1,106 @@
+resource "google_service_account" "api" {
+  account_id   = "run-api"
+  display_name = "Cloud Run api"
+}
+
+resource "google_service_account" "worker" {
+  account_id   = "run-worker"
+  display_name = "Cloud Run worker-generate/finalize"
+}
+
+resource "google_service_account" "tasks" {
+  account_id   = "tasks-invoker"
+  display_name = "Cloud Tasks -> worker-finalize OIDC"
+}
+
+resource "google_service_account" "deployer" {
+  account_id   = "github-deployer"
+  display_name = "GitHub Actions deployer (WIF)"
+}
+
+resource "google_project_iam_member" "api_roles" {
+  for_each = toset([
+    "roles/cloudsql.client",
+    "roles/cloudtasks.enqueuer",
+    "roles/secretmanager.secretAccessor",
+  ])
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.api.email}"
+}
+
+resource "google_project_iam_member" "worker_roles" {
+  for_each = toset([
+    "roles/cloudsql.client",
+    "roles/secretmanager.secretAccessor",
+  ])
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.worker.email}"
+}
+
+resource "google_storage_bucket_iam_member" "assets_rw" {
+  for_each = {
+    api    = google_service_account.api.email
+    worker = google_service_account.worker.email
+  }
+  bucket = google_storage_bucket.assets.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${each.value}"
+}
+
+# api가 tasks SA의 OIDC 토큰으로 잡을 등록할 수 있게 actAs 부여
+resource "google_service_account_iam_member" "api_actas_tasks" {
+  service_account_id = google_service_account.tasks.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.api.email}"
+}
+
+resource "google_project_iam_member" "deployer_roles" {
+  for_each = toset([
+    "roles/run.admin",
+    "roles/artifactregistry.writer",
+  ])
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.deployer.email}"
+}
+
+# 배포 시 런타임 SA를 서비스에 붙이기 위한 actAs
+resource "google_service_account_iam_member" "deployer_actas" {
+  for_each = {
+    api    = google_service_account.api.name
+    worker = google_service_account.worker.name
+  }
+  service_account_id = each.value
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.deployer.email}"
+}
+
+# ---- Workload Identity Federation: GitHub Actions → deployer (키 파일 없음) ----
+
+resource "google_iam_workload_identity_pool" "github" {
+  workload_identity_pool_id = "github"
+  depends_on                = [google_project_service.apis]
+}
+
+resource "google_iam_workload_identity_pool_provider" "github" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-oidc"
+
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.repository" = "assertion.repository"
+  }
+  attribute_condition = "assertion.repository == \"${var.github_repo}\""
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+resource "google_service_account_iam_member" "deployer_wif" {
+  service_account_id = google_service_account.deployer.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repo}"
+}

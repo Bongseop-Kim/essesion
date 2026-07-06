@@ -17,11 +17,11 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 - `/Users/duegosystem/git/YeongSeon` — 기능 명세의 원본 (라우트·엣지펑션이 기능 목록).
 - `/Users/duegosystem/git/seamless-tile` — 워커의 동작 기준선. 같은 intent+seed → byte-identical SVG 계약과 기존 테스트 50+개를 대조 기준으로 사용.
 
-## 명령어 (스캐폴드 후 실제 값으로 갱신할 것)
-- JS: `pnpm turbo build|lint|test` (pnpm workspace + catalogs, 린트/포맷 = Biome)
-- Python: `uv run pytest`, 린트/타입 = ruff + pyright (uv workspace: apps/api, apps/worker)
-- 로컬 DB: `docker compose up` (Postgres + pgvector 하나만)
-- 배포: 프론트 = wrangler(Cloudflare Workers), api·worker = Cloud Run (CI 경유)
+## 명령어
+- JS: `pnpm lint`(Biome, 레포 전체) · `pnpm turbo build typecheck test` (pnpm workspace + catalogs)
+- Python: `uv sync --all-packages` 후 `uv run pytest` · `uv run ruff check .` · `uv run pyright`
+- 로컬 DB: `docker compose up -d` (Postgres 17 + pgvector, localhost:5432, user/pw/db = essesion)
+- 배포: main 푸시 → `.github/workflows/deploy.yml`이 wrangler(프론트)·Cloud Run(api·worker) 배포. 선행 조건과 인프라 부트스트랩은 `infra/README.md`
 
 ## 도메인 규칙
 - 인가: 상품·찜/좋아요는 공개 조회, 그 외 리소스는 소유자 본인만, 관리자는 별도 역할. 인가 테스트는 mock 금지 — testcontainers(실제 Postgres)로.

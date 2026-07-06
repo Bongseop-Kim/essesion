@@ -1,0 +1,23 @@
+[project]
+name = "essesion-api"
+version = "0.1.0"
+description = "코어 API — Auth·인가·전 도메인 비즈니스 로직·결제·과금 (Cloud Run)"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "essesion-obs",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.28"]
+
+[tool.uv.sources]
+essesion-obs = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/api"]

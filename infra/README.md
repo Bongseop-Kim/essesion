@@ -1,0 +1,57 @@
+# infra — OpenTofu (스테이징)
+
+스테이징은 **별도 GCP 프로젝트로 격리** (ARCHITECTURE §8). 프로덕션은 7단계에서 같은 구성을 다른 project_id로 재사용.
+
+## 부트스트랩 (1회, 수동)
+
+```bash
+# 1. 프로젝트 + 청구 연결
+gcloud projects create essesion-staging
+gcloud billing projects link essesion-staging --billing-account=XXXXXX-XXXXXX-XXXXXX
+
+# 2. tofu 상태 버킷 (tofu 밖에서 생성 — 닭·달걀)
+gcloud storage buckets create gs://essesion-staging-tfstate \
+  --project=essesion-staging --location=asia-northeast3 --uniform-bucket-level-access
+
+# 3. 변수 채우고 apply
+brew install opentofu
+cp staging.tfvars.example staging.tfvars   # 값 채우기
+tofu init -backend-config="bucket=essesion-staging-tfstate"
+tofu apply -var-file=staging.tfvars
+```
+
+주의: `google_billing_budget`은 실행자에게 청구 계정 권한(Billing Account Administrator/Costs Manager)이 필요하다.
+
+## 시크릿 값 주입 (수집해 둔 기존 env → Secret Manager)
+
+컨테이너(secret id)는 tofu가 만들고 **값은 gcloud로만** 주입 — 시크릿 커밋 금지.
+
+```bash
+printf '%s' '<값>' | gcloud secrets versions add toss-secret-key --data-file=- --project=essesion-staging
+# 동일하게: solapi-api-key openai-api-key gemini-api-key recraft-api-key jwt-secret sentry-dsn-api sentry-dsn-worker
+# db-password는 tofu가 생성·주입하므로 손대지 않는다
+```
+
+프론트 env는 Cloudflare 환경변수(wrangler secret / 대시보드)로 — 6단계 프론트 배포 시.
+
+## GitHub Actions 연결 (apply 후 1회)
+
+```bash
+tofu output   # wif_provider, deployer_sa, api_url 확인
+gh variable set GCP_PROJECT_ID -b essesion-staging
+gh variable set GCP_REGION -b asia-northeast3
+gh variable set GCP_WIF_PROVIDER -b "$(tofu output -raw wif_provider)"
+gh variable set GCP_DEPLOYER_SA -b "$(tofu output -raw deployer_sa)"
+gh variable set CLOUDFLARE_ACCOUNT_ID -b <account-id>
+gh secret set CLOUDFLARE_API_TOKEN
+```
+
+deploy/preview 워크플로우는 위 vars가 비어 있으면 스킵되므로, 설정 전에도 CI는 초록이다.
+
+## Sentry (수동 1회)
+
+sentry.io에서 api·worker 프로젝트 2개 생성 → DSN을 `sentry-dsn-api`·`sentry-dsn-worker` 시크릿에 주입. 코드 골격(`libs/obs`)은 `SENTRY_DSN` env가 있을 때만 초기화하므로 로컬에선 무해.
+
+## Cloudflare
+
+[cloudflare/README.md](./cloudflare/README.md) 참조.
