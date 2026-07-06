@@ -7,6 +7,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.34",
     "essesion-obs",
+    "essesion-db",
 ]
 
 [dependency-groups]
@@ -14,6 +15,7 @@ dev = ["pytest>=8", "httpx>=0.28"]
 
 [tool.uv.sources]
 essesion-obs = { workspace = true }
+essesion-db = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

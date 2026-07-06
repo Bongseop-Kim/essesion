@@ -1,6 +1,6 @@
 # uv workspace 루트 (virtual) — apps/api·worker + 공용 libs/ (ARCHITECTURE §4)
 [tool.uv.workspace]
-members = ["apps/api", "apps/worker", "libs/*"]
+members = ["apps/api", "apps/worker", "libs/*", "db"]
 
 [dependency-groups]
 dev = ["ruff>=0.12", "pyright>=1.1.400", "pytest>=8"]
@@ -11,12 +11,17 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+"db/migrations/versions/*" = ["E501"] # autogenerate 생성물 — 손으로 줄바꿈하지 않는다
+
 [tool.pyright]
-include = ["apps", "libs"]
+include = ["apps", "libs", "db", "tests"]
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.13"
 
 [tool.pytest.ini_options]
-testpaths = ["apps", "libs"]
+# db/ 밑에 테스트를 두지 말 것 — pytest importlib 모드가 rootdir 상대 경로로 더미 부모
+# 모듈 'db'를 만들어 실제 db 패키지를 가린다. db 관련 테스트는 루트 tests/에.
+testpaths = ["apps", "libs", "tests"]
 addopts = "--import-mode=importlib" # api/worker 테스트 파일명 충돌 방지

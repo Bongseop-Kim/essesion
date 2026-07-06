@@ -29,11 +29,11 @@
 
 ## 2. 스키마 재설계
 
-- [ ] 기존 스키마 전수 검토(YeongSeon `supabase/schemas`)
-- [ ] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로
-- [ ] **기존→새 스키마 매핑 표 작성** — 변환 스크립트·동작 검증·"재설계가 기능 개편으로 번지는 것"을 막는 기준 문서
-- [ ] Alembic 첫 리비전 생성 → 스테이징 적용
-- [ ] 데이터 변환 스크립트 초안(상품·단가·모티프 등 — 유저·이미지 제외)
+- [x] 기존 스키마 전수 검토(YeongSeon `supabase/schemas`) — *enum·뷰 19종·DB함수 ~40종·트리거 17종·부분 인덱스까지 대조*
+- [x] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로 — *33테이블, `db/src/db/models/`*
+- [x] **기존→새 스키마 매핑 표 작성** — `db/MAPPING.md` (테이블·함수/트리거 소유 이동·이관 정책)
+- [x] Alembic 첫 리비전 생성 → 스테이징 적용 — *베이스라인 리비전 생성·로컬 적용·`alembic check` 드리프트 0. 스테이징 적용은 4단계 tofu apply 후*
+- [x] 데이터 변환 스크립트 초안(상품·단가·모티프 등 — 유저·이미지 제외) — *`db/scripts/migrate_data.py`, 유저 종속은 3단계 유저 매칭 확정 후 스텁 해제*
 
 ## 3. api 1차
 
