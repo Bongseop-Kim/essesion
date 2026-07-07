@@ -32,7 +32,6 @@ DEFAULT_VECTOR_MODEL = "recraftv4_1_vector"
 DEFAULT_SIZE = "1024x1024"
 DEFAULT_BASE_URL = "https://external.api.recraft.ai/v1"
 _API_PATH = "/images/generations"
-_VECTORIZE_PATH = "/images/vectorize"
 
 
 class RecraftError(AdapterClientError):
@@ -197,7 +196,10 @@ def _build_recraft_prompt(spec: dict, *, errors: list[str] | None = None) -> str
 
 
 class RecraftHTTPClient:
-    """실제 Recraft 벡터 API 호출 — generate/vectorize, 120s, HTTP 재시도 없음."""
+    """실제 Recraft 벡터 API 호출 — generate, 120s, HTTP 재시도 없음.
+
+    vectorize(이미지→SVG) 경로는 이미지 입력 파이프라인과 함께 5단계에서 재도입한다.
+    """
 
     def __init__(
         self,
@@ -265,19 +267,6 @@ class RecraftHTTPClient:
             return file_resp.text
 
         return await self._post_for_svg(_API_PATH, json=payload, extract=_extract, label="API")
-
-    async def vectorize(self, image_bytes: bytes) -> str:
-        async def _extract(client: httpx.AsyncClient, data: dict) -> str:
-            file_resp = await client.get(data["image"]["url"])
-            file_resp.raise_for_status()
-            return file_resp.text
-
-        return await self._post_for_svg(
-            _VECTORIZE_PATH,
-            files={"file": ("image.png", image_bytes, "image/png")},
-            extract=_extract,
-            label="vectorize",
-        )
 
     async def aclose(self) -> None:
         if self._client is not None and not self._client.is_closed:

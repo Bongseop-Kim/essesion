@@ -19,7 +19,7 @@ from worker.db import get_session
 from worker.engine.validate import validate_intent
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
-from worker.render import fabric, inlay
+from worker.render import fabric, inlay, weave
 from worker.render import segment as segment_mod
 
 from .intent_helpers import register_test_motifs
@@ -60,12 +60,12 @@ def _synth_weave(name: str, size: int = 64) -> bytes:
 
 @pytest.fixture
 def weaves(monkeypatch):
-    """합성 weave를 _weave_bytes로 주입하고 이미지 캐시를 격리한다."""
+    """합성 weave를 weave_bytes로 주입하고 이미지 캐시를 격리한다."""
     table = {name: _synth_weave(name) for name in _WEAVE_NAMES}
-    monkeypatch.setattr(fabric, "_weave_bytes", lambda name: table[name])
-    fabric._weave_image.cache_clear()
+    monkeypatch.setattr(weave, "weave_bytes", lambda name: table[name])
+    weave.weave_image.cache_clear()
     yield
-    fabric._weave_image.cache_clear()
+    weave.weave_image.cache_clear()
 
 
 # --- intent 헬퍼 -------------------------------------------------------------

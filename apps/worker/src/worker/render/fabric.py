@@ -25,8 +25,6 @@ blocking(Pillow·subprocess) — async 핸들러에서는 run_in_threadpool로 �
 """
 
 import io
-from functools import lru_cache
-from importlib.resources import files
 from typing import Any
 
 from PIL import Image, ImageChops
@@ -39,6 +37,7 @@ from worker.engine.validate import validate_intent
 from worker.render import inlay, materials, raster
 from worker.render import segment as segment_mod
 from worker.render.inlay import MOTIF_WEAVE
+from worker.render.weave import apply_weave, available_weaves, is_print_weave
 
 DEFAULT_TEXTURE_STRENGTH = 2.4
 DEFAULT_RELIEF_STRENGTH = 0.45
@@ -47,53 +46,6 @@ _MAX_INLAY_PIXELS = 20_000_000  # 모티프 인레이는 3× 슈퍼샘플·3×3 
 
 class FabricError(ValueError):
     """잘못된 fabric 요청(unknown weave/colorway/slot 등). 영구 실패 — 라우트는 failed 기록."""
-
-
-@lru_cache(maxsize=1)
-def available_weaves() -> tuple[str, ...]:
-    names = [
-        item.name.removesuffix(".png")
-        for item in files("worker.render.assets.fabric").iterdir()
-        if item.name.endswith(".png")
-    ]
-    return tuple(sorted(names))
-
-
-def _weave_bytes(weave: str) -> bytes:
-    """에셋 접근 단일 접합부 — 테스트는 이 함수를 monkeypatch(+_weave_image.cache_clear)."""
-    return (files("worker.render.assets.fabric") / f"{weave}.png").read_bytes()
-
-
-@lru_cache(maxsize=8)
-def _weave_image(weave: str) -> Image.Image:
-    return Image.open(io.BytesIO(_weave_bytes(weave))).convert("RGB")
-
-
-def _is_print_weave(weave: str) -> bool:
-    return weave.startswith("twill")
-
-
-def _tile_to(texture: Image.Image, size: tuple[int, int]) -> Image.Image:
-    """정수 개 복제 후 목표 크기로 LANCZOS 리사이즈 — 부분 크롭 금지(seam 유지)."""
-    tw, th = texture.size
-    w, h = size
-    nx = max(1, round(w / tw))
-    ny = max(1, round(h / th))
-    canvas = Image.new("RGB", (nx * tw, ny * th))
-    for j in range(ny):
-        for i in range(nx):
-            canvas.paste(texture, (i * tw, j * th))
-    if canvas.size != size:
-        canvas = canvas.resize(size, Image.Resampling.LANCZOS)
-    return canvas
-
-
-def _apply_weave(design: Image.Image, weave: str, strength: float) -> Image.Image:
-    tex = _tile_to(_weave_image(weave), design.size)
-    if strength != 1.0:
-        lut = [max(0, min(255, round(255 - (255 - v) * strength))) for v in range(256)]
-        tex = tex.point(lut * 3)
-    return ImageChops.multiply(design, tex)
 
 
 def _render_design(intent, palette, colorway_id, *, dpi: int, tile_mm: float) -> Image.Image:
@@ -148,12 +100,12 @@ def render_fabric(params: dict[str, Any], settings: Settings) -> bytes:
     tile_mm = intent.canvas.tile_mm
 
     if method == "print":
-        if not _is_print_weave(weave):
+        if not is_print_weave(weave):
             raise FabricError("print method requires a twill weave")
         if material_map:
             raise FabricError("material_map is only valid for yarn_dyed")
         design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)
-        return _encode(_apply_weave(design, weave, strength), dpi)
+        return _encode(apply_weave(design, weave, strength), dpi)
 
     # --- yarn_dyed ---
     if material_map:
@@ -212,7 +164,7 @@ def _render_yarn_dyed_motifs(
     if base_intent is None or not seg.motif_masks:
         # 모티프만 있는 intent(base 없음) — 실색 fallback(정상 경로 아님)
         design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)
-        return _apply_weave(design, weave, strength)
+        return apply_weave(design, weave, strength)
 
     base_design = _render_design(base_intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)  # R2
     base_seg = None
@@ -229,7 +181,7 @@ def _render_yarn_dyed_motifs(
     for slot, mask in seg.motif_masks.items():
         color = hex_to_rgb(palette.resolve_color(slot, colorway_id))
         yarn_src = Image.composite(Image.new("RGB", yarn_src.size, color), yarn_src, mask)
-    yarn = _apply_weave(yarn_src, MOTIF_WEAVE, strength)
+    yarn = apply_weave(yarn_src, MOTIF_WEAVE, strength)
 
     # 슬롯별 run 스캔 후 union → 단일 합성(순서 무관, edge 음영은 정확히 1회)
     thread: Image.Image | None = None

@@ -2,7 +2,9 @@
 
 공유 에러 타입은 여기서 정의한다(하위 모듈이 순환 없이 import). `build_adapters`는
 설정에서 임베딩·Recraft·Gemini 클라이언트를 만든다 — 키 미설정 시 해당 클라이언트는
-None(DryRun): 임베딩은 소프트 유사도 skip, Recraft/Gemini는 미구성 503.
+None(비활성). 비활성의 의미는 어댑터마다 다르다: 임베딩만 소프트 skip(유사도 단계
+생략), Recraft/Gemini는 요청 시 503(AdapterNotConfigured). 진짜 DryRun(no-op으로
+성공하는 것)은 GCS ObjectStore(integrations.DryRunObjectStore)뿐이다.
 """
 
 from __future__ import annotations

@@ -14,7 +14,14 @@ from pydantic import ValidationError
 from worker.config import get_settings
 from worker.engine.intent import Intent
 from worker.engine.palette import ColorSlot, Colorway, Palette, out_of_gamut
-from worker.engine.units import ALLOWED_DPI, divides, snap_angle, snap_spacing, stripe_tiles
+from worker.engine.units import (
+    ALLOWED_DPI,
+    divides,
+    nearest_dpi,
+    snap_angle,
+    snap_spacing,
+    stripe_tiles,
+)
 from worker.motifs.registry import MotifCatalog, resolve_motif
 
 
@@ -239,7 +246,7 @@ def validate_intent(
     # 3. dpi 클램프
     if intent.canvas.dpi not in ALLOWED_DPI:
         if repair:
-            nearest = min(ALLOWED_DPI, key=lambda d: abs(d - intent.canvas.dpi))
+            nearest = nearest_dpi(intent.canvas.dpi)
             warnings.append(
                 f"canvas.dpi {intent.canvas.dpi} not in {ALLOWED_DPI}; clamped to {nearest}"
             )

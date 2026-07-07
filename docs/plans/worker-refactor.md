@@ -77,6 +77,6 @@
 | 5 | R9·R15 | ✅ 2026-07-07 — `normalize_stripes`(대각→-45°·k=repeats//2·밴드 비례, 축 정렬 ±8° 존중)를 `_validate` 전단 in-place 배선 + `stripe_diagonal_repeats` 설정 신설, `request_scoped` 임베딩 메모(요청 스코프 — §7 무위반) |
 | 6 | R7·R10 | ✅ 2026-07-07 — `WorkerRequestError`(422, detail 보존) 신설로 요청 오류/일시 장애 구분(둘 다 환불), `candidate_count Field(ge=1, le=8)` 선검증, codegen 재생성 |
 | 7 | R4·R6 | ✅ 2026-07-07 — api `/design/export`(소유자 인가·과금 없음) + `WorkerClient.export`(바이너리, status 매핑 공유) 배선, 워커 프리뷰 렌더 `asyncio.gather` 병렬화(후보·경고 순서 보존), codegen 재생성 |
-| 8 | R11·R12·R14 | ☐ |
+| 8 | R11·R12·R14 | ✅ 2026-07-07 — `render/weave.py` 추출(fabric↔materials 순환·private 월경 해소, 임포트 그래프 순환 0 확인), `recraft.vectorize`·`_VECTORIZE_PATH` 삭제(5단계 재도입), `nearest_dpi` 중복 해소(validate가 호출), adapters docstring DryRun 의미 정정. registry 전역 폴백은 프로덕션 폴백 경로로 실사용 중이라 유지 |
 | 9 | R13 | ☐ |
 | 10 | 검증 | ☐ |
