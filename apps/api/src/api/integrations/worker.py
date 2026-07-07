@@ -12,7 +12,7 @@ import httpx
 from obs import request_id_var
 
 from api.config import Settings
-from api.errors import UpstreamError
+from api.errors import UpstreamError, WorkerRequestError
 
 _METADATA_IDENTITY_URL = (
     "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity"
@@ -71,9 +71,20 @@ class WorkerClient:
             res = await self._client.post(path, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise UpstreamError("이미지 워커 호출에 실패했습니다") from exc
+        if res.status_code in (400, 422):
+            # 요청 오류(잘못된 intent 등) — 일시 장애(502)와 구분해 detail을 보존 전파.
+            raise WorkerRequestError(f"이미지 워커가 요청을 거부했습니다: {_detail_of(res)}")
         if res.status_code >= 400:
             raise UpstreamError("이미지 워커가 요청을 처리하지 못했습니다")
         return res.json()
+
+
+def _detail_of(res: httpx.Response) -> str:
+    try:
+        detail = res.json().get("detail")
+    except ValueError:
+        detail = None
+    return str(detail) if detail else res.text[:200]
 
 
 def build_worker_client(settings: Settings) -> WorkerClient:

@@ -1348,6 +1348,8 @@
         "properties": {
           "candidate_count": {
             "default": 1,
+            "maximum": 8.0,
+            "minimum": 1.0,
             "title": "Candidate Count",
             "type": "integer"
           },

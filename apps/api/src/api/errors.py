@@ -68,6 +68,13 @@ class UpstreamError(DomainError):
     code = "upstream_error"
 
 
+class WorkerRequestError(DomainError):
+    """워커가 요청 자체를 거부(400/422) — 일시 장애가 아니라 재시도 무의미한 요청 오류."""
+
+    status = 422
+    code = "worker_rejected"
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError) -> JSONResponse:

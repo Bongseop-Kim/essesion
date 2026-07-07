@@ -3,9 +3,12 @@
 import json
 from pathlib import Path
 
+import httpx
+import pytest
+import respx
 from api.domains.design.router import KNOWN_WEAVES
 from api.domains.tokens import ledger
-from api.errors import UpstreamError
+from api.errors import UpstreamError, WorkerRequestError
 from db.models.tokens import DesignToken
 
 from .factories import auth_headers, make_user, seed_setting
@@ -345,3 +348,68 @@ async def test_motif_generate_worker_failure_refunds_budget(client, app, db_sess
     )
     assert res.status_code == 502
     assert await _session_recraft_used(client, headers, sid) == 0
+
+
+# ---- 워커 오류 status 구분 (요청 오류 422 vs 일시 장애 502 — 둘 다 환불) ----
+
+
+class RejectingWorker(FakeWorker):
+    async def generate(self, payload):
+        raise WorkerRequestError(
+            "이미지 워커가 요청을 거부했습니다: invalid intent: period off-grid"
+        )
+
+
+async def test_generate_worker_rejection_returns_422_and_refunds(client, app, db_session, settings):
+    app.state.worker = RejectingWorker()
+    user = await make_user(db_session)
+    await _fund(db_session, user, amount=30)
+
+    res = await client.post(
+        "/design/generate",
+        json={"intent": {"x": 1}},
+        headers=auth_headers(user, settings),
+    )
+    assert res.status_code == 422
+    assert res.json()["code"] == "worker_rejected"
+    assert "period off-grid" in res.json()["detail"]  # 워커 detail 보존
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 5, "bonus": 25}
+
+
+async def test_generate_candidate_count_bounds_reject_before_charge(
+    client, app, db_session, settings
+):
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user, amount=30)
+
+    res = await client.post(
+        "/design/generate",
+        json={"intent": {"x": 1}, "candidate_count": 9},
+        headers=auth_headers(user, settings),
+    )
+    assert res.status_code == 422
+    assert worker.generate_payloads == []  # 워커 미호출
+    # 검증이 과금보다 먼저 — 차감 자체가 없어 잔액 원형 유지
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
+
+
+@respx.mock
+async def test_worker_client_maps_statuses(settings):
+    from api.integrations.worker import WorkerClient
+
+    wc = WorkerClient(settings)
+    route = respx.post(f"{settings.worker_base_url}/generate")
+
+    route.mock(return_value=httpx.Response(422, json={"detail": "invalid intent"}))
+    with pytest.raises(WorkerRequestError, match="invalid intent"):
+        await wc.generate({})
+
+    route.mock(return_value=httpx.Response(503, text="unavailable"))
+    with pytest.raises(UpstreamError):
+        await wc.generate({})
+
+    route.mock(return_value=httpx.Response(200, json={"ok": True}))
+    assert await wc.generate({}) == {"ok": True}
+    await wc.aclose()

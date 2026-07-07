@@ -17,7 +17,7 @@ from sqlalchemy import CursorResult, func, select, update
 from api.db import SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, ensure_owner
 from api.domains.tokens import ledger
-from api.errors import ConflictError, DomainError, UpstreamError
+from api.errors import ConflictError, DomainError, UpstreamError, WorkerRequestError
 
 router = APIRouter(tags=["design"])
 
@@ -75,7 +75,7 @@ class DesignGenerateRequest(BaseModel):
     intent: dict[str, Any] | None = None
     colorway: str | None = None
     seed: int | None = None
-    candidate_count: int = 1
+    candidate_count: int = Field(1, ge=1, le=8)  # 워커 경계와 동일 — 선검증으로 헛환불 방지
 
 
 class DesignGenerateOut(BaseModel):
@@ -225,7 +225,8 @@ async def generate_design(
         raise DomainError("디자인 토큰이 부족합니다", code=charge.error or "insufficient_tokens")
     try:
         response = await request.app.state.worker.generate(payload)
-    except UpstreamError:
+    except (UpstreamError, WorkerRequestError):
+        # 둘 다 환불하되 응답은 구분 — 요청 오류는 422(detail 보존), 일시 장애는 502.
         await ledger.refund_failed_generation(session, user.id, charge.cost, f"{work_id}_refund")
         raise
     if design_session is not None:

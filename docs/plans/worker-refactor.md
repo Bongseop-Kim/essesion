@@ -75,7 +75,7 @@
 | 3 | R1·R8 | ✅ 2026-07-07 — text/source_image_index spec 명시 거부(레이어 drop+경고, Recraft 미호출), store 읽기 오류는 rollback 후 miss 흡수(upsert는 전파). 테스트 4건 추가 |
 | 4 | R5 | ✅ 2026-07-07 — Gemini·Recraft·Embedding 지연 생성 공유 커넥션 풀 + aclose 실배선(재시도 루프 내 클라이언트 생성 제거), gemini `images` 죽은 파라미터 제거 |
 | 5 | R9·R15 | ✅ 2026-07-07 — `normalize_stripes`(대각→-45°·k=repeats//2·밴드 비례, 축 정렬 ±8° 존중)를 `_validate` 전단 in-place 배선 + `stripe_diagonal_repeats` 설정 신설, `request_scoped` 임베딩 메모(요청 스코프 — §7 무위반) |
-| 6 | R7·R10 | ☐ |
+| 6 | R7·R10 | ✅ 2026-07-07 — `WorkerRequestError`(422, detail 보존) 신설로 요청 오류/일시 장애 구분(둘 다 환불), `candidate_count Field(ge=1, le=8)` 선검증, codegen 재생성 |
 | 7 | R4·R6 | ☐ |
 | 8 | R11·R12·R14 | ☐ |
 | 9 | R13 | ☐ |

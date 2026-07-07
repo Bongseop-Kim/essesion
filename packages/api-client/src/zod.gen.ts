@@ -272,7 +272,7 @@ export const zCustomAmountResponse = z.object({
  * DesignGenerateRequest
  */
 export const zDesignGenerateRequest = z.object({
-    candidate_count: z.int().optional().default(1),
+    candidate_count: z.int().gte(1).lte(8).optional().default(1),
     colorway: z.string().nullish(),
     intent: z.record(z.string(), z.unknown()).nullish(),
     prompt: z.string().nullish(),
