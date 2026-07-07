@@ -37,11 +37,27 @@ def test_sanitize_blocks_injection(payload):
         sanitize_svg(payload)
 
 
-def test_sanitize_blocks_dtd_entity_definition():
-    # DTD 엔티티 정의 거부 (XXE / billion-laughs 벡터).
-    xxe = f'<!DOCTYPE svg [<!ENTITY a "AAA">]>{_NS}><rect/></svg>'
+@pytest.mark.parametrize(
+    "payload",
+    [
+        # DTD 엔티티 정의 (XXE / billion-laughs 벡터).
+        f'<!DOCTYPE svg [<!ENTITY a "AAA">]>{_NS}><rect/></svg>',
+        # billion laughs — 중첩 엔티티 확장.
+        '<!DOCTYPE svg [<!ENTITY a "x"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;">]>'
+        f"{_NS}><rect fill='#abc' id='&b;'/></svg>",
+        # 외부 엔티티 (XXE 파일 읽기).
+        f"<!DOCTYPE svg [<!ENTITY x SYSTEM \"file:///etc/passwd\">]>{_NS}><rect id='&x;'/></svg>",
+        # 소문자 doctype.
+        f"<!doctype svg>{_NS}><rect/></svg>",
+        # 선언 없는 엔티티 참조 — 파서 오류로 거부.
+        f"{_NS}><rect id='&undeclared;'/></svg>",
+    ],
+)
+def test_sanitize_blocks_dtd_and_entities(payload):
     with pytest.raises(SanitizeError):
-        sanitize_svg(xxe)
+        sanitize_svg(payload)
+    with pytest.raises(SanitizeError):
+        scrub_svg(payload)
 
 
 def test_sanitize_passes_engine_output_unchanged():

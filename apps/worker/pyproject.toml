@@ -12,6 +12,7 @@ dependencies = [
     "httpx>=0.28",
     "google-cloud-storage>=2.18",
     "pillow>=11",
+    "defusedxml>=0.7",
 ]
 
 [dependency-groups]
