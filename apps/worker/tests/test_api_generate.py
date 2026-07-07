@@ -24,8 +24,17 @@ from .intent_helpers import mvp_intent, register_test_motifs
 register_test_motifs()
 
 
+class _EmptyScalars:
+    def all(self):
+        return []
+
+
 class _FakeSession:
-    """generate 라우트가 쓰는 최소 세션 — add(동기) + commit(비동기)."""
+    """generate 라우트가 쓰는 최소 세션 — add/commit + 빈 DB 읽기(registry_version·catalog).
+
+    DB에 모티프가 없으므로 get_motifs는 {}, fingerprint는 baseline을 반환 → 라우트는
+    전역 registry 폴백(register_test_motifs)으로 렌더한다.
+    """
 
     def add(self, obj) -> None:
         pass
@@ -33,10 +42,16 @@ class _FakeSession:
     async def commit(self) -> None:
         pass
 
+    async def scalars(self, *_args, **_kwargs):
+        return _EmptyScalars()
+
 
 def _configure_app(monkeypatch, *, raster_ok: bool = True):
     app = create_app()
     app.state.object_store = DryRunObjectStore()  # lifespan 미실행 — 직접 주입
+    from worker.adapters import Adapters
+
+    app.state.adapters = Adapters()  # 어댑터 미구성(DryRun)
 
     def _raster(svg, **kwargs):
         if not raster_ok:
@@ -189,10 +204,10 @@ def test_schema_invalid_request_returns_422(client):
     assert resp.status_code == 422
 
 
-def test_prompt_only_returns_501(client):
-    # prompt 기반 생성은 어댑터 구현 전 — intent 없는 요청은 501.
+def test_prompt_only_without_gemini_returns_503(client):
+    # prompt 경로는 구현됐지만 Gemini 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
     resp = client.post("/generate", json={"prompt": "navy paisley tie"})
-    assert resp.status_code == 501
+    assert resp.status_code == 503
 
 
 def test_partial_success_when_count_exceeds_available(client):

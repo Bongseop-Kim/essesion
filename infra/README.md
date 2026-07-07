@@ -13,14 +13,37 @@ gcloud billing projects link essesion-staging --billing-account=XXXXXX-XXXXXX-XX
 gcloud storage buckets create gs://essesion-staging-tfstate \
   --project=essesion-staging --location=asia-northeast3 --uniform-bucket-level-access
 
-# 3. 변수 채우고 apply
+# 3. 변수 채우고 — apply는 2단계 (시크릿 버전이 없으면 서비스 리비전이 기동 실패하므로)
 brew install opentofu
 cp staging.tfvars.example staging.tfvars   # 값 채우기
 tofu init -backend-config="bucket=essesion-staging-tfstate"
+
+# 3-1. 시크릿 컨테이너·DB부터 — 서비스가 참조할 시크릿을 먼저 만들고 값을 주입
+tofu apply -var-file=staging.tfvars \
+  -target=google_secret_manager_secret.app \
+  -target=google_secret_manager_secret_version.database_url \
+  -target=google_sql_user.app
+#    → 아래 "시크릿 값 주입" 수행 (전 시크릿에 버전 1개 이상)
+
+# 3-2. 전체 apply
 tofu apply -var-file=staging.tfvars
 ```
 
 주의: `google_billing_budget`은 실행자에게 청구 계정 권한(Billing Account Administrator/Costs Manager)이 필요하다.
+
+## 개통 체크리스트 (사용자 액션 ↔ 자동화 구분)
+
+| # | 액션 | 주체 |
+|---|---|---|
+| 1 | GCP 프로젝트 생성·청구 연결·tfstate 버킷 (위 부트스트랩 1~2) | **사용자(gcloud)** |
+| 2 | `staging.tfvars` 작성 (+도메인 확정 시 `api_extra_env`) | **사용자** |
+| 3 | 3-1 target apply → 시크릿 값 주입 → 3-2 전체 apply | **사용자(로컬 tofu)** |
+| 4 | Sentry 프로젝트 2개 생성 → DSN 시크릿 주입 | **사용자** |
+| 5 | GitHub vars/secrets 설정 (아래 섹션) | **사용자(gh)** |
+| 6 | main 푸시 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
+| 7 | 배치 audience 대조·수동 트리거 확인 (아래 "배치" 섹션) | **사용자** |
+| 8 | Toss 웹훅/콜백 URL·OAuth redirect URI를 새 api 주소로 등록 | **사용자(각 콘솔)** |
+| 9 | 시드: `gcloud run jobs`가 아닌 로컬에서 스테이징 DB로 `apps/api/scripts/seed.py`(관리자 계정) + `apps/worker/scripts/seed_motifs.py`(모티프 카탈로그) | **사용자** |
 
 ## 시크릿 값 주입 (수집해 둔 기존 env → Secret Manager)
 
@@ -28,8 +51,11 @@ tofu apply -var-file=staging.tfvars
 
 ```bash
 printf '%s' '<값>' | gcloud secrets versions add toss-secret-key --data-file=- --project=essesion-staging
-# 동일하게: solapi-api-key openai-api-key gemini-api-key recraft-api-key jwt-secret sentry-dsn-api sentry-dsn-worker
+# 동일하게: solapi-api-key solapi-api-secret google-client-secret kakao-client-secret
+#          openai-api-key gemini-api-key recraft-api-key jwt-secret session-secret
+#          sentry-dsn-api sentry-dsn-worker
 # db-password·database-url은 tofu가 생성·주입하므로 손대지 않는다
+# 전 시크릿에 버전이 1개 이상 있어야 서비스 리비전이 기동한다 (부트스트랩 3-1 참조)
 ```
 
 프론트 env는 Cloudflare 환경변수(wrangler secret / 대시보드)로 — 6단계 프론트 배포 시.

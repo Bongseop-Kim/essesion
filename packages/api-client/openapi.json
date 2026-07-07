@@ -1633,6 +1633,20 @@
             ],
             "title": "Intent"
           },
+          "material_map": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Map"
+          },
           "production_method": {
             "anyOf": [
               {
@@ -1643,6 +1657,41 @@
               }
             ],
             "title": "Production Method"
+          },
+          "relief_strength": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relief Strength"
+          },
+          "texture_strength": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Texture Strength"
+          },
+          "weave": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weave"
           }
         },
         "title": "FinalizeRequest",
@@ -2057,6 +2106,262 @@
           "message"
         ],
         "title": "MessageResponse",
+        "type": "object"
+      },
+      "MotifCandidateOut": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "motif_id": {
+            "title": "Motif Id",
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          }
+        },
+        "required": [
+          "motif_id",
+          "similarity"
+        ],
+        "title": "MotifCandidateOut",
+        "type": "object"
+      },
+      "MotifCandidatesOut": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/MotifCandidateOut"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "registry_version": {
+            "title": "Registry Version",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "registry_version",
+          "candidates"
+        ],
+        "title": "MotifCandidatesOut",
+        "type": "object"
+      },
+      "MotifCandidatesRequest": {
+        "properties": {
+          "spec": {
+            "$ref": "#/components/schemas/MotifSpecIn"
+          },
+          "top_k": {
+            "default": 5,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "spec"
+        ],
+        "title": "MotifCandidatesRequest",
+        "type": "object"
+      },
+      "MotifGenerateOut": {
+        "properties": {
+          "motif_id": {
+            "title": "Motif Id",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "reused": {
+            "title": "Reused",
+            "type": "boolean"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          }
+        },
+        "required": [
+          "request_id",
+          "motif_id",
+          "reused",
+          "similarity"
+        ],
+        "title": "MotifGenerateOut",
+        "type": "object"
+      },
+      "MotifGenerateRequest": {
+        "properties": {
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/MotifSpecIn"
+          }
+        },
+        "required": [
+          "spec"
+        ],
+        "title": "MotifGenerateRequest",
+        "type": "object"
+      },
+      "MotifSpecIn": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "expression": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expression"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          }
+        },
+        "required": [
+          "subject",
+          "scope"
+        ],
+        "title": "MotifSpecIn",
         "type": "object"
       },
       "NotificationPreferencesRequest": {
@@ -6279,6 +6584,123 @@
           }
         ],
         "summary": "Create Finalize Job",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/sessions/{session_id}/motifs/candidates": {
+      "post": {
+        "description": "read-only 검색 — 워커가 Recraft를 호출하지 않으므로 예산 없음.",
+        "operationId": "motif_candidates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotifCandidatesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifCandidatesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Motif Candidates",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/sessions/{session_id}/motifs/generate": {
+      "post": {
+        "operationId": "motif_generate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotifGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifGenerateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Motif Generate",
         "tags": [
           "design"
         ]

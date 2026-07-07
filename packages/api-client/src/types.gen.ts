@@ -916,9 +916,27 @@ export type FinalizeRequest = {
         [key: string]: unknown;
     } | null;
     /**
+     * Material Map
+     */
+    material_map?: {
+        [key: string]: string;
+    } | null;
+    /**
      * Production Method
      */
     production_method?: string | null;
+    /**
+     * Relief Strength
+     */
+    relief_strength?: number | null;
+    /**
+     * Texture Strength
+     */
+    texture_strength?: number | null;
+    /**
+     * Weave
+     */
+    weave?: string | null;
 };
 
 /**
@@ -1161,6 +1179,136 @@ export type MessageResponse = {
      * Message
      */
     message: string;
+};
+
+/**
+ * MotifCandidateOut
+ */
+export type MotifCandidateOut = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Motif Id
+     */
+    motif_id: string;
+    /**
+     * Scope
+     */
+    scope?: string | null;
+    /**
+     * Similarity
+     */
+    similarity: number | null;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Style
+     */
+    style?: string | null;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+    /**
+     * View
+     */
+    view?: string | null;
+};
+
+/**
+ * MotifCandidatesOut
+ */
+export type MotifCandidatesOut = {
+    /**
+     * Candidates
+     */
+    candidates: Array<MotifCandidateOut>;
+    /**
+     * Registry Version
+     */
+    registry_version: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+};
+
+/**
+ * MotifCandidatesRequest
+ */
+export type MotifCandidatesRequest = {
+    spec: MotifSpecIn;
+    /**
+     * Top K
+     */
+    top_k?: number;
+};
+
+/**
+ * MotifGenerateOut
+ */
+export type MotifGenerateOut = {
+    /**
+     * Motif Id
+     */
+    motif_id: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Reused
+     */
+    reused: boolean;
+    /**
+     * Similarity
+     */
+    similarity: number | null;
+};
+
+/**
+ * MotifGenerateRequest
+ */
+export type MotifGenerateRequest = {
+    /**
+     * Seed
+     */
+    seed?: number | null;
+    spec: MotifSpecIn;
+};
+
+/**
+ * MotifSpecIn
+ */
+export type MotifSpecIn = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Style
+     */
+    style?: string | null;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * View
+     */
+    view?: string | null;
 };
 
 /**
@@ -3531,6 +3679,66 @@ export type CreateFinalizeJobResponses = {
 };
 
 export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
+
+export type MotifCandidatesData = {
+    body: MotifCandidatesRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/motifs/candidates';
+};
+
+export type MotifCandidatesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MotifCandidatesError = MotifCandidatesErrors[keyof MotifCandidatesErrors];
+
+export type MotifCandidatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifCandidatesOut;
+};
+
+export type MotifCandidatesResponse = MotifCandidatesResponses[keyof MotifCandidatesResponses];
+
+export type MotifGenerateData = {
+    body: MotifGenerateRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/motifs/generate';
+};
+
+export type MotifGenerateErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MotifGenerateError = MotifGenerateErrors[keyof MotifGenerateErrors];
+
+export type MotifGenerateResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifGenerateOut;
+};
+
+export type MotifGenerateResponse = MotifGenerateResponses[keyof MotifGenerateResponses];
 
 export type ListDesignTurnsData = {
     body?: never;

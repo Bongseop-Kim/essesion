@@ -42,21 +42,21 @@
 - [x] 소셜 OAuth(Authlib): Google → Kakao → Apple → Naver 순 — *Google·Kakao 완료(사용자 지정), Apple·Naver는 준비물 도착 후 oauth.py에 등록만 추가*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
-- [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm(Toss 구조상 원천) + 자동 대사 2겹: ALREADY_PROCESSED 조회 복구, `/payments/webhook` 조회 재검증 대사(money.md §9). 웹훅 URL 등록은 4단계 스테이징 개통 시. 토큰 과금은 원장·환불(ledger)까지 완료 — `/design/generate` 차감 연동은 4단계(59행)*
+- [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm(Toss 구조상 원천) + 자동 대사 2겹: ALREADY_PROCESSED 조회 복구, `/payments/webhook` 조회 재검증 대사(money.md §9). 웹훅 URL 등록은 4단계 스테이징 개통 시. 토큰 과금은 원장·환불·`/design/generate` 차감 연동까지 완료*
 - [x] GCS 서명 업로드 URL 발급(ImageKit 대체) + 회원 탈퇴 + 정리 배치(Cloud Scheduler → api) — *배치 3종 `/batch/*`, 4단계에서 Scheduler OIDC 연결*
 - [x] OpenAPI 스펙 확정 → api-client 코드젠(Hey API + TanStack Query + zod) → **CI 드리프트 검사** — *`pnpm codegen`, ci.yml codegen-drift 잡*
 - [x] schemathesis CI 스텝 — *pytest 통합(tests/test_contract.py) — CI py 잡에 포함*
 
 ## 4. worker
 
-- [ ] 엔진 재구현: compose/candidates/placement + 모티프 검색(pgvector) — *compose/placement(4종)/seamless/validate/candidates 재작성 완료, 골든 25 intent를 계산으로 byte-identical 통과. pgvector motif resolver/store는 남음*
-- [ ] resvg 인프로세스 래스터화 동등성 검증 → 실패 시 librsvg 서브프로세스 폴백 — *librsvg(`rsvg-convert`) 서브프로세스 기준선 구현 + Dockerfile 설치 완료. resvg-py 판정은 남음*
-- [ ] finalize 파이프라인 재설계(중간 산출물 재사용 — 4~5회 재실행 승계 금지) + export — *export + deterministic plain render 완료. yarn_dyed texture/material_map 재설계는 남음*
+- [x] 엔진 재구현: compose/candidates/placement + 모티프 검색(pgvector) — *compose/placement(4종)/seamless/validate/candidates + pgvector motif store/resolver(검색 사다리: exact→scope→τ=0.84→Recraft 생성) + 어댑터 3종(OpenAI 임베딩·Recraft·Gemini, httpx 직접·키 없으면 503) + prompt→intent 경로 완료. 골든 25 intent byte-identical 유지*
+- [x] resvg 인프로세스 래스터화 동등성 검증 → 실패 시 librsvg 서브프로세스 폴백 — *판정 (b) 조건부: resvg-py 0.3.3 vs rsvg-convert 2.62.3, 골든 27종 치수 완전 일치·형상/색/채움 동일, 차이는 도형 경계 AA에 100% 국한(색경계 ≤1.5px, 침식 2회 소멸). byte-identical 미달이라 즉시 채택 불가. librsvg 기준선 유지·코드 무변경. 전환 시 fabric 골든 재베이스라인 전제. 상세: `docs/reviews/resvg-parity.md`*
+- [x] finalize 파이프라인 재설계(중간 산출물 재사용 — 4~5회 재실행 승계 금지) + export — *yarn_dyed·material_map·relief 재설계 완료: 별칭 슬롯 라벨 세그먼트 1회로 마스크 파생, 렌더 호출 최악 5회→3회(테스트가 카운트 assert). weave 에셋 7종, FinalizeRequest 4필드(weave/material_map/texture_strength/relief_strength)*
 - [x] **결정론 계약 대조 테스트**: 같은 intent+seed → byte-identical SVG (기존 seamless-tile 테스트 50+개 기준) — *원본 엔진 재실행으로 추출한 골든 25종(+seed 변형·candidates 세트)을 엔진 계산으로 byte-identical 통과 + PYTHONHASHSEED 0/1/12345 교차. 원본 테스트 인벤토리 전체 이식은 후속*
-- [ ] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *응답/in-flight lock 없음, finalize 예산은 DB 조건부 UPDATE. 모티프는 인메모리 registry(테스트용) — DB store로 교체 남음, recraft 예산 경로는 Recraft 구현 시 확정*
+- [x] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *모티프는 요청 스코프 MotifCatalog(DB 조회 → 엔진 명시 인자, 전역 registry는 테스트 폴백만). finalize·recraft 예산 둘 다 세션 행 조건부 UPDATE(+실패/reused 보상). freeze 캐시는 content-hash upsert로 대체*
 - [x] GCS 연결(content-hash 키 + upsert) — *worker object store(DryRun/GCS) + fabric content-hash key + preview upload key 구현*
-- [ ] 두 서비스 배포: worker-generate(동기 OIDC, 1vCPU/1GB) + worker-finalize(Cloud Tasks 푸시, 2vCPU/4GB, 동시성 1~2, dpi 상한 600)
-- [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링/SSE), 세션 상태는 api 소유 — *worker client + Cloud Tasks REST enqueue(DryRun fallback) + job polling. SSE는 미구현. **토큰 과금 연동(use_tokens/refund_failed_generation 호출)은 남음** — 점검 F4*
+- [ ] 두 서비스 배포: worker-generate(동기 OIDC, 1vCPU/1GB) + worker-finalize(Cloud Tasks 푸시, 2vCPU/4GB, 동시성 1~2, dpi 상한 600) — *tofu에 서비스 구성·env/시크릿 결선·deploy.yml까지 완료 — **남은 것은 스테이징 개통 실행뿐**: `infra/README.md` "개통 체크리스트"(부트스트랩→2단계 apply→시크릿 주입→GitHub vars→main 푸시)*
+- [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링/SSE), 세션 상태는 api 소유 — *worker client + Cloud Tasks REST enqueue(DryRun fallback) + job polling + generate 과금(use_tokens 선차감·실패 환불). SSE는 미구현*
 
 ## 5. 프론트
 

@@ -15,7 +15,7 @@ from worker.config import get_settings
 from worker.engine.intent import Intent
 from worker.engine.palette import ColorSlot, Colorway, Palette, out_of_gamut
 from worker.engine.units import ALLOWED_DPI, divides, snap_angle, snap_spacing, stripe_tiles
-from worker.motifs.registry import get_motif
+from worker.motifs.registry import MotifCatalog, resolve_motif
 
 
 class IntentInvalid(Exception):
@@ -215,7 +215,9 @@ def _repair_stripe_ground_gap(layer, cap: float):
     return new_layer, warning
 
 
-def validate_intent(raw, *, repair: bool = True) -> ValidationResult:
+def validate_intent(
+    raw, *, repair: bool = True, motifs: MotifCatalog | None = None
+) -> ValidationResult:
     # 1. 구조
     if isinstance(raw, Intent):
         intent = raw
@@ -321,7 +323,7 @@ def validate_intent(raw, *, repair: bool = True) -> ValidationResult:
 
         if layer.type == "motif":
             try:
-                motif = get_motif(layer.params.motif_id)
+                motif = resolve_motif(layer.params.motif_id, motifs)
             except ValueError:
                 motif = None  # 미등록 모티프는 compose에 위임 (stale 카탈로그 422 방지)
             if motif is not None:

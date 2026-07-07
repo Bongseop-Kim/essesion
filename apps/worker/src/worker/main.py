@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from obs import RequestIdMiddleware, init_observability
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from worker.adapters import build_adapters
 from worker.api import router
 from worker.config import Settings, get_settings
 from worker.db import build_engine
@@ -21,7 +22,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = engine
         app.state.sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
         app.state.object_store = build_object_store(settings)
+        app.state.adapters = build_adapters(settings)
         yield
+        await app.state.adapters.aclose()
         await engine.dispose()
 
     application = FastAPI(title="essesion worker", lifespan=lifespan)

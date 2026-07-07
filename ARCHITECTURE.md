@@ -120,7 +120,7 @@ graph LR
 | 의존성 갱신 | **Renovate** | ➕ | 전 의존성 핀 전략의 짝 — uv.lock·pnpm-lock 묶음 PR로 핀 자동 갱신 |
 | 공급망 보안 | **GitHub secret scanning + push protection**, **osv-scanner**(CI) | ➕ | 켜기만 하면 되는 시크릿 유출 방지 + npm·PyPI 취약점 스캔을 단일 도구로 |
 | e2e | **Playwright** — 돈 경로 스모크만 (유지) | ✅ | 기존 경험 자산. 로그인→장바구니→주문→결제(Toss 샌드박스) 한 줄기만 — e2e를 넓게 깔면 유지비가 가치를 넘는다 |
-| 이미지 파이프라인 | **Pillow + resvg 인프로세스 래스터화** (갱신, 버전 핀) | 🔄 | GPU 불필요 확정이므로 CPU Cloud Run으로 충분. 래스터화는 서브프로세스(librsvg) 대신 resvg 파이썬 바인딩으로 인프로세스화 — 시스템 바이너리 의존 제거(렌더 결과 동등성 **확인 필요**, 불가 판정 시 librsvg 폴백) |
+| 이미지 파이프라인 | **Pillow + librsvg(`rsvg-convert`) 서브프로세스 래스터화** | ✅ | GPU 불필요 확정이므로 CPU Cloud Run으로 충분. resvg 인프로세스화는 **동등성 판정 (b) 조건부**로 보류 — 치수·형상·색은 동일하나 도형 경계 AA가 달라 byte-identical 미달, 전환 시 fabric 골든 재베이스라인 필요(`docs/reviews/resvg-parity.md`). librsvg 서브프로세스 기준선 유지, resvg 폴백 분기 유지 |
 
 ---
 
@@ -188,7 +188,7 @@ essesion/
 - **범위**: seamless 엔진(compose/candidates/placement), 래스터화, finalize, export, 모티프 검색. 재작성이되 알고리즘 명세(결정론 계약: 같은 intent+seed → byte-identical)는 보존. `generate-tile` 계열과 세션 그래프(LangGraph)는 승계하지 않는다 — 세션 상태는 api 소유(§2).
 - **stateless로**: 응답 캐시·in-flight 락·프로세스-로컬 레지스트리 지문 등은 승계하지 않는다(멱등이라 재계산 안전). 생성 예산·사용량 제한은 Postgres 공유 카운터로 정식화(프로세스-로컬 budget 락 금지). 인스턴스 수와 무관하게 동작해야 함.
 - **파이프라인 재설계**: 기존 finalize(yarn_dyed)가 compose+래스터를 요청당 4~5회 재실행하던 구조는 승계하지 않는다 — 중간 산출물(베이스 SVG·마스크 래스터)을 요청 내 재사용.
-- **컨테이너**: python 버전 핀 + resvg 인프로세스 래스터화(§3 — 동등성 확인 실패 시 librsvg 서브프로세스 폴백). Pillow 포함 전 의존성 핀(uv.lock) — finalize 결정론의 전제. 번들 폰트(NotoSansCJKkr)는 **텍스트 렌더링 도입 시에만 필요** — 현 엔진·sanitize는 `<text>`를 생성·허용하지 않아 불요(점검 F5).
+- **컨테이너**: python 버전 핀 + librsvg(`rsvg-convert`) 서브프로세스 래스터화(§3 — resvg 인프로세스화는 동등성 판정 (b) 조건부로 보류, `docs/reviews/resvg-parity.md`). Pillow 포함 전 의존성 핀(uv.lock) — finalize 결정론의 전제. 번들 폰트(NotoSansCJKkr)는 **텍스트 렌더링 도입 시에만 필요** — 현 엔진·sanitize는 `<text>`를 생성·허용하지 않아 불요(점검 F5).
 - **리소스 (초기 권고)**: CPU Cloud Run으로 충분(GPU 불필요 확정). `worker-generate`는 가볍게(1 vCPU / 1GB, 동시성 높게 — 지연 대부분이 외부 API 대기). `worker-finalize`는 메모리가 dpi²에 비례하므로 **2 vCPU / 4GB, 동시성 1~2, dpi 상한 600**(엔진 기본 300 유지)으로 시작하고 운영 실측 후 조정 — 1200dpi가 실제로 필요해지면 그때 8GB+로 상향.
 - **경계**: 둘 다 외부 노출 없음. generate는 api의 OIDC 동기 호출, finalize는 Cloud Tasks 푸시(OIDC 토큰 포함)만 수신. 타임아웃은 Recraft 120s 재시도까지 감안해 여유 있게.
 

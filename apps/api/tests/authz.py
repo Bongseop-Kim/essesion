@@ -130,6 +130,30 @@ async def _claim_delete(session: AsyncSession, owner: User) -> tuple[str, dict |
     return f"/claims/{claim.id}", None
 
 
+async def _design_motif_candidates(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.commit()
+    return (
+        f"/design/sessions/{design_session.id}/motifs/candidates",
+        {"spec": {"subject": "flower", "scope": "whole"}},
+    )
+
+
+async def _design_motif_generate(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.commit()
+    return (
+        f"/design/sessions/{design_session.id}/motifs/generate",
+        {"spec": {"subject": "flower", "scope": "whole"}},
+    )
+
+
 async def _design_job_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.design import DesignSession, GenerationJob
 
@@ -172,6 +196,8 @@ OWNER_CASES: list[OwnerCase] = [
     OwnerCase("inquiries_detail", "GET", _inquiry_detail),
     OwnerCase("design_session_detail", "GET", _design_session_detail),
     OwnerCase("design_job_detail", "GET", _design_job_detail),
+    OwnerCase("design_motif_candidates", "POST", _design_motif_candidates),
+    OwnerCase("design_motif_generate", "POST", _design_motif_generate),
     OwnerCase("address_delete", "DELETE", _address_delete),
 ]
 

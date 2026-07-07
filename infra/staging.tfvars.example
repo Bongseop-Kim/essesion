@@ -2,3 +2,12 @@
 project_id      = "essesion-staging"
 billing_account = "XXXXXX-XXXXXX-XXXXXX"
 alert_email     = "bong0427@duegosystem.com"
+
+# 비시크릿 운영 env — 도메인·OAuth 앱 확정 후 채움 (시크릿은 gcloud 주입, README)
+# api_extra_env = {
+#   FRONTEND_ORIGIN  = "https://app.example.com"
+#   CORS_ORIGINS     = "[\"https://app.example.com\", \"https://admin.example.com\"]"
+#   GOOGLE_CLIENT_ID = "..."
+#   KAKAO_CLIENT_ID  = "..."
+#   SOLAPI_SENDER_NUMBER = "01000000000"
+# }

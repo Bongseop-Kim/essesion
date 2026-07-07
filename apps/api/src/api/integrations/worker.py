@@ -39,6 +39,12 @@ class WorkerClient:
     async def finalize_job(self, job_id: str) -> dict[str, Any]:
         return await self._post_json("/tasks/finalize", {"job_id": job_id})
 
+    async def motif_candidates(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._post_json("/motifs/candidates", payload)
+
+    async def motif_generate(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._post_json("/motifs/generate", payload)
+
     async def _auth_headers(self) -> dict[str, str]:
         if not self._audience:
             return {}

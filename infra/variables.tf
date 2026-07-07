@@ -47,11 +47,29 @@ variable "app_secret_ids" {
   default = [
     "toss-secret-key",
     "solapi-api-key",
+    "solapi-api-secret",
+    "google-client-secret",
+    "kakao-client-secret",
     "openai-api-key",
     "gemini-api-key",
     "recraft-api-key",
     "jwt-secret",
+    "session-secret",
     "sentry-dsn-api",
     "sentry-dsn-worker",
   ]
+}
+
+# 시크릿이 아닌 운영 설정(OAuth client id, 프론트 origin, Solapi 발신번호 등) —
+# 도메인·계정 확정 후 tfvars에서 채운다. tofu가 env 소유권을 유지하기 위한 통로.
+variable "api_extra_env" {
+  description = "api 서비스 추가 env (비시크릿 — FRONTEND_ORIGIN, GOOGLE_CLIENT_ID 등)"
+  type        = map(string)
+  default     = {}
+}
+
+variable "worker_extra_env" {
+  description = "worker 두 서비스 공통 추가 env (비시크릿)"
+  type        = map(string)
+  default     = {}
 }
