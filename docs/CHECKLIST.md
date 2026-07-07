@@ -62,7 +62,7 @@
 ## 5. 프론트
 
 - [ ] store 재작성 — 기존 라우트 기준, api-client만 사용(supabase-js 없음)
-- [ ] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외)
+- [ ] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — **이 기획에서 결정·구현할 이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [ ] admin 재작성 — 기존 라우트 기준
 - [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler), api는 min-instances=1 설정
 - [ ] Playwright 스모크 1줄기: 로그인 → 장바구니 → 주문 → 결제(Toss 샌드박스)
