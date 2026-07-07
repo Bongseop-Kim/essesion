@@ -26,16 +26,22 @@ class OpenAIEmbeddingClient:
             raise EmbeddingError("OpenAIEmbeddingClient requires a non-empty api_key")
         self.model = model
         self._api_key = api_key
+        self._client: httpx.AsyncClient | None = None
+
+    def _http(self) -> httpx.AsyncClient:
+        """지연 생성 공유 커넥션 풀 — 요청마다 열지 않는다, aclose가 닫는다."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
 
     async def embed(self, text: str) -> list[float]:
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(
-                    "https://api.openai.com/v1/embeddings",
-                    headers={"Authorization": f"Bearer {self._api_key}"},
-                    json={"model": self.model, "input": text},
-                )
-                resp.raise_for_status()
+            resp = await self._http().post(
+                "https://api.openai.com/v1/embeddings",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json={"model": self.model, "input": text},
+            )
+            resp.raise_for_status()
         except Exception as exc:  # transport / HTTP / API 실패
             raise EmbeddingError(f"OpenAI embedding request failed: {exc}") from exc
         try:
@@ -43,8 +49,9 @@ class OpenAIEmbeddingClient:
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise EmbeddingError(f"OpenAI returned an unexpected payload: {exc}") from exc
 
-    async def aclose(self) -> None:  # AsyncClient를 요청마다 열고 닫으므로 no-op
-        return None
+    async def aclose(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
 
 
 def build_embedding_client(settings) -> OpenAIEmbeddingClient | None:

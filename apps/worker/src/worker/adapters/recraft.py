@@ -219,16 +219,21 @@ class RecraftHTTPClient:
         self._response_format = response_format
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._client: httpx.AsyncClient | None = None
+
+    def _http(self) -> httpx.AsyncClient:
+        """지연 생성 공유 커넥션 풀 — 요청마다 열지 않는다, aclose가 닫는다."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self._timeout)
+        return self._client
 
     async def _post_for_svg(self, path: str, *, extract, label: str, **request_kwargs) -> str:
         headers = {"Authorization": f"Bearer {self._api_key}"}
+        client = self._http()
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.post(
-                    f"{self._base_url}{path}", headers=headers, **request_kwargs
-                )
-                resp.raise_for_status()
-                svg = await extract(client, resp.json())
+            resp = await client.post(f"{self._base_url}{path}", headers=headers, **request_kwargs)
+            resp.raise_for_status()
+            svg = await extract(client, resp.json())
         except httpx.HTTPStatusError as exc:
             raise RecraftError(
                 f"Recraft {label} HTTP {exc.response.status_code}: {exc.response.text[:500]}"
@@ -275,7 +280,8 @@ class RecraftHTTPClient:
         )
 
     async def aclose(self) -> None:
-        return None
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
 
 
 def build_recraft_client(settings) -> RecraftHTTPClient | None:

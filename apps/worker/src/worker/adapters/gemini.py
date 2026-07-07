@@ -4,7 +4,7 @@ google-genai SDK 대신 httpx로 REST 직접 호출(의존성 최소화): genera
 googleapis.com v1beta generateContent, response_mime_type=application/json. temperature
 0.7. {429,503}만 0.5/1/2s 백오프 최대 4회. designs 파싱은 legacy 단일/bare intent도 수용.
 
-이미지 전처리는 이번 범위에서 생략 — `images` 파라미터는 프론트 5단계용 자리만.
+이미지 전처리(멀티모달)는 이번 범위 밖 — 5단계에서 파라미터부터 재도입한다.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def _split_designs(raw: dict) -> list[tuple[dict, list[dict]]]:
     return [_split_intent_and_specs(raw)]
 
 
-def _validate_spec_facets(specs: list[dict], image_count: int = 0) -> list[str]:
+def _validate_spec_facets(specs: list[dict]) -> list[str]:
     """motif-spec facet 검증 — subject 필수(자유텍스트), scope 필수(통제 어휘)."""
     errors: list[str] = []
     for i, spec in enumerate(specs):
@@ -126,7 +126,7 @@ _EXAMPLE_INTENT = {
 }
 
 
-def _build_prompt(user_prompt: str, *, errors: list[str] | None, image_count: int = 0) -> str:
+def _build_prompt(user_prompt: str, *, errors: list[str] | None) -> str:
     scope_vocab = ", ".join(sorted(SCOPE_VOCAB))
     example = {
         "designs": [
@@ -194,8 +194,15 @@ class GeminiClient:
         self._api_key = api_key
         self._model = model
         self._temperature = temperature
+        self._client: httpx.AsyncClient | None = None
 
-    async def complete(self, prompt: str, *, images: tuple[bytes, ...] = ()) -> str:
+    def _http(self) -> httpx.AsyncClient:
+        """지연 생성 공유 커넥션 풀 — 재시도·재호출에 재사용, aclose가 닫는다."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=60.0)
+        return self._client
+
+    async def complete(self, prompt: str) -> str:
         url = f"{_BASE_URL}/v1beta/models/{self._model}:generateContent"
         body = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -204,11 +211,11 @@ class GeminiClient:
                 "response_mime_type": "application/json",
             },
         }
+        client = self._http()
         resp: httpx.Response | None = None
         for attempt in range(_MAX_ATTEMPTS):
             try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    resp = await client.post(url, params={"key": self._api_key}, json=body)
+                resp = await client.post(url, params={"key": self._api_key}, json=body)
             except httpx.HTTPError as exc:
                 raise AdapterClientError(f"Gemini request failed: {exc}") from exc
             if resp.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
@@ -229,26 +236,17 @@ class GeminiClient:
             raise AdapterClientError("Gemini returned an empty response")
         return text
 
-    async def author_designs(
-        self,
-        prompt: str,
-        *,
-        validate=None,
-        images: tuple[bytes, ...] = (),
-    ) -> list[AuthoredDesign]:
+    async def author_designs(self, prompt: str, *, validate=None) -> list[AuthoredDesign]:
         """prompt → 검증 통과 design 목록. facet + (있으면) intent 검증을 통과한 것만 반환.
 
         전 design 무효면 collected errors를 물려 constrained 재프롬프트 1회, 그래도 무효면
         IntentInvalid(라우트가 422로 매핑). `validate(intent_raw) -> list[str]|None`은
         라우트가 주입(engine validate_intent + 요청 카탈로그) — 어댑터는 엔진에 결합하지 않는다.
         """
-        image_count = len(images)
         errors: list[str] | None = None
         last_errors: list[str] = ["LLM produced no valid design"]
         for _ in range(2):  # 최초 + constrained 재프롬프트 1회
-            text = await self.complete(
-                _build_prompt(prompt, errors=errors, image_count=image_count), images=images
-            )
+            text = await self.complete(_build_prompt(prompt, errors=errors))
             try:
                 raw = json.loads(_strip_code_fence(text))
             except (json.JSONDecodeError, TypeError) as exc:
@@ -263,7 +261,7 @@ class GeminiClient:
             design_errors: list[str] = []
             for idx, (intent_raw, specs) in enumerate(_split_designs(raw)):
                 intent_raw.setdefault("intent_version", 1)
-                facet_errors = _validate_spec_facets(specs, image_count)
+                facet_errors = _validate_spec_facets(specs)
                 if facet_errors:
                     design_errors += [f"design[{idx}]: {e}" for e in facet_errors]
                     continue
@@ -280,7 +278,8 @@ class GeminiClient:
         raise IntentInvalid(last_errors)
 
     async def aclose(self) -> None:
-        return None
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
 
 
 def build_gemini_client(settings) -> GeminiClient | None:

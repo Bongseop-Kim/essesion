@@ -216,3 +216,18 @@ async def test_gemini_all_invalid_reprompts_then_422(monkeypatch):
     with pytest.raises(IntentInvalid):
         await GeminiClient("k").author_designs("dots", validate=lambda raw: ["forced invalid"])
     assert route.call_count == 2  # 최초 + constrained 재프롬프트 1회
+
+
+async def test_clients_reuse_and_close_http_pool():
+    # 커넥션 풀은 재시도·재호출에 재사용되고, aclose가 실제로 닫는다 (lifespan 배선의 전제).
+    from worker.adapters import Adapters
+    from worker.adapters.recraft import RecraftHTTPClient
+
+    gemini = GeminiClient("k")
+    recraft = RecraftHTTPClient("k")
+    embed = OpenAIEmbeddingClient("k")
+    pools = [c._http() for c in (gemini, recraft, embed)]
+    assert [c._http() for c in (gemini, recraft, embed)] == pools  # 같은 풀 재사용
+
+    await Adapters(embedding=embed, recraft=recraft, gemini=gemini).aclose()
+    assert all(pool.is_closed for pool in pools)
