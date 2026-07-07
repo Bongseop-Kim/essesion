@@ -4,10 +4,12 @@ exact hit / τ 게이트 / hard-filter 폴백 / miss→generate / variant pool s
 present_candidates Recraft 미호출.
 """
 
+import pytest
+from sqlalchemy.exc import OperationalError
 from worker.config import Settings
 from worker.motifs import store
 from worker.motifs.normalize import NormalizedMotif
-from worker.motifs.resolver import present_candidates, resolve_spec
+from worker.motifs.resolver import present_candidates, resolve_motifs, resolve_spec
 
 DIM = 1536
 _SETTINGS = Settings(motif_render_check=False, motif_similarity_tau=0.84)
@@ -182,6 +184,97 @@ async def test_present_candidates_never_calls_recraft(db_session):
     assert cands[0]["motif_id"] == "recraft-cand00000001"  # exact 우선
     assert cands[0]["similarity"] == 1.0
     assert {c["motif_id"] for c in cands} == {"recraft-cand00000001", "recraft-cand00000002"}
+
+
+async def test_unsupported_spec_fields_drop_layer_without_recraft(db_session):
+    # glyph/vectorize 미구현 가드 — text spec은 Recraft로 흘리지 않고 해당 레이어만 drop.
+    await _seed(db_session, "recraft-ok0000000001", subject="dot", scope="whole", style="flat")
+    recraft = _FakeRecraft()
+    intent = {
+        "layers": [
+            {"id": "bg", "type": "background", "params": {}},
+            {"id": "m1", "type": "motif", "params": {}},
+            {"id": "m2", "type": "motif", "params": {}},
+        ]
+    }
+    warnings: list[str] = []
+    resolved = await resolve_motifs(
+        db_session,
+        intent,
+        [
+            {"layer_id": "m1", "text": "ESSE"},
+            {"layer_id": "m2", "subject": "dot", "scope": "whole", "style": "flat"},
+        ],
+        recraft_client=recraft,
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+        warnings=warnings,
+    )
+    assert recraft.calls == 0  # 미지원 spec은 생성 래더 진입 금지, m2는 exact 재사용
+    ids = [layer["id"] for layer in resolved["layers"]]
+    assert ids == ["bg", "m2"]  # m1만 drop, 요청은 계속
+    assert any("unsupported spec field(s) text" in w for w in warnings)
+
+
+async def test_all_unsupported_specs_raise_without_recraft(db_session):
+    from worker.adapters import AdapterClientError
+
+    recraft = _FakeRecraft()
+    intent = {"layers": [{"id": "m1", "type": "motif", "params": {}}]}
+    with pytest.raises(AdapterClientError):
+        await resolve_motifs(
+            db_session,
+            intent,
+            [{"layer_id": "m1", "source_image_index": 0}],
+            recraft_client=recraft,
+            embedding_client=None,
+            settings=_SETTINGS,
+            seed=0,
+        )
+    assert recraft.calls == 0
+
+
+async def test_store_read_failure_degrades_to_generate(db_session, monkeypatch):
+    # 조회의 일시 DB 오류는 miss로 흡수(§6.4) — content-hash upsert가 멱등이라 정합.
+    async def _boom(session, scope):
+        raise OperationalError("SELECT 1", None, Exception("connection dropped"))
+
+    monkeypatch.setattr(store, "find_by_scope", _boom)
+    recraft = _FakeRecraft()
+    result = await resolve_spec(
+        db_session,
+        {"subject": "dot", "scope": "whole"},
+        recraft_client=recraft,
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+    )
+    assert result.reused is False
+    assert result.motif_id.startswith("recraft-")
+    assert recraft.calls == 1  # 조회 실패 → 생성 래더 폴백, upsert는 정상 진행
+
+
+async def test_nearest_read_failure_falls_back_to_hard_filter(db_session, monkeypatch):
+    await _seed(db_session, "recraft-degrade00001", subject="dot", scope="whole")
+
+    async def _boom(session, vec, scope=None):
+        raise OperationalError("SELECT 1", None, Exception("connection dropped"))
+
+    monkeypatch.setattr(store, "nearest_by_embedding", _boom)
+    recraft = _FakeRecraft()
+    result = await resolve_spec(
+        db_session,
+        {"subject": "dot", "scope": "whole", "description": "not exact"},
+        recraft_client=recraft,
+        embedding_client=_FakeEmbed(_vec(1.0)),
+        settings=_SETTINGS,
+        seed=0,
+    )
+    assert result.motif_id == "recraft-degrade00001"  # τ 조회 실패 → 하드필터 폴백 재사용
+    assert result.reused is True
+    assert result.similarity is None
+    assert recraft.calls == 0
 
 
 async def test_registry_version_fingerprint_moves_with_pool(db_session):

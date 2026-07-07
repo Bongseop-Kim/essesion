@@ -8,9 +8,12 @@
 from __future__ import annotations
 
 import copy
+import logging
 import math
+from collections.abc import Awaitable
 from dataclasses import dataclass
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from worker.adapters import AdapterClientError
@@ -26,12 +29,32 @@ from worker.motifs.store import (
     variant_group_key,
 )
 
+logger = logging.getLogger(__name__)
+
+# glyph(텍스트-as-모티프)·vectorize(이미지) 파이프라인 미구현 — 해당 spec이 Recraft 생성
+# 래더로 흘러 subject 없는 프롬프트가 되지 않게 명시 거부한다 (spec §5·§7, 5단계에서 구현).
+UNSUPPORTED_SPEC_FIELDS = ("text", "source_image_index")
+
 
 @dataclass(frozen=True)
 class ResolveResult:
     motif_id: str
     reused: bool
     similarity: float | None
+
+
+async def _read_or[T](result: Awaitable[T], fallback: T, session: AsyncSession, what: str) -> T:
+    """store 읽기의 일시 오류를 miss로 흡수 — 재생성은 content-hash upsert로 멱등이라 정합.
+
+    실패한 트랜잭션은 rollback해 이후 문장(upsert)이 aborted 상태에 걸리지 않게 한다.
+    쓰기(upsert) 오류는 흡수하지 않는다.
+    """
+    try:
+        return await result
+    except SQLAlchemyError:
+        logger.warning("motif store read failed (%s) — treated as miss", what, exc_info=True)
+        await session.rollback()
+        return fallback
 
 
 def descriptor_text(spec: dict) -> str:
@@ -80,7 +103,9 @@ async def _select_variant(
     """
     if not variant_group:
         return fallback_id
-    members = await store.find_variant_pool(session, variant_group)
+    members = await _read_or(
+        store.find_variant_pool(session, variant_group), [], session, "find_variant_pool"
+    )
     if query_vec is None:
         pool = [m.id for m in members]
     else:
@@ -112,7 +137,9 @@ async def resolve_spec(
     query_vec: list[float] | None = None
     best_sim: float | None = None
     if scope:
-        candidates = await store.find_by_scope(session, scope)
+        candidates = await _read_or(
+            store.find_by_scope(session, scope), [], session, "find_by_scope"
+        )
         if candidates:
             query_vec = await embed_query(descriptor_text(spec), client=embedding_client)
             exact = _exact_match(spec, candidates)
@@ -123,7 +150,12 @@ async def resolve_spec(
                 return ResolveResult(selected, reused=True, similarity=1.0)
             match = None
             if query_vec is not None:
-                match = await store.nearest_by_embedding(session, query_vec, scope=scope)
+                match = await _read_or(
+                    store.nearest_by_embedding(session, query_vec, scope=scope),
+                    None,
+                    session,
+                    "nearest_by_embedding",
+                )
             if match is None:
                 fallback = min(candidates, key=lambda c: c.id)
                 selected = await _select_variant(
@@ -237,6 +269,11 @@ async def resolve_motifs(
             continue
         lid = str(layer.get("id"))
         attempted.add(lid)
+        unsupported = [f for f in UNSUPPORTED_SPEC_FIELDS if spec.get(f) is not None]
+        if unsupported:
+            failed.add(lid)
+            reasons[lid] = f"unsupported spec field(s) {', '.join(unsupported)} (not implemented)"
+            continue
         try:
             result = await resolve_spec(
                 session,
@@ -248,16 +285,16 @@ async def resolve_motifs(
             )
         except AdapterClientError:
             failed.add(lid)
-            reasons[lid] = f"{spec.get('subject', '?')}/{spec.get('scope', '?')}"
+            reasons[lid] = (
+                f"Tier-1 gate exhausted ({spec.get('subject', '?')}/{spec.get('scope', '?')})"
+            )
             continue
         layer.setdefault("params", {})["motif_id"] = result.motif_id
 
     if not failed:
         return resolved
     if not (attempted - failed):
-        raise AdapterClientError(
-            f"all {len(attempted)} motif(s) failed the Tier-1 sanitize/structure gate"
-        )
+        raise AdapterClientError(f"all {len(attempted)} motif spec(s) failed to resolve")
 
     dropped = set(failed)
     while True:
@@ -284,7 +321,7 @@ async def resolve_motifs(
         if lid not in dropped:
             continue
         if lid in failed:
-            sink.append(f"motif layer {lid!r} dropped after Tier-1 gate exhausted ({reasons[lid]})")
+            sink.append(f"motif layer {lid!r} dropped — {reasons[lid]}")
         else:
             sink.append(f"layer {lid!r} dropped because its {reasons[lid]} was dropped")
     resolved["layers"] = survivors

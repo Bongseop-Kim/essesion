@@ -72,7 +72,7 @@
 |---|---|---|
 | 1 | R2 | ✅ 2026-07-07 — Field 제약 복원 + test_config.py 15건 (pyright는 positional default 미인식 → `default=` 키워드 사용) |
 | 2 | R3 (+R12 sanitize) | ✅ 2026-07-07 — defusedxml 재도입(문자열 사전검사는 보조 유지), scrub_svg는 ns-축약 트리 재사용으로 전역 register_namespace 제거, DTD/XXE/billion-laughs 다중 페이로드 테스트 |
-| 3 | R1·R8 | ☐ |
+| 3 | R1·R8 | ✅ 2026-07-07 — text/source_image_index spec 명시 거부(레이어 drop+경고, Recraft 미호출), store 읽기 오류는 rollback 후 miss 흡수(upsert는 전파). 테스트 4건 추가 |
 | 4 | R5 | ☐ |
 | 5 | R9·R15 | ☐ |
 | 6 | R7·R10 | ☐ |
