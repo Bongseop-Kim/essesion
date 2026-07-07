@@ -6,5 +6,5 @@
     "directory": "./dist",
     "not_found_handling": "single-page-application"
   }
-  // 도메인 확정 후: "routes": [{ "pattern": "app.<domain>", "custom_domain": true }]
+  // 도메인 확정 후: "routes": [{ "pattern": "app.essesion.shop", "custom_domain": true }]
 }

@@ -19,7 +19,7 @@
 - [x] 디렉토리 뼈대: `apps/{store,admin,api,worker}`, `packages/{api-client,shared,tsconfig}`, `db/`, `infra/`
 - [x] 로컬: docker compose(Postgres + pgvector)
 - [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 3종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
-- [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *wrangler 설정·프록시 워커 완료. **5단계(프론트 배포)·도메인 확정 시 수행**: zone·routes·WAF 규칙(`infra/cloudflare/README.md`)*
+- [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *wrangler 설정·프록시 워커 완료. **도메인 확정: `essesion.shop`** — routes 주석에 반영됨. **5단계(프론트 배포) 시 수행**: zone 추가·routes 해제·WAF 규칙(`infra/cloudflare/README.md`, 운영자 목록 `docs/OPERATOR-CHECKLIST.md` §C)*
 - [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 프리뷰(Cloudflare 프리뷰 URL + Cloud Run 태그 리비전) — *배포·프리뷰 잡은 GitHub vars 설정 전까지 자동 스킵*
 - [x] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
 - [x] Renovate 설정(묶음 PR) — *레포에 Renovate GitHub App 설치 필요*
