@@ -6,10 +6,10 @@
 
 import uuid
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from obs import request_id_var
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import CursorResult, func, select, update
@@ -84,6 +84,21 @@ class DesignGenerateOut(BaseModel):
     engine_version: str
     candidates: list[WorkerCandidateOut]
     warnings: list[str] = []
+
+
+class DesignExportRequest(BaseModel):
+    """SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
+
+    dpi·치수 상한은 워커가 최종 권위(WorkerRequestError로 detail 전파) — 여기서
+    중복 선언하면 KNOWN_WEAVES처럼 드리프트 위험이라 구조 검증만 한다.
+    """
+
+    session_id: uuid.UUID | None = None  # 있으면 소유자 확인
+    svg: str = Field(max_length=2_000_000)
+    format: Literal["png", "tiff"] = "png"
+    dpi: int = Field(300, ge=1)
+    width_mm: float = Field(gt=0)
+    height_mm: float | None = Field(None, gt=0)
 
 
 # 워커 에셋(assets/fabric/*.png) stem과 일치해야 하는 얕은 사전검증용 상수 —
@@ -242,6 +257,22 @@ async def generate_design(
         )
     await session.commit()
     return DesignGenerateOut.model_validate(response)
+
+
+@router.post("/design/export")
+async def export_design(
+    body: DesignExportRequest,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> Response:
+    """디자인 SVG를 PNG/TIFF로 변환해 바이너리로 반환 (워커 /export 프록시, 과금 없음)."""
+    if body.session_id is not None:
+        ensure_owner(await session.get(DesignSession, body.session_id), user)
+    data, media = await request.app.state.worker.export(
+        body.model_dump(exclude={"session_id"}, exclude_none=True)
+    )
+    return Response(content=data, media_type=media)
 
 
 @router.post(

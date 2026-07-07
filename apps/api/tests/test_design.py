@@ -29,6 +29,7 @@ class FakeWorker:
     def __init__(self):
         self.generate_payloads = []
         self.finalize_jobs = []
+        self.export_payloads = []
 
     async def generate(self, payload):
         self.generate_payloads.append(payload)
@@ -54,6 +55,10 @@ class FakeWorker:
     async def finalize_job(self, job_id):
         self.finalize_jobs.append(job_id)
         return {"status": "succeeded"}
+
+    async def export(self, payload):
+        self.export_payloads.append(payload)
+        return b"png-bytes", "image/png"
 
     async def aclose(self):
         pass
@@ -412,4 +417,65 @@ async def test_worker_client_maps_statuses(settings):
 
     route.mock(return_value=httpx.Response(200, json={"ok": True}))
     assert await wc.generate({}) == {"ok": True}
+    await wc.aclose()
+
+
+# ---- /design/export (워커 프록시 — 과금 없음, 소유자 인가) ----
+
+
+async def test_export_returns_binary_without_charge(client, app, db_session, settings):
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)  # 잔액 0 — 과금 없음을 겸증
+
+    res = await client.post(
+        "/design/export",
+        json={"svg": "<svg/>", "format": "png", "dpi": 300, "width_mm": 48},
+        headers=auth_headers(user, settings),
+    )
+    assert res.status_code == 200
+    assert res.content == b"png-bytes"
+    assert res.headers["content-type"].startswith("image/png")
+    assert worker.export_payloads == [
+        {"svg": "<svg/>", "format": "png", "dpi": 300, "width_mm": 48.0}
+    ]  # session_id/None 필드는 워커로 전달하지 않음
+
+
+async def test_export_requires_session_ownership(client, app, db_session, settings):
+    app.state.worker = FakeWorker()
+    owner = await make_user(db_session)
+    other = await make_user(db_session)
+    created = await client.post("/design/sessions", json={}, headers=auth_headers(owner, settings))
+    session_id = created.json()["id"]
+
+    res = await client.post(
+        "/design/export",
+        json={"session_id": session_id, "svg": "<svg/>", "width_mm": 48},
+        headers=auth_headers(other, settings),
+    )
+    assert res.status_code == 403  # 남의 세션 — 워커 미호출
+
+    ok = await client.post(
+        "/design/export",
+        json={"session_id": session_id, "svg": "<svg/>", "width_mm": 48},
+        headers=auth_headers(owner, settings),
+    )
+    assert ok.status_code == 200
+
+
+@respx.mock
+async def test_worker_client_export_maps_statuses(settings):
+    from api.integrations.worker import WorkerClient
+
+    wc = WorkerClient(settings)
+    route = respx.post(f"{settings.worker_base_url}/export")
+
+    route.mock(
+        return_value=httpx.Response(200, content=b"tif", headers={"content-type": "image/tiff"})
+    )
+    assert await wc.export({"svg": "<svg/>"}) == (b"tif", "image/tiff")
+
+    route.mock(return_value=httpx.Response(400, json={"detail": "dpi must be <= 600"}))
+    with pytest.raises(WorkerRequestError, match="dpi must be"):
+        await wc.export({"svg": "<svg/>"})
     await wc.aclose()

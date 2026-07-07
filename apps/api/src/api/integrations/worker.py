@@ -45,6 +45,11 @@ class WorkerClient:
     async def motif_generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/motifs/generate", payload)
 
+    async def export(self, payload: dict[str, Any]) -> tuple[bytes, str]:
+        """SVG → PNG/TIFF 바이너리. (content, media_type) 반환 — 워커가 dpi/치수의 최종 권위."""
+        res = await self._post("/export", payload)
+        return res.content, res.headers.get("content-type", "application/octet-stream")
+
     async def _auth_headers(self) -> dict[str, str]:
         if not self._audience:
             return {}
@@ -65,7 +70,7 @@ class WorkerClient:
             self._id_token, self._id_token_exp = token, float(claims["exp"])
         return {"Authorization": f"Bearer {self._id_token}"}
 
-    async def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    async def _post(self, path: str, payload: dict[str, Any]) -> httpx.Response:
         headers = {"X-Request-ID": request_id_var.get(), **(await self._auth_headers())}
         try:
             res = await self._client.post(path, json=payload, headers=headers)
@@ -76,7 +81,10 @@ class WorkerClient:
             raise WorkerRequestError(f"이미지 워커가 요청을 거부했습니다: {_detail_of(res)}")
         if res.status_code >= 400:
             raise UpstreamError("이미지 워커가 요청을 처리하지 못했습니다")
-        return res.json()
+        return res
+
+    async def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return (await self._post(path, payload)).json()
 
 
 def _detail_of(res: httpx.Response) -> str:

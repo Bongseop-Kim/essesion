@@ -269,6 +269,23 @@ export const zCustomAmountResponse = z.object({
 });
 
 /**
+ * DesignExportRequest
+ *
+ * SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
+ *
+ * dpi·치수 상한은 워커가 최종 권위(WorkerRequestError로 detail 전파) — 여기서
+ * 중복 선언하면 KNOWN_WEAVES처럼 드리프트 위험이라 구조 검증만 한다.
+ */
+export const zDesignExportRequest = z.object({
+    dpi: z.int().gte(1).optional().default(300),
+    format: z.enum(['png', 'tiff']).optional().default('png'),
+    height_mm: z.number().gt(0).nullish(),
+    session_id: z.uuid().nullish(),
+    svg: z.string().max(2000000),
+    width_mm: z.number().gt(0)
+});
+
+/**
  * DesignGenerateRequest
  */
 export const zDesignGenerateRequest = z.object({
@@ -1490,6 +1507,8 @@ export const zListMyCouponsQuery = z.object({
  * Successful Response
  */
 export const zListMyCouponsResponse = z.array(zUserCouponOut);
+
+export const zExportDesignBody = zDesignExportRequest;
 
 export const zGenerateDesignBody = zDesignGenerateRequest;
 

@@ -728,6 +728,41 @@ export type CustomOrderCreateRequest = {
 };
 
 /**
+ * DesignExportRequest
+ *
+ * SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
+ *
+ * dpi·치수 상한은 워커가 최종 권위(WorkerRequestError로 detail 전파) — 여기서
+ * 중복 선언하면 KNOWN_WEAVES처럼 드리프트 위험이라 구조 검증만 한다.
+ */
+export type DesignExportRequest = {
+    /**
+     * Dpi
+     */
+    dpi?: number;
+    /**
+     * Format
+     */
+    format?: 'png' | 'tiff';
+    /**
+     * Height Mm
+     */
+    height_mm?: number | null;
+    /**
+     * Session Id
+     */
+    session_id?: string | null;
+    /**
+     * Svg
+     */
+    svg: string;
+    /**
+     * Width Mm
+     */
+    width_mm: number;
+};
+
+/**
  * DesignGenerateOut
  */
 export type DesignGenerateOut = {
@@ -3500,6 +3535,29 @@ export type ListMyCouponsResponses = {
 };
 
 export type ListMyCouponsResponse = ListMyCouponsResponses[keyof ListMyCouponsResponses];
+
+export type ExportDesignData = {
+    body: DesignExportRequest;
+    path?: never;
+    query?: never;
+    url: '/design/export';
+};
+
+export type ExportDesignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportDesignError = ExportDesignErrors[keyof ExportDesignErrors];
+
+export type ExportDesignResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
 
 export type GenerateDesignData = {
     body: DesignGenerateRequest;

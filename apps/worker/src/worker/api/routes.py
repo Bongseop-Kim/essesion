@@ -1,3 +1,4 @@
+import asyncio
 import time
 import uuid
 from typing import Any, Literal
@@ -95,10 +96,14 @@ class MotifGenerateRequest(BaseModel):
 async def _render_candidates(
     candidate_set, tile_mm: float, request: Request, settings, warnings: list[str]
 ) -> list[CandidateOut]:
-    """후보 SVG를 프리뷰 래스터화·업로드하고 CandidateOut 목록으로 — 실패는 경고로 격하."""
-    outs: list[CandidateOut] = []
-    for ranked in candidate_set.candidates:
+    """후보 SVG를 프리뷰 래스터화·업로드하고 CandidateOut 목록으로 — 실패는 경고로 격하.
+
+    후보별 렌더+업로드는 병렬(gather), 응답의 후보·경고 순서는 입력 순서 그대로.
+    """
+
+    async def _one(ranked) -> tuple[CandidateOut, str | None]:
         png_key = None
+        warning = None
         try:
             png, _media = await run_in_threadpool(
                 rasterize_svg, ranked.candidate.svg, width_mm=tile_mm, dpi=settings.preview_dpi
@@ -106,19 +111,25 @@ async def _render_candidates(
             png_key = f"previews/{request_id_var.get()}/{ranked.id}.png"
             await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
         except (RasterError, OSError) as exc:
-            warnings.append(f"preview upload skipped: {exc}")
-        outs.append(
-            CandidateOut(
-                id=ranked.id,
-                design_index=ranked.design_index,
-                layout_id=ranked.candidate.layout_id or "",
-                source_fidelity=ranked.source_fidelity,
-                colorway_id=ranked.colorway_id,
-                seed=ranked.seed,
-                svg=ranked.candidate.svg,
-                png_object_key=png_key,
-            )
+            warning = f"preview upload skipped: {exc}"
+        out = CandidateOut(
+            id=ranked.id,
+            design_index=ranked.design_index,
+            layout_id=ranked.candidate.layout_id or "",
+            source_fidelity=ranked.source_fidelity,
+            colorway_id=ranked.colorway_id,
+            seed=ranked.seed,
+            svg=ranked.candidate.svg,
+            png_object_key=png_key,
         )
+        return out, warning
+
+    rendered = await asyncio.gather(*(_one(r) for r in candidate_set.candidates))
+    outs: list[CandidateOut] = []
+    for out, warning in rendered:
+        if warning is not None:
+            warnings.append(warning)
+        outs.append(out)
     return outs
 
 
