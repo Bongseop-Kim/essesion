@@ -231,3 +231,81 @@ async def test_clients_reuse_and_close_http_pool():
 
     await Adapters(embedding=embed, recraft=recraft, gemini=gemini).aclose()
     assert all(pool.is_closed for pool in pools)
+
+
+def _stripe_intent(angle: float = -36.87) -> dict:
+    from .intent_helpers import mvp_intent
+
+    raw = mvp_intent()
+    stripe = next(layer for layer in raw["layers"] if layer["type"] == "stripe")
+    stripe["params"]["angle"] = angle
+    return raw
+
+
+def _stripe_params(raw: dict) -> dict:
+    return next(layer for layer in raw["layers"] if layer["type"] == "stripe")["params"]
+
+
+def test_normalize_stripes_forces_diagonal_to_minus_45():
+    import math
+
+    from worker.adapters.gemini import normalize_stripes
+
+    raw = _stripe_intent(angle=30.0)
+    before = _stripe_params(raw)
+    old_period = before["period_mm"]
+    old_widths = [b["width_mm"] for b in before["bands"]]
+
+    normalize_stripes(raw, _SETTINGS)
+    st = _stripe_params(raw)
+    tile = raw["canvas"]["tile_mm"]
+    assert st["angle"] == -45.0
+    assert abs(st["period_mm"] - tile / math.sqrt(2)) < 1e-3  # repeats=2 → k=1
+    scale = (tile / math.sqrt(2)) / old_period  # 반올림 전 target으로 스케일 (구현과 동일)
+    for got, old in zip([b["width_mm"] for b in st["bands"]], old_widths, strict=True):
+        assert abs(got - old * scale) < 1e-5  # 밴드 비례 스케일
+
+
+@pytest.mark.parametrize("angle", [0.0, 90.0, -90.0, 5.0, 85.0])
+def test_normalize_stripes_preserves_axis_aligned(angle):
+    from worker.adapters.gemini import normalize_stripes
+
+    raw = _stripe_intent(angle=angle)
+    old_period = _stripe_params(raw)["period_mm"]
+    normalize_stripes(raw, _SETTINGS)
+    st = _stripe_params(raw)
+    assert st["angle"] == angle  # 0/90 ± 8° 존중
+    assert st["period_mm"] == old_period
+
+
+def test_normalize_stripes_repeats_controls_k():
+    import math
+
+    from worker.adapters.gemini import normalize_stripes
+
+    raw = _stripe_intent(angle=30.0)
+    normalize_stripes(raw, Settings(stripe_diagonal_repeats=4))
+    st = _stripe_params(raw)
+    tile = raw["canvas"]["tile_mm"]
+    assert abs(st["period_mm"] - tile / (2 * math.sqrt(2))) < 1e-3  # k=2 → 타일당 4줄
+
+
+async def test_request_scoped_embedding_memoizes():
+    from worker.adapters.embedding import request_scoped
+
+    class _Counting:
+        model = "test"
+        calls = 0
+
+        async def embed(self, text: str) -> list[float]:
+            self.calls += 1
+            return [1.0]
+
+    inner = _Counting()
+    wrapped = request_scoped(inner)
+    assert wrapped is not None
+    assert await wrapped.embed("bee") == [1.0]
+    assert await wrapped.embed("bee") == [1.0]
+    assert await wrapped.embed("dot") == [1.0]
+    assert inner.calls == 2  # 같은 텍스트는 1회
+    assert request_scoped(None) is None  # 미구성은 그대로 통과

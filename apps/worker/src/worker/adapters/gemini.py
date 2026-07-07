@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -102,6 +103,51 @@ def _validate_spec_facets(specs: list[dict]) -> list[str]:
         except ValueError as exc:
             errors.append(f"motif_specs[{i}]: {exc}")
     return errors
+
+
+_STRIPE_AXIS_TOL_DEG = 8.0
+
+
+def normalize_stripes(intent_raw: dict, settings) -> None:
+    """프롬프트 경로 stripe 정규화(in place) — 명백한 대각 stripe를 -45°·고정 반복수로.
+
+    period = tile/(k·√2), k = stripe_diagonal_repeats//2, 밴드 offset/width는 비례
+    스케일 — 생성 결과가 가는 줄 수십 개 대신 굵은 45° 줄 몇 개가 되게. 축 정렬
+    (0/90 ± 8°)은 저작 의도 존중. LLM 경로 전용 — intent 직접
+    전달·검증 경로는 건드리지 않는다(프롬프트 문구가 아닌 코드 계약).
+    """
+    try:
+        tile = float(intent_raw["canvas"]["tile_mm"])
+        layers = intent_raw["layers"]
+    except (KeyError, TypeError, ValueError):
+        return
+    if not isinstance(layers, list):
+        return
+    k = max(1, settings.stripe_diagonal_repeats // 2)
+    target_period = tile / (k * math.sqrt(2.0))
+    for layer in layers:
+        if not isinstance(layer, dict) or layer.get("type") != "stripe":
+            continue
+        params = layer.get("params")
+        if not isinstance(params, dict):
+            continue
+        angle = params.get("angle")
+        period = params.get("period_mm")
+        bands = params.get("bands")
+        if not isinstance(angle, int | float) or not period or not isinstance(bands, list):
+            continue
+        off_axis = abs(angle) % 90.0
+        if min(off_axis, 90.0 - off_axis) <= _STRIPE_AXIS_TOL_DEG:
+            continue  # 수직/수평(±톨러런스)은 그대로
+        scale = target_period / float(period)
+        for band in bands:
+            if not isinstance(band, dict):
+                continue
+            for key in ("offset_mm", "width_mm"):
+                if isinstance(band.get(key), int | float):
+                    band[key] = round(band[key] * scale, 6)
+        params["angle"] = -45.0
+        params["period_mm"] = round(target_period, 6)
 
 
 _EXAMPLE_INTENT = {

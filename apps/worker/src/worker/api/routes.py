@@ -11,6 +11,8 @@ from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
+from worker.adapters.embedding import request_scoped
+from worker.adapters.gemini import normalize_stripes
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -155,6 +157,7 @@ async def generate(
             raise HTTPException(status_code=503, detail="Gemini 미구성 (intent 직접 전달 가능)")
 
         def _validate(intent_raw: dict) -> list[str] | None:
+            normalize_stripes(intent_raw, settings)  # 대각 stripe 코드 계약 — 검증 전 in-place
             try:
                 validate_intent(intent_raw, repair=True)
             except IntentInvalid as exc:
@@ -169,6 +172,7 @@ async def generate(
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
         seed = body.seed if body.seed is not None else 0
+        embedding = request_scoped(adapters.embedding)  # design 간 같은 descriptor 재임베딩 방지
         resolved_intents: list[dict[str, Any]] = []
         try:
             for design in designs:
@@ -178,7 +182,7 @@ async def generate(
                         design.intent,
                         design.motif_specs,
                         recraft_client=adapters.recraft,
-                        embedding_client=adapters.embedding,
+                        embedding_client=embedding,
                         settings=settings,
                         seed=seed,
                         warnings=warnings,

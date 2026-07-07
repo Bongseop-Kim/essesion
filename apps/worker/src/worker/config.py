@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     max_svg_bytes: int = Field(default=2_000_000, ge=1)
     max_placement_instances: int = Field(default=50_000, ge=1)
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
+    stripe_diagonal_repeats: int = Field(default=2, ge=2)
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash-lite"
