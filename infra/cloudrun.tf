@@ -6,7 +6,7 @@ locals {
   # 주의: 시크릿에 버전이 없으면 리비전이 기동 실패한다 — 부트스트랩은 2단계 apply(README).
   api_plain_env = merge({
     ENV                              = "staging"
-    GCS_BUCKET                       = google_storage_bucket.assets.name
+    GCS_UPLOAD_BUCKET                = google_storage_bucket.uploads.name
     GCP_PROJECT_ID                   = var.project_id
     GCP_REGION                       = var.region
     CLOUD_TASKS_QUEUE                = google_cloud_tasks_queue.finalize.name

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     solapi_template_claim_done: str = ""
     solapi_template_claim_rejected: str = ""
     solapi_template_quote_received: str = ""
-    gcs_bucket: str = ""
+    gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §6)
     worker_base_url: str = "http://localhost:8001"
     worker_timeout_seconds: float = 180.0
     worker_finalize_inline: bool = False
