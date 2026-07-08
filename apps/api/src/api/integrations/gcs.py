@@ -1,6 +1,7 @@
-"""GCS — 서명 업로드 URL 발급(ImageKit 대체) + 객체 삭제(정리 배치).
+"""GCS — 비공개 업로드 버킷의 서명 URL 발급(ImageKit 대체) + 객체 삭제(정리 배치).
 
-서명은 로컬 키 연산(네트워크 불필요), 삭제는 blocking IO라 threadpool로.
+업로드는 공개 assets 버킷과 분리된 비공개 버킷 — 읽기도 서명 URL 경유(ARCHITECTURE §6).
+서명은 IAM signBlob(네트워크), 삭제는 blocking IO라 threadpool로.
 버킷 미설정 시 DryRun: 가짜 URL 반환(로컬 개발용).
 """
 
@@ -15,10 +16,13 @@ from api.config import Settings
 logger = logging.getLogger(__name__)
 
 UPLOAD_URL_TTL = timedelta(minutes=15)
+READ_URL_TTL = timedelta(minutes=15)
 
 
 class GcsClient(Protocol):
     async def signed_upload_url(self, object_key: str, content_type: str) -> str: ...
+
+    async def signed_read_url(self, object_key: str) -> str: ...
 
     async def delete_object(self, object_key: str) -> bool: ...
 
@@ -37,6 +41,15 @@ class RealGcsClient:
             expiration=UPLOAD_URL_TTL,
             method="PUT",
             content_type=content_type,
+        )
+
+    async def signed_read_url(self, object_key: str) -> str:
+        blob = self._bucket.blob(object_key)
+        return await run_in_threadpool(
+            blob.generate_signed_url,
+            version="v4",
+            expiration=READ_URL_TTL,
+            method="GET",
         )
 
     async def delete_object(self, object_key: str) -> bool:
@@ -64,6 +77,10 @@ class DryRunGcsClient:
         logger.info("DRYRUN gcs signed url: %s (%s)", object_key, content_type)
         return f"https://storage.googleapis.example/dry-run/{object_key}"
 
+    async def signed_read_url(self, object_key: str) -> str:
+        logger.info("DRYRUN gcs read url: %s", object_key)
+        return f"https://storage.googleapis.example/dry-run/{object_key}"
+
     async def delete_object(self, object_key: str) -> bool:
         logger.info("DRYRUN gcs delete: %s", object_key)
         self.deleted.append(object_key)
@@ -71,7 +88,7 @@ class DryRunGcsClient:
 
 
 def build_gcs_client(settings: Settings) -> GcsClient:
-    if settings.gcs_bucket:
-        return RealGcsClient(settings.gcs_bucket)
-    logger.warning("GCS_BUCKET 없음 — DryRun GCS 클라이언트로 동작")
+    if settings.gcs_upload_bucket:
+        return RealGcsClient(settings.gcs_upload_bucket)
+    logger.warning("GCS_UPLOAD_BUCKET 없음 — DryRun GCS 클라이언트로 동작")
     return DryRunGcsClient()

@@ -46,14 +46,25 @@ resource "google_project_iam_member" "worker_roles" {
   member  = "serviceAccount:${google_service_account.worker.email}"
 }
 
+# 공개 생성물은 worker만 쓴다. api는 assets 접근 불요(공개 서빙, 서명 불필요).
 resource "google_storage_bucket_iam_member" "assets_rw" {
-  for_each = {
-    api    = google_service_account.api.email
-    worker = google_service_account.worker.email
-  }
   bucket = google_storage_bucket.assets.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${each.value}"
+  member = "serviceAccount:${google_service_account.worker.email}"
+}
+
+# 비공개 업로드는 api만 쓴다(서명 URL 발급·정리 배치 삭제).
+resource "google_storage_bucket_iam_member" "uploads_rw" {
+  bucket = google_storage_bucket.uploads.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.api.email}"
+}
+
+# v4 서명 URL은 키 파일 없는 Cloud Run에서 IAM signBlob으로 SA가 자기 자신을 서명한다.
+resource "google_service_account_iam_member" "api_sign" {
+  service_account_id = google_service_account.api.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.api.email}"
 }
 
 # api가 tasks SA의 OIDC 토큰으로 잡을 등록할 수 있게 actAs 부여
