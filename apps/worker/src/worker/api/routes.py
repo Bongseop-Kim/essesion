@@ -1,3 +1,4 @@
+import asyncio
 import time
 import uuid
 from typing import Any, Literal
@@ -10,10 +11,22 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
+from worker.adapters import AdapterClientError, AdapterNotConfigured
+from worker.adapters.embedding import request_scoped
+from worker.adapters.gemini import normalize_stripes
 from worker.db import SessionDep
-from worker.engine import IntentInvalid, generate_candidates
+from worker.engine import (
+    IntentInvalid,
+    generate_candidate_set,
+    generate_candidates,
+    validate_intent,
+)
 from worker.integrations import content_key
-from worker.render.fabric import render_fabric
+from worker.motifs.fingerprint import registry_version_for
+from worker.motifs.registry import iter_motif_ids
+from worker.motifs.resolver import present_candidates, resolve_motifs, resolve_spec
+from worker.motifs.store import get_motifs
+from worker.render.fabric import FabricError, render_fabric
 from worker.render.raster import RasterError, rasterize_svg
 from worker.render.sanitize import scrub_svg
 
@@ -61,74 +74,176 @@ class FinalizeTaskRequest(BaseModel):
     job_id: uuid.UUID
 
 
+class MotifSpec(BaseModel):
+    subject: str
+    scope: str
+    view: str | None = None
+    expression: str | None = None
+    style: str | None = None
+    description: str | None = None
+
+
+class CandidatesRequest(BaseModel):
+    spec: MotifSpec
+    top_k: int = Field(default=5, ge=1, le=10)
+
+
+class MotifGenerateRequest(BaseModel):
+    spec: MotifSpec
+    seed: int | None = None
+
+
+async def _render_candidates(
+    candidate_set, tile_mm: float, request: Request, settings, warnings: list[str]
+) -> list[CandidateOut]:
+    """후보 SVG를 프리뷰 래스터화·업로드하고 CandidateOut 목록으로 — 실패는 경고로 격하.
+
+    후보별 렌더+업로드는 병렬(gather), 응답의 후보·경고 순서는 입력 순서 그대로.
+    """
+
+    async def _one(ranked) -> tuple[CandidateOut, str | None]:
+        png_key = None
+        warning = None
+        try:
+            png, _media = await run_in_threadpool(
+                rasterize_svg, ranked.candidate.svg, width_mm=tile_mm, dpi=settings.preview_dpi
+            )
+            png_key = f"previews/{request_id_var.get()}/{ranked.id}.png"
+            await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
+        except (RasterError, OSError) as exc:
+            warning = f"preview upload skipped: {exc}"
+        out = CandidateOut(
+            id=ranked.id,
+            design_index=ranked.design_index,
+            layout_id=ranked.candidate.layout_id or "",
+            source_fidelity=ranked.source_fidelity,
+            colorway_id=ranked.colorway_id,
+            seed=ranked.seed,
+            svg=ranked.candidate.svg,
+            png_object_key=png_key,
+        )
+        return out, warning
+
+    rendered = await asyncio.gather(*(_one(r) for r in candidate_set.candidates))
+    outs: list[CandidateOut] = []
+    for out, warning in rendered:
+        if warning is not None:
+            warnings.append(warning)
+        outs.append(out)
+    return outs
+
+
 @router.post("/generate", response_model=GenerateResponse)
 async def generate(
     body: GenerateRequest, request: Request, session: SessionDep
 ) -> GenerateResponse:
     started = time.perf_counter()
     settings = request.app.state.settings
-    if body.intent is None:
-        # prompt 저작(Gemini)은 어댑터 구현 후 — 가짜 intent로 200을 주지 않는다
-        raise HTTPException(
-            status_code=NOT_IMPLEMENTED, detail="prompt 기반 생성은 아직 미구현 (intent 직접 전달)"
-        )
+    adapters = request.app.state.adapters
+    registry_version = await registry_version_for(session)
+    warnings: list[str] = []
 
-    try:
-        candidate_set = generate_candidates(
-            body.intent,
-            candidate_count=body.candidate_count,
-            seed=body.seed,
-            colorway=body.colorway,
-            registry_version=settings.registry_version,
-        )
-    except IntentInvalid as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except (AssertionError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    warnings = list(candidate_set.warnings)
-    tile_mm = float(body.intent["canvas"]["tile_mm"])
-
-    outs: list[CandidateOut] = []
-    for ranked in candidate_set.candidates:
-        png_key = None
+    if body.intent is not None:
+        input_type = "intent"
+        catalog = await get_motifs(session, iter_motif_ids(body.intent))
         try:
-            png, _media = await run_in_threadpool(
-                rasterize_svg,
-                ranked.candidate.svg,
-                width_mm=tile_mm,
-                dpi=settings.preview_dpi,
+            candidate_set = generate_candidates(
+                body.intent,
+                candidate_count=body.candidate_count,
+                seed=body.seed,
+                colorway=body.colorway,
+                registry_version=registry_version,
+                motifs=catalog or None,  # DB에 없으면 전역 registry 폴백(테스트/시드 경로)
             )
-            png_key = f"previews/{request_id_var.get()}/{ranked.id}.png"
-            await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
-        except (RasterError, OSError) as exc:
-            warnings.append(f"preview upload skipped: {exc}")
-        outs.append(
-            CandidateOut(
-                id=ranked.id,
-                design_index=ranked.design_index,
-                layout_id=ranked.candidate.layout_id or "",
-                source_fidelity=ranked.source_fidelity,
-                colorway_id=ranked.colorway_id,
-                seed=ranked.seed,
-                svg=ranked.candidate.svg,
-                png_object_key=png_key,
+        except IntentInvalid as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (AssertionError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        tile_mm = float(body.intent["canvas"]["tile_mm"])
+        intent_log: dict[str, Any] = {"designs": [body.intent]}
+    elif body.prompt is not None:
+        input_type = "prompt"
+        gemini = adapters.gemini
+        if gemini is None:
+            raise HTTPException(status_code=503, detail="Gemini 미구성 (intent 직접 전달 가능)")
+
+        def _validate(intent_raw: dict) -> list[str] | None:
+            normalize_stripes(intent_raw, settings)  # 대각 stripe 코드 계약 — 검증 전 in-place
+            try:
+                validate_intent(intent_raw, repair=True)
+            except IntentInvalid as exc:
+                return exc.errors
+            return None
+
+        try:
+            designs = await gemini.author_designs(body.prompt, validate=_validate)
+        except IntentInvalid as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except AdapterClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        seed = body.seed if body.seed is not None else 0
+        embedding = request_scoped(adapters.embedding)  # design 간 같은 descriptor 재임베딩 방지
+        resolved_intents: list[dict[str, Any]] = []
+        try:
+            for design in designs:
+                resolved_intents.append(
+                    await resolve_motifs(
+                        session,
+                        design.intent,
+                        design.motif_specs,
+                        recraft_client=adapters.recraft,
+                        embedding_client=embedding,
+                        settings=settings,
+                        seed=seed,
+                        warnings=warnings,
+                    )
+                )
+        except AdapterNotConfigured as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except AdapterClientError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        ids: set[str] = set()
+        for resolved in resolved_intents:
+            ids |= iter_motif_ids(resolved)
+        catalog = await get_motifs(session, ids)
+        registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
+        try:
+            candidate_set = generate_candidate_set(
+                resolved_intents,
+                candidate_count=body.candidate_count,
+                seed=body.seed,
+                colorway=body.colorway,
+                registry_version=registry_version,
+                motifs=catalog or None,
             )
-        )
+        except IntentInvalid as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (AssertionError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        tile_mm = float(resolved_intents[0]["canvas"]["tile_mm"])
+        intent_log = {"designs": resolved_intents}
+    else:
+        raise HTTPException(status_code=422, detail="either intent or prompt is required")
+
+    warnings.extend(candidate_set.warnings)
+    warnings = list(dict.fromkeys(warnings))
+    outs = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
 
     log = SeamlessGenerationLog(
         request_id=request_id_var.get(),
-        input_type="intent",
+        input_type=input_type,
         prompt=body.prompt,
         colorway=body.colorway,
-        seed=body.seed if body.seed is not None else body.intent.get("seed"),
+        seed=body.seed,
         candidate_count_requested=body.candidate_count,
         candidate_count_returned=len(outs),
         distinct_layouts=len({c.layout_id for c in outs}),
         available_strategies=candidate_set.available_strategy_count,
         engine_version=settings.engine_version,
-        registry_version=settings.registry_version,
-        intent={"designs": [body.intent]},
+        registry_version=registry_version,
+        intent=intent_log,
         candidates=[c.model_dump() for c in outs],
         warnings=warnings,
         generate_ms=round((time.perf_counter() - started) * 1000, 3),
@@ -138,7 +253,7 @@ async def generate(
     await session.commit()
     return GenerateResponse(
         request_id=request_id_var.get(),
-        registry_version=settings.registry_version,
+        registry_version=registry_version,
         engine_version=settings.engine_version,
         candidates=outs,
         warnings=warnings,
@@ -146,15 +261,48 @@ async def generate(
 
 
 @router.post("/motifs/candidates")
-async def motif_candidates() -> None:
-    raise HTTPException(
-        status_code=NOT_IMPLEMENTED, detail="모티프 검색(pgvector store)은 아직 미구현"
+async def motif_candidates(
+    body: CandidatesRequest, request: Request, session: SessionDep
+) -> dict[str, Any]:
+    adapters = request.app.state.adapters
+    registry_version = await registry_version_for(session)
+    candidates = await present_candidates(
+        session, body.spec.model_dump(), embedding_client=adapters.embedding, top_k=body.top_k
     )
+    return {
+        "request_id": request_id_var.get(),
+        "registry_version": registry_version,
+        "candidates": candidates,
+    }
 
 
 @router.post("/motifs/generate")
-async def motif_generate() -> None:
-    raise HTTPException(status_code=NOT_IMPLEMENTED, detail="Recraft 모티프 생성은 아직 미구현")
+async def motif_generate(
+    body: MotifGenerateRequest, request: Request, session: SessionDep
+) -> dict[str, Any]:
+    settings = request.app.state.settings
+    adapters = request.app.state.adapters
+    seed = body.seed if body.seed is not None else 0
+    try:
+        result = await resolve_spec(
+            session,
+            body.spec.model_dump(),
+            recraft_client=adapters.recraft,
+            embedding_client=adapters.embedding,
+            settings=settings,
+            seed=seed,
+        )
+    except AdapterNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AdapterClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    await session.commit()
+    return {
+        "request_id": request_id_var.get(),
+        "motif_id": result.motif_id,
+        "reused": result.reused,
+        "similarity": result.similarity,
+    }
 
 
 @router.post("/export")
@@ -208,9 +356,14 @@ async def finalize_task(
         png = await run_in_threadpool(render_fabric, params, request.app.state.settings)
         key = content_key("fabric", png, "png")
         await request.app.state.object_store.upload_bytes(key, png, "image/png")
-    except Exception as exc:
+    except FabricError as exc:
+        # 영구 실패(잘못된 intent/weave/colorway 등) — failed 기록 후 200. 재렌더해도 같은
+        # 입력은 같은 실패라 Cloud Tasks 재시도가 무의미하다(예산·큐 낭비).
         await _finish_job(session, body.job_id, status="failed", error=str(exc))
-        # 5xx → Cloud Tasks가 재시도 (FabricError 등 영구 실패도 큐 재시도 상한이 정리)
+        return {"status": "failed", "error": str(exc)}
+    except Exception as exc:
+        # 일시 실패(RasterError 등) — 5xx로 Cloud Tasks 재시도에 위임.
+        await _finish_job(session, body.job_id, status="failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     await _finish_job(session, body.job_id, status="succeeded", result={"object_key": key})

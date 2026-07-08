@@ -14,7 +14,7 @@ from worker.engine.placement import Instance, place
 from worker.engine.primitives import build_primitive, escape_attr
 from worker.engine.seamless import clone_instances
 from worker.engine.units import fmt
-from worker.motifs.registry import MotifDef, get_motif, slot_render_symbols
+from worker.motifs.registry import MotifCatalog, MotifDef, resolve_motif, slot_render_symbols
 from worker.render.sanitize import sanitize_svg
 
 
@@ -32,7 +32,12 @@ def render_svg_document(
     )
 
 
-def compose(intent: Intent, palette: Palette, colorway_id: str | None = None) -> str:
+def compose(
+    intent: Intent,
+    palette: Palette,
+    colorway_id: str | None = None,
+    motifs: MotifCatalog | None = None,
+) -> str:
     tile = intent.canvas.tile_mm
     layers = sorted_layers(intent.layers)
 
@@ -45,7 +50,9 @@ def compose(intent: Intent, palette: Palette, colorway_id: str | None = None) ->
     symbol_defs: dict[str, str] = {}  # 삽입순 유지 — 최초 등장 심볼 순서가 defs 순서
     fragments: list[str] = []
     for layer in layers:
-        fragment = _render_layer(layer, hosts, palette, colorway_id, tile, symbol_defs, intent.seed)
+        fragment = _render_layer(
+            layer, hosts, palette, colorway_id, tile, symbol_defs, intent.seed, motifs
+        )
         if not fragment:
             continue
         if layer.opacity != 1.0:
@@ -79,13 +86,16 @@ def _render_layer(
     tile: float,
     symbol_defs: dict[str, str],
     seed: int,
+    motifs: MotifCatalog | None,
 ) -> str:
     if layer.type == "background":
         return hosts[layer.id].render(tile, palette, colorway_id)
     if layer.type == "stripe":
         return hosts[layer.id].render(palette, colorway_id)
     if layer.type == "motif":
-        return _render_motif_layer(layer, hosts, palette, colorway_id, tile, symbol_defs, seed)
+        return _render_motif_layer(
+            layer, hosts, palette, colorway_id, tile, symbol_defs, seed, motifs
+        )
     raise ValueError(f"unsupported layer type: {layer.type!r}")
 
 
@@ -97,6 +107,7 @@ def _render_motif_layer(
     tile: float,
     symbol_defs: dict[str, str],
     seed: int,
+    motifs: MotifCatalog | None,
 ) -> str:
     placement = layer.placement
     if placement is None:
@@ -109,7 +120,7 @@ def _render_motif_layer(
             )
         host = hosts[placement.host_layer]
 
-    motif = get_motif(layer.params.motif_id)
+    motif = resolve_motif(layer.params.motif_id, motifs)
     size_mm = layer.params.size_mm
     placed = place(layer, host, tile, seed)
     instances = clone_instances(placed, motif=motif, size_mm=size_mm, tile_mm=tile)

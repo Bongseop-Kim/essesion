@@ -100,6 +100,77 @@ async def _design_session_detail(session: AsyncSession, owner: User) -> tuple[st
     return f"/design/sessions/{design_session.id}", None
 
 
+async def _claim_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.commerce import Claim, OrderItem
+
+    from .factories import make_order
+
+    order = await make_order(session, owner, status="배송완료")
+    item = OrderItem(
+        order_id=order.id,
+        item_id=f"itm-{order.id}",
+        item_type="product",
+        quantity=1,
+        unit_price=order.total_price,
+    )
+    session.add(item)
+    await session.flush()
+    claim = Claim(
+        user_id=owner.id,
+        order_id=order.id,
+        order_item_id=item.id,
+        claim_number=f"CLM-TEST-{owner.id.hex[:6]}",
+        type="return",
+        status="접수",
+        reason="단순 변심",
+        quantity=1,
+    )
+    session.add(claim)
+    await session.commit()
+    return f"/claims/{claim.id}", None
+
+
+async def _design_motif_candidates(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.commit()
+    return (
+        f"/design/sessions/{design_session.id}/motifs/candidates",
+        {"spec": {"subject": "flower", "scope": "whole"}},
+    )
+
+
+async def _design_motif_generate(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.commit()
+    return (
+        f"/design/sessions/{design_session.id}/motifs/generate",
+        {"spec": {"subject": "flower", "scope": "whole"}},
+    )
+
+
+async def _design_job_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession, GenerationJob
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.flush()
+    job = GenerationJob(
+        user_id=owner.id,
+        session_id=design_session.id,
+        kind="finalize",
+        params={},
+    )
+    session.add(job)
+    await session.commit()
+    return f"/design/jobs/{job.id}", None
+
+
 async def _address_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.commerce import ShippingAddress
 
@@ -120,9 +191,13 @@ OWNER_CASES: list[OwnerCase] = [
     OwnerCase("orders_detail", "GET", _order_detail),
     OwnerCase("orders_confirm_purchase", "POST", _order_confirm_purchase),
     OwnerCase("token_refund_cancel", "POST", _token_refund_cancel),
+    OwnerCase("claims_delete", "DELETE", _claim_delete),
     OwnerCase("quotes_detail", "GET", _quote_detail),
     OwnerCase("inquiries_detail", "GET", _inquiry_detail),
     OwnerCase("design_session_detail", "GET", _design_session_detail),
+    OwnerCase("design_job_detail", "GET", _design_job_detail),
+    OwnerCase("design_motif_candidates", "POST", _design_motif_candidates),
+    OwnerCase("design_motif_generate", "POST", _design_motif_generate),
     OwnerCase("address_delete", "DELETE", _address_delete),
 ]
 
@@ -152,4 +227,18 @@ ADMIN_CASES: list[AdminCase] = [
     AdminCase("admin_quotes_list", "GET", "/admin/quotes"),
     AdminCase("admin_stats_today", "GET", "/admin/stats/today?stat_date=2026-01-01"),
     AdminCase("admin_users_list", "GET", "/admin/users"),
+    AdminCase("admin_inquiries_list", "GET", "/admin/inquiries"),
+    AdminCase("admin_coupons_list", "GET", "/admin/coupons"),
+    # 404여도 인가 통과(401·403 아님)로 판정되므로 더미 UUID로 충분
+    AdminCase(
+        "admin_orders_status",
+        "POST",
+        "/admin/orders/00000000-0000-0000-0000-000000000000/status",
+        {"new_status": "배송중"},
+    ),
+    AdminCase(
+        "admin_token_refund_approve",
+        "POST",
+        "/admin/token-refunds/00000000-0000-0000-0000-000000000000/approve",
+    ),
 ]

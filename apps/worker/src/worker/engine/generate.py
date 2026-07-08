@@ -9,6 +9,7 @@ from worker.engine.composition import compose
 from worker.engine.determinism import REGISTRY_VERSION, ReproMeta, layout_id_for
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import validate_intent
+from worker.motifs.registry import MotifCatalog
 
 
 @dataclass(frozen=True)
@@ -25,12 +26,13 @@ def generate(
     colorway_id: str = "default",
     seed: int | None = None,
     registry_version: str = REGISTRY_VERSION,
+    motifs: MotifCatalog | None = None,
 ) -> Candidate:
-    result = validate_intent(raw)
+    result = validate_intent(raw, motifs=motifs)
     effective_seed = result.intent.seed if seed is None else seed
     intent = result.intent.model_copy(update={"seed": effective_seed})
     assert_seamless_invariants(intent)
-    svg = compose(intent, result.palette, colorway_id)
+    svg = compose(intent, result.palette, colorway_id, motifs=motifs)
     layout_id = layout_id_for(intent)
     repro = ReproMeta(
         intent_version=intent.intent_version,

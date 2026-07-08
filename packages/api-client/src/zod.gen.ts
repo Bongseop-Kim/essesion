@@ -269,10 +269,27 @@ export const zCustomAmountResponse = z.object({
 });
 
 /**
+ * DesignExportRequest
+ *
+ * SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
+ *
+ * dpi·치수 상한은 워커가 최종 권위(WorkerRequestError로 detail 전파) — 여기서
+ * 중복 선언하면 KNOWN_WEAVES처럼 드리프트 위험이라 구조 검증만 한다.
+ */
+export const zDesignExportRequest = z.object({
+    dpi: z.int().gte(1).optional().default(300),
+    format: z.enum(['png', 'tiff']).optional().default('png'),
+    height_mm: z.number().gt(0).nullish(),
+    session_id: z.uuid().nullish(),
+    svg: z.string().max(2000000),
+    width_mm: z.number().gt(0)
+});
+
+/**
  * DesignGenerateRequest
  */
 export const zDesignGenerateRequest = z.object({
-    candidate_count: z.int().optional().default(1),
+    candidate_count: z.int().gte(1).lte(8).optional().default(1),
     colorway: z.string().nullish(),
     intent: z.record(z.string(), z.unknown()).nullish(),
     prompt: z.string().nullish(),
@@ -331,7 +348,11 @@ export const zFinalizeRequest = z.object({
     colorway_id: z.string().nullish(),
     dpi: z.int().nullish(),
     intent: z.record(z.string(), z.unknown()).nullish(),
-    production_method: z.string().nullish()
+    material_map: z.record(z.string(), z.string()).nullish(),
+    production_method: z.string().nullish(),
+    relief_strength: z.number().gte(0).nullish(),
+    texture_strength: z.number().gte(0).nullish(),
+    weave: z.string().nullish()
 });
 
 /**
@@ -430,6 +451,67 @@ export const zMeResponse = z.object({
  */
 export const zMessageResponse = z.object({
     message: z.string()
+});
+
+/**
+ * MotifCandidateOut
+ */
+export const zMotifCandidateOut = z.object({
+    description: z.string().nullish(),
+    motif_id: z.string(),
+    scope: z.string().nullish(),
+    similarity: z.number().nullable(),
+    source: z.string().nullish(),
+    style: z.string().nullish(),
+    subject: z.string().nullish(),
+    view: z.string().nullish()
+});
+
+/**
+ * MotifCandidatesOut
+ */
+export const zMotifCandidatesOut = z.object({
+    candidates: z.array(zMotifCandidateOut),
+    registry_version: z.string(),
+    request_id: z.string()
+});
+
+/**
+ * MotifGenerateOut
+ */
+export const zMotifGenerateOut = z.object({
+    motif_id: z.string(),
+    request_id: z.string(),
+    reused: z.boolean(),
+    similarity: z.number().nullable()
+});
+
+/**
+ * MotifSpecIn
+ */
+export const zMotifSpecIn = z.object({
+    description: z.string().nullish(),
+    expression: z.string().nullish(),
+    scope: z.string(),
+    style: z.string().nullish(),
+    subject: z.string(),
+    view: z.string().nullish()
+});
+
+/**
+ * MotifCandidatesRequest
+ */
+export const zMotifCandidatesRequest = z.object({
+    spec: zMotifSpecIn,
+    top_k: z.int().gte(1).lte(10).optional().default(5)
+});
+
+/**
+ * MotifGenerateRequest
+ */
+export const zMotifGenerateRequest = z.object({
+    seed: z.int().nullish(),
+    spec: zMotifSpecIn
 });
 
 /**
@@ -1426,6 +1508,8 @@ export const zListMyCouponsQuery = z.object({
  */
 export const zListMyCouponsResponse = z.array(zUserCouponOut);
 
+export const zExportDesignBody = zDesignExportRequest;
+
 export const zGenerateDesignBody = zDesignGenerateRequest;
 
 /**
@@ -1484,6 +1568,28 @@ export const zCreateFinalizeJobPath = z.object({
  * Successful Response
  */
 export const zCreateFinalizeJobResponse = zGenerationJobOut;
+
+export const zMotifCandidatesBody = zMotifCandidatesRequest;
+
+export const zMotifCandidatesPath = z.object({
+    session_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zMotifCandidatesResponse = zMotifCandidatesOut;
+
+export const zMotifGenerateBody = zMotifGenerateRequest;
+
+export const zMotifGeneratePath = z.object({
+    session_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zMotifGenerateResponse = zMotifGenerateOut;
 
 export const zListDesignTurnsPath = z.object({
     session_id: z.uuid()

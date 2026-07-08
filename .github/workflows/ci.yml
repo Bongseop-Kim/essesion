@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # worker fabric/raster 테스트의 래스터라이저 — 없으면 해당 테스트가 skip돼 공백이 생긴다
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends librsvg2-bin
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true

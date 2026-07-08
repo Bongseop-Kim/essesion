@@ -19,6 +19,7 @@ from worker.engine.intent import (
 from worker.engine.palette import Palette
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import IntentInvalid, validate_intent
+from worker.motifs.registry import MotifCatalog
 
 DEFAULT_CANDIDATE_COUNT = 4
 MAX_CANDIDATE_COUNT = 8
@@ -88,10 +89,11 @@ def generate_candidates(
     colorway: str | None = None,
     source_fidelity: str = SOURCE_FIDELITY_VECTOR,
     registry_version: str = REGISTRY_VERSION,
+    motifs: MotifCatalog | None = None,
 ) -> CandidateSet:
     count = max(1, min(int(candidate_count), MAX_CANDIDATE_COUNT))
 
-    base = validate_intent(base_raw)
+    base = validate_intent(base_raw, motifs=motifs)
     base_intent = base.intent
     assert_seamless_invariants(base_intent)
     warnings = list(base.warnings)
@@ -111,7 +113,7 @@ def generate_candidates(
     seen_layouts: set[str] = set()
     for variant in _layout_variants(base_intent):
         try:
-            res = validate_intent(variant)
+            res = validate_intent(variant, motifs=motifs)
             assert_seamless_invariants(res.intent)
         except (IntentInvalid, AssertionError, ValueError):
             continue
@@ -138,7 +140,7 @@ def generate_candidates(
             for s in seeds:
                 eff = intent_v.model_copy(update={"seed": s})
                 try:
-                    svg = compose(eff, palette_v, cw)
+                    svg = compose(eff, palette_v, cw, motifs=motifs)
                 except (AssertionError, ValueError, IntentInvalid):
                     render_failures += 1
                     continue
@@ -218,6 +220,7 @@ def generate_candidate_set(
     colorway: str | None = None,
     source_fidelity: str = SOURCE_FIDELITY_VECTOR,
     registry_version: str = REGISTRY_VERSION,
+    motifs: MotifCatalog | None = None,
 ) -> CandidateSet:
     """복수 디자인을 다양화·병합 — 전역 SVG de-dup 후 round-robin 선택."""
     count = max(1, min(int(candidate_count), MAX_CANDIDATE_COUNT))
@@ -236,6 +239,7 @@ def generate_candidate_set(
                 colorway=colorway,
                 source_fidelity=source_fidelity,
                 registry_version=registry_version,
+                motifs=motifs,
             )
         except (IntentInvalid, AssertionError, ValueError) as exc:
             last_exc = exc

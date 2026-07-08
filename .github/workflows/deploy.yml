@@ -35,6 +35,11 @@ jobs:
           docker build -t "$IMAGE_BASE/worker:$GITHUB_SHA" --build-arg APP=worker .
           docker push "$IMAGE_BASE/api:$GITHUB_SHA"
           docker push "$IMAGE_BASE/worker:$GITHUB_SHA"
+      # 스키마 적용 — 서비스 배포 전. 실패(비-0 종료)면 배포 중단 (잡은 max_retries=0)
+      - name: Run DB migrations
+        run: |
+          gcloud run jobs update migrate --region "$REGION" --image "$IMAGE_BASE/api:$GITHUB_SHA"
+          gcloud run jobs execute migrate --region "$REGION" --wait
       - name: Deploy Cloud Run
         run: |
           gcloud run deploy api --region "$REGION" --image "$IMAGE_BASE/api:$GITHUB_SHA"

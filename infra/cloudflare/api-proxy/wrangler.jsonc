@@ -6,5 +6,5 @@
     // tofu apply 후 Cloud Run api URL로 교체 (tofu output api_url)
     "ORIGIN": "https://REPLACE-ME.run.app"
   }
-  // 도메인 확정 후: "routes": [{ "pattern": "api.<domain>/*", "zone_name": "<domain>" }]
+  // 도메인 확정 후: "routes": [{ "pattern": "api.essesion.shop/*", "zone_name": "essesion.shop" }]
 }

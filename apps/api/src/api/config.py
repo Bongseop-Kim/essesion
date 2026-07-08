@@ -45,13 +45,17 @@ class Settings(BaseSettings):
     worker_finalize_inline: bool = False
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
     design_finalize_budget: int = 10  # 세션당 finalize 상한 (worker-pipeline.md §5)
+    design_recraft_budget: int = 3  # 세션당 Recraft 모티프 생성 상한 (worker-motifs.md §5)
     gcp_project_id: str = ""
     gcp_region: str = "asia-northeast3"
     cloud_tasks_queue: str = "finalize"
     cloud_tasks_oidc_service_account: str = ""
     worker_finalize_url: str = ""
 
-    # Cloud Scheduler → /batch/* (4단계에서 OIDC 검증으로 교체)
+    # Cloud Scheduler → /batch/* — audience 설정 시 Google OIDC 검증(+ 발신 SA email 고정),
+    # 비어 있으면 batch_token 폴백(로컬·테스트). 값은 tofu가 주입 (infra/scheduler.tf)
+    batch_oidc_audience: str = ""
+    batch_invoker_email: str = ""
     batch_token: str = "dev-batch-token"
 
 

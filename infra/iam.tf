@@ -13,6 +13,13 @@ resource "google_service_account" "tasks" {
   display_name = "Cloud Tasks -> worker-finalize OIDC"
 }
 
+# 롤 0건 — api가 공개(allUsers invoker)라 invoker 불요, 검증은 api 앱 레벨(email 클레임 고정).
+# tasks SA 재사용 금지: 배치 경로와 finalize 사칭 가능성을 분리.
+resource "google_service_account" "scheduler" {
+  account_id   = "scheduler-invoker"
+  display_name = "Cloud Scheduler -> api /batch OIDC"
+}
+
 resource "google_service_account" "deployer" {
   account_id   = "github-deployer"
   display_name = "GitHub Actions deployer (WIF)"

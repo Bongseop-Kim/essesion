@@ -13,14 +13,37 @@ gcloud billing projects link essesion-staging --billing-account=XXXXXX-XXXXXX-XX
 gcloud storage buckets create gs://essesion-staging-tfstate \
   --project=essesion-staging --location=asia-northeast3 --uniform-bucket-level-access
 
-# 3. 변수 채우고 apply
+# 3. 변수 채우고 — apply는 2단계 (시크릿 버전이 없으면 서비스 리비전이 기동 실패하므로)
 brew install opentofu
 cp staging.tfvars.example staging.tfvars   # 값 채우기
 tofu init -backend-config="bucket=essesion-staging-tfstate"
+
+# 3-1. 시크릿 컨테이너·DB부터 — 서비스가 참조할 시크릿을 먼저 만들고 값을 주입
+tofu apply -var-file=staging.tfvars \
+  -target=google_secret_manager_secret.app \
+  -target=google_secret_manager_secret_version.database_url \
+  -target=google_sql_user.app
+#    → 아래 "시크릿 값 주입" 수행 (전 시크릿에 버전 1개 이상)
+
+# 3-2. 전체 apply
 tofu apply -var-file=staging.tfvars
 ```
 
 주의: `google_billing_budget`은 실행자에게 청구 계정 권한(Billing Account Administrator/Costs Manager)이 필요하다.
+
+## 개통 체크리스트 (사용자 액션 ↔ 자동화 구분)
+
+| # | 액션 | 주체 |
+|---|---|---|
+| 1 | GCP 프로젝트 생성·청구 연결·tfstate 버킷 (위 부트스트랩 1~2) | **사용자(gcloud)** |
+| 2 | `staging.tfvars` 작성 (+도메인 확정 시 `api_extra_env`) | **사용자** |
+| 3 | 3-1 target apply → 시크릿 값 주입 → 3-2 전체 apply | **사용자(로컬 tofu)** |
+| 4 | Sentry 프로젝트 2개 생성 → DSN 시크릿 주입 | **사용자** |
+| 5 | GitHub vars/secrets 설정 (아래 섹션) | **사용자(gh)** |
+| 6 | main 푸시 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
+| 7 | 배치 audience 대조·수동 트리거 확인 (아래 "배치" 섹션) | **사용자** |
+| 8 | Toss 웹훅/콜백 URL·OAuth redirect URI를 새 api 주소로 등록 | **사용자(각 콘솔)** |
+| 9 | 시드: `gcloud run jobs`가 아닌 로컬에서 스테이징 DB로 `apps/api/scripts/seed.py`(관리자 계정) + `apps/worker/scripts/seed_motifs.py`(모티프 카탈로그) | **사용자** |
 
 ## 시크릿 값 주입 (수집해 둔 기존 env → Secret Manager)
 
@@ -28,8 +51,11 @@ tofu apply -var-file=staging.tfvars
 
 ```bash
 printf '%s' '<값>' | gcloud secrets versions add toss-secret-key --data-file=- --project=essesion-staging
-# 동일하게: solapi-api-key openai-api-key gemini-api-key recraft-api-key jwt-secret sentry-dsn-api sentry-dsn-worker
-# db-password는 tofu가 생성·주입하므로 손대지 않는다
+# 동일하게: solapi-api-key solapi-api-secret google-client-secret kakao-client-secret
+#          openai-api-key gemini-api-key recraft-api-key jwt-secret session-secret
+#          sentry-dsn-api sentry-dsn-worker
+# db-password·database-url은 tofu가 생성·주입하므로 손대지 않는다
+# 전 시크릿에 버전이 1개 이상 있어야 서비스 리비전이 기동한다 (부트스트랩 3-1 참조)
 ```
 
 프론트 env는 Cloudflare 환경변수(wrangler secret / 대시보드)로 — 6단계 프론트 배포 시.
@@ -47,6 +73,28 @@ gh secret set CLOUDFLARE_API_TOKEN
 ```
 
 deploy/preview 워크플로우는 위 vars가 비어 있으면 스킵되므로, 설정 전에도 CI는 초록이다.
+
+## 스키마 마이그레이션 (Cloud Run job `migrate`)
+
+스키마 적용 경로는 deploy 워크플로우의 **migrate job**이다: 이미지 푸시 후·서비스 배포 전에 `gcloud run jobs update migrate --image ... && gcloud run jobs execute migrate --wait`. 실패하면(비-0 종료) 서비스 배포가 중단된다(잡은 `max_retries=0` — 자동 재시도 없음, 사람이 개입).
+
+**첫 개통 시 주의**: `tofu apply` 직후의 migrate job은 placeholder 이미지라 실행 불가. 첫 이미지 푸시(main 머지 → deploy 성공) 전에 수동 실행이 필요하면:
+
+```bash
+gcloud run jobs update migrate --region asia-northeast3 --image <푸시된-api-이미지>
+gcloud run jobs execute migrate --region asia-northeast3 --wait
+```
+
+## 배치 (Cloud Scheduler → api /batch/*)
+
+apply 시 `batch-{auto-confirm-orders,cancel-stale-orders,cleanup-images}` 잡 3종이 생성된다(스케줄은 `scheduler.tf`, KST 기준). api의 검증 env(`BATCH_OIDC_AUDIENCE`, `BATCH_INVOKER_EMAIL`)는 tofu가 주입 — 수동 조치 없음. 로컬 개발은 `batch_token` 폴백.
+
+**apply 후 확인 (audience 불일치 = 배치 전원 401 조용한 실패)**:
+
+```bash
+tofu output -raw api_url   # scheduler.tf의 batch_audience(https://api-<project#>.<region>.run.app 형식)와 일치해야 함
+gcloud scheduler jobs run batch-cancel-stale-orders --location asia-northeast3   # api 로그에서 200 확인
+```
 
 ## Sentry (수동 1회)
 

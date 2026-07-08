@@ -728,6 +728,41 @@ export type CustomOrderCreateRequest = {
 };
 
 /**
+ * DesignExportRequest
+ *
+ * SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
+ *
+ * dpi·치수 상한은 워커가 최종 권위(WorkerRequestError로 detail 전파) — 여기서
+ * 중복 선언하면 KNOWN_WEAVES처럼 드리프트 위험이라 구조 검증만 한다.
+ */
+export type DesignExportRequest = {
+    /**
+     * Dpi
+     */
+    dpi?: number;
+    /**
+     * Format
+     */
+    format?: 'png' | 'tiff';
+    /**
+     * Height Mm
+     */
+    height_mm?: number | null;
+    /**
+     * Session Id
+     */
+    session_id?: string | null;
+    /**
+     * Svg
+     */
+    svg: string;
+    /**
+     * Width Mm
+     */
+    width_mm: number;
+};
+
+/**
  * DesignGenerateOut
  */
 export type DesignGenerateOut = {
@@ -916,9 +951,27 @@ export type FinalizeRequest = {
         [key: string]: unknown;
     } | null;
     /**
+     * Material Map
+     */
+    material_map?: {
+        [key: string]: string;
+    } | null;
+    /**
      * Production Method
      */
     production_method?: string | null;
+    /**
+     * Relief Strength
+     */
+    relief_strength?: number | null;
+    /**
+     * Texture Strength
+     */
+    texture_strength?: number | null;
+    /**
+     * Weave
+     */
+    weave?: string | null;
 };
 
 /**
@@ -1161,6 +1214,136 @@ export type MessageResponse = {
      * Message
      */
     message: string;
+};
+
+/**
+ * MotifCandidateOut
+ */
+export type MotifCandidateOut = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Motif Id
+     */
+    motif_id: string;
+    /**
+     * Scope
+     */
+    scope?: string | null;
+    /**
+     * Similarity
+     */
+    similarity: number | null;
+    /**
+     * Source
+     */
+    source?: string | null;
+    /**
+     * Style
+     */
+    style?: string | null;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+    /**
+     * View
+     */
+    view?: string | null;
+};
+
+/**
+ * MotifCandidatesOut
+ */
+export type MotifCandidatesOut = {
+    /**
+     * Candidates
+     */
+    candidates: Array<MotifCandidateOut>;
+    /**
+     * Registry Version
+     */
+    registry_version: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+};
+
+/**
+ * MotifCandidatesRequest
+ */
+export type MotifCandidatesRequest = {
+    spec: MotifSpecIn;
+    /**
+     * Top K
+     */
+    top_k?: number;
+};
+
+/**
+ * MotifGenerateOut
+ */
+export type MotifGenerateOut = {
+    /**
+     * Motif Id
+     */
+    motif_id: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Reused
+     */
+    reused: boolean;
+    /**
+     * Similarity
+     */
+    similarity: number | null;
+};
+
+/**
+ * MotifGenerateRequest
+ */
+export type MotifGenerateRequest = {
+    /**
+     * Seed
+     */
+    seed?: number | null;
+    spec: MotifSpecIn;
+};
+
+/**
+ * MotifSpecIn
+ */
+export type MotifSpecIn = {
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Expression
+     */
+    expression?: string | null;
+    /**
+     * Scope
+     */
+    scope: string;
+    /**
+     * Style
+     */
+    style?: string | null;
+    /**
+     * Subject
+     */
+    subject: string;
+    /**
+     * View
+     */
+    view?: string | null;
 };
 
 /**
@@ -3353,6 +3536,29 @@ export type ListMyCouponsResponses = {
 
 export type ListMyCouponsResponse = ListMyCouponsResponses[keyof ListMyCouponsResponses];
 
+export type ExportDesignData = {
+    body: DesignExportRequest;
+    path?: never;
+    query?: never;
+    url: '/design/export';
+};
+
+export type ExportDesignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExportDesignError = ExportDesignErrors[keyof ExportDesignErrors];
+
+export type ExportDesignResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type GenerateDesignData = {
     body: DesignGenerateRequest;
     path?: never;
@@ -3531,6 +3737,66 @@ export type CreateFinalizeJobResponses = {
 };
 
 export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
+
+export type MotifCandidatesData = {
+    body: MotifCandidatesRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/motifs/candidates';
+};
+
+export type MotifCandidatesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MotifCandidatesError = MotifCandidatesErrors[keyof MotifCandidatesErrors];
+
+export type MotifCandidatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifCandidatesOut;
+};
+
+export type MotifCandidatesResponse = MotifCandidatesResponses[keyof MotifCandidatesResponses];
+
+export type MotifGenerateData = {
+    body: MotifGenerateRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/motifs/generate';
+};
+
+export type MotifGenerateErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MotifGenerateError = MotifGenerateErrors[keyof MotifGenerateErrors];
+
+export type MotifGenerateResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifGenerateOut;
+};
+
+export type MotifGenerateResponse = MotifGenerateResponses[keyof MotifGenerateResponses];
 
 export type ListDesignTurnsData = {
     body?: never;

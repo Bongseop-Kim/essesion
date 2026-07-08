@@ -12,6 +12,7 @@ resource "google_project_service" "apis" {
     "sts.googleapis.com",
     "monitoring.googleapis.com",
     "billingbudgets.googleapis.com",
+    "cloudscheduler.googleapis.com",
   ])
   service            = each.value
   disable_on_destroy = false

@@ -1,7 +1,7 @@
 """결제 확정 — lock → Toss(respx) → confirm/unlock 멱등 (docs/api-spec/money.md §5)."""
 
 import respx
-from db.models.commerce import OrderStatusLog, UserCoupon
+from db.models.commerce import OrderItem, OrderStatusLog, UserCoupon
 from db.models.tokens import DesignToken
 from httpx import Response
 from sqlalchemy import func, select
@@ -10,6 +10,7 @@ from .factories import (
     auth_headers,
     make_address,
     make_coupon,
+    make_order,
     make_product,
     make_user,
     make_user_coupon,
@@ -202,6 +203,40 @@ async def test_sample_confirm_issues_followup_coupon(client, db_session, setting
 
     count = await db_session.scalar(select(func.count()).select_from(UserCoupon))
     assert count == 1
+
+
+@respx.mock  # 라우트 미등록 — Toss 호출이 있으면 즉시 실패해 "승인 전 차단"을 보장
+async def test_sample_confirm_rejects_unsupported_sample_type_before_toss(
+    client, db_session, settings
+):
+    """미지원 sample_type은 Toss 승인 전에 400 — 승인 후 터지면 수동 개입 창(money.md §5)."""
+    user = await make_user(db_session)
+    order = await make_order(db_session, user, order_type="sample", total_price=50000)
+    item = OrderItem(
+        order_id=order.id,
+        item_id=f"smp-{order.id}",
+        item_type="sample",
+        item_data={"sample_type": "unknown", "options": {}},
+        quantity=1,
+        unit_price=50000,
+    )
+    db_session.add(item)
+    await db_session.commit()
+
+    res = await client.post(
+        "/payments/confirm",
+        json={
+            "payment_key": "smp-bad-12345678",
+            "payment_group_id": str(order.payment_group_id),
+            "amount": 50000,
+        },
+        headers=auth_headers(user, settings),
+    )
+    assert res.status_code == 400
+    assert "sample_type" in res.text
+
+    await db_session.refresh(order)
+    assert order.status == "대기중"  # lock 전 차단 — 상태 무변경
 
 
 TOSS_PAYMENTS = "https://api.tosspayments.com/v1/payments"

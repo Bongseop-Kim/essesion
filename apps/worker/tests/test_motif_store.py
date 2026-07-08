@@ -1,0 +1,95 @@
+"""store DB 테스트 — 실제 Postgres(pgvector) (worker-motifs.md §1·§5).
+
+upsert 멱등 · get_motifs JSONB→tuple 변환 · nearest 동점 lowest-id · embedding NULL 제외 ·
+find_by_scope 필터/정렬.
+"""
+
+from worker.motifs import store
+from worker.motifs.normalize import NormalizedMotif
+from worker.motifs.registry import MotifDef
+
+DIM = 1536
+
+
+def _vec(*head: float) -> list[float]:
+    return list(head) + [0.0] * (DIM - len(head))
+
+
+def _motif(mid: str, slots: tuple[str, ...] = ("s0",)) -> NormalizedMotif:
+    return NormalizedMotif(
+        id=mid,
+        symbol=f'<symbol id="motif-{mid}" overflow="visible"><circle r="0.5"/></symbol>',
+        color_slots=slots,
+    )
+
+
+async def test_upsert_is_idempotent(db_session):
+    m = _motif("recraft-aaaaaaaaaaaa")
+    await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
+    await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
+    await db_session.commit()
+    assert await store.all_motif_ids(db_session) == ["recraft-aaaaaaaaaaaa"]
+
+
+async def test_get_motifs_converts_jsonb_to_tuples(db_session):
+    await store.upsert_motif(
+        db_session, _motif("recraft-bbbbbbbbbbbb", ("s0", "s1")), facets={"scope": "whole"}
+    )
+    await db_session.commit()
+    got = await store.get_motifs(db_session, ["recraft-bbbbbbbbbbbb"])
+    md = got["recraft-bbbbbbbbbbbb"]
+    assert isinstance(md, MotifDef)
+    assert md.bbox_mm == (-0.5, -0.5, 0.5, 0.5)
+    assert md.anchor == (0.0, 0.0)
+    assert md.color_slots == ("s0", "s1")
+
+
+async def test_get_motifs_empty_ids_returns_empty(db_session):
+    assert await store.get_motifs(db_session, []) == {}
+
+
+async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):
+    await store.upsert_motif(
+        db_session, _motif("recraft-000000000002"), facets={"scope": "whole"}, embedding=_vec(1.0)
+    )
+    await store.upsert_motif(
+        db_session, _motif("recraft-000000000001"), facets={"scope": "whole"}, embedding=_vec(1.0)
+    )
+    await db_session.commit()
+    match = await store.nearest_by_embedding(db_session, _vec(1.0), scope="whole")
+    assert match is not None
+    assert match.id == "recraft-000000000001"  # 동점 → lowest id
+    assert match.similarity == 1.0
+
+
+async def test_nearest_excludes_null_embedding(db_session):
+    await store.upsert_motif(db_session, _motif("recraft-nullembeddin"), facets={"scope": "whole"})
+    await store.upsert_motif(
+        db_session, _motif("recraft-hasembedding0"), facets={"scope": "whole"}, embedding=_vec(1.0)
+    )
+    await db_session.commit()
+    match = await store.nearest_by_embedding(db_session, _vec(1.0), scope="whole")
+    assert match is not None
+    assert match.id == "recraft-hasembedding0"
+
+
+async def test_find_by_scope_filters_and_orders(db_session):
+    await store.upsert_motif(db_session, _motif("recraft-w2"), facets={"scope": "whole"})
+    await store.upsert_motif(db_session, _motif("recraft-w1"), facets={"scope": "whole"})
+    await store.upsert_motif(db_session, _motif("recraft-p1"), facets={"scope": "partial"})
+    await db_session.commit()
+    whole = await store.find_by_scope(db_session, "whole")
+    assert [m.id for m in whole] == ["recraft-w1", "recraft-w2"]  # scope 필터 + ORDER BY id
+
+
+async def test_variant_pool_returns_members_ordered(db_session):
+    vg = store.variant_group_key("flower", "whole")
+    await store.upsert_motif(
+        db_session, _motif("recraft-vg2"), facets={"scope": "whole"}, variant_group=vg
+    )
+    await store.upsert_motif(
+        db_session, _motif("recraft-vg1"), facets={"scope": "whole"}, variant_group=vg
+    )
+    await db_session.commit()
+    pool = await store.find_variant_pool(db_session, vg)
+    assert [m.id for m in pool] == ["recraft-vg1", "recraft-vg2"]
