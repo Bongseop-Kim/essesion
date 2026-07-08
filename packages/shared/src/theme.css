@@ -1,8 +1,206 @@
 /* essesion 디자인 토큰 — admin·store 공용. 각 앱 index.css에서 import.
-   ponytail: 브랜드 확정 전 플레이스홀더 값 — 토큰 이름만 계약, 값은 교체 예정 */
-@theme {
-  --color-primary: oklch(0.55 0.18 265);
-  --color-primary-hover: oklch(0.48 0.18 265);
-  --color-surface: oklch(0.99 0 0);
-  --color-danger: oklch(0.58 0.22 25);
+   구조: 팔레트(scale) → 시맨틱(semantic) 2계층. 전체 값 사전: docs/foundation/design-token-reference.md
+   @theme static 필수 — 프리미티브가 inline style의 var()로 소비하므로 tree-shake 금지.
+   다크모드 추가 시: 시맨틱 섹션만 :root/[data-theme] 블록으로 분리하고 @theme inline으로 전환. */
+@theme static {
+  /* Tailwind 기본 팔레트·라운드·그림자 제거 — 아래 시맨틱 토큰만 사용 (packages/shared/AGENTS.md) */
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  /* 브레이크포인트 — src/breakpoint.ts와 값 동기 (드리프트 가드 테스트가 검증) */
+  --breakpoint-sm: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1280px;
+  --breakpoint-xl: 1440px;
+  --breakpoint-2xl: initial;
+
+  /* 폰트 — Pretendard @font-face는 각 앱 index.css 첫 줄의 CDN @import가 제공 */
+  --font-sans:
+    "Pretendard Variable", Pretendard, system-ui, -apple-system, sans-serif;
+
+  /* ── 팔레트 (scale) — 컴포넌트에서 직접 사용 금지, 시맨틱 토큰의 재료 ── */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-palette-gray-00: #ffffff;
+  --color-palette-gray-100: #f7f8f9;
+  --color-palette-gray-200: #f3f4f5;
+  --color-palette-gray-300: #eeeff1;
+  --color-palette-gray-400: #dcdee3;
+  --color-palette-gray-500: #d1d3d8;
+  --color-palette-gray-600: #b0b3ba;
+  --color-palette-gray-700: #868b94;
+  --color-palette-gray-800: #555d6d;
+  --color-palette-gray-900: #2a3038;
+  --color-palette-gray-1000: #1a1c20;
+
+  --color-palette-red-100: #fdf0f0;
+  --color-palette-red-200: #fde7e7;
+  --color-palette-red-300: #fed4d2;
+  --color-palette-red-700: #fa342c;
+  --color-palette-red-800: #ca1d13;
+  --color-palette-red-900: #921708;
+
+  --color-palette-green-100: #edfaf6;
+  --color-palette-green-200: #d9f6e9;
+  --color-palette-green-300: #b9e9d2;
+  --color-palette-green-700: #079171;
+  --color-palette-green-800: #00745f;
+  --color-palette-green-900: #075445;
+
+  --color-palette-yellow-100: #fff7de;
+  --color-palette-yellow-200: #fdefb9;
+  --color-palette-yellow-300: #fbdc65;
+  --color-palette-yellow-700: #9b7821;
+  --color-palette-yellow-800: #755b22;
+  --color-palette-yellow-900: #4f3e1f;
+
+  --color-palette-blue-100: #eff6ff;
+  --color-palette-blue-200: #e2edfc;
+  --color-palette-blue-300: #cbdffa;
+  --color-palette-blue-600: #5e98fe;
+  --color-palette-blue-700: #217cf9;
+  --color-palette-blue-800: #135fcd;
+  --color-palette-blue-900: #0b4596;
+
+  /* ── 시맨틱 — 다크모드 도입 시 이 섹션만 분리 ── */
+
+  /* brand: #111111 모노크롬. solid의 hover/pressed는 밝기 상승(검정 버튼 관례) */
+  --color-bg-brand-solid: #111111;
+  --color-bg-brand-solid-hover: #2b2b2b;
+  --color-bg-brand-solid-pressed: #404040;
+  --color-bg-brand-weak: var(--color-palette-gray-200);
+  --color-fg-brand: #111111;
+  --color-fg-contrast: #ffffff; /* solid 배경 위 텍스트 */
+
+  /* neutral — 강도: neutral > muted > subtle (seed 관례) */
+  --color-fg-neutral: var(--color-palette-gray-1000);
+  --color-fg-neutral-muted: var(--color-palette-gray-800);
+  --color-fg-neutral-subtle: var(--color-palette-gray-700);
+  --color-bg-neutral-weak: var(--color-palette-gray-200);
+  --color-bg-neutral-weak-hover: var(--color-palette-gray-300);
+  --color-bg-neutral-weak-pressed: var(--color-palette-gray-400);
+
+  /* layer — 낮음→높음: basement < default < floating (docs/foundation/elevation.md) */
+  --color-bg-layer-basement: var(--color-palette-gray-100);
+  --color-bg-layer-default: #ffffff;
+  --color-bg-layer-floating: #ffffff;
+
+  /* stroke */
+  --color-stroke-neutral: var(--color-palette-gray-400);
+  --color-stroke-neutral-weak: var(--color-palette-gray-300);
+  --color-stroke-brand: #111111; /* 선택 상태(칩·탭) 테두리 */
+  --color-stroke-focus-ring: var(
+    --color-palette-blue-600
+  ); /* 모노크롬 위 식별을 위해 유채 유지 */
+
+  /* accent — critical=red, positive=green, warning=yellow, informative=blue */
+  --color-bg-critical-solid: var(--color-palette-red-700);
+  --color-bg-critical-solid-hover: var(--color-palette-red-800);
+  --color-bg-critical-solid-pressed: var(--color-palette-red-900);
+  --color-bg-critical-weak: var(--color-palette-red-100);
+  --color-fg-critical: var(--color-palette-red-800);
+  --color-stroke-critical: var(--color-palette-red-700);
+
+  --color-bg-positive-solid: var(--color-palette-green-700);
+  --color-bg-positive-solid-hover: var(--color-palette-green-800);
+  --color-bg-positive-solid-pressed: var(--color-palette-green-900);
+  --color-bg-positive-weak: var(--color-palette-green-100);
+  --color-fg-positive: var(--color-palette-green-800);
+  --color-stroke-positive: var(--color-palette-green-700);
+
+  /* warning은 solid 없음 — 노랑 solid + 흰 글자는 APCA 미달, weak+fg만 사용 */
+  --color-bg-warning-weak: var(--color-palette-yellow-100);
+  --color-fg-warning: var(--color-palette-yellow-800);
+  --color-stroke-warning: var(--color-palette-yellow-700);
+
+  --color-bg-informative-solid: var(--color-palette-blue-700);
+  --color-bg-informative-solid-hover: var(--color-palette-blue-800);
+  --color-bg-informative-solid-pressed: var(--color-palette-blue-900);
+  --color-bg-informative-weak: var(--color-palette-blue-100);
+  --color-fg-informative: var(--color-palette-blue-800);
+  --color-stroke-informative: var(--color-palette-blue-700);
+
+  /* ── 간격 x-스케일 (4px 그리드, seed dimension) — 기본 --spacing은 유지(p-4 등 공존) ── */
+  --spacing-x0_5: 2px;
+  --spacing-x1: 4px;
+  --spacing-x1_5: 6px;
+  --spacing-x2: 8px;
+  --spacing-x2_5: 10px;
+  --spacing-x3: 12px;
+  --spacing-x3_5: 14px;
+  --spacing-x4: 16px;
+  --spacing-x4_5: 18px;
+  --spacing-x5: 20px;
+  --spacing-x6: 24px;
+  --spacing-x7: 28px;
+  --spacing-x8: 32px;
+  --spacing-x9: 36px;
+  --spacing-x10: 40px;
+  --spacing-x12: 48px;
+  --spacing-x13: 52px;
+  --spacing-x14: 56px;
+  --spacing-x16: 64px;
+
+  /* ── 라운드 r-스케일 ── */
+  --radius-r0_5: 2px;
+  --radius-r1: 4px;
+  --radius-r1_5: 6px;
+  --radius-r2: 8px;
+  --radius-r3: 12px;
+  --radius-r4: 16px;
+  --radius-r5: 20px;
+  --radius-r6: 24px;
+  --radius-full: 9999px;
+
+  /* ── 그림자 s1(카드) / s2(드롭다운) / s3(모달) ── */
+  --shadow-s1: 0 1px 4px 0 rgb(0 0 0 / 0.08);
+  --shadow-s2: 0 2px 10px 0 rgb(0 0 0 / 0.1);
+  --shadow-s3: 0 4px 16px 0 rgb(0 0 0 / 0.12);
+
+  /* ── 타이포 t-스케일 (seed 값, 1rem=16px; t11·t13·t14 컷) ── */
+  --text-t1: 0.6875rem; /* 11px */
+  --text-t1--line-height: 0.9375rem; /* 15px */
+  --text-t2: 0.75rem; /* 12px */
+  --text-t2--line-height: 1rem; /* 16px */
+  --text-t3: 0.8125rem; /* 13px */
+  --text-t3--line-height: 1.125rem; /* 18px */
+  --text-t4: 0.875rem; /* 14px */
+  --text-t4--line-height: 1.1875rem; /* 19px */
+  --text-t5: 1rem; /* 16px */
+  --text-t5--line-height: 1.375rem; /* 22px */
+  --text-t6: 1.125rem; /* 18px */
+  --text-t6--line-height: 1.5rem; /* 24px */
+  --text-t7: 1.25rem; /* 20px */
+  --text-t7--line-height: 1.6875rem; /* 27px */
+  --text-t8: 1.375rem; /* 22px */
+  --text-t8--line-height: 1.875rem; /* 30px */
+  --text-t9: 1.5rem; /* 24px */
+  --text-t9--line-height: 2rem; /* 32px */
+  --text-t10: 1.625rem; /* 26px */
+  --text-t10--line-height: 2.1875rem; /* 35px */
+  --text-t12: 2rem; /* 32px */
+  --text-t12--line-height: 2.625rem; /* 42px */
+
+  /* ── 이징 (seed timing-function) ── */
+  --ease-standard: cubic-bezier(0.35, 0, 0.35, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.15, 1);
+  --ease-exit: cubic-bezier(0.35, 0, 1, 1);
+}
+
+/* duration — v4에 @theme 네임스페이스가 없어 일반 변수로 (항상 방출됨) */
+:root {
+  --duration-fast: 100ms; /* 마이크로 인터랙션 (hover, pressed) */
+  --duration-normal: 200ms; /* 일반 전환 */
+  --duration-slow: 300ms; /* 매크로 (모달·시트) */
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-fg-neutral);
+    background-color: var(--color-bg-layer-default);
+    word-break: keep-all; /* 한국어 어절 단위 줄바꿈 */
+  }
 }

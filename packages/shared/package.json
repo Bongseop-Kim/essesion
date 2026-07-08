@@ -8,6 +8,7 @@
     "./theme.css": "./src/theme.css"
   },
   "scripts": {
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -19,8 +20,10 @@
   },
   "devDependencies": {
     "@essesion/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "react": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -61,6 +61,7 @@
 
 ## 5. 프론트
 
+- [x] 디자인 시스템(packages/shared) — 토큰(theme.css, 브랜드 #111111·라이트 온리) + 프리미티브 8종(Box/Flex/HStack/VStack/Grid/Float/Text/Icon, ResponsiveValue) + AI 하네스(`packages/shared/AGENTS.md` + `docs/foundation/` 17편). 검증: vitest 드리프트 가드 + store 임시 프리뷰(main.tsx, 5단계 재작성 시 소멸)
 - [ ] store 재작성 — 기존 라우트 기준, api-client만 사용(supabase-js 없음)
 - [ ] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — **이 기획에서 결정·구현할 이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [ ] admin 재작성 — 기존 라우트 기준

@@ -5,6 +5,7 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 ## 필독
 - `ARCHITECTURE.md` — 모든 설계 결정·스택·이관 순서. 구조에 손대기 전 반드시 읽을 것.
 - `docs/CHECKLIST.md` — 실행 체크리스트. 작업 완료 시 체크 상태를 갱신할 것.
+- `packages/shared/AGENTS.md` — 디자인 시스템 하네스. admin·store UI 작업 전 반드시 읽을 것.
 
 ## 대원칙 (위반 금지)
 - 기존 코드 이식 금지 — 전부 새로 작성. 단 기능 명세("무엇을 하는가")는 기존과 동일하게 재현하되, 작업 전 기능·성능·유지보수 관점의 개선점이나 더 적합한 도구가 있으면 실행 전에 제안할 것.
