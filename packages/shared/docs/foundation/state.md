@@ -1,6 +1,6 @@
 # 상태
 
-웹 기준 상호작용 상태 모델과 토큰 매핑. 색 선택은 [color-role.md](./color-role.md), 인터랙티브 컴포넌트 패턴은 `src/components/button.tsx`.
+웹 기준 상호작용 상태 모델과 토큰 매핑. 색 선택은 [color-role.md](./color-role.md), 인터랙티브 컴포넌트 패턴은 `src/components/action-button.tsx`.
 
 ## 상태 흐름
 
@@ -16,7 +16,8 @@
 | hover | `-hover`(`bg.brand-solid-hover`) | Tailwind `hover:` (v4가 `@media (hover: hover)` 자동 적용) |
 | pressed | `-pressed`(`bg.brand-solid-pressed`) | `:active` / Tailwind `active:` |
 | selected | `stroke.brand`(테두리) 또는 `bg.brand-weak`(면) | 상태 클래스/prop |
-| disabled | 색 유지 + 불투명도 | `opacity-50` + `pointer-events-none` |
+| disabled (버튼류) | 색 유지 + 불투명도 | `opacity-50` + `pointer-events-none` |
+| disabled (폼 필드) | `bg.disabled` + `fg.disabled` | 배경·텍스트 교체 — 내부 콘텐츠에 불투명도 중첩 방지 |
 | focus-visible | `stroke.focus-ring` | `focus-visible:outline-2 outline-offset-2 outline-stroke-focus-ring` |
 
 ## 규칙

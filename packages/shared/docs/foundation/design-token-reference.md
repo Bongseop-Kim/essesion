@@ -11,6 +11,8 @@
 | `fg.neutral` | `--color-fg-neutral` | gray-1000 `#1a1c20` | `text-fg-neutral` |
 | `fg.neutral-muted` | `--color-fg-neutral-muted` | gray-800 `#555d6d` | `text-fg-neutral-muted` |
 | `fg.neutral-subtle` | `--color-fg-neutral-subtle` | gray-700 `#868b94` | `text-fg-neutral-subtle` |
+| `fg.placeholder` | `--color-fg-placeholder` | gray-600 `#b0b3ba` | `text-fg-placeholder` |
+| `fg.disabled` | `--color-fg-disabled` | gray-600 `#b0b3ba` | `text-fg-disabled` |
 | `fg.brand` | `--color-fg-brand` | `#111111` | `text-fg-brand` |
 | `fg.contrast` | `--color-fg-contrast` | `#ffffff` | `text-fg-contrast` |
 | `fg.critical` | `--color-fg-critical` | red-800 `#ca1d13` | `text-fg-critical` |
@@ -29,6 +31,8 @@
 | `bg.neutral-weak` | `--color-bg-neutral-weak` | gray-200 `#f3f4f5` | `bg-bg-neutral-weak` |
 | `bg.neutral-weak-hover` | `--color-bg-neutral-weak-hover` | gray-300 `#eeeff1` | `bg-bg-neutral-weak-hover` |
 | `bg.neutral-weak-pressed` | `--color-bg-neutral-weak-pressed` | gray-400 `#dcdee3` | `bg-bg-neutral-weak-pressed` |
+| `bg.neutral-solid` | `--color-bg-neutral-solid` | gray-600 `#b0b3ba` | `bg-bg-neutral-solid` |
+| `bg.disabled` | `--color-bg-disabled` | gray-200 `#f3f4f5` | `bg-bg-disabled` |
 | `bg.layer-basement` | `--color-bg-layer-basement` | gray-100 `#f7f8f9` | `bg-bg-layer-basement` |
 | `bg.layer-default` | `--color-bg-layer-default` | `#ffffff` | `bg-bg-layer-default` |
 | `bg.layer-floating` | `--color-bg-layer-floating` | `#ffffff` | `bg-bg-layer-floating` |
@@ -152,3 +156,9 @@ CSS 변수 `--breakpoint-{key}`(값은 `src/breakpoint.ts`와 동기), Tailwind 
 | `fast` | `--duration-fast` | 100ms |
 | `normal` | `--duration-normal` | 200ms |
 | `slow` | `--duration-slow` | 300ms |
+
+## 애니메이션
+
+| 토큰 | CSS 변수 | 값 | Tailwind |
+|---|---|---|---|
+| `shimmer` | `--animate-shimmer` | `shimmer 1.6s var(--ease-standard) infinite` (translateX -100%→100%) | `animate-shimmer` |

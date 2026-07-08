@@ -3,10 +3,11 @@
    @theme static 필수 — 프리미티브가 inline style의 var()로 소비하므로 tree-shake 금지.
    다크모드 추가 시: 시맨틱 섹션만 :root/[data-theme] 블록으로 분리하고 @theme inline으로 전환. */
 @theme static {
-  /* Tailwind 기본 팔레트·라운드·그림자 제거 — 아래 시맨틱 토큰만 사용 (packages/shared/AGENTS.md) */
+  /* Tailwind 기본 팔레트·라운드·그림자·폰트크기 제거 — 아래 시맨틱 토큰만 사용 (packages/shared/AGENTS.md) */
   --color-*: initial;
   --radius-*: initial;
   --shadow-*: initial;
+  --text-*: initial;
 
   /* 브레이크포인트 — src/breakpoint.ts와 값 동기 (드리프트 가드 테스트가 검증) */
   --breakpoint-sm: 480px;
@@ -78,9 +79,17 @@
   --color-fg-neutral: var(--color-palette-gray-1000);
   --color-fg-neutral-muted: var(--color-palette-gray-800);
   --color-fg-neutral-subtle: var(--color-palette-gray-700);
+  --color-fg-placeholder: var(--color-palette-gray-600);
+  --color-fg-disabled: var(--color-palette-gray-600);
   --color-bg-neutral-weak: var(--color-palette-gray-200);
   --color-bg-neutral-weak-hover: var(--color-palette-gray-300);
   --color-bg-neutral-weak-pressed: var(--color-palette-gray-400);
+  --color-bg-neutral-solid: var(
+    --color-palette-gray-600
+  ); /* Switch off 트랙 등 중립 solid 면 */
+  --color-bg-disabled: var(
+    --color-palette-gray-200
+  ); /* 폼 필드 disabled 배경 (버튼은 opacity-50 — state.md) */
 
   /* layer — 낮음→높음: basement < default < floating (docs/foundation/elevation.md) */
   --color-bg-layer-basement: var(--color-palette-gray-100);
@@ -187,6 +196,17 @@
   --ease-standard: cubic-bezier(0.35, 0, 0.35, 1);
   --ease-enter: cubic-bezier(0, 0, 0.15, 1);
   --ease-exit: cubic-bezier(0.35, 0, 1, 1);
+
+  /* ── 애니메이션 — Skeleton shimmer (gradient.md: 로컬 정의 허용 사례) ── */
+  --animate-shimmer: shimmer 1.6s var(--ease-standard) infinite;
+  @keyframes shimmer {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100%);
+    }
+  }
 }
 
 /* duration — v4에 @theme 네임스페이스가 없어 일반 변수로 (항상 방출됨) */
