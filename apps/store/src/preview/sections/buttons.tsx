@@ -4,6 +4,7 @@ import {
   Chip,
   FloatingActionButton,
   HStack,
+  Icon,
   ToggleButton,
   VStack,
 } from "@essesion/shared";
@@ -92,9 +93,12 @@ export function ButtonsSection() {
         <HStack gap="x3" wrap>
           <FloatingActionButton
             aria-label="상품 추가"
-            icon={<PlusIcon className="size-6" />}
+            icon={<Icon svg={<PlusIcon />} size="x6" />}
           />
-          <FloatingActionButton extended icon={<PlusIcon className="size-6" />}>
+          <FloatingActionButton
+            extended
+            icon={<Icon svg={<PlusIcon />} size="x6" />}
+          >
             상품 추가
           </FloatingActionButton>
         </HStack>

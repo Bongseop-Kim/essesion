@@ -1,6 +1,7 @@
 import { type ReactNode, type TouchEvent, useRef, useState } from "react";
 
-import { cn } from "../cn";
+import { Box } from "./box";
+import { Flex } from "./flex";
 import { ProgressCircle } from "./progress-circle";
 
 export type PullToRefreshProps = {
@@ -50,6 +51,8 @@ export function PullToRefresh({
     setRefreshing(true);
     try {
       await onRefresh();
+    } catch {
+      // ponytail: refresh owner handles errors; this component only resets drag state.
     } finally {
       setRefreshing(false);
       setDisplacement(0);
@@ -61,16 +64,23 @@ export function PullToRefresh({
     : "transform var(--duration-normal) var(--ease-standard)";
 
   return (
-    <div
-      className={cn("relative overflow-hidden", className)}
+    <Box
+      position="relative"
+      overflow="hidden"
+      className={className}
       style={{ overscrollBehaviorY: "contain" }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div
+      <Flex
         aria-hidden={displacement === 0}
-        className="pointer-events-none absolute inset-x-0 top-0 flex justify-center"
+        position="absolute"
+        top={0}
+        left={0}
+        right={0}
+        justify="center"
+        className="pointer-events-none"
         style={{
           transform: `translateY(${displacement - 40}px)`,
           opacity: Math.min(1, displacement / threshold),
@@ -81,17 +91,18 @@ export function PullToRefresh({
           size={24}
           value={refreshing ? undefined : Math.min(1, displacement / threshold)}
         />
-      </div>
-      <div
+      </Flex>
+      <Box
         ref={scrollRef}
-        className="h-full overflow-y-auto"
+        height="full"
+        overflowY="auto"
         style={{
           transform: `translateY(${displacement}px)`,
           transition: settleTransition,
         }}
       >
         {children}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 }

@@ -25,6 +25,7 @@ export const bgRoles = [
   "neutral-weak-pressed",
   "neutral-solid",
   "disabled",
+  "shimmer-highlight",
   "layer-basement",
   "layer-default",
   "layer-floating",

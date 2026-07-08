@@ -1,4 +1,9 @@
-import { type ComponentPropsWithRef, type ReactNode, useState } from "react";
+import {
+  type ComponentPropsWithRef,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 
 import { cn } from "../cn";
 
@@ -29,6 +34,8 @@ export function Avatar({
   ...props
 }: AvatarProps) {
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [src]);
 
   let content: ReactNode;
   if (src != null && !failed) {

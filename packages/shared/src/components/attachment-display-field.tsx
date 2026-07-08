@@ -67,14 +67,22 @@ export function AttachmentDisplayField({
                 placement="top-end"
                 style={{ transform: "translate(30%, -30%)" }}
               >
-                <button
+                <Flex
+                  as="button"
                   type="button"
                   aria-label={`${item.alt ?? "첨부 이미지"} 삭제`}
                   onClick={() => onRemove(item.id)}
-                  className="flex size-5 items-center justify-center rounded-full bg-bg-brand-solid text-fg-contrast shadow-s1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                  align="center"
+                  justify="center"
+                  width={20}
+                  height={20}
+                  borderRadius="full"
+                  bg="bg.brand-solid"
+                  boxShadow="s1"
+                  className="text-fg-contrast focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
                 >
                   <XGlyph className="size-3" />
-                </button>
+                </Flex>
               </Float>
             )}
           </Box>

@@ -36,7 +36,7 @@ export function Skeleton({
     >
       <div
         aria-hidden="true"
-        className="absolute inset-0 animate-shimmer bg-linear-to-r from-transparent via-white/60 to-transparent"
+        className="absolute inset-0 animate-shimmer bg-linear-to-r from-transparent via-bg-shimmer-highlight to-transparent"
       />
     </div>
   );

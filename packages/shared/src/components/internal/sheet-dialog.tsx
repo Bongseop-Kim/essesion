@@ -2,6 +2,7 @@ import type { CSSProperties, PointerEvent, ReactNode } from "react";
 import { createContext, use } from "react";
 
 import { cn } from "../../cn";
+import { Flex } from "../flex";
 import { useDialog } from "./use-dialog";
 import { useSheetDrag } from "./use-sheet-drag";
 
@@ -93,20 +94,22 @@ export function SheetDialog({
       className={cn(dialogClass, radiusClass)}
       style={style}
     >
-      <div className="flex max-h-full flex-col">
-        <div
+      <Flex direction="column" maxHeight="full">
+        <Flex
           {...handleProps}
-          className="flex min-h-11 shrink-0 cursor-grab touch-none select-none items-center justify-center active:cursor-grabbing"
+          align="center"
+          justify="center"
+          className="min-h-11 shrink-0 cursor-grab touch-none select-none active:cursor-grabbing"
         >
           <span
             aria-hidden="true"
             className="h-1 w-9 rounded-full bg-stroke-neutral"
           />
-        </div>
+        </Flex>
         <SheetDragContext value={{ handleProps, contentProps }}>
           {children}
         </SheetDragContext>
-      </div>
+      </Flex>
     </dialog>
   );
 }

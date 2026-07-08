@@ -2,6 +2,7 @@ import { type ComponentPropsWithRef, type ReactNode, useState } from "react";
 
 import { cn } from "../cn";
 import { AspectRatio } from "./aspect-ratio";
+import { Flex } from "./flex";
 
 const radii = {
   r2: "rounded-r2",
@@ -62,7 +63,14 @@ export function ImageFrame({
 
 function ImageFallback() {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-bg-neutral-weak text-fg-neutral-subtle">
+    <Flex
+      position="absolute"
+      inset={0}
+      align="center"
+      justify="center"
+      bg="bg.neutral-weak"
+      className="text-fg-neutral-subtle"
+    >
       <svg
         width="30%"
         height="30%"
@@ -72,6 +80,6 @@ function ImageFallback() {
       >
         <path d="M4 5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H4Zm0 12 4.5-6 3 4 2.5-3 4 5H4Zm4-8.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
       </svg>
-    </div>
+    </Flex>
   );
 }

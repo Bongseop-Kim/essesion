@@ -90,6 +90,7 @@
   --color-bg-disabled: var(
     --color-palette-gray-200
   ); /* 폼 필드 disabled 배경 (버튼은 opacity-50 — state.md) */
+  --color-bg-shimmer-highlight: rgb(255 255 255 / 0.6);
 
   /* layer — 낮음→높음: basement < default < floating (docs/foundation/elevation.md) */
   --color-bg-layer-basement: var(--color-palette-gray-100);

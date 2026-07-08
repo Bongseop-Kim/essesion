@@ -33,6 +33,7 @@
 | `bg.neutral-weak-pressed` | `--color-bg-neutral-weak-pressed` | gray-400 `#dcdee3` | `bg-bg-neutral-weak-pressed` |
 | `bg.neutral-solid` | `--color-bg-neutral-solid` | gray-600 `#b0b3ba` | `bg-bg-neutral-solid` |
 | `bg.disabled` | `--color-bg-disabled` | gray-200 `#f3f4f5` | `bg-bg-disabled` |
+| `bg.shimmer-highlight` | `--color-bg-shimmer-highlight` | white 60% | `via-bg-shimmer-highlight` |
 | `bg.layer-basement` | `--color-bg-layer-basement` | gray-100 `#f7f8f9` | `bg-bg-layer-basement` |
 | `bg.layer-default` | `--color-bg-layer-default` | `#ffffff` | `bg-bg-layer-default` |
 | `bg.layer-floating` | `--color-bg-layer-floating` | `#ffffff` | `bg-bg-layer-floating` |

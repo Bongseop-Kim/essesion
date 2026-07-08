@@ -1,7 +1,11 @@
 import type { ComponentPropsWithRef, ReactNode } from "react";
 
 import { cn } from "../cn";
+import { Box } from "./box";
+import { Flex } from "./flex";
 import { ChevronDownGlyph, XGlyph } from "./internal/glyphs";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 type Tone = "neutral" | "informative" | "positive" | "warning" | "critical";
 
@@ -65,9 +69,18 @@ export function Callout({
       "Callout: onClick과 onDismiss를 함께 지정하면 onClick(actionable)이 우선합니다.",
     );
   }
+  if (
+    process.env.NODE_ENV !== "production" &&
+    dismissible &&
+    (tone === "warning" || tone === "critical")
+  ) {
+    console.warn(
+      "Callout: warning/critical 메시지는 dismissible로 쓰지 마세요.",
+    );
+  }
 
   const rootClass = cn(
-    "flex min-h-12.5 w-full items-start gap-x3 rounded-r3 px-x3_5 py-x3_5 text-left text-t4",
+    "text-left",
     toneBg[tone],
     toneBody[tone],
     actionable &&
@@ -79,47 +92,83 @@ export function Callout({
     <>
       {icon !== undefined && (
         // size-4(16px) 아이콘 권장 — 앱 소유 Icon/@heroicons을 슬롯으로 전달.
-        <span className="shrink-0" aria-hidden="true">
+        <Box as="span" className="shrink-0" aria-hidden="true">
           {icon}
-        </span>
+        </Box>
       )}
-      <span className="flex min-w-0 flex-1 flex-col gap-x0_5">
+      <VStack as="span" minWidth={0} flex={1} gap="x0_5">
         {title !== undefined && (
-          <span className={cn("font-bold", toneTitle[tone])}>{title}</span>
+          <Text
+            as="span"
+            textStyle="bodySm"
+            className={toneTitle[tone]}
+            style={{ fontWeight: 700 }}
+          >
+            {title}
+          </Text>
         )}
-        {description !== undefined && <span>{description}</span>}
+        {description !== undefined && (
+          <Text as="span" textStyle="bodySm">
+            {description}
+          </Text>
+        )}
         {children}
-      </span>
+      </VStack>
       {actionable ? (
         <ChevronDownGlyph className="size-4 shrink-0 -rotate-90" />
       ) : dismissible ? (
-        <button
+        <Flex
+          as="button"
           type="button"
           aria-label="닫기"
           onClick={onDismiss}
-          className="flex size-6 shrink-0 items-center justify-center rounded-full transition-colors duration-100 ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:opacity-70"
+          align="center"
+          justify="center"
+          width={24}
+          height={24}
+          shrink={0}
+          borderRadius="full"
+          className="transition-colors duration-100 ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:opacity-70"
         >
           <XGlyph className="size-4" />
-        </button>
+        </Flex>
       ) : null}
     </>
   );
 
   if (actionable) {
     return (
-      <button
+      <Flex
+        as="button"
         type="button"
         onClick={onClick}
+        align="flex-start"
+        gap="x3"
+        width="full"
+        minHeight="x13"
+        px="x3_5"
+        py="x3_5"
+        borderRadius="r3"
         className={rootClass}
         {...(rest as ComponentPropsWithRef<"button">)}
       >
         {inner}
-      </button>
+      </Flex>
     );
   }
   return (
-    <div className={rootClass} {...rest}>
+    <Flex
+      align="flex-start"
+      gap="x3"
+      width="full"
+      minHeight="x13"
+      px="x3_5"
+      py="x3_5"
+      borderRadius="r3"
+      className={rootClass}
+      {...rest}
+    >
       {inner}
-    </div>
+    </Flex>
   );
 }

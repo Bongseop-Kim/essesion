@@ -4,6 +4,8 @@ import { createContext, use, useId } from "react";
 import { cn } from "../cn";
 import { SheetDialog, useSheetHandlers } from "./internal/sheet-dialog";
 import { useControllableState } from "./internal/use-controllable-state";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 const SwipeableMenuSheetContext = createContext<{ close: () => void } | null>(
   null,
@@ -46,23 +48,32 @@ function SwipeableMenuSheetContent({
   const hasHeader = title != null || description != null;
 
   return (
-    <div {...contentProps} className="flex flex-col gap-x2_5 px-x4 pb-x4">
+    <VStack {...contentProps} gap="x2_5" px="x4" pb="x4">
       {hasHeader ? (
-        <div
+        <VStack
           {...handleProps}
-          className="flex touch-none flex-col items-center gap-x1 pt-x1 pb-x2 text-center"
+          align="center"
+          gap="x1"
+          pt="x1"
+          pb="x2"
+          className="touch-none text-center"
         >
           {title != null ? (
-            <h2 id={titleId} className="text-t6 font-bold text-fg-neutral">
+            <Text as="h2" id={titleId} textStyle="title3" color="fg.neutral">
               {title}
-            </h2>
+            </Text>
           ) : null}
           {description != null ? (
-            <span id={descriptionId} className="text-t4 text-fg-neutral-subtle">
+            <Text
+              as="span"
+              id={descriptionId}
+              textStyle="bodySm"
+              color="fg.neutral-subtle"
+            >
               {description}
-            </span>
+            </Text>
           ) : null}
-        </div>
+        </VStack>
       ) : null}
       {children}
       <button
@@ -76,7 +87,7 @@ function SwipeableMenuSheetContent({
       >
         {closeLabel}
       </button>
-    </div>
+    </VStack>
   );
 }
 
@@ -137,9 +148,9 @@ export function SwipeableMenuSheetGroup({
   children,
 }: SwipeableMenuSheetGroupProps) {
   return (
-    <div className="flex flex-col divide-y divide-stroke-neutral-weak overflow-hidden rounded-r4">
+    <VStack className="divide-y divide-stroke-neutral-weak overflow-hidden rounded-r4">
       {children}
-    </div>
+    </VStack>
   );
 }
 

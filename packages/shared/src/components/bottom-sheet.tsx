@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 import { useId } from "react";
 
+import { Box } from "./box";
+import { Flex } from "./flex";
 import { CloseButton } from "./internal/close-button";
 import { SheetDialog, useSheetHandlers } from "./internal/sheet-dialog";
 import { useControllableState } from "./internal/use-controllable-state";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 export type BottomSheetProps = {
   open?: boolean;
@@ -47,36 +51,51 @@ function BottomSheetBody({
   return (
     <>
       {hasHeader ? (
-        <div
+        <Flex
           {...handleProps}
-          className="flex shrink-0 touch-none items-start justify-between gap-x2 px-x4 pt-x1 pb-x4"
+          align="flex-start"
+          justify="space-between"
+          gap="x2"
+          px="x4"
+          pt="x1"
+          pb="x4"
+          className="shrink-0 touch-none"
         >
-          <div className="flex flex-col gap-x2">
+          <VStack gap="x2">
             {title != null ? (
-              <h2 id={titleId} className="text-t8 font-bold text-fg-neutral">
+              <Text as="h2" id={titleId} textStyle="title2" color="fg.neutral">
                 {title}
-              </h2>
+              </Text>
             ) : null}
             {description != null ? (
-              <span
+              <Text
+                as="span"
                 id={descriptionId}
-                className="text-t5 text-fg-neutral-muted"
+                textStyle="body"
+                color="fg.neutral-muted"
               >
                 {description}
-              </span>
+              </Text>
             ) : null}
-          </div>
+          </VStack>
           {showCloseButton ? <CloseButton onClick={onClose} /> : null}
-        </div>
+        </Flex>
       ) : null}
-      <div
+      <Box
         {...contentProps}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-x4 pb-x4"
+        minHeight={0}
+        flex={1}
+        overflowY="auto"
+        px="x4"
+        pb="x4"
+        className="overscroll-contain"
       >
         {children}
-      </div>
+      </Box>
       {footer != null ? (
-        <div className="shrink-0 px-x4 pt-x3 pb-x4">{footer}</div>
+        <Box className="shrink-0" px="x4" pt="x3" pb="x4">
+          {footer}
+        </Box>
       ) : null}
     </>
   );

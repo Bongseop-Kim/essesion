@@ -43,6 +43,7 @@ export function useDialog({
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const closingTimer = useRef<number | undefined>(undefined);
   const pointerDownOnBackdrop = useRef(false);
+  const restoreBodyPadding = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -53,15 +54,20 @@ export function useDialog({
       dialog.removeAttribute("data-closing");
       if (!dialog.open) {
         // showModal 전에 측정·보상 — overflow:hidden(theme.css)으로 스크롤바가
-        // 사라질 때 콘텐츠 폭이 출렁이는 레이아웃 시프트 방지. 복원은 close 이벤트에서.
+        // 사라질 때 콘텐츠 폭이 출렁이는 레이아웃 시프트 방지.
         const scrollbarWidth =
           window.innerWidth - document.documentElement.clientWidth;
+        const previousPaddingRight = document.body.style.paddingRight;
+        restoreBodyPadding.current = () => {
+          document.body.style.paddingRight = previousPaddingRight;
+          restoreBodyPadding.current = undefined;
+        };
         if (scrollbarWidth > 0) {
           document.body.style.paddingRight = `${scrollbarWidth}px`;
         }
         dialog.showModal();
       }
-      return;
+      return () => restoreBodyPadding.current?.();
     }
 
     if (!dialog.open) return;
@@ -89,7 +95,7 @@ export function useDialog({
       onClose: () => {
         dialogRef.current?.removeAttribute("data-closing");
         // 스크롤바 보상 복원 — 어떤 경로의 close든 이 이벤트를 지나간다
-        document.body.style.paddingRight = "";
+        restoreBodyPadding.current?.();
         // 지연 close(이미 open=false)에서는 no-op, 강제 close에서는 재동기화
         if (open) onClose();
       },

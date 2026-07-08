@@ -21,7 +21,7 @@ const RULES = [
     hint: "임의 값 유틸리티 금지 — 토큰 유틸리티/프리미티브 prop 사용",
     regex: /[A-Za-z][\w-]*-\[[^\]]+\]/g,
     allow: (match) =>
-      /^(data-|aria-|supports-|has-|min-|max-|nth-|peer-data|group-data)/.test(
+      /^(data-|aria-|supports-|has-|min-\[|max-\[|nth-|peer-data|group-data)/.test(
         match,
       ),
   },

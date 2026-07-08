@@ -7,7 +7,10 @@ import {
 } from "react";
 
 import { cn } from "../cn";
+import { Flex } from "./flex";
 import { CheckGlyph, DashGlyph } from "./internal/glyphs";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 const boxSizes = {
   medium: "size-5",
@@ -17,11 +20,6 @@ const boxSizes = {
 const glyphSizes = {
   medium: "size-3.5",
   large: "size-4",
-};
-
-const labelSizes = {
-  medium: "text-t4",
-  large: "text-t5",
 };
 
 export type CheckboxProps = Omit<
@@ -62,12 +60,12 @@ export function Checkbox({
   const Glyph = indeterminate ? DashGlyph : CheckGlyph;
 
   return (
-    <label
-      className={cn(
-        "inline-flex gap-x2",
-        description ? "items-start" : "items-center",
-        className,
-      )}
+    <Flex
+      as="label"
+      display="inline-flex"
+      gap="x2"
+      align={description ? "flex-start" : "center"}
+      className={cn(className)}
     >
       <input
         type="checkbox"
@@ -91,30 +89,28 @@ export function Checkbox({
         <Glyph className={glyphSizes[size]} />
       </span>
       {(label != null || description != null) && (
-        <span className="flex min-w-0 flex-col gap-x0_5">
+        <VStack as="span" minWidth={0} gap="x0_5">
           {label != null && (
-            <span
-              className={cn(
-                "font-medium select-none",
-                labelSizes[size],
-                disabled ? "text-fg-disabled" : "text-fg-neutral",
-              )}
+            <Text
+              as="span"
+              textStyle={size === "large" ? "label" : "labelSm"}
+              color={disabled ? "fg.disabled" : "fg.neutral"}
+              className="select-none"
             >
               {label}
-            </span>
+            </Text>
           )}
           {description != null && (
-            <span
-              className={cn(
-                "text-t3",
-                disabled ? "text-fg-disabled" : "text-fg-neutral-subtle",
-              )}
+            <Text
+              as="span"
+              textStyle="caption"
+              color={disabled ? "fg.disabled" : "fg.neutral-subtle"}
             >
               {description}
-            </span>
+            </Text>
           )}
-        </span>
+        </VStack>
       )}
-    </label>
+    </Flex>
   );
 }

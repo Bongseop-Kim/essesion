@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, use, useId } from "react";
 
 import { cn } from "../cn";
+import { Flex } from "./flex";
 import { useControllableState } from "./internal/use-controllable-state";
 
 type SegmentedControlContextValue = {
@@ -56,16 +57,17 @@ export function SegmentedControl({
     <SegmentedControlContext
       value={{ name: name ?? generatedName, value, setValue }}
     >
-      <div
+      <Flex
         role="radiogroup"
         aria-label={ariaLabel}
-        className={cn(
-          "inline-flex items-center gap-x1 rounded-full bg-bg-neutral-weak p-x1",
-          className,
-        )}
+        display="inline-flex"
+        align="center"
+        gap="x1"
+        p="x1"
+        className={cn("rounded-full bg-bg-neutral-weak", className)}
       >
         {children}
-      </div>
+      </Flex>
     </SegmentedControlContext>
   );
 }

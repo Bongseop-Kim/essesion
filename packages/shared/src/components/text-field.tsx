@@ -2,6 +2,7 @@ import type { ComponentPropsWithRef, CSSProperties, ReactNode } from "react";
 
 import { cn } from "../cn";
 import { Field, useFieldContext } from "./field";
+import { Flex } from "./flex";
 
 type FrameSize = "medium" | "large";
 
@@ -17,7 +18,7 @@ type FieldOwnProps = {
 /* 컨테이너/컨트롤 스타일은 ActionButton과 같은 size 레코드 + cn() 패턴.
    포커스는 outline 기법으로 처리(테두리 두께 변화로 인한 레이아웃 시프트 방지). */
 const frameBase =
-  "flex gap-x2 border border-stroke-neutral-weak bg-bg-layer-default transition-colors duration-100 ease-standard focus-within:outline focus-within:outline-2 focus-within:-outline-offset-1 focus-within:outline-stroke-brand";
+  "border border-stroke-neutral-weak bg-bg-layer-default transition-colors duration-100 ease-standard focus-within:outline focus-within:outline-2 focus-within:-outline-offset-1 focus-within:outline-stroke-brand";
 
 const inputSizes: Record<FrameSize, string> = {
   medium: "h-10 rounded-r2 px-x3_5 text-t4",
@@ -50,10 +51,11 @@ function FieldFrame({
   children: ReactNode;
 }) {
   return (
-    <div
+    <Flex
+      gap="x2"
+      align={multiline ? "flex-start" : "center"}
       className={cn(
         frameBase,
-        multiline ? "items-start" : "items-center",
         (multiline ? textAreaSizes : inputSizes)[size],
         // errorMessage 존재 시 상시 표시 (state.md 폼 필드 규칙)
         invalid &&
@@ -69,7 +71,7 @@ function FieldFrame({
       {suffix != null && (
         <span className="shrink-0 text-fg-neutral-muted">{suffix}</span>
       )}
-    </div>
+    </Flex>
   );
 }
 

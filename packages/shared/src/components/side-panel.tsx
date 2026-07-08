@@ -2,9 +2,13 @@ import type { ReactNode } from "react";
 import { useId } from "react";
 
 import { cn } from "../cn";
+import { Box } from "./box";
+import { Flex } from "./flex";
 import { CloseButton } from "./internal/close-button";
 import { useControllableState } from "./internal/use-controllable-state";
 import { useDialog } from "./internal/use-dialog";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 export type SidePanelProps = {
   open?: boolean;
@@ -78,27 +82,50 @@ export function SidePanel({
         panelSizes[size],
       )}
     >
-      <div className="h-full flex flex-col">
-        <div className="min-h-17.5 px-x6 pt-x6 pb-x4 flex items-start justify-between gap-x2">
-          <div className="flex flex-col gap-x1_5">
+      <Flex direction="column" height="full">
+        <Flex
+          align="flex-start"
+          justify="space-between"
+          gap="x2"
+          px="x6"
+          pt="x6"
+          pb="x4"
+          className="min-h-17.5"
+        >
+          <VStack gap="x1_5">
             {title ? (
-              <h2 id={titleId} className="text-t8 font-bold">
+              <Text as="h2" id={titleId} textStyle="title2">
                 {title}
-              </h2>
+              </Text>
             ) : null}
             {description ? (
-              <div id={descId} className="text-t5 text-fg-neutral-muted">
+              <Text
+                as="div"
+                id={descId}
+                textStyle="body"
+                color="fg.neutral-muted"
+              >
                 {description}
-              </div>
+              </Text>
             ) : null}
-          </div>
+          </VStack>
           <CloseButton onClick={() => setOpen(false)} />
-        </div>
-        <div className="flex-1 overflow-y-auto overscroll-contain px-x6 pb-x12">
+        </Flex>
+        <Box
+          flex={1}
+          overflowY="auto"
+          px="x6"
+          pb="x12"
+          className="overscroll-contain"
+        >
           {children}
-        </div>
-        {footer ? <div className="px-x6 py-x4">{footer}</div> : null}
-      </div>
+        </Box>
+        {footer ? (
+          <Box px="x6" py="x4">
+            {footer}
+          </Box>
+        ) : null}
+      </Flex>
     </dialog>
   );
 }

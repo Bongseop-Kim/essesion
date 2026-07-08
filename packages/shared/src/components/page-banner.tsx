@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
 
 import { cn } from "../cn";
+import { Box } from "./box";
+import { Flex } from "./flex";
 import { XGlyph } from "./internal/glyphs";
+import { Text } from "./text";
 
 type Tone = "neutral" | "informative" | "positive" | "warning" | "critical";
 
@@ -32,6 +35,7 @@ const variantStyles: Record<"weak" | "solid", Record<Tone, string>> = {
 export type PageBannerProps = {
   variant?: "weak" | "solid";
   tone?: Tone;
+  icon?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   actionLabel?: string;
@@ -44,6 +48,7 @@ export type PageBannerProps = {
 export function PageBanner({
   variant = "weak",
   tone = "neutral",
+  icon,
   title,
   description,
   actionLabel,
@@ -51,18 +56,41 @@ export function PageBanner({
   onDismiss,
   className,
 }: PageBannerProps) {
+  if (
+    process.env.NODE_ENV !== "production" &&
+    onDismiss !== undefined &&
+    (tone === "warning" || tone === "critical")
+  ) {
+    console.warn(
+      "PageBanner: warning/critical 메시지는 dismissible로 쓰지 마세요.",
+    );
+  }
+
   return (
-    <div
-      className={cn(
-        "flex min-h-10 w-full items-center gap-x2 px-x4 py-x2_5 text-t4",
-        variantStyles[variant][tone],
-        className,
-      )}
+    <Flex
+      align="center"
+      gap="x2"
+      width="full"
+      minHeight="x10"
+      px="x4"
+      py="x2_5"
+      className={cn(variantStyles[variant][tone], className)}
     >
-      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x2">
-        <span className="font-bold">{title}</span>
-        {description !== undefined && <span>{description}</span>}
-      </div>
+      {icon !== undefined && (
+        <Box as="span" className="shrink-0" aria-hidden="true">
+          {icon}
+        </Box>
+      )}
+      <Flex minWidth={0} flex={1} wrap align="baseline" gap="x1_5">
+        <Text as="span" textStyle="bodySm" style={{ fontWeight: 700 }}>
+          {title}
+        </Text>
+        {description !== undefined && (
+          <Text as="span" textStyle="bodySm">
+            {description}
+          </Text>
+        )}
+      </Flex>
       {actionLabel !== undefined && onAction !== undefined && (
         // currentColor 상속 — variant/tone별 fg를 그대로 물려받는다.
         <button
@@ -74,15 +102,22 @@ export function PageBanner({
         </button>
       )}
       {onDismiss !== undefined && (
-        <button
+        <Flex
+          as="button"
           type="button"
           aria-label="닫기"
           onClick={onDismiss}
-          className="flex size-6 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:opacity-70"
+          align="center"
+          justify="center"
+          width={24}
+          height={24}
+          shrink={0}
+          borderRadius="full"
+          className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:opacity-70"
         >
           <XGlyph className="size-4" />
-        </button>
+        </Flex>
       )}
-    </div>
+    </Flex>
   );
 }

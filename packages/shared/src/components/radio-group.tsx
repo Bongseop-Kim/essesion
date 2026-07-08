@@ -1,7 +1,10 @@
 import { createContext, type ReactNode, use, useId } from "react";
 
 import { cn } from "../cn";
+import { Flex } from "./flex";
 import { useControllableState } from "./internal/use-controllable-state";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 type RadioGroupContextValue = {
   name: string;
@@ -49,16 +52,14 @@ export function RadioGroup({
         disabled,
       }}
     >
-      <div
+      <Flex
         role="radiogroup"
-        className={cn(
-          "flex",
-          orientation === "vertical" ? "flex-col gap-x2" : "flex-row gap-x4",
-          className,
-        )}
+        direction={orientation === "vertical" ? "column" : "row"}
+        gap={orientation === "vertical" ? "x2" : "x4"}
+        className={className}
       >
         {children}
-      </div>
+      </Flex>
     </RadioGroupContext>
   );
 }
@@ -71,11 +72,6 @@ const markSizes = {
 const dotSizes = {
   medium: "size-2",
   large: "size-2.5",
-};
-
-const labelSizes = {
-  medium: "text-t4",
-  large: "text-t5",
 };
 
 export type RadioGroupItemProps = {
@@ -101,12 +97,12 @@ export function RadioGroupItem({
   }
   const disabled = ctx.disabled || itemDisabled;
   return (
-    <label
-      className={cn(
-        "inline-flex gap-x2",
-        description ? "items-start" : "items-center",
-        className,
-      )}
+    <Flex
+      as="label"
+      display="inline-flex"
+      gap="x2"
+      align={description ? "flex-start" : "center"}
+      className={className}
     >
       <input
         type="radio"
@@ -130,30 +126,28 @@ export function RadioGroupItem({
         <span className={cn("rounded-full bg-current", dotSizes[size])} />
       </span>
       {(label != null || description != null) && (
-        <span className="flex min-w-0 flex-col gap-x0_5">
+        <VStack as="span" gap="x0_5" minWidth={0}>
           {label != null && (
-            <span
-              className={cn(
-                "font-medium select-none",
-                labelSizes[size],
-                disabled ? "text-fg-disabled" : "text-fg-neutral",
-              )}
+            <Text
+              as="span"
+              textStyle={size === "large" ? "label" : "labelSm"}
+              color={disabled ? "fg.disabled" : "fg.neutral"}
+              className="select-none"
             >
               {label}
-            </span>
+            </Text>
           )}
           {description != null && (
-            <span
-              className={cn(
-                "text-t3",
-                disabled ? "text-fg-disabled" : "text-fg-neutral-subtle",
-              )}
+            <Text
+              as="span"
+              textStyle="caption"
+              color={disabled ? "fg.disabled" : "fg.neutral-subtle"}
             >
               {description}
-            </span>
+            </Text>
           )}
-        </span>
+        </VStack>
       )}
-    </label>
+    </Flex>
   );
 }

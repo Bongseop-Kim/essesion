@@ -2,9 +2,13 @@ import type { ReactNode } from "react";
 import { useId } from "react";
 
 import { cn } from "../cn";
+import { Box } from "./box";
+import { Flex } from "./flex";
 import { CloseButton } from "./internal/close-button";
 import { useControllableState } from "./internal/use-controllable-state";
 import { useDialog } from "./internal/use-dialog";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 const sizes = {
   small: "max-w-100", // 400px — 짧은 폼·확인성 콘텐츠
@@ -75,29 +79,52 @@ export function Modal({
         sizes[size],
       )}
     >
-      <div className="flex max-h-full flex-col">
-        <div className="flex items-start justify-between gap-x2 px-x6 pt-x6 pb-x4">
-          <div className="flex min-w-0 flex-col gap-x1_5">
+      <Flex direction="column" maxHeight="full">
+        <Flex
+          align="flex-start"
+          justify="space-between"
+          gap="x2"
+          px="x6"
+          pt="x6"
+          pb="x4"
+        >
+          <VStack minWidth={0} gap="x1_5">
             {title != null && (
-              <h2 id={titleId} className="text-t7 font-bold">
+              <Text as="h2" id={titleId} textStyle="title3">
                 {title}
-              </h2>
+              </Text>
             )}
             {description != null && (
-              <div id={descriptionId} className="text-t5 text-fg-neutral-muted">
+              <Text
+                as="div"
+                id={descriptionId}
+                textStyle="body"
+                color="fg.neutral-muted"
+              >
                 {description}
-              </div>
+              </Text>
             )}
-          </div>
+          </VStack>
           {showCloseButton && <CloseButton onClick={() => setOpen(false)} />}
-        </div>
+        </Flex>
         {children != null && (
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-x6 pb-x6">
+          <Box
+            minHeight={0}
+            flex={1}
+            overflowY="auto"
+            px="x6"
+            pb="x6"
+            className="overscroll-contain"
+          >
             {children}
-          </div>
+          </Box>
         )}
-        {footer != null && <div className="px-x6 pt-x2 pb-x6">{footer}</div>}
-      </div>
+        {footer != null && (
+          <Box px="x6" pt="x2" pb="x6">
+            {footer}
+          </Box>
+        )}
+      </Flex>
     </dialog>
   );
 }

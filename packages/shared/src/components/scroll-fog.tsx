@@ -23,10 +23,20 @@ export function ScrollFog({
   style,
   onScroll,
   children,
+  ref,
   ...props
 }: ScrollFogProps) {
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
+
+  const setRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      innerRef.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
 
   const update = useCallback(() => {
     const el = innerRef.current;
@@ -36,7 +46,10 @@ export function ScrollFog({
       direction === "vertical"
         ? el.scrollHeight - el.clientHeight
         : el.scrollWidth - el.clientWidth;
-    setEdges({ start: scrollPos > 1, end: scrollPos < maxScroll - 1 });
+    const next = { start: scrollPos > 1, end: scrollPos < maxScroll - 1 };
+    setEdges((prev) =>
+      prev.start === next.start && prev.end === next.end ? prev : next,
+    );
   }, [direction]);
 
   useEffect(() => {
@@ -63,9 +76,7 @@ export function ScrollFog({
 
   return (
     <div
-      ref={(node) => {
-        innerRef.current = node;
-      }}
+      ref={setRef}
       className={cn(
         direction === "vertical" ? "overflow-y-auto" : "overflow-x-auto",
         className,

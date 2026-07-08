@@ -101,7 +101,7 @@ export function ContentSection() {
 
       <SubSection title="ContentPlaceholder">
         <ContentPlaceholder
-          icon={<Icon svg={<InboxIcon />} size={48} />}
+          icon={<Icon svg={<InboxIcon />} size="x12" />}
           title="주문 내역이 없어요"
           description="첫 주문을 시작해 보세요."
           action={
@@ -113,13 +113,7 @@ export function ContentSection() {
       </SubSection>
 
       <SubSection title="ResultSection">
-        <Box
-          height={380}
-          display="flex"
-          borderWidth={1}
-          borderColor="stroke.neutral-weak"
-          borderRadius="r3"
-        >
+        <Box display="flex" py="x16" bg="bg.neutral-weak" borderRadius="r3">
           <ResultSection
             size="medium"
             title="결과를 찾을 수 없어요"

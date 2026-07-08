@@ -58,7 +58,7 @@ export function Chip({
         onClick?.(event);
       }}
       className={cn(
-        "inline-flex items-center gap-x1 rounded-full text-t4 font-medium transition-colors duration-100 ease-standard",
+        "inline-flex items-center gap-x1 rounded-full text-t4 font-medium transition-colors duration-(--duration-fast) ease-standard",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
         "disabled:pointer-events-none disabled:opacity-50",
         sizes[size],

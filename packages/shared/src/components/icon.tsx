@@ -6,13 +6,14 @@ import {
   useBreakpoint,
 } from "../breakpoint";
 import { cn } from "../cn";
-import { resolveColor, type TokenColor } from "../style-props";
+import { resolveColor, resolveSize, type TokenColor } from "../style-props";
+import type { SpacingToken } from "../tokens";
 
 export type IconProps = Omit<ComponentPropsWithRef<"span">, "children"> & {
   /** 아이콘 에셋은 앱이 소유(@heroicons/react 등) — `<Icon svg={<XMarkIcon />} />` */
   svg: ReactElement;
-  /** px. 구조값이라 숫자 허용 — 16(인라인)/20(버튼)/24(기본) */
-  size?: ResponsiveValue<number>;
+  /** 숫자는 px, x* 값은 spacing token — 16(인라인)/20(버튼)/24(기본). */
+  size?: ResponsiveValue<number | SpacingToken>;
   /** 기본: currentColor 상속 */
   color?: ResponsiveValue<TokenColor>;
 };
@@ -30,6 +31,7 @@ export function Icon(props: IconProps) {
   const bp = useBreakpoint();
   const side = pickResponsive(size, bp) ?? 24;
   const picked = color === undefined ? undefined : pickResponsive(color, bp);
+  const resolvedSide = resolveSize(side);
 
   return (
     <span
@@ -38,8 +40,8 @@ export function Icon(props: IconProps) {
       aria-hidden={ariaLabel ? undefined : true}
       className={cn("inline-flex shrink-0 [&>svg]:size-full", className)}
       style={{
-        width: side,
-        height: side,
+        width: resolvedSide,
+        height: resolvedSide,
         color: picked === undefined ? undefined : resolveColor(picked),
         ...style,
       }}

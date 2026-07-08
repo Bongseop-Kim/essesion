@@ -34,7 +34,7 @@ export function FloatingActionButton({
       type={type}
       disabled={disabled}
       className={cn(
-        "inline-flex items-center justify-center transition-colors duration-100 ease-standard",
+        "inline-flex items-center justify-center transition-colors duration-(--duration-fast) ease-standard",
         "bg-bg-brand-solid text-fg-contrast shadow-s3 hover:bg-bg-brand-solid-hover active:bg-bg-brand-solid-pressed",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
         "disabled:pointer-events-none disabled:opacity-50",

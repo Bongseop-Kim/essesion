@@ -15,6 +15,8 @@ import {
 
 import { cn } from "../cn";
 import { useControllableState } from "./internal/use-controllable-state";
+import { VStack } from "./stack";
+import { Text } from "./text";
 
 type MenuContextValue = {
   open: boolean;
@@ -238,7 +240,7 @@ export function MenuContent({ children, className }: MenuContentProps) {
       )}
     >
       {/* gap-x0_5: 인접 항목의 하이라이트(포커스+호버)가 맞붙지 않게 2px 분리 */}
-      <div className="flex flex-col gap-x0_5">{children}</div>
+      <VStack gap="x0_5">{children}</VStack>
     </div>
   );
 }
@@ -294,15 +296,24 @@ export type MenuGroupProps = {
 /** 항목 묶음 — 선택적 라벨을 위에 둔다. */
 export function MenuGroup({ label, children }: MenuGroupProps) {
   return (
-    // biome-ignore lint/a11y/useSemanticElements: ARIA 메뉴 그룹의 표준 역할 — <fieldset>은 폼 전용
-    <div role="group" className="flex flex-col gap-x0_5">
+    <VStack
+      role="group"
+      gap="x0_5"
+      aria-label={typeof label === "string" ? label : undefined}
+    >
       {label != null && (
-        <div className="px-x2 py-x1 text-t2 text-fg-neutral-subtle">
+        <Text
+          as="div"
+          px="x2"
+          py="x1"
+          textStyle="captionSm"
+          color="fg.neutral-subtle"
+        >
           {label}
-        </div>
+        </Text>
       )}
       {children}
-    </div>
+    </VStack>
   );
 }
 

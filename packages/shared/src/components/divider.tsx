@@ -22,8 +22,8 @@ export function Divider({
     <Comp
       {...(as !== "hr" && {
         role: "separator",
-        "aria-orientation": vertical ? "vertical" : undefined,
       })}
+      aria-orientation={vertical ? "vertical" : undefined}
       className={cn(
         vertical
           ? "w-px self-stretch border-0 bg-stroke-neutral-weak"

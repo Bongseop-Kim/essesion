@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, use, useId } from "react";
 
+import { Flex } from "./flex";
 import { Grid } from "./grid";
 import { CheckGlyph } from "./internal/glyphs";
 import { useControllableState } from "./internal/use-controllable-state";
@@ -122,7 +123,15 @@ export function SelectBoxItem({
   const { name, values, toggle, multiple } = useSelectBoxContext();
   const checked = values.includes(value);
   return (
-    <label className="relative flex cursor-pointer items-start gap-x3 rounded-r3 border border-stroke-neutral bg-bg-layer-default px-x4 py-x4 transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak has-disabled:cursor-not-allowed has-disabled:bg-bg-disabled has-focus-visible:outline has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-stroke-focus-ring">
+    <Flex
+      as="label"
+      position="relative"
+      align="flex-start"
+      gap="x3"
+      px="x4"
+      py="x4"
+      className="cursor-pointer rounded-r3 border border-stroke-neutral bg-bg-layer-default transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak has-disabled:cursor-not-allowed has-disabled:bg-bg-disabled has-focus-visible:outline has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-stroke-focus-ring"
+    >
       <input
         type={multiple ? "checkbox" : "radio"}
         name={name}
@@ -151,6 +160,6 @@ export function SelectBoxItem({
         )}
       </VStack>
       <CheckGlyph className="size-5 shrink-0 text-transparent transition-colors duration-100 ease-standard peer-checked:text-fg-brand" />
-    </label>
+    </Flex>
   );
 }

@@ -2,6 +2,7 @@ import {
   ActionButton,
   Callout,
   HStack,
+  Icon,
   PageBanner,
   snackbar,
   VStack,
@@ -54,31 +55,31 @@ export function FeedbackSection() {
         <VStack gap="x3" width="full" maxWidth={520}>
           <Callout
             tone="neutral"
-            icon={<InformationCircleIcon className="size-5" />}
+            icon={<Icon svg={<InformationCircleIcon />} size="x4" />}
             title="배송 안내"
             description="주문 후 평균 2~3일 내에 도착합니다."
           />
           <Callout
             tone="informative"
-            icon={<InformationCircleIcon className="size-5" />}
+            icon={<Icon svg={<InformationCircleIcon />} size="x4" />}
             title="새 기능이 추가됐어요"
             description="이제 위시리스트를 폴더로 정리할 수 있습니다."
           />
           <Callout
             tone="positive"
-            icon={<CheckCircleIcon className="size-5" />}
+            icon={<Icon svg={<CheckCircleIcon />} size="x4" />}
             title="결제가 완료됐어요"
             description="주문 내역은 마이페이지에서 확인하세요."
           />
           <Callout
             tone="warning"
-            icon={<ExclamationTriangleIcon className="size-5" />}
+            icon={<Icon svg={<ExclamationTriangleIcon />} size="x4" />}
             title="재고가 얼마 남지 않았어요"
             description="현재 3개 남았습니다. 서둘러 주문하세요."
           />
           <Callout
             tone="critical"
-            icon={<XCircleIcon className="size-5" />}
+            icon={<Icon svg={<XCircleIcon />} size="x4" />}
             title="결제에 실패했어요"
             description="카드 정보를 확인하고 다시 시도해 주세요."
           />
@@ -89,7 +90,7 @@ export function FeedbackSection() {
         <VStack gap="x3" width="full" maxWidth={520}>
           <Callout
             tone="informative"
-            icon={<SparklesIcon className="size-5" />}
+            icon={<Icon svg={<SparklesIcon />} size="x4" />}
             title="프로필을 완성해 보세요"
             description="추천 상품을 더 정확하게 받아볼 수 있어요."
             onClick={() => {}}
@@ -108,6 +109,7 @@ export function FeedbackSection() {
           <PageBanner
             variant="weak"
             tone="informative"
+            icon={<Icon svg={<InformationCircleIcon />} size="x4" />}
             title="시스템 점검 안내"
             description="7월 10일 새벽 2시부터 30분간 점검이 예정돼 있습니다."
             actionLabel="자세히"
@@ -117,6 +119,7 @@ export function FeedbackSection() {
           <PageBanner
             variant="weak"
             tone="warning"
+            icon={<Icon svg={<ExclamationTriangleIcon />} size="x4" />}
             title="주소지를 확인해 주세요"
             description="배송지가 오래전에 등록됐습니다."
             actionLabel="수정"
