@@ -438,10 +438,10 @@ async def motif_generate(
 
     try:
         response = await request.app.state.worker.motif_generate(body.model_dump(exclude_none=True))
+        out = MotifGenerateOut.model_validate(response)
     except Exception:
         await _release_recraft_budget(session, session_id)
         raise
-    out = MotifGenerateOut.model_validate(response)
     if out.reused:
         # 래더 히트 — Recraft 미호출이므로 예산 환급 (멱등 재호출이 예산을 태우지 않게)
         await _release_recraft_budget(session, session_id)

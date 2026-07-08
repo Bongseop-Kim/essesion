@@ -69,8 +69,8 @@ def render_fabric(params: dict[str, Any], settings: Settings) -> bytes:
     palette = result.palette
 
     dpi = int(params.get("dpi") or settings.fabric_dpi)
-    if dpi > settings.max_dpi:
-        raise FabricError(f"dpi must be <= {settings.max_dpi}")
+    if not 0 < dpi <= settings.max_dpi:
+        raise FabricError(f"dpi must be between 1 and {settings.max_dpi}")
 
     method = params.get("production_method") or intent.production.method
     if method not in {"print", "yarn_dyed"}:
@@ -116,7 +116,7 @@ def render_fabric(params: dict[str, Any], settings: Settings) -> bytes:
         if bad_weaves:
             raise FabricError(f"material_map uses unknown weaves: {bad_weaves}")
 
-    if segment_mod._motif_slots(intent):
+    if segment_mod.motif_slots(intent):
         out = _render_yarn_dyed_motifs(
             intent,
             palette,
@@ -160,7 +160,7 @@ def _render_yarn_dyed_motifs(
         raise FabricError(f"motif inlay exceeds {_MAX_INLAY_PIXELS}px; lower dpi or tile_mm")
 
     seg = segment_mod.segment(intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=True)  # R1
-    base_intent = segment_mod._without_motif_layers(intent)
+    base_intent = segment_mod.without_motif_layers(intent)
     if base_intent is None or not seg.motif_masks:
         # 모티프만 있는 intent(base 없음) — 실색 fallback(정상 경로 아님)
         design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)

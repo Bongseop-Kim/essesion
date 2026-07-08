@@ -1,5 +1,7 @@
 """어댑터 단위 테스트 — DB 불필요, 외부 HTTP는 respx로 목킹 (worker-motifs.md §3·§4·§6)."""
 
+import asyncio
+
 import httpx
 import pytest
 import respx
@@ -308,4 +310,6 @@ async def test_request_scoped_embedding_memoizes():
     assert await wrapped.embed("bee") == [1.0]
     assert await wrapped.embed("dot") == [1.0]
     assert inner.calls == 2  # 같은 텍스트는 1회
+    await asyncio.gather(wrapped.embed("ant"), wrapped.embed("ant"))
+    assert inner.calls == 3  # 동시 호출도 진행 중 task를 공유해 1회
     assert request_scoped(None) is None  # 미구성은 그대로 통과

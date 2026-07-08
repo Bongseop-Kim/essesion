@@ -11,6 +11,7 @@ from typing import Annotated, Any
 from db.models.auth import User
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.auth.exceptions import GoogleAuthError
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from sqlalchemy import select
@@ -95,7 +96,7 @@ def verify_batch_token(creds: BearerDep, settings: SettingsDep) -> None:
             claims = id_token.verify_oauth2_token(
                 creds.credentials, _google_request, settings.batch_oidc_audience
             )
-        except ValueError as exc:
+        except (ValueError, GoogleAuthError) as exc:
             raise UnauthorizedError() from exc
         if claims.get("email") != settings.batch_invoker_email:
             raise UnauthorizedError()

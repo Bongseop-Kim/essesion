@@ -39,7 +39,7 @@ def _alias(slot: str) -> str:
     return f"{_ALIAS_PREFIX}{slot}"
 
 
-def _motif_slots(intent: Intent) -> set[str]:
+def motif_slots(intent: Intent) -> set[str]:
     """모티프 레이어의 fill이 해석되는 팔레트 슬롯 id — 비모티프 레이어는 건너뜀."""
     slots: set[str] = set()
     for layer in intent.layers:
@@ -65,7 +65,7 @@ def _rgb_hex(rgb: tuple[int, int, int]) -> str:
     return "#{:02x}{:02x}{:02x}".format(*rgb)
 
 
-def _without_motif_layers(intent: Intent) -> Intent | None:
+def without_motif_layers(intent: Intent) -> Intent | None:
     """모티프 레이어를 제거한 base intent(재검증 없이 model_copy) — 없으면 None."""
     layers = [layer for layer in intent.layers if layer.type != "motif"]
     if not layers:
@@ -116,9 +116,9 @@ def segment(
     real_slots = sorted(palette.slot_ids())
     real_index = {s: i for i, s in enumerate(real_slots)}
 
-    motif_slots = sorted(_motif_slots(intent)) if split_motifs else []
+    split_slots = sorted(motif_slots(intent)) if split_motifs else []
     aliases: dict[str, str] = {}
-    for slot in motif_slots:
+    for slot in split_slots:
         alias = _alias(slot)
         assert alias not in palette.slot_ids(), f"alias {alias!r} collides with a real slot"
         aliases[slot] = alias
@@ -155,5 +155,5 @@ def segment(
     folded = bytes(fold[b] for b in seg_full.tobytes())
     slot_index = Image.frombytes("P", seg_full.size, folded)
 
-    motif_masks = {slot: mask_for(seg_full, label_index[aliases[slot]]) for slot in motif_slots}
+    motif_masks = {slot: mask_for(seg_full, label_index[aliases[slot]]) for slot in split_slots}
     return Segmentation(slot_index=slot_index, index_for=real_index, motif_masks=motif_masks)

@@ -62,7 +62,7 @@ class RequestIdMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
-        rid = sanitize_request_id(headers.get(b"x-request-id", b"").decode())
+        rid = sanitize_request_id(headers.get(b"x-request-id", b"").decode("latin-1"))
         token = request_id_var.set(rid)
 
         async def send_with_rid(message):

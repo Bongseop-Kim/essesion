@@ -415,6 +415,11 @@ async def test_worker_client_maps_statuses(settings):
     with pytest.raises(UpstreamError):
         await wc.generate({})
 
+    # 타임아웃·커넥션 등 transport 오류도 UpstreamError(→ 환불 경로)로 접힌다
+    route.mock(side_effect=httpx.ConnectTimeout("boom"))
+    with pytest.raises(UpstreamError):
+        await wc.generate({})
+
     route.mock(return_value=httpx.Response(200, json={"ok": True}))
     assert await wc.generate({}) == {"ok": True}
     await wc.aclose()

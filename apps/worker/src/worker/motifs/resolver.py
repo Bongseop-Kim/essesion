@@ -195,7 +195,7 @@ async def present_candidates(
     scope = normalize_facet(spec.get("scope"))
     if not scope:
         return []
-    candidates = await store.find_by_scope(session, scope)
+    candidates = await _read_or(store.find_by_scope(session, scope), [], session, "find_by_scope")
     if not candidates:
         return []
     ranked: list[tuple[MotifMeta, float | None]] = []
@@ -209,7 +209,12 @@ async def present_candidates(
     except EmbeddingError:
         query_vec = None  # 게이트 UI에서 임베딩 장애는 소프트 실패
     if query_vec is not None:
-        match = await store.nearest_by_embedding(session, query_vec, scope=scope)
+        match = await _read_or(
+            store.nearest_by_embedding(session, query_vec, scope=scope),
+            None,
+            session,
+            "nearest_by_embedding",
+        )
         if match is not None and match.id not in seen:
             meta = next((c for c in candidates if c.id == match.id), None)
             if meta is not None:
