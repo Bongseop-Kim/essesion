@@ -1,0 +1,8 @@
+/* essesion 디자인 토큰 — admin·store 공용. 각 앱 index.css에서 import.
+   ponytail: 브랜드 확정 전 플레이스홀더 값 — 토큰 이름만 계약, 값은 교체 예정 */
+@theme {
+  --color-primary: oklch(0.55 0.18 265);
+  --color-primary-hover: oklch(0.48 0.18 265);
+  --color-surface: oklch(0.99 0 0);
+  --color-danger: oklch(0.58 0.22 25);
+}

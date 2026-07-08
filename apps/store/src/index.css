@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@essesion/shared/theme.css";
+
+/* Tailwind는 node_modules를 스캔하지 않으므로 공용 컴포넌트의 클래스는 명시 등록 */
+@source "../../../packages/shared/src";
