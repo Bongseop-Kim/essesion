@@ -38,11 +38,29 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 레이아웃 프리미티브 | Box · Flex · HStack · VStack · Grid · Float · Text · Icon |
 | 앱 셸 | Layout/LayoutContent · Footer(FooterSection/FooterLink) |
 | 버튼 | ActionButton(기본 버튼) · ToggleButton · FloatingActionButton · Chip |
-| 폼 | Field · TextField · TextAreaField · Checkbox · RadioGroup/RadioGroupItem · Switch · SegmentedControl · SelectBox · FieldButton · AttachmentDisplayField |
+| 폼 | Field · TextField · TextAreaField · Checkbox · RadioGroup/RadioGroupItem · Switch · SegmentedControl · SelectBox · FieldButton · **ListPicker**(FieldButton+ResponsiveModal+List 조합 단일 선택) · AttachmentDisplayField |
 | 내비게이션 | Tabs(TabList/TabTrigger/TabContent) · Menu(Trigger/Content/Item/Group/Separator) |
 | 스크롤 | ScrollFog · PullToRefresh |
+| 오버레이 | AlertDialog · Modal · **ResponsiveModal**(모바일 시트↔PC 모달) · BottomSheet · SwipeableMenuSheet(Group/Item) · SidePanel · Snackbar(`snackbar()`/SnackbarHost) |
+| 인라인 피드백 | Callout · PageBanner |
 | 디스플레이 | Badge · Avatar · TagGroup/Tag · Divider · Skeleton · ProgressCircle · AspectRatio · ImageFrame |
 | 콘텐츠 | List(ListItem/ListHeader) · Accordion · Article · ContentPlaceholder · ResultSection |
+
+## 오버레이·피드백 선택 (상세·근거: docs/foundation/overlay.md — 필독)
+
+| 필요 | 사용 |
+|---|---|
+| 진행 차단 + 확인 1–2버튼 | AlertDialog (바깥 클릭으로 안 닫힘) |
+| 임시 작업·폼·상세 (기본 패턴) | **ResponsiveModal** — 모바일 BottomSheet ↔ PC 중앙 Modal 자동 전환 |
+| 액션 목록 | SwipeableMenuSheet(모바일) / Menu(데스크톱) |
+| 트리거 기준 명령 목록(데스크톱) | Menu |
+| 측면 맥락 유지 보조 작업(admin) | SidePanel |
+| 수 초 뒤 사라지는 결과 알림 | `snackbar()` — SnackbarHost를 앱 루트에 1회 마운트 |
+| 섹션 상주 안내 | Callout |
+| 페이지 전체 공지(페이지당 1개) | PageBanner |
+
+- 모달 위 모달 금지. dialog/popover 요소에 display 클래스 금지(overlay.md 구현 계약).
+- theme.css 추가는 **토큰과 문서 수준 규칙**(body 스크롤 잠금 등)만 — 컴포넌트 룩 CSS 금지.
 
 ## 컴포넌트 추가·수정 규칙
 
@@ -65,6 +83,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | international-design | 한국어 줄바꿈, ₩·날짜·숫자 표기 |
 | layout | store 콘텐츠 / admin 대시보드 레이아웃 |
 | motion | duration 3단 × ease 3종 |
+| overlay | **오버레이·피드백 7종 결정 트리·닫힘 모델·구현 계약** |
 | radius / spacing | r·x 스케일 용도 매핑 |
 | state | enabled→hover→pressed→selected→disabled→focus-visible |
 | voice-and-tone / writing | store·admin 보이스, UI 문구 규칙 |

@@ -63,6 +63,7 @@
 
 - [x] 디자인 시스템(packages/shared) — 토큰(theme.css, 브랜드 #111111·라이트 온리) + 프리미티브 8종(Box/Flex/HStack/VStack/Grid/Float/Text/Icon, ResponsiveValue) + AI 하네스(`packages/shared/AGENTS.md` + `docs/foundation/` 17편). 검증: vitest 드리프트 가드 + store 임시 프리뷰(main.tsx, 5단계 재작성 시 소멸)
 - [x] 디자인 시스템 컴포넌트 확장(32종, seed-design 참고·의존성 0 자체 구현) — ActionButton(Button 대체)·폼(TextField/Checkbox/RadioGroup/Switch/SegmentedControl/SelectBox/FieldButton/AttachmentDisplayField)·내비(Tabs/Menu)·디스플레이(Badge/Avatar/Skeleton/Divider/TagGroup/AspectRatio/ImageFrame/ProgressCircle)·콘텐츠(List/Accordion/Article/ContentPlaceholder/ResultSection)·셸(Layout/Footer/ScrollFog/PullToRefresh)·Chip/ToggleButton/FAB + 하네스 기계 강제(`scripts/check-harness.mjs`가 `pnpm lint`에 연결, 앱별 CLAUDE.md 우선순위 사다리)
+- [x] 오버레이·피드백 7종(AlertDialog/BottomSheet/SwipeableMenuSheet/SidePanel/Snackbar/Callout/PageBanner) — 네이티브 `<dialog>`+Popover API(의존성 0, 포털·z-index 없음), `bg.overlay` 토큰, **사용 구분 하네스**(`docs/foundation/overlay.md` 결정 트리·닫힘 모델 4분류 + AGENTS.md 압축 결정 표)
 - [ ] store 재작성 — 기존 라우트 기준, api-client만 사용(supabase-js 없음)
 - [ ] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — **이 기획에서 결정·구현할 이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [ ] admin 재작성 — 기존 라우트 기준

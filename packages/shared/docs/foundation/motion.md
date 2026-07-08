@@ -33,3 +33,5 @@
 - **`transform`·`opacity`만 애니메이트한다.** `width`/`height`/`top`/`margin` 등 레이아웃 속성 애니메이션 금지(리플로우·저성능).
 - `prefers-reduced-motion: reduce`를 존중 — 전환을 없애거나 최소화한다. → [inclusive-design.md](./inclusive-design.md)
 - 임의 duration·베지어 금지. 위 토큰만 사용.
+
+- **오버레이 등장/퇴장** — 등장은 `@starting-style`(`starting:` variant) + `ease-enter` 300ms, 퇴장은 `data-closing` 클래스 + `ease-exit` 200ms 후 지연 `close()`. 구현 계약은 [overlay.md](./overlay.md).

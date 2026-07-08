@@ -36,6 +36,7 @@
 | `bg.layer-basement` | `--color-bg-layer-basement` | gray-100 `#f7f8f9` | `bg-bg-layer-basement` |
 | `bg.layer-default` | `--color-bg-layer-default` | `#ffffff` | `bg-bg-layer-default` |
 | `bg.layer-floating` | `--color-bg-layer-floating` | `#ffffff` | `bg-bg-layer-floating` |
+| `bg.overlay` | `--color-bg-overlay` | `#00000074` (45% 검정) | `backdrop:bg-bg-overlay` (딤 전용) |
 | `bg.critical-solid` | `--color-bg-critical-solid` | red-700 `#fa342c` | `bg-bg-critical-solid` |
 | `bg.critical-solid-hover` | `--color-bg-critical-solid-hover` | red-800 `#ca1d13` | `bg-bg-critical-solid-hover` |
 | `bg.critical-solid-pressed` | `--color-bg-critical-solid-pressed` | red-900 `#921708` | `bg-bg-critical-solid-pressed` |

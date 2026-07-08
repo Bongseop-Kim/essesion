@@ -131,6 +131,10 @@
   --color-fg-informative: var(--color-palette-blue-800);
   --color-stroke-informative: var(--color-palette-blue-700);
 
+  /* overlay — 모달 <dialog> ::backdrop 딤 전용(45% 검정, 정적 값).
+     소비: backdrop:bg-bg-overlay 유틸리티 (docs/foundation/overlay.md) */
+  --color-bg-overlay: #00000074;
+
   /* ── 간격 x-스케일 (4px 그리드, seed dimension) — 기본 --spacing은 유지(p-4 등 공존) ── */
   --spacing-x0_5: 2px;
   --spacing-x1: 4px;
@@ -222,5 +226,13 @@
     color: var(--color-fg-neutral);
     background-color: var(--color-bg-layer-default);
     word-break: keep-all; /* 한국어 어절 단위 줄바꿈 */
+  }
+
+  /* 모달 dialog 열림 동안 배경 문서 스크롤 잠금 (docs/foundation/overlay.md).
+     컴포넌트 클래스로는 body에 도달할 수 없어(임의 variant는 하네스 금지) 여기가 승인된 유일한 탈출구.
+     퇴장 전환(data-closing) 중에도 [open]이 유지되므로 잠금이 끝까지 유지된다.
+     스크롤바 소멸로 인한 레이아웃 시프트는 use-dialog.ts가 body padding-right로 보상한다. */
+  body:has(dialog:modal) {
+    overflow: hidden;
   }
 }

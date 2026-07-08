@@ -1,14 +1,23 @@
 // 5단계에서 재작성 — 디자인 시스템 살아있는 검증 페이지 (임시)
-import { Box, Text, useBreakpoint, VStack } from "@essesion/shared";
+import {
+  Box,
+  SnackbarHost,
+  Text,
+  useBreakpoint,
+  VStack,
+} from "@essesion/shared";
 
 import { ButtonsSection } from "./sections/buttons";
 import { ContentSection } from "./sections/content";
+import { DialogsSection } from "./sections/dialogs";
 import { DisplaySection } from "./sections/display";
+import { FeedbackSection } from "./sections/feedback";
 import { FieldCompositesSection } from "./sections/field-composites";
 import { LayoutSection } from "./sections/layout";
 import { MenuSection } from "./sections/menu";
 import { NavigationSection } from "./sections/navigation";
 import { SelectionControlsSection } from "./sections/selection-controls";
+import { SheetsSection } from "./sections/sheets";
 import { TextFieldsSection } from "./sections/text-fields";
 import { TokensSection } from "./sections/tokens";
 
@@ -32,10 +41,14 @@ export function Preview() {
         <FieldCompositesSection />
         <NavigationSection />
         <MenuSection />
+        <DialogsSection />
+        <SheetsSection />
+        <FeedbackSection />
         <DisplaySection />
         <ContentSection />
         <LayoutSection />
       </VStack>
+      <SnackbarHost />
     </Box>
   );
 }

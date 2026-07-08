@@ -2,6 +2,7 @@ import {
   AttachmentDisplayField,
   Box,
   FieldButton,
+  ListPicker,
   SelectBox,
   SelectBoxItem,
   VStack,
@@ -84,6 +85,23 @@ export function FieldCompositesSection() {
               <SelectBoxItem value="eco" label="에코 패키지" />
               <SelectBoxItem value="priority" label="우선 처리" />
             </SelectBox>
+          </SubSection>
+          <SubSection title="ListPicker — FieldButton+ResponsiveModal+List">
+            <ListPicker
+              label="정렬 기준"
+              placeholder="정렬 방식 선택"
+              defaultValue="latest"
+              options={[
+                { value: "latest", label: "최신순" },
+                { value: "price-asc", label: "낮은 가격순" },
+                {
+                  value: "price-desc",
+                  label: "높은 가격순",
+                  description: "프리미엄 상품 먼저",
+                },
+                { value: "review", label: "리뷰 많은순", disabled: true },
+              ]}
+            />
           </SubSection>
         </VStack>
       </Box>

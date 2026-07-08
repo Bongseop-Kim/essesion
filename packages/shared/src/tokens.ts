@@ -28,6 +28,7 @@ export const bgRoles = [
   "layer-basement",
   "layer-default",
   "layer-floating",
+  "overlay",
   "critical-solid",
   "critical-solid-hover",
   "critical-solid-pressed",
