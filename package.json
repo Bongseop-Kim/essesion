@@ -6,7 +6,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "lint": "biome check .",
+    "lint": "biome check . && node scripts/check-harness.mjs",
     "format": "biome format --write .",
     "codegen": "uv run python apps/api/scripts/export_openapi.py && pnpm --filter @essesion/api-client generate"
   },
