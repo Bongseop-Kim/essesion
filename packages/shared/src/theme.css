@@ -132,6 +132,15 @@
   --color-fg-informative: var(--color-palette-blue-800);
   --color-stroke-informative: var(--color-palette-blue-700);
 
+  /* brand-login (OAuth) — 외부 브랜드가 지정한 색. 모노크롬 원칙의 예외이며
+     소셜 로그인 버튼 전용. 라벨: kakao=fg.neutral(검정), naver=fg.contrast(흰색). */
+  --color-bg-kakao: #fee500;
+  --color-bg-kakao-hover: #f2d900;
+  --color-bg-kakao-pressed: #e6ce00;
+  --color-bg-naver: #03c75a;
+  --color-bg-naver-hover: #02b350;
+  --color-bg-naver-pressed: #029e47;
+
   /* overlay — 모달 <dialog> ::backdrop 딤 전용(45% 검정, 정적 값).
      소비: backdrop:bg-bg-overlay 유틸리티 (docs/foundation/overlay.md) */
   --color-bg-overlay: #00000074;

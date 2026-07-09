@@ -150,6 +150,9 @@ importers:
 
   apps/store:
     dependencies:
+      '@essesion/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@essesion/shared':
         specifier: workspace:*
         version: link:../../packages/shared

@@ -14,6 +14,11 @@ const variants = {
     "border border-stroke-neutral bg-bg-layer-default text-fg-neutral hover:bg-bg-neutral-weak active:bg-bg-neutral-weak-pressed",
   ghost:
     "text-fg-neutral-muted hover:bg-bg-neutral-weak active:bg-bg-neutral-weak-pressed",
+  // 소셜 로그인 전용 브랜드 버튼 (모노크롬 예외 — theme.css brand-login 토큰)
+  kakao:
+    "bg-bg-kakao text-fg-neutral hover:bg-bg-kakao-hover active:bg-bg-kakao-pressed",
+  naver:
+    "bg-bg-naver text-fg-contrast hover:bg-bg-naver-hover active:bg-bg-naver-pressed",
 };
 
 const sizes = {

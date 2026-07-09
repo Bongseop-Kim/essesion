@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 
-import { StoreApp } from "./app";
+import { StoreApp } from "@/app";
+import "@/shared/lib/api-client"; // 생성 client 설정·인터셉터 (SDK 호출 전 1회 실행)
 import "./index.css";
 
-// 5단계에서 재작성 — 기존 라우트 기준, api-client만 사용 (supabase-js 금지)
 createRoot(document.getElementById("root")!).render(<StoreApp />);

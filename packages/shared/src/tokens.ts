@@ -43,6 +43,13 @@ export const bgRoles = [
   "informative-solid-hover",
   "informative-solid-pressed",
   "informative-weak",
+  // brand-login (OAuth) — 소셜 로그인 버튼 전용 브랜드색 (모노크롬 예외)
+  "kakao",
+  "kakao-hover",
+  "kakao-pressed",
+  "naver",
+  "naver-hover",
+  "naver-pressed",
 ] as const;
 
 export const strokeRoles = [

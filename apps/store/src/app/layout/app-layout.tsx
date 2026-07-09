@@ -11,6 +11,7 @@ import {
   HStack,
   Icon,
   Layout,
+  SnackbarHost,
   Text,
   VStack,
 } from "@essesion/shared";
@@ -19,16 +20,10 @@ import {
   ShoppingBagIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import {
-  BrowserRouter,
-  Link,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-} from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
-import { Preview } from "./preview";
+import { LogoutButton } from "@/features/auth";
+import { useSession } from "@/shared/store/session";
 
 const STORE_NAV_ITEMS = [
   { href: "/", label: "홈" },
@@ -54,6 +49,7 @@ const POLICY_LINKS = [
 function StoreHeader() {
   const location = useLocation();
   const navigate = useNavigate();
+  const authed = useSession((s) => s.status) === "authenticated";
   const renderLink: HeaderProps["renderLink"] = (item, props) => (
     <Link key={item.key ?? item.href} to={item.href} {...props} />
   );
@@ -73,26 +69,32 @@ function StoreHeader() {
             type="button"
             variant="ghost"
             size="small"
-            onClick={() => navigate("/my-page")}
-          >
-            마이
-          </ActionButton>
-          <ActionButton
-            type="button"
-            variant="ghost"
-            size="small"
             onClick={() => navigate("/cart")}
           >
             장바구니
           </ActionButton>
-          <ActionButton
-            type="button"
-            variant="neutralOutline"
-            size="small"
-            onClick={() => navigate("/login")}
-          >
-            로그인
-          </ActionButton>
+          {authed ? (
+            <>
+              <ActionButton
+                type="button"
+                variant="ghost"
+                size="small"
+                onClick={() => navigate("/my-page")}
+              >
+                마이
+              </ActionButton>
+              <LogoutButton variant="neutralOutline" size="small" />
+            </>
+          ) : (
+            <ActionButton
+              type="button"
+              variant="neutralOutline"
+              size="small"
+              onClick={() => navigate("/login")}
+            >
+              로그인
+            </ActionButton>
+          )}
         </HStack>
       }
       mobileActions={
@@ -112,22 +114,33 @@ function StoreHeader() {
             variant="ghost"
             size="medium"
             iconOnly
-            aria-label="마이페이지"
-            onClick={() => navigate("/my-page")}
+            aria-label={authed ? "마이페이지" : "로그인"}
+            onClick={() => navigate(authed ? "/my-page" : "/login")}
           >
             <Icon svg={<UserIcon />} size={20} />
           </ActionButton>
         </>
       }
       mobileMenuFooter={
-        <ActionButton
-          type="button"
-          variant="neutralOutline"
-          size="large"
-          onClick={() => navigate("/login")}
-        >
-          로그인
-        </ActionButton>
+        authed ? (
+          <ActionButton
+            type="button"
+            variant="neutralOutline"
+            size="large"
+            onClick={() => navigate("/my-page")}
+          >
+            마이페이지
+          </ActionButton>
+        ) : (
+          <ActionButton
+            type="button"
+            variant="neutralOutline"
+            size="large"
+            onClick={() => navigate("/login")}
+          >
+            로그인
+          </ActionButton>
+        )
       }
     />
   );
@@ -186,27 +199,16 @@ function StoreFooter() {
   );
 }
 
-function Home() {
-  return <Box as="main" flexGrow={1} />;
-}
-
-function StoreAppBody() {
+/** 앱 셸: Header · 페이지(Outlet) · Footer + 스낵바 호스트(루트 1회 마운트). */
+export function AppLayout() {
   return (
     <Layout>
       <StoreHeader />
-      <Routes>
-        <Route path="/__preview" element={<Preview />} />
-        <Route path="*" element={<Home />} />
-      </Routes>
+      <Box as="main" flexGrow={1}>
+        <Outlet />
+      </Box>
       <StoreFooter />
+      <SnackbarHost />
     </Layout>
-  );
-}
-
-export function StoreApp() {
-  return (
-    <BrowserRouter>
-      <StoreAppBody />
-    </BrowserRouter>
   );
 }

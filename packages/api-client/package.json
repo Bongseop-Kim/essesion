@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./client": "./src/client.gen.ts",
+    "./query": "./src/@tanstack/react-query.gen.ts",
+    "./zod": "./src/zod.gen.ts"
   },
   "scripts": {
     "generate": "openapi-ts",

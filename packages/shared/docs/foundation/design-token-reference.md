@@ -51,6 +51,12 @@
 | `bg.informative-solid-hover` | `--color-bg-informative-solid-hover` | blue-800 `#135fcd` | `bg-bg-informative-solid-hover` |
 | `bg.informative-solid-pressed` | `--color-bg-informative-solid-pressed` | blue-900 `#0b4596` | `bg-bg-informative-solid-pressed` |
 | `bg.informative-weak` | `--color-bg-informative-weak` | blue-100 `#eff6ff` | `bg-bg-informative-weak` |
+| `bg.kakao` | `--color-bg-kakao` | `#fee500` (브랜드) | `bg-bg-kakao` (소셜 로그인 전용) |
+| `bg.kakao-hover` | `--color-bg-kakao-hover` | `#f2d900` | `bg-bg-kakao-hover` |
+| `bg.kakao-pressed` | `--color-bg-kakao-pressed` | `#e6ce00` | `bg-bg-kakao-pressed` |
+| `bg.naver` | `--color-bg-naver` | `#03c75a` (브랜드) | `bg-bg-naver` (소셜 로그인 전용) |
+| `bg.naver-hover` | `--color-bg-naver-hover` | `#02b350` | `bg-bg-naver-hover` |
+| `bg.naver-pressed` | `--color-bg-naver-pressed` | `#029e47` | `bg-bg-naver-pressed` |
 
 ## stroke (선 — 테두리·구분선·포커스)
 
