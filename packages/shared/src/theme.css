@@ -146,7 +146,8 @@
   --color-bg-overlay: #00000074;
 
   /* image-scrim — 이미지 위 텍스트 가독성용 기능성 딤(45% 검정). 장식 아님(gradient.md 예외).
-     소비: ImageFrame children 슬롯의 오버레이 면 bg-bg-image-scrim (store 히어로·케이스) */
+     소비: 단색 면 bg-bg-image-scrim, 또는 방향성 스크림 그라디언트 .scrim-{top,bottom,left,right}
+     (아래 @layer utilities — bg.image-scrim → 투명, Skeleton shimmer와 같은 기능성 그라디언트 예외). */
   --color-bg-image-scrim: #00000074;
 
   /* ── 간격 x-스케일 (4px 그리드, seed dimension) — 기본 --spacing은 유지(p-4 등 공존) ── */
@@ -258,5 +259,39 @@
 
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+
+  /* 방향성 스크림 그라디언트 — 이미지 위 텍스트 가독성용 기능성 페이드(gradient.md 예외,
+     Skeleton shimmer와 동형: bg.image-scrim 토큰 → 투명). 접미사 = 텍스트가 붙는(딤이 진한) 가장자리. */
+  .scrim-top {
+    background-image: linear-gradient(
+      to bottom,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
+  }
+
+  .scrim-bottom {
+    background-image: linear-gradient(
+      to top,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
+  }
+
+  .scrim-left {
+    background-image: linear-gradient(
+      to right,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
+  }
+
+  .scrim-right {
+    background-image: linear-gradient(
+      to left,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
   }
 }

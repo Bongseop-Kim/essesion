@@ -38,7 +38,7 @@
 | `bg.layer-default` | `--color-bg-layer-default` | `#ffffff` | `bg-bg-layer-default` |
 | `bg.layer-floating` | `--color-bg-layer-floating` | `#ffffff` | `bg-bg-layer-floating` |
 | `bg.overlay` | `--color-bg-overlay` | `#00000074` (45% 검정) | `backdrop:bg-bg-overlay` (딤 전용) |
-| `bg.image-scrim` | `--color-bg-image-scrim` | `#00000074` (45% 검정) | `bg-bg-image-scrim` (이미지 위 텍스트 가독성 딤) |
+| `bg.image-scrim` | `--color-bg-image-scrim` | `#00000074` (45% 검정) | `bg-bg-image-scrim` (단색 딤) · `.scrim-{top,bottom,left,right}` (방향성 스크림 그라디언트, gradient.md 예외) |
 | `bg.critical-solid` | `--color-bg-critical-solid` | red-700 `#fa342c` | `bg-bg-critical-solid` |
 | `bg.critical-solid-hover` | `--color-bg-critical-solid-hover` | red-800 `#ca1d13` | `bg-bg-critical-solid-hover` |
 | `bg.critical-solid-pressed` | `--color-bg-critical-solid-pressed` | red-900 `#921708` | `bg-bg-critical-solid-pressed` |
