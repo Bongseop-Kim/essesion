@@ -32,20 +32,103 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | `caption` | 13/18 | 400 | 보조 텍스트 |
 | `captionSm` | 12/16 | 400 | 뱃지·타임스탬프 |
 
-## 컴포넌트 색인 (규칙 0의 ①에서 먼저 확인)
+## 컴포넌트 트리거 색인 (규칙 0의 ①에서 먼저 확인)
 
-| 분류 | 컴포넌트 |
-|---|---|
-| 레이아웃 프리미티브 | Box · Flex · HStack · VStack · Grid · Float · Text · Icon |
-| 앱 셸 | Layout/LayoutContent · Footer(FooterSection/FooterLink) |
-| 버튼 | ActionButton(기본 버튼) · ToggleButton · FloatingActionButton · Chip |
-| 폼 | Field · TextField · TextAreaField · Checkbox · RadioGroup/RadioGroupItem · Switch · SegmentedControl · SelectBox · FieldButton · **ListPicker**(FieldButton+ResponsiveModal+List 조합 단일 선택) · AttachmentDisplayField |
-| 내비게이션 | Tabs(TabList/TabTrigger/TabContent) · Menu(Trigger/Content/Item/Group/Separator) |
-| 스크롤 | ScrollFog · PullToRefresh |
-| 오버레이 | AlertDialog · Modal · **ResponsiveModal**(모바일 시트↔PC 모달) · BottomSheet · SwipeableMenuSheet(Group/Item) · SidePanel · Snackbar(`snackbar()`/SnackbarHost) |
-| 인라인 피드백 | Callout · PageBanner |
-| 디스플레이 | Badge · Avatar · TagGroup/Tag · Divider · Skeleton · ProgressCircle · AspectRatio · ImageFrame |
-| 콘텐츠 | List(ListItem/ListHeader) · Accordion · Article · ContentPlaceholder · ResultSection |
+**사용법**: 화면을 짜기 전에 이 표를 스캔한다. 어떤 행의 **트리거**에 해당하는 상황이면 raw 엘리먼트·앱 로컬 재구현이 아니라 **그 컴포넌트를 쓴다**(규칙 0). "피하기"는 흔한 오용과 대신 쓸 컴포넌트다. 오버레이·로딩/빈/에러는 아래 전용 결정 표가 상세 기준이며 여기 행은 진입점이다. 트리거·피하기의 근거는 각 컴포넌트 소스(`src/components/*.tsx`)의 JSDoc과 seed-design 문서를 대조해 작성했고, 충돌 시 소스가 우선이다.
+
+### 레이아웃 프리미티브 (규칙 1 — 레이아웃은 이것들로만)
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| Box | 토큰 style prop이 필요한 단일 블록·다형(`as`) 컨테이너. 다른 프리미티브의 기반 | 행/열 배치는 Flex/Stack. raw `<div>`+Tailwind 레이아웃 클래스 |
+| Flex | 커스텀 방향/정렬의 1축 배치 | 단순 가로행/세로열은 HStack/VStack |
+| HStack / VStack | 가로행(HStack, 기본 `align=center`) · 세로열(VStack) | — |
+| Grid | 균등 n열(`columns`) 또는 `templateColumns`로 2차원 배치 | 1축이면 Flex/Stack |
+| Float | `position:relative` 부모 위 9개 앵커로 겹쳐 배치(뱃지·FAB·오버레이 위치) | 문서 흐름 배치 |
+| Text | **모든 텍스트** — `textStyle`(10종)+`as`로 시맨틱 분리, `maxLines` 말줄임 | raw `text-[13px]`/fontSize, heading 태그에 스타일 직접 |
+| Icon | 앱 소유 SVG를 크기·색으로 래핑(`svg` 필수, 기본 24px) | 의미 전달 아이콘은 `aria-label` 부여 |
+
+### 앱 셸
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| Layout / LayoutContent | 앱 루트 세로 컬럼(Layout) + 밀도별 최대폭·반응형 거터 콘텐츠 컨테이너(LayoutContent: `density` low 720 / medium 1280 / high 무제한) | 페이지 폭·좌우 거터를 임의 값으로 재작성 |
+| Header | 상단 스티키 바(브랜드+주요 nav, 모바일은 우측 슬라이드 메뉴). 링크는 앱이 `renderLink`로 | 앱마다 헤더 재구현 |
+| Footer / FooterSection / FooterLink | 하단 푸터 바(구획=FooterSection, 링크=FooterLink) | — |
+
+### 버튼
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `kakao`/`naver`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
+| ToggleButton | 눌림/안눌림 2상태 버튼(pressed = 색 반전) | 필터·선택 칩은 Chip |
+| Chip | pill 선택/토글 — 필터·옵션·추천·태그 선택(단일/다중), 탭 대체 | 액션 실행(→ActionButton), 정적 정보(→Badge) |
+| FloatingActionButton | 화면에 떠 있는 **주요 액션 1개**(`extended`로 라벨). 고정 위치(fixed/우하단)는 소비자가 Float로 감싼다 | 화면당 2개+, 보조/부차 액션 |
+
+### 폼 (컨트롤 라벨·설명·에러는 Field가 배선)
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| Field | 앱 커스텀 컨트롤에 label·description·errorMessage + `aria-describedby` 배선 | TextField/FieldButton 등 내장 컨트롤은 자체 처리(중복 래핑 X) |
+| TextField | 한 줄 텍스트 입력(prefix/suffix, medium/large) | 여러 줄은 TextAreaField |
+| TextAreaField | 여러 줄 텍스트 입력(`rows`·`autoResize`) | — |
+| Checkbox | 다중/비배타 선택 · 약관 동의 · 부모-자식 옵션 | 즉시 반영(→Switch), 단일 배타(→RadioGroup) |
+| RadioGroup / RadioGroupItem | 소수 옵션의 배타적 **단일 선택**(vertical/horizontal) | 옵션 많음(→SelectBox/ListPicker), 다중(→Checkbox), 불리언 즉시(→Switch) |
+| Switch | **즉시 반영**되는 on/off | 저장/확인 단계가 필요(→Checkbox) |
+| SegmentedControl / SegmentedControlItem | 현재 화면의 콘텐츠를 즉시 필터/전환(2–4개 세그먼트) | 페이지 이동(→Tabs), 5개+ (→Radio/Select) |
+| SelectBox / SelectBoxItem | 설명·비교가 필요한 테두리 카드형 옵션(제출로 확정, `multiple`·`columns`) | 가벼운 키워드 필터(→Chip), 클릭 즉시 액션 |
+| FieldButton | 입력창처럼 보이는 트리거 — 피커/선택 다이얼로그를 연다(값+셰브론 표시) | 직접 텍스트 입력(→TextField) |
+| ListPicker | 오버레이 목록에서 **단일 선택**(FieldButton+ResponsiveModal+List 조합) | 옵션 2–3개면 SelectBox/RadioGroup 먼저 |
+| AttachmentDisplayField | 이미 첨부된 이미지 썸네일 표시(+`onRemove` 제거 · `max` 카운터) | 파일 업로더/피커 아님(표시 전용) |
+
+### 내비게이션
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| Tabs / TabList / TabTrigger / TabContent | 한 화면에서 탭 단위로 콘텐츠 분리/전환(Line 스타일). `triggerLayout` hug(기본)/fill | 같은 화면 콘텐츠 조작·필터(→SegmentedControl) |
+| Menu (Trigger/Content/Item/Group/Separator) | 트리거로 여는 드롭다운 명령 목록(데스크톱) | 모바일 액션 목록(→SwipeableMenuSheet) |
+| Breadcrumb | 페이지 경로 표시(마지막=현재 페이지). 라우팅은 `renderLink` | 단일 뎁스 페이지 |
+
+### 스크롤 (규칙 10)
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| ScrollFog | 스크롤 여지가 있는 가장자리를 알파 마스크로 페이드. **가로 스크롤은 항상 이걸로**(`direction="horizontal"`, scrollbar 숨김) | `overflowX:auto/scroll`·`overflow-x-*` 직접(`pnpm lint`가 차단) |
+| PullToRefresh | 모바일에서 당겨서 새로고침(터치 전용, async `onRefresh`) | 데스크톱 |
+
+### 오버레이 (상세 결정 트리: 아래 "오버레이·피드백 선택" 표 — 필독)
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| AlertDialog | 진행 차단 확인(1–2버튼) · 파괴적 결정 — **바깥 클릭으로 안 닫힘** | 단순 결과 알림(→Snackbar) |
+| Modal | 일반 중앙 모달(바깥 클릭으로 닫힘, small/medium) | 모바일 포함이면 ResponsiveModal 기본 |
+| ResponsiveModal | **임시 작업·폼·상세의 기본 패턴** — 모바일 BottomSheet ↔ PC Modal 자동 전환 | — |
+| BottomSheet | 모바일 하단에서 올라오는 시트(현재 맥락 유지). 중요 플로우는 `showCloseButton` | 콘텐츠가 화면 90%↑면 전용 페이지 |
+| SwipeableMenuSheet (Group/Item) | 모바일 하단 **액션 목록** 시트(공유·더보기). 그룹은 SwipeableMenuSheetGroup | 데스크톱 명령 목록(→Menu) |
+| SidePanel | 측면에서 슬라이드되는 패널(admin 보조 작업·맥락 유지, Header 모바일 메뉴) | — |
+| Snackbar (`snackbar()` / SnackbarHost) | 수 초 뒤 사라지는 결과 알림. SnackbarHost는 앱 루트에 1회 마운트 | 입력 필요·지속 경고(→AlertDialog / Callout / PageBanner). 동시 2개+ |
+
+### 인라인 피드백
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| Callout | 섹션에 상주하는 안내 블록(tone 5종: neutral/informative/positive/warning/critical, `onClick`=actionable·`onDismiss`=dismissible) | warning/critical에 dismissible(경고는 닫기 X). 페이지 전체 공지(→PageBanner), 사라지는 알림(→Snackbar) |
+| PageBanner | **페이지당 1개** 전체 폭 공지(top/bottom, variant weak/solid × tone) | 페이지당 2개+, 섹션 국소 안내(→Callout) |
+
+### 디스플레이
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| Badge | 정적 상태/속성 텍스트 태그(2–3단어, non-interactive) | 클릭 유도·CTA(→Chip/ActionButton). 객체당 3개+ |
+| Avatar | 원형 사용자 아이덴티티 이미지(`name` 이니셜 → 기본 실루엣 폴백) | 비-사용자·장식 이미지(→ImageFrame/Icon) |
+| TagGroup / Tag | 인라인 메타데이터 나열(기본 `·` 구분) — 카테고리·속성 | — |
+| Divider | 섹션/그룹 사이 구분선(`inset` 여백, orientation) | 반복 목록(자연 구분 있음). 장식용이면 `as="div"` |
+| Skeleton | **형태를 아는 초기 로딩**(목록·카드·상세 본문·프로필) — 실제 콘텐츠와 같은 형태·크기로 배치해 레이아웃 시프트 방지. 카드 옆에 `XxxSkeleton`으로 함께 export | ProgressCircle과 같은 화면 동시 노출. 형태를 못 그리는 대기(→ProgressCircle) |
+| ProgressCircle | **형태 없는 대기** — 라우트 가드·세션 부트스트랩, 버튼 인라인 로딩, "더 보기"·무한스크롤 추가 로딩(size 16/24/40) | 형태를 아는 초기 로딩(→Skeleton) |
+| AspectRatio | 고정 비율 컨테이너로 프레이밍 — 자식은 `absolute inset-0`/`size-full` | 폴백이 필요한 이미지(→ImageFrame) |
+| ImageFrame | **모든 콘텐츠 이미지**(상품·업로드) — 비율 프레임+라운드, 누락/실패 시 실루엣 폴백. 오버레이는 children, `fill`로 부모 채움 | raw `<img>`. 장식/배경 이미지(→CSS background-image) |
+
+### 콘텐츠
+| 컴포넌트 | 트리거 | 피하기 / 대신 |
+|---|---|---|
+| List / ListItem / ListHeader | 세로 목록 — ListItem은 `href`/`onClick` 유무로 링크·버튼·정적 행 자동 선택. 구획 제목은 ListHeader | 카드 그리드(→Grid) |
+| Accordion | 접이식 목록(`single`/`multiple`, `inline`/`separated`) | — |
+| Article | 본문 텍스트 컨테이너(텍스트 선택 허용 + 긴 단어 줄바꿈) | 짧은 UI 라벨은 Text |
+| ContentPlaceholder | **조회 0건·에러 상태**(아이콘·제목·설명·액션, 섹션 내 세로 중앙) — 빈 상태와 에러를 문구로 구분 | ⚠ **이미지가 안 뜬 자리 아님**(→로딩은 Skeleton, 이미지 자체는 ImageFrame 폴백). 전체 뷰 대형(→ResultSection) |
+| ResultSection | 완료·결과·빈 상태의 **대형 전체 뷰**(에셋+제목+설명+주/보조 액션) | 섹션 안의 작은 빈 상태(→ContentPlaceholder) |
+
+> ⚠ **ContentPlaceholder 주의**: seed-design의 동명 컴포넌트는 "이미지가 로드되기 전 자리 표시"용이지만, 이 레포의 ContentPlaceholder는 **빈/에러 상태** 컴포넌트다. 이미지 로딩 자리에는 Skeleton(또는 ImageFrame의 폴백)을 쓴다.
 
 ## 오버레이·피드백 선택 (상세·근거: docs/foundation/overlay.md — 필독)
 
