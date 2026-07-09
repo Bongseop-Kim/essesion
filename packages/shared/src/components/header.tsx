@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "../cn";
 import { ActionButton } from "./action-button";
 import { Box } from "./box";
+import { LayoutContent, type LayoutContentProps } from "./layout";
 import { SidePanel } from "./side-panel";
 import { HStack, VStack } from "./stack";
 import { Text } from "./text";
@@ -33,6 +34,8 @@ export type HeaderProps = {
   actions?: ReactNode;
   mobileActions?: ReactNode;
   mobileMenuFooter?: ReactNode;
+  /** 내부 nav 최대폭 — 콘텐츠·푸터와 정렬. 기본 high(제한 없음, admin 대시보드용). store는 medium. */
+  density?: LayoutContentProps["density"];
 };
 
 function isActivePath(pathname: string, href: string) {
@@ -50,6 +53,7 @@ export function Header({
   actions,
   mobileActions,
   mobileMenuFooter,
+  density = "high",
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const brandItem = { href: brandHref, label: brandLabel, key: "brand" };
@@ -64,87 +68,88 @@ export function Header({
         bg="bg.layer-default"
         className="border-b border-stroke-neutral-weak"
       >
-        <HStack
-          as="nav"
-          aria-label="주요 메뉴"
-          justify="space-between"
-          gap="x3"
-          minHeight={{ base: 56, md: 64 }}
-          px={{ base: "x4", md: "x6" }}
-        >
-          <HStack gap={{ base: "x2", md: "x5" }} minWidth={0}>
-            {renderLink(brandItem, {
-              className: cn(
-                "inline-flex min-h-10 shrink-0 items-center gap-x2 rounded-r2",
-                "text-fg-neutral transition-colors duration-100 ease-standard",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
-              ),
-              "aria-label": brandLabel,
-              children: (
-                <HStack gap="x2">
-                  {brandLogoSrc ? (
-                    <Box
-                      as="img"
-                      src={brandLogoSrc}
-                      alt=""
-                      width={{ base: 32, md: 40 }}
-                      height={{ base: 32, md: 40 }}
-                      borderRadius="r1"
-                      className="shrink-0"
-                    />
-                  ) : (
-                    <Text as="span" textStyle="label" color="fg.neutral">
-                      {brandLabel}
-                    </Text>
-                  )}
-                </HStack>
-              ),
-            })}
-
-            <HStack
-              as="div"
-              display={{ base: "none", md: "flex" }}
-              gap="x1"
-              overflowX="auto"
-              minWidth={0}
-            >
-              {navItems.map((item) => {
-                const active = isActivePath(activePathname, item.href);
-                return renderLink(item, {
-                  className: cn(
-                    "inline-flex h-10 shrink-0 items-center rounded-r2 px-x2 text-t4 font-medium",
-                    "transition-colors duration-100 ease-standard",
-                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
-                    active
-                      ? "bg-bg-neutral-weak text-fg-neutral"
-                      : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
-                  ),
-                  "aria-current": active ? "page" : undefined,
-                  children: item.label,
-                });
+        <LayoutContent density={density} flexGrow={0}>
+          <HStack
+            as="nav"
+            aria-label="주요 메뉴"
+            justify="space-between"
+            gap="x3"
+            minHeight={{ base: 56, md: 64 }}
+          >
+            <HStack gap={{ base: "x2", md: "x5" }} minWidth={0}>
+              {renderLink(brandItem, {
+                className: cn(
+                  "inline-flex min-h-10 shrink-0 items-center gap-x2 rounded-r2",
+                  "text-fg-neutral transition-colors duration-100 ease-standard",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                ),
+                "aria-label": brandLabel,
+                children: (
+                  <HStack gap="x2">
+                    {brandLogoSrc ? (
+                      <Box
+                        as="img"
+                        src={brandLogoSrc}
+                        alt=""
+                        width={{ base: 32, md: 40 }}
+                        height={{ base: 32, md: 40 }}
+                        borderRadius="r1"
+                        className="shrink-0"
+                      />
+                    ) : (
+                      <Text as="span" textStyle="label" color="fg.neutral">
+                        {brandLabel}
+                      </Text>
+                    )}
+                  </HStack>
+                ),
               })}
-            </HStack>
-          </HStack>
 
-          <HStack gap="x1_5" flexShrink={0}>
-            <HStack display={{ base: "none", md: "flex" }} gap="x1_5">
-              {actions}
-            </HStack>
-            <HStack display={{ base: "flex", md: "none" }} gap="x1">
-              {mobileActions}
-              <ActionButton
-                type="button"
-                variant="ghost"
-                size="medium"
-                iconOnly
-                aria-label="메뉴 열기"
-                onClick={() => setMenuOpen(true)}
+              <HStack
+                as="div"
+                display={{ base: "none", md: "flex" }}
+                gap="x1"
+                overflowX="auto"
+                minWidth={0}
               >
-                {menuIcon}
-              </ActionButton>
+                {navItems.map((item) => {
+                  const active = isActivePath(activePathname, item.href);
+                  return renderLink(item, {
+                    className: cn(
+                      "inline-flex h-10 shrink-0 items-center rounded-r2 px-x2 text-t4 font-medium",
+                      "transition-colors duration-100 ease-standard",
+                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                      active
+                        ? "bg-bg-neutral-weak text-fg-neutral"
+                        : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
+                    ),
+                    "aria-current": active ? "page" : undefined,
+                    children: item.label,
+                  });
+                })}
+              </HStack>
+            </HStack>
+
+            <HStack gap="x1_5" flexShrink={0}>
+              <HStack display={{ base: "none", md: "flex" }} gap="x1_5">
+                {actions}
+              </HStack>
+              <HStack display={{ base: "flex", md: "none" }} gap="x1">
+                {mobileActions}
+                <ActionButton
+                  type="button"
+                  variant="ghost"
+                  size="medium"
+                  iconOnly
+                  aria-label="메뉴 열기"
+                  onClick={() => setMenuOpen(true)}
+                >
+                  {menuIcon}
+                </ActionButton>
+              </HStack>
             </HStack>
           </HStack>
-        </HStack>
+        </LayoutContent>
       </Box>
 
       <SidePanel

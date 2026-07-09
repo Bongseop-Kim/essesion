@@ -1795,7 +1795,14 @@ export const zListProductsQuery = z.object({
         'cotton',
         'polyester',
         'wool'
-    ]).nullish()
+    ]).nullish(),
+    sort: z.enum([
+        'latest',
+        'price-low',
+        'price-high',
+        'popular'
+    ]).optional().default('latest'),
+    limit: z.int().gt(0).lte(100).nullish()
 });
 
 /**

@@ -145,6 +145,10 @@
      소비: backdrop:bg-bg-overlay 유틸리티 (docs/foundation/overlay.md) */
   --color-bg-overlay: #00000074;
 
+  /* image-scrim — 이미지 위 텍스트 가독성용 기능성 딤(45% 검정). 장식 아님(gradient.md 예외).
+     소비: ImageFrame children 슬롯의 오버레이 면 bg-bg-image-scrim (store 히어로·케이스) */
+  --color-bg-image-scrim: #00000074;
+
   /* ── 간격 x-스케일 (4px 그리드, seed dimension) — 기본 --spacing은 유지(p-4 등 공존) ── */
   --spacing-x0_5: 2px;
   --spacing-x1: 4px;

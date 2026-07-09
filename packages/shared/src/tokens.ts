@@ -30,6 +30,7 @@ export const bgRoles = [
   "layer-default",
   "layer-floating",
   "overlay",
+  "image-scrim",
   "critical-solid",
   "critical-solid-hover",
   "critical-solid-pressed",

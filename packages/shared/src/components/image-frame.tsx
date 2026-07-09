@@ -11,9 +11,17 @@ const radii = {
   0: "",
 } as const;
 
+// JIT는 리터럴 클래스가 필요 — `object-${fit}` 보간 금지, 정적 맵으로.
+const objectFits = {
+  cover: "object-cover",
+  contain: "object-contain",
+} as const;
+
 export type ImageFrameProps = Omit<ComponentPropsWithRef<"img">, "children"> & {
   ratio?: number;
   borderRadius?: keyof typeof radii;
+  /** cover=꽉 채워 크롭(기본), contain=전체 보이게 레터박스(로고·썸네일) */
+  fit?: keyof typeof objectFits;
   stroke?: boolean;
   /** 로드 실패·소스 부재 시 렌더 (기본: 이미지 실루엣 면) */
   fallback?: ReactNode;
@@ -24,6 +32,7 @@ export type ImageFrameProps = Omit<ComponentPropsWithRef<"img">, "children"> & {
 export function ImageFrame({
   ratio = 4 / 3,
   borderRadius = "r2",
+  fit = "cover",
   stroke = false,
   fallback,
   children,
@@ -41,7 +50,7 @@ export function ImageFrame({
         (fallback ?? <ImageFallback />)
       ) : (
         <img
-          className="absolute inset-0 size-full object-cover"
+          className={cn("absolute inset-0 size-full", objectFits[fit])}
           src={src}
           alt={alt}
           onError={() => setFailed(true)}

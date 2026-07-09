@@ -62,6 +62,7 @@ function StoreHeader() {
       navItems={[...STORE_NAV_ITEMS]}
       activePathname={location.pathname}
       renderLink={renderLink}
+      density="medium"
       menuIcon={<Icon svg={<Bars3Icon />} size={20} />}
       actions={
         <HStack gap="x1_5">
