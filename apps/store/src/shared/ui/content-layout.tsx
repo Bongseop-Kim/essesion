@@ -5,6 +5,7 @@ import {
   Divider,
   Grid,
   LayoutContent,
+  SnackbarAvoidOverlap,
   useBreakpoint,
   VStack,
 } from "@essesion/shared";
@@ -96,26 +97,28 @@ export function ContentLayout({
         </VStack>
       </LayoutContent>
       {actionBar ? (
-        <Box
-          position="fixed"
-          bottom={0}
-          left={0}
-          right={0}
-          zIndex={30}
-          bg="bg.layer-default"
-          className="border-t border-stroke-neutral-weak"
-        >
-          <LayoutContent
-            density="medium"
-            pt="x3"
-            style={{
-              paddingBottom:
-                "calc(var(--spacing-x3) + env(safe-area-inset-bottom, 0px))",
-            }}
+        <SnackbarAvoidOverlap>
+          <Box
+            position="fixed"
+            bottom={0}
+            left={0}
+            right={0}
+            zIndex={30}
+            bg="bg.layer-default"
+            className="border-t border-stroke-neutral-weak"
           >
-            {actionBar}
-          </LayoutContent>
-        </Box>
+            <LayoutContent
+              density="medium"
+              pt="x3"
+              style={{
+                paddingBottom:
+                  "calc(var(--spacing-x3) + env(safe-area-inset-bottom, 0px))",
+              }}
+            >
+              {actionBar}
+            </LayoutContent>
+          </Box>
+        </SnackbarAvoidOverlap>
       ) : null}
     </>
   );

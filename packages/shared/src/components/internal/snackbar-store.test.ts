@@ -5,8 +5,11 @@ import {
   dismiss,
   enqueue,
   getSnapshot,
+  registerAvoidOverlap,
   reset,
   subscribe,
+  unregisterAvoidOverlap,
+  updateAvoidOverlap,
 } from "./snackbar-store";
 
 afterEach(() => {
@@ -89,8 +92,22 @@ describe("snackbar-store", () => {
     enqueue("A");
     enqueue("B");
     reset();
-    expect(getSnapshot()).toEqual({ current: null, queue: [] });
+    expect(getSnapshot()).toEqual({ current: null, queue: [], avoidBottom: 0 });
     expect(enqueue("C")).toBe(1);
+  });
+
+  it("avoid overlap: 등록된 하단 영역의 최대 높이를 보존", () => {
+    const a = registerAvoidOverlap();
+    const b = registerAvoidOverlap();
+    updateAvoidOverlap(a, 64.2);
+    updateAvoidOverlap(b, 48);
+    expect(getSnapshot().avoidBottom).toBe(65);
+
+    unregisterAvoidOverlap(a);
+    expect(getSnapshot().avoidBottom).toBe(48);
+
+    unregisterAvoidOverlap(b);
+    expect(getSnapshot().avoidBottom).toBe(0);
   });
 
   it("subscribe: 변경 시 알림 + 해지 후 미알림", () => {

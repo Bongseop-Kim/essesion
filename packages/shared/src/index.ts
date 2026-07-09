@@ -143,7 +143,11 @@ export { SidePanel } from "./components/side-panel";
 export type { SkeletonProps } from "./components/skeleton";
 export { Skeleton } from "./components/skeleton";
 export type { SnackbarAction } from "./components/snackbar";
-export { SnackbarHost, snackbar } from "./components/snackbar";
+export {
+  SnackbarAvoidOverlap,
+  SnackbarHost,
+  snackbar,
+} from "./components/snackbar";
 export type { StackProps } from "./components/stack";
 export { HStack, VStack } from "./components/stack";
 export type {

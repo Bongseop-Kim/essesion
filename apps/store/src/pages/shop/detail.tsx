@@ -1,21 +1,14 @@
-import type {
-  CartItemIn,
-  CartItemOut,
-  ProductOptionOut,
-  ProductOut,
-} from "@essesion/api-client";
+import type { ProductOptionOut, ProductOut } from "@essesion/api-client";
 import {
-  getCartOptions,
-  getCartQueryKey,
   getProductOptions,
   getProductQueryKey,
   likeProductMutation,
   listProductsQueryKey,
-  replaceCartMutation,
   unlikeProductMutation,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
+  AlertDialog,
   AspectRatio,
   Badge,
   Box,
@@ -43,6 +36,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
+import { useCartActions } from "@/features/cart";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
@@ -52,6 +46,13 @@ import {
   materialLabel,
   patternLabel,
 } from "./constants";
+
+type CartAddDraft = {
+  product: ProductOut;
+  option: ProductOptionOut | null;
+  quantity: number;
+  goCart: boolean;
+};
 
 export function ShopDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,6 +64,10 @@ export function ShopDetailPage() {
   const validProductId = Number.isInteger(productId) && productId > 0;
   const [selectedOptionId, setSelectedOptionId] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [duplicateDraft, setDuplicateDraft] = useState<CartAddDraft | null>(
+    null,
+  );
+  const [addedDialogOpen, setAddedDialogOpen] = useState(false);
 
   const productQuery = useQuery({
     ...getProductOptions({
@@ -94,7 +99,7 @@ export function ShopDetailPage() {
 
   const likeProduct = useMutation(likeProductMutation());
   const unlikeProduct = useMutation(unlikeProductMutation());
-  const replaceCart = useMutation(replaceCartMutation());
+  const cartActions = useCartActions();
 
   useEffect(() => {
     setSelectedOptionId("");
@@ -145,56 +150,54 @@ export function ShopDetailPage() {
     }
   };
 
-  const addToCart = async (goCart = false) => {
-    if (!product || !requireLogin()) return;
-    if (!canSubmit) {
-      snackbar(
-        hasOptions ? "옵션을 선택해 주세요." : "구매할 수 없는 상품입니다.",
-      );
-      return;
+  const validateCartDraft = (goCart: boolean): CartAddDraft | null => {
+    if (!product || sessionStatus === "loading") return null;
+    if (canSubmit) {
+      return { product, option: selectedOption ?? null, quantity, goCart };
     }
-    const itemId = `product:${product.id}:${selectedOption?.id ?? "base"}`;
+    snackbar(
+      hasOptions ? "옵션을 선택해 주세요." : "구매할 수 없는 상품입니다.",
+    );
+    return null;
+  };
+
+  const performAddToCart = async (draft: CartAddDraft) => {
     try {
-      const currentCart = await queryClient.fetchQuery(getCartOptions());
-      const existingQuantity =
-        currentCart.find((item) => item.item_id === itemId)?.quantity ?? 0;
-      if (
-        selectedStock != null &&
-        existingQuantity + quantity > selectedStock
-      ) {
-        snackbar(`재고는 ${selectedStock}개까지 담을 수 있습니다.`);
-        return;
-      }
-      const nextItems = currentCart.map(cartItemToInput);
-      const existingIndex = nextItems.findIndex(
-        (item) => item.item_id === itemId,
-      );
-      const incoming: CartItemIn = {
-        item_id: itemId,
-        item_type: "product",
-        product_id: product.id,
-        selected_option_id: selectedOption?.id ?? null,
-        quantity,
-        reform_data: null,
-      };
-      if (existingIndex >= 0) {
-        const existing = nextItems[existingIndex];
-        if (!existing) throw new Error("missing_cart_item");
-        nextItems[existingIndex] = {
-          ...existing,
-          quantity: existing.quantity + quantity,
-        };
-      } else {
-        nextItems.push(incoming);
-      }
-      const nextCart = await replaceCart.mutateAsync({
-        body: { items: nextItems },
+      await cartActions.addProduct({
+        product: draft.product,
+        option: draft.option,
+        quantity: draft.quantity,
       });
-      queryClient.setQueryData(getCartQueryKey(), nextCart);
-      snackbar("장바구니에 담았습니다.");
-      if (goCart) navigate("/cart");
+      if (draft.goCart) {
+        navigate("/cart");
+      } else {
+        setAddedDialogOpen(true);
+      }
     } catch {
       snackbar("장바구니에 담지 못했습니다.");
+    }
+  };
+
+  const addToCart = async (goCart = false) => {
+    const draft = validateCartDraft(goCart);
+    if (!draft) return;
+    try {
+      const existingQuantity = await cartActions.currentQuantity(
+        draft.product.id,
+        draft.option?.id,
+      );
+      const stock = draft.option?.stock ?? draft.product.stock ?? null;
+      if (stock != null && existingQuantity + draft.quantity > stock) {
+        snackbar(`재고는 ${stock}개까지 담을 수 있습니다.`);
+        return;
+      }
+      if (existingQuantity > 0) {
+        setDuplicateDraft(draft);
+        return;
+      }
+      await performAddToCart(draft);
+    } catch {
+      snackbar("장바구니 상태를 확인하지 못했습니다.");
     }
   };
 
@@ -211,45 +214,82 @@ export function ShopDetailPage() {
   }
 
   return (
-    <ContentLayout
-      breadcrumbs={shopCrumbs(product.name)}
-      sidebar={
-        <ProductSummary
-          product={product}
-          options={options}
-          selectedOptionId={selectedOptionId}
-          onSelectedOptionChange={setSelectedOptionId}
-          quantity={quantity}
-          onQuantityChange={setQuantity}
-          selectedStock={selectedStock}
-          unitPrice={unitPrice}
-          totalPrice={totalPrice}
-          soldOut={soldOut}
+    <>
+      <ContentLayout
+        breadcrumbs={shopCrumbs(product.name)}
+        sidebar={
+          <ProductSummary
+            product={product}
+            options={options}
+            selectedOptionId={selectedOptionId}
+            onSelectedOptionChange={setSelectedOptionId}
+            quantity={quantity}
+            onQuantityChange={setQuantity}
+            selectedStock={selectedStock}
+            unitPrice={unitPrice}
+            totalPrice={totalPrice}
+            soldOut={soldOut}
+          />
+        }
+        actionBar={
+          <ProductActionBar
+            liked={product.is_liked ?? false}
+            likes={product.likes ?? 0}
+            likeLoading={likeProduct.isPending || unlikeProduct.isPending}
+            cartLoading={cartActions.isPending}
+            disabled={sessionStatus === "loading" || soldOut}
+            onLike={toggleLike}
+            onAddToCart={() => addToCart(false)}
+            onBuy={() => addToCart(true)}
+          />
+        }
+        detail={<ProductDetail product={product} detailImages={detailImages} />}
+      >
+        <ImageFrame
+          ratio={1}
+          src={product.image}
+          alt={product.name}
+          borderRadius="r3"
+          fit="cover"
+          stroke
         />
-      }
-      actionBar={
-        <ProductActionBar
-          liked={product.is_liked ?? false}
-          likes={product.likes ?? 0}
-          likeLoading={likeProduct.isPending || unlikeProduct.isPending}
-          cartLoading={replaceCart.isPending}
-          disabled={sessionStatus === "loading" || soldOut}
-          onLike={toggleLike}
-          onAddToCart={() => addToCart(false)}
-          onBuy={() => addToCart(true)}
-        />
-      }
-      detail={<ProductDetail product={product} detailImages={detailImages} />}
-    >
-      <ImageFrame
-        ratio={1}
-        src={product.image}
-        alt={product.name}
-        borderRadius="r3"
-        fit="cover"
-        stroke
+      </ContentLayout>
+
+      <AlertDialog
+        open={duplicateDraft != null}
+        onOpenChange={(open) => {
+          if (!open) setDuplicateDraft(null);
+        }}
+        title="이미 장바구니에 있는 상품입니다"
+        description="선택한 수량을 추가로 담을까요?"
+        primaryActionProps={{
+          children: duplicateDraft?.goCart ? "추가하고 이동" : "추가로 담기",
+          onClick: () => {
+            if (!duplicateDraft) return;
+            void performAddToCart(duplicateDraft);
+          },
+        }}
+        secondaryActionProps={{
+          children: "취소",
+          variant: "neutralOutline",
+        }}
       />
-    </ContentLayout>
+
+      <AlertDialog
+        open={addedDialogOpen}
+        onOpenChange={setAddedDialogOpen}
+        title="장바구니에 담았습니다"
+        description="계속 쇼핑하거나 장바구니로 이동할 수 있습니다."
+        primaryActionProps={{
+          children: "장바구니로 이동",
+          onClick: () => navigate("/cart"),
+        }}
+        secondaryActionProps={{
+          children: "계속 쇼핑",
+          variant: "neutralOutline",
+        }}
+      />
+    </>
   );
 }
 
@@ -579,28 +619,4 @@ function optionDescription(option: ProductOptionOut) {
   if (option.stock != null && option.stock <= 5)
     return `${option.stock}개 남음`;
   return undefined;
-}
-
-function cartItemToInput(item: CartItemOut): CartItemIn {
-  if (item.item_type === "product" && item.product) {
-    return {
-      item_id: item.item_id,
-      item_type: "product",
-      product_id: item.product.id,
-      selected_option_id: item.selected_option?.id ?? null,
-      quantity: item.quantity,
-      reform_data: null,
-      applied_user_coupon_id: item.applied_coupon?.id ?? null,
-    };
-  }
-  if (item.item_type === "reform") {
-    return {
-      item_id: item.item_id,
-      item_type: "reform",
-      quantity: item.quantity,
-      reform_data: item.reform_data ?? {},
-      applied_user_coupon_id: item.applied_coupon?.id ?? null,
-    };
-  }
-  throw new Error("unsupported_cart_item");
 }

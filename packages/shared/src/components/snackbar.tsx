@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode, Ref } from "react";
 import {
+  cloneElement,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -14,7 +16,10 @@ import {
   dismiss,
   enqueue,
   getSnapshot,
+  registerAvoidOverlap,
   subscribe,
+  unregisterAvoidOverlap,
+  updateAvoidOverlap,
 } from "./internal/snackbar-store";
 
 export type { SnackbarAction } from "./internal/snackbar-store";
@@ -30,9 +35,52 @@ export function snackbar(
 }
 snackbar.dismiss = dismiss;
 
+export type SnackbarAvoidOverlapProps = {
+  children: ReactElement<{ ref?: Ref<HTMLElement> }>;
+};
+
+/** 스낵바가 겹치지 않아야 하는 하단 고정 영역을 등록한다. */
+export function SnackbarAvoidOverlap({
+  children,
+}: SnackbarAvoidOverlapProps): ReactNode {
+  const [node, setNode] = useState<HTMLElement | null>(null);
+  const setMeasuredNode = useCallback((next: HTMLElement | null) => {
+    setNode(next);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!node) return;
+    const id = registerAvoidOverlap();
+
+    const update = () => {
+      updateAvoidOverlap(id, node.getBoundingClientRect().height);
+    };
+    update();
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        unregisterAvoidOverlap(id);
+      };
+    }
+
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      unregisterAvoidOverlap(id);
+    };
+  }, [node]);
+
+  return cloneElement(children, { ref: setMeasuredNode });
+}
+
 /** 앱 루트에 1회 마운트하는 스낵바 표시 영역. store를 구독해 current 하나만 렌더. */
 export function SnackbarHost(): ReactNode {
-  const { current } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { current, avoidBottom } = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getSnapshot,
+  );
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | undefined>(undefined);
   const advanceTimerRef = useRef<number | undefined>(undefined);
@@ -124,7 +172,7 @@ export function SnackbarHost(): ReactNode {
       // 위치·리셋만 — display 클래스 금지(UA의 [popover] display:none을 덮어써 항상 열림).
       className="fixed inset-x-0 top-auto m-0 mx-auto w-fit border-0 bg-transparent p-0"
       style={{
-        bottom: "calc(var(--spacing-x4) + env(safe-area-inset-bottom, 0px))",
+        bottom: `calc(${avoidBottom}px + var(--spacing-x4) + env(safe-area-inset-bottom, 0px))`,
       }}
     >
       {current && (

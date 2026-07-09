@@ -11,12 +11,21 @@
 
 import asyncio
 import os
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 
 from api.config import get_settings
 from api.db import build_engine
 from api.security import password_hasher
 from db.models.auth import User
-from db.models.commerce import AdminSetting, PricingConstant, Product, ProductOption
+from db.models.commerce import (
+    AdminSetting,
+    Coupon,
+    PricingConstant,
+    Product,
+    ProductOption,
+    UserCoupon,
+)
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -95,6 +104,8 @@ PRODUCTS = [
     },
 ]
 
+TEST_COUPON_NAME = "local-cart-test-5000"
+
 
 async def _ensure_user(session, email: str, name: str, role: str, password: str) -> None:
     if await session.scalar(select(User).where(User.email == email)):
@@ -103,6 +114,55 @@ async def _ensure_user(session, email: str, name: str, role: str, password: str)
         User(email=email, name=name, role=role, password_hash=password_hasher.hash(password))
     )
     print(f"  user: {email} ({role})")
+
+
+async def _ensure_test_coupon(session) -> None:
+    expiry_date = date.today() + timedelta(days=365)
+    expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=365)
+    coupon = await session.scalar(select(Coupon).where(Coupon.name == TEST_COUPON_NAME))
+    if coupon is None:
+        coupon = Coupon(
+            name=TEST_COUPON_NAME,
+            display_name="로컬 테스트 5,000원 할인",
+            discount_type="fixed",
+            discount_value=Decimal("5000"),
+            max_discount_amount=None,
+            description="장바구니 쿠폰 UI 확인용 로컬 시드 쿠폰",
+            expiry_date=expiry_date,
+            additional_info="로컬 개발 전용",
+            is_active=True,
+        )
+        session.add(coupon)
+        await session.flush()
+        print(f"  coupon: {TEST_COUPON_NAME}")
+    else:
+        coupon.display_name = "로컬 테스트 5,000원 할인"
+        coupon.discount_type = "fixed"
+        coupon.discount_value = Decimal("5000")
+        coupon.max_discount_amount = None
+        coupon.description = "장바구니 쿠폰 UI 확인용 로컬 시드 쿠폰"
+        coupon.expiry_date = expiry_date
+        coupon.additional_info = "로컬 개발 전용"
+        coupon.is_active = True
+        await session.flush()
+
+    customer_id = await session.scalar(select(User.id).where(User.email == "customer@local"))
+    if customer_id is None:
+        return
+
+    await session.execute(
+        pg_insert(UserCoupon)
+        .values(
+            user_id=customer_id,
+            coupon_id=coupon.id,
+            status="active",
+            expires_at=expires_at,
+        )
+        .on_conflict_do_update(
+            index_elements=[UserCoupon.user_id, UserCoupon.coupon_id],
+            set_={"status": "active", "expires_at": expires_at, "used_at": None},
+        )
+    )
 
 
 async def main() -> None:
@@ -135,10 +195,13 @@ async def main() -> None:
             )
 
         for spec in PRODUCTS:
-            options = spec.pop("options")
-            existing = await session.scalar(select(Product).where(Product.code == spec["code"]))
+            options = spec["options"]
+            product_data = {key: value for key, value in spec.items() if key != "options"}
+            existing = await session.scalar(
+                select(Product).where(Product.code == product_data["code"])
+            )
             if existing is None:
-                product = Product(**spec)
+                product = Product(**product_data)
                 session.add(product)
                 await session.flush()
                 for name, additional_price, stock in options:
@@ -150,7 +213,9 @@ async def main() -> None:
                             stock=stock,
                         )
                     )
-                print(f"  product: {spec['code']}")
+                print(f"  product: {product_data['code']}")
+
+        await _ensure_test_coupon(session)
 
         await session.commit()
     await engine.dispose()

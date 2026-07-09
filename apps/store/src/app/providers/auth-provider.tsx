@@ -2,6 +2,7 @@ import { getMe, refreshTokens } from "@essesion/api-client";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 
+import { useCartAuthSync } from "@/features/cart";
 import { useSession } from "@/shared/store/session";
 
 /**
@@ -9,6 +10,8 @@ import { useSession } from "@/shared/store/session";
  * 없으면 anonymous. 라우터 바깥에서 1회 실행.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
+  useCartAuthSync();
+
   useEffect(() => {
     let cancelled = false;
     (async () => {

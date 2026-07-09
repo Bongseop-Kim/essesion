@@ -14,12 +14,15 @@ export type SnackbarItem = {
 export type SnackbarState = {
   current: SnackbarItem | null;
   queue: readonly SnackbarItem[];
+  avoidBottom: number;
 };
 
 const DEFAULT_DURATION = 4000;
 
-let state: SnackbarState = { current: null, queue: [] };
+let state: SnackbarState = { current: null, queue: [], avoidBottom: 0 };
 let nextId = 1;
+let nextAvoidId = 1;
+const avoidOverlaps = new Map<number, number>();
 const listeners = new Set<() => void>();
 
 function commit(next: SnackbarState) {
@@ -52,9 +55,9 @@ export function enqueue(
     duration: options?.duration ?? DEFAULT_DURATION,
   };
   if (state.current === null) {
-    commit({ current: item, queue: state.queue });
+    commit({ ...state, current: item });
   } else {
-    commit({ current: state.current, queue: [...state.queue, item] });
+    commit({ ...state, queue: [...state.queue, item] });
   }
   return id;
 }
@@ -68,7 +71,7 @@ export function dismiss(id?: number): void {
   if (id === undefined) return;
   const queue = state.queue.filter((item) => item.id !== id);
   if (queue.length !== state.queue.length) {
-    commit({ current: state.current, queue });
+    commit({ ...state, queue });
   }
 }
 
@@ -76,12 +79,36 @@ export function dismiss(id?: number): void {
 export function advance(): void {
   if (state.current === null && state.queue.length === 0) return;
   const [next, ...rest] = state.queue;
-  commit({ current: next ?? null, queue: rest });
+  commit({ ...state, current: next ?? null, queue: rest });
+}
+
+function syncAvoidBottom() {
+  const avoidBottom = Math.max(0, ...avoidOverlaps.values());
+  if (avoidBottom !== state.avoidBottom) {
+    commit({ ...state, avoidBottom });
+  }
+}
+
+export function registerAvoidOverlap(): number {
+  const id = nextAvoidId++;
+  avoidOverlaps.set(id, 0);
+  return id;
+}
+
+export function updateAvoidOverlap(id: number, height: number): void {
+  avoidOverlaps.set(id, Math.max(0, Math.ceil(height)));
+  syncAvoidBottom();
+}
+
+export function unregisterAvoidOverlap(id: number): void {
+  if (avoidOverlaps.delete(id)) syncAvoidBottom();
 }
 
 /** 테스트 전용 — 상태와 id 카운터를 초기화. */
 export function reset(): void {
-  state = { current: null, queue: [] };
+  state = { current: null, queue: [], avoidBottom: 0 };
   nextId = 1;
+  nextAvoidId = 1;
+  avoidOverlaps.clear();
   for (const fn of listeners) fn();
 }
