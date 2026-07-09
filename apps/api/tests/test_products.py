@@ -50,6 +50,22 @@ async def test_sort_popular_and_limit(client, db_session, settings):
     limited = await client.get("/products?sort=popular&limit=1")
     assert [p["name"] for p in limited.json()] == ["저가"]
 
+    next_page = await client.get("/products?sort=popular&limit=1&offset=1")
+    assert [p["name"] for p in next_page.json()] == ["고가"]
+
+
+async def test_list_products_filter_limit_and_offset(client, db_session):
+    await make_product(db_session, name="네이비 1", category="3fold", color="navy")
+    await make_product(db_session, name="블랙 제외", category="3fold", color="black")
+    await make_product(db_session, name="네이비 2", category="3fold", color="navy")
+    await make_product(db_session, name="네이비 3", category="3fold", color="navy")
+
+    first_page = await client.get("/products?color=navy&sort=latest&limit=2&offset=0")
+    second_page = await client.get("/products?color=navy&sort=latest&limit=2&offset=2")
+
+    assert [p["name"] for p in first_page.json()] == ["네이비 3", "네이비 2"]
+    assert [p["name"] for p in second_page.json()] == ["네이비 1"]
+
 
 async def test_admin_create_product_auto_code(client, db_session, settings):
     admin = await make_admin(db_session)

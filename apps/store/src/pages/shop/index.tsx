@@ -1,5 +1,5 @@
 import type { ListProductsData } from "@essesion/api-client";
-import { listProductsOptions } from "@essesion/api-client/query";
+import { listProductsInfiniteOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Box,
@@ -13,7 +13,7 @@ import {
   useBreakpoint,
   VStack,
 } from "@essesion/shared";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -37,6 +37,7 @@ import {
 
 type ProductQuery = NonNullable<ListProductsData["query"]>;
 const FILTER_PICKER_SLOT_WIDTH = "8.5rem";
+const PAGE_REQUEST_SIZE = PAGE_SIZE + 1;
 
 export function ShopPage() {
   const bp = useBreakpoint();
@@ -46,12 +47,7 @@ export function ShopPage() {
   const [pattern, setPattern] = useState<FilterValue<ProductPattern>>("all");
   const [material, setMaterial] = useState<FilterValue<ProductMaterial>>("all");
   const [sort, setSort] = useState<ProductSort>("latest");
-  const [limit, setLimit] = useState(PAGE_SIZE);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    setLimit(PAGE_SIZE);
-  }, [category, color, pattern, material, sort]);
 
   const query = useMemo<ProductQuery>(
     () => ({
@@ -60,17 +56,19 @@ export function ShopPage() {
       pattern: selectedFilter(pattern),
       material: selectedFilter(material),
       sort,
-      limit,
+      limit: PAGE_REQUEST_SIZE,
     }),
-    [category, color, limit, material, pattern, sort],
+    [category, color, material, pattern, sort],
   );
 
-  const productsQuery = useQuery({
-    ...listProductsOptions({ query }),
-    placeholderData: (previous) => previous,
+  const productsQuery = useInfiniteQuery({
+    ...listProductsInfiniteOptions({ query }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length > PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined,
   });
-  const products = productsQuery.data ?? [];
-  const hasMore = products.length >= limit;
+  const products =
+    productsQuery.data?.pages.flatMap((page) => page.slice(0, PAGE_SIZE)) ?? [];
   const showInitialLoading = productsQuery.isPending && products.length === 0;
   const hasFilter =
     category !== "all" ||
@@ -79,18 +77,29 @@ export function ShopPage() {
     material !== "all";
 
   useEffect(() => {
-    if (!isMobile || !hasMore || productsQuery.isFetching) return;
+    if (
+      !isMobile ||
+      !productsQuery.hasNextPage ||
+      productsQuery.isFetchingNextPage
+    ) {
+      return;
+    }
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting) setLimit((current) => current + PAGE_SIZE);
+        if (entry?.isIntersecting) void productsQuery.fetchNextPage();
       },
       { rootMargin: "240px" },
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasMore, isMobile, productsQuery.isFetching]);
+  }, [
+    isMobile,
+    productsQuery.fetchNextPage,
+    productsQuery.hasNextPage,
+    productsQuery.isFetchingNextPage,
+  ]);
 
   const resetFilters = () => {
     setCategory("all");
@@ -215,22 +224,22 @@ export function ShopPage() {
           </Grid>
         )}
 
-        {!isMobile && hasMore && products.length > 0 ? (
+        {!isMobile && productsQuery.hasNextPage && products.length > 0 ? (
           <HStack justify="center" pt="x2">
             <ActionButton
               type="button"
               variant="neutralOutline"
-              loading={productsQuery.isFetching}
-              onClick={() => setLimit((current) => current + PAGE_SIZE)}
+              loading={productsQuery.isFetchingNextPage}
+              onClick={() => productsQuery.fetchNextPage()}
             >
               더 보기
             </ActionButton>
           </HStack>
         ) : null}
 
-        {isMobile && hasMore ? (
+        {isMobile && productsQuery.hasNextPage ? (
           <Box ref={sentinelRef} py="x4">
-            {productsQuery.isFetching ? (
+            {productsQuery.isFetchingNextPage ? (
               <HStack justify="center">
                 <ProgressCircle />
               </HStack>

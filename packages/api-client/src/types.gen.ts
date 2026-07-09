@@ -4363,6 +4363,10 @@ export type ListProductsData = {
          * Limit
          */
         limit?: number | null;
+        /**
+         * Offset
+         */
+        offset?: number;
     };
     url: '/products';
 };

@@ -1802,7 +1802,8 @@ export const zListProductsQuery = z.object({
         'price-high',
         'popular'
     ]).optional().default('latest'),
-    limit: z.int().gt(0).lte(100).nullish()
+    limit: z.int().gt(0).lte(100).nullish(),
+    offset: z.int().gte(0).optional().default(0)
 });
 
 /**

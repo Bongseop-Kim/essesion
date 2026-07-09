@@ -85,6 +85,7 @@ async def list_products(
     material: Material | None = None,
     sort: SortOption = "latest",
     limit: Annotated[int | None, Query(gt=0, le=100)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ProductOut]:
     query, likes = _product_query(user)
     if category:
@@ -102,6 +103,8 @@ async def list_products(
         "popular": [likes.desc(), Product.id.desc()],
     }[sort]
     query = query.order_by(*order_by)
+    if offset:
+        query = query.offset(offset)
     if limit is not None:
         query = query.limit(limit)
     rows = (await session.execute(query)).all()
