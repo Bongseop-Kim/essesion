@@ -38,6 +38,12 @@ export type { BottomSheetProps } from "./components/bottom-sheet";
 export { BottomSheet } from "./components/bottom-sheet";
 export type { BoxProps } from "./components/box";
 export { Box } from "./components/box";
+export type {
+  BreadcrumbItem,
+  BreadcrumbLinkProps,
+  BreadcrumbProps,
+} from "./components/breadcrumb";
+export { Breadcrumb } from "./components/breadcrumb";
 export type { CalloutProps } from "./components/callout";
 export { Callout } from "./components/callout";
 export type { CheckboxProps } from "./components/checkbox";

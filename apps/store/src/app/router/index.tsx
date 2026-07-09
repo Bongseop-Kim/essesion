@@ -24,6 +24,18 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: "shop",
+        lazy: async () => ({
+          Component: (await import("@/pages/shop")).ShopPage,
+        }),
+      },
+      {
+        path: "shop/:id",
+        lazy: async () => ({
+          Component: (await import("@/pages/shop/detail")).ShopDetailPage,
+        }),
+      },
+      {
         path: "__preview",
         lazy: async () => ({
           Component: (await import("@/preview")).Preview,

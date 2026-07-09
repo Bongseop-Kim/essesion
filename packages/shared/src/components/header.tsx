@@ -5,6 +5,7 @@ import { cn } from "../cn";
 import { ActionButton } from "./action-button";
 import { Box } from "./box";
 import { LayoutContent, type LayoutContentProps } from "./layout";
+import { ScrollFog } from "./scroll-fog";
 import { SidePanel } from "./side-panel";
 import { HStack, VStack } from "./stack";
 import { Text } from "./text";
@@ -105,29 +106,27 @@ export function Header({
                 ),
               })}
 
-              <HStack
-                as="div"
-                display={{ base: "none", md: "flex" }}
-                gap="x1"
-                overflowX="auto"
-                minWidth={0}
-              >
-                {navItems.map((item) => {
-                  const active = isActivePath(activePathname, item.href);
-                  return renderLink(item, {
-                    className: cn(
-                      "inline-flex h-10 shrink-0 items-center rounded-r2 px-x2 text-t4 font-medium",
-                      "transition-colors duration-100 ease-standard",
-                      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
-                      active
-                        ? "bg-bg-neutral-weak text-fg-neutral"
-                        : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
-                    ),
-                    "aria-current": active ? "page" : undefined,
-                    children: item.label,
-                  });
-                })}
-              </HStack>
+              <Box display={{ base: "none", md: "block" }} minWidth={0}>
+                <ScrollFog direction="horizontal">
+                  <HStack as="div" gap="x1" minWidth={0}>
+                    {navItems.map((item) => {
+                      const active = isActivePath(activePathname, item.href);
+                      return renderLink(item, {
+                        className: cn(
+                          "inline-flex h-10 shrink-0 items-center rounded-r2 px-x2 text-t4 font-medium",
+                          "transition-colors duration-100 ease-standard",
+                          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                          active
+                            ? "bg-bg-neutral-weak text-fg-neutral"
+                            : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
+                        ),
+                        "aria-current": active ? "page" : undefined,
+                        children: item.label,
+                      });
+                    })}
+                  </HStack>
+                </ScrollFog>
+              </Box>
             </HStack>
 
             <HStack gap="x1_5" flexShrink={0}>

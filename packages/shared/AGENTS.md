@@ -15,6 +15,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 7. **반응형** — 프리미티브 prop은 `ResponsiveValue`(`p={{ base: "x4", md: "x8" }}`), Tailwind 쪽은 `md:` variant. 브레이크포인트: sm 480 / md 768 / lg 1280 / xl 1440.
 8. **같은 속성을 prop과 className 양쪽에 설정 금지** — 프리미티브는 inline style로 렌더하므로 항상 className을 이긴다. 탈출구는 `style` prop(최후순위, resolved보다 나중에 병합).
 9. **`theme.css`의 `@theme static`을 제거하지 말 것** — 제거하면 프리미티브가 참조하는 CSS 변수가 tree-shake되어 조용히 무스타일이 된다(드리프트 가드 테스트 + 빌드 후 dist grep이 방어선).
+10. **가로 스크롤은 `ScrollFog direction="horizontal"`만 사용** — 가로 scrollbar는 항상 숨긴다. 스크롤 가능 여부는 fog edge로 전달한다. `overflowX="auto|scroll"`·`overflow-x-auto|scroll` 직접 사용 금지(`pnpm lint`가 차단). 세로 스크롤은 모달·시트·패널·긴 목록에서 상황별로 허용하되, PC는 필요하면 scrollbar 표시, 모바일은 공간이 좁으면 `ScrollFog`/시트 패턴으로 edge hint를 우선한다. 상세: `docs/foundation/scroll.md`.
 
 ## textStyle 10종
 
@@ -85,5 +86,6 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | motion | duration 3단 × ease 3종 |
 | overlay | **오버레이·피드백 7종 결정 트리·닫힘 모델·구현 계약** |
 | radius / spacing | r·x 스케일 용도 매핑 |
+| scroll | 가로 scrollbar 금지, ScrollFog 우선, 세로 스크롤 표시 판단 |
 | state | enabled→hover→pressed→selected→disabled→focus-visible |
 | voice-and-tone / writing | store·admin 보이스, UI 문구 규칙 |
