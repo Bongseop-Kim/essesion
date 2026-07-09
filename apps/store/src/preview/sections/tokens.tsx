@@ -34,7 +34,7 @@ const textStyleNames: TextStyleName[] = [
 
 function Swatch({ token }: { token: string }) {
   return (
-    <HStack gap="x3">
+    <HStack gap="x3" minWidth={0}>
       <Box
         width={40}
         height={24}
@@ -43,7 +43,7 @@ function Swatch({ token }: { token: string }) {
         borderRadius="r1"
         borderWidth={1}
       />
-      <Text textStyle="captionSm" color="fg.neutral-muted">
+      <Text textStyle="captionSm" color="fg.neutral-muted" maxLines={1}>
         {token}
       </Text>
     </HStack>
@@ -54,7 +54,7 @@ export function TokensSection() {
   return (
     <>
       <Section title="시맨틱 컬러">
-        <Grid columns={{ base: 2, md: 3, lg: 4 }} gap="x3">
+        <Grid columns={{ base: 1, md: 3, lg: 4 }} gap="x3">
           {fgRoles.map((r) => (
             <Swatch key={r} token={`fg.${r}`} />
           ))}
@@ -70,7 +70,7 @@ export function TokensSection() {
       <Section title="타이포그래피">
         <VStack gap="x3">
           {textStyleNames.map((name) => (
-            <HStack key={name} gap="x4">
+            <HStack key={name} gap="x4" wrap>
               <Box width={88}>
                 <Text textStyle="captionSm" color="fg.neutral-subtle">
                   {name}
@@ -169,7 +169,7 @@ export function TokensSection() {
       </Section>
 
       <Section title="아이콘">
-        <HStack gap="x4">
+        <HStack gap="x4" wrap>
           {[16, 20, 24, 32].map((size) => (
             <Icon key={size} svg={<ShoppingBagIcon />} size={size} />
           ))}

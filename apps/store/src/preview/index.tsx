@@ -24,8 +24,16 @@ import { TokensSection } from "./sections/tokens";
 export function Preview() {
   const bp = useBreakpoint();
   return (
-    <Box maxWidth={1040} mx="auto" px={{ base: "x4", md: "x6" }} py="x8">
-      <VStack gap="x12">
+    <Box
+      width="full"
+      minWidth={0}
+      maxWidth={1040}
+      mx="auto"
+      px={{ base: "x4", md: "x6" }}
+      py="x8"
+      overflowX="hidden"
+    >
+      <VStack gap="x12" minWidth={0}>
         <VStack gap="x2">
           <Text as="h1" textStyle="display1">
             essesion 디자인 시스템

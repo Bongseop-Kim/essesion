@@ -21,6 +21,8 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 ## 명령어
 - JS: `pnpm lint`(Biome, 레포 전체) · `pnpm turbo build typecheck test` (pnpm workspace + catalogs)
 - Python: `uv sync --all-packages` 후 `uv run pytest` · `uv run ruff check .` · `uv run pyright`
+- store 로컬 실행: `pnpm --filter store dev`
+- admin 로컬 실행: `pnpm --filter admin dev`
 - 로컬 DB: `docker compose up -d` (Postgres 17 + pgvector, localhost:5432, user/pw/db = essesion) → `uv run alembic -c db/alembic.ini upgrade head` → `uv run python apps/api/scripts/seed.py`
 - api 로컬 실행: `uv run uvicorn api.main:app --reload` (시크릿 없으면 Toss/Solapi/GCS는 DryRun)
 - **api 스펙 변경 시**: `pnpm codegen` 후 생성물(packages/api-client)을 같은 커밋에 — CI codegen-drift가 검사

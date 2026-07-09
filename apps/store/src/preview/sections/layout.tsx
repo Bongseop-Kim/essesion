@@ -44,7 +44,7 @@ export function LayoutSection() {
         <Box borderColor="stroke.neutral-weak" borderWidth={1}>
           <Footer>
             <VStack gap="x6" alignItems="start">
-              <HStack gap="x16" alignItems="start">
+              <HStack gap="x8" alignItems="start" wrap>
                 <FooterSection title="회사">
                   <FooterLink href="#">회사 소개</FooterLink>
                   <FooterLink href="#">이용약관</FooterLink>
@@ -56,7 +56,7 @@ export function LayoutSection() {
                 </FooterSection>
               </HStack>
               <Text textStyle="captionSm" color="fg.neutral-subtle">
-                © 2026 되고시스템
+                © 2026 영선산업
               </Text>
             </VStack>
           </Footer>
@@ -64,9 +64,9 @@ export function LayoutSection() {
       </SubSection>
 
       <SubSection title="ScrollFog — vertical · horizontal">
-        <HStack gap="x6" alignItems="start">
+        <HStack gap="x6" alignItems="start" wrap>
           <Box
-            width={240}
+            width={{ base: "full", sm: 240 }}
             borderColor="stroke.neutral-weak"
             borderWidth={1}
             borderRadius="r2"
@@ -79,7 +79,7 @@ export function LayoutSection() {
               </List>
             </ScrollFog>
           </Box>
-          <Box width={280}>
+          <Box width={{ base: "full", sm: 280 }}>
             <ScrollFog direction="horizontal">
               <HStack gap="x2" py="x1">
                 {Array.from({ length: 10 }, (_, i) => (
@@ -93,7 +93,7 @@ export function LayoutSection() {
 
       <SubSection title="PullToRefresh (터치 기기에서 당겨보세요)">
         <Box
-          width={280}
+          width={{ base: "full", sm: 280 }}
           height={200}
           borderColor="stroke.neutral-weak"
           borderWidth={1}

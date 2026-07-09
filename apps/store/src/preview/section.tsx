@@ -9,7 +9,7 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <VStack as="section" gap="x4">
+    <VStack as="section" gap="x4" width="full" minWidth={0}>
       <Text as="h2" textStyle="title2">
         {title}
       </Text>
@@ -26,7 +26,7 @@ export function SubSection({
   children: ReactNode;
 }) {
   return (
-    <VStack gap="x3">
+    <VStack gap="x3" width="full" minWidth={0}>
       <Text as="h3" textStyle="label" color="fg.neutral-muted">
         {title}
       </Text>

@@ -62,6 +62,12 @@ export type { FooterLinkProps, FooterSectionProps } from "./components/footer";
 export { Footer, FooterLink, FooterSection } from "./components/footer";
 export type { GridProps } from "./components/grid";
 export { Grid } from "./components/grid";
+export type {
+  HeaderLinkProps,
+  HeaderNavItem,
+  HeaderProps,
+} from "./components/header";
+export { Header } from "./components/header";
 export type { IconProps } from "./components/icon";
 export { Icon } from "./components/icon";
 export type { ImageFrameProps } from "./components/image-frame";
