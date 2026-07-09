@@ -39,9 +39,17 @@ export function LoginPage() {
     ...loginMutation(),
     onSuccess: async (data) => {
       useSession.getState().setAccessToken(data.access_token);
-      const me = await getMe();
-      useSession.getState().setUser(me.data ?? null);
-      navigate("/", { replace: true });
+      try {
+        const me = await getMe();
+        if (!me.data) {
+          useSession.getState().clear();
+          return;
+        }
+        useSession.getState().setUser(me.data);
+        navigate("/", { replace: true });
+      } catch {
+        useSession.getState().clear();
+      }
     },
   });
 

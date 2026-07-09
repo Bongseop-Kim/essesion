@@ -59,7 +59,7 @@
 
 ## 5. 신규 파일
 
-```
+```text
 apps/store/src/
 ├─ pages/home/index.tsx          # 진입점: SEO 메타 + 섹션 조립 (기존 스텁 교체)
 ├─ features/home/

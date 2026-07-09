@@ -20,6 +20,7 @@ import {
   ShoppingBagIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
+import type { ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 import { LogoutButton } from "@/features/auth";
@@ -45,6 +46,25 @@ const POLICY_LINKS = [
   { href: "/terms-of-service", label: "이용약관" },
   { href: "/refund-policy", label: "환불정책" },
 ] as const;
+
+function StoreFooterLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <FooterLink
+      href={href}
+      renderLink={({ href: to, ...props }) => (
+        <Link to={to ?? "#"} {...props} />
+      )}
+    >
+      {children}
+    </FooterLink>
+  );
+}
 
 function StoreHeader() {
   const location = useLocation();
@@ -154,23 +174,23 @@ function StoreFooter() {
         <Grid columns={{ base: 2, sm: 3 }} gap="x8">
           <FooterSection title="서비스">
             {STORE_NAV_ITEMS.map((item) => (
-              <FooterLink key={item.href} href={item.href}>
+              <StoreFooterLink key={item.href} href={item.href}>
                 {item.label}
-              </FooterLink>
+              </StoreFooterLink>
             ))}
           </FooterSection>
           <FooterSection title="고객지원">
             {SUPPORT_LINKS.map((item) => (
-              <FooterLink key={item.href} href={item.href}>
+              <StoreFooterLink key={item.href} href={item.href}>
                 {item.label}
-              </FooterLink>
+              </StoreFooterLink>
             ))}
           </FooterSection>
           <FooterSection title="정책">
             {POLICY_LINKS.map((item) => (
-              <FooterLink key={item.href} href={item.href}>
+              <StoreFooterLink key={item.href} href={item.href}>
                 {item.label}
-              </FooterLink>
+              </StoreFooterLink>
             ))}
           </FooterSection>
         </Grid>

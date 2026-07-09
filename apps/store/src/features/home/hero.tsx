@@ -202,8 +202,8 @@ function HeroCarousel() {
             onClick={() => setIndex(i)}
             aria-label={`${i + 1}번 배너 보기`}
             aria-current={i === index ? "true" : undefined}
-            width={i === index ? 20 : 8}
-            height={8}
+            width={i === index ? "x5" : "x2"}
+            height="x2"
             borderRadius="full"
             bg={i === index ? "bg.brand-solid" : "bg.neutral-weak"}
             className="transition-all duration-(--duration-normal) ease-standard"

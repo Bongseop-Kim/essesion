@@ -41,9 +41,8 @@ async def _load_cart(session: AsyncSession, user: User) -> list[CartItemOut]:
     product_ids = [i.product_id for i in items if i.product_id is not None]
     products: dict[int, ProductOut] = {}
     if product_ids:
-        rows = (
-            await session.execute(_product_query(user).where(Product.id.in_(product_ids)))
-        ).all()
+        product_query, _ = _product_query(user)
+        rows = (await session.execute(product_query.where(Product.id.in_(product_ids)))).all()
         options = await _load_options(session, product_ids)
         for product, likes, liked in rows:
             out = ProductOut.model_validate(product)

@@ -15,6 +15,9 @@ import {
 } from "@heroicons/react/24/outline";
 import { BrowserRouter, Link, useLocation, useNavigate } from "react-router";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
 const ADMIN_NAV_ITEMS = [
   { key: "dashboard", label: "대시보드", href: "/" },
   { key: "orders", label: "주문 관리", href: "/orders" },
@@ -38,6 +41,14 @@ const ADMIN_NAV_ITEMS = [
 function AdminHeader() {
   const location = useLocation();
   const navigate = useNavigate();
+  const logout = () => {
+    void fetch(`${API_BASE_URL}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).finally(() => {
+      navigate("/login", { replace: true });
+    });
+  };
   const renderLink: HeaderProps["renderLink"] = (item, props) => (
     <Link key={item.key ?? item.href} to={item.href} {...props} />
   );
@@ -56,7 +67,7 @@ function AdminHeader() {
           type="button"
           variant="neutralOutline"
           size="small"
-          onClick={() => navigate("/login")}
+          onClick={logout}
         >
           로그아웃
         </ActionButton>
@@ -68,7 +79,7 @@ function AdminHeader() {
           size="medium"
           iconOnly
           aria-label="로그아웃"
-          onClick={() => navigate("/login")}
+          onClick={logout}
         >
           <Icon svg={<ArrowRightStartOnRectangleIcon />} size={20} />
         </ActionButton>
@@ -78,7 +89,7 @@ function AdminHeader() {
           type="button"
           variant="neutralOutline"
           size="large"
-          onClick={() => navigate("/login")}
+          onClick={logout}
         >
           로그아웃
         </ActionButton>

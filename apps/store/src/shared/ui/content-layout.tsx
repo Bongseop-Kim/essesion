@@ -10,6 +10,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import type { ReactNode } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Link } from "react-router";
 
 export type ContentLayoutProps = {
@@ -38,6 +39,23 @@ export function ContentLayout({
 }: ContentLayoutProps) {
   const bp = useBreakpoint();
   const isDesktop = bp === "lg" || bp === "xl";
+  const [actionBarNode, setActionBarNode] = useState<HTMLElement | null>(null);
+  const [actionBarHeight, setActionBarHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!actionBarNode) {
+      setActionBarHeight(0);
+      return;
+    }
+    const update = () => {
+      setActionBarHeight(actionBarNode.getBoundingClientRect().height);
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(actionBarNode);
+    return () => observer.disconnect();
+  }, [actionBarNode]);
 
   const crumbs = breadcrumbs ? (
     <Breadcrumb
@@ -81,11 +99,16 @@ export function ContentLayout({
 
   return (
     <>
-      {/* ponytail: 모바일 하단 고정바 회피 여백 x16(≈64px) 가정 — 액션바가 더 높으면 키울 것 */}
       <LayoutContent
         density="medium"
         py="x4"
-        pb={actionBar ? "x16" : undefined}
+        style={
+          actionBar
+            ? {
+                paddingBottom: `calc(${actionBarHeight}px + var(--spacing-x4))`,
+              }
+            : undefined
+        }
       >
         {crumbs}
         <VStack gap="x6">
@@ -99,6 +122,7 @@ export function ContentLayout({
       {actionBar ? (
         <SnackbarAvoidOverlap>
           <Box
+            ref={setActionBarNode}
             position="fixed"
             bottom={0}
             left={0}

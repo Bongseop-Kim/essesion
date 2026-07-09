@@ -119,31 +119,28 @@ async def _ensure_user(session, email: str, name: str, role: str, password: str)
 async def _ensure_test_coupon(session) -> None:
     expiry_date = date.today() + timedelta(days=365)
     expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=365)
+    coupon_values = {
+        "display_name": "로컬 테스트 5,000원 할인",
+        "discount_type": "fixed",
+        "discount_value": Decimal("5000"),
+        "max_discount_amount": None,
+        "description": "장바구니 쿠폰 UI 확인용 로컬 시드 쿠폰",
+        "expiry_date": expiry_date,
+        "additional_info": "로컬 개발 전용",
+        "is_active": True,
+    }
     coupon = await session.scalar(select(Coupon).where(Coupon.name == TEST_COUPON_NAME))
     if coupon is None:
         coupon = Coupon(
             name=TEST_COUPON_NAME,
-            display_name="로컬 테스트 5,000원 할인",
-            discount_type="fixed",
-            discount_value=Decimal("5000"),
-            max_discount_amount=None,
-            description="장바구니 쿠폰 UI 확인용 로컬 시드 쿠폰",
-            expiry_date=expiry_date,
-            additional_info="로컬 개발 전용",
-            is_active=True,
+            **coupon_values,
         )
         session.add(coupon)
         await session.flush()
         print(f"  coupon: {TEST_COUPON_NAME}")
     else:
-        coupon.display_name = "로컬 테스트 5,000원 할인"
-        coupon.discount_type = "fixed"
-        coupon.discount_value = Decimal("5000")
-        coupon.max_discount_amount = None
-        coupon.description = "장바구니 쿠폰 UI 확인용 로컬 시드 쿠폰"
-        coupon.expiry_date = expiry_date
-        coupon.additional_info = "로컬 개발 전용"
-        coupon.is_active = True
+        for key, value in coupon_values.items():
+            setattr(coupon, key, value)
         await session.flush()
 
     customer_id = await session.scalar(select(User.id).where(User.email == "customer@local"))

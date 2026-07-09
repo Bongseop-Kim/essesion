@@ -113,6 +113,7 @@ export function updateProductCartItemOption({
   quantity: number;
 }): CartItemIn[] {
   const nextItemId = cartItemId(product.id, option?.id);
+  const currentItem = items.find((item) => item.item_id === itemId);
   const withoutCurrent = items.filter((item) => item.item_id !== itemId);
   const existing = withoutCurrent.findIndex(
     (item) => item.item_id === nextItemId,
@@ -120,7 +121,14 @@ export function updateProductCartItemOption({
   if (existing >= 0) {
     return withoutCurrent.map((item, index) =>
       index === existing
-        ? { ...item, quantity: item.quantity + quantity }
+        ? {
+            ...item,
+            quantity: item.quantity + quantity,
+            applied_user_coupon_id:
+              item.applied_user_coupon_id ??
+              currentItem?.applied_user_coupon_id ??
+              null,
+          }
         : item,
     );
   }
@@ -133,6 +141,7 @@ export function updateProductCartItemOption({
       selected_option_id: option?.id ?? null,
       quantity,
       reform_data: null,
+      applied_user_coupon_id: currentItem?.applied_user_coupon_id ?? null,
     },
   ];
 }

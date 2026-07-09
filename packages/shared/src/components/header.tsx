@@ -40,7 +40,8 @@ export type HeaderProps = {
 };
 
 function isActivePath(pathname: string, href: string) {
-  return href === "/" ? pathname === href : pathname.startsWith(href);
+  if (href === "/") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function Header({
@@ -141,6 +142,7 @@ export function Header({
                   size="medium"
                   iconOnly
                   aria-label="메뉴 열기"
+                  aria-expanded={menuOpen}
                   onClick={() => setMenuOpen(true)}
                 >
                   {menuIcon}

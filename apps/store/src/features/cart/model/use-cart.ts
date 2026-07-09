@@ -77,10 +77,8 @@ export function useCartAuthSync() {
             snackbar("장바구니를 계정에 동기화했습니다.");
           }
         } catch {
-          await clearGuestCartItems();
           if (!cancelled) {
             queryClient.setQueryData(getCartQueryKey(), serverItems);
-            queryClient.setQueryData(guestCartQueryKey, []);
             snackbar(
               "장바구니를 동기화하지 못해 기존 장바구니를 불러왔습니다.",
             );

@@ -51,9 +51,13 @@ client.interceptors.response.use(async (response, request) => {
   const token = await refreshing;
   if (!token) return response;
 
-  // 새 토큰으로 재시도. ponytail: body가 소비되는 재시도(POST 등)는 미지원 —
-  // 401 대상 대부분이 보호 GET이라 충분. 필요해지면 요청옵션 캡처 방식으로 확장.
-  const retried = new Request(request);
-  retried.headers.set("Authorization", `Bearer ${token}`);
-  return fetch(retried);
+  if (request.method !== "GET" && request.method !== "HEAD") return response;
+
+  try {
+    const retried = new Request(request);
+    retried.headers.set("Authorization", `Bearer ${token}`);
+    return fetch(retried);
+  } catch {
+    return response;
+  }
 });

@@ -50,7 +50,7 @@ def _product_query(user: User | None):
         )
     else:
         is_liked = false()
-    return select(Product, likes.label("likes"), is_liked.label("is_liked"))
+    return select(Product, likes.label("likes"), is_liked.label("is_liked")), likes
 
 
 async def _load_options(session: AsyncSession, product_ids: list[int]) -> dict[int, list]:
@@ -86,7 +86,7 @@ async def list_products(
     sort: SortOption = "latest",
     limit: Annotated[int | None, Query(gt=0, le=100)] = None,
 ) -> list[ProductOut]:
-    query = _product_query(user)
+    query, likes = _product_query(user)
     if category:
         query = query.where(Product.category == category)
     if color:
@@ -99,7 +99,7 @@ async def list_products(
         "latest": [Product.id.desc()],
         "price-low": [Product.price.asc(), Product.id.desc()],
         "price-high": [Product.price.desc(), Product.id.desc()],
-        "popular": [_likes_subquery().desc(), Product.id.desc()],
+        "popular": [likes.desc(), Product.id.desc()],
     }[sort]
     query = query.order_by(*order_by)
     if limit is not None:
@@ -111,7 +111,8 @@ async def list_products(
 
 @router.get("/products/{product_id}", response_model=ProductOut)
 async def get_product(product_id: int, session: SessionDep, user: OptionalUser) -> ProductOut:
-    row = (await session.execute(_product_query(user).where(Product.id == product_id))).first()
+    query, _ = _product_query(user)
+    row = (await session.execute(query.where(Product.id == product_id))).first()
     if row is None:
         raise NotFoundError("상품을 찾을 수 없습니다")
     product, likes, liked = row

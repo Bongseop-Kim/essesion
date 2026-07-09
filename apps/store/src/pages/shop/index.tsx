@@ -36,6 +36,7 @@ import {
 } from "./constants";
 
 type ProductQuery = NonNullable<ListProductsData["query"]>;
+const FILTER_PICKER_SLOT_WIDTH = "8.5rem";
 
 export function ShopPage() {
   const bp = useBreakpoint();
@@ -243,7 +244,12 @@ export function ShopPage() {
 
 function FilterPickerSlot({ children }: { children: ReactNode }) {
   return (
-    <Box flex="0 0 8.5rem" width="8.5rem" minWidth="8.5rem" maxWidth="8.5rem">
+    <Box
+      flex={`0 0 ${FILTER_PICKER_SLOT_WIDTH}`}
+      width={FILTER_PICKER_SLOT_WIDTH}
+      minWidth={FILTER_PICKER_SLOT_WIDTH}
+      maxWidth={FILTER_PICKER_SLOT_WIDTH}
+    >
       {children}
     </Box>
   );

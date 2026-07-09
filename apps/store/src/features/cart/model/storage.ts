@@ -14,12 +14,8 @@ function isCartItemIn(value: unknown): value is CartItemIn {
     return false;
   }
   if (typeof value.quantity !== "number" || value.quantity < 1) return false;
-  if (
-    value.item_type === "product" &&
-    value.product_id != null &&
-    typeof value.product_id !== "number"
-  ) {
-    return false;
+  if (value.item_type === "product") {
+    return typeof value.product_id === "number";
   }
   return true;
 }

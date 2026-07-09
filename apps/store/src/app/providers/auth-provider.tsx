@@ -1,7 +1,7 @@
-import { getMe, refreshTokens } from "@essesion/api-client";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 
+import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
 import { useCartAuthSync } from "@/features/cart";
 import { useSession } from "@/shared/store/session";
 
@@ -15,16 +15,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await refreshTokens();
-      const token = data?.access_token ?? null;
-      if (cancelled) return;
-      if (!token) {
-        useSession.getState().clear();
-        return;
-      }
-      useSession.getState().setAccessToken(token);
-      const me = await getMe();
-      if (!cancelled) useSession.getState().setUser(me.data ?? null);
+      await bootstrapSession(() => cancelled);
     })().catch(() => {
       if (!cancelled) useSession.getState().clear();
     });

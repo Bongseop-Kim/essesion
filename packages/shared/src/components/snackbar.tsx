@@ -39,14 +39,28 @@ export type SnackbarAvoidOverlapProps = {
   children: ReactElement<{ ref?: Ref<HTMLElement> }>;
 };
 
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (!ref) return;
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  (ref as { current: T | null }).current = value;
+}
+
 /** 스낵바가 겹치지 않아야 하는 하단 고정 영역을 등록한다. */
 export function SnackbarAvoidOverlap({
   children,
 }: SnackbarAvoidOverlapProps): ReactNode {
   const [node, setNode] = useState<HTMLElement | null>(null);
-  const setMeasuredNode = useCallback((next: HTMLElement | null) => {
-    setNode(next);
-  }, []);
+  const childRef = children.props.ref;
+  const setMeasuredNode = useCallback(
+    (next: HTMLElement | null) => {
+      setNode(next);
+      assignRef(childRef, next);
+    },
+    [childRef],
+  );
 
   useLayoutEffect(() => {
     if (!node) return;

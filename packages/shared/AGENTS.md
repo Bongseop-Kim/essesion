@@ -37,6 +37,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 **사용법**: 화면을 짜기 전에 이 표를 스캔한다. 어떤 행의 **트리거**에 해당하는 상황이면 raw 엘리먼트·앱 로컬 재구현이 아니라 **그 컴포넌트를 쓴다**(규칙 0). "피하기"는 흔한 오용과 대신 쓸 컴포넌트다. 오버레이·로딩/빈/에러는 아래 전용 결정 표가 상세 기준이며 여기 행은 진입점이다. 트리거·피하기의 근거는 각 컴포넌트 소스(`src/components/*.tsx`)의 JSDoc과 seed-design 문서를 대조해 작성했고, 충돌 시 소스가 우선이다.
 
 ### 레이아웃 프리미티브 (규칙 1 — 레이아웃은 이것들로만)
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Box | 토큰 style prop이 필요한 단일 블록·다형(`as`) 컨테이너. 다른 프리미티브의 기반 | 행/열 배치는 Flex/Stack. raw `<div>`+Tailwind 레이아웃 클래스 |
@@ -48,6 +49,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | Icon | 앱 소유 SVG를 크기·색으로 래핑(`svg` 필수, 기본 24px) | 의미 전달 아이콘은 `aria-label` 부여 |
 
 ### 앱 셸
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Layout / LayoutContent | 앱 루트 세로 컬럼(Layout) + 밀도별 최대폭·반응형 거터 콘텐츠 컨테이너(LayoutContent: `density` low 720 / medium 1280 / high 무제한) | 페이지 폭·좌우 거터를 임의 값으로 재작성 |
@@ -55,6 +57,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | Footer / FooterSection / FooterLink | 하단 푸터 바(구획=FooterSection, 링크=FooterLink) | — |
 
 ### 버튼
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `kakao`/`naver`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
@@ -63,6 +66,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | FloatingActionButton | 화면에 떠 있는 **주요 액션 1개**(`extended`로 라벨). 고정 위치(fixed/우하단)는 소비자가 Float로 감싼다 | 화면당 2개+, 보조/부차 액션 |
 
 ### 폼 (컨트롤 라벨·설명·에러는 Field가 배선)
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Field | 앱 커스텀 컨트롤에 label·description·errorMessage + `aria-describedby` 배선 | TextField/FieldButton 등 내장 컨트롤은 자체 처리(중복 래핑 X) |
@@ -78,6 +82,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | AttachmentDisplayField | 이미 첨부된 이미지 썸네일 표시(+`onRemove` 제거 · `max` 카운터) | 파일 업로더/피커 아님(표시 전용) |
 
 ### 내비게이션
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Tabs / TabList / TabTrigger / TabContent | 한 화면에서 탭 단위로 콘텐츠 분리/전환(Line 스타일). `triggerLayout` hug(기본)/fill | 같은 화면 콘텐츠 조작·필터(→SegmentedControl) |
@@ -85,12 +90,14 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | Breadcrumb | 페이지 경로 표시(마지막=현재 페이지). 라우팅은 `renderLink` | 단일 뎁스 페이지 |
 
 ### 스크롤 (규칙 10)
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | ScrollFog | 스크롤 여지가 있는 가장자리를 알파 마스크로 페이드. **가로 스크롤은 항상 이걸로**(`direction="horizontal"`, scrollbar 숨김) | `overflowX:auto/scroll`·`overflow-x-*` 직접(`pnpm lint`가 차단) |
 | PullToRefresh | 모바일에서 당겨서 새로고침(터치 전용, async `onRefresh`) | 데스크톱 |
 
 ### 오버레이 (상세 결정 트리: 아래 "오버레이·피드백 선택" 표 — 필독)
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | AlertDialog | 진행 차단 확인(1–2버튼) · 파괴적 결정 — **바깥 클릭으로 안 닫힘** | 단순 결과 알림(→Snackbar) |
@@ -102,12 +109,14 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | Snackbar (`snackbar()` / SnackbarHost) | 수 초 뒤 사라지는 결과 알림. SnackbarHost는 앱 루트에 1회 마운트 | 입력 필요·지속 경고(→AlertDialog / Callout / PageBanner). 동시 2개+ |
 
 ### 인라인 피드백
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Callout | 섹션에 상주하는 안내 블록(tone 5종: neutral/informative/positive/warning/critical, `onClick`=actionable·`onDismiss`=dismissible) | warning/critical에 dismissible(경고는 닫기 X). 페이지 전체 공지(→PageBanner), 사라지는 알림(→Snackbar) |
 | PageBanner | **페이지당 1개** 전체 폭 공지(top/bottom, variant weak/solid × tone) | 페이지당 2개+, 섹션 국소 안내(→Callout) |
 
 ### 디스플레이
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Badge | 정적 상태/속성 텍스트 태그(2–3단어, non-interactive) | 클릭 유도·CTA(→Chip/ActionButton). 객체당 3개+ |
@@ -120,6 +129,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | ImageFrame | **모든 콘텐츠 이미지**(상품·업로드) — 비율 프레임+라운드, 누락/실패 시 실루엣 폴백. 오버레이는 children, `fill`로 부모 채움 | raw `<img>`. 장식/배경 이미지(→CSS background-image) |
 
 ### 콘텐츠
+
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | List / ListItem / ListHeader | 세로 목록 — ListItem은 `href`/`onClick` 유무로 링크·버튼·정적 행 자동 선택. 구획 제목은 ListHeader | 카드 그리드(→Grid) |
