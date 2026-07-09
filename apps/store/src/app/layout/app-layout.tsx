@@ -59,7 +59,7 @@ function StoreHeader() {
       brandLabel="ESSE SION"
       brandHref="/"
       brandLogoSrc="/logo/logo.png"
-      navItems={[...STORE_NAV_ITEMS]}
+      navItems={STORE_NAV_ITEMS.filter((item) => item.href !== "/")}
       activePathname={location.pathname}
       renderLink={renderLink}
       density="medium"
