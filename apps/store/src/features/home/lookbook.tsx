@@ -71,12 +71,11 @@ export function Lookbook() {
             gridRow={it.main ? "span 2" : undefined}
             className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
           >
-            {/* ponytail: ImageFrame은 aspect-ratio를 강제해 가변 셀을 채울 수 없어 fill-img 사용 */}
-            <img
+            <ImageFrame
+              fill
               src={it.image}
               alt={it.alt}
               loading={it.main ? "eager" : "lazy"}
-              className="absolute inset-0 size-full object-cover"
             />
           </Box>
         ))}

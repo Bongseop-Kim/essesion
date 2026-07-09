@@ -16,6 +16,7 @@ import {
 } from "@essesion/api-client/query";
 import {
   ActionButton,
+  AspectRatio,
   Badge,
   Box,
   ContentPlaceholder,
@@ -24,9 +25,9 @@ import {
   HStack,
   Icon,
   ImageFrame,
-  ProgressCircle,
   SelectBox,
   SelectBoxItem,
+  Skeleton,
   snackbar,
   Tag,
   TagGroup,
@@ -202,13 +203,7 @@ export function ShopDetailPage() {
   }
 
   if (productQuery.isPending) {
-    return (
-      <ContentLayout breadcrumbs={shopCrumbs()}>
-        <HStack justify="center" py="x12">
-          <ProgressCircle />
-        </HStack>
-      </ContentLayout>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   if (productQuery.isError || !product) {
@@ -518,6 +513,35 @@ function Spec({ label, value }: { label: string; value: string }) {
       </Text>
       <Text textStyle="labelSm">{value}</Text>
     </HStack>
+  );
+}
+
+function ProductDetailSkeleton() {
+  // 상세 레이아웃과 같은 형태로 배치 — 스피너 대신 시프트 없는 초기 로딩.
+  return (
+    <ContentLayout
+      breadcrumbs={shopCrumbs()}
+      sidebar={
+        <VStack gap="x5" alignItems="stretch">
+          <VStack gap="x3">
+            <Skeleton width="70%" height={30} />
+            <Skeleton width="40%" height={26} />
+            <Skeleton width="90%" height={19} />
+            <Skeleton width="60%" height={19} />
+          </VStack>
+          <Skeleton width="100%" height={44} radius="r2" />
+        </VStack>
+      }
+    >
+      <AspectRatio ratio={1} className="rounded-r3">
+        <Skeleton
+          width="100%"
+          height="100%"
+          radius={0}
+          className="absolute inset-0"
+        />
+      </AspectRatio>
+    </ContentLayout>
   );
 }
 

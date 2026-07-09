@@ -23,6 +23,8 @@ export type ImageFrameProps = Omit<ComponentPropsWithRef<"img">, "children"> & {
   /** cover=꽉 채워 크롭(기본), contain=전체 보이게 레터박스(로고·썸네일) */
   fit?: keyof typeof objectFits;
   stroke?: boolean;
+  /** ratio 대신 positioned 부모를 꽉 채움 — 높이가 외부에서 정해지는 가변 셀(예: bento 그리드)용 */
+  fill?: boolean;
   /** 로드 실패·소스 부재 시 렌더 (기본: 이미지 실루엣 면) */
   fallback?: ReactNode;
   /** 오버레이 슬롯 (Float 등) — 프레임이 absolute 컨텍스트를 제공 */
@@ -34,6 +36,7 @@ export function ImageFrame({
   borderRadius = "r2",
   fit = "cover",
   stroke = false,
+  fill = false,
   fallback,
   children,
   className,
@@ -44,8 +47,8 @@ export function ImageFrame({
   const [failed, setFailed] = useState(false);
   const showFallback = src == null || failed;
 
-  return (
-    <AspectRatio ratio={ratio} className={cn(radii[borderRadius], className)}>
+  const inner = (
+    <>
       {showFallback ? (
         (fallback ?? <ImageFallback />)
       ) : (
@@ -66,6 +69,26 @@ export function ImageFrame({
         />
       )}
       {children}
+    </>
+  );
+
+  if (fill) {
+    return (
+      <div
+        className={cn(
+          "absolute inset-0 overflow-hidden",
+          radii[borderRadius],
+          className,
+        )}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <AspectRatio ratio={ratio} className={cn(radii[borderRadius], className)}>
+      {inner}
     </AspectRatio>
   );
 }

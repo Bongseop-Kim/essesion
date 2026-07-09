@@ -1,12 +1,18 @@
 import { getMeOptions } from "@essesion/api-client/query";
-import { Flex, ProgressCircle, Text, VStack } from "@essesion/shared";
+import {
+  ContentPlaceholder,
+  Flex,
+  Skeleton,
+  Text,
+  VStack,
+} from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { LogoutButton } from "@/features/auth";
 
 export function MyPage() {
   // 보호 GET — Bearer 주입 + 401 시 refresh 재시도 배선을 실제로 태운다.
-  const { data: me, isPending } = useQuery(getMeOptions());
+  const { data: me, isPending, isError } = useQuery(getMeOptions());
 
   return (
     <Flex justify="center" px={{ base: "x4", md: "x8" }} py="x10">
@@ -16,7 +22,17 @@ export function MyPage() {
         </Text>
 
         {isPending ? (
-          <ProgressCircle />
+          <VStack gap="x2" width="full">
+            <Skeleton width={64} height={19} />
+            <Skeleton width={180} height={22} />
+            <Skeleton width={64} height={19} />
+            <Skeleton width={120} height={22} />
+          </VStack>
+        ) : isError ? (
+          <ContentPlaceholder
+            title="정보를 불러오지 못했습니다"
+            description="잠시 후 다시 시도해 주세요."
+          />
         ) : (
           <VStack gap="x2">
             <Text textStyle="labelSm" color="fg.neutral-muted">
