@@ -33,6 +33,40 @@ async def test_like_unlike_and_is_liked(client, db_session, settings):
     assert detail.json()["likes"] == 0
 
 
+async def test_sort_popular_and_limit(client, db_session, settings):
+    low = await make_product(db_session, name="저가", price=10000)
+    await make_product(db_session, name="고가", price=90000)
+    # 저가 상품에 찜 2개 → popular 정렬에서 앞서야 함
+    for _ in range(2):
+        user = await make_user(db_session)
+        await client.put(f"/products/{low.id}/like", headers=auth_headers(user, settings))
+
+    popular = await client.get("/products?sort=popular")
+    assert [p["name"] for p in popular.json()] == ["저가", "고가"]
+
+    price_high = await client.get("/products?sort=price-high")
+    assert [p["name"] for p in price_high.json()] == ["고가", "저가"]
+
+    limited = await client.get("/products?sort=popular&limit=1")
+    assert [p["name"] for p in limited.json()] == ["저가"]
+
+    next_page = await client.get("/products?sort=popular&limit=1&offset=1")
+    assert [p["name"] for p in next_page.json()] == ["고가"]
+
+
+async def test_list_products_filter_limit_and_offset(client, db_session):
+    await make_product(db_session, name="네이비 1", category="3fold", color="navy")
+    await make_product(db_session, name="블랙 제외", category="3fold", color="black")
+    await make_product(db_session, name="네이비 2", category="3fold", color="navy")
+    await make_product(db_session, name="네이비 3", category="3fold", color="navy")
+
+    first_page = await client.get("/products?color=navy&sort=latest&limit=2&offset=0")
+    second_page = await client.get("/products?color=navy&sort=latest&limit=2&offset=2")
+
+    assert [p["name"] for p in first_page.json()] == ["네이비 3", "네이비 2"]
+    assert [p["name"] for p in second_page.json()] == ["네이비 1"]
+
+
 async def test_admin_create_product_auto_code(client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)

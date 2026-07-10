@@ -1,10 +1,11 @@
 """상품 — 공개 조회 + 찜(본인만 쓰기) + 관리자 CRUD (인가 규칙 ①)."""
 
 from collections import defaultdict
+from typing import Annotated
 
 from db.models.auth import User
 from db.models.commerce import Product, ProductLike, ProductOption
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from sqlalchemy import delete, exists, false, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,7 @@ from api.domains.products.schemas import (
     ProductOptionOut,
     ProductOut,
     ProductUpdate,
+    SortOption,
 )
 from api.errors import NotFoundError
 from api.numbering import generate_number
@@ -30,20 +32,25 @@ router = APIRouter(tags=["products"])
 CODE_PREFIX = {"3fold": "3F", "sfolderato": "SF", "knit": "KN", "bowtie": "BT"}
 
 
-def _product_query(user: User | None):
-    likes = (
+def _likes_subquery():
+    """상품별 찜 수 (상관 스칼라 서브쿼리) — SELECT 라벨과 popular 정렬에서 재사용."""
+    return (
         select(func.count())
         .where(ProductLike.product_id == Product.id)
         .correlate(Product)
         .scalar_subquery()
     )
+
+
+def _product_query(user: User | None):
+    likes = _likes_subquery()
     if user is not None:
         is_liked = exists().where(
             ProductLike.product_id == Product.id, ProductLike.user_id == user.id
         )
     else:
         is_liked = false()
-    return select(Product, likes.label("likes"), is_liked.label("is_liked"))
+    return select(Product, likes.label("likes"), is_liked.label("is_liked")), likes
 
 
 async def _load_options(session: AsyncSession, product_ids: list[int]) -> dict[int, list]:
@@ -76,8 +83,11 @@ async def list_products(
     color: Color | None = None,
     pattern: Pattern | None = None,
     material: Material | None = None,
+    sort: SortOption = "latest",
+    limit: Annotated[int | None, Query(gt=0, le=100)] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ProductOut]:
-    query = _product_query(user)
+    query, likes = _product_query(user)
     if category:
         query = query.where(Product.category == category)
     if color:
@@ -86,14 +96,26 @@ async def list_products(
         query = query.where(Product.pattern == pattern)
     if material:
         query = query.where(Product.material == material)
-    rows = (await session.execute(query.order_by(Product.id))).all()
+    order_by = {
+        "latest": [Product.id.desc()],
+        "price-low": [Product.price.asc(), Product.id.desc()],
+        "price-high": [Product.price.desc(), Product.id.desc()],
+        "popular": [likes.desc(), Product.id.desc()],
+    }[sort]
+    query = query.order_by(*order_by)
+    if offset:
+        query = query.offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    rows = (await session.execute(query)).all()
     options = await _load_options(session, [p.id for p, _, _ in rows])
     return [_to_out(p, likes, liked, options[p.id]) for p, likes, liked in rows]
 
 
 @router.get("/products/{product_id}", response_model=ProductOut)
 async def get_product(product_id: int, session: SessionDep, user: OptionalUser) -> ProductOut:
-    row = (await session.execute(_product_query(user).where(Product.id == product_id))).first()
+    query, _ = _product_query(user)
+    row = (await session.execute(query.where(Product.id == product_id))).first()
     if row is None:
         raise NotFoundError("상품을 찾을 수 없습니다")
     product, likes, liked = row

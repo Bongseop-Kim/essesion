@@ -13,7 +13,7 @@ import { Section, SubSection } from "../section";
 export function FieldCompositesSection() {
   return (
     <Section title="필드 합성">
-      <Box maxWidth={480}>
+      <Box width="full" maxWidth={480}>
         <VStack gap="x6" alignItems="stretch">
           <SubSection title="FieldButton — placeholder · value · 상태">
             <VStack gap="x3" alignItems="stretch">

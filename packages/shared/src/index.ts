@@ -38,6 +38,12 @@ export type { BottomSheetProps } from "./components/bottom-sheet";
 export { BottomSheet } from "./components/bottom-sheet";
 export type { BoxProps } from "./components/box";
 export { Box } from "./components/box";
+export type {
+  BreadcrumbItem,
+  BreadcrumbLinkProps,
+  BreadcrumbProps,
+} from "./components/breadcrumb";
+export { Breadcrumb } from "./components/breadcrumb";
 export type { CalloutProps } from "./components/callout";
 export { Callout } from "./components/callout";
 export type { CheckboxProps } from "./components/checkbox";
@@ -62,6 +68,12 @@ export type { FooterLinkProps, FooterSectionProps } from "./components/footer";
 export { Footer, FooterLink, FooterSection } from "./components/footer";
 export type { GridProps } from "./components/grid";
 export { Grid } from "./components/grid";
+export type {
+  HeaderLinkProps,
+  HeaderNavItem,
+  HeaderProps,
+} from "./components/header";
+export { Header } from "./components/header";
 export type { IconProps } from "./components/icon";
 export { Icon } from "./components/icon";
 export type { ImageFrameProps } from "./components/image-frame";
@@ -131,7 +143,11 @@ export { SidePanel } from "./components/side-panel";
 export type { SkeletonProps } from "./components/skeleton";
 export { Skeleton } from "./components/skeleton";
 export type { SnackbarAction } from "./components/snackbar";
-export { SnackbarHost, snackbar } from "./components/snackbar";
+export {
+  SnackbarAvoidOverlap,
+  SnackbarHost,
+  snackbar,
+} from "./components/snackbar";
 export type { StackProps } from "./components/stack";
 export { HStack, VStack } from "./components/stack";
 export type {

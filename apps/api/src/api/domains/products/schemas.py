@@ -8,6 +8,7 @@ Category = Literal["3fold", "sfolderato", "knit", "bowtie"]
 Color = Literal["black", "navy", "gray", "wine", "blue", "brown", "beige", "silver"]
 Pattern = Literal["solid", "stripe", "dot", "check", "paisley"]
 Material = Literal["silk", "cotton", "polyester", "wool"]
+SortOption = Literal["latest", "price-low", "price-high", "popular"]
 
 
 class ProductOptionOut(BaseModel):

@@ -62,9 +62,12 @@
 ## 5. 프론트
 
 - [x] 디자인 시스템(packages/shared) — 토큰(theme.css, 브랜드 #111111·라이트 온리) + 프리미티브 8종(Box/Flex/HStack/VStack/Grid/Float/Text/Icon, ResponsiveValue) + AI 하네스(`packages/shared/AGENTS.md` + `docs/foundation/` 17편). 검증: vitest 드리프트 가드 + store 임시 프리뷰(main.tsx, 5단계 재작성 시 소멸)
-- [x] 디자인 시스템 컴포넌트 확장(32종, seed-design 참고·의존성 0 자체 구현) — ActionButton(Button 대체)·폼(TextField/Checkbox/RadioGroup/Switch/SegmentedControl/SelectBox/FieldButton/AttachmentDisplayField)·내비(Tabs/Menu)·디스플레이(Badge/Avatar/Skeleton/Divider/TagGroup/AspectRatio/ImageFrame/ProgressCircle)·콘텐츠(List/Accordion/Article/ContentPlaceholder/ResultSection)·셸(Layout/Footer/ScrollFog/PullToRefresh)·Chip/ToggleButton/FAB + 하네스 기계 강제(`scripts/check-harness.mjs`가 `pnpm lint`에 연결, 앱별 CLAUDE.md 우선순위 사다리)
+- [x] 디자인 시스템 컴포넌트 확장(32종, seed-design 참고·의존성 0 자체 구현) — ActionButton(Button 대체)·폼(TextField/Checkbox/RadioGroup/Switch/SegmentedControl/SelectBox/FieldButton/AttachmentDisplayField)·내비(Tabs/Menu)·디스플레이(Badge/Avatar/Skeleton/Divider/TagGroup/AspectRatio/ImageFrame/ProgressCircle)·콘텐츠(List/Accordion/Article/ContentPlaceholder/ResultSection)·셸(Layout/Footer/ScrollFog/PullToRefresh)·Chip/ToggleButton/FAB + 하네스 기계 강제(`scripts/check-harness.mjs`가 `pnpm lint`에 연결, 앱별 AGENTS.md 우선순위 사다리 + CLAUDE.md 싱크)
 - [x] 오버레이·피드백 7종(AlertDialog/BottomSheet/SwipeableMenuSheet/SidePanel/Snackbar/Callout/PageBanner) — 네이티브 `<dialog>`+Popover API(의존성 0, 포털·z-index 없음), `bg.overlay` 토큰, **사용 구분 하네스**(`docs/foundation/overlay.md` 결정 트리·닫힘 모델 4분류 + AGENTS.md 압축 결정 표)
-- [ ] store 재작성 — 기존 라우트 기준, api-client만 사용(supabase-js 없음)
+- [x] store/admin 공용 Header — YeongSeon public 로고만 이관(`logo/logo.png`), 메뉴 라벨·주소 유지, 흰색 `bg.layer-default` 상단 Header + 모바일 `SidePanel`, shared 토큰·컴포넌트 조합만 사용
+- [x] store 실제 Footer — YeongSeon store 푸터 내용 기준, shared `Footer/FooterSection/FooterLink`와 토큰·프리미티브 조합만 사용
+- [x] store Home 셸 — `/`는 Header/Footer 반응형 확인용 빈 홈, 디자인 시스템 Preview는 `/__preview`로 분리
+- [ ] store 재작성 — 기존 라우트 기준, api-client만 사용(supabase-js 없음) — *진행 중: **Home(`/`) 완료** (`apps/store/src/features/home` + `entities/product`, 플랜 `docs/plans/store-home.md`). **C1 shop(`/shop`, `/shop/:id`) 완료** — 현재 `/products` 계약(category/color/pattern/material/sort/limit)만 사용, PC 더 보기·모바일 무한 스크롤은 offset 없이 `limit` 증가 재조회 방식. 선행으로 api `/products`에 sort·limit 추가(+codegen), shared에 ImageFrame `fit` prop·`bg.image-scrim` 토큰 추가. **C2 cart(`/cart`) 완료** — 게스트 localStorage 장바구니 + 로그인 시 `/cart` 동기화, 선택/삭제/수량/옵션/쿠폰 적용 UI, C1 상품 상세 담기 로직 공용 cart 모델로 이관*
 - [ ] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — **이 기획에서 결정·구현할 이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [ ] admin 재작성 — 기존 라우트 기준
 - [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler), api는 min-instances=1 설정

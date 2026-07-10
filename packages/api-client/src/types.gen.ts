@@ -4355,6 +4355,18 @@ export type ListProductsData = {
          * Material
          */
         material?: 'silk' | 'cotton' | 'polyester' | 'wool' | null;
+        /**
+         * Sort
+         */
+        sort?: 'latest' | 'price-low' | 'price-high' | 'popular';
+        /**
+         * Limit
+         */
+        limit?: number | null;
+        /**
+         * Offset
+         */
+        offset?: number;
     };
     url: '/products';
 };

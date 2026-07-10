@@ -132,9 +132,23 @@
   --color-fg-informative: var(--color-palette-blue-800);
   --color-stroke-informative: var(--color-palette-blue-700);
 
+  /* brand-login (OAuth) — 외부 브랜드가 지정한 색. 모노크롬 원칙의 예외이며
+     소셜 로그인 버튼 전용. 라벨: kakao=fg.neutral(검정), naver=fg.contrast(흰색). */
+  --color-bg-kakao: #fee500;
+  --color-bg-kakao-hover: #f2d900;
+  --color-bg-kakao-pressed: #e6ce00;
+  --color-bg-naver: #03c75a;
+  --color-bg-naver-hover: #02b350;
+  --color-bg-naver-pressed: #029e47;
+
   /* overlay — 모달 <dialog> ::backdrop 딤 전용(45% 검정, 정적 값).
      소비: backdrop:bg-bg-overlay 유틸리티 (docs/foundation/overlay.md) */
   --color-bg-overlay: #00000074;
+
+  /* image-scrim — 이미지 위 텍스트 가독성용 기능성 딤(45% 검정). 장식 아님(gradient.md 예외).
+     소비: 단색 면 bg-bg-image-scrim, 또는 방향성 스크림 그라디언트 .scrim-{top,bottom,left,right}
+     (아래 @layer utilities — bg.image-scrim → 투명, Skeleton shimmer와 같은 기능성 그라디언트 예외). */
+  --color-bg-image-scrim: #00000074;
 
   /* ── 간격 x-스케일 (4px 그리드, seed dimension) — 기본 --spacing은 유지(p-4 등 공존) ── */
   --spacing-x0_5: 2px;
@@ -235,5 +249,49 @@
      스크롤바 소멸로 인한 레이아웃 시프트는 use-dialog.ts가 body padding-right로 보상한다. */
   body:has(dialog:modal) {
     overflow: hidden;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 방향성 스크림 그라디언트 — 이미지 위 텍스트 가독성용 기능성 페이드(gradient.md 예외,
+     Skeleton shimmer와 동형: bg.image-scrim 토큰 → 투명). 접미사 = 텍스트가 붙는(딤이 진한) 가장자리. */
+  .scrim-top {
+    background-image: linear-gradient(
+      to bottom,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
+  }
+
+  .scrim-bottom {
+    background-image: linear-gradient(
+      to top,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
+  }
+
+  .scrim-left {
+    background-image: linear-gradient(
+      to right,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
+  }
+
+  .scrim-right {
+    background-image: linear-gradient(
+      to left,
+      var(--color-bg-image-scrim),
+      transparent 55%
+    );
   }
 }

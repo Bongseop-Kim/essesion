@@ -56,6 +56,14 @@ const RULES = [
     allowFile: (file) =>
       file.endsWith("packages/shared/src/components/text.tsx"),
   },
+  {
+    name: "horizontal-scroll-direct",
+    hint: '가로 스크롤은 ScrollFog direction="horizontal" 사용 — scrollbar 숨김과 edge fog를 함께 제공',
+    regex:
+      /\boverflowX=(?:"(?:auto|scroll)"|\{["'`](?:auto|scroll)["'`]\})|\boverflow-x-(?:auto|scroll)\b/g,
+    allowFile: (file) =>
+      file.endsWith("packages/shared/src/components/scroll-fog.tsx"),
+  },
 ];
 
 function collectFiles(dir) {

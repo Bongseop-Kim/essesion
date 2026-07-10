@@ -9,6 +9,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@essesion/api-client": "workspace:*",
     "@essesion/shared": "workspace:*",
     "@heroicons/react": "catalog:",
     "@hookform/resolvers": "catalog:",

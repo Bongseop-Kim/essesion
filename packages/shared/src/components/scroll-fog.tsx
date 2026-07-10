@@ -78,7 +78,9 @@ export function ScrollFog({
     <div
       ref={setRef}
       className={cn(
-        direction === "vertical" ? "overflow-y-auto" : "overflow-x-auto",
+        direction === "vertical"
+          ? "overflow-y-auto"
+          : "overflow-x-auto scrollbar-none",
         className,
       )}
       style={fogStyle}

@@ -5,7 +5,7 @@ import { Section, SubSection } from "../section";
 export function TextFieldsSection() {
   return (
     <Section title="텍스트 필드">
-      <Box maxWidth={420}>
+      <Box width="full" maxWidth={420}>
         <VStack gap="x5" alignItems="stretch">
           <SubSection title="기본 · placeholder · description">
             <TextField label="이름" placeholder="홍길동" />

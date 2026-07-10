@@ -1,4 +1,4 @@
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import type { AnchorHTMLAttributes, ReactElement, ReactNode } from "react";
 
 import { cn } from "../cn";
 import { Box, type BoxProps } from "./box";
@@ -35,17 +35,22 @@ export function FooterSection({ title, children }: FooterSectionProps) {
   );
 }
 
-export type FooterLinkProps = ComponentPropsWithRef<"a">;
+export type FooterLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  renderLink?: (props: AnchorHTMLAttributes<HTMLAnchorElement>) => ReactElement;
+};
 
-export function FooterLink({ className, ...props }: FooterLinkProps) {
-  return (
-    <a
-      className={cn(
-        "text-t4 font-medium text-fg-neutral-muted transition-colors duration-100 ease-standard hover:text-fg-neutral",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
-        className,
-      )}
-      {...props}
-    />
-  );
+export function FooterLink({
+  className,
+  renderLink,
+  ...props
+}: FooterLinkProps) {
+  const linkProps = {
+    className: cn(
+      "text-t4 font-medium text-fg-neutral-muted transition-colors duration-100 ease-standard hover:text-fg-neutral",
+      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+      className,
+    ),
+    ...props,
+  };
+  return renderLink ? renderLink(linkProps) : <a {...linkProps} />;
 }
