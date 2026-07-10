@@ -75,6 +75,7 @@ export function useCheckoutPayment<T>({
           expectedAmount !== undefined &&
           payment.totalAmount !== expectedAmount
         ) {
+          clearPendingCheckout(storageKey);
           snackbar(
             "결제 금액이 변경되었습니다. 장바구니를 다시 확인해 주세요.",
           );

@@ -42,7 +42,7 @@ export function ShippingAddressCard({
               </Text>
               {address.delivery_memo || address.delivery_request ? (
                 <Text textStyle="caption" color="fg.neutral-muted">
-                  {address.delivery_memo ?? address.delivery_request}
+                  {address.delivery_memo || address.delivery_request}
                 </Text>
               ) : null}
             </VStack>

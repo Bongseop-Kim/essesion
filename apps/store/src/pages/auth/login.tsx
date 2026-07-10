@@ -7,6 +7,7 @@ import {
   Callout,
   Divider,
   Flex,
+  snackbar,
   Text,
   TextField,
   VStack,
@@ -68,6 +69,7 @@ export function LoginPage() {
             state: destination.state,
           });
         } catch {
+          snackbar("장바구니 동기화에 실패했습니다. 장바구니를 확인해 주세요.");
           navigate("/cart", { replace: true });
         }
       } catch {

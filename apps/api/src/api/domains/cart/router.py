@@ -154,7 +154,8 @@ async def replace_cart(
     for item in body.items:
         values = item.model_dump()
         if item.item_type == "reform":
-            assert item.reform_data is not None and reform_pricing is not None
+            if item.reform_data is None or reform_pricing is None:
+                raise DomainError("Invalid reform cart item", code="invalid_cart_item")
             await claim_reform_image(
                 session, user.id, item.reform_data.tie.image
             )

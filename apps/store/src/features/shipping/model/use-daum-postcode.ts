@@ -12,29 +12,36 @@ declare global {
 }
 
 const SCRIPT_ID = "daum-postcode-script";
+let postcodeLoadPromise: Promise<void> | null = null;
 
 function loadPostcode() {
   if (window.daum?.Postcode) return Promise.resolve();
-  return new Promise<void>((resolve, reject) => {
-    const existing = document.getElementById(
-      SCRIPT_ID,
-    ) as HTMLScriptElement | null;
-    const script = existing ?? document.createElement("script");
-    script.addEventListener("load", () => resolve(), { once: true });
+  if (postcodeLoadPromise) return postcodeLoadPromise;
+
+  document.getElementById(SCRIPT_ID)?.remove();
+  const script = document.createElement("script");
+  script.id = SCRIPT_ID;
+  script.src =
+    "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+
+  postcodeLoadPromise = new Promise<void>((resolve, reject) => {
+    const fail = () => {
+      script.remove();
+      postcodeLoadPromise = null;
+      reject(new Error("postcode load failed"));
+    };
     script.addEventListener(
-      "error",
-      () => reject(new Error("postcode load failed")),
-      {
-        once: true,
+      "load",
+      () => {
+        if (window.daum?.Postcode) resolve();
+        else fail();
       },
+      { once: true },
     );
-    if (!existing) {
-      script.id = SCRIPT_ID;
-      script.src =
-        "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
-      document.head.append(script);
-    }
+    script.addEventListener("error", fail, { once: true });
+    document.head.append(script);
   });
+  return postcodeLoadPromise;
 }
 
 export function useDaumPostcode() {

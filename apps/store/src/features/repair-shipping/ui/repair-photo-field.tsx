@@ -56,10 +56,12 @@ export function RepairPhotoField({
     await mapWithConcurrency(accepted, 2, async (file) => {
       try {
         const objectKey = await uploadRepairShippingPhoto(file);
-        onChange([
+        const next = [
           ...photosRef.current,
           { objectKey, previewUrl: URL.createObjectURL(file) },
-        ]);
+        ];
+        photosRef.current = next;
+        onChange(next);
       } catch (error) {
         snackbar(
           error instanceof Error
@@ -75,7 +77,9 @@ export function RepairPhotoField({
   const handleRemove = (id: string) => {
     const target = photosRef.current.find((photo) => photo.objectKey === id);
     if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-    onChange(photosRef.current.filter((photo) => photo.objectKey !== id));
+    const next = photosRef.current.filter((photo) => photo.objectKey !== id);
+    photosRef.current = next;
+    onChange(next);
   };
 
   return (

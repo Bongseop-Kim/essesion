@@ -510,13 +510,18 @@ export function CartPage() {
               reformOptionItem.input.item_id,
               data,
             );
-            await cartActions.upsertReforms([
-              {
-                itemId: reformOptionItem.input.item_id,
-                reformData: reformDataFromForm({ ...tie, ...values }),
-              },
-            ]);
-            snackbar("수선 옵션을 변경했습니다.");
+            try {
+              await cartActions.upsertReforms([
+                {
+                  itemId: reformOptionItem.input.item_id,
+                  reformData: reformDataFromForm({ ...tie, ...values }),
+                },
+              ]);
+              snackbar("수선 옵션을 변경했습니다.");
+              setReformOptionItemId(null);
+            } catch {
+              snackbar("수선 옵션을 변경하지 못했습니다.");
+            }
           }}
         />
       ) : null}

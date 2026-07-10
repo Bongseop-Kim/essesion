@@ -362,7 +362,8 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         )
 
     if reform_lines:
-        assert reform_pricing is not None
+        if reform_pricing is None:
+            raise RuntimeError("Reform pricing is missing for reform order")
         shipping_cost = reform_pricing.shipping_cost
         pickup_fee = 0
         pickup = body.repair_shipping.pickup if body.repair_shipping else None

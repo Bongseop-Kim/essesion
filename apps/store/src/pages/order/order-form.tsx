@@ -311,6 +311,7 @@ export function OrderFormPage() {
   if (invalidItems) return <Navigate to="/cart" replace />;
 
   const pickupInvalid =
+    hasReformItems &&
     repairMethod === "pickup" &&
     (!repairShipping?.pickup?.recipient_name.trim() ||
       !repairShipping.pickup.recipient_phone.trim() ||

@@ -27,9 +27,7 @@ PRICING = ReformPricingOut(
 
 
 def _data(*, automatic: bool = False, width: bool = False, restoration: bool = False):
-    tie: dict[str, object] = {
-        "image": {"object_key": "uploads/reform_upload/tie.png"}
-    }
+    tie: dict[str, object] = {"image": {"object_key": "uploads/reform_upload/tie.png"}}
     if automatic:
         tie["automatic"] = {"mechanism": "zipper", "wearer_height_cm": 175}
     if width:
