@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, use, useId } from "react";
 
+import type { ResponsiveValue } from "../breakpoint";
 import { Flex } from "./flex";
 import { Grid } from "./grid";
 import { CheckGlyph } from "./internal/glyphs";
@@ -38,11 +39,15 @@ export type SelectBoxProps = {
   value?: string | string[];
   defaultValue?: string | string[];
   onValueChange?: (value: string | string[]) => void;
-  /** 1이면 세로 스택, 그 이상이면 균등 그리드 */
-  columns?: number;
+  /** 1이면 세로 스택, 그 이상(반응형 가능)이면 균등 그리드 */
+  columns?: ResponsiveValue<number>;
   children: ReactNode;
   className?: string;
+  /** Field 배선용 — useFieldContext의 controlId/describedBy/invalid를 그룹 엘리먼트에 연결 */
+  id?: string;
   "aria-label"?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
 };
 
 export function SelectBox({
@@ -54,7 +59,10 @@ export function SelectBox({
   columns = 1,
   children,
   className,
+  id,
   "aria-label": ariaLabel,
+  "aria-describedby": ariaDescribedby,
+  "aria-invalid": ariaInvalid,
 }: SelectBoxProps) {
   const generatedName = useId();
   const [values, setValues] = useControllableState<string[]>({
@@ -82,12 +90,15 @@ export function SelectBox({
   };
   return (
     <SelectBoxContext value={ctx}>
-      {columns > 1 ? (
+      {columns !== 1 ? (
         <Grid
           columns={columns}
           gap="x3"
           role={role}
+          id={id}
           aria-label={ariaLabel}
+          aria-describedby={ariaDescribedby}
+          aria-invalid={ariaInvalid}
           className={className}
         >
           {children}
@@ -97,7 +108,10 @@ export function SelectBox({
           gap="x3"
           alignItems="stretch"
           role={role}
+          id={id}
           aria-label={ariaLabel}
+          aria-describedby={ariaDescribedby}
+          aria-invalid={ariaInvalid}
           className={className}
         >
           {children}

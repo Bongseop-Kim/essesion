@@ -26,7 +26,7 @@ from db.models.commerce import (
     ProductOption,
     UserCoupon,
 )
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -37,9 +37,12 @@ ADMIN_SETTINGS = {
 
 PRICING: dict[str, tuple[int, str]] = {
     # reform
-    "REFORM_BASE_COST": (15000, "reform"),
-    "REFORM_WIDTH_COST": (10000, "reform"),
-    "REFORM_SHIPPING_COST": (3000, "reform"),
+    "REFORM_AUTOMATIC_COST": (16000, "reform"),
+    "REFORM_WIDTH_COST": (30000, "reform"),
+    "REFORM_RESTORATION_COST": (30000, "reform"),
+    "REFORM_AUTOMATIC_COMBINED_COST": (40000, "reform"),
+    "REFORM_WIDTH_RESTORATION_COST": (30000, "reform"),
+    "REFORM_SHIPPING_COST": (4500, "reform"),
     "REFORM_PICKUP_FEE": (5000, "reform"),
     # custom order
     "START_COST": (50000, "custom_order"),
@@ -188,8 +191,14 @@ async def main() -> None:
             await session.execute(
                 pg_insert(PricingConstant)
                 .values(key=key, amount=amount, category=category)
-                .on_conflict_do_nothing(index_elements=[PricingConstant.key])
+                .on_conflict_do_update(
+                    index_elements=[PricingConstant.key],
+                    set_={"amount": amount, "category": category},
+                )
             )
+        await session.execute(
+            delete(PricingConstant).where(PricingConstant.key == "REFORM_BASE_COST")
+        )
 
         for spec in PRODUCTS:
             options = spec["options"]

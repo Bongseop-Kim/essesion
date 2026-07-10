@@ -1,3 +1,4 @@
+import type { RepairShippingIn } from "@essesion/api-client";
 import { confirmPaymentMutation } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -21,7 +22,10 @@ import {
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 
-type CheckoutSnapshot = { cartItemIds?: string[] };
+type CheckoutSnapshot = {
+  cartItemIds?: string[];
+  repairShipping?: RepairShippingIn | null;
+};
 
 export function PaymentSuccessPage() {
   const navigate = useNavigate();
@@ -35,13 +39,16 @@ export function PaymentSuccessPage() {
   const cartActions = useCartActions();
   const [confirmed, setConfirmed] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [confirmedRepairMethod, setConfirmedRepairMethod] = useState<
+    "direct" | "pickup" | null
+  >(null);
   const started = useRef(false);
 
   const confirmNow = useCallback(async () => {
     if (!valid || !paymentKey || !orderId) return;
     setFailed(false);
     try {
-      await confirm.mutateAsync({
+      const result = await confirm.mutateAsync({
         body: {
           payment_key: paymentKey,
           payment_group_id: orderId,
@@ -50,6 +57,11 @@ export function PaymentSuccessPage() {
       });
       const pending =
         readPendingCheckout<CheckoutSnapshot>(CHECKOUT_PENDING_KEY);
+      if (result.orders.some((order) => order.order_type === "repair")) {
+        setConfirmedRepairMethod(
+          pending?.snapshot.repairShipping?.method ?? "direct",
+        );
+      }
       const ids = pending?.snapshot.cartItemIds?.filter(
         (id): id is string => typeof id === "string",
       );
@@ -136,8 +148,20 @@ export function PaymentSuccessPage() {
       <VStack gap="x6" alignItems="stretch">
         <ResultSection
           asset={<ResultEmoji emoji="🎉" />}
-          title="결제가 완료되었습니다"
-          description="주문이 정상적으로 접수되었습니다."
+          title={
+            confirmedRepairMethod === "pickup"
+              ? "방문 수거 신청이 완료되었습니다"
+              : confirmedRepairMethod === "direct"
+                ? "수선 접수가 완료되었습니다"
+                : "결제가 완료되었습니다"
+          }
+          description={
+            confirmedRepairMethod === "pickup"
+              ? "기사님이 입력한 수거지에 방문할 예정입니다."
+              : confirmedRepairMethod === "direct"
+                ? "수선품을 직접 발송한 뒤 송장 정보를 등록해 주세요."
+                : "주문이 정상적으로 접수되었습니다."
+          }
         />
         <VStack gap="x2" align="center">
           <Box

@@ -114,6 +114,16 @@ export const zAffectedResponse = z.object({
 });
 
 /**
+ * AutomaticReform
+ */
+export const zAutomaticReform = z.object({
+    dimple: z.boolean().optional().default(false),
+    mechanism: z.enum(['zipper', 'string']),
+    turn_knot: z.boolean().optional().default(false),
+    wearer_height_cm: z.number().gt(0)
+});
+
+/**
  * BatchResult
  */
 export const zBatchResult = z.object({
@@ -121,30 +131,10 @@ export const zBatchResult = z.object({
 });
 
 /**
- * CartItemIn
- */
-export const zCartItemIn = z.object({
-    applied_user_coupon_id: z.uuid().nullish(),
-    item_id: z.string(),
-    item_type: z.enum(['product', 'reform']),
-    product_id: z.int().nullish(),
-    quantity: z.int(),
-    reform_data: z.record(z.string(), z.unknown()).nullish(),
-    selected_option_id: z.string().nullish()
-});
-
-/**
  * CartRemoveRequest
  */
 export const zCartRemoveRequest = z.object({
     item_ids: z.array(z.string())
-});
-
-/**
- * CartReplaceRequest
- */
-export const zCartReplaceRequest = z.object({
-    items: z.array(zCartItemIn)
 });
 
 /**
@@ -532,19 +522,6 @@ export const zOrderCreateResponse = z.object({
 });
 
 /**
- * OrderItemIn
- */
-export const zOrderItemIn = z.object({
-    applied_user_coupon_id: z.uuid().nullish(),
-    item_id: z.string(),
-    item_type: z.enum(['product', 'reform']),
-    product_id: z.int().nullish(),
-    quantity: z.int(),
-    reform_data: z.record(z.string(), z.unknown()).nullish(),
-    selected_option_id: z.string().nullish()
-});
-
-/**
  * OrderItemOut
  */
 export const zOrderItemOut = z.object({
@@ -816,6 +793,21 @@ export const zQuoteOut = z.object({
 });
 
 /**
+ * ReadUrlRequest
+ */
+export const zReadUrlRequest = z.object({
+    claim_token: z.string().nullish(),
+    object_key: z.string()
+});
+
+/**
+ * ReadUrlResponse
+ */
+export const zReadUrlResponse = z.object({
+    read_url: z.string()
+});
+
+/**
  * ReferenceImageIn
  */
 export const zReferenceImageIn = z.object({
@@ -847,6 +839,64 @@ export const zQuoteCreateRequest = z.object({
     quantity: z.int(),
     reference_images: z.array(zReferenceImageIn).optional().default([]),
     shipping_address_id: z.uuid()
+});
+
+/**
+ * ReformImageIn
+ */
+export const zReformImageIn = z.object({
+    claim_token: z.string().nullish(),
+    object_key: z.string().min(1)
+});
+
+/**
+ * ReformImageOut
+ */
+export const zReformImageOut = z.object({
+    object_key: z.string()
+});
+
+/**
+ * ReformPricingOut
+ */
+export const zReformPricingOut = z.object({
+    automatic_combined_cost: z.int(),
+    automatic_cost: z.int(),
+    pickup_fee: z.int(),
+    restoration_cost: z.int(),
+    shipping_cost: z.int(),
+    width_cost: z.int(),
+    width_restoration_cost: z.int()
+});
+
+/**
+ * ReformUploadCompleteRequest
+ */
+export const zReformUploadCompleteRequest = z.object({
+    claim_token: z.string().nullish(),
+    object_key: z.string(),
+    size_bytes: z.int().gt(0).lte(10485760)
+});
+
+/**
+ * ReformUploadUrlRequest
+ */
+export const zReformUploadUrlRequest = z.object({
+    content_type: z.string(),
+    filename: z.string(),
+    size_bytes: z.int().gt(0).lte(10485760)
+});
+
+/**
+ * ReformUploadUrlResponse
+ */
+export const zReformUploadUrlResponse = z.object({
+    claim_token: z.string().nullable(),
+    expires_at: z.iso.datetime(),
+    object_key: z.string(),
+    required_headers: z.record(z.string(), z.string()),
+    upload_required: z.boolean(),
+    upload_url: z.string()
 });
 
 /**
@@ -902,21 +952,19 @@ export const zRepairShippingIn = z.object({
 });
 
 /**
- * OrderCreateRequest
- */
-export const zOrderCreateRequest = z.object({
-    items: z.array(zOrderItemIn),
-    repair_shipping: zRepairShippingIn.nullish(),
-    shipping_address_id: z.uuid()
-});
-
-/**
  * RepairTrackingRequest
  */
 export const zRepairTrackingRequest = z.object({
     courier_company: z.string(),
     photos: z.array(zRepairPhotoIn).optional().default([]),
     tracking_number: z.string()
+});
+
+/**
+ * RestorationReform
+ */
+export const zRestorationReform = z.object({
+    memo: z.string().max(200).optional().default('')
 });
 
 /**
@@ -1071,7 +1119,6 @@ export const zUploadUrlRequest = z.object({
     content_type: z.string(),
     filename: z.string(),
     kind: z.enum([
-        'reform_upload',
         'repair_shipping_upload',
         'custom_order',
         'sample_order',
@@ -1101,19 +1148,6 @@ export const zUserCouponOut = z.object({
 });
 
 /**
- * CartItemOut
- */
-export const zCartItemOut = z.object({
-    applied_coupon: zUserCouponOut.nullable(),
-    item_id: z.string(),
-    item_type: z.string(),
-    product: zProductOut.nullable(),
-    quantity: z.int(),
-    reform_data: z.record(z.string(), z.unknown()).nullable(),
-    selected_option: zProductOptionOut.nullable()
-});
-
-/**
  * ValidationError
  */
 export const zValidationError = z.object({
@@ -1139,6 +1173,103 @@ export const zWebhookResult = z.object({
     handled: z.boolean(),
     orders: z.int().nullish(),
     reason: z.string().nullish()
+});
+
+/**
+ * WidthReform
+ */
+export const zWidthReform = z.object({
+    target_width_cm: z.number().gt(0)
+});
+
+/**
+ * ReformTieIn
+ */
+export const zReformTieIn = z.object({
+    automatic: zAutomaticReform.nullish(),
+    image: zReformImageIn,
+    restoration: zRestorationReform.nullish(),
+    width: zWidthReform.nullish()
+});
+
+/**
+ * ReformDataIn
+ */
+export const zReformDataIn = z.object({
+    tie: zReformTieIn
+});
+
+/**
+ * CartItemIn
+ */
+export const zCartItemIn = z.object({
+    applied_user_coupon_id: z.uuid().nullish(),
+    item_id: z.string(),
+    item_type: z.enum(['product', 'reform']),
+    product_id: z.int().nullish(),
+    quantity: z.int(),
+    reform_data: zReformDataIn.nullish(),
+    selected_option_id: z.string().nullish()
+});
+
+/**
+ * CartReplaceRequest
+ */
+export const zCartReplaceRequest = z.object({
+    items: z.array(zCartItemIn)
+});
+
+/**
+ * OrderItemIn
+ */
+export const zOrderItemIn = z.object({
+    applied_user_coupon_id: z.uuid().nullish(),
+    item_id: z.string(),
+    item_type: z.enum(['product', 'reform']),
+    product_id: z.int().nullish(),
+    quantity: z.int(),
+    reform_data: zReformDataIn.nullish(),
+    selected_option_id: z.string().nullish()
+});
+
+/**
+ * OrderCreateRequest
+ */
+export const zOrderCreateRequest = z.object({
+    items: z.array(zOrderItemIn),
+    repair_shipping: zRepairShippingIn.nullish(),
+    shipping_address_id: z.uuid()
+});
+
+/**
+ * ReformTieOut
+ */
+export const zReformTieOut = z.object({
+    automatic: zAutomaticReform.nullish(),
+    image: zReformImageOut,
+    restoration: zRestorationReform.nullish(),
+    width: zWidthReform.nullish()
+});
+
+/**
+ * ReformDataOut
+ */
+export const zReformDataOut = z.object({
+    cost: z.int(),
+    tie: zReformTieOut
+});
+
+/**
+ * CartItemOut
+ */
+export const zCartItemOut = z.object({
+    applied_coupon: zUserCouponOut.nullable(),
+    item_id: z.string(),
+    item_type: z.string(),
+    product: zProductOut.nullable(),
+    quantity: z.int(),
+    reform_data: zReformDataOut.nullable(),
+    selected_option: zProductOptionOut.nullable()
 });
 
 /**
@@ -1620,7 +1751,21 @@ export const zAppendDesignTurnResponse = zDesignTurnOut;
  */
 export const zHealthzResponse = z.record(z.string(), z.string());
 
-export const zRegisterReformUploadBody = zUploadRegisterRequest;
+export const zCreateReadUrlBody = zReadUrlRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateReadUrlResponse = zReadUrlResponse;
+
+export const zCreateReformUploadUrlBody = zReformUploadUrlRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateReformUploadUrlResponse = zReformUploadUrlResponse;
+
+export const zRegisterReformUploadBody = zReformUploadCompleteRequest;
 
 /**
  * Successful Response
@@ -1862,6 +2007,11 @@ export const zGetQuotePath = z.object({
  * Successful Response
  */
 export const zGetQuoteResponse = zQuoteOut;
+
+/**
+ * Successful Response
+ */
+export const zGetReformPricingResponse = zReformPricingOut;
 
 /**
  * Successful Response

@@ -11,13 +11,18 @@ import {
   TextField,
   VStack,
 } from "@essesion/shared";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { domAnimation, LazyMotion, useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate, useLocation, useNavigate } from "react-router";
 
 import { AUTH_PROVIDERS, type AuthProviderId } from "@/features/auth";
+import {
+  saveAuthReturnIfEmpty,
+  takeAuthReturn,
+} from "@/features/auth/model/return-after-login";
+import { syncGuestCartToAccount } from "@/features/cart";
 import { API_BASE_URL } from "@/shared/config/env";
 import { useZodForm } from "@/shared/lib/form";
 import { useSession } from "@/shared/store/session";
@@ -28,6 +33,8 @@ const STAFF_REVEAL_CLICKS = 5;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
   const reducedMotion = useReducedMotion();
   const status = useSession((s) => s.status);
   const [titleClicks, setTitleClicks] = useState(0);
@@ -50,7 +57,19 @@ export function LoginPage() {
           return;
         }
         useSession.getState().setUser(me.data);
-        navigate("/", { replace: true });
+        const fallback = (location.state as { from?: unknown } | null)?.from;
+        const destination = takeAuthReturn() ?? {
+          path: typeof fallback === "string" ? fallback : "/",
+        };
+        try {
+          await syncGuestCartToAccount(queryClient);
+          navigate(destination.path, {
+            replace: true,
+            state: destination.state,
+          });
+        } catch {
+          navigate("/cart", { replace: true });
+        }
       } catch {
         useSession.getState().clear();
       }
@@ -61,6 +80,10 @@ export function LoginPage() {
   if (status === "authenticated") return <Navigate to="/" replace />;
 
   const startOAuth = (provider: AuthProviderId) => {
+    const fallback = (location.state as { from?: unknown } | null)?.from;
+    saveAuthReturnIfEmpty({
+      path: typeof fallback === "string" ? fallback : "/",
+    });
     // OAuth는 SDK가 아니라 전체 페이지 이동 — api가 콜백에서 refresh 쿠키를 심는다.
     window.location.href = `${API_BASE_URL}/auth/${provider}/login`;
   };

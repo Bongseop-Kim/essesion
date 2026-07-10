@@ -74,10 +74,16 @@ export type {
   HeaderProps,
 } from "./components/header";
 export { Header } from "./components/header";
+export type {
+  HelpBubbleContentProps,
+  HelpBubbleTriggerProps,
+} from "./components/help-bubble";
+export { HelpBubbleTrigger } from "./components/help-bubble";
 export type { IconProps } from "./components/icon";
 export { Icon } from "./components/icon";
 export type { ImageFrameProps } from "./components/image-frame";
 export { ImageFrame } from "./components/image-frame";
+export type { HelpBubblePlacement } from "./components/internal/help-bubble-position";
 export type { LayoutContentProps } from "./components/layout";
 export { Layout, LayoutContent } from "./components/layout";
 export type {

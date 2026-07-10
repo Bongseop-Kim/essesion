@@ -5,8 +5,10 @@ export {
   cartItemToInput,
   productUnitPrice,
   selectedOption,
+  upsertReformCartItems,
 } from "./model/items";
 export {
+  syncGuestCartToAccount,
   useCartActions,
   useCartAuthSync,
   useCartItems,

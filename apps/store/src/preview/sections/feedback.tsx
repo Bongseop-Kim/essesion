@@ -1,6 +1,7 @@
 import {
   ActionButton,
   Callout,
+  HelpBubbleTrigger,
   HStack,
   Icon,
   PageBanner,
@@ -102,6 +103,27 @@ export function FeedbackSection() {
             onDismiss={() => {}}
           />
         </VStack>
+      </SubSection>
+
+      <SubSection title="HelpBubble — 클릭형 보조 정보">
+        <HelpBubbleTrigger
+          defaultOpen
+          title="입력 전 확인"
+          description={
+            "사진은 한 장만 선택할 수 있습니다.\n필수 입력을 확인해 주세요."
+          }
+          placement="bottom"
+          contentProps={{ style: { maxWidth: 280 } }}
+        >
+          <ActionButton
+            variant="ghost"
+            size="xsmall"
+            iconOnly
+            aria-label="입력 도움말"
+          >
+            <Icon svg={<InformationCircleIcon />} size={18} />
+          </ActionButton>
+        </HelpBubbleTrigger>
       </SubSection>
 
       <SubSection title="PageBanner — weak · solid">

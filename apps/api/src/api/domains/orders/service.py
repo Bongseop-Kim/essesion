@@ -36,6 +36,8 @@ from api.domains.orders.schemas import (
     SampleOrderCreateRequest,
 )
 from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
+from api.domains.reform.schemas import ReformPricingOut
+from api.domains.reform.service import claim_reform_image, get_reform_pricing, reform_snapshot
 from api.errors import DomainError, ForbiddenError, NotFoundError
 from api.numbering import generate_number
 from api.pricing import get_pricing_constants
@@ -291,17 +293,6 @@ async def _deduct_stock(session: AsyncSession, item: OrderItemIn) -> int:
     return product.price
 
 
-def _reform_unit_price(reform_data: dict, constants: dict[str, int]) -> int:
-    tie = reform_data.get("tie") or {}
-    has_length = tie.get("hasLengthReform", True)
-    has_width = tie.get("hasWidthReform", False)
-    if not has_length and not has_width:
-        raise DomainError("At least one reform service must be selected", code="invalid_reform")
-    return (constants["REFORM_BASE_COST"] if has_length else 0) + (
-        constants["REFORM_WIDTH_COST"] if has_width else 0
-    )
-
-
 async def create_order(session: AsyncSession, user: User, body: OrderCreateRequest) -> dict:
     if not body.items:
         raise DomainError("Order items are required", code="items_required")
@@ -314,7 +305,7 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
     product_lines: list[_Line] = []
     reform_lines: list[_Line] = []
     used_coupons: set[uuid.UUID] = set()
-    reform_constants: dict[str, int] | None = None
+    reform_pricing: ReformPricingOut | None = None
 
     for item in body.items:
         if not item.item_id:
@@ -331,15 +322,17 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         else:
             if item.reform_data is None:
                 raise DomainError("Reform data is required", code="invalid_item")
-            if reform_constants is None:
-                reform_constants = await get_pricing_constants(
-                    session, ["REFORM_BASE_COST", "REFORM_WIDTH_COST", "REFORM_SHIPPING_COST"]
-                )
-            unit_price = _reform_unit_price(item.reform_data, reform_constants)
+            if item.quantity != 1:
+                raise DomainError("Reform item quantity must be one", code="invalid_quantity")
+            if reform_pricing is None:
+                reform_pricing = await get_reform_pricing(session)
+            await claim_reform_image(session, user.id, item.reform_data.tie.image)
+            snapshot = reform_snapshot(item.reform_data, reform_pricing)
+            unit_price = snapshot.cost
             line = _Line(
                 item=item,
                 unit_price=unit_price,
-                reform_data={**item.reform_data, "cost": unit_price},
+                reform_data=snapshot.model_dump(),
             )
             reform_lines.append(line)
 
@@ -369,8 +362,8 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         )
 
     if reform_lines:
-        assert reform_constants is not None
-        shipping_cost = reform_constants["REFORM_SHIPPING_COST"]
+        assert reform_pricing is not None
+        shipping_cost = reform_pricing.shipping_cost
         pickup_fee = 0
         pickup = body.repair_shipping.pickup if body.repair_shipping else None
         if method == "pickup":
@@ -384,9 +377,7 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
                 raise DomainError(
                     "Pickup recipient name, phone and address are required", code="invalid_pickup"
                 )
-            pickup_fee = (await get_pricing_constants(session, ["REFORM_PICKUP_FEE"]))[
-                "REFORM_PICKUP_FEE"
-            ]
+            pickup_fee = reform_pricing.pickup_fee
         order = await _create_group_order(
             session,
             user,
@@ -476,11 +467,10 @@ async def _relink_reform_images(
 ) -> None:
     for line in lines:
         tie = (line.reform_data or {}).get("tie") or {}
-        image, file_key = tie.get("image"), tie.get("fileId")
-        if not image:
-            continue
+        image = tie.get("image") or {}
+        file_key = image.get("object_key")
         if not file_key:
-            raise DomainError("Reform image file id is required", code="invalid_reform_image")
+            raise DomainError("수선 사진이 필요합니다", code="invalid_reform_image")
         moved = await _relink_images(
             session, user.id, "reform_upload", file_key, "reform", str(order.id)
         )

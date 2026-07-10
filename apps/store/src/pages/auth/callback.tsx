@@ -1,8 +1,11 @@
 import { Flex, ProgressCircle, snackbar, Text } from "@essesion/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
 import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
+import { takeAuthReturn } from "@/features/auth/model/return-after-login";
+import { syncGuestCartToAccount } from "@/features/cart";
 
 /**
  * OAuth 콜백 착지점. api가 refresh 쿠키를 심고 이 경로로 리다이렉트한다.
@@ -10,6 +13,7 @@ import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
  */
 export function AuthCallbackPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let cancelled = false;
@@ -21,7 +25,16 @@ export function AuthCallbackPage() {
         navigate("/login", { replace: true });
         return;
       }
-      navigate("/", { replace: true });
+      const destination = takeAuthReturn() ?? { path: "/" };
+      try {
+        await syncGuestCartToAccount(queryClient);
+        navigate(destination.path, {
+          replace: true,
+          state: destination.state,
+        });
+      } catch {
+        navigate("/cart", { replace: true });
+      }
     })().catch(() => {
       if (cancelled) return;
       snackbar("로그인 처리 중 오류가 발생했습니다.");
@@ -30,7 +43,7 @@ export function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, queryClient]);
 
   return (
     <Flex direction="column" align="center" gap="x4" py="x10">

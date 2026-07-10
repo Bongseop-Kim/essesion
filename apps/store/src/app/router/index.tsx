@@ -52,6 +52,12 @@ export const router = createBrowserRouter([
           Component: (await import("@/pages/cart")).CartPage,
         }),
       },
+      {
+        path: "reform",
+        lazy: async () => ({
+          Component: (await import("@/pages/reform")).ReformPage,
+        }),
+      },
       ...previewRoutes,
       {
         element: <ProtectedRoute />,

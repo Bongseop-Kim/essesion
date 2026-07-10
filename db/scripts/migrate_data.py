@@ -17,6 +17,7 @@ DSN은 asyncpg 원형(postgresql://) — SQLAlchemy의 postgresql+asyncpg:// URL
 import argparse
 import asyncio
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
@@ -117,13 +118,47 @@ async def migrate_coupons(old: asyncpg.Connection, new: asyncpg.Connection) -> N
 
 
 async def migrate_pricing_constants(old: asyncpg.Connection, new: asyncpg.Connection) -> None:
-    await _copy_rows(
-        old,
-        new,
-        "pricing_constants",
-        ["key", "amount", "category", "updated_at", "updated_by"],
-        transform=_null_updated_by,
+    existing = await new.fetchval("SELECT count(*) FROM pricing_constants")
+    if existing:
+        raise SystemExit(
+            f"pricing_constants: 대상에 이미 {existing}행 존재 — clean-target 전제 위반"
+        )
+
+    columns = ["key", "amount", "category", "updated_at", "updated_by"]
+    rows = [
+        _null_updated_by(dict(row))
+        for row in await old.fetch(
+            "SELECT key, amount, category, updated_at, updated_by FROM pricing_constants"
+        )
+    ]
+    old_reform = {row["key"]: row["amount"] for row in rows if row["category"] == "reform"}
+    rows = [row for row in rows if row["category"] != "reform"]
+    now = datetime.now(UTC)
+    reform_prices = {
+        "REFORM_AUTOMATIC_COST": 16000,
+        "REFORM_WIDTH_COST": 30000,
+        "REFORM_RESTORATION_COST": 30000,
+        "REFORM_AUTOMATIC_COMBINED_COST": 40000,
+        "REFORM_WIDTH_RESTORATION_COST": 30000,
+        "REFORM_SHIPPING_COST": old_reform.get("REFORM_SHIPPING_COST", 4500),
+        "REFORM_PICKUP_FEE": old_reform.get("REFORM_PICKUP_FEE", 5000),
+    }
+    rows.extend(
+        {
+            "key": key,
+            "amount": amount,
+            "category": "reform",
+            "updated_at": now,
+            "updated_by": None,
+        }
+        for key, amount in reform_prices.items()
     )
+    await new.executemany(
+        "INSERT INTO pricing_constants (key, amount, category, updated_at, updated_by) "
+        "VALUES ($1, $2, $3, $4, $5)",
+        [tuple(row[column] for column in columns) for row in rows],
+    )
+    print(f"  pricing_constants: {len(rows)}행 이관")
 
 
 async def migrate_admin_settings(old: asyncpg.Connection, new: asyncpg.Connection) -> None:

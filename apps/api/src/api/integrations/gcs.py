@@ -6,6 +6,7 @@
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Protocol
 
@@ -19,28 +20,58 @@ UPLOAD_URL_TTL = timedelta(minutes=15)
 READ_URL_TTL = timedelta(minutes=15)
 
 
+@dataclass(frozen=True)
+class GcsObjectMetadata:
+    size_bytes: int
+    content_type: str | None
+
+
 class GcsClient(Protocol):
-    async def signed_upload_url(self, object_key: str, content_type: str) -> str: ...
+    upload_required: bool
+
+    async def signed_upload_url(
+        self,
+        object_key: str,
+        content_type: str,
+        *,
+        max_size_bytes: int | None = None,
+    ) -> str: ...
 
     async def signed_read_url(self, object_key: str) -> str: ...
 
     async def delete_object(self, object_key: str) -> bool: ...
 
+    async def object_metadata(self, object_key: str) -> GcsObjectMetadata | None: ...
+
 
 class RealGcsClient:
+    upload_required = True
+
     def __init__(self, bucket_name: str):
         from google.cloud import storage
 
         self._bucket = storage.Client().bucket(bucket_name)
 
-    async def signed_upload_url(self, object_key: str, content_type: str) -> str:
+    async def signed_upload_url(
+        self,
+        object_key: str,
+        content_type: str,
+        *,
+        max_size_bytes: int | None = None,
+    ) -> str:
         blob = self._bucket.blob(object_key)
+        headers = (
+            {"x-goog-content-length-range": f"1,{max_size_bytes}"}
+            if max_size_bytes is not None
+            else {}
+        )
         return await run_in_threadpool(
             blob.generate_signed_url,
             version="v4",
             expiration=UPLOAD_URL_TTL,
             method="PUT",
             content_type=content_type,
+            headers=headers,
         )
 
     async def signed_read_url(self, object_key: str) -> str:
@@ -68,12 +99,35 @@ class RealGcsClient:
             logger.exception("GCS 삭제 실패: %s", object_key)
             return False
 
+    async def object_metadata(self, object_key: str) -> GcsObjectMetadata | None:
+        from google.cloud.exceptions import NotFound
+
+        def _load() -> GcsObjectMetadata | None:
+            blob = self._bucket.blob(object_key)
+            try:
+                blob.reload()
+            except NotFound:
+                return None
+            return GcsObjectMetadata(
+                size_bytes=int(blob.size or 0), content_type=blob.content_type
+            )
+
+        return await run_in_threadpool(_load)
+
 
 class DryRunGcsClient:
+    upload_required = False
+
     def __init__(self) -> None:
         self.deleted: list[str] = []
 
-    async def signed_upload_url(self, object_key: str, content_type: str) -> str:
+    async def signed_upload_url(
+        self,
+        object_key: str,
+        content_type: str,
+        *,
+        max_size_bytes: int | None = None,
+    ) -> str:
         logger.info("DRYRUN gcs signed url: %s (%s)", object_key, content_type)
         return f"https://storage.googleapis.example/dry-run/{object_key}"
 
@@ -85,6 +139,9 @@ class DryRunGcsClient:
         logger.info("DRYRUN gcs delete: %s", object_key)
         self.deleted.append(object_key)
         return True
+
+    async def object_metadata(self, object_key: str) -> GcsObjectMetadata | None:
+        return None
 
 
 def build_gcs_client(settings: Settings) -> GcsClient:

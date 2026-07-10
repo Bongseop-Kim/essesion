@@ -1,10 +1,13 @@
 import type {
   CartItemIn,
   ProductOut,
+  ReformPricingOut,
   UserCouponOut,
 } from "@essesion/api-client";
+import { createReadUrl } from "@essesion/api-client";
 import {
   getProductOptions,
+  getReformPricingOptions,
   listMyCouponsOptions,
 } from "@essesion/api-client/query";
 import {
@@ -37,7 +40,7 @@ import {
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-
+import { useAuthGuard } from "@/features/auth";
 import {
   productUnitPrice,
   selectedOption,
@@ -49,6 +52,14 @@ import {
   couponDiscount,
   couponLabel,
 } from "@/features/coupon";
+import {
+  calculateReformDataCost,
+  ReformSettingsModal,
+  type ReformSettingsValues,
+  reformDataFromForm,
+  reformFormFromData,
+  reformServiceLabel,
+} from "@/features/reform";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -56,7 +67,9 @@ import { ContentLayout } from "@/shared/ui/content-layout";
 type CartViewItem = {
   input: CartItemIn;
   product: ProductOut | null;
+  reformCost: number | null;
   appliedCoupon: UserCouponOut | null;
+  imageUrl: string | null;
   unavailable: boolean;
 };
 
@@ -65,11 +78,15 @@ export function CartPage() {
   const location = useLocation();
   const sessionStatus = useSession((state) => state.status);
   const isAuthed = sessionStatus === "authenticated";
+  const { requireAuth } = useAuthGuard();
   const cart = useCartItems();
   const cartActions = useCartActions();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [couponItemId, setCouponItemId] = useState<string | null>(null);
   const [optionItemId, setOptionItemId] = useState<string | null>(null);
+  const [reformOptionItemId, setReformOptionItemId] = useState<string | null>(
+    null,
+  );
   const [deleteTarget, setDeleteTarget] = useState<{
     ids: string[];
     title: string;
@@ -100,6 +117,49 @@ export function CartPage() {
     });
     return products;
   }, [productQueries]);
+  const reformItems = useMemo(
+    () =>
+      cart.inputs.filter(
+        (item) => item.item_type === "reform" && item.reform_data,
+      ),
+    [cart.inputs],
+  );
+  const reformPricingQuery = useQuery({
+    ...getReformPricingOptions(),
+    enabled: reformItems.length > 0,
+  });
+  const reformImageQueries = useQueries({
+    queries: reformItems.map((item) => ({
+      queryKey: [
+        "reform-image",
+        item.reform_data?.tie.image.object_key,
+        item.reform_data?.tie.image.claim_token,
+      ],
+      queryFn: async () => {
+        if (!item.reform_data) throw new Error("수선 이미지 정보가 없습니다.");
+        const response = await createReadUrl({
+          body: {
+            object_key: item.reform_data.tie.image.object_key,
+            claim_token: item.reform_data.tie.image.claim_token,
+          },
+        });
+        if (!response.data)
+          throw new Error("수선 이미지를 불러오지 못했습니다.");
+        return response.data.read_url;
+      },
+      staleTime: 10 * 60 * 1000,
+    })),
+  });
+  const reformImages = useMemo(
+    () =>
+      new Map(
+        reformItems.flatMap((item, index) => {
+          const url = reformImageQueries[index]?.data;
+          return url ? [[item.item_id, url] as const] : [];
+        }),
+      ),
+    [reformImageQueries, reformItems],
+  );
 
   const couponsQuery = useQuery({
     ...listMyCouponsOptions({ query: { active_only: true } }),
@@ -125,14 +185,36 @@ export function CartPage() {
             (coupon) => coupon.id === input.applied_user_coupon_id,
           ) ??
           null;
+        const reformCost =
+          input.item_type === "reform"
+            ? (serverItem?.reform_data?.cost ??
+              (input.reform_data && reformPricingQuery.data
+                ? calculateReformDataCost(
+                    input.reform_data,
+                    reformPricingQuery.data,
+                  )
+                : null))
+            : null;
         return {
           input,
           product,
+          reformCost,
           appliedCoupon,
-          unavailable: input.item_type === "product" && !product,
+          imageUrl: reformImages.get(input.item_id) ?? null,
+          unavailable:
+            (input.item_type === "product" && !product) ||
+            (input.item_type === "reform" &&
+              (reformCost == null || !reformPricingQuery.data)),
         };
       }),
-    [cart.inputs, cart.serverItems, coupons, productsById],
+    [
+      cart.inputs,
+      cart.serverItems,
+      coupons,
+      productsById,
+      reformImages,
+      reformPricingQuery.data,
+    ],
   );
 
   const itemIds = useMemo(
@@ -160,7 +242,10 @@ export function CartPage() {
     () => items.filter((item) => selectedIds.includes(item.input.item_id)),
     [items, selectedIds],
   );
-  const totals = useMemo(() => calculateTotals(selectedItems), [selectedItems]);
+  const totals = useMemo(
+    () => calculateTotals(selectedItems, reformPricingQuery.data),
+    [reformPricingQuery.data, selectedItems],
+  );
   const couponItem = useMemo(
     () => items.find((item) => item.input.item_id === couponItemId) ?? null,
     [couponItemId, items],
@@ -169,13 +254,26 @@ export function CartPage() {
     () => items.find((item) => item.input.item_id === optionItemId) ?? null,
     [items, optionItemId],
   );
+  const reformOptionItem = useMemo(
+    () =>
+      items.find((item) => item.input.item_id === reformOptionItemId) ?? null,
+    [items, reformOptionItemId],
+  );
+  const reformOptionInitialValues = useMemo(() => {
+    const data = reformOptionItem?.input.reform_data;
+    if (!data || !reformOptionItem) return null;
+    const tie = reformFormFromData(reformOptionItem.input.item_id, data);
+    return reformSettingsFromTie(tie);
+  }, [reformOptionItem]);
   const isAllChecked =
     itemIds.length > 0 && selectedIds.length === itemIds.length;
   const isPartiallyChecked =
     selectedIds.length > 0 && selectedIds.length < itemIds.length;
   const productLoading =
     productQueries.some((query) => query.isPending) && items.length > 0;
-  const showLoading = cart.isPending || productLoading;
+  const reformPricingLoading =
+    reformItems.length > 0 && reformPricingQuery.isPending;
+  const showLoading = cart.isPending || productLoading || reformPricingLoading;
 
   const toggleAll = (checked: boolean) => {
     setSelectedIds(checked ? itemIds : []);
@@ -206,8 +304,16 @@ export function CartPage() {
       snackbar("주문할 상품을 선택해 주세요.");
       return;
     }
-    if (!isAuthed) {
-      navigate("/login", { state: { from: location.pathname } });
+    if (selectedItems.some((item) => item.unavailable)) {
+      snackbar("확인이 필요한 항목을 수정해 주세요.");
+      return;
+    }
+    if (
+      !requireAuth({
+        path: "/order/order-form",
+        state: { cartItemIds: selectedIds },
+      })
+    ) {
       return;
     }
     navigate("/order/order-form", { state: { cartItemIds: selectedIds } });
@@ -313,18 +419,18 @@ export function CartPage() {
                   }
                   onOptionChange={() => {
                     if (item.input.item_type !== "product") {
-                      snackbar("수선 옵션 변경은 수선 화면에서 연결됩니다.");
+                      setReformOptionItemId(item.input.item_id);
                       return;
                     }
                     setOptionItemId(item.input.item_id);
                   }}
                   onCouponChange={() => {
-                    if (!isAuthed) {
-                      navigate("/login", {
-                        state: { from: location.pathname },
-                      });
+                    if (
+                      !requireAuth({
+                        path: `${location.pathname}${location.search}`,
+                      })
+                    )
                       return;
-                    }
                     setCouponItemId(item.input.item_id);
                   }}
                   onRemove={() =>
@@ -387,6 +493,33 @@ export function CartPage() {
           }
         }}
       />
+
+      {reformOptionItem?.input.reform_data && reformOptionInitialValues ? (
+        <ReformSettingsModal
+          open
+          title="수선 옵션 변경"
+          description="사진과 쿠폰은 유지하고 수선 옵션만 변경합니다."
+          initialValues={reformOptionInitialValues}
+          onOpenChange={(open) => {
+            if (!open) setReformOptionItemId(null);
+          }}
+          onApply={async (values) => {
+            const data = reformOptionItem.input.reform_data;
+            if (!data) return;
+            const tie = reformFormFromData(
+              reformOptionItem.input.item_id,
+              data,
+            );
+            await cartActions.upsertReforms([
+              {
+                itemId: reformOptionItem.input.item_id,
+                reformData: reformDataFromForm({ ...tie, ...values }),
+              },
+            ]);
+            snackbar("수선 옵션을 변경했습니다.");
+          }}
+        />
+      ) : null}
 
       <AlertDialog
         open={deleteTarget != null}
@@ -473,7 +606,7 @@ function CartItemCard({
   const hasOptions = productOptions.length > 0;
   const unitPrice = product
     ? productUnitPrice(product, option)
-    : reformCost(item);
+    : (item.reformCost ?? 0);
   const linePrice = unitPrice * item.input.quantity;
   const discount = couponDiscount(item.appliedCoupon?.coupon, linePrice);
   const discountedPrice = Math.max(0, linePrice - discount);
@@ -499,11 +632,11 @@ function CartItemCard({
         </Box>
         <VStack gap="x4" alignItems="stretch">
           <Grid templateColumns="6rem minmax(0, 1fr)" gap="x4">
-            {product ? (
+            {product || item.imageUrl ? (
               <ImageFrame
                 ratio={1}
-                src={product.image}
-                alt={product.name}
+                src={product?.image ?? item.imageUrl ?? undefined}
+                alt={product?.name ?? "수선 넥타이"}
                 borderRadius="r2"
                 fit="cover"
                 stroke
@@ -536,8 +669,11 @@ function CartItemCard({
                     {product?.name ?? reformTitle(item)}
                   </Text>
                   <Text textStyle="caption" color="fg.neutral-muted">
-                    {option?.name ?? (hasOptions ? "옵션 확인 필요" : "FREE")} /{" "}
-                    {item.input.quantity}개
+                    {item.input.item_type === "reform"
+                      ? item.input.reform_data
+                        ? reformServiceLabel(item.input.reform_data)
+                        : "수선 옵션 확인 필요"
+                      : `${option?.name ?? (hasOptions ? "옵션 확인 필요" : "FREE")} / ${item.input.quantity}개`}
                   </Text>
                   <ItemPriceDisplay
                     basePrice={linePrice}
@@ -787,6 +923,7 @@ function CartSummary({
         value={`-₩${krw.format(totals.discount)}`}
         tone={totals.discount > 0 ? "informative" : "neutral"}
       />
+      <SummaryRow label="배송비" value={`₩${krw.format(totals.shipping)}`} />
       <Divider />
       <SummaryRow
         label="결제 예정 금액"
@@ -883,11 +1020,15 @@ function CartSkeleton() {
 type CartTotals = {
   subtotal: number;
   discount: number;
+  shipping: number;
   total: number;
 };
 
-function calculateTotals(items: CartViewItem[]): CartTotals {
-  return items.reduce<CartTotals>(
+function calculateTotals(
+  items: CartViewItem[],
+  reformPricing?: ReformPricingOut,
+): CartTotals {
+  const lines = items.reduce(
     (totals, item) => {
       const option = selectedOption(
         item.product,
@@ -895,7 +1036,7 @@ function calculateTotals(items: CartViewItem[]): CartTotals {
       );
       const unitPrice = item.product
         ? productUnitPrice(item.product, option)
-        : reformCost(item);
+        : (item.reformCost ?? 0);
       const linePrice = unitPrice * item.input.quantity;
       const discount = couponDiscount(item.appliedCoupon?.coupon, linePrice);
       return {
@@ -906,11 +1047,10 @@ function calculateTotals(items: CartViewItem[]): CartTotals {
     },
     { subtotal: 0, discount: 0, total: 0 },
   );
-}
-
-function reformCost(item: CartViewItem) {
-  const cost = item.input.reform_data?.cost;
-  return typeof cost === "number" ? cost : 0;
+  const shipping = items.some((item) => item.input.item_type === "reform")
+    ? (reformPricing?.shipping_cost ?? 0)
+    : 0;
+  return { ...lines, shipping, total: lines.total + shipping };
 }
 
 function reformTitle(item: CartViewItem) {
@@ -922,6 +1062,22 @@ function candidateLabel(option: { name: string; additional_price: number }) {
   return option.additional_price > 0
     ? `${option.name} (+₩${krw.format(option.additional_price)})`
     : option.name;
+}
+
+function reformSettingsFromTie(
+  tie: ReturnType<typeof reformFormFromData>,
+): ReformSettingsValues {
+  return {
+    automaticEnabled: tie.automaticEnabled,
+    mechanism: tie.mechanism,
+    wearerHeightCm: tie.wearerHeightCm,
+    dimple: tie.dimple,
+    turnKnot: tie.turnKnot,
+    widthEnabled: tie.widthEnabled,
+    targetWidthCm: tie.targetWidthCm,
+    restorationEnabled: tie.restorationEnabled,
+    restorationMemo: tie.restorationMemo,
+  };
 }
 
 function candidateDescription(option: { stock: number | null }) {

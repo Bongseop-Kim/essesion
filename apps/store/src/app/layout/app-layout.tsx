@@ -23,7 +23,7 @@ import {
 import type { ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
-import { LogoutButton } from "@/features/auth";
+import { AuthGuardProvider, LogoutButton } from "@/features/auth";
 import { useSession } from "@/shared/store/session";
 
 const STORE_NAV_ITEMS = [
@@ -228,24 +228,26 @@ export function AppLayout() {
   const isFocusedRoute = isPaymentResult || isLogin;
 
   return (
-    <Layout>
-      {isPaymentResult ? (
-        <Box display={{ base: "none", md: "block" }}>
+    <AuthGuardProvider>
+      <Layout>
+        {isPaymentResult ? (
+          <Box display={{ base: "none", md: "block" }}>
+            <StoreHeader />
+          </Box>
+        ) : (
           <StoreHeader />
+        )}
+        <Box
+          as="main"
+          flexGrow={1}
+          display={isFocusedRoute ? "flex" : undefined}
+          flexDirection={isFocusedRoute ? "column" : undefined}
+        >
+          <Outlet />
         </Box>
-      ) : (
-        <StoreHeader />
-      )}
-      <Box
-        as="main"
-        flexGrow={1}
-        display={isFocusedRoute ? "flex" : undefined}
-        flexDirection={isFocusedRoute ? "column" : undefined}
-      >
-        <Outlet />
-      </Box>
-      {isFocusedRoute ? null : <StoreFooter />}
-      <SnackbarHost />
-    </Layout>
+        {isFocusedRoute ? null : <StoreFooter />}
+        <SnackbarHost />
+      </Layout>
+    </AuthGuardProvider>
   );
 }

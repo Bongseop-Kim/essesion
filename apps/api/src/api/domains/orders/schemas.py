@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from api.domains.reform.schemas import ReformDataIn
+
 
 class OrderItemIn(BaseModel):
     item_id: str
@@ -11,7 +13,7 @@ class OrderItemIn(BaseModel):
     quantity: int
     product_id: int | None = None
     selected_option_id: str | None = None
-    reform_data: dict[str, Any] | None = None
+    reform_data: ReformDataIn | None = None
     applied_user_coupon_id: uuid.UUID | None = None
 
 

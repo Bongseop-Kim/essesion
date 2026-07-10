@@ -1,6 +1,9 @@
 """주문 생성 3종 — 수식·재고·쿠폰 규칙 검증 (docs/api-spec/money.md §2~§4)."""
 
+from datetime import UTC, datetime
+
 from db.models.commerce import Order, RepairPickupRequest, UserCoupon
+from db.models.images import Image
 from sqlalchemy import select
 
 from .factories import (
@@ -14,9 +17,12 @@ from .factories import (
 )
 
 REFORM_CONSTANTS = {
-    "REFORM_BASE_COST": 5000,
+    "REFORM_AUTOMATIC_COST": 5000,
     "REFORM_WIDTH_COST": 3000,
-    "REFORM_SHIPPING_COST": 3000,
+    "REFORM_RESTORATION_COST": 3000,
+    "REFORM_AUTOMATIC_COMBINED_COST": 8000,
+    "REFORM_WIDTH_RESTORATION_COST": 3000,
+    "REFORM_SHIPPING_COST": 4500,
     "REFORM_PICKUP_FEE": 5000,
 }
 
@@ -131,6 +137,19 @@ async def test_fixed_coupon_applies_once_per_line(client, db_session, settings):
 async def test_repair_order_with_pickup_splits_group(client, db_session, settings):
     user, address, product = await _setup(db_session)
     await seed_pricing(db_session, REFORM_CONSTANTS, category="reform")
+    object_key = "uploads/reform_upload/order-tie.png"
+    db_session.add(
+        Image(
+            object_key=object_key,
+            entity_type="reform_upload",
+            entity_id=object_key,
+            uploaded_by=user.id,
+            content_type="image/png",
+            size_bytes=100,
+            upload_completed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
 
     res = await client.post(
         "/orders",
@@ -142,7 +161,16 @@ async def test_repair_order_with_pickup_splits_group(client, db_session, setting
                     "item_id": "reform:1",
                     "item_type": "reform",
                     "quantity": 1,
-                    "reform_data": {"tie": {"hasLengthReform": True, "hasWidthReform": True}},
+                    "reform_data": {
+                        "tie": {
+                            "image": {"object_key": object_key},
+                            "automatic": {
+                                "mechanism": "zipper",
+                                "wearer_height_cm": 175,
+                            },
+                            "width": {"target_width_cm": 8},
+                        }
+                    },
                 },
             ],
             "repair_shipping": {
@@ -160,8 +188,8 @@ async def test_repair_order_with_pickup_splits_group(client, db_session, setting
     body = res.json()
     types = {o["order_type"] for o in body["orders"]}
     assert types == {"sale", "repair"}  # 같은 결제 그룹에 분리 생성
-    # repair 합계: (5000+3000) - 0 + 3000(배송) + 5000(수거) = 16000, sale 10000
-    assert body["total_amount"] == 26000
+    # repair 합계: (5000+3000) - 0 + 4500(배송) + 5000(수거) = 17500, sale 10000
+    assert body["total_amount"] == 27500
 
     repair_id = next(o["order_id"] for o in body["orders"] if o["order_type"] == "repair")
     pickup = await db_session.scalar(
@@ -171,6 +199,47 @@ async def test_repair_order_with_pickup_splits_group(client, db_session, setting
 
     orders = (await db_session.scalars(select(Order))).all()
     assert len({o.payment_group_id for o in orders}) == 1
+
+
+async def test_repair_order_rejects_quantity_above_one(client, db_session, settings):
+    user, address, _product = await _setup(db_session)
+    object_key = "uploads/reform_upload/order-quantity.png"
+    db_session.add(
+        Image(
+            object_key=object_key,
+            entity_type="reform_upload",
+            entity_id=object_key,
+            uploaded_by=user.id,
+            content_type="image/png",
+            size_bytes=100,
+            upload_completed_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+    response = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [
+                {
+                    "item_id": "reform:quantity",
+                    "item_type": "reform",
+                    "quantity": 2,
+                    "reform_data": {
+                        "tie": {
+                            "image": {"object_key": object_key},
+                            "restoration": {"memo": ""},
+                        }
+                    },
+                }
+            ],
+        },
+        headers=auth_headers(user, settings),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_quantity"
 
 
 async def test_custom_calculate_rules(client, db_session):

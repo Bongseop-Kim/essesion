@@ -15,7 +15,7 @@
 
 입력: 배송지 id, items[] `{item_id, item_type(product|reform), product_id, selected_option_id, reform_data, quantity, applied_user_coupon_id}`, repair_shipping `{method: direct|pickup, pickup:{recipient_name, recipient_phone, postal_code?, address, detail_address?}}`.
 
-검증: 아이템 최대 50개 / reform_data 개당 64KB / 배송지 본인 소유 / quantity>0 / product는 product_id 필수·존재 / reform은 reform_data 필수 + `hasLengthReform||hasWidthReform` / pickup은 reform 아이템 있어야 하고 수령인 3필드 필수.
+검증: 아이템 최대 50개 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity>0·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 돌려묶기 불가) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하 / pickup은 reform 아이템이 있어야 하고 수령인 3필드 필수.
 
 재고 (결제 전 물리 차감):
 - 옵션 선택 시 옵션 재고, 아니면 상품 재고. `FOR UPDATE` 후 `stock IS NOT NULL AND stock < qty`면 오류, 아니면 차감. **NULL = 무제한**.
@@ -23,7 +23,7 @@
 
 단가:
 - product: `products.price + coalesce(option.additional_price, 0)`
-- reform: `(hasLengthReform? REFORM_BASE_COST:0) + (hasWidthReform? REFORM_WIDTH_COST:0)` (기본 length=true, width=false). reform_data에 `cost` 주입.
+- reform: 자동 단독 `REFORM_AUTOMATIC_COST`(16,000), 폭 단독 `REFORM_WIDTH_COST`(30,000), 복원 단독 `REFORM_RESTORATION_COST`(30,000), 자동+폭/복원/둘 다 `REFORM_AUTOMATIC_COMBINED_COST`(40,000), 폭+복원 `REFORM_WIDTH_RESTORATION_COST`(30,000). 서버가 현재 상수로 계산해 reform_data에 `cost`를 주입한다.
 
 쿠폰 라인 할인 (아이템별):
 1. 같은 쿠폰은 주문(요청) 내 1회만.
@@ -35,7 +35,7 @@
 - sale: `shipping_cost=0` 고정(**무료배송 임계 없음**), total = original - discount.
 - repair: `shipping_cost=REFORM_SHIPPING_COST`, pickup이면 + `REFORM_PICKUP_FEE`(repair_pickup_requests에 스냅샷). total = original - discount + shipping + pickup_fee.
 - 둘 다 status='대기중'. order_items에 unit_price/discount_amount/line_discount_amount 기록.
-- reform 이미지 재연결: images에서 `entity_type='reform_upload' AND entity_id=fileId AND uploaded_by=본인` → `entity_type='reform', entity_id=order_id`로 UPDATE. 0건이면 오류.
+- reform 이미지 재연결: images에서 완료된 `entity_type='reform_upload' AND entity_id=object_key AND uploaded_by=본인` → `entity_type='reform', entity_id=order_id`로 UPDATE. 0건이면 오류.
 
 쿠폰 상태: 생성 시 `active→reserved`. confirm 시 `reserved→used`. unlock 시 `reserved→active`.
 

@@ -3,6 +3,7 @@ import type {
   CartItemOut,
   ProductOptionOut,
   ProductOut,
+  ReformDataIn,
   UserCouponOut,
 } from "@essesion/api-client";
 
@@ -21,12 +22,12 @@ export function cartItemToInput(item: CartItemOut): CartItemIn | null {
       applied_user_coupon_id: item.applied_coupon?.id ?? null,
     };
   }
-  if (item.item_type === "reform") {
+  if (item.item_type === "reform" && item.reform_data) {
     return {
       item_id: item.item_id,
       item_type: "reform",
       quantity: item.quantity,
-      reform_data: item.reform_data ?? {},
+      reform_data: { tie: item.reform_data.tie },
       applied_user_coupon_id: item.applied_coupon?.id ?? null,
     };
   }
@@ -65,6 +66,39 @@ export function addProductToCartItems({
   return items.map((item, index) =>
     index === existing ? { ...item, quantity: item.quantity + quantity } : item,
   );
+}
+
+export function upsertReformCartItems(
+  items: CartItemIn[],
+  reforms: Array<{ itemId: string; reformData: ReformDataIn }>,
+): CartItemIn[] {
+  const incoming = new Map(reforms.map((reform) => [reform.itemId, reform]));
+  const next = items.map((item) => {
+    const reform = incoming.get(item.item_id);
+    if (!reform) return item;
+    incoming.delete(item.item_id);
+    return {
+      item_id: reform.itemId,
+      item_type: "reform" as const,
+      quantity: 1,
+      product_id: null,
+      selected_option_id: null,
+      reform_data: reform.reformData,
+      applied_user_coupon_id: item.applied_user_coupon_id ?? null,
+    };
+  });
+  return [
+    ...next,
+    ...Array.from(incoming.values(), (reform) => ({
+      item_id: reform.itemId,
+      item_type: "reform" as const,
+      quantity: 1,
+      product_id: null,
+      selected_option_id: null,
+      reform_data: reform.reformData,
+      applied_user_coupon_id: null,
+    })),
+  ];
 }
 
 export function updateCartItemQuantity(

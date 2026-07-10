@@ -73,3 +73,12 @@ variable "worker_extra_env" {
   type        = map(string)
   default     = {}
 }
+
+variable "upload_cors_origins" {
+  description = "GCS 사용자 업로드를 허용할 store origin"
+  type        = list(string)
+  default = [
+    "http://localhost:3000",
+    "https://app.essesion.shop",
+  ]
+}

@@ -17,7 +17,11 @@ function isCartItemIn(value: unknown): value is CartItemIn {
   if (value.item_type === "product") {
     return typeof value.product_id === "number";
   }
-  return true;
+  if (!isObject(value.reform_data) || !isObject(value.reform_data.tie)) {
+    return false;
+  }
+  const image = value.reform_data.tie.image;
+  return isObject(image) && typeof image.object_key === "string";
 }
 
 function parseItems(raw: string | null): CartItemIn[] {

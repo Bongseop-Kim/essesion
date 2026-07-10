@@ -64,6 +64,18 @@ const RULES = [
     allowFile: (file) =>
       file.endsWith("packages/shared/src/components/scroll-fog.tsx"),
   },
+  {
+    name: "direct-login-navigation",
+    hint: "인증 필요 기능은 useAuthGuard/ProtectedRoute 확인 AlertDialog를 거친 뒤 이동",
+    regex: /\bnavigate\(\s*["']\/login["']|<Navigate\s+to=["']\/login["']/g,
+    allowFile: (file) =>
+      file.includes(
+        "apps/store/src/features/auth/ui/auth-guard-provider.tsx",
+      ) ||
+      file.includes("apps/store/src/pages/auth/") ||
+      file.endsWith("apps/store/src/app/layout/app-layout.tsx") ||
+      file.endsWith("apps/admin/src/app.tsx"),
+  },
 ];
 
 function collectFiles(dir) {
