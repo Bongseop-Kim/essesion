@@ -20,7 +20,6 @@ import {
   HStack,
   Icon,
   ImageFrame,
-  ProgressCircle,
   ResponsiveModal,
   SelectBox,
   SelectBoxItem,
@@ -40,13 +39,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import {
-  couponDiscount,
-  couponLabel,
   productUnitPrice,
   selectedOption,
   useCartActions,
   useCartItems,
 } from "@/features/cart";
+import {
+  CouponSelectModal,
+  couponDiscount,
+  couponLabel,
+} from "@/features/coupon";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -57,8 +59,6 @@ type CartViewItem = {
   appliedCoupon: UserCouponOut | null;
   unavailable: boolean;
 };
-
-const NONE_COUPON = "__none__";
 
 export function CartPage() {
   const navigate = useNavigate();
@@ -341,9 +341,9 @@ export function CartPage() {
         )}
       </VStack>
 
-      <CouponModal
-        item={couponItem}
+      <CouponSelectModal
         coupons={coupons}
+        selected={couponItem?.appliedCoupon ?? null}
         loading={couponsQuery.isFetching}
         error={couponsQuery.isError}
         open={couponItem != null}
@@ -762,92 +762,6 @@ function QuantityStepper({
   );
 }
 
-function CouponModal({
-  item,
-  coupons,
-  loading,
-  error,
-  open,
-  onOpenChange,
-  onApply,
-}: {
-  item: CartViewItem | null;
-  coupons: UserCouponOut[];
-  loading: boolean;
-  error: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onApply: (coupon: UserCouponOut | null) => Promise<void>;
-}) {
-  const [selectedCouponId, setSelectedCouponId] = useState(NONE_COUPON);
-  useEffect(() => {
-    setSelectedCouponId(item?.appliedCoupon?.id ?? NONE_COUPON);
-  }, [item]);
-
-  const selectedCoupon =
-    selectedCouponId === NONE_COUPON
-      ? null
-      : (coupons.find((coupon) => coupon.id === selectedCouponId) ?? null);
-
-  return (
-    <ResponsiveModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title="쿠폰 선택"
-      size="medium"
-      footer={
-        <HStack gap="x2">
-          <Box
-            as={ActionButton}
-            type="button"
-            variant="neutralOutline"
-            width="full"
-            onClick={() => onOpenChange(false)}
-          >
-            취소
-          </Box>
-          <Box
-            as={ActionButton}
-            type="button"
-            width="full"
-            disabled={loading || error}
-            onClick={() => void onApply(selectedCoupon)}
-          >
-            적용
-          </Box>
-        </HStack>
-      }
-    >
-      {loading ? (
-        <HStack justify="center" py="x6">
-          <ProgressCircle />
-        </HStack>
-      ) : error ? (
-        <ContentPlaceholder
-          title="쿠폰을 불러오지 못했습니다"
-          description="잠시 후 다시 시도해 주세요."
-        />
-      ) : (
-        <SelectBox
-          value={selectedCouponId}
-          onValueChange={(value) => setSelectedCouponId(String(value))}
-          aria-label="쿠폰"
-        >
-          <SelectBoxItem value={NONE_COUPON} label="쿠폰 사용 안 함" />
-          {coupons.map((coupon) => (
-            <SelectBoxItem
-              key={coupon.id}
-              value={coupon.id}
-              label={couponLabel(coupon.coupon)}
-              description={couponDescription(coupon)}
-            />
-          ))}
-        </SelectBox>
-      )}
-    </ResponsiveModal>
-  );
-}
-
 function CartSummary({
   totals,
   selectedCount,
@@ -1015,23 +929,6 @@ function candidateDescription(option: { stock: number | null }) {
   if (option.stock != null && option.stock <= 5)
     return `${option.stock}개 남음`;
   return undefined;
-}
-
-function couponDescription(coupon: UserCouponOut) {
-  const discount = coupon.coupon
-    ? formatDiscount(coupon.coupon.discount_type, coupon.coupon.discount_value)
-    : null;
-  const expires = coupon.expires_at
-    ? `만료 ${new Intl.DateTimeFormat("ko-KR").format(new Date(coupon.expires_at))}`
-    : null;
-  return [discount, expires].filter(Boolean).join(" · ") || undefined;
-}
-
-function formatDiscount(type: string, value: string) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return value;
-  if (type === "percent" || type === "percentage") return `${n}% 할인`;
-  return `₩${krw.format(n)} 할인`;
 }
 
 function cartCrumbs() {

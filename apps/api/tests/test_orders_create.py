@@ -110,6 +110,24 @@ async def test_coupon_percentage_with_cap_and_reserve(client, db_session, settin
     assert reserved == "reserved"
 
 
+async def test_fixed_coupon_applies_once_per_line(client, db_session, settings):
+    user, address, product = await _setup(db_session)
+    coupon = await make_coupon(db_session, discount_type="fixed", discount_value=5000)
+    user_coupon = await make_user_coupon(db_session, user, coupon)
+
+    res = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [_product_item(product, quantity=2, coupon_id=user_coupon.id)],
+        },
+        headers=auth_headers(user, settings),
+    )
+
+    assert res.status_code == 201
+    assert res.json()["total_amount"] == 20000 - 5000
+
+
 async def test_repair_order_with_pickup_splits_group(client, db_session, settings):
     user, address, product = await _setup(db_session)
     await seed_pricing(db_session, REFORM_CONSTANTS, category="reform")

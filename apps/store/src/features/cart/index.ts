@@ -3,8 +3,6 @@ export {
   cartItemId,
   cartItemsToInputs,
   cartItemToInput,
-  couponDiscount,
-  couponLabel,
   productUnitPrice,
   selectedOption,
 } from "./model/items";

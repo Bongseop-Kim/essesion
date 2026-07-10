@@ -57,6 +57,27 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           {
+            path: "order/order-form",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/order-form"))
+                .OrderFormPage,
+            }),
+          },
+          {
+            path: "order/payment/success",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/payment-success"))
+                .PaymentSuccessPage,
+            }),
+          },
+          {
+            path: "order/payment/fail",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/payment-fail"))
+                .PaymentFailPage,
+            }),
+          },
+          {
             path: "my-page",
             lazy: async () => ({
               Component: (await import("@/pages/my-page")).MyPage,

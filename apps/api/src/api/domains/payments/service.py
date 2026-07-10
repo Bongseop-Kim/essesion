@@ -23,7 +23,11 @@ from sqlalchemy import CursorResult, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.domains.orders.service import log_status
+from api.domains.orders.service import (
+    log_status,
+    order_coupon_ids,
+    restore_reserved_order_coupons,
+)
 from api.domains.payments.schemas import (
     ConfirmedOrder,
     PaymentConfirmRequest,
@@ -79,15 +83,6 @@ async def _group_orders(
     if for_update:
         query = query.with_for_update()
     return list((await session.scalars(query)).all())
-
-
-async def _group_coupon_ids(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[uuid.UUID]:
-    rows = await session.scalars(
-        select(OrderItem.applied_user_coupon_id).where(
-            OrderItem.order_id.in_(order_ids), OrderItem.applied_user_coupon_id.isnot(None)
-        )
-    )
-    return list({r for r in rows if r is not None})
 
 
 async def _token_order_amount(session: AsyncSession, order: Order) -> tuple[int, str]:
@@ -273,7 +268,7 @@ async def _apply_confirmation(
         )
 
     owner_id = orders[0].user_id  # 그룹은 생성 구조상 단일 유저
-    coupon_ids = await _group_coupon_ids(session, [o.id for o in orders])
+    coupon_ids = await order_coupon_ids(session, [o.id for o in orders])
     if coupon_ids:
         await session.execute(
             update(UserCoupon)
@@ -300,17 +295,7 @@ async def _unlock(session: AsyncSession, user: User, group_id: uuid.UUID) -> Non
                 changed_by=user.id,
                 memo="payment unlock: approval failed",
             )
-    coupon_ids = await _group_coupon_ids(session, [o.id for o in orders])
-    if coupon_ids:
-        await session.execute(
-            update(UserCoupon)
-            .where(
-                UserCoupon.user_id == user.id,
-                UserCoupon.status == "reserved",
-                UserCoupon.id.in_(coupon_ids),
-            )
-            .values(status="active")
-        )
+    await restore_reserved_order_coupons(session, orders)
     await session.commit()
 
 

@@ -222,13 +222,29 @@ function StoreFooter() {
 
 /** 앱 셸: Header · 페이지(Outlet) · Footer + 스낵바 호스트(루트 1회 마운트). */
 export function AppLayout() {
+  const location = useLocation();
+  const isPaymentResult = location.pathname.startsWith("/order/payment/");
+  const isLogin = location.pathname === "/login";
+  const isFocusedRoute = isPaymentResult || isLogin;
+
   return (
     <Layout>
-      <StoreHeader />
-      <Box as="main" flexGrow={1}>
+      {isPaymentResult ? (
+        <Box display={{ base: "none", md: "block" }}>
+          <StoreHeader />
+        </Box>
+      ) : (
+        <StoreHeader />
+      )}
+      <Box
+        as="main"
+        flexGrow={1}
+        display={isFocusedRoute ? "flex" : undefined}
+        flexDirection={isFocusedRoute ? "column" : undefined}
+      >
         <Outlet />
       </Box>
-      <StoreFooter />
+      {isFocusedRoute ? null : <StoreFooter />}
       <SnackbarHost />
     </Layout>
   );

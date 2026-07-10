@@ -10,7 +10,7 @@ from sqlalchemy import and_, exists, not_, or_, select
 
 from api.db import SessionDep
 from api.deps import BatchAuth
-from api.domains.orders.service import log_status
+from api.domains.orders.service import log_status, restore_reserved_order_coupons
 from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
 
 router = APIRouter(prefix="/batch", tags=["batch"], dependencies=[BatchAuth])
@@ -72,6 +72,7 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
     ).all()
     for order in orders:
         log_status(session, order, "취소", changed_by=None, memo="자동 취소 (대기중 30분 초과)")
+    await restore_reserved_order_coupons(session, orders)
     await session.commit()
     return BatchResult(processed=len(orders))
 

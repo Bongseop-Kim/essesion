@@ -28,8 +28,8 @@
 쿠폰 라인 할인 (아이템별):
 1. 같은 쿠폰은 주문(요청) 내 1회만.
 2. `user_coupons FOR UPDATE`: status='active', uc.expires_at>now, coupon.is_active, coupon.expiry_date>=today.
-3. 단위 할인: percentage `floor(unit*value/100)` / fixed `floor(value)` → `greatest(0, least(할인, unit))` 클램프.
-4. 라인 캡: `capped = least(단위할인*qty, max_discount_amount?)` → 단위 재분배 `floor(capped/qty)` + remainder(첫 remainder개 +1). line_discount_total = capped.
+3. 라인 할인: percentage `floor(unit*qty*value/100)` / fixed `floor(value)` → `greatest(0, least(할인, unit*qty))` 클램프. 정액 쿠폰은 수량과 무관하게 주문 항목당 1회 적용.
+4. 라인 캡: `capped = least(라인할인, max_discount_amount?)` → 단위 재분배 `floor(capped/qty)` + remainder(첫 remainder개 +1). line_discount_total = capped.
 
 주문 분리: `payment_group_id = uuid4()` 하나에 product 주문(order_type=sale)과 repair 주문(order_type=repair)을 분리 생성.
 - sale: `shipping_cost=0` 고정(**무료배송 임계 없음**), total = original - discount.
@@ -131,6 +131,7 @@
 - confirm 멱등 사전체크의 repair 상태는 RPC 권위 매핑(수거예정/발송대기)으로 통일 (엣지의 '발송대기' 고정은 버그였음).
 - use_design_tokens의 p_quality 파라미터는 비용 미반영 vestigial — 제거.
 - Toss 호출 금액은 항상 DB 재계산 합(원 동작 유지). 클라이언트 amount는 사전 일치 검증만.
+- stale 대기중 주문 자동 취소 시 해당 주문 소유자의 예약 쿠폰을 `reserved→active`로 복원한다(원문은 쿠폰이 영구 잠기는 누락이 있었음).
 - **자동 대사 2겹 추가 (원문에 없던 보강 — 제품 관점 재검토로 결정)**:
   - confirm 재시도가 `ALREADY_PROCESSED_PAYMENT`를 받으면 실패(→unlock→stale 취소 = "돈 받고 주문 취소") 대신 **조회 API로 상태·orderId·금액 검증 후 DB 확정**.
   - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 부분취소·혼합상태·금액불일치는 자동 교정하지 않고 critical 로그(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL 등록은 스테이징 개통(4단계) 때.

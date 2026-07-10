@@ -4,6 +4,7 @@
 """
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -125,7 +126,7 @@ async def apply_coupon(
     quantity: int,
     used: set[uuid.UUID],
 ) -> _CouponApplication:
-    """쿠폰 라인 할인 — 단위 클램프 → 라인 캡 → 단위 재분배 (money.md §2)."""
+    """쿠폰 라인 할인 — 라인 계산·캡 → 단위 재분배 (money.md §2)."""
     if user_coupon_id in used:
         raise DomainError("Coupon can only be applied once per order", code="coupon_duplicate")
     used.add(user_coupon_id)
@@ -151,15 +152,15 @@ async def apply_coupon(
     if coupon.expiry_date < datetime.now(UTC).date():
         raise DomainError("Coupon has expired", code="coupon_expired")
 
+    line_amount = unit_price * quantity
     if coupon.discount_type == "percentage":
-        unit_discount = int(unit_price * coupon.discount_value / 100)
+        line_discount = int(line_amount * coupon.discount_value / 100)
     elif coupon.discount_type == "fixed":
-        unit_discount = int(coupon.discount_value)
+        line_discount = int(coupon.discount_value)
     else:
         raise DomainError("Invalid coupon type", code="coupon_invalid")
 
-    unit_discount = max(0, min(unit_discount, unit_price))
-    capped_line = unit_discount * quantity
+    capped_line = max(0, min(line_discount, line_amount))
     if coupon.max_discount_amount is not None:
         capped_line = min(capped_line, int(coupon.max_discount_amount))
     return _CouponApplication(unit_discount=capped_line // quantity, line_total=capped_line)
@@ -178,6 +179,38 @@ async def _reserve_coupons(
             )
             .values(status="reserved")
         )
+
+
+async def order_coupon_ids(
+    session: AsyncSession, order_ids: list[uuid.UUID]
+) -> list[uuid.UUID]:
+    rows = await session.scalars(
+        select(OrderItem.applied_user_coupon_id).where(
+            OrderItem.order_id.in_(order_ids),
+            OrderItem.applied_user_coupon_id.isnot(None),
+        )
+    )
+    return list({coupon_id for coupon_id in rows if coupon_id is not None})
+
+
+async def restore_reserved_order_coupons(
+    session: AsyncSession, orders: Sequence[Order]
+) -> None:
+    order_ids_by_user: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for order in orders:
+        order_ids_by_user.setdefault(order.user_id, []).append(order.id)
+    for user_id, order_ids in order_ids_by_user.items():
+        coupon_ids = await order_coupon_ids(session, order_ids)
+        if coupon_ids:
+            await session.execute(
+                update(UserCoupon)
+                .where(
+                    UserCoupon.user_id == user_id,
+                    UserCoupon.status == "reserved",
+                    UserCoupon.id.in_(coupon_ids),
+                )
+                .values(status="active")
+            )
 
 
 def _register_images(
