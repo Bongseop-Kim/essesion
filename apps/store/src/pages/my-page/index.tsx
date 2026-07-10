@@ -2,15 +2,19 @@ import { getMeOptions } from "@essesion/api-client/query";
 import {
   ContentPlaceholder,
   Flex,
+  List,
+  ListItem,
   Skeleton,
   Text,
   VStack,
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 
 import { LogoutButton } from "@/features/auth";
 
 export function MyPage() {
+  const navigate = useNavigate();
   // 보호 GET — Bearer 주입 + 401 시 refresh 재시도 배선을 실제로 태운다.
   const { data: me, isPending, isError } = useQuery(getMeOptions());
 
@@ -45,6 +49,14 @@ export function MyPage() {
             <Text textStyle="body">{me?.name ?? "-"}</Text>
           </VStack>
         )}
+
+        <List>
+          <ListItem
+            title="주문 내역"
+            description="주문 상태 확인과 수선품 발송 확인"
+            onClick={() => navigate("/my-page/orders")}
+          />
+        </List>
 
         <LogoutButton variant="neutralOutline" />
       </VStack>

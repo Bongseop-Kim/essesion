@@ -736,6 +736,8 @@ async def submit_repair_tracking(
         raise DomainError(f"올바르지 않은 택배사 코드입니다: {code}", code="invalid_courier")
     if not body.tracking_number.strip():
         raise DomainError("송장번호를 입력해주세요", code="invalid_tracking")
+    if body.memo and len(body.memo) > 500:
+        raise DomainError("메모는 500자 이내로 입력해주세요", code="memo_too_long")
     if len(body.photos) > 3:
         raise DomainError("발송 사진은 최대 3장까지 등록할 수 있습니다", code="too_many_photos")
 
@@ -760,6 +762,7 @@ async def submit_repair_tracking(
         RepairShippingReceipt(
             order_id=order.id,
             receipt_type="tracking",
+            memo=body.memo,
             photos=[{"object_key": p.object_key} for p in body.photos],
         )
     )
@@ -787,7 +790,11 @@ async def submit_repair_no_tracking(
         order,
         "발송확인중",
         changed_by=user.id,
-        memo=f"고객 송장 없는 발송 접수: {body.reason}",
+        memo=(
+            f"고객 송장 없는 발송 확인: {body.reason}"
+            if body.reason
+            else "고객 발송 확인 (송장 없음)"
+        ),
     )
     order.shipped_at = datetime.now(UTC)
     await _relink_repair_photos(session, user, order, [p.object_key for p in body.photos])

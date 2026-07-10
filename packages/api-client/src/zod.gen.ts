@@ -929,7 +929,7 @@ export const zRepairNoTrackingRequest = z.object({
         'quick',
         'overseas',
         'lost'
-    ])
+    ]).nullish()
 });
 
 /**
@@ -956,6 +956,7 @@ export const zRepairShippingIn = z.object({
  */
 export const zRepairTrackingRequest = z.object({
     courier_company: z.string(),
+    memo: z.string().nullish(),
     photos: z.array(zRepairPhotoIn).optional().default([]),
     tracking_number: z.string()
 });
@@ -1131,6 +1132,7 @@ export const zUploadUrlRequest = z.object({
  */
 export const zUploadUrlResponse = z.object({
     object_key: z.string(),
+    upload_required: z.boolean(),
     upload_url: z.string()
 });
 

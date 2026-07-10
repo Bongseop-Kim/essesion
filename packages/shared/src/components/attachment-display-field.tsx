@@ -125,7 +125,7 @@ export function AttachmentDisplayField({
               width="full"
               height="full"
               borderRadius="r2"
-              className="cursor-pointer border border-dashed border-stroke-neutral text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring"
+              className="cursor-pointer border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring"
             >
               <PlusGlyph className="size-6" />
             </Flex>

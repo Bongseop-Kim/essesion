@@ -19,13 +19,30 @@ import {
   clearPendingCheckout,
   readPendingCheckout,
 } from "@/features/checkout";
+import {
+  isRepairShipmentDraft,
+  planRepairOutcome,
+  type RepairShipmentDraft,
+  submitRepairShipment,
+} from "@/features/repair-shipping";
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 
 type CheckoutSnapshot = {
   cartItemIds?: string[];
   repairShipping?: RepairShippingIn | null;
+  repairShipmentDraft?: unknown;
 };
+
+type RepairResultView =
+  | { kind: "pickup" }
+  | { kind: "submitted" }
+  | {
+      kind: "register-cta";
+      orderId: string;
+      prefill: RepairShipmentDraft | null;
+    }
+  | null;
 
 export function PaymentSuccessPage() {
   const navigate = useNavigate();
@@ -39,9 +56,7 @@ export function PaymentSuccessPage() {
   const cartActions = useCartActions();
   const [confirmed, setConfirmed] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [confirmedRepairMethod, setConfirmedRepairMethod] = useState<
-    "direct" | "pickup" | null
-  >(null);
+  const [repairResult, setRepairResult] = useState<RepairResultView>(null);
   const started = useRef(false);
 
   const confirmNow = useCallback(async () => {
@@ -57,10 +72,30 @@ export function PaymentSuccessPage() {
       });
       const pending =
         readPendingCheckout<CheckoutSnapshot>(CHECKOUT_PENDING_KEY);
-      if (result.orders.some((order) => order.order_type === "repair")) {
-        setConfirmedRepairMethod(
-          pending?.snapshot.repairShipping?.method ?? "direct",
-        );
+      const draft = isRepairShipmentDraft(pending?.snapshot.repairShipmentDraft)
+        ? pending.snapshot.repairShipmentDraft
+        : null;
+      const plan = planRepairOutcome(result.orders, draft);
+      if (plan.kind === "auto-submit") {
+        // 개선 A: 체크아웃에서 입력한 발송 정보를 자동 등록 — 실패해도 결제 완료 처리는 계속
+        try {
+          await submitRepairShipment(plan.orderId, plan.draft);
+          setRepairResult({ kind: "submitted" });
+        } catch {
+          setRepairResult({
+            kind: "register-cta",
+            orderId: plan.orderId,
+            prefill: plan.draft,
+          });
+        }
+      } else if (plan.kind === "pickup" || plan.kind === "submitted") {
+        setRepairResult({ kind: plan.kind });
+      } else if (plan.kind === "register-cta") {
+        setRepairResult({
+          kind: "register-cta",
+          orderId: plan.orderId,
+          prefill: null,
+        });
       }
       const ids = pending?.snapshot.cartItemIds?.filter(
         (id): id is string => typeof id === "string",
@@ -149,37 +184,76 @@ export function PaymentSuccessPage() {
         <ResultSection
           asset={<ResultEmoji emoji="🎉" />}
           title={
-            confirmedRepairMethod === "pickup"
+            repairResult?.kind === "pickup"
               ? "방문 수거 신청이 완료되었습니다"
-              : confirmedRepairMethod === "direct"
+              : repairResult
                 ? "수선 접수가 완료되었습니다"
                 : "결제가 완료되었습니다"
           }
           description={
-            confirmedRepairMethod === "pickup"
+            repairResult?.kind === "pickup"
               ? "기사님이 입력한 수거지에 방문할 예정입니다."
-              : confirmedRepairMethod === "direct"
-                ? "수선품을 직접 발송한 뒤 송장 정보를 등록해 주세요."
-                : "주문이 정상적으로 접수되었습니다."
+              : repairResult?.kind === "submitted"
+                ? "발송 정보까지 등록되었습니다. 진행 상황은 주문 내역에서 확인할 수 있습니다."
+                : repairResult?.kind === "register-cta"
+                  ? "수선품을 발송한 뒤 발송 확인을 해주세요."
+                  : "주문이 정상적으로 접수되었습니다."
           }
         />
         <VStack gap="x2" align="center">
-          <Box
-            as={ActionButton}
-            type="button"
-            size="large"
-            width={{ base: "full", md: 320 }}
-            onClick={() => navigate("/shop")}
-          >
-            쇼핑 계속하기
-          </Box>
-          <ActionButton
-            type="button"
-            variant="ghost"
-            onClick={() => navigate("/")}
-          >
-            홈으로 이동
-          </ActionButton>
+          {repairResult?.kind === "register-cta" ? (
+            <>
+              <Box
+                as={ActionButton}
+                type="button"
+                size="large"
+                width={{ base: "full", md: 320 }}
+                onClick={() =>
+                  navigate(`/order/${repairResult.orderId}/repair-shipping`, {
+                    state: { prefill: repairResult.prefill },
+                  })
+                }
+              >
+                발송 확인하기
+              </Box>
+              <ActionButton
+                type="button"
+                variant="ghost"
+                onClick={() => navigate("/shop")}
+              >
+                쇼핑 계속하기
+              </ActionButton>
+            </>
+          ) : (
+            <>
+              <Box
+                as={ActionButton}
+                type="button"
+                size="large"
+                width={{ base: "full", md: 320 }}
+                onClick={() => navigate("/shop")}
+              >
+                쇼핑 계속하기
+              </Box>
+              {repairResult?.kind === "submitted" ? (
+                <ActionButton
+                  type="button"
+                  variant="ghost"
+                  onClick={() => navigate("/my-page/orders")}
+                >
+                  주문 내역 보기
+                </ActionButton>
+              ) : (
+                <ActionButton
+                  type="button"
+                  variant="ghost"
+                  onClick={() => navigate("/")}
+                >
+                  홈으로 이동
+                </ActionButton>
+              )}
+            </>
+          )}
         </VStack>
       </VStack>
     </ResultPageLayout>

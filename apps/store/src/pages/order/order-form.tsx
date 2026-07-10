@@ -53,6 +53,13 @@ import {
   couponLabel,
 } from "@/features/coupon";
 import { reformServiceLabel } from "@/features/reform";
+import {
+  isRepairShipmentDraft,
+  RepairShipmentFields,
+  shipmentDraftFromForm,
+  shipmentFormFromDraft,
+  shipmentInvalidReason,
+} from "@/features/repair-shipping";
 import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
@@ -71,13 +78,20 @@ export function OrderFormPage() {
     listMyCouponsOptions({ query: { active_only: true } }),
   );
   const reformPricingQuery = useQuery(getReformPricingOptions());
-  const pendingRepair = useMemo(
+  const pendingSnapshot = useMemo(
     () =>
       readPendingCheckout<{
         repairShipping?: RepairShippingIn | null;
-      }>(CHECKOUT_PENDING_KEY)?.snapshot.repairShipping ?? null,
+        repairShipmentDraft?: unknown;
+      }>(CHECKOUT_PENDING_KEY)?.snapshot ?? null,
     [],
   );
+  const pendingRepair = pendingSnapshot?.repairShipping ?? null;
+  const pendingDraft = isRepairShipmentDraft(
+    pendingSnapshot?.repairShipmentDraft,
+  )
+    ? pendingSnapshot.repairShipmentDraft
+    : null;
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponItemId, setCouponItemId] = useState<string | null>(null);
@@ -103,6 +117,11 @@ export function OrderFormPage() {
   const [pickupDetailAddress, setPickupDetailAddress] = useState(
     pendingRepair?.pickup?.detail_address ?? "",
   );
+  const [shipEnabled, setShipEnabled] = useState(!!pendingDraft);
+  const [shipForm, setShipForm] = useState(() =>
+    shipmentFormFromDraft(pendingDraft),
+  );
+  const [photosUploading, setPhotosUploading] = useState(false);
   const paymentWidgetRef = useRef<PaymentWidgetHandle | null>(null);
 
   const cartItemIds = useMemo(() => {
@@ -207,11 +226,16 @@ export function OrderFormPage() {
     items.length <= 1
       ? (items[0]?.product?.name ?? "넥타이 수선")
       : `${items[0]?.product?.name ?? "넥타이 수선"} 외 ${items.length - 1}건`;
+  const repairShipmentDraft =
+    hasReformItems && repairMethod === "direct" && shipEnabled
+      ? shipmentDraftFromForm(shipForm)
+      : null;
   const snapshot = {
     cartItemIds,
     shippingAddressId: address?.id ?? null,
     items: orderItems,
     repairShipping,
+    repairShipmentDraft,
   };
   const payment = useCheckoutPayment({
     storageKey: CHECKOUT_PENDING_KEY,
@@ -291,13 +315,20 @@ export function OrderFormPage() {
     (!repairShipping?.pickup?.recipient_name.trim() ||
       !repairShipping.pickup.recipient_phone.trim() ||
       !repairShipping.pickup.address.trim());
+  const shipInvalidReason =
+    hasReformItems && repairMethod === "direct" && shipEnabled
+      ? photosUploading
+        ? "발송 사진을 업로드하는 중입니다."
+        : shipmentInvalidReason(shipForm)
+      : null;
   const pricingReady = !hasReformItems || !!reformPricingQuery.data;
   const canPay =
     !!address &&
     widgetReady &&
     totals.total > 0 &&
     pricingReady &&
-    !pickupInvalid;
+    !pickupInvalid &&
+    !shipInvalidReason;
 
   return (
     <ContentLayout
@@ -354,7 +385,7 @@ export function OrderFormPage() {
                 ? "수선 비용을 확인하는 중입니다."
                 : pickupInvalid
                   ? "수거지 이름, 연락처, 주소를 입력해 주세요."
-                  : undefined
+                  : (shipInvalidReason ?? undefined)
           }
           onClick={() => void payment.pay(paymentWidgetRef.current)}
         />
@@ -419,7 +450,7 @@ export function OrderFormPage() {
                 <RadioGroupItem
                   value="direct"
                   label="직접 발송할게요"
-                  description="결제 후 발송 방법과 송장 정보를 등록합니다."
+                  description="결제 후 수선품을 발송하고 발송 확인을 해주세요."
                 />
                 <RadioGroupItem
                   value="pickup"
@@ -489,7 +520,30 @@ export function OrderFormPage() {
                   ) : null}
                 </VStack>
               </Box>
-            ) : null}
+            ) : (
+              <Box
+                bg="bg.neutral-weak"
+                borderRadius="r3"
+                p={{ base: "x4", md: "x5" }}
+              >
+                <VStack gap="x4" alignItems="stretch">
+                  <Checkbox
+                    label="이미 발송했어요"
+                    checked={shipEnabled}
+                    onChange={(event) =>
+                      setShipEnabled(event.currentTarget.checked)
+                    }
+                  />
+                  {shipEnabled ? (
+                    <RepairShipmentFields
+                      state={shipForm}
+                      onChange={setShipForm}
+                      onUploadingChange={setPhotosUploading}
+                    />
+                  ) : null}
+                </VStack>
+              </Box>
+            )}
           </VStack>
         ) : null}
 

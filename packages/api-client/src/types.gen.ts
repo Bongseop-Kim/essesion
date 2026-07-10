@@ -2259,7 +2259,7 @@ export type RepairNoTrackingRequest = {
     /**
      * Reason
      */
-    reason: 'quick' | 'overseas' | 'lost';
+    reason?: 'quick' | 'overseas' | 'lost' | null;
 };
 
 /**
@@ -2317,6 +2317,10 @@ export type RepairTrackingRequest = {
      * Courier Company
      */
     courier_company: string;
+    /**
+     * Memo
+     */
+    memo?: string | null;
     /**
      * Photos
      */
@@ -2661,6 +2665,10 @@ export type UploadUrlResponse = {
      * Object Key
      */
     object_key: string;
+    /**
+     * Upload Required
+     */
+    upload_required: boolean;
     /**
      * Upload Url
      */

@@ -39,6 +39,7 @@ class UploadUrlRequest(BaseModel):
 class UploadUrlResponse(BaseModel):
     object_key: str
     upload_url: str
+    upload_required: bool
 
 
 class ReformUploadUrlRequest(BaseModel):
@@ -94,7 +95,11 @@ async def create_upload_url(
         raise DomainError("지원하지 않는 이미지 형식입니다", code="invalid_image_type")
     object_key = f"uploads/{body.kind}/{uuid.uuid4().hex}{extension}"
     upload_url = await request.app.state.gcs.signed_upload_url(object_key, body.content_type)
-    return UploadUrlResponse(object_key=object_key, upload_url=upload_url)
+    return UploadUrlResponse(
+        object_key=object_key,
+        upload_url=upload_url,
+        upload_required=request.app.state.gcs.upload_required,
+    )
 
 
 @router.post("/images/reform-upload-url", response_model=ReformUploadUrlResponse)

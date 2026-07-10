@@ -4157,18 +4157,22 @@
             "type": "array"
           },
           "reason": {
-            "enum": [
-              "quick",
-              "overseas",
-              "lost"
+            "anyOf": [
+              {
+                "enum": [
+                  "quick",
+                  "overseas",
+                  "lost"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Reason",
-            "type": "string"
+            "title": "Reason"
           }
         },
-        "required": [
-          "reason"
-        ],
         "title": "RepairNoTrackingRequest",
         "type": "object"
       },
@@ -4262,6 +4266,17 @@
           "courier_company": {
             "title": "Courier Company",
             "type": "string"
+          },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memo"
           },
           "photos": {
             "default": [],
@@ -4788,6 +4803,10 @@
             "title": "Object Key",
             "type": "string"
           },
+          "upload_required": {
+            "title": "Upload Required",
+            "type": "boolean"
+          },
           "upload_url": {
             "title": "Upload Url",
             "type": "string"
@@ -4795,7 +4814,8 @@
         },
         "required": [
           "object_key",
-          "upload_url"
+          "upload_url",
+          "upload_required"
         ],
         "title": "UploadUrlResponse",
         "type": "object"

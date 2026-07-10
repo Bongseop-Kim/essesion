@@ -138,11 +138,13 @@ class RepairPhotoIn(BaseModel):
 class RepairTrackingRequest(BaseModel):
     courier_company: str
     tracking_number: str
+    memo: str | None = None
     photos: list[RepairPhotoIn] = []
 
 
 class RepairNoTrackingRequest(BaseModel):
-    reason: Literal["quick", "overseas", "lost"]
+    # reason 없는 순수 "발송 확인" 허용 — 사유 강제는 폐기 (money.md §9)
+    reason: Literal["quick", "overseas", "lost"] | None = None
     memo: str | None = None
     photos: list[RepairPhotoIn] = []
 

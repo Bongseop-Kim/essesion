@@ -89,6 +89,25 @@ export const router = createBrowserRouter([
               Component: (await import("@/pages/my-page")).MyPage,
             }),
           },
+          {
+            path: "my-page/orders",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/orders")).OrderListPage,
+            }),
+          },
+          {
+            path: "order/:orderId",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/detail")).OrderDetailPage,
+            }),
+          },
+          {
+            path: "order/:orderId/repair-shipping",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/repair-shipping"))
+                .RepairShippingPage,
+            }),
+          },
         ],
       },
       // 임시: 미구현 라우트는 홈으로(YeongSeon catch-all과 동일).
