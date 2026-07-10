@@ -20,9 +20,7 @@ from api.errors import ConflictError, DomainError
 
 router = APIRouter(tags=["images"])
 
-UploadKind = Literal[
-    "repair_shipping_upload", "custom_order", "sample_order", "quote_request"
-]
+UploadKind = Literal["repair_shipping_upload", "custom_order", "sample_order", "quote_request"]
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -254,9 +252,7 @@ async def create_read_url(
         token_hash = hashlib.sha256(body.claim_token.encode()).hexdigest()
         if not hmac.compare_digest(token_hash, image.claim_token_hash):
             raise DomainError("이미지를 볼 권한이 없습니다", code="forbidden", status=403)
-    return ReadUrlResponse(
-        read_url=await request.app.state.gcs.signed_read_url(image.object_key)
-    )
+    return ReadUrlResponse(read_url=await request.app.state.gcs.signed_read_url(image.object_key))
 
 
 @router.post("/images/repair-shipping-uploads", response_model=ImageOut, status_code=201)

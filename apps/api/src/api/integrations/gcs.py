@@ -108,9 +108,7 @@ class RealGcsClient:
                 blob.reload()
             except NotFound:
                 return None
-            return GcsObjectMetadata(
-                size_bytes=int(blob.size or 0), content_type=blob.content_type
-            )
+            return GcsObjectMetadata(size_bytes=int(blob.size or 0), content_type=blob.content_type)
 
         return await run_in_threadpool(_load)
 

@@ -183,9 +183,7 @@ async def _reserve_coupons(
         )
 
 
-async def order_coupon_ids(
-    session: AsyncSession, order_ids: list[uuid.UUID]
-) -> list[uuid.UUID]:
+async def order_coupon_ids(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[uuid.UUID]:
     rows = await session.scalars(
         select(OrderItem.applied_user_coupon_id).where(
             OrderItem.order_id.in_(order_ids),
@@ -195,9 +193,7 @@ async def order_coupon_ids(
     return list({coupon_id for coupon_id in rows if coupon_id is not None})
 
 
-async def restore_reserved_order_coupons(
-    session: AsyncSession, orders: Sequence[Order]
-) -> None:
+async def restore_reserved_order_coupons(session: AsyncSession, orders: Sequence[Order]) -> None:
     order_ids_by_user: dict[uuid.UUID, list[uuid.UUID]] = {}
     for order in orders:
         order_ids_by_user.setdefault(order.user_id, []).append(order.id)

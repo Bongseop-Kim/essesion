@@ -41,9 +41,7 @@ def _reform_image_keys(items: Sequence[CartItem]) -> set[str]:
     return keys
 
 
-async def _expire_removed_images(
-    session: AsyncSession, user: User, removed_keys: set[str]
-) -> None:
+async def _expire_removed_images(session: AsyncSession, user: User, removed_keys: set[str]) -> None:
     if not removed_keys:
         return
     from db.models.images import Image
@@ -156,12 +154,8 @@ async def replace_cart(
         if item.item_type == "reform":
             if item.reform_data is None or reform_pricing is None:
                 raise DomainError("Invalid reform cart item", code="invalid_cart_item")
-            await claim_reform_image(
-                session, user.id, item.reform_data.tie.image
-            )
-            values["reform_data"] = reform_snapshot(
-                item.reform_data, reform_pricing
-            ).model_dump()
+            await claim_reform_image(session, user.id, item.reform_data.tie.image)
+            values["reform_data"] = reform_snapshot(item.reform_data, reform_pricing).model_dump()
         session.add(CartItem(user_id=user.id, **values))
     next_image_keys = {
         item.reform_data.tie.image.object_key

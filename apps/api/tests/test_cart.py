@@ -126,9 +126,7 @@ async def test_cart_validation(client, db_session, settings):
     assert response.json()["code"] == "invalid_quantity"
 
 
-async def test_guest_reform_image_is_claimed_and_expired_on_remove(
-    client, db_session, settings
-):
+async def test_guest_reform_image_is_claimed_and_expired_on_remove(client, db_session, settings):
     user = await make_user(db_session)
     await seed_pricing(db_session, REFORM_CONSTANTS, category="reform")
     issued = (
@@ -166,9 +164,7 @@ async def test_guest_reform_image_is_claimed_and_expired_on_remove(
     assert saved.status_code == 200, saved.text
     assert "claim_token" not in saved.json()[0]["reform_data"]["tie"]["image"]
 
-    image = await db_session.scalar(
-        select(Image).where(Image.object_key == issued["object_key"])
-    )
+    image = await db_session.scalar(select(Image).where(Image.object_key == issued["object_key"]))
     assert image is not None
     await db_session.refresh(image)
     assert image.uploaded_by == user.id
