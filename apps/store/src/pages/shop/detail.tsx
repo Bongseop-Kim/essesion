@@ -36,6 +36,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
+import { useAuthGuard } from "@/features/auth";
 import { useCartActions } from "@/features/cart";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -60,6 +61,7 @@ export function ShopDetailPage() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const sessionStatus = useSession((state) => state.status);
+  const { requireAuth } = useAuthGuard();
   const productId = Number(id);
   const validProductId = Number.isInteger(productId) && productId > 0;
   const [selectedOptionId, setSelectedOptionId] = useState("");
@@ -121,9 +123,7 @@ export function ShopDetailPage() {
   );
 
   const requireLogin = () => {
-    if (sessionStatus === "authenticated") return true;
-    navigate("/login", { state: { from: location.pathname } });
-    return false;
+    return requireAuth({ path: `${location.pathname}${location.search}` });
   };
 
   const refreshProductQueries = async () => {

@@ -4,6 +4,7 @@
 """
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -35,6 +36,8 @@ from api.domains.orders.schemas import (
     SampleOrderCreateRequest,
 )
 from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
+from api.domains.reform.schemas import ReformPricingOut
+from api.domains.reform.service import claim_reform_image, get_reform_pricing, reform_snapshot
 from api.errors import DomainError, ForbiddenError, NotFoundError
 from api.numbering import generate_number
 from api.pricing import get_pricing_constants
@@ -125,7 +128,7 @@ async def apply_coupon(
     quantity: int,
     used: set[uuid.UUID],
 ) -> _CouponApplication:
-    """쿠폰 라인 할인 — 단위 클램프 → 라인 캡 → 단위 재분배 (money.md §2)."""
+    """쿠폰 라인 할인 — 라인 계산·캡 → 단위 재분배 (money.md §2)."""
     if user_coupon_id in used:
         raise DomainError("Coupon can only be applied once per order", code="coupon_duplicate")
     used.add(user_coupon_id)
@@ -151,15 +154,15 @@ async def apply_coupon(
     if coupon.expiry_date < datetime.now(UTC).date():
         raise DomainError("Coupon has expired", code="coupon_expired")
 
+    line_amount = unit_price * quantity
     if coupon.discount_type == "percentage":
-        unit_discount = int(unit_price * coupon.discount_value / 100)
+        line_discount = int(line_amount * coupon.discount_value / 100)
     elif coupon.discount_type == "fixed":
-        unit_discount = int(coupon.discount_value)
+        line_discount = int(coupon.discount_value)
     else:
         raise DomainError("Invalid coupon type", code="coupon_invalid")
 
-    unit_discount = max(0, min(unit_discount, unit_price))
-    capped_line = unit_discount * quantity
+    capped_line = max(0, min(line_discount, line_amount))
     if coupon.max_discount_amount is not None:
         capped_line = min(capped_line, int(coupon.max_discount_amount))
     return _CouponApplication(unit_discount=capped_line // quantity, line_total=capped_line)
@@ -178,6 +181,34 @@ async def _reserve_coupons(
             )
             .values(status="reserved")
         )
+
+
+async def order_coupon_ids(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    rows = await session.scalars(
+        select(OrderItem.applied_user_coupon_id).where(
+            OrderItem.order_id.in_(order_ids),
+            OrderItem.applied_user_coupon_id.isnot(None),
+        )
+    )
+    return list({coupon_id for coupon_id in rows if coupon_id is not None})
+
+
+async def restore_reserved_order_coupons(session: AsyncSession, orders: Sequence[Order]) -> None:
+    order_ids_by_user: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for order in orders:
+        order_ids_by_user.setdefault(order.user_id, []).append(order.id)
+    for user_id, order_ids in order_ids_by_user.items():
+        coupon_ids = await order_coupon_ids(session, order_ids)
+        if coupon_ids:
+            await session.execute(
+                update(UserCoupon)
+                .where(
+                    UserCoupon.user_id == user_id,
+                    UserCoupon.status == "reserved",
+                    UserCoupon.id.in_(coupon_ids),
+                )
+                .values(status="active")
+            )
 
 
 def _register_images(
@@ -258,17 +289,6 @@ async def _deduct_stock(session: AsyncSession, item: OrderItemIn) -> int:
     return product.price
 
 
-def _reform_unit_price(reform_data: dict, constants: dict[str, int]) -> int:
-    tie = reform_data.get("tie") or {}
-    has_length = tie.get("hasLengthReform", True)
-    has_width = tie.get("hasWidthReform", False)
-    if not has_length and not has_width:
-        raise DomainError("At least one reform service must be selected", code="invalid_reform")
-    return (constants["REFORM_BASE_COST"] if has_length else 0) + (
-        constants["REFORM_WIDTH_COST"] if has_width else 0
-    )
-
-
 async def create_order(session: AsyncSession, user: User, body: OrderCreateRequest) -> dict:
     if not body.items:
         raise DomainError("Order items are required", code="items_required")
@@ -281,7 +301,7 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
     product_lines: list[_Line] = []
     reform_lines: list[_Line] = []
     used_coupons: set[uuid.UUID] = set()
-    reform_constants: dict[str, int] | None = None
+    reform_pricing: ReformPricingOut | None = None
 
     for item in body.items:
         if not item.item_id:
@@ -298,15 +318,17 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         else:
             if item.reform_data is None:
                 raise DomainError("Reform data is required", code="invalid_item")
-            if reform_constants is None:
-                reform_constants = await get_pricing_constants(
-                    session, ["REFORM_BASE_COST", "REFORM_WIDTH_COST", "REFORM_SHIPPING_COST"]
-                )
-            unit_price = _reform_unit_price(item.reform_data, reform_constants)
+            if item.quantity != 1:
+                raise DomainError("Reform item quantity must be one", code="invalid_quantity")
+            if reform_pricing is None:
+                reform_pricing = await get_reform_pricing(session)
+            await claim_reform_image(session, user.id, item.reform_data.tie.image)
+            snapshot = reform_snapshot(item.reform_data, reform_pricing)
+            unit_price = snapshot.cost
             line = _Line(
                 item=item,
                 unit_price=unit_price,
-                reform_data={**item.reform_data, "cost": unit_price},
+                reform_data=snapshot.model_dump(),
             )
             reform_lines.append(line)
 
@@ -336,8 +358,9 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         )
 
     if reform_lines:
-        assert reform_constants is not None
-        shipping_cost = reform_constants["REFORM_SHIPPING_COST"]
+        if reform_pricing is None:
+            raise RuntimeError("Reform pricing is missing for reform order")
+        shipping_cost = reform_pricing.shipping_cost
         pickup_fee = 0
         pickup = body.repair_shipping.pickup if body.repair_shipping else None
         if method == "pickup":
@@ -351,9 +374,7 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
                 raise DomainError(
                     "Pickup recipient name, phone and address are required", code="invalid_pickup"
                 )
-            pickup_fee = (await get_pricing_constants(session, ["REFORM_PICKUP_FEE"]))[
-                "REFORM_PICKUP_FEE"
-            ]
+            pickup_fee = reform_pricing.pickup_fee
         order = await _create_group_order(
             session,
             user,
@@ -443,11 +464,10 @@ async def _relink_reform_images(
 ) -> None:
     for line in lines:
         tie = (line.reform_data or {}).get("tie") or {}
-        image, file_key = tie.get("image"), tie.get("fileId")
-        if not image:
-            continue
+        image = tie.get("image") or {}
+        file_key = image.get("object_key")
         if not file_key:
-            raise DomainError("Reform image file id is required", code="invalid_reform_image")
+            raise DomainError("수선 사진이 필요합니다", code="invalid_reform_image")
         moved = await _relink_images(
             session, user.id, "reform_upload", file_key, "reform", str(order.id)
         )
@@ -713,6 +733,8 @@ async def submit_repair_tracking(
         raise DomainError(f"올바르지 않은 택배사 코드입니다: {code}", code="invalid_courier")
     if not body.tracking_number.strip():
         raise DomainError("송장번호를 입력해주세요", code="invalid_tracking")
+    if body.memo and len(body.memo) > 500:
+        raise DomainError("메모는 500자 이내로 입력해주세요", code="memo_too_long")
     if len(body.photos) > 3:
         raise DomainError("발송 사진은 최대 3장까지 등록할 수 있습니다", code="too_many_photos")
 
@@ -737,6 +759,7 @@ async def submit_repair_tracking(
         RepairShippingReceipt(
             order_id=order.id,
             receipt_type="tracking",
+            memo=body.memo,
             photos=[{"object_key": p.object_key} for p in body.photos],
         )
     )
@@ -764,7 +787,11 @@ async def submit_repair_no_tracking(
         order,
         "발송확인중",
         changed_by=user.id,
-        memo=f"고객 송장 없는 발송 접수: {body.reason}",
+        memo=(
+            f"고객 송장 없는 발송 확인: {body.reason}"
+            if body.reason
+            else "고객 발송 확인 (송장 없음)"
+        ),
     )
     order.shipped_at = datetime.now(UTC)
     await _relink_repair_photos(session, user, order, [p.object_key for p in body.photos])

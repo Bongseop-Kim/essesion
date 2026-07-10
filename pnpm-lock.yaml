@@ -18,6 +18,9 @@ catalogs:
     '@tanstack/react-query':
       specifier: ^5.101.2
       version: 5.101.2
+    '@tosspayments/tosspayments-sdk':
+      specifier: 2.7.1
+      version: 2.7.1
     '@types/node':
       specifier: ^26.1.0
       version: 26.1.0
@@ -165,6 +168,9 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.101.2(react@19.2.7)
+      '@tosspayments/tosspayments-sdk':
+        specifier: 'catalog:'
+        version: 2.7.1
       motion:
         specifier: 'catalog:'
         version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -211,6 +217,9 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@26.1.0)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0))
       wrangler:
         specifier: 'catalog:'
         version: 4.107.0
@@ -993,6 +1002,9 @@ packages:
     resolution: {integrity: sha512-seDkr6kzGzX1okaaTtZPtgA688CDPlXUz1C6xSg0ESqn04Vuc8tlrYms1s3de+znBqhPVxFRfpAfUf+6XvfPWg==}
     peerDependencies:
       react: ^18 || ^19
+
+  '@tosspayments/tosspayments-sdk@2.7.1':
+    resolution: {integrity: sha512-nHInxgFvFGm1VtaCS+IPLdtmE+B2a+MCYE9Meq0aR/0L0hAgoGllLS4ciQGb1RtLvp3mHcj3lL80XMi4BqQ7uw==}
 
   '@turbo/darwin-64@2.10.3':
     resolution: {integrity: sha512-guuiO2kKc7yUQFU2jhWyM/BrYGD/brqb0+JvJIXTQ/QI1NlWfHZ1id50kkkOWqxmBiDc8DgW2orfY85pQIc7gw==}
@@ -2214,6 +2226,8 @@ snapshots:
     dependencies:
       '@tanstack/query-core': 5.101.2
       react: 19.2.7
+
+  '@tosspayments/tosspayments-sdk@2.7.1': {}
 
   '@turbo/darwin-64@2.10.3':
     optional: true

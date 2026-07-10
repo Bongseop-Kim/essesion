@@ -3,5 +3,33 @@
 @import "tailwindcss";
 @import "@essesion/shared/theme.css";
 
+@font-face {
+  font-family: "Toss Face";
+  src: url("/fonts/TossFaceFontMac.ttf") format("truetype");
+  font-display: swap;
+}
+
+.result-emoji {
+  font-family: "Toss Face", sans-serif;
+  transform: scale(1.75);
+  transform-origin: center;
+}
+
+.login-emoji {
+  font-family: "Toss Face", sans-serif;
+  transform: scale(1.5);
+  transform-origin: center;
+}
+
+.login-page-content {
+  transform: translateY(calc(var(--spacing-x14) / -2));
+}
+
+@media (min-width: 768px) {
+  .login-page-content {
+    transform: translateY(calc(var(--spacing-x16) / -2));
+  }
+}
+
 /* Tailwind는 node_modules를 스캔하지 않으므로 공용 컴포넌트의 클래스는 명시 등록 */
 @source "../../../packages/shared/src";

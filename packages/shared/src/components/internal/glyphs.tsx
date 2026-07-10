@@ -56,3 +56,11 @@ export function XGlyph(props: GlyphProps) {
     </svg>
   );
 }
+
+export function PlusGlyph(props: GlyphProps) {
+  return (
+    <svg aria-hidden="true" {...glyphProps(props)}>
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  );
+}

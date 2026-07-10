@@ -79,7 +79,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | SelectBox / SelectBoxItem | 설명·비교가 필요한 테두리 카드형 옵션(제출로 확정, `multiple`·`columns`) | 가벼운 키워드 필터(→Chip), 클릭 즉시 액션 |
 | FieldButton | 입력창처럼 보이는 트리거 — 피커/선택 다이얼로그를 연다(값+셰브론 표시) | 직접 텍스트 입력(→TextField) |
 | ListPicker | 오버레이 목록에서 **단일 선택**(FieldButton+ResponsiveModal+List 조합) | 옵션 2–3개면 SelectBox/RadioGroup 먼저 |
-| AttachmentDisplayField | 이미 첨부된 이미지 썸네일 표시(+`onRemove` 제거 · `max` 카운터) | 파일 업로더/피커 아님(표시 전용) |
+| AttachmentDisplayField | 이미지 첨부 필드 — 썸네일 표시·제거, `onAddFiles` 지정 시 남은 슬롯에 파일 선택 타일 노출. `max=1`은 선택 후 추가 타일·카운터 숨김 | raw file TextField와 별도 썸네일 UI 조합 |
 
 ### 내비게이션
 
@@ -87,6 +87,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 |---|---|---|
 | Tabs / TabList / TabTrigger / TabContent | 한 화면에서 탭 단위로 콘텐츠 분리/전환(Line 스타일). `triggerLayout` hug(기본)/fill | 같은 화면 콘텐츠 조작·필터(→SegmentedControl) |
 | Menu (Trigger/Content/Item/Group/Separator) | 트리거로 여는 드롭다운 명령 목록(데스크톱) | 모바일 액션 목록(→SwipeableMenuSheet) |
+| HelpBubbleTrigger | 버튼을 클릭해 여는 짧은 보조 설명. 여러 문장·모바일 탭·명시적 닫기가 필요한 도움말 | 명령 목록(→Menu), 상주 안내(→Callout), hover 전용 Tooltip |
 | Breadcrumb | 페이지 경로 표시(마지막=현재 페이지). 라우팅은 `renderLink` | 단일 뎁스 페이지 |
 
 ### 스크롤 (규칙 10)
@@ -148,6 +149,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 임시 작업·폼·상세 (기본 패턴) | **ResponsiveModal** — 모바일 BottomSheet ↔ PC 중앙 Modal 자동 전환 |
 | 액션 목록 | SwipeableMenuSheet(모바일) / Menu(데스크톱) |
 | 트리거 기준 명령 목록(데스크톱) | Menu |
+| 트리거 기준 짧은 보조 설명 | HelpBubbleTrigger |
 | 측면 맥락 유지 보조 작업(admin) | SidePanel |
 | 수 초 뒤 사라지는 결과 알림 | `snackbar()` — SnackbarHost를 앱 루트에 1회 마운트 |
 | 섹션 상주 안내 | Callout |
@@ -191,7 +193,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | international-design | 한국어 줄바꿈, ₩·날짜·숫자 표기 |
 | layout | store 콘텐츠 / admin 대시보드 레이아웃 |
 | motion | duration 3단 × ease 3종 |
-| overlay | **오버레이·피드백 7종 결정 트리·닫힘 모델·구현 계약** |
+| overlay | **오버레이·피드백 8종 결정 트리·닫힘 모델·구현 계약** |
 | radius / spacing | r·x 스케일 용도 매핑 |
 | scroll | 가로 scrollbar 금지, ScrollFog 우선, 세로 스크롤 표시 판단 |
 | state | enabled→hover→pressed→selected→disabled→focus-visible |

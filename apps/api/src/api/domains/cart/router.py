@@ -1,9 +1,12 @@
 """장바구니 — 전체 교체 의미론(병합 아님), 유저 advisory lock으로 직렬화."""
 
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
+
 from db.models.auth import User
 from db.models.commerce import CartItem, Coupon, Product, UserCoupon
 from fastapi import APIRouter
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import USER_LOCK, SessionDep, advisory_xact_lock
@@ -17,9 +20,41 @@ from api.domains.cart.schemas import (
 from api.domains.coupons.schemas import CouponOut, UserCouponOut
 from api.domains.products.router import _load_options, _product_query
 from api.domains.products.schemas import ProductOptionOut, ProductOut
+from api.domains.reform.schemas import ReformDataOut
+from api.domains.reform.service import claim_reform_image, get_reform_pricing, reform_snapshot
 from api.errors import DomainError
 
 router = APIRouter(tags=["cart"])
+REMOVED_REFORM_IMAGE_TTL = timedelta(hours=24)
+
+
+def _reform_image_keys(items: Sequence[CartItem]) -> set[str]:
+    keys: set[str] = set()
+    for item in items:
+        data = item.reform_data
+        if not isinstance(data, dict):
+            continue
+        image = (data.get("tie") or {}).get("image") or {}
+        key = image.get("object_key")
+        if isinstance(key, str):
+            keys.add(key)
+    return keys
+
+
+async def _expire_removed_images(session: AsyncSession, user: User, removed_keys: set[str]) -> None:
+    if not removed_keys:
+        return
+    from db.models.images import Image
+
+    await session.execute(
+        update(Image)
+        .where(
+            Image.entity_type == "reform_upload",
+            Image.uploaded_by == user.id,
+            Image.object_key.in_(removed_keys),
+        )
+        .values(expires_at=datetime.now(UTC) + REMOVED_REFORM_IMAGE_TTL)
+    )
 
 
 def _validate_item(item: CartItemIn) -> None:
@@ -29,6 +64,8 @@ def _validate_item(item: CartItemIn) -> None:
         raise DomainError("Invalid product cart item", code="invalid_cart_item")
     if item.item_type == "reform" and (item.product_id is not None or item.reform_data is None):
         raise DomainError("Invalid reform cart item", code="invalid_cart_item")
+    if item.item_type == "reform" and item.quantity != 1:
+        raise DomainError("Reform item quantity must be one", code="invalid_quantity")
 
 
 async def _load_cart(session: AsyncSession, user: User) -> list[CartItemOut]:
@@ -79,7 +116,11 @@ async def _load_cart(session: AsyncSession, user: User) -> list[CartItemOut]:
                 quantity=item.quantity,
                 product=product,
                 selected_option=selected_option,
-                reform_data=item.reform_data,
+                reform_data=(
+                    ReformDataOut.model_validate(item.reform_data)
+                    if item.reform_data is not None
+                    else None
+                ),
                 applied_coupon=coupons.get(item.applied_user_coupon_id),
             )
         )
@@ -98,9 +139,30 @@ async def replace_cart(
     for item in body.items:
         _validate_item(item)
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
+    previous_items = (
+        await session.scalars(select(CartItem).where(CartItem.user_id == user.id))
+    ).all()
+    previous_image_keys = _reform_image_keys(previous_items)
     await session.execute(delete(CartItem).where(CartItem.user_id == user.id))
+    reform_pricing = (
+        await get_reform_pricing(session)
+        if any(item.item_type == "reform" for item in body.items)
+        else None
+    )
     for item in body.items:
-        session.add(CartItem(user_id=user.id, **item.model_dump()))
+        values = item.model_dump()
+        if item.item_type == "reform":
+            if item.reform_data is None or reform_pricing is None:
+                raise DomainError("Invalid reform cart item", code="invalid_cart_item")
+            await claim_reform_image(session, user.id, item.reform_data.tie.image)
+            values["reform_data"] = reform_snapshot(item.reform_data, reform_pricing).model_dump()
+        session.add(CartItem(user_id=user.id, **values))
+    next_image_keys = {
+        item.reform_data.tie.image.object_key
+        for item in body.items
+        if item.item_type == "reform" and item.reform_data is not None
+    }
+    await _expire_removed_images(session, user, previous_image_keys - next_image_keys)
     await session.commit()
     return await _load_cart(session, user)
 
@@ -110,8 +172,18 @@ async def remove_cart_items(
     body: CartRemoveRequest, session: SessionDep, user: CurrentUser
 ) -> list[CartItemOut]:
     if body.item_ids:
+        await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
+        removed_items = (
+            await session.scalars(
+                select(CartItem).where(
+                    CartItem.user_id == user.id,
+                    CartItem.item_id.in_(body.item_ids),
+                )
+            )
+        ).all()
         await session.execute(
             delete(CartItem).where(CartItem.user_id == user.id, CartItem.item_id.in_(body.item_ids))
         )
+        await _expire_removed_images(session, user, _reform_image_keys(removed_items))
         await session.commit()
     return await _load_cart(session, user)

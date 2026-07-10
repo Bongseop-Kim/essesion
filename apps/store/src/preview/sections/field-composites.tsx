@@ -38,6 +38,7 @@ export function FieldCompositesSection() {
               label="상품 이미지"
               description="최대 5장까지 업로드할 수 있습니다."
               max={5}
+              accept="image/*"
               items={[
                 {
                   id: "a",
@@ -51,7 +52,33 @@ export function FieldCompositesSection() {
                 },
               ]}
               onRemove={(id) => console.log("remove", id)}
+              onAddFiles={(files) => console.log("add", files)}
             />
+          </SubSection>
+          <SubSection title="AttachmentDisplayField — 단일 이미지 선택 상태">
+            <VStack gap="x4" alignItems="stretch">
+              <AttachmentDisplayField
+                label="사진 선택 전"
+                description="사진은 1장만 추가할 수 있습니다."
+                max={1}
+                accept="image/*"
+                items={[]}
+                onAddFiles={(files) => console.log("add single", files)}
+              />
+              <AttachmentDisplayField
+                label="사진 선택 후"
+                max={1}
+                items={[
+                  {
+                    id: "single",
+                    src: "https://picsum.photos/seed/single/200",
+                    alt: "선택된 사진",
+                  },
+                ]}
+                onRemove={(id) => console.log("remove single", id)}
+                onAddFiles={(files) => console.log("replace", files)}
+              />
+            </VStack>
           </SubSection>
           <SubSection title="SelectBox — 단일 선택 (카드)">
             <SelectBox defaultValue="standard" aria-label="배송 방법">

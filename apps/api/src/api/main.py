@@ -86,6 +86,7 @@ def _include_routers(app: FastAPI) -> None:
     from api.domains.payments.router import router as payments_router
     from api.domains.products.router import router as products_router
     from api.domains.quotes.router import router as quotes_router
+    from api.domains.reform.router import router as reform_router
     from api.domains.tokens.router import router as tokens_router
     from api.domains.users.router import router as users_router
 
@@ -101,6 +102,7 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(quotes_router)
     app.include_router(inquiries_router)
     app.include_router(images_router)
+    app.include_router(reform_router)
     app.include_router(design_router)
     app.include_router(admin_router)
     app.include_router(batch_router)

@@ -1,9 +1,10 @@
-import type {
-  CartItemIn,
-  CartItemOut,
-  ProductOptionOut,
-  ProductOut,
-  UserCouponOut,
+import {
+  type CartItemIn,
+  type CartItemOut,
+  type ProductOptionOut,
+  type ProductOut,
+  replaceCart as replaceCartRequest,
+  type UserCouponOut,
 } from "@essesion/api-client";
 import {
   getCartOptions,
@@ -11,7 +12,12 @@ import {
   replaceCartMutation,
 } from "@essesion/api-client/query";
 import { snackbar } from "@essesion/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { useSession } from "@/shared/store/session";
@@ -23,6 +29,7 @@ import {
   removeCartItemIds,
   updateCartItemQuantity,
   updateProductCartItemOption,
+  upsertReformCartItems,
 } from "./items";
 import {
   clearGuestCartItems,
@@ -31,22 +38,46 @@ import {
   setGuestCartItems,
 } from "./storage";
 
+let activeGuestSync: Promise<void> | null = null;
+
+export function syncGuestCartToAccount(queryClient: QueryClient) {
+  activeGuestSync ??= (async () => {
+    const serverItems = await queryClient.fetchQuery(getCartOptions());
+    const guestItems = await getGuestCartItems();
+    if (guestItems.length === 0) {
+      queryClient.setQueryData(getCartQueryKey(), serverItems);
+      return;
+    }
+
+    const response = await replaceCartRequest({ body: { items: guestItems } });
+    if (!response.data) {
+      queryClient.setQueryData(getCartQueryKey(), serverItems);
+      snackbar("장바구니를 동기화하지 못해 기존 장바구니를 불러왔습니다.");
+      throw new Error("guest cart sync failed");
+    }
+    await clearGuestCartItems();
+    queryClient.setQueryData(getCartQueryKey(), response.data);
+    queryClient.setQueryData(guestCartQueryKey, []);
+    snackbar("장바구니를 계정에 동기화했습니다.");
+  })().finally(() => {
+    activeGuestSync = null;
+  });
+  return activeGuestSync;
+}
+
 export function useCartAuthSync() {
   const status = useSession((state) => state.status);
   const userId = useSession((state) => state.user?.id ?? null);
   const queryClient = useQueryClient();
-  const replaceCart = useMutation(replaceCartMutation());
   const previousUserId = useRef<string | null>(null);
-  const processing = useRef(false);
 
   useEffect(() => {
     if (status === "loading") return;
     if (status === "authenticated" && !userId) return;
     const nextUserId = status === "authenticated" ? userId : null;
-    if (nextUserId === previousUserId.current || processing.current) return;
+    if (nextUserId === previousUserId.current) return;
 
     let cancelled = false;
-    processing.current = true;
     (async () => {
       try {
         if (!nextUserId) {
@@ -58,46 +89,19 @@ export function useCartAuthSync() {
           return;
         }
 
-        const serverItems = await queryClient.fetchQuery(getCartOptions());
-        const guestItems = await getGuestCartItems();
-        if (guestItems.length === 0) {
-          queryClient.setQueryData(getCartQueryKey(), serverItems);
-          previousUserId.current = nextUserId;
-          return;
-        }
-
-        try {
-          const nextCart = await replaceCart.mutateAsync({
-            body: { items: guestItems },
-          });
-          await clearGuestCartItems();
-          if (!cancelled) {
-            queryClient.setQueryData(getCartQueryKey(), nextCart);
-            queryClient.setQueryData(guestCartQueryKey, []);
-            snackbar("장바구니를 계정에 동기화했습니다.");
-          }
-        } catch {
-          if (!cancelled) {
-            queryClient.setQueryData(getCartQueryKey(), serverItems);
-            snackbar(
-              "장바구니를 동기화하지 못해 기존 장바구니를 불러왔습니다.",
-            );
-          }
-        }
-        previousUserId.current = nextUserId;
+        await syncGuestCartToAccount(queryClient);
+        if (!cancelled) previousUserId.current = nextUserId;
       } catch {
         if (!cancelled) {
           snackbar("장바구니를 불러오지 못했습니다.");
         }
-      } finally {
-        processing.current = false;
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [queryClient, replaceCart, status, userId]);
+  }, [queryClient, status, userId]);
 }
 
 export function useCartItems() {
@@ -192,6 +196,14 @@ export function useCartActions() {
       await updateInputs((items) =>
         addProductToCartItems({ items, product, option, quantity }),
       );
+    },
+    async upsertReforms(
+      reforms: Array<{
+        itemId: string;
+        reformData: NonNullable<CartItemIn["reform_data"]>;
+      }>,
+    ) {
+      await updateInputs((items) => upsertReformCartItems(items, reforms));
     },
     async updateQuantity(itemId: string, quantity: number) {
       await updateInputs((items) =>

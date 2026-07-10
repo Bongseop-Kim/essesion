@@ -1,10 +1,11 @@
 import uuid
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel
 
 from api.domains.coupons.schemas import UserCouponOut
 from api.domains.products.schemas import ProductOptionOut, ProductOut
+from api.domains.reform.schemas import ReformDataIn, ReformDataOut
 
 
 class CartItemIn(BaseModel):
@@ -13,7 +14,7 @@ class CartItemIn(BaseModel):
     quantity: int
     product_id: int | None = None
     selected_option_id: str | None = None
-    reform_data: dict[str, Any] | None = None
+    reform_data: ReformDataIn | None = None
     applied_user_coupon_id: uuid.UUID | None = None
 
 
@@ -31,5 +32,5 @@ class CartItemOut(BaseModel):
     quantity: int
     product: ProductOut | None
     selected_option: ProductOptionOut | None
-    reform_data: dict[str, Any] | None
+    reform_data: ReformDataOut | None
     applied_coupon: UserCouponOut | None

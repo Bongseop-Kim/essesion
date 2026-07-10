@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from db.models.commerce import Claim, OrderItem
 
-from .factories import make_order, make_user
+from .factories import make_coupon, make_order, make_user, make_user_coupon
 
 BATCH_HEADERS = {"Authorization": "Bearer test-batch-token"}
 
@@ -62,17 +62,32 @@ async def test_auto_confirm_after_7_days(client, db_session):
 
 async def test_cancel_stale_pending(client, db_session):
     user = await make_user(db_session)
+    coupon = await make_coupon(db_session)
+    user_coupon = await make_user_coupon(db_session, user, coupon, status="reserved")
     stale = await make_order(
         db_session, user, status="대기중", created_at=datetime.now(UTC) - timedelta(minutes=40)
     )
     fresh = await make_order(db_session, user, status="대기중")
+    db_session.add(
+        OrderItem(
+            order_id=stale.id,
+            item_id="stale-coupon",
+            item_type="product",
+            quantity=1,
+            unit_price=10000,
+            applied_user_coupon_id=user_coupon.id,
+        )
+    )
+    await db_session.commit()
 
     res = await client.post("/batch/cancel-stale-orders", headers=BATCH_HEADERS)
     assert res.json()["processed"] == 1
 
     await db_session.refresh(stale)
     await db_session.refresh(fresh)
+    await db_session.refresh(user_coupon)
     assert stale.status == "취소" and fresh.status == "대기중"
+    assert user_coupon.status == "active"
 
 
 # ---- OIDC 모드 (배포 환경 — infra/scheduler.tf가 audience·email 주입) ----

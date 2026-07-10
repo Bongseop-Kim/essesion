@@ -577,6 +577,40 @@
         "title": "AffectedResponse",
         "type": "object"
       },
+      "AutomaticReform": {
+        "additionalProperties": false,
+        "properties": {
+          "dimple": {
+            "default": false,
+            "title": "Dimple",
+            "type": "boolean"
+          },
+          "mechanism": {
+            "enum": [
+              "zipper",
+              "string"
+            ],
+            "title": "Mechanism",
+            "type": "string"
+          },
+          "turn_knot": {
+            "default": false,
+            "title": "Turn Knot",
+            "type": "boolean"
+          },
+          "wearer_height_cm": {
+            "exclusiveMinimum": 0.0,
+            "title": "Wearer Height Cm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "mechanism",
+          "wearer_height_cm"
+        ],
+        "title": "AutomaticReform",
+        "type": "object"
+      },
       "BatchResult": {
         "properties": {
           "processed": {
@@ -634,14 +668,12 @@
           "reform_data": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ReformDataIn"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reform Data"
+            ]
           },
           "selected_option_id": {
             "anyOf": [
@@ -700,14 +732,12 @@
           "reform_data": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ReformDataOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reform Data"
+            ]
           },
           "selected_option": {
             "anyOf": [
@@ -2557,14 +2587,12 @@
           "reform_data": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ReformDataIn"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reform Data"
+            ]
           },
           "selected_option_id": {
             "anyOf": [
@@ -3692,6 +3720,43 @@
         "title": "QuoteOut",
         "type": "object"
       },
+      "ReadUrlRequest": {
+        "properties": {
+          "claim_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Token"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key"
+        ],
+        "title": "ReadUrlRequest",
+        "type": "object"
+      },
+      "ReadUrlResponse": {
+        "properties": {
+          "read_url": {
+            "title": "Read Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "read_url"
+        ],
+        "title": "ReadUrlResponse",
+        "type": "object"
+      },
       "ReferenceImageIn": {
         "properties": {
           "object_key": {
@@ -3703,6 +3768,312 @@
           "object_key"
         ],
         "title": "ReferenceImageIn",
+        "type": "object"
+      },
+      "ReformDataIn": {
+        "additionalProperties": false,
+        "properties": {
+          "tie": {
+            "$ref": "#/components/schemas/ReformTieIn"
+          }
+        },
+        "required": [
+          "tie"
+        ],
+        "title": "ReformDataIn",
+        "type": "object"
+      },
+      "ReformDataOut": {
+        "additionalProperties": false,
+        "properties": {
+          "cost": {
+            "title": "Cost",
+            "type": "integer"
+          },
+          "tie": {
+            "$ref": "#/components/schemas/ReformTieOut"
+          }
+        },
+        "required": [
+          "tie",
+          "cost"
+        ],
+        "title": "ReformDataOut",
+        "type": "object"
+      },
+      "ReformImageIn": {
+        "additionalProperties": false,
+        "properties": {
+          "claim_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Token"
+          },
+          "object_key": {
+            "minLength": 1,
+            "title": "Object Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key"
+        ],
+        "title": "ReformImageIn",
+        "type": "object"
+      },
+      "ReformImageOut": {
+        "additionalProperties": false,
+        "properties": {
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key"
+        ],
+        "title": "ReformImageOut",
+        "type": "object"
+      },
+      "ReformPricingOut": {
+        "additionalProperties": false,
+        "properties": {
+          "automatic_combined_cost": {
+            "title": "Automatic Combined Cost",
+            "type": "integer"
+          },
+          "automatic_cost": {
+            "title": "Automatic Cost",
+            "type": "integer"
+          },
+          "pickup_fee": {
+            "title": "Pickup Fee",
+            "type": "integer"
+          },
+          "restoration_cost": {
+            "title": "Restoration Cost",
+            "type": "integer"
+          },
+          "shipping_cost": {
+            "title": "Shipping Cost",
+            "type": "integer"
+          },
+          "width_cost": {
+            "title": "Width Cost",
+            "type": "integer"
+          },
+          "width_restoration_cost": {
+            "title": "Width Restoration Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "automatic_cost",
+          "width_cost",
+          "restoration_cost",
+          "automatic_combined_cost",
+          "width_restoration_cost",
+          "shipping_cost",
+          "pickup_fee"
+        ],
+        "title": "ReformPricingOut",
+        "type": "object"
+      },
+      "ReformTieIn": {
+        "additionalProperties": false,
+        "properties": {
+          "automatic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutomaticReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "image": {
+            "$ref": "#/components/schemas/ReformImageIn"
+          },
+          "restoration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestorationReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "width": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WidthReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "title": "ReformTieIn",
+        "type": "object"
+      },
+      "ReformTieOut": {
+        "additionalProperties": false,
+        "properties": {
+          "automatic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutomaticReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "image": {
+            "$ref": "#/components/schemas/ReformImageOut"
+          },
+          "restoration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestorationReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "width": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WidthReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "image"
+        ],
+        "title": "ReformTieOut",
+        "type": "object"
+      },
+      "ReformUploadCompleteRequest": {
+        "properties": {
+          "claim_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Token"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10485760.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "object_key",
+          "size_bytes"
+        ],
+        "title": "ReformUploadCompleteRequest",
+        "type": "object"
+      },
+      "ReformUploadUrlRequest": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10485760.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "ReformUploadUrlRequest",
+        "type": "object"
+      },
+      "ReformUploadUrlResponse": {
+        "properties": {
+          "claim_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Token"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Required Headers",
+            "type": "object"
+          },
+          "upload_required": {
+            "title": "Upload Required",
+            "type": "boolean"
+          },
+          "upload_url": {
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key",
+          "upload_url",
+          "required_headers",
+          "claim_token",
+          "expires_at",
+          "upload_required"
+        ],
+        "title": "ReformUploadUrlResponse",
         "type": "object"
       },
       "RefundableTokenOrder": {
@@ -3786,18 +4157,22 @@
             "type": "array"
           },
           "reason": {
-            "enum": [
-              "quick",
-              "overseas",
-              "lost"
+            "anyOf": [
+              {
+                "enum": [
+                  "quick",
+                  "overseas",
+                  "lost"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Reason",
-            "type": "string"
+            "title": "Reason"
           }
         },
-        "required": [
-          "reason"
-        ],
         "title": "RepairNoTrackingRequest",
         "type": "object"
       },
@@ -3892,6 +4267,17 @@
             "title": "Courier Company",
             "type": "string"
           },
+          "memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memo"
+          },
           "photos": {
             "default": [],
             "items": {
@@ -3910,6 +4296,19 @@
           "tracking_number"
         ],
         "title": "RepairTrackingRequest",
+        "type": "object"
+      },
+      "RestorationReform": {
+        "additionalProperties": false,
+        "properties": {
+          "memo": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Memo",
+            "type": "string"
+          }
+        },
+        "title": "RestorationReform",
         "type": "object"
       },
       "RevokeByIdsRequest": {
@@ -4381,7 +4780,6 @@
           },
           "kind": {
             "enum": [
-              "reform_upload",
               "repair_shipping_upload",
               "custom_order",
               "sample_order",
@@ -4405,6 +4803,10 @@
             "title": "Object Key",
             "type": "string"
           },
+          "upload_required": {
+            "title": "Upload Required",
+            "type": "boolean"
+          },
           "upload_url": {
             "title": "Upload Url",
             "type": "string"
@@ -4412,7 +4814,8 @@
         },
         "required": [
           "object_key",
-          "upload_url"
+          "upload_url",
+          "upload_required"
         ],
         "title": "UploadUrlResponse",
         "type": "object"
@@ -4568,6 +4971,21 @@
           "handled"
         ],
         "title": "WebhookResult",
+        "type": "object"
+      },
+      "WidthReform": {
+        "additionalProperties": false,
+        "properties": {
+          "target_width_cm": {
+            "exclusiveMinimum": 0.0,
+            "title": "Target Width Cm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "target_width_cm"
+        ],
+        "title": "WidthReform",
         "type": "object"
       },
       "WorkerCandidateOut": {
@@ -6943,6 +7361,98 @@
         "summary": "Healthz"
       }
     },
+    "/images/read-url": {
+      "post": {
+        "operationId": "create_read_url",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadUrlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadUrlResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Read Url",
+        "tags": [
+          "images"
+        ]
+      }
+    },
+    "/images/reform-upload-url": {
+      "post": {
+        "operationId": "create_reform_upload_url",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReformUploadUrlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReformUploadUrlResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Reform Upload Url",
+        "tags": [
+          "images"
+        ]
+      }
+    },
     "/images/reform-uploads": {
       "post": {
         "operationId": "register_reform_upload",
@@ -6950,7 +7460,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UploadRegisterRequest"
+                "$ref": "#/components/schemas/ReformUploadCompleteRequest"
               }
             }
           },
@@ -8172,6 +8682,27 @@
         "summary": "Get Quote",
         "tags": [
           "quotes"
+        ]
+      }
+    },
+    "/reform/pricing": {
+      "get": {
+        "operationId": "get_reform_pricing",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReformPricingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Reform Pricing",
+        "tags": [
+          "reform"
         ]
       }
     },

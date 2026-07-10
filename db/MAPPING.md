@@ -25,11 +25,11 @@
 | quote_requests | quote_requests | 동일. updated_at NOT NULL화 |
 | **quote_request_contact_migration_audit** | — (드롭) | 일회성 마이그레이션 감사 잔재 |
 | repair_pickup_requests / repair_shipping_receipts | 동일 | — |
-| admin_settings / pricing_constants | 동일 | updated_by → SET NULL |
+| admin_settings / pricing_constants | 동일 | updated_by → SET NULL. 수선 단가는 자동/폭/복원/자동복합/폭+복원 5키로 재구성 |
 | notification_preference_logs | 동일 | — |
 | design_tokens | design_tokens | 동일 — 원장 의미(amount±, type, token_class, 만료) 보존. work_id = 생성 작업 멱등 키(구 ai_generation_logs.work_id FK였으나 대상 드롭 → FK 없는 text 유지) |
 | token_purchases | token_purchases | 동일 |
-| images | **images** (재설계) | url·file_id·folder(ImageKit) → object_key(GCS 단일 assets 버킷). 2단계 삭제(deletion_claimed_at→deleted_at)·expires_at·부분 unique(reform_upload/repair_shipping_upload) 유지. design_message 부분 unique는 제거(신규 /design에서 entity_type 재정의). 견적 종료 시 90일 만료 트리거 → api 로직 |
+| images | **images** (재설계) | url·file_id·folder(ImageKit) → object_key(GCS 업로드 버킷). 2단계 삭제·expires_at·부분 unique 유지. 비회원 수선 업로드를 위해 claim_token_hash/content_type/size_bytes/upload_completed_at 추가, 미귀속·장바구니 제거 이미지는 24시간 후 정리. 견적 종료 시 90일 만료 트리거 → api 로직 |
 | motifs | motifs | 동일. embedding을 vector(1536) 고정(text-embedding-3-small) — 기존 런타임 vector_dims 가드 대체. extensions.vector → public vector. HNSW 인덱스 없음(결정론 위해 seq scan — 규모 커지면 후속 리비전) |
 | seamless_generation_logs | seamless_generation_logs | 동일 — admin 로그 뷰어 + SVG 재-export system of record |
 | seamless_sessions | **design_sessions** (재설계) | thread_id(text PK)→id(uuid). status/seed/colorway/registry_version/current_intent 승계, user_id NOT NULL화. **예산 카운터 recraft_used·finalize_used 추가** — 프로세스-로컬 budget 대체(Postgres 공유 카운터, ARCHITECTURE §7) |

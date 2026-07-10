@@ -23,7 +23,7 @@ import {
 import type { ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
-import { LogoutButton } from "@/features/auth";
+import { AuthGuardProvider, LogoutButton } from "@/features/auth";
 import { useSession } from "@/shared/store/session";
 
 const STORE_NAV_ITEMS = [
@@ -222,14 +222,29 @@ function StoreFooter() {
 
 /** 앱 셸: Header · 페이지(Outlet) · Footer + 스낵바 호스트(루트 1회 마운트). */
 export function AppLayout() {
+  const location = useLocation();
+  const isPaymentResult = location.pathname.startsWith("/order/payment/");
+  const isLogin = location.pathname === "/login";
+  const isFocusedRoute = isPaymentResult || isLogin;
+
   return (
-    <Layout>
-      <StoreHeader />
-      <Box as="main" flexGrow={1}>
-        <Outlet />
-      </Box>
-      <StoreFooter />
-      <SnackbarHost />
-    </Layout>
+    <AuthGuardProvider>
+      <Layout>
+        {isPaymentResult ? (
+          <Box display={{ base: "none", md: "block" }}>
+            <StoreHeader />
+          </Box>
+        ) : (
+          <StoreHeader />
+        )}
+        {/* 항상 flex column — LayoutContent(flexGrow)가 남는 높이를 채워
+            ContentLayout의 sticky 액션 바가 짧은 페이지에서도 바닥에 정착한다 */}
+        <Box as="main" flexGrow={1} display="flex" flexDirection="column">
+          <Outlet />
+        </Box>
+        {isFocusedRoute ? null : <StoreFooter />}
+        <SnackbarHost />
+      </Layout>
+    </AuthGuardProvider>
   );
 }

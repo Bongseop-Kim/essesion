@@ -10,6 +10,7 @@ onlyBuiltDependencies:
 
 # store/admin 공유 의존성 버전 단일 선언 — 드리프트 차단 (ARCHITECTURE §4)
 catalog:
+  "@tosspayments/tosspayments-sdk": 2.7.1
   react: ^19.2.7
   react-dom: ^19.2.7
   "@heroicons/react": ^2.2.0

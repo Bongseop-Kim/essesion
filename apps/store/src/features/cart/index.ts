@@ -3,12 +3,12 @@ export {
   cartItemId,
   cartItemsToInputs,
   cartItemToInput,
-  couponDiscount,
-  couponLabel,
   productUnitPrice,
   selectedOption,
+  upsertReformCartItems,
 } from "./model/items";
 export {
+  syncGuestCartToAccount,
   useCartActions,
   useCartAuthSync,
   useCartItems,

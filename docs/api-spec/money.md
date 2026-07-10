@@ -15,7 +15,7 @@
 
 입력: 배송지 id, items[] `{item_id, item_type(product|reform), product_id, selected_option_id, reform_data, quantity, applied_user_coupon_id}`, repair_shipping `{method: direct|pickup, pickup:{recipient_name, recipient_phone, postal_code?, address, detail_address?}}`.
 
-검증: 아이템 최대 50개 / reform_data 개당 64KB / 배송지 본인 소유 / quantity>0 / product는 product_id 필수·존재 / reform은 reform_data 필수 + `hasLengthReform||hasWidthReform` / pickup은 reform 아이템 있어야 하고 수령인 3필드 필수.
+검증: 아이템 최대 50개 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity>0·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 돌려묶기 불가) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하 / pickup은 reform 아이템이 있어야 하고 수령인 3필드 필수.
 
 재고 (결제 전 물리 차감):
 - 옵션 선택 시 옵션 재고, 아니면 상품 재고. `FOR UPDATE` 후 `stock IS NOT NULL AND stock < qty`면 오류, 아니면 차감. **NULL = 무제한**.
@@ -23,19 +23,19 @@
 
 단가:
 - product: `products.price + coalesce(option.additional_price, 0)`
-- reform: `(hasLengthReform? REFORM_BASE_COST:0) + (hasWidthReform? REFORM_WIDTH_COST:0)` (기본 length=true, width=false). reform_data에 `cost` 주입.
+- reform: 자동 단독 `REFORM_AUTOMATIC_COST`(16,000), 폭 단독 `REFORM_WIDTH_COST`(30,000), 복원 단독 `REFORM_RESTORATION_COST`(30,000), 자동+폭/복원/둘 다 `REFORM_AUTOMATIC_COMBINED_COST`(40,000), 폭+복원 `REFORM_WIDTH_RESTORATION_COST`(30,000). 서버가 현재 상수로 계산해 reform_data에 `cost`를 주입한다.
 
 쿠폰 라인 할인 (아이템별):
 1. 같은 쿠폰은 주문(요청) 내 1회만.
 2. `user_coupons FOR UPDATE`: status='active', uc.expires_at>now, coupon.is_active, coupon.expiry_date>=today.
-3. 단위 할인: percentage `floor(unit*value/100)` / fixed `floor(value)` → `greatest(0, least(할인, unit))` 클램프.
-4. 라인 캡: `capped = least(단위할인*qty, max_discount_amount?)` → 단위 재분배 `floor(capped/qty)` + remainder(첫 remainder개 +1). line_discount_total = capped.
+3. 라인 할인: percentage `floor(unit*qty*value/100)` / fixed `floor(value)` → `greatest(0, least(할인, unit*qty))` 클램프. 정액 쿠폰은 수량과 무관하게 주문 항목당 1회 적용.
+4. 라인 캡: `capped = least(라인할인, max_discount_amount?)` → 단위 재분배 `floor(capped/qty)` + remainder(첫 remainder개 +1). line_discount_total = capped.
 
 주문 분리: `payment_group_id = uuid4()` 하나에 product 주문(order_type=sale)과 repair 주문(order_type=repair)을 분리 생성.
 - sale: `shipping_cost=0` 고정(**무료배송 임계 없음**), total = original - discount.
 - repair: `shipping_cost=REFORM_SHIPPING_COST`, pickup이면 + `REFORM_PICKUP_FEE`(repair_pickup_requests에 스냅샷). total = original - discount + shipping + pickup_fee.
 - 둘 다 status='대기중'. order_items에 unit_price/discount_amount/line_discount_amount 기록.
-- reform 이미지 재연결: images에서 `entity_type='reform_upload' AND entity_id=fileId AND uploaded_by=본인` → `entity_type='reform', entity_id=order_id`로 UPDATE. 0건이면 오류.
+- reform 이미지 재연결: images에서 완료된 `entity_type='reform_upload' AND entity_id=object_key AND uploaded_by=본인` → `entity_type='reform', entity_id=order_id`로 UPDATE. 0건이면 오류.
 
 쿠폰 상태: 생성 시 `active→reserved`. confirm 시 `reserved→used`. unlock 시 `reserved→active`.
 
@@ -113,7 +113,7 @@
 - sale: 대기중→진행중→배송중→배송완료→완료. 취소 ← {대기중,결제중,진행중}
 - custom: 대기중→접수→제작중→제작완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,접수}
 - sample: 접수→제작중→배송중→배송완료→완료. 취소 ← {대기중,결제중,접수}
-- repair: {발송중,발송확인중,수거예정}→접수→수선중→수선완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,발송대기,발송중,발송확인중,수거예정}
+- repair: {발송대기,발송중,발송확인중,수거예정}→접수→수선중→수선완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,발송대기,발송중,발송확인중,수거예정} — 발송대기→접수는 §9 의도적 추가(고객 미등록 입고 시 관리자 강제 접수)
 - token: 취소 ← {대기중,결제중}만. **완료는 결제 confirm 전용.**
 
 롤백 (현재 상태가 {배송중,배송완료,완료,취소,수거완료,재발송}이면 불가):
@@ -131,6 +131,8 @@
 - confirm 멱등 사전체크의 repair 상태는 RPC 권위 매핑(수거예정/발송대기)으로 통일 (엣지의 '발송대기' 고정은 버그였음).
 - use_design_tokens의 p_quality 파라미터는 비용 미반영 vestigial — 제거.
 - Toss 호출 금액은 항상 DB 재계산 합(원 동작 유지). 클라이언트 amount는 사전 일치 검증만.
+- stale 대기중 주문 자동 취소 시 해당 주문 소유자의 예약 쿠폰을 `reserved→active`로 복원한다(원문은 쿠폰이 영구 잠기는 누락이 있었음).
+- **repair 발송 확인 단순화 (원문과 의도적 차이 — UX 재검토로 결정)**: 결제 후 고객에게 필수로 받는 것은 "발송했다"는 확인뿐. 송장번호·사진은 선택 증빙(송장 있으면 발송중, 없으면 발송확인중 — 두 상태는 유지), no_tracking의 reason(quick/overseas/lost)은 선택화(원문은 필수). tracking 영수증에도 memo 허용. 고객이 아무 확인 없이 보낸 실물이 입고되면 관리자가 `발송대기→접수` 강제 전이(원문 전이표에는 없던 추가).
 - **자동 대사 2겹 추가 (원문에 없던 보강 — 제품 관점 재검토로 결정)**:
   - confirm 재시도가 `ALREADY_PROCESSED_PAYMENT`를 받으면 실패(→unlock→stale 취소 = "돈 받고 주문 취소") 대신 **조회 API로 상태·orderId·금액 검증 후 DB 확정**.
   - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 부분취소·혼합상태·금액불일치는 자동 교정하지 않고 critical 로그(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL 등록은 스테이징 개통(4단계) 때.

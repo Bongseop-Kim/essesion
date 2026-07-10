@@ -3,18 +3,27 @@ import { loginMutation } from "@essesion/api-client/query";
 import { zLoginRequest } from "@essesion/api-client/zod";
 import {
   ActionButton,
+  Box,
   Callout,
   Divider,
   Flex,
+  snackbar,
   Text,
   TextField,
   VStack,
 } from "@essesion/shared";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { domAnimation, LazyMotion, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate, useLocation, useNavigate } from "react-router";
 
 import { AUTH_PROVIDERS, type AuthProviderId } from "@/features/auth";
+import {
+  saveAuthReturnIfEmpty,
+  takeAuthReturn,
+} from "@/features/auth/model/return-after-login";
+import { syncGuestCartToAccount } from "@/features/cart";
 import { API_BASE_URL } from "@/shared/config/env";
 import { useZodForm } from "@/shared/lib/form";
 import { useSession } from "@/shared/store/session";
@@ -25,6 +34,9 @@ const STAFF_REVEAL_CLICKS = 5;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const reducedMotion = useReducedMotion();
   const status = useSession((s) => s.status);
   const [titleClicks, setTitleClicks] = useState(0);
   const staffLoginVisible = titleClicks >= STAFF_REVEAL_CLICKS;
@@ -46,7 +58,20 @@ export function LoginPage() {
           return;
         }
         useSession.getState().setUser(me.data);
-        navigate("/", { replace: true });
+        const fallback = (location.state as { from?: unknown } | null)?.from;
+        const destination = takeAuthReturn() ?? {
+          path: typeof fallback === "string" ? fallback : "/",
+        };
+        try {
+          await syncGuestCartToAccount(queryClient);
+          navigate(destination.path, {
+            replace: true,
+            state: destination.state,
+          });
+        } catch {
+          snackbar("장바구니 동기화에 실패했습니다. 장바구니를 확인해 주세요.");
+          navigate("/cart", { replace: true });
+        }
       } catch {
         useSession.getState().clear();
       }
@@ -57,21 +82,78 @@ export function LoginPage() {
   if (status === "authenticated") return <Navigate to="/" replace />;
 
   const startOAuth = (provider: AuthProviderId) => {
+    const fallback = (location.state as { from?: unknown } | null)?.from;
+    saveAuthReturnIfEmpty({
+      path: typeof fallback === "string" ? fallback : "/",
+    });
     // OAuth는 SDK가 아니라 전체 페이지 이동 — api가 콜백에서 refresh 쿠키를 심는다.
     window.location.href = `${API_BASE_URL}/auth/${provider}/login`;
   };
 
   return (
-    <Flex justify="center" px={{ base: "x4", md: "x8" }} py="x10">
+    <Flex
+      className="login-page-content"
+      justify="center"
+      align="center"
+      flexGrow={1}
+      px={{ base: "x4", md: "x8" }}
+      py="x10"
+    >
       <VStack gap="x6" width="full" maxWidth={400}>
-        <Text
-          as="h1"
-          textStyle="title1"
-          className="select-none"
-          onClick={() => setTitleClicks((n) => n + 1)}
-        >
-          로그인
-        </Text>
+        <VStack gap="x4" align="center">
+          <Box
+            width={72}
+            height={72}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            aria-hidden
+          >
+            <LazyMotion features={domAnimation} strict>
+              <m.span
+                style={{ display: "inline-flex" }}
+                initial={
+                  reducedMotion
+                    ? false
+                    : { opacity: 0, scale: 0.7, y: 8, rotate: -12 }
+                }
+                animate={
+                  reducedMotion
+                    ? undefined
+                    : {
+                        opacity: 1,
+                        scale: 1,
+                        y: 0,
+                        rotate: [-12, 16, -8, 12, -4, 0],
+                      }
+                }
+                transition={{ duration: 0.8, ease: "easeOut" }}
+              >
+                <Text textStyle="display1" className="login-emoji">
+                  👋
+                </Text>
+              </m.span>
+            </LazyMotion>
+          </Box>
+          <VStack gap="x2" align="center">
+            <Text
+              as="h1"
+              textStyle="title1"
+              className="select-none"
+              onClick={() => setTitleClicks((n) => n + 1)}
+            >
+              로그인
+            </Text>
+            <Text
+              as="p"
+              textStyle="bodySm"
+              color="fg.neutral-muted"
+              align="center"
+            >
+              로그인하고 모든 서비스를 이용해 보세요.
+            </Text>
+          </VStack>
+        </VStack>
 
         <VStack gap="x3">
           {AUTH_PROVIDERS.map((p) => (

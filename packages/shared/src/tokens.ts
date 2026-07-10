@@ -24,6 +24,7 @@ export const bgRoles = [
   "neutral-weak-hover",
   "neutral-weak-pressed",
   "neutral-solid",
+  "neutral-inverted",
   "disabled",
   "shimmer-highlight",
   "layer-basement",

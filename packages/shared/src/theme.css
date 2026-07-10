@@ -87,6 +87,7 @@
   --color-bg-neutral-solid: var(
     --color-palette-gray-600
   ); /* Switch off 트랙 등 중립 solid 면 */
+  --color-bg-neutral-inverted: #111111; /* Help Bubble 등 밝은 면 위 반전 중립 안내 */
   --color-bg-disabled: var(
     --color-palette-gray-200
   ); /* 폼 필드 disabled 배경 (버튼은 opacity-50 — state.md) */

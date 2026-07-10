@@ -325,6 +325,28 @@ export type AffectedResponse = {
 };
 
 /**
+ * AutomaticReform
+ */
+export type AutomaticReform = {
+    /**
+     * Dimple
+     */
+    dimple?: boolean;
+    /**
+     * Mechanism
+     */
+    mechanism: 'zipper' | 'string';
+    /**
+     * Turn Knot
+     */
+    turn_knot?: boolean;
+    /**
+     * Wearer Height Cm
+     */
+    wearer_height_cm: number;
+};
+
+/**
  * BatchResult
  */
 export type BatchResult = {
@@ -358,12 +380,7 @@ export type CartItemIn = {
      * Quantity
      */
     quantity: number;
-    /**
-     * Reform Data
-     */
-    reform_data?: {
-        [key: string]: unknown;
-    } | null;
+    reform_data?: ReformDataIn | null;
     /**
      * Selected Option Id
      */
@@ -388,12 +405,7 @@ export type CartItemOut = {
      * Quantity
      */
     quantity: number;
-    /**
-     * Reform Data
-     */
-    reform_data: {
-        [key: string]: unknown;
-    } | null;
+    reform_data: ReformDataOut | null;
     selected_option: ProductOptionOut | null;
 };
 
@@ -1417,12 +1429,7 @@ export type OrderItemIn = {
      * Quantity
      */
     quantity: number;
-    /**
-     * Reform Data
-     */
-    reform_data?: {
-        [key: string]: unknown;
-    } | null;
+    reform_data?: ReformDataIn | null;
     /**
      * Selected Option Id
      */
@@ -2006,6 +2013,30 @@ export type QuoteOut = {
 };
 
 /**
+ * ReadUrlRequest
+ */
+export type ReadUrlRequest = {
+    /**
+     * Claim Token
+     */
+    claim_token?: string | null;
+    /**
+     * Object Key
+     */
+    object_key: string;
+};
+
+/**
+ * ReadUrlResponse
+ */
+export type ReadUrlResponse = {
+    /**
+     * Read Url
+     */
+    read_url: string;
+};
+
+/**
  * ReferenceImageIn
  */
 export type ReferenceImageIn = {
@@ -2013,6 +2044,170 @@ export type ReferenceImageIn = {
      * Object Key
      */
     object_key: string;
+};
+
+/**
+ * ReformDataIn
+ */
+export type ReformDataIn = {
+    tie: ReformTieIn;
+};
+
+/**
+ * ReformDataOut
+ */
+export type ReformDataOut = {
+    /**
+     * Cost
+     */
+    cost: number;
+    tie: ReformTieOut;
+};
+
+/**
+ * ReformImageIn
+ */
+export type ReformImageIn = {
+    /**
+     * Claim Token
+     */
+    claim_token?: string | null;
+    /**
+     * Object Key
+     */
+    object_key: string;
+};
+
+/**
+ * ReformImageOut
+ */
+export type ReformImageOut = {
+    /**
+     * Object Key
+     */
+    object_key: string;
+};
+
+/**
+ * ReformPricingOut
+ */
+export type ReformPricingOut = {
+    /**
+     * Automatic Combined Cost
+     */
+    automatic_combined_cost: number;
+    /**
+     * Automatic Cost
+     */
+    automatic_cost: number;
+    /**
+     * Pickup Fee
+     */
+    pickup_fee: number;
+    /**
+     * Restoration Cost
+     */
+    restoration_cost: number;
+    /**
+     * Shipping Cost
+     */
+    shipping_cost: number;
+    /**
+     * Width Cost
+     */
+    width_cost: number;
+    /**
+     * Width Restoration Cost
+     */
+    width_restoration_cost: number;
+};
+
+/**
+ * ReformTieIn
+ */
+export type ReformTieIn = {
+    automatic?: AutomaticReform | null;
+    image: ReformImageIn;
+    restoration?: RestorationReform | null;
+    width?: WidthReform | null;
+};
+
+/**
+ * ReformTieOut
+ */
+export type ReformTieOut = {
+    automatic?: AutomaticReform | null;
+    image: ReformImageOut;
+    restoration?: RestorationReform | null;
+    width?: WidthReform | null;
+};
+
+/**
+ * ReformUploadCompleteRequest
+ */
+export type ReformUploadCompleteRequest = {
+    /**
+     * Claim Token
+     */
+    claim_token?: string | null;
+    /**
+     * Object Key
+     */
+    object_key: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
+ * ReformUploadUrlRequest
+ */
+export type ReformUploadUrlRequest = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
+ * ReformUploadUrlResponse
+ */
+export type ReformUploadUrlResponse = {
+    /**
+     * Claim Token
+     */
+    claim_token: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Object Key
+     */
+    object_key: string;
+    /**
+     * Required Headers
+     */
+    required_headers: {
+        [key: string]: string;
+    };
+    /**
+     * Upload Required
+     */
+    upload_required: boolean;
+    /**
+     * Upload Url
+     */
+    upload_url: string;
 };
 
 /**
@@ -2064,7 +2259,7 @@ export type RepairNoTrackingRequest = {
     /**
      * Reason
      */
-    reason: 'quick' | 'overseas' | 'lost';
+    reason?: 'quick' | 'overseas' | 'lost' | null;
 };
 
 /**
@@ -2123,6 +2318,10 @@ export type RepairTrackingRequest = {
      */
     courier_company: string;
     /**
+     * Memo
+     */
+    memo?: string | null;
+    /**
      * Photos
      */
     photos?: Array<RepairPhotoIn>;
@@ -2130,6 +2329,16 @@ export type RepairTrackingRequest = {
      * Tracking Number
      */
     tracking_number: string;
+};
+
+/**
+ * RestorationReform
+ */
+export type RestorationReform = {
+    /**
+     * Memo
+     */
+    memo?: string;
 };
 
 /**
@@ -2445,7 +2654,7 @@ export type UploadUrlRequest = {
     /**
      * Kind
      */
-    kind: 'reform_upload' | 'repair_shipping_upload' | 'custom_order' | 'sample_order' | 'quote_request';
+    kind: 'repair_shipping_upload' | 'custom_order' | 'sample_order' | 'quote_request';
 };
 
 /**
@@ -2456,6 +2665,10 @@ export type UploadUrlResponse = {
      * Object Key
      */
     object_key: string;
+    /**
+     * Upload Required
+     */
+    upload_required: boolean;
     /**
      * Upload Url
      */
@@ -2541,6 +2754,16 @@ export type WebhookResult = {
      * Reason
      */
     reason?: string | null;
+};
+
+/**
+ * WidthReform
+ */
+export type WidthReform = {
+    /**
+     * Target Width Cm
+     */
+    target_width_cm: number;
 };
 
 /**
@@ -3880,8 +4103,58 @@ export type HealthzResponses = {
 
 export type HealthzResponse = HealthzResponses[keyof HealthzResponses];
 
+export type CreateReadUrlData = {
+    body: ReadUrlRequest;
+    path?: never;
+    query?: never;
+    url: '/images/read-url';
+};
+
+export type CreateReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReadUrlError = CreateReadUrlErrors[keyof CreateReadUrlErrors];
+
+export type CreateReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReadUrlResponse;
+};
+
+export type CreateReadUrlResponse = CreateReadUrlResponses[keyof CreateReadUrlResponses];
+
+export type CreateReformUploadUrlData = {
+    body: ReformUploadUrlRequest;
+    path?: never;
+    query?: never;
+    url: '/images/reform-upload-url';
+};
+
+export type CreateReformUploadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReformUploadUrlError = CreateReformUploadUrlErrors[keyof CreateReformUploadUrlErrors];
+
+export type CreateReformUploadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReformUploadUrlResponse;
+};
+
+export type CreateReformUploadUrlResponse = CreateReformUploadUrlResponses[keyof CreateReformUploadUrlResponses];
+
 export type RegisterReformUploadData = {
-    body: UploadRegisterRequest;
+    body: ReformUploadCompleteRequest;
     path?: never;
     query?: never;
     url: '/images/reform-uploads';
@@ -4553,6 +4826,22 @@ export type GetQuoteResponses = {
 };
 
 export type GetQuoteResponse = GetQuoteResponses[keyof GetQuoteResponses];
+
+export type GetReformPricingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/reform/pricing';
+};
+
+export type GetReformPricingResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReformPricingOut;
+};
+
+export type GetReformPricingResponse = GetReformPricingResponses[keyof GetReformPricingResponses];
 
 export type GetTokenBalanceData = {
     body?: never;

@@ -17,12 +17,16 @@ class Image(CreatedAtMixin, Base):
     __tablename__ = "images"
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    object_key: Mapped[str]  # 단일 assets 버킷 내 GCS 객체 키
+    object_key: Mapped[str]  # 비공개 uploads 버킷 내 GCS 객체 키
     entity_type: Mapped[str]
     entity_id: Mapped[str]
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
+    claim_token_hash: Mapped[str | None]
+    content_type: Mapped[str | None]
+    size_bytes: Mapped[int | None]
+    upload_completed_at: Mapped[datetime | None]
     expires_at: Mapped[datetime | None]  # null = 영구 보관
     deleted_at: Mapped[datetime | None]
     deletion_claimed_at: Mapped[datetime | None]

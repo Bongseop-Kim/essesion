@@ -32,6 +32,7 @@
 | `bg.neutral-weak-hover` | `--color-bg-neutral-weak-hover` | gray-300 `#eeeff1` | `bg-bg-neutral-weak-hover` |
 | `bg.neutral-weak-pressed` | `--color-bg-neutral-weak-pressed` | gray-400 `#dcdee3` | `bg-bg-neutral-weak-pressed` |
 | `bg.neutral-solid` | `--color-bg-neutral-solid` | gray-600 `#b0b3ba` | `bg-bg-neutral-solid` |
+| `bg.neutral-inverted` | `--color-bg-neutral-inverted` | `#111111` | `bg-bg-neutral-inverted` |
 | `bg.disabled` | `--color-bg-disabled` | gray-200 `#f3f4f5` | `bg-bg-disabled` |
 | `bg.shimmer-highlight` | `--color-bg-shimmer-highlight` | white 60% | `via-bg-shimmer-highlight` |
 | `bg.layer-basement` | `--color-bg-layer-basement` | gray-100 `#f7f8f9` | `bg-bg-layer-basement` |

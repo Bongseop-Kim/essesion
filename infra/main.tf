@@ -44,6 +44,13 @@ resource "google_storage_bucket" "uploads" {
   name                        = "${var.project_id}-uploads"
   location                    = var.region
   uniform_bucket_level_access = true
+
+  cors {
+    origin          = var.upload_cors_origins
+    method          = ["GET", "HEAD", "PUT"]
+    response_header = ["Content-Type", "ETag", "x-goog-content-length-range"]
+    max_age_seconds = 3600
+  }
 }
 
 # finalize 잡 큐 — 작업 단위 재시도 제어 (ARCHITECTURE §2)

@@ -52,14 +52,60 @@ export const router = createBrowserRouter([
           Component: (await import("@/pages/cart")).CartPage,
         }),
       },
+      {
+        path: "reform",
+        lazy: async () => ({
+          Component: (await import("@/pages/reform")).ReformPage,
+        }),
+      },
       ...previewRoutes,
       {
         element: <ProtectedRoute />,
         children: [
           {
+            path: "order/order-form",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/order-form"))
+                .OrderFormPage,
+            }),
+          },
+          {
+            path: "order/payment/success",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/payment-success"))
+                .PaymentSuccessPage,
+            }),
+          },
+          {
+            path: "order/payment/fail",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/payment-fail"))
+                .PaymentFailPage,
+            }),
+          },
+          {
             path: "my-page",
             lazy: async () => ({
               Component: (await import("@/pages/my-page")).MyPage,
+            }),
+          },
+          {
+            path: "my-page/orders",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/orders")).OrderListPage,
+            }),
+          },
+          {
+            path: "order/:orderId",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/detail")).OrderDetailPage,
+            }),
+          },
+          {
+            path: "order/:orderId/repair-shipping",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/repair-shipping"))
+                .RepairShippingPage,
             }),
           },
         ],
