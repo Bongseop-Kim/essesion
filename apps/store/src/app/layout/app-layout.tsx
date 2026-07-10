@@ -237,12 +237,9 @@ export function AppLayout() {
         ) : (
           <StoreHeader />
         )}
-        <Box
-          as="main"
-          flexGrow={1}
-          display={isFocusedRoute ? "flex" : undefined}
-          flexDirection={isFocusedRoute ? "column" : undefined}
-        >
+        {/* 항상 flex column — LayoutContent(flexGrow)가 남는 높이를 채워
+            ContentLayout의 sticky 액션 바가 짧은 페이지에서도 바닥에 정착한다 */}
+        <Box as="main" flexGrow={1} display="flex" flexDirection="column">
           <Outlet />
         </Box>
         {isFocusedRoute ? null : <StoreFooter />}

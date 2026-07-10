@@ -1,6 +1,7 @@
 import {
   ActionButton,
   Box,
+  Checkbox,
   Field,
   HStack,
   RadioGroup,
@@ -10,11 +11,8 @@ import {
   TextField,
   VStack,
 } from "@essesion/shared";
-import { useEffect, useState } from "react";
-import {
-  AutomaticAddonSelector,
-  ServiceTypeSelector,
-} from "./service-controls";
+import { type ReactNode, useEffect, useState } from "react";
+import { AutomaticAddonSelector } from "./service-controls";
 
 export type ReformSettingsValues = {
   automaticEnabled: boolean;
@@ -93,6 +91,27 @@ export function ReformSettingsModal({
     setError(null);
   }, [initialValues, open]);
 
+  const toggleService = (
+    service: "automatic" | "width" | "restoration",
+    selected: boolean,
+  ) => {
+    setError(null);
+    setValues((current) => ({
+      ...current,
+      ...(service === "automatic"
+        ? {
+            automaticEnabled: selected,
+            mechanism:
+              selected && current.mechanism === ""
+                ? ("zipper" as const)
+                : current.mechanism,
+          }
+        : service === "width"
+          ? { widthEnabled: selected }
+          : { restorationEnabled: selected }),
+    }));
+  };
+
   const apply = async () => {
     if (
       !values.automaticEnabled &&
@@ -154,113 +173,139 @@ export function ReformSettingsModal({
         </HStack>
       }
     >
-      <VStack gap="x5" alignItems="stretch">
-        <Field label="수선 종류" required errorMessage={error}>
-          <ServiceTypeSelector
-            columns={1}
-            values={{
-              automatic: values.automaticEnabled,
-              width: values.widthEnabled,
-              restoration: values.restorationEnabled,
-            }}
-            onChange={(service, selected) => {
-              setError(null);
-              setValues((current) => ({
-                ...current,
-                ...(service === "automatic"
-                  ? {
-                      automaticEnabled: selected,
-                      mechanism:
-                        selected && current.mechanism === ""
-                          ? ("zipper" as const)
-                          : current.mechanism,
-                    }
-                  : service === "width"
-                    ? { widthEnabled: selected }
-                    : { restorationEnabled: selected }),
-              }));
-            }}
-          />
-        </Field>
-        {values.automaticEnabled ? (
+      {/* 서비스별 체크박스 + 체크 시 바로 아래 하위 필드가 펼쳐지는 부모-자식 구조.
+          체크박스에 서비스별 가격을 표시하지 않는다 — 조합 가격이라 단독가 나열은 합산으로 오독됨. */}
+      <Field label="수선 종류" required errorMessage={error}>
+        <VStack gap="x4" alignItems="stretch">
           <VStack gap="x3" alignItems="stretch">
-            <Field label="자동 수선 방식" required>
-              <RadioGroup
-                orientation="horizontal"
-                value={values.mechanism}
-                onValueChange={(mechanism) =>
-                  setValues({
-                    ...values,
-                    mechanism: mechanism as ReformSettingsValues["mechanism"],
-                    turnKnot: mechanism === "zipper" && values.turnKnot,
-                  })
-                }
-              >
-                <RadioGroupItem value="zipper" label="지퍼" />
-                <RadioGroupItem value="string" label="끈" />
-              </RadioGroup>
-            </Field>
-            <TextField
-              type="number"
-              step="0.1"
-              label="착용자 키"
-              suffix="cm"
-              placeholder="170"
-              required
-              value={values.wearerHeightCm ?? ""}
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                setValues({
-                  ...values,
-                  wearerHeightCm: value === "" ? null : Number(value),
-                });
-              }}
-            />
-            <AutomaticAddonSelector
-              dimple={values.dimple}
-              turnKnot={values.turnKnot}
-              showTurnKnot={values.mechanism === "zipper"}
-              onDimpleChange={(dimple) => setValues({ ...values, dimple })}
-              onTurnKnotChange={(turnKnot) =>
-                setValues({ ...values, turnKnot })
+            <Checkbox
+              label="자동 수선"
+              checked={values.automaticEnabled}
+              onChange={(event) =>
+                toggleService("automatic", event.currentTarget.checked)
               }
             />
+            {values.automaticEnabled ? (
+              <ServiceDetail>
+                <Field label="자동 수선 방식" required>
+                  <RadioGroup
+                    orientation="horizontal"
+                    value={values.mechanism}
+                    onValueChange={(mechanism) =>
+                      setValues({
+                        ...values,
+                        mechanism:
+                          mechanism as ReformSettingsValues["mechanism"],
+                        turnKnot: mechanism === "zipper" && values.turnKnot,
+                      })
+                    }
+                  >
+                    <RadioGroupItem value="zipper" label="지퍼" />
+                    <RadioGroupItem value="string" label="끈" />
+                  </RadioGroup>
+                </Field>
+                <TextField
+                  type="number"
+                  step="0.1"
+                  label="착용자 키"
+                  suffix="cm"
+                  placeholder="170"
+                  required
+                  value={values.wearerHeightCm ?? ""}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setValues({
+                      ...values,
+                      wearerHeightCm: value === "" ? null : Number(value),
+                    });
+                  }}
+                />
+                <Field label="추가 옵션">
+                  <AutomaticAddonSelector
+                    dimple={values.dimple}
+                    turnKnot={values.turnKnot}
+                    showTurnKnot={values.mechanism === "zipper"}
+                    onDimpleChange={(dimple) =>
+                      setValues({ ...values, dimple })
+                    }
+                    onTurnKnotChange={(turnKnot) =>
+                      setValues({ ...values, turnKnot })
+                    }
+                  />
+                </Field>
+              </ServiceDetail>
+            ) : null}
           </VStack>
-        ) : null}
-        {values.widthEnabled ? (
-          <TextField
-            type="number"
-            step="0.1"
-            label="희망 폭"
-            suffix="cm"
-            placeholder="7.5"
-            required
-            value={values.targetWidthCm ?? ""}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              setValues({
-                ...values,
-                targetWidthCm: value === "" ? null : Number(value),
-              });
-            }}
-          />
-        ) : null}
-        {values.restorationEnabled ? (
-          <TextAreaField
-            label="복원 요청 메모"
-            maxLength={200}
-            rows={3}
-            value={values.restorationMemo}
-            onChange={(event) =>
-              setValues({
-                ...values,
-                restorationMemo: event.currentTarget.value,
-              })
-            }
-          />
-        ) : null}
-      </VStack>
+
+          <VStack gap="x3" alignItems="stretch">
+            <Checkbox
+              label="폭 수선"
+              checked={values.widthEnabled}
+              onChange={(event) =>
+                toggleService("width", event.currentTarget.checked)
+              }
+            />
+            {values.widthEnabled ? (
+              <ServiceDetail>
+                <TextField
+                  type="number"
+                  step="0.1"
+                  label="희망 폭"
+                  suffix="cm"
+                  placeholder="7.5"
+                  required
+                  value={values.targetWidthCm ?? ""}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setValues({
+                      ...values,
+                      targetWidthCm: value === "" ? null : Number(value),
+                    });
+                  }}
+                />
+              </ServiceDetail>
+            ) : null}
+          </VStack>
+
+          <VStack gap="x3" alignItems="stretch">
+            <Checkbox
+              label="복원 수선"
+              checked={values.restorationEnabled}
+              onChange={(event) =>
+                toggleService("restoration", event.currentTarget.checked)
+              }
+            />
+            {values.restorationEnabled ? (
+              <ServiceDetail>
+                <TextAreaField
+                  label="복원 요청 메모"
+                  maxLength={200}
+                  rows={3}
+                  value={values.restorationMemo}
+                  onChange={(event) =>
+                    setValues({
+                      ...values,
+                      restorationMemo: event.currentTarget.value,
+                    })
+                  }
+                />
+              </ServiceDetail>
+            ) : null}
+          </VStack>
+        </VStack>
+      </Field>
     </ResponsiveModal>
+  );
+}
+
+/** 체크한 서비스에 종속된 상세 입력 — 왼쪽 보더 들여쓰기로 위계 표시 */
+function ServiceDetail({ children }: { children: ReactNode }) {
+  return (
+    <Box pl="x4" className="border-l-2 border-stroke-neutral-weak">
+      <VStack gap="x3" alignItems="stretch">
+        {children}
+      </VStack>
+    </Box>
   );
 }
 

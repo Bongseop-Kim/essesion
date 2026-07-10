@@ -10,7 +10,6 @@ import {
   VStack,
 } from "@essesion/shared";
 import type { ReactNode } from "react";
-import { useLayoutEffect, useState } from "react";
 import { Link } from "react-router";
 
 export type ContentLayoutProps = {
@@ -39,23 +38,6 @@ export function ContentLayout({
 }: ContentLayoutProps) {
   const bp = useBreakpoint();
   const isDesktop = bp === "lg" || bp === "xl";
-  const [actionBarNode, setActionBarNode] = useState<HTMLElement | null>(null);
-  const [actionBarHeight, setActionBarHeight] = useState(0);
-
-  useLayoutEffect(() => {
-    if (!actionBarNode) {
-      setActionBarHeight(0);
-      return;
-    }
-    const update = () => {
-      setActionBarHeight(actionBarNode.getBoundingClientRect().height);
-    };
-    update();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(update);
-    observer.observe(actionBarNode);
-    return () => observer.disconnect();
-  }, [actionBarNode]);
 
   const crumbs = breadcrumbs ? (
     <Breadcrumb
@@ -99,17 +81,7 @@ export function ContentLayout({
 
   return (
     <>
-      <LayoutContent
-        density="medium"
-        py="x4"
-        style={
-          actionBar
-            ? {
-                paddingBottom: `calc(${actionBarHeight}px + var(--spacing-x4))`,
-              }
-            : undefined
-        }
-      >
+      <LayoutContent density="medium" py="x4">
         {crumbs}
         <VStack gap="x6">
           <Box>{children}</Box>
@@ -121,12 +93,10 @@ export function ContentLayout({
       </LayoutContent>
       {actionBar ? (
         <SnackbarAvoidOverlap>
+          {/* sticky — 레이아웃 공간을 차지하므로 스크롤 끝에서 Footer 위에 자리 잡는다(fixed는 Footer를 가림) */}
           <Box
-            ref={setActionBarNode}
-            position="fixed"
+            position="sticky"
             bottom={0}
-            left={0}
-            right={0}
             zIndex={30}
             bg="bg.layer-default"
             className="border-t border-stroke-neutral-weak"

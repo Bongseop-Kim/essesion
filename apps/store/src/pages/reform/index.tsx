@@ -34,13 +34,14 @@ import { useAuthGuard } from "@/features/auth";
 import { useCartActions, useCartItems } from "@/features/cart";
 import {
   BulkApplyModal,
-  type BulkValues,
   calculateReformCost,
   createReformTie,
   mapWithConcurrency,
   type ReformFormValues,
   ReformHeightGuide,
   ReformServiceGuide,
+  ReformSettingsModal,
+  type ReformSettingsValues,
   type ReformTieForm,
   reformDataFromForm,
   reformFormFromData,
@@ -60,17 +61,17 @@ export function ReformPage() {
   const cart = useCartItems();
   const cartActions = useCartActions();
   const pricingQuery = useQuery(getReformPricingOptions());
-  const initialTie = useRef(createReformTie()).current;
   const form = useForm<ReformFormValues>({
-    defaultValues: { ties: [initialTie] },
+    defaultValues: { ties: [] },
   });
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "ties",
   });
   const ties = useWatch({ control: form.control, name: "ties" }) ?? [];
-  const [selectedIds, setSelectedIds] = useState(
-    () => new Set([initialTie.itemId]),
+  const [selectedIds, setSelectedIds] = useState(() => new Set<string>());
+  const [settingsTarget, setSettingsTarget] = useState<number | "new" | null>(
+    null,
   );
   const [bulkOpen, setBulkOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -147,9 +148,28 @@ export function ReformPage() {
       snackbar("한 번에 최대 50개까지 접수할 수 있습니다.");
       return;
     }
-    const tie = createReformTie();
-    append(tie);
-    setSelectedIds((current) => new Set(current).add(tie.itemId));
+    setSettingsTarget("new");
+  };
+
+  const settingsInitial = useMemo<ReformSettingsValues>(() => {
+    const tie =
+      typeof settingsTarget === "number"
+        ? form.getValues(`ties.${settingsTarget}`)
+        : null;
+    return tieSettings(tie ?? createReformTie());
+  }, [settingsTarget, form]);
+
+  const applySettings = (index: number, values: ReformSettingsValues) => {
+    const next = normalizeSettings(values);
+    form.setValue(`ties.${index}.automaticEnabled`, next.automaticEnabled);
+    form.setValue(`ties.${index}.mechanism`, next.mechanism);
+    form.setValue(`ties.${index}.wearerHeightCm`, next.wearerHeightCm);
+    form.setValue(`ties.${index}.dimple`, next.dimple);
+    form.setValue(`ties.${index}.turnKnot`, next.turnKnot);
+    form.setValue(`ties.${index}.widthEnabled`, next.widthEnabled);
+    form.setValue(`ties.${index}.targetWidthCm`, next.targetWidthCm);
+    form.setValue(`ties.${index}.restorationEnabled`, next.restorationEnabled);
+    form.setValue(`ties.${index}.restorationMemo`, next.restorationMemo);
   };
 
   const removeTie = (index: number) => {
@@ -173,45 +193,14 @@ export function ReformPage() {
     for (const index of indexes.slice().reverse()) removeTie(index);
   };
 
-  const applyBulk = (values: BulkValues) => {
+  const applyBulk = (values: ReformSettingsValues) => {
     ties.forEach((tie, index) => {
-      if (!selectedIds.has(tie.itemId)) return;
-      form.setValue(`ties.${index}.automaticEnabled`, values.automaticEnabled);
-      form.setValue(
-        `ties.${index}.mechanism`,
-        values.automaticEnabled ? values.mechanism : "",
-      );
-      form.setValue(
-        `ties.${index}.wearerHeightCm`,
-        values.automaticEnabled ? values.wearerHeightCm : null,
-      );
-      form.setValue(
-        `ties.${index}.dimple`,
-        values.automaticEnabled && values.dimple,
-      );
-      form.setValue(
-        `ties.${index}.turnKnot`,
-        values.automaticEnabled &&
-          values.mechanism === "zipper" &&
-          values.turnKnot,
-      );
-      form.setValue(`ties.${index}.widthEnabled`, values.widthEnabled);
-      form.setValue(
-        `ties.${index}.targetWidthCm`,
-        values.widthEnabled ? values.targetWidthCm : null,
-      );
-      form.setValue(
-        `ties.${index}.restorationEnabled`,
-        values.restorationEnabled,
-      );
-      form.setValue(
-        `ties.${index}.restorationMemo`,
-        values.restorationEnabled ? values.restorationMemo : "",
-      );
+      if (selectedIds.has(tie.itemId)) applySettings(index, values);
     });
     snackbar(`${selectedIds.size}개 항목에 수선 설정을 적용했습니다.`);
   };
 
+  // 수선 옵션은 추가·수정 모두 ReformSettingsModal에서 검증하므로 여기서는 사진만 확인한다.
   const validateSelected = () => {
     form.clearErrors();
     if (selectedTies.length === 0) {
@@ -221,34 +210,15 @@ export function ReformPage() {
     let valid = true;
     ties.forEach((tie, index) => {
       if (!selectedIds.has(tie.itemId)) return;
-      const setError = (field: keyof ReformTieForm, message: string) => {
-        form.setError(`ties.${index}.${field}`, { type: "manual", message });
+      if (!tie.file && !tie.uploadedImage) {
+        form.setError(`ties.${index}.file`, {
+          type: "manual",
+          message: "넥타이 사진을 선택해 주세요.",
+        });
         valid = false;
-      };
-      if (!tie.file && !tie.uploadedImage)
-        setError("file", "넥타이 사진을 선택해 주세요.");
-      if (
-        !tie.automaticEnabled &&
-        !tie.widthEnabled &&
-        !tie.restorationEnabled
-      ) {
-        setError("automaticEnabled", "수선 서비스를 하나 이상 선택해 주세요.");
-      }
-      if (tie.automaticEnabled) {
-        if (!tie.mechanism)
-          setError("mechanism", "지퍼 또는 끈을 선택해 주세요.");
-        if (!isPositive(tie.wearerHeightCm)) {
-          setError("wearerHeightCm", "착용자 키를 입력해 주세요.");
-        }
-      }
-      if (tie.widthEnabled && !isPositive(tie.targetWidthCm)) {
-        setError("targetWidthCm", "희망 폭을 입력해 주세요.");
-      }
-      if (tie.restorationMemo.length > 200) {
-        setError("restorationMemo", "복원 메모는 200자 이하로 입력해 주세요.");
       }
     });
-    if (!valid) snackbar("입력 내용을 확인해 주세요.");
+    if (!valid) snackbar("사진을 확인해 주세요.");
     return valid;
   };
 
@@ -291,13 +261,12 @@ export function ReformPage() {
         return;
       }
 
-      const next = createReformTie();
       for (const tie of form.getValues("ties")) {
         if (tie.previewUrl?.startsWith("blob:"))
           URL.revokeObjectURL(tie.previewUrl);
       }
-      form.reset({ ties: [next] });
-      setSelectedIds(new Set([next.itemId]));
+      form.reset({ ties: [] });
+      setSelectedIds(new Set());
       setAddedDialogOpen(true);
     } catch (error) {
       snackbar(
@@ -481,6 +450,7 @@ export function ReformPage() {
                     onSelectedChange={(selected) =>
                       tie && toggleSelected(tie.itemId, selected)
                     }
+                    onEditOptions={() => setSettingsTarget(index)}
                     onRemove={() => removeTie(index)}
                   />
                 );
@@ -500,6 +470,29 @@ export function ReformPage() {
         </VStack>
       </ContentLayout>
 
+      <ReformSettingsModal
+        open={settingsTarget != null}
+        title={settingsTarget === "new" ? "넥타이 추가" : "수선 옵션 변경"}
+        description={
+          settingsTarget === "new"
+            ? "수선 옵션을 입력하면 목록에 추가됩니다. 사진은 추가된 항목에서 등록해 주세요."
+            : undefined
+        }
+        submitLabel={settingsTarget === "new" ? "추가" : "변경"}
+        initialValues={settingsInitial}
+        onOpenChange={(open) => {
+          if (!open) setSettingsTarget(null);
+        }}
+        onApply={(values) => {
+          if (settingsTarget === "new") {
+            const tie = { ...createReformTie(), ...normalizeSettings(values) };
+            append(tie);
+            setSelectedIds((current) => new Set(current).add(tie.itemId));
+          } else if (typeof settingsTarget === "number") {
+            applySettings(settingsTarget, values);
+          }
+        }}
+      />
       <BulkApplyModal
         open={bulkOpen}
         selectedCount={selectedIds.size}
@@ -551,6 +544,34 @@ function reformCrumbs() {
   return [{ label: "홈", href: "/" }, { label: "넥타이 수선·리폼" }];
 }
 
-function isPositive(value: number | null) {
-  return value != null && Number.isFinite(value) && value > 0;
+function tieSettings(tie: ReformTieForm): ReformSettingsValues {
+  return {
+    automaticEnabled: tie.automaticEnabled,
+    mechanism: tie.mechanism,
+    wearerHeightCm: tie.wearerHeightCm,
+    dimple: tie.dimple,
+    turnKnot: tie.turnKnot,
+    widthEnabled: tie.widthEnabled,
+    targetWidthCm: tie.targetWidthCm,
+    restorationEnabled: tie.restorationEnabled,
+    restorationMemo: tie.restorationMemo,
+  };
+}
+
+/** 비활성 서비스의 잔여 입력값을 비워 저장 데이터를 깨끗하게 유지한다. */
+function normalizeSettings(values: ReformSettingsValues): ReformSettingsValues {
+  return {
+    automaticEnabled: values.automaticEnabled,
+    mechanism: values.automaticEnabled ? values.mechanism : "",
+    wearerHeightCm: values.automaticEnabled ? values.wearerHeightCm : null,
+    dimple: values.automaticEnabled && values.dimple,
+    turnKnot:
+      values.automaticEnabled &&
+      values.mechanism === "zipper" &&
+      values.turnKnot,
+    widthEnabled: values.widthEnabled,
+    targetWidthCm: values.widthEnabled ? values.targetWidthCm : null,
+    restorationEnabled: values.restorationEnabled,
+    restorationMemo: values.restorationEnabled ? values.restorationMemo : "",
+  };
 }
