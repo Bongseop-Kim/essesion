@@ -199,13 +199,16 @@ function StoreFooter() {
           <Divider />
           <VStack gap="x1">
             <Text as="p" textStyle="caption" color="fg.neutral-muted">
-              영선산업 | 대표: 김영선
+              회사명: 영선산업 | 상호명: ESSE SION | 대표: 김영선
             </Text>
             <Text as="p" textStyle="caption" color="fg.neutral-muted">
               주소: 대전광역시 동구 우암로246번길 9-16 (가양동) 영선산업
             </Text>
             <Text as="p" textStyle="caption" color="fg.neutral-muted">
               통신판매업 번호: 2017-대전동구-0353 | 전화번호: 042-626-9055
+            </Text>
+            <Text as="p" textStyle="caption" color="fg.neutral-muted">
+              이메일: biblecookie@naver.com
             </Text>
             <Text as="p" textStyle="caption" color="fg.neutral-muted">
               호스팅사업자: 영선산업 | 사업자등록번호: 305-26-32033

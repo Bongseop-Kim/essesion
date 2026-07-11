@@ -150,6 +150,21 @@ export function MyPage() {
               </List>
             </VStack>
             <VStack gap="x2" alignItems="stretch">
+              <ListHeader variant="boldSolid">고객지원</ListHeader>
+              <List>
+                <ListItem
+                  title="자주 묻는 질문"
+                  description="배송, 주문, 수선과 제작 서비스 이용 방법을 확인합니다."
+                  onClick={() => navigate("/faq")}
+                />
+                <ListItem
+                  title="공지사항"
+                  description="서비스 운영과 정책 변경 소식을 확인합니다."
+                  onClick={() => navigate("/notice")}
+                />
+              </List>
+            </VStack>
+            <VStack gap="x2" alignItems="stretch">
               <ListHeader variant="boldSolid">설정</ListHeader>
               <List>
                 <ListItem

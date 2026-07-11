@@ -76,6 +76,37 @@ export const router = createBrowserRouter([
           Component: (await import("@/pages/token-purchase")).TokenPurchasePage,
         }),
       },
+      {
+        path: "faq",
+        lazy: async () => ({
+          Component: (await import("@/pages/faq")).FaqPage,
+        }),
+      },
+      {
+        path: "notice",
+        lazy: async () => ({
+          Component: (await import("@/pages/notice")).NoticePage,
+        }),
+      },
+      {
+        path: "privacy-policy",
+        lazy: async () => ({
+          Component: (await import("@/pages/privacy-policy")).PrivacyPolicyPage,
+        }),
+      },
+      {
+        path: "terms-of-service",
+        lazy: async () => ({
+          Component: (await import("@/pages/terms-of-service"))
+            .TermsOfServicePage,
+        }),
+      },
+      {
+        path: "refund-policy",
+        lazy: async () => ({
+          Component: (await import("@/pages/refund-policy")).RefundPolicyPage,
+        }),
+      },
       ...previewRoutes,
       {
         element: <ProtectedRoute />,
