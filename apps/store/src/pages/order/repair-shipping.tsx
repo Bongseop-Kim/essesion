@@ -21,6 +21,7 @@ import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { orderStatusTone } from "@/features/orders";
 import {
   isRepairShipmentDraft,
+  RepairInboundAddress,
   type RepairShipmentDraft,
   RepairShipmentFields,
   shipmentDraftFromForm,
@@ -119,6 +120,8 @@ export function RepairShippingPage() {
               <Badge tone={orderStatusTone(order.status)}>{order.status}</Badge>
             </HStack>
           </VStack>
+
+          <RepairInboundAddress />
 
           <SelectBox
             multiple

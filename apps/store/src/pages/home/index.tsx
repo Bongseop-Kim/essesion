@@ -10,7 +10,7 @@ import {
 } from "@/features/home";
 
 const DESCRIPTION =
-  "영선산업은 맞춤 넥타이 제작, 단체 넥타이, 샘플 주문, 넥타이 수선·리폼을 운영합니다. 넥타이 판매 브랜드 ESSE SION을 함께 운영합니다.";
+  "영선산업은 맞춤 넥타이 제작, 단체 넥타이, 샘플 주문, 넥타이 수선·리폼을 운영합니다. 상호명은 ESSE SION입니다.";
 
 // schema.org 구조화 데이터 — 검색 결과 리치스니펫. 인라인 렌더(JSON-LD는 문서 어디서나 유효).
 const HOME_JSON_LD = {

@@ -13,20 +13,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.config import Settings
 from api.db import advisory_xact_lock
 from api.domains.claims.schemas import ClaimCreateRequest
-from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
+from api.domains.orders.status_machine import (
+    ACTIVE_CLAIM_STATUSES,
+    CLAIM_CANCEL_ACTION_FROM,
+    CLAIM_RETURN_EXCHANGE_ACTION_FROM,
+)
 from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.solapi import SolapiClient
 from api.numbering import generate_number
 
 logger = logging.getLogger(__name__)
-
-CANCEL_ALLOWED_STATUS = {
-    "sale": {"대기중", "결제중", "진행중"},
-    "custom": {"대기중", "결제중", "접수"},
-    "repair": {"대기중", "결제중"},
-    "sample": {"대기중", "결제중", "접수"},
-    "token": {"대기중"},
-}
 
 FORWARD_CLAIM: dict[str, set[tuple[str, str]]] = {
     "cancel": {("접수", "처리중"), ("처리중", "완료")},
@@ -65,14 +61,10 @@ async def create_claim(session: AsyncSession, user: User, body: ClaimCreateReque
         raise NotFoundError("Order not found")
 
     if body.type == "cancel":
-        if order.status not in CANCEL_ALLOWED_STATUS[order.order_type]:
+        if order.status not in CLAIM_CANCEL_ACTION_FROM.get(order.order_type, set()):
             raise DomainError("현재 주문 상태에서는 취소할 수 없습니다", code="invalid_status")
     else:  # return/exchange
-        if order.status not in ("배송중", "배송완료") or order.order_type not in (
-            "sale",
-            "repair",
-            "custom",
-        ):
+        if order.status not in CLAIM_RETURN_EXCHANGE_ACTION_FROM.get(order.order_type, set()):
             raise DomainError("현재 주문 상태에서는 반품/교환할 수 없습니다", code="invalid_status")
 
     items = (
@@ -238,15 +230,13 @@ async def notify_status(
     if claim.status == "완료":
         template = settings.solapi_template_claim_done
         variables = {"#{처리유형}": claim.type}
-        fallback = (
-            "[ESSE SION] 클레임이 처리 완료되었습니다.\nhttps://essesion.shop/order/claim-list"
-        )
+        fallback = "[ESSE SION] 클레임이 처리 완료되었습니다.\nhttps://essesion.shop/my-page/claims"
     else:
         template = settings.solapi_template_claim_rejected
         variables = {}
         fallback = (
             "[ESSE SION] 클레임 요청이 거부되었습니다. 자세한 내용은 아래 링크에서 확인해주세요."
-            "\nhttps://essesion.shop/order/claim-list"
+            "\nhttps://essesion.shop/my-page/claims"
         )
 
     sent = await solapi.send_alimtalk(user.phone, template, variables, fallback)

@@ -111,15 +111,20 @@ CLAIM_CANCEL_ACTION_FROM: dict[str, set[str]] = {
     "token": {"대기중"},
 }
 
+CLAIM_RETURN_EXCHANGE_ACTION_FROM: dict[str, set[str]] = {
+    "sale": {"배송중", "배송완료"},
+}
+
 
 def customer_actions(order_type: str, status: str, *, has_active_claim: bool) -> list[str]:
     actions: list[str] = []
-    if status in CLAIM_CANCEL_ACTION_FROM.get(order_type, set()):
-        actions.append("claim_cancel")
-    if order_type == "sale" and status in ("배송중", "배송완료"):
-        actions += ["claim_return", "claim_exchange"]
-    if order_type != "token" and status in ("배송중", "배송완료") and not has_active_claim:
-        actions.append("confirm_purchase")
+    if not has_active_claim:
+        if status in CLAIM_CANCEL_ACTION_FROM.get(order_type, set()):
+            actions.append("claim_cancel")
+        if status in CLAIM_RETURN_EXCHANGE_ACTION_FROM.get(order_type, set()):
+            actions += ["claim_return", "claim_exchange"]
+        if order_type != "token" and status in ("배송중", "배송완료"):
+            actions.append("confirm_purchase")
     return actions
 
 

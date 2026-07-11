@@ -8,6 +8,8 @@ import {
   VStack,
 } from "@essesion/shared";
 
+import { deliveryRequestLabel } from "../model/delivery-request";
+
 export function ShippingAddressCard({
   address,
   onChange,
@@ -15,6 +17,10 @@ export function ShippingAddressCard({
   address: ShippingAddressOut | null;
   onChange?: () => void;
 }) {
+  const request = address
+    ? deliveryRequestLabel(address.delivery_request, address.delivery_memo)
+    : undefined;
+
   return (
     <Box
       bg="bg.layer-default"
@@ -40,9 +46,9 @@ export function ShippingAddressCard({
                 ({address.postal_code}) {address.address}{" "}
                 {address.address_detail}
               </Text>
-              {address.delivery_memo || address.delivery_request ? (
+              {request ? (
                 <Text textStyle="caption" color="fg.neutral-muted">
-                  {address.delivery_memo || address.delivery_request}
+                  {request}
                 </Text>
               ) : null}
             </VStack>

@@ -1,7 +1,7 @@
 import uuid
 from typing import Literal
 
-from db.models.commerce import Claim, Order, OrderItem
+from db.models.commerce import Claim, Order, OrderItem, ShippingAddress
 from fastapi import APIRouter
 from sqlalchemy import select
 
@@ -17,8 +17,10 @@ from api.domains.orders.schemas import (
     CustomOrderCreateRequest,
     OrderCreateRequest,
     OrderCreateResponse,
+    OrderDetailOut,
     OrderItemOut,
     OrderOut,
+    OrderShippingAddressOut,
     RepairNoTrackingRequest,
     RepairTrackingRequest,
     SampleAmountRequest,
@@ -93,10 +95,21 @@ async def list_my_orders(
     if order_type:
         query = query.where(Order.order_type == order_type)
     orders = (await session.scalars(query)).all()
-    with_claims = await _active_claim_order_ids(session, [o.id for o in orders])
+    order_ids = [order.id for order in orders]
+    with_claims = await _active_claim_order_ids(session, order_ids)
+    items_by_order: dict[uuid.UUID, list[OrderItemOut]] = {}
+    if order_ids:
+        items = await session.scalars(
+            select(OrderItem)
+            .where(OrderItem.order_id.in_(order_ids))
+            .order_by(OrderItem.created_at)
+        )
+        for item in items:
+            items_by_order.setdefault(item.order_id, []).append(OrderItemOut.model_validate(item))
     results = []
     for order in orders:
         out = OrderOut.model_validate(order)
+        out.items = items_by_order.get(order.id, [])
         out.customer_actions = customer_actions(
             order.order_type, order.status, has_active_claim=order.id in with_claims
         )
@@ -104,8 +117,8 @@ async def list_my_orders(
     return results
 
 
-@router.get("/orders/{order_id}", response_model=OrderOut)
-async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> OrderOut:
+@router.get("/orders/{order_id}", response_model=OrderDetailOut)
+async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> OrderDetailOut:
     order = await session.get(Order, order_id)
     ensure_owner(order, user)
     assert order is not None
@@ -115,8 +128,17 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         )
     ).all()
     has_claim = bool(await _active_claim_order_ids(session, [order.id]))
-    out = OrderOut.model_validate(order)
+    out = OrderDetailOut.model_validate(order)
     out.items = [OrderItemOut.model_validate(i) for i in items]
+    if order.shipping_address_snapshot:
+        out.shipping_address = OrderShippingAddressOut.model_validate(
+            order.shipping_address_snapshot
+        )
+    elif order.shipping_address_id is not None:
+        # 스냅샷 도입(2026-07-11) 전 주문 폴백 — 라이브 주소 조인
+        address = await session.get(ShippingAddress, order.shipping_address_id)
+        if address is not None:
+            out.shipping_address = OrderShippingAddressOut.model_validate(address)
     out.customer_actions = customer_actions(
         order.order_type, order.status, has_active_claim=has_claim
     )

@@ -2,6 +2,8 @@
 
 admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/foundation/`(색인은 맨 아래) 참조. 값의 유일한 사전은 `docs/foundation/design-token-reference.md`(= `src/theme.css`).
 
+사업자 표기: 회사명 `영선산업` · 상호명 `ESSE SION` · 이메일 `biblecookie@naver.com`.
+
 ## 규칙 (위반 금지)
 
 0. **UI 구현 우선순위 사다리 — 표현할 수 없으면 멈춘다**: ① **shared 공통 컴포넌트 1순위**(아래 색인 표에서 먼저 확인, 앱 로컬 재구현 금지) → ② 없으면 프리미티브+토큰 조합 → ③ 그래도 표현 안 되면 임의 값(`bg-[#…]`, `text-[13px]`, inline 색)으로 우회하지 말고 **멈추고 토큰/컴포넌트 추가를 제안**한다(디자인 시스템 리뷰 신호). `pnpm lint`의 `scripts/check-harness.mjs`가 위반을 차단하며, 개별 예외는 줄 끝 `// harness-ignore`(사유 병기)로만.

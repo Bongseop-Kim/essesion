@@ -76,6 +76,37 @@ export const router = createBrowserRouter([
           Component: (await import("@/pages/token-purchase")).TokenPurchasePage,
         }),
       },
+      {
+        path: "faq",
+        lazy: async () => ({
+          Component: (await import("@/pages/faq")).FaqPage,
+        }),
+      },
+      {
+        path: "notice",
+        lazy: async () => ({
+          Component: (await import("@/pages/notice")).NoticePage,
+        }),
+      },
+      {
+        path: "privacy-policy",
+        lazy: async () => ({
+          Component: (await import("@/pages/privacy-policy")).PrivacyPolicyPage,
+        }),
+      },
+      {
+        path: "terms-of-service",
+        lazy: async () => ({
+          Component: (await import("@/pages/terms-of-service"))
+            .TermsOfServicePage,
+        }),
+      },
+      {
+        path: "refund-policy",
+        lazy: async () => ({
+          Component: (await import("@/pages/refund-policy")).RefundPolicyPage,
+        }),
+      },
       ...previewRoutes,
       {
         element: <ProtectedRoute />,
@@ -146,6 +177,46 @@ export const router = createBrowserRouter([
             path: "my-page/orders",
             lazy: async () => ({
               Component: (await import("@/pages/my-page/orders")).OrderListPage,
+            }),
+          },
+          {
+            path: "my-page/claims",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/claims")).ClaimListPage,
+            }),
+          },
+          {
+            path: "my-page/claims/:claimId",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/claim-detail"))
+                .ClaimDetailPage,
+            }),
+          },
+          {
+            path: "my-page/my-info",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/my-info")).MyInfoPage,
+            }),
+          },
+          {
+            path: "my-page/my-info/notice",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/my-info/notice"))
+                .NoticePage,
+            }),
+          },
+          {
+            path: "my-page/my-info/leave",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/my-info/leave"))
+                .LeavePage,
+            }),
+          },
+          {
+            path: "my-page/shipping",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/shipping"))
+                .ShippingPage,
             }),
           },
           {

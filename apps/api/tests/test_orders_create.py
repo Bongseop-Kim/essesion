@@ -397,6 +397,33 @@ async def test_sample_order_calculate_is_public_and_has_no_order_side_effect(cli
     assert await db_session.scalar(select(Order)) is None
 
 
+async def test_order_detail_address_snapshot_survives_address_changes(client, db_session, settings):
+    user, address, product = await _setup(db_session, stock=5)
+    headers = auth_headers(user, settings)
+    res = await client.post(
+        "/orders",
+        json={"shipping_address_id": str(address.id), "items": [_product_item(product)]},
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    order_id = res.json()["orders"][0]["order_id"]
+
+    address.recipient_name = "다른 수령인"
+    address.address = "부산시 해운대구 변경로 2"
+    await db_session.commit()
+
+    detail = await client.get(f"/orders/{order_id}", headers=headers)
+    shipping = detail.json()["shipping_address"]
+    assert shipping["recipient_name"] == "수령인"
+    assert shipping["address"] == "서울시 중구 테스트로 1"
+
+    await db_session.delete(address)
+    await db_session.commit()
+
+    detail = await client.get(f"/orders/{order_id}", headers=headers)
+    assert detail.json()["shipping_address"]["recipient_name"] == "수령인"
+
+
 async def test_order_numbering_sequence(client, db_session, settings):
     user, address, product = await _setup(db_session)
     headers = auth_headers(user, settings)

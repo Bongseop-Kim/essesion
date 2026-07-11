@@ -4,7 +4,6 @@ import {
   listAddressesQueryKey,
   upsertAddressMutation,
 } from "@essesion/api-client/query";
-import { zShippingAddressIn } from "@essesion/api-client/zod";
 import {
   ActionButton,
   Box,
@@ -20,20 +19,14 @@ import {
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { z } from "zod";
 
 import { useZodForm } from "@/shared/lib/form";
-import { useDaumPostcode } from "../model/use-daum-postcode";
-
-const addressSchema = zShippingAddressIn.extend({
-  recipient_name: z.string().trim().min(1, "받는 분을 입력해 주세요."),
-  recipient_phone: z
-    .string()
-    .trim()
-    .regex(/^01\d{8,9}$/, "휴대폰 번호를 숫자만 입력해 주세요."),
-  postal_code: z.string().trim().min(1, "우편번호를 검색해 주세요."),
-  address: z.string().trim().min(1, "주소를 검색해 주세요."),
-});
+import { CUSTOM_DELIVERY_REQUEST } from "../model/delivery-request";
+import {
+  AddressFormFields,
+  addressFormDefaultValues,
+  addressFormSchema,
+} from "./address-form-fields";
 
 export function AddressSelectModal({
   open,
@@ -53,24 +46,14 @@ export function AddressSelectModal({
   const showForm =
     creating || (!addressesQuery.isPending && addresses.length === 0);
   const upsert = useMutation(upsertAddressMutation());
-  const postcode = useDaumPostcode();
   const {
     register,
     handleSubmit,
     setValue,
     reset,
     formState: { errors },
-  } = useZodForm(addressSchema, {
-    defaultValues: {
-      recipient_name: "",
-      recipient_phone: "",
-      postal_code: "",
-      address: "",
-      address_detail: "",
-      delivery_memo: "",
-      delivery_request: "",
-      is_default: false,
-    },
+  } = useZodForm(addressFormSchema, {
+    defaultValues: addressFormDefaultValues,
   });
 
   const close = () => {
@@ -81,8 +64,16 @@ export function AddressSelectModal({
 
   const save = handleSubmit(async (values) => {
     try {
+      // 간이 폼의 자유 메모는 관리 폼의 "직접입력" 의미론으로 저장한다 —
+      // request 없이 memo만 있으면 카드 표시·관리 폼 수정에서 유실된다.
+      const memo = values.delivery_memo?.trim() || null;
       const address = await upsert.mutateAsync({
-        body: { ...values, is_default: addresses.length === 0 },
+        body: {
+          ...values,
+          is_default: addresses.length === 0,
+          delivery_request: memo ? CUSTOM_DELIVERY_REQUEST : null,
+          delivery_memo: memo,
+        },
       });
       await queryClient.invalidateQueries({
         queryKey: listAddressesQueryKey(),
@@ -161,57 +152,10 @@ export function AddressSelectModal({
       ) : showForm ? (
         <form onSubmit={save}>
           <VStack gap="x4" alignItems="stretch">
-            <TextField
-              label="받는 분"
-              autoComplete="name"
-              errorMessage={errors.recipient_name?.message}
-              {...register("recipient_name")}
-            />
-            <TextField
-              label="휴대폰 번호"
-              inputMode="numeric"
-              autoComplete="tel"
-              placeholder="01012345678"
-              errorMessage={errors.recipient_phone?.message}
-              {...register("recipient_phone")}
-            />
-            <HStack gap="x2" align="flex-end">
-              <Box flexGrow minWidth={0}>
-                <TextField
-                  label="우편번호"
-                  readOnly
-                  errorMessage={errors.postal_code?.message}
-                  {...register("postal_code")}
-                />
-              </Box>
-              <ActionButton
-                type="button"
-                variant="neutralOutline"
-                loading={postcode.loading}
-                onClick={() =>
-                  void postcode
-                    .search(({ zonecode, address }) => {
-                      setValue("postal_code", zonecode, {
-                        shouldValidate: true,
-                      });
-                      setValue("address", address, { shouldValidate: true });
-                    })
-                    .catch(() => snackbar("주소 검색을 불러오지 못했습니다."))
-                }
-              >
-                주소 검색
-              </ActionButton>
-            </HStack>
-            <TextField
-              label="주소"
-              readOnly
-              errorMessage={errors.address?.message}
-              {...register("address")}
-            />
-            <TextField
-              label="상세 주소"
-              autoComplete="address-line2"
-              {...register("address_detail")}
+            <AddressFormFields
+              register={register}
+              errors={errors}
+              setValue={setValue}
             />
             <TextField label="배송 메모" {...register("delivery_memo")} />
           </VStack>

@@ -1,7 +1,7 @@
 # cp staging.tfvars.example staging.tfvars 후 채우기 (tfvars는 gitignore)
 project_id      = "essesion-staging"
 billing_account = "XXXXXX-XXXXXX-XXXXXX"
-alert_email     = "bong0427@duegosystem.com"
+alert_email     = "biblecookie@naver.com"
 
 # 비시크릿 운영 env — Cloudflare zone 연결(5단계) 후 활성화 (시크릿은 gcloud 주입, README)
 # 도메인 확정: essesion.shop. zone 연결 전 스테이징 테스트는 workers.dev·run.app URL 사용.

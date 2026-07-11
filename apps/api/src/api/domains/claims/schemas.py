@@ -4,6 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from api.domains.orders.schemas import OrderItemOut
+
 ClaimType = Literal["cancel", "return", "exchange"]
 ClaimReason = Literal[
     "change_mind", "defect", "delay", "wrong_item", "size_mismatch", "color_mismatch", "other"
@@ -26,6 +28,8 @@ class ClaimOut(BaseModel):
     user_id: uuid.UUID
     order_id: uuid.UUID
     order_item_id: uuid.UUID
+    order_number: str
+    item: OrderItemOut
     claim_number: str
     type: str
     status: str

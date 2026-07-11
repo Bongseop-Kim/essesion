@@ -1,8 +1,9 @@
 import uuid
 
-from db.models.commerce import Claim
+from db.models.commerce import Claim, Order, OrderItem
 from fastapi import APIRouter, BackgroundTasks, Request
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import SessionDep
 from api.deps import AdminUser, CurrentUser
@@ -13,23 +14,55 @@ from api.domains.claims.schemas import (
     ClaimCreateRequest,
     ClaimOut,
 )
+from api.domains.orders.schemas import OrderItemOut
 
 router = APIRouter(tags=["claims"])
+
+
+def _claim_out(claim: Claim, order_number: str, item: OrderItem) -> ClaimOut:
+    return ClaimOut.model_validate(
+        {
+            **{
+                field: getattr(claim, field)
+                for field in ClaimOut.model_fields
+                if field not in {"order_number", "item"}
+            },
+            "order_number": order_number,
+            "item": OrderItemOut.model_validate(item),
+        }
+    )
+
+
+async def _get_claim_out(session: AsyncSession, claim_id: uuid.UUID) -> ClaimOut:
+    row = (
+        await session.execute(
+            select(Claim, Order.order_number, OrderItem)
+            .join(Order, Order.id == Claim.order_id)
+            .join(OrderItem, OrderItem.id == Claim.order_item_id)
+            .where(Claim.id == claim_id)
+        )
+    ).one()
+    return _claim_out(*row)
 
 
 @router.post("/claims", response_model=ClaimOut, status_code=201)
 async def create_claim(
     body: ClaimCreateRequest, session: SessionDep, user: CurrentUser
 ) -> ClaimOut:
-    return ClaimOut.model_validate(await service.create_claim(session, user, body))
+    claim = await service.create_claim(session, user, body)
+    return await _get_claim_out(session, claim.id)
 
 
 @router.get("/claims", response_model=list[ClaimOut])
 async def list_my_claims(session: SessionDep, user: CurrentUser) -> list[ClaimOut]:
-    claims = await session.scalars(
-        select(Claim).where(Claim.user_id == user.id).order_by(Claim.created_at.desc())
+    rows = await session.execute(
+        select(Claim, Order.order_number, OrderItem)
+        .join(Order, Order.id == Claim.order_id)
+        .join(OrderItem, OrderItem.id == Claim.order_item_id)
+        .where(Claim.user_id == user.id)
+        .order_by(Claim.created_at.desc())
     )
-    return [ClaimOut.model_validate(c) for c in claims]
+    return [_claim_out(*row) for row in rows]
 
 
 @router.delete("/claims/{claim_id}", status_code=204)
@@ -42,8 +75,13 @@ async def cancel_claim(claim_id: uuid.UUID, session: SessionDep, user: CurrentUs
 
 @router.get("/admin/claims", response_model=list[ClaimOut])
 async def admin_list_claims(session: SessionDep, admin: AdminUser) -> list[ClaimOut]:
-    claims = await session.scalars(select(Claim).order_by(Claim.created_at.desc()))
-    return [ClaimOut.model_validate(c) for c in claims]
+    rows = await session.execute(
+        select(Claim, Order.order_number, OrderItem)
+        .join(Order, Order.id == Claim.order_id)
+        .join(OrderItem, OrderItem.id == Claim.order_item_id)
+        .order_by(Claim.created_at.desc())
+    )
+    return [_claim_out(*row) for row in rows]
 
 
 @router.post("/admin/claims/{claim_id}/status", response_model=AdminClaimStatusResponse)
