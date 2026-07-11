@@ -3,7 +3,7 @@
 from api.domains.claims.service import notify_status
 from db.models.commerce import Claim, OrderItem
 
-from .factories import auth_headers, make_admin, make_order, make_user
+from .factories import auth_headers, make_address, make_admin, make_order, make_user
 
 
 async def _order_with_item(db_session, user, *, status="진행중", order_type="sale", quantity=2):
@@ -36,6 +36,8 @@ async def test_create_cancel_claim(client, db_session, settings):
     assert res.status_code == 201, res.text
     assert res.json()["claim_number"].startswith("CLM-")
     assert res.json()["quantity"] == 2  # 기본 = 아이템 수량
+    assert res.json()["order_number"] == order.order_number
+    assert res.json()["item"]["id"] == str(item.id)
 
     # 주문당 활성 클레임 1건
     dup = await client.post(
@@ -81,6 +83,113 @@ async def test_cancel_claim_status_guard(client, db_session, settings):
         headers=auth_headers(user, settings),
     )
     assert ok.status_code == 201
+
+
+async def test_claim_guards_match_customer_actions(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    cancelable = {
+        "sale": ("대기중", "진행중"),
+        "custom": ("대기중", "접수"),
+        "sample": ("대기중", "접수"),
+        "repair": ("대기중", "발송대기", "발송중", "발송확인중", "수거예정"),
+        "token": ("대기중",),
+    }
+
+    for order_type, statuses in cancelable.items():
+        for status in statuses:
+            order, item = await _order_with_item(
+                db_session, user, order_type=order_type, status=status
+            )
+            detail = await client.get(f"/orders/{order.id}", headers=headers)
+            assert "claim_cancel" in detail.json()["customer_actions"]
+
+            created = await client.post(
+                "/claims",
+                json={
+                    "type": "cancel",
+                    "order_id": str(order.id),
+                    "item_id": item.item_id,
+                    "reason": "other",
+                },
+                headers=headers,
+            )
+            assert created.status_code == 201, (order_type, status, created.text)
+
+            after = await client.get(f"/orders/{order.id}", headers=headers)
+            assert not any(
+                action.startswith("claim_") for action in after.json()["customer_actions"]
+            )
+
+    blocked, blocked_item = await _order_with_item(
+        db_session, user, order_type="sale", status="결제중"
+    )
+    blocked_detail = await client.get(f"/orders/{blocked.id}", headers=headers)
+    assert "claim_cancel" not in blocked_detail.json()["customer_actions"]
+    blocked_create = await client.post(
+        "/claims",
+        json={
+            "type": "cancel",
+            "order_id": str(blocked.id),
+            "item_id": blocked_item.item_id,
+            "reason": "other",
+        },
+        headers=headers,
+    )
+    assert blocked_create.status_code == 400
+
+
+async def test_return_exchange_are_sale_only(client, db_session, settings):
+    user = await make_user(db_session)
+    order, item = await _order_with_item(db_session, user, order_type="repair", status="배송완료")
+    headers = auth_headers(user, settings)
+
+    detail = await client.get(f"/orders/{order.id}", headers=headers)
+    assert "claim_return" not in detail.json()["customer_actions"]
+    assert "claim_exchange" not in detail.json()["customer_actions"]
+
+    created = await client.post(
+        "/claims",
+        json={
+            "type": "return",
+            "order_id": str(order.id),
+            "item_id": item.item_id,
+            "reason": "defect",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 400
+
+
+async def test_order_detail_includes_shipping_address(client, db_session, settings):
+    user = await make_user(db_session)
+    address = await make_address(db_session, user)
+    order = await make_order(db_session, user, shipping_address_id=address.id)
+
+    response = await client.get(f"/orders/{order.id}", headers=auth_headers(user, settings))
+
+    assert response.status_code == 200
+    assert response.json()["shipping_address"] == {
+        "id": str(address.id),
+        "recipient_name": "수령인",
+        "recipient_phone": "01012345678",
+        "postal_code": "04524",
+        "address": "서울시 중구 테스트로 1",
+        "address_detail": None,
+        "delivery_memo": None,
+        "delivery_request": None,
+    }
+
+
+async def test_order_list_includes_items(client, db_session, settings):
+    user = await make_user(db_session)
+    order, item = await _order_with_item(db_session, user)
+
+    response = await client.get("/orders", headers=auth_headers(user, settings))
+
+    assert response.status_code == 200
+    listed = next(entry for entry in response.json() if entry["id"] == str(order.id))
+    assert [entry["id"] for entry in listed["items"]] == [str(item.id)]
 
 
 async def test_customer_cancel_deletes_received_claim(client, db_session, settings):

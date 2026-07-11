@@ -142,6 +142,11 @@ export function MyPage() {
                   description="주문 상태와 수선품 발송 현황을 확인합니다."
                   onClick={() => navigate("/my-page/orders")}
                 />
+                <ListItem
+                  title="취소·반품·교환 내역"
+                  description="클레임 신청과 처리 상태를 확인합니다."
+                  onClick={() => navigate("/my-page/claims")}
+                />
               </List>
             </VStack>
             <VStack gap="x2" alignItems="stretch">

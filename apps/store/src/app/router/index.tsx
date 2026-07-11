@@ -149,6 +149,19 @@ export const router = createBrowserRouter([
             }),
           },
           {
+            path: "my-page/claims",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/claims")).ClaimListPage,
+            }),
+          },
+          {
+            path: "my-page/claims/:claimId",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/claim-detail"))
+                .ClaimDetailPage,
+            }),
+          },
+          {
             path: "my-page/my-info",
             lazy: async () => ({
               Component: (await import("@/pages/my-page/my-info")).MyInfoPage,

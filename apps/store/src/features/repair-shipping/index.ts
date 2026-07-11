@@ -4,7 +4,15 @@ export {
   REPAIR_PHOTO_ACCEPT,
   uploadRepairShippingPhoto,
 } from "./api/upload";
-export { COURIER_OPTIONS, courierLabel } from "./model/couriers";
+export {
+  COURIER_OPTIONS,
+  courierLabel,
+  courierTrackingUrl,
+} from "./model/couriers";
+export {
+  REPAIR_INBOUND_ADDRESS,
+  repairInboundAddressText,
+} from "./model/inbound-address";
 export {
   planRepairOutcome,
   type RepairPostConfirmPlan,
@@ -21,5 +29,6 @@ export {
   shipmentInvalidReason,
   shipmentRequestBody,
 } from "./model/shipment";
+export { RepairInboundAddress } from "./ui/repair-inbound-address";
 export { RepairPhotoField } from "./ui/repair-photo-field";
 export { RepairShipmentFields } from "./ui/repair-shipment-fields";

@@ -886,6 +886,9 @@
             "title": "Id",
             "type": "string"
           },
+          "item": {
+            "$ref": "#/components/schemas/OrderItemOut"
+          },
           "order_id": {
             "format": "uuid",
             "title": "Order Id",
@@ -894,6 +897,10 @@
           "order_item_id": {
             "format": "uuid",
             "title": "Order Item Id",
+            "type": "string"
+          },
+          "order_number": {
+            "title": "Order Number",
             "type": "string"
           },
           "quantity": {
@@ -984,6 +991,8 @@
           "user_id",
           "order_id",
           "order_item_id",
+          "order_number",
+          "item",
           "claim_number",
           "type",
           "status",
@@ -2543,6 +2552,219 @@
         "title": "OrderCreateResponse",
         "type": "object"
       },
+      "OrderDetailOut": {
+        "properties": {
+          "company_courier_company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Courier Company"
+          },
+          "company_shipped_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Shipped At"
+          },
+          "company_tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Tracking Number"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "courier_company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Courier Company"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "customer_actions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Customer Actions",
+            "type": "array"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OrderItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "order_number": {
+            "title": "Order Number",
+            "type": "string"
+          },
+          "order_type": {
+            "title": "Order Type",
+            "type": "string"
+          },
+          "original_price": {
+            "title": "Original Price",
+            "type": "integer"
+          },
+          "payment_group_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Group Id"
+          },
+          "shipped_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipped At"
+          },
+          "shipping_address": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrderShippingAddressOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shipping_address_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipping Address Id"
+          },
+          "shipping_cost": {
+            "title": "Shipping Cost",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_discount": {
+            "title": "Total Discount",
+            "type": "integer"
+          },
+          "total_price": {
+            "title": "Total Price",
+            "type": "integer"
+          },
+          "tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_number",
+          "order_type",
+          "status",
+          "total_price",
+          "original_price",
+          "total_discount",
+          "shipping_cost",
+          "payment_group_id",
+          "shipping_address_id",
+          "courier_company",
+          "tracking_number",
+          "shipped_at",
+          "delivered_at",
+          "confirmed_at",
+          "company_courier_company",
+          "company_tracking_number",
+          "company_shipped_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrderDetailOut",
+        "type": "object"
+      },
       "OrderItemIn": {
         "properties": {
           "applied_user_coupon_id": {
@@ -2909,6 +3131,76 @@
           "updated_at"
         ],
         "title": "OrderOut",
+        "type": "object"
+      },
+      "OrderShippingAddressOut": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "address_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address Detail"
+          },
+          "delivery_memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Memo"
+          },
+          "delivery_request": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Request"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "postal_code": {
+            "title": "Postal Code",
+            "type": "string"
+          },
+          "recipient_name": {
+            "title": "Recipient Name",
+            "type": "string"
+          },
+          "recipient_phone": {
+            "title": "Recipient Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recipient_name",
+          "recipient_phone",
+          "postal_code",
+          "address",
+          "address_detail",
+          "delivery_memo",
+          "delivery_request"
+        ],
+        "title": "OrderShippingAddressOut",
         "type": "object"
       },
       "PaymentConfirmRequest": {
@@ -8044,7 +8336,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OrderOut"
+                  "$ref": "#/components/schemas/OrderDetailOut"
                 }
               }
             },

@@ -479,6 +479,7 @@ export type ClaimOut = {
      * Id
      */
     id: string;
+    item: OrderItemOut;
     /**
      * Order Id
      */
@@ -487,6 +488,10 @@ export type ClaimOut = {
      * Order Item Id
      */
     order_item_id: string;
+    /**
+     * Order Number
+     */
+    order_number: string;
     /**
      * Quantity
      */
@@ -1406,6 +1411,101 @@ export type OrderCreateResponse = {
 };
 
 /**
+ * OrderDetailOut
+ */
+export type OrderDetailOut = {
+    /**
+     * Company Courier Company
+     */
+    company_courier_company: string | null;
+    /**
+     * Company Shipped At
+     */
+    company_shipped_at: string | null;
+    /**
+     * Company Tracking Number
+     */
+    company_tracking_number: string | null;
+    /**
+     * Confirmed At
+     */
+    confirmed_at: string | null;
+    /**
+     * Courier Company
+     */
+    courier_company: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Customer Actions
+     */
+    customer_actions?: Array<string>;
+    /**
+     * Delivered At
+     */
+    delivered_at: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Items
+     */
+    items?: Array<OrderItemOut>;
+    /**
+     * Order Number
+     */
+    order_number: string;
+    /**
+     * Order Type
+     */
+    order_type: string;
+    /**
+     * Original Price
+     */
+    original_price: number;
+    /**
+     * Payment Group Id
+     */
+    payment_group_id: string | null;
+    /**
+     * Shipped At
+     */
+    shipped_at: string | null;
+    shipping_address?: OrderShippingAddressOut | null;
+    /**
+     * Shipping Address Id
+     */
+    shipping_address_id: string | null;
+    /**
+     * Shipping Cost
+     */
+    shipping_cost: number;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Total Discount
+     */
+    total_discount: number;
+    /**
+     * Total Price
+     */
+    total_price: number;
+    /**
+     * Tracking Number
+     */
+    tracking_number: string | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
  * OrderItemIn
  */
 export type OrderItemIn = {
@@ -1580,6 +1680,44 @@ export type OrderOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * OrderShippingAddressOut
+ */
+export type OrderShippingAddressOut = {
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Address Detail
+     */
+    address_detail: string | null;
+    /**
+     * Delivery Memo
+     */
+    delivery_memo: string | null;
+    /**
+     * Delivery Request
+     */
+    delivery_request: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Postal Code
+     */
+    postal_code: string;
+    /**
+     * Recipient Name
+     */
+    recipient_name: string;
+    /**
+     * Recipient Phone
+     */
+    recipient_phone: string;
 };
 
 /**
@@ -4505,7 +4643,7 @@ export type GetOrderResponses = {
     /**
      * Successful Response
      */
-    200: OrderOut;
+    200: OrderDetailOut;
 };
 
 export type GetOrderResponse = GetOrderResponses[keyof GetOrderResponses];

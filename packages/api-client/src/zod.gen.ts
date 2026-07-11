@@ -162,29 +162,6 @@ export const zClaimCreateRequest = z.object({
 });
 
 /**
- * ClaimOut
- */
-export const zClaimOut = z.object({
-    claim_number: z.string(),
-    created_at: z.iso.datetime(),
-    description: z.string().nullable(),
-    id: z.uuid(),
-    order_id: z.uuid(),
-    order_item_id: z.uuid(),
-    quantity: z.int(),
-    reason: z.string(),
-    refund_data: z.record(z.string(), z.unknown()).nullable(),
-    resend_courier_company: z.string().nullable(),
-    resend_tracking_number: z.string().nullable(),
-    return_courier_company: z.string().nullable(),
-    return_tracking_number: z.string().nullable(),
-    status: z.string(),
-    type: z.string(),
-    updated_at: z.iso.datetime(),
-    user_id: z.uuid()
-});
-
-/**
  * ConfirmedOrder
  */
 export const zConfirmedOrder = z.object({
@@ -568,6 +545,31 @@ export const zAdminOrderOut = z.object({
 });
 
 /**
+ * ClaimOut
+ */
+export const zClaimOut = z.object({
+    claim_number: z.string(),
+    created_at: z.iso.datetime(),
+    description: z.string().nullable(),
+    id: z.uuid(),
+    item: zOrderItemOut,
+    order_id: z.uuid(),
+    order_item_id: z.uuid(),
+    order_number: z.string(),
+    quantity: z.int(),
+    reason: z.string(),
+    refund_data: z.record(z.string(), z.unknown()).nullable(),
+    resend_courier_company: z.string().nullable(),
+    resend_tracking_number: z.string().nullable(),
+    return_courier_company: z.string().nullable(),
+    return_tracking_number: z.string().nullable(),
+    status: z.string(),
+    type: z.string(),
+    updated_at: z.iso.datetime(),
+    user_id: z.uuid()
+});
+
+/**
  * OrderOut
  */
 export const zOrderOut = z.object({
@@ -586,6 +588,49 @@ export const zOrderOut = z.object({
     original_price: z.int(),
     payment_group_id: z.uuid().nullable(),
     shipped_at: z.iso.datetime().nullable(),
+    shipping_address_id: z.uuid().nullable(),
+    shipping_cost: z.int(),
+    status: z.string(),
+    total_discount: z.int(),
+    total_price: z.int(),
+    tracking_number: z.string().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * OrderShippingAddressOut
+ */
+export const zOrderShippingAddressOut = z.object({
+    address: z.string(),
+    address_detail: z.string().nullable(),
+    delivery_memo: z.string().nullable(),
+    delivery_request: z.string().nullable(),
+    id: z.uuid(),
+    postal_code: z.string(),
+    recipient_name: z.string(),
+    recipient_phone: z.string()
+});
+
+/**
+ * OrderDetailOut
+ */
+export const zOrderDetailOut = z.object({
+    company_courier_company: z.string().nullable(),
+    company_shipped_at: z.iso.datetime().nullable(),
+    company_tracking_number: z.string().nullable(),
+    confirmed_at: z.iso.datetime().nullable(),
+    courier_company: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    customer_actions: z.array(z.string()).optional().default([]),
+    delivered_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    items: z.array(zOrderItemOut).optional().default([]),
+    order_number: z.string(),
+    order_type: z.string(),
+    original_price: z.int(),
+    payment_group_id: z.uuid().nullable(),
+    shipped_at: z.iso.datetime().nullable(),
+    shipping_address: zOrderShippingAddressOut.nullish(),
     shipping_address_id: z.uuid().nullable(),
     shipping_cost: z.int(),
     status: z.string(),
@@ -1888,7 +1933,7 @@ export const zGetOrderPath = z.object({
 /**
  * Successful Response
  */
-export const zGetOrderResponse = zOrderOut;
+export const zGetOrderResponse = zOrderDetailOut;
 
 export const zConfirmPurchasePath = z.object({
     order_id: z.uuid()

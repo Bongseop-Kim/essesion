@@ -2,27 +2,53 @@ import { listMyOrdersOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Badge,
+  Chip,
   ContentPlaceholder,
+  HStack,
   List,
+  ListHeader,
   ListItem,
+  ScrollFog,
   Skeleton,
   Text,
   VStack,
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import {
-  formatOrderDate,
-  orderStatusTone,
-  orderTypeLabel,
-} from "@/features/orders";
+import { orderStatusTone, orderTypeLabel } from "@/features/orders";
 import { krw } from "@/pages/shop/constants";
+import { groupByCreatedDate } from "@/shared/lib/date-groups";
 import { ContentLayout } from "@/shared/ui/content-layout";
+
+type OrderTypeFilter =
+  | "all"
+  | "sale"
+  | "repair"
+  | "custom"
+  | "sample"
+  | "token";
+
+const ORDER_TYPE_FILTERS: readonly { value: OrderTypeFilter; label: string }[] =
+  [
+    { value: "all", label: "전체" },
+    { value: "sale", label: "일반구매" },
+    { value: "repair", label: "수선" },
+    { value: "custom", label: "주문제작" },
+    { value: "sample", label: "샘플" },
+    { value: "token", label: "토큰" },
+  ];
 
 export function OrderListPage() {
   const navigate = useNavigate();
-  const ordersQuery = useQuery(listMyOrdersOptions());
+  const [filter, setFilter] = useState<OrderTypeFilter>("all");
+  const ordersQuery = useQuery(
+    filter === "all"
+      ? listMyOrdersOptions()
+      : listMyOrdersOptions({ query: { order_type: filter } }),
+  );
   const orders = ordersQuery.data ?? [];
+  const groups = groupByCreatedDate(orders);
 
   return (
     <ContentLayout
@@ -36,6 +62,20 @@ export function OrderListPage() {
         <Text as="h1" textStyle="title1">
           주문 내역
         </Text>
+
+        <ScrollFog direction="horizontal">
+          <HStack gap="x2">
+            {ORDER_TYPE_FILTERS.map((option) => (
+              <Chip
+                key={option.value}
+                selected={filter === option.value}
+                onClick={() => setFilter(option.value)}
+              >
+                {option.label}
+              </Chip>
+            ))}
+          </HStack>
+        </ScrollFog>
 
         {ordersQuery.isPending ? (
           <VStack gap="x3" alignItems="stretch">
@@ -59,30 +99,45 @@ export function OrderListPage() {
           />
         ) : orders.length === 0 ? (
           <ContentPlaceholder
-            title="주문 내역이 없습니다"
-            description="첫 주문을 시작해 보세요."
+            title={
+              filter === "all" ? "주문 내역이 없습니다" : "해당 주문이 없습니다"
+            }
+            description={
+              filter === "all"
+                ? "첫 주문을 시작해 보세요."
+                : "다른 유형을 선택해 보세요."
+            }
             action={
-              <ActionButton type="button" onClick={() => navigate("/shop")}>
-                스토어 둘러보기
-              </ActionButton>
+              filter === "all" ? (
+                <ActionButton type="button" onClick={() => navigate("/shop")}>
+                  스토어 둘러보기
+                </ActionButton>
+              ) : undefined
             }
           />
         ) : (
-          <List>
-            {orders.map((order) => (
-              <ListItem
-                key={order.id}
-                title={`${orderTypeLabel(order.order_type)} · ${order.order_number}`}
-                description={`${formatOrderDate(order.created_at)} · ${krw.format(order.total_price)}원`}
-                suffix={
-                  <Badge tone={orderStatusTone(order.status)}>
-                    {order.status}
-                  </Badge>
-                }
-                onClick={() => navigate(`/order/${order.id}`)}
-              />
+          <VStack gap="x4" alignItems="stretch">
+            {groups.map(([date, dateOrders]) => (
+              <VStack key={date} gap="x1" alignItems="stretch">
+                <ListHeader variant="boldSolid">{date}</ListHeader>
+                <List>
+                  {dateOrders.map((order) => (
+                    <ListItem
+                      key={order.id}
+                      title={`${orderTypeLabel(order.order_type)} · ${order.order_number}`}
+                      description={`${krw.format(order.total_price)}원 · 상품 ${order.items?.length ?? 0}개`}
+                      suffix={
+                        <Badge tone={orderStatusTone(order.status)}>
+                          {order.status}
+                        </Badge>
+                      }
+                      onClick={() => navigate(`/order/${order.id}`)}
+                    />
+                  ))}
+                </List>
+              </VStack>
             ))}
-          </List>
+          </VStack>
         )}
       </VStack>
     </ContentLayout>

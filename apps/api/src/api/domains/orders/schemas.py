@@ -140,6 +140,23 @@ class OrderOut(BaseModel):
     customer_actions: list[str] = []
 
 
+class OrderShippingAddressOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    recipient_name: str
+    recipient_phone: str
+    postal_code: str
+    address: str
+    address_detail: str | None
+    delivery_memo: str | None
+    delivery_request: str | None
+
+
+class OrderDetailOut(OrderOut):
+    shipping_address: OrderShippingAddressOut | None = None
+
+
 class RepairPhotoIn(BaseModel):
     object_key: str
 
