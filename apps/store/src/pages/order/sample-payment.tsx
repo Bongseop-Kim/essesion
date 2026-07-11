@@ -28,7 +28,7 @@ import {
   couponLabel,
 } from "@/features/coupon";
 import {
-  type SampleOrderDraft,
+  readSampleOrderDraft,
   sampleFabricLabel,
   sampleOrderApiOptions,
   sampleTypeLabel,
@@ -239,18 +239,4 @@ export function SamplePaymentPage() {
       />
     </CheckoutShell>
   );
-}
-
-function readSampleOrderDraft(state: unknown): SampleOrderDraft | null {
-  if (!state || typeof state !== "object" || !("sampleOrder" in state))
-    return null;
-  const draft = (state as { sampleOrder?: unknown }).sampleOrder;
-  if (!draft || typeof draft !== "object") return null;
-  if (
-    !("options" in draft) ||
-    !("imageRefs" in draft) ||
-    !("totalCost" in draft)
-  )
-    return null;
-  return draft as SampleOrderDraft;
 }

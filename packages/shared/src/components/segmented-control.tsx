@@ -74,7 +74,7 @@ export function SegmentedControl({
 
 // 네이티브 radio가 화살표 키 이동을 제공하므로 커스텀 키보드 코드는 없다.
 const itemLabelClass =
-  "flex h-8 items-center justify-center rounded-full px-x4 text-t4 font-bold text-fg-neutral-subtle transition-colors duration-100 ease-standard peer-checked:bg-bg-layer-default peer-checked:text-fg-neutral peer-checked:shadow-s1 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring peer-disabled:text-fg-disabled peer-disabled:cursor-not-allowed cursor-pointer";
+  "flex h-8 w-full items-center justify-center whitespace-nowrap rounded-full px-x4 text-t4 font-bold text-fg-neutral-subtle transition-colors duration-100 ease-standard peer-checked:bg-bg-layer-default peer-checked:text-fg-neutral peer-checked:shadow-s1 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring peer-disabled:text-fg-disabled peer-disabled:cursor-not-allowed cursor-pointer";
 
 export type SegmentedControlItemProps = {
   value: string;
@@ -90,7 +90,8 @@ export function SegmentedControlItem({
   const { name, value: selectedValue, setValue } = useSegmentedControlContext();
   const checked = selectedValue === value;
   return (
-    <label>
+    // 세그먼트가 컨테이너 폭을 균등 분할하도록 flex-1 (seed-design 스펙)
+    <label className="min-w-0 flex-1">
       <input
         type="radio"
         name={name}

@@ -1,4 +1,3 @@
-import { calculateSampleOrderMutation } from "@essesion/api-client/query";
 import {
   ActionButton,
   AttachmentDisplayField,
@@ -7,13 +6,14 @@ import {
   Divider,
   SegmentedControl,
   SegmentedControlItem,
+  SelectBox,
+  SelectBoxItem,
   snackbar,
   Text,
   TextAreaField,
   VStack,
 } from "@essesion/shared";
-import { useMutation } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
@@ -23,14 +23,14 @@ import {
   type SampleOrderDraft,
   type SampleOrderOptions,
   sampleFabricLabel,
-  sampleOrderApiOptions,
   sampleTypeLabel,
+  useSampleQuote,
 } from "@/features/sample-order";
 import { krw } from "@/pages/shop/constants";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
-const MAX_IMAGES = 6;
+const MAX_IMAGES = 5;
 
 export function SampleOrderPage() {
   const navigate = useNavigate();
@@ -41,11 +41,9 @@ export function SampleOrderPage() {
     restored ?? DEFAULT_SAMPLE_ORDER_OPTIONS,
   );
   const [files, setFiles] = useState<File[]>([]);
-  const [totalCost, setTotalCost] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const calculation = useMutation(calculateSampleOrderMutation());
-  const calculationVersion = useRef(0);
-  const apiOptions = useMemo(() => sampleOrderApiOptions(options), [options]);
+  const calculation = useSampleQuote(options);
+  const totalCost = calculation.data?.total_cost ?? null;
   const previews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [files],
@@ -57,24 +55,6 @@ export function SampleOrderPage() {
     },
     [previews],
   );
-
-  useEffect(() => {
-    const version = ++calculationVersion.current;
-    const timeout = window.setTimeout(() => {
-      void calculation
-        .mutateAsync({
-          body: { sample_type: options.sampleType, options: apiOptions },
-        })
-        .then((result) => {
-          if (calculationVersion.current === version)
-            setTotalCost(result.total_cost);
-        })
-        .catch(() => {
-          if (calculationVersion.current === version) setTotalCost(null);
-        });
-    }, 350);
-    return () => window.clearTimeout(timeout);
-  }, [apiOptions, calculation.mutateAsync, options.sampleType]);
 
   const update = <K extends keyof SampleOrderOptions>(
     key: K,
@@ -136,27 +116,22 @@ export function SampleOrderPage() {
           />
           <Callout
             title="샘플 안내"
-            description="대량 제작 전에 원단과 봉제 품질을 확인할 수 있습니다."
+            description="대량 제작 전에 원단과 봉제 품질을 확인할 수 있습니다. 제주·도서산간은 추가 배송비가 발생할 수 있으며, 제작 접수 후에는 취소·환불이 불가합니다. 샘플 결제 완료 시 본 주문 할인 쿠폰이 발급됩니다."
           />
         </SummaryCard.Root>
       }
       actionBar={
-        <VStack gap="x2" alignItems="stretch">
-          <Box
-            as={ActionButton}
-            type="button"
-            size="large"
-            width="full"
-            disabled={!totalCost || calculation.isPending}
-            loading={submitting}
-            onClick={() => void submit()}
-          >
-            {totalCost ? `${krw.format(totalCost)}원 주문하기` : "금액 확인 중"}
-          </Box>
-          <Text textStyle="caption" color="fg.neutral-muted" align="center">
-            배송지와 쿠폰은 주문서에서 선택합니다.
-          </Text>
-        </VStack>
+        <Box
+          as={ActionButton}
+          type="button"
+          size="large"
+          width="full"
+          disabled={!totalCost || calculation.isPending}
+          loading={submitting}
+          onClick={() => void submit()}
+        >
+          {totalCost ? `${krw.format(totalCost)}원 주문하기` : "금액 확인 중"}
+        </Box>
       }
     >
       <VStack gap="x8" alignItems="stretch">
@@ -186,17 +161,13 @@ export function SampleOrderPage() {
 
         {options.sampleType !== "sewing" ? (
           <SampleSection title="2. 원단 조합">
-            <Choice
-              label="원단 조합"
+            <SelectBox
+              name="sample-order-fabric"
               value={`${options.fabricType}-${options.designType}`}
-              options={[
-                { value: "POLY-PRINTING", label: "폴리 · 날염" },
-                { value: "POLY-YARN_DYED", label: "폴리 · 선염" },
-                { value: "SILK-PRINTING", label: "실크 · 날염" },
-                { value: "SILK-YARN_DYED", label: "실크 · 선염" },
-              ]}
-              onChange={(value) => {
-                const [fabricType, designType] = value.split("-") as [
+              columns={{ base: 1, sm: 2 }}
+              aria-label="원단 조합"
+              onValueChange={(value) => {
+                const [fabricType, designType] = String(value).split("-") as [
                   SampleOrderOptions["fabricType"],
                   SampleOrderOptions["designType"],
                 ];
@@ -206,37 +177,79 @@ export function SampleOrderPage() {
                   designType,
                 }));
               }}
-            />
+            >
+              <SelectBoxItem
+                value="POLY-PRINTING"
+                label="폴리 · 날염"
+                description="폴리 원단에 디자인을 인쇄하는 방식"
+              />
+              <SelectBoxItem
+                value="POLY-YARN_DYED"
+                label="폴리 · 선염"
+                description="염색한 폴리 실로 무늬를 구성하는 방식"
+              />
+              <SelectBoxItem
+                value="SILK-PRINTING"
+                label="실크 · 날염"
+                description="실크 원단에 디자인을 인쇄하는 방식"
+              />
+              <SelectBoxItem
+                value="SILK-YARN_DYED"
+                label="실크 · 선염"
+                description="염색한 실크 실로 무늬를 구성하는 방식"
+              />
+            </SelectBox>
           </SampleSection>
         ) : null}
 
         <SampleSection title="3. 봉제 사양">
           <VStack gap="x4" alignItems="stretch">
-            <Choice
-              label="타이 방식"
+            <SelectBox
+              name="sample-order-tie-type"
               value={options.tieType}
-              options={[
-                { value: "AUTO", label: "자동 타이" },
-                { value: "MANUAL", label: "수동 타이" },
-              ]}
-              onChange={(value) =>
-                update("tieType", value as SampleOrderOptions["tieType"])
-              }
-            />
-            <Choice
-              label="심지"
-              value={options.interlining}
-              options={[
-                { value: "WOOL", label: "울 심지" },
-                { value: "POLY", label: "폴리 심지" },
-              ]}
-              onChange={(value) =>
+              columns={{ base: 1, sm: 2 }}
+              aria-label="타이 방식"
+              onValueChange={(value) =>
                 update(
-                  "interlining",
-                  value as SampleOrderOptions["interlining"],
+                  "tieType",
+                  String(value) as SampleOrderOptions["tieType"],
                 )
               }
-            />
+            >
+              <SelectBoxItem
+                value="AUTO"
+                label="자동 타이"
+                description="매듭이 완성된 상태로 착용하는 방식"
+              />
+              <SelectBoxItem
+                value="MANUAL"
+                label="수동 타이"
+                description="직접 매듭을 묶어 착용하는 방식"
+              />
+            </SelectBox>
+            <SelectBox
+              name="sample-order-interlining"
+              value={options.interlining}
+              columns={{ base: 1, sm: 2 }}
+              aria-label="심지"
+              onValueChange={(value) =>
+                update(
+                  "interlining",
+                  String(value) as SampleOrderOptions["interlining"],
+                )
+              }
+            >
+              <SelectBoxItem
+                value="WOOL"
+                label="울 심지"
+                description="형태 유지와 복원력이 좋은 울 소재 심지"
+              />
+              <SelectBoxItem
+                value="POLY"
+                label="폴리 심지"
+                description="가볍고 관리가 쉬운 폴리 소재 심지"
+              />
+            </SelectBox>
           </VStack>
         </SampleSection>
 

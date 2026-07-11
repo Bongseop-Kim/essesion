@@ -74,6 +74,8 @@
 - [x] custom-order 폴리 원단 계산 복구 — 로컬 가격 시드에 날염·선염 폴리 키 추가, 계산 API 회귀 테스트로 두 조합 검증
 - [x] custom-order 입력 안내 정리 — 수량 조건은 HelpBubble로 이동, 넥타이 폭은 빈 초기값과 범위 placeholder 적용, 일반 주문 하단의 중복 안내 제거
 - [x] custom-order 자동 타이 돌려묶기 — 자동 타이 전용 선택·수동 전환 시 해제, 무상 사양 저장과 서버 검증·회귀 테스트 적용
+- [x] sample-order 사후 개선 — 가격 계산을 가격 결정 키 기반 TanStack Query 캐시로 전환, 원단·타이·심지 SelectBox 정합화, 유의사항·후속 쿠폰 안내, 첨부 5장 통일, draft 방어 파싱 테스트 보강. 단가 재책정 여부는 운영 근거 부재로 현행 유지(`docs/plans/store-sample-order.md` §5-D)
+- [x] cart 빈 상태 라우팅 회귀 수정 — 빈 선택 상태의 참조를 보존해 무한 재렌더와 URL만 바뀌는 페이지 이동 정지 방지, 선택 동기화 단위 테스트 추가
 - [ ] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — **이 기획에서 결정·구현할 이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [ ] admin 재작성 — 기존 라우트 기준
 - [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler), api는 min-instances=1 설정
