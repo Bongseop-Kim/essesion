@@ -6,6 +6,7 @@ export {
   useCheckoutPayment,
 } from "./model/use-checkout-payment";
 export { CheckoutShell } from "./ui/checkout-shell";
+export { OrderPaymentPage } from "./ui/order-payment-page";
 export type {
   PaymentRequest,
   PaymentWidgetHandle,

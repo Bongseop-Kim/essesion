@@ -51,7 +51,7 @@ describe("productUnitPrice", () => {
     expect(productUnitPrice(product())).toBe(10_000);
     expect(productUnitPrice(product(), option())).toBe(12_000);
     expect(
-      productUnitPrice(product(), option({ additional_price: null })),
+      productUnitPrice(product(), option({ additional_price: undefined })),
     ).toBe(10_000);
   });
 });
@@ -79,7 +79,7 @@ describe("addProductToCartItems", () => {
       quantity: 3,
     });
     expect(next).toHaveLength(1);
-    expect(next[0].quantity).toBe(5);
+    expect(next[0]?.quantity).toBe(5);
   });
 });
 
@@ -123,8 +123,8 @@ describe("updateCartItemQuantity", () => {
       "product:2:base",
       4,
     );
-    expect(next[0].quantity).toBe(1);
-    expect(next[1].quantity).toBe(4);
+    expect(next[0]?.quantity).toBe(1);
+    expect(next[1]?.quantity).toBe(4);
   });
 
   it("returns the original list for quantity below 1", () => {
@@ -141,11 +141,11 @@ describe("applyCartItemCoupon", () => {
       "product:1:base",
       userCoupon("uc-1"),
     );
-    expect(applied[0].applied_user_coupon_id).toBe("uc-1");
-    expect(applied[1].applied_user_coupon_id).toBeUndefined();
+    expect(applied[0]?.applied_user_coupon_id).toBe("uc-1");
+    expect(applied[1]?.applied_user_coupon_id).toBeUndefined();
 
     const cleared = applyCartItemCoupon(applied, "product:1:base", null);
-    expect(cleared[0].applied_user_coupon_id).toBeNull();
+    expect(cleared[0]?.applied_user_coupon_id).toBeNull();
   });
 });
 
@@ -194,8 +194,8 @@ describe("updateProductCartItemOption", () => {
       quantity: 3,
     });
     expect(next).toHaveLength(1);
-    expect(next[0].quantity).toBe(5);
-    expect(next[0].applied_user_coupon_id).toBe("uc-existing");
+    expect(next[0]?.quantity).toBe(5);
+    expect(next[0]?.applied_user_coupon_id).toBe("uc-existing");
   });
 
   it("falls back to the current line's coupon when the target has none", () => {
@@ -213,6 +213,6 @@ describe("updateProductCartItemOption", () => {
       option: option(),
       quantity: 1,
     });
-    expect(next[0].applied_user_coupon_id).toBe("uc-current");
+    expect(next[0]?.applied_user_coupon_id).toBe("uc-current");
   });
 });
