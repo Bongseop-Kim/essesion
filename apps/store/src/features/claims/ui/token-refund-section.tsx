@@ -58,7 +58,7 @@ export function TokenRefundSection({ orderId }: { orderId: string }) {
   if (refundableQuery.isError) {
     return (
       <Callout
-        tone="neutral"
+        tone="critical"
         title="환불 가능 여부를 확인하지 못했습니다"
         description="다시 시도해 주세요."
         onClick={() => void refundableQuery.refetch()}

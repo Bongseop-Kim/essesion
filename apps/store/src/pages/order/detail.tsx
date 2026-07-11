@@ -26,6 +26,7 @@ import {
   ClaimFormModal,
   ClaimItemActions,
   type ClaimType,
+  claimItemTitle,
   TokenRefundSection,
 } from "@/features/claims";
 import {
@@ -40,6 +41,7 @@ import {
   courierTrackingUrl,
   RepairInboundAddress,
 } from "@/features/repair-shipping";
+import { deliveryRequestLabel } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
@@ -201,7 +203,10 @@ export function OrderDetailPage() {
                 <InfoRow
                   label="배송 요청"
                   value={
-                    order.shipping_address.delivery_request ??
+                    deliveryRequestLabel(
+                      order.shipping_address.delivery_request,
+                      order.shipping_address.delivery_memo,
+                    ) ??
                     order.shipping_address.delivery_memo ??
                     ""
                   }
@@ -364,14 +369,13 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function orderItemTitle(item: OrderItemOut): string {
-  if (item.item_type === "product") {
-    return item.product_id ? `상품 #${item.product_id}` : "상품";
-  }
-  if (item.item_type === "custom") return "맞춤 주문";
-  if (item.item_type === "sample") return "샘플 주문";
-  if (item.item_type === "token") return "디자인 토큰";
   const data = item.item_data;
-  if (data && typeof data === "object" && "tie" in data) {
+  if (
+    item.item_type === "reform" &&
+    data &&
+    typeof data === "object" &&
+    "tie" in data
+  ) {
     try {
       const label = reformServiceLabel(
         data as unknown as Parameters<typeof reformServiceLabel>[0],
@@ -381,5 +385,5 @@ function orderItemTitle(item: OrderItemOut): string {
       // 형태가 다른 이관 데이터는 기본 라벨로 표시한다.
     }
   }
-  return "넥타이 수선";
+  return claimItemTitle(item);
 }

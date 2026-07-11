@@ -83,24 +83,24 @@ C9 잔여 보강:
 | 사유 라디오 | `RadioGroup`/`RadioGroupItem` | 소수 옵션 배타 단일 선택 |
 | 상세 설명 | `TextAreaField`(500자) | — |
 | 유의사항 NoticeList | `Callout`(tone neutral) 또는 사이드바 목록 | 섹션 상주 안내 |
-| 구매확정·클레임 신청취소 확인 | `AlertDialog` | 되돌릴 수 없는 결정(확정 후 반품/교환 불가·클레임 레코드 삭제) |
+| 구매확정·클레임 신청취소 확인 | `AlertDialog` | 되돌릴 수 없는 결정(확정 후 반품/교환 불가·클레임 레코드 삭제). 레코드 삭제(DELETE /claims/{id})는 cancel/return/exchange 한정 — `token_refund`는 `cancelTokenRefundMutation`으로 `거부` 전이하고 레코드를 보존 |
 | 상태 뱃지 | `Badge`+`orderStatusTone`/클레임 톤 맵 | 기존 `features/orders` 패턴 |
 | 배송조회 외부 링크 | `courierLabel` 확장 — 조회 URL 빌더 추가 | 기존 `couriers.ts`에 URL 맵 추가 |
 | 결과 알림 / 로딩 / 빈·에러 | `snackbar()` / `Skeleton` / `ContentPlaceholder` | 3상태 규칙 |
 
-## 6. 데이터 계약
+## 6. 데이터 계약 (구현 완료 — §11 참고)
 
 | 용도 | 엔드포인트 | api-client | 상태 |
 |---|---|---|---|
-| 주문 목록(+타입 필터) | GET /orders?order_type= | `listMyOrdersOptions` | 사용 중 — query 파라미터만 추가 소비 |
+| 주문 목록(+타입 필터) | GET /orders?order_type= | `listMyOrdersOptions` | 사용 중(order_type 쿼리 포함) |
 | 주문 상세 | GET /orders/{id} | `getOrderOptions` | 사용 중 |
-| 구매확정 | POST /orders/{id}/confirm-purchase | `confirmPurchaseMutation` | **미배선** |
+| 구매확정 | POST /orders/{id}/confirm-purchase | `confirmPurchaseMutation` | 배선 완료(주문 상세) |
 | 수선 송장/무송장 접수 | POST /orders/{id}/repair-tracking·repair-no-tracking | `submitRepairTracking/NoTracking` | 사용 중(C3) |
-| 클레임 생성 | POST /claims | `createClaimMutation` | **미배선** |
-| 클레임 목록 | GET /claims | `listMyClaimsOptions` | **미배선** |
-| 클레임 신청 취소 | DELETE /claims/{id} | `cancelClaimMutation` | **미배선** |
+| 클레임 생성 | POST /claims | `createClaimMutation` | 배선 완료(ClaimFormModal) |
+| 클레임 목록 | GET /claims | `listMyClaimsOptions` | 배선 완료(목록·상세) |
+| 클레임 신청 취소 | DELETE /claims/{id} | `cancelClaimMutation` | 배선 완료(클레임 상세) |
 
-**서버 변경(→ `pnpm codegen` 동반 커밋)**:
+**서버 변경(전부 적용 완료, codegen 재생성 커밋됨 — §11)**:
 1. **`ClaimOut` 보강(D5)**: `order_number: str` + `item: OrderItemOut`(order_item 관계 조인). 목록·상세가 주문번호·대상 상품 카드를 추가 fetch 없이 렌더 — 단건 GET /claims/{id}는 신설하지 않고, 상세는 목록 쿼리에서 `find(id)`(원본도 단일 뷰로 양쪽을 서빙했고, 목록은 소유자 스코프 소량). admin 클레임 화면도 같은 보강을 수혜.
 2. **액션-가드 정합(D6, 확정)**: 표를 `status_machine`에 단일 소스로 두고 `claims/service`가 import해 파생. cancel 가드는 `CLAIM_CANCEL_ACTION_FROM` 기준으로 **확장**(repair 발송대기 등 — 결제 후 미발송 상태의 정당한 취소 경로), return/exchange 생성 가드는 **sale만으로 축소**(수선은 반품 대상·교환 재고가 없고, 주문제작·샘플은 재고 교환 불성립 — 액션 노출과 일치). `customer_actions`의 `claim_*`에 `has_active_claim` 게이트 추가.
 3. **주문 상세 배송지(D9)**: `GET /orders/{id}` 응답에 `shipping_address`(조인) 추가 — `OrderDetailOut(OrderOut)` 신설 또는 OrderOut에 optional 필드(목록은 미채움). FK가 `SET NULL`이고 스냅샷이 아니라서 주소 수정/삭제가 과거 주문 표시에 반영되는 한계는 §10에 기록.
@@ -151,7 +151,7 @@ apps/store/src/
   app/router/index.tsx            (라우트 2건 추가 — lazy)
 ```
 
-## 9. 작업 순서
+## 9. 작업 순서 (초기 계획 — 전 단계·검증 완료, §11)
 
 1. **서버 선행(D4·D5·D6·D9)**: 액션-가드 단일 소스화(+testcontainers 인가·가드 테스트 갱신) → ClaimOut 보강 → 상세 배송지 → 알림 URL 문구 → `pnpm codegen` (같은 커밋).
 2. **features/claims**: config 맵 → `ClaimFormModal` → `claim-item-actions`.

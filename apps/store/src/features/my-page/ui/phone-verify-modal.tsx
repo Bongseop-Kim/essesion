@@ -41,7 +41,10 @@ export function PhoneVerifyModal({
   const verify = useMutation(verifyPhoneMutation());
 
   useEffect(() => {
-    if (open) setPhone(currentPhone ?? "");
+    if (!open) return;
+    setPhone(currentPhone ?? "");
+    setSent(false);
+    setCode("");
   }, [currentPhone, open]);
 
   useEffect(() => {

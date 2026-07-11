@@ -2,7 +2,7 @@
 
 > YeongSeon `/my-page`(허브) + `/my-page/my-info*`(detail/email/notice/leave) + `/shipping`(팝업 목록·폼)을 essesion store로 재작성.
 > **상태: 구현 완료 (2026-07-11)** — D1–D11 적용, API 계약·api-client·store 화면과 라우트·배송지 공용 폼까지 구현 및 검증 완료.
-> 미배선 생성물: `updateProfileMutation` · `setNotificationPreferencesMutation` · `deleteAccountMutation` · `deleteAddressMutation` · `sendPhoneVerification`/`verifyPhone` — C8이 전부 소비.
+> 기존 미배선 생성물 `updateProfileMutation` · `setNotificationPreferencesMutation` · `deleteAccountMutation` · `deleteAddressMutation` · `sendPhoneVerification`/`verifyPhone`을 C8에서 모두 배선했다.
 > 원본 참고(복사 금지): `../git/YeongSeon/apps/store/src/pages/my-page/**`, `features/shipping/**`, `pages/shipping/form.tsx`.
 
 ## 1. 범위 (라우트)
@@ -88,17 +88,17 @@
 | toast | `snackbar()` | 결과 알림 |
 | 로딩/빈/에러 | `Skeleton` / `ContentPlaceholder` | 3상태 규칙. 허브·my-info는 me 캐시가 이미 있으므로 Skeleton은 배송지·최초 진입만 실질 노출 |
 
-## 6. 데이터 계약 (전부 생성 완료 — 기본적으로 codegen 불필요, D6 채택 시에만 재생성)
+## 6. 데이터 계약 (전부 생성·배선 완료 — D6 반영분 codegen까지 커밋됨)
 
 | 용도 | 엔드포인트 | api-client | 상태 |
 |---|---|---|---|
 | 프로필 조회 | GET /auth/me | `getMeOptions` | 사용 중 |
-| 프로필 수정(이름·생년월일·마케팅 동의) | PATCH /users/me | `updateProfileMutation` | **미배선** |
-| 알림 설정 | POST /users/me/notification-preferences | `setNotificationPreferencesMutation` | **미배선** |
-| 휴대폰 인증 발송/검증 | POST /auth/phone/send·verify | `sendPhoneVerification`/`verifyPhone` | **미배선** |
-| 배송지 목록/업서트 | GET·PUT /users/me/addresses | `listAddressesOptions`/`upsertAddressMutation` | checkout 사용 중 |
-| 배송지 삭제 | DELETE /users/me/addresses/{id} | `deleteAddressMutation` | **미배선** |
-| 회원 탈퇴 | DELETE /users/me | `deleteAccountMutation` | **미배선** |
+| 프로필 수정(이름·생년월일·마케팅 동의) | PATCH /users/me | `updateProfileMutation` | 배선 완료(my-info·notice) |
+| 알림 설정 | POST /users/me/notification-preferences | `setNotificationPreferencesMutation` | 배선 완료(notice) |
+| 휴대폰 인증 발송/검증 | POST /auth/phone/send·verify | `sendPhoneVerification`/`verifyPhone` | 배선 완료(phone-verify-modal) |
+| 배송지 목록/업서트 | GET·PUT /users/me/addresses | `listAddressesOptions`/`upsertAddressMutation` | 사용 중(checkout·shipping) |
+| 배송지 삭제 | DELETE /users/me/addresses/{id} | `deleteAddressMutation` | 배선 완료(shipping) |
+| 회원 탈퇴 | DELETE /users/me | `deleteAccountMutation` | 배선 완료(leave) |
 | 로그아웃 | POST /auth/logout | `logoutMutation`(`useLogout`) | 사용 중 |
 
 - 프로필 계열 mutation 성공 시 `getMeQueryKey()` invalidate(서버가 MeResponse를 반환하므로 `setQueryData` 직접 반영도 가능 — 단순화를 위해 invalidate 기본).

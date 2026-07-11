@@ -1,4 +1,3 @@
-import { getReformPricingOptions } from "@essesion/api-client/query";
 import {
   Accordion,
   AccordionContent,
@@ -9,27 +8,14 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
-import { useQuery } from "@tanstack/react-query";
 
 import { VISIBLE_FAQS } from "@/pages/faq/model/faq-data";
 import { applyTemplateTokens } from "@/shared/lib/template-tokens";
+import { useReformPricingTokens } from "@/shared/lib/use-reform-pricing-tokens";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
-const krw = new Intl.NumberFormat("ko-KR");
-
 export function FaqPage() {
-  const pricingQuery = useQuery(getReformPricingOptions());
-  const feeTokens = pricingQuery.data
-    ? {
-        REFORM_SHIPPING_COST: krw.format(pricingQuery.data.shipping_cost),
-        REFORM_PICKUP_FEE: krw.format(pricingQuery.data.pickup_fee),
-      }
-    : {};
-  const pricingStatus = pricingQuery.isError
-    ? "수선 배송 요금을 불러오지 못했습니다. 관련 금액은 —로 표시됩니다."
-    : pricingQuery.isPending
-      ? "수선 배송 요금을 불러오는 중입니다. 관련 금액은 잠시 —로 표시됩니다."
-      : null;
+  const { feeTokens, pricingStatus } = useReformPricingTokens();
 
   return (
     <>

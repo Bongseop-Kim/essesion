@@ -2,16 +2,12 @@ import { Text, VStack } from "@essesion/shared";
 
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
+  policyBodyProps as bodyProps,
   PolicyDocument,
   PolicyInfoBox,
   PolicyList,
   PolicySection,
 } from "@/shared/ui/policy-blocks";
-
-const bodyProps = {
-  textStyle: "bodySm",
-  color: "fg.neutral-muted",
-} as const;
 
 export function RefundPolicyContent() {
   return (

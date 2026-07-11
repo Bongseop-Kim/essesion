@@ -1,6 +1,12 @@
 import { Article, Box, Text, VStack } from "@essesion/shared";
 import type { ReactNode } from "react";
 
+/** 정책 문서 본문 Text 공통 프롭 — 3개 약관 페이지가 공유. */
+export const policyBodyProps = {
+  textStyle: "bodySm",
+  color: "fg.neutral-muted",
+} as const;
+
 export function PolicyDocument({ children }: { children: ReactNode }) {
   return (
     <Article>
@@ -39,8 +45,8 @@ export function PolicyList({ items }: { items: readonly string[] }) {
       pl="x5"
       style={{ listStyleType: "disc" }}
     >
-      {items.map((item) => (
-        <Text key={item} as="li" textStyle="bodySm" color="fg.neutral-muted">
+      {items.map((item, index) => (
+        <Text key={`${index}-${item}`} as="li" {...policyBodyProps}>
           {item}
         </Text>
       ))}

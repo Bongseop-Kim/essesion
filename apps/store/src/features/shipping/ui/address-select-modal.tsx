@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useZodForm } from "@/shared/lib/form";
+import { CUSTOM_DELIVERY_REQUEST } from "../model/delivery-request";
 import {
   AddressFormFields,
   addressFormDefaultValues,
@@ -63,8 +64,16 @@ export function AddressSelectModal({
 
   const save = handleSubmit(async (values) => {
     try {
+      // 간이 폼의 자유 메모는 관리 폼의 "직접입력" 의미론으로 저장한다 —
+      // request 없이 memo만 있으면 카드 표시·관리 폼 수정에서 유실된다.
+      const memo = values.delivery_memo?.trim() || null;
       const address = await upsert.mutateAsync({
-        body: { ...values, is_default: addresses.length === 0 },
+        body: {
+          ...values,
+          is_default: addresses.length === 0,
+          delivery_request: memo ? CUSTOM_DELIVERY_REQUEST : null,
+          delivery_memo: memo,
+        },
       });
       await queryClient.invalidateQueries({
         queryKey: listAddressesQueryKey(),
