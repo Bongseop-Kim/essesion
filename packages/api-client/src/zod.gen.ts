@@ -759,13 +759,12 @@ export const zProductUpdate = z.object({
 /**
  * ProfileUpdateRequest
  *
- * 본인 수정 허용 필드만 — phone_verified/notification_*role은 전용 경로.
+ * 본인 수정 허용 필드만 — 휴대폰/알림/role은 전용 경로.
  */
 export const zProfileUpdateRequest = z.object({
     birth: z.iso.date().nullish(),
     marketing_kakao_sms_consent: z.boolean().nullish(),
-    name: z.string().nullish(),
-    phone: z.string().nullish()
+    name: z.string().nullish()
 });
 
 /**

@@ -149,6 +149,33 @@ export const router = createBrowserRouter([
             }),
           },
           {
+            path: "my-page/my-info",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/my-info")).MyInfoPage,
+            }),
+          },
+          {
+            path: "my-page/my-info/notice",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/my-info/notice"))
+                .NoticePage,
+            }),
+          },
+          {
+            path: "my-page/my-info/leave",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/my-info/leave"))
+                .LeavePage,
+            }),
+          },
+          {
+            path: "my-page/shipping",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/shipping"))
+                .ShippingPage,
+            }),
+          },
+          {
             path: "order/:orderId",
             lazy: async () => ({
               Component: (await import("@/pages/order/detail")).OrderDetailPage,

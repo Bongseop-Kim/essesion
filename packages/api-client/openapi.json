@@ -3481,7 +3481,7 @@
         "type": "object"
       },
       "ProfileUpdateRequest": {
-        "description": "본인 수정 허용 필드만 — phone_verified/notification_*/role은 전용 경로.",
+        "description": "본인 수정 허용 필드만 — 휴대폰/알림/role은 전용 경로.",
         "properties": {
           "birth": {
             "anyOf": [
@@ -3516,17 +3516,6 @@
               }
             ],
             "title": "Name"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
           }
         },
         "title": "ProfileUpdateRequest",

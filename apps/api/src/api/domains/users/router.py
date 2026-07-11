@@ -26,10 +26,9 @@ router = APIRouter(tags=["users"])
 
 
 class ProfileUpdateRequest(BaseModel):
-    """본인 수정 허용 필드만 — phone_verified/notification_*/role은 전용 경로."""
+    """본인 수정 허용 필드만 — 휴대폰/알림/role은 전용 경로."""
 
     name: str | None = None
-    phone: str | None = None
     birth: date | None = None
     marketing_kakao_sms_consent: bool | None = None
 

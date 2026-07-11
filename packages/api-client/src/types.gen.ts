@@ -1867,7 +1867,7 @@ export type ProductUpdate = {
 /**
  * ProfileUpdateRequest
  *
- * 본인 수정 허용 필드만 — phone_verified/notification_*role은 전용 경로.
+ * 본인 수정 허용 필드만 — 휴대폰/알림/role은 전용 경로.
  */
 export type ProfileUpdateRequest = {
     /**
@@ -1882,10 +1882,6 @@ export type ProfileUpdateRequest = {
      * Name
      */
     name?: string | null;
-    /**
-     * Phone
-     */
-    phone?: string | null;
 };
 
 /**

@@ -8,14 +8,19 @@ from .factories import auth_headers, make_order, make_user
 
 
 async def test_profile_update_allowed_fields_only(client, db_session, settings):
-    user = await make_user(db_session)
+    user = await make_user(db_session, phone="01012345678")
     headers = auth_headers(user, settings)
     res = await client.patch("/users/me", json={"name": "새이름"}, headers=headers)
     assert res.status_code == 200 and res.json()["name"] == "새이름"
 
-    # 허용 외 필드(role 등)는 스키마에 없음 — 무시됨
-    res = await client.patch("/users/me", json={"role": "admin"}, headers=headers)
+    # 허용 외 필드(role·phone 등)는 스키마에 없음 — 무시됨
+    res = await client.patch(
+        "/users/me",
+        json={"role": "admin", "phone": "01099998888"},
+        headers=headers,
+    )
     assert res.json()["role"] == "customer"
+    assert res.json()["phone"] == "01012345678"
 
 
 async def test_notification_preferences_log_only_on_change(client, db_session, settings):
