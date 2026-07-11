@@ -9,6 +9,7 @@ class TokenBalance(BaseModel):
     total: int
     paid: int
     bonus: int  # bonus + free
+    generate_cost: int
 
 
 class TokenPlan(BaseModel):

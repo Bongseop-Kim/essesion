@@ -19,6 +19,8 @@ export type AttachmentDisplayFieldProps = {
   label?: ReactNode;
   description?: ReactNode;
   errorMessage?: ReactNode;
+  /** 첨부 썸네일 앞에 함께 노출할 피커 등 보조 컨트롤 */
+  pickerSlot?: ReactNode;
   items: AttachmentItem[];
   /** 최대 첨부 수. 2 이상이면 우측에 items.length/max 카운터 노출 */
   max?: number;
@@ -37,6 +39,7 @@ export function AttachmentDisplayField({
   label,
   description,
   errorMessage,
+  pickerSlot,
   items,
   max,
   onRemove,
@@ -64,6 +67,7 @@ export function AttachmentDisplayField({
       alignItems="stretch"
       className={className}
     >
+      {pickerSlot}
       <Flex wrap="wrap" gap="x2">
         {items.map((item) => (
           <Box

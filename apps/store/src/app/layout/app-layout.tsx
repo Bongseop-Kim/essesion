@@ -228,11 +228,16 @@ export function AppLayout() {
   const location = useLocation();
   const isPaymentResult = location.pathname.startsWith("/order/payment/");
   const isLogin = location.pathname === "/login";
-  const isFocusedRoute = isPaymentResult || isLogin;
+  const isImmersive =
+    location.pathname === "/design" || location.pathname === "/design/";
+  const isFocusedRoute = isPaymentResult || isLogin || isImmersive;
 
   return (
     <AuthGuardProvider>
-      <Layout>
+      <Layout
+        height={isImmersive ? "100dvh" : undefined}
+        overflow={isImmersive ? "hidden" : undefined}
+      >
         {isPaymentResult ? (
           <Box display={{ base: "none", md: "block" }}>
             <StoreHeader />
@@ -242,7 +247,14 @@ export function AppLayout() {
         )}
         {/* 항상 flex column — LayoutContent(flexGrow)가 남는 높이를 채워
             ContentLayout의 sticky 액션 바가 짧은 페이지에서도 바닥에 정착한다 */}
-        <Box as="main" flexGrow={1} display="flex" flexDirection="column">
+        <Box
+          as="main"
+          flexGrow={1}
+          minHeight={isImmersive ? 0 : undefined}
+          overflow={isImmersive ? "hidden" : undefined}
+          display="flex"
+          flexDirection="column"
+        >
           <Outlet />
         </Box>
         {isFocusedRoute ? null : <StoreFooter />}

@@ -1417,6 +1417,14 @@
             "title": "Engine Version",
             "type": "string"
           },
+          "intents": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Intents",
+            "type": "array"
+          },
           "registry_version": {
             "title": "Registry Version",
             "type": "string"
@@ -1438,6 +1446,7 @@
           "request_id",
           "registry_version",
           "engine_version",
+          "intents",
           "candidates"
         ],
         "title": "DesignGenerateOut",
@@ -1511,6 +1520,19 @@
           }
         },
         "title": "DesignGenerateRequest",
+        "type": "object"
+      },
+      "DesignOrderReferenceOut": {
+        "properties": {
+          "object_key": {
+            "title": "Object Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object_key"
+        ],
+        "title": "DesignOrderReferenceOut",
         "type": "object"
       },
       "DesignSessionOut": {
@@ -1857,6 +1879,17 @@
             ],
             "title": "Result"
           },
+          "result_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Url"
+          },
           "session_id": {
             "anyOf": [
               {
@@ -1886,6 +1919,7 @@
           "status",
           "params",
           "result",
+          "result_url",
           "error_message",
           "request_id",
           "attempts",
@@ -4914,6 +4948,10 @@
             "title": "Bonus",
             "type": "integer"
           },
+          "generate_cost": {
+            "title": "Generate Cost",
+            "type": "integer"
+          },
           "paid": {
             "title": "Paid",
             "type": "integer"
@@ -4926,7 +4964,8 @@
         "required": [
           "total",
           "paid",
-          "bonus"
+          "bonus",
+          "generate_cost"
         ],
         "title": "TokenBalance",
         "type": "object"
@@ -7168,6 +7207,124 @@
         ]
       }
     },
+    "/design/jobs": {
+      "get": {
+        "operationId": "list_generation_jobs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "finalize",
+              "enum": [
+                "finalize",
+                "export"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "queued",
+                    "processing",
+                    "succeeded",
+                    "failed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GenerationJobOut"
+                  },
+                  "title": "Response List Generation Jobs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Generation Jobs",
+        "tags": [
+          "design"
+        ]
+      }
+    },
     "/design/jobs/{job_id}": {
       "get": {
         "operationId": "get_generation_job",
@@ -7211,6 +7368,55 @@
           }
         ],
         "summary": "Get Generation Job",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/jobs/{job_id}/order-reference": {
+      "post": {
+        "description": "소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.",
+        "operationId": "create_design_order_reference",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignOrderReferenceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Design Order Reference",
         "tags": [
           "design"
         ]

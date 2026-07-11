@@ -85,11 +85,13 @@ _CANDIDATE_KEYS = {
 
 
 def test_generate_returns_product_shape(client):
-    resp = client.post("/generate", json={"intent": mvp_intent(), "candidate_count": 4})
+    intent = mvp_intent()
+    resp = client.post("/generate", json={"intent": intent, "candidate_count": 4})
     assert resp.status_code == 200
     body = resp.json()
     assert body["request_id"]
     assert body["engine_version"] and body["registry_version"]
+    assert body["intents"] == [intent]
     assert len(body["candidates"]) == 4
     cand = body["candidates"][0]
     assert set(cand) == _CANDIDATE_KEYS

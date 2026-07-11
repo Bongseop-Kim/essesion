@@ -22,7 +22,10 @@ router = APIRouter(tags=["tokens"])
 
 @router.get("/tokens/balance", response_model=TokenBalance)
 async def get_token_balance(session: SessionDep, user: CurrentUser) -> TokenBalance:
-    return TokenBalance(**await ledger.get_balance(session, user.id))
+    return TokenBalance(
+        **await ledger.get_balance(session, user.id),
+        generate_cost=await ledger.get_generate_cost(session),
+    )
 
 
 @router.get("/tokens/plans", response_model=list[TokenPlan])

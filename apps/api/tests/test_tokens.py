@@ -92,6 +92,16 @@ async def test_expired_tokens_excluded_from_balance(db_session):
     assert (await ledger.get_balance(db_session, user.id))["total"] == 0
 
 
+async def test_balance_endpoint_includes_generate_cost(client, db_session, settings):
+    await seed_setting(db_session, *COST_SETTING)
+    user = await make_user(db_session)
+
+    response = await client.get("/tokens/balance", headers=auth_headers(user, settings))
+
+    assert response.status_code == 200
+    assert response.json() == {"total": 0, "paid": 0, "bonus": 0, "generate_cost": 5}
+
+
 async def test_plans_endpoint(client, db_session):
     await seed_pricing(
         db_session,

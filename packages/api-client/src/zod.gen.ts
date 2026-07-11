@@ -265,6 +265,13 @@ export const zDesignGenerateRequest = z.object({
 });
 
 /**
+ * DesignOrderReferenceOut
+ */
+export const zDesignOrderReferenceOut = z.object({
+    object_key: z.string()
+});
+
+/**
  * DesignSessionOut
  */
 export const zDesignSessionOut = z.object({
@@ -334,6 +341,7 @@ export const zGenerationJobOut = z.object({
     params: z.record(z.string(), z.unknown()),
     request_id: z.string().nullable(),
     result: z.record(z.string(), z.unknown()).nullable(),
+    result_url: z.string().nullable(),
     session_id: z.uuid().nullable(),
     status: z.string(),
     updated_at: z.iso.datetime()
@@ -1108,6 +1116,7 @@ export const zStatsResponse = z.object({
  */
 export const zTokenBalance = z.object({
     bonus: z.int(),
+    generate_cost: z.int(),
     paid: z.int(),
     total: z.int()
 });
@@ -1357,6 +1366,7 @@ export const zWorkerCandidateOut = z.object({
 export const zDesignGenerateOut = z.object({
     candidates: z.array(zWorkerCandidateOut),
     engine_version: z.string(),
+    intents: z.array(z.record(z.string(), z.unknown())),
     registry_version: z.string(),
     request_id: z.string(),
     warnings: z.array(z.string()).optional().default([])
@@ -1713,6 +1723,26 @@ export const zGenerateDesignBody = zDesignGenerateRequest;
  */
 export const zGenerateDesignResponse = zDesignGenerateOut;
 
+export const zListGenerationJobsQuery = z.object({
+    kind: z.enum(['finalize', 'export']).optional().default('finalize'),
+    status: z.enum([
+        'queued',
+        'processing',
+        'succeeded',
+        'failed'
+    ]).nullish(),
+    session_id: z.uuid().nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Response List Generation Jobs
+ *
+ * Successful Response
+ */
+export const zListGenerationJobsResponse = z.array(zGenerationJobOut);
+
 export const zGetGenerationJobPath = z.object({
     job_id: z.uuid()
 });
@@ -1721,6 +1751,15 @@ export const zGetGenerationJobPath = z.object({
  * Successful Response
  */
 export const zGetGenerationJobResponse = zGenerationJobOut;
+
+export const zCreateDesignOrderReferencePath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateDesignOrderReferenceResponse = zDesignOrderReferenceOut;
 
 /**
  * Response List Design Sessions

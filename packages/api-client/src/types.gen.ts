@@ -792,6 +792,12 @@ export type DesignGenerateOut = {
      */
     engine_version: string;
     /**
+     * Intents
+     */
+    intents: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
      * Registry Version
      */
     registry_version: string;
@@ -835,6 +841,16 @@ export type DesignGenerateRequest = {
      * Session Id
      */
     session_id?: string | null;
+};
+
+/**
+ * DesignOrderReferenceOut
+ */
+export type DesignOrderReferenceOut = {
+    /**
+     * Object Key
+     */
+    object_key: string;
 };
 
 /**
@@ -1031,6 +1047,10 @@ export type GenerationJobOut = {
     result: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Result Url
+     */
+    result_url: string | null;
     /**
      * Session Id
      */
@@ -2676,6 +2696,10 @@ export type TokenBalance = {
      */
     bonus: number;
     /**
+     * Generate Cost
+     */
+    generate_cost: number;
+    /**
      * Paid
      */
     paid: number;
@@ -3967,6 +3991,54 @@ export type GenerateDesignResponses = {
 
 export type GenerateDesignResponse = GenerateDesignResponses[keyof GenerateDesignResponses];
 
+export type ListGenerationJobsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: 'finalize' | 'export';
+        /**
+         * Status
+         */
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        /**
+         * Session Id
+         */
+        session_id?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/design/jobs';
+};
+
+export type ListGenerationJobsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListGenerationJobsError = ListGenerationJobsErrors[keyof ListGenerationJobsErrors];
+
+export type ListGenerationJobsResponses = {
+    /**
+     * Response List Generation Jobs
+     *
+     * Successful Response
+     */
+    200: Array<GenerationJobOut>;
+};
+
+export type ListGenerationJobsResponse = ListGenerationJobsResponses[keyof ListGenerationJobsResponses];
+
 export type GetGenerationJobData = {
     body?: never;
     path: {
@@ -3996,6 +4068,36 @@ export type GetGenerationJobResponses = {
 };
 
 export type GetGenerationJobResponse = GetGenerationJobResponses[keyof GetGenerationJobResponses];
+
+export type CreateDesignOrderReferenceData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/design/jobs/{job_id}/order-reference';
+};
+
+export type CreateDesignOrderReferenceErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateDesignOrderReferenceError = CreateDesignOrderReferenceErrors[keyof CreateDesignOrderReferenceErrors];
+
+export type CreateDesignOrderReferenceResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignOrderReferenceOut;
+};
+
+export type CreateDesignOrderReferenceResponse = CreateDesignOrderReferenceResponses[keyof CreateDesignOrderReferenceResponses];
 
 export type ListDesignSessionsData = {
     body?: never;

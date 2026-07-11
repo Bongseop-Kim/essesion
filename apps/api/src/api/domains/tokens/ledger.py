@@ -43,6 +43,13 @@ async def get_balance(session: AsyncSession, user_id: uuid.UUID) -> dict[str, in
     return {"total": paid + bonus, "paid": paid, "bonus": bonus}
 
 
+async def get_generate_cost(session: AsyncSession) -> int:
+    cost_value = await get_admin_setting(session, TOKEN_COST_SETTING)
+    if not cost_value or not cost_value.isdigit() or int(cost_value) <= 0:
+        raise DomainError("토큰 비용이 설정되지 않았습니다", code="token_cost_not_configured")
+    return int(cost_value)
+
+
 def _idempotent_insert(values: dict):
     return (
         pg_insert(DesignToken)
@@ -63,10 +70,7 @@ class UseResult:
 
 async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) -> UseResult:
     """생성 1회 과금 — 4단계에서 워커 generate 경로가 호출한다."""
-    cost_value = await get_admin_setting(session, TOKEN_COST_SETTING)
-    if not cost_value or not cost_value.isdigit() or int(cost_value) <= 0:
-        raise DomainError("토큰 비용이 설정되지 않았습니다", code="token_cost_not_configured")
-    cost = int(cost_value)
+    cost = await get_generate_cost(session)
 
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
 
