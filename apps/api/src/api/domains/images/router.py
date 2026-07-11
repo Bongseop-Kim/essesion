@@ -26,17 +26,20 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_REFORM_IMAGE_BYTES = 10 * 1024 * 1024
 REFORM_UPLOAD_TTL = timedelta(hours=24)
+QUOTE_UPLOAD_TTL = timedelta(hours=24)
 
 
 class UploadUrlRequest(BaseModel):
     kind: UploadKind
     filename: str
     content_type: str
+    size_bytes: int | None = Field(default=None, gt=0, le=MAX_REFORM_IMAGE_BYTES)
 
 
 class UploadUrlResponse(BaseModel):
     object_key: str
     upload_url: str
+    required_headers: dict[str, str]
     upload_required: bool
 
 
@@ -86,16 +89,47 @@ class ImageOut(BaseModel):
 
 @router.post("/images/upload-url", response_model=UploadUrlResponse)
 async def create_upload_url(
-    body: UploadUrlRequest, user: CurrentUser, request: Request
+    body: UploadUrlRequest,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
 ) -> UploadUrlResponse:
     extension = PurePosixPath(body.filename).suffix.lower()
     if extension not in ALLOWED_EXTENSIONS or body.content_type not in ALLOWED_CONTENT_TYPES:
         raise DomainError("지원하지 않는 이미지 형식입니다", code="invalid_image_type")
+    if body.kind == "quote_request" and body.size_bytes is None:
+        raise DomainError("견적 이미지 크기가 필요합니다", code="invalid_image_size")
     object_key = f"uploads/{body.kind}/{uuid.uuid4().hex}{extension}"
-    upload_url = await request.app.state.gcs.signed_upload_url(object_key, body.content_type)
+    if body.kind == "quote_request":
+        # 견적 생성이 임의의 object_key를 신뢰하지 않도록 발급 시점에
+        # 소유자·MIME·키를 스테이징한다. 미귀속 업로드는 정리 배치가 회수한다.
+        session.add(
+            Image(
+                object_key=object_key,
+                entity_type="quote_request_upload",
+                entity_id=object_key,
+                uploaded_by=user.id,
+                content_type=body.content_type,
+                size_bytes=body.size_bytes,
+                expires_at=datetime.now(UTC) + QUOTE_UPLOAD_TTL,
+            )
+        )
+        await session.flush()
+    max_size_bytes = MAX_REFORM_IMAGE_BYTES if body.kind == "quote_request" else None
+    upload_url = await request.app.state.gcs.signed_upload_url(
+        object_key,
+        body.content_type,
+        max_size_bytes=max_size_bytes,
+    )
+    if body.kind == "quote_request":
+        await session.commit()
+    required_headers = {"Content-Type": body.content_type}
+    if max_size_bytes is not None:
+        required_headers["x-goog-content-length-range"] = f"1,{max_size_bytes}"
     return UploadUrlResponse(
         object_key=object_key,
         upload_url=upload_url,
+        required_headers=required_headers,
         upload_required=request.app.state.gcs.upload_required,
     )
 
@@ -241,12 +275,12 @@ async def create_read_url(
     )
     if image is None or image.upload_completed_at is None:
         raise DomainError("이미지를 찾을 수 없습니다", code="image_not_found", status=404)
+    if image.expires_at is not None and image.expires_at <= datetime.now(UTC):
+        raise DomainError("이미지가 만료되었습니다", code="image_expired")
     if image.uploaded_by is not None:
         if user is None or image.uploaded_by != user.id:
             raise DomainError("이미지를 볼 권한이 없습니다", code="forbidden", status=403)
     else:
-        if image.expires_at is not None and image.expires_at <= datetime.now(UTC):
-            raise DomainError("수선 사진이 만료되었습니다", code="reform_image_expired")
         if not body.claim_token or not image.claim_token_hash:
             raise DomainError("이미지를 볼 권한이 없습니다", code="forbidden", status=403)
         token_hash = hashlib.sha256(body.claim_token.encode()).hexdigest()

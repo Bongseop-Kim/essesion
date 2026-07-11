@@ -199,6 +199,8 @@ export function AccordionContent({
         <section
           id={`${idPrefix}-${value}-content`}
           aria-labelledby={`${idPrefix}-${value}-trigger`}
+          aria-hidden={open ? undefined : true}
+          inert={open ? undefined : true}
           className={cn("px-x4 pb-x4 text-t4 text-fg-neutral-muted", className)}
           style={style}
           {...props}

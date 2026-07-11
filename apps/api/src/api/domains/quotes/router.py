@@ -29,7 +29,7 @@ async def create_quote(
     request: Request,
     background: BackgroundTasks,
 ) -> QuoteOut:
-    quote = await service.create_quote(session, user, body)
+    quote = await service.create_quote(session, user, body, request.app.state.gcs)
 
     if (
         user.notification_consent

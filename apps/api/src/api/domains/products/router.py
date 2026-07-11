@@ -32,6 +32,10 @@ router = APIRouter(tags=["products"])
 CODE_PREFIX = {"3fold": "3F", "sfolderato": "SF", "knit": "KN", "bowtie": "BT"}
 
 
+def _escape_like(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _likes_subquery():
     """상품별 찜 수 (상관 스칼라 서브쿼리) — SELECT 라벨과 popular 정렬에서 재사용."""
     return (
@@ -83,6 +87,7 @@ async def list_products(
     color: Color | None = None,
     pattern: Pattern | None = None,
     material: Material | None = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
     sort: SortOption = "latest",
     limit: Annotated[int | None, Query(gt=0, le=100)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -96,6 +101,8 @@ async def list_products(
         query = query.where(Product.pattern == pattern)
     if material:
         query = query.where(Product.material == material)
+    if q and (search := q.strip()):
+        query = query.where(Product.name.ilike(f"%{_escape_like(search)}%", escape="\\"))
     order_by = {
         "latest": [Product.id.desc()],
         "price-low": [Product.price.asc(), Product.id.desc()],

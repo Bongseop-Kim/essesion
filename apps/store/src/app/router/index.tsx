@@ -199,6 +199,33 @@ export const router = createBrowserRouter([
             }),
           },
           {
+            path: "my-page/token-history",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/token-history"))
+                .TokenHistoryPage,
+            }),
+          },
+          {
+            path: "my-page/inquiry",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/inquiry")).InquiryPage,
+            }),
+          },
+          {
+            path: "my-page/quote-request",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/quote-request"))
+                .QuoteRequestPage,
+            }),
+          },
+          {
+            path: "my-page/quote-request/:quoteId",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/quote-request-detail"))
+                .QuoteRequestDetailPage,
+            }),
+          },
+          {
             path: "my-page/my-info",
             lazy: async () => ({
               Component: (await import("@/pages/my-page/my-info")).MyInfoPage,

@@ -1,6 +1,7 @@
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from api.db import SessionDep
 from api.deps import AdminUser, CurrentUser
@@ -10,6 +11,8 @@ from api.domains.tokens.schemas import (
     AdminTokenManageResponse,
     RefundableTokenOrder,
     TokenBalance,
+    TokenHistoryEntry,
+    TokenHistoryFilter,
     TokenOrderCreateRequest,
     TokenOrderCreateResponse,
     TokenPlan,
@@ -26,6 +29,18 @@ async def get_token_balance(session: SessionDep, user: CurrentUser) -> TokenBala
         **await ledger.get_balance(session, user.id),
         generate_cost=await ledger.get_generate_cost(session),
     )
+
+
+@router.get("/tokens/history", response_model=list[TokenHistoryEntry])
+async def list_token_history(
+    session: SessionDep,
+    user: CurrentUser,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    type: TokenHistoryFilter | None = None,
+) -> list[TokenHistoryEntry]:
+    rows = await ledger.list_history(session, user.id, limit, offset, type)
+    return [TokenHistoryEntry.model_validate(row) for row in rows]
 
 
 @router.get("/tokens/plans", response_model=list[TokenPlan])

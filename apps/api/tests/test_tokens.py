@@ -102,6 +102,77 @@ async def test_balance_endpoint_includes_generate_cost(client, db_session, setti
     assert response.json() == {"total": 0, "paid": 0, "bonus": 0, "generate_cost": 5}
 
 
+async def test_history_is_owned_newest_first_paginated_and_filterable(
+    client, db_session, settings
+):
+    user = await make_user(db_session)
+    other = await make_user(db_session)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    entries = [
+        DesignToken(
+            user_id=user.id,
+            amount=10,
+            type="purchase",
+            token_class="paid",
+            created_at=base,
+        ),
+        DesignToken(
+            user_id=user.id,
+            amount=-3,
+            type="use",
+            token_class="paid",
+            created_at=base + timedelta(minutes=1),
+        ),
+        DesignToken(
+            user_id=user.id,
+            amount=3,
+            type="refund",
+            token_class="paid",
+            created_at=base + timedelta(minutes=2),
+        ),
+        DesignToken(
+            user_id=user.id,
+            amount=5,
+            type="admin",
+            token_class="bonus",
+            description="관리자 지급",
+            created_at=base + timedelta(minutes=3),
+        ),
+        DesignToken(
+            user_id=user.id,
+            amount=-1,
+            type="admin",
+            token_class="paid",
+            description="관리자 회수",
+            created_at=base + timedelta(minutes=4),
+        ),
+        DesignToken(
+            user_id=other.id,
+            amount=99,
+            type="grant",
+            token_class="free",
+            created_at=base + timedelta(minutes=5),
+        ),
+    ]
+    db_session.add_all(entries)
+    await db_session.commit()
+    headers = auth_headers(user, settings)
+
+    page = await client.get("/tokens/history?limit=2&offset=1", headers=headers)
+    assert page.status_code == 200
+    assert [row["id"] for row in page.json()] == [str(entries[3].id), str(entries[2].id)]
+
+    credit = await client.get("/tokens/history?type=credit", headers=headers)
+    assert [row["id"] for row in credit.json()] == [str(entries[3].id), str(entries[0].id)]
+    assert [row["type"] for row in credit.json()] == ["admin", "purchase"]
+
+    used = await client.get("/tokens/history?type=use", headers=headers)
+    assert [row["id"] for row in used.json()] == [str(entries[1].id)]
+
+    refunded = await client.get("/tokens/history?type=refund", headers=headers)
+    assert [row["id"] for row in refunded.json()] == [str(entries[2].id)]
+
+
 async def test_plans_endpoint(client, db_session):
     await seed_pricing(
         db_session,
@@ -179,11 +250,29 @@ async def test_refund_request_rules(client, db_session, settings):
     assert res.json()["refund_amount"] == 2500
     assert res.json()["claim_number"].startswith("TKR-")
 
+    refundable = (await client.get("/tokens/refundable-orders", headers=headers)).json()
+    pending = next(row for row in refundable if row["order_id"] == str(new_order.id))
+    assert pending["reason"] == "pending_refund"
+    assert pending["claim_id"] == res.json()["claim_id"]
+
     # 중복 요청 거부
     dup = await client.post(
         "/tokens/refund-requests", json={"order_id": str(new_order.id)}, headers=headers
     )
     assert dup.status_code == 400 and dup.json()["detail"] == "duplicate_refund_request"
+
+    granted = await db_session.scalar(
+        select(DesignToken).where(DesignToken.source_order_id == new_order.id)
+    )
+    assert granted is not None
+    granted.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db_session.commit()
+    pending_after_expiry = (
+        await client.get("/tokens/refundable-orders", headers=headers)
+    ).json()
+    pending = next(row for row in pending_after_expiry if row["order_id"] == str(new_order.id))
+    assert pending["reason"] == "pending_refund"
+    assert pending["claim_id"] == res.json()["claim_id"]
 
 
 async def test_refund_request_blocked_after_use(client, db_session, settings):
@@ -230,12 +319,57 @@ async def test_refund_approve_cancels_payment_and_order(client, db_session, sett
     detail = (await client.get(f"/orders/{order.id}", headers=auth_headers(user, settings))).json()
     assert detail["status"] == "취소"
 
+    refundable = (
+        await client.get("/tokens/refundable-orders", headers=auth_headers(user, settings))
+    ).json()
+    approved = next(row for row in refundable if row["order_id"] == str(order.id))
+    assert approved["reason"] == "approved_refund"
+    assert approved["claim_id"] == claim_id
+
     # 멱등 — 재승인은 Toss 재호출 없음
     again = await client.post(
         f"/admin/token-refunds/{claim_id}/approve", headers=auth_headers(admin, settings)
     )
     assert again.status_code == 200 and again.json()["already_approved"] is True
     assert cancel_route.call_count == 1
+
+
+@respx.mock
+async def test_previous_order_becomes_refundable_after_latest_refund(
+    client, db_session, settings
+):
+    cancel_route = respx.post(
+        "https://api.tosspayments.com/v1/payments/paid-key-12345678/cancel"
+    ).mock(return_value=Response(200, json={"status": "CANCELED"}))
+    user = await make_user(db_session)
+    from .factories import make_admin
+
+    admin = await make_admin(db_session)
+    previous_order = await _completed_token_order(client, db_session, settings, user)
+    latest_order = await _completed_token_order(client, db_session, settings, user)
+    claim_id = (
+        await client.post(
+            "/tokens/refund-requests",
+            json={"order_id": str(latest_order.id)},
+            headers=auth_headers(user, settings),
+        )
+    ).json()["claim_id"]
+
+    approved = await client.post(
+        f"/admin/token-refunds/{claim_id}/approve",
+        headers=auth_headers(admin, settings),
+    )
+    assert approved.status_code == 200
+    assert cancel_route.call_count == 1
+
+    rows = (
+        await client.get(
+            "/tokens/refundable-orders", headers=auth_headers(user, settings)
+        )
+    ).json()
+    by_order_id = {row["order_id"]: row for row in rows}
+    assert by_order_id[str(latest_order.id)]["reason"] == "approved_refund"
+    assert by_order_id[str(previous_order.id)]["is_refundable"] is True
 
 
 async def test_admin_manage_insufficient(client, db_session, settings):

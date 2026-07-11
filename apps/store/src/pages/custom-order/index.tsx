@@ -6,6 +6,7 @@ import {
 import {
   createQuoteMutation,
   listAddressesOptions,
+  listMyQuotesQueryKey,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -34,7 +35,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -76,6 +77,7 @@ const DESCRIPTION =
 
 export function CustomOrderPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const { requireAuth } = useAuthGuard();
   const status = useSession((state) => state.status);
@@ -252,13 +254,14 @@ export function CustomOrderPage() {
     else void submitOrderDraft();
   };
 
-  const uploadImages = async () => {
+  const uploadImages = async (kind: "custom_order" | "quote_request") => {
     const [uploads, imported] = await Promise.all([
-      Promise.all(files.map((file) => uploadOrderImage(file, "custom_order"))),
+      Promise.all(files.map((file) => uploadOrderImage(file, kind))),
       Promise.all(
         selectedDesigns.map(async (job) => {
           const response = await createDesignOrderReference({
             path: { job_id: job.id },
+            query: { kind },
             throwOnError: true,
           });
           return response.data;
@@ -272,7 +275,7 @@ export function CustomOrderPage() {
     if (!amount || !calculation.isCurrent || submitting) return;
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages();
+      const imageRefs = await uploadImages("custom_order");
       const draft: CustomOrderDraft = {
         options,
         contact,
@@ -296,7 +299,7 @@ export function CustomOrderPage() {
     setQuoteConfirmOpen(false);
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages();
+      const imageRefs = await uploadImages("quote_request");
       await createQuote.mutateAsync({
         body: {
           shipping_address_id: address.id,
@@ -310,9 +313,13 @@ export function CustomOrderPage() {
           reference_images: imageRefs,
         },
       });
+      await queryClient.invalidateQueries({
+        queryKey: listMyQuotesQueryKey(),
+        refetchType: "all",
+      });
       snackbar("견적 요청이 접수되었습니다.");
       clearCustomOrderFormDraft();
-      navigate("/");
+      navigate("/my-page/quote-request");
     } catch (error) {
       snackbar(
         error instanceof Error

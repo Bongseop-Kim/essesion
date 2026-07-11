@@ -12,7 +12,9 @@ from api.domains.design.router import KNOWN_WEAVES, _public_asset_url
 from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
 from db.models.design import DesignSession, GenerationJob
+from db.models.images import Image
 from db.models.tokens import DesignToken
+from sqlalchemy import select
 
 from .factories import auth_headers, make_token_refund_claim, make_user, seed_setting
 
@@ -393,6 +395,19 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
         "fabric/result.png",
         repeated_destination,
     )
+
+    quote_reference = await client.post(
+        f"/design/jobs/{job.id}/order-reference?kind=quote_request", headers=headers
+    )
+    assert quote_reference.status_code == 200
+    quote_destination = quote_reference.json()["object_key"]
+    assert quote_destination.startswith(f"uploads/quote_request/design-{job.id}-")
+    staged = await db_session.scalar(select(Image).where(Image.object_key == quote_destination))
+    assert staged is not None
+    assert staged.entity_type == "quote_request_upload"
+    assert staged.entity_id == quote_destination
+    assert staged.uploaded_by == owner.id
+    assert staged.upload_completed_at is not None
 
     invalid = await client.post(
         f"/design/jobs/{invalid_job.id}/order-reference", headers=headers

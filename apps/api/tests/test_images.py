@@ -37,6 +37,34 @@ async def test_upload_url_validates_type(client, db_session, settings):
     body = res.json()
     assert body["object_key"].startswith("uploads/repair_shipping_upload/")
     assert body["upload_url"].startswith("https://")  # DryRun URL
+    assert body["required_headers"] == {"Content-Type": "image/png"}
+
+    missing_size = await client.post(
+        "/images/upload-url",
+        json={
+            "kind": "quote_request",
+            "filename": "tie.png",
+            "content_type": "image/png",
+        },
+        headers=headers,
+    )
+    assert missing_size.status_code == 400
+    assert missing_size.json()["code"] == "invalid_image_size"
+
+    quote = await client.post(
+        "/images/upload-url",
+        json={
+            "kind": "quote_request",
+            "filename": "tie.png",
+            "content_type": "image/png",
+            "size_bytes": 100,
+        },
+        headers=headers,
+    )
+    assert quote.status_code == 200
+    assert quote.json()["required_headers"]["x-goog-content-length-range"].endswith(
+        str(10 * 1024 * 1024)
+    )
 
 
 async def test_reform_upload_register_upsert_and_ownership(client, db_session, settings):

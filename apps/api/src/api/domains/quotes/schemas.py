@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.domains.orders.schemas import ReferenceImageIn
 
@@ -16,7 +16,7 @@ class QuoteCreateRequest(BaseModel):
     contact_value: str
     business_name: str = ""
     additional_notes: str = ""
-    reference_images: list[ReferenceImageIn] = []
+    reference_images: list[ReferenceImageIn] = Field(default_factory=list, max_length=5)
 
 
 class QuoteOut(BaseModel):

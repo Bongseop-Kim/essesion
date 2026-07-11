@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import USER_LOCK, advisory_xact_lock
+from api.domains.tokens.schemas import TokenHistoryFilter
 from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.toss import TossClient
 from api.numbering import generate_number
@@ -48,6 +49,28 @@ async def get_generate_cost(session: AsyncSession) -> int:
     if not cost_value or not cost_value.isdigit() or int(cost_value) <= 0:
         raise DomainError("토큰 비용이 설정되지 않았습니다", code="token_cost_not_configured")
     return int(cost_value)
+
+
+async def list_history(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    limit: int,
+    offset: int,
+    entry_type: TokenHistoryFilter | None,
+) -> list[DesignToken]:
+    query = select(DesignToken).where(DesignToken.user_id == user_id)
+    if entry_type == "credit":
+        query = query.where(
+            DesignToken.type.in_(("purchase", "grant", "admin")), DesignToken.amount > 0
+        )
+    elif entry_type is not None:
+        query = query.where(DesignToken.type == entry_type)
+    rows = await session.scalars(
+        query.order_by(DesignToken.created_at.desc(), DesignToken.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(rows)
 
 
 def _idempotent_insert(values: dict):
@@ -284,46 +307,63 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
             .where(
                 Order.user_id == user_id,
                 Order.order_type == "token",
-                Order.status == "완료",
+                or_(
+                    Order.status == "완료",
+                    exists().where(
+                        Claim.order_id == Order.id,
+                        Claim.type == "token_refund",
+                        Claim.status == "완료",
+                    ),
+                ),
             )
             .order_by(Order.created_at.desc(), Order.id.desc())
         )
     ).all()
 
+    latest_completed_order_id = next(
+        (order.id for order in orders if order.status == "완료"), None
+    )
     results = []
-    for rank, order in enumerate(orders):
+    for order in orders:
         granted = await _granted_rows(session, order)
         paid_granted = sum(t.amount for t in granted)
         expires = granted[0].expires_at if granted else None
         granted_at = min((t.created_at for t in granted), default=None)
 
-        reason: str | None = None
-        if expires is not None and expires <= datetime.now(UTC):
-            reason = "expired"
-        else:
-            claim_status = await session.scalar(
-                select(Claim.status).where(
+        claim_row = (
+            await session.execute(
+                select(Claim.id, Claim.status)
+                .where(
                     Claim.order_id == order.id,
                     Claim.type == "token_refund",
                     Claim.status.in_(("접수", "완료")),
                 )
+                .order_by(Claim.created_at.desc(), Claim.id.desc())
+                .limit(1)
             )
-            if claim_status == "접수":
-                reason = "pending_refund"
-            elif claim_status == "완료":
-                reason = "approved_refund"
-            elif rank != 0:
-                reason = "not_latest"
-            elif granted_at is not None and await session.scalar(
-                select(
-                    exists().where(
-                        DesignToken.user_id == user_id,
-                        DesignToken.type == "use",
-                        DesignToken.created_at > granted_at,
-                    )
+        ).first()
+        claim_id = claim_row.id if claim_row is not None else None
+        claim_status = claim_row.status if claim_row is not None else None
+
+        reason: str | None = None
+        if claim_status == "접수":
+            reason = "pending_refund"
+        elif claim_status == "완료":
+            reason = "approved_refund"
+        elif expires is not None and expires <= datetime.now(UTC):
+            reason = "expired"
+        elif order.id != latest_completed_order_id:
+            reason = "not_latest"
+        elif granted_at is not None and await session.scalar(
+            select(
+                exists().where(
+                    DesignToken.user_id == user_id,
+                    DesignToken.type == "use",
+                    DesignToken.created_at > granted_at,
                 )
-            ):
-                reason = "tokens_used"
+            )
+        ):
+            reason = "tokens_used"
 
         results.append(
             {
@@ -334,6 +374,7 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
                 "token_expires_at": expires,
                 "is_refundable": reason is None and paid_granted > 0,
                 "reason": reason,
+                "claim_id": claim_id,
             }
         )
     return results

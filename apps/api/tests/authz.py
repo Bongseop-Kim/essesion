@@ -91,6 +91,15 @@ async def _inquiry_detail(session: AsyncSession, owner: User) -> tuple[str, dict
     return f"/inquiries/{inquiry.id}", None
 
 
+async def _inquiry_update(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    url, _ = await _inquiry_detail(session, owner)
+    return url, {"title": "수정한 문의"}
+
+
+async def _inquiry_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    return await _inquiry_detail(session, owner)
+
+
 async def _design_session_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.design import DesignSession
 
@@ -194,6 +203,8 @@ OWNER_CASES: list[OwnerCase] = [
     OwnerCase("claims_delete", "DELETE", _claim_delete),
     OwnerCase("quotes_detail", "GET", _quote_detail),
     OwnerCase("inquiries_detail", "GET", _inquiry_detail),
+    OwnerCase("inquiries_update", "PATCH", _inquiry_update),
+    OwnerCase("inquiries_delete", "DELETE", _inquiry_delete),
     OwnerCase("design_session_detail", "GET", _design_session_detail),
     OwnerCase("design_job_detail", "GET", _design_job_detail),
     OwnerCase("design_motif_candidates", "POST", _design_motif_candidates),

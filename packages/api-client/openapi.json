@@ -2125,6 +2125,45 @@
         "title": "InquiryOut",
         "type": "object"
       },
+      "InquiryUpdateRequest": {
+        "properties": {
+          "category": {
+            "enum": [
+              "일반",
+              "상품",
+              "수선",
+              "주문제작"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "content": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "title": "InquiryUpdateRequest",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -3885,10 +3924,10 @@
             "type": "integer"
           },
           "reference_images": {
-            "default": [],
             "items": {
               "$ref": "#/components/schemas/ReferenceImageIn"
             },
+            "maxItems": 5,
             "title": "Reference Images",
             "type": "array"
           },
@@ -4393,6 +4432,18 @@
       },
       "RefundableTokenOrder": {
         "properties": {
+          "claim_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Id"
+          },
           "is_refundable": {
             "title": "Is Refundable",
             "type": "boolean"
@@ -4445,7 +4496,8 @@
           "paid_tokens_granted",
           "token_expires_at",
           "is_refundable",
-          "reason"
+          "reason",
+          "claim_id"
         ],
         "title": "RefundableTokenOrder",
         "type": "object"
@@ -4970,6 +5022,91 @@
         "title": "TokenBalance",
         "type": "object"
       },
+      "TokenHistoryEntry": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "source_order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Order Id"
+          },
+          "token_class": {
+            "enum": [
+              "paid",
+              "bonus",
+              "free"
+            ],
+            "title": "Token Class",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "grant",
+              "use",
+              "refund",
+              "admin",
+              "purchase"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "amount",
+          "type",
+          "token_class",
+          "description",
+          "source_order_id",
+          "expires_at",
+          "created_at"
+        ],
+        "title": "TokenHistoryEntry",
+        "type": "object"
+      },
       "TokenOrderCreateRequest": {
         "properties": {
           "plan_key": {
@@ -5144,6 +5281,19 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 10485760.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
           }
         },
         "required": [
@@ -5160,6 +5310,13 @@
             "title": "Object Key",
             "type": "string"
           },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Required Headers",
+            "type": "object"
+          },
           "upload_required": {
             "title": "Upload Required",
             "type": "boolean"
@@ -5172,6 +5329,7 @@
         "required": [
           "object_key",
           "upload_url",
+          "required_headers",
           "upload_required"
         ],
         "title": "UploadUrlResponse",
@@ -7387,6 +7545,20 @@
               "title": "Job Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "custom_order",
+              "enum": [
+                "custom_order",
+                "quote_request"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8190,6 +8362,45 @@
       }
     },
     "/inquiries/{inquiry_id}": {
+      "delete": {
+        "operationId": "delete_inquiry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "inquiry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Inquiry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Inquiry",
+        "tags": [
+          "inquiries"
+        ]
+      },
       "get": {
         "operationId": "get_inquiry",
         "parameters": [
@@ -8232,6 +8443,62 @@
           }
         ],
         "summary": "Get Inquiry",
+        "tags": [
+          "inquiries"
+        ]
+      },
+      "patch": {
+        "operationId": "update_inquiry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "inquiry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Inquiry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InquiryUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InquiryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Inquiry",
         "tags": [
           "inquiries"
         ]
@@ -8923,6 +9190,23 @@
           },
           {
             "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
             "name": "sort",
             "required": false,
             "schema": {
@@ -9293,6 +9577,92 @@
           }
         ],
         "summary": "Get Token Balance",
+        "tags": [
+          "tokens"
+        ]
+      }
+    },
+    "/tokens/history": {
+      "get": {
+        "operationId": "list_token_history",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "credit",
+                    "use",
+                    "refund"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TokenHistoryEntry"
+                  },
+                  "title": "Response List Token History",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Token History",
         "tags": [
           "tokens"
         ]

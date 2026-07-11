@@ -397,6 +397,21 @@ export const zInquiryOut = z.object({
 });
 
 /**
+ * InquiryUpdateRequest
+ */
+export const zInquiryUpdateRequest = z.object({
+    category: z.enum([
+        '일반',
+        '상품',
+        '수선',
+        '주문제작'
+    ]).optional(),
+    content: z.string().min(1).max(5000).optional(),
+    product_id: z.int().nullish(),
+    title: z.string().min(1).max(200).optional()
+});
+
+/**
  * LoginRequest
  */
 export const zLoginRequest = z.object({
@@ -889,7 +904,7 @@ export const zQuoteCreateRequest = z.object({
     contact_value: z.string(),
     options: z.record(z.string(), z.unknown()),
     quantity: z.int(),
-    reference_images: z.array(zReferenceImageIn).optional().default([]),
+    reference_images: z.array(zReferenceImageIn).max(5).optional(),
     shipping_address_id: z.uuid()
 });
 
@@ -955,6 +970,7 @@ export const zReformUploadUrlResponse = z.object({
  * RefundableTokenOrder
  */
 export const zRefundableTokenOrder = z.object({
+    claim_id: z.uuid().nullable(),
     is_refundable: z.boolean(),
     order_id: z.uuid(),
     order_number: z.string(),
@@ -1122,6 +1138,30 @@ export const zTokenBalance = z.object({
 });
 
 /**
+ * TokenHistoryEntry
+ */
+export const zTokenHistoryEntry = z.object({
+    amount: z.int(),
+    created_at: z.iso.datetime(),
+    description: z.string().nullable(),
+    expires_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    source_order_id: z.uuid().nullable(),
+    token_class: z.enum([
+        'paid',
+        'bonus',
+        'free'
+    ]),
+    type: z.enum([
+        'grant',
+        'use',
+        'refund',
+        'admin',
+        'purchase'
+    ])
+});
+
+/**
  * TokenOrderCreateRequest
  */
 export const zTokenOrderCreateRequest = z.object({
@@ -1196,7 +1236,8 @@ export const zUploadUrlRequest = z.object({
         'custom_order',
         'sample_order',
         'quote_request'
-    ])
+    ]),
+    size_bytes: z.int().gt(0).lte(10485760).nullish()
 });
 
 /**
@@ -1204,6 +1245,7 @@ export const zUploadUrlRequest = z.object({
  */
 export const zUploadUrlResponse = z.object({
     object_key: z.string(),
+    required_headers: z.record(z.string(), z.string()),
     upload_required: z.boolean(),
     upload_url: z.string()
 });
@@ -1756,6 +1798,10 @@ export const zCreateDesignOrderReferencePath = z.object({
     job_id: z.uuid()
 });
 
+export const zCreateDesignOrderReferenceQuery = z.object({
+    kind: z.enum(['custom_order', 'quote_request']).optional().default('custom_order')
+});
+
 /**
  * Successful Response
  */
@@ -1904,6 +1950,15 @@ export const zCreateInquiryBody = zInquiryCreateRequest;
  */
 export const zCreateInquiryResponse = zInquiryOut;
 
+export const zDeleteInquiryPath = z.object({
+    inquiry_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteInquiryResponse = z.void();
+
 export const zGetInquiryPath = z.object({
     inquiry_id: z.uuid()
 });
@@ -1912,6 +1967,17 @@ export const zGetInquiryPath = z.object({
  * Successful Response
  */
 export const zGetInquiryResponse = zInquiryOut;
+
+export const zUpdateInquiryBody = zInquiryUpdateRequest;
+
+export const zUpdateInquiryPath = z.object({
+    inquiry_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zUpdateInquiryResponse = zInquiryOut;
 
 export const zListMyOrdersQuery = z.object({
     order_type: z.enum([
@@ -2052,6 +2118,7 @@ export const zListProductsQuery = z.object({
         'polyester',
         'wool'
     ]).nullish(),
+    q: z.string().max(100).nullish(),
     sort: z.enum([
         'latest',
         'price-low',
@@ -2128,6 +2195,23 @@ export const zGetReformPricingResponse = zReformPricingOut;
  * Successful Response
  */
 export const zGetTokenBalanceResponse = zTokenBalance;
+
+export const zListTokenHistoryQuery = z.object({
+    limit: z.int().gte(1).lte(100).optional().default(50),
+    offset: z.int().gte(0).optional().default(0),
+    type: z.enum([
+        'credit',
+        'use',
+        'refund'
+    ]).nullish()
+});
+
+/**
+ * Response List Token History
+ *
+ * Successful Response
+ */
+export const zListTokenHistoryResponse = z.array(zTokenHistoryEntry);
 
 export const zCreateTokenOrderBody = zTokenOrderCreateRequest;
 

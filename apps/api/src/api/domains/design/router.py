@@ -7,11 +7,12 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import quote
 
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
+from db.models.images import Image
 from fastapi import APIRouter, Query, Request, Response
 from obs import request_id_var
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -447,6 +448,7 @@ async def create_design_order_reference(
     session: SessionDep,
     user: CurrentUser,
     settings: SettingsDep,
+    kind: Literal["custom_order", "quote_request"] = "custom_order",
 ) -> DesignOrderReferenceOut:
     """소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다."""
 
@@ -469,7 +471,7 @@ async def create_design_order_reference(
             status=503,
         )
 
-    destination_key = f"uploads/custom_order/design-{job.id}-{uuid.uuid4().hex}.png"
+    destination_key = f"uploads/{kind}/design-{job.id}-{uuid.uuid4().hex}.png"
     copied = await request.app.state.gcs.copy_from_bucket(
         f"{settings.gcp_project_id}-assets" if settings.gcp_project_id else "dry-run-assets",
         source_key,
@@ -477,6 +479,19 @@ async def create_design_order_reference(
     )
     if not copied:
         raise UpstreamError("완성 디자인을 주문 첨부로 준비하지 못했습니다")
+    if kind == "quote_request":
+        session.add(
+            Image(
+                object_key=destination_key,
+                entity_type="quote_request_upload",
+                entity_id=destination_key,
+                uploaded_by=user.id,
+                content_type="image/png",
+                upload_completed_at=datetime.now(UTC),
+                expires_at=datetime.now(UTC) + timedelta(hours=24),
+            )
+        )
+        await session.commit()
     return DesignOrderReferenceOut(object_key=destination_key)
 
 
