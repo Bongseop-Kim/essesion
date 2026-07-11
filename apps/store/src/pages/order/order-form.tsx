@@ -501,6 +501,7 @@ export function OrderFormPage() {
                               .search(({ zonecode, address: found }) => {
                                 setPickupPostalCode(zonecode);
                                 setPickupAddress(found);
+                                setPickupDetailAddress("");
                               })
                               .catch(() =>
                                 snackbar("주소 검색을 불러오지 못했습니다."),

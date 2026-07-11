@@ -75,23 +75,24 @@ export function useCheckoutPayment<T>({
         const payment =
           cached?.signature === signature ? cached : await createOrder();
 
-        if (
-          expectedAmount !== undefined &&
-          payment.totalAmount !== expectedAmount
-        ) {
-          clearPendingCheckout(storageKey);
-          snackbar(
-            "결제 금액이 변경되었습니다. 장바구니를 다시 확인해 주세요.",
-          );
-          return;
-        }
-
+        // 금액 불일치여도 생성된 주문을 pending으로 보존 — 버리면 재시도마다
+        // 새 주문이 쌓이고, 예약된 쿠폰이 stale 취소 배치 전까지 잠긴다.
         const pending: PendingCheckout<T> = {
           ...payment,
           signature,
           snapshot,
         };
         sessionStorage.setItem(storageKey, JSON.stringify(pending));
+
+        if (
+          expectedAmount !== undefined &&
+          payment.totalAmount !== expectedAmount
+        ) {
+          snackbar(
+            "결제 금액이 변경되었습니다. 장바구니를 다시 확인해 주세요.",
+          );
+          return;
+        }
         await widget.setAmount(payment.totalAmount);
         await widget.requestPayment({
           orderId: payment.paymentGroupId,

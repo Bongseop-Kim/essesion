@@ -89,13 +89,13 @@ export function PaymentSuccessPage() {
     if (ids?.length) {
       try {
         await cartActions.removeItems(ids);
-        clearPendingCheckout(CHECKOUT_PENDING_KEY);
       } catch {
         snackbar("결제는 완료됐지만 장바구니를 정리하지 못했습니다.");
       }
-    } else {
-      clearPendingCheckout(CHECKOUT_PENDING_KEY);
     }
+    // 정리 실패와 무관하게 결제 완료된 pending은 제거 — 남으면 이미 결제된
+    // paymentGroupId가 다음 결제에서 재사용된다.
+    clearPendingCheckout(CHECKOUT_PENDING_KEY);
     return view;
   });
 

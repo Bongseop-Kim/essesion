@@ -13,12 +13,20 @@ export function validateImageFile(
   }
 }
 
+// 최대 10MB를 느린 모바일 회선으로 올릴 여유
+const UPLOAD_TIMEOUT_MS = 120_000;
+
 export async function putToSignedUrl(
   url: string,
   headers: HeadersInit | undefined,
   file: File,
   uploadError = "이미지를 업로드하지 못했습니다.",
 ): Promise<void> {
-  const response = await fetch(url, { method: "PUT", headers, body: file });
+  const response = await fetch(url, {
+    method: "PUT",
+    headers,
+    body: file,
+    signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error(uploadError);
 }
