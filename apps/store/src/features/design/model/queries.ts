@@ -5,9 +5,7 @@ import {
   getGenerationJobOptions,
   getGenerationJobQueryKey,
   getTokenBalanceOptions,
-  getTokenBalanceQueryKey,
   listDesignSessionsOptions,
-  listDesignSessionsQueryKey,
   listDesignTurnsOptions,
   listDesignTurnsQueryKey,
   listGenerationJobsOptions,
@@ -19,8 +17,6 @@ export type GenerationJobFilters = NonNullable<ListGenerationJobsData["query"]>;
 type AuthenticatedResource = {
   authenticated: boolean;
 };
-
-export const designSessionsQueryKey = () => listDesignSessionsQueryKey();
 
 export function designSessionsQueryOptions(authenticated: boolean) {
   return {
@@ -80,8 +76,6 @@ export function generationJobQueryOptions({
     enabled: authenticated && !!jobId,
   };
 }
-
-export const designTokenBalanceQueryKey = () => getTokenBalanceQueryKey();
 
 export function designTokenBalanceQueryOptions(authenticated: boolean) {
   return {

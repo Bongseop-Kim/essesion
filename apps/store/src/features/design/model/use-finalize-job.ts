@@ -5,11 +5,11 @@ import {
   type FinalizeRequest,
   type GenerationJobOut,
 } from "@essesion/api-client";
+import { listDesignSessionsQueryKey } from "@essesion/api-client/query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   designSessionQueryKey,
-  designSessionsQueryKey,
   designTurnsQueryKey,
   generationJobQueryKey,
   generationJobQueryOptions,
@@ -139,7 +139,9 @@ export function useCreateFinalizeJob() {
       }
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: designSessionsQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: listDesignSessionsQueryKey(),
+        }),
         queryClient.invalidateQueries({
           queryKey: designSessionQueryKey(input.sessionId),
         }),

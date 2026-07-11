@@ -11,10 +11,3 @@ export function svgToDataUri(svg: string): string {
   );
   return `${SVG_DATA_URI_PREFIX}${encoded}`;
 }
-
-export function svgRepeatBackground(svg: string) {
-  return {
-    backgroundImage: `url("${svgToDataUri(svg)}")`,
-    backgroundRepeat: "repeat" as const,
-  };
-}
