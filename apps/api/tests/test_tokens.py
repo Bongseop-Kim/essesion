@@ -102,9 +102,7 @@ async def test_balance_endpoint_includes_generate_cost(client, db_session, setti
     assert response.json() == {"total": 0, "paid": 0, "bonus": 0, "generate_cost": 5}
 
 
-async def test_history_is_owned_newest_first_paginated_and_filterable(
-    client, db_session, settings
-):
+async def test_history_is_owned_newest_first_paginated_and_filterable(client, db_session, settings):
     user = await make_user(db_session)
     other = await make_user(db_session)
     base = datetime(2026, 1, 1, tzinfo=UTC)
@@ -267,9 +265,7 @@ async def test_refund_request_rules(client, db_session, settings):
     assert granted is not None
     granted.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     await db_session.commit()
-    pending_after_expiry = (
-        await client.get("/tokens/refundable-orders", headers=headers)
-    ).json()
+    pending_after_expiry = (await client.get("/tokens/refundable-orders", headers=headers)).json()
     pending = next(row for row in pending_after_expiry if row["order_id"] == str(new_order.id))
     assert pending["reason"] == "pending_refund"
     assert pending["claim_id"] == res.json()["claim_id"]
@@ -335,9 +331,7 @@ async def test_refund_approve_cancels_payment_and_order(client, db_session, sett
 
 
 @respx.mock
-async def test_previous_order_becomes_refundable_after_latest_refund(
-    client, db_session, settings
-):
+async def test_previous_order_becomes_refundable_after_latest_refund(client, db_session, settings):
     cancel_route = respx.post(
         "https://api.tosspayments.com/v1/payments/paid-key-12345678/cancel"
     ).mock(return_value=Response(200, json={"status": "CANCELED"}))
@@ -363,9 +357,7 @@ async def test_previous_order_becomes_refundable_after_latest_refund(
     assert cancel_route.call_count == 1
 
     rows = (
-        await client.get(
-            "/tokens/refundable-orders", headers=auth_headers(user, settings)
-        )
+        await client.get("/tokens/refundable-orders", headers=auth_headers(user, settings))
     ).json()
     by_order_id = {row["order_id"]: row for row in rows}
     assert by_order_id[str(latest_order.id)]["reason"] == "approved_refund"

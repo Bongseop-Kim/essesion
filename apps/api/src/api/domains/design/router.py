@@ -498,10 +498,7 @@ async def create_design_order_reference(
 def _public_asset_url(gcp_project_id: str, object_key: str) -> str | None:
     if not gcp_project_id or not object_key:
         return None
-    return (
-        f"https://storage.googleapis.com/{gcp_project_id}-assets/"
-        f"{quote(object_key, safe='/')}"
-    )
+    return f"https://storage.googleapis.com/{gcp_project_id}-assets/{quote(object_key, safe='/')}"
 
 
 def _generation_job_out(job: GenerationJob, gcp_project_id: str) -> GenerationJobOut:

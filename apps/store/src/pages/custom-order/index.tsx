@@ -125,8 +125,8 @@ export function CustomOrderPage() {
         src: job.result_url ?? "",
         alt: `AI 완성 디자인 ${index + 1}`,
       })),
-      ...previewUrls.map(({ file, url }, index) => ({
-        id: `file:${file.name}-${index}`,
+      ...previewUrls.map(({ file, url }) => ({
+        id: `file:${file.name}-${file.size}-${file.lastModified}`,
         src: url,
         alt: file.name,
       })),

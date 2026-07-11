@@ -188,13 +188,12 @@ function TurnItem({
         warnings={payload.response.warnings}
         disabled={selectionLoading}
         onSelect={(selected) => {
-          const index = payload.response.candidates.findIndex(
-            (candidate) => candidate.id === selected.id,
+          const candidate = payload.response.candidates.find(
+            (item) => item.id === selected.id,
           );
-          const candidate = payload.response.candidates[index];
           if (!candidate) return;
-          const intent = payload.response.intents[candidate.design_index];
-          if (intent) onSelectCandidate(candidate, payload.response.intents);
+          if (payload.response.intents[candidate.design_index])
+            onSelectCandidate(candidate, payload.response.intents);
         }}
       />
     );

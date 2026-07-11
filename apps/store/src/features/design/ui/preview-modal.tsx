@@ -107,10 +107,11 @@ export function PreviewModal({
       return;
     }
 
-    if (transform.scale > 1) {
-      const maxOffset =
-        (event.currentTarget.clientWidth * (transform.scale - 1)) / 2;
-      setTransform((value) => ({
+    const clientWidth = event.currentTarget.clientWidth;
+    setTransform((value) => {
+      if (value.scale <= 1) return value;
+      const maxOffset = (clientWidth * (value.scale - 1)) / 2;
+      return {
         ...value,
         offsetX: clamp(
           value.offsetX + current.x - previous.x,
@@ -122,8 +123,8 @@ export function PreviewModal({
           -maxOffset,
           maxOffset,
         ),
-      }));
-    }
+      };
+    });
   };
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLElement>) => {

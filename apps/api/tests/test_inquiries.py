@@ -83,9 +83,7 @@ async def test_update_rejects_null_for_required_content_fields(client, db_sessio
     assert clear_product.status_code == 200
 
 
-async def test_admin_answer_waits_for_concurrent_delete_lock(
-    client, db_session, settings
-):
+async def test_admin_answer_waits_for_concurrent_delete_lock(client, db_session, settings):
     user = await make_user(db_session)
     admin = await make_admin(db_session)
     inquiry = Inquiry(user_id=user.id, title="경합 문의", content="내용")

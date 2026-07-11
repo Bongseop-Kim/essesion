@@ -47,9 +47,8 @@ export function QuoteRequestDetailPage() {
       queryFn: async () => {
         const response = await createReadUrl({
           body: { object_key: objectKey },
+          throwOnError: true,
         });
-        if (!response.data)
-          throw new Error("참고 이미지를 불러오지 못했습니다.");
         return response.data.read_url;
       },
     })),
@@ -128,14 +127,15 @@ export function QuoteRequestDetailPage() {
         sidebar={sidebar}
         actionBar={
           quote ? (
-            <ActionButton
+            <Box
+              as={ActionButton}
               type="button"
               variant="neutralOutline"
-              className="w-full"
+              width="full"
               onClick={() => navigate(LIST_PATH)}
             >
               목록으로
-            </ActionButton>
+            </Box>
           ) : undefined
         }
       >

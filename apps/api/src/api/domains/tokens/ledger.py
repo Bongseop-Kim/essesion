@@ -320,9 +320,7 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
         )
     ).all()
 
-    latest_completed_order_id = next(
-        (order.id for order in orders if order.status == "완료"), None
-    )
+    latest_completed_order_id = next((order.id for order in orders if order.status == "완료"), None)
     results = []
     for order in orders:
         granted = await _granted_rows(session, order)

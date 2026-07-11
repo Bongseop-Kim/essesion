@@ -284,9 +284,7 @@ async def test_list_generation_jobs_filters_owner_kind_status_session_and_pagina
         result={"object_key": "fabric/private.png"},
         created_at=now,
     )
-    db_session.add_all(
-        [older, newer, newest_other_session, failed, exported, other_job]
-    )
+    db_session.add_all([older, newer, newest_other_session, failed, exported, other_job])
     await db_session.commit()
 
     headers = auth_headers(owner, settings)
@@ -301,9 +299,7 @@ async def test_list_generation_jobs_filters_owner_kind_status_session_and_pagina
         "https://storage.googleapis.com/test-project-assets/fabric/newer%20file.png"
     )
 
-    succeeded_jobs = (
-        await client.get("/design/jobs?status=succeeded", headers=headers)
-    ).json()
+    succeeded_jobs = (await client.get("/design/jobs?status=succeeded", headers=headers)).json()
     assert [job["id"] for job in succeeded_jobs] == [
         str(newest_other_session.id),
         str(newer.id),
@@ -311,16 +307,12 @@ async def test_list_generation_jobs_filters_owner_kind_status_session_and_pagina
     ]
 
     page = (
-        await client.get(
-            "/design/jobs?status=succeeded&limit=1&offset=1", headers=headers
-        )
+        await client.get("/design/jobs?status=succeeded&limit=1&offset=1", headers=headers)
     ).json()
     assert [job["id"] for job in page] == [str(newer.id)]
 
     by_session = (
-        await client.get(
-            f"/design/jobs?session_id={owner_session_b.id}", headers=headers
-        )
+        await client.get(f"/design/jobs?session_id={owner_session_b.id}", headers=headers)
     ).json()
     assert [job["id"] for job in by_session] == [str(newest_other_session.id)]
 
@@ -368,9 +360,7 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     await db_session.commit()
 
     headers = auth_headers(owner, settings)
-    response = await client.post(
-        f"/design/jobs/{job.id}/order-reference", headers=headers
-    )
+    response = await client.post(f"/design/jobs/{job.id}/order-reference", headers=headers)
     assert response.status_code == 200
     destination = response.json()["object_key"]
     prefix = f"uploads/custom_order/design-{job.id}-"
@@ -378,13 +368,9 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     assert destination.endswith(".png")
     assert len(destination.removeprefix(prefix).removesuffix(".png")) == 32
     assert response.json() == {"object_key": destination}
-    assert app.state.gcs.copied == [
-        ("test-project-assets", "fabric/result.png", destination)
-    ]
+    assert app.state.gcs.copied == [("test-project-assets", "fabric/result.png", destination)]
 
-    repeated = await client.post(
-        f"/design/jobs/{job.id}/order-reference", headers=headers
-    )
+    repeated = await client.post(f"/design/jobs/{job.id}/order-reference", headers=headers)
     assert repeated.status_code == 200
     repeated_destination = repeated.json()["object_key"]
     assert repeated_destination.startswith(prefix)
@@ -409,9 +395,7 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     assert staged.uploaded_by == owner.id
     assert staged.upload_completed_at is not None
 
-    invalid = await client.post(
-        f"/design/jobs/{invalid_job.id}/order-reference", headers=headers
-    )
+    invalid = await client.post(f"/design/jobs/{invalid_job.id}/order-reference", headers=headers)
     assert invalid.status_code == 409
 
     forbidden = await client.post(
@@ -629,9 +613,7 @@ async def test_generate_turn_record_failure_rolls_back_and_refunds(
     assert turns == []
 
 
-async def test_generate_client_cancellation_still_records_turns(
-    client, app, db_session, settings
-):
+async def test_generate_client_cancellation_still_records_turns(client, app, db_session, settings):
     worker = BlockingWorker()
     app.state.worker = worker
     user = await make_user(db_session)

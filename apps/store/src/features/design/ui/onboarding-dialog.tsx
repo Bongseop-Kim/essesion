@@ -89,7 +89,9 @@ export function OnboardingDialog({
             as={ActionButton}
             type="button"
             width="full"
-            onClick={lastPage ? finish : () => setPage(1)}
+            onClick={
+              lastPage ? finish : () => setPage((current) => current + 1)
+            }
           >
             {lastPage ? "디자인 시작하기" : "다음"}
           </Box>

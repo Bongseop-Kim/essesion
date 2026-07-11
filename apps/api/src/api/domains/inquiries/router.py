@@ -109,9 +109,7 @@ async def update_inquiry(
 
 
 @router.delete("/inquiries/{inquiry_id}", status_code=204)
-async def delete_inquiry(
-    inquiry_id: uuid.UUID, session: SessionDep, user: CurrentUser
-) -> None:
+async def delete_inquiry(inquiry_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> None:
     inquiry = await _get_pending_inquiry(inquiry_id, session, user)
     await session.delete(inquiry)
     await session.commit()

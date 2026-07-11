@@ -64,8 +64,7 @@ async def test_create_quote_and_validation(client, db_session, settings):
         json=_quote_body(
             address,
             reference_images=[
-                {"object_key": f"uploads/quote_request/{index:032d}.png"}
-                for index in range(6)
+                {"object_key": f"uploads/quote_request/{index:032d}.png"} for index in range(6)
             ],
         ),
         headers=headers,
@@ -82,9 +81,7 @@ async def test_create_quote_and_validation(client, db_session, settings):
     assert res.json()["quote_number"].startswith("QUO-")
     assert res.json()["status"] == "요청"
 
-    images = (
-        await db_session.scalars(select(Image).where(Image.object_key == object_key))
-    ).all()
+    images = (await db_session.scalars(select(Image).where(Image.object_key == object_key))).all()
     assert len(images) == 1
     image = images[0]
     assert image.entity_type == "quote_request"
