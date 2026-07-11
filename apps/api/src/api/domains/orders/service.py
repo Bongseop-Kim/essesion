@@ -493,6 +493,10 @@ async def calculate_custom_amounts(
         raise DomainError("Invalid interlining option", code="invalid_options")
     if options.get("dimple") and tie_type != "AUTO":
         raise DomainError("딤플은 자동 봉제(AUTO)에서만 선택 가능합니다", code="invalid_options")
+    if options.get("turn_knot") and tie_type != "AUTO":
+        raise DomainError(
+            "돌려묶기는 자동 봉제(AUTO)에서만 선택 가능합니다", code="invalid_options"
+        )
 
     sewing_per_unit = constants["SEWING_PER_COST"]
     sewing_per_unit += constants["AUTO_TIE_COST"] if tie_type == "AUTO" else 0
@@ -622,18 +626,23 @@ def sample_pricing_key(sample_type: str, design_type: str | None) -> str:
     return SAMPLE_PRICING_KEY[(sample_type, design_type)]
 
 
-async def create_sample_order(
-    session: AsyncSession, user: User, body: SampleOrderCreateRequest
-) -> dict:
-    await _get_owned_address(session, user, body.shipping_address_id)
-    design_type = body.options.get("design_type")
-    key = sample_pricing_key(body.sample_type, design_type)
+async def calculate_sample_amount(
+    session: AsyncSession, sample_type: str, options: dict[str, Any]
+) -> int:
+    key = sample_pricing_key(sample_type, options.get("design_type"))
     try:
-        total_cost = (await get_pricing_constants(session, [key]))[key]
+        return (await get_pricing_constants(session, [key]))[key]
     except DomainError as exc:
         raise DomainError(
             "Sample pricing constant is not configured", code="pricing_not_configured"
         ) from exc
+
+
+async def create_sample_order(
+    session: AsyncSession, user: User, body: SampleOrderCreateRequest
+) -> dict:
+    await _get_owned_address(session, user, body.shipping_address_id)
+    total_cost = await calculate_sample_amount(session, body.sample_type, body.options)
 
     line_discount = 0
     unit_discount = 0

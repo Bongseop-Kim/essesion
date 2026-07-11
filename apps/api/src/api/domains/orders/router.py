@@ -21,6 +21,8 @@ from api.domains.orders.schemas import (
     OrderOut,
     RepairNoTrackingRequest,
     RepairTrackingRequest,
+    SampleAmountRequest,
+    SampleAmountResponse,
     SampleOrderCreateRequest,
     SingleOrderCreateResponse,
 )
@@ -58,6 +60,18 @@ async def create_sample_order(
     body: SampleOrderCreateRequest, session: SessionDep, user: CurrentUser
 ) -> SingleOrderCreateResponse:
     return SingleOrderCreateResponse(**await service.create_sample_order(session, user, body))
+
+
+@router.post("/orders/sample/calculate", response_model=SampleAmountResponse)
+async def calculate_sample_order(
+    body: SampleAmountRequest, session: SessionDep
+) -> SampleAmountResponse:
+    """샘플 주문 금액 계산 — 공개(주문·쿠폰 상태를 만들지 않음)."""
+    return SampleAmountResponse(
+        total_cost=await service.calculate_sample_amount(
+            session, body.sample_type, body.options
+        )
+    )
 
 
 async def _active_claim_order_ids(session, order_ids: list[uuid.UUID]) -> set[uuid.UUID]:

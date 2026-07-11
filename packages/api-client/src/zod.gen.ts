@@ -976,6 +976,25 @@ export const zRevokeByIdsRequest = z.object({
 });
 
 /**
+ * SampleAmountRequest
+ */
+export const zSampleAmountRequest = z.object({
+    options: z.record(z.string(), z.unknown()),
+    sample_type: z.enum([
+        'fabric',
+        'sewing',
+        'fabric_and_sewing'
+    ])
+});
+
+/**
+ * SampleAmountResponse
+ */
+export const zSampleAmountResponse = z.object({
+    total_cost: z.int()
+});
+
+/**
  * SampleOrderCreateRequest
  */
 export const zSampleOrderCreateRequest = z.object({
@@ -1855,6 +1874,13 @@ export const zCreateSampleOrderBody = zSampleOrderCreateRequest;
  * Successful Response
  */
 export const zCreateSampleOrderResponse = zSingleOrderCreateResponse;
+
+export const zCalculateSampleOrderBody = zSampleAmountRequest;
+
+/**
+ * Successful Response
+ */
+export const zCalculateSampleOrderResponse = zSampleAmountResponse;
 
 export const zGetOrderPath = z.object({
     order_id: z.uuid()

@@ -2352,6 +2352,32 @@ export type RevokeByIdsRequest = {
 };
 
 /**
+ * SampleAmountRequest
+ */
+export type SampleAmountRequest = {
+    /**
+     * Options
+     */
+    options: {
+        [key: string]: unknown;
+    };
+    /**
+     * Sample Type
+     */
+    sample_type: 'fabric' | 'sewing' | 'fabric_and_sewing';
+};
+
+/**
+ * SampleAmountResponse
+ */
+export type SampleAmountResponse = {
+    /**
+     * Total Cost
+     */
+    total_cost: number;
+};
+
+/**
  * SampleOrderCreateRequest
  */
 export type SampleOrderCreateRequest = {
@@ -4432,6 +4458,31 @@ export type CreateSampleOrderResponses = {
 };
 
 export type CreateSampleOrderResponse = CreateSampleOrderResponses[keyof CreateSampleOrderResponses];
+
+export type CalculateSampleOrderData = {
+    body: SampleAmountRequest;
+    path?: never;
+    query?: never;
+    url: '/orders/sample/calculate';
+};
+
+export type CalculateSampleOrderErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CalculateSampleOrderError = CalculateSampleOrderErrors[keyof CalculateSampleOrderErrors];
+
+export type CalculateSampleOrderResponses = {
+    /**
+     * Successful Response
+     */
+    200: SampleAmountResponse;
+};
+
+export type CalculateSampleOrderResponse = CalculateSampleOrderResponses[keyof CalculateSampleOrderResponses];
 
 export type GetOrderData = {
     body?: never;

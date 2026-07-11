@@ -63,6 +63,7 @@ import {
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { reconcileCartSelection } from "./selection";
 
 type CartViewItem = {
   input: CartItemIn;
@@ -223,19 +224,11 @@ export function CartPage() {
   );
 
   useEffect(() => {
-    if (itemIds.length === 0) {
-      selectionInitialized.current = false;
-      setSelectedIds([]);
-      return;
-    }
-    setSelectedIds((current) => {
-      const valid = current.filter((id) => itemIds.includes(id));
-      const next = selectionInitialized.current ? valid : itemIds;
-      if (!selectionInitialized.current) {
-        selectionInitialized.current = true;
-      }
-      return sameStringArray(current, next) ? current : next;
-    });
+    const initialized = selectionInitialized.current;
+    selectionInitialized.current = itemIds.length > 0;
+    setSelectedIds((current) =>
+      reconcileCartSelection(current, itemIds, initialized),
+    );
   }, [itemIds]);
 
   const selectedItems = useMemo(
@@ -1094,11 +1087,4 @@ function candidateDescription(option: { stock: number | null }) {
 
 function cartCrumbs() {
   return [{ label: "홈", href: "/" }, { label: "장바구니" }];
-}
-
-function sameStringArray(left: string[], right: string[]) {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
 }

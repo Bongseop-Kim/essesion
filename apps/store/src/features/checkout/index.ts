@@ -5,6 +5,7 @@ export {
   readPendingCheckout,
   useCheckoutPayment,
 } from "./model/use-checkout-payment";
+export { CheckoutShell } from "./ui/checkout-shell";
 export type {
   PaymentRequest,
   PaymentWidgetHandle,

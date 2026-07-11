@@ -1,5 +1,6 @@
 import { type ChangeEvent, type ReactNode, useId } from "react";
 
+import type { ResponsiveValue } from "../breakpoint";
 import { Box } from "./box";
 import { Field } from "./field";
 import { Flex } from "./flex";
@@ -27,8 +28,8 @@ export type AttachmentDisplayFieldProps = {
   onAddFiles?: (files: File[]) => void;
   accept?: string;
   addLabel?: string;
-  /** 썸네일 한 변 px */
-  size?: number;
+  /** 썸네일 한 변 px — 반응형 지정 가능 */
+  size?: ResponsiveValue<number>;
   className?: string;
 };
 
@@ -42,7 +43,7 @@ export function AttachmentDisplayField({
   onAddFiles,
   accept,
   addLabel = "이미지 추가",
-  size = 72,
+  size = { base: 80, md: 112 },
   className,
 }: AttachmentDisplayFieldProps) {
   const generatedId = useId();

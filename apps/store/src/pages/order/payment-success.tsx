@@ -19,6 +19,7 @@ import {
   clearPendingCheckout,
   readPendingCheckout,
 } from "@/features/checkout";
+import { CUSTOM_ORDER_DRAFT_KEY } from "@/features/custom-order";
 import {
   isRepairShipmentDraft,
   planRepairOutcome,
@@ -30,8 +31,11 @@ import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 
 type CheckoutSnapshot = {
   cartItemIds?: string[];
+  customOrder?: unknown;
   repairShipping?: RepairShippingIn | null;
   repairShipmentDraft?: unknown;
+  returnPath?: string;
+  returnState?: unknown;
 };
 
 type RepairResultView =
@@ -100,6 +104,9 @@ export function PaymentSuccessPage() {
       const ids = pending?.snapshot.cartItemIds?.filter(
         (id): id is string => typeof id === "string",
       );
+      if (pending?.snapshot.customOrder) {
+        sessionStorage.removeItem(CUSTOM_ORDER_DRAFT_KEY);
+      }
       if (ids?.length) {
         try {
           await cartActions.removeItems(ids);
@@ -263,5 +270,7 @@ export function PaymentSuccessPage() {
 function returnToOrder(navigate: ReturnType<typeof useNavigate>) {
   const pending = readPendingCheckout<CheckoutSnapshot>(CHECKOUT_PENDING_KEY);
   const cartItemIds = pending?.snapshot.cartItemIds;
-  navigate("/order/order-form", { state: { cartItemIds } });
+  navigate(pending?.snapshot.returnPath ?? "/order/order-form", {
+    state: pending?.snapshot.returnState ?? { cartItemIds },
+  });
 }

@@ -25,6 +25,7 @@ export type RadioGroupProps = {
   disabled?: boolean;
   children: ReactNode;
   className?: string;
+  "aria-label"?: string;
 };
 
 export function RadioGroup({
@@ -36,6 +37,7 @@ export function RadioGroup({
   disabled = false,
   children,
   className,
+  "aria-label": ariaLabel,
 }: RadioGroupProps) {
   const fallbackName = useId();
   const [current, setCurrent] = useControllableState<string>({
@@ -57,6 +59,7 @@ export function RadioGroup({
         direction={orientation === "vertical" ? "column" : "row"}
         gap={orientation === "vertical" ? "x2" : "x4"}
         className={className}
+        aria-label={ariaLabel}
       >
         {children}
       </Flex>

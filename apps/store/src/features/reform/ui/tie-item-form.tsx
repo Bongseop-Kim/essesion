@@ -72,7 +72,6 @@ export function TieItemForm({
             <Box position="relative">
               <AttachmentDisplayField
                 max={1}
-                size={104}
                 accept={REFORM_IMAGE_ACCEPT}
                 addLabel="넥타이 사진 추가 (필수)"
                 errorMessage={itemErrors?.file?.message}
