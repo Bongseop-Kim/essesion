@@ -26,6 +26,7 @@ import {
   ClaimFormModal,
   ClaimItemActions,
   type ClaimType,
+  TokenRefundSection,
 } from "@/features/claims";
 import {
   canRegisterRepairShipment,
@@ -207,6 +208,10 @@ export function OrderDetailPage() {
                 />
               ) : null}
             </VStack>
+          ) : null}
+
+          {order.order_type === "token" ? (
+            <TokenRefundSection orderId={order.id} />
           ) : null}
 
           {customerActions.includes("confirm_purchase") ? (

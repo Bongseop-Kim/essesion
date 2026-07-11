@@ -177,6 +177,8 @@ class Order(TimestampMixin, Base):
     shipping_address_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("shipping_addresses.id", ondelete="SET NULL")
     )
+    # 주문 시점 배송지 스냅샷 — 주소 수정/삭제가 과거 주문 표시에 반영되지 않도록 보존
+    shipping_address_snapshot: Mapped[dict[str, Any] | None]
     total_price: Mapped[int]
     original_price: Mapped[int]
     total_discount: Mapped[int] = mapped_column(server_default=text("0"))

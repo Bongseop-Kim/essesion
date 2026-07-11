@@ -164,9 +164,9 @@ apps/store/src/
 
 ## 10. 이연·기록
 
-- **주문 배송지 스냅샷 부재**: `orders.shipping_address_id`가 라이브 FK(`SET NULL`) — 주소 수정 시 과거 주문 표시가 바뀌고 삭제 시 유실. 커머스 관례는 주문 시점 스냅샷. 스키마 재설계(Alembic)가 필요한 별도 작업으로 이연 — C9는 조인 표시 + 이 한계 인지로 진행.
+- ~~**주문 배송지 스냅샷 부재**~~: **해소(2026-07-11)** — `orders.shipping_address_snapshot` JSONB 도입, 생성 시점 기록·백필·조회 스냅샷 우선. `docs/plans/store-order-claim-followups.md` §2.
 - 키워드 검색·기간 필터·페이지네이션(D11) — 서버 파라미터 설계부터 별도 청크로.
-- `token_refund` 클레임 생성 플로우(토큰 도메인 소관) — 목록/상세는 라벨·환불 정보(refund_data) 표시만 대응해 두어 도입 시 무변경.
+- ~~`token_refund` 클레임 생성 플로우~~ — **배선 완료(2026-07-11)**: 주문 상세 `TokenRefundSection`(신청) + 클레임 상세 취소. `docs/plans/store-order-claim-followups.md` §1.
 - return/exchange의 수거/재발송 송장(`return_*`·`resend_*` 필드)은 관리자가 기입 — 클레임 상세에 있으면 표시(읽기 전용), 고객 입력 플로우는 범위 밖.
 
 ## 11. 완료 검증 (2026-07-11)

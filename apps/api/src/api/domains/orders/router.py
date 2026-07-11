@@ -130,7 +130,12 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
     has_claim = bool(await _active_claim_order_ids(session, [order.id]))
     out = OrderDetailOut.model_validate(order)
     out.items = [OrderItemOut.model_validate(i) for i in items]
-    if order.shipping_address_id is not None:
+    if order.shipping_address_snapshot:
+        out.shipping_address = OrderShippingAddressOut.model_validate(
+            order.shipping_address_snapshot
+        )
+    elif order.shipping_address_id is not None:
+        # 스냅샷 도입(2026-07-11) 전 주문 폴백 — 라이브 주소 조인
         address = await session.get(ShippingAddress, order.shipping_address_id)
         if address is not None:
             out.shipping_address = OrderShippingAddressOut.model_validate(address)

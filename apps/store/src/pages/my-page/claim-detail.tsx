@@ -1,9 +1,11 @@
 import {
   cancelClaimMutation,
+  cancelTokenRefundMutation,
   getOrderQueryKey,
   listMyClaimsOptions,
   listMyClaimsQueryKey,
   listMyOrdersQueryKey,
+  listRefundableTokenOrdersQueryKey,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -32,6 +34,7 @@ import {
 } from "@/features/claims";
 import { formatOrderDate } from "@/features/orders";
 import { courierLabel, courierTrackingUrl } from "@/features/repair-shipping";
+import { krw } from "@/pages/shop/constants";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function ClaimDetailPage() {
@@ -41,20 +44,29 @@ export function ClaimDetailPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const claimsQuery = useQuery(listMyClaimsOptions());
   const claim = claimsQuery.data?.find((entry) => entry.id === claimId);
+  const afterCancel = async (message: string) => {
+    if (!claim) return;
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: listMyClaimsQueryKey() }),
+      queryClient.invalidateQueries({
+        queryKey: getOrderQueryKey({ path: { order_id: claim.order_id } }),
+      }),
+      queryClient.invalidateQueries({ queryKey: listMyOrdersQueryKey() }),
+      queryClient.invalidateQueries({
+        queryKey: listRefundableTokenOrdersQueryKey(),
+      }),
+    ]);
+    snackbar(message);
+    navigate("/my-page/claims", { replace: true });
+  };
   const cancelClaim = useMutation({
     ...cancelClaimMutation(),
-    onSuccess: async () => {
-      if (!claim) return;
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: listMyClaimsQueryKey() }),
-        queryClient.invalidateQueries({
-          queryKey: getOrderQueryKey({ path: { order_id: claim.order_id } }),
-        }),
-        queryClient.invalidateQueries({ queryKey: listMyOrdersQueryKey() }),
-      ]);
-      snackbar("클레임 신청을 취소했습니다.");
-      navigate("/my-page/claims", { replace: true });
-    },
+    onSuccess: () => afterCancel("클레임 신청을 취소했습니다."),
+    onError: () => snackbar("신청을 취소하지 못했습니다. 다시 시도해 주세요."),
+  });
+  const cancelTokenRefund = useMutation({
+    ...cancelTokenRefundMutation(),
+    onSuccess: () => afterCancel("토큰 환불 신청을 취소했습니다."),
     onError: () => snackbar("신청을 취소하지 못했습니다. 다시 시도해 주세요."),
   });
 
@@ -185,14 +197,14 @@ export function ClaimDetailPage() {
               {Object.entries(claim.refund_data).map(([key, value]) => (
                 <SummaryRow
                   key={key}
-                  label={key}
-                  value={displayRefundValue(value)}
+                  label={REFUND_DATA_LABELS[key] ?? key}
+                  value={displayRefundValue(key, value)}
                 />
               ))}
             </VStack>
           ) : null}
 
-          {claim.status === "접수" && claim.type !== "token_refund" ? (
+          {claim.status === "접수" ? (
             <ActionButton
               type="button"
               variant="criticalSolid"
@@ -202,20 +214,37 @@ export function ClaimDetailPage() {
             </ActionButton>
           ) : null}
 
-          <AlertDialog
-            open={confirmOpen}
-            onOpenChange={setConfirmOpen}
-            title="클레임 신청을 취소할까요?"
-            description="접수한 신청이 삭제되며 주문 상세에서 다시 신청할 수 있습니다."
-            primaryActionProps={{
-              children: "신청 취소",
-              variant: "criticalSolid",
-              loading: cancelClaim.isPending,
-              onClick: () =>
-                cancelClaim.mutate({ path: { claim_id: claim.id } }),
-            }}
-            secondaryActionProps={{ children: "유지" }}
-          />
+          {claim.type === "token_refund" ? (
+            <AlertDialog
+              open={confirmOpen}
+              onOpenChange={setConfirmOpen}
+              title="토큰 환불 신청을 취소할까요?"
+              description="환불 신청이 취소 처리되며 지급된 토큰은 그대로 유지됩니다."
+              primaryActionProps={{
+                children: "신청 취소",
+                variant: "criticalSolid",
+                loading: cancelTokenRefund.isPending,
+                onClick: () =>
+                  cancelTokenRefund.mutate({ path: { claim_id: claim.id } }),
+              }}
+              secondaryActionProps={{ children: "유지" }}
+            />
+          ) : (
+            <AlertDialog
+              open={confirmOpen}
+              onOpenChange={setConfirmOpen}
+              title="클레임 신청을 취소할까요?"
+              description="접수한 신청이 삭제되며 주문 상세에서 다시 신청할 수 있습니다."
+              primaryActionProps={{
+                children: "신청 취소",
+                variant: "criticalSolid",
+                loading: cancelClaim.isPending,
+                onClick: () =>
+                  cancelClaim.mutate({ path: { claim_id: claim.id } }),
+              }}
+              secondaryActionProps={{ children: "유지" }}
+            />
+          )}
         </VStack>
       )}
     </ContentLayout>
@@ -265,13 +294,20 @@ function ClaimTracking({
   );
 }
 
-function displayRefundValue(value: unknown): string {
+const REFUND_DATA_LABELS: Record<string, string> = {
+  paid_token_amount: "환불 토큰",
+  bonus_token_amount: "보너스 토큰",
+  refund_amount: "환불 금액",
+};
+
+function displayRefundValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "-";
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
+  if (typeof value === "number") {
+    if (key === "refund_amount") return `${krw.format(value)}원`;
+    if (key.endsWith("_token_amount")) return `${krw.format(value)}개`;
+    return krw.format(value);
+  }
+  if (typeof value === "string" || typeof value === "boolean") {
     return String(value);
   }
   return JSON.stringify(value);

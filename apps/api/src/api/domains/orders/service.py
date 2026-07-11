@@ -114,6 +114,20 @@ async def _get_owned_address(
     return address
 
 
+def _address_snapshot(address: ShippingAddress) -> dict[str, Any]:
+    """주문 시점 배송지 스냅샷 — OrderShippingAddressOut과 같은 형태로 기록한다."""
+    return {
+        "id": str(address.id),
+        "recipient_name": address.recipient_name,
+        "recipient_phone": address.recipient_phone,
+        "postal_code": address.postal_code,
+        "address": address.address,
+        "address_detail": address.address_detail,
+        "delivery_memo": address.delivery_memo,
+        "delivery_request": address.delivery_request,
+    }
+
+
 @dataclass
 class _CouponApplication:
     unit_discount: int = 0
@@ -294,7 +308,7 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         raise DomainError("Order items are required", code="items_required")
     if len(body.items) > MAX_ITEMS:
         raise DomainError("Too many items", code="too_many_items")
-    await _get_owned_address(session, user, body.shipping_address_id)
+    address = await _get_owned_address(session, user, body.shipping_address_id)
 
     method = body.repair_shipping.method if body.repair_shipping else None
 
@@ -353,7 +367,14 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
     if product_lines:
         created.append(
             await _create_group_order(
-                session, user, body, product_lines, "sale", payment_group_id, shipping_cost=0
+                session,
+                user,
+                body,
+                product_lines,
+                "sale",
+                payment_group_id,
+                address=address,
+                shipping_cost=0,
             )
         )
 
@@ -382,6 +403,7 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
             reform_lines,
             "repair",
             payment_group_id,
+            address=address,
             shipping_cost=shipping_cost,
             extra_fee=pickup_fee,
         )
@@ -421,6 +443,7 @@ async def _create_group_order(
     order_type: str,
     payment_group_id: uuid.UUID,
     *,
+    address: ShippingAddress,
     shipping_cost: int,
     extra_fee: int = 0,
 ) -> Order:
@@ -432,6 +455,7 @@ async def _create_group_order(
         order_type=order_type,
         status="대기중",
         shipping_address_id=body.shipping_address_id,
+        shipping_address_snapshot=_address_snapshot(address),
         original_price=original,
         total_discount=discount,
         shipping_cost=shipping_cost,
@@ -548,7 +572,7 @@ async def calculate_custom_amounts(
 async def create_custom_order(
     session: AsyncSession, user: User, body: CustomOrderCreateRequest
 ) -> dict:
-    await _get_owned_address(session, user, body.shipping_address_id)
+    address = await _get_owned_address(session, user, body.shipping_address_id)
     amounts = await calculate_custom_amounts(session, body.options, body.quantity)
     total_cost = amounts["total_cost"]
     base_unit = total_cost // body.quantity
@@ -568,6 +592,7 @@ async def create_custom_order(
         order_type="custom",
         status="대기중",
         shipping_address_id=body.shipping_address_id,
+        shipping_address_snapshot=_address_snapshot(address),
         original_price=total_cost,
         total_discount=line_discount,
         total_price=total_cost - line_discount,
@@ -641,7 +666,7 @@ async def calculate_sample_amount(
 async def create_sample_order(
     session: AsyncSession, user: User, body: SampleOrderCreateRequest
 ) -> dict:
-    await _get_owned_address(session, user, body.shipping_address_id)
+    address = await _get_owned_address(session, user, body.shipping_address_id)
     total_cost = await calculate_sample_amount(session, body.sample_type, body.options)
 
     line_discount = 0
@@ -656,6 +681,7 @@ async def create_sample_order(
         order_type="sample",
         status="대기중",
         shipping_address_id=body.shipping_address_id,
+        shipping_address_snapshot=_address_snapshot(address),
         original_price=total_cost,
         total_discount=line_discount,
         total_price=total_cost - line_discount,

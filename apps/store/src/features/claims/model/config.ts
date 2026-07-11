@@ -63,7 +63,7 @@ export const CLAIM_TYPE_CONFIG: Record<ClaimType, ClaimTypeConfig> = {
 
 export const CLAIM_TYPES = Object.keys(CLAIM_TYPE_CONFIG) as ClaimType[];
 
-const REASON_LABELS: Record<ClaimReason, string> = {
+const REASON_LABELS: Record<string, string> = {
   change_mind: "단순 변심",
   defect: "상품 불량",
   delay: "배송 지연",
@@ -71,6 +71,7 @@ const REASON_LABELS: Record<ClaimReason, string> = {
   size_mismatch: "사이즈 불일치",
   color_mismatch: "색상 불일치",
   other: "기타",
+  token_refund: "토큰 환불", // 서버가 token_refund 클레임의 reason에 기록하는 고정값
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -85,7 +86,7 @@ export function claimTypeLabel(type: string): string {
 }
 
 export function claimReasonLabel(reason: string): string {
-  return REASON_LABELS[reason as ClaimReason] ?? reason;
+  return REASON_LABELS[reason] ?? reason;
 }
 
 export function claimStatusTone(
