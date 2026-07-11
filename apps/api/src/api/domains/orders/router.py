@@ -68,9 +68,7 @@ async def calculate_sample_order(
 ) -> SampleAmountResponse:
     """샘플 주문 금액 계산 — 공개(주문·쿠폰 상태를 만들지 않음)."""
     return SampleAmountResponse(
-        total_cost=await service.calculate_sample_amount(
-            session, body.sample_type, body.options
-        )
+        total_cost=await service.calculate_sample_amount(session, body.sample_type, body.options)
     )
 
 
