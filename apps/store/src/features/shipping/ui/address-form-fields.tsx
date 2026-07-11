@@ -84,6 +84,7 @@ export function AddressFormFields({
               .search(({ zonecode, address }) => {
                 setValue("postal_code", zonecode, { shouldValidate: true });
                 setValue("address", address, { shouldValidate: true });
+                setValue("address_detail", "");
               })
               .catch(() => snackbar("주소 검색을 불러오지 못했습니다."))
           }

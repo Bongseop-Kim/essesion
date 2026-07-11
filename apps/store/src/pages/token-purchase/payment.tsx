@@ -1,13 +1,12 @@
 import { createTokenOrderMutation } from "@essesion/api-client/query";
+import { zTokenPlan } from "@essesion/api-client/zod";
 import { Callout, Divider, Text, VStack } from "@essesion/shared";
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 
 import {
   CHECKOUT_PENDING_KEY,
-  PaymentWidget,
-  type PaymentWidgetHandle,
+  CheckoutShell,
   useCheckoutPayment,
 } from "@/features/checkout";
 import {
@@ -16,8 +15,6 @@ import {
 } from "@/features/token-purchase";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
-import { ContentLayout } from "@/shared/ui/content-layout";
-import { PaymentActionBar } from "@/shared/ui/payment-action-bar";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 export function TokenPaymentPage() {
@@ -25,8 +22,6 @@ export function TokenPaymentPage() {
   const user = useSession((state) => state.user);
   const draft = readTokenPurchaseDraft(location.state);
   const createOrder = useMutation(createTokenOrderMutation());
-  const [widgetReady, setWidgetReady] = useState(false);
-  const paymentWidgetRef = useRef<PaymentWidgetHandle | null>(null);
   const payment = useCheckoutPayment({
     storageKey: CHECKOUT_PENDING_KEY,
     snapshot: draft
@@ -58,51 +53,38 @@ export function TokenPaymentPage() {
   if (!draft) return <Navigate to="/token/purchase" replace />;
 
   return (
-    <ContentLayout
+    <CheckoutShell
       breadcrumbs={[
         { label: "홈", href: "/" },
         { label: "토큰 충전", href: "/token/purchase" },
         { label: "토큰 결제" },
       ]}
-      sidebar={
-        <VStack gap="x6" alignItems="stretch">
-          <SummaryCard.Root>
-            <SummaryCard.Section
-              title="결제 금액"
-              description="선택한 토큰 플랜을 확인해 주세요."
-            />
-            <Divider />
-            <SummaryCard.Row
-              label="플랜"
-              value={tokenPlanLabel(draft.plan.plan_key)}
-            />
-            <SummaryCard.Row
-              label="충전 토큰"
-              value={`${krw.format(draft.plan.token_amount)} 토큰`}
-            />
-            <SummaryCard.Total
-              label="결제 예정 금액"
-              value={`${krw.format(draft.plan.price)}원`}
-            />
-          </SummaryCard.Root>
-          {user ? (
-            <PaymentWidget
-              ref={paymentWidgetRef}
-              amount={draft.plan.price}
-              customerKey={user.id}
-              onReadyChange={setWidgetReady}
-            />
-          ) : null}
-        </VStack>
+      amount={draft.plan.price}
+      customerKey={user?.id ?? null}
+      summary={
+        <SummaryCard.Root>
+          <SummaryCard.Section
+            title="결제 금액"
+            description="선택한 토큰 플랜을 확인해 주세요."
+          />
+          <Divider />
+          <SummaryCard.Row
+            label="플랜"
+            value={tokenPlanLabel(draft.plan.plan_key)}
+          />
+          <SummaryCard.Row
+            label="충전 토큰"
+            value={`${krw.format(draft.plan.token_amount)} 토큰`}
+          />
+          <SummaryCard.Total
+            label="결제 예정 금액"
+            value={`${krw.format(draft.plan.price)}원`}
+          />
+        </SummaryCard.Root>
       }
-      actionBar={
-        <PaymentActionBar
-          amount={draft.plan.price}
-          disabled={!user || !widgetReady}
-          loading={payment.isPending}
-          onClick={() => void payment.pay(paymentWidgetRef.current)}
-        />
-      }
+      payDisabled={!user}
+      payLoading={payment.isPending}
+      onPay={(widget) => void payment.pay(widget)}
     >
       <VStack gap="x6" alignItems="stretch">
         <VStack gap="x2">
@@ -129,14 +111,15 @@ export function TokenPaymentPage() {
           description="사용한 구매 토큰이 있으면 환불이 제한될 수 있습니다. 환불 가능 여부는 토큰 내역에서 확인할 수 있습니다."
         />
       </VStack>
-    </ContentLayout>
+    </CheckoutShell>
   );
 }
 
 function readTokenPurchaseDraft(state: unknown): TokenPurchaseDraft | null {
   if (!state || typeof state !== "object" || !("tokenPurchase" in state))
     return null;
-  const draft = (state as { tokenPurchase?: unknown }).tokenPurchase;
-  if (!draft || typeof draft !== "object" || !("plan" in draft)) return null;
-  return draft as TokenPurchaseDraft;
+  const raw = (state as { tokenPurchase?: unknown }).tokenPurchase;
+  if (!raw || typeof raw !== "object" || !("plan" in raw)) return null;
+  const parsed = zTokenPlan.safeParse((raw as { plan?: unknown }).plan);
+  return parsed.success ? { plan: parsed.data } : null;
 }

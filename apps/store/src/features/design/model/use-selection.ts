@@ -5,13 +5,10 @@ import {
   type DesignTurnOut,
   updateDesignSession,
 } from "@essesion/api-client";
+import { listDesignSessionsQueryKey } from "@essesion/api-client/query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import {
-  designSessionQueryKey,
-  designSessionsQueryKey,
-  designTurnsQueryKey,
-} from "./queries";
+import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 import { type DesignCandidate, selectionForCandidate } from "./selection";
 
 export type SelectDesignInput = {
@@ -71,7 +68,9 @@ export function useDesignSelection() {
       }
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: designSessionsQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: listDesignSessionsQueryKey(),
+        }),
         queryClient.invalidateQueries({
           queryKey: designSessionQueryKey(input.sessionId),
         }),

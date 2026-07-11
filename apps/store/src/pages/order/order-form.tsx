@@ -59,7 +59,11 @@ import {
   shipmentFormFromDraft,
   shipmentInvalidReason,
 } from "@/features/repair-shipping";
-import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
+import {
+  AddressSelectModal,
+  ShippingAddressCard,
+  useDaumPostcode,
+} from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -90,6 +94,7 @@ export function OrderFormPage() {
   )
     ? pendingSnapshot.repairShipmentDraft
     : null;
+  const postcode = useDaumPostcode();
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponItemId, setCouponItemId] = useState<string | null>(null);
@@ -479,20 +484,38 @@ export function OrderFormPage() {
                           setPickupPhone(event.currentTarget.value)
                         }
                       />
-                      <TextField
-                        label="우편번호"
-                        value={pickupPostalCode}
-                        onChange={(event) =>
-                          setPickupPostalCode(event.currentTarget.value)
-                        }
-                      />
+                      <HStack gap="x2" align="flex-end">
+                        <Box flexGrow minWidth={0}>
+                          <TextField
+                            label="우편번호"
+                            readOnly
+                            value={pickupPostalCode}
+                          />
+                        </Box>
+                        <ActionButton
+                          type="button"
+                          variant="neutralOutline"
+                          loading={postcode.loading}
+                          onClick={() =>
+                            void postcode
+                              .search(({ zonecode, address: found }) => {
+                                setPickupPostalCode(zonecode);
+                                setPickupAddress(found);
+                                setPickupDetailAddress("");
+                              })
+                              .catch(() =>
+                                snackbar("주소 검색을 불러오지 못했습니다."),
+                              )
+                          }
+                        >
+                          주소 검색
+                        </ActionButton>
+                      </HStack>
                       <TextField
                         label="주소"
                         required
+                        readOnly
                         value={pickupAddress}
-                        onChange={(event) =>
-                          setPickupAddress(event.currentTarget.value)
-                        }
                       />
                       <TextField
                         label="상세 주소"

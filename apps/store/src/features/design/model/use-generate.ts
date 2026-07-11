@@ -3,6 +3,10 @@ import {
   type DesignGenerateOut,
   generateDesign,
 } from "@essesion/api-client";
+import {
+  getTokenBalanceQueryKey,
+  listDesignSessionsQueryKey,
+} from "@essesion/api-client/query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -10,12 +14,7 @@ import {
   type StorageLike,
   writePendingDesign,
 } from "./pending";
-import {
-  designSessionQueryKey,
-  designSessionsQueryKey,
-  designTokenBalanceQueryKey,
-  designTurnsQueryKey,
-} from "./queries";
+import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 
 type GenerateBase = {
   candidateCount?: number;
@@ -83,7 +82,9 @@ export function useGenerateDesign(options?: {
       } finally {
         clearPendingDesign({ storage: options?.pendingStorage });
         await Promise.all([
-          queryClient.invalidateQueries({ queryKey: designSessionsQueryKey() }),
+          queryClient.invalidateQueries({
+            queryKey: listDesignSessionsQueryKey(),
+          }),
           queryClient.invalidateQueries({
             queryKey: designSessionQueryKey(sessionId),
           }),
@@ -91,7 +92,7 @@ export function useGenerateDesign(options?: {
             queryKey: designTurnsQueryKey(sessionId),
           }),
           queryClient.invalidateQueries({
-            queryKey: designTokenBalanceQueryKey(),
+            queryKey: getTokenBalanceQueryKey(),
           }),
         ]);
       }
