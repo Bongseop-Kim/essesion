@@ -2,19 +2,36 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+TokenLedgerType = Literal["grant", "use", "refund", "admin", "purchase"]
+TokenHistoryFilter = Literal["credit", "use", "refund"]
 
 
 class TokenBalance(BaseModel):
     total: int
     paid: int
     bonus: int  # bonus + free
+    generate_cost: int
 
 
 class TokenPlan(BaseModel):
     plan_key: str
     price: int
     token_amount: int
+
+
+class TokenHistoryEntry(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    amount: int
+    type: TokenLedgerType
+    token_class: Literal["paid", "bonus", "free"]
+    description: str | None
+    source_order_id: uuid.UUID | None
+    expires_at: datetime | None
+    created_at: datetime
 
 
 class TokenOrderCreateRequest(BaseModel):
@@ -37,6 +54,7 @@ class RefundableTokenOrder(BaseModel):
     token_expires_at: datetime | None
     is_refundable: bool
     reason: str | None  # expired | pending_refund | approved_refund | not_latest | tokens_used
+    claim_id: uuid.UUID | None
 
 
 class TokenRefundRequestIn(BaseModel):

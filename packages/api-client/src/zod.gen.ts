@@ -265,6 +265,13 @@ export const zDesignGenerateRequest = z.object({
 });
 
 /**
+ * DesignOrderReferenceOut
+ */
+export const zDesignOrderReferenceOut = z.object({
+    object_key: z.string()
+});
+
+/**
  * DesignSessionOut
  */
 export const zDesignSessionOut = z.object({
@@ -334,6 +341,7 @@ export const zGenerationJobOut = z.object({
     params: z.record(z.string(), z.unknown()),
     request_id: z.string().nullable(),
     result: z.record(z.string(), z.unknown()).nullable(),
+    result_url: z.string().nullable(),
     session_id: z.uuid().nullable(),
     status: z.string(),
     updated_at: z.iso.datetime()
@@ -386,6 +394,21 @@ export const zInquiryOut = z.object({
     product_id: z.int().nullable(),
     status: z.string(),
     title: z.string()
+});
+
+/**
+ * InquiryUpdateRequest
+ */
+export const zInquiryUpdateRequest = z.object({
+    category: z.enum([
+        '일반',
+        '상품',
+        '수선',
+        '주문제작'
+    ]).optional(),
+    content: z.string().min(1).max(5000).optional(),
+    product_id: z.int().nullish(),
+    title: z.string().min(1).max(200).optional()
 });
 
 /**
@@ -881,7 +904,7 @@ export const zQuoteCreateRequest = z.object({
     contact_value: z.string(),
     options: z.record(z.string(), z.unknown()),
     quantity: z.int(),
-    reference_images: z.array(zReferenceImageIn).optional().default([]),
+    reference_images: z.array(zReferenceImageIn).max(5).optional(),
     shipping_address_id: z.uuid()
 });
 
@@ -947,6 +970,7 @@ export const zReformUploadUrlResponse = z.object({
  * RefundableTokenOrder
  */
 export const zRefundableTokenOrder = z.object({
+    claim_id: z.uuid().nullable(),
     is_refundable: z.boolean(),
     order_id: z.uuid(),
     order_number: z.string(),
@@ -1108,8 +1132,33 @@ export const zStatsResponse = z.object({
  */
 export const zTokenBalance = z.object({
     bonus: z.int(),
+    generate_cost: z.int(),
     paid: z.int(),
     total: z.int()
+});
+
+/**
+ * TokenHistoryEntry
+ */
+export const zTokenHistoryEntry = z.object({
+    amount: z.int(),
+    created_at: z.iso.datetime(),
+    description: z.string().nullable(),
+    expires_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    source_order_id: z.uuid().nullable(),
+    token_class: z.enum([
+        'paid',
+        'bonus',
+        'free'
+    ]),
+    type: z.enum([
+        'grant',
+        'use',
+        'refund',
+        'admin',
+        'purchase'
+    ])
 });
 
 /**
@@ -1187,7 +1236,8 @@ export const zUploadUrlRequest = z.object({
         'custom_order',
         'sample_order',
         'quote_request'
-    ])
+    ]),
+    size_bytes: z.int().gt(0).lte(10485760).nullish()
 });
 
 /**
@@ -1195,6 +1245,7 @@ export const zUploadUrlRequest = z.object({
  */
 export const zUploadUrlResponse = z.object({
     object_key: z.string(),
+    required_headers: z.record(z.string(), z.string()),
     upload_required: z.boolean(),
     upload_url: z.string()
 });
@@ -1357,6 +1408,7 @@ export const zWorkerCandidateOut = z.object({
 export const zDesignGenerateOut = z.object({
     candidates: z.array(zWorkerCandidateOut),
     engine_version: z.string(),
+    intents: z.array(z.record(z.string(), z.unknown())),
     registry_version: z.string(),
     request_id: z.string(),
     warnings: z.array(z.string()).optional().default([])
@@ -1713,6 +1765,26 @@ export const zGenerateDesignBody = zDesignGenerateRequest;
  */
 export const zGenerateDesignResponse = zDesignGenerateOut;
 
+export const zListGenerationJobsQuery = z.object({
+    kind: z.enum(['finalize', 'export']).optional().default('finalize'),
+    status: z.enum([
+        'queued',
+        'processing',
+        'succeeded',
+        'failed'
+    ]).nullish(),
+    session_id: z.uuid().nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Response List Generation Jobs
+ *
+ * Successful Response
+ */
+export const zListGenerationJobsResponse = z.array(zGenerationJobOut);
+
 export const zGetGenerationJobPath = z.object({
     job_id: z.uuid()
 });
@@ -1721,6 +1793,19 @@ export const zGetGenerationJobPath = z.object({
  * Successful Response
  */
 export const zGetGenerationJobResponse = zGenerationJobOut;
+
+export const zCreateDesignOrderReferencePath = z.object({
+    job_id: z.uuid()
+});
+
+export const zCreateDesignOrderReferenceQuery = z.object({
+    kind: z.enum(['custom_order', 'quote_request']).optional().default('custom_order')
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateDesignOrderReferenceResponse = zDesignOrderReferenceOut;
 
 /**
  * Response List Design Sessions
@@ -1865,6 +1950,15 @@ export const zCreateInquiryBody = zInquiryCreateRequest;
  */
 export const zCreateInquiryResponse = zInquiryOut;
 
+export const zDeleteInquiryPath = z.object({
+    inquiry_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteInquiryResponse = z.void();
+
 export const zGetInquiryPath = z.object({
     inquiry_id: z.uuid()
 });
@@ -1873,6 +1967,17 @@ export const zGetInquiryPath = z.object({
  * Successful Response
  */
 export const zGetInquiryResponse = zInquiryOut;
+
+export const zUpdateInquiryBody = zInquiryUpdateRequest;
+
+export const zUpdateInquiryPath = z.object({
+    inquiry_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zUpdateInquiryResponse = zInquiryOut;
 
 export const zListMyOrdersQuery = z.object({
     order_type: z.enum([
@@ -2013,6 +2118,7 @@ export const zListProductsQuery = z.object({
         'polyester',
         'wool'
     ]).nullish(),
+    q: z.string().max(100).nullish(),
     sort: z.enum([
         'latest',
         'price-low',
@@ -2089,6 +2195,23 @@ export const zGetReformPricingResponse = zReformPricingOut;
  * Successful Response
  */
 export const zGetTokenBalanceResponse = zTokenBalance;
+
+export const zListTokenHistoryQuery = z.object({
+    limit: z.int().gte(1).lte(100).optional().default(50),
+    offset: z.int().gte(0).optional().default(0),
+    type: z.enum([
+        'credit',
+        'use',
+        'refund'
+    ]).nullish()
+});
+
+/**
+ * Response List Token History
+ *
+ * Successful Response
+ */
+export const zListTokenHistoryResponse = z.array(zTokenHistoryEntry);
 
 export const zCreateTokenOrderBody = zTokenOrderCreateRequest;
 

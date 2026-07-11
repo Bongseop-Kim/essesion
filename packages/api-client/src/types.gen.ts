@@ -792,6 +792,12 @@ export type DesignGenerateOut = {
      */
     engine_version: string;
     /**
+     * Intents
+     */
+    intents: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
      * Registry Version
      */
     registry_version: string;
@@ -835,6 +841,16 @@ export type DesignGenerateRequest = {
      * Session Id
      */
     session_id?: string | null;
+};
+
+/**
+ * DesignOrderReferenceOut
+ */
+export type DesignOrderReferenceOut = {
+    /**
+     * Object Key
+     */
+    object_key: string;
 };
 
 /**
@@ -1032,6 +1048,10 @@ export type GenerationJobOut = {
         [key: string]: unknown;
     } | null;
     /**
+     * Result Url
+     */
+    result_url: string | null;
+    /**
      * Session Id
      */
     session_id: string | null;
@@ -1157,6 +1177,28 @@ export type InquiryOut = {
      * Title
      */
     title: string;
+};
+
+/**
+ * InquiryUpdateRequest
+ */
+export type InquiryUpdateRequest = {
+    /**
+     * Category
+     */
+    category?: '일반' | '상품' | '수선' | '주문제작';
+    /**
+     * Content
+     */
+    content?: string;
+    /**
+     * Product Id
+     */
+    product_id?: number | null;
+    /**
+     * Title
+     */
+    title?: string;
 };
 
 /**
@@ -2349,6 +2391,10 @@ export type ReformUploadUrlResponse = {
  */
 export type RefundableTokenOrder = {
     /**
+     * Claim Id
+     */
+    claim_id: string | null;
+    /**
      * Is Refundable
      */
     is_refundable: boolean;
@@ -2676,6 +2722,10 @@ export type TokenBalance = {
      */
     bonus: number;
     /**
+     * Generate Cost
+     */
+    generate_cost: number;
+    /**
      * Paid
      */
     paid: number;
@@ -2683,6 +2733,44 @@ export type TokenBalance = {
      * Total
      */
     total: number;
+};
+
+/**
+ * TokenHistoryEntry
+ */
+export type TokenHistoryEntry = {
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Source Order Id
+     */
+    source_order_id: string | null;
+    /**
+     * Token Class
+     */
+    token_class: 'paid' | 'bonus' | 'free';
+    /**
+     * Type
+     */
+    type: 'grant' | 'use' | 'refund' | 'admin' | 'purchase';
 };
 
 /**
@@ -2815,6 +2903,10 @@ export type UploadUrlRequest = {
      * Kind
      */
     kind: 'repair_shipping_upload' | 'custom_order' | 'sample_order' | 'quote_request';
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number | null;
 };
 
 /**
@@ -2825,6 +2917,12 @@ export type UploadUrlResponse = {
      * Object Key
      */
     object_key: string;
+    /**
+     * Required Headers
+     */
+    required_headers: {
+        [key: string]: string;
+    };
     /**
      * Upload Required
      */
@@ -3967,6 +4065,54 @@ export type GenerateDesignResponses = {
 
 export type GenerateDesignResponse = GenerateDesignResponses[keyof GenerateDesignResponses];
 
+export type ListGenerationJobsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: 'finalize' | 'export';
+        /**
+         * Status
+         */
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        /**
+         * Session Id
+         */
+        session_id?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/design/jobs';
+};
+
+export type ListGenerationJobsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListGenerationJobsError = ListGenerationJobsErrors[keyof ListGenerationJobsErrors];
+
+export type ListGenerationJobsResponses = {
+    /**
+     * Response List Generation Jobs
+     *
+     * Successful Response
+     */
+    200: Array<GenerationJobOut>;
+};
+
+export type ListGenerationJobsResponse = ListGenerationJobsResponses[keyof ListGenerationJobsResponses];
+
 export type GetGenerationJobData = {
     body?: never;
     path: {
@@ -3996,6 +4142,41 @@ export type GetGenerationJobResponses = {
 };
 
 export type GetGenerationJobResponse = GetGenerationJobResponses[keyof GetGenerationJobResponses];
+
+export type CreateDesignOrderReferenceData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: 'custom_order' | 'quote_request';
+    };
+    url: '/design/jobs/{job_id}/order-reference';
+};
+
+export type CreateDesignOrderReferenceErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateDesignOrderReferenceError = CreateDesignOrderReferenceErrors[keyof CreateDesignOrderReferenceErrors];
+
+export type CreateDesignOrderReferenceResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignOrderReferenceOut;
+};
+
+export type CreateDesignOrderReferenceResponse = CreateDesignOrderReferenceResponses[keyof CreateDesignOrderReferenceResponses];
 
 export type ListDesignSessionsData = {
     body?: never;
@@ -4431,6 +4612,36 @@ export type CreateInquiryResponses = {
 
 export type CreateInquiryResponse = CreateInquiryResponses[keyof CreateInquiryResponses];
 
+export type DeleteInquiryData = {
+    body?: never;
+    path: {
+        /**
+         * Inquiry Id
+         */
+        inquiry_id: string;
+    };
+    query?: never;
+    url: '/inquiries/{inquiry_id}';
+};
+
+export type DeleteInquiryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteInquiryError = DeleteInquiryErrors[keyof DeleteInquiryErrors];
+
+export type DeleteInquiryResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteInquiryResponse = DeleteInquiryResponses[keyof DeleteInquiryResponses];
+
 export type GetInquiryData = {
     body?: never;
     path: {
@@ -4460,6 +4671,36 @@ export type GetInquiryResponses = {
 };
 
 export type GetInquiryResponse = GetInquiryResponses[keyof GetInquiryResponses];
+
+export type UpdateInquiryData = {
+    body: InquiryUpdateRequest;
+    path: {
+        /**
+         * Inquiry Id
+         */
+        inquiry_id: string;
+    };
+    query?: never;
+    url: '/inquiries/{inquiry_id}';
+};
+
+export type UpdateInquiryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateInquiryError = UpdateInquiryErrors[keyof UpdateInquiryErrors];
+
+export type UpdateInquiryResponses = {
+    /**
+     * Successful Response
+     */
+    200: InquiryOut;
+};
+
+export type UpdateInquiryResponse = UpdateInquiryResponses[keyof UpdateInquiryResponses];
 
 export type ListMyOrdersData = {
     body?: never;
@@ -4814,6 +5055,10 @@ export type ListProductsData = {
          */
         material?: 'silk' | 'cotton' | 'polyester' | 'wool' | null;
         /**
+         * Q
+         */
+        q?: string | null;
+        /**
          * Sort
          */
         sort?: 'latest' | 'price-low' | 'price-high' | 'popular';
@@ -5043,6 +5288,46 @@ export type GetTokenBalanceResponses = {
 };
 
 export type GetTokenBalanceResponse = GetTokenBalanceResponses[keyof GetTokenBalanceResponses];
+
+export type ListTokenHistoryData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+        /**
+         * Type
+         */
+        type?: 'credit' | 'use' | 'refund' | null;
+    };
+    url: '/tokens/history';
+};
+
+export type ListTokenHistoryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTokenHistoryError = ListTokenHistoryErrors[keyof ListTokenHistoryErrors];
+
+export type ListTokenHistoryResponses = {
+    /**
+     * Response List Token History
+     *
+     * Successful Response
+     */
+    200: Array<TokenHistoryEntry>;
+};
+
+export type ListTokenHistoryResponse = ListTokenHistoryResponses[keyof ListTokenHistoryResponses];
 
 export type CreateTokenOrderData = {
     body: TokenOrderCreateRequest;

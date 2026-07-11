@@ -67,6 +67,18 @@ async def test_list_products_filter_limit_and_offset(client, db_session):
     assert [p["name"] for p in second_page.json()] == ["네이비 1"]
 
 
+async def test_list_products_searches_name_with_literal_wildcards(client, db_session):
+    await make_product(db_session, name="Navy Silk Tie")
+    await make_product(db_session, name="Navy_100% Tie")
+    await make_product(db_session, name="Black Tie")
+
+    search = await client.get("/products", params={"q": "navy", "limit": 20})
+    literal = await client.get("/products", params={"q": "_100%"})
+
+    assert [p["name"] for p in search.json()] == ["Navy_100% Tie", "Navy Silk Tie"]
+    assert [p["name"] for p in literal.json()] == ["Navy_100% Tie"]
+
+
 async def test_admin_create_product_auto_code(client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)

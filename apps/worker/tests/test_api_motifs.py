@@ -116,5 +116,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["candidates"]
+    assert len(body["intents"]) == 1
     # 시드 모티프로 재사용 해석됐는지 — 로그 intent의 motif_id가 치환됐는지 확인
     assert mid in body["candidates"][0]["svg"]
+    assert body["intents"][0]["layers"][1]["params"]["motif_id"] == mid

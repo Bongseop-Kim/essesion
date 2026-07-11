@@ -147,6 +147,16 @@ export function MyPage() {
                   description="클레임 신청과 처리 상태를 확인합니다."
                   onClick={() => navigate("/my-page/claims")}
                 />
+                <ListItem
+                  title="견적 요청 내역"
+                  description="주문 제작 견적 요청과 안내 내용을 확인합니다."
+                  onClick={() => navigate("/my-page/quote-request")}
+                />
+                <ListItem
+                  title="토큰 내역"
+                  description="구매 및 환불에 따른 토큰 변동을 확인합니다."
+                  onClick={() => navigate("/my-page/token-history")}
+                />
               </List>
             </VStack>
             <VStack gap="x2" alignItems="stretch">
@@ -161,6 +171,11 @@ export function MyPage() {
                   title="공지사항"
                   description="서비스 운영과 정책 변경 소식을 확인합니다."
                   onClick={() => navigate("/notice")}
+                />
+                <ListItem
+                  title="1:1 문의 내역"
+                  description="문의 작성과 답변 상태를 확인합니다."
+                  onClick={() => navigate("/my-page/inquiry")}
                 />
               </List>
             </VStack>

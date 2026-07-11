@@ -4,22 +4,27 @@
 무관하게 동작 (ARCHITECTURE §7). 턴 payload 스키마는 /design 신규 기획(5단계)에서 구체화.
 """
 
+import asyncio
+import logging
 import uuid
-from datetime import datetime
-from typing import Any, Literal, cast
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any, Literal, cast
+from urllib.parse import quote
 
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
-from fastapi import APIRouter, Request, Response
+from db.models.images import Image
+from fastapi import APIRouter, Query, Request, Response
 from obs import request_id_var
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import CursorResult, func, select, update
 
 from api.db import SessionDep, advisory_xact_lock
-from api.deps import CurrentUser, ensure_owner
+from api.deps import CurrentUser, SettingsDep, ensure_owner
 from api.domains.tokens import ledger
 from api.errors import ConflictError, DomainError, UpstreamError, WorkerRequestError
 
 router = APIRouter(tags=["design"])
+logger = logging.getLogger(__name__)
 
 
 class DesignSessionOut(BaseModel):
@@ -82,6 +87,7 @@ class DesignGenerateOut(BaseModel):
     request_id: str
     registry_version: str
     engine_version: str
+    intents: list[dict[str, Any]]
     candidates: list[WorkerCandidateOut]
     warnings: list[str] = []
 
@@ -126,11 +132,16 @@ class GenerationJobOut(BaseModel):
     status: str
     params: dict[str, Any]
     result: dict[str, Any] | None
+    result_url: str | None
     error_message: str | None
     request_id: str | None
     attempts: int
     created_at: datetime
     updated_at: datetime
+
+
+class DesignOrderReferenceOut(BaseModel):
+    object_key: str
 
 
 @router.post("/design/sessions", response_model=DesignSessionOut, status_code=201)
@@ -232,31 +243,85 @@ async def generate_design(
         ensure_owner(design_session, user)
     payload = body.model_dump(exclude={"session_id"}, exclude_none=True)
 
+    # 클라이언트 연결이 끊겨도 과금 이후 worker→턴 기록/환불을 끝낸다. 취소된
+    # 요청의 dependency teardown이 먼저 session을 닫지 않도록 inner task까지 기다린다.
+    completion = asyncio.create_task(
+        _complete_generation(body, payload, request, session, user.id, design_session)
+    )
+    try:
+        return await asyncio.shield(completion)
+    except asyncio.CancelledError:
+        try:
+            await completion
+        except Exception:
+            logger.warning("generation completion failed after client cancellation", exc_info=True)
+        raise
+
+
+async def _complete_generation(
+    body: DesignGenerateRequest,
+    payload: dict[str, Any],
+    request: Request,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    design_session: DesignSession | None,
+) -> DesignGenerateOut:
+    """과금부터 최종 기록까지 취소로 분리되지 않는 generate 완료 단위."""
+
     # 과금 — work_id는 서버 생성 (X-Request-ID는 클라이언트 제어 값이라 멱등 히트 악용 가능).
     # 선차감 후 워커 실패 시 환불 — 워커 422(잘못된 intent)도 환불되는 관대한 기본값.
     work_id = f"design_generate_{uuid.uuid4().hex}"
-    charge = await ledger.use_tokens(session, user.id, work_id)
+    charge = await ledger.use_tokens(session, user_id, work_id)
     if not charge.success:
-        raise DomainError("디자인 토큰이 부족합니다", code=charge.error or "insufficient_tokens")
+        detail = (
+            "환불 심사 중에는 생성할 수 없습니다"
+            if charge.error == "refund_pending"
+            else "디자인 토큰이 부족합니다"
+        )
+        raise DomainError(detail, code=charge.error or "insufficient_tokens")
     try:
         response = await request.app.state.worker.generate(payload)
+        try:
+            out = DesignGenerateOut.model_validate(response)
+        except ValidationError as exc:
+            raise UpstreamError("이미지 워커 응답 형식이 올바르지 않습니다") from exc
+        if design_session is not None:
+            design_session.registry_version = out.registry_version
+            if body.intent is not None:
+                design_session.current_intent = body.intent
+            await _append_turn(
+                session,
+                design_session.id,
+                "user",
+                {
+                    "type": "generate_request",
+                    "mode": "variation" if body.intent is not None else "prompt",
+                    "prompt": body.prompt if body.intent is None else None,
+                    "seed": body.seed,
+                    "colorway": body.colorway,
+                    "candidate_count": body.candidate_count,
+                },
+            )
+            await _append_turn(
+                session,
+                design_session.id,
+                "assistant",
+                {"type": "generate", "response": out.model_dump(mode="json")},
+            )
+        await session.commit()
     except (UpstreamError, WorkerRequestError):
         # 둘 다 환불하되 응답은 구분 — 요청 오류는 422(detail 보존), 일시 장애는 502.
-        await ledger.refund_failed_generation(session, user.id, charge.cost, f"{work_id}_refund")
+        await session.rollback()
+        await ledger.refund_failed_generation(session, user_id, charge.cost, f"{work_id}_refund")
         raise
-    if design_session is not None:
-        assert design_session is not None
-        design_session.registry_version = response.get("registry_version")
-        if body.intent is not None:
-            design_session.current_intent = body.intent
-        await _append_turn(
-            session,
-            design_session.id,
-            "assistant",
-            {"type": "generate", "response": response},
-        )
-    await session.commit()
-    return DesignGenerateOut.model_validate(response)
+    except Exception as exc:
+        # CancelledError(BaseException)는 여기서 삼키지 않는다. 일반 예외는 실패한
+        # turn 트랜잭션을 정리한 뒤 환불해, 워커 프로토콜/DB 오류가 과금 누수로 번지지 않는다.
+        await session.rollback()
+        await ledger.refund_failed_generation(session, user_id, charge.cost, f"{work_id}_refund")
+        logger.warning("generation completion failed after charge", exc_info=True)
+        raise UpstreamError("디자인 생성을 완료하지 못했습니다") from exc
+    return out
 
 
 @router.post("/design/export")
@@ -335,16 +400,126 @@ async def create_finalize_job(
         await session.refresh(job)
     else:
         await request.app.state.tasks.enqueue_finalize(job.id)
-    return GenerationJobOut.model_validate(job)
+    return _generation_job_out(job, request.app.state.settings.gcp_project_id)
+
+
+@router.get("/design/jobs", response_model=list[GenerationJobOut])
+async def list_generation_jobs(
+    session: SessionDep,
+    user: CurrentUser,
+    settings: SettingsDep,
+    kind: Literal["finalize", "export"] = "finalize",
+    status: Literal["queued", "processing", "succeeded", "failed"] | None = None,
+    session_id: uuid.UUID | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[GenerationJobOut]:
+    query = select(GenerationJob).where(
+        GenerationJob.user_id == user.id,
+        GenerationJob.kind == kind,
+    )
+    if status is not None:
+        query = query.where(GenerationJob.status == status)
+    if session_id is not None:
+        query = query.where(GenerationJob.session_id == session_id)
+    rows = await session.scalars(
+        query.order_by(GenerationJob.created_at.desc()).limit(limit).offset(offset)
+    )
+    return [_generation_job_out(job, settings.gcp_project_id) for job in rows]
 
 
 @router.get("/design/jobs/{job_id}", response_model=GenerationJobOut)
 async def get_generation_job(
-    job_id: uuid.UUID, session: SessionDep, user: CurrentUser
+    job_id: uuid.UUID, session: SessionDep, user: CurrentUser, settings: SettingsDep
 ) -> GenerationJobOut:
     job = await session.get(GenerationJob, job_id)
     ensure_owner(job, user)
-    return GenerationJobOut.model_validate(job)
+    assert job is not None
+    return _generation_job_out(job, settings.gcp_project_id)
+
+
+@router.post(
+    "/design/jobs/{job_id}/order-reference",
+    response_model=DesignOrderReferenceOut,
+)
+async def create_design_order_reference(
+    job_id: uuid.UUID,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    settings: SettingsDep,
+    kind: Literal["custom_order", "quote_request"] = "custom_order",
+) -> DesignOrderReferenceOut:
+    """소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다."""
+
+    job = await session.get(GenerationJob, job_id)
+    ensure_owner(job, user)
+    assert job is not None
+    source_key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    if (
+        job.kind != "finalize"
+        or job.status != "succeeded"
+        or not isinstance(source_key, str)
+        or not source_key.startswith("fabric/")
+        or ".." in source_key.split("/")
+    ):
+        raise ConflictError("주문에 사용할 수 있는 완성 디자인이 아닙니다")
+    if request.app.state.gcs.upload_required and not settings.gcp_project_id:
+        raise DomainError(
+            "공개 생성물 버킷이 설정되지 않았습니다",
+            code="asset_bucket_not_configured",
+            status=503,
+        )
+
+    destination_key = f"uploads/{kind}/design-{job.id}-{uuid.uuid4().hex}.png"
+    copied = await request.app.state.gcs.copy_from_bucket(
+        f"{settings.gcp_project_id}-assets" if settings.gcp_project_id else "dry-run-assets",
+        source_key,
+        destination_key,
+    )
+    if not copied:
+        raise UpstreamError("완성 디자인을 주문 첨부로 준비하지 못했습니다")
+    if kind == "quote_request":
+        session.add(
+            Image(
+                object_key=destination_key,
+                entity_type="quote_request_upload",
+                entity_id=destination_key,
+                uploaded_by=user.id,
+                content_type="image/png",
+                upload_completed_at=datetime.now(UTC),
+                expires_at=datetime.now(UTC) + timedelta(hours=24),
+            )
+        )
+        await session.commit()
+    return DesignOrderReferenceOut(object_key=destination_key)
+
+
+def _public_asset_url(gcp_project_id: str, object_key: str) -> str | None:
+    if not gcp_project_id or not object_key:
+        return None
+    return f"https://storage.googleapis.com/{gcp_project_id}-assets/{quote(object_key, safe='/')}"
+
+
+def _generation_job_out(job: GenerationJob, gcp_project_id: str) -> GenerationJobOut:
+    object_key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    result_url = (
+        _public_asset_url(gcp_project_id, object_key) if isinstance(object_key, str) else None
+    )
+    return GenerationJobOut(
+        id=job.id,
+        session_id=job.session_id,
+        kind=job.kind,
+        status=job.status,
+        params=job.params,
+        result=job.result,
+        result_url=result_url,
+        error_message=job.error_message,
+        request_id=job.request_id,
+        attempts=job.attempts,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+    )
 
 
 # ---- 모티프 프록시 — worker는 OIDC 프라이빗이라 api가 인증·예산을 얹어 중계 ----

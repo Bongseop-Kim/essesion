@@ -65,6 +65,12 @@ export const router = createBrowserRouter([
         }),
       },
       {
+        path: "design",
+        lazy: async () => ({
+          Component: (await import("@/pages/design")).DesignPage,
+        }),
+      },
+      {
         path: "sample-order",
         lazy: async () => ({
           Component: (await import("@/pages/sample-order")).SampleOrderPage,
@@ -190,6 +196,33 @@ export const router = createBrowserRouter([
             lazy: async () => ({
               Component: (await import("@/pages/my-page/claim-detail"))
                 .ClaimDetailPage,
+            }),
+          },
+          {
+            path: "my-page/token-history",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/token-history"))
+                .TokenHistoryPage,
+            }),
+          },
+          {
+            path: "my-page/inquiry",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/inquiry")).InquiryPage,
+            }),
+          },
+          {
+            path: "my-page/quote-request",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/quote-request"))
+                .QuoteRequestPage,
+            }),
+          },
+          {
+            path: "my-page/quote-request/:quoteId",
+            lazy: async () => ({
+              Component: (await import("@/pages/my-page/quote-request-detail"))
+                .QuoteRequestDetailPage,
             }),
           },
           {

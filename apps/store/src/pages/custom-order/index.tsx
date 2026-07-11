@@ -1,7 +1,12 @@
-import type { ShippingAddressOut } from "@essesion/api-client";
+import {
+  createDesignOrderReference,
+  type GenerationJobOut,
+  type ShippingAddressOut,
+} from "@essesion/api-client";
 import {
   createQuoteMutation,
   listAddressesOptions,
+  listMyQuotesQueryKey,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -30,7 +35,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -56,6 +61,7 @@ import {
   uploadOrderImage,
   useCustomQuote,
 } from "@/features/custom-order";
+import { DesignPicker } from "@/features/design/ui/design-picker";
 import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
@@ -71,12 +77,17 @@ const DESCRIPTION =
 
 export function CustomOrderPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const { requireAuth } = useAuthGuard();
   const status = useSession((state) => state.status);
   const user = useSession((state) => state.user);
   const restored = useMemo(
     () => readLoginDraft(location.state) ?? readCustomOrderFormDraft(),
+    [location.state],
+  );
+  const initialDesigns = useMemo(
+    () => readDesignJobs(location.state),
     [location.state],
   );
   const [options, setOptions] = useState<CustomOrderOptions>(
@@ -86,6 +97,8 @@ export function CustomOrderPage() {
     restored?.contact ?? DEFAULT_QUOTE_CONTACT,
   );
   const [files, setFiles] = useState<File[]>([]);
+  const [selectedDesigns, setSelectedDesigns] =
+    useState<GenerationJobOut[]>(initialDesigns);
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
@@ -104,6 +117,21 @@ export function CustomOrderPage() {
   const previewUrls = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [files],
+  );
+  const attachmentItems = useMemo(
+    () => [
+      ...selectedDesigns.map((job, index) => ({
+        id: `design:${job.id}`,
+        src: job.result_url ?? "",
+        alt: `AI 완성 디자인 ${index + 1}`,
+      })),
+      ...previewUrls.map(({ file, url }) => ({
+        id: `file:${file.name}-${file.size}-${file.lastModified}`,
+        src: url,
+        alt: file.name,
+      })),
+    ],
+    [previewUrls, selectedDesigns],
   );
   const isQuoteMode = options.quantity >= 100;
   const addressesQuery = useQuery({
@@ -214,7 +242,7 @@ export function CustomOrderPage() {
         state: { customOrderDraft: { options, contact } satisfies LoginDraft },
       })
     ) {
-      if (files.length > 0)
+      if (files.length > 0 || selectedDesigns.length > 0)
         snackbar("로그인 후 참고 이미지를 다시 첨부해 주세요.");
       return;
     }
@@ -226,14 +254,28 @@ export function CustomOrderPage() {
     else void submitOrderDraft();
   };
 
-  const uploadImages = () =>
-    Promise.all(files.map((file) => uploadOrderImage(file, "custom_order")));
+  const uploadImages = async (kind: "custom_order" | "quote_request") => {
+    const [uploads, imported] = await Promise.all([
+      Promise.all(files.map((file) => uploadOrderImage(file, kind))),
+      Promise.all(
+        selectedDesigns.map(async (job) => {
+          const response = await createDesignOrderReference({
+            path: { job_id: job.id },
+            query: { kind },
+            throwOnError: true,
+          });
+          return response.data;
+        }),
+      ),
+    ]);
+    return [...uploads, ...imported];
+  };
 
   const submitOrderDraft = async () => {
     if (!amount || !calculation.isCurrent || submitting) return;
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages();
+      const imageRefs = await uploadImages("custom_order");
       const draft: CustomOrderDraft = {
         options,
         contact,
@@ -257,7 +299,7 @@ export function CustomOrderPage() {
     setQuoteConfirmOpen(false);
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages();
+      const imageRefs = await uploadImages("quote_request");
       await createQuote.mutateAsync({
         body: {
           shipping_address_id: address.id,
@@ -271,9 +313,13 @@ export function CustomOrderPage() {
           reference_images: imageRefs,
         },
       });
+      await queryClient.invalidateQueries({
+        queryKey: listMyQuotesQueryKey(),
+        refetchType: "all",
+      });
       snackbar("견적 요청이 접수되었습니다.");
       clearCustomOrderFormDraft();
-      navigate("/");
+      navigate("/my-page/quote-request");
     } catch (error) {
       snackbar(
         error instanceof Error
@@ -814,11 +860,15 @@ export function CustomOrderPage() {
               <AttachmentDisplayField
                 label="참고 이미지"
                 description="JPG, PNG, WebP · 파일당 10MB 이하"
-                items={previewUrls.map(({ file, url }, index) => ({
-                  id: `${file.name}-${index}`,
-                  src: url,
-                  alt: file.name,
-                }))}
+                pickerSlot={
+                  <DesignPicker
+                    selected={selectedDesigns}
+                    onChange={setSelectedDesigns}
+                    max={MAX_IMAGES - files.length}
+                    disabled={submitting}
+                  />
+                }
+                items={attachmentItems}
                 max={MAX_IMAGES}
                 accept={CUSTOM_IMAGE_ACCEPT}
                 onAddFiles={(selected) => {
@@ -836,12 +886,24 @@ export function CustomOrderPage() {
                     return;
                   }
                   setFiles((current) =>
-                    [...current, ...selected].slice(0, MAX_IMAGES),
+                    [...current, ...selected].slice(
+                      0,
+                      MAX_IMAGES - selectedDesigns.length,
+                    ),
                   );
                 }}
                 onRemove={(id) => {
+                  if (id.startsWith("design:")) {
+                    const jobId = id.slice("design:".length);
+                    setSelectedDesigns((current) =>
+                      current.filter((job) => job.id !== jobId),
+                    );
+                    return;
+                  }
+                  const fileId = id.slice("file:".length);
                   const index = previewUrls.findIndex(
-                    ({ file }, candidate) => `${file.name}-${candidate}` === id,
+                    ({ file }, candidate) =>
+                      `${file.name}-${candidate}` === fileId,
                   );
                   if (index >= 0)
                     setFiles((current) =>
@@ -938,6 +1000,25 @@ function readLoginDraft(state: unknown): LoginDraft | null {
   return parseCustomOrderFormDraft(
     (state as { customOrderDraft?: unknown }).customOrderDraft,
   );
+}
+
+function readDesignJobs(state: unknown): GenerationJobOut[] {
+  if (!state || typeof state !== "object" || !("designJobs" in state)) {
+    return [];
+  }
+  const jobs = (state as { designJobs?: unknown }).designJobs;
+  if (!Array.isArray(jobs)) return [];
+  return jobs.filter((job): job is GenerationJobOut => {
+    if (!job || typeof job !== "object") return false;
+    const value = job as Record<string, unknown>;
+    return (
+      typeof value.id === "string" &&
+      value.kind === "finalize" &&
+      value.status === "succeeded" &&
+      typeof value.created_at === "string" &&
+      (value.result_url === null || typeof value.result_url === "string")
+    );
+  });
 }
 
 function productionPeriod(options: CustomOrderOptions) {

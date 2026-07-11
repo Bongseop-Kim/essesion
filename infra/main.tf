@@ -30,6 +30,13 @@ resource "google_storage_bucket" "assets" {
   name                        = "${var.project_id}-assets"
   location                    = var.region
   uniform_bucket_level_access = true
+
+  cors {
+    origin          = var.upload_cors_origins
+    method          = ["GET", "HEAD"]
+    response_header = ["Content-Type", "ETag"]
+    max_age_seconds = 3600
+  }
 }
 
 resource "google_storage_bucket_iam_member" "assets_public_read" {

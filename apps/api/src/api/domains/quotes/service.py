@@ -12,10 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.domains.quotes.schemas import QuoteCreateRequest
 from api.errors import ConflictError, DomainError, NotFoundError
+from api.integrations.gcs import GcsClient
 from api.numbering import generate_number
 
 MAX_OPTIONS_BYTES = 10_000
+MAX_REFERENCE_IMAGE_BYTES = 10 * 1024 * 1024
 IMAGE_EXPIRY = timedelta(days=90)
+QUOTE_IMAGE_PREFIX = "uploads/quote_request/"
+QUOTE_UPLOAD_ENTITY_TYPE = "quote_request_upload"
 
 TRANSITIONS: set[tuple[str, str]] = {
     ("요청", "견적발송"),
@@ -27,7 +31,68 @@ TRANSITIONS: set[tuple[str, str]] = {
 }
 
 
-async def create_quote(session: AsyncSession, user: User, body: QuoteCreateRequest) -> QuoteRequest:
+async def _staged_reference_images(
+    session: AsyncSession,
+    user: User,
+    object_keys: list[str],
+    gcs: GcsClient,
+) -> list[Image]:
+    if len(object_keys) != len(set(object_keys)):
+        raise DomainError("참고 이미지가 중복되었습니다", code="duplicate_reference_image")
+    if any(not key.startswith(QUOTE_IMAGE_PREFIX) for key in object_keys):
+        raise DomainError("유효하지 않은 견적 이미지입니다", code="invalid_quote_image")
+    if not object_keys:
+        return []
+
+    images = (
+        await session.scalars(
+            select(Image)
+            .where(
+                Image.entity_type == QUOTE_UPLOAD_ENTITY_TYPE,
+                Image.entity_id.in_(object_keys),
+            )
+            .with_for_update()
+        )
+    ).all()
+    by_key = {image.object_key: image for image in images}
+    now = datetime.now(UTC)
+
+    ordered: list[Image] = []
+    for object_key in object_keys:
+        image = by_key.get(object_key)
+        if image is None:
+            raise DomainError("유효하지 않은 견적 이미지입니다", code="invalid_quote_image")
+        if image.uploaded_by != user.id:
+            raise ConflictError("견적 이미지 소유권이 일치하지 않습니다", code="ownership_conflict")
+        if image.deleted_at is not None or (
+            image.expires_at is not None and image.expires_at <= now
+        ):
+            raise DomainError("만료되거나 삭제된 견적 이미지입니다", code="quote_image_expired")
+
+        metadata = await gcs.object_metadata(object_key)
+        if gcs.upload_required:
+            if metadata is None:
+                raise DomainError(
+                    "업로드된 견적 이미지를 찾을 수 없습니다", code="upload_not_found"
+                )
+            if not 0 < metadata.size_bytes <= MAX_REFERENCE_IMAGE_BYTES:
+                raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+            if metadata.content_type != image.content_type:
+                raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+            if image.size_bytes is not None and metadata.size_bytes != image.size_bytes:
+                raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+            image.size_bytes = metadata.size_bytes
+        image.upload_completed_at = now
+        ordered.append(image)
+    return ordered
+
+
+async def create_quote(
+    session: AsyncSession,
+    user: User,
+    body: QuoteCreateRequest,
+    gcs: GcsClient,
+) -> QuoteRequest:
     if body.quantity < 100:
         raise DomainError("Quantity must be 100 or more", code="invalid_quantity")
     if len(json.dumps(body.options).encode()) > MAX_OPTIONS_BYTES:
@@ -45,6 +110,13 @@ async def create_quote(session: AsyncSession, user: User, body: QuoteCreateReque
     if address is None:
         raise DomainError("Shipping address not found", code="address_not_found", status=404)
 
+    staged_images = await _staged_reference_images(
+        session,
+        user,
+        [image.object_key for image in body.reference_images],
+        gcs,
+    )
+
     quote = QuoteRequest(
         user_id=user.id,
         quote_number=await generate_number(session, QuoteRequest.quote_number, "QUO"),
@@ -61,15 +133,11 @@ async def create_quote(session: AsyncSession, user: User, body: QuoteCreateReque
     )
     session.add(quote)
     await session.flush()
-    for img in body.reference_images:
-        session.add(
-            Image(
-                object_key=img.object_key,
-                entity_type="quote_request",
-                entity_id=str(quote.id),
-                uploaded_by=user.id,
-            )
-        )
+    for image in staged_images:
+        image.entity_type = "quote_request"
+        image.entity_id = str(quote.id)
+        image.expires_at = None
+        image.deletion_claimed_at = None
     await session.commit()
     await session.refresh(quote)
     return quote

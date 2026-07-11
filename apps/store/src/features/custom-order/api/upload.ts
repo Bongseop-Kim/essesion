@@ -15,13 +15,18 @@ export async function uploadOrderImage(
     throw new Error("JPG, PNG, WebP 이미지만 업로드할 수 있습니다.");
   }
   const issued = await createUploadUrl({
-    body: { filename: file.name, content_type: file.type, kind },
+    body: {
+      filename: file.name,
+      content_type: file.type,
+      size_bytes: file.size,
+      kind,
+    },
   });
   if (!issued.data) throw new Error("이미지 업로드를 준비하지 못했습니다.");
   if (issued.data.upload_required) {
     const response = await fetch(issued.data.upload_url, {
       method: "PUT",
-      headers: { "Content-Type": file.type },
+      headers: issued.data.required_headers,
       body: file,
     });
     if (!response.ok) throw new Error("이미지를 업로드하지 못했습니다.");

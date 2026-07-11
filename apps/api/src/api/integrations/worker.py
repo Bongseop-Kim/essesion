@@ -66,13 +66,17 @@ class WorkerClient:
             except httpx.HTTPError as exc:
                 raise UpstreamError("워커 인증 토큰 발급에 실패했습니다") from exc
             token = res.text.strip()
-            claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
-            self._id_token, self._id_token_exp = token, float(claims["exp"])
+            try:
+                claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
+                token_exp = float(claims["exp"])
+            except (IndexError, KeyError, TypeError, ValueError) as exc:
+                raise UpstreamError("워커 인증 토큰 형식이 올바르지 않습니다") from exc
+            self._id_token, self._id_token_exp = token, token_exp
         return {"Authorization": f"Bearer {self._id_token}"}
 
     async def _post(self, path: str, payload: dict[str, Any]) -> httpx.Response:
-        headers = {"X-Request-ID": request_id_var.get(), **(await self._auth_headers())}
         try:
+            headers = {"X-Request-ID": request_id_var.get(), **(await self._auth_headers())}
             res = await self._client.post(path, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise UpstreamError("이미지 워커 호출에 실패했습니다") from exc
@@ -84,12 +88,20 @@ class WorkerClient:
         return res
 
     async def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return (await self._post(path, payload)).json()
+        res = await self._post(path, payload)
+        try:
+            body: Any = res.json()
+        except ValueError as exc:
+            raise UpstreamError("이미지 워커 응답을 해석하지 못했습니다") from exc
+        if not isinstance(body, dict):
+            raise UpstreamError("이미지 워커 응답 형식이 올바르지 않습니다")
+        return body
 
 
 def _detail_of(res: httpx.Response) -> str:
     try:
-        detail = res.json().get("detail")
+        body = res.json()
+        detail = body.get("detail") if isinstance(body, dict) else None
     except ValueError:
         detail = None
     return str(detail) if detail else res.text[:200]

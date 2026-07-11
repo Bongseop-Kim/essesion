@@ -46,7 +46,8 @@ resource "google_project_iam_member" "worker_roles" {
   member  = "serviceAccount:${google_service_account.worker.email}"
 }
 
-# 공개 생성물은 worker만 쓴다. api는 assets 접근 불요(공개 서빙, 서명 불필요).
+# 공개 생성물 쓰기는 worker만 한다. api는 main.tf의 allUsers viewer 권한으로 읽고
+# 주문 첨부 복사본은 비공개 uploads 버킷에만 쓴다.
 resource "google_storage_bucket_iam_member" "assets_rw" {
   bucket = google_storage_bucket.assets.name
   role   = "roles/storage.objectAdmin"

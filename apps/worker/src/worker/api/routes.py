@@ -58,6 +58,7 @@ class GenerateResponse(BaseModel):
     request_id: str
     registry_version: str
     engine_version: str
+    intents: list[dict[str, Any]]
     candidates: list[CandidateOut]
     warnings: list[str] = []
 
@@ -145,6 +146,7 @@ async def generate(
 
     if body.intent is not None:
         input_type = "intent"
+        resolved_intents = [body.intent]
         catalog = await get_motifs(session, iter_motif_ids(body.intent))
         try:
             candidate_set = generate_candidates(
@@ -160,7 +162,7 @@ async def generate(
         except (AssertionError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         tile_mm = float(body.intent["canvas"]["tile_mm"])
-        intent_log: dict[str, Any] = {"designs": [body.intent]}
+        intent_log: dict[str, Any] = {"designs": resolved_intents}
     elif body.prompt is not None:
         input_type = "prompt"
         gemini = adapters.gemini
@@ -255,6 +257,7 @@ async def generate(
         request_id=request_id_var.get(),
         registry_version=registry_version,
         engine_version=settings.engine_version,
+        intents=resolved_intents,
         candidates=outs,
         warnings=warnings,
     )
