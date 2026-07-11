@@ -81,6 +81,15 @@ class SampleOrderCreateRequest(BaseModel):
     user_coupon_id: uuid.UUID | None = None
 
 
+class SampleAmountRequest(BaseModel):
+    sample_type: Literal["fabric", "sewing", "fabric_and_sewing"]
+    options: dict[str, Any]
+
+
+class SampleAmountResponse(BaseModel):
+    total_cost: int
+
+
 class SingleOrderCreateResponse(BaseModel):
     order_id: uuid.UUID
     order_number: str

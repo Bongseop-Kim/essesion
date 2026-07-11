@@ -42,13 +42,17 @@ export function useCheckoutPayment<T>({
   createOrder,
   orderName,
   expectedAmount,
+  failPath = "/order/payment/fail",
   storageKey,
+  successPath = "/order/payment/success",
   snapshot,
 }: {
   createOrder: () => Promise<CreatedPayment>;
   orderName: string;
   expectedAmount?: number;
+  failPath?: string;
   storageKey: string;
+  successPath?: string;
   snapshot: T;
 }) {
   const [isPending, setPending] = useState(false);
@@ -92,8 +96,8 @@ export function useCheckoutPayment<T>({
         await widget.requestPayment({
           orderId: payment.paymentGroupId,
           orderName,
-          successUrl: `${window.location.origin}/order/payment/success`,
-          failUrl: `${window.location.origin}/order/payment/fail`,
+          successUrl: `${window.location.origin}${successPath}`,
+          failUrl: `${window.location.origin}${failPath}`,
         });
       } catch (error) {
         if (!isUserCancel(error)) snackbar("결제를 시작하지 못했습니다.");

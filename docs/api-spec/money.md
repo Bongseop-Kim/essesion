@@ -45,7 +45,7 @@
 
 가격 계산 (calculate_custom_order_amounts):
 - pricing_constants 키: `START_COST, SEWING_PER_COST, AUTO_TIE_COST, TRIANGLE_STITCH_COST, SIDE_STITCH_COST, BAR_TACK_COST, DIMPLE_COST, SPODERATO_COST, FOLD7_COST, WOOL_INTERLINING_COST, BRAND_LABEL_COST, CARE_LABEL_COST, YARN_DYED_DESIGN_COST` — 하나라도 없으면 오류.
-- 옵션: `tie_type ∈ {'', 'AUTO'}`, `interlining ∈ {'', 'WOOL'}`, bool 8종(triangle_stitch, side_stitch, bar_tack, dimple, spoderato, fold7, brand_label, care_label). **dimple은 tie_type='AUTO'에서만** — 위반 시 `'딤플은 자동 봉제(AUTO)에서만 선택 가능합니다'`.
+- 옵션: `tie_type ∈ {'', 'AUTO'}`, `interlining ∈ {'', 'WOOL'}`, bool 9종(triangle_stitch, side_stitch, bar_tack, dimple, turn_knot, spoderato, fold7, brand_label, care_label). **dimple·turn_knot은 tie_type='AUTO'에서만** 선택 가능하며, turn_knot은 자동 타이 비용에 포함되어 별도 과금하지 않는다.
 - `sewing = (SEWING_PER_COST + 선택 옵션 상수 합) * qty + START_COST`
 - fabric: `fabric_provided=true → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + (design_type='YARN_DYED'? YARN_DYED_DESIGN_COST : 0)`. design/fabric_type null이면 오류.
 - total = sewing + fabric.

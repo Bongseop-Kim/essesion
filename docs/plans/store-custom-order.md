@@ -79,8 +79,8 @@
 
 **options dict는 프론트가 소유** (`features/custom-order/model/options.ts` — 서버는 `dict[str,Any]`로 저장, 가격 관련 키만 검증 `orders/service.py:481-535`):
 
-- 가격 반영 키(서버 계약): `tie_type: ""|"AUTO"`, `interlining: ""|"WOOL"`, bool 8종 `triangle_stitch/side_stitch/bar_tack/dimple/spoderato/fold7/brand_label/care_label`, `fabric_provided: bool`, `design_type: "PRINTING"|"YARN_DYED"` + `fabric_type: "POLY"|"SILK"`(fabric_provided=false일 때 필수).
-- **주의: 심지 POLY는 `interlining: ""`로 정규화** — 서버가 `""|"WOOL"` 외를 400 처리. 딤플은 AUTO 전용(서버도 검증하지만 클라 의존성 리셋이 선차단).
+- 가격·사양 키(서버 계약): `tie_type: ""|"AUTO"`, `interlining: ""|"WOOL"`, bool 9종 `triangle_stitch/side_stitch/bar_tack/dimple/turn_knot/spoderato/fold7/brand_label/care_label`, `fabric_provided: bool`, `design_type: "PRINTING"|"YARN_DYED"` + `fabric_type: "POLY"|"SILK"`(fabric_provided=false일 때 필수). `turn_knot`은 사양 기록용이며 자동 타이 비용에 포함된다.
+- **주의: 심지 POLY는 `interlining: ""`로 정규화** — 서버가 `""|"WOOL"` 외를 400 처리. 딤플·돌려묶기는 AUTO 전용(서버도 검증하지만 클라 의존성 리셋이 선차단).
 - 기록용 키(calculate는 무시, item_data/quote에 스냅샷): `reorder`, `size_type: "ADULT"|"CHILD"`, `tie_width: number`.
 
 ## 5. 착수 전 제안 3건 (프롬프트 요구사항)

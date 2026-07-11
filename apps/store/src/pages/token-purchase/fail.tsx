@@ -6,21 +6,19 @@ import {
 } from "@essesion/shared";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { CHECKOUT_PENDING_KEY, readPendingCheckout } from "@/features/checkout";
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 
-export function PaymentFailPage() {
+export function TokenPurchaseFailPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const code = params.get("code") ?? "UNKNOWN";
   const message = params.get("message") ?? "결제를 완료하지 못했습니다.";
-
   return (
     <ResultPageLayout>
       <ContentPlaceholder
         icon={<ResultEmoji emoji="😢" />}
-        title="결제가 완료되지 않았습니다"
+        title="토큰 결제가 완료되지 않았습니다"
         description={
           <VStack gap="x1" align="center">
             <Text textStyle="bodySm" color="fg.neutral-muted">
@@ -32,22 +30,8 @@ export function PaymentFailPage() {
           </VStack>
         }
         action={
-          <ActionButton
-            type="button"
-            onClick={() => {
-              const pending = readPendingCheckout<{
-                cartItemIds?: string[];
-                returnPath?: string;
-                returnState?: unknown;
-              }>(CHECKOUT_PENDING_KEY);
-              navigate(pending?.snapshot.returnPath ?? "/order/order-form", {
-                state: pending?.snapshot.returnState ?? {
-                  cartItemIds: pending?.snapshot.cartItemIds,
-                },
-              });
-            }}
-          >
-            주문서로 돌아가기
+          <ActionButton onClick={() => navigate("/token/purchase")}>
+            토큰 구매로 돌아가기
           </ActionButton>
         }
       />

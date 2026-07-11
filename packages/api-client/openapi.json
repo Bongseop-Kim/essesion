@@ -4328,6 +4328,43 @@
         "title": "RevokeByIdsRequest",
         "type": "object"
       },
+      "SampleAmountRequest": {
+        "properties": {
+          "options": {
+            "additionalProperties": true,
+            "title": "Options",
+            "type": "object"
+          },
+          "sample_type": {
+            "enum": [
+              "fabric",
+              "sewing",
+              "fabric_and_sewing"
+            ],
+            "title": "Sample Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_type",
+          "options"
+        ],
+        "title": "SampleAmountRequest",
+        "type": "object"
+      },
+      "SampleAmountResponse": {
+        "properties": {
+          "total_cost": {
+            "title": "Total Cost",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_cost"
+        ],
+        "title": "SampleAmountResponse",
+        "type": "object"
+      },
       "SampleOrderCreateRequest": {
         "properties": {
           "additional_notes": {
@@ -7951,6 +7988,48 @@
           }
         ],
         "summary": "Create Sample Order",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/sample/calculate": {
+      "post": {
+        "description": "샘플 주문 금액 계산 — 공개(주문·쿠폰 상태를 만들지 않음).",
+        "operationId": "calculate_sample_order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SampleAmountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleAmountResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Calculate Sample Order",
         "tags": [
           "orders"
         ]

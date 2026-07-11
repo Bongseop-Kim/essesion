@@ -33,7 +33,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import {
   productUnitPrice,
@@ -42,8 +42,7 @@ import {
 } from "@/features/cart";
 import {
   CHECKOUT_PENDING_KEY,
-  PaymentWidget,
-  type PaymentWidgetHandle,
+  CheckoutShell,
   readPendingCheckout,
   useCheckoutPayment,
 } from "@/features/checkout";
@@ -64,7 +63,6 @@ import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
-import { PaymentActionBar } from "@/shared/ui/payment-action-bar";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 export function OrderFormPage() {
@@ -95,7 +93,6 @@ export function OrderFormPage() {
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponItemId, setCouponItemId] = useState<string | null>(null);
-  const [widgetReady, setWidgetReady] = useState(false);
   const [repairMethod, setRepairMethod] = useState<"direct" | "pickup">(
     pendingRepair?.method ?? "direct",
   );
@@ -122,7 +119,6 @@ export function OrderFormPage() {
     shipmentFormFromDraft(pendingDraft),
   );
   const [photosUploading, setPhotosUploading] = useState(false);
-  const paymentWidgetRef = useRef<PaymentWidgetHandle | null>(null);
 
   const cartItemIds = useMemo(() => {
     const state = location.state as { cartItemIds?: unknown } | null;
@@ -325,72 +321,60 @@ export function OrderFormPage() {
   const pricingReady = !hasReformItems || !!reformPricingQuery.data;
   const canPay =
     !!address &&
-    widgetReady &&
     totals.total > 0 &&
     pricingReady &&
     !pickupInvalid &&
     !shipInvalidReason;
 
   return (
-    <ContentLayout
+    <CheckoutShell
       breadcrumbs={orderCrumbs()}
-      sidebar={
-        <VStack gap="x6" alignItems="stretch">
-          <SummaryCard.Root>
-            <SummaryCard.Section
-              title="결제 금액"
-              description="서버에서 최종 금액을 다시 확인합니다."
-            />
-            <Divider />
-            <SummaryCard.Row
-              label="상품·수선 금액"
-              value={`${krw.format(totals.subtotal)}원`}
-            />
-            <SummaryCard.Row
-              label="쿠폰 할인"
-              value={`-${krw.format(totals.discount)}원`}
-              tone={totals.discount > 0 ? "informative" : "neutral"}
-            />
-            <SummaryCard.Row
-              label="배송비"
-              value={`${krw.format(totals.shipping)}원`}
-            />
-            {totals.pickup > 0 ? (
-              <SummaryCard.Row
-                label="방문 수거비"
-                value={`${krw.format(totals.pickup)}원`}
-              />
-            ) : null}
-            <SummaryCard.Total
-              label="결제 예정 금액"
-              value={`${krw.format(totals.total)}원`}
-            />
-          </SummaryCard.Root>
-          <PaymentWidget
-            ref={paymentWidgetRef}
-            amount={totals.total}
-            customerKey={user.id}
-            onReadyChange={setWidgetReady}
+      amount={totals.total}
+      customerKey={user.id}
+      summary={
+        <SummaryCard.Root>
+          <SummaryCard.Section
+            title="결제 금액"
+            description="서버에서 최종 금액을 다시 확인합니다."
           />
-        </VStack>
+          <Divider />
+          <SummaryCard.Row
+            label="상품·수선 금액"
+            value={`${krw.format(totals.subtotal)}원`}
+          />
+          <SummaryCard.Row
+            label="쿠폰 할인"
+            value={`-${krw.format(totals.discount)}원`}
+            tone={totals.discount > 0 ? "informative" : "neutral"}
+          />
+          <SummaryCard.Row
+            label="배송비"
+            value={`${krw.format(totals.shipping)}원`}
+          />
+          {totals.pickup > 0 ? (
+            <SummaryCard.Row
+              label="방문 수거비"
+              value={`${krw.format(totals.pickup)}원`}
+            />
+          ) : null}
+          <SummaryCard.Total
+            label="결제 예정 금액"
+            value={`${krw.format(totals.total)}원`}
+          />
+        </SummaryCard.Root>
       }
-      actionBar={
-        <PaymentActionBar
-          amount={totals.total}
-          disabled={!canPay}
-          loading={payment.isPending}
-          helperText={
-            !address
-              ? "배송지를 먼저 등록해 주세요."
-              : !pricingReady
-                ? "수선 비용을 확인하는 중입니다."
-                : pickupInvalid
-                  ? "수거지 이름, 연락처, 주소를 입력해 주세요."
-                  : (shipInvalidReason ?? undefined)
-          }
-          onClick={() => void payment.pay(paymentWidgetRef.current)}
-        />
+      payDisabled={!canPay}
+      payLoading={payment.isPending}
+      helperText={
+        !address
+          ? "배송지를 먼저 등록해 주세요."
+          : !pricingReady
+            ? "수선 비용을 확인하는 중입니다."
+            : pickupInvalid
+              ? "수거지 이름, 연락처, 주소를 입력해 주세요."
+              : (shipInvalidReason ?? undefined)
       }
+      onPay={(widget) => void payment.pay(widget)}
     >
       <VStack gap="x6" alignItems="stretch">
         <VStack gap="x2">
@@ -590,7 +574,7 @@ export function OrderFormPage() {
           }
         }}
       />
-    </ContentLayout>
+    </CheckoutShell>
   );
 }
 

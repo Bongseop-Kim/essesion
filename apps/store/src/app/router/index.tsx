@@ -58,6 +58,24 @@ export const router = createBrowserRouter([
           Component: (await import("@/pages/reform")).ReformPage,
         }),
       },
+      {
+        path: "custom-order",
+        lazy: async () => ({
+          Component: (await import("@/pages/custom-order")).CustomOrderPage,
+        }),
+      },
+      {
+        path: "sample-order",
+        lazy: async () => ({
+          Component: (await import("@/pages/sample-order")).SampleOrderPage,
+        }),
+      },
+      {
+        path: "token/purchase",
+        lazy: async () => ({
+          Component: (await import("@/pages/token-purchase")).TokenPurchasePage,
+        }),
+      },
       ...previewRoutes,
       {
         element: <ProtectedRoute />,
@@ -67,6 +85,41 @@ export const router = createBrowserRouter([
             lazy: async () => ({
               Component: (await import("@/pages/order/order-form"))
                 .OrderFormPage,
+            }),
+          },
+          {
+            path: "order/custom-payment",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/custom-payment"))
+                .CustomPaymentPage,
+            }),
+          },
+          {
+            path: "order/sample-payment",
+            lazy: async () => ({
+              Component: (await import("@/pages/order/sample-payment"))
+                .SamplePaymentPage,
+            }),
+          },
+          {
+            path: "token/purchase/payment",
+            lazy: async () => ({
+              Component: (await import("@/pages/token-purchase/payment"))
+                .TokenPaymentPage,
+            }),
+          },
+          {
+            path: "token/purchase/success",
+            lazy: async () => ({
+              Component: (await import("@/pages/token-purchase/success"))
+                .TokenPurchaseSuccessPage,
+            }),
+          },
+          {
+            path: "token/purchase/fail",
+            lazy: async () => ({
+              Component: (await import("@/pages/token-purchase/fail"))
+                .TokenPurchaseFailPage,
             }),
           },
           {

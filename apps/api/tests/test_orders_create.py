@@ -259,7 +259,9 @@ async def test_custom_calculate_rules(client, db_session):
             "BRAND_LABEL_COST": 200,
             "CARE_LABEL_COST": 100,
             "YARN_DYED_DESIGN_COST": 30000,
+            "FABRIC_PRINTING_POLY": 8000,
             "FABRIC_PRINTING_SILK": 10000,
+            "FABRIC_YARN_DYED_POLY": 12000,
         },
     )
     # dimple은 AUTO에서만
@@ -270,6 +272,14 @@ async def test_custom_calculate_rules(client, db_session):
     assert res.status_code == 400
     assert res.json()["detail"] == "딤플은 자동 봉제(AUTO)에서만 선택 가능합니다"
 
+    # 돌려묶기도 AUTO에서만
+    res = await client.post(
+        "/orders/custom/calculate",
+        json={"options": {"turn_knot": True, "fabric_provided": True}, "quantity": 10},
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"] == "돌려묶기는 자동 봉제(AUTO)에서만 선택 가능합니다"
+
     # sewing = (3000+1000+700)*10 + 50000 = 97000, fabric = round(10*10000/4) = 25000
     res = await client.post(
         "/orders/custom/calculate",
@@ -277,6 +287,7 @@ async def test_custom_calculate_rules(client, db_session):
             "options": {
                 "tie_type": "AUTO",
                 "dimple": True,
+                "turn_knot": True,
                 "design_type": "PRINTING",
                 "fabric_type": "SILK",
             },
@@ -285,6 +296,25 @@ async def test_custom_calculate_rules(client, db_session):
     )
     assert res.status_code == 200
     assert res.json() == {"sewing_cost": 97000, "fabric_cost": 25000, "total_cost": 122000}
+
+    # 폴리 원단 가격 키도 날염·선염 모두 계산 가능해야 한다.
+    for design_type, expected_fabric_cost in (("PRINTING", 8000), ("YARN_DYED", 42000)):
+        res = await client.post(
+            "/orders/custom/calculate",
+            json={
+                "options": {
+                    "design_type": design_type,
+                    "fabric_type": "POLY",
+                },
+                "quantity": 4,
+            },
+        )
+        assert res.status_code == 200
+        assert res.json() == {
+            "sewing_cost": 62000,
+            "fabric_cost": expected_fabric_cost,
+            "total_cost": 62000 + expected_fabric_cost,
+        }
 
 
 async def test_custom_order_creates_with_remainder(client, db_session, settings):
@@ -346,6 +376,25 @@ async def test_sample_order_pricing(client, db_session, settings):
     )
     assert res.status_code == 201, res.text
     assert res.json()["total_amount"] == 70000
+
+
+async def test_sample_order_calculate_is_public_and_has_no_order_side_effect(client, db_session):
+    await seed_pricing(
+        db_session,
+        {"SAMPLE_FABRIC_AND_SEWING_PRINTING_COST": 90000},
+        category="custom_order",
+    )
+    res = await client.post(
+        "/orders/sample/calculate",
+        json={
+            "sample_type": "fabric_and_sewing",
+            "options": {"design_type": "PRINTING"},
+        },
+    )
+    assert res.status_code == 200, res.text
+    assert res.json() == {"total_cost": 90000}
+
+    assert await db_session.scalar(select(Order)) is None
 
 
 async def test_order_numbering_sequence(client, db_session, settings):
