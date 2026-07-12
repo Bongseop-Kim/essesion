@@ -1,10 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Query, Request
 
 from api.db import SessionDep
-from api.deps import AdminUser, CurrentUser
+from api.deps import AdminOnly, CurrentUser
 from api.domains.tokens import ledger
 from api.domains.tokens.schemas import (
     AdminTokenManageRequest,
@@ -81,14 +81,35 @@ async def cancel_token_refund(claim_id: uuid.UUID, session: SessionDep, user: Cu
 
 @router.post("/admin/tokens/manage", response_model=AdminTokenManageResponse)
 async def admin_manage_tokens(
-    body: AdminTokenManageRequest, session: SessionDep, admin: AdminUser
+    body: AdminTokenManageRequest, session: SessionDep, admin: AdminOnly
 ) -> AdminTokenManageResponse:
-    result = await ledger.admin_manage(session, body.user_id, body.amount, body.description)
+    result = await ledger.admin_manage(
+        session,
+        admin,
+        body.operation_id,
+        body.user_id,
+        body.amount,
+        body.description,
+    )
     return AdminTokenManageResponse(**result)
 
 
 @router.post("/admin/token-refunds/{claim_id}/approve")
 async def admin_approve_token_refund(
-    claim_id: uuid.UUID, session: SessionDep, admin: AdminUser, request: Request
+    claim_id: uuid.UUID,
+    session: SessionDep,
+    admin: AdminOnly,
+    request: Request,
+    background: BackgroundTasks,
 ) -> dict:
-    return await ledger.approve_refund(session, admin, request.app.state.toss, claim_id)
+    result = await ledger.approve_refund(session, admin, request.app.state.toss, claim_id)
+    app = request.app
+
+    async def _notify() -> None:
+        from api.domains.claims.service import notify_status
+
+        async with app.state.sessionmaker() as notify_session:
+            await notify_status(notify_session, app.state.solapi, app.state.settings, claim_id)
+
+    background.add_task(_notify)
+    return result

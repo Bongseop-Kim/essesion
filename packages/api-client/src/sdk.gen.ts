@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AdminApproveTokenRefundData, AdminApproveTokenRefundErrors, AdminApproveTokenRefundResponses, AdminListClaimsData, AdminListClaimsResponses, AdminListInquiriesData, AdminListInquiriesResponses, AdminListQuotesData, AdminListQuotesResponses, AdminManageTokensData, AdminManageTokensErrors, AdminManageTokensResponses, AdminUpdateClaimStatusData, AdminUpdateClaimStatusErrors, AdminUpdateClaimStatusResponses, AdminUpdateOrderStatusData, AdminUpdateOrderStatusErrors, AdminUpdateOrderStatusResponses, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingErrors, AdminUpdateOrderTrackingResponses, AdminUpdateQuoteStatusData, AdminUpdateQuoteStatusErrors, AdminUpdateQuoteStatusResponses, AnswerInquiryData, AnswerInquiryErrors, AnswerInquiryResponses, AppendDesignTurnData, AppendDesignTurnErrors, AppendDesignTurnResponses, AutoConfirmOrdersData, AutoConfirmOrdersResponses, BulkIssueCouponsData, BulkIssueCouponsErrors, BulkIssueCouponsResponses, CalculateCustomOrderData, CalculateCustomOrderErrors, CalculateCustomOrderResponses, CalculateSampleOrderData, CalculateSampleOrderErrors, CalculateSampleOrderResponses, CancelClaimData, CancelClaimErrors, CancelClaimResponses, CancelStaleOrdersData, CancelStaleOrdersResponses, CancelTokenRefundData, CancelTokenRefundErrors, CancelTokenRefundResponses, CleanupImagesData, CleanupImagesResponses, ConfirmPaymentData, ConfirmPaymentErrors, ConfirmPaymentResponses, ConfirmPurchaseData, ConfirmPurchaseErrors, ConfirmPurchaseResponses, CreateClaimData, CreateClaimErrors, CreateClaimResponses, CreateCouponData, CreateCouponErrors, CreateCouponResponses, CreateCustomOrderData, CreateCustomOrderErrors, CreateCustomOrderResponses, CreateDesignOrderReferenceData, CreateDesignOrderReferenceErrors, CreateDesignOrderReferenceResponses, CreateDesignSessionData, CreateDesignSessionResponses, CreateFinalizeJobData, CreateFinalizeJobErrors, CreateFinalizeJobResponses, CreateInquiryData, CreateInquiryErrors, CreateInquiryResponses, CreateOrderData, CreateOrderErrors, CreateOrderResponses, CreateProductData, CreateProductErrors, CreateProductResponses, CreateQuoteData, CreateQuoteErrors, CreateQuoteResponses, CreateReadUrlData, CreateReadUrlErrors, CreateReadUrlResponses, CreateReformUploadUrlData, CreateReformUploadUrlErrors, CreateReformUploadUrlResponses, CreateSampleOrderData, CreateSampleOrderErrors, CreateSampleOrderResponses, CreateTokenOrderData, CreateTokenOrderErrors, CreateTokenOrderResponses, CreateUploadUrlData, CreateUploadUrlErrors, CreateUploadUrlResponses, DeleteAccountData, DeleteAccountResponses, DeleteAddressData, DeleteAddressErrors, DeleteAddressResponses, DeleteInquiryData, DeleteInquiryErrors, DeleteInquiryResponses, ExportDesignData, ExportDesignErrors, ExportDesignResponses, GenerateDesignData, GenerateDesignErrors, GenerateDesignResponses, GetCartData, GetCartResponses, GetDesignSessionData, GetDesignSessionErrors, GetDesignSessionResponses, GetGenerationJobData, GetGenerationJobErrors, GetGenerationJobResponses, GetInquiryData, GetInquiryErrors, GetInquiryResponses, GetMeData, GetMeResponses, GetOrderData, GetOrderErrors, GetOrderResponses, GetProductData, GetProductErrors, GetProductResponses, GetQuoteData, GetQuoteErrors, GetQuoteResponses, GetReformPricingData, GetReformPricingResponses, GetTokenBalanceData, GetTokenBalanceResponses, GetTokenPlansData, GetTokenPlansResponses, HealthzData, HealthzResponses, LikeProductData, LikeProductErrors, LikeProductResponses, ListAddressesData, ListAddressesResponses, ListAllOrdersData, ListAllOrdersErrors, ListAllOrdersResponses, ListCouponsData, ListCouponsResponses, ListDesignSessionsData, ListDesignSessionsResponses, ListDesignTurnsData, ListDesignTurnsErrors, ListDesignTurnsResponses, ListGenerationJobsData, ListGenerationJobsErrors, ListGenerationJobsResponses, ListMyClaimsData, ListMyClaimsResponses, ListMyCouponsData, ListMyCouponsErrors, ListMyCouponsResponses, ListMyInquiriesData, ListMyInquiriesResponses, ListMyOrdersData, ListMyOrdersErrors, ListMyOrdersResponses, ListMyQuotesData, ListMyQuotesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponses, ListTokenHistoryData, ListTokenHistoryErrors, ListTokenHistoryResponses, ListUsersData, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, MotifCandidatesData, MotifCandidatesErrors, MotifCandidatesResponses, MotifGenerateData, MotifGenerateErrors, MotifGenerateResponses, PeriodStatsData, PeriodStatsErrors, PeriodStatsResponses, RefreshTokensData, RefreshTokensResponses, RegisterReformUploadData, RegisterReformUploadErrors, RegisterReformUploadResponses, RegisterRepairShippingUploadData, RegisterRepairShippingUploadErrors, RegisterRepairShippingUploadResponses, RemoveCartItemsData, RemoveCartItemsErrors, RemoveCartItemsResponses, ReplaceCartData, ReplaceCartErrors, ReplaceCartResponses, ReplaceProductOptionsData, ReplaceProductOptionsErrors, ReplaceProductOptionsResponses, RequestTokenRefundData, RequestTokenRefundErrors, RequestTokenRefundResponses, RevokeCouponsByIdsData, RevokeCouponsByIdsErrors, RevokeCouponsByIdsResponses, RevokeCouponsByUsersData, RevokeCouponsByUsersErrors, RevokeCouponsByUsersResponses, SendPhoneVerificationData, SendPhoneVerificationErrors, SendPhoneVerificationResponses, SetNotificationPreferencesData, SetNotificationPreferencesErrors, SetNotificationPreferencesResponses, SubmitRepairNoTrackingData, SubmitRepairNoTrackingErrors, SubmitRepairNoTrackingResponses, SubmitRepairTrackingData, SubmitRepairTrackingErrors, SubmitRepairTrackingResponses, TodayStatsData, TodayStatsErrors, TodayStatsResponses, TossWebhookData, TossWebhookErrors, TossWebhookResponses, UnlikeProductData, UnlikeProductErrors, UnlikeProductResponses, UpdateDesignSessionData, UpdateDesignSessionErrors, UpdateDesignSessionResponses, UpdateInquiryData, UpdateInquiryErrors, UpdateInquiryResponses, UpdateProductData, UpdateProductErrors, UpdateProductResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpsertAddressData, UpsertAddressErrors, UpsertAddressResponses, VerifyPhoneData, VerifyPhoneErrors, VerifyPhoneResponses } from './types.gen';
+import type { AdminApproveTokenRefundData, AdminApproveTokenRefundErrors, AdminApproveTokenRefundResponses, AdminCreateProductData, AdminCreateProductErrors, AdminCreateProductResponses, AdminGetClaimData, AdminGetClaimErrors, AdminGetClaimResponses, AdminGetPaymentIncidentData, AdminGetPaymentIncidentErrors, AdminGetPaymentIncidentResponses, AdminGetProductData, AdminGetProductErrors, AdminGetProductResponses, AdminListClaimsV2Data, AdminListClaimsV2Errors, AdminListClaimsV2Responses, AdminListPaymentIncidentsData, AdminListPaymentIncidentsErrors, AdminListPaymentIncidentsResponses, AdminListProductsData, AdminListProductsErrors, AdminListProductsResponses, AdminLoginData, AdminLoginErrors, AdminLoginResponses, AdminLogoutData, AdminLogoutResponses, AdminManageTokensData, AdminManageTokensErrors, AdminManageTokensResponses, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentErrors, AdminReconcilePaymentIncidentResponses, AdminRefreshTokensData, AdminRefreshTokensResponses, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentErrors, AdminResolvePaymentIncidentResponses, AdminRetryClaimNotificationData, AdminRetryClaimNotificationErrors, AdminRetryClaimNotificationResponses, AdminUpdateClaimStatusData, AdminUpdateClaimStatusErrors, AdminUpdateClaimStatusResponses, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingErrors, AdminUpdateClaimTrackingResponses, AdminUpdateOrderStatusData, AdminUpdateOrderStatusErrors, AdminUpdateOrderStatusResponses, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingErrors, AdminUpdateOrderTrackingResponses, AdminUpdateProductData, AdminUpdateProductErrors, AdminUpdateProductResponses, AnswerAdminInquiryData, AnswerAdminInquiryErrors, AnswerAdminInquiryResponses, AppendDesignTurnData, AppendDesignTurnErrors, AppendDesignTurnResponses, AutoConfirmOrdersData, AutoConfirmOrdersResponses, CalculateCustomOrderData, CalculateCustomOrderErrors, CalculateCustomOrderResponses, CalculateSampleOrderData, CalculateSampleOrderErrors, CalculateSampleOrderResponses, CancelClaimData, CancelClaimErrors, CancelClaimResponses, CancelStaleOrdersData, CancelStaleOrdersResponses, CancelTokenRefundData, CancelTokenRefundErrors, CancelTokenRefundResponses, CleanupImagesData, CleanupImagesResponses, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadErrors, CompleteAdminProductImageUploadResponses, CompleteOrderImageData, CompleteOrderImageErrors, CompleteOrderImageResponses, ConfirmPaymentData, ConfirmPaymentErrors, ConfirmPaymentResponses, ConfirmPurchaseData, ConfirmPurchaseErrors, ConfirmPurchaseResponses, CreateAdminCouponData, CreateAdminCouponErrors, CreateAdminCouponResponses, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlErrors, CreateAdminOrderReferenceImageReadUrlResponses, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlErrors, CreateAdminProductImageUploadUrlResponses, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlErrors, CreateAdminQuoteImageReadUrlResponses, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlErrors, CreateAdminRepairReceiptPhotoReadUrlResponses, CreateAdminSeamlessReferenceImageReadUrlData, CreateAdminSeamlessReferenceImageReadUrlErrors, CreateAdminSeamlessReferenceImageReadUrlResponses, CreateClaimData, CreateClaimErrors, CreateClaimResponses, CreateCustomOrderData, CreateCustomOrderErrors, CreateCustomOrderResponses, CreateDesignOrderReferenceData, CreateDesignOrderReferenceErrors, CreateDesignOrderReferenceResponses, CreateDesignSessionData, CreateDesignSessionResponses, CreateFinalizeJobData, CreateFinalizeJobErrors, CreateFinalizeJobResponses, CreateInquiryData, CreateInquiryErrors, CreateInquiryResponses, CreateOrderData, CreateOrderErrors, CreateOrderResponses, CreateQuoteData, CreateQuoteErrors, CreateQuoteResponses, CreateReadUrlData, CreateReadUrlErrors, CreateReadUrlResponses, CreateReformUploadUrlData, CreateReformUploadUrlErrors, CreateReformUploadUrlResponses, CreateSampleOrderData, CreateSampleOrderErrors, CreateSampleOrderResponses, CreateTokenOrderData, CreateTokenOrderErrors, CreateTokenOrderResponses, CreateUploadUrlData, CreateUploadUrlErrors, CreateUploadUrlResponses, DeleteAccountData, DeleteAccountResponses, DeleteAddressData, DeleteAddressErrors, DeleteAddressResponses, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadErrors, DeleteAdminProductImageUploadResponses, DeleteInquiryData, DeleteInquiryErrors, DeleteInquiryResponses, ExportDesignData, ExportDesignErrors, ExportDesignResponses, GenerateDesignData, GenerateDesignErrors, GenerateDesignResponses, GetAdminCapabilitiesData, GetAdminCapabilitiesResponses, GetAdminCouponData, GetAdminCouponErrors, GetAdminCouponResponses, GetAdminCustomerData, GetAdminCustomerErrors, GetAdminCustomerResponses, GetAdminGenerationJobData, GetAdminGenerationJobErrors, GetAdminGenerationJobResponses, GetAdminGenerationJobStatsData, GetAdminGenerationJobStatsErrors, GetAdminGenerationJobStatsResponses, GetAdminInquiryData, GetAdminInquiryErrors, GetAdminInquiryResponses, GetAdminMotifData, GetAdminMotifErrors, GetAdminMotifResponses, GetAdminOrderData, GetAdminOrderErrors, GetAdminOrderResponses, GetAdminPricingData, GetAdminPricingResponses, GetAdminQuoteData, GetAdminQuoteErrors, GetAdminQuoteResponses, GetAdminSeamlessLogData, GetAdminSeamlessLogErrors, GetAdminSeamlessLogResponses, GetAdminSeamlessStatsData, GetAdminSeamlessStatsErrors, GetAdminSeamlessStatsResponses, GetAdminSettingsData, GetAdminSettingsResponses, GetCartData, GetCartResponses, GetDashboardRecentOrdersData, GetDashboardRecentOrdersErrors, GetDashboardRecentOrdersResponses, GetDashboardRecentQuotesData, GetDashboardRecentQuotesErrors, GetDashboardRecentQuotesResponses, GetDashboardSummaryData, GetDashboardSummaryErrors, GetDashboardSummaryResponses, GetDesignSessionData, GetDesignSessionErrors, GetDesignSessionResponses, GetGenerationJobData, GetGenerationJobErrors, GetGenerationJobResponses, GetInquiryData, GetInquiryErrors, GetInquiryResponses, GetMeData, GetMeResponses, GetOrderData, GetOrderErrors, GetOrderResponses, GetProductData, GetProductErrors, GetProductResponses, GetQuoteData, GetQuoteErrors, GetQuoteResponses, GetReformPricingData, GetReformPricingResponses, GetTokenBalanceData, GetTokenBalanceResponses, GetTokenPlansData, GetTokenPlansResponses, HealthzData, HealthzResponses, IssueCouponData, IssueCouponErrors, IssueCouponResponses, LikeProductData, LikeProductErrors, LikeProductResponses, ListAddressesData, ListAddressesResponses, ListAdminCouponsData, ListAdminCouponsErrors, ListAdminCouponsResponses, ListAdminCustomerCouponsData, ListAdminCustomerCouponsErrors, ListAdminCustomerCouponsResponses, ListAdminCustomerOrdersData, ListAdminCustomerOrdersErrors, ListAdminCustomerOrdersResponses, ListAdminCustomersData, ListAdminCustomersErrors, ListAdminCustomersResponses, ListAdminCustomerTokensData, ListAdminCustomerTokensErrors, ListAdminCustomerTokensResponses, ListAdminGenerationJobsData, ListAdminGenerationJobsErrors, ListAdminGenerationJobsResponses, ListAdminInquiriesData, ListAdminInquiriesErrors, ListAdminInquiriesResponses, ListAdminMotifsData, ListAdminMotifsErrors, ListAdminMotifsResponses, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesErrors, ListAdminOrderReferenceImagesResponses, ListAdminQuotesData, ListAdminQuotesErrors, ListAdminQuotesResponses, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosErrors, ListAdminRepairReceiptPhotosResponses, ListAdminSeamlessLogsData, ListAdminSeamlessLogsErrors, ListAdminSeamlessLogsResponses, ListAllOrdersData, ListAllOrdersErrors, ListAllOrdersResponses, ListDesignSessionsData, ListDesignSessionsResponses, ListDesignTurnsData, ListDesignTurnsErrors, ListDesignTurnsResponses, ListGenerationJobsData, ListGenerationJobsErrors, ListGenerationJobsResponses, ListIssuedCouponsData, ListIssuedCouponsErrors, ListIssuedCouponsResponses, ListMyClaimsData, ListMyClaimsResponses, ListMyCouponsData, ListMyCouponsErrors, ListMyCouponsResponses, ListMyInquiriesData, ListMyInquiriesResponses, ListMyOrdersData, ListMyOrdersErrors, ListMyOrdersResponses, ListMyQuotesData, ListMyQuotesResponses, ListProductsData, ListProductsErrors, ListProductsResponses, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponses, ListTokenHistoryData, ListTokenHistoryErrors, ListTokenHistoryResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, MotifCandidatesData, MotifCandidatesErrors, MotifCandidatesResponses, MotifGenerateData, MotifGenerateErrors, MotifGenerateResponses, PeriodStatsData, PeriodStatsErrors, PeriodStatsResponses, PreviewCouponAudienceData, PreviewCouponAudienceErrors, PreviewCouponAudienceResponses, RefreshTokensData, RefreshTokensResponses, RegisterReformUploadData, RegisterReformUploadErrors, RegisterReformUploadResponses, RegisterRepairShippingUploadData, RegisterRepairShippingUploadErrors, RegisterRepairShippingUploadResponses, RemoveCartItemsData, RemoveCartItemsErrors, RemoveCartItemsResponses, ReplaceCartData, ReplaceCartErrors, ReplaceCartResponses, RequestTokenRefundData, RequestTokenRefundErrors, RequestTokenRefundResponses, RevokeCouponsData, RevokeCouponsErrors, RevokeCouponsResponses, RevokeCouponUsersData, RevokeCouponUsersErrors, RevokeCouponUsersResponses, SearchAdminCustomersData, SearchAdminCustomersErrors, SearchAdminCustomersResponses, SearchAdminInquiriesData, SearchAdminInquiriesErrors, SearchAdminInquiriesResponses, SendPhoneVerificationData, SendPhoneVerificationErrors, SendPhoneVerificationResponses, SetNotificationPreferencesData, SetNotificationPreferencesErrors, SetNotificationPreferencesResponses, SubmitRepairNoTrackingData, SubmitRepairNoTrackingErrors, SubmitRepairNoTrackingResponses, SubmitRepairTrackingData, SubmitRepairTrackingErrors, SubmitRepairTrackingResponses, TodayStatsData, TodayStatsErrors, TodayStatsResponses, TossWebhookData, TossWebhookErrors, TossWebhookResponses, UnlikeProductData, UnlikeProductErrors, UnlikeProductResponses, UpdateAdminCouponData, UpdateAdminCouponErrors, UpdateAdminCouponResponses, UpdateAdminPricingData, UpdateAdminPricingErrors, UpdateAdminPricingResponses, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusErrors, UpdateAdminQuoteStatusResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateDesignSessionData, UpdateDesignSessionErrors, UpdateDesignSessionResponses, UpdateInquiryData, UpdateInquiryErrors, UpdateInquiryResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, UpsertAddressData, UpsertAddressErrors, UpsertAddressResponses, VerifyPhoneData, VerifyPhoneErrors, VerifyPhoneResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -19,11 +19,38 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
- * Admin List Claims
+ * Get Admin Capabilities
  */
-export const adminListClaims = <ThrowOnError extends boolean = false>(options?: Options<AdminListClaimsData, ThrowOnError>): RequestResult<AdminListClaimsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<AdminListClaimsResponses, unknown, ThrowOnError>({
+export const getAdminCapabilities = <ThrowOnError extends boolean = false>(options?: Options<GetAdminCapabilitiesData, ThrowOnError>): RequestResult<GetAdminCapabilitiesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAdminCapabilitiesResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/capabilities',
+    ...options
+});
+
+/**
+ * Admin Retry Claim Notification
+ */
+export const adminRetryClaimNotification = <ThrowOnError extends boolean = false>(options: Options<AdminRetryClaimNotificationData, ThrowOnError>): RequestResult<AdminRetryClaimNotificationResponses, AdminRetryClaimNotificationErrors, ThrowOnError> => (options.client ?? client).post<AdminRetryClaimNotificationResponses, AdminRetryClaimNotificationErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/claim-notifications/{notification_id}/retry',
+    ...options
+});
+
+/**
+ * Admin List Claims V2
+ */
+export const adminListClaimsV2 = <ThrowOnError extends boolean = false>(options?: Options<AdminListClaimsV2Data, ThrowOnError>): RequestResult<AdminListClaimsV2Responses, AdminListClaimsV2Errors, ThrowOnError> => (options?.client ?? client).get<AdminListClaimsV2Responses, AdminListClaimsV2Errors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/claims',
+    ...options
+});
+
+/**
+ * Admin Get Claim
+ */
+export const adminGetClaim = <ThrowOnError extends boolean = false>(options: Options<AdminGetClaimData, ThrowOnError>): RequestResult<AdminGetClaimResponses, AdminGetClaimErrors, ThrowOnError> => (options.client ?? client).get<AdminGetClaimResponses, AdminGetClaimErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/claims/{claim_id}',
     ...options
 });
 
@@ -41,18 +68,31 @@ export const adminUpdateClaimStatus = <ThrowOnError extends boolean = false>(opt
 });
 
 /**
- * List Coupons
+ * Admin Update Claim Tracking
  */
-export const listCoupons = <ThrowOnError extends boolean = false>(options?: Options<ListCouponsData, ThrowOnError>): RequestResult<ListCouponsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListCouponsResponses, unknown, ThrowOnError>({
+export const adminUpdateClaimTracking = <ThrowOnError extends boolean = false>(options: Options<AdminUpdateClaimTrackingData, ThrowOnError>): RequestResult<AdminUpdateClaimTrackingResponses, AdminUpdateClaimTrackingErrors, ThrowOnError> => (options.client ?? client).patch<AdminUpdateClaimTrackingResponses, AdminUpdateClaimTrackingErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/claims/{claim_id}/tracking',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Admin Coupons
+ */
+export const listAdminCoupons = <ThrowOnError extends boolean = false>(options?: Options<ListAdminCouponsData, ThrowOnError>): RequestResult<ListAdminCouponsResponses, ListAdminCouponsErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminCouponsResponses, ListAdminCouponsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/coupons',
     ...options
 });
 
 /**
- * Create Coupon
+ * Create Admin Coupon
  */
-export const createCoupon = <ThrowOnError extends boolean = false>(options: Options<CreateCouponData, ThrowOnError>): RequestResult<CreateCouponResponses, CreateCouponErrors, ThrowOnError> => (options.client ?? client).post<CreateCouponResponses, CreateCouponErrors, ThrowOnError>({
+export const createAdminCoupon = <ThrowOnError extends boolean = false>(options: Options<CreateAdminCouponData, ThrowOnError>): RequestResult<CreateAdminCouponResponses, CreateAdminCouponErrors, ThrowOnError> => (options.client ?? client).post<CreateAdminCouponResponses, CreateAdminCouponErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/coupons',
     ...options,
@@ -63,11 +103,9 @@ export const createCoupon = <ThrowOnError extends boolean = false>(options: Opti
 });
 
 /**
- * Revoke Coupons By Ids
- *
- * 회수 — active 상태만 revoked로.
+ * Revoke Coupons
  */
-export const revokeCouponsByIds = <ThrowOnError extends boolean = false>(options: Options<RevokeCouponsByIdsData, ThrowOnError>): RequestResult<RevokeCouponsByIdsResponses, RevokeCouponsByIdsErrors, ThrowOnError> => (options.client ?? client).post<RevokeCouponsByIdsResponses, RevokeCouponsByIdsErrors, ThrowOnError>({
+export const revokeCoupons = <ThrowOnError extends boolean = false>(options: Options<RevokeCouponsData, ThrowOnError>): RequestResult<RevokeCouponsResponses, RevokeCouponsErrors, ThrowOnError> => (options.client ?? client).post<RevokeCouponsResponses, RevokeCouponsErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/coupons/revoke',
     ...options,
@@ -78,11 +116,44 @@ export const revokeCouponsByIds = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * Bulk Issue Coupons
- *
- * 일괄 발급 — 이미 보유한 유저는 재활성화(upsert).
+ * Get Admin Coupon
  */
-export const bulkIssueCoupons = <ThrowOnError extends boolean = false>(options: Options<BulkIssueCouponsData, ThrowOnError>): RequestResult<BulkIssueCouponsResponses, BulkIssueCouponsErrors, ThrowOnError> => (options.client ?? client).post<BulkIssueCouponsResponses, BulkIssueCouponsErrors, ThrowOnError>({
+export const getAdminCoupon = <ThrowOnError extends boolean = false>(options: Options<GetAdminCouponData, ThrowOnError>): RequestResult<GetAdminCouponResponses, GetAdminCouponErrors, ThrowOnError> => (options.client ?? client).get<GetAdminCouponResponses, GetAdminCouponErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/coupons/{coupon_id}',
+    ...options
+});
+
+/**
+ * Update Admin Coupon
+ */
+export const updateAdminCoupon = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminCouponData, ThrowOnError>): RequestResult<UpdateAdminCouponResponses, UpdateAdminCouponErrors, ThrowOnError> => (options.client ?? client).patch<UpdateAdminCouponResponses, UpdateAdminCouponErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/coupons/{coupon_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Preview Coupon Audience
+ */
+export const previewCouponAudience = <ThrowOnError extends boolean = false>(options: Options<PreviewCouponAudienceData, ThrowOnError>): RequestResult<PreviewCouponAudienceResponses, PreviewCouponAudienceErrors, ThrowOnError> => (options.client ?? client).post<PreviewCouponAudienceResponses, PreviewCouponAudienceErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/coupons/{coupon_id}/audience-preview',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Issue Coupon
+ */
+export const issueCoupon = <ThrowOnError extends boolean = false>(options: Options<IssueCouponData, ThrowOnError>): RequestResult<IssueCouponResponses, IssueCouponErrors, ThrowOnError> => (options.client ?? client).post<IssueCouponResponses, IssueCouponErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/coupons/{coupon_id}/issue',
     ...options,
@@ -93,9 +164,18 @@ export const bulkIssueCoupons = <ThrowOnError extends boolean = false>(options: 
 });
 
 /**
- * Revoke Coupons By Users
+ * List Issued Coupons
  */
-export const revokeCouponsByUsers = <ThrowOnError extends boolean = false>(options: Options<RevokeCouponsByUsersData, ThrowOnError>): RequestResult<RevokeCouponsByUsersResponses, RevokeCouponsByUsersErrors, ThrowOnError> => (options.client ?? client).post<RevokeCouponsByUsersResponses, RevokeCouponsByUsersErrors, ThrowOnError>({
+export const listIssuedCoupons = <ThrowOnError extends boolean = false>(options: Options<ListIssuedCouponsData, ThrowOnError>): RequestResult<ListIssuedCouponsResponses, ListIssuedCouponsErrors, ThrowOnError> => (options.client ?? client).get<ListIssuedCouponsResponses, ListIssuedCouponsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/coupons/{coupon_id}/issued',
+    ...options
+});
+
+/**
+ * Revoke Coupon Users
+ */
+export const revokeCouponUsers = <ThrowOnError extends boolean = false>(options: Options<RevokeCouponUsersData, ThrowOnError>): RequestResult<RevokeCouponUsersResponses, RevokeCouponUsersErrors, ThrowOnError> => (options.client ?? client).post<RevokeCouponUsersResponses, RevokeCouponUsersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/coupons/{coupon_id}/revoke-users',
     ...options,
@@ -106,18 +186,188 @@ export const revokeCouponsByUsers = <ThrowOnError extends boolean = false>(optio
 });
 
 /**
- * Admin List Inquiries
+ * List Admin Customers
  */
-export const adminListInquiries = <ThrowOnError extends boolean = false>(options?: Options<AdminListInquiriesData, ThrowOnError>): RequestResult<AdminListInquiriesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<AdminListInquiriesResponses, unknown, ThrowOnError>({
+export const listAdminCustomers = <ThrowOnError extends boolean = false>(options?: Options<ListAdminCustomersData, ThrowOnError>): RequestResult<ListAdminCustomersResponses, ListAdminCustomersErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminCustomersResponses, ListAdminCustomersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/customers',
+    ...options
+});
+
+/**
+ * Search Admin Customers
+ */
+export const searchAdminCustomers = <ThrowOnError extends boolean = false>(options: Options<SearchAdminCustomersData, ThrowOnError>): RequestResult<SearchAdminCustomersResponses, SearchAdminCustomersErrors, ThrowOnError> => (options.client ?? client).post<SearchAdminCustomersResponses, SearchAdminCustomersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/customers/search',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Admin Customer
+ */
+export const getAdminCustomer = <ThrowOnError extends boolean = false>(options: Options<GetAdminCustomerData, ThrowOnError>): RequestResult<GetAdminCustomerResponses, GetAdminCustomerErrors, ThrowOnError> => (options.client ?? client).get<GetAdminCustomerResponses, GetAdminCustomerErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/customers/{user_id}',
+    ...options
+});
+
+/**
+ * List Admin Customer Coupons
+ */
+export const listAdminCustomerCoupons = <ThrowOnError extends boolean = false>(options: Options<ListAdminCustomerCouponsData, ThrowOnError>): RequestResult<ListAdminCustomerCouponsResponses, ListAdminCustomerCouponsErrors, ThrowOnError> => (options.client ?? client).get<ListAdminCustomerCouponsResponses, ListAdminCustomerCouponsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/customers/{user_id}/coupons',
+    ...options
+});
+
+/**
+ * List Admin Customer Orders
+ */
+export const listAdminCustomerOrders = <ThrowOnError extends boolean = false>(options: Options<ListAdminCustomerOrdersData, ThrowOnError>): RequestResult<ListAdminCustomerOrdersResponses, ListAdminCustomerOrdersErrors, ThrowOnError> => (options.client ?? client).get<ListAdminCustomerOrdersResponses, ListAdminCustomerOrdersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/customers/{user_id}/orders',
+    ...options
+});
+
+/**
+ * List Admin Customer Tokens
+ */
+export const listAdminCustomerTokens = <ThrowOnError extends boolean = false>(options: Options<ListAdminCustomerTokensData, ThrowOnError>): RequestResult<ListAdminCustomerTokensResponses, ListAdminCustomerTokensErrors, ThrowOnError> => (options.client ?? client).get<ListAdminCustomerTokensResponses, ListAdminCustomerTokensErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/customers/{user_id}/tokens',
+    ...options
+});
+
+/**
+ * Get Dashboard Recent Orders
+ */
+export const getDashboardRecentOrders = <ThrowOnError extends boolean = false>(options?: Options<GetDashboardRecentOrdersData, ThrowOnError>): RequestResult<GetDashboardRecentOrdersResponses, GetDashboardRecentOrdersErrors, ThrowOnError> => (options?.client ?? client).get<GetDashboardRecentOrdersResponses, GetDashboardRecentOrdersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/dashboard/recent-orders',
+    ...options
+});
+
+/**
+ * Get Dashboard Recent Quotes
+ */
+export const getDashboardRecentQuotes = <ThrowOnError extends boolean = false>(options?: Options<GetDashboardRecentQuotesData, ThrowOnError>): RequestResult<GetDashboardRecentQuotesResponses, GetDashboardRecentQuotesErrors, ThrowOnError> => (options?.client ?? client).get<GetDashboardRecentQuotesResponses, GetDashboardRecentQuotesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/dashboard/recent-quotes',
+    ...options
+});
+
+/**
+ * Get Dashboard Summary
+ */
+export const getDashboardSummary = <ThrowOnError extends boolean = false>(options?: Options<GetDashboardSummaryData, ThrowOnError>): RequestResult<GetDashboardSummaryResponses, GetDashboardSummaryErrors, ThrowOnError> => (options?.client ?? client).get<GetDashboardSummaryResponses, GetDashboardSummaryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/dashboard/summary',
+    ...options
+});
+
+/**
+ * List Admin Generation Jobs
+ */
+export const listAdminGenerationJobs = <ThrowOnError extends boolean = false>(options?: Options<ListAdminGenerationJobsData, ThrowOnError>): RequestResult<ListAdminGenerationJobsResponses, ListAdminGenerationJobsErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminGenerationJobsResponses, ListAdminGenerationJobsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/generation/jobs',
+    ...options
+});
+
+/**
+ * Get Admin Generation Job Stats
+ */
+export const getAdminGenerationJobStats = <ThrowOnError extends boolean = false>(options?: Options<GetAdminGenerationJobStatsData, ThrowOnError>): RequestResult<GetAdminGenerationJobStatsResponses, GetAdminGenerationJobStatsErrors, ThrowOnError> => (options?.client ?? client).get<GetAdminGenerationJobStatsResponses, GetAdminGenerationJobStatsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/generation/jobs/stats',
+    ...options
+});
+
+/**
+ * Get Admin Generation Job
+ */
+export const getAdminGenerationJob = <ThrowOnError extends boolean = false>(options: Options<GetAdminGenerationJobData, ThrowOnError>): RequestResult<GetAdminGenerationJobResponses, GetAdminGenerationJobErrors, ThrowOnError> => (options.client ?? client).get<GetAdminGenerationJobResponses, GetAdminGenerationJobErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/generation/jobs/{job_id}',
+    ...options
+});
+
+/**
+ * List Admin Seamless Logs
+ */
+export const listAdminSeamlessLogs = <ThrowOnError extends boolean = false>(options?: Options<ListAdminSeamlessLogsData, ThrowOnError>): RequestResult<ListAdminSeamlessLogsResponses, ListAdminSeamlessLogsErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminSeamlessLogsResponses, ListAdminSeamlessLogsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/generation/seamless',
+    ...options
+});
+
+/**
+ * Get Admin Seamless Stats
+ */
+export const getAdminSeamlessStats = <ThrowOnError extends boolean = false>(options?: Options<GetAdminSeamlessStatsData, ThrowOnError>): RequestResult<GetAdminSeamlessStatsResponses, GetAdminSeamlessStatsErrors, ThrowOnError> => (options?.client ?? client).get<GetAdminSeamlessStatsResponses, GetAdminSeamlessStatsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/generation/seamless/stats',
+    ...options
+});
+
+/**
+ * Get Admin Seamless Log
+ */
+export const getAdminSeamlessLog = <ThrowOnError extends boolean = false>(options: Options<GetAdminSeamlessLogData, ThrowOnError>): RequestResult<GetAdminSeamlessLogResponses, GetAdminSeamlessLogErrors, ThrowOnError> => (options.client ?? client).get<GetAdminSeamlessLogResponses, GetAdminSeamlessLogErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/generation/seamless/{log_id}',
+    ...options
+});
+
+/**
+ * Create Admin Seamless Reference Image Read Url
+ */
+export const createAdminSeamlessReferenceImageReadUrl = <ThrowOnError extends boolean = false>(options: Options<CreateAdminSeamlessReferenceImageReadUrlData, ThrowOnError>): RequestResult<CreateAdminSeamlessReferenceImageReadUrlResponses, CreateAdminSeamlessReferenceImageReadUrlErrors, ThrowOnError> => (options.client ?? client).post<CreateAdminSeamlessReferenceImageReadUrlResponses, CreateAdminSeamlessReferenceImageReadUrlErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/generation/seamless/{log_id}/reference-image/{image_id}/read-url',
+    ...options
+});
+
+/**
+ * List Admin Inquiries
+ */
+export const listAdminInquiries = <ThrowOnError extends boolean = false>(options?: Options<ListAdminInquiriesData, ThrowOnError>): RequestResult<ListAdminInquiriesResponses, ListAdminInquiriesErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminInquiriesResponses, ListAdminInquiriesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/inquiries',
     ...options
 });
 
 /**
- * Answer Inquiry
+ * Search Admin Inquiries
  */
-export const answerInquiry = <ThrowOnError extends boolean = false>(options: Options<AnswerInquiryData, ThrowOnError>): RequestResult<AnswerInquiryResponses, AnswerInquiryErrors, ThrowOnError> => (options.client ?? client).post<AnswerInquiryResponses, AnswerInquiryErrors, ThrowOnError>({
+export const searchAdminInquiries = <ThrowOnError extends boolean = false>(options: Options<SearchAdminInquiriesData, ThrowOnError>): RequestResult<SearchAdminInquiriesResponses, SearchAdminInquiriesErrors, ThrowOnError> => (options.client ?? client).post<SearchAdminInquiriesResponses, SearchAdminInquiriesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/inquiries/search',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Admin Inquiry
+ */
+export const getAdminInquiry = <ThrowOnError extends boolean = false>(options: Options<GetAdminInquiryData, ThrowOnError>): RequestResult<GetAdminInquiryResponses, GetAdminInquiryErrors, ThrowOnError> => (options.client ?? client).get<GetAdminInquiryResponses, GetAdminInquiryErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/inquiries/{inquiry_id}',
+    ...options
+});
+
+/**
+ * Answer Admin Inquiry
+ */
+export const answerAdminInquiry = <ThrowOnError extends boolean = false>(options: Options<AnswerAdminInquiryData, ThrowOnError>): RequestResult<AnswerAdminInquiryResponses, AnswerAdminInquiryErrors, ThrowOnError> => (options.client ?? client).post<AnswerAdminInquiryResponses, AnswerAdminInquiryErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/inquiries/{inquiry_id}/answer',
     ...options,
@@ -128,11 +378,56 @@ export const answerInquiry = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * List Admin Motifs
+ */
+export const listAdminMotifs = <ThrowOnError extends boolean = false>(options?: Options<ListAdminMotifsData, ThrowOnError>): RequestResult<ListAdminMotifsResponses, ListAdminMotifsErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminMotifsResponses, ListAdminMotifsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/motifs',
+    ...options
+});
+
+/**
+ * Get Admin Motif
+ */
+export const getAdminMotif = <ThrowOnError extends boolean = false>(options: Options<GetAdminMotifData, ThrowOnError>): RequestResult<GetAdminMotifResponses, GetAdminMotifErrors, ThrowOnError> => (options.client ?? client).get<GetAdminMotifResponses, GetAdminMotifErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/motifs/{motif_id}',
+    ...options
+});
+
+/**
  * List All Orders
  */
 export const listAllOrders = <ThrowOnError extends boolean = false>(options?: Options<ListAllOrdersData, ThrowOnError>): RequestResult<ListAllOrdersResponses, ListAllOrdersErrors, ThrowOnError> => (options?.client ?? client).get<ListAllOrdersResponses, ListAllOrdersErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/orders',
+    ...options
+});
+
+/**
+ * Get Admin Order
+ */
+export const getAdminOrder = <ThrowOnError extends boolean = false>(options: Options<GetAdminOrderData, ThrowOnError>): RequestResult<GetAdminOrderResponses, GetAdminOrderErrors, ThrowOnError> => (options.client ?? client).get<GetAdminOrderResponses, GetAdminOrderErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/orders/{order_id}',
+    ...options
+});
+
+/**
+ * List Admin Order Reference Images
+ */
+export const listAdminOrderReferenceImages = <ThrowOnError extends boolean = false>(options: Options<ListAdminOrderReferenceImagesData, ThrowOnError>): RequestResult<ListAdminOrderReferenceImagesResponses, ListAdminOrderReferenceImagesErrors, ThrowOnError> => (options.client ?? client).get<ListAdminOrderReferenceImagesResponses, ListAdminOrderReferenceImagesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/orders/{order_id}/reference-images',
+    ...options
+});
+
+/**
+ * Create Admin Order Reference Image Read Url
+ */
+export const createAdminOrderReferenceImageReadUrl = <ThrowOnError extends boolean = false>(options: Options<CreateAdminOrderReferenceImageReadUrlData, ThrowOnError>): RequestResult<CreateAdminOrderReferenceImageReadUrlResponses, CreateAdminOrderReferenceImageReadUrlErrors, ThrowOnError> => (options.client ?? client).post<CreateAdminOrderReferenceImageReadUrlResponses, CreateAdminOrderReferenceImageReadUrlErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/orders/{order_id}/reference-images/{image_id}/read-url',
     ...options
 });
 
@@ -163,9 +458,80 @@ export const adminUpdateOrderTracking = <ThrowOnError extends boolean = false>(o
 });
 
 /**
- * Create Product
+ * Admin List Payment Incidents
  */
-export const createProduct = <ThrowOnError extends boolean = false>(options: Options<CreateProductData, ThrowOnError>): RequestResult<CreateProductResponses, CreateProductErrors, ThrowOnError> => (options.client ?? client).post<CreateProductResponses, CreateProductErrors, ThrowOnError>({
+export const adminListPaymentIncidents = <ThrowOnError extends boolean = false>(options?: Options<AdminListPaymentIncidentsData, ThrowOnError>): RequestResult<AdminListPaymentIncidentsResponses, AdminListPaymentIncidentsErrors, ThrowOnError> => (options?.client ?? client).get<AdminListPaymentIncidentsResponses, AdminListPaymentIncidentsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/payment-incidents',
+    ...options
+});
+
+/**
+ * Admin Get Payment Incident
+ */
+export const adminGetPaymentIncident = <ThrowOnError extends boolean = false>(options: Options<AdminGetPaymentIncidentData, ThrowOnError>): RequestResult<AdminGetPaymentIncidentResponses, AdminGetPaymentIncidentErrors, ThrowOnError> => (options.client ?? client).get<AdminGetPaymentIncidentResponses, AdminGetPaymentIncidentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/payment-incidents/{incident_id}',
+    ...options
+});
+
+/**
+ * Admin Reconcile Payment Incident
+ */
+export const adminReconcilePaymentIncident = <ThrowOnError extends boolean = false>(options: Options<AdminReconcilePaymentIncidentData, ThrowOnError>): RequestResult<AdminReconcilePaymentIncidentResponses, AdminReconcilePaymentIncidentErrors, ThrowOnError> => (options.client ?? client).post<AdminReconcilePaymentIncidentResponses, AdminReconcilePaymentIncidentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/payment-incidents/{incident_id}/reconcile',
+    ...options
+});
+
+/**
+ * Admin Resolve Payment Incident
+ */
+export const adminResolvePaymentIncident = <ThrowOnError extends boolean = false>(options: Options<AdminResolvePaymentIncidentData, ThrowOnError>): RequestResult<AdminResolvePaymentIncidentResponses, AdminResolvePaymentIncidentErrors, ThrowOnError> => (options.client ?? client).post<AdminResolvePaymentIncidentResponses, AdminResolvePaymentIncidentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/payment-incidents/{incident_id}/resolve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Admin Pricing
+ */
+export const getAdminPricing = <ThrowOnError extends boolean = false>(options?: Options<GetAdminPricingData, ThrowOnError>): RequestResult<GetAdminPricingResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAdminPricingResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/pricing',
+    ...options
+});
+
+/**
+ * Update Admin Pricing
+ */
+export const updateAdminPricing = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminPricingData, ThrowOnError>): RequestResult<UpdateAdminPricingResponses, UpdateAdminPricingErrors, ThrowOnError> => (options.client ?? client).put<UpdateAdminPricingResponses, UpdateAdminPricingErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/pricing',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Admin List Products
+ */
+export const adminListProducts = <ThrowOnError extends boolean = false>(options?: Options<AdminListProductsData, ThrowOnError>): RequestResult<AdminListProductsResponses, AdminListProductsErrors, ThrowOnError> => (options?.client ?? client).get<AdminListProductsResponses, AdminListProductsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/products',
+    ...options
+});
+
+/**
+ * Admin Create Product
+ */
+export const adminCreateProduct = <ThrowOnError extends boolean = false>(options: Options<AdminCreateProductData, ThrowOnError>): RequestResult<AdminCreateProductResponses, AdminCreateProductErrors, ThrowOnError> => (options.client ?? client).post<AdminCreateProductResponses, AdminCreateProductErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/products',
     ...options,
@@ -176,9 +542,49 @@ export const createProduct = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Update Product
+ * Create Admin Product Image Upload Url
  */
-export const updateProduct = <ThrowOnError extends boolean = false>(options: Options<UpdateProductData, ThrowOnError>): RequestResult<UpdateProductResponses, UpdateProductErrors, ThrowOnError> => (options.client ?? client).patch<UpdateProductResponses, UpdateProductErrors, ThrowOnError>({
+export const createAdminProductImageUploadUrl = <ThrowOnError extends boolean = false>(options: Options<CreateAdminProductImageUploadUrlData, ThrowOnError>): RequestResult<CreateAdminProductImageUploadUrlResponses, CreateAdminProductImageUploadUrlErrors, ThrowOnError> => (options.client ?? client).post<CreateAdminProductImageUploadUrlResponses, CreateAdminProductImageUploadUrlErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/products/images/upload-url',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Admin Product Image Upload
+ */
+export const deleteAdminProductImageUpload = <ThrowOnError extends boolean = false>(options: Options<DeleteAdminProductImageUploadData, ThrowOnError>): RequestResult<DeleteAdminProductImageUploadResponses, DeleteAdminProductImageUploadErrors, ThrowOnError> => (options.client ?? client).delete<DeleteAdminProductImageUploadResponses, DeleteAdminProductImageUploadErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/products/images/{upload_id}',
+    ...options
+});
+
+/**
+ * Complete Admin Product Image Upload
+ */
+export const completeAdminProductImageUpload = <ThrowOnError extends boolean = false>(options: Options<CompleteAdminProductImageUploadData, ThrowOnError>): RequestResult<CompleteAdminProductImageUploadResponses, CompleteAdminProductImageUploadErrors, ThrowOnError> => (options.client ?? client).post<CompleteAdminProductImageUploadResponses, CompleteAdminProductImageUploadErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/products/images/{upload_id}/complete',
+    ...options
+});
+
+/**
+ * Admin Get Product
+ */
+export const adminGetProduct = <ThrowOnError extends boolean = false>(options: Options<AdminGetProductData, ThrowOnError>): RequestResult<AdminGetProductResponses, AdminGetProductErrors, ThrowOnError> => (options.client ?? client).get<AdminGetProductResponses, AdminGetProductErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/products/{product_id}',
+    ...options
+});
+
+/**
+ * Admin Update Product
+ */
+export const adminUpdateProduct = <ThrowOnError extends boolean = false>(options: Options<AdminUpdateProductData, ThrowOnError>): RequestResult<AdminUpdateProductResponses, AdminUpdateProductErrors, ThrowOnError> => (options.client ?? client).patch<AdminUpdateProductResponses, AdminUpdateProductErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/products/{product_id}',
     ...options,
@@ -189,13 +595,38 @@ export const updateProduct = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Replace Product Options
- *
- * 전체 교체. 옵션이 1개 이상이면 상품 재고는 NULL로 강제(옵션별 재고 관리 전환).
+ * List Admin Quotes
  */
-export const replaceProductOptions = <ThrowOnError extends boolean = false>(options: Options<ReplaceProductOptionsData, ThrowOnError>): RequestResult<ReplaceProductOptionsResponses, ReplaceProductOptionsErrors, ThrowOnError> => (options.client ?? client).put<ReplaceProductOptionsResponses, ReplaceProductOptionsErrors, ThrowOnError>({
+export const listAdminQuotes = <ThrowOnError extends boolean = false>(options?: Options<ListAdminQuotesData, ThrowOnError>): RequestResult<ListAdminQuotesResponses, ListAdminQuotesErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminQuotesResponses, ListAdminQuotesErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/products/{product_id}/options',
+    url: '/admin/quotes',
+    ...options
+});
+
+/**
+ * Get Admin Quote
+ */
+export const getAdminQuote = <ThrowOnError extends boolean = false>(options: Options<GetAdminQuoteData, ThrowOnError>): RequestResult<GetAdminQuoteResponses, GetAdminQuoteErrors, ThrowOnError> => (options.client ?? client).get<GetAdminQuoteResponses, GetAdminQuoteErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/quotes/{quote_id}',
+    ...options
+});
+
+/**
+ * Create Admin Quote Image Read Url
+ */
+export const createAdminQuoteImageReadUrl = <ThrowOnError extends boolean = false>(options: Options<CreateAdminQuoteImageReadUrlData, ThrowOnError>): RequestResult<CreateAdminQuoteImageReadUrlResponses, CreateAdminQuoteImageReadUrlErrors, ThrowOnError> => (options.client ?? client).post<CreateAdminQuoteImageReadUrlResponses, CreateAdminQuoteImageReadUrlErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/quotes/{quote_id}/images/{image_id}/read-url',
+    ...options
+});
+
+/**
+ * Update Admin Quote Status
+ */
+export const updateAdminQuoteStatus = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminQuoteStatusData, ThrowOnError>): RequestResult<UpdateAdminQuoteStatusResponses, UpdateAdminQuoteStatusErrors, ThrowOnError> => (options.client ?? client).post<UpdateAdminQuoteStatusResponses, UpdateAdminQuoteStatusErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/quotes/{quote_id}/status',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -204,20 +635,38 @@ export const replaceProductOptions = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
- * Admin List Quotes
+ * List Admin Repair Receipt Photos
  */
-export const adminListQuotes = <ThrowOnError extends boolean = false>(options?: Options<AdminListQuotesData, ThrowOnError>): RequestResult<AdminListQuotesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<AdminListQuotesResponses, unknown, ThrowOnError>({
+export const listAdminRepairReceiptPhotos = <ThrowOnError extends boolean = false>(options: Options<ListAdminRepairReceiptPhotosData, ThrowOnError>): RequestResult<ListAdminRepairReceiptPhotosResponses, ListAdminRepairReceiptPhotosErrors, ThrowOnError> => (options.client ?? client).get<ListAdminRepairReceiptPhotosResponses, ListAdminRepairReceiptPhotosErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/quotes',
+    url: '/admin/repair-shipping-receipts/{receipt_id}/photos',
     ...options
 });
 
 /**
- * Admin Update Quote Status
+ * Create Admin Repair Receipt Photo Read Url
  */
-export const adminUpdateQuoteStatus = <ThrowOnError extends boolean = false>(options: Options<AdminUpdateQuoteStatusData, ThrowOnError>): RequestResult<AdminUpdateQuoteStatusResponses, AdminUpdateQuoteStatusErrors, ThrowOnError> => (options.client ?? client).post<AdminUpdateQuoteStatusResponses, AdminUpdateQuoteStatusErrors, ThrowOnError>({
+export const createAdminRepairReceiptPhotoReadUrl = <ThrowOnError extends boolean = false>(options: Options<CreateAdminRepairReceiptPhotoReadUrlData, ThrowOnError>): RequestResult<CreateAdminRepairReceiptPhotoReadUrlResponses, CreateAdminRepairReceiptPhotoReadUrlErrors, ThrowOnError> => (options.client ?? client).post<CreateAdminRepairReceiptPhotoReadUrlResponses, CreateAdminRepairReceiptPhotoReadUrlErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/quotes/{quote_id}/status',
+    url: '/admin/repair-shipping-receipts/{receipt_id}/photos/{image_id}/read-url',
+    ...options
+});
+
+/**
+ * Get Admin Settings
+ */
+export const getAdminSettings = <ThrowOnError extends boolean = false>(options?: Options<GetAdminSettingsData, ThrowOnError>): RequestResult<GetAdminSettingsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetAdminSettingsResponses, unknown, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/settings',
+    ...options
+});
+
+/**
+ * Update Admin Settings
+ */
+export const updateAdminSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminSettingsData, ThrowOnError>): RequestResult<UpdateAdminSettingsResponses, UpdateAdminSettingsErrors, ThrowOnError> => (options.client ?? client).put<UpdateAdminSettingsResponses, UpdateAdminSettingsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/admin/settings',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -266,13 +715,26 @@ export const adminManageTokens = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
- * List Users
+ * Admin Login
  */
-export const listUsers = <ThrowOnError extends boolean = false>(options?: Options<ListUsersData, ThrowOnError>): RequestResult<ListUsersResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListUsersResponses, unknown, ThrowOnError>({
-    security: [{ scheme: 'bearer', type: 'http' }],
-    url: '/admin/users',
-    ...options
+export const adminLogin = <ThrowOnError extends boolean = false>(options: Options<AdminLoginData, ThrowOnError>): RequestResult<AdminLoginResponses, AdminLoginErrors, ThrowOnError> => (options.client ?? client).post<AdminLoginResponses, AdminLoginErrors, ThrowOnError>({
+    url: '/auth/admin/login',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
+
+/**
+ * Admin Logout
+ */
+export const adminLogout = <ThrowOnError extends boolean = false>(options?: Options<AdminLogoutData, ThrowOnError>): RequestResult<AdminLogoutResponses, unknown, ThrowOnError> => (options?.client ?? client).post<AdminLogoutResponses, unknown, ThrowOnError>({ url: '/auth/admin/logout', ...options });
+
+/**
+ * Admin Refresh Tokens
+ */
+export const adminRefreshTokens = <ThrowOnError extends boolean = false>(options?: Options<AdminRefreshTokensData, ThrowOnError>): RequestResult<AdminRefreshTokensResponses, unknown, ThrowOnError> => (options?.client ?? client).post<AdminRefreshTokensResponses, unknown, ThrowOnError>({ url: '/auth/admin/refresh', ...options });
 
 /**
  * Login
@@ -605,6 +1067,15 @@ export const appendDesignTurn = <ThrowOnError extends boolean = false>(options: 
  * Healthz
  */
 export const healthz = <ThrowOnError extends boolean = false>(options?: Options<HealthzData, ThrowOnError>): RequestResult<HealthzResponses, unknown, ThrowOnError> => (options?.client ?? client).get<HealthzResponses, unknown, ThrowOnError>({ url: '/healthz', ...options });
+
+/**
+ * Complete Order Image
+ */
+export const completeOrderImage = <ThrowOnError extends boolean = false>(options: Options<CompleteOrderImageData, ThrowOnError>): RequestResult<CompleteOrderImageResponses, CompleteOrderImageErrors, ThrowOnError> => (options.client ?? client).post<CompleteOrderImageResponses, CompleteOrderImageErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/images/order-uploads/{upload_id}/complete',
+    ...options
+});
 
 /**
  * Create Read Url

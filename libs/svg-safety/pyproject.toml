@@ -1,0 +1,13 @@
+[project]
+name = "essesion-svg-safety"
+version = "0.1.0"
+description = "API와 worker가 공유하는 SVG 파싱·allowlist 정제 계약"
+requires-python = ">=3.13"
+dependencies = ["defusedxml>=0.7"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/svg_safety"]

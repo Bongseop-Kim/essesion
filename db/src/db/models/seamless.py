@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, CheckConstraint, Text, text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, REAL
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,6 +56,9 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     prompt: Mapped[str | None]
     has_reference_image: Mapped[bool] = mapped_column(server_default=text("false"))
     reference_image_bytes: Mapped[int | None]
+    reference_image_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("images.id", ondelete="SET NULL")
+    )
     colorway: Mapped[str | None]
     seed: Mapped[int | None] = mapped_column(BigInteger)
     candidate_count_requested: Mapped[int | None]
@@ -74,6 +77,11 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     error_message: Mapped[str | None]
 
     __table_args__ = (
+        Index(
+            "ix_seamless_generation_logs_reference_image_id",
+            "reference_image_id",
+            postgresql_where=text("reference_image_id IS NOT NULL"),
+        ),
         CheckConstraint("input_type IN ('intent', 'prompt', 'reference_image')", name="input_type"),
         CheckConstraint("status IN ('success', 'partial', 'error')", name="status"),
     )

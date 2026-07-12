@@ -109,12 +109,25 @@ async def _load_cart(session: AsyncSession, user: User) -> list[CartItemOut]:
             selected_option = next(
                 (o for o in product.options if str(o.id) == item.selected_option_id), None
             )
+        blocking_reason: str | None = None
+        if item.item_type == "product" and product is None:
+            blocking_reason = "상품을 더 이상 구매할 수 없습니다."
+        elif item.item_type == "product" and item.selected_option_id and selected_option is None:
+            blocking_reason = "선택한 옵션을 더 이상 구매할 수 없습니다. 다른 옵션을 선택해 주세요."
+        elif (
+            item.item_type == "product"
+            and product is not None
+            and not item.selected_option_id
+            and product.options
+        ):
+            blocking_reason = "구매할 옵션을 선택해 주세요."
         results.append(
             CartItemOut(
                 item_id=item.item_id,
                 item_type=item.item_type,
                 quantity=item.quantity,
                 product=product,
+                selected_option_id=item.selected_option_id,
                 selected_option=selected_option,
                 reform_data=(
                     ReformDataOut.model_validate(item.reform_data)
@@ -122,6 +135,8 @@ async def _load_cart(session: AsyncSession, user: User) -> list[CartItemOut]:
                     else None
                 ),
                 applied_coupon=coupons.get(item.applied_user_coupon_id),
+                availability="unavailable" if blocking_reason else "available",
+                blocking_reason=blocking_reason,
             )
         )
     return results

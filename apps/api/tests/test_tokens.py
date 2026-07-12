@@ -1,5 +1,6 @@
 """토큰 원장 — 유료 우선·만료 임박순 차감·work_id 멱등·환불 (money.md §6)."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import respx
@@ -371,7 +372,12 @@ async def test_admin_manage_insufficient(client, db_session, settings):
     user = await make_user(db_session)
     res = await client.post(
         "/admin/tokens/manage",
-        json={"user_id": str(user.id), "amount": -10, "description": "회수"},
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "user_id": str(user.id),
+            "amount": -10,
+            "description": "토큰 회수",
+        },
         headers=auth_headers(admin, settings),
     )
     assert res.status_code == 400 and res.json()["detail"] == "insufficient_tokens"

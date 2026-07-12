@@ -28,7 +28,7 @@ describe("sample order options", () => {
   it("결제 draft가 올바른 형태일 때만 복원한다", () => {
     const draft = {
       options: DEFAULT_SAMPLE_ORDER_OPTIONS,
-      imageRefs: [{ object_key: "sample_order/example.webp" }],
+      imageRefs: [{ upload_id: "eeccf314-e1b1-4987-987a-e20a125457c8" }],
       totalCost: 60_000,
     };
 

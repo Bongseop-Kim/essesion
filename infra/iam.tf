@@ -54,6 +54,13 @@ resource "google_storage_bucket_iam_member" "assets_rw" {
   member = "serviceAccount:${google_service_account.worker.email}"
 }
 
+# 관리자 상품 이미지는 api가 공개 assets 버킷에 서명 업로드·정리한다.
+resource "google_storage_bucket_iam_member" "assets_api_rw" {
+  bucket = google_storage_bucket.assets.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.api.email}"
+}
+
 # 비공개 업로드는 api만 쓴다(서명 URL 발급·정리 배치 삭제).
 resource "google_storage_bucket_iam_member" "uploads_rw" {
   bucket = google_storage_bucket.uploads.name

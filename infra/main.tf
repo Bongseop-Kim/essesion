@@ -33,8 +33,8 @@ resource "google_storage_bucket" "assets" {
 
   cors {
     origin          = var.upload_cors_origins
-    method          = ["GET", "HEAD"]
-    response_header = ["Content-Type", "ETag"]
+    method          = ["GET", "HEAD", "PUT"]
+    response_header = ["Content-Type", "ETag", "x-goog-content-length-range", "x-goog-if-generation-match"]
     max_age_seconds = 3600
   }
 }
@@ -55,7 +55,7 @@ resource "google_storage_bucket" "uploads" {
   cors {
     origin          = var.upload_cors_origins
     method          = ["GET", "HEAD", "PUT"]
-    response_header = ["Content-Type", "ETag", "x-goog-content-length-range"]
+    response_header = ["Content-Type", "ETag", "x-goog-content-length-range", "x-goog-if-generation-match"]
     max_age_seconds = 3600
   }
 }

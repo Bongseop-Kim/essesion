@@ -5,14 +5,9 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from sqlalchemy import select
 
 from api.db import SessionDep
-from api.deps import AdminUser, CurrentUser, ensure_owner
+from api.deps import CurrentUser, ensure_owner
 from api.domains.quotes import service
-from api.domains.quotes.schemas import (
-    AdminQuoteStatusRequest,
-    AdminQuoteStatusResponse,
-    QuoteCreateRequest,
-    QuoteOut,
-)
+from api.domains.quotes.schemas import QuoteCreateRequest, QuoteOut
 
 router = APIRouter(tags=["quotes"])
 
@@ -69,27 +64,8 @@ async def get_quote(quote_id: uuid.UUID, session: SessionDep, user: CurrentUser)
     return QuoteOut.model_validate(quote)
 
 
-# ---- 관리자 ----
+from api.domains.admin.entity_images import router as admin_entity_images_router  # noqa: E402
+from api.domains.admin.quotes import router as admin_quotes_router  # noqa: E402
 
-
-@router.get("/admin/quotes", response_model=list[QuoteOut])
-async def admin_list_quotes(session: SessionDep, admin: AdminUser) -> list[QuoteOut]:
-    quotes = await session.scalars(select(QuoteRequest).order_by(QuoteRequest.created_at.desc()))
-    return [QuoteOut.model_validate(q) for q in quotes]
-
-
-@router.post("/admin/quotes/{quote_id}/status", response_model=AdminQuoteStatusResponse)
-async def admin_update_quote_status(
-    quote_id: uuid.UUID, body: AdminQuoteStatusRequest, session: SessionDep, admin: AdminUser
-) -> AdminQuoteStatusResponse:
-    result = await service.admin_update_status(
-        session,
-        admin,
-        quote_id,
-        new_status=body.new_status,
-        quoted_amount=body.quoted_amount,
-        quote_conditions=body.quote_conditions,
-        admin_memo=body.admin_memo,
-        memo=body.memo,
-    )
-    return AdminQuoteStatusResponse(**result)
+router.include_router(admin_quotes_router)
+router.include_router(admin_entity_images_router)

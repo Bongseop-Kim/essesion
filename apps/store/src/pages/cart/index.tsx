@@ -42,6 +42,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useAuthGuard } from "@/features/auth";
 import {
+  cartItemBlockingReason,
   productUnitPrice,
   selectedOption,
   useCartActions,
@@ -72,6 +73,7 @@ type CartViewItem = {
   appliedCoupon: UserCouponOut | null;
   imageUrl: string | null;
   unavailable: boolean;
+  blockingReason: string | null;
 };
 
 export function CartPage() {
@@ -196,16 +198,29 @@ export function CartPage() {
                   )
                 : null))
             : null;
+        const option = selectedOption(product, input.selected_option_id);
+        const blockingReason =
+          (serverItem ? cartItemBlockingReason(serverItem) : null) ??
+          (input.item_type === "product"
+            ? !product
+              ? "상품을 더 이상 구매할 수 없습니다."
+              : input.selected_option_id && !option
+                ? "선택한 옵션을 더 이상 구매할 수 없습니다. 다른 옵션을 선택해 주세요."
+                : !input.selected_option_id &&
+                    (product.options?.length ?? 0) > 0
+                  ? "구매할 옵션을 선택해 주세요."
+                  : null
+            : reformCost == null || !reformPricingQuery.data
+              ? "수선 옵션과 가격을 확인해 주세요."
+              : null);
         return {
           input,
           product,
           reformCost,
           appliedCoupon,
           imageUrl: reformImages.get(input.item_id) ?? null,
-          unavailable:
-            (input.item_type === "product" && !product) ||
-            (input.item_type === "reform" &&
-              (reformCost == null || !reformPricingQuery.data)),
+          unavailable: blockingReason != null,
+          blockingReason,
         };
       }),
     [
@@ -218,21 +233,25 @@ export function CartPage() {
     ],
   );
 
-  const itemIds = useMemo(
-    () => items.map((item) => item.input.item_id),
+  const selectableItemIds = useMemo(
+    () =>
+      items.flatMap((item) => (item.unavailable ? [] : [item.input.item_id])),
     [items],
   );
 
   useEffect(() => {
     const initialized = selectionInitialized.current;
-    selectionInitialized.current = itemIds.length > 0;
+    selectionInitialized.current = selectableItemIds.length > 0;
     setSelectedIds((current) =>
-      reconcileCartSelection(current, itemIds, initialized),
+      reconcileCartSelection(current, selectableItemIds, initialized),
     );
-  }, [itemIds]);
+  }, [selectableItemIds]);
 
   const selectedItems = useMemo(
-    () => items.filter((item) => selectedIds.includes(item.input.item_id)),
+    () =>
+      items.filter(
+        (item) => !item.unavailable && selectedIds.includes(item.input.item_id),
+      ),
     [items, selectedIds],
   );
   const totals = useMemo(
@@ -259,9 +278,10 @@ export function CartPage() {
     return reformSettingsFromTie(tie);
   }, [reformOptionItem]);
   const isAllChecked =
-    itemIds.length > 0 && selectedIds.length === itemIds.length;
+    selectableItemIds.length > 0 &&
+    selectedIds.length === selectableItemIds.length;
   const isPartiallyChecked =
-    selectedIds.length > 0 && selectedIds.length < itemIds.length;
+    selectedIds.length > 0 && selectedIds.length < selectableItemIds.length;
   const productLoading =
     productQueries.some((query) => query.isPending) && items.length > 0;
   const reformPricingLoading =
@@ -269,7 +289,7 @@ export function CartPage() {
   const showLoading = cart.isPending || productLoading || reformPricingLoading;
 
   const toggleAll = (checked: boolean) => {
-    setSelectedIds(checked ? itemIds : []);
+    setSelectedIds(checked ? selectableItemIds : []);
   };
 
   const toggleItem = (itemId: string, checked: boolean) => {
@@ -297,7 +317,11 @@ export function CartPage() {
       snackbar("주문할 상품을 선택해 주세요.");
       return;
     }
-    if (selectedItems.some((item) => item.unavailable)) {
+    if (
+      items.some(
+        (item) => item.unavailable && selectedIds.includes(item.input.item_id),
+      )
+    ) {
       snackbar("확인이 필요한 항목을 수정해 주세요.");
       return;
     }
@@ -385,7 +409,7 @@ export function CartPage() {
               checked={isAllChecked}
               indeterminate={isPartiallyChecked}
               selectedCount={selectedIds.length}
-              totalCount={items.length}
+              totalCount={selectableItemIds.length}
               onToggleAll={toggleAll}
               onRemoveSelected={() => {
                 if (selectedIds.length === 0) {
@@ -404,7 +428,10 @@ export function CartPage() {
                 <CartItemCard
                   key={item.input.item_id}
                   item={item}
-                  checked={selectedIds.includes(item.input.item_id)}
+                  checked={
+                    !item.unavailable &&
+                    selectedIds.includes(item.input.item_id)
+                  }
                   busy={cartActions.isPending}
                   isAuthed={isAuthed}
                   onCheckedChange={(checked) =>
@@ -472,6 +499,10 @@ export function CartPage() {
         onApply={async ({ optionId, quantity }) => {
           if (!optionItem?.product) return;
           const option = selectedOption(optionItem.product, optionId);
+          if ((optionItem.product.options?.length ?? 0) > 0 && !option) {
+            snackbar("구매할 옵션을 선택해 주세요.");
+            return;
+          }
           try {
             await cartActions.updateProductOption({
               itemId: optionItem.input.item_id,
@@ -624,6 +655,7 @@ function CartItemCard({
         <Box alignSelf="start">
           <Checkbox
             checked={checked}
+            disabled={item.unavailable}
             aria-label="항목 선택"
             onChange={(event) => onCheckedChange(event.currentTarget.checked)}
           />
@@ -671,8 +703,18 @@ function CartItemCard({
                       ? item.input.reform_data
                         ? reformServiceLabel(item.input.reform_data)
                         : "수선 옵션 확인 필요"
-                      : `${option?.name ?? (hasOptions ? "옵션 확인 필요" : "FREE")} / ${item.input.quantity}개`}
+                      : `${
+                          item.input.selected_option_id && !option
+                            ? "사용할 수 없는 옵션"
+                            : (option?.name ??
+                              (hasOptions ? "옵션 확인 필요" : "FREE"))
+                        } / ${item.input.quantity}개`}
                   </Text>
+                  {item.blockingReason ? (
+                    <Text textStyle="captionSm" color="fg.critical">
+                      {item.blockingReason}
+                    </Text>
+                  ) : null}
                   <ItemPriceDisplay
                     basePrice={linePrice}
                     discountedPrice={discountedPrice}
@@ -699,7 +741,12 @@ function CartItemCard({
               variant="neutralOutline"
               size="small"
               width="full"
-              disabled={busy || item.unavailable}
+              disabled={
+                busy ||
+                (item.input.item_type === "product"
+                  ? !product
+                  : item.unavailable)
+              }
               onClick={onOptionChange}
             >
               옵션 변경
@@ -773,9 +820,9 @@ function OptionModal({
   const [quantity, setQuantity] = useState(1);
 
   useEffect(() => {
-    setOptionId(item?.input.selected_option_id ?? "");
+    setOptionId(selected?.id ?? "");
     setQuantity(item?.input.quantity ?? 1);
-  }, [item]);
+  }, [item, selected?.id]);
 
   const stock =
     selectedOption(product, optionId)?.stock ?? product?.stock ?? null;
@@ -813,7 +860,9 @@ function OptionModal({
         <VStack gap="x1">
           <Text textStyle="label">{product?.name ?? "상품 정보 확인 중"}</Text>
           <Text textStyle="caption" color="fg.neutral-muted">
-            현재 옵션: {selected?.name ?? "FREE"}
+            현재 옵션:{" "}
+            {selected?.name ??
+              (item?.input.selected_option_id ? "사용할 수 없는 옵션" : "FREE")}
           </Text>
         </VStack>
 

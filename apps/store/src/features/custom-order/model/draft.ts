@@ -53,7 +53,7 @@ const orderDraftSchema = z
   .object({
     options: orderOptionsSchema,
     contact: contactSchema,
-    imageRefs: z.array(z.object({ object_key: z.string().min(1) }).strict()),
+    imageRefs: z.array(z.object({ upload_id: z.string().uuid() }).strict()),
     totalCost: z.number().int().nonnegative(),
   })
   .strict();

@@ -1,5 +1,6 @@
 import type {
   CartItemIn,
+  CartItemOut,
   ProductOptionOut,
   ProductOut,
   ReformDataIn,
@@ -10,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   addProductToCartItems,
   applyCartItemCoupon,
+  cartItemToInput,
   productUnitPrice,
   removeCartItemIds,
   updateCartItemQuantity,
@@ -53,6 +55,27 @@ describe("productUnitPrice", () => {
     expect(
       productUnitPrice(product(), option({ additional_price: undefined })),
     ).toBe(10_000);
+  });
+});
+
+describe("cartItemToInput", () => {
+  it("preserves a deleted option id instead of laundering it into the base item", () => {
+    const serverItem = {
+      item_id: "product:1:deleted-option",
+      item_type: "product",
+      quantity: 1,
+      product: product(),
+      selected_option_id: "deleted-option",
+      selected_option: null,
+      reform_data: null,
+      applied_coupon: null,
+      availability: "unavailable",
+      blocking_reason: "선택한 옵션을 더 이상 구매할 수 없습니다.",
+    } as CartItemOut;
+
+    expect(cartItemToInput(serverItem)?.selected_option_id).toBe(
+      "deleted-option",
+    );
   });
 });
 

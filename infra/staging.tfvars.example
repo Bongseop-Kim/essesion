@@ -11,4 +11,8 @@ alert_email     = "biblecookie@naver.com"
 #   GOOGLE_CLIENT_ID = "..."
 #   KAKAO_CLIENT_ID  = "..."
 #   SOLAPI_SENDER_NUMBER = "01000000000"
+#   SOLAPI_PF_ID = "..."
+#   SOLAPI_TEMPLATE_CLAIM_DONE = "..."
+#   SOLAPI_TEMPLATE_CLAIM_REJECTED = "..."
+#   SOLAPI_TEMPLATE_QUOTE_RECEIVED = "..."
 # }

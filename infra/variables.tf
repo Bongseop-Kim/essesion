@@ -44,7 +44,7 @@ variable "db_tier" {
 variable "app_secret_ids" {
   description = "기존 env에서 옮겨올 시크릿 컨테이너 — 값 주입은 gcloud로 (README)"
   type        = list(string)
-  default = [
+  default     = [
     "toss-secret-key",
     "solapi-api-key",
     "solapi-api-secret",
@@ -55,6 +55,7 @@ variable "app_secret_ids" {
     "recraft-api-key",
     "jwt-secret",
     "session-secret",
+    "edge-proxy-secret",
     "sentry-dsn-api",
     "sentry-dsn-worker",
   ]
@@ -79,6 +80,8 @@ variable "upload_cors_origins" {
   type        = list(string)
   default = [
     "http://localhost:3000",
+    "http://localhost:3001",
     "https://app.essesion.shop",
+    "https://admin.essesion.shop",
   ]
 }

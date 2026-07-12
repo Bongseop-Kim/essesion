@@ -22,6 +22,8 @@ SEND_URL = "https://api.solapi.com/messages/v4/send"
 
 
 class SolapiClient(Protocol):
+    capability_mode: str
+
     async def send_sms(self, to: str, text: str) -> bool: ...
 
     async def send_alimtalk(
@@ -30,6 +32,8 @@ class SolapiClient(Protocol):
 
 
 class RealSolapiClient:
+    capability_mode = "real"
+
     def __init__(self, settings: Settings):
         self._api_key = settings.solapi_api_key
         self._api_secret = settings.solapi_api_secret
@@ -84,6 +88,8 @@ class RealSolapiClient:
 
 
 class DryRunSolapiClient:
+    capability_mode = "dry_run"
+
     def __init__(self) -> None:
         self.sent: list[dict] = []
 
@@ -102,8 +108,36 @@ class DryRunSolapiClient:
         return True
 
 
+class UnavailableSolapiClient:
+    """Fail closed without breaking the claim outbox transaction contract."""
+
+    capability_mode = "unavailable"
+
+    async def send_sms(self, to: str, text: str) -> bool:
+        logger.error("Solapi capability unavailable")
+        return False
+
+    async def send_alimtalk(
+        self, to: str, template_id: str, variables: dict[str, str], fallback_text: str
+    ) -> bool:
+        logger.error("Solapi capability unavailable")
+        return False
+
+
 def build_solapi_client(settings: Settings) -> SolapiClient:
-    if settings.solapi_api_key and settings.solapi_api_secret and settings.solapi_sender_number:
+    required = (
+        settings.solapi_api_key,
+        settings.solapi_api_secret,
+        settings.solapi_sender_number,
+        settings.solapi_pf_id,
+        settings.solapi_template_claim_done,
+        settings.solapi_template_claim_rejected,
+        settings.solapi_template_quote_received,
+    )
+    if all(required):
         return RealSolapiClient(settings)
-    logger.warning("SOLAPI 설정 없음 — DryRun Solapi 클라이언트로 동작")
-    return DryRunSolapiClient()
+    if settings.env in ("local", "test"):
+        logger.warning("SOLAPI 설정 없음 — local/test DryRun Solapi 클라이언트로 동작")
+        return DryRunSolapiClient()
+    logger.error("SOLAPI 설정 없음 — Solapi capability unavailable")
+    return UnavailableSolapiClient()

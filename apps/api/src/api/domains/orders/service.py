@@ -6,8 +6,10 @@
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from db.models.auth import User
 from db.models.commerce import (
@@ -24,9 +26,14 @@ from db.models.commerce import (
     UserCoupon,
 )
 from db.models.images import Image
+from obs import request_id_var
 from sqlalchemy import CursorResult, exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.domains.images.service import (
+    claim_completed_order_images,
+    link_order_images,
+)
 from api.domains.orders.schemas import (
     CustomOrderCreateRequest,
     OrderCreateRequest,
@@ -39,10 +46,12 @@ from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
 from api.domains.reform.schemas import ReformPricingOut
 from api.domains.reform.service import claim_reform_image, get_reform_pricing, reform_snapshot
 from api.errors import DomainError, ForbiddenError, NotFoundError
+from api.integrations.gcs import GcsClient
 from api.numbering import generate_number
 from api.pricing import get_pricing_constants
 
 MAX_ITEMS = 50
+KST = ZoneInfo("Asia/Seoul")
 
 CUSTOM_PRICING_KEYS = [
     "START_COST",
@@ -96,6 +105,7 @@ def log_status(
             new_status=new_status,
             memo=memo,
             is_rollback=is_rollback,
+            request_id=request_id_var.get() or None,
         )
     )
     order.status = new_status
@@ -132,6 +142,22 @@ def _address_snapshot(address: ShippingAddress) -> dict[str, Any]:
 class _CouponApplication:
     unit_discount: int = 0
     line_total: int = 0
+    terms_snapshot: dict[str, Any] | None = None
+
+
+def _current_coupon_snapshot(coupon: Coupon) -> dict[str, Any]:
+    return {
+        "name": coupon.name,
+        "display_name": coupon.display_name,
+        "discount_type": coupon.discount_type,
+        "discount_value": str(coupon.discount_value),
+        "max_discount_amount": (
+            str(coupon.max_discount_amount) if coupon.max_discount_amount is not None else None
+        ),
+        "description": coupon.description,
+        "expiry_date": coupon.expiry_date.isoformat(),
+        "additional_info": coupon.additional_info,
+    }
 
 
 async def apply_coupon(
@@ -163,23 +189,40 @@ async def apply_coupon(
         raise DomainError("Coupon is not available", code="coupon_unavailable")
     if user_coupon.expires_at is not None and user_coupon.expires_at <= datetime.now(UTC):
         raise DomainError("Coupon has expired", code="coupon_expired")
-    if not coupon.is_active:
+    terms = user_coupon.terms_snapshot or _current_coupon_snapshot(coupon)
+    if user_coupon.terms_snapshot is None and not coupon.is_active:
+        # legacy 발급 row만 template을 fallback 정본으로 사용한다. snapshot이 있으면
+        # 이후 template 변경·비활성화가 이미 발급된 금전 조건을 바꾸지 않는다.
         raise DomainError("Coupon is not active", code="coupon_inactive")
-    if coupon.expiry_date < datetime.now(UTC).date():
+    expiry_value = terms.get("expiry_date")
+    if (
+        user_coupon.expires_at is None
+        and expiry_value
+        and date.fromisoformat(str(expiry_value)) < datetime.now(KST).date()
+    ):
         raise DomainError("Coupon has expired", code="coupon_expired")
 
+    discount_type = str(terms.get("discount_type"))
+    discount_value = Decimal(str(terms.get("discount_value")))
+    max_discount_value = terms.get("max_discount_amount")
+    max_discount = Decimal(str(max_discount_value)) if max_discount_value is not None else None
+
     line_amount = unit_price * quantity
-    if coupon.discount_type == "percentage":
-        line_discount = int(line_amount * coupon.discount_value / 100)
-    elif coupon.discount_type == "fixed":
-        line_discount = int(coupon.discount_value)
+    if discount_type == "percentage":
+        line_discount = int(line_amount * discount_value / 100)
+    elif discount_type == "fixed":
+        line_discount = int(discount_value)
     else:
         raise DomainError("Invalid coupon type", code="coupon_invalid")
 
     capped_line = max(0, min(line_discount, line_amount))
-    if coupon.max_discount_amount is not None:
-        capped_line = min(capped_line, int(coupon.max_discount_amount))
-    return _CouponApplication(unit_discount=capped_line // quantity, line_total=capped_line)
+    if max_discount is not None:
+        capped_line = min(capped_line, int(max_discount))
+    return _CouponApplication(
+        unit_discount=capped_line // quantity,
+        line_total=capped_line,
+        terms_snapshot=terms,
+    )
 
 
 async def _reserve_coupons(
@@ -225,19 +268,6 @@ async def restore_reserved_order_coupons(session: AsyncSession, orders: Sequence
             )
 
 
-def _register_images(
-    session: AsyncSession,
-    user_id: uuid.UUID,
-    entity_type: str,
-    entity_id: str,
-    object_keys: list[str],
-) -> None:
-    for key in object_keys:
-        session.add(
-            Image(object_key=key, entity_type=entity_type, entity_id=entity_id, uploaded_by=user_id)
-        )
-
-
 async def _relink_images(
     session: AsyncSession,
     user_id: uuid.UUID,
@@ -271,19 +301,26 @@ class _Line:
     reform_data: dict | None = field(default=None)
 
 
-async def _deduct_stock(session: AsyncSession, item: OrderItemIn) -> int:
-    """재고 FOR UPDATE 차감(결제 전, NULL=무제한 — 원 동작). 반환 = 단가."""
+async def _deduct_stock(session: AsyncSession, item: OrderItemIn) -> tuple[int, dict[str, Any]]:
+    """재고를 잠가 차감하고 거래 시점 상품·옵션 snapshot과 단가를 반환한다."""
     product = await session.scalar(
         select(Product).where(Product.id == item.product_id).with_for_update()
     )
     if product is None:
         raise DomainError("Product not found", code="product_not_found", status=404)
 
+    option: ProductOption | None = None
     if item.selected_option_id:
+        try:
+            option_id = uuid.UUID(item.selected_option_id)
+        except ValueError as exc:
+            raise DomainError(
+                "Product option not found", code="option_not_found", status=404
+            ) from exc
         option = await session.scalar(
             select(ProductOption)
             .where(
-                ProductOption.id == uuid.UUID(item.selected_option_id),
+                ProductOption.id == option_id,
                 ProductOption.product_id == product.id,
             )
             .with_for_update()
@@ -294,13 +331,37 @@ async def _deduct_stock(session: AsyncSession, item: OrderItemIn) -> int:
             if option.stock < item.quantity:
                 raise DomainError("Insufficient stock for option", code="insufficient_stock")
             option.stock -= item.quantity
-        return product.price + option.additional_price
+        unit_price = product.price + option.additional_price
+    else:
+        has_options = await session.scalar(
+            select(ProductOption.id).where(ProductOption.product_id == product.id).limit(1)
+        )
+        if has_options is not None:
+            raise DomainError("Product option is required", code="option_required")
+        if product.stock is not None:
+            if product.stock < item.quantity:
+                raise DomainError("Insufficient stock", code="insufficient_stock")
+            product.stock -= item.quantity
+        unit_price = product.price
 
-    if product.stock is not None:
-        if product.stock < item.quantity:
-            raise DomainError("Insufficient stock", code="insufficient_stock")
-        product.stock -= item.quantity
-    return product.price
+    return unit_price, {
+        "product": {
+            "id": product.id,
+            "code": product.code,
+            "name": product.name,
+            "image": product.image,
+            "category": product.category,
+        },
+        "option": (
+            {
+                "id": str(option.id),
+                "name": option.name,
+                "additional_price": option.additional_price,
+            }
+            if option is not None
+            else None
+        ),
+    }
 
 
 async def create_order(session: AsyncSession, user: User, body: OrderCreateRequest) -> dict:
@@ -326,8 +387,8 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         if item.item_type == "product":
             if item.product_id is None:
                 raise DomainError("Product id is required", code="invalid_item")
-            unit_price = await _deduct_stock(session, item)
-            line = _Line(item=item, unit_price=unit_price)
+            unit_price, snapshot = await _deduct_stock(session, item)
+            line = _Line(item=item, unit_price=unit_price, reform_data=snapshot)
             product_lines.append(line)
         else:
             if item.reform_data is None:
@@ -357,6 +418,10 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
             )
             line.unit_discount = applied.unit_discount
             line.line_discount = applied.line_total
+            line.reform_data = {
+                **(line.reform_data or {}),
+                "coupon": applied.terms_snapshot,
+            }
 
     if method == "pickup" and not reform_lines:
         raise DomainError("Pickup is only available for repair orders", code="invalid_pickup")
@@ -570,21 +635,33 @@ async def calculate_custom_amounts(
 
 
 async def create_custom_order(
-    session: AsyncSession, user: User, body: CustomOrderCreateRequest
+    session: AsyncSession,
+    user: User,
+    body: CustomOrderCreateRequest,
+    gcs: GcsClient,
 ) -> dict:
     address = await _get_owned_address(session, user, body.shipping_address_id)
     amounts = await calculate_custom_amounts(session, body.options, body.quantity)
     total_cost = amounts["total_cost"]
     base_unit = total_cost // body.quantity
     remainder = total_cost - base_unit * body.quantity
+    staged_images = await claim_completed_order_images(
+        session,
+        user,
+        "custom_order",
+        [image.upload_id for image in body.reference_images],
+        gcs,
+    )
 
     line_discount = 0
     unit_discount = 0
+    coupon_snapshot = None
     if body.user_coupon_id is not None:
         applied = await apply_coupon(
             session, user.id, body.user_coupon_id, base_unit, body.quantity, set()
         )
         unit_discount, line_discount = applied.unit_discount, applied.line_total
+        coupon_snapshot = applied.terms_snapshot
 
     order = Order(
         user_id=user.id,
@@ -601,7 +678,6 @@ async def create_custom_order(
     session.add(order)
     await session.flush()
 
-    reference_images = [img.model_dump() for img in body.reference_images]
     session.add(
         OrderItem(
             order_id=order.id,
@@ -611,9 +687,10 @@ async def create_custom_order(
                 "custom_order": True,
                 "quantity": body.quantity,
                 "options": body.options,
-                "reference_images": reference_images,
+                "reference_images": [{"image_id": str(image.id)} for image in staged_images],
                 "additional_notes": body.additional_notes,
                 "pricing": {**amounts, "unit_price_remainder": remainder},
+                "coupon": coupon_snapshot,
             },
             quantity=body.quantity,
             unit_price=base_unit,
@@ -622,13 +699,7 @@ async def create_custom_order(
             applied_user_coupon_id=body.user_coupon_id,
         )
     )
-    _register_images(
-        session,
-        user.id,
-        "custom_order",
-        str(order.id),
-        [i.object_key for i in body.reference_images],
-    )
+    link_order_images(staged_images, "custom_order", order.id)
     if body.user_coupon_id is not None:
         await _reserve_coupons(session, user.id, {body.user_coupon_id})
     await session.commit()
@@ -664,16 +735,28 @@ async def calculate_sample_amount(
 
 
 async def create_sample_order(
-    session: AsyncSession, user: User, body: SampleOrderCreateRequest
+    session: AsyncSession,
+    user: User,
+    body: SampleOrderCreateRequest,
+    gcs: GcsClient,
 ) -> dict:
     address = await _get_owned_address(session, user, body.shipping_address_id)
     total_cost = await calculate_sample_amount(session, body.sample_type, body.options)
+    staged_images = await claim_completed_order_images(
+        session,
+        user,
+        "sample_order",
+        [image.upload_id for image in body.reference_images],
+        gcs,
+    )
 
     line_discount = 0
     unit_discount = 0
+    coupon_snapshot = None
     if body.user_coupon_id is not None:
         applied = await apply_coupon(session, user.id, body.user_coupon_id, total_cost, 1, set())
         unit_discount, line_discount = applied.unit_discount, applied.line_total
+        coupon_snapshot = applied.terms_snapshot
 
     order = Order(
         user_id=user.id,
@@ -697,9 +780,10 @@ async def create_sample_order(
             item_data={
                 "sample_type": body.sample_type,
                 "options": body.options,
-                "reference_images": [img.model_dump() for img in body.reference_images],
+                "reference_images": [{"image_id": str(image.id)} for image in staged_images],
                 "additional_notes": body.additional_notes,
                 "pricing": {"total_cost": total_cost},
+                "coupon": coupon_snapshot,
             },
             quantity=1,
             unit_price=total_cost,
@@ -708,13 +792,7 @@ async def create_sample_order(
             applied_user_coupon_id=body.user_coupon_id,
         )
     )
-    _register_images(
-        session,
-        user.id,
-        "sample_order",
-        str(order.id),
-        [i.object_key for i in body.reference_images],
-    )
+    link_order_images(staged_images, "sample_order", order.id)
     if body.user_coupon_id is not None:
         await _reserve_coupons(session, user.id, {body.user_coupon_id})
     await session.commit()

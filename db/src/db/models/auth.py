@@ -57,8 +57,14 @@ class RefreshToken(CreatedAtMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     token_hash: Mapped[str] = mapped_column(unique=True)
+    session_kind: Mapped[str] = mapped_column(server_default="store")
     expires_at: Mapped[datetime]
     revoked_at: Mapped[datetime | None]
+
+    __table_args__ = (
+        CheckConstraint("session_kind IN ('store', 'admin')", name="session_kind"),
+        Index("ix_refresh_tokens_user_id_session_kind", "user_id", "session_kind"),
+    )
 
 
 class PhoneVerification(CreatedAtMixin, Base):

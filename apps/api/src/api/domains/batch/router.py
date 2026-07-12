@@ -101,7 +101,15 @@ async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
     gcs = request.app.state.gcs
     processed = 0
     for image in targets:
-        if await gcs.delete_object(image.object_key):  # ② 스토리지 삭제 (멱등)
+        bucket_name = None
+        if image.entity_type.startswith("product_"):
+            settings = request.app.state.settings
+            bucket_name = settings.gcs_assets_bucket or (
+                "dry-run-product-assets" if settings.env in ("local", "test") else None
+            )
+        if await gcs.delete_object(
+            image.object_key, bucket_name=bucket_name
+        ):  # ② 스토리지 삭제 (멱등)
             image.deleted_at = datetime.now(UTC)  # ③ finalize (soft delete)
             processed += 1
     await session.commit()

@@ -16,6 +16,12 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from api.db import SessionDep
 from api.deps import CurrentUser, OptionalUser
+from api.domains.images.service import (
+    MAX_ORDER_IMAGE_BYTES,
+    OrderImageKind,
+    complete_order_image_upload,
+    order_upload_entity_type,
+)
 from api.errors import ConflictError, DomainError
 
 router = APIRouter(tags=["images"])
@@ -27,6 +33,7 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_REFORM_IMAGE_BYTES = 10 * 1024 * 1024
 REFORM_UPLOAD_TTL = timedelta(hours=24)
 QUOTE_UPLOAD_TTL = timedelta(hours=24)
+ORDER_UPLOAD_TTL = timedelta(hours=24)
 
 
 class UploadUrlRequest(BaseModel):
@@ -38,6 +45,7 @@ class UploadUrlRequest(BaseModel):
 
 class UploadUrlResponse(BaseModel):
     object_key: str
+    upload_id: uuid.UUID | None = None
     upload_url: str
     required_headers: dict[str, str]
     upload_required: bool
@@ -87,6 +95,14 @@ class ImageOut(BaseModel):
     created_at: datetime
 
 
+class OrderImageUploadOut(BaseModel):
+    upload_id: uuid.UUID
+    kind: OrderImageKind
+    content_type: str
+    size_bytes: int
+    upload_completed_at: datetime
+
+
 @router.post("/images/upload-url", response_model=UploadUrlResponse)
 async def create_upload_url(
     body: UploadUrlRequest,
@@ -97,40 +113,81 @@ async def create_upload_url(
     extension = PurePosixPath(body.filename).suffix.lower()
     if extension not in ALLOWED_EXTENSIONS or body.content_type not in ALLOWED_CONTENT_TYPES:
         raise DomainError("지원하지 않는 이미지 형식입니다", code="invalid_image_type")
-    if body.kind == "quote_request" and body.size_bytes is None:
-        raise DomainError("견적 이미지 크기가 필요합니다", code="invalid_image_size")
+    if body.kind in ("custom_order", "sample_order", "quote_request") and body.size_bytes is None:
+        raise DomainError("참고 이미지 크기가 필요합니다", code="invalid_image_size")
     object_key = f"uploads/{body.kind}/{uuid.uuid4().hex}{extension}"
-    if body.kind == "quote_request":
+    staged_image: Image | None = None
+    if body.kind in ("custom_order", "sample_order", "quote_request"):
         # 견적 생성이 임의의 object_key를 신뢰하지 않도록 발급 시점에
-        # 소유자·MIME·키를 스테이징한다. 미귀속 업로드는 정리 배치가 회수한다.
-        session.add(
-            Image(
-                object_key=object_key,
-                entity_type="quote_request_upload",
-                entity_id=object_key,
-                uploaded_by=user.id,
-                content_type=body.content_type,
-                size_bytes=body.size_bytes,
-                expires_at=datetime.now(UTC) + QUOTE_UPLOAD_TTL,
-            )
+        # 소유자·MIME·키를 스테이징한다. 주문도 raw key 대신 이 행의 ID를 받는다.
+        entity_type = (
+            "quote_request_upload"
+            if body.kind == "quote_request"
+            else order_upload_entity_type(body.kind)
         )
+        staged_image = Image(
+            object_key=object_key,
+            entity_type=entity_type,
+            entity_id=object_key,
+            uploaded_by=user.id,
+            content_type=body.content_type,
+            size_bytes=body.size_bytes,
+            expires_at=datetime.now(UTC)
+            + (QUOTE_UPLOAD_TTL if body.kind == "quote_request" else ORDER_UPLOAD_TTL),
+        )
+        session.add(staged_image)
         await session.flush()
-    max_size_bytes = MAX_REFORM_IMAGE_BYTES if body.kind == "quote_request" else None
+    max_size_bytes = (
+        MAX_ORDER_IMAGE_BYTES
+        if body.kind in ("custom_order", "sample_order", "quote_request")
+        else None
+    )
     upload_url = await request.app.state.gcs.signed_upload_url(
         object_key,
         body.content_type,
         max_size_bytes=max_size_bytes,
+        create_only=True,
     )
-    if body.kind == "quote_request":
+    if staged_image is not None:
         await session.commit()
     required_headers = {"Content-Type": body.content_type}
+    required_headers["x-goog-if-generation-match"] = "0"
     if max_size_bytes is not None:
         required_headers["x-goog-content-length-range"] = f"1,{max_size_bytes}"
     return UploadUrlResponse(
         object_key=object_key,
+        upload_id=staged_image.id if staged_image is not None else None,
         upload_url=upload_url,
         required_headers=required_headers,
         upload_required=request.app.state.gcs.upload_required,
+    )
+
+
+@router.post(
+    "/images/order-uploads/{upload_id}/complete",
+    response_model=OrderImageUploadOut,
+)
+async def complete_order_image(
+    upload_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> OrderImageUploadOut:
+    image = await complete_order_image_upload(session, user, upload_id, request.app.state.gcs)
+    await session.commit()
+    await session.refresh(image)
+    kind: OrderImageKind = (
+        "custom_order" if image.entity_type == "custom_order_upload" else "sample_order"
+    )
+    assert image.content_type is not None
+    assert image.size_bytes is not None
+    assert image.upload_completed_at is not None
+    return OrderImageUploadOut(
+        upload_id=image.id,
+        kind=kind,
+        content_type=image.content_type,
+        size_bytes=image.size_bytes,
+        upload_completed_at=image.upload_completed_at,
     )
 
 
@@ -166,6 +223,7 @@ async def create_reform_upload_url(
         object_key,
         body.content_type,
         max_size_bytes=MAX_REFORM_IMAGE_BYTES,
+        create_only=True,
     )
     await session.commit()
     return ReformUploadUrlResponse(
@@ -174,6 +232,7 @@ async def create_reform_upload_url(
         required_headers={
             "Content-Type": body.content_type,
             "x-goog-content-length-range": f"1,{MAX_REFORM_IMAGE_BYTES}",
+            "x-goog-if-generation-match": "0",
         },
         claim_token=raw_token,
         expires_at=expires_at,

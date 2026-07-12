@@ -78,9 +78,11 @@
 - [x] sample-order 사후 개선 — 가격 계산을 가격 결정 키 기반 TanStack Query 캐시로 전환, 원단·타이·심지 SelectBox 정합화, 유의사항·후속 쿠폰 안내, 첨부 5장 통일, draft 방어 파싱 테스트 보강. 단가 재책정 여부는 운영 근거 부재로 현행 유지(`docs/plans/store-sample-order.md` §5-D)
 - [x] cart 빈 상태 라우팅 회귀 수정 — 빈 선택 상태의 참조를 보존해 무한 재렌더와 URL만 바뀌는 페이지 이동 정지 방지, 선택 동기화 단위 테스트 추가
 - [x] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — 대화형 세션·생성/변형·후보 선택·SVG 미리보기·내보내기·finalize 작업 복구·완성 디자인 주문 첨부, 토큰 과금/실패 환불과 워커 응답 계약, 모바일/데스크톱 UI 및 api-client 동기화 완료 (`docs/plans/store-design.md`). **이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
-- [ ] admin 재작성 — 기존 라우트 기준
+- [x] admin 재작성 개발 플랜 — 기존 25개 라우트 inventory, API 선행 계약, 수직 슬라이스·검증 기준과 추가 보안·동시성·운영 복구·접근성 검토 반영 (`docs/plans/admin-rewrite.md`)
+- [x] admin 재작성 — 기존 라우트 기준 (`docs/plans/admin-rewrite.md`) — *A~J 구현 완료. 최종 codegen drift 0, Python 535건·shared 45건·store 114건·admin 78건, repo lint/build/typecheck, 실제 PostgreSQL Playwright admin smoke 통과. Aside에서 1440/390/767/768/1024px·200% zoom, 대표 mutation·focus·reduced motion·ScrollFog·탭 간 logout 검증. 실제 GCP·Cloudflare 개통과 capability `real` 확인은 별도 배포 항목으로 인계.*
 - [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler), api는 min-instances=1 설정
 - [ ] Playwright 스모크 1줄기: 로그인 → 장바구니 → 주문 → 결제(Toss 샌드박스)
+- [x] Playwright admin 스모크: 관리자 로그인 → 보호 목록/상세 → 대표 상태 변경 → 로그아웃 (실제 API + PostgreSQL seed) — *`e2e/admin-smoke.spec.ts`·CI 연결과 최종 스키마/codegen 상태의 로컬 실행 1건 통과*
 
 ## 6. 리허설 (스테이징)
 

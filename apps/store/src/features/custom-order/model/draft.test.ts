@@ -30,7 +30,15 @@ describe("custom order draft", () => {
     ).toBeNull();
   });
 
-  it("결제 draft의 이미지 키와 금액을 검증한다", () => {
+  it("결제 draft의 완료된 업로드 ID와 금액을 검증한다", () => {
+    expect(
+      parseCustomOrderDraft({
+        ...formDraft,
+        options: { ...formDraft.options, tieWidth: 8 },
+        imageRefs: [{ upload_id: "89dc3b35-9ca2-4b18-a0e0-02a099d76a23" }],
+        totalCost: 120_000,
+      }),
+    ).not.toBeNull();
     expect(
       parseCustomOrderDraft({
         ...formDraft,
@@ -38,7 +46,7 @@ describe("custom order draft", () => {
         imageRefs: [{ object_key: "custom/image.webp" }],
         totalCost: 120_000,
       }),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       parseCustomOrderDraft({
         ...formDraft,

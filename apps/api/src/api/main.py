@@ -1,7 +1,9 @@
+import hmac
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from obs import RequestIdMiddleware, init_observability
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -10,14 +12,129 @@ from starlette.middleware.sessions import SessionMiddleware
 from api.config import Settings, get_settings
 from api.db import build_engine
 from api.domains.auth.oauth import build_oauth
-from api.errors import register_error_handlers
-from api.integrations.gcs import build_gcs_client
+from api.domains.auth.rate_limit import AuthRateLimiter
+from api.errors import SECURITY_RESPONSE_HEADERS, register_error_handlers
+from api.integrations.gcs import assets_capability_mode, build_gcs_client
 from api.integrations.solapi import build_solapi_client
 from api.integrations.tasks import build_task_queue
 from api.integrations.toss import build_toss_client
 from api.integrations.worker import build_worker_client
 
 init_observability("api")
+
+
+class AdminBoundaryMiddleware:
+    """관리자 브라우저 경계: exact Origin 검증과 민감 응답 캐시 금지."""
+
+    def __init__(
+        self,
+        app,
+        *,
+        allowed_origin: str,
+        environment: str,
+        edge_proxy_secret: str,
+    ):  # noqa: ANN001 — ASGI app
+        self.app = app
+        self.allowed_origin = allowed_origin
+        self.verify_edge = environment not in ("local", "test")
+        self.edge_proxy_secret = edge_proxy_secret
+
+    @staticmethod
+    def _is_admin_path(path: str) -> bool:
+        return (
+            path == "/admin"
+            or path.startswith("/admin/")
+            or path == "/auth/admin"
+            or path.startswith("/auth/admin/")
+        )
+
+    async def __call__(self, scope, receive, send):  # noqa: ANN001 — ASGI protocol
+        if scope["type"] != "http" or not self._is_admin_path(scope["path"]):
+            return await self.app(scope, receive, send)
+
+        if self.verify_edge:
+            if not self.edge_proxy_secret:
+                response = JSONResponse(
+                    status_code=503,
+                    content={
+                        "detail": "관리자 프록시 검증을 사용할 수 없습니다.",
+                        "code": "service_unavailable",
+                    },
+                    headers={"Cache-Control": "no-store"},
+                )
+                return await response(scope, receive, send)
+            edge_values = [
+                value.decode("latin-1")
+                for key, value in scope["headers"]
+                if key.lower() == b"x-essesion-edge-secret"
+            ]
+            if len(edge_values) != 1 or not hmac.compare_digest(
+                edge_values[0], self.edge_proxy_secret
+            ):
+                response = JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "관리자 프록시 검증에 실패했습니다.",
+                        "code": "forbidden",
+                    },
+                    headers={"Cache-Control": "no-store"},
+                )
+                return await response(scope, receive, send)
+
+        origins = [
+            value.decode("latin-1") for key, value in scope["headers"] if key.lower() == b"origin"
+        ]
+        if origins != [self.allowed_origin]:
+            response = JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "관리자 Origin이 올바르지 않습니다.",
+                    "code": "forbidden",
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+            return await response(scope, receive, send)
+
+        async def send_no_store(message):  # noqa: ANN001 — ASGI protocol
+            if message["type"] == "http.response.start":
+                headers = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower() != b"cache-control"
+                ]
+                headers.append((b"cache-control", b"no-store"))
+                message["headers"] = headers
+            await send(message)
+
+        return await self.app(scope, receive, send_no_store)
+
+
+class SecurityHeadersMiddleware:
+    _HEADERS = tuple(
+        (name.lower().encode("ascii"), value.encode("ascii"))
+        for name, value in SECURITY_RESPONSE_HEADERS.items()
+    )
+
+    def __init__(self, app):  # noqa: ANN001 — ASGI app
+        self.app = app
+
+    async def __call__(self, scope, receive, send):  # noqa: ANN001 — ASGI protocol
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        async def send_with_security_headers(message):  # noqa: ANN001 — ASGI protocol
+            if message["type"] == "http.response.start":
+                managed = {key for key, _ in self._HEADERS}
+                headers = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower() not in managed
+                ]
+                headers.extend(self._HEADERS)
+                message["headers"] = headers
+            await send(message)
+
+        return await self.app(scope, receive, send_with_security_headers)
 
 
 def _operation_id(route: APIRoute) -> str:
@@ -36,6 +153,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.toss = build_toss_client(settings)
         app.state.solapi = build_solapi_client(settings)
         app.state.gcs = build_gcs_client(settings)
+        app.state.capabilities = {
+            "toss": app.state.toss.capability_mode,
+            "gcs": app.state.gcs.capability_mode,
+            "gcs_assets": assets_capability_mode(settings),
+            "solapi": app.state.solapi.capability_mode,
+            "admin_edge_proxy": (
+                "bypassed"
+                if settings.env in ("local", "test")
+                else "ready"
+                if settings.edge_proxy_secret
+                else "unavailable"
+            ),
+        }
         app.state.worker = build_worker_client(settings)
         app.state.tasks = build_task_queue(settings)
         yield
@@ -50,16 +180,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.oauth = build_oauth(settings)
+    app.state.admin_auth_rate_limiter = AuthRateLimiter(
+        attempts=settings.admin_auth_rate_limit_attempts,
+        window_seconds=settings.admin_auth_rate_limit_window_seconds,
+        max_keys=settings.admin_auth_rate_limit_max_keys,
+    )
 
     # add_middleware는 나중에 추가한 것이 바깥 — RequestId가 최외곽
     app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)  # Authlib state
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=list(dict.fromkeys([*settings.cors_origins, settings.admin_frontend_origin])),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(
+        AdminBoundaryMiddleware,
+        allowed_origin=settings.admin_frontend_origin,
+        environment=settings.env,
+        edge_proxy_secret=settings.edge_proxy_secret,
+    )
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestIdMiddleware)
 
     register_error_handlers(app)
@@ -69,10 +211,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/readyz", include_in_schema=False)
+    def readyz(request: Request) -> JSONResponse:
+        capabilities = request.app.state.capabilities
+        ready = all(mode != "unavailable" for mode in capabilities.values())
+        return JSONResponse(
+            status_code=200 if ready else 503,
+            content={
+                "status": "ready" if ready else "not_ready",
+                "capabilities": capabilities,
+            },
+        )
+
     return app
 
 
 def _include_routers(app: FastAPI) -> None:
+    from api.domains.admin.configuration import router as admin_configuration_router
+    from api.domains.admin.coupons import router as admin_coupons_router
+    from api.domains.admin.customers import router as admin_customers_router
+    from api.domains.admin.generation import router as admin_generation_router
+    from api.domains.admin.phase_d_router import router as admin_phase_d_router
+    from api.domains.admin.products import router as admin_products_router
     from api.domains.admin.router import router as admin_router
     from api.domains.auth.router import router as auth_router
     from api.domains.batch.router import router as batch_router
@@ -105,6 +265,12 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(reform_router)
     app.include_router(design_router)
     app.include_router(admin_router)
+    app.include_router(admin_customers_router)
+    app.include_router(admin_coupons_router)
+    app.include_router(admin_products_router)
+    app.include_router(admin_configuration_router)
+    app.include_router(admin_phase_d_router)
+    app.include_router(admin_generation_router)
     app.include_router(batch_router)
 
 

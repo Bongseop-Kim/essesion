@@ -25,7 +25,8 @@ class QuoteOut(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     quote_number: str
-    shipping_address_id: uuid.UUID
+    shipping_address_id: uuid.UUID | None
+    shipping_address_snapshot: dict[str, Any] | None
     options: dict[str, Any]
     quantity: int
     additional_notes: str
@@ -40,17 +41,3 @@ class QuoteOut(BaseModel):
     reference_images: list[Any]
     created_at: datetime
     updated_at: datetime
-
-
-class AdminQuoteStatusRequest(BaseModel):
-    new_status: Literal["요청", "견적발송", "협의중", "확정", "종료"]
-    quoted_amount: int | None = None
-    quote_conditions: str | None = None
-    admin_memo: str | None = None
-    memo: str | None = None
-
-
-class AdminQuoteStatusResponse(BaseModel):
-    success: bool
-    previous_status: str
-    new_status: str

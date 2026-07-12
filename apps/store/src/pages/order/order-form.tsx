@@ -36,6 +36,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import {
+  cartItemBlockingReason,
   productUnitPrice,
   useCartActions,
   useCartItems,
@@ -305,6 +306,7 @@ export function OrderFormPage() {
     items.length !== cartItemIds.length ||
     items.some(
       (item) =>
+        cartItemBlockingReason(item) != null ||
         (item.item_type === "product" && !item.product) ||
         (item.item_type === "reform" && !item.reform_data),
     ) ||

@@ -1,7 +1,7 @@
 """1:1 문의 — 고객 작성·조회 + 관리자 답변."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal, cast
 
 from db.models.commerce import Inquiry
@@ -10,8 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
 from api.db import SessionDep
-from api.deps import AdminUser, CurrentUser, ensure_owner
-from api.errors import DomainError, NotFoundError
+from api.deps import CurrentUser, ensure_owner
+from api.errors import DomainError
 
 router = APIRouter(tags=["inquiries"])
 
@@ -45,10 +45,6 @@ class InquiryOut(BaseModel):
     answer_date: datetime | None
     product_id: int | None
     created_at: datetime
-
-
-class InquiryAnswerRequest(BaseModel):
-    answer: str = Field(min_length=1)
 
 
 @router.post("/inquiries", response_model=InquiryOut, status_code=201)
@@ -115,27 +111,6 @@ async def delete_inquiry(inquiry_id: uuid.UUID, session: SessionDep, user: Curre
     await session.commit()
 
 
-# ---- 관리자 ----
+from api.domains.admin.inquiries import router as admin_inquiries_router  # noqa: E402
 
-
-@router.get("/admin/inquiries", response_model=list[InquiryOut])
-async def admin_list_inquiries(session: SessionDep, admin: AdminUser) -> list[InquiryOut]:
-    rows = await session.scalars(select(Inquiry).order_by(Inquiry.created_at.desc()))
-    return [InquiryOut.model_validate(i) for i in rows]
-
-
-@router.post("/admin/inquiries/{inquiry_id}/answer", response_model=InquiryOut)
-async def answer_inquiry(
-    inquiry_id: uuid.UUID, body: InquiryAnswerRequest, session: SessionDep, admin: AdminUser
-) -> InquiryOut:
-    inquiry = await session.scalar(
-        select(Inquiry).where(Inquiry.id == inquiry_id).with_for_update()
-    )
-    if inquiry is None:
-        raise NotFoundError("문의를 찾을 수 없습니다")
-    inquiry.answer = body.answer
-    inquiry.answer_date = datetime.now(UTC)
-    inquiry.status = "답변완료"
-    await session.commit()
-    await session.refresh(inquiry)
-    return InquiryOut.model_validate(inquiry)
+router.include_router(admin_inquiries_router)

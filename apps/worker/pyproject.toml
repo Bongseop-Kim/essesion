@@ -8,11 +8,11 @@ dependencies = [
     "uvicorn>=0.34",
     "essesion-obs",
     "essesion-db",
+    "essesion-svg-safety",
     "pydantic-settings>=2.6",
     "httpx>=0.28",
     "google-cloud-storage>=2.18",
     "pillow>=11",
-    "defusedxml>=0.7",
 ]
 
 [dependency-groups]
@@ -21,6 +21,7 @@ dev = ["pytest>=8"]
 [tool.uv.sources]
 essesion-obs = { workspace = true }
 essesion-db = { workspace = true }
+essesion-svg-safety = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

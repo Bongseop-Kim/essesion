@@ -10,6 +10,8 @@ __pycache__/
 !.env.example
 .DS_Store
 .wrangler/
+playwright-report/
+test-results/
 .terraform/
 *.tfstate*
 *.tfvars

@@ -46,7 +46,9 @@ class _MetadataGcs(DryRunGcsClient):
         super().__init__()
         self.metadata: dict[str, GcsObjectMetadata] = {}
 
-    async def object_metadata(self, object_key: str) -> GcsObjectMetadata | None:
+    async def object_metadata(
+        self, object_key: str, *, bucket_name: str | None = None
+    ) -> GcsObjectMetadata | None:
         return self.metadata.get(object_key)
 
 
@@ -241,21 +243,31 @@ async def test_admin_quote_transition_and_image_expiry(client, db_session, setti
         )
     ).json()["id"]
     headers = auth_headers(admin, settings)
+    detail = await client.get(f"/admin/quotes/{quote_id}", headers=headers)
+    expected_updated_at = detail.json()["updated_at"]
 
     invalid = await client.post(
-        f"/admin/quotes/{quote_id}/status", json={"new_status": "확정"}, headers=headers
+        f"/admin/quotes/{quote_id}/status",
+        json={"new_status": "확정", "expected_updated_at": expected_updated_at},
+        headers=headers,
     )
     assert invalid.status_code == 400  # 요청→확정 불가
 
     sent = await client.post(
         f"/admin/quotes/{quote_id}/status",
-        json={"new_status": "견적발송", "quoted_amount": 1500000},
+        json={
+            "new_status": "견적발송",
+            "quoted_amount": 1500000,
+            "expected_updated_at": expected_updated_at,
+        },
         headers=headers,
     )
     assert sent.status_code == 200
 
     ended = await client.post(
-        f"/admin/quotes/{quote_id}/status", json={"new_status": "종료"}, headers=headers
+        f"/admin/quotes/{quote_id}/status",
+        json={"new_status": "종료", "expected_updated_at": sent.json()["updated_at"]},
+        headers=headers,
     )
     assert ended.status_code == 200
 

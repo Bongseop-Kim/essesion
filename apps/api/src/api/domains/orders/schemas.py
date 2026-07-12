@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.domains.reform.schemas import ReformDataIn
 
@@ -63,11 +63,15 @@ class ReferenceImageIn(BaseModel):
     object_key: str  # GCS 서명 업로드로 올린 객체 키 (구 ImageKit url/fileId 대체)
 
 
+class OrderReferenceImageIn(BaseModel):
+    upload_id: uuid.UUID
+
+
 class CustomOrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
     options: dict[str, Any]
     quantity: int
-    reference_images: list[ReferenceImageIn] = []
+    reference_images: list[OrderReferenceImageIn] = Field(default_factory=list, max_length=5)
     additional_notes: str = ""
     user_coupon_id: uuid.UUID | None = None
 
@@ -76,7 +80,7 @@ class SampleOrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
     sample_type: Literal["fabric", "sewing", "fabric_and_sewing"]
     options: dict[str, Any]
-    reference_images: list[ReferenceImageIn] = []
+    reference_images: list[OrderReferenceImageIn] = Field(default_factory=list, max_length=5)
     additional_notes: str = ""
     user_coupon_id: uuid.UUID | None = None
 

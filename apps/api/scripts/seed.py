@@ -11,6 +11,7 @@
 
 import asyncio
 import os
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -21,6 +22,9 @@ from db.models.auth import User
 from db.models.commerce import (
     AdminSetting,
     Coupon,
+    Order,
+    OrderItem,
+    OrderStatusLog,
     PricingConstant,
     Product,
     ProductOption,
@@ -31,6 +35,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 ADMIN_SETTINGS = {
+    "default_courier_company": "롯데택배",
     "design_token_initial_grant": "30",
     "design_token_cost_openai_render_standard": "5",
 }
@@ -110,6 +115,7 @@ PRODUCTS = [
 ]
 
 TEST_COUPON_NAME = "local-cart-test-5000"
+ADMIN_SMOKE_ORDER_NUMBER = "E2E-ADMIN-001"
 
 
 async def _ensure_user(session, email: str, name: str, role: str, password: str) -> None:
@@ -167,8 +173,70 @@ async def _ensure_test_coupon(session) -> None:
     )
 
 
+async def _ensure_admin_smoke_order(session) -> None:
+    customer = await session.scalar(select(User).where(User.email == "customer@local"))
+    product = await session.scalar(select(Product).where(Product.code == "3F-SEED-001"))
+    if customer is None or product is None:
+        return
+
+    order = await session.scalar(
+        select(Order).where(Order.order_number == ADMIN_SMOKE_ORDER_NUMBER)
+    )
+    if order is None:
+        order = Order(
+            user_id=customer.id,
+            order_number=ADMIN_SMOKE_ORDER_NUMBER,
+            order_type="sale",
+            status="대기중",
+            shipping_address_snapshot={
+                "id": str(uuid.UUID("00000000-0000-4000-8000-000000000101")),
+                "recipient_name": "로컬고객",
+                "recipient_phone": "01000000000",
+                "postal_code": "04524",
+                "address": "서울시 중구 로컬로 1",
+                "address_detail": "테스트",
+                "delivery_memo": "문 앞",
+                "delivery_request": None,
+            },
+            total_price=39000,
+            original_price=39000,
+            payment_group_id=uuid.UUID("00000000-0000-4000-8000-000000000102"),
+        )
+        session.add(order)
+        await session.flush()
+        session.add(
+            OrderItem(
+                order_id=order.id,
+                item_id=str(product.id),
+                item_type="product",
+                product_id=product.id,
+                item_data={
+                    "product_snapshot": {
+                        "id": product.id,
+                        "code": product.code,
+                        "name": product.name,
+                        "image": product.image,
+                    },
+                    "option_snapshot": {"name": "일반"},
+                },
+                quantity=1,
+                unit_price=39000,
+            )
+        )
+        print(f"  order: {ADMIN_SMOKE_ORDER_NUMBER}")
+        return
+
+    # Playwright를 반복 실행해도 항상 같은 대표 전이를 다시 검증할 수 있게 복구한다.
+    order.status = "대기중"
+    await session.execute(delete(OrderStatusLog).where(OrderStatusLog.order_id == order.id))
+
+
 async def main() -> None:
     settings = get_settings()
+    if settings.env not in ("local", "test"):
+        raise RuntimeError(
+            "seed.py는 local/test 전용입니다. 운영 관리자는 bootstrap_admin.py를 사용하세요."
+        )
     engine = build_engine(settings)
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as session:
@@ -224,6 +292,7 @@ async def main() -> None:
                 print(f"  product: {product_data['code']}")
 
         await _ensure_test_coupon(session)
+        await _ensure_admin_smoke_order(session)
 
         await session.commit()
     await engine.dispose()

@@ -2,15 +2,18 @@
 
 import asyncio
 import json
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
 import pytest
 import respx
-from api.domains.design.router import KNOWN_WEAVES, _public_asset_url
+from api.config import Settings
+from api.domains.design.router import KNOWN_WEAVES
 from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
+from api.integrations.gcs import public_asset_url
 from db.models.design import DesignSession, GenerationJob
 from db.models.images import Image
 from db.models.tokens import DesignToken
@@ -210,17 +213,19 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
 
 
 def test_public_asset_url_uses_project_bucket_and_quotes_key():
-    assert _public_asset_url("test-project", "fabric/a b#.png") == (
-        "https://storage.googleapis.com/test-project-assets/fabric/a%20b%23.png"
+    settings = Settings(env="test", gcs_assets_bucket="configured-assets")
+    assert public_asset_url(settings, "fabric/a b#.png") == (
+        "https://storage.googleapis.com/configured-assets/fabric/a%20b%23.png"
     )
-    assert _public_asset_url("", "fabric/a.png") is None
-    assert _public_asset_url("test-project", "") is None
+    assert public_asset_url(settings, "") is None
 
 
 async def test_list_generation_jobs_filters_owner_kind_status_session_and_paginates(
     client, db_session, settings
 ):
     settings.gcp_project_id = "test-project"
+    settings.gcs_assets_bucket = "configured-assets"
+    settings.gcs_assets_public_base_url = "https://cdn.example.test/assets/"
     owner = await make_user(db_session)
     other = await make_user(db_session)
     owner_session_a = DesignSession(user_id=owner.id)
@@ -295,9 +300,7 @@ async def test_list_generation_jobs_filters_owner_kind_status_session_and_pagina
         str(newer.id),
         str(older.id),
     ]
-    assert all_jobs[2]["result_url"] == (
-        "https://storage.googleapis.com/test-project-assets/fabric/newer%20file.png"
-    )
+    assert all_jobs[2]["result_url"] == ("https://cdn.example.test/assets/fabric/newer%20file.png")
 
     succeeded_jobs = (await client.get("/design/jobs?status=succeeded", headers=headers)).json()
     assert [job["id"] for job in succeeded_jobs] == [
@@ -367,7 +370,12 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     assert destination.startswith(prefix)
     assert destination.endswith(".png")
     assert len(destination.removeprefix(prefix).removesuffix(".png")) == 32
-    assert response.json() == {"object_key": destination}
+    assert response.json()["object_key"] == destination
+    assert response.json()["upload_id"] is not None
+    staged_order_image = await db_session.get(Image, uuid.UUID(response.json()["upload_id"]))
+    assert staged_order_image is not None
+    assert staged_order_image.entity_type == "custom_order_upload"
+    assert staged_order_image.upload_completed_at is not None
     assert app.state.gcs.copied == [("test-project-assets", "fabric/result.png", destination)]
 
     repeated = await client.post(f"/design/jobs/{job.id}/order-reference", headers=headers)

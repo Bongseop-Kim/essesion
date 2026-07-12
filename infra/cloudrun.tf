@@ -7,6 +7,7 @@ locals {
   api_plain_env = merge({
     ENV                              = "staging"
     GCS_UPLOAD_BUCKET                = google_storage_bucket.uploads.name
+    GCS_ASSETS_BUCKET                = google_storage_bucket.assets.name
     GCP_PROJECT_ID                   = var.project_id
     GCP_REGION                       = var.region
     CLOUD_TASKS_QUEUE                = google_cloud_tasks_queue.finalize.name
@@ -22,6 +23,7 @@ locals {
     DATABASE_URL         = google_secret_manager_secret.database_url.secret_id
     JWT_SECRET           = google_secret_manager_secret.app["jwt-secret"].secret_id
     SESSION_SECRET       = google_secret_manager_secret.app["session-secret"].secret_id
+    EDGE_PROXY_SECRET    = google_secret_manager_secret.app["edge-proxy-secret"].secret_id
     TOSS_SECRET_KEY      = google_secret_manager_secret.app["toss-secret-key"].secret_id
     SOLAPI_API_KEY       = google_secret_manager_secret.app["solapi-api-key"].secret_id
     SOLAPI_API_SECRET    = google_secret_manager_secret.app["solapi-api-secret"].secret_id

@@ -1,6 +1,6 @@
 """JWT(access) + 불투명 refresh 토큰 + argon2id.
 
-- access: PyJWT HS256, 15분, 클레임 {sub, role, iat, exp}.
+- access: PyJWT HS256, 15분, 클레임 {sub, role, session_kind, iat, exp}.
 - refresh: secrets.token_urlsafe(32) 원문은 클라이언트(httpOnly 쿠키)에만,
   DB(refresh_tokens.token_hash)에는 sha256 hex만 저장.
 - argon2 verify/hash는 CPU 바운드 — 호출부에서 run_in_threadpool로 감쌀 것.
@@ -10,6 +10,7 @@ import hashlib
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 import jwt
 from pwdlib import PasswordHash
@@ -18,16 +19,24 @@ from api.config import Settings
 from api.errors import UnauthorizedError
 
 ALGORITHM = "HS256"
+SessionKind = Literal["store", "admin"]
 
 password_hasher = PasswordHash.recommended()  # argon2id
 
 
-def create_access_token(user_id: uuid.UUID, role: str, settings: Settings) -> str:
+def create_access_token(
+    user_id: uuid.UUID,
+    role: str,
+    settings: Settings,
+    *,
+    session_kind: SessionKind = "store",
+) -> str:
     now = datetime.now(UTC)
     return jwt.encode(
         {
             "sub": str(user_id),
             "role": role,
+            "session_kind": session_kind,
             "iat": now,
             "exp": now + timedelta(minutes=settings.access_ttl_minutes),
         },

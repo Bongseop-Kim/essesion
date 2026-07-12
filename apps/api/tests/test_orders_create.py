@@ -1,8 +1,9 @@
 """주문 생성 3종 — 수식·재고·쿠폰 규칙 검증 (docs/api-spec/money.md §2~§4)."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
-from db.models.commerce import Order, RepairPickupRequest, UserCoupon
+from db.models.commerce import Order, ProductOption, RepairPickupRequest, UserCoupon
 from db.models.images import Image
 from sqlalchemy import select
 
@@ -67,6 +68,7 @@ async def test_sale_order_totals_and_stock(client, db_session, settings):
     assert order["status"] == "대기중"
     assert order["shipping_cost"] == 0  # 상품 주문은 항상 무료배송
     assert order["items"][0]["unit_price"] == 10000
+    assert order["items"][0]["item_data"]["product"]["name"] == product.name
 
     await db_session.refresh(product)
     assert product.stock == 3  # 결제 전 차감
@@ -114,6 +116,57 @@ async def test_coupon_percentage_with_cap_and_reserve(client, db_session, settin
         select(UserCoupon.status).where(UserCoupon.id == user_coupon.id)
     )
     assert reserved == "reserved"
+
+
+async def test_order_uses_issued_coupon_and_product_option_snapshots(client, db_session, settings):
+    user, address, product = await _setup(db_session, stock=None, price=10000)
+    option = ProductOption(
+        product_id=product.id,
+        name="롱",
+        additional_price=2000,
+        stock=3,
+    )
+    db_session.add(option)
+    coupon = await make_coupon(db_session, discount_type="percentage", discount_value=10)
+    user_coupon = await make_user_coupon(db_session, user, coupon)
+    user_coupon.terms_snapshot = {
+        "name": coupon.name,
+        "display_name": "발급 당시 10%",
+        "discount_type": "percentage",
+        "discount_value": "10",
+        "max_discount_amount": None,
+        "expiry_date": "2099-12-31",
+    }
+    # 발급 후 template 변경/비활성화가 이미 발급된 권리를 바꾸지 않아야 한다.
+    coupon.discount_value = Decimal(90)
+    coupon.is_active = False
+    await db_session.commit()
+
+    response = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [
+                {
+                    **_product_item(product, coupon_id=user_coupon.id),
+                    "selected_option_id": str(option.id),
+                }
+            ],
+        },
+        headers=auth_headers(user, settings),
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["total_amount"] == 10800  # 12,000원의 발급 당시 10%
+    order_id = response.json()["orders"][0]["order_id"]
+
+    product.name = "변경된 상품명"
+    option.name = "변경된 옵션명"
+    await db_session.commit()
+    detail = (await client.get(f"/orders/{order_id}", headers=auth_headers(user, settings))).json()
+    item_data = detail["items"][0]["item_data"]
+    assert item_data["product"]["name"] == "테스트 넥타이"
+    assert item_data["option"]["name"] == "롱"
+    assert item_data["coupon"]["discount_value"] == "10"
 
 
 async def test_fixed_coupon_applies_once_per_line(client, db_session, settings):
@@ -338,27 +391,40 @@ async def test_custom_order_creates_with_remainder(client, db_session, settings)
             "YARN_DYED_DESIGN_COST": 0,
         },
     )
+    headers = auth_headers(user, settings)
+    issued = await client.post(
+        "/images/upload-url",
+        json={
+            "kind": "custom_order",
+            "filename": "reference.png",
+            "content_type": "image/png",
+            "size_bytes": 100,
+        },
+        headers=headers,
+    )
+    upload_id = issued.json()["upload_id"]
+    completed = await client.post(f"/images/order-uploads/{upload_id}/complete", headers=headers)
+    assert completed.status_code == 200, completed.text
+
     res = await client.post(
         "/orders/custom",
         json={
             "shipping_address_id": str(address.id),
             "options": {"fabric_provided": True},
             "quantity": 3,
-            "reference_images": [{"object_key": "uploads/ref1.png"}],
+            "reference_images": [{"upload_id": upload_id}],
             "additional_notes": "메모",
         },
-        headers=auth_headers(user, settings),
+        headers=headers,
     )
     assert res.status_code == 201, res.text
     # total = 3333*3 + 100 = 10099, base_unit = 3366, remainder = 1
     assert res.json()["total_amount"] == 10099
-    detail = (
-        await client.get(f"/orders/{res.json()['order_id']}", headers=auth_headers(user, settings))
-    ).json()
+    detail = (await client.get(f"/orders/{res.json()['order_id']}", headers=headers)).json()
     item = detail["items"][0]
     assert item["unit_price"] == 3366
     assert item["item_data"]["pricing"]["unit_price_remainder"] == 1
-    assert item["item_data"]["reference_images"] == [{"object_key": "uploads/ref1.png"}]
+    assert item["item_data"]["reference_images"] == [{"image_id": upload_id}]
 
 
 async def test_sample_order_pricing(client, db_session, settings):

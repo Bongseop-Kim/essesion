@@ -1,6 +1,8 @@
 import asyncio
+import logging
 import time
 import uuid
+from functools import wraps
 from typing import Any, Literal
 
 from db.models.design import GenerationJob
@@ -31,6 +33,7 @@ from worker.render.raster import RasterError, rasterize_svg
 from worker.render.sanitize import scrub_svg
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 NOT_IMPLEMENTED = 501
 
@@ -94,6 +97,61 @@ class MotifGenerateRequest(BaseModel):
     seed: int | None = None
 
 
+def _safe_generation_error(exc: Exception) -> tuple[str, str]:
+    source = exc.__cause__ if isinstance(exc.__cause__, Exception) else exc
+    error_type = source.__class__.__name__
+    if isinstance(source, IntentInvalid):
+        return error_type, "intent validation failed"
+    if isinstance(source, AdapterNotConfigured):
+        return error_type, "generation adapter is not configured"
+    if isinstance(source, AdapterClientError):
+        return error_type, "generation adapter request failed"
+    if isinstance(source, (AssertionError, ValueError)):
+        return error_type, "generation input is invalid"
+    if isinstance(exc, HTTPException):
+        return "HTTPException", f"generation request rejected ({exc.status_code})"
+    return error_type, "generation failed"
+
+
+def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserved by wraps
+    @wraps(endpoint)
+    async def wrapped(body: GenerateRequest, request: Request, session: SessionDep):
+        started = time.perf_counter()
+        request.state.generation_generate_ms = None
+        request.state.generation_render_ms = 0.0
+        try:
+            return await endpoint(body, request, session)
+        except Exception as exc:
+            error_type, error_message = _safe_generation_error(exc)
+            generate_ms = request.state.generation_generate_ms
+            if generate_ms is None:
+                generate_ms = round((time.perf_counter() - started) * 1000, 3)
+            try:
+                await session.rollback()
+                session.add(
+                    SeamlessGenerationLog(
+                        request_id=request_id_var.get(),
+                        input_type="intent" if body.intent is not None else "prompt",
+                        prompt=body.prompt,
+                        colorway=body.colorway,
+                        seed=body.seed,
+                        candidate_count_requested=body.candidate_count,
+                        warnings=[],
+                        generate_ms=generate_ms,
+                        render_ms=request.state.generation_render_ms,
+                        status="error",
+                        error_type=error_type,
+                        error_message=error_message,
+                    )
+                )
+                await session.commit()
+            except Exception:
+                logger.exception("generation error log persistence failed")
+            raise
+
+    return wrapped
+
+
 async def _render_candidates(
     candidate_set, tile_mm: float, request: Request, settings, warnings: list[str]
 ) -> list[CandidateOut]:
@@ -111,8 +169,8 @@ async def _render_candidates(
             )
             png_key = f"previews/{request_id_var.get()}/{ranked.id}.png"
             await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
-        except (RasterError, OSError) as exc:
-            warning = f"preview upload skipped: {exc}"
+        except (RasterError, OSError):
+            warning = "preview upload skipped"
         out = CandidateOut(
             id=ranked.id,
             design_index=ranked.design_index,
@@ -125,16 +183,21 @@ async def _render_candidates(
         )
         return out, warning
 
-    rendered = await asyncio.gather(*(_one(r) for r in candidate_set.candidates))
-    outs: list[CandidateOut] = []
-    for out, warning in rendered:
-        if warning is not None:
-            warnings.append(warning)
-        outs.append(out)
-    return outs
+    render_started = time.perf_counter()
+    try:
+        rendered = await asyncio.gather(*(_one(r) for r in candidate_set.candidates))
+        outs: list[CandidateOut] = []
+        for out, warning in rendered:
+            if warning is not None:
+                warnings.append(warning)
+            outs.append(out)
+        return outs
+    finally:
+        request.state.generation_render_ms = round((time.perf_counter() - render_started) * 1000, 3)
 
 
 @router.post("/generate", response_model=GenerateResponse)
+@_logged_generation
 async def generate(
     body: GenerateRequest, request: Request, session: SessionDep
 ) -> GenerateResponse:
@@ -231,6 +294,8 @@ async def generate(
 
     warnings.extend(candidate_set.warnings)
     warnings = list(dict.fromkeys(warnings))
+    generate_ms = round((time.perf_counter() - started) * 1000, 3)
+    request.state.generation_generate_ms = generate_ms
     outs = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
 
     log = SeamlessGenerationLog(
@@ -248,7 +313,8 @@ async def generate(
         intent=intent_log,
         candidates=[c.model_dump() for c in outs],
         warnings=warnings,
-        generate_ms=round((time.perf_counter() - started) * 1000, 3),
+        generate_ms=generate_ms,
+        render_ms=request.state.generation_render_ms,
         status="partial" if warnings else "success",
     )
     session.add(log)

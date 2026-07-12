@@ -2,19 +2,34 @@
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from db.models.auth import User
-from db.models.commerce import Claim, ClaimStatusLog, Order, OrderItem
+from db.models.commerce import (
+    Claim,
+    ClaimNotificationLog,
+    ClaimStatusLog,
+    Order,
+    OrderItem,
+    PaymentIncident,
+)
 from db.models.tokens import DesignToken
+from obs import request_id_var
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import USER_LOCK, advisory_xact_lock
+from api.domains.admin.operations import idempotent_result, record_operation
+from api.domains.payments.operation_journal import (
+    persist_payment_operation_outcome,
+    prepare_payment_operation,
+    set_payment_operation_outcome,
+)
 from api.domains.tokens.schemas import TokenHistoryFilter
-from api.errors import ConflictError, DomainError, NotFoundError
+from api.errors import ConflictError, DomainError, NotFoundError, UpstreamError
 from api.integrations.toss import TossClient
 from api.numbering import generate_number
 from api.pricing import get_admin_setting, get_pricing_constants
@@ -23,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 TOKEN_COST_SETTING = "design_token_cost_openai_render_standard"
 PLAN_KEYS = ("starter", "popular", "pro")
+TOKEN_DEBIT_ORDER = ("paid", "bonus", "free")
 
 _not_expired = or_(DesignToken.expires_at.is_(None), DesignToken.expires_at > func.now())
 
@@ -83,6 +99,101 @@ def _idempotent_insert(values: dict):
     )
 
 
+type TokenBatch = tuple[uuid.UUID | None, datetime | None, int]
+
+
+def _balance_invariant_error() -> DomainError:
+    return DomainError(
+        "토큰 잔액 데이터가 올바르지 않습니다",
+        code="token_balance_invariant_violation",
+        status=409,
+    )
+
+
+async def _get_spendable_batches(
+    session: AsyncSession, user_id: uuid.UUID
+) -> dict[str, list[TokenBatch]]:
+    """만료되지 않은 양수 배치를 반환하고 기존 음수 배치는 거부한다."""
+    rows = (
+        await session.execute(
+            select(
+                DesignToken.token_class,
+                DesignToken.source_order_id,
+                DesignToken.expires_at,
+                func.sum(DesignToken.amount).label("balance"),
+            )
+            .where(DesignToken.user_id == user_id, _not_expired)
+            .group_by(
+                DesignToken.token_class,
+                DesignToken.source_order_id,
+                DesignToken.expires_at,
+            )
+            .order_by(
+                DesignToken.token_class,
+                DesignToken.expires_at.asc().nulls_last(),
+                DesignToken.source_order_id.asc().nulls_last(),
+            )
+        )
+    ).all()
+    batches: dict[str, list[TokenBatch]] = {token_class: [] for token_class in TOKEN_DEBIT_ORDER}
+    for token_class, source_order_id, expires_at, raw_balance in rows:
+        batch_balance = int(raw_balance)
+        if batch_balance < 0:
+            raise _balance_invariant_error()
+        if batch_balance > 0:
+            batches[token_class].append((source_order_id, expires_at, batch_balance))
+    return batches
+
+
+def _summarize_batches(batches: dict[str, list[TokenBatch]]) -> dict[str, int]:
+    by_class = {
+        token_class: sum(batch[2] for batch in batches[token_class])
+        for token_class in TOKEN_DEBIT_ORDER
+    }
+    return {
+        "total": sum(by_class.values()),
+        "paid": by_class["paid"],
+        "bonus": by_class["bonus"] + by_class["free"],
+    }
+
+
+async def _insert_bucketed_debits(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+    amount: int,
+    entry_type: str,
+    batches: dict[str, list[TokenBatch]],
+    work_id_for: Callable[[str, int], str],
+    description: str | None = None,
+) -> None:
+    remaining = amount
+    for token_class in TOKEN_DEBIT_ORDER:
+        for batch_index, (source_order_id, expires_at, batch_balance) in enumerate(
+            batches[token_class]
+        ):
+            if remaining == 0:
+                return
+            take = min(remaining, batch_balance)
+            await session.execute(
+                _idempotent_insert(
+                    dict(
+                        user_id=user_id,
+                        amount=-take,
+                        type=entry_type,
+                        token_class=token_class,
+                        description=description,
+                        work_id=work_id_for(token_class, batch_index),
+                        source_order_id=source_order_id,
+                        expires_at=expires_at,
+                    )
+                )
+            )
+            remaining -= take
+    if remaining > 0:
+        raise _balance_invariant_error()
+
+
 @dataclass
 class UseResult:
     success: bool
@@ -121,6 +232,9 @@ async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) ->
                         f"{work_id}_use_paid_0",
                         f"{work_id}_use_paid_legacy",
                         f"{work_id}_use_bonus",
+                        f"{work_id}_use_bonus_0",
+                        f"{work_id}_use_free",
+                        f"{work_id}_use_free_0",
                     ]
                 )
             )
@@ -130,76 +244,25 @@ async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) ->
         await session.commit()
         return UseResult(True, cost, balance["total"])
 
+    batches = await _get_spendable_batches(session, user_id)
+    balance = _summarize_batches(batches)
     if balance["total"] < cost:
         await session.commit()
         return UseResult(False, cost, balance["total"], error="insufficient_tokens")
 
-    paid_deduct = min(cost, balance["paid"])
-    bonus_deduct = cost - paid_deduct
+    def use_work_id(token_class: str, batch_index: int) -> str:
+        if token_class in ("bonus", "free") and batch_index == 0:
+            return f"{work_id}_use_{token_class}"
+        return f"{work_id}_use_{token_class}_{batch_index}"
 
-    if paid_deduct > 0:
-        # (source_order_id, expires_at) 배치를 만료 임박순으로 소진
-        batches = (
-            await session.execute(
-                select(
-                    DesignToken.source_order_id,
-                    DesignToken.expires_at,
-                    func.sum(DesignToken.amount).label("remain"),
-                )
-                .where(
-                    DesignToken.user_id == user_id,
-                    DesignToken.token_class == "paid",
-                    _not_expired,
-                )
-                .group_by(DesignToken.source_order_id, DesignToken.expires_at)
-                .having(func.sum(DesignToken.amount) > 0)
-                .order_by(DesignToken.expires_at.asc().nulls_last())
-            )
-        ).all()
-        remaining = paid_deduct
-        for idx, (source_order_id, expires_at, remain) in enumerate(batches):
-            take = min(remaining, int(remain))
-            await session.execute(
-                _idempotent_insert(
-                    dict(
-                        user_id=user_id,
-                        amount=-take,
-                        type="use",
-                        token_class="paid",
-                        work_id=f"{work_id}_use_paid_{idx}",
-                        source_order_id=source_order_id,
-                        expires_at=expires_at,
-                    )
-                )
-            )
-            remaining -= take
-            if remaining == 0:
-                break
-        if remaining > 0:
-            await session.execute(
-                _idempotent_insert(
-                    dict(
-                        user_id=user_id,
-                        amount=-remaining,
-                        type="use",
-                        token_class="paid",
-                        work_id=f"{work_id}_use_paid_legacy",
-                    )
-                )
-            )
-
-    if bonus_deduct > 0:
-        await session.execute(
-            _idempotent_insert(
-                dict(
-                    user_id=user_id,
-                    amount=-bonus_deduct,
-                    type="use",
-                    token_class="bonus",
-                    work_id=f"{work_id}_use_bonus",
-                )
-            )
-        )
+    await _insert_bucketed_debits(
+        session,
+        user_id=user_id,
+        amount=cost,
+        entry_type="use",
+        batches=batches,
+        work_id_for=use_work_id,
+    )
 
     await session.commit()
     return UseResult(True, cost, balance["total"] - cost)
@@ -467,6 +530,20 @@ async def cancel_refund_request(session: AsyncSession, user: User, claim_id: uui
     assert claim is not None
     if claim.status != "접수":
         raise DomainError("only pending requests can be cancelled", code="invalid_status")
+    has_open_operation = await session.scalar(
+        select(
+            exists().where(
+                PaymentIncident.claim_id == claim.id,
+                PaymentIncident.incident_type == "refund",
+                PaymentIncident.status == "open",
+            )
+        )
+    )
+    if has_open_operation:
+        raise ConflictError(
+            "환불 처리가 진행 중이거나 대사가 필요합니다",
+            code="payment_reconciliation_required",
+        )
     session.add(
         ClaimStatusLog(
             claim_id=claim.id,
@@ -474,20 +551,14 @@ async def cancel_refund_request(session: AsyncSession, user: User, claim_id: uui
             previous_status=claim.status,
             new_status="거부",
             memo="고객 환불 요청 취소",
+            request_id=request_id_var.get() or None,
         )
     )
     claim.status = "거부"
     await session.commit()
 
 
-async def approve_refund(
-    session: AsyncSession, admin: User, toss: TossClient, claim_id: uuid.UUID
-) -> dict:
-    claim = await session.scalar(
-        select(Claim).where(Claim.id == claim_id, Claim.type == "token_refund").with_for_update()
-    )
-    if claim is None:
-        raise NotFoundError("환불 요청을 찾을 수 없습니다")
+def _refund_values(claim: Claim) -> tuple[int, int, int]:
     data = claim.refund_data or {}
     paid = data.get("paid_token_amount")
     bonus = data.get("bonus_token_amount", 0)
@@ -500,7 +571,195 @@ async def approve_refund(
         or bonus < 0
         or refund_amount <= 0
     ):
-        raise DomainError("환불 데이터가 올바르지 않습니다", code="invalid_refund_data", status=422)
+        raise DomainError(
+            "환불 데이터가 올바르지 않습니다",
+            code="invalid_refund_data",
+            status=422,
+        )
+    return paid, bonus, refund_amount
+
+
+async def _record_refund_incident(
+    session: AsyncSession,
+    *,
+    operation_id: uuid.UUID,
+    phase: str,
+    error_type: str,
+    provider_http_status: int | None = None,
+    provider_status: str | None = None,
+) -> PaymentIncident:
+    return await persist_payment_operation_outcome(
+        session,
+        operation_id,
+        phase=phase,
+        error_type=error_type,
+        provider_http_status=provider_http_status,
+        provider_status=provider_status,
+    )
+
+
+async def _apply_token_refund(
+    session: AsyncSession,
+    *,
+    claim: Claim,
+    order: Order,
+    actor_id: uuid.UUID,
+    paid: int,
+    bonus: int,
+    operation_id: uuid.UUID | None = None,
+) -> None:
+    granted = await _granted_rows(session, order)
+    expires = granted[0].expires_at if granted else None
+    if paid > 0:
+        await session.execute(
+            _idempotent_insert(
+                dict(
+                    user_id=claim.user_id,
+                    amount=-paid,
+                    type="refund",
+                    token_class="paid",
+                    work_id=f"refund_{claim.id}_paid",
+                    source_order_id=order.id,
+                    expires_at=expires,
+                )
+            )
+        )
+    if bonus > 0:
+        await session.execute(
+            _idempotent_insert(
+                dict(
+                    user_id=claim.user_id,
+                    amount=-bonus,
+                    type="refund",
+                    token_class="bonus",
+                    work_id=f"refund_{claim.id}_bonus",
+                )
+            )
+        )
+    if order.status != "취소":
+        from api.domains.orders.service import log_status
+
+        log_status(session, order, "취소", changed_by=actor_id, memo="토큰 환불 승인")
+    if claim.status != "완료":
+        session.add(
+            ClaimStatusLog(
+                claim_id=claim.id,
+                changed_by=actor_id,
+                previous_status=claim.status,
+                new_status="완료",
+                request_id=request_id_var.get() or None,
+            )
+        )
+        claim.status = "완료"
+    await session.execute(
+        pg_insert(ClaimNotificationLog)
+        .values(
+            claim_id=claim.id,
+            status="완료",
+            delivery_status="pending",
+            attempts=0,
+        )
+        .on_conflict_do_nothing(
+            index_elements=[ClaimNotificationLog.claim_id, ClaimNotificationLog.status]
+        )
+    )
+    if operation_id is not None:
+        await set_payment_operation_outcome(
+            session,
+            operation_id,
+            phase="applied",
+            status="resolved",
+            resolved_by=actor_id,
+            resolution_memo="provider refund applied",
+            observed_amount=(claim.refund_data or {}).get("refund_amount"),
+        )
+    await session.commit()
+
+
+async def reconcile_approved_refund(
+    session: AsyncSession,
+    *,
+    claim_id: uuid.UUID,
+    actor_id: uuid.UUID,
+) -> tuple[bool, str]:
+    """검증된 Toss 취소 결과를 토큰 원장·주문·클레임에 멱등 반영한다."""
+    claim = await session.scalar(
+        select(Claim)
+        .where(Claim.id == claim_id, Claim.type == "token_refund")
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if claim is None:
+        await session.commit()
+        return False, "missing_token_refund_claim"
+    if claim.status not in ("접수", "완료"):
+        await session.commit()
+        return False, "token_refund_claim_not_applicable"
+    order = await session.scalar(
+        select(Order)
+        .where(Order.id == claim.order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if order is None or order.status not in ("완료", "취소"):
+        await session.commit()
+        return False, "token_refund_order_not_applicable"
+    paid, bonus, refund_amount = _refund_values(claim)
+    if refund_amount > order.total_price:
+        await session.commit()
+        return False, "invalid_refund_amount"
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=claim.user_id))
+    already_consistent = claim.status == "완료" and order.status == "취소"
+    await _apply_token_refund(
+        session,
+        claim=claim,
+        order=order,
+        actor_id=actor_id,
+        paid=paid,
+        bonus=bonus,
+    )
+    return True, "already_consistent" if already_consistent else "applied"
+
+
+async def token_refund_is_consistent(
+    session: AsyncSession,
+    *,
+    claim_id: uuid.UUID,
+) -> bool:
+    claim = await session.scalar(
+        select(Claim)
+        .where(Claim.id == claim_id, Claim.type == "token_refund")
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if claim is None or claim.status != "완료":
+        return False
+    order = await session.scalar(
+        select(Order)
+        .where(Order.id == claim.order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if order is None or order.status != "취소":
+        return False
+    paid, bonus, _ = _refund_values(claim)
+    work_ids = (f"refund_{claim.id}_paid", f"refund_{claim.id}_bonus")
+    rows = list(await session.scalars(select(DesignToken).where(DesignToken.work_id.in_(work_ids))))
+    amounts = {row.work_id: row.amount for row in rows}
+    return (paid == 0 or amounts.get(work_ids[0]) == -paid) and (
+        bonus == 0 or amounts.get(work_ids[1]) == -bonus
+    )
+
+
+async def approve_refund(
+    session: AsyncSession, admin: User, toss: TossClient, claim_id: uuid.UUID
+) -> dict:
+    claim = await session.scalar(
+        select(Claim).where(Claim.id == claim_id, Claim.type == "token_refund").with_for_update()
+    )
+    if claim is None:
+        raise NotFoundError("환불 요청을 찾을 수 없습니다")
+    paid, bonus, refund_amount = _refund_values(claim)
 
     if claim.status == "완료":
         return {"success": True, "already_approved": True}  # 멱등
@@ -512,12 +771,78 @@ async def approve_refund(
         raise ConflictError("결제 정보가 없습니다", code="missing_payment_key")
     if refund_amount > order.total_price:
         raise DomainError("환불 금액이 결제 금액을 초과합니다", code="invalid_refund_amount")
+    has_open_incident = await session.scalar(
+        select(
+            exists().where(
+                PaymentIncident.claim_id == claim.id,
+                PaymentIncident.incident_type == "refund",
+                PaymentIncident.status == "open",
+            )
+        )
+    )
+    if has_open_incident:
+        raise ConflictError(
+            "환불 결과 대사가 필요한 요청입니다",
+            code="payment_reconciliation_required",
+        )
 
     await advisory_xact_lock(session, USER_LOCK.format(user_id=claim.user_id))
 
     cancel_amount = refund_amount if refund_amount < order.total_price else None  # 생략=전액
-    result = await toss.cancel(order.payment_key, "고객 토큰 환불 요청", cancel_amount)
+    payment_key = order.payment_key
+    refund_order_id = order.id
+    assert payment_key is not None
+    operation = prepare_payment_operation(
+        session,
+        incident_type="refund",
+        actor_id=admin.id,
+        order_id=order.id,
+        claim_id=claim.id,
+        expected_amount=refund_amount,
+        details={"payment_group_id": str(order.payment_group_id)},
+    )
+    # 환불 대상 잠금과 operation journal을 Toss 호출 전에 durable하게 만든다.
+    await session.commit()
+    operation_id = operation.id
+    try:
+        result = await toss.cancel(payment_key, "고객 토큰 환불 요청", cancel_amount)
+    except Exception as exc:
+        await _record_refund_incident(
+            session,
+            operation_id=operation_id,
+            phase="cancel_outcome_unknown",
+            error_type=type(exc).__name__,
+        )
+        raise UpstreamError(
+            "결제 취소 결과를 확인할 수 없어 관리자 대사가 필요합니다",
+            code="payment_outcome_unknown",
+        ) from exc
     if not result.ok:
+        if result.status >= 500:
+            await _record_refund_incident(
+                session,
+                operation_id=operation_id,
+                phase="provider_response_uncertain",
+                error_type="provider_server_error",
+                provider_http_status=result.status,
+            )
+            raise UpstreamError(
+                "결제 취소 결과를 확인할 수 없어 관리자 대사가 필요합니다",
+                code="payment_outcome_unknown",
+            )
+        await set_payment_operation_outcome(
+            session,
+            operation_id,
+            phase="provider_rejected",
+            status="resolved",
+            resolved_by=admin.id,
+            resolution_memo="provider rejected refund",
+            provider_http_status=result.status,
+            provider_status=(
+                result.body.get("status") if isinstance(result.body.get("status"), str) else None
+            ),
+        )
+        await session.commit()
         raise DomainError(
             result.body.get("message", "결제 취소에 실패했습니다"),
             code=result.body.get("code", "toss_error"),
@@ -525,76 +850,152 @@ async def approve_refund(
         )
 
     try:
-        granted = await _granted_rows(session, order)
-        expires = granted[0].expires_at if granted else None
-        if paid > 0:
-            await session.execute(
-                _idempotent_insert(
-                    dict(
-                        user_id=claim.user_id,
-                        amount=-paid,
-                        type="refund",
-                        token_class="paid",
-                        work_id=f"refund_{claim.id}_paid",
-                        source_order_id=order.id,
-                        expires_at=expires,
-                    )
-                )
-            )
-        if bonus > 0:
-            await session.execute(
-                _idempotent_insert(
-                    dict(
-                        user_id=claim.user_id,
-                        amount=-bonus,
-                        type="refund",
-                        token_class="bonus",
-                        work_id=f"refund_{claim.id}_bonus",
-                    )
-                )
-            )
-        from api.domains.orders.service import log_status
-
-        log_status(session, order, "취소", changed_by=admin.id, memo="토큰 환불 승인")
-        session.add(
-            ClaimStatusLog(
-                claim_id=claim.id,
-                changed_by=admin.id,
-                previous_status=claim.status,
-                new_status="완료",
-            )
+        claim = await session.scalar(
+            select(Claim)
+            .where(Claim.id == claim_id, Claim.type == "token_refund")
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
-        claim.status = "완료"
-        await session.commit()
-    except Exception:
+        if claim is None or claim.status != "접수":
+            raise ConflictError(
+                "환불 요청 상태가 외부 취소 중 변경되었습니다",
+                code="payment_reconciliation_required",
+            )
+        order = await session.scalar(
+            select(Order)
+            .where(Order.id == claim.order_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if order is None or order.status != "완료":
+            raise ConflictError(
+                "주문 상태가 외부 취소 중 변경되었습니다",
+                code="payment_reconciliation_required",
+            )
+        await advisory_xact_lock(session, USER_LOCK.format(user_id=claim.user_id))
+        await _apply_token_refund(
+            session,
+            claim=claim,
+            order=order,
+            actor_id=admin.id,
+            paid=paid,
+            bonus=bonus,
+            operation_id=operation_id,
+        )
+    except Exception as exc:
         logger.critical(
             "Toss 취소 성공 후 DB 반영 실패 — 수동 개입 필요: claim_id=%s order_id=%s",
             claim_id,
-            claim.order_id,
+            refund_order_id,
         )
-        raise
+        provider_status = result.body.get("status")
+        await _record_refund_incident(
+            session,
+            operation_id=operation_id,
+            phase="provider_succeeded_db_failed",
+            error_type=type(exc).__name__,
+            provider_http_status=result.status,
+            provider_status=provider_status if isinstance(provider_status, str) else None,
+        )
+        raise UpstreamError(
+            "결제는 취소됐지만 환불 반영에 실패해 관리자 대사가 필요합니다",
+            code="payment_reconciliation_required",
+        ) from exc
     return {"success": True, "already_approved": False}
 
 
 async def admin_manage(
-    session: AsyncSession, user_id: uuid.UUID, amount: int, description: str
+    session: AsyncSession,
+    admin: User,
+    operation_id: uuid.UUID,
+    user_id: uuid.UUID,
+    amount: int,
+    description: str,
 ) -> dict:
     if amount == 0:
         raise DomainError("amount는 0일 수 없습니다", code="invalid_amount")
     if not description.strip():
         raise DomainError("description은 필수입니다", code="description_required")
+    payload = {
+        "user_id": str(user_id),
+        "amount": amount,
+        "description": description.strip(),
+    }
+    previous = await idempotent_result(
+        session,
+        operation_id=operation_id,
+        action="token_adjust",
+        target_type="customer",
+        target_id=str(user_id),
+        payload=payload,
+    )
+    if previous is not None:
+        return {
+            "success": True,
+            "new_balance": int(previous["new_balance"]),
+            "operation_id": operation_id,
+        }
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
-    balance = await get_balance(session, user_id)
-    if amount < 0 and balance["total"] < -amount:
-        raise DomainError("insufficient_tokens", code="insufficient_tokens")
-    session.add(
-        DesignToken(
-            user_id=user_id,
-            amount=amount,
-            type="admin",
-            token_class="paid",
-            description=description,
+    target = await session.scalar(
+        select(User)
+        .where(User.id == user_id, User.role == "customer", User.is_active.is_(True))
+        .with_for_update()
+    )
+    if target is None:
+        raise NotFoundError("활성 고객을 찾을 수 없습니다")
+    if amount < 0:
+        # 유저 advisory/row lock으로 앱 쓰기를 직렬화하고, 이미 진행 중인 원장
+        # 갱신과도 잔액 스냅샷이 섞이지 않도록 원장 행을 함께 잠근다.
+        await session.execute(
+            select(DesignToken.id)
+            .where(DesignToken.user_id == user_id, _not_expired)
+            .with_for_update()
         )
+        batches = await _get_spendable_batches(session, user_id)
+        balance = _summarize_batches(batches)
+        if balance["total"] < -amount:
+            raise DomainError("insufficient_tokens", code="insufficient_tokens")
+        await _insert_bucketed_debits(
+            session,
+            user_id=user_id,
+            amount=-amount,
+            entry_type="admin",
+            batches=batches,
+            work_id_for=lambda token_class, batch_index: (
+                f"admin_{operation_id}_{token_class}_{batch_index}"
+            ),
+            description=description.strip(),
+        )
+    else:
+        balance = await get_balance(session, user_id)
+        session.add(
+            DesignToken(
+                user_id=user_id,
+                amount=amount,
+                type="admin",
+                token_class="paid",
+                description=description.strip(),
+                work_id=f"admin_{operation_id}",
+            )
+        )
+    new_balance = balance["total"] + amount
+    record_operation(
+        session,
+        operation_id=operation_id,
+        actor_id=admin.id,
+        action="token_adjust",
+        target_type="customer",
+        target_id=str(user_id),
+        target_count=1,
+        reason=description,
+        payload=payload,
+        before={"balance": balance["total"]},
+        after={"new_balance": new_balance, "amount": amount},
+        request_id=request_id_var.get(),
     )
     await session.commit()
-    return {"success": True, "new_balance": balance["total"] + amount}
+    return {
+        "success": True,
+        "new_balance": new_balance,
+        "operation_id": operation_id,
+    }

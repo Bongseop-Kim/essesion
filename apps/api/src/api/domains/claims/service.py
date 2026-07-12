@@ -2,9 +2,11 @@
 
 import logging
 import uuid
+from datetime import UTC, datetime
 
 from db.models.auth import User
 from db.models.commerce import Claim, ClaimNotificationLog, ClaimStatusLog, Order, OrderItem
+from obs import request_id_var
 from sqlalchemy import delete, exists, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
@@ -189,9 +191,23 @@ async def admin_update_status(
             new_status=new_status,
             memo=memo,
             is_rollback=is_rollback,
+            request_id=request_id_var.get() or None,
         )
     )
     claim.status = new_status
+    if not is_rollback and new_status in ("완료", "거부"):
+        await session.execute(
+            pg_insert(ClaimNotificationLog)
+            .values(
+                claim_id=claim.id,
+                status=new_status,
+                delivery_status="pending",
+                attempts=0,
+            )
+            .on_conflict_do_nothing(
+                index_elements=[ClaimNotificationLog.claim_id, ClaimNotificationLog.status]
+            )
+        )
     await session.commit()
     return {"success": True, "previous_status": previous, "new_status": new_status}
 
@@ -202,10 +218,62 @@ async def notify_status(
     settings: Settings,
     claim_id: uuid.UUID,
 ) -> str:
-    """완료/거부 알림 — 수신 조건 4종 + claim_notification_logs로 상태별 1회 (best-effort)."""
+    """현재 terminal 상태의 outbox를 확보한 뒤 즉시 전송한다.
+
+    정상 관리자 전이는 상태 변경 transaction에서 pending row를 먼저 만든다. 여기서의
+    upsert는 migration 이전 terminal row와 테스트 fixture를 위한 복구 경로다.
+    """
     claim = await session.get(Claim, claim_id)
     if claim is None or claim.status not in ("완료", "거부"):
         return "not_applicable"
+
+    await session.execute(
+        pg_insert(ClaimNotificationLog)
+        .values(
+            claim_id=claim.id,
+            status=claim.status,
+            delivery_status="pending",
+            attempts=0,
+        )
+        .on_conflict_do_nothing(
+            index_elements=[ClaimNotificationLog.claim_id, ClaimNotificationLog.status]
+        )
+    )
+    notification_id = await session.scalar(
+        select(ClaimNotificationLog.id).where(
+            ClaimNotificationLog.claim_id == claim.id,
+            ClaimNotificationLog.status == claim.status,
+        )
+    )
+    assert notification_id is not None
+    return await deliver_notification(session, solapi, settings, notification_id)
+
+
+async def deliver_notification(
+    session: AsyncSession,
+    solapi: SolapiClient,
+    settings: Settings,
+    notification_id: uuid.UUID,
+) -> str:
+    """outbox 1건을 잠가 전송한다. sent/skipped는 terminal이라 재전송하지 않는다."""
+    notification = await session.scalar(
+        select(ClaimNotificationLog)
+        .where(ClaimNotificationLog.id == notification_id)
+        .with_for_update()
+    )
+    if notification is None:
+        raise NotFoundError("Claim notification not found")
+    if notification.delivery_status == "sent":
+        return "already_sent"
+    if notification.delivery_status == "skipped":
+        return "already_skipped"
+
+    claim = await session.get(Claim, notification.claim_id)
+    if claim is None or claim.status != notification.status or claim.status not in ("완료", "거부"):
+        notification.delivery_status = "skipped"
+        notification.last_error = "claim_status_changed"
+        await session.commit()
+        return "claim_status_changed"
 
     user = await session.get(User, claim.user_id)
     if user is None or not (
@@ -214,18 +282,10 @@ async def notify_status(
         and user.notification_enabled
         and user.phone
     ):
+        notification.delivery_status = "skipped"
+        notification.last_error = "recipient_opted_out"
+        await session.commit()
         return "recipient_opted_out"
-
-    already = await session.scalar(
-        select(
-            exists().where(
-                ClaimNotificationLog.claim_id == claim.id,
-                ClaimNotificationLog.status == claim.status,
-            )
-        )
-    )
-    if already:
-        return "already_sent"
 
     if claim.status == "완료":
         template = settings.solapi_template_claim_done
@@ -239,16 +299,21 @@ async def notify_status(
             "\nhttps://essesion.shop/my-page/claims"
         )
 
-    sent = await solapi.send_alimtalk(user.phone, template, variables, fallback)
+    notification.attempts += 1
+    try:
+        sent = await solapi.send_alimtalk(user.phone, template, variables, fallback)
+    except Exception as exc:  # 외부 client 구현은 False 계약이지만 예외도 outbox에 남긴다.
+        logger.exception("claim notification delivery raised: notification_id=%s", notification.id)
+        sent = False
+        notification.last_error = f"delivery_exception:{type(exc).__name__}"
     if not sent:
+        notification.delivery_status = "failed"
+        notification.last_error = notification.last_error or "solapi_delivery_failed"
+        await session.commit()
         return "delivery_failed"
 
-    await session.execute(
-        pg_insert(ClaimNotificationLog)
-        .values(claim_id=claim.id, status=claim.status)
-        .on_conflict_do_nothing(
-            index_elements=[ClaimNotificationLog.claim_id, ClaimNotificationLog.status]
-        )
-    )
+    notification.delivery_status = "sent"
+    notification.last_error = None
+    notification.sent_at = datetime.now(UTC)
     await session.commit()
     return "sent"

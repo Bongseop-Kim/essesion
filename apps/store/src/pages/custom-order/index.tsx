@@ -254,17 +254,36 @@ export function CustomOrderPage() {
     else void submitOrderDraft();
   };
 
-  const uploadImages = async (kind: "custom_order" | "quote_request") => {
+  const uploadOrderImages = async () => {
     const [uploads, imported] = await Promise.all([
-      Promise.all(files.map((file) => uploadOrderImage(file, kind))),
+      Promise.all(files.map((file) => uploadOrderImage(file, "custom_order"))),
       Promise.all(
         selectedDesigns.map(async (job) => {
           const response = await createDesignOrderReference({
             path: { job_id: job.id },
-            query: { kind },
+            query: { kind: "custom_order" },
             throwOnError: true,
           });
-          return response.data;
+          if (!response.data.upload_id)
+            throw new Error("완성 디자인의 주문 업로드를 확인하지 못했습니다.");
+          return { upload_id: response.data.upload_id };
+        }),
+      ),
+    ]);
+    return [...uploads, ...imported];
+  };
+
+  const uploadQuoteImages = async () => {
+    const [uploads, imported] = await Promise.all([
+      Promise.all(files.map((file) => uploadOrderImage(file, "quote_request"))),
+      Promise.all(
+        selectedDesigns.map(async (job) => {
+          const response = await createDesignOrderReference({
+            path: { job_id: job.id },
+            query: { kind: "quote_request" },
+            throwOnError: true,
+          });
+          return { object_key: response.data.object_key };
         }),
       ),
     ]);
@@ -275,7 +294,7 @@ export function CustomOrderPage() {
     if (!amount || !calculation.isCurrent || submitting) return;
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages("custom_order");
+      const imageRefs = await uploadOrderImages();
       const draft: CustomOrderDraft = {
         options,
         contact,
@@ -299,7 +318,7 @@ export function CustomOrderPage() {
     setQuoteConfirmOpen(false);
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages("quote_request");
+      const imageRefs = await uploadQuoteImages();
       await createQuote.mutateAsync({
         body: {
           shipping_address_id: address.id,

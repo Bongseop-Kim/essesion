@@ -3,6 +3,103 @@
 import * as z from 'zod';
 
 /**
+ * AdminAction
+ */
+export const zAdminAction = z.object({
+    blocking_reason: z.string().nullish(),
+    destructive: z.boolean().optional().default(false),
+    enabled: z.boolean(),
+    kind: z.enum([
+        'advance',
+        'rollback',
+        'cancel',
+        'update_tracking'
+    ]),
+    label: z.string(),
+    requires_memo: z.boolean().optional().default(false),
+    target_status: z.string().nullish()
+});
+
+/**
+ * AdminActiveClaimOut
+ */
+export const zAdminActiveClaimOut = z.object({
+    claim_number: z.string(),
+    created_at: z.iso.datetime(),
+    description: z.string().nullable(),
+    id: z.uuid(),
+    quantity: z.int(),
+    reason: z.string(),
+    status: z.string(),
+    type: z.string()
+});
+
+/**
+ * AdminCapabilitiesOut
+ */
+export const zAdminCapabilitiesOut = z.object({
+    admin_edge_proxy: z.string(),
+    gcs: z.string(),
+    gcs_assets: z.string(),
+    solapi: z.string(),
+    toss: z.string()
+});
+
+/**
+ * AdminClaimAction
+ */
+export const zAdminClaimAction = z.object({
+    blocking_reason: z.string().nullish(),
+    destructive: z.boolean().optional().default(false),
+    enabled: z.boolean(),
+    kind: z.enum([
+        'advance',
+        'reject',
+        'rollback',
+        'approve_refund'
+    ]),
+    label: z.string(),
+    requires_memo: z.boolean().optional().default(false),
+    target_status: z.string().nullish()
+});
+
+/**
+ * AdminClaimCustomerOut
+ */
+export const zAdminClaimCustomerOut = z.object({
+    email: z.string().nullable(),
+    id: z.uuid(),
+    name: z.string(),
+    phone: z.string().nullable()
+});
+
+/**
+ * AdminClaimOrderOut
+ */
+export const zAdminClaimOrderOut = z.object({
+    id: z.uuid(),
+    order_amount: z.int(),
+    order_number: z.string(),
+    order_type: z.string(),
+    payment_group_id: z.uuid().nullable(),
+    status: z.string()
+});
+
+/**
+ * AdminClaimStatusLogOut
+ */
+export const zAdminClaimStatusLogOut = z.object({
+    changed_by: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    is_rollback: z.boolean(),
+    memo: z.string().nullable(),
+    new_status: z.string(),
+    previous_status: z.string(),
+    request_id: z.string().nullable()
+});
+
+/**
  * AdminClaimStatusRequest
  */
 export const zAdminClaimStatusRequest = z.object({
@@ -21,11 +118,491 @@ export const zAdminClaimStatusResponse = z.object({
 });
 
 /**
+ * AdminClaimSummaryOut
+ */
+export const zAdminClaimSummaryOut = z.object({
+    admin_actions: z.array(zAdminClaimAction).optional(),
+    claim_number: z.string(),
+    created_at: z.iso.datetime(),
+    customer: zAdminClaimCustomerOut,
+    id: z.uuid(),
+    order_id: z.uuid(),
+    order_number: z.string(),
+    quantity: z.int(),
+    reason: z.string(),
+    status: z.string(),
+    type: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminClaimTrackingAction
+ */
+export const zAdminClaimTrackingAction = z.object({
+    blocking_reason: z.string().nullish(),
+    enabled: z.boolean(),
+    kind: z.enum(['return', 'resend']),
+    label: z.string()
+});
+
+/**
+ * AdminCouponOut
+ */
+export const zAdminCouponOut = z.object({
+    active_issued_count: z.int(),
+    additional_info: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    description: z.string().nullable(),
+    discount_type: z.string(),
+    discount_value: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/),
+    display_name: z.string().nullable(),
+    expiry_date: z.iso.date(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    issued_count: z.int(),
+    max_discount_amount: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
+    name: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminCustomerCouponOut
+ */
+export const zAdminCustomerCouponOut = z.object({
+    coupon_display_name: z.string().nullable(),
+    coupon_id: z.uuid(),
+    coupon_name: z.string(),
+    expires_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    issued_at: z.iso.datetime(),
+    status: z.string(),
+    terms_snapshot: z.record(z.string(), z.unknown()).nullable(),
+    used_at: z.iso.datetime().nullable()
+});
+
+/**
+ * AdminCustomerDetailOut
+ */
+export const zAdminCustomerDetailOut = z.object({
+    active_coupon_count: z.int(),
+    birth: z.iso.date().nullable(),
+    bonus_token_balance: z.int(),
+    created_at: z.iso.datetime(),
+    email: z.string().nullable(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    marketing_kakao_sms_consent: z.boolean(),
+    name: z.string(),
+    notification_consent: z.boolean(),
+    notification_enabled: z.boolean(),
+    order_count: z.int(),
+    paid_token_balance: z.int(),
+    phone: z.string().nullable(),
+    phone_verified: z.boolean(),
+    token_balance: z.int(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminCustomerOrderOut
+ */
+export const zAdminCustomerOrderOut = z.object({
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    order_number: z.string(),
+    order_type: z.string(),
+    status: z.string(),
+    total_price: z.int()
+});
+
+/**
+ * AdminCustomerSummaryOut
+ */
+export const zAdminCustomerSummaryOut = z.object({
+    active_coupon_count: z.int(),
+    created_at: z.iso.datetime(),
+    email: z.string().nullable(),
+    id: z.uuid(),
+    is_active: z.boolean(),
+    name: z.string(),
+    order_count: z.int(),
+    phone: z.string().nullable(),
+    phone_verified: z.boolean(),
+    token_balance: z.int()
+});
+
+/**
+ * AdminCustomerTokenOut
+ */
+export const zAdminCustomerTokenOut = z.object({
+    amount: z.int(),
+    created_at: z.iso.datetime(),
+    description: z.string().nullable(),
+    expires_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    source_order_id: z.uuid().nullable(),
+    token_class: z.string(),
+    type: z.string(),
+    work_id: z.string().nullable()
+});
+
+/**
+ * AdminInquiryActorOut
+ */
+export const zAdminInquiryActorOut = z.object({
+    email: z.string().nullable(),
+    id: z.uuid(),
+    name: z.string()
+});
+
+/**
+ * AdminInquiryAnswerRequest
+ */
+export const zAdminInquiryAnswerRequest = z.object({
+    answer: z.string().min(1).max(5000),
+    expected_updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminInquiryCustomerOut
+ */
+export const zAdminInquiryCustomerOut = z.object({
+    email: z.string().nullable(),
+    id: z.uuid(),
+    name: z.string(),
+    phone: z.string().nullable()
+});
+
+/**
+ * AdminInquiryProductOut
+ */
+export const zAdminInquiryProductOut = z.object({
+    code: z.string().nullable(),
+    id: z.int(),
+    name: z.string()
+});
+
+/**
+ * AdminInquiryDetailOut
+ */
+export const zAdminInquiryDetailOut = z.object({
+    answer: z.string().nullable(),
+    answer_actor: zAdminInquiryActorOut.nullable(),
+    answer_date: z.iso.datetime().nullable(),
+    answered_by: z.uuid().nullable(),
+    category: z.string(),
+    content: z.string(),
+    created_at: z.iso.datetime(),
+    customer: zAdminInquiryCustomerOut.nullable(),
+    id: z.uuid(),
+    product: zAdminInquiryProductOut.nullable(),
+    status: z.string(),
+    title: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminInquirySearchRequest
+ */
+export const zAdminInquirySearchRequest = z.object({
+    category: z.enum([
+        'all',
+        '일반',
+        '상품',
+        '수선',
+        '주문제작'
+    ]).optional().default('all'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0),
+    q: z.string().min(2).max(100),
+    sort: z.enum([
+        'created_at',
+        'updated_at',
+        'status'
+    ]).optional().default('created_at'),
+    status: z.enum([
+        'all',
+        '답변대기',
+        '답변완료'
+    ]).optional().default('all')
+});
+
+/**
+ * AdminInquirySummaryOut
+ */
+export const zAdminInquirySummaryOut = z.object({
+    answer_date: z.iso.datetime().nullable(),
+    category: z.string(),
+    created_at: z.iso.datetime(),
+    customer: zAdminInquiryCustomerOut.nullable(),
+    id: z.uuid(),
+    product: zAdminInquiryProductOut.nullable(),
+    status: z.string(),
+    title: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminOrderCustomerOut
+ */
+export const zAdminOrderCustomerOut = z.object({
+    email: z.string().nullable(),
+    id: z.uuid(),
+    name: z.string(),
+    phone: z.string().nullable()
+});
+
+/**
+ * AdminOrderReferenceImageOut
+ */
+export const zAdminOrderReferenceImageOut = z.object({
+    content_type: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    size_bytes: z.int().nullable()
+});
+
+/**
+ * AdminOrderStatusLogOut
+ */
+export const zAdminOrderStatusLogOut = z.object({
+    changed_by: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    is_rollback: z.boolean(),
+    memo: z.string().nullable(),
+    new_status: z.string(),
+    previous_status: z.string()
+});
+
+/**
+ * AdminOrderSummaryOut
+ */
+export const zAdminOrderSummaryOut = z.object({
+    admin_actions: z.array(zAdminAction).optional(),
+    created_at: z.iso.datetime(),
+    customer: zAdminOrderCustomerOut,
+    id: z.uuid(),
+    order_amount: z.int(),
+    order_number: z.string(),
+    order_type: z.string(),
+    payment_group_id: z.uuid().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminProductImageCompleteOut
+ */
+export const zAdminProductImageCompleteOut = z.object({
+    completed_at: z.iso.datetime(),
+    content_type: z.string(),
+    kind: z.enum(['primary', 'detail']),
+    public_url: z.string(),
+    size_bytes: z.int(),
+    upload_id: z.uuid()
+});
+
+/**
+ * AdminProductImageUploadOut
+ */
+export const zAdminProductImageUploadOut = z.object({
+    expires_at: z.iso.datetime(),
+    required_headers: z.record(z.string(), z.string()),
+    upload_id: z.uuid(),
+    upload_required: z.boolean(),
+    upload_url: z.string()
+});
+
+/**
+ * AdminProductImageUploadRequest
+ */
+export const zAdminProductImageUploadRequest = z.object({
+    content_type: z.string(),
+    filename: z.string().min(1).max(255),
+    kind: z.enum(['primary', 'detail']),
+    size_bytes: z.int().gt(0).lte(10485760)
+});
+
+/**
+ * AdminProductOptionWrite
+ */
+export const zAdminProductOptionWrite = z.object({
+    additional_price: z.int().optional().default(0),
+    id: z.uuid().nullish(),
+    name: z.string().min(1).max(100),
+    stock: z.int().nullish()
+});
+
+/**
+ * AdminProductCreateRequest
+ */
+export const zAdminProductCreateRequest = z.object({
+    category: z.enum([
+        '3fold',
+        'sfolderato',
+        'knit',
+        'bowtie'
+    ]),
+    code: z.string().nullish(),
+    color: z.enum([
+        'black',
+        'navy',
+        'gray',
+        'wine',
+        'blue',
+        'brown',
+        'beige',
+        'silver'
+    ]),
+    detail_image_upload_ids: z.array(z.uuid()).max(20).optional(),
+    image_upload_id: z.uuid(),
+    info: z.string(),
+    material: z.enum([
+        'silk',
+        'cotton',
+        'polyester',
+        'wool'
+    ]),
+    name: z.string(),
+    option_label: z.string().nullish(),
+    options: z.array(zAdminProductOptionWrite).max(100).optional(),
+    pattern: z.enum([
+        'solid',
+        'stripe',
+        'dot',
+        'check',
+        'paisley'
+    ]),
+    price: z.int(),
+    stock: z.int().nullish()
+});
+
+/**
+ * AdminProductSummaryOut
+ */
+export const zAdminProductSummaryOut = z.object({
+    category: z.string(),
+    code: z.string().nullable(),
+    color: z.string(),
+    created_at: z.iso.datetime(),
+    id: z.int(),
+    image: z.string(),
+    material: z.string(),
+    name: z.string(),
+    option_count: z.int(),
+    option_label: z.string().nullable(),
+    option_stock_total: z.int().nullable(),
+    pattern: z.string(),
+    price: z.int(),
+    stock: z.int().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminProductUpdateRequest
+ */
+export const zAdminProductUpdateRequest = z.object({
+    category: z.enum([
+        '3fold',
+        'sfolderato',
+        'knit',
+        'bowtie'
+    ]).nullish(),
+    color: z.enum([
+        'black',
+        'navy',
+        'gray',
+        'wine',
+        'blue',
+        'brown',
+        'beige',
+        'silver'
+    ]).nullish(),
+    detail_image_upload_ids: z.array(z.uuid()).max(20).nullish(),
+    expected_updated_at: z.iso.datetime(),
+    image_upload_id: z.uuid().nullish(),
+    info: z.string().nullish(),
+    material: z.enum([
+        'silk',
+        'cotton',
+        'polyester',
+        'wool'
+    ]).nullish(),
+    name: z.string().nullish(),
+    option_label: z.string().nullish(),
+    options: z.array(zAdminProductOptionWrite).max(100).nullish(),
+    pattern: z.enum([
+        'solid',
+        'stripe',
+        'dot',
+        'check',
+        'paisley'
+    ]).nullish(),
+    price: z.int().nullish(),
+    stock: z.int().nullish()
+});
+
+/**
+ * AdminQuoteAction
+ */
+export const zAdminQuoteAction = z.object({
+    blocking_reason: z.string().nullish(),
+    destructive: z.boolean().optional().default(false),
+    enabled: z.boolean(),
+    kind: z.literal('transition').optional().default('transition'),
+    label: z.string(),
+    requires_memo: z.boolean().optional().default(false),
+    target_status: z.enum([
+        '요청',
+        '견적발송',
+        '협의중',
+        '확정',
+        '종료'
+    ])
+});
+
+/**
+ * AdminQuoteActorOut
+ */
+export const zAdminQuoteActorOut = z.object({
+    email: z.string().nullable(),
+    id: z.uuid(),
+    name: z.string()
+});
+
+/**
+ * AdminQuoteImageOut
+ */
+export const zAdminQuoteImageOut = z.object({
+    content_type: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    size_bytes: z.int().nullable()
+});
+
+/**
+ * AdminQuoteStatusLogOut
+ */
+export const zAdminQuoteStatusLogOut = z.object({
+    actor: zAdminQuoteActorOut.nullable(),
+    changed_by: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    memo: z.string().nullable(),
+    new_status: z.string(),
+    previous_status: z.string(),
+    request_id: z.string().nullable()
+});
+
+/**
  * AdminQuoteStatusRequest
  */
 export const zAdminQuoteStatusRequest = z.object({
-    admin_memo: z.string().nullish(),
-    memo: z.string().nullish(),
+    admin_memo: z.string().max(5000).nullish(),
+    expected_updated_at: z.iso.datetime(),
+    memo: z.string().max(500).nullish(),
     new_status: z.enum([
         '요청',
         '견적발송',
@@ -33,17 +610,57 @@ export const zAdminQuoteStatusRequest = z.object({
         '확정',
         '종료'
     ]),
-    quote_conditions: z.string().nullish(),
-    quoted_amount: z.int().nullish()
+    quote_conditions: z.string().max(5000).nullish(),
+    quoted_amount: z.int().gte(0).nullish()
 });
 
 /**
- * AdminQuoteStatusResponse
+ * AdminQuoteSummaryOut
  */
-export const zAdminQuoteStatusResponse = z.object({
-    new_status: z.string(),
-    previous_status: z.string(),
-    success: z.boolean()
+export const zAdminQuoteSummaryOut = z.object({
+    admin_actions: z.array(zAdminQuoteAction).optional(),
+    business_name: z.string(),
+    created_at: z.iso.datetime(),
+    customer: zAdminOrderCustomerOut,
+    id: z.uuid(),
+    quantity: z.int(),
+    quote_number: z.string(),
+    quoted_amount: z.int().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminRelatedOrderOut
+ */
+export const zAdminRelatedOrderOut = z.object({
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    order_amount: z.int(),
+    order_number: z.string(),
+    order_type: z.string(),
+    status: z.string()
+});
+
+/**
+ * AdminRepairPhotoOut
+ */
+export const zAdminRepairPhotoOut = z.object({
+    content_type: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    size_bytes: z.int().nullable()
+});
+
+/**
+ * AdminSettingOut
+ */
+export const zAdminSettingOut = z.object({
+    key: z.enum(['default_courier_company', 'design_token_initial_grant']),
+    updated_at: z.iso.datetime(),
+    updated_by: z.uuid().nullable(),
+    value: z.string(),
+    value_type: z.enum(['courier', 'non_negative_integer'])
 });
 
 /**
@@ -65,11 +682,31 @@ export const zAdminStatusUpdateResponse = z.object({
 });
 
 /**
+ * AdminTimelineEvent
+ */
+export const zAdminTimelineEvent = z.object({
+    actor_id: z.uuid().nullish(),
+    created_at: z.iso.datetime(),
+    description: z.string().nullish(),
+    event_type: z.enum([
+        'claim_created',
+        'claim_status',
+        'claim_shipping',
+        'order_status',
+        'repair_shipping',
+        'notification'
+    ]),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    title: z.string()
+});
+
+/**
  * AdminTokenManageRequest
  */
 export const zAdminTokenManageRequest = z.object({
     amount: z.int(),
-    description: z.string(),
+    description: z.string().min(3).max(500),
+    operation_id: z.uuid(),
     user_id: z.uuid()
 });
 
@@ -78,6 +715,7 @@ export const zAdminTokenManageRequest = z.object({
  */
 export const zAdminTokenManageResponse = z.object({
     new_balance: z.int(),
+    operation_id: z.uuid(),
     success: z.boolean()
 });
 
@@ -92,24 +730,11 @@ export const zAdminTrackingUpdateRequest = z.object({
 });
 
 /**
- * AdminUserOut
- */
-export const zAdminUserOut = z.object({
-    created_at: z.iso.datetime(),
-    email: z.string().nullable(),
-    id: z.uuid(),
-    is_active: z.boolean(),
-    name: z.string(),
-    phone: z.string().nullable(),
-    phone_verified: z.boolean(),
-    role: z.string()
-});
-
-/**
  * AffectedResponse
  */
 export const zAffectedResponse = z.object({
     affected_count: z.int(),
+    operation_id: z.uuid(),
     success: z.boolean().optional().default(true)
 });
 
@@ -162,6 +787,36 @@ export const zClaimCreateRequest = z.object({
 });
 
 /**
+ * ClaimNotificationOut
+ */
+export const zClaimNotificationOut = z.object({
+    attempts: z.int(),
+    created_at: z.iso.datetime(),
+    delivery_status: z.enum([
+        'pending',
+        'sent',
+        'failed',
+        'skipped'
+    ]),
+    id: z.uuid(),
+    last_error: z.string().nullable(),
+    sent_at: z.iso.datetime().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * ClaimTrackingUpdateRequest
+ */
+export const zClaimTrackingUpdateRequest = z.object({
+    courier_company: z.string().min(1).max(50),
+    kind: z.enum(['return', 'resend']),
+    memo: z.string().min(3).max(500),
+    operation_id: z.uuid(),
+    tracking_number: z.string().min(4).max(100).regex(/^[A-Za-z0-9-]+$/)
+});
+
+/**
  * ConfirmedOrder
  */
 export const zConfirmedOrder = z.object({
@@ -174,23 +829,64 @@ export const zConfirmedOrder = z.object({
 });
 
 /**
+ * CouponAudienceCustomerOut
+ */
+export const zCouponAudienceCustomerOut = z.object({
+    created_at: z.iso.datetime(),
+    email: z.string().nullable(),
+    id: z.uuid(),
+    name: z.string(),
+    phone: z.string().nullable()
+});
+
+/**
+ * CouponAudienceRequest
+ */
+export const zCouponAudienceRequest = z.object({
+    exclude_issued: z.boolean().optional().default(true),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0),
+    segment: z.enum([
+        'all',
+        'new30',
+        'birthdayThisMonth',
+        'purchased',
+        'notPurchased',
+        'dormant'
+    ]).optional().default('all')
+});
+
+/**
  * CouponCreateRequest
  */
 export const zCouponCreateRequest = z.object({
-    description: z.string().nullish(),
+    additional_info: z.string().max(1000).nullish(),
+    description: z.string().max(1000).nullish(),
     discount_type: z.enum(['percentage', 'fixed']),
-    discount_value: z.int(),
-    display_name: z.string().nullish(),
+    discount_value: z.int().gt(0),
+    display_name: z.string().max(100).nullish(),
     expiry_date: z.iso.date(),
-    max_discount_amount: z.int().nullish(),
-    name: z.string()
+    is_active: z.boolean().optional().default(true),
+    max_discount_amount: z.int().gt(0).nullish(),
+    name: z.string().min(1).max(100)
 });
 
 /**
  * CouponIssueRequest
  */
 export const zCouponIssueRequest = z.object({
-    user_ids: z.array(z.uuid())
+    exclude_issued: z.boolean().optional().default(true),
+    operation_id: z.uuid(),
+    reason: z.string().min(3).max(500),
+    segment: z.enum([
+        'all',
+        'new30',
+        'birthdayThisMonth',
+        'purchased',
+        'notPurchased',
+        'dormant'
+    ]).nullish(),
+    user_ids: z.array(z.uuid()).max(10000).nullish()
 });
 
 /**
@@ -207,6 +903,40 @@ export const zCouponOut = z.object({
     is_active: z.boolean(),
     max_discount_amount: z.string().regex(/^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$/).nullable(),
     name: z.string()
+});
+
+/**
+ * CouponRevokeRequest
+ */
+export const zCouponRevokeRequest = z.object({
+    operation_id: z.uuid(),
+    reason: z.string().min(3).max(500),
+    user_coupon_ids: z.array(z.uuid()).min(1).max(10000)
+});
+
+/**
+ * CouponRevokeUsersRequest
+ */
+export const zCouponRevokeUsersRequest = z.object({
+    operation_id: z.uuid(),
+    reason: z.string().min(3).max(500),
+    user_ids: z.array(z.uuid()).min(1).max(10000)
+});
+
+/**
+ * CouponUpdateRequest
+ */
+export const zCouponUpdateRequest = z.object({
+    additional_info: z.string().max(1000).nullish(),
+    description: z.string().max(1000).nullish(),
+    discount_type: z.enum(['percentage', 'fixed']).nullish(),
+    discount_value: z.int().gt(0).nullish(),
+    display_name: z.string().max(100).nullish(),
+    expected_updated_at: z.iso.datetime(),
+    expiry_date: z.iso.date().nullish(),
+    is_active: z.boolean().nullish(),
+    max_discount_amount: z.int().gt(0).nullish(),
+    name: z.string().min(1).max(100).nullish()
 });
 
 /**
@@ -233,6 +963,79 @@ export const zCustomAmountResponse = z.object({
     fabric_cost: z.int(),
     sewing_cost: z.int(),
     total_cost: z.int()
+});
+
+/**
+ * CustomerSearchRequest
+ */
+export const zCustomerSearchRequest = z.object({
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0),
+    q: z.string().min(2).max(100),
+    sort: z.enum(['created_at', 'name']).optional().default('created_at'),
+    status: z.enum([
+        'all',
+        'active',
+        'inactive'
+    ]).optional().default('all')
+});
+
+/**
+ * DashboardRecentOrdersPage
+ */
+export const zDashboardRecentOrdersPage = z.object({
+    as_of: z.iso.datetime(),
+    items: z.array(zAdminOrderSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * DashboardRecentQuoteOut
+ */
+export const zDashboardRecentQuoteOut = z.object({
+    business_name: z.string(),
+    created_at: z.iso.datetime(),
+    customer: zAdminOrderCustomerOut,
+    id: z.uuid(),
+    quote_number: z.string(),
+    quoted_amount: z.int().nullable(),
+    status: z.string()
+});
+
+/**
+ * DashboardRecentQuotesPage
+ */
+export const zDashboardRecentQuotesPage = z.object({
+    as_of: z.iso.datetime(),
+    items: z.array(zDashboardRecentQuoteOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * DashboardSummaryOut
+ */
+export const zDashboardSummaryOut = z.object({
+    as_of: z.iso.datetime(),
+    end_date: z.iso.date(),
+    open_claim_count: z.int(),
+    open_payment_incident_count: z.int(),
+    order_amount: z.int(),
+    order_count: z.int(),
+    order_type: z.enum([
+        'all',
+        'sale',
+        'custom',
+        'repair',
+        'token',
+        'sample'
+    ]),
+    start_date: z.iso.date(),
+    unanswered_inquiry_count: z.int()
 });
 
 /**
@@ -268,7 +1071,8 @@ export const zDesignGenerateRequest = z.object({
  * DesignOrderReferenceOut
  */
 export const zDesignOrderReferenceOut = z.object({
-    object_key: z.string()
+    object_key: z.string(),
+    upload_id: z.uuid().nullish()
 });
 
 /**
@@ -330,6 +1134,30 @@ export const zFinalizeRequest = z.object({
 });
 
 /**
+ * GenerationJobDetailOut
+ */
+export const zGenerationJobDetailOut = z.object({
+    attempts: z.int(),
+    created_at: z.iso.datetime(),
+    error_summary: z.string().nullable(),
+    id: z.uuid(),
+    kind: z.enum(['finalize', 'export']),
+    owner_reference: z.string(),
+    parameter_summary: z.record(z.string(), z.unknown()),
+    request_id: z.string().nullable(),
+    result_available: z.boolean(),
+    result_url: z.string().nullable(),
+    session_id: z.uuid().nullable(),
+    status: z.enum([
+        'queued',
+        'processing',
+        'succeeded',
+        'failed'
+    ]),
+    updated_at: z.iso.datetime()
+});
+
+/**
  * GenerationJobOut
  */
 export const zGenerationJobOut = z.object({
@@ -348,6 +1176,39 @@ export const zGenerationJobOut = z.object({
 });
 
 /**
+ * GenerationJobStatsOut
+ */
+export const zGenerationJobStatsOut = z.object({
+    as_of: z.iso.datetime(),
+    average_attempts: z.number(),
+    failed: z.int(),
+    processing: z.int(),
+    queued: z.int(),
+    succeeded: z.int(),
+    total: z.int()
+});
+
+/**
+ * GenerationJobSummaryOut
+ */
+export const zGenerationJobSummaryOut = z.object({
+    attempts: z.int(),
+    created_at: z.iso.datetime(),
+    error_summary: z.string().nullable(),
+    id: z.uuid(),
+    kind: z.enum(['finalize', 'export']),
+    request_id: z.string().nullable(),
+    result_available: z.boolean(),
+    status: z.enum([
+        'queued',
+        'processing',
+        'succeeded',
+        'failed'
+    ]),
+    updated_at: z.iso.datetime()
+});
+
+/**
  * ImageOut
  */
 export const zImageOut = z.object({
@@ -360,10 +1221,23 @@ export const zImageOut = z.object({
 });
 
 /**
- * InquiryAnswerRequest
+ * IncidentAdminAction
  */
-export const zInquiryAnswerRequest = z.object({
-    answer: z.string().min(1)
+export const zIncidentAdminAction = z.object({
+    blocking_reason: z.string().nullish(),
+    destructive: z.boolean().optional().default(false),
+    enabled: z.boolean(),
+    kind: z.enum(['reconcile', 'resolve']),
+    label: z.string(),
+    requires_memo: z.boolean().optional().default(false)
+});
+
+/**
+ * IncidentResolveRequest
+ */
+export const zIncidentResolveRequest = z.object({
+    memo: z.string().min(1).max(500),
+    operation_id: z.uuid()
 });
 
 /**
@@ -409,6 +1283,22 @@ export const zInquiryUpdateRequest = z.object({
     content: z.string().min(1).max(5000).optional(),
     product_id: z.int().nullish(),
     title: z.string().min(1).max(200).optional()
+});
+
+/**
+ * IssuedCouponOut
+ */
+export const zIssuedCouponOut = z.object({
+    expires_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    issued_at: z.iso.datetime(),
+    status: z.string(),
+    terms_snapshot: z.record(z.string(), z.unknown()).nullable(),
+    used_at: z.iso.datetime().nullable(),
+    user_email: z.string().nullable(),
+    user_id: z.uuid(),
+    user_name: z.string(),
+    user_phone: z.string().nullable()
 });
 
 /**
@@ -467,6 +1357,34 @@ export const zMotifCandidatesOut = z.object({
 });
 
 /**
+ * MotifDetailOut
+ */
+export const zMotifDetailOut = z.object({
+    anchor: z.array(z.number()),
+    bbox: z.array(z.number()),
+    color_slot_count: z.int(),
+    color_slots: z.array(z.string()),
+    created_at: z.iso.datetime(),
+    description: z.string().nullable(),
+    expression: z.string().nullable(),
+    id: z.string(),
+    quality: z.number().nullable(),
+    scope: z.string().nullable(),
+    source: z.string(),
+    style: z.string().nullable(),
+    subject: z.string().nullable(),
+    svg_status: z.enum([
+        'safe',
+        'unavailable',
+        'unsafe'
+    ]),
+    symbol: z.string().nullable(),
+    tags: z.array(z.string()),
+    variant_group: z.string().nullable(),
+    view: z.string().nullable()
+});
+
+/**
  * MotifGenerateOut
  */
 export const zMotifGenerateOut = z.object({
@@ -505,6 +1423,23 @@ export const zMotifGenerateRequest = z.object({
 });
 
 /**
+ * MotifSummaryOut
+ */
+export const zMotifSummaryOut = z.object({
+    color_slot_count: z.int(),
+    created_at: z.iso.datetime(),
+    expression: z.string().nullable(),
+    id: z.string(),
+    quality: z.number().nullable(),
+    scope: z.string().nullable(),
+    source: z.string(),
+    style: z.string().nullable(),
+    subject: z.string().nullable(),
+    variant_group: z.string().nullable(),
+    view: z.string().nullable()
+});
+
+/**
  * NotificationPreferencesRequest
  */
 export const zNotificationPreferencesRequest = z.object({
@@ -522,6 +1457,17 @@ export const zOrderCreateResponse = z.object({
 });
 
 /**
+ * OrderImageUploadOut
+ */
+export const zOrderImageUploadOut = z.object({
+    content_type: z.string(),
+    kind: z.enum(['custom_order', 'sample_order']),
+    size_bytes: z.int(),
+    upload_completed_at: z.iso.datetime(),
+    upload_id: z.uuid()
+});
+
+/**
  * OrderItemOut
  */
 export const zOrderItemOut = z.object({
@@ -536,35 +1482,6 @@ export const zOrderItemOut = z.object({
     quantity: z.int(),
     selected_option_id: z.string().nullable(),
     unit_price: z.int()
-});
-
-/**
- * AdminOrderOut
- */
-export const zAdminOrderOut = z.object({
-    admin_actions: z.array(z.string()).optional().default([]),
-    company_courier_company: z.string().nullable(),
-    company_shipped_at: z.iso.datetime().nullable(),
-    company_tracking_number: z.string().nullable(),
-    confirmed_at: z.iso.datetime().nullable(),
-    courier_company: z.string().nullable(),
-    created_at: z.iso.datetime(),
-    customer_actions: z.array(z.string()).optional().default([]),
-    delivered_at: z.iso.datetime().nullable(),
-    id: z.uuid(),
-    items: z.array(zOrderItemOut).optional().default([]),
-    order_number: z.string(),
-    order_type: z.string(),
-    original_price: z.int(),
-    payment_group_id: z.uuid().nullable(),
-    shipped_at: z.iso.datetime().nullable(),
-    shipping_address_id: z.uuid().nullable(),
-    shipping_cost: z.int(),
-    status: z.string(),
-    total_discount: z.int(),
-    total_price: z.int(),
-    tracking_number: z.string().nullable(),
-    updated_at: z.iso.datetime()
 });
 
 /**
@@ -621,6 +1538,25 @@ export const zOrderOut = z.object({
 });
 
 /**
+ * OrderReferenceImageIn
+ */
+export const zOrderReferenceImageIn = z.object({
+    upload_id: z.uuid()
+});
+
+/**
+ * CustomOrderCreateRequest
+ */
+export const zCustomOrderCreateRequest = z.object({
+    additional_notes: z.string().optional().default(''),
+    options: z.record(z.string(), z.unknown()),
+    quantity: z.int(),
+    reference_images: z.array(zOrderReferenceImageIn).max(5).optional(),
+    shipping_address_id: z.uuid(),
+    user_coupon_id: z.uuid().nullish()
+});
+
+/**
  * OrderShippingAddressOut
  */
 export const zOrderShippingAddressOut = z.object({
@@ -632,6 +1568,66 @@ export const zOrderShippingAddressOut = z.object({
     postal_code: z.string(),
     recipient_name: z.string(),
     recipient_phone: z.string()
+});
+
+/**
+ * AdminOrderDetailOut
+ */
+export const zAdminOrderDetailOut = z.object({
+    active_claim: zAdminActiveClaimOut.nullish(),
+    admin_actions: z.array(zAdminAction).optional(),
+    company_courier_company: z.string().nullable(),
+    company_shipped_at: z.iso.datetime().nullable(),
+    company_tracking_number: z.string().nullable(),
+    confirmed_at: z.iso.datetime().nullable(),
+    courier_company: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    customer: zAdminOrderCustomerOut,
+    delivered_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    items: z.array(zOrderItemOut).optional(),
+    order_amount: z.int(),
+    order_number: z.string(),
+    order_type: z.string(),
+    original_price: z.int(),
+    payment_group_id: z.uuid().nullable(),
+    related_orders: z.array(zAdminRelatedOrderOut).optional(),
+    shipped_at: z.iso.datetime().nullable(),
+    shipping_address: zOrderShippingAddressOut.nullable(),
+    shipping_address_id: z.uuid().nullable(),
+    shipping_cost: z.int(),
+    status: z.string(),
+    status_logs: z.array(zAdminOrderStatusLogOut).optional(),
+    total_discount: z.int(),
+    tracking_number: z.string().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminQuoteDetailOut
+ */
+export const zAdminQuoteDetailOut = z.object({
+    additional_notes: z.string(),
+    admin_actions: z.array(zAdminQuoteAction).optional(),
+    admin_memo: z.string().nullable(),
+    business_name: z.string(),
+    contact_method: z.string(),
+    contact_name: z.string(),
+    contact_value: z.string(),
+    created_at: z.iso.datetime(),
+    customer: zAdminOrderCustomerOut,
+    id: z.uuid(),
+    images: z.array(zAdminQuoteImageOut).optional(),
+    options: z.record(z.string(), z.unknown()),
+    quantity: z.int(),
+    quote_conditions: z.string().nullable(),
+    quote_number: z.string(),
+    quoted_amount: z.int().nullable(),
+    shipping_address: zOrderShippingAddressOut.nullable(),
+    shipping_address_id: z.uuid().nullable(),
+    status: z.string(),
+    status_logs: z.array(zAdminQuoteStatusLogOut).optional(),
+    updated_at: z.iso.datetime()
 });
 
 /**
@@ -664,6 +1660,146 @@ export const zOrderDetailOut = z.object({
 });
 
 /**
+ * Page[AdminClaimSummaryOut]
+ */
+export const zPageAdminClaimSummaryOut = z.object({
+    items: z.array(zAdminClaimSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminCouponOut]
+ */
+export const zPageAdminCouponOut = z.object({
+    items: z.array(zAdminCouponOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminCustomerCouponOut]
+ */
+export const zPageAdminCustomerCouponOut = z.object({
+    items: z.array(zAdminCustomerCouponOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminCustomerOrderOut]
+ */
+export const zPageAdminCustomerOrderOut = z.object({
+    items: z.array(zAdminCustomerOrderOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminCustomerSummaryOut]
+ */
+export const zPageAdminCustomerSummaryOut = z.object({
+    items: z.array(zAdminCustomerSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminCustomerTokenOut]
+ */
+export const zPageAdminCustomerTokenOut = z.object({
+    items: z.array(zAdminCustomerTokenOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminInquirySummaryOut]
+ */
+export const zPageAdminInquirySummaryOut = z.object({
+    items: z.array(zAdminInquirySummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminOrderSummaryOut]
+ */
+export const zPageAdminOrderSummaryOut = z.object({
+    items: z.array(zAdminOrderSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminProductSummaryOut]
+ */
+export const zPageAdminProductSummaryOut = z.object({
+    items: z.array(zAdminProductSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AdminQuoteSummaryOut]
+ */
+export const zPageAdminQuoteSummaryOut = z.object({
+    items: z.array(zAdminQuoteSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[CouponAudienceCustomerOut]
+ */
+export const zPageCouponAudienceCustomerOut = z.object({
+    items: z.array(zCouponAudienceCustomerOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[GenerationJobSummaryOut]
+ */
+export const zPageGenerationJobSummaryOut = z.object({
+    items: z.array(zGenerationJobSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[IssuedCouponOut]
+ */
+export const zPageIssuedCouponOut = z.object({
+    items: z.array(zIssuedCouponOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[MotifSummaryOut]
+ */
+export const zPageMotifSummaryOut = z.object({
+    items: z.array(zMotifSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
  * PaymentConfirmRequest
  */
 export const zPaymentConfirmRequest = z.object({
@@ -682,6 +1818,61 @@ export const zPaymentConfirmResponse = z.object({
 });
 
 /**
+ * PaymentIncidentDetailOut
+ */
+export const zPaymentIncidentDetailOut = z.object({
+    actor_id: z.uuid().nullable(),
+    admin_actions: z.array(zIncidentAdminAction).optional(),
+    claim_id: z.uuid().nullable(),
+    claim_number: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    details: z.record(z.string(), z.unknown()),
+    expected_amount: z.int().nullable(),
+    id: z.uuid(),
+    incident_type: z.string(),
+    observed_amount: z.int().nullable(),
+    operation_id: z.string(),
+    order_id: z.uuid().nullable(),
+    order_number: z.string().nullable(),
+    request_id: z.string(),
+    resolution_memo: z.string().nullable(),
+    resolved_at: z.iso.datetime().nullable(),
+    resolved_by: z.uuid().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * PaymentIncidentSummaryOut
+ */
+export const zPaymentIncidentSummaryOut = z.object({
+    actor_id: z.uuid().nullable(),
+    claim_id: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    expected_amount: z.int().nullable(),
+    id: z.uuid(),
+    incident_type: z.string(),
+    observed_amount: z.int().nullable(),
+    operation_id: z.string(),
+    order_id: z.uuid().nullable(),
+    request_id: z.string(),
+    resolved_at: z.iso.datetime().nullable(),
+    resolved_by: z.uuid().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * Page[PaymentIncidentSummaryOut]
+ */
+export const zPagePaymentIncidentSummaryOut = z.object({
+    items: z.array(zPaymentIncidentSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
  * PhoneSendRequest
  */
 export const zPhoneSendRequest = z.object({
@@ -697,55 +1888,34 @@ export const zPhoneVerifyRequest = z.object({
 });
 
 /**
- * ProductCreate
+ * PricingUpdateItem
  */
-export const zProductCreate = z.object({
-    category: z.enum([
-        '3fold',
-        'sfolderato',
-        'knit',
-        'bowtie'
-    ]),
-    code: z.string().nullish(),
-    color: z.enum([
-        'black',
-        'navy',
-        'gray',
-        'wine',
-        'blue',
-        'brown',
-        'beige',
-        'silver'
-    ]),
-    detail_images: z.array(z.string()).nullish(),
-    image: z.string(),
-    info: z.string(),
-    material: z.enum([
-        'silk',
-        'cotton',
-        'polyester',
-        'wool'
-    ]),
-    name: z.string(),
-    option_label: z.string().nullish(),
-    pattern: z.enum([
-        'solid',
-        'stripe',
-        'dot',
-        'check',
-        'paisley'
-    ]),
-    price: z.int(),
-    stock: z.int().nullish()
+export const zPricingUpdateItem = z.object({
+    amount: z.int().gte(0).lte(1000000000),
+    expected_updated_at: z.iso.datetime(),
+    key: z.string().min(1).max(100)
 });
 
 /**
- * ProductOptionIn
+ * PricingUpdateRequest
  */
-export const zProductOptionIn = z.object({
-    additional_price: z.int().optional().default(0),
-    name: z.string(),
-    stock: z.int().nullish()
+export const zPricingUpdateRequest = z.object({
+    items: z.array(zPricingUpdateItem).min(1).max(40),
+    operation_id: z.uuid(),
+    reason: z.string().min(3).max(500)
+});
+
+/**
+ * PricingValueOut
+ */
+export const zPricingValueOut = z.object({
+    amount: z.int(),
+    category: z.string(),
+    description: z.string(),
+    key: z.string(),
+    unit: z.enum(['원', '개']),
+    updated_at: z.iso.datetime(),
+    updated_by: z.uuid().nullable()
 });
 
 /**
@@ -756,6 +1926,32 @@ export const zProductOptionOut = z.object({
     id: z.uuid(),
     name: z.string(),
     stock: z.int().nullable()
+});
+
+/**
+ * AdminProductDetailOut
+ */
+export const zAdminProductDetailOut = z.object({
+    category: z.string(),
+    code: z.string().nullable(),
+    color: z.string(),
+    created_at: z.iso.datetime(),
+    detail_image_upload_ids: z.array(z.uuid()).optional(),
+    detail_images: z.array(z.string()).nullable(),
+    id: z.int(),
+    image: z.string(),
+    image_upload_id: z.uuid().nullable(),
+    info: z.string(),
+    material: z.string(),
+    name: z.string(),
+    option_count: z.int(),
+    option_label: z.string().nullable(),
+    option_stock_total: z.int().nullable(),
+    options: z.array(zProductOptionOut).optional(),
+    pattern: z.string(),
+    price: z.int(),
+    stock: z.int().nullable(),
+    updated_at: z.iso.datetime()
 });
 
 /**
@@ -780,48 +1976,6 @@ export const zProductOut = z.object({
     price: z.int(),
     stock: z.int().nullable(),
     updated_at: z.iso.datetime()
-});
-
-/**
- * ProductUpdate
- */
-export const zProductUpdate = z.object({
-    category: z.enum([
-        '3fold',
-        'sfolderato',
-        'knit',
-        'bowtie'
-    ]).nullish(),
-    color: z.enum([
-        'black',
-        'navy',
-        'gray',
-        'wine',
-        'blue',
-        'brown',
-        'beige',
-        'silver'
-    ]).nullish(),
-    detail_images: z.array(z.string()).nullish(),
-    image: z.string().nullish(),
-    info: z.string().nullish(),
-    material: z.enum([
-        'silk',
-        'cotton',
-        'polyester',
-        'wool'
-    ]).nullish(),
-    name: z.string().nullish(),
-    option_label: z.string().nullish(),
-    pattern: z.enum([
-        'solid',
-        'stripe',
-        'dot',
-        'check',
-        'paisley'
-    ]).nullish(),
-    price: z.int().nullish(),
-    stock: z.int().nullish()
 });
 
 /**
@@ -853,7 +2007,8 @@ export const zQuoteOut = z.object({
     quote_number: z.string(),
     quoted_amount: z.int().nullable(),
     reference_images: z.array(z.unknown()),
-    shipping_address_id: z.uuid(),
+    shipping_address_id: z.uuid().nullable(),
+    shipping_address_snapshot: z.record(z.string(), z.unknown()).nullable(),
     status: z.string(),
     updated_at: z.iso.datetime(),
     user_id: z.uuid()
@@ -879,18 +2034,6 @@ export const zReadUrlResponse = z.object({
  */
 export const zReferenceImageIn = z.object({
     object_key: z.string()
-});
-
-/**
- * CustomOrderCreateRequest
- */
-export const zCustomOrderCreateRequest = z.object({
-    additional_notes: z.string().optional().default(''),
-    options: z.record(z.string(), z.unknown()),
-    quantity: z.int(),
-    reference_images: z.array(zReferenceImageIn).optional().default([]),
-    shipping_address_id: z.uuid(),
-    user_coupon_id: z.uuid().nullish()
 });
 
 /**
@@ -1012,11 +2155,82 @@ export const zRepairPickupIn = z.object({
 });
 
 /**
+ * RepairPickupOut
+ */
+export const zRepairPickupOut = z.object({
+    address: z.string(),
+    created_at: z.iso.datetime(),
+    detail_address: z.string().nullable(),
+    id: z.uuid(),
+    pickup_fee: z.int(),
+    postal_code: z.string().nullable(),
+    recipient_name: z.string(),
+    recipient_phone: z.string()
+});
+
+/**
  * RepairShippingIn
  */
 export const zRepairShippingIn = z.object({
     method: z.enum(['direct', 'pickup']),
     pickup: zRepairPickupIn.nullish()
+});
+
+/**
+ * RepairShippingReceiptOut
+ */
+export const zRepairShippingReceiptOut = z.object({
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    memo: z.string().nullable(),
+    photo_count: z.int(),
+    reason: z.string().nullable(),
+    receipt_type: z.string()
+});
+
+/**
+ * AdminClaimShippingOut
+ */
+export const zAdminClaimShippingOut = z.object({
+    company_courier_company: z.string().nullable(),
+    company_tracking_number: z.string().nullable(),
+    order_courier_company: z.string().nullable(),
+    order_tracking_number: z.string().nullable(),
+    repair_pickup: zRepairPickupOut.nullable(),
+    repair_receipts: z.array(zRepairShippingReceiptOut).optional(),
+    resend_courier_company: z.string().nullable(),
+    resend_tracking_number: z.string().nullable(),
+    return_courier_company: z.string().nullable(),
+    return_tracking_number: z.string().nullable(),
+    shipping_address: zOrderShippingAddressOut.nullable()
+});
+
+/**
+ * AdminClaimDetailOut
+ */
+export const zAdminClaimDetailOut = z.object({
+    admin_actions: z.array(zAdminClaimAction).optional(),
+    claim_number: z.string(),
+    created_at: z.iso.datetime(),
+    customer: zAdminClaimCustomerOut,
+    description: z.string().nullable(),
+    id: z.uuid(),
+    item: zOrderItemOut,
+    notifications: z.array(zClaimNotificationOut).optional(),
+    order: zAdminClaimOrderOut,
+    order_id: z.uuid(),
+    order_number: z.string(),
+    payment_incidents: z.array(zPaymentIncidentSummaryOut).optional(),
+    quantity: z.int(),
+    reason: z.string(),
+    refund_data: z.record(z.string(), z.unknown()).nullable(),
+    shipping: zAdminClaimShippingOut,
+    status: z.string(),
+    status_logs: z.array(zAdminClaimStatusLogOut).optional(),
+    timeline: z.array(zAdminTimelineEvent).optional(),
+    tracking_actions: z.array(zAdminClaimTrackingAction).optional(),
+    type: z.string(),
+    updated_at: z.iso.datetime()
 });
 
 /**
@@ -1037,10 +2251,21 @@ export const zRestorationReform = z.object({
 });
 
 /**
- * RevokeByIdsRequest
+ * SafeCandidateOut
  */
-export const zRevokeByIdsRequest = z.object({
-    user_coupon_ids: z.array(z.uuid())
+export const zSafeCandidateOut = z.object({
+    colorway_id: z.string().nullable(),
+    design_index: z.int().nullable(),
+    id: z.string().nullable(),
+    layout_id: z.string().nullable(),
+    seed: z.int().nullable(),
+    source_fidelity: z.string().nullable(),
+    svg: z.string().nullable(),
+    svg_status: z.enum([
+        'safe',
+        'unavailable',
+        'unsafe'
+    ])
 });
 
 /**
@@ -1068,7 +2293,7 @@ export const zSampleAmountResponse = z.object({
 export const zSampleOrderCreateRequest = z.object({
     additional_notes: z.string().optional().default(''),
     options: z.record(z.string(), z.unknown()),
-    reference_images: z.array(zReferenceImageIn).optional().default([]),
+    reference_images: z.array(zOrderReferenceImageIn).max(5).optional(),
     sample_type: z.enum([
         'fabric',
         'sewing',
@@ -1076,6 +2301,106 @@ export const zSampleOrderCreateRequest = z.object({
     ]),
     shipping_address_id: z.uuid(),
     user_coupon_id: z.uuid().nullish()
+});
+
+/**
+ * SeamlessDetailOut
+ */
+export const zSeamlessDetailOut = z.object({
+    available_strategies: z.int().nullable(),
+    candidate_count_requested: z.int().nullable(),
+    candidate_count_returned: z.int().nullable(),
+    candidates: z.array(zSafeCandidateOut),
+    created_at: z.iso.datetime(),
+    distinct_layouts: z.int().nullable(),
+    engine_version: z.string().nullable(),
+    error_summary: z.string().nullable(),
+    error_type: z.string().nullable(),
+    generate_ms: z.number().nullable(),
+    has_prompt: z.boolean(),
+    has_reference_image: z.boolean(),
+    id: z.uuid(),
+    input_type: z.string(),
+    reference_image_available: z.boolean(),
+    reference_image_bytes: z.int().nullable(),
+    reference_image_id: z.uuid().nullable(),
+    registry_version: z.string().nullable(),
+    render_ms: z.number().nullable(),
+    request_id: z.string().nullable(),
+    seed: z.int().nullable(),
+    status: z.enum([
+        'success',
+        'partial',
+        'error'
+    ]),
+    warning_codes: z.array(z.string()),
+    warning_count: z.int()
+});
+
+/**
+ * SeamlessStatsOut
+ */
+export const zSeamlessStatsOut = z.object({
+    as_of: z.iso.datetime(),
+    average_generate_ms: z.number().nullable(),
+    average_render_ms: z.number().nullable(),
+    error: z.int(),
+    partial: z.int(),
+    success: z.int(),
+    total: z.int()
+});
+
+/**
+ * SeamlessSummaryOut
+ */
+export const zSeamlessSummaryOut = z.object({
+    candidate_count_requested: z.int().nullable(),
+    candidate_count_returned: z.int().nullable(),
+    created_at: z.iso.datetime(),
+    distinct_layouts: z.int().nullable(),
+    engine_version: z.string().nullable(),
+    error_summary: z.string().nullable(),
+    error_type: z.string().nullable(),
+    generate_ms: z.number().nullable(),
+    id: z.uuid(),
+    input_type: z.string(),
+    registry_version: z.string().nullable(),
+    render_ms: z.number().nullable(),
+    request_id: z.string().nullable(),
+    status: z.enum([
+        'success',
+        'partial',
+        'error'
+    ]),
+    warning_count: z.int()
+});
+
+/**
+ * Page[SeamlessSummaryOut]
+ */
+export const zPageSeamlessSummaryOut = z.object({
+    items: z.array(zSeamlessSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * SettingUpdateItem
+ */
+export const zSettingUpdateItem = z.object({
+    expected_updated_at: z.iso.datetime(),
+    key: z.enum(['default_courier_company', 'design_token_initial_grant']),
+    value: z.string().max(100)
+});
+
+/**
+ * SettingsUpdateRequest
+ */
+export const zSettingsUpdateRequest = z.object({
+    items: z.array(zSettingUpdateItem).min(1).max(2),
+    operation_id: z.uuid(),
+    reason: z.string().min(3).max(500)
 });
 
 /**
@@ -1107,6 +2432,13 @@ export const zShippingAddressOut = z.object({
     postal_code: z.string(),
     recipient_name: z.string(),
     recipient_phone: z.string()
+});
+
+/**
+ * SignedReadUrlOut
+ */
+export const zSignedReadUrlOut = z.object({
+    read_url: z.string()
 });
 
 /**
@@ -1246,6 +2578,7 @@ export const zUploadUrlRequest = z.object({
 export const zUploadUrlResponse = z.object({
     object_key: z.string(),
     required_headers: z.record(z.string(), z.string()),
+    upload_id: z.uuid().nullish(),
     upload_required: z.boolean(),
     upload_url: z.string()
 });
@@ -1380,12 +2713,15 @@ export const zReformDataOut = z.object({
  */
 export const zCartItemOut = z.object({
     applied_coupon: zUserCouponOut.nullable(),
+    availability: z.enum(['available', 'unavailable']),
+    blocking_reason: z.string().nullish(),
     item_id: z.string(),
     item_type: z.string(),
     product: zProductOut.nullable(),
     quantity: z.int(),
     reform_data: zReformDataOut.nullable(),
-    selected_option: zProductOptionOut.nullable()
+    selected_option: zProductOptionOut.nullable(),
+    selected_option_id: z.string().nullable()
 });
 
 /**
@@ -1415,11 +2751,64 @@ export const zDesignGenerateOut = z.object({
 });
 
 /**
- * Response Admin List Claims
- *
  * Successful Response
  */
-export const zAdminListClaimsResponse = z.array(zClaimOut);
+export const zGetAdminCapabilitiesResponse = zAdminCapabilitiesOut;
+
+export const zAdminRetryClaimNotificationPath = z.object({
+    notification_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zAdminRetryClaimNotificationResponse = zClaimNotificationOut;
+
+export const zAdminListClaimsV2Query = z.object({
+    claim_type: z.enum([
+        'all',
+        'cancel',
+        'return',
+        'exchange',
+        'token_refund'
+    ]).optional().default('all'),
+    status: z.enum([
+        'all',
+        '접수',
+        '처리중',
+        '수거요청',
+        '수거완료',
+        '재발송',
+        '완료',
+        '거부'
+    ]).optional().default('all'),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    q: z.string().max(64).nullish(),
+    sort: z.enum([
+        'created_at',
+        'updated_at',
+        'claim_number',
+        'status'
+    ]).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zAdminListClaimsV2Response = zPageAdminClaimSummaryOut;
+
+export const zAdminGetClaimPath = z.object({
+    claim_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zAdminGetClaimResponse = zAdminClaimDetailOut;
 
 export const zAdminUpdateClaimStatusBody = zAdminClaimStatusRequest;
 
@@ -1432,66 +2821,421 @@ export const zAdminUpdateClaimStatusPath = z.object({
  */
 export const zAdminUpdateClaimStatusResponse = zAdminClaimStatusResponse;
 
-/**
- * Response List Coupons
- *
- * Successful Response
- */
-export const zListCouponsResponse = z.array(zCouponOut);
+export const zAdminUpdateClaimTrackingBody = zClaimTrackingUpdateRequest;
 
-export const zCreateCouponBody = zCouponCreateRequest;
+export const zAdminUpdateClaimTrackingPath = z.object({
+    claim_id: z.uuid()
+});
 
 /**
  * Successful Response
  */
-export const zCreateCouponResponse = zCouponOut;
+export const zAdminUpdateClaimTrackingResponse = zAdminClaimDetailOut;
 
-export const zRevokeCouponsByIdsBody = zRevokeByIdsRequest;
+export const zListAdminCouponsQuery = z.object({
+    status: z.enum([
+        'all',
+        'active',
+        'inactive'
+    ]).optional().default('all'),
+    sort: z.enum([
+        'created_at',
+        'expiry_date',
+        'name'
+    ]).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
 
 /**
  * Successful Response
  */
-export const zRevokeCouponsByIdsResponse = zAffectedResponse;
+export const zListAdminCouponsResponse = zPageAdminCouponOut;
 
-export const zBulkIssueCouponsBody = zCouponIssueRequest;
+export const zCreateAdminCouponBody = zCouponCreateRequest;
 
-export const zBulkIssueCouponsPath = z.object({
+/**
+ * Successful Response
+ */
+export const zCreateAdminCouponResponse = zAdminCouponOut;
+
+export const zRevokeCouponsBody = zCouponRevokeRequest;
+
+/**
+ * Successful Response
+ */
+export const zRevokeCouponsResponse = zAffectedResponse;
+
+export const zGetAdminCouponPath = z.object({
     coupon_id: z.uuid()
 });
 
 /**
  * Successful Response
  */
-export const zBulkIssueCouponsResponse = zAffectedResponse;
+export const zGetAdminCouponResponse = zAdminCouponOut;
 
-export const zRevokeCouponsByUsersBody = zCouponIssueRequest;
+export const zUpdateAdminCouponBody = zCouponUpdateRequest;
 
-export const zRevokeCouponsByUsersPath = z.object({
+export const zUpdateAdminCouponPath = z.object({
     coupon_id: z.uuid()
 });
 
 /**
  * Successful Response
  */
-export const zRevokeCouponsByUsersResponse = zAffectedResponse;
+export const zUpdateAdminCouponResponse = zAdminCouponOut;
+
+export const zPreviewCouponAudienceBody = zCouponAudienceRequest;
+
+export const zPreviewCouponAudiencePath = z.object({
+    coupon_id: z.uuid()
+});
 
 /**
- * Response Admin List Inquiries
- *
  * Successful Response
  */
-export const zAdminListInquiriesResponse = z.array(zInquiryOut);
+export const zPreviewCouponAudienceResponse = zPageCouponAudienceCustomerOut;
 
-export const zAnswerInquiryBody = zInquiryAnswerRequest;
+export const zIssueCouponBody = zCouponIssueRequest;
 
-export const zAnswerInquiryPath = z.object({
+export const zIssueCouponPath = z.object({
+    coupon_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zIssueCouponResponse = zAffectedResponse;
+
+export const zListIssuedCouponsPath = z.object({
+    coupon_id: z.uuid()
+});
+
+export const zListIssuedCouponsQuery = z.object({
+    status: z.enum([
+        'all',
+        'active',
+        'used',
+        'expired',
+        'revoked',
+        'reserved'
+    ]).optional().default('all'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListIssuedCouponsResponse = zPageIssuedCouponOut;
+
+export const zRevokeCouponUsersBody = zCouponRevokeUsersRequest;
+
+export const zRevokeCouponUsersPath = z.object({
+    coupon_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zRevokeCouponUsersResponse = zAffectedResponse;
+
+export const zListAdminCustomersQuery = z.object({
+    status: z.enum([
+        'all',
+        'active',
+        'inactive'
+    ]).optional().default('all'),
+    sort: z.enum(['created_at', 'name']).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminCustomersResponse = zPageAdminCustomerSummaryOut;
+
+export const zSearchAdminCustomersBody = zCustomerSearchRequest;
+
+/**
+ * Successful Response
+ */
+export const zSearchAdminCustomersResponse = zPageAdminCustomerSummaryOut;
+
+export const zGetAdminCustomerPath = z.object({
+    user_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAdminCustomerResponse = zAdminCustomerDetailOut;
+
+export const zListAdminCustomerCouponsPath = z.object({
+    user_id: z.uuid()
+});
+
+export const zListAdminCustomerCouponsQuery = z.object({
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminCustomerCouponsResponse = zPageAdminCustomerCouponOut;
+
+export const zListAdminCustomerOrdersPath = z.object({
+    user_id: z.uuid()
+});
+
+export const zListAdminCustomerOrdersQuery = z.object({
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminCustomerOrdersResponse = zPageAdminCustomerOrderOut;
+
+export const zListAdminCustomerTokensPath = z.object({
+    user_id: z.uuid()
+});
+
+export const zListAdminCustomerTokensQuery = z.object({
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminCustomerTokensResponse = zPageAdminCustomerTokenOut;
+
+export const zGetDashboardRecentOrdersQuery = z.object({
+    order_type: z.enum([
+        'all',
+        'sale',
+        'custom',
+        'repair',
+        'token',
+        'sample'
+    ]).optional().default('all'),
+    limit: z.int().gte(1).lte(20).optional().default(5)
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDashboardRecentOrdersResponse = zDashboardRecentOrdersPage;
+
+export const zGetDashboardRecentQuotesQuery = z.object({
+    limit: z.int().gte(1).lte(20).optional().default(5)
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDashboardRecentQuotesResponse = zDashboardRecentQuotesPage;
+
+export const zGetDashboardSummaryQuery = z.object({
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    order_type: z.enum([
+        'all',
+        'sale',
+        'custom',
+        'repair',
+        'token',
+        'sample'
+    ]).optional().default('all')
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDashboardSummaryResponse = zDashboardSummaryOut;
+
+export const zListAdminGenerationJobsQuery = z.object({
+    kind: z.enum(['finalize', 'export']).nullish(),
+    status: z.enum([
+        'queued',
+        'processing',
+        'succeeded',
+        'failed'
+    ]).nullish(),
+    user_id: z.uuid().nullish(),
+    start: z.iso.datetime().nullish(),
+    end: z.iso.datetime().nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminGenerationJobsResponse = zPageGenerationJobSummaryOut;
+
+export const zGetAdminGenerationJobStatsQuery = z.object({
+    kind: z.enum(['finalize', 'export']).nullish(),
+    status: z.enum([
+        'queued',
+        'processing',
+        'succeeded',
+        'failed'
+    ]).nullish(),
+    user_id: z.uuid().nullish(),
+    start: z.iso.datetime().nullish(),
+    end: z.iso.datetime().nullish()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAdminGenerationJobStatsResponse = zGenerationJobStatsOut;
+
+export const zGetAdminGenerationJobPath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAdminGenerationJobResponse = zGenerationJobDetailOut;
+
+export const zListAdminSeamlessLogsQuery = z.object({
+    status: z.enum([
+        'success',
+        'partial',
+        'error'
+    ]).nullish(),
+    request_id: z.string().nullish(),
+    start: z.iso.datetime().nullish(),
+    end: z.iso.datetime().nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminSeamlessLogsResponse = zPageSeamlessSummaryOut;
+
+export const zGetAdminSeamlessStatsQuery = z.object({
+    status: z.enum([
+        'success',
+        'partial',
+        'error'
+    ]).nullish(),
+    request_id: z.string().nullish(),
+    start: z.iso.datetime().nullish(),
+    end: z.iso.datetime().nullish()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAdminSeamlessStatsResponse = zSeamlessStatsOut;
+
+export const zGetAdminSeamlessLogPath = z.object({
+    log_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAdminSeamlessLogResponse = zSeamlessDetailOut;
+
+export const zCreateAdminSeamlessReferenceImageReadUrlPath = z.object({
+    log_id: z.uuid(),
+    image_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateAdminSeamlessReferenceImageReadUrlResponse = zSignedReadUrlOut;
+
+export const zListAdminInquiriesQuery = z.object({
+    status: z.enum([
+        'all',
+        '답변대기',
+        '답변완료'
+    ]).optional().default('all'),
+    category: z.enum([
+        'all',
+        '일반',
+        '상품',
+        '수선',
+        '주문제작'
+    ]).optional().default('all'),
+    sort: z.enum([
+        'created_at',
+        'updated_at',
+        'status'
+    ]).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminInquiriesResponse = zPageAdminInquirySummaryOut;
+
+export const zSearchAdminInquiriesBody = zAdminInquirySearchRequest;
+
+/**
+ * Successful Response
+ */
+export const zSearchAdminInquiriesResponse = zPageAdminInquirySummaryOut;
+
+export const zGetAdminInquiryPath = z.object({
     inquiry_id: z.uuid()
 });
 
 /**
  * Successful Response
  */
-export const zAnswerInquiryResponse = zInquiryOut;
+export const zGetAdminInquiryResponse = zAdminInquiryDetailOut;
+
+export const zAnswerAdminInquiryBody = zAdminInquiryAnswerRequest;
+
+export const zAnswerAdminInquiryPath = z.object({
+    inquiry_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zAnswerAdminInquiryResponse = zAdminInquiryDetailOut;
+
+export const zListAdminMotifsQuery = z.object({
+    scope: z.enum(['whole', 'partial']).nullish(),
+    source: z.string().max(50).nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminMotifsResponse = zPageMotifSummaryOut;
+
+export const zGetAdminMotifPath = z.object({
+    motif_id: z.string()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAdminMotifResponse = zMotifDetailOut;
 
 export const zListAllOrdersQuery = z.object({
     order_type: z.enum([
@@ -1502,15 +3246,75 @@ export const zListAllOrdersQuery = z.object({
         'token',
         'sample'
     ]).optional().default('all'),
-    status: z.string().nullish()
+    status: z.enum([
+        'all',
+        '대기중',
+        '결제중',
+        '진행중',
+        '배송중',
+        '배송완료',
+        '완료',
+        '취소',
+        '실패',
+        '접수',
+        '제작중',
+        '제작완료',
+        '수선중',
+        '수선완료',
+        '발송대기',
+        '발송중',
+        '발송확인중',
+        '수거예정'
+    ]).optional().default('all'),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    q: z.string().max(64).nullish(),
+    sort: z.enum([
+        'created_at',
+        'updated_at',
+        'order_number',
+        'order_amount',
+        'status'
+    ]).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
 });
 
 /**
- * Response List All Orders
+ * Successful Response
+ */
+export const zListAllOrdersResponse = zPageAdminOrderSummaryOut;
+
+export const zGetAdminOrderPath = z.object({
+    order_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAdminOrderResponse = zAdminOrderDetailOut;
+
+export const zListAdminOrderReferenceImagesPath = z.object({
+    order_id: z.uuid()
+});
+
+/**
+ * Response List Admin Order Reference Images
  *
  * Successful Response
  */
-export const zListAllOrdersResponse = z.array(zAdminOrderOut);
+export const zListAdminOrderReferenceImagesResponse = z.array(zAdminOrderReferenceImageOut);
+
+export const zCreateAdminOrderReferenceImageReadUrlPath = z.object({
+    order_id: z.uuid(),
+    image_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateAdminOrderReferenceImageReadUrlResponse = zSignedReadUrlOut;
 
 export const zAdminUpdateOrderStatusBody = zAdminStatusUpdateRequest;
 
@@ -1534,57 +3338,277 @@ export const zAdminUpdateOrderTrackingPath = z.object({
  */
 export const zAdminUpdateOrderTrackingResponse = zOrderOut;
 
-export const zCreateProductBody = zProductCreate;
+export const zAdminListPaymentIncidentsQuery = z.object({
+    incident_type: z.enum([
+        'all',
+        'confirm',
+        'refund',
+        'partial_cancel',
+        'mixed_state',
+        'amount_mismatch'
+    ]).optional().default('all'),
+    status: z.enum([
+        'all',
+        'open',
+        'resolved'
+    ]).optional().default('open'),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    sort: z.enum([
+        'created_at',
+        'updated_at',
+        'status',
+        'incident_type'
+    ]).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
 
 /**
  * Successful Response
  */
-export const zCreateProductResponse = zProductOut;
+export const zAdminListPaymentIncidentsResponse = zPagePaymentIncidentSummaryOut;
 
-export const zUpdateProductBody = zProductUpdate;
+export const zAdminGetPaymentIncidentPath = z.object({
+    incident_id: z.uuid()
+});
 
-export const zUpdateProductPath = z.object({
+/**
+ * Successful Response
+ */
+export const zAdminGetPaymentIncidentResponse = zPaymentIncidentDetailOut;
+
+export const zAdminReconcilePaymentIncidentPath = z.object({
+    incident_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zAdminReconcilePaymentIncidentResponse = zPaymentIncidentDetailOut;
+
+export const zAdminResolvePaymentIncidentBody = zIncidentResolveRequest;
+
+export const zAdminResolvePaymentIncidentPath = z.object({
+    incident_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zAdminResolvePaymentIncidentResponse = zPaymentIncidentDetailOut;
+
+/**
+ * Response Get Admin Pricing
+ *
+ * Successful Response
+ */
+export const zGetAdminPricingResponse = z.array(zPricingValueOut);
+
+export const zUpdateAdminPricingBody = zPricingUpdateRequest;
+
+/**
+ * Response Update Admin Pricing
+ *
+ * Successful Response
+ */
+export const zUpdateAdminPricingResponse = z.array(zPricingValueOut);
+
+export const zAdminListProductsQuery = z.object({
+    category: z.enum([
+        '3fold',
+        'sfolderato',
+        'knit',
+        'bowtie'
+    ]).nullish(),
+    color: z.enum([
+        'black',
+        'navy',
+        'gray',
+        'wine',
+        'blue',
+        'brown',
+        'beige',
+        'silver'
+    ]).nullish(),
+    pattern: z.enum([
+        'solid',
+        'stripe',
+        'dot',
+        'check',
+        'paisley'
+    ]).nullish(),
+    material: z.enum([
+        'silk',
+        'cotton',
+        'polyester',
+        'wool'
+    ]).nullish(),
+    q: z.string().max(100).nullish(),
+    sort: z.enum([
+        'created_at',
+        'updated_at',
+        'name',
+        'price',
+        'stock'
+    ]).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zAdminListProductsResponse = zPageAdminProductSummaryOut;
+
+export const zAdminCreateProductBody = zAdminProductCreateRequest;
+
+/**
+ * Successful Response
+ */
+export const zAdminCreateProductResponse = zAdminProductDetailOut;
+
+export const zCreateAdminProductImageUploadUrlBody = zAdminProductImageUploadRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateAdminProductImageUploadUrlResponse = zAdminProductImageUploadOut;
+
+export const zDeleteAdminProductImageUploadPath = z.object({
+    upload_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteAdminProductImageUploadResponse = z.void();
+
+export const zCompleteAdminProductImageUploadPath = z.object({
+    upload_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCompleteAdminProductImageUploadResponse = zAdminProductImageCompleteOut;
+
+export const zAdminGetProductPath = z.object({
     product_id: z.int()
 });
 
 /**
  * Successful Response
  */
-export const zUpdateProductResponse = zProductOut;
+export const zAdminGetProductResponse = zAdminProductDetailOut;
 
-/**
- * Body
- */
-export const zReplaceProductOptionsBody = z.array(zProductOptionIn);
+export const zAdminUpdateProductBody = zAdminProductUpdateRequest;
 
-export const zReplaceProductOptionsPath = z.object({
+export const zAdminUpdateProductPath = z.object({
     product_id: z.int()
 });
 
 /**
- * Response Replace Product Options
- *
  * Successful Response
  */
-export const zReplaceProductOptionsResponse = z.array(zProductOptionOut);
+export const zAdminUpdateProductResponse = zAdminProductDetailOut;
+
+export const zListAdminQuotesQuery = z.object({
+    status: z.enum([
+        'all',
+        '요청',
+        '견적발송',
+        '협의중',
+        '확정',
+        '종료'
+    ]).optional().default('all'),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    sort: z.enum([
+        'created_at',
+        'updated_at',
+        'quote_number',
+        'status',
+        'quoted_amount'
+    ]).optional().default('created_at'),
+    direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
 
 /**
- * Response Admin List Quotes
- *
  * Successful Response
  */
-export const zAdminListQuotesResponse = z.array(zQuoteOut);
+export const zListAdminQuotesResponse = zPageAdminQuoteSummaryOut;
 
-export const zAdminUpdateQuoteStatusBody = zAdminQuoteStatusRequest;
-
-export const zAdminUpdateQuoteStatusPath = z.object({
+export const zGetAdminQuotePath = z.object({
     quote_id: z.uuid()
 });
 
 /**
  * Successful Response
  */
-export const zAdminUpdateQuoteStatusResponse = zAdminQuoteStatusResponse;
+export const zGetAdminQuoteResponse = zAdminQuoteDetailOut;
+
+export const zCreateAdminQuoteImageReadUrlPath = z.object({
+    quote_id: z.uuid(),
+    image_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateAdminQuoteImageReadUrlResponse = zSignedReadUrlOut;
+
+export const zUpdateAdminQuoteStatusBody = zAdminQuoteStatusRequest;
+
+export const zUpdateAdminQuoteStatusPath = z.object({
+    quote_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zUpdateAdminQuoteStatusResponse = zAdminQuoteDetailOut;
+
+export const zListAdminRepairReceiptPhotosPath = z.object({
+    receipt_id: z.uuid()
+});
+
+/**
+ * Response List Admin Repair Receipt Photos
+ *
+ * Successful Response
+ */
+export const zListAdminRepairReceiptPhotosResponse = z.array(zAdminRepairPhotoOut);
+
+export const zCreateAdminRepairReceiptPhotoReadUrlPath = z.object({
+    receipt_id: z.uuid(),
+    image_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateAdminRepairReceiptPhotoReadUrlResponse = zSignedReadUrlOut;
+
+/**
+ * Response Get Admin Settings
+ *
+ * Successful Response
+ */
+export const zGetAdminSettingsResponse = z.array(zAdminSettingOut);
+
+export const zUpdateAdminSettingsBody = zSettingsUpdateRequest;
+
+/**
+ * Response Update Admin Settings
+ *
+ * Successful Response
+ */
+export const zUpdateAdminSettingsResponse = z.array(zAdminSettingOut);
 
 export const zPeriodStatsQuery = z.object({
     start_date: z.iso.date(),
@@ -1639,12 +3663,22 @@ export const zAdminManageTokensBody = zAdminTokenManageRequest;
  */
 export const zAdminManageTokensResponse = zAdminTokenManageResponse;
 
+export const zAdminLoginBody = zLoginRequest;
+
 /**
- * Response List Users
- *
  * Successful Response
  */
-export const zListUsersResponse = z.array(zAdminUserOut);
+export const zAdminLoginResponse = zTokenResponse;
+
+/**
+ * Successful Response
+ */
+export const zAdminLogoutResponse = z.void();
+
+/**
+ * Successful Response
+ */
+export const zAdminRefreshTokensResponse = zTokenResponse;
 
 export const zLoginBody = zLoginRequest;
 
@@ -1900,6 +3934,15 @@ export const zAppendDesignTurnResponse = zDesignTurnOut;
  * Successful Response
  */
 export const zHealthzResponse = z.record(z.string(), z.string());
+
+export const zCompleteOrderImagePath = z.object({
+    upload_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCompleteOrderImageResponse = zOrderImageUploadOut;
 
 export const zCreateReadUrlBody = zReadUrlRequest;
 

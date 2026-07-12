@@ -34,11 +34,22 @@ def get_app_settings(request: Request) -> Settings:
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 
 
-async def _load_user(token: str, session, settings: Settings) -> User:
+async def _load_user_with_claims(
+    token: str, session, settings: Settings
+) -> tuple[User, dict[str, Any]]:
     payload = decode_access_token(token, settings)
     user = await session.get(User, uuid.UUID(payload["sub"]))
     if user is None or not user.is_active:
         raise UnauthorizedError()
+    # 역할 변경 전 발급된 토큰이 현재 DB 역할의 권한을 상속하면 owner-only
+    # 리소스까지 우회할 수 있다. 역할 변경은 기존 access token을 즉시 폐기한다.
+    if payload.get("role") != user.role:
+        raise UnauthorizedError()
+    return user, payload
+
+
+async def _load_user(token: str, session, settings: Settings) -> User:
+    user, _ = await _load_user_with_claims(token, session, settings)
     return user
 
 
@@ -56,15 +67,25 @@ async def get_optional_user(
     return await _load_user(creds.credentials, session, settings)
 
 
-async def get_admin_user(user: Annotated[User, Depends(get_current_user)]) -> User:
-    if user.role not in ADMIN_ROLES:
+async def get_admin_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User:
+    if creds is None:
+        raise UnauthorizedError()
+    user, payload = await _load_user_with_claims(creds.credentials, session, settings)
+    if payload.get("session_kind") != "admin" or user.role not in ADMIN_ROLES:
         raise ForbiddenError("관리자 권한이 없습니다.")
+    return user
+
+
+async def get_admin_only(user: Annotated[User, Depends(get_admin_user)]) -> User:
+    if user.role != "admin":
+        raise ForbiddenError("최고 관리자 권한이 필요합니다.")
     return user
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 AdminUser = Annotated[User, Depends(get_admin_user)]
+AdminOnly = Annotated[User, Depends(get_admin_only)]
 
 
 def ensure_owner(row: Any, user: User) -> None:

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 TokenLedgerType = Literal["grant", "use", "refund", "admin", "purchase"]
 TokenHistoryFilter = Literal["credit", "use", "refund"]
@@ -70,11 +70,13 @@ class TokenRefundRequestOut(BaseModel):
 
 
 class AdminTokenManageRequest(BaseModel):
+    operation_id: uuid.UUID
     user_id: uuid.UUID
     amount: int  # 양수 지급 / 음수 회수
-    description: str
+    description: str = Field(min_length=3, max_length=500)
 
 
 class AdminTokenManageResponse(BaseModel):
     success: bool
     new_balance: int
+    operation_id: uuid.UUID

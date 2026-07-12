@@ -43,7 +43,7 @@ tofu apply -var-file=staging.tfvars
 | 6 | main 푸시 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
 | 7 | 배치 audience 대조·수동 트리거 확인 (아래 "배치" 섹션) | **사용자** |
 | 8 | Toss 웹훅/콜백 URL·OAuth redirect URI를 새 api 주소로 등록 | **사용자(각 콘솔)** |
-| 9 | 시드: `gcloud run jobs`가 아닌 로컬에서 스테이징 DB로 `apps/api/scripts/seed.py`(관리자 계정) + `apps/worker/scripts/seed_motifs.py`(모티프 카탈로그) | **사용자** |
+| 9 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `apps/worker/scripts/seed_motifs.py`로 모티프 카탈로그 입력 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
 
 ## 시크릿 값 주입 (수집해 둔 기존 env → Secret Manager)
 
@@ -84,6 +84,37 @@ deploy/preview 워크플로우는 위 vars가 비어 있으면 스킵되므로, 
 gcloud run jobs update migrate --region asia-northeast3 --image <푸시된-api-이미지>
 gcloud run jobs execute migrate --region asia-northeast3 --wait
 ```
+
+## 초기 관리자 bootstrap·세션 복구
+
+`apps/api/scripts/seed.py`는 local/test 전용이다. 스테이징·운영 관리자는 migrate 완료
+후 DB에 연결할 수 있는 운영자 단말에서 아래 일회성 명령으로 만든다. 비밀번호는
+명령행 인자나 저장 파일에 남기지 않고 임시 환경 변수로만 전달한다.
+
+```bash
+printf 'Admin email: '
+read -r BOOTSTRAP_ADMIN_EMAIL
+printf 'Admin password (12+ chars): '
+read -rs BOOTSTRAP_ADMIN_PASSWORD
+printf '\n'
+export BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
+uv run python apps/api/scripts/bootstrap_admin.py create
+unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
+```
+
+이미 admin 계정이 있으면 `create`는 실패한다. 비밀번호 유출·분실 대응은 같은 방식으로
+환경 변수를 준비한 뒤 `reset-password`를 실행한다. 비밀번호 변경 없이 해당 계정의
+관리자 세션만 즉시 폐기하려면 이메일만 export하고 `revoke-sessions`를 실행한다.
+두 명령 모두 store 세션은 건드리지 않는다.
+
+```bash
+uv run python apps/api/scripts/bootstrap_admin.py reset-password
+uv run python apps/api/scripts/bootstrap_admin.py revoke-sessions
+```
+
+배포 확인은 `/healthz`가 아니라 `/readyz`를 사용한다. 스테이징·운영에서
+`toss`, `gcs`, `solapi` 중 하나라도 `unavailable`이면 503이다. Toss·GCS mutation은
+503으로 차단되고 Solapi 알림은 가짜 성공으로 바뀌지 않고 outbox `failed`로 남는다.
 
 ## 배치 (Cloud Scheduler → api /batch/*)
 

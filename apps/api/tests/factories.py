@@ -80,7 +80,9 @@ async def make_product(
 
 
 def auth_headers(user: User, settings: Settings) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(user.id, user.role, settings)}"}
+    session_kind = "admin" if user.role in ("admin", "manager") else "store"
+    token = create_access_token(user.id, user.role, settings, session_kind=session_kind)
+    return {"Authorization": f"Bearer {token}"}
 
 
 async def make_address(session: AsyncSession, user: User) -> ShippingAddress:

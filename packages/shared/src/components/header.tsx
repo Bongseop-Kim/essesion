@@ -37,6 +37,8 @@ export type HeaderProps = {
   mobileMenuFooter?: ReactNode;
   /** 내부 nav 최대폭 — 콘텐츠·푸터와 정렬. 기본 high(제한 없음, admin 대시보드용). store는 medium. */
   density?: LayoutContentProps["density"];
+  /** 데스크톱 주요 메뉴 표시 여부. admin처럼 별도 sidebar가 있는 앱만 끈다. */
+  showDesktopNavigation?: boolean;
 };
 
 function isActivePath(pathname: string, href: string) {
@@ -56,6 +58,7 @@ export function Header({
   mobileActions,
   mobileMenuFooter,
   density = "high",
+  showDesktopNavigation = true,
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const brandItem = { href: brandHref, label: brandLabel, key: "brand" };
@@ -107,27 +110,29 @@ export function Header({
                 ),
               })}
 
-              <Box display={{ base: "none", md: "block" }} minWidth={0}>
-                <ScrollFog direction="horizontal">
-                  <HStack as="div" gap="x1" minWidth={0}>
-                    {navItems.map((item) => {
-                      const active = isActivePath(activePathname, item.href);
-                      return renderLink(item, {
-                        className: cn(
-                          "inline-flex h-10 shrink-0 items-center rounded-r2 px-x2 text-t4 font-medium",
-                          "transition-colors duration-100 ease-standard",
-                          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
-                          active
-                            ? "bg-bg-neutral-weak text-fg-neutral"
-                            : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
-                        ),
-                        "aria-current": active ? "page" : undefined,
-                        children: item.label,
-                      });
-                    })}
-                  </HStack>
-                </ScrollFog>
-              </Box>
+              {showDesktopNavigation && (
+                <Box display={{ base: "none", md: "block" }} minWidth={0}>
+                  <ScrollFog direction="horizontal">
+                    <HStack as="div" gap="x1" minWidth={0}>
+                      {navItems.map((item) => {
+                        const active = isActivePath(activePathname, item.href);
+                        return renderLink(item, {
+                          className: cn(
+                            "inline-flex h-10 shrink-0 items-center rounded-r2 px-x2 text-t4 font-medium",
+                            "transition-colors duration-100 ease-standard",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                            active
+                              ? "bg-bg-neutral-weak text-fg-neutral"
+                              : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
+                          ),
+                          "aria-current": active ? "page" : undefined,
+                          children: item.label,
+                        });
+                      })}
+                    </HStack>
+                  </ScrollFog>
+                </Box>
+              )}
             </HStack>
 
             <HStack gap="x1_5" flexShrink={0}>

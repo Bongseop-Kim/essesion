@@ -9,7 +9,6 @@ import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal, cast
-from urllib.parse import quote
 
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
@@ -20,8 +19,10 @@ from sqlalchemy import CursorResult, func, select, update
 
 from api.db import SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, SettingsDep, ensure_owner
+from api.domains.images.service import MAX_ORDER_IMAGE_BYTES, order_upload_entity_type
 from api.domains.tokens import ledger
 from api.errors import ConflictError, DomainError, UpstreamError, WorkerRequestError
+from api.integrations.gcs import assets_bucket_name, public_asset_url
 
 router = APIRouter(tags=["design"])
 logger = logging.getLogger(__name__)
@@ -142,6 +143,7 @@ class GenerationJobOut(BaseModel):
 
 class DesignOrderReferenceOut(BaseModel):
     object_key: str
+    upload_id: uuid.UUID | None = None
 
 
 @router.post("/design/sessions", response_model=DesignSessionOut, status_code=201)
@@ -400,7 +402,7 @@ async def create_finalize_job(
         await session.refresh(job)
     else:
         await request.app.state.tasks.enqueue_finalize(job.id)
-    return _generation_job_out(job, request.app.state.settings.gcp_project_id)
+    return _generation_job_out(job, request.app.state.settings)
 
 
 @router.get("/design/jobs", response_model=list[GenerationJobOut])
@@ -425,7 +427,7 @@ async def list_generation_jobs(
     rows = await session.scalars(
         query.order_by(GenerationJob.created_at.desc()).limit(limit).offset(offset)
     )
-    return [_generation_job_out(job, settings.gcp_project_id) for job in rows]
+    return [_generation_job_out(job, settings) for job in rows]
 
 
 @router.get("/design/jobs/{job_id}", response_model=GenerationJobOut)
@@ -435,7 +437,7 @@ async def get_generation_job(
     job = await session.get(GenerationJob, job_id)
     ensure_owner(job, user)
     assert job is not None
-    return _generation_job_out(job, settings.gcp_project_id)
+    return _generation_job_out(job, settings)
 
 
 @router.post(
@@ -464,7 +466,8 @@ async def create_design_order_reference(
         or ".." in source_key.split("/")
     ):
         raise ConflictError("주문에 사용할 수 있는 완성 디자인이 아닙니다")
-    if request.app.state.gcs.upload_required and not settings.gcp_project_id:
+    source_bucket = assets_bucket_name(settings)
+    if request.app.state.gcs.upload_required and source_bucket is None:
         raise DomainError(
             "공개 생성물 버킷이 설정되지 않았습니다",
             code="asset_bucket_not_configured",
@@ -473,39 +476,55 @@ async def create_design_order_reference(
 
     destination_key = f"uploads/{kind}/design-{job.id}-{uuid.uuid4().hex}.png"
     copied = await request.app.state.gcs.copy_from_bucket(
-        f"{settings.gcp_project_id}-assets" if settings.gcp_project_id else "dry-run-assets",
+        source_bucket or "dry-run-assets",
         source_key,
         destination_key,
     )
     if not copied:
         raise UpstreamError("완성 디자인을 주문 첨부로 준비하지 못했습니다")
+    staged_image: Image | None = None
     if kind == "quote_request":
-        session.add(
-            Image(
-                object_key=destination_key,
-                entity_type="quote_request_upload",
-                entity_id=destination_key,
-                uploaded_by=user.id,
-                content_type="image/png",
-                upload_completed_at=datetime.now(UTC),
-                expires_at=datetime.now(UTC) + timedelta(hours=24),
-            )
+        staged_image = Image(
+            object_key=destination_key,
+            entity_type="quote_request_upload",
+            entity_id=destination_key,
+            uploaded_by=user.id,
+            content_type="image/png",
+            upload_completed_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
         )
+    else:
+        metadata = await request.app.state.gcs.object_metadata(destination_key)
+        if request.app.state.gcs.upload_required:
+            if metadata is None:
+                raise UpstreamError("복사된 주문 참고 이미지를 확인하지 못했습니다")
+            if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
+                raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+            if metadata.content_type != "image/png":
+                raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+        staged_image = Image(
+            object_key=destination_key,
+            entity_type=order_upload_entity_type(kind),
+            entity_id=destination_key,
+            uploaded_by=user.id,
+            content_type="image/png",
+            size_bytes=metadata.size_bytes if metadata is not None else 1,
+            upload_completed_at=datetime.now(UTC),
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
+        )
+    if staged_image is not None:
+        session.add(staged_image)
+        await session.flush()
         await session.commit()
-    return DesignOrderReferenceOut(object_key=destination_key)
-
-
-def _public_asset_url(gcp_project_id: str, object_key: str) -> str | None:
-    if not gcp_project_id or not object_key:
-        return None
-    return f"https://storage.googleapis.com/{gcp_project_id}-assets/{quote(object_key, safe='/')}"
-
-
-def _generation_job_out(job: GenerationJob, gcp_project_id: str) -> GenerationJobOut:
-    object_key = job.result.get("object_key") if isinstance(job.result, dict) else None
-    result_url = (
-        _public_asset_url(gcp_project_id, object_key) if isinstance(object_key, str) else None
+    return DesignOrderReferenceOut(
+        object_key=destination_key,
+        upload_id=staged_image.id if kind == "custom_order" else None,
     )
+
+
+def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # noqa: ANN001
+    object_key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    result_url = public_asset_url(settings, object_key) if isinstance(object_key, str) else None
     return GenerationJobOut(
         id=job.id,
         session_id=job.session_id,

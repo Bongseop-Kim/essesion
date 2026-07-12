@@ -40,10 +40,11 @@ async def test_answered_inquiry_cannot_be_updated_or_deleted(client, db_session,
     inquiry = Inquiry(user_id=user.id, title="문의", content="내용")
     db_session.add(inquiry)
     await db_session.commit()
+    await db_session.refresh(inquiry)
 
     answered = await client.post(
         f"/admin/inquiries/{inquiry.id}/answer",
-        json={"answer": "답변입니다"},
+        json={"answer": "답변입니다", "expected_updated_at": inquiry.updated_at.isoformat()},
         headers=auth_headers(admin, settings),
     )
     assert answered.status_code == 200
@@ -89,6 +90,7 @@ async def test_admin_answer_waits_for_concurrent_delete_lock(client, db_session,
     inquiry = Inquiry(user_id=user.id, title="경합 문의", content="내용")
     db_session.add(inquiry)
     await db_session.commit()
+    await db_session.refresh(inquiry)
 
     locked = await db_session.scalar(
         select(Inquiry).where(Inquiry.id == inquiry.id).with_for_update()
@@ -97,7 +99,7 @@ async def test_admin_answer_waits_for_concurrent_delete_lock(client, db_session,
     answer_task = asyncio.create_task(
         client.post(
             f"/admin/inquiries/{inquiry.id}/answer",
-            json={"answer": "답변"},
+            json={"answer": "답변", "expected_updated_at": inquiry.updated_at.isoformat()},
             headers=auth_headers(admin, settings),
         )
     )

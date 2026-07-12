@@ -31,6 +31,9 @@ class CartItemOut(BaseModel):
     item_type: str
     quantity: int
     product: ProductOut | None
+    selected_option_id: str | None
     selected_option: ProductOptionOut | None
     reform_data: ReformDataOut | None
     applied_coupon: UserCouponOut | None
+    availability: Literal["available", "unavailable"]
+    blocking_reason: str | None = None
