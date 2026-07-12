@@ -4,11 +4,12 @@ import type {
   PageSeamlessSummaryOut,
   SeamlessStatsOut,
 } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, useLocation } from "react-router";
+import { useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   jobs: vi.fn(),
@@ -123,16 +124,12 @@ function LocationProbe() {
 }
 
 function renderPage(entry = "/generation-logs?tab=jobs") {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[entry]}>
-        <GenerationOperationsPage />
-        <LocationProbe />
-      </MemoryRouter>
-    </QueryClientProvider>,
+  return renderAdminPage(
+    <>
+      <GenerationOperationsPage />
+      <LocationProbe />
+    </>,
+    { entry },
   );
 }
 

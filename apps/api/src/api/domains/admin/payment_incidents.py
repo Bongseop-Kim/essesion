@@ -1,12 +1,12 @@
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from db.models.commerce import Claim, Order, PaymentIncident
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.phase_d_schemas import (
     IncidentAdminAction,
@@ -15,13 +15,12 @@ from api.domains.admin.phase_d_schemas import (
     IncidentTypeFilter,
     PaymentIncidentDetailOut,
     PaymentIncidentSummaryOut,
-    SortDirection,
 )
 from api.domains.admin.schemas import Page
+from api.domains.admin.types import SortDirection
 from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.toss import TossClient
 
-KST = ZoneInfo("Asia/Seoul")
 DEFAULT_PAGE_LIMIT = 20
 MAX_PAGE_LIMIT = 100
 RECONCILIATION_TTL = timedelta(minutes=15)
@@ -53,15 +52,6 @@ def _sanitize(value: Any, *, key: str | None = None) -> Any:
     return str(value)
 
 
-def _kst_range(start_date: date, end_date: date) -> tuple[datetime, datetime]:
-    if start_date > end_date:
-        raise DomainError("start_date must be before end_date", code="invalid_range")
-    return (
-        datetime.combine(start_date, time.min, tzinfo=KST),
-        datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=KST),
-    )
-
-
 def _filters(
     *,
     incident_type: IncidentTypeFilter,
@@ -78,7 +68,8 @@ def _filters(
         start = start_date or end_date
         end = end_date or start_date
         assert start is not None and end is not None
-        start_at, end_at = _kst_range(start, end)
+        start_at, end_at = kst_day_bounds(start, end)
+        assert start_at is not None and end_at is not None
         filters.extend(
             (PaymentIncident.created_at >= start_at, PaymentIncident.created_at < end_at)
         )

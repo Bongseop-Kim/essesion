@@ -1,7 +1,6 @@
 import uuid
-from datetime import date, datetime, time, timedelta
+from datetime import date
 from typing import Any, Literal
-from zoneinfo import ZoneInfo
 
 from db.models.auth import User
 from db.models.commerce import (
@@ -15,11 +14,14 @@ from db.models.commerce import (
     PaymentIncident,
     RepairPickupRequest,
     RepairShippingReceipt,
-    ShippingAddress,
 )
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.domains.admin.helpers import (
+    kst_day_bounds,
+    resolve_shipping_address,
+)
 from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.orders import safe_order_item_out
 from api.domains.admin.phase_d_schemas import (
@@ -40,26 +42,15 @@ from api.domains.admin.phase_d_schemas import (
     PaymentIncidentSummaryOut,
     RepairPickupOut,
     RepairShippingReceiptOut,
-    SortDirection,
 )
 from api.domains.admin.schemas import Page
+from api.domains.admin.types import SortDirection
 from api.domains.claims.service import FORWARD_CLAIM, REJECTABLE_FROM, ROLLBACK_CLAIM
-from api.domains.orders.schemas import OrderShippingAddressOut
 from api.errors import DomainError, NotFoundError
 
-KST = ZoneInfo("Asia/Seoul")
 DEFAULT_PAGE_LIMIT = 20
 MAX_PAGE_LIMIT = 100
 MIN_SEARCH_LENGTH = 2
-
-
-def _kst_range(start_date: date, end_date: date) -> tuple[datetime, datetime]:
-    if start_date > end_date:
-        raise DomainError("start_date must be before end_date", code="invalid_range")
-    return (
-        datetime.combine(start_date, time.min, tzinfo=KST),
-        datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=KST),
-    )
 
 
 def _filters(
@@ -79,7 +70,8 @@ def _filters(
         start = start_date or end_date
         end = end_date or start_date
         assert start is not None and end is not None
-        start_at, end_at = _kst_range(start, end)
+        start_at, end_at = kst_day_bounds(start, end)
+        assert start_at is not None and end_at is not None
         filters.extend((Claim.created_at >= start_at, Claim.created_at < end_at))
     if q is not None:
         normalized = q.strip()
@@ -333,15 +325,6 @@ async def list_claims(
     )
 
 
-async def _shipping_address(session: AsyncSession, order: Order) -> OrderShippingAddressOut | None:
-    if order.shipping_address_snapshot:
-        return OrderShippingAddressOut.model_validate(order.shipping_address_snapshot)
-    if order.shipping_address_id is None:
-        return None
-    address = await session.get(ShippingAddress, order.shipping_address_id)
-    return OrderShippingAddressOut.model_validate(address) if address is not None else None
-
-
 def _incident_summary(incident: PaymentIncident) -> PaymentIncidentSummaryOut:
     return PaymentIncidentSummaryOut.model_validate(incident, from_attributes=True)
 
@@ -519,7 +502,9 @@ async def get_claim_detail(
         ),
         item=safe_order_item_out(item),
         shipping=AdminClaimShippingOut(
-            shipping_address=await _shipping_address(session, order),
+            shipping_address=await resolve_shipping_address(
+                session, order.shipping_address_snapshot, order.shipping_address_id
+            ),
             order_courier_company=order.courier_company,
             order_tracking_number=order.tracking_number,
             company_courier_company=order.company_courier_company,

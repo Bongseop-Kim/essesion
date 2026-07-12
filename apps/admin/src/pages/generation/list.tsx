@@ -28,22 +28,16 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
-import {
-  type AdminListQuery,
-  parseAdminListQuery,
-  serializeAdminListQuery,
-} from "../../shared/lib/url-query";
+import type { AdminListQuery } from "../../shared/lib/url-query";
+import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
-import { Pagination } from "../../widgets/admin-table/pagination";
+import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
+import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const TABS = ["jobs", "seamless"] as const;
 const JOB_STATUSES = ["queued", "processing", "succeeded", "failed"] as const;
@@ -431,47 +425,32 @@ function JobsPanel({
         )}
       </AdminCard>
 
-      <AdminCard
+      <PaginatedAdminTableCard
         title="생성 작업 목록"
         description={`총 ${listQuery.data?.total ?? 0}건 · 활성 작업은 30초마다 갱신`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={listQuery.isFetching || statsQuery.isFetching}
-            onClick={() =>
-              void Promise.all([listQuery.refetch(), statsQuery.refetch()])
-            }
-          >
-            새로고침
-          </ActionButton>
+        label="생성 작업 목록"
+        columns={columns}
+        rows={listQuery.data?.items}
+        getRowKey={(row) => row.id}
+        status={
+          listQuery.isLoading
+            ? "loading"
+            : listQuery.isError
+              ? "error"
+              : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="생성 작업 목록"
-            columns={columns}
-            rows={listQuery.data?.items}
-            getRowKey={(row) => row.id}
-            status={
-              listQuery.isLoading
-                ? "loading"
-                : listQuery.isError
-                  ? "error"
-                  : "success"
-            }
-            total={listQuery.data?.total}
-            onRetry={() => void listQuery.refetch()}
-            emptyTitle="조건에 맞는 생성 작업이 없습니다"
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) => replaceQuery({ page })}
-            label="생성 작업 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={listQuery.data?.total}
+        refreshing={listQuery.isFetching || statsQuery.isFetching}
+        onRefresh={() =>
+          void Promise.all([listQuery.refetch(), statsQuery.refetch()])
+        }
+        onRetry={() => void listQuery.refetch()}
+        emptyTitle="조건에 맞는 생성 작업이 없습니다"
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) => replaceQuery({ page })}
+        paginationLabel="생성 작업 목록 페이지"
+      />
     </VStack>
   );
 }
@@ -661,64 +640,43 @@ function SeamlessPanel({
         )}
       </AdminCard>
 
-      <AdminCard
+      <PaginatedAdminTableCard
         title="Seamless 로그 목록"
         description={`총 ${listQuery.data?.total ?? 0}건`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={listQuery.isFetching || statsQuery.isFetching}
-            onClick={() =>
-              void Promise.all([listQuery.refetch(), statsQuery.refetch()])
-            }
-          >
-            새로고침
-          </ActionButton>
+        label="Seamless 로그 목록"
+        columns={columns}
+        rows={listQuery.data?.items}
+        getRowKey={(row) => row.id}
+        status={
+          listQuery.isLoading
+            ? "loading"
+            : listQuery.isError
+              ? "error"
+              : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="Seamless 로그 목록"
-            columns={columns}
-            rows={listQuery.data?.items}
-            getRowKey={(row) => row.id}
-            status={
-              listQuery.isLoading
-                ? "loading"
-                : listQuery.isError
-                  ? "error"
-                  : "success"
-            }
-            total={listQuery.data?.total}
-            onRetry={() => void listQuery.refetch()}
-            emptyTitle="조건에 맞는 Seamless 로그가 없습니다"
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) => replaceQuery({ page })}
-            label="Seamless 로그 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={listQuery.data?.total}
+        refreshing={listQuery.isFetching || statsQuery.isFetching}
+        onRefresh={() =>
+          void Promise.all([listQuery.refetch(), statsQuery.refetch()])
+        }
+        onRetry={() => void listQuery.refetch()}
+        emptyTitle="조건에 맞는 Seamless 로그가 없습니다"
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) => replaceQuery({ page })}
+        paginationLabel="Seamless 로그 목록 페이지"
+      />
     </VStack>
   );
 }
 
 export function GenerationOperationsPage() {
-  const [params, setParams] = useSearchParams();
-  const parsed = parseAdminListQuery(params, {
+  const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedTabs: TABS,
     allowedStatuses: [...JOB_STATUSES, ...SEAMLESS_STATUSES],
     allowedTypes: JOB_KINDS,
   });
   const tab: GenerationTab = isOneOf(parsed.tab, TABS) ? parsed.tab : "jobs";
-  const replaceQuery: ReplaceQuery = (changes) => {
-    setParams(serializeAdminListQuery({ ...parsed, ...changes }), {
-      replace: true,
-    });
-  };
 
   return (
     <VStack gap="x6" alignItems="stretch">

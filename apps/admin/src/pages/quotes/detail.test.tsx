@@ -1,18 +1,23 @@
 import type { AdminQuoteDetailOut } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }));
+import { renderAdminPage } from "../../test/render-admin-page";
+
+const api = vi.hoisted(() => ({
+  get: vi.fn(),
+  update: vi.fn(),
+  readImage: vi.fn(),
+}));
 
 vi.mock("@essesion/api-client/query", () => ({
   getAdminQuoteOptions: () => ({ queryKey: ["quote"], queryFn: api.get }),
   getAdminQuoteQueryKey: () => ["quote"],
   listAdminQuotesQueryKey: () => ["quotes"],
   updateAdminQuoteStatusMutation: () => ({ mutationFn: api.update }),
-  createAdminQuoteImageReadUrlMutation: () => ({ mutationFn: vi.fn() }),
+  createAdminQuoteImageReadUrlMutation: () => ({ mutationFn: api.readImage }),
 }));
 
 vi.mock("../../shared/lib/use-dirty-form-blocker", () => ({
@@ -57,23 +62,11 @@ const quote: AdminQuoteDetailOut = {
 };
 
 function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/quote-requests/quote-1"]}>
-        <Routes>
-          <Route
-            path="/quote-requests/:quoteId"
-            element={<QuoteDetailPage />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  return renderAdminPage(
+    <Routes>
+      <Route path="/quote-requests/:quoteId" element={<QuoteDetailPage />} />
+    </Routes>,
+    { entry: "/quote-requests/quote-1" },
   );
 }
 
@@ -81,6 +74,42 @@ describe("QuoteDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.get.mockResolvedValue(quote);
+  });
+
+  it("관계 ID로 참고 이미지 URL을 발급하고 실패한 재발급을 알린다", async () => {
+    const user = userEvent.setup();
+    api.get.mockResolvedValue({
+      ...quote,
+      images: [
+        {
+          id: "image-1",
+          content_type: "image/webp",
+          size_bytes: 1024,
+          created_at: "2026-07-12T01:00:00Z",
+        },
+      ],
+    });
+    api.readImage
+      .mockResolvedValueOnce({ read_url: "https://private.example/quote.webp" })
+      .mockRejectedValueOnce(new Error("만료된 이미지"));
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "이미지 보기" }),
+    );
+    expect(
+      (await screen.findByAltText("견적 참고 자료")).getAttribute("src"),
+    ).toBe("https://private.example/quote.webp");
+    expect(api.readImage).toHaveBeenLastCalledWith(
+      { path: { quote_id: quote.id, image_id: "image-1" } },
+      expect.anything(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "URL 재발급" }));
+    expect(
+      await screen.findByText("이미지를 불러오지 못했습니다"),
+    ).toBeTruthy();
+    expect(api.readImage).toHaveBeenCalledTimes(2);
   });
 
   it("stale 오류에도 금액·조건 입력과 expected_updated_at을 보존한다", async () => {

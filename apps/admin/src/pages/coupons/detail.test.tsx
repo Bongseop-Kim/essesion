@@ -4,11 +4,12 @@ import type {
   PageCouponAudienceCustomerOut,
   PageIssuedCouponOut,
 } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   getCoupon: vi.fn(),
@@ -110,20 +111,11 @@ const issuedPage: PageIssuedCouponOut = {
 };
 
 function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/coupons/coupon-1"]}>
-        <Routes>
-          <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  renderAdminPage(
+    <Routes>
+      <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
+    </Routes>,
+    { entry: "/coupons/coupon-1" },
   );
 }
 

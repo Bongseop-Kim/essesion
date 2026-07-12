@@ -1,8 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({ create: vi.fn() }));
 
@@ -18,21 +19,12 @@ vi.mock("../../shared/lib/use-dirty-form-blocker", () => ({
 import { CouponNewPage } from "./new";
 
 function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/coupons/new"]}>
-        <Routes>
-          <Route path="/coupons/new" element={<CouponNewPage />} />
-          <Route path="/coupons/:couponId" element={<p>등록 완료</p>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  renderAdminPage(
+    <Routes>
+      <Route path="/coupons/new" element={<CouponNewPage />} />
+      <Route path="/coupons/:couponId" element={<p>등록 완료</p>} />
+    </Routes>,
+    { entry: "/coupons/new" },
   );
 }
 

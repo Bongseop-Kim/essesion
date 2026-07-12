@@ -20,6 +20,7 @@ from api.db import SessionDep
 from api.deps import AdminOnly, AdminUser
 from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.schemas import Page
+from api.domains.admin.types import SortDirection
 from api.errors import ConflictError, DomainError, NotFoundError
 
 router = APIRouter(prefix="/admin/coupons", tags=["admin-coupons"])
@@ -29,7 +30,6 @@ MAX_LIMIT = 100
 
 CouponStatusFilter = Literal["all", "active", "inactive"]
 CouponSort = Literal["created_at", "expiry_date", "name"]
-SortDirection = Literal["asc", "desc"]
 AudienceSegment = Literal[
     "all",
     "new30",

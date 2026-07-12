@@ -18,11 +18,15 @@ import { parseAdminListQuery } from "../../shared/lib/url-query";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
+import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
-import { Pagination } from "../../widgets/admin-table/pagination";
+  PRODUCT_CATEGORIES,
+  PRODUCT_COLORS,
+  PRODUCT_MATERIALS,
+  PRODUCT_PATTERNS,
+  type ProductCategory,
+} from "./product-attributes";
 
 const PRODUCT_SORTS = [
   "created_at",
@@ -31,55 +35,12 @@ const PRODUCT_SORTS = [
   "price",
   "stock",
 ] as const;
-const CATEGORIES = ["3fold", "sfolderato", "knit", "bowtie"] as const;
-const COLORS = [
-  "black",
-  "navy",
-  "gray",
-  "wine",
-  "blue",
-  "brown",
-  "beige",
-  "silver",
-] as const;
-const PATTERNS = ["solid", "stripe", "dot", "check", "paisley"] as const;
-const MATERIALS = ["silk", "cotton", "polyester", "wool"] as const;
+const CATEGORIES = PRODUCT_CATEGORIES.map(({ value }) => value);
+const COLORS = PRODUCT_COLORS.map(({ value }) => value);
+const PATTERNS = PRODUCT_PATTERNS.map(({ value }) => value);
+const MATERIALS = PRODUCT_MATERIALS.map(({ value }) => value);
 
 type ProductSort = (typeof PRODUCT_SORTS)[number];
-type ProductCategory = (typeof CATEGORIES)[number];
-type ProductColor = (typeof COLORS)[number];
-type ProductPattern = (typeof PATTERNS)[number];
-type ProductMaterial = (typeof MATERIALS)[number];
-
-const categoryLabels: Record<ProductCategory, string> = {
-  "3fold": "쓰리폴드",
-  sfolderato: "스폴데라토",
-  knit: "니트",
-  bowtie: "보타이",
-};
-const colorLabels: Record<ProductColor, string> = {
-  black: "블랙",
-  navy: "네이비",
-  gray: "그레이",
-  wine: "와인",
-  blue: "블루",
-  brown: "브라운",
-  beige: "베이지",
-  silver: "실버",
-};
-const patternLabels: Record<ProductPattern, string> = {
-  solid: "솔리드",
-  stripe: "스트라이프",
-  dot: "도트",
-  check: "체크",
-  paisley: "페이즐리",
-};
-const materialLabels: Record<ProductMaterial, string> = {
-  silk: "실크",
-  cotton: "코튼",
-  polyester: "폴리에스터",
-  wool: "울",
-};
 
 function enumParam<Value extends string>(
   params: URLSearchParams,
@@ -127,7 +88,9 @@ const columns: readonly AdminTableColumn<AdminProductSummaryOut>[] = [
     header: "분류",
     visibility: "medium",
     render: (product) =>
-      categoryLabels[product.category as ProductCategory] ?? product.category,
+      PRODUCT_CATEGORIES.find(
+        ({ value }) => value === (product.category as ProductCategory),
+      )?.label ?? product.category,
   },
   {
     key: "price",
@@ -284,13 +247,7 @@ export function ProductsPage() {
             <FilterSelect
               label="카테고리"
               value={category ?? "all"}
-              options={[
-                { value: "all", label: "전체" },
-                ...CATEGORIES.map((value) => ({
-                  value,
-                  label: categoryLabels[value],
-                })),
-              ]}
+              options={[{ value: "all", label: "전체" }, ...PRODUCT_CATEGORIES]}
               onChange={(event) =>
                 replaceParams({
                   category:
@@ -304,13 +261,7 @@ export function ProductsPage() {
             <FilterSelect
               label="색상"
               value={color ?? "all"}
-              options={[
-                { value: "all", label: "전체" },
-                ...COLORS.map((value) => ({
-                  value,
-                  label: colorLabels[value],
-                })),
-              ]}
+              options={[{ value: "all", label: "전체" }, ...PRODUCT_COLORS]}
               onChange={(event) =>
                 replaceParams({
                   color:
@@ -324,13 +275,7 @@ export function ProductsPage() {
             <FilterSelect
               label="패턴"
               value={pattern ?? "all"}
-              options={[
-                { value: "all", label: "전체" },
-                ...PATTERNS.map((value) => ({
-                  value,
-                  label: patternLabels[value],
-                })),
-              ]}
+              options={[{ value: "all", label: "전체" }, ...PRODUCT_PATTERNS]}
               onChange={(event) =>
                 replaceParams({
                   pattern:
@@ -344,13 +289,7 @@ export function ProductsPage() {
             <FilterSelect
               label="소재"
               value={material ?? "all"}
-              options={[
-                { value: "all", label: "전체" },
-                ...MATERIALS.map((value) => ({
-                  value,
-                  label: materialLabels[value],
-                })),
-              ]}
+              options={[{ value: "all", label: "전체" }, ...PRODUCT_MATERIALS]}
               onChange={(event) =>
                 replaceParams({
                   material:
@@ -380,47 +319,31 @@ export function ProductsPage() {
         </VStack>
       </AdminCard>
 
-      <AdminCard
+      <PaginatedAdminTableCard
         title="상품 목록"
         description={`총 ${query.data?.total ?? 0}개`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
+        label="상품 목록"
+        columns={columns}
+        rows={query.data?.items}
+        getRowKey={(product) => String(product.id)}
+        status={
+          query.isLoading ? "loading" : query.isError ? "error" : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="상품 목록"
-            columns={columns}
-            rows={query.data?.items}
-            getRowKey={(product) => String(product.id)}
-            status={
-              query.isLoading ? "loading" : query.isError ? "error" : "success"
-            }
-            total={query.data?.total}
-            sort={{ key: sort, direction: parsed.direction }}
-            onSort={({ key, direction }) =>
-              replaceParams({ sort: key, direction, page: undefined })
-            }
-            onRetry={() => void query.refetch()}
-            emptyTitle="조건에 맞는 상품이 없습니다"
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) =>
-              replaceParams({ page: page === 1 ? undefined : String(page) })
-            }
-            label="상품 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={query.data?.total}
+        sort={{ key: sort, direction: parsed.direction }}
+        onSort={({ key, direction }) =>
+          replaceParams({ sort: key, direction, page: undefined })
+        }
+        refreshing={query.isFetching}
+        onRefresh={() => void query.refetch()}
+        emptyTitle="조건에 맞는 상품이 없습니다"
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) =>
+          replaceParams({ page: page === 1 ? undefined : String(page) })
+        }
+        paginationLabel="상품 목록 페이지"
+      />
     </VStack>
   );
 }

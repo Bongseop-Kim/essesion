@@ -37,6 +37,7 @@ import { Link, useParams } from "react-router";
 
 import {
   formatDateTime,
+  formatFileSize,
   formatIdentifier,
   formatMoney,
   getErrorMessage,
@@ -58,12 +59,6 @@ function claimTypeLabel(type: string) {
 
 function timelineKey(event: AdminTimelineEvent, index: number) {
   return `${event.event_type}-${event.created_at}-${index}`;
-}
-
-function formatFileSize(value: number | null) {
-  if (value === null) return "크기 정보 없음";
-  if (value < 1_024) return `${value.toLocaleString("ko-KR")}B`;
-  return `${(value / 1_024).toFixed(1)}KB`;
 }
 
 function RepairReceiptPhoto({
@@ -100,7 +95,7 @@ function RepairReceiptPhoto({
           <Text textStyle="labelSm">사진 {index + 1}</Text>
           <Text textStyle="caption" color="fg.neutral-muted">
             {photo.content_type ?? "이미지"} ·{" "}
-            {formatFileSize(photo.size_bytes)}
+            {formatFileSize(photo.size_bytes, "크기 정보 없음")}
           </Text>
           <Text textStyle="caption" color="fg.neutral-muted">
             {formatDateTime(photo.created_at)}

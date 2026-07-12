@@ -1,9 +1,10 @@
 import type { PaymentIncidentDetailOut } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   getIncident: vi.fn(),
@@ -74,20 +75,11 @@ const incident: PaymentIncidentDetailOut = {
 };
 
 function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/incidents/incident-1"]}>
-        <Routes>
-          <Route
-            path="/incidents/:incidentId"
-            element={<IncidentDetailPage />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  return renderAdminPage(
+    <Routes>
+      <Route path="/incidents/:incidentId" element={<IncidentDetailPage />} />
+    </Routes>,
+    { entry: "/incidents/incident-1" },
   );
 }
 

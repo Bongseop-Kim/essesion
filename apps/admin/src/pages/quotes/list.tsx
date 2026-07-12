@@ -1,23 +1,18 @@
 import type { AdminQuoteSummaryOut } from "@essesion/api-client";
 import { listAdminQuotesOptions } from "@essesion/api-client/query";
-import { ActionButton, HStack, TextField, VStack } from "@essesion/shared";
+import { HStack, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
-import {
-  parseAdminListQuery,
-  serializeAdminListQuery,
-} from "../../shared/lib/url-query";
+import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
-import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
-import { Pagination } from "../../widgets/admin-table/pagination";
+import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
+import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const QUOTE_STATUSES = [
   "all",
@@ -82,8 +77,7 @@ const columns: readonly AdminTableColumn<AdminQuoteSummaryOut>[] = [
 ];
 
 export function QuotesPage() {
-  const [params, setParams] = useSearchParams();
-  const parsed = parseAdminListQuery(params, {
+  const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: QUOTE_SORTS,
     allowedStatuses: QUOTE_STATUSES,
     defaultSort: "created_at",
@@ -106,11 +100,6 @@ export function QuotesPage() {
     placeholderData: keepPreviousData,
   });
 
-  const replaceQuery = (changes: Partial<typeof parsed>) => {
-    setParams(serializeAdminListQuery({ ...parsed, ...changes }), {
-      replace: true,
-    });
-  };
   const totalPages = Math.max(
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
@@ -135,69 +124,37 @@ export function QuotesPage() {
               replaceQuery({ status: event.currentTarget.value, page: 1 })
             }
           />
-          <TextField
-            type="date"
-            label="시작일 (KST)"
-            value={parsed.from ?? ""}
-            onChange={(event) =>
-              replaceQuery({
-                from: event.currentTarget.value || undefined,
-                page: 1,
-              })
-            }
-          />
-          <TextField
-            type="date"
-            label="종료일 (KST)"
-            value={parsed.to ?? ""}
-            onChange={(event) =>
-              replaceQuery({
-                to: event.currentTarget.value || undefined,
-                page: 1,
-              })
-            }
+          <DateRangeFilters
+            from={parsed.from}
+            to={parsed.to}
+            onFromChange={(from) => replaceQuery({ from, page: 1 })}
+            onToChange={(to) => replaceQuery({ to, page: 1 })}
           />
         </HStack>
       </AdminCard>
-      <AdminCard
+      <PaginatedAdminTableCard
         title="견적 목록"
         description={`총 ${query.data?.total ?? 0}건`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
+        label="견적 목록"
+        columns={columns}
+        rows={query.data?.items}
+        getRowKey={(row) => row.id}
+        status={
+          query.isLoading ? "loading" : query.isError ? "error" : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="견적 목록"
-            columns={columns}
-            rows={query.data?.items}
-            getRowKey={(row) => row.id}
-            status={
-              query.isLoading ? "loading" : query.isError ? "error" : "success"
-            }
-            total={query.data?.total}
-            sort={{ key: sort, direction: parsed.direction }}
-            onSort={({ key, direction }) =>
-              replaceQuery({ sort: key, direction, page: 1 })
-            }
-            onRetry={() => void query.refetch()}
-            emptyTitle="조건에 맞는 견적이 없습니다"
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) => replaceQuery({ page })}
-            label="견적 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={query.data?.total}
+        sort={{ key: sort, direction: parsed.direction }}
+        onSort={({ key, direction }) =>
+          replaceQuery({ sort: key, direction, page: 1 })
+        }
+        refreshing={query.isFetching}
+        onRefresh={() => void query.refetch()}
+        emptyTitle="조건에 맞는 견적이 없습니다"
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) => replaceQuery({ page })}
+        paginationLabel="견적 목록 페이지"
+      />
     </VStack>
   );
 }

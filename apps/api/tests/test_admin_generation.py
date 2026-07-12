@@ -1,33 +1,14 @@
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytest
-from api.domains.admin.generation import router as generation_router
 from db.models.design import GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationLog
-from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
 
 from .factories import auth_headers, make_user
 
 
-@pytest.fixture
-async def generation_client(app: FastAPI) -> AsyncIterator[AsyncClient]:
-    if not any(getattr(route, "path", "") == "/admin/generation/jobs" for route in app.routes):
-        app.include_router(generation_router)
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-        headers={"Origin": app.state.settings.admin_frontend_origin},
-    ) as client:
-        yield client
-
-
-async def test_generation_jobs_page_stats_and_safe_detail(
-    app, generation_client, db_session, settings
-):
+async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_session, settings):
     admin = await make_user(db_session, role="admin")
     owner = await make_user(db_session, email="owner-secret@test.local")
     app.state.settings.gcp_project_id = "test-project"
@@ -65,9 +46,7 @@ async def test_generation_jobs_page_stats_and_safe_detail(
     await db_session.commit()
 
     headers = auth_headers(admin, settings)
-    page = await generation_client.get(
-        "/admin/generation/jobs", params={"limit": 1}, headers=headers
-    )
+    page = await client.get("/admin/generation/jobs", params={"limit": 1}, headers=headers)
     assert page.status_code == 200
     assert page.json()["total"] == 2
     assert len(page.json()["items"]) == 1
@@ -78,7 +57,7 @@ async def test_generation_jobs_page_stats_and_safe_detail(
     assert "result" not in page.json()["items"][0]
     assert "user_id" not in page.json()["items"][0]
 
-    stats = await generation_client.get("/admin/generation/jobs/stats", headers=headers)
+    stats = await client.get("/admin/generation/jobs/stats", headers=headers)
     assert stats.status_code == 200
     assert {key: stats.json()[key] for key in ("total", "succeeded", "failed")} == {
         "total": 2,
@@ -87,7 +66,7 @@ async def test_generation_jobs_page_stats_and_safe_detail(
     }
     assert stats.json()["average_attempts"] == 1.5
 
-    detail = await generation_client.get(f"/admin/generation/jobs/{succeeded.id}", headers=headers)
+    detail = await client.get(f"/admin/generation/jobs/{succeeded.id}", headers=headers)
     assert detail.status_code == 200
     body = detail.json()
     assert body["parameter_summary"] == {
@@ -99,15 +78,13 @@ async def test_generation_jobs_page_stats_and_safe_detail(
     assert str(owner.id) not in detail.text
     assert "owner-secret@test.local" not in detail.text
 
-    failed_detail = await generation_client.get(
-        f"/admin/generation/jobs/{failed.id}", headers=headers
-    )
+    failed_detail = await client.get(f"/admin/generation/jobs/{failed.id}", headers=headers)
     assert failed_detail.json()["error_summary"] == "생성 작업에 실패했습니다"
     assert "super-secret" not in failed_detail.text
 
 
 async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
-    generation_client, db_session, settings
+    client, db_session, settings
 ):
     admin = await make_user(db_session, role="admin")
     headers = auth_headers(admin, settings)
@@ -184,7 +161,7 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     db_session.add_all([*rows, safe_motif, unsafe_motif])
     await db_session.commit()
 
-    page = await generation_client.get("/admin/generation/seamless", headers=headers)
+    page = await client.get("/admin/generation/seamless", headers=headers)
     assert page.status_code == 200
     assert page.json()["total"] == 3
     assert "customer-secret@test.local" not in page.text
@@ -194,7 +171,7 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     assert error_item["error_summary"] == "외부 생성 연동에 실패했습니다"
     assert error_item["render_ms"] == 0.0
 
-    stats = await generation_client.get("/admin/generation/seamless/stats", headers=headers)
+    stats = await client.get("/admin/generation/seamless/stats", headers=headers)
     assert {key: stats.json()[key] for key in ("total", "success", "partial", "error")} == {
         "total": 3,
         "success": 1,
@@ -203,9 +180,7 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     }
     assert stats.json()["average_render_ms"] == 2.5
 
-    detail = await generation_client.get(
-        f"/admin/generation/seamless/{rows[0].id}", headers=headers
-    )
+    detail = await client.get(f"/admin/generation/seamless/{rows[0].id}", headers=headers)
     assert detail.status_code == 200
     assert detail.json()["candidates"][0]["svg"] == safe_svg
     assert detail.json()["candidates"][0]["svg_status"] == "safe"
@@ -214,25 +189,25 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     assert "png_object_key" not in detail.text
     assert "customer-secret@test.local" not in detail.text
 
-    motif_page = await generation_client.get("/admin/motifs", params={"limit": 1}, headers=headers)
+    motif_page = await client.get("/admin/motifs", params={"limit": 1}, headers=headers)
     assert motif_page.json()["total"] == 2
     assert "symbol" not in motif_page.json()["items"][0]
     assert "description" not in motif_page.json()["items"][0]
     assert "customer-secret@test.local" not in motif_page.text
 
-    safe_detail = await generation_client.get(f"/admin/motifs/{safe_motif.id}", headers=headers)
+    safe_detail = await client.get(f"/admin/motifs/{safe_motif.id}", headers=headers)
     assert safe_detail.json()["svg_status"] == "safe"
     assert safe_detail.json()["symbol"] == safe_motif.symbol
     assert safe_detail.json()["description"] is None
     assert safe_detail.json()["tags"] == ["botanical"]
 
-    unsafe_detail = await generation_client.get(f"/admin/motifs/{unsafe_motif.id}", headers=headers)
+    unsafe_detail = await client.get(f"/admin/motifs/{unsafe_motif.id}", headers=headers)
     assert unsafe_detail.json()["svg_status"] == "unsafe"
     assert unsafe_detail.json()["symbol"] is None
 
 
 async def test_seamless_reference_image_is_relation_checked_and_never_exposes_object_key(
-    generation_client, db_session, settings
+    client, db_session, settings
 ):
     admin = await make_user(db_session, role="admin")
     customer = await make_user(db_session)
@@ -260,7 +235,7 @@ async def test_seamless_reference_image_is_relation_checked_and_never_exposes_ob
     await db_session.commit()
 
     headers = auth_headers(admin, settings)
-    detail = await generation_client.get(f"/admin/generation/seamless/{log.id}", headers=headers)
+    detail = await client.get(f"/admin/generation/seamless/{log.id}", headers=headers)
     assert detail.status_code == 200
     assert detail.json()["reference_image_id"] == str(image.id)
     assert detail.json()["reference_image_available"] is True
@@ -268,10 +243,10 @@ async def test_seamless_reference_image_is_relation_checked_and_never_exposes_ob
     assert "object_key" not in detail.text
 
     path = f"/admin/generation/seamless/{log.id}/reference-image/{image.id}/read-url"
-    denied = await generation_client.post(path, headers=auth_headers(customer, settings))
+    denied = await client.post(path, headers=auth_headers(customer, settings))
     assert denied.status_code == 403
 
-    read_url = await generation_client.post(path, headers=headers)
+    read_url = await client.post(path, headers=headers)
     assert read_url.status_code == 200
     assert read_url.json()["read_url"].endswith(image.object_key)
 
@@ -283,7 +258,7 @@ async def test_seamless_reference_image_is_relation_checked_and_never_exposes_ob
     )
     db_session.add(wrong_image)
     await db_session.commit()
-    wrong_relation = await generation_client.post(
+    wrong_relation = await client.post(
         f"/admin/generation/seamless/{log.id}/reference-image/{wrong_image.id}/read-url",
         headers=headers,
     )
@@ -296,7 +271,7 @@ async def test_seamless_reference_image_is_relation_checked_and_never_exposes_ob
 
 
 async def test_seamless_reference_image_requires_completed_matching_private_image(
-    generation_client, db_session, settings
+    client, db_session, settings
 ):
     admin = await make_user(db_session, role="admin")
     headers = auth_headers(admin, settings)
@@ -349,22 +324,20 @@ async def test_seamless_reference_image_requires_completed_matching_private_imag
     await db_session.commit()
 
     for row, image in ((incomplete_log, incomplete), (wrong_type_log, wrong_type)):
-        detail = await generation_client.get(
-            f"/admin/generation/seamless/{row.id}", headers=headers
-        )
+        detail = await client.get(f"/admin/generation/seamless/{row.id}", headers=headers)
         assert detail.json()["reference_image_id"] == str(image.id)
         assert detail.json()["reference_image_available"] is False
-        read_url = await generation_client.post(
+        read_url = await client.post(
             f"/admin/generation/seamless/{row.id}/reference-image/{image.id}/read-url",
             headers=headers,
         )
         assert read_url.status_code == 404
 
-    expired_detail = await generation_client.get(
+    expired_detail = await client.get(
         f"/admin/generation/seamless/{expired_log.id}", headers=headers
     )
     assert expired_detail.json()["reference_image_available"] is False
-    expired_url = await generation_client.post(
+    expired_url = await client.post(
         f"/admin/generation/seamless/{expired_log.id}/reference-image/{expired.id}/read-url",
         headers=headers,
     )

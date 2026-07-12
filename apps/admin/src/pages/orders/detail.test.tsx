@@ -1,9 +1,10 @@
 import type { AdminOrderDetailOut } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   getOrder: vi.fn(),
@@ -97,20 +98,11 @@ const order: AdminOrderDetailOut = {
 };
 
 function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/orders/order-1"]}>
-        <Routes>
-          <Route path="/orders/:orderId" element={<OrderDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  const { queryClient } = renderAdminPage(
+    <Routes>
+      <Route path="/orders/:orderId" element={<OrderDetailPage />} />
+    </Routes>,
+    { entry: "/orders/order-1" },
   );
   return queryClient;
 }

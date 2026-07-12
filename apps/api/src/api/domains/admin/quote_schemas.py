@@ -10,7 +10,6 @@ from api.domains.orders.schemas import OrderShippingAddressOut
 QuoteStatus = Literal["요청", "견적발송", "협의중", "확정", "종료"]
 QuoteStatusFilter = Literal["all", "요청", "견적발송", "협의중", "확정", "종료"]
 QuoteSort = Literal["created_at", "updated_at", "quote_number", "status", "quoted_amount"]
-SortDirection = Literal["asc", "desc"]
 
 
 class AdminQuoteAction(BaseModel):

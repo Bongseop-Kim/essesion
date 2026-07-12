@@ -7,11 +7,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
 import { RouteHeading } from "../../shared/ui/route-heading";
-import {
-  emptyProductDraft,
-  ProductForm,
-  type ProductFormValue,
-} from "./product-form";
+import { ProductForm } from "./product-form";
+import { emptyProductDraft, type ProductFormValue } from "./product-form-model";
 
 function createBody(value: ProductFormValue) {
   return {

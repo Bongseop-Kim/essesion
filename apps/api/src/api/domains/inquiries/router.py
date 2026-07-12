@@ -109,8 +109,3 @@ async def delete_inquiry(inquiry_id: uuid.UUID, session: SessionDep, user: Curre
     inquiry = await _get_pending_inquiry(inquiry_id, session, user)
     await session.delete(inquiry)
     await session.commit()
-
-
-from api.domains.admin.inquiries import router as admin_inquiries_router  # noqa: E402
-
-router.include_router(admin_inquiries_router)

@@ -1,30 +1,20 @@
 import type { AdminOrderSummaryOut } from "@essesion/api-client";
 import { listAllOrdersOptions } from "@essesion/api-client/query";
-import {
-  ActionButton,
-  HStack,
-  Text,
-  TextField,
-  VStack,
-} from "@essesion/shared";
+import { HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useState } from "react";
+import { Link } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
-import {
-  parseAdminListQuery,
-  serializeAdminListQuery,
-} from "../../shared/lib/url-query";
+import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
-import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
-import { Pagination } from "../../widgets/admin-table/pagination";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
+import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
+import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const ORDER_TYPES = [
   { value: "all", label: "전체" },
@@ -116,15 +106,13 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
 ];
 
 export function OrdersPage() {
-  const [params, setParams] = useSearchParams();
-  const parsed = parseAdminListQuery(params, {
+  const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: ORDER_SORTS,
     allowedStatuses: ORDER_STATUSES,
     allowedTypes: ORDER_TYPES.map((item) => item.value),
     defaultSort: "created_at",
     defaultDirection: "desc",
   });
-  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState<string>();
   const orderType = (parsed.type ?? "all") as OrderType;
   const status = (parsed.status ?? "all") as OrderStatus;
@@ -147,19 +135,6 @@ export function OrdersPage() {
     placeholderData: keepPreviousData,
   });
 
-  const replaceQuery = (changes: Partial<typeof parsed>) => {
-    setParams(serializeAdminListQuery({ ...parsed, ...changes }), {
-      replace: true,
-    });
-  };
-
-  const submitSearch = (event: FormEvent) => {
-    event.preventDefault();
-    const value = searchInput.trim();
-    setSearch(value.length >= 2 ? value : undefined);
-    replaceQuery({ page: 1 });
-  };
-
   const totalPages = Math.max(
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
@@ -173,36 +148,15 @@ export function OrdersPage() {
       />
       <AdminCard title="검색·필터">
         <VStack gap="x4" alignItems="stretch">
-          <HStack
-            as="form"
-            gap="x2"
-            align="flex-end"
-            wrap
-            onSubmit={submitSearch}
-          >
-            <TextField
-              label="주문번호 검색"
-              description="2자 이상 입력해 주세요. 검색어는 URL에 저장하지 않습니다."
-              value={searchInput}
-              maxLength={64}
-              onChange={(event) => setSearchInput(event.currentTarget.value)}
-            />
-            <ActionButton type="submit" variant="neutralOutline">
-              검색
-            </ActionButton>
-            {search !== undefined && (
-              <ActionButton
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setSearchInput("");
-                  setSearch(undefined);
-                }}
-              >
-                검색 초기화
-              </ActionButton>
-            )}
-          </HStack>
+          <SubmittedMemorySearch
+            label="주문번호 검색"
+            description="2자 이상 입력해 주세요. 검색어는 URL에 저장하지 않습니다."
+            maxLength={64}
+            onSubmit={(value) => {
+              setSearch(value);
+              replaceQuery({ page: 1 });
+            }}
+          />
           <HStack gap="x3" align="flex-end" wrap>
             <FilterSelect
               label="주문 유형"
@@ -223,71 +177,39 @@ export function OrdersPage() {
                 replaceQuery({ status: event.currentTarget.value, page: 1 })
               }
             />
-            <TextField
-              type="date"
-              label="시작일 (KST)"
-              value={parsed.from ?? ""}
-              onChange={(event) =>
-                replaceQuery({
-                  from: event.currentTarget.value || undefined,
-                  page: 1,
-                })
-              }
-            />
-            <TextField
-              type="date"
-              label="종료일 (KST)"
-              value={parsed.to ?? ""}
-              onChange={(event) =>
-                replaceQuery({
-                  to: event.currentTarget.value || undefined,
-                  page: 1,
-                })
-              }
+            <DateRangeFilters
+              from={parsed.from}
+              to={parsed.to}
+              onFromChange={(from) => replaceQuery({ from, page: 1 })}
+              onToChange={(to) => replaceQuery({ to, page: 1 })}
             />
           </HStack>
         </VStack>
       </AdminCard>
 
-      <AdminCard
+      <PaginatedAdminTableCard
         title="주문 목록"
         description={`총 ${query.data?.total ?? 0}건`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
+        label="주문 목록"
+        columns={columns}
+        rows={query.data?.items}
+        getRowKey={(row) => row.id}
+        status={
+          query.isLoading ? "loading" : query.isError ? "error" : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="주문 목록"
-            columns={columns}
-            rows={query.data?.items}
-            getRowKey={(row) => row.id}
-            status={
-              query.isLoading ? "loading" : query.isError ? "error" : "success"
-            }
-            total={query.data?.total}
-            sort={{ key: sort, direction: parsed.direction }}
-            onSort={({ key, direction }) =>
-              replaceQuery({ sort: key, direction, page: 1 })
-            }
-            onRetry={() => void query.refetch()}
-            emptyTitle="조건에 맞는 주문이 없습니다"
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) => replaceQuery({ page })}
-            label="주문 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={query.data?.total}
+        sort={{ key: sort, direction: parsed.direction }}
+        onSort={({ key, direction }) =>
+          replaceQuery({ sort: key, direction, page: 1 })
+        }
+        refreshing={query.isFetching}
+        onRefresh={() => void query.refetch()}
+        emptyTitle="조건에 맞는 주문이 없습니다"
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) => replaceQuery({ page })}
+        paginationLabel="주문 목록 페이지"
+      />
     </VStack>
   );
 }

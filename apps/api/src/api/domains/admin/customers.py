@@ -14,6 +14,7 @@ from sqlalchemy import func, or_, select
 from api.db import SessionDep
 from api.deps import AdminUser
 from api.domains.admin.schemas import Page
+from api.domains.admin.types import SortDirection
 from api.domains.tokens import ledger
 from api.errors import DomainError, NotFoundError
 
@@ -21,7 +22,6 @@ router = APIRouter(prefix="/admin/customers", tags=["admin-customers"])
 
 CustomerStatus = Literal["all", "active", "inactive"]
 CustomerSort = Literal["created_at", "name"]
-SortDirection = Literal["asc", "desc"]
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 

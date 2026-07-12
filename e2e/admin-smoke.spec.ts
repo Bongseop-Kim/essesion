@@ -1,4 +1,4 @@
-import { expect, type Response, test } from "@playwright/test";
+import { expect, type Page, type Response, test } from "@playwright/test";
 
 const adminBaseUrl = "http://localhost:3001";
 const adminEmail = process.env.E2E_ADMIN_EMAIL ?? "admin@local";
@@ -9,6 +9,30 @@ function isApiResponse(response: Response, method: string, pathname: string) {
     response.request().method() === method &&
     new URL(response.url()).pathname === pathname
   );
+}
+
+async function restoreSeedOrderToPending(page: Page) {
+  const rollbackButton = page.getByRole("button", {
+    name: "대기중 상태로 롤백",
+  });
+  if (!(await rollbackButton.isVisible())) return;
+
+  await rollbackButton.click();
+  await page.getByLabel("변경 사유 (필수)").fill("E2E 재시도 전 상태 복구");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  const [statusResponse] = await Promise.all([
+    page.waitForResponse((response) => {
+      const pathname = new URL(response.url()).pathname;
+      return (
+        response.request().method() === "POST" &&
+        pathname.startsWith("/admin/orders/") &&
+        pathname.endsWith("/status")
+      );
+    }),
+    page.getByRole("button", { name: "실행", exact: true }).click(),
+  ]);
+  expect(statusResponse.status()).toBe(200);
+  await expect(page.getByText("대기중", { exact: true }).first()).toBeVisible();
 }
 
 test("seed 관리자가 보호 목록·상세의 상태 변경을 실행하고 로그아웃한다", async ({
@@ -63,6 +87,7 @@ test("seed 관리자가 보호 목록·상세의 상태 변경을 실행하고 �
     page.getByRole("heading", { name: "주문 E2E-ADMIN-001" }),
   ).toBeVisible();
 
+  await restoreSeedOrderToPending(page);
   await page.getByRole("button", { name: "진행중 상태로 진행" }).click();
   const [statusResponse] = await Promise.all([
     page.waitForResponse((response) => {
@@ -77,6 +102,7 @@ test("seed 관리자가 보호 목록·상세의 상태 변경을 실행하고 �
   ]);
   expect(statusResponse.status()).toBe(200);
   await expect(page.getByText("진행중", { exact: true }).first()).toBeVisible();
+  await restoreSeedOrderToPending(page);
 
   const logoutResponsePromise = page.waitForResponse((response) =>
     isApiResponse(response, "POST", "/auth/admin/logout"),

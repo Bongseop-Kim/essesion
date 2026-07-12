@@ -25,8 +25,8 @@ from api.domains.admin.schemas import (
     OrderStatusFilter,
     OrderTypeFilter,
     Page,
-    SortDirection,
 )
+from api.domains.admin.types import SortDirection
 from api.errors import DomainError
 
 router = APIRouter(prefix="/admin", tags=["admin"])

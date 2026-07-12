@@ -1,4 +1,3 @@
-import type { AdminProductDetailOut } from "@essesion/api-client";
 import {
   ActionButton,
   AlertDialog,
@@ -26,310 +25,29 @@ import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import {
+  PRODUCT_CATEGORIES,
+  PRODUCT_COLORS,
+  PRODUCT_MATERIALS,
+  PRODUCT_PATTERNS,
+  type ProductCategory,
+  type ProductColor,
+  type ProductMaterial,
+  type ProductPattern,
+} from "./product-attributes";
+import {
+  hasProductDraftErrors,
+  type ProductDraft,
+  type ProductFormValue,
+  type ProductImageDraft,
+  type ProductOptionDraft,
+  productFormValue,
+  validateProductDraft,
+} from "./product-form-model";
+import {
   discardProductImageUpload,
   type ProductImageUploadResult,
   uploadProductImage,
 } from "./upload";
-
-export const PRODUCT_CATEGORIES = [
-  { value: "3fold", label: "쓰리폴드" },
-  { value: "sfolderato", label: "스폴데라토" },
-  { value: "knit", label: "니트" },
-  { value: "bowtie", label: "보타이" },
-] as const;
-export const PRODUCT_COLORS = [
-  { value: "black", label: "블랙" },
-  { value: "navy", label: "네이비" },
-  { value: "gray", label: "그레이" },
-  { value: "wine", label: "와인" },
-  { value: "blue", label: "블루" },
-  { value: "brown", label: "브라운" },
-  { value: "beige", label: "베이지" },
-  { value: "silver", label: "실버" },
-] as const;
-export const PRODUCT_PATTERNS = [
-  { value: "solid", label: "솔리드" },
-  { value: "stripe", label: "스트라이프" },
-  { value: "dot", label: "도트" },
-  { value: "check", label: "체크" },
-  { value: "paisley", label: "페이즐리" },
-] as const;
-export const PRODUCT_MATERIALS = [
-  { value: "silk", label: "실크" },
-  { value: "cotton", label: "코튼" },
-  { value: "polyester", label: "폴리에스터" },
-  { value: "wool", label: "울" },
-] as const;
-
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number]["value"];
-export type ProductColor = (typeof PRODUCT_COLORS)[number]["value"];
-export type ProductPattern = (typeof PRODUCT_PATTERNS)[number]["value"];
-export type ProductMaterial = (typeof PRODUCT_MATERIALS)[number]["value"];
-
-export type ProductImageDraft = {
-  clientId: string;
-  uploadId: string | null;
-  src: string;
-  staged: boolean;
-};
-
-export type ProductOptionDraft = {
-  clientId: string;
-  id?: string;
-  name: string;
-  additionalPrice: string;
-  stock: string;
-  unlimitedStock: boolean;
-};
-
-export type ProductDraft = {
-  name: string;
-  code: string;
-  price: string;
-  category: ProductCategory;
-  color: ProductColor;
-  pattern: ProductPattern;
-  material: ProductMaterial;
-  info: string;
-  stock: string;
-  unlimitedStock: boolean;
-  optionLabel: string;
-  options: ProductOptionDraft[];
-  primaryImage: ProductImageDraft | null;
-  detailImages: ProductImageDraft[];
-};
-
-type ProductWithImageIds = AdminProductDetailOut & {
-  image_upload_id: string | null;
-  detail_image_upload_ids?: string[];
-};
-
-export const emptyProductDraft: ProductDraft = {
-  name: "",
-  code: "",
-  price: "",
-  category: "3fold",
-  color: "navy",
-  pattern: "solid",
-  material: "silk",
-  info: "",
-  stock: "",
-  unlimitedStock: true,
-  optionLabel: "",
-  options: [],
-  primaryImage: null,
-  detailImages: [],
-};
-
-export function productDraftFromDetail(
-  product: ProductWithImageIds,
-): ProductDraft {
-  return {
-    name: product.name,
-    code: product.code ?? "",
-    price: String(product.price),
-    category: product.category as ProductCategory,
-    color: product.color as ProductColor,
-    pattern: product.pattern as ProductPattern,
-    material: product.material as ProductMaterial,
-    info: product.info,
-    stock: product.stock === null ? "" : String(product.stock),
-    unlimitedStock: product.stock === null,
-    optionLabel: product.option_label ?? "",
-    options: (product.options ?? []).map((option) => ({
-      clientId: option.id,
-      id: option.id,
-      name: option.name,
-      additionalPrice: String(option.additional_price),
-      stock: option.stock === null ? "" : String(option.stock),
-      unlimitedStock: option.stock === null,
-    })),
-    primaryImage:
-      product.image_upload_id === null
-        ? {
-            clientId: "legacy-primary",
-            uploadId: null,
-            src: product.image,
-            staged: false,
-          }
-        : {
-            clientId: product.image_upload_id,
-            uploadId: product.image_upload_id,
-            src: product.image,
-            staged: false,
-          },
-    detailImages: (product.detail_images ?? []).map((src, index) => {
-      const uploadId = product.detail_image_upload_ids?.[index] ?? null;
-      return {
-        clientId: uploadId ?? `legacy-detail-${index}`,
-        uploadId,
-        src,
-        staged: false,
-      };
-    }),
-  };
-}
-
-export type ProductFormValue = {
-  name: string;
-  code: string | null;
-  price: number;
-  category: ProductCategory;
-  color: ProductColor;
-  pattern: ProductPattern;
-  material: ProductMaterial;
-  info: string;
-  stock: number | null;
-  optionLabel: string | null;
-  options: Array<{
-    id?: string;
-    name: string;
-    additionalPrice: number;
-    stock: number | null;
-  }>;
-  imageUploadId?: string;
-  detailImageUploadIds?: string[];
-};
-
-type ProductDraftErrors = {
-  name?: string;
-  price?: string;
-  info?: string;
-  stock?: string;
-  optionLabel?: string;
-  primaryImage?: string;
-  options: Record<
-    string,
-    { name?: string; additionalPrice?: string; stock?: string }
-  >;
-};
-
-function nonNegativeInteger(value: string) {
-  if (!/^\d+$/.test(value)) return undefined;
-  const numeric = Number(value);
-  return Number.isSafeInteger(numeric) && numeric >= 0 ? numeric : undefined;
-}
-
-function validateDraft(
-  draft: ProductDraft,
-  mode: ProductFormProps["mode"],
-): ProductDraftErrors {
-  const errors: ProductDraftErrors = { options: {} };
-  if (draft.name.trim() === "") errors.name = "상품 이름을 입력해 주세요.";
-  if (nonNegativeInteger(draft.price) === undefined) {
-    errors.price = "가격은 0 이상의 정수여야 합니다.";
-  }
-  if (draft.info.trim() === "") errors.info = "상품 설명을 입력해 주세요.";
-  if (
-    draft.options.length === 0 &&
-    !draft.unlimitedStock &&
-    nonNegativeInteger(draft.stock) === undefined
-  ) {
-    errors.stock = "재고는 0 이상의 정수여야 합니다.";
-  }
-  if (draft.options.length > 0 && draft.optionLabel.trim() === "") {
-    errors.optionLabel = "옵션 묶음 이름을 입력해 주세요.";
-  }
-  if (
-    draft.primaryImage === null ||
-    (mode === "create" && draft.primaryImage.uploadId === null)
-  ) {
-    errors.primaryImage = "대표 이미지를 업로드해 주세요.";
-  }
-
-  const nameCounts = new Map<string, number>();
-  for (const option of draft.options) {
-    const name = option.name.trim();
-    if (name !== "") nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
-  }
-  for (const option of draft.options) {
-    const optionErrors: ProductDraftErrors["options"][string] = {};
-    const name = option.name.trim();
-    if (name === "") optionErrors.name = "옵션 이름을 입력해 주세요.";
-    else if ((nameCounts.get(name) ?? 0) > 1) {
-      optionErrors.name = "같은 옵션 이름을 중복할 수 없습니다.";
-    }
-    if (nonNegativeInteger(option.additionalPrice) === undefined) {
-      optionErrors.additionalPrice = "추가 금액은 0 이상의 정수여야 합니다.";
-    }
-    if (
-      !option.unlimitedStock &&
-      nonNegativeInteger(option.stock) === undefined
-    ) {
-      optionErrors.stock = "재고는 0 이상의 정수여야 합니다.";
-    }
-    if (Object.keys(optionErrors).length > 0) {
-      errors.options[option.clientId] = optionErrors;
-    }
-  }
-  return errors;
-}
-
-function hasErrors(errors: ProductDraftErrors) {
-  return (
-    Object.entries(errors).some(
-      ([key, value]) => key !== "options" && value !== undefined,
-    ) || Object.keys(errors.options).length > 0
-  );
-}
-
-function sameImage(
-  left: ProductImageDraft | null,
-  right: ProductImageDraft | null,
-) {
-  return left?.uploadId === right?.uploadId && left?.src === right?.src;
-}
-
-function sameImageList(left: ProductImageDraft[], right: ProductImageDraft[]) {
-  return (
-    left.length === right.length &&
-    left.every((image, index) => sameImage(image, right[index] ?? null))
-  );
-}
-
-function toFormValue(
-  draft: ProductDraft,
-  baseDraft: ProductDraft,
-  mode: ProductFormProps["mode"],
-): ProductFormValue {
-  const includePrimary =
-    mode === "create" || !sameImage(draft.primaryImage, baseDraft.primaryImage);
-  const includeDetails =
-    mode === "create" ||
-    !sameImageList(draft.detailImages, baseDraft.detailImages);
-  return {
-    name: draft.name.trim(),
-    code: draft.code.trim() || null,
-    price: Number(draft.price),
-    category: draft.category,
-    color: draft.color,
-    pattern: draft.pattern,
-    material: draft.material,
-    info: draft.info.trim(),
-    stock:
-      draft.options.length > 0 || draft.unlimitedStock
-        ? null
-        : Number(draft.stock),
-    optionLabel:
-      draft.options.length === 0 ? null : draft.optionLabel.trim() || null,
-    options: draft.options.map((option) => ({
-      ...(option.id === undefined ? {} : { id: option.id }),
-      name: option.name.trim(),
-      additionalPrice: Number(option.additionalPrice),
-      stock: option.unlimitedStock ? null : Number(option.stock),
-    })),
-    ...(includePrimary
-      ? { imageUploadId: draft.primaryImage?.uploadId ?? "" }
-      : {}),
-    ...(includeDetails
-      ? {
-          detailImageUploadIds: draft.detailImages.flatMap((image) =>
-            image.uploadId === null ? [] : [image.uploadId],
-          ),
-        }
-      : {}),
-  };
-}
 
 export type ProductFormProps = {
   initial: ProductDraft;
@@ -359,33 +77,55 @@ export function ProductForm({
   const [uploading, setUploading] = useState(0);
   const [uploadError, setUploadError] = useState<string>();
   const appliedReset = useRef(resetSignal);
-  const errors = useMemo(() => validateDraft(draft, mode), [draft, mode]);
+  const draftRef = useRef(draft);
+  const mounted = useRef(true);
+  const discardedUploadIds = useRef(new Set<string>());
+  draftRef.current = draft;
+
+  const discardStagedImage = (image: ProductImageDraft | null | undefined) => {
+    const uploadId = image?.staged ? image.uploadId : null;
+    if (uploadId === null || discardedUploadIds.current.has(uploadId)) return;
+    discardedUploadIds.current.add(uploadId);
+    void discardProductImageUpload(uploadId);
+  };
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      const current = draftRef.current;
+      for (const image of [current.primaryImage, ...current.detailImages]) {
+        discardStagedImage(image);
+      }
+    };
+  }, []);
+
+  const errors = useMemo(
+    () => validateProductDraft(draft, mode),
+    [draft, mode],
+  );
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(baseDraft),
     [baseDraft, draft],
   );
-  const blocker = useDirtyFormBlocker(dirty);
+  const blocker = useDirtyFormBlocker(dirty || uploading > 0);
 
   useEffect(() => {
     if (appliedReset.current === resetSignal) return;
     appliedReset.current = resetSignal;
-    setDraft((current) => {
-      const retainedIds = new Set(
-        [initial.primaryImage, ...initial.detailImages]
-          .filter((image): image is ProductImageDraft => image !== null)
-          .map((image) => image.clientId),
-      );
-      for (const image of [current.primaryImage, ...current.detailImages]) {
-        if (
-          image?.staged &&
-          image.uploadId !== null &&
-          !retainedIds.has(image.clientId)
-        ) {
-          void discardProductImageUpload(image.uploadId);
-        }
-      }
-      return initial;
-    });
+    const retainedIds = new Set(
+      [initial.primaryImage, ...initial.detailImages]
+        .filter((image): image is ProductImageDraft => image !== null)
+        .map((image) => image.clientId),
+    );
+    for (const image of [
+      draftRef.current.primaryImage,
+      ...draftRef.current.detailImages,
+    ]) {
+      if (!retainedIds.has(image?.clientId ?? "")) discardStagedImage(image);
+    }
+    draftRef.current = initial;
+    setDraft(initial);
     setBaseDraft(initial);
     setBaseRevision(revision);
     setAttempted(false);
@@ -395,24 +135,32 @@ export function ProductForm({
   const update = <Key extends keyof ProductDraft>(
     key: Key,
     value: ProductDraft[Key],
-  ) => setDraft((current) => ({ ...current, [key]: value }));
+  ) => {
+    const next = { ...draftRef.current, [key]: value };
+    draftRef.current = next;
+    setDraft(next);
+  };
 
   const updateOption = (
     clientId: string,
     changes: Partial<ProductOptionDraft>,
   ) => {
-    setDraft((current) => ({
+    const current = draftRef.current;
+    const next = {
       ...current,
       options: current.options.map((option) =>
         option.clientId === clientId ? { ...option, ...changes } : option,
       ),
-    }));
+    };
+    draftRef.current = next;
+    setDraft(next);
   };
 
   const upload = async (
     file: File,
     kind: "primary" | "detail",
   ): Promise<ProductImageDraft | undefined> => {
+    if (!mounted.current) return undefined;
     setUploadError(undefined);
     setUploading((current) => current + 1);
     try {
@@ -420,95 +168,97 @@ export function ProductForm({
         file,
         kind,
       );
-      return {
+      const image = {
         clientId: result.uploadId,
         uploadId: result.uploadId,
         src: result.publicUrl,
         staged: true,
       };
+      if (!mounted.current) {
+        discardStagedImage(image);
+        return undefined;
+      }
+      return image;
     } catch (caught) {
-      setUploadError(
-        getErrorMessage(caught, "상품 이미지를 업로드하지 못했습니다."),
-      );
+      if (mounted.current) {
+        setUploadError(
+          getErrorMessage(caught, "상품 이미지를 업로드하지 못했습니다."),
+        );
+      }
       return undefined;
     } finally {
-      setUploading((current) => current - 1);
+      if (mounted.current) setUploading((current) => current - 1);
     }
   };
 
   const addPrimary = async (files: File[]) => {
     const image = await upload(files[0] as File, "primary");
     if (image === undefined) return;
-    setDraft((current) => {
-      if (
-        current.primaryImage?.staged &&
-        current.primaryImage.uploadId !== null
-      ) {
-        void discardProductImageUpload(current.primaryImage.uploadId);
-      }
-      return { ...current, primaryImage: image };
-    });
+    const current = draftRef.current;
+    discardStagedImage(current.primaryImage);
+    const next = { ...current, primaryImage: image };
+    draftRef.current = next;
+    setDraft(next);
   };
 
   const addDetails = async (files: File[]) => {
     for (const file of files) {
+      if (!mounted.current) return;
       const image = await upload(file, "detail");
       if (image === undefined) continue;
-      setDraft((current) => ({
+      const current = draftRef.current;
+      if (current.detailImages.length >= 20) {
+        discardStagedImage(image);
+        continue;
+      }
+      const next = {
         ...current,
-        detailImages: [...current.detailImages, image].slice(0, 20),
-      }));
+        detailImages: [...current.detailImages, image],
+      };
+      draftRef.current = next;
+      setDraft(next);
     }
   };
 
   const removePrimary = () => {
-    setDraft((current) => {
-      if (
-        current.primaryImage?.staged &&
-        current.primaryImage.uploadId !== null
-      ) {
-        void discardProductImageUpload(current.primaryImage.uploadId);
-      }
-      return { ...current, primaryImage: null };
-    });
+    const current = draftRef.current;
+    discardStagedImage(current.primaryImage);
+    const next = { ...current, primaryImage: null };
+    draftRef.current = next;
+    setDraft(next);
   };
 
   const removeDetail = (clientId: string) => {
-    setDraft((current) => {
-      const image = current.detailImages.find(
-        (item) => item.clientId === clientId,
-      );
-      if (image?.staged && image.uploadId !== null) {
-        void discardProductImageUpload(image.uploadId);
-      }
-      return {
-        ...current,
-        detailImages: current.detailImages.filter(
-          (item) => item.clientId !== clientId,
-        ),
-      };
-    });
+    const current = draftRef.current;
+    const image = current.detailImages.find(
+      (item) => item.clientId === clientId,
+    );
+    discardStagedImage(image);
+    const next = {
+      ...current,
+      detailImages: current.detailImages.filter(
+        (item) => item.clientId !== clientId,
+      ),
+    };
+    draftRef.current = next;
+    setDraft(next);
   };
 
   const discardStaged = () => {
-    const staged = [draft.primaryImage, ...draft.detailImages].filter(
+    const current = draftRef.current;
+    const staged = [current.primaryImage, ...current.detailImages].filter(
       (image): image is ProductImageDraft => image?.staged === true,
     );
-    void Promise.allSettled(
-      staged.flatMap((image) =>
-        image.uploadId === null
-          ? []
-          : [discardProductImageUpload(image.uploadId)],
-      ),
-    );
+    for (const image of staged) discardStagedImage(image);
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setAttempted(true);
-    if (hasErrors(errors) || pending || uploading > 0) return;
-    onSubmit(toFormValue(draft, baseDraft, mode), baseRevision);
+    if (hasProductDraftErrors(errors) || pending || uploading > 0) return;
+    onSubmit(productFormValue(draft, baseDraft, mode), baseRevision);
   };
+  const attachmentsLocked = pending || uploading > 0;
 
   return (
     <>
@@ -519,7 +269,7 @@ export function ProductForm({
         noValidate
         onSubmit={submit}
       >
-        {attempted && hasErrors(errors) && (
+        {attempted && hasProductDraftErrors(errors) && (
           <Callout
             role="alert"
             tone="critical"
@@ -632,8 +382,12 @@ export function ProductForm({
               max={1}
               accept="image/jpeg,image/png,image/webp"
               addLabel="대표 이미지 추가"
-              onAddFiles={(files) => void addPrimary(files)}
-              onRemove={removePrimary}
+              onAddFiles={
+                attachmentsLocked
+                  ? undefined
+                  : (files) => void addPrimary(files)
+              }
+              onRemove={attachmentsLocked ? undefined : removePrimary}
             />
             <AttachmentDisplayField
               label="상세 이미지"
@@ -646,8 +400,12 @@ export function ProductForm({
               max={20}
               accept="image/jpeg,image/png,image/webp"
               addLabel="상세 이미지 추가"
-              onAddFiles={(files) => void addDetails(files)}
-              onRemove={removeDetail}
+              onAddFiles={
+                attachmentsLocked
+                  ? undefined
+                  : (files) => void addDetails(files)
+              }
+              onRemove={attachmentsLocked ? undefined : removeDetail}
             />
             {uploading > 0 && (
               <Callout
@@ -882,6 +640,7 @@ export function ProductForm({
             disabled={!dirty || pending || uploading > 0}
             onClick={() => {
               discardStaged();
+              draftRef.current = baseDraft;
               setDraft(baseDraft);
               setAttempted(false);
               setUploadError(undefined);

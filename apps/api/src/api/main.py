@@ -230,9 +230,12 @@ def _include_routers(app: FastAPI) -> None:
     from api.domains.admin.configuration import router as admin_configuration_router
     from api.domains.admin.coupons import router as admin_coupons_router
     from api.domains.admin.customers import router as admin_customers_router
+    from api.domains.admin.entity_images import router as admin_entity_images_router
     from api.domains.admin.generation import router as admin_generation_router
+    from api.domains.admin.inquiries import router as admin_inquiries_router
     from api.domains.admin.phase_d_router import router as admin_phase_d_router
     from api.domains.admin.products import router as admin_products_router
+    from api.domains.admin.quotes import router as admin_quotes_router
     from api.domains.admin.router import router as admin_router
     from api.domains.auth.router import router as auth_router
     from api.domains.batch.router import router as batch_router
@@ -268,6 +271,9 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(admin_customers_router)
     app.include_router(admin_coupons_router)
     app.include_router(admin_products_router)
+    app.include_router(admin_quotes_router)
+    app.include_router(admin_entity_images_router)
+    app.include_router(admin_inquiries_router)
     app.include_router(admin_configuration_router)
     app.include_router(admin_phase_d_router)
     app.include_router(admin_generation_router)

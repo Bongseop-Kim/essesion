@@ -23,7 +23,6 @@ IncidentTypeFilter = Literal[
 ]
 IncidentStatusFilter = Literal["all", "open", "resolved"]
 IncidentSort = Literal["created_at", "updated_at", "status", "incident_type"]
-SortDirection = Literal["asc", "desc"]
 
 
 class AdminClaimAction(BaseModel):

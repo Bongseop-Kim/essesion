@@ -1,7 +1,6 @@
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime
 from typing import Any, Literal
-from zoneinfo import ZoneInfo
 
 from db.models.auth import User
 from db.models.commerce import (
@@ -14,12 +13,16 @@ from db.models.commerce import (
     QuoteRequest,
     RepairPickupRequest,
     RepairShippingReceipt,
-    ShippingAddress,
 )
 from db.models.images import Image
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.domains.admin.helpers import (
+    KST,
+    kst_day_bounds,
+    resolve_shipping_address,
+)
 from api.domains.admin.schemas import (
     AdminAction,
     AdminActiveClaimOut,
@@ -37,9 +40,9 @@ from api.domains.admin.schemas import (
     OrderStatusFilter,
     OrderTypeFilter,
     Page,
-    SortDirection,
 )
-from api.domains.orders.schemas import OrderItemOut, OrderShippingAddressOut
+from api.domains.admin.types import SortDirection
+from api.domains.orders.schemas import OrderItemOut
 from api.domains.orders.status_machine import (
     ACTIVE_CLAIM_STATUSES,
     FORWARD,
@@ -50,7 +53,6 @@ from api.domains.orders.status_machine import (
 )
 from api.errors import DomainError, NotFoundError
 
-KST = ZoneInfo("Asia/Seoul")
 DEFAULT_PAGE_LIMIT = 20
 MAX_PAGE_LIMIT = 100
 DEFAULT_RECENT_LIMIT = 5
@@ -89,19 +91,11 @@ def safe_order_item_out(item: OrderItem) -> OrderItemOut:
     return out
 
 
-def _kst_range(start_date: date, end_date: date) -> tuple[datetime, datetime]:
-    if start_date > end_date:
-        raise DomainError("start_date must be before end_date", code="invalid_range")
-    start = datetime.combine(start_date, time.min, tzinfo=KST)
-    end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=KST)
-    return start, end
-
-
 def _dashboard_dates(start_date: date | None, end_date: date | None) -> tuple[date, date]:
     today = datetime.now(KST).date()
     start = start_date or end_date or today
     end = end_date or start_date or today
-    _kst_range(start, end)
+    kst_day_bounds(start, end)
     return start, end
 
 
@@ -122,7 +116,8 @@ def _order_filters(
         start = start_date or end_date
         end = end_date or start_date
         assert start is not None and end is not None
-        start_at, end_at = _kst_range(start, end)
+        start_at, end_at = kst_day_bounds(start, end)
+        assert start_at is not None and end_at is not None
         filters.extend((Order.created_at >= start_at, Order.created_at < end_at))
     if q is not None:
         normalized = q.strip()
@@ -359,7 +354,8 @@ async def dashboard_summary(
     order_type: OrderTypeFilter,
 ) -> DashboardSummaryOut:
     start, end = _dashboard_dates(start_date, end_date)
-    start_at, end_at = _kst_range(start, end)
+    start_at, end_at = kst_day_bounds(start, end)
+    assert start_at is not None and end_at is not None
     filters: list[ColumnElement[bool]] = [
         Order.created_at >= start_at,
         Order.created_at < end_at,
@@ -452,15 +448,6 @@ async def recent_quotes(session: AsyncSession, *, limit: int) -> DashboardRecent
     )
 
 
-async def _shipping_address(session: AsyncSession, order: Order) -> OrderShippingAddressOut | None:
-    if order.shipping_address_snapshot:
-        return OrderShippingAddressOut.model_validate(order.shipping_address_snapshot)
-    if order.shipping_address_id is None:
-        return None
-    address = await session.get(ShippingAddress, order.shipping_address_id)
-    return OrderShippingAddressOut.model_validate(address) if address is not None else None
-
-
 async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminOrderDetailOut:
     row = (
         await session.execute(
@@ -515,7 +502,9 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
         total_discount=order.total_discount,
         shipping_cost=order.shipping_cost,
         shipping_address_id=order.shipping_address_id,
-        shipping_address=await _shipping_address(session, order),
+        shipping_address=await resolve_shipping_address(
+            session, order.shipping_address_snapshot, order.shipping_address_id
+        ),
         courier_company=order.courier_company,
         tracking_number=order.tracking_number,
         shipped_at=order.shipped_at,

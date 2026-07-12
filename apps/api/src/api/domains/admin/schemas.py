@@ -28,8 +28,6 @@ OrderStatusFilter = Literal[
     "수거예정",
 ]
 OrderSort = Literal["created_at", "updated_at", "order_number", "order_amount", "status"]
-SortDirection = Literal["asc", "desc"]
-
 T = TypeVar("T")
 
 

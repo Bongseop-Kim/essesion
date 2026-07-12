@@ -44,6 +44,12 @@ export function formatIdentifier(value: string | number | null | undefined) {
     : String(value);
 }
 
+export function formatFileSize(value: number | null, unknownLabel = "-") {
+  if (value === null) return unknownLabel;
+  if (value < 1_024) return `${value.toLocaleString("ko-KR")}B`;
+  return `${(value / 1_024).toFixed(1)}KB`;
+}
+
 export function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message !== "") return error.message;
   if (typeof error === "object" && error !== null) {

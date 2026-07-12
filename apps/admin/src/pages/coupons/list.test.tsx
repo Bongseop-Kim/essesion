@@ -1,8 +1,8 @@
 import type { AdminCouponOut, PageAdminCouponOut } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   list: vi.fn(),
@@ -43,16 +43,7 @@ const page: PageAdminCouponOut = {
 };
 
 function renderPage(entry = "/coupons") {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[entry]}>
-        <CouponsPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  return renderAdminPage(<CouponsPage />, { entry });
 }
 
 describe("CouponsPage", () => {

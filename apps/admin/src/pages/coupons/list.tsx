@@ -2,22 +2,16 @@ import type { AdminCouponOut } from "@essesion/api-client";
 import { listAdminCouponsOptions } from "@essesion/api-client/query";
 import { ActionButton, HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDate, formatMoney } from "../../shared/lib/format";
-import {
-  parseAdminListQuery,
-  serializeAdminListQuery,
-} from "../../shared/lib/url-query";
+import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
-import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
-import { Pagination } from "../../widgets/admin-table/pagination";
+import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
+import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const COUPON_STATUSES = ["all", "active", "inactive"] as const;
 const COUPON_SORTS = ["created_at", "expiry_date", "name"] as const;
@@ -81,8 +75,7 @@ const columns: readonly AdminTableColumn<AdminCouponOut>[] = [
 
 export function CouponsPage() {
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const parsed = parseAdminListQuery(params, {
+  const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: COUPON_SORTS,
     allowedStatuses: COUPON_STATUSES,
     defaultSort: "created_at",
@@ -102,11 +95,6 @@ export function CouponsPage() {
     placeholderData: keepPreviousData,
   });
 
-  const replaceQuery = (changes: Partial<typeof parsed>) => {
-    setParams(serializeAdminListQuery({ ...parsed, ...changes }), {
-      replace: true,
-    });
-  };
   const totalPages = Math.max(
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
@@ -153,46 +141,30 @@ export function CouponsPage() {
         </HStack>
       </AdminCard>
 
-      <AdminCard
+      <PaginatedAdminTableCard
         title="쿠폰 목록"
         description={`총 ${query.data?.total ?? 0}개`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
+        label="쿠폰 목록"
+        columns={columns}
+        rows={query.data?.items}
+        getRowKey={(coupon) => coupon.id}
+        status={
+          query.isLoading ? "loading" : query.isError ? "error" : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="쿠폰 목록"
-            columns={columns}
-            rows={query.data?.items}
-            getRowKey={(coupon) => coupon.id}
-            status={
-              query.isLoading ? "loading" : query.isError ? "error" : "success"
-            }
-            total={query.data?.total}
-            sort={{ key: sort, direction: parsed.direction }}
-            onSort={({ key, direction }) =>
-              replaceQuery({ sort: key, direction, page: 1 })
-            }
-            onRetry={() => void query.refetch()}
-            emptyTitle="조건에 맞는 쿠폰이 없습니다"
-            emptyDescription="필터를 바꾸거나 새 쿠폰을 등록해 주세요."
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) => replaceQuery({ page })}
-            label="쿠폰 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={query.data?.total}
+        sort={{ key: sort, direction: parsed.direction }}
+        onSort={({ key, direction }) =>
+          replaceQuery({ sort: key, direction, page: 1 })
+        }
+        refreshing={query.isFetching}
+        onRefresh={() => void query.refetch()}
+        emptyTitle="조건에 맞는 쿠폰이 없습니다"
+        emptyDescription="필터를 바꾸거나 새 쿠폰을 등록해 주세요."
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) => replaceQuery({ page })}
+        paginationLabel="쿠폰 목록 페이지"
+      />
     </VStack>
   );
 }

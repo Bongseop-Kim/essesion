@@ -17,23 +17,15 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { useSearchParams } from "react-router";
 
 import { formatDateTime, formatIdentifier } from "../../shared/lib/format";
-import {
-  type AdminListQuery,
-  parseAdminListQuery,
-  serializeAdminListQuery,
-} from "../../shared/lib/url-query";
+import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
-import { Pagination } from "../../widgets/admin-table/pagination";
+import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
+import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 import { SafeSvgPreview } from "../generation/safe-svg-preview";
 
 const SCOPES = ["whole", "partial"] as const;
@@ -195,8 +187,9 @@ function MotifDetail({ motifId }: { motifId: string }) {
 }
 
 export function MotifsPage() {
-  const [params, setParams] = useSearchParams();
-  const parsed = parseAdminListQuery(params, { allowedTypes: SCOPES });
+  const { query: parsed, replaceQuery } = useAdminListUrlState({
+    allowedTypes: SCOPES,
+  });
   const scope = isScope(parsed.type) ? parsed.type : undefined;
   const [sourceInput, setSourceInput] = useState("");
   const [source, setSource] = useState<string>();
@@ -214,11 +207,6 @@ export function MotifsPage() {
     placeholderData: keepPreviousData,
   });
 
-  const replaceQuery = (changes: Partial<AdminListQuery>) => {
-    setParams(serializeAdminListQuery({ ...parsed, ...changes }), {
-      replace: true,
-    });
-  };
   const submitSource = (event: FormEvent) => {
     event.preventDefault();
     const value = sourceInput.trim();
@@ -370,44 +358,28 @@ export function MotifsPage() {
         </HStack>
       </AdminCard>
 
-      <AdminCard
+      <PaginatedAdminTableCard
         title="Motif 목록"
         description={`총 ${query.data?.total ?? 0}건`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
+        label="Motif 목록"
+        columns={columns}
+        rows={query.data?.items}
+        getRowKey={(row) => row.id}
+        status={
+          query.isLoading ? "loading" : query.isError ? "error" : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="Motif 목록"
-            columns={columns}
-            rows={query.data?.items}
-            getRowKey={(row) => row.id}
-            status={
-              query.isLoading ? "loading" : query.isError ? "error" : "success"
-            }
-            total={query.data?.total}
-            onRetry={() => void query.refetch()}
-            emptyTitle="조건에 맞는 Motif가 없습니다"
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) => {
-              setSelectedId(undefined);
-              replaceQuery({ page });
-            }}
-            label="Motif 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={query.data?.total}
+        refreshing={query.isFetching}
+        onRefresh={() => void query.refetch()}
+        emptyTitle="조건에 맞는 Motif가 없습니다"
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) => {
+          setSelectedId(undefined);
+          replaceQuery({ page });
+        }}
+        paginationLabel="Motif 목록 페이지"
+      />
 
       {selectedId !== undefined && <MotifDetail motifId={selectedId} />}
     </VStack>

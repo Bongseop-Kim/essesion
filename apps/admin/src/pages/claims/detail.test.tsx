@@ -3,11 +3,12 @@ import type {
   AdminRepairPhotoOut,
   ClaimNotificationOut,
 } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   getClaim: vi.fn(),
@@ -161,17 +162,11 @@ const repairPhoto: AdminRepairPhotoOut = {
 };
 
 function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/claims/claim-1"]}>
-        <Routes>
-          <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  return renderAdminPage(
+    <Routes>
+      <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
+    </Routes>,
+    { entry: "/claims/claim-1" },
   );
 }
 

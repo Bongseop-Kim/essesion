@@ -22,7 +22,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
-import { formatDateTime, formatIdentifier } from "../../shared/lib/format";
+import {
+  formatDateTime,
+  formatFileSize,
+  formatIdentifier,
+} from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -32,12 +36,6 @@ function formatMilliseconds(value: number | null) {
   return value === null
     ? "-"
     : `${Math.round(value).toLocaleString("ko-KR")}ms`;
-}
-
-function formatBytes(value: number | null) {
-  if (value === null) return "-";
-  if (value < 1_024) return `${value.toLocaleString("ko-KR")}B`;
-  return `${(value / 1_024).toFixed(1)}KB`;
 }
 
 function SeamlessStatusBadge({ status }: { status: string }) {
@@ -230,7 +228,7 @@ export function SeamlessLogDetailPage() {
             {
               label: "참고 이미지",
               value: log.has_reference_image
-                ? `있음 (${formatBytes(log.reference_image_bytes)})`
+                ? `있음 (${formatFileSize(log.reference_image_bytes)})`
                 : "없음",
             },
             { label: "생성 시각", value: formatDateTime(log.created_at) },

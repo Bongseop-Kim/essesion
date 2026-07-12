@@ -15,11 +15,9 @@ import {
 import {
   ActionButton,
   AlertDialog,
-  Box,
   Callout,
   ContentPlaceholder,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   Text,
@@ -33,12 +31,14 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import {
   formatDateTime,
+  formatFileSize,
   formatIdentifier,
   formatMoney,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
+import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import {
@@ -120,12 +120,6 @@ function productionTypeLabel(
   return label;
 }
 
-function formatBytes(value: number | null) {
-  if (value === null) return "크기 미상";
-  if (value < 1_024) return `${value.toLocaleString("ko-KR")}B`;
-  return `${(value / 1_024).toFixed(1)}KB`;
-}
-
 function OrderReferenceImage({
   orderId,
   image,
@@ -142,52 +136,25 @@ function OrderReferenceImage({
   });
 
   return (
-    <VStack gap="x2" alignItems="stretch">
-      {readUrl ? (
-        <ImageFrame
-          src={readUrl}
-          alt={`주문 참고 이미지 ${index + 1}`}
-          ratio={4 / 3}
-          fit="contain"
-          stroke
-        />
-      ) : (
-        <Box
-          bg="bg.neutral-weak"
-          borderRadius="r2"
-          p="x6"
-          className="grid min-h-32 place-items-center"
-        >
-          <Text color="fg.neutral-muted">미리보기 URL을 요청해 주세요.</Text>
-        </Box>
-      )}
-      <HStack gap="x2" justify="space-between" wrap>
-        <Text textStyle="caption" color="fg.neutral-muted">
-          {image.content_type ?? "이미지"} · {formatBytes(image.size_bytes)} ·{" "}
+    <PrivateAssetPreview
+      src={readUrl}
+      alt={`주문 참고 이미지 ${index + 1}`}
+      metadata={
+        <>
+          {image.content_type ?? "이미지"} ·{" "}
+          {formatFileSize(image.size_bytes, "크기 미상")} ·{" "}
           {formatDateTime(image.created_at)}
-        </Text>
-        <ActionButton
-          size="small"
-          variant="neutralOutline"
-          loading={mutation.isPending}
-          onClick={() =>
-            mutation.mutate({
-              path: { order_id: orderId, image_id: image.id },
-            })
-          }
-        >
-          {readUrl ? "URL 재발급" : "이미지 보기"}
-        </ActionButton>
-      </HStack>
-      {mutation.isError && (
-        <Callout
-          role="alert"
-          tone="critical"
-          title="이미지를 불러오지 못했습니다"
-          description="만료되었거나 이 주문에 속하지 않은 이미지입니다."
-        />
-      )}
-    </VStack>
+        </>
+      }
+      loading={mutation.isPending}
+      error={mutation.isError}
+      errorDescription="만료되었거나 이 주문에 속하지 않은 이미지입니다."
+      onRequest={() =>
+        mutation.mutate({
+          path: { order_id: orderId, image_id: image.id },
+        })
+      }
+    />
   );
 }
 

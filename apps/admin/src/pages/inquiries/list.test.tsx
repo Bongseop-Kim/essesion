@@ -1,8 +1,8 @@
 import type { PageAdminInquirySummaryOut } from "@essesion/api-client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({ list: vi.fn(), search: vi.fn() }));
@@ -38,17 +38,22 @@ const page: PageAdminInquirySummaryOut = {
   offset: 0,
 };
 
-function renderPage() {
+function renderPage(initialEntry = "/inquiries") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/inquiries"]}>
-        <InquiriesPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
+  const router = createMemoryRouter(
+    [{ path: "/inquiries", element: <InquiriesPage /> }],
+    { initialEntries: [initialEntry] },
   );
+  return {
+    router,
+    ...render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 describe("InquiriesPage", () => {
@@ -75,5 +80,24 @@ describe("InquiriesPage", () => {
       ),
     );
     expect(window.location.search).not.toContain("급한");
+  });
+
+  it("페이지 크기가 바뀌면 새 limit으로 다시 조회한다", async () => {
+    const { router } = renderPage("/inquiries?limit=20");
+    await screen.findByText("배송 문의");
+
+    await act(async () => {
+      await router.navigate("/inquiries?limit=50");
+    });
+
+    await waitFor(() =>
+      expect(api.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({ limit: 50 }),
+          throwOnError: true,
+        }),
+      ),
+    );
+    expect(api.list).toHaveBeenCalledTimes(2);
   });
 });

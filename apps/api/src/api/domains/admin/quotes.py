@@ -1,12 +1,11 @@
 """관리자 견적 조회·상태 전이와 관계 검증된 이미지 읽기."""
 
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime
 from typing import Annotated, Any
-from zoneinfo import ZoneInfo
 
 from db.models.auth import User
-from db.models.commerce import QuoteRequest, QuoteRequestStatusLog, ShippingAddress
+from db.models.commerce import QuoteRequest, QuoteRequestStatusLog
 from db.models.images import Image
 from fastapi import APIRouter, Query, Request
 from sqlalchemy import ColumnElement, func, select
@@ -14,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import SessionDep
 from api.deps import AdminUser
+from api.domains.admin.helpers import kst_day_bounds, resolve_shipping_address
 from api.domains.admin.quote_schemas import (
     AdminQuoteAction,
     AdminQuoteActorOut,
@@ -26,16 +26,14 @@ from api.domains.admin.quote_schemas import (
     QuoteStatus,
     QuoteStatusFilter,
     SignedReadUrlOut,
-    SortDirection,
 )
 from api.domains.admin.schemas import AdminOrderCustomerOut, Page
-from api.domains.orders.schemas import OrderShippingAddressOut
+from api.domains.admin.types import SortDirection
 from api.domains.quotes import service
 from api.errors import DomainError, NotFoundError
 
 router = APIRouter(prefix="/admin/quotes", tags=["admin-quotes"])
 
-KST = ZoneInfo("Asia/Seoul")
 DEFAULT_PAGE_LIMIT = 20
 MAX_PAGE_LIMIT = 100
 QUOTE_STATUSES: tuple[QuoteStatus, ...] = ("요청", "견적발송", "협의중", "확정", "종료")
@@ -81,13 +79,12 @@ def _summary(quote: QuoteRequest, user: User) -> AdminQuoteSummaryOut:
 def _date_filters(start_date: date | None, end_date: date | None) -> list[ColumnElement[bool]]:
     if start_date is not None and end_date is not None and start_date > end_date:
         raise DomainError("시작일은 종료일보다 늦을 수 없습니다", code="invalid_range")
+    start_at, end_at = kst_day_bounds(start_date, end_date)
     filters: list[ColumnElement[bool]] = []
-    if start_date is not None:
-        filters.append(QuoteRequest.created_at >= datetime.combine(start_date, time.min, KST))
-    if end_date is not None:
-        filters.append(
-            QuoteRequest.created_at < datetime.combine(end_date + timedelta(days=1), time.min, KST)
-        )
+    if start_at is not None:
+        filters.append(QuoteRequest.created_at >= start_at)
+    if end_at is not None:
+        filters.append(QuoteRequest.created_at < end_at)
     return filters
 
 
@@ -149,17 +146,6 @@ async def _quote_images(session: AsyncSession, quote: QuoteRequest) -> list[Admi
     ]
 
 
-async def _shipping_address(
-    session: AsyncSession, quote: QuoteRequest
-) -> OrderShippingAddressOut | None:
-    if quote.shipping_address_snapshot:
-        return OrderShippingAddressOut.model_validate(quote.shipping_address_snapshot)
-    if quote.shipping_address_id is None:
-        return None
-    address = await session.get(ShippingAddress, quote.shipping_address_id)
-    return OrderShippingAddressOut.model_validate(address) if address is not None else None
-
-
 async def _status_logs(session: AsyncSession, quote_id: uuid.UUID) -> list[AdminQuoteStatusLogOut]:
     rows = (
         await session.execute(
@@ -203,7 +189,9 @@ async def get_quote_detail(session: AsyncSession, quote_id: uuid.UUID) -> AdminQ
     return AdminQuoteDetailOut(
         **summary.model_dump(),
         shipping_address_id=quote.shipping_address_id,
-        shipping_address=await _shipping_address(session, quote),
+        shipping_address=await resolve_shipping_address(
+            session, quote.shipping_address_snapshot, quote.shipping_address_id
+        ),
         options=quote.options,
         additional_notes=quote.additional_notes,
         contact_name=quote.contact_name,

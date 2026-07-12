@@ -14075,7 +14075,6 @@
         ],
         "summary": "List Admin Inquiries",
         "tags": [
-          "inquiries",
           "admin-inquiries"
         ]
       }
@@ -14122,7 +14121,6 @@
         ],
         "summary": "Search Admin Inquiries",
         "tags": [
-          "inquiries",
           "admin-inquiries"
         ]
       }
@@ -14171,7 +14169,6 @@
         ],
         "summary": "Get Admin Inquiry",
         "tags": [
-          "inquiries",
           "admin-inquiries"
         ]
       }
@@ -14230,7 +14227,6 @@
         ],
         "summary": "Answer Admin Inquiry",
         "tags": [
-          "inquiries",
           "admin-inquiries"
         ]
       }
@@ -15858,7 +15854,6 @@
         ],
         "summary": "List Admin Quotes",
         "tags": [
-          "quotes",
           "admin-quotes"
         ]
       }
@@ -15907,7 +15902,6 @@
         ],
         "summary": "Get Admin Quote",
         "tags": [
-          "quotes",
           "admin-quotes"
         ]
       }
@@ -15966,7 +15960,6 @@
         ],
         "summary": "Create Admin Quote Image Read Url",
         "tags": [
-          "quotes",
           "admin-quotes"
         ]
       }
@@ -16025,7 +16018,6 @@
         ],
         "summary": "Update Admin Quote Status",
         "tags": [
-          "quotes",
           "admin-quotes"
         ]
       }
@@ -16078,7 +16070,6 @@
         ],
         "summary": "List Admin Repair Receipt Photos",
         "tags": [
-          "quotes",
           "admin-images"
         ]
       }
@@ -16137,7 +16128,6 @@
         ],
         "summary": "Create Admin Repair Receipt Photo Read Url",
         "tags": [
-          "quotes",
           "admin-images"
         ]
       }

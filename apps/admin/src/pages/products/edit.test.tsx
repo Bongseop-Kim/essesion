@@ -1,18 +1,22 @@
 import type { AdminProductDetailOut } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { Link, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }));
 
 vi.mock("@essesion/api-client/query", () => ({
-  adminGetProductOptions: () => ({
-    queryKey: ["admin-product", 17],
-    queryFn: api.get,
+  adminGetProductOptions: ({ path }: { path: { product_id: number } }) => ({
+    queryKey: ["admin-product", path.product_id],
+    queryFn: () => api.get(path.product_id),
   }),
-  adminGetProductQueryKey: () => ["admin-product", 17],
+  adminGetProductQueryKey: ({ path }: { path: { product_id: number } }) => [
+    "admin-product",
+    path.product_id,
+  ],
   adminListProductsQueryKey: () => ["admin-products"],
   adminUpdateProductMutation: () => ({ mutationFn: api.update }),
 }));
@@ -58,24 +62,15 @@ const product: AdminProductDetailOut = {
   updated_at: "2026-07-12T02:00:00Z",
 };
 
-function renderPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/products/17/edit"]}>
-        <Routes>
-          <Route
-            path="/products/:productId/edit"
-            element={<ProductEditPage />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+function renderPage(showProductSwitch = false) {
+  return renderAdminPage(
+    <>
+      {showProductSwitch && <Link to="/products/18/edit">다음 상품</Link>}
+      <Routes>
+        <Route path="/products/:productId/edit" element={<ProductEditPage />} />
+      </Routes>
+    </>,
+    { entry: "/products/17/edit" },
   );
 }
 
@@ -84,6 +79,32 @@ describe("ProductEditPage", () => {
     vi.clearAllMocks();
     api.get.mockReset().mockResolvedValue(product);
     api.update.mockReset();
+  });
+
+  it("캐시된 다른 상품 route로 이동하면 draft와 revision을 새 상품으로 교체한다", async () => {
+    const user = userEvent.setup();
+    const nextProduct = {
+      ...product,
+      id: 18,
+      code: "3F-20260712-002",
+      name: "두 번째 상품",
+      updated_at: "2026-07-12T04:00:00Z",
+    };
+    api.get.mockImplementation((productId: number) =>
+      Promise.resolve(productId === nextProduct.id ? nextProduct : product),
+    );
+    const { queryClient } = renderPage(true);
+    await screen.findByDisplayValue(product.name);
+    queryClient.setQueryData(["admin-product", 18], nextProduct);
+
+    await user.click(screen.getByRole("link", { name: "다음 상품" }));
+
+    expect(
+      await screen.findByRole("heading", { name: nextProduct.name }),
+    ).toBeTruthy();
+    expect((screen.getByLabelText(/상품 이름/) as HTMLInputElement).value).toBe(
+      nextProduct.name,
+    );
   });
 
   it("stale 실패 후 입력·option ID·기준 revision을 보존하고 서버 값을 비교한다", async () => {

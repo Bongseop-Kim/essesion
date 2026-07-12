@@ -23,9 +23,9 @@ from api.domains.admin.phase_d_schemas import (
     IncidentTypeFilter,
     PaymentIncidentDetailOut,
     PaymentIncidentSummaryOut,
-    SortDirection,
 )
 from api.domains.admin.schemas import Page
+from api.domains.admin.types import SortDirection
 from api.domains.claims.service import deliver_notification
 
 router = APIRouter(prefix="/admin", tags=["admin-operations"])

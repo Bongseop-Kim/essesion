@@ -4,10 +4,11 @@ from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, Field
 
+from api.domains.admin.types import SortDirection
+
 InquiryStatusFilter = Literal["all", "답변대기", "답변완료"]
 InquiryCategoryFilter = Literal["all", "일반", "상품", "수선", "주문제작"]
 InquirySort = Literal["created_at", "updated_at", "status"]
-SortDirection = Literal["asc", "desc"]
 
 
 class AdminInquiryCustomerOut(BaseModel):

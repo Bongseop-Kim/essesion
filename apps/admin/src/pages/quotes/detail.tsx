@@ -16,7 +16,6 @@ import {
   Callout,
   ContentPlaceholder,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   Text,
@@ -37,6 +36,7 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
+import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 
@@ -54,51 +54,23 @@ function QuoteImage({
   });
 
   return (
-    <VStack gap="x2" alignItems="stretch">
-      {readUrl ? (
-        <ImageFrame
-          src={readUrl}
-          alt="견적 참고 자료"
-          ratio={4 / 3}
-          fit="contain"
-          stroke
-        />
-      ) : (
-        <Box
-          bg="bg.neutral-weak"
-          borderRadius="r2"
-          p="x6"
-          className="grid min-h-32 place-items-center"
-        >
-          <Text color="fg.neutral-muted">미리보기 URL을 요청해 주세요.</Text>
-        </Box>
-      )}
-      <HStack gap="x2" justify="space-between" wrap>
-        <Text textStyle="caption" color="fg.neutral-muted">
+    <PrivateAssetPreview
+      src={readUrl}
+      alt="견적 참고 자료"
+      metadata={
+        <>
           {image.content_type ?? "파일"} · {formatDateTime(image.created_at)}
-        </Text>
-        <ActionButton
-          size="small"
-          variant="neutralOutline"
-          loading={mutation.isPending}
-          onClick={() =>
-            mutation.mutate({
-              path: { quote_id: quoteId, image_id: image.id },
-            })
-          }
-        >
-          {readUrl ? "URL 재발급" : "이미지 보기"}
-        </ActionButton>
-      </HStack>
-      {mutation.isError && (
-        <Callout
-          role="alert"
-          tone="critical"
-          title="이미지를 불러오지 못했습니다"
-          description="만료되었거나 이 견적에 속하지 않은 이미지입니다."
-        />
-      )}
-    </VStack>
+        </>
+      }
+      loading={mutation.isPending}
+      error={mutation.isError}
+      errorDescription="만료되었거나 이 견적에 속하지 않은 이미지입니다."
+      onRequest={() =>
+        mutation.mutate({
+          path: { quote_id: quoteId, image_id: image.id },
+        })
+      }
+    />
   );
 }
 

@@ -4,7 +4,7 @@
 >
 > 작성일: 2026-07-12
 >
-> 추가 검토: 2026-07-12 — 인증 경계, 결제 정합성, 이미지 관계·스토리지 불변식, 동시 수정, 운영 복구, 접근성을 v1 계약과 구현에 보강
+> 추가 검토: 2026-07-12 — 인증 경계, 결제 정합성, 이미지 관계·스토리지 불변식, 동시 수정, 운영 복구, 접근성과 구현 중복을 v1 계약과 구현에 보강
 >
 > 기준 문서: [`ARCHITECTURE.md`](../../ARCHITECTURE.md), [`docs/CHECKLIST.md`](../CHECKLIST.md), [`packages/shared/AGENTS.md`](../../packages/shared/AGENTS.md), [`docs/api-spec/domains.md`](../api-spec/domains.md), [`docs/api-spec/money.md`](../api-spec/money.md)
 
@@ -326,7 +326,7 @@ apps/admin/src/
 - [x] Aside로 핵심 운영 시나리오를 데스크톱·모바일에서 검증한다.
 - [x] 완료 후 [`docs/CHECKLIST.md`](../CHECKLIST.md)의 `admin 재작성`을 체크하고 Cloudflare 배포 단계로 인계한다.
 
-J 완료 근거: Python 535건, shared 45건, store 114건, admin 78건과 repo lint/build/typecheck를 통과했고 `pnpm codegen` 재실행은 drift 0이었다. Alembic은 `f18a6c2d9b40` 단일 head이며 `alembic check`에서 추가 upgrade operation이 없었다. 실제 API+PostgreSQL seed 기반 `e2e/admin-smoke.spec.ts` 1건이 로그인 → 보호 목록/상세 → 상태 변경 → 로그아웃을 통과했다. Aside에서는 1440px·390px와 767/768/1024px 경계, 200% zoom, 주문·클레임 mutation, 상품 편집 취소 복원, 안전한 Seamless SVG, 모바일 메뉴, table `ScrollFog`, dialog focus 복귀, reduced motion, 잘못된 ID, 탭 간 logout을 확인했으며 유효 origin에서 console error는 없었다. 초기 lazy route의 hydration 경고는 root `HydrateFallback`을 추가해 제거했다.
+J 완료 근거: Python 535건, shared 45건, store 114건, admin 87건과 repo lint/build/typecheck를 통과했고 `pnpm codegen` 재실행은 drift 0이었다. Alembic은 `f18a6c2d9b40` 단일 head이며 `alembic check`에서 추가 upgrade operation이 없었다. 실제 API+PostgreSQL seed 기반 `e2e/admin-smoke.spec.ts` 1건이 로그인 → 보호 목록/상세 → 상태 변경 → 원상 복구 → 로그아웃을 통과했으며, 재시드 없이 두 번 연속 실행해 재시도 안전성도 확인했다. Aside에서는 1440px·390px와 767/768/1024px 경계, 200% zoom, 주문·클레임 mutation, 상품 편집 취소 복원, 안전한 Seamless SVG, 모바일 메뉴, table `ScrollFog`, dialog focus 복귀, reduced motion, 잘못된 ID, 탭 간 logout을 확인했으며 유효 origin에서 console error는 없었다. 초기 lazy route의 hydration 경고는 root `HydrateFallback`을 추가해 제거했다.
 
 ### 실행 중 추가 검토/개선 (2026-07-12)
 
@@ -347,6 +347,10 @@ J 완료 근거: Python 535건, shared 45건, store 114건, admin 78건과 repo 
 | Seamless reference image | `/design` 이미지 입력은 v2 이연 상태라 production writer가 없다. 향후 비공개 입력을 raw object key로 추론하지 않도록 nullable FK와 관계 검증형 관리자 read endpoint만 선행 배치했으며, 현재 기능 완료로 판정하지 않는다. | `docs/plans/store-design.md`, Alembic `20260712_f18a6c2d9b40_seamless_reference_image_relation.py`, `admin/generation.py` | v2 이연, 선행 기반만 반영 |
 | 대표 query plan | 주문 queue뿐 아니라 상품 필터 10,000행 fixture도 `EXPLAIN (ANALYZE, BUFFERS)`로 검사하고 Seq Scan 회귀를 막는다. | `test_admin_query_plans.py` | 완료 |
 | lazy route 초기 상태 | 느린 lazy route의 최초 hydration 중 빈 화면과 React Router 경고가 생기지 않도록 root `HydrateFallback`을 shared primitive로 구성했다. | `app/router/router.tsx`, `router.test.tsx` | 완료 |
+| 목록·테스트 중복 | 9개 목록의 URL 상태, 날짜 범위, 메모리 전용 PII 검색, table card 조합을 작은 admin-local helper로 통합했다. 페이지별 고유 필터와 PII 저장 금지 정책은 유지하고, 20개 페이지 테스트의 router/provider 준비는 `renderAdminPage`로 통합했다. | `use-admin-list-url-state.ts`, `paginated-admin-table-card.tsx`, `render-admin-page.tsx`, admin 87 tests | 완료 |
+| 상품 폼 책임 분리 | 상품 속성 정본과 draft 변환·검증·payload 생성을 순수 모듈로 분리했다. 상품 ID 변경 시 form identity를 교체하고, 업로드 중 피커를 잠그며 unmount 뒤 완료된 staging을 폐기한다. 안정적인 option ID와 legacy 이미지 생략 의미는 보존하고 새 form library나 범용 상태 머신은 도입하지 않았다. | `product-attributes.ts`, `product-form-model.ts`, product edit/new/model tests | 완료 |
+| 관리자 API 조립 경계 | 공개 견적·문의 router의 파일 하단 admin router 결합을 제거하고 앱 조립부에서 명시적으로 등록했다. KST 날짜 경계, snapshot 우선 배송지, 정렬 타입 중복은 admin helper로 모으되 결제 command 순서와 transaction 경계는 변경하지 않았다. | `api/main.py`, `admin/helpers.py`, PostgreSQL admin tests, OpenAPI 127 paths | 완료 |
+| 운영 회귀 재실행 | 문의 목록 query key와 요청에 같은 `limit` 포함 params를 사용하도록 고정했다. smoke는 시작 시 남은 상태를 복구하고 검증 후에도 seed 주문을 대기로 되돌려 실행 간 상태를 격리한다. | `inquiries/list.test.tsx`, `e2e/admin-smoke.spec.ts`, 재시드 없는 2회 연속 Playwright | 완료 |
 
 ## 7. 테스트 전략
 

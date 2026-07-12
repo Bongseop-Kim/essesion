@@ -25,7 +25,8 @@ from api.domains.admin.product_schemas import (
     ProductImageKind,
     ProductSort,
 )
-from api.domains.admin.schemas import Page, SortDirection
+from api.domains.admin.schemas import Page
+from api.domains.admin.types import SortDirection
 from api.domains.products.schemas import Category, Color, Material, Pattern, ProductOptionOut
 from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.gcs import public_asset_url

@@ -1,9 +1,9 @@
 import type { MotifDetailOut, PageMotifSummaryOut } from "@essesion/api-client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   list: vi.fn(),
@@ -68,16 +68,7 @@ const createObjectURL = vi.fn(() => "blob:motif-preview");
 const revokeObjectURL = vi.fn();
 
 function renderPage(entry = "/motifs") {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[entry]}>
-        <MotifsPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  return renderAdminPage(<MotifsPage />, { entry });
 }
 
 describe("MotifsPage", () => {

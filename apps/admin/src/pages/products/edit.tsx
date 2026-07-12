@@ -23,11 +23,11 @@ import { formatDateTime, formatMoney } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { ProductForm } from "./product-form";
 import {
-  ProductForm,
   type ProductFormValue,
   productDraftFromDetail,
-} from "./product-form";
+} from "./product-form-model";
 
 function ProductEditLoading() {
   return (
@@ -122,6 +122,10 @@ function ServerComparison({ product }: { product: AdminProductDetailOut }) {
 
 export function ProductEditPage() {
   const { productId = "" } = useParams();
+  return <ProductEditPageContent key={productId} productId={productId} />;
+}
+
+function ProductEditPageContent({ productId }: { productId: string }) {
   const productIdNumber = Number(productId);
   const validProductId =
     Number.isSafeInteger(productIdNumber) && productIdNumber > 0;

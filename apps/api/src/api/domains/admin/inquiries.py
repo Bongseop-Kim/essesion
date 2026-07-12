@@ -23,9 +23,9 @@ from api.domains.admin.inquiry_schemas import (
     InquiryCategoryFilter,
     InquirySort,
     InquiryStatusFilter,
-    SortDirection,
 )
 from api.domains.admin.schemas import Page
+from api.domains.admin.types import SortDirection
 from api.errors import ConflictError, DomainError, NotFoundError
 
 router = APIRouter(prefix="/admin/inquiries", tags=["admin-inquiries"])

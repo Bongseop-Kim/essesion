@@ -86,29 +86,26 @@ export function InquiriesPage() {
   const category = (parsed.type ?? "all") as InquiryCategory;
   const sort = (parsed.sort ?? "created_at") as InquirySort;
   const offset = (parsed.page - 1) * parsed.limit;
+  const requestParams = {
+    status,
+    category,
+    sort,
+    direction: parsed.direction,
+    limit: parsed.limit,
+    offset,
+  };
 
   const query = useQuery<PageAdminInquirySummaryOut>({
-    queryKey: [
-      "admin-inquiries",
-      { status, category, sort, direction: parsed.direction, offset, search },
-    ],
+    queryKey: ["admin-inquiries", { ...requestParams, search }],
     queryFn: async ({ signal }) => {
-      const common = {
-        status,
-        category,
-        sort,
-        direction: parsed.direction,
-        limit: parsed.limit,
-        offset,
-      };
       const { data } = search
         ? await searchAdminInquiries({
-            body: { ...common, q: search },
+            body: { ...requestParams, q: search },
             signal,
             throwOnError: true,
           })
         : await listAdminInquiries({
-            query: common,
+            query: requestParams,
             signal,
             throwOnError: true,
           });

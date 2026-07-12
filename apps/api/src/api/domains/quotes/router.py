@@ -62,10 +62,3 @@ async def get_quote(quote_id: uuid.UUID, session: SessionDep, user: CurrentUser)
     quote = await session.get(QuoteRequest, quote_id)
     ensure_owner(quote, user)
     return QuoteOut.model_validate(quote)
-
-
-from api.domains.admin.entity_images import router as admin_entity_images_router  # noqa: E402
-from api.domains.admin.quotes import router as admin_quotes_router  # noqa: E402
-
-router.include_router(admin_quotes_router)
-router.include_router(admin_entity_images_router)
