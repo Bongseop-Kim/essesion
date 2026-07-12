@@ -1,3 +1,6 @@
 [mcp_servers.aside]
 command = "/Users/gimbongseob/.local/bin/aside"
 args = ["mcp"]
+
+[mcp_servers.aside.tools.repl]
+approval_mode = "approve"
