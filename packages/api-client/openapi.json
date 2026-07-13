@@ -121,6 +121,10 @@
       },
       "AdminCapabilitiesOut": {
         "properties": {
+          "auth_secrets": {
+            "title": "Auth Secrets",
+            "type": "string"
+          },
           "batch_auth": {
             "title": "Batch Auth",
             "type": "string"
@@ -141,12 +145,24 @@
             "title": "Gcs Assets",
             "type": "string"
           },
+          "oauth_google": {
+            "title": "Oauth Google",
+            "type": "string"
+          },
+          "oauth_kakao": {
+            "title": "Oauth Kakao",
+            "type": "string"
+          },
           "solapi": {
             "title": "Solapi",
             "type": "string"
           },
           "toss": {
             "title": "Toss",
+            "type": "string"
+          },
+          "worker": {
+            "title": "Worker",
             "type": "string"
           }
         },
@@ -155,8 +171,12 @@
           "gcs",
           "gcs_assets",
           "solapi",
+          "worker",
           "finalize_tasks",
           "batch_auth",
+          "oauth_google",
+          "oauth_kakao",
+          "auth_secrets",
           "edge_proxy"
         ],
         "title": "AdminCapabilitiesOut",
@@ -16987,6 +17007,33 @@
         ]
       }
     },
+    "/batch/reconcile-stale-generation-jobs": {
+      "post": {
+        "description": "Cloud Tasks 재시도 창을 넘긴 finalize job을 종료하고 세션 예산을 복구한다.",
+        "operationId": "reconcile_stale_generation_jobs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reconcile Stale Generation Jobs",
+        "tags": [
+          "batch"
+        ]
+      }
+    },
     "/cart": {
       "get": {
         "operationId": "get_cart",
@@ -19912,7 +19959,7 @@
     },
     "/users/me": {
       "delete": {
-        "description": "탈퇴 — 이력 없으면 하드 삭제(CASCADE), 있으면 비활성화 + 개인정보 익명화.\n\n(구 delete-account는 auth.users 삭제 + 전체 CASCADE — 새 스키마는 주문·클레임\n이력이 NO ACTION이므로 이력 보존을 위해 소프트 처리. MAPPING.md §1)",
+        "description": "탈퇴 — 보존 이력 없으면 하드 삭제(CASCADE), 있으면 비활성화 + 개인정보 익명화.\n\n(구 delete-account는 auth.users 삭제 + 전체 CASCADE — 새 스키마는 주문·클레임\n이력이 NO ACTION이므로 이력 보존을 위해 소프트 처리. MAPPING.md §1)",
         "operationId": "delete_account",
         "responses": {
           "204": {

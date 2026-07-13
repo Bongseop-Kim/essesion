@@ -161,9 +161,15 @@ async def get_me(user: CurrentUser) -> MeResponse:
 
 
 @router.get("/{provider}/login", include_in_schema=False)
-async def oauth_login(provider: Literal["google", "kakao"], request: Request):
+async def oauth_login(
+    provider: Literal["google", "kakao"], request: Request, settings: SettingsDep
+):
     client = get_oauth_client(request, provider)
-    redirect_uri = str(request.url_for("oauth_callback", provider=provider))
+    redirect_uri = (
+        str(request.url_for("oauth_callback", provider=provider))
+        if settings.env in ("local", "test")
+        else f"{settings.public_api_origin}/auth/{provider}/callback"
+    )
     return await client.authorize_redirect(request, redirect_uri)
 
 
@@ -192,16 +198,32 @@ async def oauth_callback(
 
 @router.post("/phone/send", response_model=MessageResponse, status_code=202)
 async def send_phone_verification(
-    body: PhoneSendRequest, user: CurrentUser, session: SessionDep, request: Request
+    body: PhoneSendRequest,
+    user: CurrentUser,
+    session: SessionDep,
+    request: Request,
+    settings: SettingsDep,
 ) -> MessageResponse:
-    await phone_service.send_verification(session, user, body.phone, request.app.state.solapi)
+    await phone_service.send_verification(
+        session,
+        user,
+        body.phone,
+        request.app.state.solapi,
+        secret=settings.session_secret,
+    )
     return MessageResponse(message="인증번호가 발송되었습니다")
 
 
 @router.post("/phone/verify", response_model=MessageResponse)
 async def verify_phone(
-    body: PhoneVerifyRequest, request: Request, user: CurrentUser, session: SessionDep
+    body: PhoneVerifyRequest,
+    request: Request,
+    user: CurrentUser,
+    session: SessionDep,
+    settings: SettingsDep,
 ) -> MessageResponse:
     _enforce_phone_verify_rate_limit(request, user.id)
-    await phone_service.verify_code(session, user, body.phone, body.code)
+    await phone_service.verify_code(
+        session, user, body.phone, body.code, secret=settings.session_secret
+    )
     return MessageResponse(message="전화번호 인증이 완료되었습니다")

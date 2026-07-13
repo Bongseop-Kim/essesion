@@ -17,11 +17,12 @@ from google.oauth2 import id_token
 from sqlalchemy import select
 
 from api.config import Settings
-from api.db import SessionDep
+from api.db import USER_LOCK, SessionDep, advisory_xact_lock
 from api.errors import ForbiddenError, NotFoundError, ServiceUnavailableError, UnauthorizedError
 from api.security import decode_access_token
 
 ADMIN_ROLES = ("admin", "manager")
+MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 _bearer = HTTPBearer(auto_error=False)
 BearerDep = Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)]
@@ -35,10 +36,21 @@ SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 
 
 async def _load_user_with_claims(
-    token: str, session, settings: Settings
+    token: str,
+    session,
+    settings: Settings,
+    *,
+    serialize_mutation: bool = False,
 ) -> tuple[User, dict[str, Any]]:
     payload = decode_access_token(token, settings)
-    user = await session.get(User, uuid.UUID(payload["sub"]))
+    user_id = uuid.UUID(payload["sub"])
+    if serialize_mutation:
+        # 탈퇴도 같은 락을 사용한다. active 확인과 실제 route mutation 사이에
+        # soft-delete가 끼어 비활성 사용자 소유 데이터가 다시 생기는 것을 막는다.
+        await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
+    user = await session.scalar(
+        select(User).where(User.id == user_id).execution_options(populate_existing=True)
+    )
     if user is None or not user.is_active:
         raise UnauthorizedError()
     # 역할 변경 전 발급된 토큰이 현재 DB 역할의 권한을 상속하면 owner-only
@@ -48,15 +60,36 @@ async def _load_user_with_claims(
     return user, payload
 
 
-async def _load_user(token: str, session, settings: Settings) -> User:
-    user, _ = await _load_user_with_claims(token, session, settings)
+async def _load_user(
+    token: str,
+    session,
+    settings: Settings,
+    *,
+    serialize_mutation: bool = False,
+) -> User:
+    user, _ = await _load_user_with_claims(
+        token,
+        session,
+        settings,
+        serialize_mutation=serialize_mutation,
+    )
     return user
 
 
-async def get_current_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User:
+async def get_current_user(
+    request: Request,
+    creds: BearerDep,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> User:
     if creds is None:
         raise UnauthorizedError()
-    return await _load_user(creds.credentials, session, settings)
+    return await _load_user(
+        creds.credentials,
+        session,
+        settings,
+        serialize_mutation=request.method in MUTATING_METHODS,
+    )
 
 
 async def get_optional_user(

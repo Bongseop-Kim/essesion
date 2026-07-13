@@ -15,6 +15,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from db.models.base import Base, CreatedAtMixin, TimestampMixin, uuid_pk
 
 FINALIZE_DISPATCH_FAILED_MESSAGE = "finalize 작업 전달에 실패했습니다"
+FINALIZE_STALE_MESSAGE = "finalize 작업 처리 시간이 초과되었습니다"
+FINALIZE_TEMPORARY_FAILURE_CODE = "FINALIZE_TEMPORARY_FAILURE"
+FINALIZE_TEMPORARY_FAILURE_MESSAGE = "finalize temporarily failed"
+FINALIZE_TEMPORARY_FAILURE_MARKER = (
+    f"{FINALIZE_TEMPORARY_FAILURE_CODE}: {FINALIZE_TEMPORARY_FAILURE_MESSAGE}"
+)
 
 
 class DesignSession(TimestampMixin, Base):

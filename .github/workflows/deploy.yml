@@ -10,29 +10,28 @@ on:
     workflows: [ci]
     types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.event.workflow_run.head_branch || github.ref }}
-  cancel-in-progress: true
+  group: deploy-staging
+  cancel-in-progress: false
 
 env:
-  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
 jobs:
   backend:
     if: >-
-      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-       (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository)) &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
       vars.GCP_PROJECT_ID != ''
     runs-on: ubuntu-latest
+    outputs:
+      api_origin: ${{ steps.api-origin.outputs.value }}
     permissions:
       contents: read
       id-token: write # WIF — 키 파일 없음
@@ -42,7 +41,9 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Reject an obsolete main deployment
+        run: bash .github/scripts/assert-main-tip.sh
       # Build before auth so google-github-actions/auth's generated credential file
       # cannot enter the Docker build context or an image layer.
       - name: Build images
@@ -55,10 +56,17 @@ jobs:
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
       - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
       - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+      - name: Recheck main before publishing backend images
+        run: bash .github/scripts/assert-main-tip.sh
       - name: Push images
         run: |
           docker push "$IMAGE_BASE/api:$DEPLOY_SHA"
           docker push "$IMAGE_BASE/worker:$DEPLOY_SHA"
+      # Point of no return: once this check passes and migration starts, this SHA must be
+      # deployed through Cloud Run and Cloudflare even if main advances. Stopping after a
+      # schema change could leave the live application incompatible with the database.
+      - name: Point of no return — recheck main before migrating
+        run: bash .github/scripts/assert-main-tip.sh
       # 스키마 적용 — 서비스 배포 전. 실패(비-0 종료)면 배포 중단 (잡은 max_retries=0)
       - name: Run DB migrations
         run: |
@@ -69,19 +77,21 @@ jobs:
           gcloud run deploy api --region "$REGION" --image "$IMAGE_BASE/api:$DEPLOY_SHA"
           gcloud run deploy worker-generate --region "$REGION" --image "$IMAGE_BASE/worker:$DEPLOY_SHA"
           gcloud run deploy worker-finalize --region "$REGION" --image "$IMAGE_BASE/worker:$DEPLOY_SHA"
+      - name: Resolve and validate API origin
+        id: api-origin
+        run: |
+          origin="$(gcloud run services describe api --region "$REGION" --format='value(status.url)')"
+          if [[ ! "$origin" =~ ^https://[A-Za-z0-9.-]+\.run\.app$ ]] || [[ "$origin" == *REPLACE-ME* ]]; then
+            echo "Cloud Run returned an invalid API origin" >&2
+            exit 1
+          fi
+          echo "value=$origin" >> "$GITHUB_OUTPUT"
 
   frontend:
     needs: backend
     if: >-
-      always() &&
-      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-       (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository)) &&
       vars.CLOUDFLARE_ACCOUNT_ID != '' &&
-      (needs.backend.result == 'success' || needs.backend.result == 'skipped')
+      needs.backend.result == 'success'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
@@ -89,11 +99,12 @@ jobs:
       VITE_TOSS_CLIENT_KEY: ${{ vars.VITE_TOSS_CLIENT_KEY }}
       VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
       VITE_SENTRY_ENVIRONMENT: ${{ vars.VITE_SENTRY_ENVIRONMENT }}
-      VITE_SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
+      VITE_SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
+      API_PROXY_ORIGIN: ${{ needs.backend.outputs.api_origin }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -107,10 +118,86 @@ jobs:
             echo 'frontend build contains a non-deployable endpoint' >&2
             exit 1
           fi
+      - name: Validate API proxy deployment config
+        run: |
+          node <<'NODE'
+          const { readFileSync } = require("node:fs");
+          const origin = process.env.API_PROXY_ORIGIN;
+          if (!origin || origin.includes("REPLACE-ME")) {
+            throw new Error("API proxy origin is missing or contains a placeholder");
+          }
+          const parsedOrigin = new URL(origin);
+          const normalizedOrigin = origin.endsWith("/") ? origin.slice(0, -1) : origin;
+          if (
+            parsedOrigin.protocol !== "https:" ||
+            !parsedOrigin.hostname.endsWith(".run.app") ||
+            normalizedOrigin !== parsedOrigin.origin
+          ) {
+            throw new Error("API proxy origin must be an origin-only Cloud Run URL");
+          }
+          const config = JSON.parse(
+            readFileSync("infra/cloudflare/api-proxy/wrangler.jsonc", "utf8"),
+          );
+          const route = config.routes?.find(
+            ({ pattern, zone_name }) =>
+              pattern === "api.essesion.shop/*" && zone_name === "essesion.shop",
+          );
+          if (!route) {
+            throw new Error("API proxy route for api.essesion.shop is missing");
+          }
+          NODE
       - name: Deploy Cloudflare workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           pnpm -C apps/store exec wrangler deploy
           pnpm -C apps/admin exec wrangler deploy
-          pnpm -C infra/cloudflare/api-proxy exec wrangler deploy
+          pnpm -C infra/cloudflare/api-proxy exec wrangler deploy --var "ORIGIN:$API_PROXY_ORIGIN"
+      - name: Verify public proxy and direct-origin boundary
+        run: |
+          ready_status=""
+          for attempt in {1..12}; do
+            ready_status="$(curl --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              --output /tmp/public-ready-response \
+              --write-out '%{http_code}' \
+              'https://api.essesion.shop/readyz' || true)"
+            if [[ "$ready_status" == "200" ]]; then
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$ready_status" != "200" ]]; then
+            echo "Public API readiness failed with HTTP $ready_status" >&2
+            head -c 1000 /tmp/public-ready-response >&2 || true
+            exit 1
+          fi
+
+          public_status=""
+          for attempt in {1..12}; do
+            public_status="$(curl --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              --output /tmp/public-api-response \
+              --write-out '%{http_code}' \
+              'https://api.essesion.shop/products?limit=1' || true)"
+            if [[ "$public_status" == "200" ]]; then
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$public_status" != "200" ]]; then
+            echo "Public API smoke failed with HTTP $public_status" >&2
+            head -c 500 /tmp/public-api-response >&2 || true
+            exit 1
+          fi
+
+          origin_status="$(curl --silent --show-error \
+            --connect-timeout 5 --max-time 15 \
+            --output /tmp/origin-api-response \
+            --write-out '%{http_code}' \
+            "$API_PROXY_ORIGIN/products?limit=1" || true)"
+          if [[ "$origin_status" != "403" ]]; then
+            echo "Direct Cloud Run boundary returned HTTP $origin_status, expected 403" >&2
+            head -c 500 /tmp/origin-api-response >&2 || true
+            exit 1
+          fi

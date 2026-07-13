@@ -23,6 +23,10 @@ class RasterError(RuntimeError):
     pass
 
 
+class RasterLimitError(RasterError):
+    """요청 크기가 결정적 렌더 상한을 넘었다. 재시도해도 성공하지 않는다."""
+
+
 def rasterize_svg(
     svg: str,
     *,
@@ -39,10 +43,10 @@ def rasterize_svg(
     width_px = max(1, mm_to_px(width_mm, dpi))
     height_px = max(1, mm_to_px(height_mm, dpi))
     if max(width_px, height_px) > MAX_DIMENSION_PX:
-        raise RasterError(f"raster size exceeds {MAX_DIMENSION_PX}px")
+        raise RasterLimitError(f"raster size exceeds {MAX_DIMENSION_PX}px")
     pixels = width_px * height_px
     if pixels > MAX_RASTER_PIXELS:
-        raise RasterError(f"raster area exceeds {MAX_RASTER_PIXELS} pixels")
+        raise RasterLimitError(f"raster area exceeds {MAX_RASTER_PIXELS} pixels")
 
     if binary := which("rsvg-convert"):
         cmd = [binary, "-w", str(width_px), "-h", str(height_px), "-f", "png", "-"]

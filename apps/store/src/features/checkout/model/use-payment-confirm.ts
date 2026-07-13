@@ -6,8 +6,16 @@ import { useMutation } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
+type PaymentConfirmOptions = {
+  onTerminalFailure?: (error: unknown, paymentGroupId: string) => void;
+};
+
 export function usePaymentConfirm<T>(
-  onConfirmed: (result: PaymentConfirmResponse) => Promise<T>,
+  onConfirmed: (
+    result: PaymentConfirmResponse,
+    paymentGroupId: string,
+  ) => Promise<T>,
+  options: PaymentConfirmOptions = {},
 ) {
   const [params] = useSearchParams();
   const paymentKey = params.get("paymentKey");
@@ -22,9 +30,13 @@ export function usePaymentConfirm<T>(
   const started = useRef(false);
   const handler = useRef(onConfirmed);
   handler.current = onConfirmed;
+  const terminalFailureHandler = useRef(options.onTerminalFailure);
+  terminalFailureHandler.current = options.onTerminalFailure;
 
   const retry = useCallback(async () => {
     if (!valid || !paymentKey || !orderId) return;
+    const onConfirmedForAttempt = handler.current;
+    const onTerminalFailureForAttempt = terminalFailureHandler.current;
     setFailed(false);
     try {
       const result = await confirm.mutateAsync({
@@ -34,9 +46,12 @@ export function usePaymentConfirm<T>(
           amount,
         },
       });
-      setData(await handler.current(result));
+      setData(await onConfirmedForAttempt(result, orderId));
       setConfirmed(true);
-    } catch {
+    } catch (error) {
+      if (isTerminalPaymentFailure(error)) {
+        onTerminalFailureForAttempt?.(error, orderId);
+      }
       setFailed(true);
     }
   }, [amount, confirm, orderId, paymentKey, valid]);
@@ -55,4 +70,15 @@ export function usePaymentConfirm<T>(
     isPending: confirm.isPending,
     retry,
   };
+}
+
+export function isTerminalPaymentFailure(error: unknown) {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  const code = String((error as { code: unknown }).code);
+  return (
+    code === "not_payable" ||
+    code === "not_found" ||
+    code === "forbidden" ||
+    code === "ownership_conflict"
+  );
 }

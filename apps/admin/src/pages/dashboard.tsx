@@ -47,8 +47,12 @@ const CAPABILITY_LABELS = {
   gcs: "GCS 비공개 이미지",
   gcs_assets: "GCS 공개 에셋",
   solapi: "Solapi 알림",
+  worker: "이미지 생성 Worker",
   finalize_tasks: "Finalize 작업 큐",
   batch_auth: "배치 OIDC 인증",
+  oauth_google: "Google OAuth",
+  oauth_kakao: "Kakao OAuth",
+  auth_secrets: "인증 시크릿",
   edge_proxy: "API 엣지 프록시",
 } as const;
 

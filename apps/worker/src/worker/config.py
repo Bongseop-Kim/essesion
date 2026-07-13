@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     service_mode: Literal["all", "generate", "finalize"] = "all"
     database_url: str = "postgresql+asyncpg://essesion:essesion@localhost:5432/essesion"
     gcs_bucket: str = ""
+    db_pool_size: int = Field(default=2, ge=1, le=20)
+    db_max_overflow: int = Field(default=0, ge=0, le=20)
+    db_pool_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
 
     engine_version: str = "0.1.0"
     registry_version: str = "0.1.0"

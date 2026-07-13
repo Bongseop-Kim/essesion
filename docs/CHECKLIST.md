@@ -18,34 +18,36 @@
 - [x] 모노레포 스캐폴드: pnpm workspace(+catalogs) + Turborepo, uv workspace(apps/api·worker), mise 툴체인 핀
 - [x] 디렉토리 뼈대: `apps/{store,admin,api,worker}`, `packages/{api-client,shared,tsconfig}`, `db/`, `infra/`
 - [x] 로컬: docker compose(Postgres + pgvector)
-- [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 3종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
-- [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *프록시 워커와 비로컬 API 전역 exact-secret 경계(`/healthz`·`/readyz`·OIDC `/batch/*`만 면제), readiness `edge_proxy`는 구현 완료. **첫 API 배포 전에** `api.essesion.shop` route·secret·WAF를 선개통하고, 5단계에는 app/admin route만 잇는다 (`infra/cloudflare/README.md`, `docs/OPERATOR-CHECKLIST.md` §A4·C).*
-- [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 검증 — *PR 코드는 외부 credential·런타임 SA 없이 build/test만 수행한다. main 배포는 동일 SHA의 CI 성공 후에만 실행하며, 수동 실행도 main ref로 제한하고 프론트 production env 누락과 localhost/example API 혼입을 차단한다.*
+- [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 4종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
+- [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *프록시 워커와 비로컬 API 전역 exact-secret 경계(`/healthz`·OIDC `/batch/*`만 면제, `/readyz`는 공개 프록시로만 확인), 고정 route·workflow 주입/validation·`PUBLIC_API_ORIGIN` OAuth callback은 구현 완료. **첫 API 배포 전에** `api.essesion.shop` secret·WAF를 선개통하고, 5단계에는 app/admin route만 잇는다 (`infra/cloudflare/README.md`, `docs/OPERATOR-CHECKLIST.md` §A4·C).*
+- [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 검증 — *PR 코드는 외부 credential·런타임 SA 없이 build/test만 수행한다. main 배포는 동일 SHA의 push CI 성공 `workflow_run`으로만 실행하고 환경 단일 큐에서 진행 중 배포를 취소하지 않는다. 프론트 production env 누락과 localhost/example API 혼입도 차단한다.*
 - [x] 2026-07 전체 리팩터링 감사 — *API/DB·worker·store/admin/shared·CI/IaC의 경합, 입력 상한, 신뢰 경계와 공급망을 교차 검토하고 고위험 항목을 회귀 테스트와 함께 반영했다. 결과와 이연 근거는 `docs/reviews/repo-refactor-2026-07.md`.*
 - [x] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
 - [x] Renovate 설정(묶음 PR) — *레포에 Renovate GitHub App 설치 필요*
 - [x] Aside 브라우저 확인 하네스 — *프로젝트 MCP(`.mcp.json`) + `.claude/skills/aside-browser/SKILL.md`, CLI 로그인·MCP 등록 확인*
 - [ ] GCP 예산 알림 1개 + uptime check 1개 — *tofu에 포함, **4단계 apply 시 함께 생성***
-- [ ] Sentry 프로젝트(api·worker·store) 연결, JSON 구조화 로깅 + request_id 전파 골격 — *서버 골격(`libs/obs`)과 store 선택적 초기화·민감정보 제거·request_id 태깅 완료, DSN이 없으면 no-op. **4단계 착수 시**: Sentry 프로젝트 생성·DSN 주입*
-- [ ] Secret Manager에 기존 env 배치 — *시크릿 컨테이너는 tofu 소유. **4단계 apply 후** `infra/README.md`의 gcloud 명령으로 값 주입 — 그전까지 로컬 `.env`*
+- [ ] Sentry 프로젝트(api·worker·store) 연결, JSON 구조화 로깅 + request_id 전파 골격 — *서버 골격(`libs/obs`)과 store 선택적 초기화·민감정보 제거·request_id 태깅 완료, DSN이 없으면 no-op. **4단계 전체 apply 전** 프로젝트 3개를 만들고 api/worker DSN은 Secret Manager, store DSN은 GitHub build-time 변수로 주입*
+- [ ] Secret Manager에 기존 env 배치 — *시크릿 컨테이너는 tofu 소유. **4단계 target apply 후·전체 apply 전** provider 값을 주입하고 jwt/session/edge secret은 환경별로 새로 생성 — 그전까지 로컬 `.env`*
 
 ## 2. 스키마 재설계
 
 - [x] 기존 스키마 전수 검토(YeongSeon `supabase/schemas`) — *enum·뷰 19종·DB함수 ~40종·트리거 17종·부분 인덱스까지 대조*
 - [x] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로 — *33테이블, `db/src/db/models/`*
 - [x] **기존→새 스키마 매핑 표 작성** — `db/MAPPING.md` (테이블·함수/트리거 소유 이동·이관 정책)
-- [x] Alembic 첫 리비전 생성 → 스테이징 적용 — *베이스라인 리비전 생성·로컬 적용·`alembic check` 드리프트 0. 스테이징 적용은 4단계 tofu apply 후*
+- [x] Alembic 첫 리비전 생성·로컬 적용 — *베이스라인 리비전 생성, 로컬 upgrade와 `alembic check` 드리프트 0*
+- [ ] Alembic 스테이징 적용 — *4단계 첫 배포의 migrate Cloud Run job 성공과 단일 head를 확인한 뒤 체크*
 - [x] 데이터 변환 스크립트 초안(상품·단가·모티프 등 — 유저·이미지 제외) — *`db/scripts/migrate_data.py`, 유저 종속은 3단계 유저 매칭 확정 후 스텁 해제*
 
 ## 3. api 1차
 
 - [x] Auth 골격: JWT(access 단명 + refresh 회전), argon2id — *refresh는 불투명 토큰 sha256 저장, 재사용 감지 시 전체 무효화*
 - [x] id/pw 로그인 — 공개 가입 없음, 계정은 시드/관리자 생성만 — *`apps/api/scripts/seed.py`*
-- [x] 소셜 OAuth(Authlib): Google → Kakao → Apple → Naver 순 — *Google·Kakao 완료(사용자 지정), Apple·Naver는 준비물 도착 후 oauth.py에 등록만 추가*
+- [x] 소셜 OAuth(Authlib): Google·Kakao — *provider 검증 이메일만 연결, 공개 Cloudflare callback origin 고정*
+- [ ] 소셜 OAuth(Authlib): Apple·Naver — *계정·키·앱 준비물은 확보했으나 provider 등록과 callback/E2E는 미구현*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
-- [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm + ALREADY_PROCESSED 조회 복구 + `/payments/webhook` 조회 재검증 대사(money.md §9). CANCELED 토큰 회수는 USER advisory→order row 순서로 `use_tokens`와 직렬화한다. 웹훅은 스테이징 프록시 개통 후 처음부터 `api.essesion.shop`만 등록한다.*
-- [x] GCS 서명 업로드 URL 발급(ImageKit 대체) + 회원 탈퇴 + 정리 배치(Cloud Scheduler → api) — *배치 3종 `/batch/*`, 4단계에서 Scheduler OIDC 연결*
+- [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm + ALREADY_PROCESSED 조회 복구 + `/payments/webhook` 조회 재검증 대사(money.md §9). DONE 재수신도 provider/stored key·총액을 재검증하고, CANCELED는 USER advisory→order row 순서로 토큰 사용과 직렬화해 reserved 쿠폰만 복원한다. 웹훅은 스테이징 프록시 개통 후 처음부터 `api.essesion.shop`만 등록한다.*
+- [x] GCS 서명 업로드 URL 발급(ImageKit 대체) + 회원 탈퇴 + 정리 배치(Cloud Scheduler → api) — *배치 4종 `/batch/*`, 4단계에서 Scheduler OIDC 연결*
 - [x] OpenAPI 스펙 확정 → api-client 코드젠(Hey API + TanStack Query + zod) → **CI 드리프트 검사** — *`pnpm codegen`, ci.yml codegen-drift 잡*
 - [x] schemathesis CI 스텝 — *pytest 통합(tests/test_contract.py) — CI py 잡에 포함*
 
@@ -58,9 +60,9 @@
 - [x] 리팩토링(원본 대조 점검 후속): config 검증·defusedxml·resolver 가드·어댑터 수명·stripe 정규화·/export 배선·프리뷰 병렬화·render/weave 분리 — *스펙 `docs/specs/worker-refactor.md`(R1~R15 완료, glyph·이미지 경로 등은 5단계 트랙), 실행 기록 `docs/plans/worker-refactor.md`*
 - [x] 전체 감사 후 worker 실행 경계 하드닝 — *finalize 960초 lease+attempt 조건부 terminal update(실 Postgres 통합 테스트), `FINALIZE_TEMPORARY_FAILURE`만 lease 후 재실행하고 invalid/unknown 오류는 terminal 처리, 공개 오류 코드로 raw 예외 노출 차단, motif read savepoint로 앞선 미커밋 upsert 보존, generate/finalize `SERVICE_MODE` 라우터·OIDC audience 분리, Cloud Tasks audience·910초 dispatch deadline 정합화, path/lattice/scatter/stripe 반복량 사전 상한, Poisson 공간 격자, 래스터 20M pixel·120초 timeout, preview/Cloud Run 동시성 제한, Recraft strict base64/바이트 상한(URL 2차 요청 제거).*
 - [x] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *모티프는 요청 스코프 MotifCatalog(DB 조회 → 엔진 명시 인자, 전역 registry는 테스트 폴백만). finalize·recraft 예산 둘 다 세션 행 조건부 UPDATE(+실패/reused 보상). freeze 캐시는 content-hash upsert로 대체*
-- [x] GCS 연결(content-hash 키 + upsert) — *worker object store(DryRun/GCS) + fabric content-hash key + preview upload key 구현*
+- [x] GCS 연결(content-hash 키 + create-only) — *fabric은 content-hash key, preview는 request/candidate/content-hash key로 `if_generation_match=0` 업로드. 동일 객체 412만 멱등 성공이며 preview 업로드 장애는 key null+경고로 격하*
 - [ ] 두 서비스 배포: worker-generate(동기 OIDC, 1vCPU/1GB) + worker-finalize(Cloud Tasks 푸시, 2vCPU/4GB, 동시성 1~2, dpi 상한 600) — *tofu에 서비스 구성·env/시크릿 결선·deploy.yml까지 완료 — **남은 것은 스테이징 개통 실행뿐**: `infra/README.md` 순서(2단계 apply·시크릿→`api.essesion.shop` 프록시 선개통→GitHub vars→main 푸시)*
-- [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링/SSE), 세션 상태는 api 소유 — *Cloud Tasks는 job id 기반 결정적 task name, 동일 이름/409 성공 수렴, OIDC audience로 ambiguous enqueue를 멱등 재시도한다. worker가 이미 queued job을 claim한 경우 최신 job을 반환하고, 보상이 확정된 failed job에 늦게 도착한 task는 실행하지 않는다. design 수치는 NaN/Infinity를 거부하고 session/generate/motif seed는 signed-int64로 제한한다. generate 과금은 선차감·실패 환불. SSE는 미구현.*
+- [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링), 세션 상태는 api 소유 — *Cloud Tasks는 job id 기반 결정적 task name, 동일 이름/409 성공 수렴, OIDC audience로 ambiguous enqueue를 멱등 재시도한다. worker가 이미 queued job을 claim한 경우 최신 job을 반환하고, 보상이 확정된 failed job에 늦게 도착한 task는 실행하지 않는다. design 수치는 NaN/Infinity를 거부하고 session/generate/motif seed는 signed-int64로 제한한다. generate 과금은 선차감·실패 환불.*
 
 ## 5. 프론트
 
@@ -81,11 +83,11 @@
 - [x] cart 빈 상태 라우팅 회귀 수정 — 빈 선택 상태의 참조를 보존해 무한 재렌더와 URL만 바뀌는 페이지 이동 정지 방지, 선택 동기화 단위 테스트 추가
 - [x] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — 대화형 세션·생성/변형·후보 선택·SVG 미리보기·내보내기·finalize 작업 복구·완성 디자인 주문 첨부, 토큰 과금/실패 환불과 워커 응답 계약, 모바일/데스크톱 UI 및 api-client 동기화 완료 (`docs/plans/store-design.md`). **이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [x] admin 재작성 개발 플랜 — 기존 25개 라우트 inventory, API 선행 계약, 수직 슬라이스·검증 기준과 추가 보안·동시성·운영 복구·접근성 검토 반영 (`docs/plans/admin-rewrite.md`)
-- [x] admin 재작성 — 기존 라우트 기준 (`docs/plans/admin-rewrite.md`) — *A~J 구현 완료. 최종 codegen drift 0, Python 535건·shared 45건·store 114건·admin 78건, repo lint/build/typecheck, 실제 PostgreSQL Playwright admin smoke 통과. Aside에서 1440/390/767/768/1024px·200% zoom, 대표 mutation·focus·reduced motion·ScrollFog·탭 간 logout 검증. 실제 GCP·Cloudflare 개통과 capability `real` 확인은 별도 배포 항목으로 인계.*
+- [x] admin 재작성 — 기존 라우트 기준 (`docs/plans/admin-rewrite.md`) — *A~J 구현 완료. 최신 전체 gate는 OpenAPI 128 paths drift 0, Python 651건(+147 subtests)·shared 49건·store 162건·admin 100건, repo lint/build/typecheck와 실제 PostgreSQL Playwright admin smoke 통과. Aside에서 1440/390/767/768/1024px·200% zoom, 대표 mutation·focus·reduced motion·ScrollFog·탭 간 logout 검증. 실제 GCP·Cloudflare 개통과 capability `real` 확인은 별도 배포 항목으로 인계.*
 - [x] admin 검토 후 개선 — *편집 기준 revision 고정, 범위 밖 page URL 교정, invalid submit 첫 오류 focus, 동일 제목 라우트 focus, terminal/hidden polling 중단, dev port 3001 정합화 및 회귀 테스트.*
 - [x] admin/store 통합 개선 — *store refresh 단일 조정자·탭 간 세션 동기화, 라우트 오류/404/Sentry 골격, skip link·캐러셀 접근성, 홈 이미지 WebP srcset·폰트 subset(정적 자산 약 90% 절감), 수선 업로드 staging 검증, 쿠폰 대상 수 expected_count 동시성 가드, production env fail-fast와 CI 성공 SHA 배포 게이트 적용.*
 - [x] 전체 감사 후 store/admin/shared 안정화 — *장바구니 replace·guest 동기화를 세션별 직렬 큐와 명시적 bearer에 묶어 계정 전환 오염을 차단하고, 토큰 revision별 `getMe` 재검증으로 same-account 회전은 캐시를 보존하되 cross-account 회전은 loading 경계에서 사용자를 교체. 디자인 생성·재시도·선택 operation epoch와 pending marker 소유권, custom quote debounced 유효성, ImageFrame 소스별 실패 상태, ScrollFog 자식 resize 관찰을 회귀 테스트로 고정. admin 상세 이미지는 `{upload_id}`/`{legacy_url}` 명시 ref와 `{url, upload_id}` 응답으로 순서·legacy 보존/삭제를 안전하게 재설계.*
-- [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler) — *API proxy는 첫 비로컬 API 배포 전에 별도 선개통, 이 단계는 app/admin route 연결. api min-instances=1 설정 포함.*
+- [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler) — *API proxy는 첫 비로컬 API 배포 전에 별도 선개통, app/admin 고정 custom-domain route는 설정 완료. 실제 배포·DNS 확인이 남음. api `min-instances=1`은 프로덕션 OpenTofu 변수로 별도 적용.*
 - [x] Playwright 스모크 1줄기: 로그인 → 장바구니 → 주문 → 결제 — *실제 API + PostgreSQL seed, 브라우저에서는 결정적 Toss 로컬 어댑터, API는 DryRun confirm으로 멱등 재호출과 장바구니 정리까지 검증. 실제 Toss sandbox는 스테이징 자격 증명 주입 후 리허설에서 별도 확인.*
 - [x] Playwright admin 스모크: 관리자 로그인 → 보호 목록/상세 → 대표 상태 변경 → 로그아웃 (실제 API + PostgreSQL seed) — *`e2e/admin-smoke.spec.ts`·CI 연결과 최종 스키마/codegen 상태의 로컬 실행 1건 통과*
 
@@ -95,6 +97,8 @@
 - [ ] 이미지 수동 재등록
 - [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(generate → finalize 큐 → 결과 수신)
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정
+- [ ] 회원 탈퇴 후 역사성 개인정보 필드별 보존 목적·기간·접근 통제·분리 저장·만료 시 익명화/삭제 정책을 privacy owner·법률 검토자가 승인
+- [ ] 주문/클레임/견적/문의/수선/이미지/디자인 job·관리자 로그 샘플로 purge·익명화 배치와 복구 불가성을 검증
 
 ## 7. 컷오버
 
@@ -103,4 +107,5 @@
 - [ ] 쓰기 동결 공지 → 최종 데이터 이관 → 매핑 표 검증
 - [ ] DNS 전환 + 전원 재로그인 공지
 - [ ] 롤백 절차 문서화(DNS 원복 — 동결 해제 전까지 데이터 무손실)
+- [ ] 역사성 개인정보 보존·익명화 정책과 자동 배치가 승인·검증됐는지 production gate에서 재확인
 - [ ] 안정화 확인 후 Supabase 프로젝트 해지

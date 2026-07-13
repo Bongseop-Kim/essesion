@@ -503,6 +503,7 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
         ok=True,
         status=200,
         body={
+            "paymentKey": payment_key,
             "status": "DONE",
             "orderId": str(order.payment_group_id),
             "totalAmount": 12000,
@@ -603,6 +604,143 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
         )
         == 0
     )
+
+
+@pytest.mark.parametrize(
+    ("incident_type", "provider_status", "payment_fields", "observed_amount"),
+    [
+        (
+            "partial_cancel",
+            "PARTIAL_CANCELED",
+            {"balanceAmount": 9000, "cancels": [{"cancelAmount": 3000}]},
+            3000,
+        ),
+    ],
+)
+async def test_manual_payment_incident_can_resolve_after_fresh_provider_evidence(
+    app,
+    client,
+    db_session,
+    settings,
+    incident_type,
+    provider_status,
+    payment_fields,
+    observed_amount,
+):
+    admin = await make_admin(db_session)
+    customer = await make_user(db_session)
+    order = await make_order(db_session, customer, status="진행중", total_price=12000)
+    order.payment_key = f"manual-{incident_type}-key"
+    incident = PaymentIncident(
+        operation_id=str(uuid.uuid4()),
+        incident_type=incident_type,
+        status="open",
+        request_id="req-manual-incident",
+        order_id=order.id,
+        expected_amount=order.total_price,
+        observed_amount=observed_amount,
+        details={"phase": "webhook_manual_review", "provider_status": provider_status},
+    )
+    db_session.add(incident)
+    await db_session.commit()
+
+    toss = _ScriptedToss()
+    payment_key = order.payment_key
+    assert payment_key is not None
+    toss.lookups[payment_key] = TossResult(
+        ok=True,
+        status=200,
+        body={
+            "paymentKey": payment_key,
+            "status": provider_status,
+            "orderId": str(order.payment_group_id),
+            "totalAmount": order.total_price,
+            **payment_fields,
+        },
+    )
+    old_toss = app.state.toss
+    app.state.toss = toss
+    try:
+        reconciled = await client.post(
+            f"/admin/payment-incidents/{incident.id}/reconcile",
+            headers=auth_headers(admin, settings),
+        )
+    finally:
+        app.state.toss = old_toss
+
+    assert reconciled.status_code == 200, reconciled.text
+    evidence = reconciled.json()["details"]["reconciliation"]
+    assert evidence["domain_consistent"] is False
+    assert evidence["manual_resolution_allowed"] is True
+    assert evidence["amount_matches"] is True
+    assert reconciled.json()["observed_amount"] == observed_amount
+    resolve_action = next(
+        action for action in reconciled.json()["admin_actions"] if action["kind"] == "resolve"
+    )
+    assert resolve_action["enabled"] is True
+
+    resolved = await client.post(
+        f"/admin/payment-incidents/{incident.id}/resolve",
+        json={"operation_id": str(uuid.uuid4()), "memo": "Toss 증거 확인 후 수동 조치 완료"},
+        headers=auth_headers(admin, settings),
+    )
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["status"] == "resolved"
+
+
+async def test_manual_partial_cancel_rejects_unverified_amount(app, client, db_session, settings):
+    admin = await make_admin(db_session)
+    customer = await make_user(db_session)
+    order = await make_order(db_session, customer, status="진행중", total_price=12000)
+    order.payment_key = "manual-partial-invalid-amount"
+    incident = PaymentIncident(
+        operation_id=str(uuid.uuid4()),
+        incident_type="partial_cancel",
+        status="open",
+        request_id="req-manual-amount",
+        order_id=order.id,
+        expected_amount=order.total_price,
+        details={"provider_status": "PARTIAL_CANCELED"},
+    )
+    db_session.add(incident)
+    await db_session.commit()
+
+    toss = _ScriptedToss()
+    payment_key = order.payment_key
+    assert payment_key is not None
+    toss.lookups[payment_key] = TossResult(
+        ok=True,
+        status=200,
+        body={
+            "paymentKey": payment_key,
+            "status": "PARTIAL_CANCELED",
+            "orderId": str(order.payment_group_id),
+            "totalAmount": order.total_price + 1,
+            "balanceAmount": 9001,
+            "cancels": [{"cancelAmount": 3000}],
+        },
+    )
+    old_toss = app.state.toss
+    app.state.toss = toss
+    try:
+        reconciled = await client.post(
+            f"/admin/payment-incidents/{incident.id}/reconcile",
+            headers=auth_headers(admin, settings),
+        )
+    finally:
+        app.state.toss = old_toss
+
+    assert reconciled.status_code == 200
+    evidence = reconciled.json()["details"]["reconciliation"]
+    assert evidence["amount_matches"] is False
+    assert evidence["manual_resolution_allowed"] is False
+    blocked = await client.post(
+        f"/admin/payment-incidents/{incident.id}/resolve",
+        json={"operation_id": str(uuid.uuid4()), "memo": "검증 없이 닫기"},
+        headers=auth_headers(admin, settings),
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "reconciliation_required"
 
 
 async def test_ambiguous_money_operations_create_incidents_and_block_blind_retry(
@@ -749,6 +887,7 @@ async def test_ambiguous_money_operations_create_incidents_and_block_blind_retry
         ok=True,
         status=200,
         body={
+            "paymentKey": refund_order.payment_key,
             "status": "CANCELED",
             "orderId": str(refund_order.payment_group_id),
             "totalAmount": refund_order.total_price,

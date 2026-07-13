@@ -26,6 +26,7 @@ from pydantic_settings import SettingsConfigDict
 
 class _TestSettings(Settings):
     model_config = SettingsConfigDict(env_file=None)
+    public_api_origin: str = "https://api.essesion.shop"
 
 
 def test_auth_rate_limiter_expires_and_bounds_keys():
@@ -143,7 +144,13 @@ def test_request_id_context_security_headers_and_unhandled_error():
 
 
 def test_nonlocal_missing_toss_and_gcs_are_unavailable_and_not_ready():
-    settings = _TestSettings(env="staging", toss_secret_key="", gcs_upload_bucket="")
+    settings = _TestSettings(
+        env="staging",
+        database_url="postgresql+asyncpg://essesion:essesion@127.0.0.1:1/essesion",
+        edge_proxy_secret="edge-test-secret",
+        toss_secret_key="",
+        gcs_upload_bucket="",
+    )
     toss = build_toss_client(settings)
     gcs = build_gcs_client(settings)
     solapi = build_solapi_client(settings)
@@ -166,11 +173,19 @@ def test_nonlocal_missing_toss_and_gcs_are_unavailable_and_not_ready():
 
     application = create_app(settings)
     with TestClient(application) as client:
-        ready = client.get("/readyz", headers={"X-Request-ID": "ready-rid"})
+        direct_ready = client.get("/readyz")
+        ready = client.get(
+            "/readyz",
+            headers={
+                "X-Request-ID": "ready-rid",
+                "X-Essesion-Edge-Secret": "edge-test-secret",
+            },
+        )
         health = client.get("/healthz")
         batch = client.post("/batch/cancel-stale-orders")
         ordinary = client.post("/auth/login", json={})
     assert ready.status_code == 503
+    assert direct_ready.status_code == 403
     assert ready.json() == {
         "status": "not_ready",
         "capabilities": {
@@ -178,15 +193,20 @@ def test_nonlocal_missing_toss_and_gcs_are_unavailable_and_not_ready():
             "gcs": "unavailable",
             "gcs_assets": "unavailable",
             "solapi": "unavailable",
+            "worker": "unavailable",
             "finalize_tasks": "unavailable",
             "batch_auth": "unavailable",
-            "edge_proxy": "unavailable",
+            "oauth_google": "unavailable",
+            "oauth_kakao": "unavailable",
+            "auth_secrets": "unavailable",
+            "edge_proxy": "ready",
+            "database": "unavailable",
         },
     }
     assert ready.headers["x-request-id"] == "ready-rid"
     assert health.status_code == 200
     assert batch.status_code == 503
-    assert ordinary.status_code == 503
+    assert ordinary.status_code == 403
 
 
 def test_local_missing_toss_and_gcs_remain_dry_run_ready():
@@ -199,9 +219,14 @@ def test_local_missing_toss_and_gcs_remain_dry_run_ready():
         "gcs": "dry_run",
         "gcs_assets": "dry_run",
         "solapi": "dry_run",
+        "worker": "local",
         "finalize_tasks": "dry_run",
         "batch_auth": "shared_secret",
+        "oauth_google": "optional",
+        "oauth_kakao": "optional",
+        "auth_secrets": "bypassed",
         "edge_proxy": "bypassed",
+        "database": "bypassed",
     }
 
 

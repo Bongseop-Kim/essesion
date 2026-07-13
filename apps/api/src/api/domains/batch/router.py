@@ -3,10 +3,16 @@
 from datetime import UTC, datetime, timedelta
 
 from db.models.commerce import Claim, Order
+from db.models.design import (
+    FINALIZE_STALE_MESSAGE,
+    FINALIZE_TEMPORARY_FAILURE_MARKER,
+    DesignSession,
+    GenerationJob,
+)
 from db.models.images import Image
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
-from sqlalchemy import and_, exists, func, not_, or_, select
+from sqlalchemy import and_, exists, func, not_, or_, select, update
 
 from api.db import SessionDep
 from api.deps import BatchAuth
@@ -20,6 +26,13 @@ STALE_PENDING_AFTER = timedelta(minutes=30)
 CLEANUP_BATCH_SIZE = 100
 CLEANUP_RETRY_AFTER = timedelta(minutes=5)
 ORDER_BATCH_SIZE = 500
+GENERATION_JOB_BATCH_SIZE = 100
+# Cloud Tasks 최대 4회가 각 910초 deadline을 소진한 최악의 장기 실패까지 기다린 뒤,
+# 남은 DB 상태를 다음 배치에서 회수한다.
+STALE_GENERATION_JOB_AFTER = timedelta(minutes=75)
+# worker finalize lease(960초)와 동일하게 최근 processing claim은 보호한다.
+# 생성 TTL은 계속 진행되므로 transient 실패가 회수 시계를 리셋하지 않는다.
+ACTIVE_GENERATION_JOB_LEASE = timedelta(seconds=960)
 
 
 class BatchResult(BaseModel):
@@ -81,6 +94,50 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
     await restore_reserved_order_coupons(session, orders)
     await session.commit()
     return BatchResult(processed=len(orders))
+
+
+@router.post("/reconcile-stale-generation-jobs", response_model=BatchResult)
+async def reconcile_stale_generation_jobs(session: SessionDep) -> BatchResult:
+    """Cloud Tasks 재시도 창을 넘긴 finalize job을 종료하고 세션 예산을 복구한다."""
+    now = datetime.now(UTC)
+    cutoff = now - STALE_GENERATION_JOB_AFTER
+    active_lease_cutoff = now - ACTIVE_GENERATION_JOB_LEASE
+    jobs = (
+        await session.scalars(
+            select(GenerationJob)
+            .where(
+                GenerationJob.kind == "finalize",
+                GenerationJob.created_at < cutoff,
+                or_(
+                    GenerationJob.status == "queued",
+                    and_(
+                        GenerationJob.status == "processing",
+                        GenerationJob.updated_at < active_lease_cutoff,
+                    ),
+                    and_(
+                        GenerationJob.status == "failed",
+                        GenerationJob.error_message == FINALIZE_TEMPORARY_FAILURE_MARKER,
+                    ),
+                ),
+            )
+            .order_by(GenerationJob.created_at, GenerationJob.id)
+            .limit(GENERATION_JOB_BATCH_SIZE)
+            .with_for_update(skip_locked=True)
+        )
+    ).all()
+
+    for job in jobs:
+        job.status = "failed"
+        job.result = None
+        job.error_message = FINALIZE_STALE_MESSAGE
+        if job.session_id is not None:
+            await session.execute(
+                update(DesignSession)
+                .where(DesignSession.id == job.session_id)
+                .values(finalize_used=func.greatest(DesignSession.finalize_used - 1, 0))
+            )
+    await session.commit()
+    return BatchResult(processed=len(jobs))
 
 
 @router.post("/cleanup-images", response_model=BatchResult)

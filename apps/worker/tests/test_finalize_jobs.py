@@ -1,10 +1,13 @@
 import logging
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from db.models.auth import User
 from db.models.design import FINALIZE_DISPATCH_FAILED_MESSAGE, GenerationJob
 from worker.api import routes
+from worker.engine.validate import IntentInvalid
+from worker.render.raster import RasterLimitError
 
 
 async def _job(
@@ -106,7 +109,8 @@ async def test_finalize_task_rejects_non_finalize_job(client, db_session):
 
     response = await client.post("/tasks/finalize", json={"job_id": str(job.id)})
 
-    assert response.status_code == 409
+    assert response.status_code == 200
+    assert response.json() == {"status": "ignored", "reason": "job_kind_is_not_finalize"}
     await db_session.refresh(job)
     assert job.status == "queued"
     assert job.attempts == 0
@@ -123,8 +127,8 @@ async def test_late_task_cannot_run_dispatch_failed_refunded_job(client, db_sess
 
     response = await client.post("/tasks/finalize", json={"job_id": str(job.id)})
 
-    assert response.status_code == 409
-    assert response.json()["detail"] == "job dispatch was canceled"
+    assert response.status_code == 200
+    assert response.json() == {"status": "canceled"}
     await db_session.refresh(job)
     assert job.status == "failed"
     assert job.attempts == 0
@@ -155,12 +159,20 @@ async def test_permanent_or_unknown_failed_job_is_terminal(
     monkeypatch.setattr(routes, "render_fabric", unexpected_render)
     response = await client.post("/tasks/finalize", json={"job_id": str(job.id)})
 
-    assert response.status_code == 409
-    assert response.json()["detail"] == "job failure is terminal"
+    assert response.status_code == 200
+    assert response.json() == {"status": "failed"}
     await db_session.refresh(job)
     assert job.status == "failed"
     assert job.attempts == 1
     assert job.error_message == error_message
+
+
+@pytest.mark.anyio
+async def test_missing_finalize_job_is_acknowledged_without_retry(client):
+    response = await client.post("/tasks/finalize", json={"job_id": str(uuid.uuid4())})
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ignored", "reason": "job_not_found"}
 
 
 @pytest.mark.anyio
@@ -215,6 +227,36 @@ async def test_finalize_invalid_input_exposes_only_stable_public_error(
     assert error_message is not None
     assert secret not in error_message
     assert secret in caplog.text
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        IntentInvalid(["invalid intent"]),
+        RasterLimitError("raster area exceeds limit"),
+    ],
+)
+@pytest.mark.anyio
+async def test_finalize_deterministic_render_errors_are_terminal(
+    client, db_session, monkeypatch, error
+):
+    job = await _job(db_session, status="queued", attempts=0)
+
+    def _fail(_params, _settings):
+        raise error
+
+    monkeypatch.setattr(routes, "render_fabric", _fail)
+
+    response = await client.post("/tasks/finalize", json={"job_id": str(job.id)})
+
+    assert response.status_code == 200
+    assert response.json()["error"]["code"] == routes.FINALIZE_INVALID_INPUT_CODE
+    await db_session.refresh(job)
+    assert job.status == "failed"
+    assert job.attempts == 1
+    assert job.error_message == (
+        f"{routes.FINALIZE_INVALID_INPUT_CODE}: {routes.FINALIZE_INVALID_INPUT_MESSAGE}"
+    )
 
 
 @pytest.mark.anyio

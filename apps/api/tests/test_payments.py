@@ -1,6 +1,7 @@
 """결제 확정 — lock → Toss(respx) → confirm/unlock 멱등 (docs/api-spec/money.md §5)."""
 
 import asyncio
+import uuid
 
 import respx
 from api.domains.auth.rate_limit import AuthRateLimiter
@@ -15,6 +16,7 @@ from sqlalchemy import func, select
 from .factories import (
     auth_headers,
     make_address,
+    make_admin,
     make_coupon,
     make_order,
     make_product,
@@ -84,6 +86,66 @@ async def test_confirm_success_and_idempotency(client, db_session, settings):
     again = await client.post("/payments/confirm", json=body, headers=auth_headers(user, settings))
     assert again.status_code == 200
     assert route.call_count == 1
+
+    wrong_key = await client.post(
+        "/payments/confirm",
+        json={**body, "payment_key": "different-key-abcdefgh"},
+        headers=auth_headers(user, settings),
+    )
+    assert wrong_key.status_code == 409
+    assert wrong_key.json()["code"] == "payment_key_mismatch"
+
+    wrong_amount = await client.post(
+        "/payments/confirm",
+        json={**body, "amount": body["amount"] + 1},
+        headers=auth_headers(user, settings),
+    )
+    assert wrong_amount.status_code == 400
+    assert wrong_amount.json()["code"] == "amount_mismatch"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_confirm_rejects_mixed_group_before_mutating_orders(client, db_session, settings):
+    """일부만 결제후 상태인 그룹은 성공으로 오인하거나 나머지를 결제중으로 변경하지 않는다."""
+    from sqlalchemy import update as sa_update
+
+    user = await make_user(db_session)
+    first = await _create_sale_order(client, db_session, settings, user)
+    second = await _create_sale_order(client, db_session, settings, user)
+    first_id = uuid.UUID(first["orders"][0]["order_id"])
+    second_id = uuid.UUID(second["orders"][0]["order_id"])
+    group_id = uuid.UUID(first["payment_group_id"])
+    await db_session.execute(
+        sa_update(Order)
+        .where(Order.id == first_id)
+        .values(status="진행중", payment_key="existing-key-abcdefgh")
+    )
+    await db_session.execute(
+        sa_update(Order).where(Order.id == second_id).values(payment_group_id=group_id)
+    )
+    await db_session.commit()
+
+    response = await client.post(
+        "/payments/confirm",
+        json={
+            "payment_key": "new-key-abcdefgh",
+            "payment_group_id": str(group_id),
+            "amount": first["total_amount"] + second["total_amount"],
+        },
+        headers=auth_headers(user, settings),
+    )
+    assert response.status_code == 409
+    assert response.json()["code"] == "payment_reconciliation_required"
+
+    states = dict(
+        (
+            await db_session.execute(
+                select(Order.id, Order.status).where(Order.id.in_((first_id, second_id)))
+            )
+        ).all()
+    )
+    assert states == {first_id: "진행중", second_id: "대기중"}
 
 
 @respx.mock
@@ -349,6 +411,106 @@ async def test_webhook_confirms_stuck_payment(client, db_session, settings):
 
 
 @respx.mock
+async def test_webhook_done_revalidates_already_consistent_order(client, db_session):
+    """완료 주문도 조회 결제키·금액이 다르면 멱등 ACK하지 않고 incident로 남긴다."""
+    user = await make_user(db_session)
+    stored_key = "stored-done-key-12345678"
+    other_key = "other-done-key-12345678"
+    order = await make_order(
+        db_session,
+        user,
+        status="진행중",
+        total_price=12000,
+        payment_key=stored_key,
+    )
+
+    respx.get(f"{TOSS_PAYMENTS}/{other_key}").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": other_key,
+                "status": "DONE",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price,
+            },
+        )
+    )
+    wrong_key = await client.post("/payments/webhook", json={"paymentKey": other_key})
+    assert wrong_key.json()["reason"] == "payment_key_mismatch"
+
+    respx.get(f"{TOSS_PAYMENTS}/{stored_key}").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": stored_key,
+                "status": "DONE",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price + 1,
+            },
+        )
+    )
+    wrong_amount = await client.post("/payments/webhook", json={"paymentKey": stored_key})
+    assert wrong_amount.json()["reason"] == "amount_mismatch"
+
+    incidents = list(
+        await db_session.scalars(
+            select(PaymentIncident).order_by(PaymentIncident.created_at, PaymentIncident.id)
+        )
+    )
+    assert [incident.incident_type for incident in incidents] == [
+        "mixed_state",
+        "amount_mismatch",
+    ]
+    assert incidents[0].details["phase"] == "webhook_done_payment_key_mismatch"
+    assert incidents[0].details["stored_payment_keys_match_lookup"] is False
+    assert incidents[1].details["phase"] == "webhook_done_amount_mismatch"
+    await db_session.refresh(order)
+    assert order.status == "진행중" and order.payment_key == stored_key
+
+
+@respx.mock
+async def test_webhook_cancel_restores_reserved_coupon(client, db_session, settings):
+    """승인 반영 전 전액취소는 주문에 예약된 쿠폰을 다시 사용할 수 있게 한다."""
+    user = await make_user(db_session)
+    coupon = await make_coupon(db_session, discount_value=500)
+    user_coupon = await make_user_coupon(db_session, user, coupon)
+    created = await _create_sale_order(
+        client,
+        db_session,
+        settings,
+        user,
+        coupon_id=user_coupon.id,
+    )
+    payment_key = "coupon-cancel-key-12345678"
+    order = await db_session.scalar(
+        select(Order).where(Order.payment_group_id == created["payment_group_id"])
+    )
+    assert order is not None
+    order.status = "결제중"
+    order.payment_key = payment_key
+    await db_session.commit()
+
+    respx.get(f"{TOSS_PAYMENTS}/{payment_key}").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "CANCELED",
+                "orderId": created["payment_group_id"],
+                "totalAmount": created["total_amount"],
+            },
+        )
+    )
+    response = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+
+    assert response.json()["action"] == "canceled"
+    await db_session.refresh(order)
+    await db_session.refresh(user_coupon)
+    assert order.status == "취소"
+    assert user_coupon.status == "active"
+
+
+@respx.mock
 async def test_webhook_syncs_dashboard_cancel_with_token_clawback(client, db_session, settings):
     """대시보드 직접 취소 → 주문 취소 동기화 + 토큰 회수(멱등)."""
     from db.models.tokens import DesignToken
@@ -504,6 +666,7 @@ async def test_webhook_cancel_payment_key_mismatch_keeps_order_and_opens_inciden
 ):
     respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
     user = await make_user(db_session)
+    admin = await make_admin(db_session)
     created = await _create_sale_order(client, db_session, settings, user)
     headers = auth_headers(user, settings)
     await client.post(
@@ -541,6 +704,14 @@ async def test_webhook_cancel_payment_key_mismatch_keeps_order_and_opens_inciden
         )
     )
     assert len(incidents) == 1 and incidents[0].status == "open"
+    incident = incidents[0]
+    assert incident.details["lookup_payment_key"] == "old-key-12345678"
+
+    detail = await client.get(
+        f"/admin/payment-incidents/{incident.id}", headers=auth_headers(admin, settings)
+    )
+    assert detail.status_code == 200
+    assert detail.json()["details"]["lookup_payment_key"] == "[redacted]"
 
     # Toss 재전송에도 같은 불일치 incident를 중복 생성하지 않는다.
     await client.post("/payments/webhook", json={"data": {"paymentKey": "old-key-12345678"}})
@@ -550,6 +721,34 @@ async def test_webhook_cancel_payment_key_mismatch_keeps_order_and_opens_inciden
         .where(PaymentIncident.incident_type == "mixed_state")
     )
     assert count == 1
+
+    # 현재 주문 키가 아니라 사고를 만든 old key로 조회해야 대사가 가능하다.
+    reconciled = await client.post(
+        f"/admin/payment-incidents/{incident.id}/reconcile",
+        headers=auth_headers(admin, settings),
+    )
+    assert reconciled.status_code == 200, reconciled.text
+    evidence = reconciled.json()["details"]["reconciliation"]
+    assert evidence["provider_payment_key_matches"] is True
+    assert evidence["manual_resolution_allowed"] is False
+    await db_session.refresh(incident)
+    assert incident.details["lookup_payment_key"] == "old-key-12345678"
+
+    blocked = await client.post(
+        f"/admin/payment-incidents/{incident.id}/resolve",
+        json={"operation_id": str(uuid.uuid4()), "memo": "이전 결제 취소 증거 확인"},
+        headers=auth_headers(admin, settings),
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "reconciliation_required"
+    detail = await client.get(
+        f"/admin/payment-incidents/{incident.id}", headers=auth_headers(admin, settings)
+    )
+    resolve_action = next(
+        action for action in detail.json()["admin_actions"] if action["kind"] == "resolve"
+    )
+    assert resolve_action["enabled"] is False
+    assert "현재 주문 결제 키" in resolve_action["blocking_reason"]
 
 
 @respx.mock
@@ -595,6 +794,302 @@ async def test_webhook_cancel_amount_mismatch_keeps_order_and_opens_incident(
     assert incident.expected_amount == created["total_amount"]
     assert incident.observed_amount == created["total_amount"] + 1
     assert incident.details["reason"] == "amount_mismatch"
+
+
+@respx.mock
+async def test_webhook_retries_ambiguous_provider_4xx_without_caching(client):
+    for status in (400, 401, 403, 429):
+        payment_key = f"retryable-{status}-key"
+        route = respx.get(f"{TOSS_PAYMENTS}/{payment_key}").mock(
+            return_value=Response(status, json={"code": "PROVIDER_ERROR"})
+        )
+
+        first = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+        second = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+
+        assert first.status_code == second.status_code == 502
+        assert first.json()["code"] == second.json()["code"] == "upstream_error"
+        assert route.call_count == 2
+
+
+@respx.mock
+async def test_webhook_caches_explicit_provider_payment_not_found(client):
+    route = respx.get(f"{TOSS_PAYMENTS}/explicit-missing-key").mock(
+        return_value=Response(400, json={"code": "NOT_FOUND_PAYMENT"})
+    )
+
+    first = await client.post("/payments/webhook", json={"paymentKey": "explicit-missing-key"})
+    second = await client.post("/payments/webhook", json={"paymentKey": "explicit-missing-key"})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["reason"] == second.json()["reason"] == "payment_not_found"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_webhook_done_mixed_state_opens_one_incident(client, db_session, settings):
+    user = await make_user(db_session)
+    admin = await make_admin(db_session)
+    order = await make_order(db_session, user, status="대기중", total_price=12000)
+    payment_key = "done-mixed-state-key"
+    route = respx.get(f"{TOSS_PAYMENTS}/{payment_key}").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "DONE",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price,
+            },
+        )
+    )
+
+    first = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+    second = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["reason"] == second.json()["reason"] == "inconsistent_state"
+    incidents = list(
+        await db_session.scalars(
+            select(PaymentIncident).where(PaymentIncident.incident_type == "mixed_state")
+        )
+    )
+    assert len(incidents) == 1
+    assert incidents[0].order_id == order.id
+    assert incidents[0].expected_amount == order.total_price
+    assert incidents[0].observed_amount == order.total_price
+    assert incidents[0].details["phase"] == "webhook_done_mixed_state"
+    assert incidents[0].details["lookup_payment_key"] == payment_key
+    assert route.call_count == 2
+
+    # 주문에 payment_key가 없어도 incident 원인 키로 대사하고 수동 조치를 기록한다.
+    incident = incidents[0]
+    reconciled = await client.post(
+        f"/admin/payment-incidents/{incident.id}/reconcile",
+        headers=auth_headers(admin, settings),
+    )
+    assert reconciled.status_code == 200, reconciled.text
+    assert reconciled.json()["details"]["lookup_payment_key"] == "[redacted]"
+    evidence = reconciled.json()["details"]["reconciliation"]
+    assert evidence["manual_resolution_allowed"] is False
+    assert evidence["domain_consistent"] is False
+    await db_session.refresh(incident)
+    assert incident.details["lookup_payment_key"] == payment_key
+
+    blocked = await client.post(
+        f"/admin/payment-incidents/{incident.id}/resolve",
+        json={"operation_id": str(uuid.uuid4()), "memo": "혼합 상태 수동 조치 완료"},
+        headers=auth_headers(admin, settings),
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "reconciliation_required"
+    await db_session.refresh(incident)
+    assert incident.status == "open"
+
+    # 운영자가 주문 도메인을 실제 provider DONE 상태에 맞춘 뒤에만 종료 가능하다.
+    order.status = "진행중"
+    order.payment_key = payment_key
+    await db_session.commit()
+    reconciled_after_domain_fix = await client.post(
+        f"/admin/payment-incidents/{incident.id}/reconcile",
+        headers=auth_headers(admin, settings),
+    )
+    assert reconciled_after_domain_fix.status_code == 200
+    fixed_evidence = reconciled_after_domain_fix.json()["details"]["reconciliation"]
+    assert fixed_evidence["domain_consistent"] is True
+    assert fixed_evidence["apply_result"] == "already_consistent"
+
+    resolved = await client.post(
+        f"/admin/payment-incidents/{incident.id}/resolve",
+        json={"operation_id": str(uuid.uuid4()), "memo": "주문 상태 수동 교정 후 재검증"},
+        headers=auth_headers(admin, settings),
+    )
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["status"] == "resolved"
+
+
+@respx.mock
+async def test_webhook_done_amount_mismatch_opens_one_incident(client, db_session, settings):
+    user = await make_user(db_session)
+    admin = await make_admin(db_session)
+    payment_key = "done-amount-mismatch-key"
+    order = await make_order(
+        db_session,
+        user,
+        status="결제중",
+        total_price=12000,
+    )
+    route = respx.get(f"{TOSS_PAYMENTS}/{payment_key}").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "DONE",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price + 1,
+            },
+        )
+    )
+
+    first = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+    second = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["reason"] == second.json()["reason"] == "amount_mismatch"
+    incidents = list(
+        await db_session.scalars(
+            select(PaymentIncident).where(PaymentIncident.incident_type == "amount_mismatch")
+        )
+    )
+    assert len(incidents) == 1
+    assert incidents[0].order_id == order.id
+    assert incidents[0].expected_amount == order.total_price
+    assert incidents[0].observed_amount == order.total_price + 1
+    assert incidents[0].details["phase"] == "webhook_done_amount_mismatch"
+    assert incidents[0].details["lookup_payment_key"] == payment_key
+    assert order.payment_key is None
+    assert route.call_count == 2
+
+    incident = incidents[0]
+    blind_resolve = await client.post(
+        f"/admin/payment-incidents/{incident.id}/resolve",
+        json={"operation_id": str(uuid.uuid4()), "memo": "검증 없이 종료"},
+        headers=auth_headers(admin, settings),
+    )
+    assert blind_resolve.status_code == 409
+    assert blind_resolve.json()["code"] == "reconciliation_required"
+
+    # 다른 금액의 CANCELED를 반복 조회해도 최초 관측값을 덮어써 우회할 수 없다.
+    route.mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "CANCELED",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price + 2,
+            },
+        )
+    )
+    for _ in range(2):
+        rejected = await client.post(
+            f"/admin/payment-incidents/{incident.id}/reconcile",
+            headers=auth_headers(admin, settings),
+        )
+        assert rejected.status_code == 200
+        assert rejected.json()["details"]["reconciliation"]["amount_matches"] is False
+        await db_session.refresh(incident)
+        await db_session.refresh(order)
+        assert incident.observed_amount == order.total_price + 1
+        assert order.status == "결제중"
+
+    # 잘못 승인된 동일 결제가 Toss에서 전액 취소된 뒤에만 내부 주문을 취소한다.
+    route.mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "CANCELED",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price + 1,
+            },
+        )
+    )
+    reconciled = await client.post(
+        f"/admin/payment-incidents/{incident.id}/reconcile",
+        headers=auth_headers(admin, settings),
+    )
+    assert reconciled.status_code == 200, reconciled.text
+    evidence = reconciled.json()["details"]["reconciliation"]
+    assert evidence["provider_payment_key_matches"] is True
+    assert evidence["provider_status"] == "CANCELED"
+    assert evidence["amount_matches"] is True
+    assert evidence["domain_consistent"] is True
+    assert evidence["apply_result"] == "canceled"
+    assert reconciled.json()["details"]["lookup_payment_key"] == "[redacted]"
+    await db_session.refresh(order)
+    await db_session.refresh(incident)
+    assert order.status == "취소"
+    assert order.payment_key == payment_key
+    assert incident.details["lookup_payment_key"] == payment_key
+
+    resolved = await client.post(
+        f"/admin/payment-incidents/{incident.id}/resolve",
+        json={"operation_id": str(uuid.uuid4()), "memo": "Toss 전액취소 및 내부 취소 확인"},
+        headers=auth_headers(admin, settings),
+    )
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["status"] == "resolved"
+
+
+@respx.mock
+async def test_webhook_partial_cancel_opens_one_incident(client, db_session):
+    user = await make_user(db_session)
+    payment_key = "partial-cancel-key"
+    order = await make_order(
+        db_session,
+        user,
+        status="진행중",
+        total_price=12000,
+        payment_key=payment_key,
+    )
+    cancel_amounts = [3000]
+
+    def payment_lookup(_request):
+        canceled_total = sum(cancel_amounts)
+        return Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "PARTIAL_CANCELED",
+                "orderId": str(order.payment_group_id),
+                "totalAmount": order.total_price,
+                "balanceAmount": order.total_price - canceled_total,
+                "cancels": [{"cancelAmount": amount} for amount in cancel_amounts],
+            },
+        )
+
+    route = respx.get(f"{TOSS_PAYMENTS}/{payment_key}").mock(side_effect=payment_lookup)
+
+    first = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+    second = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["reason"] == second.json()["reason"] == "partial_cancel_manual"
+    incidents = list(
+        await db_session.scalars(
+            select(PaymentIncident).where(PaymentIncident.incident_type == "partial_cancel")
+        )
+    )
+    assert len(incidents) == 1
+    assert incidents[0].order_id == order.id
+    assert incidents[0].expected_amount == order.total_price
+    assert incidents[0].observed_amount == 3000
+    assert incidents[0].details["phase"] == "webhook_partial_canceled"
+    assert route.call_count == 2
+
+    # 동일 webhook 재전송은 중복 기록하지 않지만, 이후 누적 부분취소 금액이
+    # 달라지면 앞선 사고가 이미 해소됐더라도 새 관리자 사고로 남겨야 한다.
+    incidents[0].status = "resolved"
+    await db_session.commit()
+    cancel_amounts.append(2000)
+
+    third = await client.post("/payments/webhook", json={"paymentKey": payment_key})
+
+    assert third.status_code == 200
+    assert third.json()["reason"] == "partial_cancel_manual"
+    incidents = list(
+        await db_session.scalars(
+            select(PaymentIncident)
+            .where(PaymentIncident.incident_type == "partial_cancel")
+            .order_by(PaymentIncident.observed_amount)
+        )
+    )
+    assert [(incident.status, incident.observed_amount) for incident in incidents] == [
+        ("resolved", 3000),
+        ("open", 5000),
+    ]
+    assert route.call_count == 3
 
 
 @respx.mock

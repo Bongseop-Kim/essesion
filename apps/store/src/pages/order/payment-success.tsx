@@ -9,21 +9,25 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
+import { useRef } from "react";
 import { useNavigate } from "react-router";
 import { useCartActions } from "@/features/cart";
 import {
   CHECKOUT_PENDING_KEY,
   clearPendingCheckout,
+  type PendingCheckout,
   readPendingCheckout,
   usePaymentConfirm,
+  waitForSettledPaymentOwner,
 } from "@/features/checkout";
-import { CUSTOM_ORDER_DRAFT_KEY } from "@/features/custom-order";
+import { clearCustomOrderFormDraft } from "@/features/custom-order";
 import {
   isRepairShipmentDraft,
   planRepairOutcome,
   type RepairShipmentDraft,
   submitRepairShipment,
 } from "@/features/repair-shipping";
+import { useSession } from "@/shared/store/session";
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 
@@ -49,6 +53,17 @@ type RepairResultView =
 export function PaymentSuccessPage() {
   const navigate = useNavigate();
   const cartActions = useCartActions();
+  const ownerUserId = useSession((state) => state.user?.id ?? null);
+  const confirmationContext = useRef<{
+    ownerUserId: string | null;
+    value: PendingCheckout<CheckoutSnapshot> | null;
+  }>({
+    ownerUserId,
+    value: readPendingCheckout<CheckoutSnapshot>(
+      CHECKOUT_PENDING_KEY,
+      ownerUserId,
+    ),
+  });
   const {
     valid,
     confirmed,
@@ -56,48 +71,93 @@ export function PaymentSuccessPage() {
     data: repairResult,
     isPending,
     retry,
-  } = usePaymentConfirm<RepairResultView>(async (result) => {
-    const pending = readPendingCheckout<CheckoutSnapshot>(CHECKOUT_PENDING_KEY);
-    const draft = isRepairShipmentDraft(pending?.snapshot.repairShipmentDraft)
-      ? pending.snapshot.repairShipmentDraft
-      : null;
-    const plan = planRepairOutcome(result.orders, draft);
-    let view: RepairResultView = null;
-    if (plan.kind === "auto-submit") {
-      // 개선 A: 체크아웃에서 입력한 발송 정보를 자동 등록 — 실패해도 결제 완료 처리는 계속
-      try {
-        await submitRepairShipment(plan.orderId, plan.draft);
-        view = { kind: "submitted" };
-      } catch {
-        view = {
-          kind: "register-cta",
-          orderId: plan.orderId,
-          prefill: plan.draft,
-        };
+  } = usePaymentConfirm<RepairResultView>(
+    async (result, paymentGroupId) => {
+      const context = confirmationContext.current;
+      const pending =
+        context.value?.paymentGroupId === paymentGroupId ? context.value : null;
+      const initialOwnerState = await waitForSettledPaymentOwner(
+        context.ownerUserId,
+      );
+      if (initialOwnerState === "different") {
+        if (pending) {
+          if (pending.snapshot.customOrder && context.ownerUserId) {
+            clearCustomOrderFormDraft(context.ownerUserId);
+          }
+          clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
+        }
+        return null;
       }
-    } else if (plan.kind === "pickup" || plan.kind === "submitted") {
-      view = { kind: plan.kind };
-    } else if (plan.kind === "register-cta") {
-      view = { kind: "register-cta", orderId: plan.orderId, prefill: null };
-    }
-    const ids = pending?.snapshot.cartItemIds?.filter(
-      (id): id is string => typeof id === "string",
-    );
-    if (pending?.snapshot.customOrder) {
-      sessionStorage.removeItem(CUSTOM_ORDER_DRAFT_KEY);
-    }
-    if (ids?.length) {
-      try {
-        await cartActions.removeItems(ids);
-      } catch {
-        snackbar("결제는 완료됐지만 장바구니를 정리하지 못했습니다.");
+      const draft = isRepairShipmentDraft(pending?.snapshot.repairShipmentDraft)
+        ? pending.snapshot.repairShipmentDraft
+        : null;
+      const plan = planRepairOutcome(result.orders, draft);
+      let view: RepairResultView = null;
+      if (plan.kind === "auto-submit") {
+        // 개선 A: 체크아웃에서 입력한 발송 정보를 자동 등록 — 실패해도 결제 완료 처리는 계속
+        try {
+          await submitRepairShipment(plan.orderId, plan.draft);
+          view = { kind: "submitted" };
+        } catch {
+          view = {
+            kind: "register-cta",
+            orderId: plan.orderId,
+            prefill: plan.draft,
+          };
+        }
+      } else if (plan.kind === "pickup" || plan.kind === "submitted") {
+        view = { kind: plan.kind };
+      } else if (plan.kind === "register-cta") {
+        view = { kind: "register-cta", orderId: plan.orderId, prefill: null };
       }
-    }
-    // 정리 실패와 무관하게 결제 완료된 pending은 제거 — 남으면 이미 결제된
-    // paymentGroupId가 다음 결제에서 재사용된다.
-    clearPendingCheckout(CHECKOUT_PENDING_KEY);
-    return view;
-  });
+      const nextOwnerState = await waitForSettledPaymentOwner(
+        context.ownerUserId,
+      );
+      if (nextOwnerState === "different") {
+        if (pending) {
+          if (pending.snapshot.customOrder && context.ownerUserId) {
+            clearCustomOrderFormDraft(context.ownerUserId);
+          }
+          clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
+        }
+        return view;
+      }
+      const ids = pending?.snapshot.cartItemIds?.filter(
+        (id): id is string => typeof id === "string",
+      );
+      if (pending?.snapshot.customOrder) {
+        if (context.ownerUserId) clearCustomOrderFormDraft(context.ownerUserId);
+      }
+      if (ids?.length) {
+        try {
+          await cartActions.removeItems(ids);
+        } catch {
+          snackbar("결제는 완료됐지만 장바구니를 정리하지 못했습니다.");
+        }
+      }
+      // 정리 실패와 무관하게 결제 완료된 pending은 제거 — 남으면 이미 결제된
+      // paymentGroupId가 다음 결제에서 재사용된다.
+      if (pending) {
+        clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
+      }
+      return view;
+    },
+    {
+      onTerminalFailure: (_error, paymentGroupId) => {
+        const context = confirmationContext.current;
+        void waitForSettledPaymentOwner(context.ownerUserId).then(
+          (ownerState) => {
+            if (
+              ownerState === "current" &&
+              context.value?.paymentGroupId === paymentGroupId
+            ) {
+              clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
+            }
+          },
+        );
+      },
+    },
+  );
 
   if (!valid) {
     return (
@@ -144,7 +204,14 @@ export function PaymentSuccessPage() {
               <ActionButton
                 type="button"
                 variant="ghost"
-                onClick={() => returnToOrder(navigate)}
+                onClick={() =>
+                  returnToOrder(
+                    navigate,
+                    confirmationContext.current.ownerUserId === ownerUserId
+                      ? confirmationContext.current.value
+                      : null,
+                  )
+                }
               >
                 주문서로 돌아가기
               </ActionButton>
@@ -237,8 +304,10 @@ export function PaymentSuccessPage() {
   );
 }
 
-function returnToOrder(navigate: ReturnType<typeof useNavigate>) {
-  const pending = readPendingCheckout<CheckoutSnapshot>(CHECKOUT_PENDING_KEY);
+function returnToOrder(
+  navigate: ReturnType<typeof useNavigate>,
+  pending: PendingCheckout<CheckoutSnapshot> | null,
+) {
   const cartItemIds = pending?.snapshot.cartItemIds;
   navigate(pending?.snapshot.returnPath ?? "/order/order-form", {
     state: pending?.snapshot.returnState ?? { cartItemIds },

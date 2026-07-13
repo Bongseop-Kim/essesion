@@ -24,6 +24,7 @@ from api.integrations.toss import TossClient
 DEFAULT_PAGE_LIMIT = 20
 MAX_PAGE_LIMIT = 100
 RECONCILIATION_TTL = timedelta(minutes=15)
+MANUAL_RESOLUTION_TYPES = frozenset({"partial_cancel"})
 
 _SENSITIVE_KEYS = {
     "authorization",
@@ -106,12 +107,26 @@ def _reconciliation_blocker(incident: PaymentIncident) -> str | None:
         return "최근 15분 이내의 대사 결과가 필요합니다"
     if not evidence.get("provider_ok"):
         return "Toss 결제 조회가 성공하지 않았습니다"
+    if evidence.get("provider_payment_key_matches") is False:
+        return "Toss 결제 키가 사고 결제와 일치하지 않습니다"
+    if evidence.get("incident_payment_group_matches") is False:
+        return "사고 결제 그룹과 현재 주문 그룹이 일치하지 않습니다"
     if not evidence.get("provider_order_id_matches"):
         return "Toss 주문 식별자가 내부 결제 그룹과 일치하지 않습니다"
     if not evidence.get("provider_status_matches"):
         return "Toss 결제 상태가 예상 상태와 일치하지 않습니다"
     if not evidence.get("amount_matches"):
         return "Toss 금액과 예상 금액이 일치하지 않습니다"
+    details = incident.details or {}
+    if (
+        details.get("reason") == "payment_key_mismatch"
+        and details.get("stored_payment_keys_match_lookup") is False
+    ):
+        return "현재 주문 결제 키와 사고 결제 키가 달라 추가 대사가 필요합니다"
+    if incident.incident_type in MANUAL_RESOLUTION_TYPES:
+        if not evidence.get("manual_resolution_allowed"):
+            return "Toss 대사 결과를 확인한 뒤 수동 해결해야 합니다"
+        return None
     if not evidence.get("domain_consistent"):
         return str(
             evidence.get("unsupported_reason") or "도메인 상태 자동 대사가 지원되지 않습니다"
@@ -230,9 +245,18 @@ async def _related_order(session: AsyncSession, incident: PaymentIncident) -> Or
     order = await session.get(Order, order_id) if order_id is not None else None
     if order is None:
         raise ConflictError("결제 이상과 연결된 주문이 없습니다", code="missing_order")
+    return order
+
+
+def _incident_payment_key(incident: PaymentIncident, order: Order) -> str:
+    """사고를 만든 조회 키를 우선 사용하고 legacy record만 주문 키로 폴백한다."""
+
+    lookup_key = (incident.details or {}).get("lookup_payment_key")
+    if isinstance(lookup_key, str) and lookup_key:
+        return lookup_key
     if not order.payment_key:
         raise ConflictError("결제 조회 정보가 없습니다", code="missing_payment_key")
-    return order
+    return order.payment_key
 
 
 async def _expected_amount(session: AsyncSession, incident: PaymentIncident, order: Order) -> int:
@@ -256,7 +280,11 @@ async def _expected_amount(session: AsyncSession, incident: PaymentIncident, ord
 def _observed_amount(incident_type: str, payment: dict[str, Any]) -> int | None:
     if incident_type not in ("refund", "partial_cancel"):
         amount = payment.get("totalAmount")
-        return amount if isinstance(amount, int) and amount >= 0 else None
+        return (
+            amount
+            if isinstance(amount, int) and not isinstance(amount, bool) and amount >= 0
+            else None
+        )
     cancels = payment.get("cancels")
     if isinstance(cancels, list):
         amounts: list[int] = []
@@ -264,14 +292,59 @@ def _observed_amount(incident_type: str, payment: dict[str, Any]) -> int | None:
             if not isinstance(row, dict):
                 continue
             amount = row.get("cancelAmount")
-            if isinstance(amount, int):
+            if isinstance(amount, int) and not isinstance(amount, bool) and amount >= 0:
                 amounts.append(amount)
         if amounts:
             return sum(amounts)
     total, balance = payment.get("totalAmount"), payment.get("balanceAmount")
-    if isinstance(total, int) and isinstance(balance, int) and total >= balance >= 0:
+    if (
+        isinstance(total, int)
+        and not isinstance(total, bool)
+        and isinstance(balance, int)
+        and not isinstance(balance, bool)
+        and total >= balance >= 0
+    ):
         return total - balance
     return None
+
+
+def _expected_provider_statuses(incident: PaymentIncident) -> set[str]:
+    if incident.incident_type == "refund":
+        return {"CANCELED", "PARTIAL_CANCELED"}
+    if incident.incident_type == "partial_cancel":
+        return {"PARTIAL_CANCELED"}
+    if incident.incident_type == "amount_mismatch":
+        # DONE 금액 불일치는 같은 결제가 전액 취소됐다는 최신 증거가 있을 때만
+        # 내부 주문을 안전하게 취소 상태로 맞출 수 있다.
+        return {"CANCELED"}
+    if incident.incident_type == "mixed_state":
+        recorded_status = (incident.details or {}).get("provider_status")
+        if recorded_status in {"DONE", "CANCELED", "PARTIAL_CANCELED"}:
+            return {recorded_status}
+    return {"DONE"}
+
+
+def _amount_matches(
+    incident: PaymentIncident,
+    payment: dict[str, Any],
+    *,
+    expected_amount: int,
+    observed_amount: int | None,
+) -> bool:
+    if incident.incident_type == "amount_mismatch" and payment.get("status") == "CANCELED":
+        # 취소된 결제의 금액은 잘못 승인된 최초 관측값과 같아야 같은 사고의
+        # 후속 상태라고 판정할 수 있다. 내부 기대금액과의 불일치는 의도된 조건이다.
+        return incident.observed_amount is not None and observed_amount == incident.observed_amount
+    if incident.incident_type != "partial_cancel":
+        return observed_amount == expected_amount
+    provider_total = payment.get("totalAmount")
+    return (
+        isinstance(provider_total, int)
+        and not isinstance(provider_total, bool)
+        and provider_total == expected_amount
+        and observed_amount is not None
+        and 0 < observed_amount < expected_amount
+    )
 
 
 async def _reconcile_domain_state(
@@ -280,15 +353,49 @@ async def _reconcile_domain_state(
     order: Order,
     *,
     actor_id: uuid.UUID,
+    provider_status: str | None,
 ) -> tuple[bool, str]:
-    if incident.incident_type in ("partial_cancel", "mixed_state"):
+    if incident.incident_type == "partial_cancel":
         return False, "reconciliation_not_supported"
+    if incident.incident_type == "mixed_state":
+        if order.payment_group_id is None:
+            return False, "missing_payment_group"
+        payment_key = _incident_payment_key(incident, order)
+        if provider_status == "DONE":
+            from api.domains.payments.service import confirmed_payment_is_consistent
+
+            consistent = await confirmed_payment_is_consistent(
+                session,
+                group_id=order.payment_group_id,
+                payment_key=payment_key,
+            )
+        elif provider_status == "CANCELED":
+            from api.domains.payments.service import canceled_payment_is_consistent
+
+            consistent = await canceled_payment_is_consistent(
+                session,
+                group_id=order.payment_group_id,
+                payment_key=payment_key,
+            )
+        else:
+            return False, "reconciliation_not_supported"
+        return consistent, "already_consistent" if consistent else "mixed_order_state"
+    if incident.incident_type == "amount_mismatch" and provider_status == "CANCELED":
+        if order.payment_group_id is None:
+            return False, "missing_payment_group"
+        payment_key = _incident_payment_key(incident, order)
+        from api.domains.payments.service import reconcile_canceled_payment
+
+        return await reconcile_canceled_payment(
+            session,
+            group_id=order.payment_group_id,
+            payment_key=payment_key,
+            actor_id=actor_id,
+        )
     if incident.incident_type in ("confirm", "amount_mismatch"):
         if order.payment_group_id is None:
             return False, "missing_payment_group"
-        payment_key = order.payment_key
-        if payment_key is None:
-            return False, "missing_payment_key"
+        payment_key = _incident_payment_key(incident, order)
         from api.domains.payments.service import reconcile_confirmed_payment
 
         return await reconcile_confirmed_payment(
@@ -326,8 +433,11 @@ async def reconcile_incident(
     expected_amount = await _expected_amount(session, incident, order)
     incident_type = incident.incident_type
     payment_group_id = order.payment_group_id
-    payment_key = order.payment_key
-    assert payment_key is not None
+    payment_key = _incident_payment_key(incident, order)
+    recorded_group_id = (incident.details or {}).get("payment_group_id")
+    incident_payment_group_matches = recorded_group_id is None or (
+        payment_group_id is not None and recorded_group_id == str(payment_group_id)
+    )
     lookup_error: str | None = None
     try:
         result = await toss.get_payment(payment_key)
@@ -341,31 +451,54 @@ async def reconcile_incident(
         provider_http_status = 0
         payment = {}
     observed_amount = _observed_amount(incident_type, payment)
-    expected_provider_statuses = (
-        {"CANCELED", "PARTIAL_CANCELED"}
-        if incident_type == "refund"
-        else {"PARTIAL_CANCELED"}
-        if incident_type == "partial_cancel"
-        else {"DONE"}
-    )
+    expected_provider_statuses = _expected_provider_statuses(incident)
     provider_order_id_matches = payment_group_id is not None and payment.get("orderId") == str(
         payment_group_id
     )
+    provider_payment_key_matches = payment.get("paymentKey") == payment_key
     provider_status_matches = payment.get("status") in expected_provider_statuses
-    amount_matches = observed_amount == expected_amount
+    amount_matches = _amount_matches(
+        incident,
+        payment,
+        expected_amount=expected_amount,
+        observed_amount=observed_amount,
+    )
     domain_consistent = False
     apply_result = "not_attempted"
-    if provider_ok and provider_order_id_matches and provider_status_matches and amount_matches:
+    if (
+        provider_ok
+        and provider_payment_key_matches
+        and incident_payment_group_matches
+        and provider_order_id_matches
+        and provider_status_matches
+        and amount_matches
+    ):
         try:
             domain_consistent, apply_result = await _reconcile_domain_state(
                 session,
                 incident,
                 order,
                 actor_id=actor_id,
+                provider_status=(
+                    payment.get("status") if isinstance(payment.get("status"), str) else None
+                ),
             )
         except Exception as exc:
             await session.rollback()
             apply_result = f"db_apply_failed:{type(exc).__name__}"
+    manual_resolution_allowed = (
+        incident_type in MANUAL_RESOLUTION_TYPES
+        and provider_ok
+        and provider_payment_key_matches
+        and incident_payment_group_matches
+        and provider_order_id_matches
+        and provider_status_matches
+        and amount_matches
+        and not (
+            (incident.details or {}).get("reason") == "payment_key_mismatch"
+            and (incident.details or {}).get("stored_payment_keys_match_lookup") is False
+        )
+    )
     evidence = {
         "checked_at": datetime.now(UTC).isoformat(),
         "provider_ok": provider_ok,
@@ -374,12 +507,15 @@ async def reconcile_incident(
         "provider_status": (
             payment.get("status") if isinstance(payment.get("status"), str) else None
         ),
+        "provider_payment_key_matches": provider_payment_key_matches,
+        "incident_payment_group_matches": incident_payment_group_matches,
         "provider_order_id_matches": provider_order_id_matches,
         "provider_status_matches": provider_status_matches,
         "expected_amount": expected_amount,
         "observed_amount": observed_amount,
         "amount_matches": amount_matches,
         "domain_consistent": domain_consistent,
+        "manual_resolution_allowed": manual_resolution_allowed,
         "apply_result": apply_result,
         "unsupported_reason": None if domain_consistent else apply_result,
     }
@@ -390,12 +526,17 @@ async def reconcile_incident(
     assert incident is not None
     if incident.status == "resolved":
         return incident
-    sanitized_details = _sanitize(incident.details or {})
-    assert isinstance(sanitized_details, dict)
-    sanitized_details["reconciliation"] = evidence
-    incident.details = sanitized_details
+    # 내부 원본은 재대사에 필요하므로 그대로 유지한다. 외부 응답만
+    # get_incident_detail에서 `_sanitize`한다.
+    internal_details = dict(incident.details or {})
+    internal_details["lookup_payment_key"] = payment_key
+    internal_details["reconciliation"] = evidence
+    incident.details = internal_details
     incident.expected_amount = expected_amount
-    incident.observed_amount = observed_amount
+    # amount_mismatch의 최초 관측금액은 후속 CANCELED가 같은 결제인지 확인하는
+    # 불변 증거다. 실패한 재대사 값으로 덮으면 두 번째 시도에서 우회될 수 있다.
+    if incident.incident_type != "amount_mismatch":
+        incident.observed_amount = observed_amount
     await session.commit()
     await session.refresh(incident)
     return incident
@@ -406,8 +547,19 @@ async def _current_domain_consistent(
     incident: PaymentIncident,
 ) -> bool:
     order = await _related_order(session, incident)
-    payment_key = order.payment_key
-    assert payment_key is not None
+    payment_key = _incident_payment_key(incident, order)
+    if incident.incident_type == "amount_mismatch":
+        reconciliation = (incident.details or {}).get("reconciliation")
+        if isinstance(reconciliation, dict) and reconciliation.get("provider_status") == "CANCELED":
+            if order.payment_group_id is None:
+                return False
+            from api.domains.payments.service import canceled_payment_is_consistent
+
+            return await canceled_payment_is_consistent(
+                session,
+                group_id=order.payment_group_id,
+                payment_key=payment_key,
+            )
     if incident.incident_type in ("confirm", "amount_mismatch"):
         if order.payment_group_id is None:
             return False
@@ -418,7 +570,29 @@ async def _current_domain_consistent(
             group_id=order.payment_group_id,
             payment_key=payment_key,
         )
-    if incident.incident_type in ("partial_cancel", "mixed_state"):
+    if incident.incident_type == "mixed_state":
+        reconciliation = (incident.details or {}).get("reconciliation")
+        if order.payment_group_id is None or not isinstance(reconciliation, dict):
+            return False
+        provider_status = reconciliation.get("provider_status")
+        if provider_status == "DONE":
+            from api.domains.payments.service import confirmed_payment_is_consistent
+
+            return await confirmed_payment_is_consistent(
+                session,
+                group_id=order.payment_group_id,
+                payment_key=payment_key,
+            )
+        if provider_status == "CANCELED":
+            from api.domains.payments.service import canceled_payment_is_consistent
+
+            return await canceled_payment_is_consistent(
+                session,
+                group_id=order.payment_group_id,
+                payment_key=payment_key,
+            )
+        return False
+    if incident.incident_type == "partial_cancel":
         return False
     if incident.claim_id is not None:
         claim_type = await session.scalar(select(Claim.type).where(Claim.id == incident.claim_id))
@@ -494,7 +668,10 @@ async def resolve_incident(
     blocker = _reconciliation_blocker(incident)
     if blocker is not None:
         raise ConflictError(blocker, code="reconciliation_required")
-    if not await _current_domain_consistent(session, incident):
+    if (
+        incident.incident_type not in MANUAL_RESOLUTION_TYPES
+        and not await _current_domain_consistent(session, incident)
+    ):
         raise ConflictError(
             "대사 이후 내부 상태가 변경되어 다시 대사해야 합니다",
             code="reconciliation_required",

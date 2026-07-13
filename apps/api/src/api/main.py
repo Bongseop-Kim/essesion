@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 from contextlib import asynccontextmanager
 
@@ -6,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from obs import RequestIdMiddleware, init_observability
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -42,7 +44,7 @@ class EdgeBoundaryMiddleware:
 
     @staticmethod
     def _is_exempt_path(path: str) -> bool:
-        return path in ("/healthz", "/readyz") or path.startswith("/batch/")
+        return path == "/healthz" or path.startswith("/batch/")
 
     async def __call__(self, scope, receive, send):  # noqa: ANN001 — ASGI protocol
         if scope["type"] != "http" or not self.verify_edge or self._is_exempt_path(scope["path"]):
@@ -182,8 +184,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "gcs": app.state.gcs.capability_mode,
             "gcs_assets": assets_capability_mode(settings),
             "solapi": app.state.solapi.capability_mode,
+            "worker": app.state.worker.capability_mode,
             "finalize_tasks": app.state.tasks.capability_mode,
             "batch_auth": batch_auth_capability_mode(settings),
+            "oauth_google": (
+                "optional"
+                if settings.env in ("local", "test")
+                else "ready"
+                if settings.google_client_id and settings.google_client_secret
+                else "unavailable"
+            ),
+            "oauth_kakao": (
+                "optional"
+                if settings.env in ("local", "test")
+                else "ready"
+                if settings.kakao_client_id and settings.kakao_client_secret
+                else "unavailable"
+            ),
+            "auth_secrets": (
+                "bypassed"
+                if settings.env in ("local", "test")
+                else "ready"
+                if len(settings.jwt_secret) >= 32
+                and settings.jwt_secret != "dev-jwt-secret-only-for-local-32b!"
+                and len(settings.session_secret) >= 32
+                and settings.session_secret != "dev-session-secret"
+                else "unavailable"
+            ),
             "edge_proxy": (
                 "bypassed"
                 if settings.env in ("local", "test")
@@ -265,8 +292,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/readyz", include_in_schema=False)
-    def readyz(request: Request) -> JSONResponse:
-        capabilities = request.app.state.capabilities
+    async def readyz(request: Request) -> JSONResponse:
+        capabilities = dict(request.app.state.capabilities)
+        if settings.env in ("local", "test"):
+            capabilities["database"] = "bypassed"
+        else:
+            try:
+                async with asyncio.timeout(3.0):
+                    async with request.app.state.engine.connect() as connection:
+                        await connection.execute(text("SELECT 1"))
+                capabilities["database"] = "ready"
+            except Exception:
+                capabilities["database"] = "unavailable"
         ready = all(mode != "unavailable" for mode in capabilities.values())
         return JSONResponse(
             status_code=200 if ready else 503,

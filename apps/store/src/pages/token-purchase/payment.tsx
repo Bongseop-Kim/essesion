@@ -24,6 +24,7 @@ export function TokenPaymentPage() {
   const createOrder = useMutation(createTokenOrderMutation());
   const payment = useCheckoutPayment({
     storageKey: CHECKOUT_PENDING_KEY,
+    ownerUserId: user?.id ?? null,
     snapshot: draft
       ? {
           returnPath: "/token/purchase/payment",

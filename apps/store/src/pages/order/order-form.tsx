@@ -86,8 +86,8 @@ export function OrderFormPage() {
       readPendingCheckout<{
         repairShipping?: RepairShippingIn | null;
         repairShipmentDraft?: unknown;
-      }>(CHECKOUT_PENDING_KEY)?.snapshot ?? null,
-    [],
+      }>(CHECKOUT_PENDING_KEY, user?.id ?? null)?.snapshot ?? null,
+    [user?.id],
   );
   const pendingRepair = pendingSnapshot?.repairShipping ?? null;
   const pendingDraft = isRepairShipmentDraft(
@@ -241,6 +241,7 @@ export function OrderFormPage() {
   };
   const payment = useCheckoutPayment({
     storageKey: CHECKOUT_PENDING_KEY,
+    ownerUserId: user?.id ?? null,
     snapshot,
     orderName,
     expectedAmount: totals.total,

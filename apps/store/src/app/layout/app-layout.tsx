@@ -142,27 +142,19 @@ function StoreHeader() {
           </ActionButton>
         </>
       }
-      mobileMenuFooter={
-        authed ? (
-          <ActionButton
-            type="button"
-            variant="neutralOutline"
-            size="large"
-            onClick={() => navigate("/my-page")}
-          >
-            마이페이지
-          </ActionButton>
-        ) : (
-          <ActionButton
-            type="button"
-            variant="neutralOutline"
-            size="large"
-            onClick={() => navigate("/login")}
-          >
-            로그인
-          </ActionButton>
-        )
-      }
+      mobileMenuFooter={(closeMenu) => (
+        <ActionButton
+          type="button"
+          variant="neutralOutline"
+          size="large"
+          onClick={() => {
+            closeMenu();
+            navigate(authed ? "/my-page" : "/login");
+          }}
+        >
+          {authed ? "마이페이지" : "로그인"}
+        </ActionButton>
+      )}
     />
   );
 }

@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
 
-import { parseCustomOrderDraft, parseCustomOrderFormDraft } from "./draft";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import {
+  handoffAnonymousCustomOrderFormDraft,
+  parseCustomOrderDraft,
+  parseCustomOrderFormDraft,
+  readCustomOrderFormDraft,
+  saveCustomOrderFormDraft,
+} from "./draft";
 import { DEFAULT_CUSTOM_ORDER_OPTIONS, DEFAULT_QUOTE_CONTACT } from "./options";
 
 describe("custom order draft", () => {
@@ -8,6 +16,8 @@ describe("custom order draft", () => {
     options: DEFAULT_CUSTOM_ORDER_OPTIONS,
     contact: DEFAULT_QUOTE_CONTACT,
   };
+
+  beforeEach(() => sessionStorage.clear());
 
   it("저장된 폼 draft 구조를 검증한다", () => {
     expect(parseCustomOrderFormDraft(formDraft)).toEqual(formDraft);
@@ -55,5 +65,52 @@ describe("custom order draft", () => {
         totalCost: -1,
       }),
     ).toBeNull();
+  });
+
+  it("A의 폼 draft를 B나 익명 방문자에게 노출하지 않는다", () => {
+    const anonymousDraft = {
+      ...formDraft,
+      contact: { ...formDraft.contact, contactName: "anonymous" },
+    };
+    const accountDraft = {
+      ...formDraft,
+      contact: { ...formDraft.contact, contactName: "account-a" },
+    };
+    saveCustomOrderFormDraft(null, anonymousDraft);
+    saveCustomOrderFormDraft("user-a", accountDraft);
+
+    expect(readCustomOrderFormDraft("user-a")).toEqual(accountDraft);
+    expect(readCustomOrderFormDraft("user-b")).toBeNull();
+    expect(readCustomOrderFormDraft(null)).toEqual(anonymousDraft);
+  });
+
+  it("로그인 복귀 draft는 해당 계정으로 인계하고 익명 사본을 제거한다", () => {
+    saveCustomOrderFormDraft(null, formDraft);
+    const loginDraft = {
+      ...formDraft,
+      contact: { ...formDraft.contact, contactName: "logged-in" },
+    };
+
+    handoffAnonymousCustomOrderFormDraft("user-a", loginDraft);
+
+    expect(readCustomOrderFormDraft("user-a")).toEqual(loginDraft);
+    expect(readCustomOrderFormDraft(null)).toBeNull();
+  });
+
+  it("owner를 알 수 없는 v2 draft는 익명 사용자에게 이관하지 않는다", () => {
+    sessionStorage.setItem(
+      "custom-order:draft:v2",
+      JSON.stringify({
+        ...formDraft,
+        contact: {
+          ...formDraft.contact,
+          contactName: "previous-account",
+          contactValue: "previous@example.com",
+        },
+      }),
+    );
+
+    expect(readCustomOrderFormDraft(null)).toBeNull();
+    expect(sessionStorage.getItem("custom-order:draft:v2")).toBeNull();
   });
 });

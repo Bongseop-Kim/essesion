@@ -81,6 +81,10 @@ export type AdminActiveClaimOut = {
  */
 export type AdminCapabilitiesOut = {
     /**
+     * Auth Secrets
+     */
+    auth_secrets: string;
+    /**
      * Batch Auth
      */
     batch_auth: string;
@@ -101,6 +105,14 @@ export type AdminCapabilitiesOut = {
      */
     gcs_assets: string;
     /**
+     * Oauth Google
+     */
+    oauth_google: string;
+    /**
+     * Oauth Kakao
+     */
+    oauth_kakao: string;
+    /**
      * Solapi
      */
     solapi: string;
@@ -108,6 +120,10 @@ export type AdminCapabilitiesOut = {
      * Toss
      */
     toss: string;
+    /**
+     * Worker
+     */
+    worker: string;
 };
 
 /**
@@ -8976,6 +8992,22 @@ export type CleanupImagesResponses = {
 };
 
 export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesResponses];
+
+export type ReconcileStaleGenerationJobsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/batch/reconcile-stale-generation-jobs';
+};
+
+export type ReconcileStaleGenerationJobsResponses = {
+    /**
+     * Successful Response
+     */
+    200: BatchResult;
+};
+
+export type ReconcileStaleGenerationJobsResponse = ReconcileStaleGenerationJobsResponses[keyof ReconcileStaleGenerationJobsResponses];
 
 export type GetCartData = {
     body?: never;

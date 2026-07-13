@@ -23,6 +23,18 @@ _TOKEN_REFRESH_MARGIN_S = 60
 
 class WorkerClient:
     def __init__(self, settings: Settings):
+        if settings.env in ("local", "test"):
+            self.capability_mode = "local"
+        else:
+            configured = all(
+                (
+                    settings.worker_base_url.startswith("https://"),
+                    settings.worker_oidc_audience,
+                    settings.worker_finalize_url.startswith("https://"),
+                    settings.worker_finalize_oidc_audience,
+                )
+            )
+            self.capability_mode = "ready" if configured else "unavailable"
         self._generate_client = httpx.AsyncClient(
             base_url=settings.worker_base_url,
             timeout=settings.worker_timeout_seconds,

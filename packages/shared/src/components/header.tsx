@@ -34,7 +34,7 @@ export type HeaderProps = {
   menuIcon: ReactNode;
   actions?: ReactNode;
   mobileActions?: ReactNode;
-  mobileMenuFooter?: ReactNode;
+  mobileMenuFooter?: ReactNode | ((closeMenu: () => void) => ReactNode);
   /** 내부 nav 최대폭 — 콘텐츠·푸터와 정렬. 기본 high(제한 없음, admin 대시보드용). store는 medium. */
   density?: LayoutContentProps["density"];
   /** 데스크톱 주요 메뉴 표시 여부. admin처럼 별도 sidebar가 있는 앱만 끈다. */
@@ -163,7 +163,11 @@ export function Header({
         onOpenChange={setMenuOpen}
         title="메뉴"
         side="right"
-        footer={mobileMenuFooter}
+        footer={
+          typeof mobileMenuFooter === "function"
+            ? mobileMenuFooter(() => setMenuOpen(false))
+            : mobileMenuFooter
+        }
       >
         <VStack gap="x1">
           {navItems.map((item) => {

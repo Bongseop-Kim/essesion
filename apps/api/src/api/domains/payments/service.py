@@ -10,6 +10,7 @@
   교정은 상태 기반 + work_id 유니크로 멱등이라 웹훅 재전송에 안전.
 """
 
+import json
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -54,6 +55,7 @@ from api.pricing import get_pricing_constants
 logger = logging.getLogger(__name__)
 
 PLAN_LABELS = {"starter": "Starter", "popular": "Popular", "pro": "Pro"}
+TOSS_PAYMENT_NOT_FOUND_CODE = "NOT_FOUND_PAYMENT"
 
 SAMPLE_FOLLOWUP_COUPON = {
     ("sewing", None): ("SAMPLE_DISCOUNT_SEWING", "sample_discount_sewing"),
@@ -174,18 +176,30 @@ async def confirm_payment(
         raise ForbiddenError()
 
     post_map = {o.id: await _post_status(session, o) for o in orders}
+    total = sum(o.total_price for o in orders)
+    if total != body.amount:
+        raise DomainError("Amount mismatch", code="amount_mismatch")
 
-    # 멱등 사전체크 — 전부 결제후 상태면 Toss 호출 없이 DONE
+    # 멱등 사전체크 — 전부 결제후 상태면 Toss 호출 없이 DONE.
+    # 단, 다른 콜백이 같은 group id를 가져와 성공으로 오인하지 않게
+    # 최초 확정에 저장한 payment key까지 같아야 한다.
     if all(o.status == post_map[o.id] for o in orders):
+        if any(o.payment_key != body.payment_key for o in orders):
+            raise ConflictError(
+                "기존 결제 시도와 결제키가 일치하지 않습니다",
+                code="payment_key_mismatch",
+            )
         return await _done_response(session, orders)
+    if any(o.status == post_map[o.id] for o in orders):
+        raise ConflictError(
+            "주문 그룹의 결제 상태 대사가 필요합니다",
+            code="payment_reconciliation_required",
+        )
 
     for order in orders:
         if order.status not in ("대기중", "결제중"):
             raise ConflictError(f"Order {order.order_number} is not payable", code="not_payable")
 
-    total = sum(o.total_price for o in orders)
-    if total != body.amount:
-        raise DomainError("Amount mismatch", code="amount_mismatch")
     order_ids = [order.id for order in orders]
     representative_order_id = order_ids[0]
     if await _has_open_confirm_incident(session, order_ids):
@@ -204,7 +218,19 @@ async def confirm_payment(
             "결제 결과 대사가 필요한 주문입니다",
             code="payment_reconciliation_required",
         )
-    already_confirmed = False
+    post_map = {o.id: await _post_status(session, o) for o in orders}
+    if all(order.status == post_map[order.id] for order in orders):
+        if any(order.payment_key != body.payment_key for order in orders):
+            raise ConflictError(
+                "기존 결제 시도와 결제키가 일치하지 않습니다",
+                code="payment_key_mismatch",
+            )
+        return await _done_response(session, orders)
+    if any(order.status == post_map[order.id] for order in orders):
+        raise ConflictError(
+            "주문 그룹의 결제 상태 대사가 필요합니다",
+            code="payment_reconciliation_required",
+        )
     for order in orders:
         if order.status == "대기중":
             log_status(session, order, "결제중", changed_by=user.id, memo="payment lock")
@@ -216,13 +242,8 @@ async def confirm_payment(
                     code="payment_key_mismatch",
                 )
             order.payment_key = body.payment_key
-        elif order.status == post_map[order.id]:
-            already_confirmed = True
         else:
             raise ConflictError(f"Order {order.order_number} is not payable", code="not_payable")
-    if already_confirmed:
-        await session.commit()
-        return await _done_response(session, orders)
 
     operation = prepare_payment_operation(
         session,
@@ -365,6 +386,7 @@ async def _recover_already_processed(
     lookup = await toss.get_payment(body.payment_key)
     if (
         not lookup.ok
+        or lookup.body.get("paymentKey") != body.payment_key
         or lookup.body.get("status") != "DONE"
         or lookup.body.get("orderId") != str(body.payment_group_id)
         or lookup.body.get("totalAmount") != total
@@ -442,6 +464,70 @@ async def reconcile_confirmed_payment(
         return False, "mixed_order_state"
     await _apply_confirmation(session, orders, payment_key, post_map, actor_id)
     return True, "applied"
+
+
+async def reconcile_canceled_payment(
+    session: AsyncSession,
+    *,
+    group_id: uuid.UUID,
+    payment_key: str,
+    actor_id: uuid.UUID,
+) -> tuple[bool, str]:
+    """검증된 전액취소를 아직 확정되지 않은 결제중 주문에 반영한다.
+
+    호출자는 Toss의 paymentKey/orderId/status/최초 관측금액을 모두 검증해야 한다.
+    토큰 회수와 같은 USER_LOCK을 order row보다 먼저 잡아 돈 경로 lock 순서를 지킨다.
+    """
+
+    group_user_ids = await session.scalars(
+        select(Order.user_id).where(Order.payment_group_id == group_id)
+    )
+    user_ids = sorted(set(group_user_ids.all()), key=str)
+    if not user_ids:
+        await session.commit()
+        return False, "missing_payment_group"
+    for user_id in user_ids:
+        await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
+
+    orders = await _group_orders(session, group_id, for_update=True)
+    if any(order.payment_key not in (None, payment_key) for order in orders):
+        await session.commit()
+        return False, "payment_key_mismatch"
+    if any(order.status not in {"결제중", "취소"} for order in orders):
+        await session.commit()
+        return False, "unsafe_order_state"
+
+    changed = 0
+    for order in orders:
+        if order.payment_key is None:
+            order.payment_key = payment_key
+        if order.status != "취소":
+            log_status(
+                session,
+                order,
+                "취소",
+                changed_by=actor_id,
+                memo="Toss 전액취소 관리자 대사",
+            )
+            changed += 1
+        if order.order_type == "token":
+            await _claw_back_purchased_tokens(session, order)
+    # 결제 확정 전에 취소된 주문의 reserved 쿠폰만 복원한다. used 쿠폰은 건드리지 않는다.
+    await restore_reserved_order_coupons(session, orders)
+    await session.commit()
+    return True, "canceled" if changed else "already_consistent"
+
+
+async def canceled_payment_is_consistent(
+    session: AsyncSession,
+    *,
+    group_id: uuid.UUID,
+    payment_key: str,
+) -> bool:
+    orders = await _group_orders(session, group_id, for_update=True)
+    return bool(orders) and all(
+        order.status == "취소" and order.payment_key == payment_key for order in orders
+    )
 
 
 async def confirmed_payment_is_consistent(
@@ -626,6 +712,103 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
 # ---- 웹훅 대사 (reconciliation) ----
 
 
+def _is_definitive_payment_not_found(status: int, body: dict) -> bool:
+    if status == 404:
+        return True
+    if status in (401, 403, 429):
+        return False
+    return 400 <= status < 500 and body.get("code") == TOSS_PAYMENT_NOT_FOUND_CODE
+
+
+def _non_negative_int(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+def _partial_canceled_amount(payment: dict) -> int | None:
+    cancels = payment.get("cancels")
+    if isinstance(cancels, list):
+        amounts = [
+            amount
+            for row in cancels
+            if isinstance(row, dict)
+            and (amount := _non_negative_int(row.get("cancelAmount"))) is not None
+        ]
+        if amounts:
+            return sum(amounts)
+    total = _non_negative_int(payment.get("totalAmount"))
+    balance = _non_negative_int(payment.get("balanceAmount"))
+    if total is not None and balance is not None and total >= balance:
+        return total - balance
+    return None
+
+
+async def _record_webhook_incident(
+    session: AsyncSession,
+    *,
+    orders: list[Order],
+    payment_key: str,
+    incident_type: str,
+    phase: str,
+    expected_amount: int,
+    observed_amount: object,
+    provider_status: str,
+    details: dict[str, Any] | None = None,
+) -> None:
+    """자동 대사 불가 상태를 ACK 전에 관리자 queue에 멱등 기록한다."""
+
+    representative = next(
+        (order for order in orders if order.payment_key == payment_key), orders[0]
+    )
+    observed = _non_negative_int(observed_amount)
+    incident_details = {
+        "phase": phase,
+        "payment_group_id": str(representative.payment_group_id),
+        "provider_status": provider_status,
+        **(details or {}),
+        # 관리자 대사는 사고를 만든 정확한 결제를 다시 조회해야 한다. API 응답은
+        # payment_incidents._sanitize가 키 이름 기준으로 재귀 마스킹한다.
+        "lookup_payment_key": payment_key,
+    }
+    evidence_fingerprint = json.dumps(
+        {
+            "incident_type": incident_type,
+            "expected_amount": expected_amount,
+            "observed_amount": observed,
+            "details": incident_details,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    operation_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            (
+                f"essesion:webhook:{representative.payment_group_id}:"
+                f"{payment_key}:{phase}:{evidence_fingerprint}"
+            ),
+        )
+    )
+    await session.execute(
+        pg_insert(PaymentIncident)
+        .values(
+            operation_id=operation_id,
+            incident_type=incident_type,
+            status="open",
+            request_id=request_id_var.get() or "unknown",
+            actor_id=None,
+            order_id=representative.id,
+            expected_amount=expected_amount,
+            observed_amount=observed,
+            details=incident_details,
+        )
+        .on_conflict_do_nothing(index_elements=[PaymentIncident.operation_id])
+    )
+    await session.commit()
+
+
 async def reconcile_from_webhook(
     session: AsyncSession, toss: TossClient, payment_key: str | None
 ) -> dict:
@@ -633,14 +816,14 @@ async def reconcile_from_webhook(
 
     페이로드는 힌트(paymentKey)로만 쓴다 — 진위·상태·금액은 전부 조회 API 기준
     (Toss 공식 권장 검증 방식). 상태 기반 + work_id 멱등이라 재전송에 안전하며,
-    처리 불가(조회 5xx)만 5xx로 응답해 Toss 재시도를 유도한다.
+    결제 미존재가 명확한 경우 외의 조회 실패는 5xx로 응답해 Toss 재시도를 유도한다.
     """
     if payment_key is None:
         return {"handled": False, "reason": "no_payment_key"}
 
     lookup = await toss.get_payment(payment_key)
     if not lookup.ok:
-        if 400 <= lookup.status < 500:
+        if _is_definitive_payment_not_found(lookup.status, lookup.body):
             return {"handled": False, "reason": "payment_not_found"}  # 위조/무관 — ack
         raise UpstreamError("Toss 결제 조회에 실패했습니다")  # 5xx → Toss가 웹훅 재시도
 
@@ -670,17 +853,90 @@ async def reconcile_from_webhook(
     post_map = {o.id: await _post_status(session, o) for o in orders}
 
     if toss_status == "DONE":
-        if all(o.status == post_map[o.id] for o in orders):
-            return {"handled": True, "action": "already_consistent"}
+        total = sum(o.total_price for o in orders)
+        all_post_payment = all(o.status == post_map[o.id] for o in orders)
+        provider_key_matches = payment.get("paymentKey") == payment_key
+        stored_keys_match = all(o.payment_key == payment_key for o in orders)
+        stored_keys_compatible = all(o.payment_key in (None, payment_key) for o in orders)
+
+        # 조회 URL의 키, 조회 본문의 키, DB에 고정된 키가 서로 다르면 같은
+        # orderId를 주장하는 별도 결제를 기존 주문의 성공으로 ACK하지 않는다.
+        if (
+            not provider_key_matches
+            or (all_post_payment and not stored_keys_match)
+            or (not all_post_payment and not stored_keys_compatible)
+        ):
+            await _record_webhook_incident(
+                session,
+                orders=orders,
+                payment_key=payment_key,
+                incident_type="mixed_state",
+                phase="webhook_done_payment_key_mismatch",
+                expected_amount=total,
+                observed_amount=payment.get("totalAmount"),
+                provider_status="DONE",
+                details={
+                    "reason": "payment_key_mismatch",
+                    "provider_payment_key_matches_lookup": provider_key_matches,
+                    "stored_payment_keys_match_lookup": stored_keys_match,
+                    "stored_payment_keys_compatible_with_lookup": stored_keys_compatible,
+                },
+            )
+            logger.critical(
+                "웹훅 확정 결제키 불일치 — 수동 확인 필요: payment_group_id=%s",
+                group_id,
+            )
+            return {"handled": False, "reason": "payment_key_mismatch"}
+        if all_post_payment:
+            # 이미 완료된 주문도 provider 증거(키·금액)가 일치할 때만 멱등 ACK한다.
+            provider_amount = payment.get("totalAmount")
+            if (
+                isinstance(provider_amount, int)
+                and not isinstance(provider_amount, bool)
+                and provider_amount == total
+            ):
+                return {"handled": True, "action": "already_consistent"}
+            await _record_webhook_incident(
+                session,
+                orders=orders,
+                payment_key=payment_key,
+                incident_type="amount_mismatch",
+                phase="webhook_done_amount_mismatch",
+                expected_amount=total,
+                observed_amount=provider_amount,
+                provider_status="DONE",
+            )
+            return {"handled": False, "reason": "amount_mismatch"}
+
         if not all(o.status == "결제중" for o in orders):
+            await _record_webhook_incident(
+                session,
+                orders=orders,
+                payment_key=payment_key,
+                incident_type="mixed_state",
+                phase="webhook_done_mixed_state",
+                expected_amount=total,
+                observed_amount=payment.get("totalAmount"),
+                provider_status="DONE",
+                details={"order_statuses": [o.status for o in orders]},
+            )
             logger.critical(
                 "웹훅 대사 불가(혼합 상태) — 수동 확인 필요: payment_group_id=%s statuses=%s",
                 group_id,
                 [o.status for o in orders],
             )
             return {"handled": False, "reason": "inconsistent_state"}
-        total = sum(o.total_price for o in orders)
         if payment.get("totalAmount") != total:
+            await _record_webhook_incident(
+                session,
+                orders=orders,
+                payment_key=payment_key,
+                incident_type="amount_mismatch",
+                phase="webhook_done_amount_mismatch",
+                expected_amount=total,
+                observed_amount=payment.get("totalAmount"),
+                provider_status="DONE",
+            )
             logger.critical(
                 "웹훅 대사 금액 불일치 — 수동 확인 필요: payment_group_id=%s toss=%s db=%s",
                 group_id,
@@ -695,6 +951,16 @@ async def reconcile_from_webhook(
         return {"handled": True, "action": "confirmed", "orders": len(confirmed)}
 
     if toss_status == "PARTIAL_CANCELED":
+        await _record_webhook_incident(
+            session,
+            orders=orders,
+            payment_key=payment_key,
+            incident_type="partial_cancel",
+            phase="webhook_partial_canceled",
+            expected_amount=sum(o.total_price for o in orders),
+            observed_amount=_partial_canceled_amount(payment),
+            provider_status="PARTIAL_CANCELED",
+        )
         logger.warning(
             "웹훅: 부분취소는 자동 대사 범위 밖 — 수동 처리 필요: payment_group_id=%s", group_id
         )
@@ -740,6 +1006,9 @@ async def reconcile_from_webhook(
             changed += 1
             if order.order_type == "token":
                 await _claw_back_purchased_tokens(session, order)
+        # 승인 반영 전에 Toss에서 취소된 주문의 reserved 쿠폰만 복원한다.
+        # 이미 used인 쿠폰은 restore helper의 조건에 걸리지 않아 수동 정책을 유지한다.
+        await restore_reserved_order_coupons(session, orders)
         await session.commit()
         # 정책: 사용확정(used)된 쿠폰 복원은 수동 — 부분 사용·재발급 판단이 필요
         return {"handled": True, "action": "canceled", "orders": changed}
@@ -760,19 +1029,37 @@ async def _record_webhook_cancel_mismatch(
 ) -> None:
     """CANCELED 자동 반영을 막은 불일치를 관리자 대사 queue에 멱등 기록한다."""
 
-    representative = orders[0]
+    representative = next(
+        (order for order in orders if order.payment_key == payment_key), orders[0]
+    )
+    observed = _non_negative_int(observed_amount)
+    incident_details = {
+        "phase": "webhook_cancel_verification_failed",
+        "payment_group_id": str(representative.payment_group_id),
+        "lookup_payment_key": payment_key,
+        "reason": reason,
+        "provider_payment_key_matches_lookup": provider_key_matches,
+        "stored_payment_keys_match_lookup": stored_keys_match,
+        "provider_status": "CANCELED",
+    }
+    evidence_fingerprint = json.dumps(
+        {
+            "expected_amount": expected_amount,
+            "observed_amount": observed,
+            "details": incident_details,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
     operation_id = str(
         uuid.uuid5(
             uuid.NAMESPACE_URL,
-            f"essesion:webhook-cancel:{representative.payment_group_id}:{payment_key}:{reason}",
+            (
+                f"essesion:webhook-cancel:{representative.payment_group_id}:"
+                f"{payment_key}:{reason}:{evidence_fingerprint}"
+            ),
         )
-    )
-    observed = (
-        observed_amount
-        if isinstance(observed_amount, int)
-        and not isinstance(observed_amount, bool)
-        and observed_amount >= 0
-        else None
     )
     await session.execute(
         pg_insert(PaymentIncident)
@@ -787,14 +1074,7 @@ async def _record_webhook_cancel_mismatch(
             order_id=representative.id,
             expected_amount=expected_amount,
             observed_amount=observed,
-            details={
-                "phase": "webhook_cancel_verification_failed",
-                "payment_group_id": str(representative.payment_group_id),
-                "reason": reason,
-                "provider_payment_key_matches_lookup": provider_key_matches,
-                "stored_payment_keys_match_lookup": stored_keys_match,
-                "provider_status": "CANCELED",
-            },
+            details=incident_details,
         )
         .on_conflict_do_nothing(index_elements=[PaymentIncident.operation_id])
     )

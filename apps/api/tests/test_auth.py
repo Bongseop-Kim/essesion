@@ -1,4 +1,5 @@
 import asyncio
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
@@ -18,6 +19,7 @@ from db.models.tokens import DesignToken
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 
 from .factories import auth_headers, make_order, make_user, seed_setting
 
@@ -36,6 +38,37 @@ def _legacy_access_token(user_id: uuid.UUID, role: str, settings: Settings) -> s
         settings.jwt_secret,
         algorithm="HS256",
     )
+
+
+@pytest.mark.parametrize("provider", ["google", "kakao"])
+async def test_oauth_login_uses_public_origin_behind_cloud_run_proxy_host(
+    app, client, settings, monkeypatch, provider
+):
+    captured: dict[str, str] = {}
+
+    class FakeOAuthClient:
+        async def authorize_redirect(self, request, redirect_uri):
+            captured["request_host"] = request.url.hostname or ""
+            captured["redirect_uri"] = redirect_uri
+            return RedirectResponse("https://provider.example/authorize")
+
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: FakeOAuthClient(),
+    )
+    settings.env = "staging"
+    settings.public_api_origin = "https://api.essesion.shop"
+
+    response = await client.get(
+        f"https://api-project-hash.a.run.app/auth/{provider}/login",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 307
+    assert captured == {
+        "request_host": "api-project-hash.a.run.app",
+        "redirect_uri": f"https://api.essesion.shop/auth/{provider}/callback",
+    }
 
 
 async def test_login_and_me(client, db_session, settings):
@@ -343,12 +376,15 @@ async def test_phone_send_and_verify(app, client, db_session, settings):
     assert res.status_code == 202
     sent = app.state.solapi.sent
     assert len(sent) == 1 and "인증번호는 [" in sent[0]["text"]
-
-    code = (
-        await db_session.scalar(
-            select(PhoneVerification).order_by(PhoneVerification.created_at.desc())
-        )
-    ).code
+    match = re.search(r"인증번호는 \[(\d{6})\]", sent[0]["text"])
+    assert match is not None
+    code = match.group(1)
+    verification = await db_session.scalar(
+        select(PhoneVerification).order_by(PhoneVerification.created_at.desc())
+    )
+    assert verification is not None
+    assert verification.code != code
+    assert len(verification.code) == 64
 
     wrong = await client.post(
         "/auth/phone/verify", json={"phone": "01012345678", "code": "000000"}, headers=headers
@@ -494,7 +530,9 @@ async def test_phone_verification_rate_limits_by_user_and_ip(app, client, db_ses
     assert blocked.json()["code"] == "rate_limited"
 
 
-async def test_phone_verification_concurrent_failures_cap_attempts_atomically(app, db_session):
+async def test_phone_verification_concurrent_failures_cap_attempts_atomically(
+    app, db_session, settings
+):
     user = await make_user(db_session)
     verification = PhoneVerification(
         user_id=user.id,
@@ -510,7 +548,13 @@ async def test_phone_verification_concurrent_failures_cap_attempts_atomically(ap
             current_user = await session.get(User, user.id)
             assert current_user is not None
             try:
-                await phone_service.verify_code(session, current_user, verification.phone, "000000")
+                await phone_service.verify_code(
+                    session,
+                    current_user,
+                    verification.phone,
+                    "000000",
+                    secret=settings.session_secret,
+                )
             except (DomainError, RateLimitedError) as exc:
                 return exc
         return None

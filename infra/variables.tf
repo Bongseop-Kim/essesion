@@ -46,6 +46,20 @@ variable "api_min_instances" {
   default     = 0
 }
 
+variable "public_api_origin" {
+  description = "OAuth callback에 사용할 Cloudflare 공개 API origin (Cloud Run run.app 직통 금지)"
+  type        = string
+  default     = "https://api.essesion.shop"
+
+  validation {
+    condition = (
+      can(regex("^https://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?/?$", var.public_api_origin)) &&
+      length(regexall("(localhost|127\\.0\\.0\\.1|\\.run\\.app)(:[0-9]{1,5})?/?$", lower(var.public_api_origin))) == 0
+    )
+    error_message = "public_api_origin must be a public HTTPS origin and must not be a run.app URL."
+  }
+}
+
 variable "db_tier" {
   description = "스테이징은 최소 사양, 프로덕션에서 상향"
   type        = string

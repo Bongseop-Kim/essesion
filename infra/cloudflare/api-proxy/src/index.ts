@@ -3,19 +3,35 @@
 export default {
   async fetch(
     req: Request,
-    env: { ORIGIN: string; EDGE_SHARED_SECRET?: string },
+    env: { ORIGIN?: string; EDGE_SHARED_SECRET?: string },
   ): Promise<Response> {
-    if (!env.EDGE_SHARED_SECRET) {
+    let origin: URL | null = null;
+    try {
+      origin = env.ORIGIN ? new URL(env.ORIGIN) : null;
+    } catch {
+      // Invalid config is handled by the same fail-closed response below.
+    }
+    const normalizedOrigin = env.ORIGIN?.endsWith("/")
+      ? env.ORIGIN.slice(0, -1)
+      : env.ORIGIN;
+    if (
+      !env.EDGE_SHARED_SECRET ||
+      !env.ORIGIN ||
+      env.ORIGIN.includes("REPLACE-ME") ||
+      !origin ||
+      origin.protocol !== "https:" ||
+      !origin.hostname.endsWith(".run.app") ||
+      normalizedOrigin !== origin.origin
+    ) {
       return Response.json(
         {
-          detail: "API proxy secret is unavailable",
+          detail: "API proxy configuration is unavailable",
           code: "service_unavailable",
         },
         { status: 503 },
       );
     }
     const url = new URL(req.url);
-    const origin = new URL(env.ORIGIN);
     url.protocol = origin.protocol;
     url.host = origin.host;
     const headers = new Headers(req.headers);

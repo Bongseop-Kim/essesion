@@ -38,13 +38,17 @@ export const zAdminActiveClaimOut = z.object({
  * AdminCapabilitiesOut
  */
 export const zAdminCapabilitiesOut = z.object({
+    auth_secrets: z.string(),
     batch_auth: z.string(),
     edge_proxy: z.string(),
     finalize_tasks: z.string(),
     gcs: z.string(),
     gcs_assets: z.string(),
+    oauth_google: z.string(),
+    oauth_kakao: z.string(),
     solapi: z.string(),
-    toss: z.string()
+    toss: z.string(),
+    worker: z.string()
 });
 
 /**
@@ -3771,6 +3775,11 @@ export const zCancelStaleOrdersResponse = zBatchResult;
  * Successful Response
  */
 export const zCleanupImagesResponse = zBatchResult;
+
+/**
+ * Successful Response
+ */
+export const zReconcileStaleGenerationJobsResponse = zBatchResult;
 
 /**
  * Response Get Cart

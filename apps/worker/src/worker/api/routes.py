@@ -6,7 +6,13 @@ from datetime import UTC, datetime, timedelta
 from functools import wraps
 from typing import Any, Literal
 
-from db.models.design import FINALIZE_DISPATCH_FAILED_MESSAGE, GenerationJob
+from db.models.design import (
+    FINALIZE_DISPATCH_FAILED_MESSAGE,
+    FINALIZE_TEMPORARY_FAILURE_CODE,
+    FINALIZE_TEMPORARY_FAILURE_MARKER,
+    FINALIZE_TEMPORARY_FAILURE_MESSAGE,
+    GenerationJob,
+)
 from db.models.seamless import SeamlessGenerationLog
 from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
@@ -30,7 +36,7 @@ from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import present_candidates, resolve_motifs, resolve_spec
 from worker.motifs.store import get_motifs
 from worker.render.fabric import FabricError, render_fabric
-from worker.render.raster import RasterError, rasterize_svg
+from worker.render.raster import RasterError, RasterLimitError, rasterize_svg
 from worker.render.sanitize import scrub_svg
 
 generate_router = APIRouter()
@@ -40,11 +46,6 @@ logger = logging.getLogger(__name__)
 NOT_IMPLEMENTED = 501
 FINALIZE_INVALID_INPUT_CODE = "FINALIZE_INVALID_INPUT"
 FINALIZE_INVALID_INPUT_MESSAGE = "finalize input is invalid"
-FINALIZE_TEMPORARY_FAILURE_CODE = "FINALIZE_TEMPORARY_FAILURE"
-FINALIZE_TEMPORARY_FAILURE_MESSAGE = "finalize temporarily failed"
-FINALIZE_TEMPORARY_FAILURE_MARKER = (
-    f"{FINALIZE_TEMPORARY_FAILURE_CODE}: {FINALIZE_TEMPORARY_FAILURE_MESSAGE}"
-)
 
 
 class GenerateRequest(BaseModel):
@@ -182,10 +183,20 @@ async def _render_candidates(
                     width_mm=tile_mm,
                     dpi=settings.preview_dpi,
                 )
-                png_key = f"previews/{request_id_var.get()}/{ranked.id}.png"
-                await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
             except (RasterError, OSError):
                 warning = "preview upload skipped"
+            else:
+                # X-Request-ID is caller-controlled and may be reused. Include the PNG
+                # digest so create-only uploads never alias different preview bytes.
+                png_key = content_key(f"previews/{request_id_var.get()}/{ranked.id}", png, "png")
+                try:
+                    await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
+                except Exception:
+                    # Preview persistence is best-effort. Keep this catch scoped to the
+                    # storage adapter so unexpected renderer bugs still fail the request.
+                    logger.warning("preview upload failed: %s", png_key, exc_info=True)
+                    png_key = None
+                    warning = "preview upload skipped"
         out = CandidateOut(
             id=ranked.id,
             design_index=ranked.design_index,
@@ -426,25 +437,28 @@ async def finalize_task(
         select(GenerationJob).where(GenerationJob.id == body.job_id).with_for_update()
     )
     if job is None:
-        raise HTTPException(status_code=404, detail="job not found")
+        await session.commit()
+        # DB에 없는 task는 재시도해도 생기지 않는다. 2xx로 ACK해 폐기한다.
+        return {"status": "ignored", "reason": "job_not_found"}
     if job.kind != "finalize":
         await session.commit()
-        raise HTTPException(status_code=409, detail="job kind is not finalize")
+        return {"status": "ignored", "reason": "job_kind_is_not_finalize"}
     if job.status == "succeeded":
         await session.commit()
         return {"status": "succeeded", "result": job.result}  # 멱등 — Cloud Tasks 재전송
     if job.status == "failed" and job.error_message == FINALIZE_DISPATCH_FAILED_MESSAGE:
         await session.commit()
         # API가 전달 실패를 확정하고 예산을 환불한 job은 늦게 도착한 task가 실행하면 안 된다.
-        raise HTTPException(status_code=409, detail="job dispatch was canceled")
+        return {"status": "canceled"}
     if job.status == "failed" and job.error_message != FINALIZE_TEMPORARY_FAILURE_MARKER:
         await session.commit()
         # 입력 오류와 출처를 알 수 없는 legacy 실패는 재실행해도 안전하다는 근거가 없다.
-        # 명시적인 일시 실패 marker만 Cloud Tasks 재시도 대상으로 인정한다.
-        raise HTTPException(status_code=409, detail="job failure is terminal")
+        # 명시적인 일시 실패 marker만 Cloud Tasks 재시도 대상으로 인정하고,
+        # terminal 상태는 2xx로 ACK해 재전송을 끝낸다.
+        return {"status": "failed"}
     if job.status not in {"queued", "processing", "failed"}:
         await session.commit()
-        raise HTTPException(status_code=409, detail="job is not runnable")
+        return {"status": "ignored", "reason": "job_is_not_runnable"}
 
     if job.status == "processing":
         updated_at = job.updated_at
@@ -475,7 +489,7 @@ async def finalize_task(
         png = await run_in_threadpool(render_fabric, params, request.app.state.settings)
         key = content_key("fabric", png, "png")
         await request.app.state.object_store.upload_bytes(key, png, "image/png")
-    except FabricError:
+    except (FabricError, IntentInvalid, RasterLimitError):
         # 영구 실패(잘못된 intent/weave/colorway 등) — failed 기록 후 200. 재렌더해도 같은
         # 입력은 같은 실패라 Cloud Tasks 재시도가 무의미하다(예산·큐 낭비).
         logger.warning(

@@ -44,8 +44,12 @@ class AdminCapabilitiesOut(BaseModel):
     gcs: str
     gcs_assets: str
     solapi: str
+    worker: str
     finalize_tasks: str
     batch_auth: str
+    oauth_google: str
+    oauth_kakao: str
+    auth_secrets: str
     edge_proxy: str
 
 

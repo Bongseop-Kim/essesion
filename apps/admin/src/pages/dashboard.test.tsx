@@ -57,8 +57,12 @@ const capabilities: AdminCapabilitiesOut = {
   gcs: "real",
   gcs_assets: "real",
   solapi: "real",
+  worker: "real",
   finalize_tasks: "real",
   batch_auth: "oidc",
+  oauth_google: "ready",
+  oauth_kakao: "ready",
+  auth_secrets: "ready",
   edge_proxy: "ready",
 };
 

@@ -3,7 +3,14 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from api.domains.batch.router import ACTIVE_GENERATION_JOB_LEASE
 from db.models.commerce import Claim, Order, OrderItem
+from db.models.design import (
+    FINALIZE_STALE_MESSAGE,
+    FINALIZE_TEMPORARY_FAILURE_MARKER,
+    DesignSession,
+    GenerationJob,
+)
 from sqlalchemy import func, select
 
 from .factories import make_coupon, make_order, make_user, make_user_coupon
@@ -40,7 +47,9 @@ async def test_nonlocal_batch_auth_never_falls_back_to_default_shared_secret(set
                 "/batch/cancel-stale-orders",
                 headers={"Authorization": "Bearer dev-batch-token"},
             )
-            ready = await nonlocal_client.get("/readyz")
+            ready = await nonlocal_client.get(
+                "/readyz", headers={"X-Essesion-Edge-Secret": "edge-test-secret"}
+            )
 
     assert response.status_code == 503
     assert response.json()["code"] == "batch_auth_unavailable"
@@ -139,6 +148,184 @@ async def test_order_batches_process_only_one_bounded_chunk(client, db_session, 
 
     second = await client.post("/batch/auto-confirm-orders", headers=BATCH_HEADERS)
     assert second.json() == {"processed": 1}
+
+
+async def test_reconcile_stale_finalize_jobs_fails_and_restores_budget(client, db_session):
+    user = await make_user(db_session)
+    old = datetime.now(UTC) - timedelta(hours=2)
+    design_session = DesignSession(user_id=user.id, status="active", finalize_used=3)
+    db_session.add(design_session)
+    await db_session.flush()
+    queued = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="queued",
+        attempts=0,
+        params={"intent": {}},
+        created_at=old,
+        updated_at=old,
+    )
+    processing = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="processing",
+        attempts=1,
+        params={"intent": {}},
+        created_at=old,
+        updated_at=old,
+    )
+    temporarily_failed = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="failed",
+        attempts=2,
+        params={"intent": {}},
+        error_message=FINALIZE_TEMPORARY_FAILURE_MARKER,
+        created_at=old,
+        updated_at=old,
+    )
+    fresh = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="queued",
+        attempts=0,
+        params={"intent": {}},
+    )
+    fresh_temporary_failure = GenerationJob(
+        user_id=user.id,
+        kind="finalize",
+        status="failed",
+        attempts=1,
+        params={"intent": {}},
+        error_message=FINALIZE_TEMPORARY_FAILURE_MARKER,
+    )
+    old_terminal_failure = GenerationJob(
+        user_id=user.id,
+        kind="finalize",
+        status="failed",
+        attempts=1,
+        params={"intent": {}},
+        error_message="FINALIZE_INVALID_INPUT: finalize input is invalid",
+        created_at=old,
+        updated_at=old,
+    )
+    db_session.add_all(
+        [
+            queued,
+            processing,
+            temporarily_failed,
+            fresh,
+            fresh_temporary_failure,
+            old_terminal_failure,
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.post("/batch/reconcile-stale-generation-jobs", headers=BATCH_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json() == {"processed": 3}
+    for job in (queued, processing, temporarily_failed):
+        await db_session.refresh(job)
+        assert job.status == "failed"
+        assert job.error_message == FINALIZE_STALE_MESSAGE
+    await db_session.refresh(fresh)
+    await db_session.refresh(fresh_temporary_failure)
+    await db_session.refresh(old_terminal_failure)
+    await db_session.refresh(design_session)
+    assert fresh.status == "queued"
+    assert fresh_temporary_failure.error_message == FINALIZE_TEMPORARY_FAILURE_MARKER
+    assert old_terminal_failure.error_message == "FINALIZE_INVALID_INPUT: finalize input is invalid"
+    assert design_session.finalize_used == 0
+
+
+async def test_reconcile_stale_finalize_jobs_is_idempotent(client, db_session):
+    user = await make_user(db_session)
+    old = datetime.now(UTC) - timedelta(hours=2)
+    design_session = DesignSession(user_id=user.id, status="active", finalize_used=1)
+    db_session.add(design_session)
+    await db_session.flush()
+    job = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="queued",
+        attempts=0,
+        params={"intent": {}},
+        created_at=old,
+        updated_at=old,
+    )
+    db_session.add(job)
+    await db_session.commit()
+
+    first = await client.post("/batch/reconcile-stale-generation-jobs", headers=BATCH_HEADERS)
+    second = await client.post("/batch/reconcile-stale-generation-jobs", headers=BATCH_HEADERS)
+
+    assert first.json() == {"processed": 1}
+    assert second.json() == {"processed": 0}
+    await db_session.refresh(design_session)
+    assert design_session.finalize_used == 0
+
+
+async def test_reconcile_stale_finalize_uses_creation_ttl_and_protects_active_lease(
+    client, db_session
+):
+    user = await make_user(db_session)
+    now = datetime.now(UTC)
+    old = now - timedelta(hours=2)
+    design_session = DesignSession(user_id=user.id, status="active", finalize_used=3)
+    db_session.add(design_session)
+    await db_session.flush()
+    active_processing = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="processing",
+        attempts=1,
+        params={"intent": {}},
+        created_at=old,
+        updated_at=now,
+    )
+    expired_processing = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="processing",
+        attempts=1,
+        params={"intent": {}},
+        created_at=old,
+        updated_at=now - ACTIVE_GENERATION_JOB_LEASE - timedelta(seconds=1),
+    )
+    recently_failed = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="failed",
+        attempts=2,
+        params={"intent": {}},
+        error_message=FINALIZE_TEMPORARY_FAILURE_MARKER,
+        created_at=old,
+        updated_at=now,
+    )
+    db_session.add_all([active_processing, expired_processing, recently_failed])
+    await db_session.commit()
+
+    response = await client.post("/batch/reconcile-stale-generation-jobs", headers=BATCH_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json() == {"processed": 2}
+    await db_session.refresh(active_processing)
+    await db_session.refresh(expired_processing)
+    await db_session.refresh(recently_failed)
+    await db_session.refresh(design_session)
+    assert active_processing.status == "processing"
+    assert expired_processing.error_message == FINALIZE_STALE_MESSAGE
+    assert recently_failed.error_message == FINALIZE_STALE_MESSAGE
+    assert design_session.finalize_used == 1
 
 
 # ---- OIDC 모드 (배포 환경 — infra/scheduler.tf가 audience·email 주입) ----
