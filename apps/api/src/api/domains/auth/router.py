@@ -1,3 +1,4 @@
+import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Request, Response
@@ -9,7 +10,7 @@ from api.deps import CurrentUser, SettingsDep
 from api.domains.auth import phone as phone_service
 from api.domains.auth import service
 from api.domains.auth.oauth import fetch_profile, get_oauth_client
-from api.domains.auth.rate_limit import admin_auth_rate_limit_key
+from api.domains.auth.rate_limit import client_rate_limit_key, request_client_ip
 from api.domains.auth.schemas import (
     LoginRequest,
     MeResponse,
@@ -28,10 +29,22 @@ ADMIN_REFRESH_COOKIE = "admin_refresh_token"
 
 
 def _enforce_admin_auth_rate_limit(request: Request) -> None:
-    client_host = request.client.host if request.client is not None else None
     request.app.state.admin_auth_rate_limiter.check(
-        admin_auth_rate_limit_key(request.url.path, client_host)
+        client_rate_limit_key(request.url.path, request_client_ip(request))
     )
+
+
+def _enforce_store_auth_rate_limit(request: Request) -> None:
+    request.app.state.store_auth_rate_limiter.check(
+        client_rate_limit_key(request.url.path, request_client_ip(request))
+    )
+
+
+def _enforce_phone_verify_rate_limit(request: Request, user_id: uuid.UUID) -> None:
+    limiter = request.app.state.phone_verify_rate_limiter
+    client_host = request_client_ip(request)
+    limiter.check(f"{request.url.path}:user:{user_id}")
+    limiter.check(f"{request.url.path}:ip:{client_host or 'unknown'}")
 
 
 def _set_refresh_cookie(response: Response, raw: str, settings: Settings) -> None:
@@ -60,9 +73,14 @@ def _set_admin_refresh_cookie(response: Response, raw: str, settings: Settings) 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-    body: LoginRequest, response: Response, session: SessionDep, settings: SettingsDep
+    body: LoginRequest,
+    request: Request,
+    response: Response,
+    session: SessionDep,
+    settings: SettingsDep,
 ) -> TokenResponse:
     """id/pw 로그인 — 테스트·운영 점검용. 공개 회원가입 없음(계정은 시드/관리자 생성)."""
+    _enforce_store_auth_rate_limit(request)
     user = await service.login_with_password(session, body.email, body.password)
     if user.role != "customer":
         raise UnauthorizedError(service.LOGIN_FAILED)
@@ -157,8 +175,15 @@ async def oauth_callback(
     settings: SettingsDep,
 ) -> RedirectResponse:
     client = get_oauth_client(request, provider)
-    provider_user_id, email, name = await fetch_profile(client, provider, request)
-    user = await service.ensure_oauth_user(session, provider, provider_user_id, email, name)
+    profile = await fetch_profile(client, provider, request)
+    user = await service.ensure_oauth_user(
+        session,
+        provider,
+        profile.provider_user_id,
+        profile.email,
+        profile.name,
+        email_verified=profile.email_verified,
+    )
     raw = await service.issue_refresh_token(session, user.id, settings)
     response = RedirectResponse(f"{settings.frontend_origin}/auth/callback")
     _set_refresh_cookie(response, raw, settings)
@@ -175,7 +200,8 @@ async def send_phone_verification(
 
 @router.post("/phone/verify", response_model=MessageResponse)
 async def verify_phone(
-    body: PhoneVerifyRequest, user: CurrentUser, session: SessionDep
+    body: PhoneVerifyRequest, request: Request, user: CurrentUser, session: SessionDep
 ) -> MessageResponse:
+    _enforce_phone_verify_rate_limit(request, user.id)
     await phone_service.verify_code(session, user, body.phone, body.code)
     return MessageResponse(message="전화번호 인증이 완료되었습니다")

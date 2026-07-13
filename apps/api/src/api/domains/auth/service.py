@@ -8,6 +8,7 @@ from db.models.auth import RefreshToken, User, UserIdentity
 from db.models.commerce import AdminSetting
 from db.models.tokens import DesignToken
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -193,8 +194,36 @@ async def ensure_oauth_user(
     provider_user_id: str,
     email: str | None,
     name: str | None,
+    *,
+    email_verified: bool = False,
 ) -> User:
-    """identity 조회 → (없으면) 이메일 best-effort 매칭 → (없으면) 신규 생성 + 초기 토큰."""
+    """검증 이메일만 기존 계정에 연결하고 최초 callback unique race는 한 번 재조회한다."""
+    for attempt in range(2):
+        try:
+            return await _ensure_oauth_user(
+                session,
+                provider,
+                provider_user_id,
+                email,
+                name,
+                email_verified=email_verified,
+            )
+        except IntegrityError:
+            await session.rollback()
+            if attempt == 1:
+                raise
+    raise AssertionError("unreachable")
+
+
+async def _ensure_oauth_user(
+    session: AsyncSession,
+    provider: str,
+    provider_user_id: str,
+    email: str | None,
+    name: str | None,
+    *,
+    email_verified: bool,
+) -> User:
     identity = await session.scalar(
         select(UserIdentity).where(
             UserIdentity.provider == provider,
@@ -210,7 +239,7 @@ async def ensure_oauth_user(
         return user
 
     user = None
-    if email:
+    if email and email_verified:
         user = await session.scalar(select(User).where(User.email == email))
 
     if user is not None and user.role != "customer":
@@ -218,7 +247,13 @@ async def ensure_oauth_user(
 
     if user is None:
         display_name = name or (email.split("@")[0] if email else "사용자")
-        user = User(email=email, name=display_name, role="customer")
+        # 미검증 provider 이메일은 계정 식별자로 저장하지 않는다. 동일 문자열을 가진
+        # 기존 계정과 분리된 email-less 소셜 계정을 생성해 자동 탈취 연결을 막는다.
+        user = User(
+            email=email if email_verified else None,
+            name=display_name,
+            role="customer",
+        )
         session.add(user)
         await session.flush()
         await grant_initial_tokens(session, user.id)

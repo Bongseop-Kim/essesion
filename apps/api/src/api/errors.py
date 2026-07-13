@@ -4,8 +4,12 @@ detail의 한국어 메시지는 기존 시스템의 프론트 노출 계약 —
 """
 
 import logging
+import math
+from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from obs import request_id_var, sanitize_request_id
 from pydantic import BaseModel
@@ -92,6 +96,18 @@ class WorkerRequestError(DomainError):
     code = "worker_rejected"
 
 
+def _json_safe_validation_detail(value: Any) -> Any:
+    """검증 실패 input의 NaN/Infinity가 422 응답 자체를 500으로 만들지 않게 한다."""
+
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _json_safe_validation_detail(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_validation_detail(item) for item in value]
+    return value
+
+
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError) -> JSONResponse:
@@ -107,6 +123,13 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=409,
             content={"detail": "이미 존재하거나 충돌하는 요청입니다", "code": "conflict"},
         )
+
+    @app.exception_handler(RequestValidationError)
+    async def _request_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        detail = _json_safe_validation_detail(jsonable_encoder(exc.errors()))
+        return JSONResponse(status_code=422, content={"detail": detail})
 
     @app.exception_handler(Exception)
     async def _unhandled_error(request: Request, exc: Exception) -> JSONResponse:

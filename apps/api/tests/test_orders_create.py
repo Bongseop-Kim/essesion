@@ -499,3 +499,112 @@ async def test_order_numbering_sequence(client, db_session, settings):
     n1 = first.json()["orders"][0]["order_number"]
     n2 = second.json()["orders"][0]["order_number"]
     assert n1.endswith("-001") and n2.endswith("-002")
+
+
+async def test_order_rejects_duplicate_and_oversized_line_inputs_with_422(
+    client, db_session, settings
+):
+    user, address, product = await _setup(db_session, stock=100)
+    headers = auth_headers(user, settings)
+    item = _product_item(product)
+
+    duplicate = await client.post(
+        "/orders",
+        json={"shipping_address_id": str(address.id), "items": [item, item]},
+        headers=headers,
+    )
+    too_many = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [{**item, "item_id": f"product:{index}"} for index in range(51)],
+        },
+        headers=headers,
+    )
+    excessive_quantity = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [{**item, "quantity": 10_001}],
+        },
+        headers=headers,
+    )
+    long_item_id = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [{**item, "item_id": "x" * 201}],
+        },
+        headers=headers,
+    )
+
+    assert duplicate.status_code == 422
+    assert too_many.status_code == 422
+    assert excessive_quantity.status_code == 422
+    assert long_item_id.status_code == 422
+    await db_session.refresh(product)
+    assert product.stock == 100
+
+
+async def test_custom_sample_and_pickup_inputs_have_schema_bounds(client, db_session, settings):
+    user, address, product = await _setup(db_session)
+    headers = auth_headers(user, settings)
+    large_options = {"blob": "x" * 10_000}
+
+    responses = [
+        await client.post(
+            "/orders/custom/calculate",
+            json={"options": large_options, "quantity": 1},
+        ),
+        await client.post(
+            "/orders/custom/calculate",
+            json={"options": {"fabric_provided": True}, "quantity": 10_001},
+        ),
+        await client.post(
+            "/orders/custom",
+            json={
+                "shipping_address_id": str(address.id),
+                "options": {"fabric_provided": True},
+                "quantity": 1,
+                "additional_notes": "n" * 501,
+            },
+            headers=headers,
+        ),
+        await client.post(
+            "/orders/sample",
+            json={
+                "shipping_address_id": str(address.id),
+                "sample_type": "sewing",
+                "options": large_options,
+            },
+            headers=headers,
+        ),
+        await client.post(
+            "/orders/sample",
+            json={
+                "shipping_address_id": str(address.id),
+                "sample_type": "sewing",
+                "options": {},
+                "additional_notes": "n" * 501,
+            },
+            headers=headers,
+        ),
+        await client.post(
+            "/orders",
+            json={
+                "shipping_address_id": str(address.id),
+                "items": [_product_item(product)],
+                "repair_shipping": {
+                    "method": "pickup",
+                    "pickup": {
+                        "recipient_name": "n" * 101,
+                        "recipient_phone": "01012345678",
+                        "address": "서울",
+                    },
+                },
+            },
+            headers=headers,
+        ),
+    ]
+
+    assert all(response.status_code == 422 for response in responses)

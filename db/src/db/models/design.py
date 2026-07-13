@@ -14,6 +14,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from db.models.base import Base, CreatedAtMixin, TimestampMixin, uuid_pk
 
+FINALIZE_DISPATCH_FAILED_MESSAGE = "finalize 작업 전달에 실패했습니다"
+
 
 class DesignSession(TimestampMixin, Base):
     __tablename__ = "design_sessions"

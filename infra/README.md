@@ -40,10 +40,11 @@ tofu apply -var-file=staging.tfvars
 | 3 | 3-1 target apply → 시크릿 값 주입 → 3-2 전체 apply | **사용자(로컬 tofu)** |
 | 4 | Sentry 프로젝트 2개 생성 → DSN 시크릿 주입 | **사용자** |
 | 5 | GitHub vars/secrets 설정 (아래 섹션) | **사용자(gh)** |
-| 6 | main 푸시 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
-| 7 | 배치 audience 대조·수동 트리거 확인 (아래 "배치" 섹션) | **사용자** |
-| 8 | Toss 웹훅/콜백 URL·OAuth redirect URI를 새 api 주소로 등록 | **사용자(각 콘솔)** |
-| 9 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `apps/worker/scripts/seed_motifs.py`로 모티프 카탈로그 입력 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
+| 6 | `api.essesion.shop` 프록시 route·ORIGIN·edge secret을 설정하고 API 프록시를 선배포 | **사용자(Cloudflare/wrangler)** |
+| 7 | main 푸시 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
+| 8 | readiness·프록시·직통 차단, 배치 audience와 수동 트리거 확인 | **사용자** |
+| 9 | Toss 웹훅/콜백 URL·OAuth redirect URI를 `https://api.essesion.shop` 기준으로 등록 | **사용자(각 콘솔)** |
+| 10 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `apps/worker/scripts/seed_motifs.py`로 모티프 카탈로그 입력 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
 
 ## 시크릿 값 주입 (수집해 둔 기존 env → Secret Manager)
 
@@ -52,7 +53,7 @@ tofu apply -var-file=staging.tfvars
 ```bash
 printf '%s' '<값>' | gcloud secrets versions add toss-secret-key --data-file=- --project=essesion-staging
 # 동일하게: solapi-api-key solapi-api-secret google-client-secret kakao-client-secret
-#          openai-api-key gemini-api-key recraft-api-key jwt-secret session-secret
+#          openai-api-key gemini-api-key recraft-api-key jwt-secret session-secret edge-proxy-secret
 #          sentry-dsn-api sentry-dsn-worker
 # db-password·database-url은 tofu가 생성·주입하므로 손대지 않는다
 # 전 시크릿에 버전이 1개 이상 있어야 서비스 리비전이 기동한다 (부트스트랩 3-1 참조)
@@ -113,7 +114,7 @@ uv run python apps/api/scripts/bootstrap_admin.py revoke-sessions
 ```
 
 배포 확인은 `/healthz`가 아니라 `/readyz`를 사용한다. 스테이징·운영에서
-`toss`, `gcs`, `solapi` 중 하나라도 `unavailable`이면 503이다. Toss·GCS mutation은
+`toss`, `gcs`, `solapi`, `finalize_tasks`, `batch_auth`, `edge_proxy` 중 하나라도 `unavailable`이면 503이다. Toss·GCS mutation은
 503으로 차단되고 Solapi 알림은 가짜 성공으로 바뀌지 않고 outbox `failed`로 남는다.
 
 ## 배치 (Cloud Scheduler → api /batch/*)
@@ -133,4 +134,6 @@ sentry.io에서 api·worker 프로젝트 2개 생성 → DSN을 `sentry-dsn-api`
 
 ## Cloudflare
 
-[cloudflare/README.md](./cloudflare/README.md) 참조.
+첫 비로컬 API 배포 전에 API 프록시를 먼저 개통해야 한다. 일반 HTTP는 정확한
+edge secret 없이는 Cloud Run에서 거부되며 health/readiness와 자체 OIDC batch만
+예외다. 순서와 검증 명령은 [cloudflare/README.md](./cloudflare/README.md) 참조.

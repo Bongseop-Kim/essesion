@@ -35,6 +35,7 @@ from api.domains.images.service import (
     link_order_images,
 )
 from api.domains.orders.schemas import (
+    MAX_ORDER_ITEMS,
     CustomOrderCreateRequest,
     OrderCreateRequest,
     OrderItemIn,
@@ -50,7 +51,6 @@ from api.integrations.gcs import GcsClient
 from api.numbering import generate_number
 from api.pricing import get_pricing_constants
 
-MAX_ITEMS = 50
 KST = ZoneInfo("Asia/Seoul")
 
 CUSTOM_PRICING_KEYS = [
@@ -369,7 +369,7 @@ async def _deduct_stock(session: AsyncSession, item: OrderItemIn) -> tuple[int, 
 async def create_order(session: AsyncSession, user: User, body: OrderCreateRequest) -> dict:
     if not body.items:
         raise DomainError("Order items are required", code="items_required")
-    if len(body.items) > MAX_ITEMS:
+    if len(body.items) > MAX_ORDER_ITEMS:
         raise DomainError("Too many items", code="too_many_items")
     address = await _get_owned_address(session, user, body.shipping_address_id)
 

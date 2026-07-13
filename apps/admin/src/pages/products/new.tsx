@@ -29,7 +29,10 @@ function createBody(value: ProductFormValue) {
       stock: option.stock,
     })),
     image_upload_id: value.imageUploadId ?? "",
-    detail_image_upload_ids: value.detailImageUploadIds ?? [],
+    detail_image_upload_ids:
+      value.detailImages?.flatMap((image) =>
+        "uploadId" in image ? [image.uploadId] : [],
+      ) ?? [],
   };
 }
 

@@ -9,6 +9,8 @@ app.state.object_store = DryRunObjectStore(). lifespan은 돌지 않으므로 st
 """
 
 import asyncio
+import threading
+import time
 
 import httpx
 import pytest
@@ -204,6 +206,30 @@ def test_schema_invalid_request_returns_422(client):
     # candidate_count가 스키마 범위(1..8) 밖 — 요청 스키마 실패(422), 의미 오류 아님.
     resp = client.post("/generate", json={"intent": mvp_intent(), "candidate_count": 99})
     assert resp.status_code == 422
+
+
+def test_preview_render_parallelism_is_bounded(monkeypatch):
+    app = _configure_app(monkeypatch)
+    lock = threading.Lock()
+    active = 0
+    maximum = 0
+
+    def slow_raster(_svg, **_kwargs):
+        nonlocal active, maximum
+        with lock:
+            active += 1
+            maximum = max(maximum, active)
+        time.sleep(0.02)
+        with lock:
+            active -= 1
+        return b"fake-png", "image/png"
+
+    monkeypatch.setattr(routes, "rasterize_svg", slow_raster)
+    response = TestClient(app).post(
+        "/generate", json={"intent": mvp_intent(), "candidate_count": 8}
+    )
+    assert response.status_code == 200
+    assert maximum <= app.state.settings.preview_render_concurrency
 
 
 def test_prompt_only_without_gemini_returns_503(client):

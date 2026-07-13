@@ -14,6 +14,8 @@ from PIL import Image
 from worker.engine.units import mm_to_px
 
 MAX_DIMENSION_PX = 20_000
+MAX_RASTER_PIXELS = 20_000_000
+RASTER_TIMEOUT_SECONDS = 120
 _MEDIA = {"png": "image/png", "tiff": "image/tiff"}
 
 
@@ -38,6 +40,9 @@ def rasterize_svg(
     height_px = max(1, mm_to_px(height_mm, dpi))
     if max(width_px, height_px) > MAX_DIMENSION_PX:
         raise RasterError(f"raster size exceeds {MAX_DIMENSION_PX}px")
+    pixels = width_px * height_px
+    if pixels > MAX_RASTER_PIXELS:
+        raise RasterError(f"raster area exceeds {MAX_RASTER_PIXELS} pixels")
 
     if binary := which("rsvg-convert"):
         cmd = [binary, "-w", str(width_px), "-h", str(height_px), "-f", "png", "-"]
@@ -46,7 +51,16 @@ def rasterize_svg(
     else:
         raise RasterError("rsvg-convert/resvg not found")
 
-    proc = subprocess.run(cmd, input=svg.encode("utf-8"), capture_output=True, check=False)
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=svg.encode("utf-8"),
+            capture_output=True,
+            check=False,
+            timeout=RASTER_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RasterError(f"rasterizer timed out after {RASTER_TIMEOUT_SECONDS}s") from exc
     if proc.returncode or not proc.stdout:
         raise RasterError(proc.stderr.decode(errors="replace") or "rasterizer returned no output")
 

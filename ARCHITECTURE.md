@@ -59,6 +59,7 @@ graph LR
     CF --> API[api · FastAPI<br/>Cloud Run]
     API -->|동기 HTTP + OIDC| WG[worker-generate<br/>Cloud Run]
     API -->|잡 등록| CT[Cloud Tasks] -->|푸시| WF[worker-finalize<br/>Cloud Run]
+    API -->|동기 export + OIDC| WF
     API --> SQL[(Cloud SQL<br/>PostgreSQL + pgvector)]
     WG --> SQL
     WG --> GCS[(GCS 버킷)]
@@ -73,11 +74,13 @@ graph LR
 | `admin` | Cloudflare Workers (정적 자산) | 관리자 프론트 | 공개(로그인 게이트) |
 | `api` | Cloud Run | 코어 API. Auth(JWT)·인가·전 도메인 비즈니스 로직·결제·과금. 기존 supabase-js 직접 접근 + Edge Functions + RLS + DB함수의 역할을 전부 흡수 | 공개 — **Cloudflare 프록시 경유**(WAF·레이트리밋·봇 차단) |
 | `worker-generate` | Cloud Run | 외부-API-바운드 작업(intent 저작·모티프·candidate 생성·preview). api가 동기 HTTP + OIDC로 호출 (현재 인증 전무 문제를 경계로 해결) | 비공개 |
-| `worker-finalize` | Cloud Run | CPU·메모리-바운드 작업(원단 텍스처 finalize·export). **Cloud Tasks 푸시**로 소비 — 작업 단위 재시도 제어에 적합 ([Cloud Tasks vs Pub/Sub](https://docs.cloud.google.com/tasks/docs/comp-pub-sub)) | 비공개 |
+| `worker-finalize` | Cloud Run | CPU·메모리-바운드 작업. finalize는 **Cloud Tasks 푸시**로 소비해 작업 단위 재시도, 작은 export는 api가 동기 OIDC 호출 ([Cloud Tasks vs Pub/Sub](https://docs.cloud.google.com/tasks/docs/comp-pub-sub)) | 비공개 |
 
 두 워커는 **한 코드베이스(`apps/worker`)를 리소스 프로파일만 달리해 두 서비스로 배포** — generate는 가볍고 동시성 높게, finalize는 메모리 크고 동시성 낮게. 부하 성격이 달라 스케일 정책을 분리한다.
 
 프론트 배포는 Pages가 아닌 **Workers 정적 자산**으로 — 2026년 Cloudflare의 신규 프로젝트 권장 경로이며 Pages는 유지보수 모드다 ([공식 가이드](https://developers.cloudflare.com/workers/static-assets/), [React+Vite 가이드](https://developers.cloudflare.com/workers/framework-guides/web-apps/react/)). Cloudflare Vite 플러그인으로 빌드·배포. 도메인은 서브도메인으로 통일(app./admin./api.)하고 **api 서브도메인도 Cloudflare 프록시를 경유**시킨다 — WAF·레이트리밋·봇 차단·DDoS 방어를 코드 없이 확보하고, 도메인·인증서 관리가 Cloudflare 한 곳으로 모이며 CORS 구성이 단순해진다.
+
+비로컬 api는 `/healthz`, `/readyz`, 자체 Google OIDC로 보호되는 `/batch/*`를 제외한 모든 HTTP 요청에 Cloudflare 프록시가 덮어쓰는 exact shared secret을 요구한다. 따라서 공개 Cloud Run ingress가 필요해도 `run.app` 직통으로 WAF를 우회할 수 없으며, Toss 웹훅과 OAuth callback도 처음부터 `api.essesion.shop`만 외부 콘솔에 등록한다.
 
 **관측·운영**: 전 서비스 JSON 구조화 로깅(Cloud Logging이 자동 파싱). api가 발급한 request_id를 worker 호출에 전파해 한 생성 요청을 끝까지 추적(현 seamless-tile의 request-id 미들웨어 패턴 승계). 에러 추적은 Sentry로 프론트→api→worker 전 구간 통일(프론트에서 이미 사용 중). 여기에 GCP 예산 알림 1개 + uptime check 1개 — "죽었는데 몰랐다"와 "요금 폭탄"을 막는 최소 장치. api는 **min-instances=1**로 콜드스타트를 제거(로그인 첫 요청 UX 보호), 워커 둘은 scale-to-zero 유지.
 
@@ -92,7 +95,7 @@ graph LR
 | supabase-js 직접 쿼리 | OpenAPI 생성 클라이언트 → api | 프론트에서 DB 개념 제거 |
 | Realtime | 미사용이므로 대체 불요 | — |
 
-**워커 호출 모델 — generate는 동기, finalize는 큐**: generate는 대화형 UX(사용자가 결과를 기다림)이고 외부 API 바운드라 동기 HTTP + Cloud Run 요청 기반 오토스케일이 잘 맞는다. finalize·export는 CPU·메모리 헤비이므로 **Cloud Tasks 큐로 비동기화**하고 프론트는 잡 상태 폴링/SSE로 결과를 받는다 — `/design`이 어차피 신규 설계(보존 예외)라 비동기 UX 채택에 제약이 없다. finalize 작업은 멱등(content-hash 키)이므로 Cloud Tasks 재시도가 안전하다.
+**워커 호출 모델 — generate·작은 export는 동기, finalize는 큐**: generate는 대화형 UX(사용자가 결과를 기다림)이고 외부 API 바운드라 동기 HTTP가 맞는다. export도 현재 API 계약상 동기지만 CPU·메모리 프로파일은 `worker-finalize`에 격리한다. 원단 finalize는 **Cloud Tasks 큐로 비동기화**하고 프론트는 잡 상태를 폴링한다. finalize 작업은 content-hash 키와 DB attempt/lease로 멱등 처리한다.
 
 **세션 계층 — LangGraph 드롭**: 워커는 **stateless generate/finalize/export 엔진으로 한정**한다. 대화형 디자인 세션의 상태(턴 이력·선택·게이트)는 api가 일반 테이블로 소유하고, 워커는 매 호출을 단발로 처리 — langgraph 스택 의존 4종이 사라져 재구현 범위가 크게 준다. 프로세스-로컬 캐시·락도 승계하지 않는다(멱등 설계 덕에 재계산이 안전). checkpoint 테이블은 새 스키마에서 아예 만들지 않는다(§6).
 
@@ -190,7 +193,7 @@ essesion/
 - **파이프라인 재설계**: 기존 finalize(yarn_dyed)가 compose+래스터를 요청당 4~5회 재실행하던 구조는 승계하지 않는다 — 중간 산출물(베이스 SVG·마스크 래스터)을 요청 내 재사용.
 - **컨테이너**: python 버전 핀 + librsvg(`rsvg-convert`) 서브프로세스 래스터화(§3 — resvg 인프로세스화는 동등성 판정 (b) 조건부로 보류, `docs/reviews/resvg-parity.md`). Pillow 포함 전 의존성 핀(uv.lock) — finalize 결정론의 전제. 번들 폰트(NotoSansCJKkr)는 **텍스트 렌더링 도입 시에만 필요** — 현 엔진·sanitize는 `<text>`를 생성·허용하지 않아 불요(점검 F5).
 - **리소스 (초기 권고)**: CPU Cloud Run으로 충분(GPU 불필요 확정). `worker-generate`는 가볍게(1 vCPU / 1GB, 동시성 높게 — 지연 대부분이 외부 API 대기). `worker-finalize`는 메모리가 dpi²에 비례하므로 **2 vCPU / 4GB, 동시성 1~2, dpi 상한 600**(엔진 기본 300 유지)으로 시작하고 운영 실측 후 조정 — 1200dpi가 실제로 필요해지면 그때 8GB+로 상향.
-- **경계**: 둘 다 외부 노출 없음. generate는 api의 OIDC 동기 호출, finalize는 Cloud Tasks 푸시(OIDC 토큰 포함)만 수신. 타임아웃은 Recraft 120s 재시도까지 감안해 여유 있게.
+- **경계**: 둘 다 외부 노출 없음. generate는 api의 OIDC 동기 호출, finalize는 Cloud Tasks 푸시(OIDC)와 api의 동기 export OIDC만 수신하며 서비스 모드별 라우터를 분리한다. 타임아웃은 Recraft 120s 재시도까지 감안해 여유 있게.
 
 ---
 

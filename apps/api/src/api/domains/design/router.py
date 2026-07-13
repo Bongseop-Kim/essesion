@@ -5,16 +5,29 @@
 """
 
 import asyncio
+import json
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal, cast
 
-from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
+from db.models.design import (
+    FINALIZE_DISPATCH_FAILED_MESSAGE,
+    DesignSession,
+    DesignSessionTurn,
+    GenerationJob,
+)
 from db.models.images import Image
 from fastapi import APIRouter, Query, Request, Response
 from obs import request_id_var
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+)
 from sqlalchemy import CursorResult, func, select, update
 
 from api.db import SessionDep, advisory_xact_lock
@@ -26,6 +39,32 @@ from api.integrations.gcs import assets_bucket_name, public_asset_url
 
 router = APIRouter(tags=["design"])
 logger = logging.getLogger(__name__)
+MAX_DESIGN_JSON_BYTES = 1_000_000
+MAX_DESIGN_PROMPT_LENGTH = 4_000
+SIGNED_INT64_MIN = -(2**63)
+SIGNED_INT64_MAX = 2**63 - 1
+
+
+def _bounded_design_json(value: dict[str, Any]) -> dict[str, Any]:
+    try:
+        size = len(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        )
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        raise ValueError("design JSON must be serializable") from exc
+    if size > MAX_DESIGN_JSON_BYTES:
+        raise ValueError(f"design JSON exceeds {MAX_DESIGN_JSON_BYTES} bytes")
+    return value
+
+
+BoundedDesignJson = Annotated[dict[str, Any], AfterValidator(_bounded_design_json)]
+ShortDesignString = Annotated[str, StringConstraints(max_length=100)]
+SignedInt64 = Annotated[int, Field(ge=SIGNED_INT64_MIN, le=SIGNED_INT64_MAX)]
 
 
 class DesignSessionOut(BaseModel):
@@ -44,14 +83,14 @@ class DesignSessionOut(BaseModel):
 
 
 class DesignSessionUpdateRequest(BaseModel):
-    seed: int | None = None
-    colorway: str | None = None
-    current_intent: dict[str, Any] | None = None
+    seed: SignedInt64 | None = None
+    colorway: str | None = Field(default=None, max_length=100)
+    current_intent: BoundedDesignJson | None = None
 
 
 class DesignTurnCreateRequest(BaseModel):
-    role: str
-    payload: dict[str, Any]
+    role: Literal["user", "assistant"]
+    payload: BoundedDesignJson
 
 
 class DesignTurnOut(BaseModel):
@@ -77,10 +116,10 @@ class WorkerCandidateOut(BaseModel):
 
 class DesignGenerateRequest(BaseModel):
     session_id: uuid.UUID | None = None
-    prompt: str | None = None
-    intent: dict[str, Any] | None = None
-    colorway: str | None = None
-    seed: int | None = None
+    prompt: str | None = Field(default=None, max_length=MAX_DESIGN_PROMPT_LENGTH)
+    intent: BoundedDesignJson | None = None
+    colorway: str | None = Field(default=None, max_length=100)
+    seed: SignedInt64 | None = None
     candidate_count: int = Field(1, ge=1, le=8)  # 워커 경계와 동일 — 선검증으로 헛환불 방지
 
 
@@ -114,12 +153,14 @@ KNOWN_WEAVES = ("check", "herringbone", "jacquard", "pindot", "solid", "twill-0"
 
 
 class FinalizeRequest(BaseModel):
-    intent: dict[str, Any] | None = None
-    colorway_id: str | None = None
-    production_method: str | None = None
+    intent: BoundedDesignJson | None = None
+    colorway_id: str | None = Field(default=None, max_length=100)
+    production_method: str | None = Field(default=None, max_length=100)
     dpi: int | None = None
-    weave: str | None = None
-    material_map: dict[str, str] | None = None
+    weave: str | None = Field(default=None, max_length=100)
+    material_map: dict[ShortDesignString, ShortDesignString] | None = Field(
+        default=None, max_length=100
+    )
     texture_strength: float | None = Field(None, ge=0)
     relief_strength: float | None = Field(None, ge=0)
 
@@ -314,13 +355,13 @@ async def _complete_generation(
     except (UpstreamError, WorkerRequestError):
         # 둘 다 환불하되 응답은 구분 — 요청 오류는 422(detail 보존), 일시 장애는 502.
         await session.rollback()
-        await ledger.refund_failed_generation(session, user_id, charge.cost, f"{work_id}_refund")
+        await ledger.refund_failed_generation(session, user_id, charge.cost, work_id)
         raise
     except Exception as exc:
         # CancelledError(BaseException)는 여기서 삼키지 않는다. 일반 예외는 실패한
         # turn 트랜잭션을 정리한 뒤 환불해, 워커 프로토콜/DB 오류가 과금 누수로 번지지 않는다.
         await session.rollback()
-        await ledger.refund_failed_generation(session, user_id, charge.cost, f"{work_id}_refund")
+        await ledger.refund_failed_generation(session, user_id, charge.cost, work_id)
         logger.warning("generation completion failed after charge", exc_info=True)
         raise UpstreamError("디자인 생성을 완료하지 못했습니다") from exc
     return out
@@ -401,8 +442,41 @@ async def create_finalize_job(
         await request.app.state.worker.finalize_job(str(job.id))
         await session.refresh(job)
     else:
-        await request.app.state.tasks.enqueue_finalize(job.id)
+        try:
+            await request.app.state.tasks.enqueue_finalize(job.id)
+        except Exception as exc:
+            dispatch_failed = await _fail_finalize_dispatch(session, session_id, job.id)
+            if not dispatch_failed:
+                # create 응답만 유실된 사이 task가 queued를 이미 claim했다. 이 경우
+                # 전달은 성공한 것이므로 예산을 환불하거나 502로 거짓 보고하지 않는다.
+                await session.refresh(job)
+                return _generation_job_out(job, request.app.state.settings)
+            if isinstance(exc, DomainError):
+                raise
+            raise UpstreamError("finalize 작업을 전달하지 못했습니다") from exc
     return _generation_job_out(job, request.app.state.settings)
+
+
+async def _fail_finalize_dispatch(
+    session: SessionDep, session_id: uuid.UUID, job_id: uuid.UUID
+) -> bool:
+    """큐 전달 전 실패한 queued job만 실패 처리하고 소비한 예산을 한 번 되돌린다."""
+
+    await session.rollback()
+    failed = await session.execute(
+        update(GenerationJob)
+        .where(GenerationJob.id == job_id, GenerationJob.status == "queued")
+        .values(status="failed", error_message=FINALIZE_DISPATCH_FAILED_MESSAGE)
+    )
+    dispatch_failed = cast("CursorResult[Any]", failed).rowcount > 0
+    if dispatch_failed:
+        await session.execute(
+            update(DesignSession)
+            .where(DesignSession.id == session_id)
+            .values(finalize_used=func.greatest(DesignSession.finalize_used - 1, 0))
+        )
+    await session.commit()
+    return dispatch_failed
 
 
 @router.get("/design/jobs", response_model=list[GenerationJobOut])
@@ -482,40 +556,49 @@ async def create_design_order_reference(
     )
     if not copied:
         raise UpstreamError("완성 디자인을 주문 첨부로 준비하지 못했습니다")
-    staged_image: Image | None = None
-    if kind == "quote_request":
-        staged_image = Image(
-            object_key=destination_key,
-            entity_type="quote_request_upload",
-            entity_id=destination_key,
-            uploaded_by=user.id,
-            content_type="image/png",
-            upload_completed_at=datetime.now(UTC),
-            expires_at=datetime.now(UTC) + timedelta(hours=24),
-        )
-    else:
-        metadata = await request.app.state.gcs.object_metadata(destination_key)
-        if request.app.state.gcs.upload_required:
-            if metadata is None:
-                raise UpstreamError("복사된 주문 참고 이미지를 확인하지 못했습니다")
-            if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
-                raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
-            if metadata.content_type != "image/png":
-                raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
-        staged_image = Image(
-            object_key=destination_key,
-            entity_type=order_upload_entity_type(kind),
-            entity_id=destination_key,
-            uploaded_by=user.id,
-            content_type="image/png",
-            size_bytes=metadata.size_bytes if metadata is not None else 1,
-            upload_completed_at=datetime.now(UTC),
-            expires_at=datetime.now(UTC) + timedelta(hours=24),
-        )
-    if staged_image is not None:
+    try:
+        if kind == "quote_request":
+            staged_image = Image(
+                object_key=destination_key,
+                entity_type="quote_request_upload",
+                entity_id=destination_key,
+                uploaded_by=user.id,
+                content_type="image/png",
+                upload_completed_at=datetime.now(UTC),
+                expires_at=datetime.now(UTC) + timedelta(hours=24),
+            )
+        else:
+            metadata = await request.app.state.gcs.object_metadata(destination_key)
+            if request.app.state.gcs.upload_required:
+                if metadata is None:
+                    raise UpstreamError("복사된 주문 참고 이미지를 확인하지 못했습니다")
+                if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
+                    raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+                if metadata.content_type != "image/png":
+                    raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+            staged_image = Image(
+                object_key=destination_key,
+                entity_type=order_upload_entity_type(kind),
+                entity_id=destination_key,
+                uploaded_by=user.id,
+                content_type="image/png",
+                size_bytes=metadata.size_bytes if metadata is not None else 1,
+                upload_completed_at=datetime.now(UTC),
+                expires_at=datetime.now(UTC) + timedelta(hours=24),
+            )
         session.add(staged_image)
         await session.flush()
         await session.commit()
+    except Exception:
+        await session.rollback()
+        try:
+            deleted = await request.app.state.gcs.delete_object(destination_key)
+        except Exception:
+            logger.exception("복사 후 실패한 주문 참고 이미지 정리 중 예외: %s", destination_key)
+        else:
+            if not deleted:
+                logger.error("복사 후 실패한 주문 참고 이미지 정리 실패: %s", destination_key)
+        raise
     return DesignOrderReferenceOut(
         object_key=destination_key,
         upload_id=staged_image.id if kind == "custom_order" else None,
@@ -545,12 +628,12 @@ def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # no
 
 
 class MotifSpecIn(BaseModel):
-    subject: str
-    scope: str
-    view: str | None = None
-    expression: str | None = None
-    style: str | None = None
-    description: str | None = None
+    subject: str = Field(min_length=1, max_length=100)
+    scope: str = Field(min_length=1, max_length=100)
+    view: str | None = Field(default=None, max_length=100)
+    expression: str | None = Field(default=None, max_length=100)
+    style: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=1_000)
 
 
 class MotifCandidatesRequest(BaseModel):
@@ -577,7 +660,7 @@ class MotifCandidatesOut(BaseModel):
 
 class MotifGenerateRequest(BaseModel):
     spec: MotifSpecIn
-    seed: int | None = None
+    seed: SignedInt64 | None = None
 
 
 class MotifGenerateOut(BaseModel):

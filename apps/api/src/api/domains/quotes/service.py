@@ -1,6 +1,5 @@
 """견적 — 생성·상태 전이·이미지 만료 (docs/api-spec/domains.md §7)."""
 
-import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -16,7 +15,6 @@ from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.gcs import GcsClient
 from api.numbering import generate_number
 
-MAX_OPTIONS_BYTES = 10_000
 MAX_REFERENCE_IMAGE_BYTES = 10 * 1024 * 1024
 IMAGE_EXPIRY = timedelta(days=90)
 QUOTE_IMAGE_PREFIX = "uploads/quote_request/"
@@ -110,8 +108,6 @@ async def create_quote(
 ) -> QuoteRequest:
     if body.quantity < 100:
         raise DomainError("Quantity must be 100 or more", code="invalid_quantity")
-    if len(json.dumps(body.options).encode()) > MAX_OPTIONS_BYTES:
-        raise DomainError("Options payload too large", code="payload_too_large", status=413)
     if not body.contact_name.strip():
         raise DomainError("Contact name is required", code="invalid_contact")
     if not body.contact_value.strip():

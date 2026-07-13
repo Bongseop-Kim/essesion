@@ -18,7 +18,7 @@ from sqlalchemy import select
 
 from api.config import Settings
 from api.db import SessionDep
-from api.errors import ForbiddenError, NotFoundError, UnauthorizedError
+from api.errors import ForbiddenError, NotFoundError, ServiceUnavailableError, UnauthorizedError
 from api.security import decode_access_token
 
 ADMIN_ROLES = ("admin", "manager")
@@ -102,6 +102,18 @@ def ensure_owner(row: Any, user: User) -> None:
 _google_request = google_requests.Request()  # Google 인증서 캐시 재사용
 
 
+def batch_auth_capability_mode(settings: Settings) -> str:
+    if settings.batch_oidc_audience and settings.batch_invoker_email:
+        return "oidc"
+    if (
+        settings.env in ("local", "test")
+        and not settings.batch_oidc_audience
+        and not settings.batch_invoker_email
+    ):
+        return "shared_secret"
+    return "unavailable"
+
+
 def verify_batch_token(creds: BearerDep, settings: SettingsDep) -> None:
     """Cloud Scheduler → /batch/* 보호.
 
@@ -110,9 +122,14 @@ def verify_batch_token(creds: BearerDep, settings: SettingsDep) -> None:
     고정한다. 미설정(로컬·테스트)은 batch_token 폴백. sync def — 인증서 fetch가
     블로킹 HTTP라 FastAPI threadpool에서 실행돼야 한다.
     """
+    mode = batch_auth_capability_mode(settings)
+    if mode == "unavailable":
+        raise ServiceUnavailableError(
+            "배치 인증 기능을 사용할 수 없습니다.", code="batch_auth_unavailable"
+        )
     if creds is None:
         raise UnauthorizedError()
-    if settings.batch_oidc_audience:
+    if mode == "oidc":
         try:
             claims = id_token.verify_oauth2_token(
                 creds.credentials, _google_request, settings.batch_oidc_audience

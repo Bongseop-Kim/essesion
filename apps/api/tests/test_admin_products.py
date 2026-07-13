@@ -282,14 +282,10 @@ async def test_product_images_are_signed_completed_and_linked_atomically(
     product = response.json()
     assert product["image"] == primary["public_url"]
     assert product["detail_images"] == [
-        detail_one["public_url"],
-        detail_two["public_url"],
+        {"url": detail_one["public_url"], "upload_id": detail_one["upload_id"]},
+        {"url": detail_two["public_url"], "upload_id": detail_two["upload_id"]},
     ]
     assert product["image_upload_id"] == primary["upload_id"]
-    assert product["detail_image_upload_ids"] == [
-        detail_one["upload_id"],
-        detail_two["upload_id"],
-    ]
 
     ids = [
         uuid.UUID(primary["upload_id"]),
@@ -329,27 +325,32 @@ async def test_product_detail_image_ids_support_retain_add_and_remove(client, db
         f"/admin/products/{created['id']}",
         json={
             "expected_updated_at": created["updated_at"],
-            "detail_image_upload_ids": [retained["upload_id"], added["upload_id"]],
+            "detail_images": [
+                {"upload_id": retained["upload_id"]},
+                {"upload_id": added["upload_id"]},
+            ],
         },
         headers=headers,
     )
     assert add_response.status_code == 200, add_response.text
     with_added = add_response.json()
-    assert with_added["detail_image_upload_ids"] == [
-        retained["upload_id"],
-        added["upload_id"],
+    assert with_added["detail_images"] == [
+        {"url": retained["public_url"], "upload_id": retained["upload_id"]},
+        {"url": added["public_url"], "upload_id": added["upload_id"]},
     ]
 
     remove_response = await client.patch(
         f"/admin/products/{created['id']}",
         json={
             "expected_updated_at": with_added["updated_at"],
-            "detail_image_upload_ids": [added["upload_id"]],
+            "detail_images": [{"upload_id": added["upload_id"]}],
         },
         headers=headers,
     )
     assert remove_response.status_code == 200, remove_response.text
-    assert remove_response.json()["detail_image_upload_ids"] == [added["upload_id"]]
+    assert remove_response.json()["detail_images"] == [
+        {"url": added["public_url"], "upload_id": added["upload_id"]}
+    ]
     db_session.expire_all()
     removed = await db_session.get(Image, uuid.UUID(retained["upload_id"]))
     assert removed is not None
@@ -371,8 +372,9 @@ async def test_legacy_product_image_urls_survive_omitted_patch_and_allow_explici
     assert detail.status_code == 200, detail.text
     assert detail.json()["image"] == product.image
     assert detail.json()["image_upload_id"] is None
-    assert detail.json()["detail_images"] == product.detail_images
-    assert detail.json()["detail_image_upload_ids"] == []
+    assert detail.json()["detail_images"] == [
+        {"url": "https://legacy.example/detail-one.webp", "upload_id": None}
+    ]
 
     renamed = await client.patch(
         f"/admin/products/{product.id}",
@@ -384,20 +386,106 @@ async def test_legacy_product_image_urls_survive_omitted_patch_and_allow_explici
     )
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["image"] == "https://legacy.example/primary.webp"
-    assert renamed.json()["detail_images"] == ["https://legacy.example/detail-one.webp"]
+    assert renamed.json()["detail_images"] == [
+        {"url": "https://legacy.example/detail-one.webp", "upload_id": None}
+    ]
 
     cleared = await client.patch(
         f"/admin/products/{product.id}",
         json={
             "expected_updated_at": renamed.json()["updated_at"],
-            "detail_image_upload_ids": [],
+            "detail_images": [],
         },
         headers=headers,
     )
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["image"] == "https://legacy.example/primary.webp"
-    assert cleared.json()["detail_images"] is None
-    assert cleared.json()["detail_image_upload_ids"] == []
+    assert cleared.json()["detail_images"] == []
+
+
+async def test_product_detail_refs_preserve_selected_legacy_order_and_add_upload(
+    client, db_session, settings
+):
+    admin = await make_admin(db_session)
+    headers = auth_headers(admin, settings)
+    product = await make_product(db_session, name="혼합 상세 이미지 상품")
+    legacy_one = "https://legacy.example/detail-one.webp"
+    legacy_two = "https://legacy.example/detail-two.webp"
+    product.detail_images = [legacy_one, legacy_two]
+    await db_session.commit()
+    await db_session.refresh(product)
+    added = await issue_product_image(client, headers, kind="detail")
+
+    detail = await client.get(f"/admin/products/{product.id}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["detail_images"] == [
+        {"url": legacy_one, "upload_id": None},
+        {"url": legacy_two, "upload_id": None},
+    ]
+
+    duplicate = await client.patch(
+        f"/admin/products/{product.id}",
+        json={
+            "expected_updated_at": detail.json()["updated_at"],
+            "detail_images": [
+                {"legacy_url": legacy_two},
+                {"legacy_url": legacy_two},
+            ],
+        },
+        headers=headers,
+    )
+    assert duplicate.status_code == 422, duplicate.text
+    assert duplicate.json()["code"] == "duplicate_product_image"
+
+    arbitrary = await client.patch(
+        f"/admin/products/{product.id}",
+        json={
+            "expected_updated_at": detail.json()["updated_at"],
+            "detail_images": [
+                {"legacy_url": "https://attacker.invalid/detail.webp"},
+            ],
+        },
+        headers=headers,
+    )
+    assert arbitrary.status_code == 409, arbitrary.text
+    assert arbitrary.json()["code"] == "invalid_legacy_product_image"
+
+    ambiguous = await client.patch(
+        f"/admin/products/{product.id}",
+        json={
+            "expected_updated_at": detail.json()["updated_at"],
+            "detail_images": [
+                {
+                    "upload_id": added["upload_id"],
+                    "legacy_url": legacy_two,
+                },
+            ],
+        },
+        headers=headers,
+    )
+    assert ambiguous.status_code == 422, ambiguous.text
+
+    updated = await client.patch(
+        f"/admin/products/{product.id}",
+        json={
+            "expected_updated_at": detail.json()["updated_at"],
+            "detail_images": [
+                {"legacy_url": legacy_two},
+                {"upload_id": added["upload_id"]},
+            ],
+        },
+        headers=headers,
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["detail_images"] == [
+        {"url": legacy_two, "upload_id": None},
+        {"url": added["public_url"], "upload_id": added["upload_id"]},
+    ]
+    product_id = product.id
+    db_session.expire_all()
+    stored = await db_session.get(type(product), product_id)
+    assert stored is not None
+    assert stored.detail_images == [legacy_two, added["public_url"]]
 
 
 async def test_product_image_contract_rejects_arbitrary_unfinished_and_foreign_images(

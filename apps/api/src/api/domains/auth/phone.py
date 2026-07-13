@@ -19,6 +19,7 @@ KST = ZoneInfo("Asia/Seoul")
 RESEND_INTERVAL_SECONDS = 60
 DAILY_LIMIT = 5
 CODE_TTL = timedelta(minutes=5)
+MAX_VERIFY_ATTEMPTS = 5
 
 
 def normalize_phone(phone: str) -> str:
@@ -80,12 +81,23 @@ async def verify_code(session: AsyncSession, user: User, phone: str, code: str) 
         )
         .order_by(PhoneVerification.created_at.desc())
         .limit(1)
+        .with_for_update()
     )
     if record is None:
         raise DomainError("인증번호를 다시 요청해주세요", code="verification_not_found")
-    if record.expires_at < datetime.now(UTC):
+    now = datetime.now(UTC)
+    if record.expires_at < now:
         raise DomainError("인증번호가 만료되었습니다", code="verification_expired")
+    if record.locked_at is not None or record.failed_attempts >= MAX_VERIFY_ATTEMPTS:
+        raise RateLimitedError("인증번호 시도 횟수를 초과했습니다. 새 인증번호를 요청해주세요.")
     if not hmac.compare_digest(record.code, code):
+        record.failed_attempts += 1
+        locked = record.failed_attempts >= MAX_VERIFY_ATTEMPTS
+        if locked:
+            record.locked_at = now
+        await session.commit()
+        if locked:
+            raise RateLimitedError("인증번호 시도 횟수를 초과했습니다. 새 인증번호를 요청해주세요.")
         raise DomainError("인증번호가 일치하지 않습니다", code="verification_mismatch")
 
     record.verified = True

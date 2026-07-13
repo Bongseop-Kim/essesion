@@ -57,7 +57,9 @@ print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회
 
 ## 5. 재구현 계약 — 새 아키텍처의 worker (의도적 차이)
 
-**공통**: 한 코드베이스(apps/worker), 두 Cloud Run 서비스. stateless — 응답 캐시(generate_cache)·in-flight 락·fingerprint 메모 외 프로세스-로컬 상태 미승계(멱등이라 재계산 안전). obs(request_id·JSON 로깅·Sentry) 승계, api가 준 X-Request-ID 전파. 앱 인증 없음 → **경계 인증으로 대체**: generate=api의 OIDC 동기 호출만, finalize=Cloud Tasks OIDC 푸시만(둘 다 Cloud Run invoker IAM, 스키마상 공개 아님).
+**공통**: 한 코드베이스(apps/worker), 두 Cloud Run 서비스. stateless — 응답 캐시(generate_cache)·in-flight 락·fingerprint 메모 외 프로세스-로컬 상태 미승계(멱등이라 재계산 안전). obs(request_id·JSON 로깅·Sentry) 승계, api가 준 X-Request-ID 전파. 앱 인증 없음 → **경계 인증으로 대체**: generate=api OIDC, finalize=Cloud Tasks OIDC(`/tasks/finalize`)+api OIDC(`/export`). `SERVICE_MODE`가 각 이미지의 라우터 표면을 분리하며 둘 다 Cloud Run IAM상 비공개다.
+
+api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinity 없는 JSON이어야 한다. 세션 PATCH·generate·motif generate의 seed는 DB `BIGINT`와 같은 signed int64 범위로 제한해 워커/DB 호출 전에 422로 거부한다.
 
 **worker-generate** (1vCPU/1Gi, 동시성 높게, 외부 API 바운드):
 - `POST /generate` — 원본 입력 계약 유지하되 `session_id`/`from_checkpoint` 제거(무세션). **응답은 원본과 달리 풍부하게**: 내부 서비스이므로 후보별 `{id, design_index, layout_id, source_fidelity, colorway_id, seed, svg, png_object_key}` + `{request_id, registry_version, engine_version, warnings}` 반환 — api가 세션 턴/후보 저장의 소유자라서 로그 우회 조회가 필요 없어야 한다.
@@ -67,7 +69,8 @@ print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회
 
 **worker-finalize** (2vCPU/4Gi, 동시성 1~2, dpi 상한 600 — 엔진 기본 300):
 - `POST /tasks/finalize` — Cloud Tasks 푸시 핸들러. 페이로드 `{job_id}`(+ 검증용 최소 필드). 파라미터는 DB `generation_jobs.params`가 원천(페이로드 비대·중복 방지).
-- 처리: job FOR UPDATE(queued|processing→processing, attempts+1) → render_fabric(재설계 파이프라인) → GCS `fabric/{sha256[:16]}.png` upsert → job succeeded+result{object_key}. 실패 시 failed+error 기록 후 **5xx 응답으로 Cloud Tasks 재시도 위임**(멱등: content-hash 키 + 상태 검사 — succeeded면 즉시 200).
+- enqueue는 `finalize-{job_id}` 결정적 task name을 사용해 응답 유실 시 같은 요청을 한 번 재시도하고 `ALREADY_EXISTS`(409)를 성공으로 수렴시킨다. OIDC audience는 worker 서비스 base URL로 명시하며, `dispatchDeadline=910s`를 960초 processing lease보다 짧게 둔다. API가 최종 전달 실패로 job을 failed 처리하고 finalize 예산을 환불한 경우, 뒤늦게 도착한 동일 task는 worker가 렌더 전에 409로 거부한다. 반대로 enqueue 예외 시 worker가 이미 queued job을 claim했다면 조건부 실패 전이가 0건이므로 예산을 환불하거나 502를 내지 않고 최신 job 상태를 반환한다.
+- 처리: job FOR UPDATE(queued, 정확한 `FINALIZE_TEMPORARY_FAILURE` marker의 failed, 또는 lease 960초가 지난 processing→processing, attempts+1) → render_fabric(재설계 파이프라인) → GCS `fabric/{sha256[:16]}.png` upsert → 현재 attempt만 succeeded+result{object_key}. 입력 오류·알 수 없는 failed는 terminal 409이며 재렌더하지 않는다. fresh processing은 재시도 가능한 409, late completion은 attempt 조건으로 무시, succeeded는 즉시 200. Cloud Tasks 20회·10~60초 backoff가 stale lease 이후 재획득까지 보장한다. 실패 시 원시 예외는 상세 로그에만 기록하고, HTTP 응답과 `generation_jobs.error_message`에는 안정된 공개 코드·메시지(`FINALIZE_INVALID_INPUT`, `FINALIZE_TEMPORARY_FAILURE`)만 저장한다.
 - `POST /export` — 동기(작고 빠름), generate 서비스에 두는 것도 가능하나 CPU 바운드이므로 finalize 서비스 소속.
 - finalize 예산(design_sessions.finalize_used)·잡 생성·상태 조회는 api 소유(generation_jobs — 3단계에 골격 존재).
 

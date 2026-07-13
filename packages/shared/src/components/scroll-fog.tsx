@@ -58,7 +58,23 @@ export function ScrollFog({
     if (!el) return;
     const observer = new ResizeObserver(update);
     observer.observe(el);
-    return () => observer.disconnect();
+    for (const child of el.children) observer.observe(child);
+    const mutations = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (node instanceof Element) observer.unobserve(node);
+        }
+        for (const node of record.addedNodes) {
+          if (node instanceof Element) observer.observe(node);
+        }
+      }
+      update();
+    });
+    mutations.observe(el, { childList: true });
+    return () => {
+      mutations.disconnect();
+      observer.disconnect();
+    };
   }, [update]);
 
   const axis = direction === "vertical" ? "to bottom" : "to right";

@@ -70,7 +70,12 @@ resource "google_cloud_tasks_queue" "finalize" {
   }
 
   retry_config {
-    max_attempts = 5
+    # 10+20+40+16*60 = 1,030s: 20번째 dispatch가 worker의 960s stale lease 뒤에
+    # 도달한다. fresh processing의 409를 너무 일찍 소진해 job을 고아로 만들지 않는다.
+    max_attempts  = 20
+    min_backoff   = "10s"
+    max_backoff   = "60s"
+    max_doublings = 3
   }
 
   depends_on = [google_project_service.apis]

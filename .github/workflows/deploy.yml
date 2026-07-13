@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write # WIF — 키 파일 없음
 
 concurrency:
   group: deploy-${{ github.event.workflow_run.head_branch || github.ref }}
@@ -26,26 +25,38 @@ env:
 jobs:
   backend:
     if: >-
-      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository)) &&
       vars.GCP_PROJECT_ID != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # WIF — 키 파일 없음
     env:
       REGION: ${{ vars.GCP_REGION }}
       IMAGE_BASE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/essesion
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
-      - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-      - name: Build and push images
+      # Build before auth so google-github-actions/auth's generated credential file
+      # cannot enter the Docker build context or an image layer.
+      - name: Build images
         run: |
           docker build -t "$IMAGE_BASE/api:$DEPLOY_SHA" --build-arg APP=api .
           docker build -t "$IMAGE_BASE/worker:$DEPLOY_SHA" --build-arg APP=worker .
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
+      - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+      - name: Push images
+        run: |
           docker push "$IMAGE_BASE/api:$DEPLOY_SHA"
           docker push "$IMAGE_BASE/worker:$DEPLOY_SHA"
       # 스키마 적용 — 서비스 배포 전. 실패(비-0 종료)면 배포 중단 (잡은 max_retries=0)
@@ -60,12 +71,19 @@ jobs:
           gcloud run deploy worker-finalize --region "$REGION" --image "$IMAGE_BASE/worker:$DEPLOY_SHA"
 
   frontend:
+    needs: backend
     if: >-
-      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success') &&
-      vars.CLOUDFLARE_ACCOUNT_ID != ''
+      always() &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository)) &&
+      vars.CLOUDFLARE_ACCOUNT_ID != '' &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped')
     runs-on: ubuntu-latest
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
       VITE_TOSS_CLIENT_KEY: ${{ vars.VITE_TOSS_CLIENT_KEY }}
@@ -73,11 +91,11 @@ jobs:
       VITE_SENTRY_ENVIRONMENT: ${{ vars.VITE_SENTRY_ENVIRONMENT }}
       VITE_SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -89,6 +107,10 @@ jobs:
             echo 'frontend build contains a non-deployable endpoint' >&2
             exit 1
           fi
-      - run: pnpm -C apps/store exec wrangler deploy
-      - run: pnpm -C apps/admin exec wrangler deploy
-      - run: pnpm -C infra/cloudflare/api-proxy exec wrangler deploy
+      - name: Deploy Cloudflare workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          pnpm -C apps/store exec wrangler deploy
+          pnpm -C apps/admin exec wrangler deploy
+          pnpm -C infra/cloudflare/api-proxy exec wrangler deploy

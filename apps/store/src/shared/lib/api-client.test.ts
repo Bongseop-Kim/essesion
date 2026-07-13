@@ -1,6 +1,8 @@
+import type { MeResponse } from "@essesion/api-client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
+  getMe: vi.fn(),
   refreshTokens: vi.fn(),
 }));
 
@@ -62,10 +64,17 @@ function serialLocks() {
   };
 }
 
+function user(id: string) {
+  return { id, name: `user-${id}` } as MeResponse;
+}
+
 describe("store API session coordination", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    api.getMe.mockReset();
+    api.refreshTokens.mockReset();
+    api.getMe.mockResolvedValue({ data: user("a") });
     FakeBroadcastChannel.instances = [];
     vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
     vi.stubGlobal("navigator", { locks: serialLocks() });
@@ -110,6 +119,72 @@ describe("store API session coordination", () => {
     });
   });
 
+  it("다른 계정 토큰 방송을 loading에서 재검증한 뒤 사용자와 함께 전환한다", async () => {
+    const nextMe = deferred<{ data: ReturnType<typeof user> }>();
+    api.getMe.mockReturnValue(nextMe.promise);
+    const module = await import("./api-client");
+    const { queryClient } = await import("./query-client");
+    const { useSession } = await import("../store/session");
+    module.setStoreAccessToken("access-a");
+    useSession.getState().completeAuthentication(user("a"), "access-a");
+    queryClient.setQueryData(["account-data"], "user-a-data");
+
+    FakeBroadcastChannel.instances[0]?.emit({
+      type: "token",
+      token: "access-b",
+    });
+
+    expect(useSession.getState()).toMatchObject({
+      status: "loading",
+      accessToken: "access-b",
+      user: user("a"),
+    });
+
+    nextMe.resolve({ data: user("b") });
+    await vi.waitFor(() =>
+      expect(useSession.getState()).toMatchObject({
+        status: "authenticated",
+        accessToken: "access-b",
+        user: user("b"),
+      }),
+    );
+    expect(queryClient.getQueryData(["account-data"])).toBeUndefined();
+    queryClient.clear();
+  });
+
+  it("같은 계정의 정상 refresh도 검증 중에만 loading이고 사용자를 유지한다", async () => {
+    const nextMe = deferred<{ data: ReturnType<typeof user> }>();
+    api.getMe.mockReturnValue(nextMe.promise);
+    api.refreshTokens.mockResolvedValue({
+      data: { access_token: "access-a2" },
+      response: new Response(null, { status: 200 }),
+    });
+    const module = await import("./api-client");
+    const { queryClient } = await import("./query-client");
+    const { useSession } = await import("../store/session");
+    module.setStoreAccessToken("access-a1");
+    useSession.getState().completeAuthentication(user("a"), "access-a1");
+    queryClient.setQueryData(["account-data"], "kept");
+
+    const refreshing = module.refreshStoreAccessToken();
+    await vi.waitFor(() => expect(api.getMe).toHaveBeenCalledTimes(1));
+    expect(useSession.getState()).toMatchObject({
+      status: "loading",
+      accessToken: "access-a2",
+      user: user("a"),
+    });
+
+    nextMe.resolve({ data: user("a") });
+    await expect(refreshing).resolves.toBe("access-a2");
+    expect(useSession.getState()).toMatchObject({
+      status: "authenticated",
+      accessToken: "access-a2",
+      user: user("a"),
+    });
+    expect(queryClient.getQueryData(["account-data"])).toBe("kept");
+    queryClient.clear();
+  });
+
   it("refresh 쿠키가 거부되면 모든 탭에 세션 무효화를 알린다", async () => {
     api.refreshTokens.mockResolvedValue({
       error: new Error("expired"),
@@ -123,3 +198,11 @@ describe("store API session coordination", () => {
     });
   });
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}

@@ -27,8 +27,16 @@ class Settings(BaseSettings):
     admin_auth_rate_limit_attempts: int = 10
     admin_auth_rate_limit_window_seconds: int = 60
     admin_auth_rate_limit_max_keys: int = 10_000
-    # Cloudflare api-proxy가 덮어쓰는 관리자 origin 검증용 공유값.
-    # local/test는 우회하며 그 외 환경은 빈 값이면 readiness와 admin 요청이 fail closed.
+    store_auth_rate_limit_attempts: int = 10
+    store_auth_rate_limit_window_seconds: int = 60
+    phone_verify_rate_limit_attempts: int = 20
+    phone_verify_rate_limit_window_seconds: int = 60
+    toss_webhook_rate_limit_attempts: int = 300
+    toss_webhook_rate_limit_window_seconds: int = 60
+    public_rate_limit_max_keys: int = 10_000
+    toss_invalid_key_cache_ttl_seconds: int = 60
+    # Cloudflare api-proxy가 덮어쓰는 전역 origin 검증용 공유값.
+    # local/test는 우회하며 그 외 환경은 빈 값이면 readiness와 일반 요청이 fail closed.
     edge_proxy_secret: str = ""
     session_secret: str = "dev-session-secret"  # Authlib OAuth state 쿠키용
 
@@ -54,6 +62,7 @@ class Settings(BaseSettings):
     worker_timeout_seconds: float = 180.0
     worker_finalize_inline: bool = False
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
+    worker_finalize_oidc_audience: str = ""
     design_finalize_budget: int = 10  # 세션당 finalize 상한 (worker-pipeline.md §5)
     design_recraft_budget: int = 3  # 세션당 Recraft 모티프 생성 상한 (worker-motifs.md §5)
     gcp_project_id: str = ""

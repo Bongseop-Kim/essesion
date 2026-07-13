@@ -24,6 +24,21 @@ class AdminProductOptionWrite(BaseModel):
     stock: int | None = None
 
 
+class AdminProductDetailImageUploadRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    upload_id: uuid.UUID
+
+
+class AdminProductDetailImageLegacyRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    legacy_url: str = Field(min_length=1, max_length=2048)
+
+
+AdminProductDetailImageRef = AdminProductDetailImageUploadRef | AdminProductDetailImageLegacyRef
+
+
 class AdminProductCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -49,7 +64,7 @@ class AdminProductUpdateRequest(BaseModel):
     name: str | None = None
     price: int | None = None
     image_upload_id: uuid.UUID | None = None
-    detail_image_upload_ids: list[uuid.UUID] | None = Field(default=None, max_length=20)
+    detail_images: list[AdminProductDetailImageRef] | None = Field(default=None, max_length=20)
     category: Category | None = None
     color: Color | None = None
     pattern: Pattern | None = None
@@ -107,9 +122,13 @@ class AdminProductSummaryOut(BaseModel):
     updated_at: datetime
 
 
+class AdminProductDetailImageOut(BaseModel):
+    url: str
+    upload_id: uuid.UUID | None
+
+
 class AdminProductDetailOut(AdminProductSummaryOut):
-    detail_images: list[str] | None
+    detail_images: list[AdminProductDetailImageOut] = Field(default_factory=list)
     image_upload_id: uuid.UUID | None
-    detail_image_upload_ids: list[uuid.UUID] = Field(default_factory=list)
     info: str
     options: list[ProductOptionOut] = Field(default_factory=list)

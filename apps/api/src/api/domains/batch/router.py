@@ -6,7 +6,7 @@ from db.models.commerce import Claim, Order
 from db.models.images import Image
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
-from sqlalchemy import and_, exists, not_, or_, select
+from sqlalchemy import and_, exists, func, not_, or_, select
 
 from api.db import SessionDep
 from api.deps import BatchAuth
@@ -18,6 +18,8 @@ router = APIRouter(prefix="/batch", tags=["batch"], dependencies=[BatchAuth])
 AUTO_CONFIRM_AFTER = timedelta(days=7)
 STALE_PENDING_AFTER = timedelta(minutes=30)
 CLEANUP_BATCH_SIZE = 100
+CLEANUP_RETRY_AFTER = timedelta(minutes=5)
+ORDER_BATCH_SIZE = 500
 
 
 class BatchResult(BaseModel):
@@ -46,6 +48,8 @@ async def auto_confirm_orders(session: SessionDep) -> BatchResult:
                 ),
                 _no_active_claim(),
             )
+            .order_by(Order.created_at, Order.id)
+            .limit(ORDER_BATCH_SIZE)
             .with_for_update(skip_locked=True)
         )
     ).all()
@@ -67,6 +71,8 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
         await session.scalars(
             select(Order)
             .where(Order.status == "대기중", Order.created_at < cutoff)
+            .order_by(Order.created_at, Order.id)
+            .limit(ORDER_BATCH_SIZE)
             .with_for_update(skip_locked=True)
         )
     ).all()
@@ -81,21 +87,27 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
 async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
     """만료·클레임된 이미지 2단계 삭제(claim → GCS 삭제 → finalize) — domains.md §8."""
     now = datetime.now(UTC)
+    retry_before = now - CLEANUP_RETRY_AFTER
     targets = (
         await session.scalars(
             select(Image)
             .where(
                 Image.deleted_at.is_(None),
-                or_(Image.expires_at < now, Image.deletion_claimed_at.isnot(None)),
+                or_(
+                    and_(Image.expires_at < now, Image.deletion_claimed_at.is_(None)),
+                    Image.deletion_claimed_at < retry_before,
+                ),
             )
+            .order_by(func.coalesce(Image.deletion_claimed_at, Image.expires_at), Image.id)
             .limit(CLEANUP_BATCH_SIZE)
             .with_for_update(skip_locked=True)
         )
     ).all()
 
     for image in targets:
-        if image.deletion_claimed_at is None:
-            image.deletion_claimed_at = now  # ① claim — 실패 시 다음 실행에서 재시도
+        # A fresh timestamp is both the claim lease and the retry cursor. Failed
+        # objects move behind older work instead of monopolising every batch.
+        image.deletion_claimed_at = now
     await session.commit()
 
     gcs = request.app.state.gcs

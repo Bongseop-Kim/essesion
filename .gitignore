@@ -10,6 +10,7 @@ __pycache__/
 !.env.example
 .DS_Store
 .wrangler/
+gha-creds-*.json
 playwright-report/
 test-results/
 .terraform/

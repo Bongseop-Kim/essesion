@@ -68,9 +68,15 @@ function updateBody(value: ProductFormValue, revision: string) {
     ...(value.imageUploadId === undefined
       ? {}
       : { image_upload_id: value.imageUploadId }),
-    ...(value.detailImageUploadIds === undefined
+    ...(value.detailImages === undefined
       ? {}
-      : { detail_image_upload_ids: value.detailImageUploadIds }),
+      : {
+          detail_images: value.detailImages.map((image) =>
+            "uploadId" in image
+              ? { upload_id: image.uploadId }
+              : { legacy_url: image.legacyUrl },
+          ),
+        }),
   };
 }
 

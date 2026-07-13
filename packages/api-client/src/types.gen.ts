@@ -81,9 +81,17 @@ export type AdminActiveClaimOut = {
  */
 export type AdminCapabilitiesOut = {
     /**
-     * Admin Edge Proxy
+     * Batch Auth
      */
-    admin_edge_proxy: string;
+    batch_auth: string;
+    /**
+     * Edge Proxy
+     */
+    edge_proxy: string;
+    /**
+     * Finalize Tasks
+     */
+    finalize_tasks: string;
     /**
      * Gcs
      */
@@ -1237,6 +1245,40 @@ export type AdminProductCreateRequest = {
 };
 
 /**
+ * AdminProductDetailImageLegacyRef
+ */
+export type AdminProductDetailImageLegacyRef = {
+    /**
+     * Legacy Url
+     */
+    legacy_url: string;
+};
+
+/**
+ * AdminProductDetailImageOut
+ */
+export type AdminProductDetailImageOut = {
+    /**
+     * Upload Id
+     */
+    upload_id: string | null;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
+ * AdminProductDetailImageUploadRef
+ */
+export type AdminProductDetailImageUploadRef = {
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
  * AdminProductDetailOut
  */
 export type AdminProductDetailOut = {
@@ -1257,13 +1299,9 @@ export type AdminProductDetailOut = {
      */
     created_at: string;
     /**
-     * Detail Image Upload Ids
-     */
-    detail_image_upload_ids?: Array<string>;
-    /**
      * Detail Images
      */
-    detail_images: Array<string> | null;
+    detail_images?: Array<AdminProductDetailImageOut>;
     /**
      * Id
      */
@@ -1503,9 +1541,9 @@ export type AdminProductUpdateRequest = {
      */
     color?: 'black' | 'navy' | 'gray' | 'wine' | 'blue' | 'brown' | 'beige' | 'silver' | null;
     /**
-     * Detail Image Upload Ids
+     * Detail Images
      */
-    detail_image_upload_ids?: Array<string> | null;
+    detail_images?: Array<AdminProductDetailImageUploadRef | AdminProductDetailImageLegacyRef> | null;
     /**
      * Expected Updated At
      */
@@ -3045,7 +3083,7 @@ export type DesignTurnCreateRequest = {
     /**
      * Role
      */
-    role: string;
+    role: 'user' | 'assistant';
 };
 
 /**
@@ -6174,6 +6212,29 @@ export type TokenResponse = {
      * Token Type
      */
     token_type?: string;
+};
+
+/**
+ * TossWebhookData
+ */
+export type TossWebhookData = {
+    /**
+     * Paymentkey
+     */
+    paymentKey?: string | null;
+};
+
+/**
+ * TossWebhookRequest
+ *
+ * Toss 웹훅에서 신뢰하지 않는 paymentKey 힌트만 경계에서 제한한다.
+ */
+export type TossWebhookRequest = {
+    data?: TossWebhookData | null;
+    /**
+     * Paymentkey
+     */
+    paymentKey?: string | null;
 };
 
 /**
@@ -10110,13 +10171,8 @@ export type ConfirmPaymentResponses = {
 
 export type ConfirmPaymentResponse = ConfirmPaymentResponses[keyof ConfirmPaymentResponses];
 
-export type TossWebhookData = {
-    /**
-     * Payload
-     */
-    body: {
-        [key: string]: unknown;
-    };
+export type TossWebhookData2 = {
+    body: TossWebhookRequest;
     path?: never;
     query?: never;
     url: '/payments/webhook';

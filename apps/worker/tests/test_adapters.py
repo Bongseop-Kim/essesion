@@ -1,6 +1,8 @@
 """어댑터 단위 테스트 — DB 불필요, 외부 HTTP는 respx로 목킹 (worker-motifs.md §3·§4·§6)."""
 
 import asyncio
+import base64
+import json
 
 import httpx
 import pytest
@@ -8,7 +10,12 @@ import respx
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import EmbeddingError, OpenAIEmbeddingClient, embed_query
 from worker.adapters.gemini import GeminiClient
-from worker.adapters.recraft import RecraftError, gate_recraft_svg, generate_motif
+from worker.adapters.recraft import (
+    RecraftError,
+    RecraftHTTPClient,
+    gate_recraft_svg,
+    generate_motif,
+)
 from worker.config import Settings
 from worker.engine.validate import IntentInvalid
 from worker.render.sanitize import parse_svg_tree
@@ -120,6 +127,59 @@ async def test_generate_motif_unconfigured_raises():
         await generate_motif({"subject": "dot", "scope": "whole"}, client=None, settings=_SETTINGS)
 
 
+@respx.mock
+async def test_recraft_http_uses_inline_b64_and_never_fetches_response_url():
+    encoded = base64.b64encode(_CLEAN.encode()).decode()
+    route = respx.post("https://external.api.recraft.ai/v1/images/generations").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "b64_json": encoded,
+                        "url": "https://attacker.invalid/should-not-be-fetched",
+                    }
+                ]
+            },
+        )
+    )
+    client = RecraftHTTPClient("k")
+    try:
+        assert await client.generate("dot") == _CLEAN
+        payload = json.loads(route.calls.last.request.content)
+        assert payload["response_format"] == "b64_json"
+        assert len(respx.calls) == 1
+    finally:
+        await client.aclose()
+
+
+@respx.mock
+async def test_recraft_http_rejects_invalid_base64():
+    respx.post("https://external.api.recraft.ai/v1/images/generations").mock(
+        return_value=httpx.Response(200, json={"data": [{"b64_json": "not base64!"}]})
+    )
+    client = RecraftHTTPClient("k")
+    try:
+        with pytest.raises(RecraftError, match="invalid base64"):
+            await client.generate("dot")
+    finally:
+        await client.aclose()
+
+
+@respx.mock
+async def test_recraft_http_rejects_svg_over_byte_ceiling():
+    encoded = base64.b64encode(_CLEAN.encode()).decode()
+    respx.post("https://external.api.recraft.ai/v1/images/generations").mock(
+        return_value=httpx.Response(200, json={"data": [{"b64_json": encoded}]})
+    )
+    client = RecraftHTTPClient("k", max_svg_bytes=len(_CLEAN.encode()) - 1)
+    try:
+        with pytest.raises(RecraftError, match="max_svg_bytes"):
+            await client.generate("dot")
+    finally:
+        await client.aclose()
+
+
 # ---- 임베딩 ----
 
 
@@ -223,7 +283,6 @@ async def test_gemini_all_invalid_reprompts_then_422(monkeypatch):
 async def test_clients_reuse_and_close_http_pool():
     # 커넥션 풀은 재시도·재호출에 재사용되고, aclose가 실제로 닫는다 (lifespan 배선의 전제).
     from worker.adapters import Adapters
-    from worker.adapters.recraft import RecraftHTTPClient
 
     gemini = GeminiClient("k")
     recraft = RecraftHTTPClient("k")

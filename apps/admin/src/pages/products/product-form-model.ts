@@ -40,11 +40,6 @@ export type ProductDraft = {
   detailImages: ProductImageDraft[];
 };
 
-type ProductWithImageIds = AdminProductDetailOut & {
-  image_upload_id: string | null;
-  detail_image_upload_ids?: string[];
-};
-
 export const emptyProductDraft: ProductDraft = {
   name: "",
   code: "",
@@ -63,7 +58,7 @@ export const emptyProductDraft: ProductDraft = {
 };
 
 export function productDraftFromDetail(
-  product: ProductWithImageIds,
+  product: AdminProductDetailOut,
 ): ProductDraft {
   return {
     name: product.name,
@@ -99,12 +94,12 @@ export function productDraftFromDetail(
             src: product.image,
             staged: false,
           },
-    detailImages: (product.detail_images ?? []).map((src, index) => {
-      const uploadId = product.detail_image_upload_ids?.[index] ?? null;
+    detailImages: (product.detail_images ?? []).map((image, index) => {
+      const uploadId = image.upload_id;
       return {
         clientId: uploadId ?? `legacy-detail-${index}`,
         uploadId,
-        src,
+        src: image.url,
         staged: false,
       };
     }),
@@ -129,7 +124,7 @@ export type ProductFormValue = {
     stock: number | null;
   }>;
   imageUploadId?: string;
-  detailImageUploadIds?: string[];
+  detailImages?: Array<{ uploadId: string } | { legacyUrl: string }>;
 };
 
 export type ProductDraftErrors = {
@@ -264,8 +259,10 @@ export function productFormValue(
       : {}),
     ...(includeDetails
       ? {
-          detailImageUploadIds: draft.detailImages.flatMap((image) =>
-            image.uploadId === null ? [] : [image.uploadId],
+          detailImages: draft.detailImages.map((image) =>
+            image.uploadId === null
+              ? { legacyUrl: image.src }
+              : { uploadId: image.uploadId },
           ),
         }
       : {}),

@@ -44,7 +44,9 @@ class AdminCapabilitiesOut(BaseModel):
     gcs: str
     gcs_assets: str
     solapi: str
-    admin_edge_proxy: str
+    finalize_tasks: str
+    batch_auth: str
+    edge_proxy: str
 
 
 def _apply_type_filter(query, order_type: OrderTypeFilter):

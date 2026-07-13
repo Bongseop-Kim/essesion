@@ -121,8 +121,16 @@
       },
       "AdminCapabilitiesOut": {
         "properties": {
-          "admin_edge_proxy": {
-            "title": "Admin Edge Proxy",
+          "batch_auth": {
+            "title": "Batch Auth",
+            "type": "string"
+          },
+          "edge_proxy": {
+            "title": "Edge Proxy",
+            "type": "string"
+          },
+          "finalize_tasks": {
+            "title": "Finalize Tasks",
             "type": "string"
           },
           "gcs": {
@@ -147,7 +155,9 @@
           "gcs",
           "gcs_assets",
           "solapi",
-          "admin_edge_proxy"
+          "finalize_tasks",
+          "batch_auth",
+          "edge_proxy"
         ],
         "title": "AdminCapabilitiesOut",
         "type": "object"
@@ -2305,6 +2315,63 @@
         "title": "AdminProductCreateRequest",
         "type": "object"
       },
+      "AdminProductDetailImageLegacyRef": {
+        "additionalProperties": false,
+        "properties": {
+          "legacy_url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Legacy Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legacy_url"
+        ],
+        "title": "AdminProductDetailImageLegacyRef",
+        "type": "object"
+      },
+      "AdminProductDetailImageOut": {
+        "properties": {
+          "upload_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Id"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "upload_id"
+        ],
+        "title": "AdminProductDetailImageOut",
+        "type": "object"
+      },
+      "AdminProductDetailImageUploadRef": {
+        "additionalProperties": false,
+        "properties": {
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "AdminProductDetailImageUploadRef",
+        "type": "object"
+      },
       "AdminProductDetailOut": {
         "properties": {
           "category": {
@@ -2331,27 +2398,12 @@
             "title": "Created At",
             "type": "string"
           },
-          "detail_image_upload_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Detail Image Upload Ids",
-            "type": "array"
-          },
           "detail_images": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail Images"
+            "items": {
+              "$ref": "#/components/schemas/AdminProductDetailImageOut"
+            },
+            "title": "Detail Images",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -2459,7 +2511,6 @@
           "option_stock_total",
           "created_at",
           "updated_at",
-          "detail_images",
           "image_upload_id",
           "info"
         ],
@@ -2782,12 +2833,18 @@
             ],
             "title": "Color"
           },
-          "detail_image_upload_ids": {
+          "detail_images": {
             "anyOf": [
               {
                 "items": {
-                  "format": "uuid",
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AdminProductDetailImageUploadRef"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AdminProductDetailImageLegacyRef"
+                    }
+                  ]
                 },
                 "maxItems": 20,
                 "type": "array"
@@ -2796,7 +2853,7 @@
                 "type": "null"
               }
             ],
-            "title": "Detail Image Upload Ids"
+            "title": "Detail Images"
           },
           "expected_updated_at": {
             "format": "date-time",
@@ -3875,6 +3932,8 @@
             "title": "Applied User Coupon Id"
           },
           "item_id": {
+            "maxLength": 200,
+            "minLength": 1,
             "title": "Item Id",
             "type": "string"
           },
@@ -3898,6 +3957,7 @@
             "title": "Product Id"
           },
           "quantity": {
+            "maximum": 10000.0,
             "title": "Quantity",
             "type": "integer"
           },
@@ -3914,6 +3974,7 @@
           "selected_option_id": {
             "anyOf": [
               {
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -4034,8 +4095,11 @@
         "properties": {
           "item_ids": {
             "items": {
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
             },
+            "maxItems": 50,
             "title": "Item Ids",
             "type": "array"
           }
@@ -4052,6 +4116,7 @@
             "items": {
               "$ref": "#/components/schemas/CartItemIn"
             },
+            "maxItems": 50,
             "title": "Items",
             "type": "array"
           }
@@ -4999,6 +5064,7 @@
             "type": "object"
           },
           "quantity": {
+            "maximum": 10000.0,
             "title": "Quantity",
             "type": "integer"
           }
@@ -5037,6 +5103,7 @@
         "properties": {
           "additional_notes": {
             "default": "",
+            "maxLength": 500,
             "title": "Additional Notes",
             "type": "string"
           },
@@ -5046,6 +5113,7 @@
             "type": "object"
           },
           "quantity": {
+            "maximum": 10000.0,
             "title": "Quantity",
             "type": "integer"
           },
@@ -5448,6 +5516,7 @@
           "colorway": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -5471,6 +5540,7 @@
           "prompt": {
             "anyOf": [
               {
+                "maxLength": 4000,
                 "type": "string"
               },
               {
@@ -5482,6 +5552,8 @@
           "seed": {
             "anyOf": [
               {
+                "maximum": 9.223372036854776e+18,
+                "minimum": -9.223372036854776e+18,
                 "type": "integer"
               },
               {
@@ -5626,6 +5698,7 @@
           "colorway": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -5649,6 +5722,8 @@
           "seed": {
             "anyOf": [
               {
+                "maximum": 9.223372036854776e+18,
+                "minimum": -9.223372036854776e+18,
                 "type": "integer"
               },
               {
@@ -5669,6 +5744,10 @@
             "type": "object"
           },
           "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
             "title": "Role",
             "type": "string"
           }
@@ -5721,6 +5800,7 @@
           "colorway_id": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -5756,7 +5836,12 @@
             "anyOf": [
               {
                 "additionalProperties": {
+                  "maxLength": 100,
                   "type": "string"
+                },
+                "maxProperties": 100,
+                "propertyNames": {
+                  "maxLength": 100
                 },
                 "type": "object"
               },
@@ -5769,6 +5854,7 @@
           "production_method": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -5804,6 +5890,7 @@
           "weave": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -6557,10 +6644,14 @@
       "LoginRequest": {
         "properties": {
           "email": {
+            "maxLength": 320,
+            "minLength": 1,
             "title": "Email",
             "type": "string"
           },
           "password": {
+            "maxLength": 1024,
+            "minLength": 1,
             "title": "Password",
             "type": "string"
           }
@@ -7027,6 +7118,8 @@
           "seed": {
             "anyOf": [
               {
+                "maximum": 9.223372036854776e+18,
+                "minimum": -9.223372036854776e+18,
                 "type": "integer"
               },
               {
@@ -7050,6 +7143,7 @@
           "description": {
             "anyOf": [
               {
+                "maxLength": 1000,
                 "type": "string"
               },
               {
@@ -7061,6 +7155,7 @@
           "expression": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -7070,12 +7165,15 @@
             "title": "Expression"
           },
           "scope": {
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Scope",
             "type": "string"
           },
           "style": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -7085,12 +7183,15 @@
             "title": "Style"
           },
           "subject": {
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Subject",
             "type": "string"
           },
           "view": {
             "anyOf": [
               {
+                "maxLength": 100,
                 "type": "string"
               },
               {
@@ -7254,6 +7355,7 @@
             "items": {
               "$ref": "#/components/schemas/OrderItemIn"
             },
+            "maxItems": 50,
             "title": "Items",
             "type": "array"
           },
@@ -7574,6 +7676,8 @@
             "title": "Applied User Coupon Id"
           },
           "item_id": {
+            "maxLength": 200,
+            "minLength": 1,
             "title": "Item Id",
             "type": "string"
           },
@@ -7597,6 +7701,7 @@
             "title": "Product Id"
           },
           "quantity": {
+            "maximum": 10000.0,
             "title": "Quantity",
             "type": "integer"
           },
@@ -7613,6 +7718,7 @@
           "selected_option_id": {
             "anyOf": [
               {
+                "maxLength": 64,
                 "type": "string"
               },
               {
@@ -8510,6 +8616,7 @@
       "PaymentConfirmRequest": {
         "properties": {
           "amount": {
+            "minimum": 1.0,
             "title": "Amount",
             "type": "integer"
           },
@@ -8519,6 +8626,8 @@
             "type": "string"
           },
           "payment_key": {
+            "maxLength": 200,
+            "minLength": 1,
             "title": "Payment Key",
             "type": "string"
           }
@@ -8885,6 +8994,8 @@
       "PhoneSendRequest": {
         "properties": {
           "phone": {
+            "maxLength": 32,
+            "minLength": 1,
             "title": "Phone",
             "type": "string"
           }
@@ -8898,10 +9009,15 @@
       "PhoneVerifyRequest": {
         "properties": {
           "code": {
+            "maxLength": 6,
+            "minLength": 6,
+            "pattern": "^\\d{6}$",
             "title": "Code",
             "type": "string"
           },
           "phone": {
+            "maxLength": 32,
+            "minLength": 1,
             "title": "Phone",
             "type": "string"
           }
@@ -9243,11 +9359,13 @@
         "properties": {
           "additional_notes": {
             "default": "",
+            "maxLength": 500,
             "title": "Additional Notes",
             "type": "string"
           },
           "business_name": {
             "default": "",
+            "maxLength": 200,
             "title": "Business Name",
             "type": "string"
           },
@@ -9260,10 +9378,12 @@
             "type": "string"
           },
           "contact_name": {
+            "maxLength": 100,
             "title": "Contact Name",
             "type": "string"
           },
           "contact_value": {
+            "maxLength": 320,
             "title": "Contact Value",
             "type": "string"
           },
@@ -9273,6 +9393,7 @@
             "type": "object"
           },
           "quantity": {
+            "maximum": 10000.0,
             "title": "Quantity",
             "type": "integer"
           },
@@ -9487,6 +9608,8 @@
       "ReferenceImageIn": {
         "properties": {
           "object_key": {
+            "maxLength": 1024,
+            "minLength": 1,
             "title": "Object Key",
             "type": "string"
           }
@@ -9534,6 +9657,7 @@
           "claim_token": {
             "anyOf": [
               {
+                "maxLength": 512,
                 "type": "string"
               },
               {
@@ -9543,6 +9667,7 @@
             "title": "Claim Token"
           },
           "object_key": {
+            "maxLength": 1024,
             "minLength": 1,
             "title": "Object Key",
             "type": "string"
@@ -9880,6 +10005,7 @@
           "memo": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -9889,10 +10015,10 @@
             "title": "Memo"
           },
           "photos": {
-            "default": [],
             "items": {
               "$ref": "#/components/schemas/RepairPhotoIn"
             },
+            "maxItems": 3,
             "title": "Photos",
             "type": "array"
           },
@@ -9919,6 +10045,8 @@
       "RepairPhotoIn": {
         "properties": {
           "object_key": {
+            "maxLength": 1024,
+            "minLength": 1,
             "title": "Object Key",
             "type": "string"
           }
@@ -9932,12 +10060,14 @@
       "RepairPickupIn": {
         "properties": {
           "address": {
+            "maxLength": 500,
             "title": "Address",
             "type": "string"
           },
           "detail_address": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -9949,6 +10079,7 @@
           "postal_code": {
             "anyOf": [
               {
+                "maxLength": 20,
                 "type": "string"
               },
               {
@@ -9958,10 +10089,12 @@
             "title": "Postal Code"
           },
           "recipient_name": {
+            "maxLength": 100,
             "title": "Recipient Name",
             "type": "string"
           },
           "recipient_phone": {
+            "maxLength": 32,
             "title": "Recipient Phone",
             "type": "string"
           }
@@ -10136,12 +10269,14 @@
       "RepairTrackingRequest": {
         "properties": {
           "courier_company": {
+            "maxLength": 30,
             "title": "Courier Company",
             "type": "string"
           },
           "memo": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -10151,14 +10286,15 @@
             "title": "Memo"
           },
           "photos": {
-            "default": [],
             "items": {
               "$ref": "#/components/schemas/RepairPhotoIn"
             },
+            "maxItems": 3,
             "title": "Photos",
             "type": "array"
           },
           "tracking_number": {
+            "maxLength": 100,
             "title": "Tracking Number",
             "type": "string"
           }
@@ -10326,6 +10462,7 @@
         "properties": {
           "additional_notes": {
             "default": "",
+            "maxLength": 500,
             "title": "Additional Notes",
             "type": "string"
           },
@@ -11368,6 +11505,55 @@
           "access_token"
         ],
         "title": "TokenResponse",
+        "type": "object"
+      },
+      "TossWebhookData": {
+        "properties": {
+          "paymentKey": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentkey"
+          }
+        },
+        "title": "TossWebhookData",
+        "type": "object"
+      },
+      "TossWebhookRequest": {
+        "description": "Toss 웹훅에서 신뢰하지 않는 paymentKey 힌트만 경계에서 제한한다.",
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TossWebhookData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paymentKey": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paymentkey"
+          }
+        },
+        "title": "TossWebhookRequest",
         "type": "object"
       },
       "UploadUrlRequest": {
@@ -18925,9 +19111,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Payload",
-                "type": "object"
+                "$ref": "#/components/schemas/TossWebhookRequest"
               }
             }
           },

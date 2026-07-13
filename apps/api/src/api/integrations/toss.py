@@ -10,6 +10,7 @@ import base64
 import logging
 from dataclasses import dataclass
 from typing import Never, Protocol
+from urllib.parse import quote
 
 import httpx
 
@@ -19,6 +20,12 @@ from api.errors import ServiceUnavailableError
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.tosspayments.com"
+
+
+def _payment_key_path_segment(payment_key: str) -> str:
+    # quote()는 RFC unreserved인 '.'을 남긴다. dot-segment 정규화까지 막기 위해
+    # 점도 percent-encode해 paymentKey가 언제나 정확히 한 path segment가 되게 한다.
+    return quote(payment_key, safe="").replace(".", "%2E")
 
 
 @dataclass
@@ -66,12 +73,14 @@ class RealTossClient:
         body: dict = {"cancelReason": reason}
         if cancel_amount is not None:  # 생략 = 전액 취소
             body["cancelAmount"] = cancel_amount
-        res = await self._client.post(f"/v1/payments/{payment_key}/cancel", json=body)
+        encoded_key = _payment_key_path_segment(payment_key)
+        res = await self._client.post(f"/v1/payments/{encoded_key}/cancel", json=body)
         return TossResult(ok=res.is_success, status=res.status_code, body=res.json())
 
     async def get_payment(self, payment_key: str) -> TossResult:
         """결제 단건 조회 — 웹훅 페이로드 재검증·ALREADY_PROCESSED 복구용."""
-        res = await self._client.get(f"/v1/payments/{payment_key}")
+        encoded_key = _payment_key_path_segment(payment_key)
+        res = await self._client.get(f"/v1/payments/{encoded_key}")
         return TossResult(ok=res.is_success, status=res.status_code, body=res.json())
 
     async def aclose(self) -> None:

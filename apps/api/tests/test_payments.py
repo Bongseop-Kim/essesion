@@ -1,7 +1,13 @@
 """결제 확정 — lock → Toss(respx) → confirm/unlock 멱등 (docs/api-spec/money.md §5)."""
 
+import asyncio
+
 import respx
-from db.models.commerce import OrderItem, OrderStatusLog, UserCoupon
+from api.domains.auth.rate_limit import AuthRateLimiter
+from api.domains.payments import service as payment_service
+from api.domains.tokens import ledger as token_ledger
+from api.integrations.toss import RealTossClient, TossResult
+from db.models.commerce import Order, OrderItem, OrderStatusLog, PaymentIncident, UserCoupon
 from db.models.tokens import DesignToken
 from httpx import Response
 from sqlalchemy import func, select
@@ -126,6 +132,24 @@ async def test_confirm_amount_mismatch(client, db_session, settings):
     )
     assert res.status_code == 400
     assert res.json()["detail"] == "Amount mismatch"
+
+
+@respx.mock
+async def test_confirm_rejects_invalid_boundaries_before_toss(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    group_id = "00000000-0000-0000-0000-000000000001"
+    invalid_bodies = (
+        {"payment_key": "k" * 201, "payment_group_id": group_id, "amount": 1},
+        {"payment_key": "key", "payment_group_id": group_id, "amount": 0},
+        {"payment_key": "key", "payment_group_id": group_id, "amount": -1},
+    )
+
+    for body in invalid_bodies:
+        response = await client.post("/payments/confirm", json=body, headers=headers)
+        assert response.status_code == 422
+
+    assert len(respx.calls) == 0
 
 
 @respx.mock
@@ -377,6 +401,203 @@ async def test_webhook_syncs_dashboard_cancel_with_token_clawback(client, db_ses
 
 
 @respx.mock
+async def test_webhook_cancel_serializes_token_clawback_before_concurrent_use(
+    app, client, db_session, settings, monkeypatch
+):
+    """웹훅이 회수를 시작한 뒤의 토큰 사용은 USER_LOCK에서 대기한다."""
+
+    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
+    user = await make_user(db_session)
+    await seed_pricing(
+        db_session,
+        {"token_plan_starter_price": 2500, "token_plan_starter_amount": 100},
+        category="token",
+    )
+    await seed_setting(db_session, *TOKEN_COST)
+    headers = auth_headers(user, settings)
+    created = (
+        await client.post("/tokens/orders", json={"plan_key": "starter"}, headers=headers)
+    ).json()
+    group_id = created["payment_group_id"]
+    payment_key = "concurrent-cancel-key-12345678"
+    confirmed = await client.post(
+        "/payments/confirm",
+        json={"payment_key": payment_key, "payment_group_id": group_id, "amount": 2500},
+        headers=headers,
+    )
+    assert confirmed.status_code == 200
+    expected_payment_key = payment_key
+
+    class CanceledToss:
+        capability_mode = "real"
+
+        async def confirm(self, payment_key: str, order_id: str, amount: int) -> TossResult:
+            raise AssertionError("confirm must not be called")
+
+        async def cancel(
+            self, payment_key: str, reason: str, cancel_amount: int | None = None
+        ) -> TossResult:
+            raise AssertionError("cancel must not be called")
+
+        async def get_payment(self, payment_key: str) -> TossResult:
+            assert payment_key == expected_payment_key
+            return TossResult(
+                ok=True,
+                status=200,
+                body={
+                    "paymentKey": expected_payment_key,
+                    "status": "CANCELED",
+                    "orderId": group_id,
+                    "totalAmount": 2500,
+                },
+            )
+
+        async def aclose(self) -> None:
+            pass
+
+    clawback_entered = asyncio.Event()
+    release_clawback = asyncio.Event()
+    original_clawback = payment_service._claw_back_purchased_tokens
+
+    async def paused_clawback(session, order):
+        clawback_entered.set()
+        await release_clawback.wait()
+        await original_clawback(session, order)
+
+    monkeypatch.setattr(payment_service, "_claw_back_purchased_tokens", paused_clawback)
+
+    async def reconcile():
+        async with app.state.sessionmaker() as session:
+            return await payment_service.reconcile_from_webhook(
+                session, CanceledToss(), payment_key
+            )
+
+    async def use_tokens():
+        async with app.state.sessionmaker() as session:
+            return await token_ledger.use_tokens(session, user.id, "webhook-cancel-race")
+
+    webhook_task = asyncio.create_task(reconcile())
+    await asyncio.wait_for(clawback_entered.wait(), timeout=5)
+    use_task = asyncio.create_task(use_tokens())
+    completed_before_clawback, _ = await asyncio.wait({use_task}, timeout=0.1)
+    use_was_blocked = not completed_before_clawback
+    release_clawback.set()
+    webhook_result, use_result = await asyncio.wait_for(
+        asyncio.gather(webhook_task, use_task), timeout=5
+    )
+
+    assert use_was_blocked
+    assert webhook_result == {"handled": True, "action": "canceled", "orders": 1}
+    assert use_result.success is False
+    assert use_result.error == "insufficient_tokens"
+    assert use_result.balance == 0
+    assert (await token_ledger.get_balance(db_session, user.id))["paid"] == 0
+    uses = await db_session.scalar(
+        select(func.count()).select_from(DesignToken).where(DesignToken.type == "use")
+    )
+    assert uses == 0
+
+
+@respx.mock
+async def test_webhook_cancel_payment_key_mismatch_keeps_order_and_opens_incident(
+    client, db_session, settings
+):
+    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
+    user = await make_user(db_session)
+    created = await _create_sale_order(client, db_session, settings, user)
+    headers = auth_headers(user, settings)
+    await client.post(
+        "/payments/confirm",
+        json={
+            "payment_key": "current-key-12345678",
+            "payment_group_id": created["payment_group_id"],
+            "amount": created["total_amount"],
+        },
+        headers=headers,
+    )
+    respx.get(f"{TOSS_PAYMENTS}/old-key-12345678").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": "old-key-12345678",
+                "status": "CANCELED",
+                "orderId": created["payment_group_id"],
+                "totalAmount": created["total_amount"],
+            },
+        )
+    )
+
+    response = await client.post(
+        "/payments/webhook", json={"data": {"paymentKey": "old-key-12345678"}}
+    )
+    assert response.json()["reason"] == "payment_key_mismatch"
+    order = await db_session.scalar(
+        select(Order).where(Order.payment_group_id == created["payment_group_id"])
+    )
+    assert order is not None and order.status == "진행중"
+    incidents = list(
+        await db_session.scalars(
+            select(PaymentIncident).where(PaymentIncident.incident_type == "mixed_state")
+        )
+    )
+    assert len(incidents) == 1 and incidents[0].status == "open"
+
+    # Toss 재전송에도 같은 불일치 incident를 중복 생성하지 않는다.
+    await client.post("/payments/webhook", json={"data": {"paymentKey": "old-key-12345678"}})
+    count = await db_session.scalar(
+        select(func.count())
+        .select_from(PaymentIncident)
+        .where(PaymentIncident.incident_type == "mixed_state")
+    )
+    assert count == 1
+
+
+@respx.mock
+async def test_webhook_cancel_amount_mismatch_keeps_order_and_opens_incident(
+    client, db_session, settings
+):
+    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
+    user = await make_user(db_session)
+    created = await _create_sale_order(client, db_session, settings, user)
+    headers = auth_headers(user, settings)
+    payment_key = "cancel-amount-key-12345678"
+    await client.post(
+        "/payments/confirm",
+        json={
+            "payment_key": payment_key,
+            "payment_group_id": created["payment_group_id"],
+            "amount": created["total_amount"],
+        },
+        headers=headers,
+    )
+    respx.get(f"{TOSS_PAYMENTS}/{payment_key}").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": payment_key,
+                "status": "CANCELED",
+                "orderId": created["payment_group_id"],
+                "totalAmount": created["total_amount"] + 1,
+            },
+        )
+    )
+
+    response = await client.post("/payments/webhook", json={"data": {"paymentKey": payment_key}})
+    assert response.json()["reason"] == "amount_mismatch"
+    order = await db_session.scalar(
+        select(Order).where(Order.payment_group_id == created["payment_group_id"])
+    )
+    assert order is not None and order.status == "진행중"
+    incident = await db_session.scalar(
+        select(PaymentIncident).where(PaymentIncident.incident_type == "mixed_state")
+    )
+    assert incident is not None and incident.status == "open"
+    assert incident.expected_amount == created["total_amount"]
+    assert incident.observed_amount == created["total_amount"] + 1
+    assert incident.details["reason"] == "amount_mismatch"
+
+
+@respx.mock
 async def test_webhook_ignores_forged_and_mismatched_payloads(client, db_session, settings):
     """위조 페이로드는 조회 재검증에서 걸러지고, 금액 불일치는 확정하지 않는다."""
     user = await make_user(db_session)
@@ -422,3 +643,70 @@ async def test_webhook_ignores_forged_and_mismatched_payloads(client, db_session
     assert res.json()["reason"] == "amount_mismatch"
     orders = (await client.get("/orders", headers=auth_headers(user, settings))).json()
     assert orders[0]["status"] == "결제중"  # 그대로 — 수동 확인 대상
+
+
+@respx.mock
+async def test_webhook_rejects_overlong_payment_key_before_provider_call(client):
+    response = await client.post(
+        "/payments/webhook",
+        json={"data": {"paymentKey": "k" * 201}},
+    )
+
+    assert response.status_code == 422
+    assert len(respx.calls) == 0
+
+
+@respx.mock
+async def test_webhook_suppresses_repeated_invalid_payment_key(client):
+    route = respx.get(f"{TOSS_PAYMENTS}/invalid-key").mock(
+        return_value=Response(404, json={"code": "NOT_FOUND_PAYMENT"})
+    )
+
+    first = await client.post("/payments/webhook", json={"paymentKey": "invalid-key"})
+    second = await client.post("/payments/webhook", json={"paymentKey": "invalid-key"})
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["reason"] == second.json()["reason"] == "payment_not_found"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_webhook_rate_limit_blocks_repeated_client_requests(app, client):
+    app.state.toss_webhook_rate_limiter = AuthRateLimiter(
+        attempts=1,
+        window_seconds=60,
+        max_keys=10,
+        detail="결제 웹훅 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    respx.get(f"{TOSS_PAYMENTS}/first-invalid-key").mock(
+        return_value=Response(404, json={"code": "NOT_FOUND_PAYMENT"})
+    )
+
+    first = await client.post("/payments/webhook", json={"paymentKey": "first-invalid-key"})
+    blocked = await client.post("/payments/webhook", json={"paymentKey": "second-invalid-key"})
+
+    assert first.status_code == 200
+    assert blocked.status_code == 429
+    assert blocked.json()["code"] == "rate_limited"
+
+
+@respx.mock
+async def test_toss_payment_key_is_encoded_as_one_path_segment():
+    get_route = respx.get().mock(return_value=Response(404, json={"code": "NOT_FOUND_PAYMENT"}))
+    cancel_route = respx.post().mock(return_value=Response(404, json={"code": "NOT_FOUND_PAYMENT"}))
+    toss = RealTossClient("test-secret")
+    payment_key = "key/with?query% and-space"
+
+    try:
+        await toss.get_payment(payment_key)
+        await toss.cancel(payment_key, "test")
+        await toss.get_payment("..")
+    finally:
+        await toss.aclose()
+
+    encoded = b"key%2Fwith%3Fquery%25%20and-space"
+    assert get_route.calls[0].request.url.raw_path == b"/v1/payments/" + encoded
+    assert cancel_route.calls[0].request.url.raw_path == b"/v1/payments/" + encoded + b"/cancel"
+    assert get_route.calls[0].request.url.query == b""
+    assert cancel_route.calls[0].request.url.query == b""
+    assert get_route.calls[1].request.url.raw_path == b"/v1/payments/%2E%2E"

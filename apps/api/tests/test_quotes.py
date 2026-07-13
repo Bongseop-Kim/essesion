@@ -274,3 +274,22 @@ async def test_admin_quote_transition_and_image_expiry(client, db_session, setti
     # 종료 진입 시 견적 이미지 +90일 만료 부여
     image = await db_session.scalar(select(Image).where(Image.entity_type == "quote_request"))
     assert image.expires_at is not None
+
+
+async def test_quote_creation_inputs_have_schema_bounds(client, db_session, settings):
+    user = await make_user(db_session)
+    address = await make_address(db_session, user)
+    headers = auth_headers(user, settings)
+    payloads = [
+        _quote_body(address, options={"blob": "x" * 10_000}),
+        _quote_body(address, quantity=10_001),
+        _quote_body(address, contact_name="n" * 101),
+        _quote_body(address, contact_value="v" * 321),
+        _quote_body(address, business_name="b" * 201),
+        _quote_body(address, additional_notes="n" * 501),
+        _quote_body(address, reference_images=[{"object_key": "k" * 1_025}]),
+    ]
+
+    for payload in payloads:
+        response = await client.post("/quotes", json=payload, headers=headers)
+        assert response.status_code == 422, response.text

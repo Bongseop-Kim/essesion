@@ -78,3 +78,7 @@ class PhoneVerification(CreatedAtMixin, Base):
     code: Mapped[str]
     expires_at: Mapped[datetime]  # 발급 시 api가 now+5분 설정 (재전송 60초/일 5회 제한도 api)
     verified: Mapped[bool] = mapped_column(server_default=text("false"))
+    failed_attempts: Mapped[int] = mapped_column(server_default=text("0"))
+    locked_at: Mapped[datetime | None]
+
+    __table_args__ = (CheckConstraint("failed_attempts >= 0", name="failed_attempts_nonnegative"),)

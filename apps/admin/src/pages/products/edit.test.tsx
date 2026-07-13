@@ -39,8 +39,12 @@ const product: AdminProductDetailOut = {
   price: 39000,
   image: "https://assets.example/product.webp",
   image_upload_id: "00000000-0000-4000-8000-000000000101",
-  detail_images: ["https://assets.example/product-detail.webp"],
-  detail_image_upload_ids: ["00000000-0000-4000-8000-000000000102"],
+  detail_images: [
+    {
+      url: "https://assets.example/product-detail.webp",
+      upload_id: "00000000-0000-4000-8000-000000000102",
+    },
+  ],
   category: "3fold",
   color: "navy",
   pattern: "solid",
@@ -145,7 +149,7 @@ describe("ProductEditPage", () => {
     );
     const submittedBody = api.update.mock.calls[0]?.[0]?.body;
     expect(submittedBody).not.toHaveProperty("image_upload_id");
-    expect(submittedBody).not.toHaveProperty("detail_image_upload_ids");
+    expect(submittedBody).not.toHaveProperty("detail_images");
     expect(
       await screen.findByText("다른 관리자가 먼저 상품을 변경했습니다"),
     ).toBeTruthy();
@@ -179,8 +183,9 @@ describe("ProductEditPage", () => {
       ...product,
       image: "https://legacy.example/primary.webp",
       image_upload_id: null,
-      detail_images: ["https://legacy.example/detail.webp"],
-      detail_image_upload_ids: [],
+      detail_images: [
+        { url: "https://legacy.example/detail.webp", upload_id: null },
+      ],
     };
     api.get.mockResolvedValue(legacyProduct);
     api.update.mockRejectedValueOnce(new Error("테스트 응답"));
@@ -190,7 +195,7 @@ describe("ProductEditPage", () => {
       (await screen.findByAltText("상품 대표 이미지")).getAttribute("src"),
     ).toBe(legacyProduct.image);
     expect(screen.getByAltText("상품 상세 이미지 1").getAttribute("src")).toBe(
-      legacyProduct.detail_images[0],
+      legacyProduct.detail_images[0]?.url,
     );
     const name = screen.getByLabelText(/상품 이름/);
     await user.clear(name);
@@ -200,7 +205,7 @@ describe("ProductEditPage", () => {
     await waitFor(() => expect(api.update).toHaveBeenCalledTimes(1));
     const body = api.update.mock.calls[0]?.[0]?.body;
     expect(body).not.toHaveProperty("image_upload_id");
-    expect(body).not.toHaveProperty("detail_image_upload_ids");
+    expect(body).not.toHaveProperty("detail_images");
   });
 
   it("legacy 상세 이미지를 명시적으로 모두 제거하면 빈 ID 목록을 PATCH한다", async () => {
@@ -208,7 +213,9 @@ describe("ProductEditPage", () => {
     api.get.mockResolvedValue({
       ...product,
       image_upload_id: null,
-      detail_image_upload_ids: [],
+      detail_images: [
+        { url: "https://assets.example/product-detail.webp", upload_id: null },
+      ],
     });
     api.update.mockRejectedValueOnce(new Error("테스트 응답"));
     renderPage();
@@ -221,6 +228,6 @@ describe("ProductEditPage", () => {
     await waitFor(() => expect(api.update).toHaveBeenCalledTimes(1));
     const body = api.update.mock.calls[0]?.[0]?.body;
     expect(body).not.toHaveProperty("image_upload_id");
-    expect(body).toHaveProperty("detail_image_upload_ids", []);
+    expect(body).toHaveProperty("detail_images", []);
   });
 });

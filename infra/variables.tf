@@ -29,6 +29,17 @@ variable "github_repo" {
   default = "Bongseop-Kim/essesion"
 }
 
+variable "github_repository_id" {
+  description = "GitHub OIDC trust에 사용하는 재사용 불가 numeric repository ID"
+  type        = string
+  default     = "1290445433"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "github_repository_id must contain digits only."
+  }
+}
+
 variable "api_min_instances" {
   description = "api 콜드스타트 제거는 프로덕션 요구(ARCHITECTURE §2) — 스테이징 기본 0으로 비용 절약"
   type        = number
@@ -44,7 +55,7 @@ variable "db_tier" {
 variable "app_secret_ids" {
   description = "기존 env에서 옮겨올 시크릿 컨테이너 — 값 주입은 gcloud로 (README)"
   type        = list(string)
-  default     = [
+  default = [
     "toss-secret-key",
     "solapi-api-key",
     "solapi-api-secret",

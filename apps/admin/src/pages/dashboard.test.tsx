@@ -57,7 +57,9 @@ const capabilities: AdminCapabilitiesOut = {
   gcs: "real",
   gcs_assets: "real",
   solapi: "real",
-  admin_edge_proxy: "ready",
+  finalize_tasks: "real",
+  batch_auth: "oidc",
+  edge_proxy: "ready",
 };
 
 const order: AdminOrderSummaryOut = {

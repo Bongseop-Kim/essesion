@@ -26,10 +26,12 @@ from db.models.commerce import (
     UserCoupon,
 )
 from db.models.tokens import DesignToken
+from obs import request_id_var
 from sqlalchemy import CursorResult, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.db import USER_LOCK, advisory_xact_lock
 from api.domains.orders.service import (
     log_status,
     order_coupon_ids,
@@ -624,16 +626,16 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
 # ---- 웹훅 대사 (reconciliation) ----
 
 
-async def reconcile_from_webhook(session: AsyncSession, toss: TossClient, payload: dict) -> dict:
+async def reconcile_from_webhook(
+    session: AsyncSession, toss: TossClient, payment_key: str | None
+) -> dict:
     """Toss 상태 변경 통지 → 조회 재검증 → DB↔Toss 불일치 교정.
 
     페이로드는 힌트(paymentKey)로만 쓴다 — 진위·상태·금액은 전부 조회 API 기준
     (Toss 공식 권장 검증 방식). 상태 기반 + work_id 멱등이라 재전송에 안전하며,
     처리 불가(조회 5xx)만 5xx로 응답해 Toss 재시도를 유도한다.
     """
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
-    payment_key = data.get("paymentKey") if isinstance(data, dict) else None
-    if not isinstance(payment_key, str) or not payment_key:
+    if payment_key is None:
         return {"handled": False, "reason": "no_payment_key"}
 
     lookup = await toss.get_payment(payment_key)
@@ -648,6 +650,19 @@ async def reconcile_from_webhook(session: AsyncSession, toss: TossClient, payloa
         group_id = uuid.UUID(str(payment.get("orderId")))
     except ValueError:
         return {"handled": False, "reason": "unknown_order"}
+
+    # 취소 웹훅은 토큰 구매 지급분을 회수한다. 토큰 사용과 같은 USER_LOCK을
+    # 주문 row lock보다 먼저 잡아야 use_tokens가 회수 직전의 잔액을 읽지 않고,
+    # 환불 경로의 공통 lock 순서(USER → order)도 깨지지 않는다.
+    if toss_status == "CANCELED":
+        group_user_ids = await session.scalars(
+            select(Order.user_id).where(Order.payment_group_id == group_id)
+        )
+        user_ids = sorted(set(group_user_ids.all()), key=str)
+        if not user_ids:
+            return {"handled": False, "reason": "unknown_order"}
+        for user_id in user_ids:
+            await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
 
     orders = await _group_orders(session, group_id, for_update=True)
     if not orders:
@@ -686,6 +701,36 @@ async def reconcile_from_webhook(session: AsyncSession, toss: TossClient, payloa
         return {"handled": False, "reason": "partial_cancel_manual"}
 
     if toss_status == "CANCELED":
+        total = sum(o.total_price for o in orders)
+        provider_payment_key = payment.get("paymentKey")
+        provider_key_matches = provider_payment_key == payment_key
+        stored_keys_match = all(order.payment_key == payment_key for order in orders)
+        payment_key_matches = provider_key_matches and stored_keys_match
+        provider_amount = payment.get("totalAmount")
+        amount_matches = (
+            isinstance(provider_amount, int)
+            and not isinstance(provider_amount, bool)
+            and provider_amount == total
+        )
+        if not payment_key_matches or not amount_matches:
+            reason = "payment_key_mismatch" if not payment_key_matches else "amount_mismatch"
+            await _record_webhook_cancel_mismatch(
+                session,
+                orders=orders,
+                payment_key=payment_key,
+                expected_amount=total,
+                observed_amount=provider_amount,
+                reason=reason,
+                provider_key_matches=provider_key_matches,
+                stored_keys_match=stored_keys_match,
+            )
+            logger.critical(
+                "웹훅 취소 대사 불일치 — 수동 확인 필요: payment_group_id=%s reason=%s",
+                group_id,
+                reason,
+            )
+            return {"handled": False, "reason": reason}
+
         changed = 0
         for order in orders:
             if order.status == "취소":
@@ -700,6 +745,60 @@ async def reconcile_from_webhook(session: AsyncSession, toss: TossClient, payloa
         return {"handled": True, "action": "canceled", "orders": changed}
 
     return {"handled": False, "reason": f"unhandled_status:{toss_status}"}
+
+
+async def _record_webhook_cancel_mismatch(
+    session: AsyncSession,
+    *,
+    orders: list[Order],
+    payment_key: str,
+    expected_amount: int,
+    observed_amount: object,
+    reason: str,
+    provider_key_matches: bool,
+    stored_keys_match: bool,
+) -> None:
+    """CANCELED 자동 반영을 막은 불일치를 관리자 대사 queue에 멱등 기록한다."""
+
+    representative = orders[0]
+    operation_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"essesion:webhook-cancel:{representative.payment_group_id}:{payment_key}:{reason}",
+        )
+    )
+    observed = (
+        observed_amount
+        if isinstance(observed_amount, int)
+        and not isinstance(observed_amount, bool)
+        and observed_amount >= 0
+        else None
+    )
+    await session.execute(
+        pg_insert(PaymentIncident)
+        .values(
+            operation_id=operation_id,
+            # CANCELED 검증 실패는 confirm 금액 대사와 의미가 다르다. 자동 복구 대상이
+            # 아닌 mixed_state로 남기고 세부 원인은 details.reason으로 구분한다.
+            incident_type="mixed_state",
+            status="open",
+            request_id=request_id_var.get() or "unknown",
+            actor_id=None,
+            order_id=representative.id,
+            expected_amount=expected_amount,
+            observed_amount=observed,
+            details={
+                "phase": "webhook_cancel_verification_failed",
+                "payment_group_id": str(representative.payment_group_id),
+                "reason": reason,
+                "provider_payment_key_matches_lookup": provider_key_matches,
+                "stored_payment_keys_match_lookup": stored_keys_match,
+                "provider_status": "CANCELED",
+            },
+        )
+        .on_conflict_do_nothing(index_elements=[PaymentIncident.operation_id])
+    )
+    await session.commit()
 
 
 async def _claw_back_purchased_tokens(session: AsyncSession, order: Order) -> None:

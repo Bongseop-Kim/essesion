@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from worker.config import get_settings
 from worker.engine.determinism import seeded_rng
 from worker.engine.host import Centerline, HostLayer, resolve_lane
-from worker.engine.intent import MotifLayer, PathSpec, Placement
+from worker.engine.intent import MotifLayer, PathSpec, Placement, ScatterSpec
 from worker.engine.units import snap_angle, snap_spacing
 
 _EPS = 1e-9
@@ -80,7 +80,12 @@ def place_path_following(
     if length <= 0.0:
         return []
     # 요청 간격을 폐곡선 길이의 정확한 약수로 스냅 — 랩 경계에서도 리듬 균일
-    _, spacing = snap_spacing(length, placement.spacing_mm)
+    count, spacing = snap_spacing(length, placement.spacing_mm)
+    cap = get_settings().max_placement_instances
+    if count > cap:
+        raise ValueError(
+            f"path_following would place {count} instances (> max_placement_instances {cap})"
+        )
     follow = placement.rotation == "follow_path"
 
     start = placement.phase_mm % length
@@ -105,9 +110,9 @@ def place_lattice(placement: Placement, tile_mm: float) -> list[Instance]:
         raise ValueError("lattice placement requires a `lattice` spec")
     cw, ch = spec.cell_w_mm, spec.cell_h_mm
     drop = spec.drop_fraction or 0.0
-    nx = round(tile_mm / cw)
-    ny = round(tile_mm / ch)
     cap = get_settings().max_placement_instances
+    nx = lattice_axis_count(tile_mm, cw, cap)
+    ny = lattice_axis_count(tile_mm, ch, cap)
     if nx * ny > cap:
         raise ValueError(
             f"lattice would place {nx * ny} instances (> max_placement_instances {cap})"
@@ -127,6 +132,14 @@ def place_lattice(placement: Placement, tile_mm: float) -> list[Instance]:
     return instances
 
 
+def lattice_axis_count(tile_mm: float, cell_mm: float, cap: int) -> int:
+    """Bound one lattice axis without converting infinity to an integer."""
+    ratio = tile_mm / cell_mm
+    if not math.isfinite(ratio) or ratio > cap:
+        return cap + 1
+    return round(ratio)
+
+
 # ---- scatter ----
 
 
@@ -136,6 +149,23 @@ def _torus_dist(ax: float, ay: float, bx: float, by: float, tile_mm: float) -> f
     dx = min(dx, tile_mm - dx)
     dy = min(dy, tile_mm - dy)
     return math.hypot(dx, dy)
+
+
+def scatter_target_count(spec: ScatterSpec, tile_mm: float, cap: int) -> int:
+    """Estimate scatter output without overflowing on an arbitrarily tiny min distance."""
+    if spec.mode == "sateen":
+        if spec.sateen_n is None:
+            raise ValueError("sateen scatter placement requires `sateen_n`")
+        return spec.sateen_n
+    if spec.count is not None:
+        return spec.count
+    if spec.min_dist_mm is None:
+        raise ValueError("poisson scatter placement requires `min_dist_mm`")
+    ratio = tile_mm / spec.min_dist_mm
+    threshold = math.sqrt((cap + 1) * _HEX_PACKING_FACTOR)
+    if not math.isfinite(ratio) or ratio >= threshold:
+        return cap + 1
+    return max(1, int((ratio * ratio) / _HEX_PACKING_FACTOR))
 
 
 def place_scatter(placement: Placement, tile_mm: float, seed: int) -> list[Instance]:
@@ -154,16 +184,36 @@ def place_scatter(placement: Placement, tile_mm: float, seed: int) -> list[Insta
         raise ValueError("poisson scatter placement requires `min_dist_mm`")
     min_dist = spec.min_dist_mm
     rng = seeded_rng(seed)
-    capacity = max(1, int((tile_mm * tile_mm) / (min_dist * min_dist * _HEX_PACKING_FACTOR)))
-    target = spec.count if spec.count is not None else capacity
+    cap = get_settings().max_placement_instances
+    target = scatter_target_count(spec, tile_mm, cap)
+    if target > cap:
+        raise ValueError(
+            f"scatter would place {target} instances (> max_placement_instances {cap})"
+        )
     max_attempts = target * _ATTEMPTS_PER_TARGET
 
     pts: list[tuple[float, float]] = []
+    # Cell width is >= min_dist, so only the 3x3 toroidal neighbor cells can contain a
+    # conflicting point. This preserves the exact acceptance predicate and RNG order while
+    # avoiding the previous O(attempts * accepted_points) scan.
+    grid_n = max(1, int(tile_mm / min_dist))
+    cell_size = tile_mm / grid_n
+    grid: dict[tuple[int, int], list[tuple[float, float]]] = {}
     for _ in range(max_attempts):
         x = rng.random() * tile_mm  # x 먼저, y 나중 — RNG 소비 순서 고정
         y = rng.random() * tile_mm
-        if all(_torus_dist(x, y, px, py, tile_mm) >= min_dist for px, py in pts):
+        cx = min(grid_n - 1, int(x / cell_size))
+        cy = min(grid_n - 1, int(y / cell_size))
+        neighbor_keys: list[tuple[int, int]] = []
+        for ox in (-1, 0, 1):
+            for oy in (-1, 0, 1):
+                key = ((cx + ox) % grid_n, (cy + oy) % grid_n)
+                if key not in neighbor_keys:
+                    neighbor_keys.append(key)
+        neighbors = (point for key in neighbor_keys for point in grid.get(key, ()))
+        if all(_torus_dist(x, y, px, py, tile_mm) >= min_dist for px, py in neighbors):
             pts.append((x, y))
+            grid.setdefault((cx, cy), []).append((x, y))
             if len(pts) >= target:
                 break
     return [Instance(x, y, 0.0) for x, y in pts]

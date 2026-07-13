@@ -56,6 +56,30 @@ describe("design pending storage", () => {
     ).toBeNull();
   });
 
+  it("완료 operation이 현재 marker와 일치할 때만 제거한다", () => {
+    const storage = memoryStorage();
+    writePendingDesign("session-a", {
+      storage,
+      now: 100,
+      operationId: "operation-a",
+    });
+    writePendingDesign("session-b", {
+      storage,
+      now: 200,
+      operationId: "operation-b",
+    });
+
+    clearPendingDesign({ storage, now: 300, operationId: "operation-a" });
+    expect(readPendingDesign({ storage, now: 300 })).toEqual({
+      sessionId: "session-b",
+      at: 200,
+      operationId: "operation-b",
+    });
+
+    clearPendingDesign({ storage, now: 300, operationId: "operation-b" });
+    expect(readPendingDesign({ storage, now: 300 })).toBeNull();
+  });
+
   it("저장소 접근 실패를 호출자에게 전파하지 않는다", () => {
     const storage: StorageLike = {
       getItem: () => {

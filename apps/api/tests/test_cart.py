@@ -267,3 +267,37 @@ async def test_guest_reform_image_is_claimed_and_expired_on_remove(client, db_se
     assert removed.status_code == 200
     await db_session.refresh(image)
     assert image.expires_at is not None
+
+
+async def test_cart_rejects_duplicate_and_oversized_inputs_with_422(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    item = {
+        "item_id": "product:bounded",
+        "item_type": "product",
+        "product_id": 1,
+        "quantity": 1,
+    }
+    payloads = [
+        {"items": [item, item]},
+        {"items": [{**item, "item_id": "x" * 201}]},
+        {"items": [{**item, "quantity": 10_001}]},
+        {"items": [{**item, "item_id": f"product:{index}"} for index in range(51)]},
+    ]
+
+    for payload in payloads:
+        response = await client.put("/cart", json=payload, headers=headers)
+        assert response.status_code == 422, response.text
+
+    duplicate_remove = await client.post(
+        "/cart/remove",
+        json={"item_ids": ["product:bounded", "product:bounded"]},
+        headers=headers,
+    )
+    oversized_remove = await client.post(
+        "/cart/remove",
+        json={"item_ids": [f"product:{index}" for index in range(51)]},
+        headers=headers,
+    )
+    assert duplicate_remove.status_code == 422
+    assert oversized_remove.status_code == 422

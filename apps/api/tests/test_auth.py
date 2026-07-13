@@ -1,17 +1,23 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import jwt
 import pytest
 from api.config import Settings
+from api.domains.auth import phone as phone_service
+from api.domains.auth import service as auth_service
+from api.domains.auth.oauth import fetch_profile
 from api.domains.auth.rate_limit import AuthRateLimiter
 from api.domains.auth.service import ensure_oauth_user
-from api.errors import DomainError, UnauthorizedError
+from api.errors import DomainError, RateLimitedError, UnauthorizedError
 from api.security import decode_access_token, hash_refresh_token, new_refresh_token
-from db.models.auth import PhoneVerification, RefreshToken, UserIdentity
+from db.models.auth import PhoneVerification, RefreshToken, User, UserIdentity
 from db.models.tokens import DesignToken
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
+from starlette.requests import Request
 
 from .factories import auth_headers, make_order, make_user, seed_setting
 
@@ -55,6 +61,46 @@ async def test_login_wrong_password(client, db_session):
 async def test_login_unknown_email(client):
     res = await client.post("/auth/login", json={"email": "no@test.local", "password": "x"})
     assert res.status_code == 401
+
+
+async def test_login_rejects_oversized_credentials_before_password_verification(
+    client, monkeypatch
+):
+    login_called = False
+
+    async def unexpected_login(*_args, **_kwargs):
+        nonlocal login_called
+        login_called = True
+        raise AssertionError("password verification must not run")
+
+    monkeypatch.setattr(auth_service, "login_with_password", unexpected_login)
+    invalid_bodies = (
+        {"email": f"{'e' * 311}@test.local", "password": "pw"},
+        {"email": "bounded@test.local", "password": "p" * 1025},
+    )
+
+    for body in invalid_bodies:
+        response = await client.post("/auth/login", json=body)
+        assert response.status_code == 422
+
+    assert login_called is False
+
+
+async def test_store_login_rate_limit_blocks_repeated_password_checks(app, client):
+    app.state.store_auth_rate_limiter = AuthRateLimiter(
+        attempts=2,
+        window_seconds=60,
+        max_keys=10,
+        detail="로그인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    body = {"email": "missing@test.local", "password": "wrong"}
+
+    assert (await client.post("/auth/login", json=body)).status_code == 401
+    assert (await client.post("/auth/login", json=body)).status_code == 401
+    blocked = await client.post("/auth/login", json=body)
+
+    assert blocked.status_code == 429
+    assert blocked.json()["code"] == "rate_limited"
 
 
 async def test_login_social_only_account_rejected(client, db_session):
@@ -340,6 +386,19 @@ async def test_phone_invalid_format(client, db_session, settings):
     assert res.json()["detail"] == "유효하지 않은 휴대폰 번호입니다"
 
 
+async def test_phone_send_rejects_oversized_phone_before_sms(app, client, db_session, settings):
+    user = await make_user(db_session)
+
+    response = await client.post(
+        "/auth/phone/send",
+        json={"phone": "0" * 33},
+        headers=auth_headers(user, settings),
+    )
+
+    assert response.status_code == 422
+    assert app.state.solapi.sent == []
+
+
 async def test_phone_expired_code(client, db_session, settings):
     user = await make_user(db_session)
     db_session.add(
@@ -358,6 +417,113 @@ async def test_phone_expired_code(client, db_session, settings):
     )
     assert res.status_code == 400
     assert res.json()["detail"] == "인증번호가 만료되었습니다"
+
+
+async def test_phone_verification_locks_record_after_five_failures(client, db_session, settings):
+    user = await make_user(db_session)
+    verification = PhoneVerification(
+        user_id=user.id,
+        phone="01088887777",
+        code="654321",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+    db_session.add(verification)
+    await db_session.commit()
+    headers = auth_headers(user, settings)
+
+    for _ in range(phone_service.MAX_VERIFY_ATTEMPTS - 1):
+        wrong = await client.post(
+            "/auth/phone/verify",
+            json={"phone": verification.phone, "code": "000000"},
+            headers=headers,
+        )
+        assert wrong.status_code == 400
+        assert wrong.json()["code"] == "verification_mismatch"
+
+    locked = await client.post(
+        "/auth/phone/verify",
+        json={"phone": verification.phone, "code": "000000"},
+        headers=headers,
+    )
+    assert locked.status_code == 429
+
+    # 잠긴 레코드는 이후 정답도 허용하지 않는다.
+    correct = await client.post(
+        "/auth/phone/verify",
+        json={"phone": verification.phone, "code": verification.code},
+        headers=headers,
+    )
+    assert correct.status_code == 429
+    await db_session.refresh(verification)
+    assert verification.failed_attempts == phone_service.MAX_VERIFY_ATTEMPTS
+    assert verification.locked_at is not None
+    assert verification.verified is False
+
+
+async def test_phone_verification_rate_limits_by_user_and_ip(app, client, db_session, settings):
+    user = await make_user(db_session)
+    verification = PhoneVerification(
+        user_id=user.id,
+        phone="01066665555",
+        code="654321",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+    db_session.add(verification)
+    await db_session.commit()
+    app.state.phone_verify_rate_limiter = AuthRateLimiter(
+        attempts=1,
+        window_seconds=60,
+        max_keys=10,
+        detail="전화번호 인증 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    headers = auth_headers(user, settings)
+
+    wrong = await client.post(
+        "/auth/phone/verify",
+        json={"phone": verification.phone, "code": "000000"},
+        headers=headers,
+    )
+    blocked = await client.post(
+        "/auth/phone/verify",
+        json={"phone": verification.phone, "code": verification.code},
+        headers=headers,
+    )
+
+    assert wrong.status_code == 400
+    assert blocked.status_code == 429
+    assert blocked.json()["code"] == "rate_limited"
+
+
+async def test_phone_verification_concurrent_failures_cap_attempts_atomically(app, db_session):
+    user = await make_user(db_session)
+    verification = PhoneVerification(
+        user_id=user.id,
+        phone="01077776666",
+        code="654321",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+    db_session.add(verification)
+    await db_session.commit()
+
+    async def attempt() -> Exception | None:
+        async with app.state.sessionmaker() as session:
+            current_user = await session.get(User, user.id)
+            assert current_user is not None
+            try:
+                await phone_service.verify_code(session, current_user, verification.phone, "000000")
+            except (DomainError, RateLimitedError) as exc:
+                return exc
+        return None
+
+    results = await asyncio.wait_for(
+        asyncio.gather(*(attempt() for _ in range(10))),
+        timeout=5,
+    )
+
+    assert all(isinstance(result, (DomainError, RateLimitedError)) for result in results)
+    await db_session.refresh(verification)
+    assert verification.failed_attempts == phone_service.MAX_VERIFY_ATTEMPTS
+    assert verification.locked_at is not None
 
 
 async def test_oauth_user_creation_grants_initial_tokens(db_session):
@@ -422,7 +588,14 @@ async def test_oauth_user_creation_allows_zero_initial_tokens_without_ledger_row
 
 async def test_oauth_links_existing_user_by_email(db_session):
     existing = await make_user(db_session, email="link@test.local")
-    linked = await ensure_oauth_user(db_session, "google", "g-123", "link@test.local", "구글이름")
+    linked = await ensure_oauth_user(
+        db_session,
+        "google",
+        "g-123",
+        "link@test.local",
+        "구글이름",
+        email_verified=True,
+    )
     assert linked.id == existing.id
     identity = await db_session.scalar(
         select(UserIdentity).where(UserIdentity.provider == "google")
@@ -444,6 +617,7 @@ async def test_oauth_refuses_privileged_email_link(db_session, role):
             f"oauth-{role}",
             privileged.email,
             "OAuth 이름",
+            email_verified=True,
         )
     assert "소셜 로그인으로 사용할 수 없는 계정" in str(exc_info.value)
     identity = await db_session.scalar(
@@ -471,6 +645,156 @@ async def test_oauth_refuses_existing_privileged_identity(db_session):
             privileged.email,
             "OAuth 이름",
         )
+
+
+async def test_oauth_unverified_email_does_not_link_existing_user(db_session):
+    await seed_setting(db_session, "design_token_initial_grant", "30")
+    existing = await make_user(db_session, email="unverified-link@test.local")
+    social = await ensure_oauth_user(
+        db_session,
+        "kakao",
+        "unverified-kakao",
+        existing.email,
+        "카카오 이름",
+        email_verified=False,
+    )
+
+    assert social.id != existing.id
+    assert social.email is None
+    identity = await db_session.scalar(
+        select(UserIdentity).where(UserIdentity.provider_user_id == "unverified-kakao")
+    )
+    assert identity is not None and identity.user_id == social.id
+
+
+class _OAuthProfileClient:
+    def __init__(self, *, token: dict, profile: dict | None = None):
+        self.token = token
+        self.profile = profile
+
+    async def authorize_access_token(self, request):
+        return self.token
+
+    async def get(self, path: str, *, token: dict):
+        profile = self.profile
+
+        class _Response:
+            def json(self) -> dict:
+                assert profile is not None
+                return profile
+
+        return _Response()
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected"),
+    [(True, True), (False, False), ("true", False), (None, False)],
+)
+async def test_google_profile_requires_boolean_verified_email(claim, expected):
+    client = _OAuthProfileClient(
+        token={
+            "userinfo": {
+                "sub": "google-sub",
+                "email": "google@test.local",
+                "name": "Google User",
+                "email_verified": claim,
+            }
+        }
+    )
+
+    profile = await fetch_profile(client, "google", cast("Request", object()))
+
+    assert profile.email_verified is expected
+
+
+@pytest.mark.parametrize(
+    ("valid", "verified", "expected"),
+    [(True, True, True), (True, False, False), (False, True, False), ("true", True, False)],
+)
+async def test_kakao_profile_requires_valid_and_verified_email(valid, verified, expected):
+    client = _OAuthProfileClient(
+        token={},
+        profile={
+            "id": 123,
+            "kakao_account": {
+                "email": "kakao@test.local",
+                "is_email_valid": valid,
+                "is_email_verified": verified,
+                "profile": {"nickname": "Kakao User"},
+            },
+        },
+    )
+
+    profile = await fetch_profile(client, "kakao", cast("Request", object()))
+
+    assert profile.email_verified is expected
+
+
+async def test_oauth_same_identity_first_callback_race_reuses_winner(app, db_session):
+    await seed_setting(db_session, "design_token_initial_grant", "30")
+
+    async def callback() -> uuid.UUID:
+        async with app.state.sessionmaker() as session:
+            user = await ensure_oauth_user(
+                session,
+                "google",
+                "concurrent-google",
+                "concurrent-google@test.local",
+                "동시 사용자",
+                email_verified=True,
+            )
+            return user.id
+
+    user_ids = await asyncio.gather(*(callback() for _ in range(6)))
+
+    assert len(set(user_ids)) == 1
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(UserIdentity)
+            .where(UserIdentity.provider_user_id == "concurrent-google")
+        )
+        == 1
+    )
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.email == "concurrent-google@test.local")
+        )
+        == 1
+    )
+
+
+async def test_oauth_verified_email_cross_provider_race_links_one_user(app, db_session):
+    await seed_setting(db_session, "design_token_initial_grant", "30")
+
+    async def callback(provider: str, provider_user_id: str) -> uuid.UUID:
+        async with app.state.sessionmaker() as session:
+            user = await ensure_oauth_user(
+                session,
+                provider,
+                provider_user_id,
+                "shared-verified@test.local",
+                "공유 사용자",
+                email_verified=True,
+            )
+            return user.id
+
+    user_ids = await asyncio.gather(
+        callback("google", "cross-google"),
+        callback("kakao", "cross-kakao"),
+    )
+
+    assert user_ids[0] == user_ids[1]
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(UserIdentity)
+            .where(UserIdentity.user_id == user_ids[0])
+        )
+        == 2
+    )
 
 
 async def test_store_access_token_cannot_gain_admin_access_after_role_promotion(

@@ -361,3 +361,43 @@ def test_commensurate_stripe_period_not_snapped():
     res = validate_intent(mvp_intent())  # period 9.6은 이미 유효
     assert _stripe_params(res).period_mm == 9.6
     assert not any("snapped" in w for w in res.warnings)
+
+
+def test_path_following_instance_budget_rejected_before_placement():
+    intent = mvp_intent()
+    intent["layers"][2]["placement"]["spacing_mm"] = 0.0001
+    with pytest.raises(IntentInvalid, match="path_following would place"):
+        validate_intent(intent)
+
+
+def test_stripe_element_budget_rejected_before_render():
+    intent = mvp_intent()
+    intent["layers"][1]["params"] = {
+        "angle": 0,
+        "period_mm": 0.00048,  # 48mm / 100,000: commensurate but far over the work budget
+        "bands": [{"offset_mm": 0, "width_mm": 0.00024, "color": "accent"}],
+    }
+    with pytest.raises(IntentInvalid, match="stripe would render"):
+        validate_intent(intent)
+
+
+def test_implicit_poisson_capacity_is_bounded():
+    intent = mvp_intent()
+    intent["layers"] = intent["layers"][:3]
+    intent["layers"][2]["placement"] = {
+        "type": "scatter",
+        "scatter": {"mode": "poisson", "min_dist_mm": 0.0001},
+    }
+    with pytest.raises(IntentInvalid, match="scatter would place"):
+        validate_intent(intent)
+
+
+def test_subnormal_lattice_cell_is_rejected_without_overflow():
+    intent = mvp_intent()
+    intent["layers"] = intent["layers"][:3]
+    intent["layers"][2]["placement"] = {
+        "type": "lattice",
+        "lattice": {"cell_w_mm": 5e-324, "cell_h_mm": 12},
+    }
+    with pytest.raises(IntentInvalid, match="lattice would place"):
+        validate_intent(intent)

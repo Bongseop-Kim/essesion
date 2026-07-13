@@ -15,6 +15,9 @@ from api.db import SessionDep
 from api.deps import AdminUser
 from api.domains.admin.product_schemas import (
     AdminProductCreateRequest,
+    AdminProductDetailImageLegacyRef,
+    AdminProductDetailImageOut,
+    AdminProductDetailImageUploadRef,
     AdminProductDetailOut,
     AdminProductImageCompleteOut,
     AdminProductImageUploadOut,
@@ -157,7 +160,7 @@ async def _load_options(
 
 async def _linked_product_image_ids(
     session: AsyncSession, product: Product
-) -> tuple[uuid.UUID | None, list[uuid.UUID]]:
+) -> tuple[uuid.UUID | None, list[uuid.UUID | None]]:
     images = list(
         await session.scalars(
             select(Image)
@@ -181,7 +184,7 @@ async def _linked_product_image_ids(
         ),
         None,
     )
-    detail_ids: list[uuid.UUID] = []
+    detail_ids: list[uuid.UUID | None] = []
     for url in product.detail_images or []:
         image_id = next(
             (
@@ -191,8 +194,7 @@ async def _linked_product_image_ids(
             ),
             None,
         )
-        if image_id is not None:
-            detail_ids.append(image_id)
+        detail_ids.append(image_id)
     return primary_id, detail_ids
 
 
@@ -207,9 +209,11 @@ async def _detail(session: AsyncSession, product: Product) -> AdminProductDetail
     summary = _summary(product, len(options), option_stock_total)
     return AdminProductDetailOut(
         **summary.model_dump(),
-        detail_images=product.detail_images,
+        detail_images=[
+            AdminProductDetailImageOut(url=url, upload_id=detail_image_upload_ids[index])
+            for index, url in enumerate(product.detail_images or [])
+        ],
         image_upload_id=image_upload_id,
-        detail_image_upload_ids=detail_image_upload_ids,
         info=product.info,
         options=[ProductOptionOut.model_validate(option) for option in options],
     )
@@ -650,7 +654,11 @@ async def delete_admin_product_image_upload(
             "상품 이미지 소유권이 일치하지 않습니다",
             code="product_image_ownership_conflict",
         )
-    image.deletion_claimed_at = datetime.now(UTC)
+    # Expire the staged row and let cleanup acquire the deletion lease. Writing a
+    # fresh lease here would make the first cleanup look like a concurrent retry
+    # and delay an explicit admin deletion.
+    image.expires_at = datetime.now(UTC)
+    image.deletion_claimed_at = None
     await session.commit()
 
 
@@ -740,17 +748,23 @@ async def admin_update_product(
                 status=409,
             )
 
-        details_requested = "detail_image_upload_ids" in body.model_fields_set
+        details_requested = "detail_images" in body.model_fields_set
+        detail_refs = body.detail_images if details_requested else None
+        detail_ids = (
+            [
+                ref.upload_id
+                for ref in detail_refs
+                if isinstance(ref, AdminProductDetailImageUploadRef)
+            ]
+            if detail_refs is not None
+            else None
+        )
         primary, details = await _resolve_product_images(
             session,
             admin.id,
             product_id=product.id,
             primary_id=body.image_upload_id,
-            detail_ids=(
-                body.detail_image_upload_ids
-                if details_requested and body.detail_image_upload_ids is not None
-                else None
-            ),
+            detail_ids=detail_ids,
         )
         existing_options = await _load_options(session, product.id, for_update=True)
         changes = body.model_dump(
@@ -758,7 +772,7 @@ async def admin_update_product(
                 "expected_updated_at",
                 "options",
                 "image_upload_id",
-                "detail_image_upload_ids",
+                "detail_images",
             },
             exclude_unset=True,
         )
@@ -784,9 +798,40 @@ async def admin_update_product(
 
         if primary is not None:
             product.image = _public_asset_url(request.app.state.settings, primary.object_key)
-        if details is not None:
+        if detail_refs is not None and details is not None:
+            _, current_detail_ids = await _linked_product_image_ids(session, product)
+            legacy_urls = {
+                url
+                for url, image_id in zip(
+                    product.detail_images or [], current_detail_ids, strict=True
+                )
+                if image_id is None
+            }
+            requested_legacy_urls = [
+                ref.legacy_url
+                for ref in detail_refs
+                if isinstance(ref, AdminProductDetailImageLegacyRef)
+            ]
+            if len(requested_legacy_urls) != len(set(requested_legacy_urls)):
+                raise DomainError(
+                    "같은 상품 이미지를 두 번 사용할 수 없습니다",
+                    code="duplicate_product_image",
+                    status=422,
+                )
+            if any(url not in legacy_urls for url in requested_legacy_urls):
+                raise DomainError(
+                    "현재 상품에 없는 레거시 이미지입니다",
+                    code="invalid_legacy_product_image",
+                    status=409,
+                )
+            resolved_details = iter(details)
             product.detail_images = [
-                _public_asset_url(request.app.state.settings, image.object_key) for image in details
+                ref.legacy_url
+                if isinstance(ref, AdminProductDetailImageLegacyRef)
+                else _public_asset_url(
+                    request.app.state.settings, next(resolved_details).object_key
+                )
+                for ref in detail_refs
             ] or None
         await _link_product_images(session, product, primary=primary, details=details)
 

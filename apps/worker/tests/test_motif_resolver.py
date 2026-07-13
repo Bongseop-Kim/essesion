@@ -42,12 +42,13 @@ class _FakeEmbed:
 
 
 class _FakeRecraft:
-    def __init__(self) -> None:
+    def __init__(self, svg: str = _CLEAN) -> None:
+        self._svg = svg
         self.calls = 0
 
     async def generate(self, prompt: str) -> str:
         self.calls += 1
-        return _CLEAN
+        return self._svg
 
 
 async def _seed(session, mid, **facets):
@@ -253,6 +254,36 @@ async def test_store_read_failure_degrades_to_generate(db_session, monkeypatch):
     assert result.reused is False
     assert result.motif_id.startswith("recraft-")
     assert recraft.calls == 1  # 조회 실패 → 생성 래더 폴백, upsert는 정상 진행
+
+
+async def test_read_failure_does_not_rollback_earlier_uncommitted_motif(db_session, monkeypatch):
+    first = await resolve_spec(
+        db_session,
+        {"subject": "first", "scope": "whole"},
+        recraft_client=_FakeRecraft(),
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+    )
+
+    async def _boom(session, scope):
+        raise OperationalError("SELECT 1", None, Exception("statement failed"))
+
+    monkeypatch.setattr(store, "find_by_scope", _boom)
+    second_svg = _CLEAN.replace("circle", "ellipse").replace(' r="30"', ' rx="30" ry="20"')
+    second = await resolve_spec(
+        db_session,
+        {"subject": "second", "scope": "whole"},
+        recraft_client=_FakeRecraft(second_svg),
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+    )
+    await db_session.commit()
+
+    assert first.motif_id != second.motif_id
+    stored = await store.get_motifs(db_session, [first.motif_id, second.motif_id])
+    assert set(stored) == {first.motif_id, second.motif_id}
 
 
 async def test_nearest_read_failure_falls_back_to_hard_filter(db_session, monkeypatch):

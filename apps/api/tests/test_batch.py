@@ -3,7 +3,8 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from db.models.commerce import Claim, OrderItem
+from db.models.commerce import Claim, Order, OrderItem
+from sqlalchemy import func, select
 
 from .factories import make_coupon, make_order, make_user, make_user_coupon
 
@@ -14,6 +15,37 @@ async def test_batch_requires_token(client):
     assert (await client.post("/batch/auto-confirm-orders")).status_code == 401
     bad = {"Authorization": "Bearer wrong"}
     assert (await client.post("/batch/auto-confirm-orders", headers=bad)).status_code == 401
+
+
+async def test_nonlocal_batch_auth_never_falls_back_to_default_shared_secret(settings):
+    from api.main import create_app
+    from httpx import ASGITransport, AsyncClient
+
+    application = create_app(
+        settings.model_copy(
+            update={
+                "env": "staging",
+                "edge_proxy_secret": "edge-test-secret",
+                "batch_oidc_audience": "",
+                "batch_invoker_email": "",
+                "batch_token": "dev-batch-token",
+            }
+        )
+    )
+    async with application.router.lifespan_context(application):
+        async with AsyncClient(
+            transport=ASGITransport(app=application), base_url="https://test"
+        ) as nonlocal_client:
+            response = await nonlocal_client.post(
+                "/batch/cancel-stale-orders",
+                headers={"Authorization": "Bearer dev-batch-token"},
+            )
+            ready = await nonlocal_client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "batch_auth_unavailable"
+    assert ready.status_code == 503
+    assert ready.json()["capabilities"]["batch_auth"] == "unavailable"
 
 
 async def test_auto_confirm_after_7_days(client, db_session):
@@ -88,6 +120,25 @@ async def test_cancel_stale_pending(client, db_session):
     await db_session.refresh(user_coupon)
     assert stale.status == "취소" and fresh.status == "대기중"
     assert user_coupon.status == "active"
+
+
+async def test_order_batches_process_only_one_bounded_chunk(client, db_session, monkeypatch):
+    monkeypatch.setattr("api.domains.batch.router.ORDER_BATCH_SIZE", 2)
+    user = await make_user(db_session)
+    old = datetime.now(UTC) - timedelta(days=8)
+    for _ in range(3):
+        await make_order(db_session, user, status="배송완료", delivered_at=old)
+
+    first = await client.post("/batch/auto-confirm-orders", headers=BATCH_HEADERS)
+    assert first.status_code == 200
+    assert first.json() == {"processed": 2}
+    remaining = await db_session.scalar(
+        select(func.count()).select_from(Order).where(Order.status == "배송완료")
+    )
+    assert remaining == 1
+
+    second = await client.post("/batch/auto-confirm-orders", headers=BATCH_HEADERS)
+    assert second.json() == {"processed": 1}
 
 
 # ---- OIDC 모드 (배포 환경 — infra/scheduler.tf가 audience·email 주입) ----

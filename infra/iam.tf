@@ -115,10 +115,18 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   workload_identity_pool_provider_id = "github-oidc"
 
   attribute_mapping = {
-    "google.subject"       = "assertion.sub"
-    "attribute.repository" = "assertion.repository"
+    "google.subject"          = "assertion.sub"
+    "attribute.repository_id" = "assertion.repository_id"
   }
-  attribute_condition = "assertion.repository == \"${var.github_repo}\""
+  # PR이 workflow 파일을 바꿔 id-token 권한을 다시 선언해도 GCP 쪽에서 거부한다.
+  # 이름은 rename 오설정을 잡는 보조선이고, 재사용되지 않는 numeric ID가 정본이다.
+  attribute_condition = <<-EOT
+    assertion.repository_id == "${var.github_repository_id}" &&
+    assertion.repository == "${var.github_repo}" &&
+    assertion.ref == "refs/heads/main" &&
+    assertion.workflow_ref == "${var.github_repo}/.github/workflows/deploy.yml@refs/heads/main" &&
+    (assertion.event_name == "workflow_run" || assertion.event_name == "workflow_dispatch")
+  EOT
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
@@ -128,5 +136,5 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 resource "google_service_account_iam_member" "deployer_wif" {
   service_account_id = google_service_account.deployer.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repo}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository_id/${var.github_repository_id}"
 }

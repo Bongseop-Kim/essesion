@@ -11,8 +11,9 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from api.config import Settings, get_settings
 from api.db import build_engine
+from api.deps import batch_auth_capability_mode
 from api.domains.auth.oauth import build_oauth
-from api.domains.auth.rate_limit import AuthRateLimiter
+from api.domains.auth.rate_limit import AuthRateLimiter, RecentKeyCache
 from api.errors import SECURITY_RESPONSE_HEADERS, register_error_handlers
 from api.integrations.gcs import assets_capability_mode, build_gcs_client
 from api.integrations.solapi import build_solapi_client
@@ -23,6 +24,60 @@ from api.integrations.worker import build_worker_client
 init_observability("api")
 
 
+class EdgeBoundaryMiddleware:
+    """비로컬 공개 API를 신뢰된 Cloudflare 프록시 뒤로 제한한다."""
+
+    _HEADER = b"x-essesion-edge-secret"
+
+    def __init__(
+        self,
+        app,
+        *,
+        environment: str,
+        edge_proxy_secret: str,
+    ):  # noqa: ANN001 — ASGI app
+        self.app = app
+        self.verify_edge = environment not in ("local", "test")
+        self.edge_proxy_secret = edge_proxy_secret
+
+    @staticmethod
+    def _is_exempt_path(path: str) -> bool:
+        return path in ("/healthz", "/readyz") or path.startswith("/batch/")
+
+    async def __call__(self, scope, receive, send):  # noqa: ANN001 — ASGI protocol
+        if scope["type"] != "http" or not self.verify_edge or self._is_exempt_path(scope["path"]):
+            return await self.app(scope, receive, send)
+
+        if not self.edge_proxy_secret:
+            response = JSONResponse(
+                status_code=503,
+                content={
+                    "detail": "API 엣지 프록시 검증을 사용할 수 없습니다.",
+                    "code": "service_unavailable",
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+            return await response(scope, receive, send)
+
+        edge_values = [
+            value.decode("latin-1")
+            for key, value in scope["headers"]
+            if key.lower() == self._HEADER
+        ]
+        if len(edge_values) != 1 or not hmac.compare_digest(edge_values[0], self.edge_proxy_secret):
+            response = JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "API 엣지 프록시 검증에 실패했습니다.",
+                    "code": "forbidden",
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+            return await response(scope, receive, send)
+
+        return await self.app(scope, receive, send)
+
+
 class AdminBoundaryMiddleware:
     """관리자 브라우저 경계: exact Origin 검증과 민감 응답 캐시 금지."""
 
@@ -31,13 +86,9 @@ class AdminBoundaryMiddleware:
         app,
         *,
         allowed_origin: str,
-        environment: str,
-        edge_proxy_secret: str,
     ):  # noqa: ANN001 — ASGI app
         self.app = app
         self.allowed_origin = allowed_origin
-        self.verify_edge = environment not in ("local", "test")
-        self.edge_proxy_secret = edge_proxy_secret
 
     @staticmethod
     def _is_admin_path(path: str) -> bool:
@@ -51,35 +102,6 @@ class AdminBoundaryMiddleware:
     async def __call__(self, scope, receive, send):  # noqa: ANN001 — ASGI protocol
         if scope["type"] != "http" or not self._is_admin_path(scope["path"]):
             return await self.app(scope, receive, send)
-
-        if self.verify_edge:
-            if not self.edge_proxy_secret:
-                response = JSONResponse(
-                    status_code=503,
-                    content={
-                        "detail": "관리자 프록시 검증을 사용할 수 없습니다.",
-                        "code": "service_unavailable",
-                    },
-                    headers={"Cache-Control": "no-store"},
-                )
-                return await response(scope, receive, send)
-            edge_values = [
-                value.decode("latin-1")
-                for key, value in scope["headers"]
-                if key.lower() == b"x-essesion-edge-secret"
-            ]
-            if len(edge_values) != 1 or not hmac.compare_digest(
-                edge_values[0], self.edge_proxy_secret
-            ):
-                response = JSONResponse(
-                    status_code=403,
-                    content={
-                        "detail": "관리자 프록시 검증에 실패했습니다.",
-                        "code": "forbidden",
-                    },
-                    headers={"Cache-Control": "no-store"},
-                )
-                return await response(scope, receive, send)
 
         origins = [
             value.decode("latin-1") for key, value in scope["headers"] if key.lower() == b"origin"
@@ -153,12 +175,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.toss = build_toss_client(settings)
         app.state.solapi = build_solapi_client(settings)
         app.state.gcs = build_gcs_client(settings)
+        app.state.worker = build_worker_client(settings)
+        app.state.tasks = build_task_queue(settings)
         app.state.capabilities = {
             "toss": app.state.toss.capability_mode,
             "gcs": app.state.gcs.capability_mode,
             "gcs_assets": assets_capability_mode(settings),
             "solapi": app.state.solapi.capability_mode,
-            "admin_edge_proxy": (
+            "finalize_tasks": app.state.tasks.capability_mode,
+            "batch_auth": batch_auth_capability_mode(settings),
+            "edge_proxy": (
                 "bypassed"
                 if settings.env in ("local", "test")
                 else "ready"
@@ -166,8 +192,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 else "unavailable"
             ),
         }
-        app.state.worker = build_worker_client(settings)
-        app.state.tasks = build_task_queue(settings)
         yield
         await app.state.worker.aclose()
         await app.state.toss.aclose()
@@ -185,9 +209,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         window_seconds=settings.admin_auth_rate_limit_window_seconds,
         max_keys=settings.admin_auth_rate_limit_max_keys,
     )
+    app.state.store_auth_rate_limiter = AuthRateLimiter(
+        attempts=settings.store_auth_rate_limit_attempts,
+        window_seconds=settings.store_auth_rate_limit_window_seconds,
+        max_keys=settings.public_rate_limit_max_keys,
+        detail="로그인 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    app.state.phone_verify_rate_limiter = AuthRateLimiter(
+        attempts=settings.phone_verify_rate_limit_attempts,
+        window_seconds=settings.phone_verify_rate_limit_window_seconds,
+        max_keys=settings.public_rate_limit_max_keys,
+        detail="전화번호 인증 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    app.state.toss_webhook_rate_limiter = AuthRateLimiter(
+        attempts=settings.toss_webhook_rate_limit_attempts,
+        window_seconds=settings.toss_webhook_rate_limit_window_seconds,
+        max_keys=settings.public_rate_limit_max_keys,
+        detail="결제 웹훅 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
+    app.state.toss_invalid_payment_keys = RecentKeyCache(
+        ttl_seconds=settings.toss_invalid_key_cache_ttl_seconds,
+        max_keys=settings.public_rate_limit_max_keys,
+    )
 
     # add_middleware는 나중에 추가한 것이 바깥 — RequestId가 최외곽
-    app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)  # Authlib state
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.session_secret,
+        https_only=settings.env not in ("local", "test"),
+    )  # Authlib state
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(dict.fromkeys([*settings.cors_origins, settings.admin_frontend_origin])),
@@ -198,6 +248,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         AdminBoundaryMiddleware,
         allowed_origin=settings.admin_frontend_origin,
+    )
+    app.add_middleware(
+        EdgeBoundaryMiddleware,
         environment=settings.env,
         edge_proxy_secret=settings.edge_proxy_secret,
     )

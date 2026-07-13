@@ -18,8 +18,8 @@ class ReformPricingOut(_StrictModel):
 
 
 class ReformImageIn(_StrictModel):
-    object_key: str = Field(min_length=1)
-    claim_token: str | None = None
+    object_key: str = Field(min_length=1, max_length=1_024)
+    claim_token: str | None = Field(default=None, max_length=512)
 
 
 class ReformImageOut(_StrictModel):

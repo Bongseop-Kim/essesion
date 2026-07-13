@@ -38,7 +38,9 @@ export const zAdminActiveClaimOut = z.object({
  * AdminCapabilitiesOut
  */
 export const zAdminCapabilitiesOut = z.object({
-    admin_edge_proxy: z.string(),
+    batch_auth: z.string(),
+    edge_proxy: z.string(),
+    finalize_tasks: z.string(),
     gcs: z.string(),
     gcs_assets: z.string(),
     solapi: z.string(),
@@ -393,6 +395,28 @@ export const zAdminOrderSummaryOut = z.object({
 });
 
 /**
+ * AdminProductDetailImageLegacyRef
+ */
+export const zAdminProductDetailImageLegacyRef = z.object({
+    legacy_url: z.string().min(1).max(2048)
+});
+
+/**
+ * AdminProductDetailImageOut
+ */
+export const zAdminProductDetailImageOut = z.object({
+    upload_id: z.uuid().nullable(),
+    url: z.string()
+});
+
+/**
+ * AdminProductDetailImageUploadRef
+ */
+export const zAdminProductDetailImageUploadRef = z.object({
+    upload_id: z.uuid()
+});
+
+/**
  * AdminProductImageCompleteOut
  */
 export const zAdminProductImageCompleteOut = z.object({
@@ -520,7 +544,7 @@ export const zAdminProductUpdateRequest = z.object({
         'beige',
         'silver'
     ]).nullish(),
-    detail_image_upload_ids: z.array(z.uuid()).max(20).nullish(),
+    detail_images: z.array(z.union([zAdminProductDetailImageUploadRef, zAdminProductDetailImageLegacyRef])).max(20).nullish(),
     expected_updated_at: z.iso.datetime(),
     image_upload_id: z.uuid().nullish(),
     info: z.string().nullish(),
@@ -759,7 +783,7 @@ export const zBatchResult = z.object({
  * CartRemoveRequest
  */
 export const zCartRemoveRequest = z.object({
-    item_ids: z.array(z.string())
+    item_ids: z.array(z.string().min(1).max(200)).max(50)
 });
 
 /**
@@ -954,7 +978,7 @@ export const zCreatedOrder = z.object({
  */
 export const zCustomAmountRequest = z.object({
     options: z.record(z.string(), z.unknown()),
-    quantity: z.int()
+    quantity: z.int().lte(10000)
 });
 
 /**
@@ -1061,10 +1085,10 @@ export const zDesignExportRequest = z.object({
  */
 export const zDesignGenerateRequest = z.object({
     candidate_count: z.int().gte(1).lte(8).optional().default(1),
-    colorway: z.string().nullish(),
+    colorway: z.string().max(100).nullish(),
     intent: z.record(z.string(), z.unknown()).nullish(),
-    prompt: z.string().nullish(),
-    seed: z.int().nullish(),
+    prompt: z.string().max(4000).nullish(),
+    seed: z.int().gte(-9223372036854776000).lte(9223372036854776000).nullish(),
     session_id: z.uuid().nullish()
 });
 
@@ -1096,9 +1120,9 @@ export const zDesignSessionOut = z.object({
  * DesignSessionUpdateRequest
  */
 export const zDesignSessionUpdateRequest = z.object({
-    colorway: z.string().nullish(),
+    colorway: z.string().max(100).nullish(),
     current_intent: z.record(z.string(), z.unknown()).nullish(),
-    seed: z.int().nullish()
+    seed: z.int().gte(-9223372036854776000).lte(9223372036854776000).nullish()
 });
 
 /**
@@ -1106,7 +1130,7 @@ export const zDesignSessionUpdateRequest = z.object({
  */
 export const zDesignTurnCreateRequest = z.object({
     payload: z.record(z.string(), z.unknown()),
-    role: z.string()
+    role: z.enum(['user', 'assistant'])
 });
 
 /**
@@ -1124,14 +1148,14 @@ export const zDesignTurnOut = z.object({
  * FinalizeRequest
  */
 export const zFinalizeRequest = z.object({
-    colorway_id: z.string().nullish(),
+    colorway_id: z.string().max(100).nullish(),
     dpi: z.int().nullish(),
     intent: z.record(z.string(), z.unknown()).nullish(),
-    material_map: z.record(z.string(), z.string()).nullish(),
-    production_method: z.string().nullish(),
+    material_map: z.record(z.string(), z.string().max(100)).nullish(),
+    production_method: z.string().max(100).nullish(),
     relief_strength: z.number().gte(0).nullish(),
     texture_strength: z.number().gte(0).nullish(),
-    weave: z.string().nullish()
+    weave: z.string().max(100).nullish()
 });
 
 /**
@@ -1306,8 +1330,8 @@ export const zIssuedCouponOut = z.object({
  * LoginRequest
  */
 export const zLoginRequest = z.object({
-    email: z.string(),
-    password: z.string()
+    email: z.string().min(1).max(320),
+    password: z.string().min(1).max(1024)
 });
 
 /**
@@ -1399,12 +1423,12 @@ export const zMotifGenerateOut = z.object({
  * MotifSpecIn
  */
 export const zMotifSpecIn = z.object({
-    description: z.string().nullish(),
-    expression: z.string().nullish(),
-    scope: z.string(),
-    style: z.string().nullish(),
-    subject: z.string(),
-    view: z.string().nullish()
+    description: z.string().max(1000).nullish(),
+    expression: z.string().max(100).nullish(),
+    scope: z.string().min(1).max(100),
+    style: z.string().max(200).nullish(),
+    subject: z.string().min(1).max(100),
+    view: z.string().max(100).nullish()
 });
 
 /**
@@ -1419,7 +1443,7 @@ export const zMotifCandidatesRequest = z.object({
  * MotifGenerateRequest
  */
 export const zMotifGenerateRequest = z.object({
-    seed: z.int().nullish(),
+    seed: z.int().gte(-9223372036854776000).lte(9223372036854776000).nullish(),
     spec: zMotifSpecIn
 });
 
@@ -1549,9 +1573,9 @@ export const zOrderReferenceImageIn = z.object({
  * CustomOrderCreateRequest
  */
 export const zCustomOrderCreateRequest = z.object({
-    additional_notes: z.string().optional().default(''),
+    additional_notes: z.string().max(500).optional().default(''),
     options: z.record(z.string(), z.unknown()),
-    quantity: z.int(),
+    quantity: z.int().lte(10000),
     reference_images: z.array(zOrderReferenceImageIn).max(5).optional(),
     shipping_address_id: z.uuid(),
     user_coupon_id: z.uuid().nullish()
@@ -1804,9 +1828,9 @@ export const zPageMotifSummaryOut = z.object({
  * PaymentConfirmRequest
  */
 export const zPaymentConfirmRequest = z.object({
-    amount: z.int(),
+    amount: z.int().gte(1),
     payment_group_id: z.uuid(),
-    payment_key: z.string()
+    payment_key: z.string().min(1).max(200)
 });
 
 /**
@@ -1877,15 +1901,15 @@ export const zPagePaymentIncidentSummaryOut = z.object({
  * PhoneSendRequest
  */
 export const zPhoneSendRequest = z.object({
-    phone: z.string()
+    phone: z.string().min(1).max(32)
 });
 
 /**
  * PhoneVerifyRequest
  */
 export const zPhoneVerifyRequest = z.object({
-    code: z.string(),
-    phone: z.string()
+    code: z.string().length(6).regex(/^\d{6}$/),
+    phone: z.string().min(1).max(32)
 });
 
 /**
@@ -1937,8 +1961,7 @@ export const zAdminProductDetailOut = z.object({
     code: z.string().nullable(),
     color: z.string(),
     created_at: z.iso.datetime(),
-    detail_image_upload_ids: z.array(z.uuid()).optional(),
-    detail_images: z.array(z.string()).nullable(),
+    detail_images: z.array(zAdminProductDetailImageOut).optional(),
     id: z.int(),
     image: z.string(),
     image_upload_id: z.uuid().nullable(),
@@ -2034,20 +2057,20 @@ export const zReadUrlResponse = z.object({
  * ReferenceImageIn
  */
 export const zReferenceImageIn = z.object({
-    object_key: z.string()
+    object_key: z.string().min(1).max(1024)
 });
 
 /**
  * QuoteCreateRequest
  */
 export const zQuoteCreateRequest = z.object({
-    additional_notes: z.string().optional().default(''),
-    business_name: z.string().optional().default(''),
+    additional_notes: z.string().max(500).optional().default(''),
+    business_name: z.string().max(200).optional().default(''),
     contact_method: z.enum(['email', 'phone']),
-    contact_name: z.string(),
-    contact_value: z.string(),
+    contact_name: z.string().max(100),
+    contact_value: z.string().max(320),
     options: z.record(z.string(), z.unknown()),
-    quantity: z.int(),
+    quantity: z.int().lte(10000),
     reference_images: z.array(zReferenceImageIn).max(5).optional(),
     shipping_address_id: z.uuid()
 });
@@ -2056,8 +2079,8 @@ export const zQuoteCreateRequest = z.object({
  * ReformImageIn
  */
 export const zReformImageIn = z.object({
-    claim_token: z.string().nullish(),
-    object_key: z.string().min(1)
+    claim_token: z.string().max(512).nullish(),
+    object_key: z.string().min(1).max(1024)
 });
 
 /**
@@ -2128,15 +2151,15 @@ export const zRefundableTokenOrder = z.object({
  * RepairPhotoIn
  */
 export const zRepairPhotoIn = z.object({
-    object_key: z.string()
+    object_key: z.string().min(1).max(1024)
 });
 
 /**
  * RepairNoTrackingRequest
  */
 export const zRepairNoTrackingRequest = z.object({
-    memo: z.string().nullish(),
-    photos: z.array(zRepairPhotoIn).optional().default([]),
+    memo: z.string().max(500).nullish(),
+    photos: z.array(zRepairPhotoIn).max(3).optional(),
     reason: z.enum([
         'quick',
         'overseas',
@@ -2148,11 +2171,11 @@ export const zRepairNoTrackingRequest = z.object({
  * RepairPickupIn
  */
 export const zRepairPickupIn = z.object({
-    address: z.string(),
-    detail_address: z.string().nullish(),
-    postal_code: z.string().nullish(),
-    recipient_name: z.string(),
-    recipient_phone: z.string()
+    address: z.string().max(500),
+    detail_address: z.string().max(500).nullish(),
+    postal_code: z.string().max(20).nullish(),
+    recipient_name: z.string().max(100),
+    recipient_phone: z.string().max(32)
 });
 
 /**
@@ -2245,10 +2268,10 @@ export const zRepairShippingUploadCompleteRequest = z.object({
  * RepairTrackingRequest
  */
 export const zRepairTrackingRequest = z.object({
-    courier_company: z.string(),
-    memo: z.string().nullish(),
-    photos: z.array(zRepairPhotoIn).optional().default([]),
-    tracking_number: z.string()
+    courier_company: z.string().max(30),
+    memo: z.string().max(500).nullish(),
+    photos: z.array(zRepairPhotoIn).max(3).optional(),
+    tracking_number: z.string().max(100)
 });
 
 /**
@@ -2299,7 +2322,7 @@ export const zSampleAmountResponse = z.object({
  * SampleOrderCreateRequest
  */
 export const zSampleOrderCreateRequest = z.object({
-    additional_notes: z.string().optional().default(''),
+    additional_notes: z.string().max(500).optional().default(''),
     options: z.record(z.string(), z.unknown()),
     reference_images: z.array(zOrderReferenceImageIn).max(5).optional(),
     sample_type: z.enum([
@@ -2559,6 +2582,23 @@ export const zTokenResponse = z.object({
 });
 
 /**
+ * TossWebhookData
+ */
+export const zTossWebhookData = z.object({
+    paymentKey: z.string().min(1).max(200).nullish()
+});
+
+/**
+ * TossWebhookRequest
+ *
+ * Toss 웹훅에서 신뢰하지 않는 paymentKey 힌트만 경계에서 제한한다.
+ */
+export const zTossWebhookRequest = z.object({
+    data: zTossWebhookData.nullish(),
+    paymentKey: z.string().min(1).max(200).nullish()
+});
+
+/**
  * UploadUrlRequest
  */
 export const zUploadUrlRequest = z.object({
@@ -2654,19 +2694,19 @@ export const zReformDataIn = z.object({
  */
 export const zCartItemIn = z.object({
     applied_user_coupon_id: z.uuid().nullish(),
-    item_id: z.string(),
+    item_id: z.string().min(1).max(200),
     item_type: z.enum(['product', 'reform']),
     product_id: z.int().nullish(),
-    quantity: z.int(),
+    quantity: z.int().lte(10000),
     reform_data: zReformDataIn.nullish(),
-    selected_option_id: z.string().nullish()
+    selected_option_id: z.string().max(64).nullish()
 });
 
 /**
  * CartReplaceRequest
  */
 export const zCartReplaceRequest = z.object({
-    items: z.array(zCartItemIn)
+    items: z.array(zCartItemIn).max(50)
 });
 
 /**
@@ -2674,19 +2714,19 @@ export const zCartReplaceRequest = z.object({
  */
 export const zOrderItemIn = z.object({
     applied_user_coupon_id: z.uuid().nullish(),
-    item_id: z.string(),
+    item_id: z.string().min(1).max(200),
     item_type: z.enum(['product', 'reform']),
     product_id: z.int().nullish(),
-    quantity: z.int(),
+    quantity: z.int().lte(10000),
     reform_data: zReformDataIn.nullish(),
-    selected_option_id: z.string().nullish()
+    selected_option_id: z.string().max(64).nullish()
 });
 
 /**
  * OrderCreateRequest
  */
 export const zOrderCreateRequest = z.object({
-    items: z.array(zOrderItemIn),
+    items: z.array(zOrderItemIn).max(50),
     repair_shipping: zRepairShippingIn.nullish(),
     shipping_address_id: z.uuid()
 });
@@ -4122,10 +4162,7 @@ export const zConfirmPaymentBody = zPaymentConfirmRequest;
  */
 export const zConfirmPaymentResponse = zPaymentConfirmResponse;
 
-/**
- * Payload
- */
-export const zTossWebhookBody = z.record(z.string(), z.unknown());
+export const zTossWebhookBody = zTossWebhookRequest;
 
 /**
  * Successful Response

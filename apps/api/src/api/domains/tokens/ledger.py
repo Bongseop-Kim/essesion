@@ -269,22 +269,43 @@ async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) ->
 
 
 async def refund_failed_generation(
-    session: AsyncSession, user_id: uuid.UUID, amount: int, work_id: str
+    session: AsyncSession, user_id: uuid.UUID, amount: int, charge_work_id: str
 ) -> None:
-    """생성 실패 환불 — 내부(워커 경로) 전용, work_id 멱등."""
+    """생성 실패 환불 — 실제 차감 배치를 그대로 반전하고 work_id로 멱등 처리한다."""
     if amount <= 0:
         return
-    await session.execute(
-        _idempotent_insert(
-            dict(
-                user_id=user_id,
-                amount=amount,
-                type="refund",
-                token_class="paid",
-                work_id=work_id,
+
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
+    debits = list(
+        await session.scalars(
+            select(DesignToken)
+            .where(
+                DesignToken.user_id == user_id,
+                DesignToken.type == "use",
+                DesignToken.work_id.startswith(f"{charge_work_id}_use_", autoescape=True),
             )
+            .order_by(DesignToken.work_id)
         )
     )
+    if sum(-debit.amount for debit in debits) != amount:
+        raise _balance_invariant_error()
+
+    for debit in debits:
+        assert debit.work_id is not None
+        await session.execute(
+            _idempotent_insert(
+                dict(
+                    user_id=user_id,
+                    amount=-debit.amount,
+                    type="refund",
+                    token_class=debit.token_class,
+                    description="생성 실패 토큰 환불",
+                    work_id=f"{debit.work_id}_refund",
+                    source_order_id=debit.source_order_id,
+                    expires_at=debit.expires_at,
+                )
+            )
+        )
     await session.commit()
 
 
@@ -683,6 +704,13 @@ async def reconcile_approved_refund(
     actor_id: uuid.UUID,
 ) -> tuple[bool, str]:
     """검증된 Toss 취소 결과를 토큰 원장·주문·클레임에 멱등 반영한다."""
+    user_id = await session.scalar(
+        select(Claim.user_id).where(Claim.id == claim_id, Claim.type == "token_refund")
+    )
+    if user_id is None:
+        await session.commit()
+        return False, "missing_token_refund_claim"
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
     claim = await session.scalar(
         select(Claim)
         .where(Claim.id == claim_id, Claim.type == "token_refund")
@@ -708,7 +736,6 @@ async def reconcile_approved_refund(
     if refund_amount > order.total_price:
         await session.commit()
         return False, "invalid_refund_amount"
-    await advisory_xact_lock(session, USER_LOCK.format(user_id=claim.user_id))
     already_consistent = claim.status == "완료" and order.status == "취소"
     await _apply_token_refund(
         session,
@@ -754,6 +781,12 @@ async def token_refund_is_consistent(
 async def approve_refund(
     session: AsyncSession, admin: User, toss: TossClient, claim_id: uuid.UUID
 ) -> dict:
+    claim_user_id = await session.scalar(
+        select(Claim.user_id).where(Claim.id == claim_id, Claim.type == "token_refund")
+    )
+    if claim_user_id is None:
+        raise NotFoundError("환불 요청을 찾을 수 없습니다")
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=claim_user_id))
     claim = await session.scalar(
         select(Claim).where(Claim.id == claim_id, Claim.type == "token_refund").with_for_update()
     )
@@ -785,8 +818,6 @@ async def approve_refund(
             "환불 결과 대사가 필요한 요청입니다",
             code="payment_reconciliation_required",
         )
-
-    await advisory_xact_lock(session, USER_LOCK.format(user_id=claim.user_id))
 
     cancel_amount = refund_amount if refund_amount < order.total_price else None  # 생략=전액
     payment_key = order.payment_key
@@ -850,6 +881,7 @@ async def approve_refund(
         )
 
     try:
+        await advisory_xact_lock(session, USER_LOCK.format(user_id=claim_user_id))
         claim = await session.scalar(
             select(Claim)
             .where(Claim.id == claim_id, Claim.type == "token_refund")
@@ -872,7 +904,6 @@ async def approve_refund(
                 "주문 상태가 외부 취소 중 변경되었습니다",
                 code="payment_reconciliation_required",
             )
-        await advisory_xact_lock(session, USER_LOCK.format(user_id=claim.user_id))
         await _apply_token_refund(
             session,
             claim=claim,

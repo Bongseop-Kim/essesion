@@ -1,6 +1,7 @@
 """워커 HTTP 클라이언트 — Cloud Run 프라이빗 호출 시 메타데이터 서버 OIDC id-token 첨부.
 
-worker_oidc_audience가 비어 있으면(로컬) 인증 헤더 없이 호출한다.
+generate/finalize는 서로 다른 Cloud Run audience다. audience가 비어 있으면(로컬) 인증 없이
+호출하고, finalize URL이 비어 있으면 단일 로컬 worker base URL로 폴백한다.
 """
 
 import base64
@@ -22,22 +23,32 @@ _TOKEN_REFRESH_MARGIN_S = 60
 
 class WorkerClient:
     def __init__(self, settings: Settings):
-        self._client = httpx.AsyncClient(
+        self._generate_client = httpx.AsyncClient(
             base_url=settings.worker_base_url,
             timeout=settings.worker_timeout_seconds,
         )
-        self._audience = settings.worker_oidc_audience
-        self._id_token: str | None = None
-        self._id_token_exp = 0.0
+        finalize_url = settings.worker_finalize_url or settings.worker_base_url
+        self._finalize_client = httpx.AsyncClient(
+            base_url=finalize_url,
+            timeout=settings.worker_timeout_seconds,
+        )
+        self._generate_audience = settings.worker_oidc_audience
+        self._finalize_audience = (
+            settings.worker_finalize_oidc_audience
+            if settings.worker_finalize_url
+            else settings.worker_oidc_audience
+        )
+        self._tokens: dict[str, tuple[str, float]] = {}
 
     async def aclose(self) -> None:
-        await self._client.aclose()
+        await self._generate_client.aclose()
+        await self._finalize_client.aclose()
 
     async def generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/generate", payload)
 
     async def finalize_job(self, job_id: str) -> dict[str, Any]:
-        return await self._post_json("/tasks/finalize", {"job_id": job_id})
+        return await self._post_json("/tasks/finalize", {"job_id": job_id}, finalize=True)
 
     async def motif_candidates(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/motifs/candidates", payload)
@@ -47,19 +58,20 @@ class WorkerClient:
 
     async def export(self, payload: dict[str, Any]) -> tuple[bytes, str]:
         """SVG → PNG/TIFF 바이너리. (content, media_type) 반환 — 워커가 dpi/치수의 최종 권위."""
-        res = await self._post("/export", payload)
+        res = await self._post("/export", payload, finalize=True)
         return res.content, res.headers.get("content-type", "application/octet-stream")
 
-    async def _auth_headers(self) -> dict[str, str]:
-        if not self._audience:
+    async def _auth_headers(self, audience: str) -> dict[str, str]:
+        if not audience:
             return {}
         # ponytail: 동시 갱신은 중복 fetch 1회로 끝나는 무해한 경쟁 — 락 없이 둔다
-        if self._id_token is None or time.time() >= self._id_token_exp - _TOKEN_REFRESH_MARGIN_S:
+        cached = self._tokens.get(audience)
+        if cached is None or time.time() >= cached[1] - _TOKEN_REFRESH_MARGIN_S:
             try:
                 async with httpx.AsyncClient(timeout=5.0) as meta:
                     res = await meta.get(
                         _METADATA_IDENTITY_URL,
-                        params={"audience": self._audience},
+                        params={"audience": audience},
                         headers={"Metadata-Flavor": "Google"},
                     )
                     res.raise_for_status()
@@ -71,13 +83,18 @@ class WorkerClient:
                 token_exp = float(claims["exp"])
             except (IndexError, KeyError, TypeError, ValueError) as exc:
                 raise UpstreamError("워커 인증 토큰 형식이 올바르지 않습니다") from exc
-            self._id_token, self._id_token_exp = token, token_exp
-        return {"Authorization": f"Bearer {self._id_token}"}
+            cached = (token, token_exp)
+            self._tokens[audience] = cached
+        return {"Authorization": f"Bearer {cached[0]}"}
 
-    async def _post(self, path: str, payload: dict[str, Any]) -> httpx.Response:
+    async def _post(
+        self, path: str, payload: dict[str, Any], *, finalize: bool = False
+    ) -> httpx.Response:
+        client = self._finalize_client if finalize else self._generate_client
+        audience = self._finalize_audience if finalize else self._generate_audience
         try:
-            headers = {"X-Request-ID": request_id_var.get(), **(await self._auth_headers())}
-            res = await self._client.post(path, json=payload, headers=headers)
+            headers = {"X-Request-ID": request_id_var.get(), **(await self._auth_headers(audience))}
+            res = await client.post(path, json=payload, headers=headers)
         except httpx.HTTPError as exc:
             raise UpstreamError("이미지 워커 호출에 실패했습니다") from exc
         if res.status_code in (400, 422):
@@ -87,8 +104,10 @@ class WorkerClient:
             raise UpstreamError("이미지 워커가 요청을 처리하지 못했습니다")
         return res
 
-    async def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        res = await self._post(path, payload)
+    async def _post_json(
+        self, path: str, payload: dict[str, Any], *, finalize: bool = False
+    ) -> dict[str, Any]:
+        res = await self._post(path, payload, finalize=finalize)
         try:
             body: Any = res.json()
         except ValueError as exc:

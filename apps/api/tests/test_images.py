@@ -24,6 +24,18 @@ class _MetadataGcs(DryRunGcsClient):
         return self.metadata.get(object_key)
 
 
+class _FailOneDeleteGcs(DryRunGcsClient):
+    def __init__(self, failed_key: str) -> None:
+        super().__init__()
+        self.failed_key = failed_key
+
+    async def delete_object(self, object_key: str, *, bucket_name: str | None = None) -> bool:
+        self.deleted.append(object_key)
+        if object_key == self.failed_key:
+            return False
+        return True
+
+
 async def test_upload_url_validates_type(client, db_session, settings):
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
@@ -182,9 +194,7 @@ async def test_repair_shipping_completion_verifies_issued_object_metadata(
     assert image.upload_completed_at is not None
 
 
-async def test_repair_shipping_completion_rejects_foreign_prefix(
-    client, db_session, settings
-):
+async def test_repair_shipping_completion_rejects_foreign_prefix(client, db_session, settings):
     owner = await make_user(db_session)
     image = Image(
         object_key="uploads/custom_order/not-repair.png",
@@ -278,3 +288,39 @@ async def test_cleanup_images_two_phase(app, client, db_session):
     # 재실행 — 이미 삭제된 것은 대상 아님
     res = await client.post("/batch/cleanup-images", headers=BATCH_HEADERS)
     assert res.json()["processed"] == 0
+
+
+async def test_cleanup_images_failed_delete_does_not_starve_later_rows(
+    app, client, db_session, monkeypatch
+):
+    monkeypatch.setattr("api.domains.batch.router.CLEANUP_BATCH_SIZE", 1)
+    user = await make_user(db_session)
+    old = datetime.now(UTC) - timedelta(days=2)
+    failed_key = "uploads/quote/fails.png"
+    app.state.gcs = _FailOneDeleteGcs(failed_key)
+    db_session.add_all(
+        [
+            Image(
+                object_key=failed_key,
+                entity_type="quote_request",
+                entity_id="failed",
+                uploaded_by=user.id,
+                expires_at=old,
+            ),
+            Image(
+                object_key="uploads/quote/later.png",
+                entity_type="quote_request",
+                entity_id="later",
+                uploaded_by=user.id,
+                expires_at=old + timedelta(seconds=1),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    first = await client.post("/batch/cleanup-images", headers=BATCH_HEADERS)
+    second = await client.post("/batch/cleanup-images", headers=BATCH_HEADERS)
+
+    assert first.json() == {"processed": 0}
+    assert second.json() == {"processed": 1}
+    assert app.state.gcs.deleted == [failed_key, "uploads/quote/later.png"]

@@ -12,8 +12,16 @@ interface SessionState {
   accessToken: string | null;
   user: MeResponse | null;
   setAccessToken: (token: string | null) => void;
+  completeAuthentication: (user: MeResponse, expectedToken: string) => boolean;
   setUser: (user: MeResponse | null) => void;
   clear: () => void;
+}
+
+function clearPreviousUserCache(
+  previous: MeResponse | null,
+  next: MeResponse | null,
+) {
+  if (previous?.id && previous.id !== next?.id) queryClient.removeQueries();
 }
 
 export const useSession = create<SessionState>((set, get) => ({
@@ -21,12 +29,22 @@ export const useSession = create<SessionState>((set, get) => ({
   accessToken: null,
   user: null,
   setAccessToken: (accessToken) =>
-    set({ accessToken, status: accessToken ? "authenticated" : "anonymous" }),
+    set((state) => {
+      if (!accessToken) {
+        return { accessToken: null, user: null, status: "anonymous" };
+      }
+      if (state.accessToken === accessToken) return { accessToken };
+      return { accessToken, status: "loading" };
+    }),
+  completeAuthentication: (user, expectedToken) => {
+    const current = get();
+    if (current.accessToken !== expectedToken) return false;
+    clearPreviousUserCache(current.user, user);
+    set({ user, status: "authenticated" });
+    return true;
+  },
   setUser: (user) => {
-    const previousUserId = get().user?.id;
-    if (previousUserId && previousUserId !== user?.id) {
-      queryClient.removeQueries();
-    }
+    clearPreviousUserCache(get().user, user);
     set({ user });
   },
   clear: () => {

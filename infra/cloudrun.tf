@@ -15,6 +15,7 @@ locals {
     WORKER_BASE_URL                  = google_cloud_run_v2_service.worker_generate.uri
     WORKER_OIDC_AUDIENCE             = google_cloud_run_v2_service.worker_generate.uri
     WORKER_FINALIZE_URL              = google_cloud_run_v2_service.worker_finalize.uri
+    WORKER_FINALIZE_OIDC_AUDIENCE    = google_cloud_run_v2_service.worker_finalize.uri
     BATCH_OIDC_AUDIENCE              = local.batch_audience # scheduler.tf와 문자열 일치 필수
     BATCH_INVOKER_EMAIL              = google_service_account.scheduler.email
   }, var.api_extra_env)
@@ -36,6 +37,10 @@ locals {
     ENV        = "staging"
     GCS_BUCKET = google_storage_bucket.assets.name
   }, var.worker_extra_env)
+
+  # 같은 이미지를 배포하되 HTTP 표면은 역할별로 닫는다. all은 로컬 개발 전용 기본값.
+  worker_generate_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "generate" })
+  worker_finalize_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "finalize" })
 
   worker_secret_env = {
     DATABASE_URL = google_secret_manager_secret.database_url.secret_id
@@ -162,6 +167,8 @@ resource "google_cloud_run_v2_service" "worker_generate" {
   template {
     service_account = google_service_account.worker.email
     timeout         = "300s" # Recraft 120s 재시도 감안
+    # 각 request가 preview raster를 최대 2개 병렬 실행하므로 1Gi 인스턴스의 총량도 제한.
+    max_instance_request_concurrency = 2
 
     scaling {
       min_instance_count = 0
@@ -174,7 +181,7 @@ resource "google_cloud_run_v2_service" "worker_generate" {
         limits = { cpu = "1", memory = "1Gi" }
       }
       dynamic "env" {
-        for_each = local.worker_plain_env
+        for_each = local.worker_generate_plain_env
         content {
           name  = env.key
           value = env.value
@@ -233,7 +240,7 @@ resource "google_cloud_run_v2_service" "worker_finalize" {
         limits = { cpu = "2", memory = "4Gi" }
       }
       dynamic "env" {
-        for_each = local.worker_plain_env
+        for_each = local.worker_finalize_plain_env
         content {
           name  = env.key
           value = env.value
@@ -289,4 +296,11 @@ resource "google_cloud_run_v2_service_iam_member" "finalize_invoker_tasks" {
   location = var.region
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.tasks.email}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "finalize_invoker_api" {
+  name     = google_cloud_run_v2_service.worker_finalize.name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.api.email}"
 }

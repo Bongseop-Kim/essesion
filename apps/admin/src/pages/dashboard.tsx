@@ -47,7 +47,9 @@ const CAPABILITY_LABELS = {
   gcs: "GCS 비공개 이미지",
   gcs_assets: "GCS 공개 에셋",
   solapi: "Solapi 알림",
-  admin_edge_proxy: "관리자 엣지 프록시",
+  finalize_tasks: "Finalize 작업 큐",
+  batch_auth: "배치 OIDC 인증",
+  edge_proxy: "API 엣지 프록시",
 } as const;
 
 function kstToday() {

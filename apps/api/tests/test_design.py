@@ -1,6 +1,7 @@
 """디자인 세션 골격 — 턴 seq 직렬화·예산 카운터·generate 과금."""
 
 import asyncio
+import base64
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -10,14 +11,21 @@ import httpx
 import pytest
 import respx
 from api.config import Settings
-from api.domains.design.router import KNOWN_WEAVES
+from api.domains.design.router import (
+    KNOWN_WEAVES,
+    MAX_DESIGN_JSON_BYTES,
+    MAX_DESIGN_PROMPT_LENGTH,
+    SIGNED_INT64_MAX,
+    SIGNED_INT64_MIN,
+)
 from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
-from api.integrations.gcs import public_asset_url
-from db.models.design import DesignSession, GenerationJob
+from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata, public_asset_url
+from api.integrations.tasks import DryRunTaskQueue
+from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.tokens import DesignToken
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from .factories import auth_headers, make_token_refund_claim, make_user, seed_setting
 
@@ -77,6 +85,31 @@ class FakeWorker:
 
     async def aclose(self):
         pass
+
+
+class FailingTaskQueue:
+    capability_mode = "real"
+
+    async def enqueue_finalize(self, job_id: uuid.UUID) -> str | None:
+        raise RuntimeError("queue unavailable")
+
+
+class ClaimedThenAmbiguousTaskQueue:
+    capability_mode = "real"
+
+    def __init__(self, sessionmaker):
+        self._sessionmaker = sessionmaker
+
+    async def enqueue_finalize(self, job_id: uuid.UUID) -> str | None:
+        # Cloud Tasks create는 성공했고 worker가 이미 claim했지만 create 응답만 유실된 상황.
+        async with self._sessionmaker() as session:
+            await session.execute(
+                update(GenerationJob)
+                .where(GenerationJob.id == job_id, GenerationJob.status == "queued")
+                .values(status="processing", attempts=GenerationJob.attempts + 1)
+            )
+            await session.commit()
+        raise TimeoutError("response lost after task was claimed")
 
 
 async def test_session_lifecycle_and_turns(client, db_session, settings):
@@ -157,6 +190,70 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
 
     fetched = await client.get(f"/design/jobs/{job.json()['id']}", headers=headers)
     assert fetched.json()["kind"] == "finalize"
+
+
+async def test_finalize_dispatch_failure_marks_job_failed_and_refunds_budget(
+    client, app, db_session, settings
+):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session = (await client.post("/design/sessions", headers=headers)).json()
+    app.state.tasks = FailingTaskQueue()
+
+    failed = await client.post(
+        f"/design/sessions/{design_session['id']}/finalize",
+        json={"intent": {"canvas": {"tile_mm": 24}, "layers": []}},
+        headers=headers,
+    )
+    assert failed.status_code == 502
+    assert failed.json()["code"] == "upstream_error"
+
+    persisted_session = await db_session.get(DesignSession, uuid.UUID(design_session["id"]))
+    assert persisted_session is not None
+    job = await db_session.scalar(
+        select(GenerationJob).where(GenerationJob.session_id == persisted_session.id)
+    )
+    assert persisted_session.finalize_used == 0
+    assert job is not None and job.status == "failed"
+    assert job.error_message == "finalize 작업 전달에 실패했습니다"
+
+    # 예산이 복구되어 같은 세션에서 다시 finalize할 수 있다.
+    app.state.tasks = DryRunTaskQueue()
+    retry = await client.post(
+        f"/design/sessions/{design_session['id']}/finalize",
+        json={"intent": {"canvas": {"tile_mm": 24}, "layers": []}},
+        headers=headers,
+    )
+    assert retry.status_code == 201
+    await db_session.refresh(persisted_session)
+    assert persisted_session.finalize_used == 1
+
+
+async def test_finalize_ambiguous_enqueue_returns_claimed_job_without_refund(
+    client, app, db_session, settings
+):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session = (await client.post("/design/sessions", headers=headers)).json()
+    app.state.tasks = ClaimedThenAmbiguousTaskQueue(app.state.sessionmaker)
+
+    response = await client.post(
+        f"/design/sessions/{design_session['id']}/finalize",
+        json={"intent": {"canvas": {"tile_mm": 24}, "layers": []}},
+        headers=headers,
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "processing"
+    persisted_session = await db_session.get(DesignSession, uuid.UUID(design_session["id"]))
+    assert persisted_session is not None
+    await db_session.refresh(persisted_session)
+    job = await db_session.get(GenerationJob, uuid.UUID(response.json()["id"]))
+    assert job is not None
+    assert job.status == "processing"
+    assert job.attempts == 1
+    assert job.error_message is None
+    assert persisted_session.finalize_used == 1
 
 
 async def test_prompt_generate_select_and_finalize(client, app, db_session, settings):
@@ -413,6 +510,43 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     assert forbidden.status_code == 403
 
 
+async def test_design_order_reference_deletes_copy_when_validation_fails(
+    client, app, db_session, settings
+):
+    class InvalidMetadataGcs(DryRunGcsClient):
+        upload_required = True
+
+        async def object_metadata(self, object_key, *, bucket_name=None):
+            return GcsObjectMetadata(size_bytes=0, content_type="image/png")
+
+    settings.gcp_project_id = "test-project"
+    app.state.gcs = InvalidMetadataGcs()
+    owner = await make_user(db_session)
+    design_session = DesignSession(user_id=owner.id)
+    db_session.add(design_session)
+    await db_session.flush()
+    job = GenerationJob(
+        user_id=owner.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="succeeded",
+        params={},
+        result={"object_key": "fabric/result.png"},
+    )
+    db_session.add(job)
+    await db_session.commit()
+
+    response = await client.post(
+        f"/design/jobs/{job.id}/order-reference",
+        headers=auth_headers(owner, settings),
+    )
+
+    assert response.status_code == 400
+    destination = app.state.gcs.copied[0][2]
+    assert app.state.gcs.deleted == [destination]
+    assert await db_session.scalar(select(Image).where(Image.object_key == destination)) is None
+
+
 def test_known_weaves_match_worker_assets():
     """api의 얕은 weave 사전검증 상수는 워커 에셋 stem과 정확히 일치해야 한다 —
     어긋나면 유효한 weave가 400되거나 잘못된 weave가 예산을 태운다."""
@@ -547,8 +681,8 @@ async def test_generate_worker_failure_refunds(client, app, db_session, settings
         headers=auth_headers(user, settings),
     )
     assert res.status_code == 502
-    # 차감 5 → 환불 5 = 총액 원복 (환불은 명세상 paid 클래스 적립 — money.md §6)
-    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 5, "bonus": 25}
+    # 차감 5 → 같은 free 배치로 환불 5 = 클래스까지 원복
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
 
 
 async def test_generate_malformed_worker_response_refunds(client, app, db_session, settings):
@@ -567,7 +701,7 @@ async def test_generate_malformed_worker_response_refunds(client, app, db_sessio
         "detail": "이미지 워커 응답 형식이 올바르지 않습니다",
         "code": "upstream_error",
     }
-    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 5, "bonus": 25}
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
 
 
 @respx.mock
@@ -589,7 +723,7 @@ async def test_generate_non_json_worker_response_refunds(client, app, db_session
 
     assert res.status_code == 502
     assert res.json()["code"] == "upstream_error"
-    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 5, "bonus": 25}
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
 
 
 async def test_generate_turn_record_failure_rolls_back_and_refunds(
@@ -614,7 +748,7 @@ async def test_generate_turn_record_failure_rolls_back_and_refunds(
     )
 
     assert res.status_code == 502
-    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 5, "bonus": 25}
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
     turns = (
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
@@ -672,7 +806,7 @@ async def test_generate_client_cancellation_still_refunds_worker_failure(
     with pytest.raises(asyncio.CancelledError):
         await request_task
 
-    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 5, "bonus": 25}
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
     turns = (
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
@@ -730,6 +864,45 @@ class MotifWorker(FakeWorker):
             "reused": self.reused,
             "similarity": None if not self.reused else 1.0,
         }
+
+
+async def test_seed_inputs_reject_outside_signed_int64_before_db_or_worker(
+    client, app, db_session, settings
+):
+    worker = MotifWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session = (await client.post("/design/sessions", headers=headers)).json()
+    session_id = design_session["id"]
+
+    session_update = await client.patch(
+        f"/design/sessions/{session_id}",
+        json={"seed": SIGNED_INT64_MAX + 1},
+        headers=headers,
+    )
+    generate = await client.post(
+        "/design/generate",
+        json={"prompt": "navy dots", "seed": SIGNED_INT64_MIN - 1},
+        headers=headers,
+    )
+    motif = await client.post(
+        f"/design/sessions/{session_id}/motifs/generate",
+        json={
+            "spec": {"subject": "flower", "scope": "whole"},
+            "seed": SIGNED_INT64_MAX + 1,
+        },
+        headers=headers,
+    )
+
+    assert session_update.status_code == generate.status_code == motif.status_code == 422
+    persisted = await db_session.get(DesignSession, uuid.UUID(session_id))
+    assert persisted is not None
+    await db_session.refresh(persisted)
+    assert persisted.seed is None
+    assert persisted.recraft_used == 0
+    assert worker.generate_payloads == []
+    assert worker.motif_calls == []
 
 
 async def _session_recraft_used(client, headers, sid):
@@ -828,7 +1001,7 @@ async def test_generate_worker_rejection_returns_422_and_refunds(client, app, db
     assert res.status_code == 422
     assert res.json()["code"] == "worker_rejected"
     assert "period off-grid" in res.json()["detail"]  # 워커 detail 보존
-    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 5, "bonus": 25}
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
 
 
 async def test_generate_candidate_count_bounds_reject_before_charge(
@@ -847,6 +1020,50 @@ async def test_generate_candidate_count_bounds_reject_before_charge(
     assert res.status_code == 422
     assert worker.generate_payloads == []  # 워커 미호출
     # 검증이 과금보다 먼저 — 차감 자체가 없어 잔액 원형 유지
+    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
+
+
+async def test_design_input_size_bounds_reject_before_worker_or_persistence(
+    client, app, db_session, settings
+):
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user, amount=30)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    prompt = await client.post(
+        "/design/generate",
+        json={"prompt": "가" * (MAX_DESIGN_PROMPT_LENGTH + 1)},
+        headers=headers,
+    )
+    turn = await client.post(
+        f"/design/sessions/{session_id}/turns",
+        json={"role": "user", "payload": {"blob": "x" * MAX_DESIGN_JSON_BYTES}},
+        headers=headers,
+    )
+    non_finite_responses = [
+        await client.post(
+            "/design/generate",
+            content=f'{{"intent":{{"weight":{literal}}}}}',
+            headers={**headers, "Content-Type": "application/json"},
+        )
+        for literal in ("NaN", "Infinity", "-Infinity")
+    ]
+
+    assert prompt.status_code == 422
+    assert turn.status_code == 422
+    assert all(response.status_code == 422 for response in non_finite_responses)
+    assert worker.generate_payloads == []
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(DesignSessionTurn)
+            .where(DesignSessionTurn.session_id == uuid.UUID(session_id))
+        )
+        == 0
+    )
     assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
 
 
@@ -902,6 +1119,61 @@ async def test_worker_client_maps_malformed_oidc_token(settings):
         await wc.generate({})
 
     assert metadata.called
+    await wc.aclose()
+
+
+@respx.mock
+async def test_worker_client_separates_generate_and_finalize_audiences(settings):
+    from api.integrations.worker import _METADATA_IDENTITY_URL, WorkerClient
+
+    settings.worker_base_url = "https://worker-generate.test"
+    settings.worker_finalize_url = "https://worker-finalize.test"
+    settings.worker_oidc_audience = "generate-audience"
+    settings.worker_finalize_oidc_audience = "finalize-audience"
+
+    def token(audience: str) -> str:
+        payload = (
+            base64.urlsafe_b64encode(
+                json.dumps(
+                    {
+                        "aud": audience,
+                        "exp": (datetime.now(UTC) + timedelta(hours=1)).timestamp(),
+                    }
+                ).encode()
+            )
+            .decode()
+            .rstrip("=")
+        )
+        return f"e30.{payload}.signature"
+
+    generate_token = token("generate-audience")
+    finalize_token = token("finalize-audience")
+    generate_metadata = respx.get(
+        _METADATA_IDENTITY_URL, params__contains={"audience": "generate-audience"}
+    ).mock(return_value=httpx.Response(200, text=generate_token))
+    finalize_metadata = respx.get(
+        _METADATA_IDENTITY_URL, params__contains={"audience": "finalize-audience"}
+    ).mock(return_value=httpx.Response(200, text=finalize_token))
+    generate = respx.post("https://worker-generate.test/generate").mock(
+        return_value=httpx.Response(200, json={"ok": True})
+    )
+    export = respx.post("https://worker-finalize.test/export").mock(
+        return_value=httpx.Response(200, content=b"png", headers={"content-type": "image/png"})
+    )
+    finalize = respx.post("https://worker-finalize.test/tasks/finalize").mock(
+        return_value=httpx.Response(200, json={"status": "succeeded"})
+    )
+    wc = WorkerClient(settings)
+
+    assert await wc.generate({}) == {"ok": True}
+    assert await wc.export({"svg": "<svg/>"}) == (b"png", "image/png")
+    assert await wc.finalize_job("job-id") == {"status": "succeeded"}
+
+    assert generate.called and export.called and finalize.called
+    assert generate.calls.last.request.headers["Authorization"].endswith(generate_token)
+    assert export.calls.last.request.headers["Authorization"].endswith(finalize_token)
+    assert generate_metadata.call_count == 1
+    assert finalize_metadata.call_count == 1  # export와 finalize가 audience별 캐시를 공유
     await wc.aclose()
 
 

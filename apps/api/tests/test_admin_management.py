@@ -140,9 +140,7 @@ async def test_coupon_issue_snapshot_idempotency_and_target_filter(client, db_se
     assert denied.status_code == 403
 
 
-async def test_segment_coupon_issue_rejects_changed_preview_audience(
-    client, db_session, settings
-):
+async def test_segment_coupon_issue_rejects_changed_preview_audience(client, db_session, settings):
     admin = await make_admin(db_session)
     await make_user(db_session)
     coupon = await make_coupon(db_session)

@@ -42,10 +42,11 @@ export function ImageFrame({
   className,
   src,
   alt = "",
+  onError,
   ...props
 }: ImageFrameProps) {
-  const [failed, setFailed] = useState(false);
-  const showFallback = src == null || failed;
+  const [failedSrc, setFailedSrc] = useState<string>();
+  const showFallback = src == null || failedSrc === src;
 
   const inner = (
     <>
@@ -56,8 +57,11 @@ export function ImageFrame({
           className={cn("absolute inset-0 size-full", objectFits[fit])}
           src={src}
           alt={alt}
-          onError={() => setFailed(true)}
           {...props}
+          onError={(event) => {
+            setFailedSrc(src);
+            onError?.(event);
+          }}
         />
       )}
       {stroke && (
