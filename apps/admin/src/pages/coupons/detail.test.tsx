@@ -181,6 +181,7 @@ describe("CouponDetailPage", () => {
             reason: "여름 행사 대상 발급",
             exclude_issued: true,
             segment: "all",
+            expected_count: 1,
           },
         },
         expect.anything(),

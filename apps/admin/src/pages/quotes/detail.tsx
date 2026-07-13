@@ -82,6 +82,7 @@ export function QuoteDetailPage() {
     enabled: quoteId !== "",
   });
   const [selectedAction, setSelectedAction] = useState<AdminQuoteAction>();
+  const [baseRevision, setBaseRevision] = useState("");
   const [amount, setAmount] = useState("");
   const [conditions, setConditions] = useState("");
   const [adminMemo, setAdminMemo] = useState("");
@@ -95,6 +96,7 @@ export function QuoteDetailPage() {
     onSuccess: async () => {
       snackbar("견적을 변경했습니다.");
       setSelectedAction(undefined);
+      setBaseRevision("");
       setTransitionMemo("");
       await Promise.all([
         queryClient.invalidateQueries({
@@ -137,6 +139,7 @@ export function QuoteDetailPage() {
   const data = query.data;
   const selectAction = (action: AdminQuoteAction) => {
     setSelectedAction(action);
+    setBaseRevision(data.updated_at);
     setAmount(data.quoted_amount?.toString() ?? "");
     setConditions(data.quote_conditions ?? "");
     setAdminMemo(data.admin_memo ?? "");
@@ -149,7 +152,7 @@ export function QuoteDetailPage() {
     mutation.mutate({
       path: { quote_id: data.id },
       body: {
-        expected_updated_at: data.updated_at,
+        expected_updated_at: baseRevision,
         new_status: selectedAction.target_status,
         quoted_amount: numericAmount,
         quote_conditions: conditions.trim(),

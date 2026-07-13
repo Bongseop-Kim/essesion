@@ -1,3 +1,4 @@
+import type { AdminSettingOut } from "@essesion/api-client";
 import {
   getAdminSettingsOptions,
   getAdminSettingsQueryKey,
@@ -24,10 +25,15 @@ import { useAdminSession } from "../shared/session/admin-session";
 import { AdminCard } from "../shared/ui/admin-card";
 import { RouteHeading } from "../shared/ui/route-heading";
 
+function settingsDraft(items: readonly AdminSettingOut[]) {
+  return Object.fromEntries(items.map((item) => [item.key, item.value]));
+}
+
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const { state } = useAdminSession();
   const query = useQuery(getAdminSettingsOptions());
+  const [baseItems, setBaseItems] = useState<AdminSettingOut[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [reason, setReason] = useState("");
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());
@@ -35,32 +41,29 @@ export function SettingsPage() {
   const canEdit =
     state.status === "authenticated" && state.session.role === "admin";
 
-  const original = useMemo(
-    () =>
-      Object.fromEntries(
-        (query.data ?? []).map((item) => [item.key, item.value]),
-      ),
-    [query.data],
-  );
   const changed = useMemo(
     () =>
-      (query.data ?? []).filter(
+      baseItems.filter(
         (item) =>
           draft[item.key] !== undefined && draft[item.key] !== item.value,
       ),
-    [draft, query.data],
+    [baseItems, draft],
   );
   const dirty = changed.length > 0 || reason !== "";
   const blocker = useDirtyFormBlocker(dirty);
 
   useEffect(() => {
-    if (query.data !== undefined && !dirty) setDraft(original);
-  }, [dirty, original, query.data]);
+    if (query.data === undefined || dirty) return;
+    setBaseItems(query.data);
+    setDraft(settingsDraft(query.data));
+  }, [dirty, query.data]);
 
   const mutation = useMutation({
     ...updateAdminSettingsMutation(),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       snackbar("관리자 설정을 저장했습니다.");
+      setBaseItems(data);
+      setDraft(settingsDraft(data));
       setReason("");
       setOperationId(crypto.randomUUID());
       await queryClient.invalidateQueries({
@@ -136,7 +139,7 @@ export function SettingsPage() {
         />
       )}
 
-      {query.data.map((item) => (
+      {baseItems.map((item) => (
         <AdminCard
           key={item.key}
           title={
@@ -227,7 +230,8 @@ export function SettingsPage() {
                 variant="ghost"
                 disabled={mutation.isPending || changed.length === 0}
                 onClick={() => {
-                  setDraft(original);
+                  setBaseItems(query.data);
+                  setDraft(settingsDraft(query.data));
                   setReason("");
                 }}
               >

@@ -1,5 +1,10 @@
 name: ci
 
+env:
+  # Vite production build validation. CI never sends traffic to these values.
+  VITE_API_BASE_URL: https://api.example.invalid
+  VITE_TOSS_CLIENT_KEY: test_ci_client_key
+
 on:
   push:
     branches: [main]
@@ -73,6 +78,8 @@ jobs:
       SEED_ADMIN_PASSWORD: admin-local-password
       E2E_ADMIN_EMAIL: admin@local
       E2E_ADMIN_PASSWORD: admin-local-password
+      E2E_CUSTOMER_EMAIL: customer@local
+      E2E_CUSTOMER_PASSWORD: customer-local-password
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

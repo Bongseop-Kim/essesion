@@ -1,5 +1,6 @@
 import { Text, VStack } from "@essesion/shared";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
+import { useLocation } from "react-router";
 
 export type RouteHeadingProps = {
   title: string;
@@ -8,11 +9,12 @@ export type RouteHeadingProps = {
 
 export function RouteHeading({ title, description }: RouteHeadingProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const location = useLocation();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.title = `${title} | ESSE SION 관리자`;
     headingRef.current?.focus({ preventScroll: true });
-  }, [title]);
+  }, [location.key, location.pathname, title]);
 
   return (
     <VStack gap="x2">

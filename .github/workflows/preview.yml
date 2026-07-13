@@ -16,6 +16,11 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      VITE_TOSS_CLIENT_KEY: ${{ vars.VITE_TOSS_CLIENT_KEY }}
+      VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+      VITE_SENTRY_ENVIRONMENT: preview
+      VITE_SENTRY_RELEASE: pr-${{ github.event.number }}-${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -25,6 +30,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo build
+      - name: Reject local or placeholder frontend endpoints
+        run: |
+          if grep -R -E 'http://localhost|api\.example\.invalid' apps/store/dist apps/admin/dist; then
+            echo 'frontend build contains a non-deployable endpoint' >&2
+            exit 1
+          fi
       - run: pnpm -C apps/store exec wrangler versions upload
       - run: pnpm -C apps/admin exec wrangler versions upload
 

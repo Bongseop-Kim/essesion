@@ -2,12 +2,26 @@
 
 from datetime import UTC, datetime, timedelta
 
+from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata
 from db.models.images import Image
 from sqlalchemy import select
 
 from .factories import auth_headers, make_user
 
 BATCH_HEADERS = {"Authorization": "Bearer test-batch-token"}
+
+
+class _MetadataGcs(DryRunGcsClient):
+    upload_required = True
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.metadata: dict[str, GcsObjectMetadata] = {}
+
+    async def object_metadata(
+        self, object_key: str, *, bucket_name: str | None = None
+    ) -> GcsObjectMetadata | None:
+        return self.metadata.get(object_key)
 
 
 async def test_upload_url_validates_type(client, db_session, settings):
@@ -19,6 +33,7 @@ async def test_upload_url_validates_type(client, db_session, settings):
             "kind": "repair_shipping_upload",
             "filename": "malware.exe",
             "content_type": "image/png",
+            "size_bytes": 100,
         },
         headers=headers,
     )
@@ -30,16 +45,19 @@ async def test_upload_url_validates_type(client, db_session, settings):
             "kind": "repair_shipping_upload",
             "filename": "tie.png",
             "content_type": "image/png",
+            "size_bytes": 100,
         },
         headers=headers,
     )
     assert res.status_code == 200
     body = res.json()
     assert body["object_key"].startswith("uploads/repair_shipping_upload/")
+    assert body["upload_id"]
     assert body["upload_url"].startswith("https://")  # DryRun URL
     assert body["required_headers"] == {
         "Content-Type": "image/png",
         "x-goog-if-generation-match": "0",
+        "x-goog-content-length-range": f"1,{10 * 1024 * 1024}",
     }
 
     missing_size = await client.post(
@@ -51,8 +69,7 @@ async def test_upload_url_validates_type(client, db_session, settings):
         },
         headers=headers,
     )
-    assert missing_size.status_code == 400
-    assert missing_size.json()["code"] == "invalid_image_size"
+    assert missing_size.status_code == 422
 
     quote = await client.post(
         "/images/upload-url",
@@ -69,6 +86,125 @@ async def test_upload_url_validates_type(client, db_session, settings):
     assert quote.json()["required_headers"]["x-goog-content-length-range"].endswith(
         str(10 * 1024 * 1024)
     )
+
+    too_large = await client.post(
+        "/images/upload-url",
+        json={
+            "kind": "repair_shipping_upload",
+            "filename": "tie.png",
+            "content_type": "image/png",
+            "size_bytes": 10 * 1024 * 1024 + 1,
+        },
+        headers=headers,
+    )
+    assert too_large.status_code == 422
+
+
+async def test_repair_shipping_completion_verifies_issued_object_metadata(
+    app, client, db_session, settings
+):
+    gcs = _MetadataGcs()
+    app.state.gcs = gcs
+    owner = await make_user(db_session)
+    other = await make_user(db_session)
+    owner_headers = auth_headers(owner, settings)
+    issued = await client.post(
+        "/images/upload-url",
+        json={
+            "kind": "repair_shipping_upload",
+            "filename": "tie.png",
+            "content_type": "image/png",
+            "size_bytes": 100,
+        },
+        headers=owner_headers,
+    )
+    assert issued.status_code == 200, issued.text
+    upload_id = issued.json()["upload_id"]
+    object_key = issued.json()["object_key"]
+
+    missing = await client.post(
+        "/images/repair-shipping-uploads",
+        json={"upload_id": upload_id},
+        headers=owner_headers,
+    )
+    assert missing.status_code == 400
+    assert missing.json()["code"] == "upload_not_found"
+
+    gcs.metadata[object_key] = GcsObjectMetadata(size_bytes=100, content_type="image/jpeg")
+    wrong_type = await client.post(
+        "/images/repair-shipping-uploads",
+        json={"upload_id": upload_id},
+        headers=owner_headers,
+    )
+    assert wrong_type.status_code == 400
+    assert wrong_type.json()["code"] == "invalid_image_type"
+
+    gcs.metadata[object_key] = GcsObjectMetadata(
+        size_bytes=10 * 1024 * 1024 + 1,
+        content_type="image/png",
+    )
+    too_large = await client.post(
+        "/images/repair-shipping-uploads",
+        json={"upload_id": upload_id},
+        headers=owner_headers,
+    )
+    assert too_large.status_code == 400
+    assert too_large.json()["code"] == "image_too_large"
+
+    gcs.metadata[object_key] = GcsObjectMetadata(size_bytes=101, content_type="image/png")
+    wrong_size = await client.post(
+        "/images/repair-shipping-uploads",
+        json={"upload_id": upload_id},
+        headers=owner_headers,
+    )
+    assert wrong_size.status_code == 400
+    assert wrong_size.json()["code"] == "invalid_image_size"
+
+    denied = await client.post(
+        "/images/repair-shipping-uploads",
+        json={"upload_id": upload_id},
+        headers=auth_headers(other, settings),
+    )
+    assert denied.status_code == 409
+    assert denied.json()["code"] == "ownership_conflict"
+
+    gcs.metadata[object_key] = GcsObjectMetadata(size_bytes=100, content_type="image/png")
+    completed = await client.post(
+        "/images/repair-shipping-uploads",
+        json={"upload_id": upload_id},
+        headers=owner_headers,
+    )
+    assert completed.status_code == 201, completed.text
+    assert completed.json()["object_key"] == object_key
+
+    image = await db_session.get(Image, completed.json()["id"])
+    assert image is not None
+    assert image.upload_completed_at is not None
+
+
+async def test_repair_shipping_completion_rejects_foreign_prefix(
+    client, db_session, settings
+):
+    owner = await make_user(db_session)
+    image = Image(
+        object_key="uploads/custom_order/not-repair.png",
+        entity_type="repair_shipping_upload",
+        entity_id="uploads/custom_order/not-repair.png",
+        uploaded_by=owner.id,
+        content_type="image/png",
+        size_bytes=100,
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    db_session.add(image)
+    await db_session.commit()
+
+    response = await client.post(
+        "/images/repair-shipping-uploads",
+        json={"upload_id": str(image.id)},
+        headers=auth_headers(owner, settings),
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_repair_shipping_image"
 
 
 async def test_reform_upload_register_upsert_and_ownership(client, db_session, settings):

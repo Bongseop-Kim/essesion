@@ -39,20 +39,26 @@ export function InquiryDetailPage() {
     enabled: inquiryId !== "",
   });
   const [answer, setAnswer] = useState("");
+  const [baseAnswer, setBaseAnswer] = useState("");
+  const [baseRevision, setBaseRevision] = useState("");
   const [loadedInquiryId, setLoadedInquiryId] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const dirty =
     query.data !== undefined &&
     loadedInquiryId === query.data.id &&
-    answer !== (query.data.answer ?? "");
+    answer !== baseAnswer;
   const blocker = useDirtyFormBlocker(dirty);
 
   useEffect(() => {
-    if (query.data !== undefined && loadedInquiryId !== query.data.id) {
-      setAnswer(query.data.answer ?? "");
-      setLoadedInquiryId(query.data.id);
-    }
-  }, [loadedInquiryId, query.data]);
+    if (query.data === undefined) return;
+    const changedInquiry = loadedInquiryId !== query.data.id;
+    const changedWhileClean = !dirty && baseRevision !== query.data.updated_at;
+    if (!changedInquiry && !changedWhileClean) return;
+    setAnswer(query.data.answer ?? "");
+    setBaseAnswer(query.data.answer ?? "");
+    setBaseRevision(query.data.updated_at);
+    setLoadedInquiryId(query.data.id);
+  }, [baseRevision, dirty, loadedInquiryId, query.data]);
 
   const mutation = useMutation({
     ...answerAdminInquiryMutation(),
@@ -62,6 +68,8 @@ export function InquiryDetailPage() {
         data,
       );
       setAnswer(data.answer ?? "");
+      setBaseAnswer(data.answer ?? "");
+      setBaseRevision(data.updated_at);
       snackbar("문의 답변을 저장했습니다.");
       await Promise.all([
         queryClient.invalidateQueries({
@@ -120,7 +128,7 @@ export function InquiryDetailPage() {
     if (answer.trim().length === 0 || mutation.isPending) return;
     mutation.mutate({
       path: { inquiry_id: data.id },
-      body: { expected_updated_at: data.updated_at, answer: answer.trim() },
+      body: { expected_updated_at: baseRevision, answer: answer.trim() },
     });
   };
 
@@ -215,7 +223,7 @@ export function InquiryDetailPage() {
               type="button"
               variant="ghost"
               disabled={!dirty || mutation.isPending}
-              onClick={() => setAnswer(data.answer ?? "")}
+              onClick={() => setAnswer(baseAnswer)}
             >
               변경 취소
             </ActionButton>

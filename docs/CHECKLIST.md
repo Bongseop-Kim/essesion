@@ -20,12 +20,12 @@
 - [x] 로컬: docker compose(Postgres + pgvector)
 - [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 3종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
 - [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *wrangler 설정·프록시 워커 완료. **도메인 확정: `essesion.shop`** — routes 주석에 반영됨. **5단계(프론트 배포) 시 수행**: zone 추가·routes 해제·WAF 규칙(`infra/cloudflare/README.md`, 운영자 목록 `docs/OPERATOR-CHECKLIST.md` §C)*
-- [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 프리뷰(Cloudflare 프리뷰 URL + Cloud Run 태그 리비전) — *배포·프리뷰 잡은 GitHub vars 설정 전까지 자동 스킵*
+- [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 프리뷰(Cloudflare 프리뷰 URL + Cloud Run 태그 리비전) — *배포·프리뷰 잡은 GitHub vars 설정 전까지 자동 스킵. main 배포는 동일 SHA의 CI 성공 후에만 실행하며, 프론트 production env 누락과 localhost/example API 혼입을 빌드·배포 단계에서 차단*
 - [x] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
 - [x] Renovate 설정(묶음 PR) — *레포에 Renovate GitHub App 설치 필요*
 - [x] Aside 브라우저 확인 하네스 — *프로젝트 MCP(`.mcp.json`) + `.claude/skills/aside-browser/SKILL.md`, CLI 로그인·MCP 등록 확인*
 - [ ] GCP 예산 알림 1개 + uptime check 1개 — *tofu에 포함, **4단계 apply 시 함께 생성***
-- [ ] Sentry 프로젝트(api·worker) 연결, JSON 구조화 로깅 + request_id 전파 골격 — *골격(`libs/obs`) 완료, 로컬은 DSN 없으면 no-op. **4단계 착수 시**: Sentry 프로젝트 생성·DSN 주입*
+- [ ] Sentry 프로젝트(api·worker·store) 연결, JSON 구조화 로깅 + request_id 전파 골격 — *서버 골격(`libs/obs`)과 store 선택적 초기화·민감정보 제거·request_id 태깅 완료, DSN이 없으면 no-op. **4단계 착수 시**: Sentry 프로젝트 생성·DSN 주입*
 - [ ] Secret Manager에 기존 env 배치 — *시크릿 컨테이너는 tofu 소유. **4단계 apply 후** `infra/README.md`의 gcloud 명령으로 값 주입 — 그전까지 로컬 `.env`*
 
 ## 2. 스키마 재설계
@@ -80,8 +80,10 @@
 - [x] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — 대화형 세션·생성/변형·후보 선택·SVG 미리보기·내보내기·finalize 작업 복구·완성 디자인 주문 첨부, 토큰 과금/실패 환불과 워커 응답 계약, 모바일/데스크톱 UI 및 api-client 동기화 완료 (`docs/plans/store-design.md`). **이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [x] admin 재작성 개발 플랜 — 기존 25개 라우트 inventory, API 선행 계약, 수직 슬라이스·검증 기준과 추가 보안·동시성·운영 복구·접근성 검토 반영 (`docs/plans/admin-rewrite.md`)
 - [x] admin 재작성 — 기존 라우트 기준 (`docs/plans/admin-rewrite.md`) — *A~J 구현 완료. 최종 codegen drift 0, Python 535건·shared 45건·store 114건·admin 78건, repo lint/build/typecheck, 실제 PostgreSQL Playwright admin smoke 통과. Aside에서 1440/390/767/768/1024px·200% zoom, 대표 mutation·focus·reduced motion·ScrollFog·탭 간 logout 검증. 실제 GCP·Cloudflare 개통과 capability `real` 확인은 별도 배포 항목으로 인계.*
+- [x] admin 검토 후 개선 — *편집 기준 revision 고정, 범위 밖 page URL 교정, invalid submit 첫 오류 focus, 동일 제목 라우트 focus, terminal/hidden polling 중단, dev port 3001 정합화 및 회귀 테스트.*
+- [x] admin/store 통합 개선 — *store refresh 단일 조정자·탭 간 세션 동기화, 라우트 오류/404/Sentry 골격, skip link·캐러셀 접근성, 홈 이미지 WebP srcset·폰트 subset(정적 자산 약 90% 절감), 수선 업로드 staging 검증, 쿠폰 대상 수 expected_count 동시성 가드, production env fail-fast와 CI 성공 SHA 배포 게이트 적용.*
 - [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler), api는 min-instances=1 설정
-- [ ] Playwright 스모크 1줄기: 로그인 → 장바구니 → 주문 → 결제(Toss 샌드박스)
+- [x] Playwright 스모크 1줄기: 로그인 → 장바구니 → 주문 → 결제 — *실제 API + PostgreSQL seed, 브라우저에서는 결정적 Toss 로컬 어댑터, API는 DryRun confirm으로 멱등 재호출과 장바구니 정리까지 검증. 실제 Toss sandbox는 스테이징 자격 증명 주입 후 리허설에서 별도 확인.*
 - [x] Playwright admin 스모크: 관리자 로그인 → 보호 목록/상세 → 대표 상태 변경 → 로그아웃 (실제 API + PostgreSQL seed) — *`e2e/admin-smoke.spec.ts`·CI 연결과 최종 스키마/codegen 상태의 로컬 실행 1건 통과*
 
 ## 6. 리허설 (스테이징)

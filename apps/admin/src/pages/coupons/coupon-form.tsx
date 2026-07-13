@@ -132,7 +132,9 @@ export function CouponDefinitionForm({
   const [baseDraft, setBaseDraft] = useState(initial);
   const [baseRevision, setBaseRevision] = useState(revision);
   const [attempted, setAttempted] = useState(false);
+  const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
   const appliedReset = useRef(resetSignal);
+  const formRef = useRef<HTMLFormElement>(null);
   const errors = useMemo(() => validateDraft(draft), [draft]);
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(baseDraft),
@@ -141,12 +143,20 @@ export function CouponDefinitionForm({
   const blocker = useDirtyFormBlocker(dirty);
 
   useEffect(() => {
+    if (invalidSubmitCount === 0) return;
+    formRef.current
+      ?.querySelector<HTMLElement>("[aria-invalid='true']")
+      ?.focus({ preventScroll: true });
+  }, [invalidSubmitCount]);
+
+  useEffect(() => {
     if (appliedReset.current === resetSignal) return;
     appliedReset.current = resetSignal;
     setDraft(initial);
     setBaseDraft(initial);
     setBaseRevision(revision);
     setAttempted(false);
+    setInvalidSubmitCount(0);
   }, [initial, resetSignal, revision]);
 
   const update = <Key extends keyof CouponDraft>(
@@ -157,7 +167,11 @@ export function CouponDefinitionForm({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setAttempted(true);
-    if (Object.keys(errors).length > 0 || pending) return;
+    if (Object.keys(errors).length > 0) {
+      setInvalidSubmitCount((current) => current + 1);
+      return;
+    }
+    if (pending) return;
     onSubmit(draft, baseRevision);
   };
 
@@ -169,6 +183,7 @@ export function CouponDefinitionForm({
       >
         <VStack
           as="form"
+          ref={formRef}
           gap="x5"
           alignItems="stretch"
           noValidate

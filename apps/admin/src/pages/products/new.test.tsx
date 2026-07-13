@@ -82,6 +82,18 @@ describe("ProductNewPage", () => {
     );
   });
 
+  it("유효하지 않은 제출은 첫 오류 필드로 focus를 이동한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "상품 등록" }));
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText(/상품 이름/)),
+    );
+    expect(screen.getByText("입력한 상품 정보를 확인해 주세요")).toBeTruthy();
+  });
+
   it("업로드 중 피커를 잠그고 unmount 뒤 완료된 staging을 폐기한다", async () => {
     const user = userEvent.setup();
     let completeUpload: (result: {

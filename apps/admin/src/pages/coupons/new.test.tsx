@@ -81,4 +81,18 @@ describe("CouponNewPage", () => {
     expect(await screen.findByText("이름 충돌")).toBeTruthy();
     expect((name as HTMLInputElement).value).toBe("중복 쿠폰");
   });
+
+  it("유효하지 않은 제출은 첫 오류 필드로 focus를 이동한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "쿠폰 등록" }));
+
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByLabelText(/관리용 쿠폰 이름/),
+      ),
+    );
+    expect(screen.getByText("입력한 쿠폰 조건을 확인해 주세요")).toBeTruthy();
+  });
 });

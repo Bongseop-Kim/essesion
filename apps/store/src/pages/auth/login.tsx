@@ -25,6 +25,10 @@ import {
 } from "@/features/auth/model/return-after-login";
 import { syncGuestCartToAccount } from "@/features/cart";
 import { API_BASE_URL } from "@/shared/config/env";
+import {
+  clearStoreSession,
+  setStoreAccessToken,
+} from "@/shared/lib/api-client";
 import { useZodForm } from "@/shared/lib/form";
 import { useSession } from "@/shared/store/session";
 
@@ -50,11 +54,11 @@ export function LoginPage() {
   const login = useMutation({
     ...loginMutation(),
     onSuccess: async (data) => {
-      useSession.getState().setAccessToken(data.access_token);
+      setStoreAccessToken(data.access_token);
       try {
         const me = await getMe();
         if (!me.data) {
-          useSession.getState().clear();
+          clearStoreSession();
           return;
         }
         useSession.getState().setUser(me.data);
@@ -73,7 +77,7 @@ export function LoginPage() {
           navigate("/cart", { replace: true });
         }
       } catch {
-        useSession.getState().clear();
+        clearStoreSession();
       }
     },
   });

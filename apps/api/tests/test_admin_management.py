@@ -140,6 +140,83 @@ async def test_coupon_issue_snapshot_idempotency_and_target_filter(client, db_se
     assert denied.status_code == 403
 
 
+async def test_segment_coupon_issue_rejects_changed_preview_audience(
+    client, db_session, settings
+):
+    admin = await make_admin(db_session)
+    await make_user(db_session)
+    coupon = await make_coupon(db_session)
+    headers = auth_headers(admin, settings)
+
+    preview = await client.post(
+        f"/admin/coupons/{coupon.id}/audience-preview",
+        json={"segment": "all", "exclude_issued": True},
+        headers=headers,
+    )
+    assert preview.status_code == 200
+    assert preview.json()["total"] == 1
+
+    # 확인 대화상자가 열린 뒤 고객군이 바뀌면 오래된 인원수로 발급하지 않는다.
+    await make_user(db_session)
+    operation_id = uuid.uuid4()
+    stale = await client.post(
+        f"/admin/coupons/{coupon.id}/issue",
+        json={
+            "operation_id": str(operation_id),
+            "reason": "미리보기 고객군 발급",
+            "segment": "all",
+            "exclude_issued": True,
+            "expected_count": 1,
+        },
+        headers=headers,
+    )
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "coupon_audience_changed"
+    assert (
+        await db_session.scalar(
+            select(func.count()).select_from(UserCoupon).where(UserCoupon.coupon_id == coupon.id)
+        )
+        == 0
+    )
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(AdminOperationLog)
+            .where(AdminOperationLog.operation_id == str(operation_id))
+        )
+        == 0
+    )
+
+    current = await client.post(
+        f"/admin/coupons/{coupon.id}/issue",
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "reason": "갱신한 고객군 발급",
+            "segment": "all",
+            "exclude_issued": True,
+            "expected_count": 2,
+        },
+        headers=headers,
+    )
+    assert current.status_code == 200
+    assert current.json()["affected_count"] == 2
+
+
+async def test_segment_coupon_issue_requires_expected_count(client, db_session, settings):
+    admin = await make_admin(db_session)
+    coupon = await make_coupon(db_session)
+    response = await client.post(
+        f"/admin/coupons/{coupon.id}/issue",
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "reason": "미리보기 없는 발급",
+            "segment": "all",
+        },
+        headers=auth_headers(admin, settings),
+    )
+    assert response.status_code == 422
+
+
 async def test_coupon_update_rejects_stale_revision(client, db_session, settings):
     admin = await make_admin(db_session)
     coupon = await make_coupon(db_session)

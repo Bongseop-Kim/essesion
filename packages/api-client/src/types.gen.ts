@@ -2463,6 +2463,10 @@ export type CouponIssueRequest = {
      */
     exclude_issued?: boolean;
     /**
+     * Expected Count
+     */
+    expected_count?: number | null;
+    /**
      * Operation Id
      */
     operation_id: string;
@@ -5499,6 +5503,16 @@ export type RepairShippingReceiptOut = {
 };
 
 /**
+ * RepairShippingUploadCompleteRequest
+ */
+export type RepairShippingUploadCompleteRequest = {
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
  * RepairTrackingRequest
  */
 export type RepairTrackingRequest = {
@@ -6163,16 +6177,6 @@ export type TokenResponse = {
 };
 
 /**
- * UploadRegisterRequest
- */
-export type UploadRegisterRequest = {
-    /**
-     * Object Key
-     */
-    object_key: string;
-};
-
-/**
  * UploadUrlRequest
  */
 export type UploadUrlRequest = {
@@ -6191,7 +6195,7 @@ export type UploadUrlRequest = {
     /**
      * Size Bytes
      */
-    size_bytes?: number | null;
+    size_bytes: number;
 };
 
 /**
@@ -6211,7 +6215,7 @@ export type UploadUrlResponse = {
     /**
      * Upload Id
      */
-    upload_id?: string | null;
+    upload_id: string;
     /**
      * Upload Required
      */
@@ -9622,7 +9626,7 @@ export type RegisterReformUploadResponses = {
 export type RegisterReformUploadResponse = RegisterReformUploadResponses[keyof RegisterReformUploadResponses];
 
 export type RegisterRepairShippingUploadData = {
-    body: UploadRegisterRequest;
+    body: RepairShippingUploadCompleteRequest;
     path?: never;
     query?: never;
     url: '/images/repair-shipping-uploads';

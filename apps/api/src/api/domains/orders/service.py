@@ -27,7 +27,7 @@ from db.models.commerce import (
 )
 from db.models.images import Image
 from obs import request_id_var
-from sqlalchemy import CursorResult, exists, select, update
+from sqlalchemy import CursorResult, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.domains.images.service import (
@@ -283,8 +283,10 @@ async def _relink_images(
             Image.entity_id == file_key,
             Image.uploaded_by == user_id,
             Image.deleted_at.is_(None),
+            Image.upload_completed_at.is_not(None),
+            or_(Image.expires_at.is_(None), Image.expires_at > func.now()),
         )
-        .values(entity_type=to_entity_type, entity_id=to_entity_id)
+        .values(entity_type=to_entity_type, entity_id=to_entity_id, expires_at=None)
     )
     return cast("CursorResult[Any]", result).rowcount
 

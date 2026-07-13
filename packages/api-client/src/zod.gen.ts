@@ -876,6 +876,7 @@ export const zCouponCreateRequest = z.object({
  */
 export const zCouponIssueRequest = z.object({
     exclude_issued: z.boolean().optional().default(true),
+    expected_count: z.int().gte(0).nullish(),
     operation_id: z.uuid(),
     reason: z.string().min(3).max(500),
     segment: z.enum([
@@ -2234,6 +2235,13 @@ export const zAdminClaimDetailOut = z.object({
 });
 
 /**
+ * RepairShippingUploadCompleteRequest
+ */
+export const zRepairShippingUploadCompleteRequest = z.object({
+    upload_id: z.uuid()
+});
+
+/**
  * RepairTrackingRequest
  */
 export const zRepairTrackingRequest = z.object({
@@ -2551,13 +2559,6 @@ export const zTokenResponse = z.object({
 });
 
 /**
- * UploadRegisterRequest
- */
-export const zUploadRegisterRequest = z.object({
-    object_key: z.string()
-});
-
-/**
  * UploadUrlRequest
  */
 export const zUploadUrlRequest = z.object({
@@ -2569,7 +2570,7 @@ export const zUploadUrlRequest = z.object({
         'sample_order',
         'quote_request'
     ]),
-    size_bytes: z.int().gt(0).lte(10485760).nullish()
+    size_bytes: z.int().gt(0).lte(10485760)
 });
 
 /**
@@ -2578,7 +2579,7 @@ export const zUploadUrlRequest = z.object({
 export const zUploadUrlResponse = z.object({
     object_key: z.string(),
     required_headers: z.record(z.string(), z.string()),
-    upload_id: z.uuid().nullish(),
+    upload_id: z.uuid(),
     upload_required: z.boolean(),
     upload_url: z.string()
 });
@@ -3965,7 +3966,7 @@ export const zRegisterReformUploadBody = zReformUploadCompleteRequest;
  */
 export const zRegisterReformUploadResponse = zImageOut;
 
-export const zRegisterRepairShippingUploadBody = zUploadRegisterRequest;
+export const zRegisterRepairShippingUploadBody = zRepairShippingUploadCompleteRequest;
 
 /**
  * Successful Response

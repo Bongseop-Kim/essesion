@@ -74,9 +74,11 @@ export function ProductForm({
   const [baseDraft, setBaseDraft] = useState(initial);
   const [baseRevision, setBaseRevision] = useState(revision);
   const [attempted, setAttempted] = useState(false);
+  const [invalidSubmitCount, setInvalidSubmitCount] = useState(0);
   const [uploading, setUploading] = useState(0);
   const [uploadError, setUploadError] = useState<string>();
   const appliedReset = useRef(resetSignal);
+  const formRef = useRef<HTMLFormElement>(null);
   const draftRef = useRef(draft);
   const mounted = useRef(true);
   const discardedUploadIds = useRef(new Set<string>());
@@ -111,6 +113,13 @@ export function ProductForm({
   const blocker = useDirtyFormBlocker(dirty || uploading > 0);
 
   useEffect(() => {
+    if (invalidSubmitCount === 0) return;
+    formRef.current
+      ?.querySelector<HTMLElement>("[aria-invalid='true']")
+      ?.focus({ preventScroll: true });
+  }, [invalidSubmitCount]);
+
+  useEffect(() => {
     if (appliedReset.current === resetSignal) return;
     appliedReset.current = resetSignal;
     const retainedIds = new Set(
@@ -129,6 +138,7 @@ export function ProductForm({
     setBaseDraft(initial);
     setBaseRevision(revision);
     setAttempted(false);
+    setInvalidSubmitCount(0);
     setUploadError(undefined);
   }, [initial, resetSignal, revision]);
 
@@ -255,7 +265,11 @@ export function ProductForm({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setAttempted(true);
-    if (hasProductDraftErrors(errors) || pending || uploading > 0) return;
+    if (hasProductDraftErrors(errors)) {
+      setInvalidSubmitCount((current) => current + 1);
+      return;
+    }
+    if (pending || uploading > 0) return;
     onSubmit(productFormValue(draft, baseDraft, mode), baseRevision);
   };
   const attachmentsLocked = pending || uploading > 0;
@@ -264,6 +278,7 @@ export function ProductForm({
     <>
       <VStack
         as="form"
+        ref={formRef}
         gap="x5"
         alignItems="stretch"
         noValidate

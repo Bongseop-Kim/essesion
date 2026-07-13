@@ -19,7 +19,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 
 import { formatDateTime, formatIdentifier } from "../../shared/lib/format";
-import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
+import {
+  useAdminListPageCorrection,
+  useAdminListUrlState,
+} from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { FilterSelect } from "../../shared/ui/filter-select";
@@ -293,6 +296,13 @@ export function MotifsPage() {
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
   );
+  useAdminListPageCorrection({
+    page: parsed.page,
+    limit: parsed.limit,
+    total: query.data?.total,
+    ready: query.isSuccess && !query.isPlaceholderData,
+    replaceQuery,
+  });
 
   return (
     <VStack gap="x6" alignItems="stretch">

@@ -34,30 +34,30 @@ function newOperationId() {
   return crypto.randomUUID();
 }
 
+function pricingDraft(items: readonly PricingValueOut[]) {
+  return Object.fromEntries(
+    items.map((item) => [item.key, String(item.amount)]),
+  );
+}
+
 export function PricingPage() {
   const queryClient = useQueryClient();
   const { state } = useAdminSession();
   const query = useQuery(getAdminPricingOptions());
+  const [baseItems, setBaseItems] = useState<PricingValueOut[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [reason, setReason] = useState("");
   const [operationId, setOperationId] = useState(newOperationId);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const original = useMemo(
-    () =>
-      Object.fromEntries(
-        (query.data ?? []).map((item) => [item.key, String(item.amount)]),
-      ),
-    [query.data],
-  );
   const changed = useMemo(
     () =>
-      (query.data ?? []).filter(
+      baseItems.filter(
         (item) =>
           draft[item.key] !== undefined &&
           draft[item.key] !== String(item.amount),
       ),
-    [draft, query.data],
+    [baseItems, draft],
   );
   const isDirty = changed.length > 0 || reason !== "";
   const blocker = useDirtyFormBlocker(isDirty);
@@ -65,13 +65,17 @@ export function PricingPage() {
     state.status === "authenticated" && state.session.role === "admin";
 
   useEffect(() => {
-    if (query.data !== undefined && !isDirty) setDraft(original);
-  }, [isDirty, original, query.data]);
+    if (query.data === undefined || isDirty) return;
+    setBaseItems(query.data);
+    setDraft(pricingDraft(query.data));
+  }, [isDirty, query.data]);
 
   const mutation = useMutation({
     ...updateAdminPricingMutation(),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       snackbar("가격 설정을 저장했습니다.");
+      setBaseItems(data);
+      setDraft(pricingDraft(data));
       setReason("");
       setOperationId(newOperationId());
       await queryClient.invalidateQueries({
@@ -110,7 +114,7 @@ export function PricingPage() {
     );
   }
 
-  const groups = query.data.reduce<Record<string, PricingValueOut[]>>(
+  const groups = baseItems.reduce<Record<string, PricingValueOut[]>>(
     (result, item) => {
       const group = result[item.category] ?? [];
       group.push(item);
@@ -246,7 +250,8 @@ export function PricingPage() {
                 variant="ghost"
                 disabled={mutation.isPending || changed.length === 0}
                 onClick={() => {
-                  setDraft(original);
+                  setBaseItems(query.data);
+                  setDraft(pricingDraft(query.data));
                   setReason("");
                 }}
               >

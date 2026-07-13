@@ -5,7 +5,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
-import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
+import {
+  useAdminListPageCorrection,
+  useAdminListUrlState,
+} from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
@@ -104,6 +107,13 @@ export function QuotesPage() {
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
   );
+  useAdminListPageCorrection({
+    page: parsed.page,
+    limit: parsed.limit,
+    total: query.data?.total,
+    ready: query.isSuccess && !query.isPlaceholderData,
+    replaceQuery,
+  });
 
   return (
     <VStack gap="x6" alignItems="stretch">

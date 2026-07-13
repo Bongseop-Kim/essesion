@@ -4622,6 +4622,18 @@
             "title": "Exclude Issued",
             "type": "boolean"
           },
+          "expected_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Count"
+          },
           "operation_id": {
             "format": "uuid",
             "title": "Operation Id",
@@ -10107,6 +10119,20 @@
         "title": "RepairShippingReceiptOut",
         "type": "object"
       },
+      "RepairShippingUploadCompleteRequest": {
+        "properties": {
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "RepairShippingUploadCompleteRequest",
+        "type": "object"
+      },
       "RepairTrackingRequest": {
         "properties": {
           "courier_company": {
@@ -11344,19 +11370,6 @@
         "title": "TokenResponse",
         "type": "object"
       },
-      "UploadRegisterRequest": {
-        "properties": {
-          "object_key": {
-            "title": "Object Key",
-            "type": "string"
-          }
-        },
-        "required": [
-          "object_key"
-        ],
-        "title": "UploadRegisterRequest",
-        "type": "object"
-      },
       "UploadUrlRequest": {
         "properties": {
           "content_type": {
@@ -11378,23 +11391,17 @@
             "type": "string"
           },
           "size_bytes": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 10485760.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Size Bytes"
+            "exclusiveMinimum": 0.0,
+            "maximum": 10485760.0,
+            "title": "Size Bytes",
+            "type": "integer"
           }
         },
         "required": [
           "kind",
           "filename",
-          "content_type"
+          "content_type",
+          "size_bytes"
         ],
         "title": "UploadUrlRequest",
         "type": "object"
@@ -11413,16 +11420,9 @@
             "type": "object"
           },
           "upload_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Upload Id"
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
           },
           "upload_required": {
             "title": "Upload Required",
@@ -11435,6 +11435,7 @@
         },
         "required": [
           "object_key",
+          "upload_id",
           "upload_url",
           "required_headers",
           "upload_required"
@@ -18071,7 +18072,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UploadRegisterRequest"
+                "$ref": "#/components/schemas/RepairShippingUploadCompleteRequest"
               }
             }
           },

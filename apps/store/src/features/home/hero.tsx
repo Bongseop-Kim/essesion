@@ -1,4 +1,5 @@
 import {
+  ActionButton,
   Box,
   Flex,
   Float,
@@ -26,28 +27,35 @@ const HERO_BANNERS = [
   {
     tag: "AI",
     title: "쉽고 간편하게\n30초 만에 만들기",
-    image: "/images/home/ai.png",
+    image: "/images/home/ai-1086.webp",
+    srcSet: "/images/home/ai-544.webp 544w, /images/home/ai-1086.webp 1086w",
     alt: "AI 디자인 생성",
     href: "/design",
   },
   {
     tag: "CUSTOM",
     title: "행사와 단체를 위한\n주문 제작",
-    image: "/images/home/custom.png",
+    image: "/images/home/custom-1086.webp",
+    srcSet:
+      "/images/home/custom-544.webp 544w, /images/home/custom-1086.webp 1086w",
     alt: "주문 제작",
     href: "/custom-order",
   },
   {
     tag: "STORE",
     title: "2026 봄\n실크 9종 입고",
-    image: "/images/home/showcase.png",
+    image: "/images/home/showcase-1086.webp",
+    srcSet:
+      "/images/home/showcase-544.webp 544w, /images/home/showcase-1086.webp 1086w",
     alt: "넥타이 스토어",
     href: "/shop",
   },
   {
     tag: "REPAIR",
     title: "수동 넥타이를\n자동 넥타이로",
-    image: "/images/home/repair.png",
+    image: "/images/home/repair-1086.webp",
+    srcSet:
+      "/images/home/repair-544.webp 544w, /images/home/repair-1086.webp 1086w",
     alt: "넥타이 수선",
     href: "/reform",
   },
@@ -85,8 +93,12 @@ function HeroCard({
         ratio={3 / 4}
         borderRadius={borderRadius}
         src={banner.image}
+        srcSet={banner.srcSet}
+        sizes="(min-width: 768px) 25vw, 100vw"
         alt={banner.alt}
         loading={eager ? "eager" : "lazy"}
+        fetchPriority={eager ? "high" : "auto"}
+        decoding="async"
       >
         <Scrim from="bottom" />
         <Float placement="bottom-start" offsetX="x5" offsetY="x5">
@@ -114,7 +126,8 @@ const SWIPE_THRESHOLD = 50; // px — 이 이상 끌면 슬라이드 이동
 /** 모바일 — 자동 넘김 + 스와이프 캐로셀(포그 없음). 조작 중 정지, reduced-motion 시 자동재생 끔. */
 function HeroCarousel() {
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [userPaused, setUserPaused] = useState(false);
+  const [interactionPaused, setInteractionPaused] = useState(false);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -125,12 +138,13 @@ function HeroCarousel() {
   const dx = useRef(0);
   const active = useRef(false);
   const moved = useRef(false);
+  const autoplayPaused = userPaused || interactionPaused || dragging;
 
   useEffect(() => {
-    if (!isMobile || paused || reduced) return;
+    if (!isMobile || autoplayPaused || reduced) return;
     const id = setInterval(() => setIndex((i) => (i + 1) % count), AUTOPLAY_MS);
     return () => clearInterval(id);
-  }, [isMobile, paused, reduced, count]);
+  }, [isMobile, autoplayPaused, reduced, count]);
 
   const onPointerDown = (e: PointerEvent) => {
     startX.current = e.clientX;
@@ -138,7 +152,6 @@ function HeroCarousel() {
     active.current = true;
     moved.current = false;
     setDragging(true);
-    setPaused(true);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: PointerEvent) => {
@@ -154,13 +167,25 @@ function HeroCarousel() {
     dx.current = 0;
     setDragging(false);
     setDragX(0);
-    setPaused(false);
     if (delta <= -SWIPE_THRESHOLD) setIndex((i) => (i + 1) % count);
     else if (delta >= SWIPE_THRESHOLD) setIndex((i) => (i - 1 + count) % count);
   };
 
   return (
-    <Box display={{ base: "block", md: "none" }}>
+    <Box
+      display={{ base: "block", md: "none" }}
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="주요 서비스"
+      onMouseEnter={() => setInteractionPaused(true)}
+      onMouseLeave={() => setInteractionPaused(false)}
+      onFocusCapture={() => setInteractionPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setInteractionPaused(false);
+        }
+      }}
+    >
       {/* 모바일 full-bleed — 라운드 없이 꽉 채움 */}
       <Box
         overflow="hidden"
@@ -187,7 +212,16 @@ function HeroCarousel() {
           }}
         >
           {HERO_BANNERS.map((banner, i) => (
-            <Box key={banner.tag} flexShrink={0} width="full">
+            <Box
+              key={banner.tag}
+              flexShrink={0}
+              width="full"
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${i + 1} / ${count}`}
+              aria-hidden={i === index ? undefined : true}
+              inert={i === index ? undefined : true}
+            >
               <HeroCard banner={banner} eager={i === 0} borderRadius={0} />
             </Box>
           ))}
@@ -210,6 +244,26 @@ function HeroCarousel() {
           />
         ))}
       </HStack>
+      <HStack justify="center" pt="x2">
+        {!reduced && (
+          <ActionButton
+            type="button"
+            variant="ghost"
+            size="small"
+            onClick={() => setUserPaused((value) => !value)}
+          >
+            {userPaused ? "자동 넘김 재생" : "자동 넘김 일시정지"}
+          </ActionButton>
+        )}
+      </HStack>
+      <Text
+        as="span"
+        textStyle="captionSm"
+        className="sr-only"
+        aria-live={autoplayPaused ? "polite" : "off"}
+      >
+        {index + 1} / {count} 배너
+      </Text>
     </Box>
   );
 }

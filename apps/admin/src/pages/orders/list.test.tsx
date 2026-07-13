@@ -4,6 +4,7 @@ import type {
 } from "@essesion/api-client";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderAdminPage } from "../../test/render-admin-page";
@@ -53,8 +54,18 @@ const emptyPage: PageAdminOrderSummaryOut = {
   offset: 0,
 };
 
+function LocationProbe() {
+  return <output aria-label="현재 URL">{useLocation().search}</output>;
+}
+
 function renderPage(entry = "/orders") {
-  return renderAdminPage(<OrdersPage />, { entry });
+  return renderAdminPage(
+    <>
+      <OrdersPage />
+      <LocationProbe />
+    </>,
+    { entry },
+  );
 }
 
 describe("OrdersPage", () => {
@@ -110,5 +121,21 @@ describe("OrdersPage", () => {
 
     expect(await screen.findByText("ORDER-001")).toBeTruthy();
     await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("응답 total을 벗어난 URL page를 마지막 page로 replace하고 다시 조회한다", async () => {
+    api.list.mockResolvedValue(successPage);
+    renderPage("/orders?page=999");
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("현재 URL").textContent).toBe(
+        "?sort=created_at&direction=desc",
+      ),
+    );
+    await waitFor(() =>
+      expect(api.options).toHaveBeenLastCalledWith({
+        query: expect.objectContaining({ offset: 0 }),
+      }),
+    );
   });
 });

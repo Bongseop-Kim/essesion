@@ -1,5 +1,5 @@
 import type { AdminSettingOut } from "@essesion/api-client";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -99,5 +99,54 @@ describe("SettingsPage", () => {
       (screen.getByLabelText("토큰 수량") as HTMLInputElement).disabled,
     ).toBe(true);
     expect(screen.queryByRole("button", { name: "변경 내용 확인" })).toBeNull();
+  });
+
+  it("편집 중 캐시가 갱신되어도 편집 시작 revision으로 저장한다", async () => {
+    const user = userEvent.setup();
+    api.getSettings.mockResolvedValue(settings);
+    api.updateSettings.mockRejectedValue(new Error("동시 수정 충돌"));
+    const { queryClient } = renderPage();
+
+    const courier = await screen.findByLabelText("택배사명");
+    await user.clear(courier);
+    await user.type(courier, "한진택배");
+    await user.type(screen.getByLabelText(/변경 사유/), "계약 택배사 변경");
+
+    act(() => {
+      queryClient.setQueryData(
+        ["settings"],
+        settings.map((item) =>
+          item.key === "default_courier_company"
+            ? {
+                ...item,
+                value: "로젠택배",
+                updated_at: "2026-07-12T02:00:00Z",
+              }
+            : item,
+        ),
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: "변경 내용 확인" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "저장",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(api.updateSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                expected_updated_at: settings[0]?.updated_at,
+              }),
+            ],
+          }),
+        }),
+        expect.anything(),
+      ),
+    );
   });
 });

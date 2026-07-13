@@ -150,4 +150,51 @@ describe("PricingPage", () => {
       (screen.getByLabelText(/변경 사유/) as HTMLTextAreaElement).value,
     ).toBe("");
   });
+
+  it("편집 중 캐시가 갱신되어도 편집 시작 revision으로 저장한다", async () => {
+    const user = userEvent.setup();
+    api.getPricing.mockResolvedValue([pricing]);
+    api.updatePricing.mockRejectedValue(new Error("동시 수정 충돌"));
+    const queryClient = renderPage();
+
+    await screen.findByLabelText("sample_shipping_fee");
+    await user.clear(screen.getByLabelText("sample_shipping_fee"));
+    await user.type(screen.getByLabelText("sample_shipping_fee"), "1200");
+    await user.type(screen.getByLabelText(/변경 사유/), "배송비 정책 변경");
+
+    act(() => {
+      queryClient.setQueryData(
+        ["pricing"],
+        [
+          {
+            ...pricing,
+            amount: 1_100,
+            updated_at: "2026-07-12T02:00:00Z",
+          },
+        ],
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: "변경 내용 확인" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "저장",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(api.updatePricing).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                expected_updated_at: pricing.updated_at,
+              }),
+            ],
+          }),
+        }),
+        expect.anything(),
+      ),
+    );
+  });
 });

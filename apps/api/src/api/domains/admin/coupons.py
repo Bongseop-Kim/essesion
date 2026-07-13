@@ -103,6 +103,7 @@ class CouponIssueRequest(BaseModel):
     segment: AudienceSegment | None = None
     user_ids: list[uuid.UUID] | None = Field(default=None, max_length=10_000)
     exclude_issued: bool = True
+    expected_count: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def validate_target(self) -> "CouponIssueRequest":
@@ -110,6 +111,8 @@ class CouponIssueRequest(BaseModel):
             raise ValueError("segment 또는 user_ids 중 하나만 지정해야 합니다")
         if self.user_ids is not None and not self.user_ids:
             raise ValueError("user_ids는 비어 있을 수 없습니다")
+        if self.segment is not None and self.expected_count is None:
+            raise ValueError("고객군 발급에는 미리보기 인원수가 필요합니다")
         return self
 
 
@@ -426,6 +429,9 @@ async def _issue(
     admin: User,
 ) -> AffectedResponse:
     payload = body.model_dump(mode="json", exclude={"operation_id"})
+    if body.expected_count is None:
+        # 직접 user_ids 발급의 기존 operation payload hash를 유지한다.
+        payload.pop("expected_count")
     previous = await idempotent_result(
         session,
         operation_id=body.operation_id,
@@ -451,16 +457,21 @@ async def _issue(
         raise DomainError("비활성 쿠폰은 발급할 수 없습니다", code="coupon_inactive")
 
     segment = body.segment or "all"
-    target_users = (
-        _audience_query(
-            coupon_id,
-            segment=segment,
-            exclude_issued=body.exclude_issued,
-            explicit_user_ids=body.user_ids,
-        )
-        .with_only_columns(User.id)
-        .subquery()
+    audience = _audience_query(
+        coupon_id,
+        segment=segment,
+        exclude_issued=body.exclude_issued,
+        explicit_user_ids=body.user_ids,
     )
+    # 한 번 계산한 ID 집합을 발급에도 그대로 사용한다. count 쿼리 뒤 고객군을
+    # 다시 평가하면 두 문장 사이의 변경으로 확인 인원과 실제 대상이 달라질 수 있다.
+    target_user_ids = list(await session.scalars(audience.with_only_columns(User.id)))
+    if body.expected_count is not None and len(target_user_ids) != body.expected_count:
+        raise ConflictError(
+            "미리보기 이후 쿠폰 대상 고객이 변경되었습니다",
+            code="coupon_audience_changed",
+        )
+    target_users = select(User.id).where(User.id.in_(target_user_ids)).subquery()
     expires_at = datetime.combine(coupon.expiry_date + timedelta(days=1), time.min, tzinfo=KST)
     snapshot = _snapshot(coupon)
     insert = pg_insert(UserCoupon).from_select(

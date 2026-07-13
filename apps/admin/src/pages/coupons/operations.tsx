@@ -163,8 +163,13 @@ export function CouponOperations({
 
   const issue = () => {
     if (!canManage || targetCount === 0 || reason.trim().length < 3) return;
-    const target: Pick<CouponIssueRequest, "segment" | "user_ids"> =
-      selectedIds.length > 0 ? { user_ids: selectedIds } : { segment };
+    const target: Pick<
+      CouponIssueRequest,
+      "expected_count" | "segment" | "user_ids"
+    > =
+      selectedIds.length > 0
+        ? { user_ids: selectedIds }
+        : { segment, expected_count: targetCount };
     issueMutation.mutate({
       path: { coupon_id: couponId },
       body: {

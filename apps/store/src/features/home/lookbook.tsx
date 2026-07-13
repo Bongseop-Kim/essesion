@@ -3,16 +3,39 @@ import { Link } from "react-router";
 
 import { Section, SectionHeader } from "./section";
 
-const ITEMS: { alt: string; image: string; main?: boolean }[] = [
+const ITEMS: {
+  alt: string;
+  image: string;
+  srcSet: string;
+  main?: boolean;
+}[] = [
   {
     alt: "AI로 만든 넥타이 디자인",
-    image: "/images/home/tile.png",
+    image: "/images/home/tile-1448.webp",
+    srcSet:
+      "/images/home/tile-724.webp 724w, /images/home/tile-1448.webp 1448w",
     main: true,
   },
-  { alt: "AI 넥타이 디자인 예시 1", image: "/images/home/1.png" },
-  { alt: "AI 넥타이 디자인 예시 2", image: "/images/home/2.png" },
-  { alt: "AI 넥타이 디자인 예시 3", image: "/images/home/3.png" },
-  { alt: "AI 넥타이 디자인 예시 4", image: "/images/home/4.png" },
+  {
+    alt: "AI 넥타이 디자인 예시 1",
+    image: "/images/home/1-1448.webp",
+    srcSet: "/images/home/1-724.webp 724w, /images/home/1-1448.webp 1448w",
+  },
+  {
+    alt: "AI 넥타이 디자인 예시 2",
+    image: "/images/home/2-1448.webp",
+    srcSet: "/images/home/2-724.webp 724w, /images/home/2-1448.webp 1448w",
+  },
+  {
+    alt: "AI 넥타이 디자인 예시 3",
+    image: "/images/home/3-1448.webp",
+    srcSet: "/images/home/3-724.webp 724w, /images/home/3-1448.webp 1448w",
+  },
+  {
+    alt: "AI 넥타이 디자인 예시 4",
+    image: "/images/home/4-1448.webp",
+    srcSet: "/images/home/4-724.webp 724w, /images/home/4-1448.webp 1448w",
+  },
 ];
 
 const DESIGN_HREF = "/design";
@@ -43,8 +66,11 @@ export function Lookbook() {
                   ratio={3 / 4}
                   borderRadius="r2"
                   src={it.image}
+                  srcSet={it.srcSet}
+                  sizes="62vw"
                   alt={it.alt}
-                  loading={it.main ? "eager" : "lazy"}
+                  loading="lazy"
+                  decoding="async"
                 />
               </Box>
             ))}
@@ -74,8 +100,11 @@ export function Lookbook() {
             <ImageFrame
               fill
               src={it.image}
+              srcSet={it.srcSet}
+              sizes={it.main ? "50vw" : "25vw"}
               alt={it.alt}
-              loading={it.main ? "eager" : "lazy"}
+              loading="lazy"
+              decoding="async"
             />
           </Box>
         ))}

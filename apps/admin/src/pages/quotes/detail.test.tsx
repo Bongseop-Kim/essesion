@@ -1,5 +1,5 @@
 import type { AdminQuoteDetailOut } from "@essesion/api-client";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -139,6 +139,38 @@ describe("QuoteDetailPage", () => {
             expected_updated_at: quote.updated_at,
             new_status: "견적발송",
             quoted_amount: 120000,
+          }),
+        }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("액션 편집 중 캐시가 갱신되어도 선택 시점 revision으로 변경한다", async () => {
+    const user = userEvent.setup();
+    api.update.mockRejectedValue(new Error("동시 수정 충돌"));
+    const { queryClient } = renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "견적발송(으)로 변경" }),
+    );
+    await user.type(screen.getByLabelText("견적 금액"), "120000");
+    act(() => {
+      queryClient.setQueryData(["quote"], {
+        ...quote,
+        quoted_amount: 110000,
+        updated_at: "2026-07-12T02:00:00Z",
+      });
+    });
+
+    await user.click(screen.getByRole("button", { name: "변경 내용 확인" }));
+    await user.click(screen.getByRole("button", { name: "변경" }));
+
+    await waitFor(() =>
+      expect(api.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            expected_updated_at: quote.updated_at,
           }),
         }),
         expect.anything(),

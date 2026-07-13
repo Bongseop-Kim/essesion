@@ -1,3 +1,8 @@
-/** FastAPI api 오리진. Cloudflare 환경변수 VITE_API_BASE_URL, 미설정 시 로컬 기본값. */
+/** Production builds validate these values in vite.config.ts. */
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
+export const TOSS_CLIENT_KEY = import.meta.env.VITE_TOSS_CLIENT_KEY ?? "";
+
+export const E2E_MOCK_TOSS =
+  import.meta.env.DEV && import.meta.env.VITE_E2E_MOCK_TOSS === "true";

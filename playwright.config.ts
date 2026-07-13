@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const adminBaseUrl = "http://localhost:3001";
+const storeBaseUrl = "http://localhost:3000";
 const apiBaseUrl = "http://localhost:8000";
 const isCi = process.env.CI === "true";
 
@@ -14,7 +15,6 @@ export default defineConfig({
     ? [["github"], ["html", { open: "never" }]]
     : [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: adminBaseUrl,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
@@ -26,6 +26,7 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         ADMIN_FRONTEND_ORIGIN: adminBaseUrl,
+        FRONTEND_ORIGIN: storeBaseUrl,
       },
     },
     {
@@ -38,11 +39,28 @@ export default defineConfig({
         VITE_API_BASE_URL: apiBaseUrl,
       },
     },
+    {
+      command: "pnpm --filter store dev --host 0.0.0.0",
+      url: storeBaseUrl,
+      reuseExistingServer: !isCi,
+      timeout: 120_000,
+      env: {
+        VITE_API_BASE_URL: apiBaseUrl,
+        VITE_E2E_MOCK_TOSS: "true",
+        VITE_TOSS_CLIENT_KEY: "test_e2e_client_key",
+      },
+    },
   ],
   projects: [
     {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      name: "admin-chromium",
+      testMatch: /admin-smoke\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], baseURL: adminBaseUrl },
+    },
+    {
+      name: "store-chromium",
+      testMatch: /store-money-path\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], baseURL: storeBaseUrl },
     },
   ],
 });

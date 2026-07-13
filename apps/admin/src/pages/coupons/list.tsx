@@ -5,7 +5,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 
 import { formatDate, formatMoney } from "../../shared/lib/format";
-import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
+import {
+  useAdminListPageCorrection,
+  useAdminListUrlState,
+} from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -99,6 +102,13 @@ export function CouponsPage() {
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
   );
+  useAdminListPageCorrection({
+    page: parsed.page,
+    limit: parsed.limit,
+    total: query.data?.total,
+    ready: query.isSuccess && !query.isPlaceholderData,
+    replaceQuery,
+  });
 
   return (
     <VStack gap="x6" alignItems="stretch">

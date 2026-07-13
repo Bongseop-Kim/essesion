@@ -1,5 +1,5 @@
 import type { AdminInquiryDetailOut } from "@essesion/api-client";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -76,6 +76,36 @@ describe("InquiryDetailPage", () => {
             answer: "내일 출고 예정입니다.",
           },
         },
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("편집 중 캐시가 갱신되어도 편집 시작 revision으로 답변한다", async () => {
+    const user = userEvent.setup();
+    api.answer.mockRejectedValue(new Error("동시 수정 충돌"));
+    const { queryClient } = renderPage();
+
+    const field = await screen.findByRole("textbox", { name: /^답변/ });
+    await user.type(field, "내일 출고 예정입니다.");
+    act(() => {
+      queryClient.setQueryData(["inquiry"], {
+        ...inquiry,
+        answer: "다른 관리자의 답변",
+        updated_at: "2026-07-12T02:00:00Z",
+      });
+    });
+
+    await user.click(screen.getByRole("button", { name: "답변 확인" }));
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() =>
+      expect(api.answer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            expected_updated_at: inquiry.updated_at,
+          }),
+        }),
         expect.anything(),
       ),
     );

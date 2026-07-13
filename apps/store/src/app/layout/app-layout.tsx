@@ -20,7 +20,7 @@ import {
   ShoppingBagIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 import { AuthGuardProvider, LogoutButton } from "@/features/auth";
@@ -226,11 +226,22 @@ function StoreFooter() {
 /** 앱 셸: Header · 페이지(Outlet) · Footer + 스낵바 호스트(루트 1회 마운트). */
 export function AppLayout() {
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
   const isPaymentResult = location.pathname.startsWith("/order/payment/");
   const isLogin = location.pathname === "/login";
   const isImmersive =
     location.pathname === "/design" || location.pathname === "/design/";
   const isFocusedRoute = isPaymentResult || isLogin || isImmersive;
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const target =
+        mainRef.current?.querySelector<HTMLElement>("h1") ?? mainRef.current;
+      target?.setAttribute("tabindex", "-1");
+      target?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.key]);
 
   return (
     <AuthGuardProvider>
@@ -238,6 +249,15 @@ export function AppLayout() {
         height={isImmersive ? "100dvh" : undefined}
         overflow={isImmersive ? "hidden" : undefined}
       >
+        <Box
+          as="a"
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-x2 focus:top-x2 focus:z-50 focus:rounded-r2 focus:bg-bg-layer-default focus:px-x3 focus:py-x2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+        >
+          <Text as="span" textStyle="labelSm">
+            본문으로 건너뛰기
+          </Text>
+        </Box>
         {isPaymentResult ? (
           <Box display={{ base: "none", md: "block" }}>
             <StoreHeader />
@@ -249,11 +269,15 @@ export function AppLayout() {
             ContentLayout의 sticky 액션 바가 짧은 페이지에서도 바닥에 정착한다 */}
         <Box
           as="main"
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
           flexGrow={1}
           minHeight={isImmersive ? 0 : undefined}
           overflow={isImmersive ? "hidden" : undefined}
           display="flex"
           flexDirection="column"
+          className="focus:outline-none"
         >
           <Outlet />
         </Box>

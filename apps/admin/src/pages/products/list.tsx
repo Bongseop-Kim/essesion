@@ -15,6 +15,7 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
 import { parseAdminListQuery } from "../../shared/lib/url-query";
+import { useAdminListPageCorrection } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -190,6 +191,14 @@ export function ProductsPage() {
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
   );
+  useAdminListPageCorrection({
+    page: parsed.page,
+    limit: parsed.limit,
+    total: query.data?.total,
+    ready: query.isSuccess && !query.isPlaceholderData,
+    replaceQuery: ({ page }) =>
+      replaceParams({ page: page === undefined ? undefined : String(page) }),
+  });
 
   return (
     <VStack gap="x6" alignItems="stretch">

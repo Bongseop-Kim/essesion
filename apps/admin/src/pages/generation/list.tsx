@@ -31,8 +31,15 @@ import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
+import {
+  activeAdminPollingInterval,
+  generationPollingInterval,
+} from "../../shared/lib/polling";
 import type { AdminListQuery } from "../../shared/lib/url-query";
-import { useAdminListUrlState } from "../../shared/lib/use-admin-list-url-state";
+import {
+  useAdminListPageCorrection,
+  useAdminListUrlState,
+} from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -247,13 +254,16 @@ function JobsPanel({
       },
     }),
     placeholderData: keepPreviousData,
-    refetchInterval:
-      status === "succeeded" || status === "failed" ? false : 30_000,
+    refetchInterval: (query) =>
+      generationPollingInterval(query.state.data?.items),
   });
   const statsQuery = useQuery({
     ...getAdminGenerationJobStatsOptions({ query: commonQuery }),
-    refetchInterval:
-      status === "succeeded" || status === "failed" ? false : 30_000,
+    refetchInterval: (query) =>
+      activeAdminPollingInterval(
+        (query.state.data?.queued ?? 0) + (query.state.data?.processing ?? 0) >
+          0,
+      ),
   });
 
   const submitUser = (event: FormEvent) => {
@@ -322,6 +332,13 @@ function JobsPanel({
     1,
     Math.ceil((listQuery.data?.total ?? 0) / parsed.limit),
   );
+  useAdminListPageCorrection({
+    page: parsed.page,
+    limit: parsed.limit,
+    total: listQuery.data?.total,
+    ready: listQuery.isSuccess && !listQuery.isPlaceholderData,
+    replaceQuery,
+  });
 
   return (
     <VStack gap="x5" alignItems="stretch">
@@ -555,6 +572,13 @@ function SeamlessPanel({
     1,
     Math.ceil((listQuery.data?.total ?? 0) / parsed.limit),
   );
+  useAdminListPageCorrection({
+    page: parsed.page,
+    limit: parsed.limit,
+    total: listQuery.data?.total,
+    ready: listQuery.isSuccess && !listQuery.isPlaceholderData,
+    replaceQuery,
+  });
 
   return (
     <VStack gap="x5" alignItems="stretch">

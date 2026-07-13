@@ -64,7 +64,7 @@
 
 ### ResultEmoji
 
-- `public/fonts/TossFaceFontMac.ttf`의 Toss Face 글리프를 결과 화면의 장식 이모지 1개로 표시한다.
+- 실제 사용 글리프(👋·😢·🪙·🎉)만 담은 `public/fonts/TossFaceSubset.woff2`를 결과 화면의 장식 이모지 1개로 표시한다.
 - 제목이 결과 의미를 전달하므로 이모지는 `aria-hidden`인 보조 표현으로만 쓴다.
 - Motion의 `LazyMotion` 경량 기능으로 spring 진입 후 4초 주기의 짧은 펄스를 적용하며, 주기의 대부분은 정지 상태를 유지한다.
 - 애니메이션은 opacity·transform만 사용하고 `useReducedMotion`이 참이면 진입·반복 모두 생략한다.
