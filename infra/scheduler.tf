@@ -1,4 +1,4 @@
-# Cloud Scheduler → api /batch/* — 정리 배치 4종 (ARCHITECTURE §4, domains.md 배치)
+# Cloud Scheduler → api /batch/* — 정리 배치 4종 (ARCHITECTURE §8.4, domains.md 배치)
 # api가 공개 서비스라 Cloud Run IAM으로 못 막는다 — api 앱이 OIDC id-token의
 # audience + email 클레임(scheduler SA)을 직접 검증한다 (api deps.verify_batch_token).
 

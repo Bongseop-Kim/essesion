@@ -105,4 +105,4 @@ Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2
 1. `fmt`의 정확한 순서(.4f → 후행 0/점 제거 → -0 정규화)를 지킬 것.
 2. 멀티컬러 use 순서(instance-major/slot-minor)와 슬롯 토큰 정확일치 치환.
 3. sanitize는 검증만 하고 문자열을 재직렬화하지 않는다.
-4. 결정론은 Pillow·렌더러·에셋 버전 고정이 전제(uv.lock 전 의존성 핀 — ARCHITECTURE §7).
+4. 결정론은 동일한 Pillow·렌더러·에셋 버전이 전제다. Pillow는 `uv.lock`으로 고정되지만 librsvg 시스템 패키지 버전 고정은 남아 있다(ARCHITECTURE §7·§9.2).

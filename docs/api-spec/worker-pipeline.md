@@ -8,7 +8,7 @@
   - rsvg-convert: `-w {W} -h {H} -f png -` / resvg: `-w {W} -h {H} - -c`
 - 픽셀: `mm_to_px = round(mm/25.4·dpi)`, `max(1, ...)`. **상한 20,000px**(초과 RasterError).
 - 항상 Pillow로 재인코딩해 물리 DPI 스탬프: PNG `dpi=(dpi,dpi)`, TIFF `compression="tiff_lzw"`.
-- **재구현 결정**: resvg 파이썬 바인딩 인프로세스화를 우선 시도(ARCHITECTURE §3) — **rsvg-convert 대비 렌더 동등성 검증 필수**(엔진 SVG는 pattern+use만 사용하므로 동등 가능성 높음). 불일치 판정 시 librsvg 서브프로세스 폴백(컨테이너에 librsvg 설치). 어느 쪽이든 버전 핀 — finalize 결정론의 전제.
+- **재구현 판정**: resvg 파이썬 바인딩은 형상·색은 같지만 경계 AA의 byte parity를 충족하지 못했다. 따라서 librsvg(`rsvg-convert`) 서브프로세스를 기준선으로 유지한다(ARCHITECTURE §9.1, `docs/reviews/resvg-parity.md`). renderer 버전 고정은 finalize 결정론을 위한 남은 운영 항목이다.
 
 ## 2. fabric finalize 파이프라인
 

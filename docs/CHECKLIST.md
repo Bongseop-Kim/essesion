@@ -17,6 +17,7 @@
 
 - [x] 모노레포 스캐폴드: pnpm workspace(+catalogs) + Turborepo, uv workspace(apps/api·worker), mise 툴체인 핀
 - [x] 디렉토리 뼈대: `apps/{store,admin,api,worker}`, `packages/{api-client,shared,tsconfig}`, `db/`, `infra/`
+- [x] 포트폴리오 문서: 루트 README + GPT Image hero + 현재 구현 기준 `ARCHITECTURE.md` — *구현 완료/스테이징 미개통을 분리하고 기존 계획 문구를 as-built 구성으로 교정*
 - [x] 로컬: docker compose(Postgres + pgvector)
 - [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 4종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
 - [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *프록시 워커와 비로컬 API 전역 exact-secret 경계(`/healthz`·OIDC `/batch/*`만 면제, `/readyz`는 공개 프록시로만 확인), 고정 route·workflow 주입/validation·`PUBLIC_API_ORIGIN` OAuth callback은 구현 완료. **첫 API 배포 전에** `api.essesion.shop` secret·WAF를 선개통하고, 5단계에는 app/admin route만 잇는다 (`infra/cloudflare/README.md`, `docs/OPERATOR-CHECKLIST.md` §A4·C).*
@@ -32,7 +33,7 @@
 ## 2. 스키마 재설계
 
 - [x] 기존 스키마 전수 검토(YeongSeon `supabase/schemas`) — *enum·뷰 19종·DB함수 ~40종·트리거 17종·부분 인덱스까지 대조*
-- [x] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로 — *33테이블, `db/src/db/models/`*
+- [x] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로 — *35테이블, `db/src/db/models/`*
 - [x] **기존→새 스키마 매핑 표 작성** — `db/MAPPING.md` (테이블·함수/트리거 소유 이동·이관 정책)
 - [x] Alembic 첫 리비전 생성·로컬 적용 — *베이스라인 리비전 생성, 로컬 upgrade와 `alembic check` 드리프트 0*
 - [ ] Alembic 스테이징 적용 — *4단계 첫 배포의 migrate Cloud Run job 성공과 단일 head를 확인한 뒤 체크*
@@ -53,12 +54,12 @@
 
 ## 4. worker
 
-- [x] 엔진 재구현: compose/candidates/placement + 모티프 검색(pgvector) — *compose/placement(4종)/seamless/validate/candidates + pgvector motif store/resolver(검색 사다리: exact→scope→τ=0.84→Recraft 생성) + 어댑터 3종(OpenAI 임베딩·Recraft·Gemini, httpx 직접·키 없으면 503) + prompt→intent 경로 완료. 골든 25 intent byte-identical 유지*
+- [x] 엔진 재구현: compose/candidates/placement + 모티프 검색(pgvector) — *compose/placement(4종)/seamless/validate/candidates + pgvector motif store/resolver(exact→선택적 embedding τ=0.84→동일 scope 안정 fallback→Recraft 생성) + 어댑터 3종(Gemini·Recraft, 선택적 OpenAI embedding) + prompt→intent 경로 완료. 골든 25 intent byte-identical 유지*
 - [x] resvg 인프로세스 래스터화 동등성 검증 → 실패 시 librsvg 서브프로세스 폴백 — *판정 (b) 조건부: resvg-py 0.3.3 vs rsvg-convert 2.62.3, 골든 27종 치수 완전 일치·형상/색/채움 동일, 차이는 도형 경계 AA에 100% 국한(색경계 ≤1.5px, 침식 2회 소멸). byte-identical 미달이라 즉시 채택 불가. librsvg 기준선 유지·코드 무변경. 전환 시 fabric 골든 재베이스라인 전제. 상세: `docs/reviews/resvg-parity.md`*
 - [x] finalize 파이프라인 재설계(중간 산출물 재사용 — 4~5회 재실행 승계 금지) + export — *yarn_dyed·material_map·relief 재설계 완료: 별칭 슬롯 라벨 세그먼트 1회로 마스크 파생, 렌더 호출 최악 5회→3회(테스트가 카운트 assert). weave 에셋 7종, FinalizeRequest 4필드(weave/material_map/texture_strength/relief_strength)*
-- [x] **결정론 계약 대조 테스트**: 같은 intent+seed → byte-identical SVG (기존 seamless-tile 테스트 50+개 기준) — *원본 엔진 재실행으로 추출한 골든 25종(+seed 변형·candidates 세트)을 엔진 계산으로 byte-identical 통과 + PYTHONHASHSEED 0/1/12345 교차. 원본 테스트 계층 이식 완료(래스터 seam 가드·motif_id parity·geometry·엔진 엣지 — 워커 278건)*
+- [x] **결정론 계약 대조 테스트**: 같은 intent+seed → byte-identical SVG (기존 seamless-tile 테스트 50+개 기준) — *원본 엔진 재실행으로 추출한 intent 골든 25종을 byte-identical 통과하고 대표 seed·candidate 변형을 별도 검증. 대표 compose는 PYTHONHASHSEED 0/1/12345에서 교차 검증. 원본 테스트 계층 이식 완료(래스터 seam 가드·motif_id parity·geometry·엔진 엣지)*
 - [x] 리팩토링(원본 대조 점검 후속): config 검증·defusedxml·resolver 가드·어댑터 수명·stripe 정규화·/export 배선·프리뷰 병렬화·render/weave 분리 — *스펙 `docs/specs/worker-refactor.md`(R1~R15 완료, glyph·이미지 경로 등은 5단계 트랙), 실행 기록 `docs/plans/worker-refactor.md`*
-- [x] 전체 감사 후 worker 실행 경계 하드닝 — *finalize 960초 lease+attempt 조건부 terminal update(실 Postgres 통합 테스트), `FINALIZE_TEMPORARY_FAILURE`만 lease 후 재실행하고 invalid/unknown 오류는 terminal 처리, 공개 오류 코드로 raw 예외 노출 차단, motif read savepoint로 앞선 미커밋 upsert 보존, generate/finalize `SERVICE_MODE` 라우터·OIDC audience 분리, Cloud Tasks audience·910초 dispatch deadline 정합화, path/lattice/scatter/stripe 반복량 사전 상한, Poisson 공간 격자, 래스터 20M pixel·120초 timeout, preview/Cloud Run 동시성 제한, Recraft strict base64/바이트 상한(URL 2차 요청 제거).*
+- [x] 전체 감사 후 worker 실행 경계 하드닝 — *finalize 960초 processing lease+attempt 조건부 terminal update(실 Postgres 통합 테스트), invalid input만 terminal 처리하고 그 밖의 예외는 temporary marker+500으로 다음 delivery에서 재실행, 공개 오류 코드로 raw 예외 노출 차단, motif read savepoint로 앞선 미커밋 upsert 보존, generate/finalize `SERVICE_MODE` 라우터·OIDC audience 분리, Cloud Tasks audience·910초 dispatch deadline 정합화, path/lattice/scatter/stripe 반복량 사전 상한, Poisson 공간 격자, 래스터 20M pixel·120초 timeout, preview/Cloud Run 동시성 제한, Recraft strict base64/바이트 상한(URL 2차 요청 제거).*
 - [x] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *모티프는 요청 스코프 MotifCatalog(DB 조회 → 엔진 명시 인자, 전역 registry는 테스트 폴백만). finalize·recraft 예산 둘 다 세션 행 조건부 UPDATE(+실패/reused 보상). freeze 캐시는 content-hash upsert로 대체*
 - [x] GCS 연결(content-hash 키 + create-only) — *fabric은 content-hash key, preview는 request/candidate/content-hash key로 `if_generation_match=0` 업로드. 동일 객체 412만 멱등 성공이며 preview 업로드 장애는 key null+경고로 격하*
 - [ ] 두 서비스 배포: worker-generate(동기 OIDC, 1vCPU/1GB) + worker-finalize(Cloud Tasks 푸시, 2vCPU/4GB, 동시성 1~2, dpi 상한 600) — *tofu에 서비스 구성·env/시크릿 결선·deploy.yml까지 완료 — **남은 것은 스테이징 개통 실행뿐**: `infra/README.md` 순서(2단계 apply·시크릿→`api.essesion.shop` 프록시 선개통→GitHub vars→main 푸시)*
@@ -87,7 +88,7 @@
 - [x] admin 검토 후 개선 — *편집 기준 revision 고정, 범위 밖 page URL 교정, invalid submit 첫 오류 focus, 동일 제목 라우트 focus, terminal/hidden polling 중단, dev port 3001 정합화 및 회귀 테스트.*
 - [x] admin/store 통합 개선 — *store refresh 단일 조정자·탭 간 세션 동기화, 라우트 오류/404/Sentry 골격, skip link·캐러셀 접근성, 홈 이미지 WebP srcset·폰트 subset(정적 자산 약 90% 절감), 수선 업로드 staging 검증, 쿠폰 대상 수 expected_count 동시성 가드, production env fail-fast와 CI 성공 SHA 배포 게이트 적용.*
 - [x] 전체 감사 후 store/admin/shared 안정화 — *장바구니 replace·guest 동기화를 세션별 직렬 큐와 명시적 bearer에 묶어 계정 전환 오염을 차단하고, 토큰 revision별 `getMe` 재검증으로 same-account 회전은 캐시를 보존하되 cross-account 회전은 loading 경계에서 사용자를 교체. 디자인 생성·재시도·선택 operation epoch와 pending marker 소유권, custom quote debounced 유효성, ImageFrame 소스별 실패 상태, ScrollFog 자식 resize 관찰을 회귀 테스트로 고정. admin 상세 이미지는 `{upload_id}`/`{legacy_url}` 명시 ref와 `{url, upload_id}` 응답으로 순서·legacy 보존/삭제를 안전하게 재설계.*
-- [ ] Cloudflare Workers 배포(Vite 플러그인 + wrangler) — *API proxy는 첫 비로컬 API 배포 전에 별도 선개통, app/admin 고정 custom-domain route는 설정 완료. 실제 배포·DNS 확인이 남음. api `min-instances=1`은 프로덕션 OpenTofu 변수로 별도 적용.*
+- [ ] Cloudflare Workers 배포(Vite build + Wrangler Static Assets) — *API proxy는 첫 비로컬 API 배포 전에 별도 선개통, app/admin 고정 custom-domain route는 설정 완료. 실제 배포·DNS 확인이 남음. api `min-instances=1`은 프로덕션 OpenTofu 변수로 별도 적용.*
 - [x] Playwright 스모크 1줄기: 로그인 → 장바구니 → 주문 → 결제 — *실제 API + PostgreSQL seed, 브라우저에서는 결정적 Toss 로컬 어댑터, API는 DryRun confirm으로 멱등 재호출과 장바구니 정리까지 검증. 실제 Toss sandbox는 스테이징 자격 증명 주입 후 리허설에서 별도 확인.*
 - [x] Playwright admin 스모크: 관리자 로그인 → 보호 목록/상세 → 대표 상태 변경 → 로그아웃 (실제 API + PostgreSQL seed) — *`e2e/admin-smoke.spec.ts`·CI 연결과 최종 스키마/codegen 상태의 로컬 실행 1건 통과*
 
