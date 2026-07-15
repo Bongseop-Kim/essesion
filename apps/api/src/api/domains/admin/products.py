@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import PurePosixPath
 from typing import Annotated, Any, Never, cast
 from urllib.parse import quote as urlquote
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import SessionDep
 from api.deps import AdminUser
+from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.product_schemas import (
     AdminProductCreateRequest,
     AdminProductDetailImageLegacyRef,
@@ -87,6 +88,8 @@ def _product_filters(
     pattern: Pattern | None,
     material: Material | None,
     q: str | None,
+    start_date: date | None,
+    end_date: date | None,
 ) -> list[ColumnElement[bool]]:
     filters: list[ColumnElement[bool]] = []
     for column, value in (
@@ -107,6 +110,11 @@ def _product_filters(
             Product.name.icontains(search, autoescape=True)
             | Product.code.icontains(search, autoescape=True)
         )
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    if start_at is not None:
+        filters.append(Product.created_at >= start_at)
+    if end_at is not None:
+        filters.append(Product.created_at < end_at)
     return filters
 
 
@@ -443,6 +451,8 @@ async def admin_list_products(
     pattern: Pattern | None = None,
     material: Material | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     sort: ProductSort = "created_at",
     direction: SortDirection = "desc",
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_LIMIT)] = DEFAULT_PAGE_LIMIT,
@@ -454,6 +464,8 @@ async def admin_list_products(
         pattern=pattern,
         material=material,
         q=q,
+        start_date=start_date,
+        end_date=end_date,
     )
     total = await session.scalar(select(func.count()).select_from(Product).where(*filters))
     option_count = (

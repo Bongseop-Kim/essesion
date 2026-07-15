@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from db.models.commerce import Inquiry, QuoteRequestStatusLog, RepairShippingReceipt
+from db.models.commerce import Inquiry, QuoteRequest, QuoteRequestStatusLog, RepairShippingReceipt
 from db.models.images import Image
 from sqlalchemy import select
 
@@ -70,6 +70,28 @@ async def test_admin_quote_page_detail_snapshot_stale_audit_and_signed_read(
 
     second = await client.post("/quotes", json=_quote_body(address), headers=customer_headers)
     assert second.status_code == 201, second.text
+
+    first_quote = await db_session.get(QuoteRequest, quote_id)
+    second_quote = await db_session.get(QuoteRequest, second.json()["id"])
+    assert first_quote is not None and second_quote is not None
+    first_quote.created_at = datetime(2026, 4, 30, 15, 0, tzinfo=UTC)
+    second_quote.created_at = datetime(2026, 4, 30, 14, 59, tzinfo=UTC)
+    await db_session.commit()
+
+    searched = await client.get(
+        "/admin/quotes",
+        params={
+            "q": created.json()["quote_number"][-8:],
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-01",
+        },
+        headers=admin_headers,
+    )
+    assert searched.status_code == 200, searched.text
+    assert [item["id"] for item in searched.json()["items"]] == [quote_id]
+
+    short_search = await client.get("/admin/quotes", params={"q": "x"}, headers=admin_headers)
+    assert short_search.status_code == 422
 
     page = await client.get(
         "/admin/quotes",
@@ -178,6 +200,21 @@ async def test_admin_inquiry_page_body_search_detail_answer_actor_and_stale(
     assert first.status_code == 201 and second.status_code == 201
     inquiry_id = first.json()["id"]
 
+    first_inquiry = await db_session.get(Inquiry, inquiry_id)
+    second_inquiry = await db_session.get(Inquiry, second.json()["id"])
+    assert first_inquiry is not None and second_inquiry is not None
+    first_inquiry.created_at = datetime(2026, 4, 30, 15, 0, tzinfo=UTC)
+    second_inquiry.created_at = datetime(2026, 4, 30, 14, 59, tzinfo=UTC)
+    await db_session.commit()
+
+    dated = await client.get(
+        "/admin/inquiries",
+        params={"start_date": "2026-05-01", "end_date": "2026-05-01"},
+        headers=admin_headers,
+    )
+    assert dated.status_code == 200, dated.text
+    assert [item["id"] for item in dated.json()["items"]] == [inquiry_id]
+
     page = await client.get(
         "/admin/inquiries",
         params={"status": "답변대기", "limit": 1},
@@ -189,7 +226,13 @@ async def test_admin_inquiry_page_body_search_detail_answer_actor_and_stale(
 
     searched = await client.post(
         "/admin/inquiries/search",
-        json={"q": "원단 색상", "category": "상품", "status": "답변대기"},
+        json={
+            "q": "원단 색상",
+            "category": "상품",
+            "status": "답변대기",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-01",
+        },
         headers=admin_headers,
     )
     assert searched.status_code == 200, searched.text
@@ -224,6 +267,7 @@ async def test_admin_inquiry_page_body_search_detail_answer_actor_and_stale(
     await db_session.rollback()
     inquiry = await db_session.get(Inquiry, inquiry_id)
     assert inquiry is not None
+    await db_session.refresh(inquiry)
     assert inquiry.answered_by == admin_id
     assert inquiry.answer == "현재 주문 가능합니다."
 

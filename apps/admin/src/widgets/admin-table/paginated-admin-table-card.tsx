@@ -1,4 +1,5 @@
-import { ActionButton, VStack } from "@essesion/shared";
+import { ActionButton, Divider, VStack } from "@essesion/shared";
+import type { ReactNode } from "react";
 
 import { AdminCard } from "../../shared/ui/admin-card";
 import {
@@ -17,6 +18,9 @@ type PaginatedAdminTableCardProps<Row> = {
   getRowKey: (row: Row) => string;
   status: "loading" | "success" | "error";
   total?: number;
+  limit?: number;
+  pageSizeOptions?: readonly number[];
+  onPageSizeChange?: (pageSize: number) => void;
   sort?: AdminTableSort;
   onSort?: (sort: AdminTableSort) => void;
   onRowClick?: (row: Row) => void;
@@ -30,6 +34,7 @@ type PaginatedAdminTableCardProps<Row> = {
   totalPages: number;
   onPageChange: (page: number) => void;
   paginationLabel: string;
+  toolbar?: ReactNode;
 };
 
 export function PaginatedAdminTableCard<Row>({
@@ -41,6 +46,9 @@ export function PaginatedAdminTableCard<Row>({
   getRowKey,
   status,
   total,
+  limit,
+  pageSizeOptions,
+  onPageSizeChange,
   sort,
   onSort,
   onRowClick,
@@ -54,11 +62,12 @@ export function PaginatedAdminTableCard<Row>({
   totalPages,
   onPageChange,
   paginationLabel,
+  toolbar,
 }: PaginatedAdminTableCardProps<Row>) {
   return (
     <AdminCard
       title={title}
-      description={description}
+      description={status === "success" ? description : undefined}
       action={
         <ActionButton
           variant="ghost"
@@ -71,6 +80,12 @@ export function PaginatedAdminTableCard<Row>({
       }
     >
       <VStack gap="x4" alignItems="stretch">
+        {toolbar !== undefined ? (
+          <VStack gap="x3" alignItems="stretch">
+            {toolbar}
+            <Divider />
+          </VStack>
+        ) : null}
         <AdminTable
           label={label}
           columns={columns}
@@ -86,12 +101,18 @@ export function PaginatedAdminTableCard<Row>({
           emptyDescription={emptyDescription}
           errorDescription={errorDescription}
         />
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          onPageChange={onPageChange}
-          label={paginationLabel}
-        />
+        {status === "success" && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            label={paginationLabel}
+            total={total}
+            limit={limit}
+            pageSizeOptions={pageSizeOptions}
+            onPageSizeChange={onPageSizeChange}
+          />
+        )}
       </VStack>
     </AdminCard>
   );

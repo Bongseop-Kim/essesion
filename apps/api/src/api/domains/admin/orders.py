@@ -118,13 +118,11 @@ def _order_filters(
         filters.append(Order.order_type == order_type)
     if status != "all":
         filters.append(Order.status == status)
-    if start_date is not None or end_date is not None:
-        start = start_date or end_date
-        end = end_date or start_date
-        assert start is not None and end is not None
-        start_at, end_at = kst_day_bounds(start, end)
-        assert start_at is not None and end_at is not None
-        filters.extend((Order.created_at >= start_at, Order.created_at < end_at))
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    if start_at is not None:
+        filters.append(Order.created_at >= start_at)
+    if end_at is not None:
+        filters.append(Order.created_at < end_at)
     if q is not None:
         normalized = q.strip()
         if len(normalized) < MIN_SEARCH_LENGTH:

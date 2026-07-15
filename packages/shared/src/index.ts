@@ -147,6 +147,8 @@ export type {
   SelectBoxProps,
 } from "./components/select-box";
 export { SelectBox, SelectBoxItem } from "./components/select-box";
+export type { SidePanelProps } from "./components/side-panel";
+export { SidePanel } from "./components/side-panel";
 export type { SkeletonProps } from "./components/skeleton";
 export { Skeleton } from "./components/skeleton";
 export type { SnackbarAction } from "./components/snackbar";

@@ -60,8 +60,23 @@ describe("admin list URL query", () => {
     );
     const result = serializeAdminListQuery(parsed).toString();
 
-    expect(result).toBe("page=2");
+    expect(result).toBe("page=2&direction=asc");
     expect(result).not.toContain("01012345678");
     expect(result).not.toContain("홍길동");
+  });
+
+  it("기본 방향이 내림차순인 화면에서도 오름차순 선택을 왕복 보존한다", () => {
+    const initial = parseAdminListQuery(new URLSearchParams(), {
+      defaultDirection: "desc",
+    });
+    const serialized = serializeAdminListQuery({
+      ...initial,
+      direction: "asc",
+    });
+
+    expect(serialized.get("direction")).toBe("asc");
+    expect(
+      parseAdminListQuery(serialized, { defaultDirection: "desc" }).direction,
+    ).toBe("asc");
   });
 });

@@ -1,5 +1,5 @@
 import type { SeamlessDetailOut } from "@essesion/api-client";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -138,5 +138,70 @@ describe("SeamlessLogDetailPage", () => {
       screen.queryByRole("button", { name: "입력 이미지 보기" }),
     ).toBeNull();
     expect(api.createReadUrl).not.toHaveBeenCalled();
+  });
+
+  it("상태·입력·경고를 한국어 의미와 해결 방법으로 표시하고 원 코드는 접어 둔다", async () => {
+    const user = userEvent.setup();
+    renderPage({
+      ...log,
+      status: "partial",
+      input_type: "prompt",
+      has_prompt: true,
+      warning_count: 3,
+      warning_codes: [
+        "preview_unavailable",
+        "partial_candidates",
+        "generation_warning",
+      ],
+    });
+
+    expect(await screen.findAllByText("부분 성공")).toHaveLength(2);
+    expect(screen.getByText("텍스트 프롬프트")).toBeTruthy();
+    expect(screen.getByText("미리보기를 저장하지 못했습니다")).toBeTruthy();
+    expect(screen.getByText("후보가 일부만 생성되었습니다")).toBeTruthy();
+    expect(screen.getByText("생성 결과를 확인해 주세요")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "후보 SVG를 확인하고, 이미지 미리보기가 필요하면 생성을 다시 실행해 주세요.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "반환된 후보를 검토하고, 선택지가 부족하면 같은 조건으로 다시 생성해 주세요.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
+    expect(screen.queryByText("preview_unavailable")).toBeNull();
+    expect(screen.queryByText("partial_candidates")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "기술 정보" }));
+
+    const region = screen.getByRole("region", { name: "기술 정보" });
+    expect(within(region).getByText(/"status": "partial"/)).toBeTruthy();
+    expect(within(region).getByText(/"input_type": "prompt"/)).toBeTruthy();
+    expect(within(region).getByText(/"preview_unavailable"/)).toBeTruthy();
+    expect(within(region).getByText(/"partial_candidates"/)).toBeTruthy();
+  });
+
+  it("로그와 엔진 식별자를 기본으로 접어 둔다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const trigger = await screen.findByRole("button", { name: "기술 정보" });
+    const backLink = screen.getByRole("link", {
+      name: "Seamless 로그 목록으로 돌아가기",
+    });
+    expect(
+      backLink.compareDocumentPosition(trigger) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
+
+    await user.click(trigger);
+
+    const region = screen.getByRole("region", { name: "기술 정보" });
+    expect(within(region).getByText(/"request_id": "request-2"/)).toBeTruthy();
+    expect(within(region).getByText(/"engine_version": "1.0"/)).toBeTruthy();
   });
 });

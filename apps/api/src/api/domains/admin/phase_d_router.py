@@ -115,6 +115,7 @@ async def admin_list_payment_incidents(
     status: IncidentStatusFilter = "open",
     start_date: date | None = None,
     end_date: date | None = None,
+    q: Annotated[str | None, Query(min_length=2, max_length=128)] = None,
     sort: IncidentSort = "created_at",
     direction: SortDirection = "desc",
     limit: Annotated[
@@ -128,6 +129,7 @@ async def admin_list_payment_incidents(
         status=status,
         start_date=start_date,
         end_date=end_date,
+        q=q,
         sort=sort,
         direction=direction,
         limit=limit,

@@ -134,20 +134,7 @@ export function CouponDetailPage() {
         </TabList>
         <TabContent value="definition">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <AdminCard
-              title="쿠폰 정의"
-              action={
-                canManage ? (
-                  <ActionButton
-                    variant="neutralWeak"
-                    size="small"
-                    onClick={() => navigate(`/coupons/${coupon.id}/edit`)}
-                  >
-                    수정
-                  </ActionButton>
-                ) : undefined
-              }
-            >
+            <AdminCard title="쿠폰 정의">
               <DetailList
                 items={[
                   { label: "이름", value: coupon.name },
@@ -200,6 +187,7 @@ export function CouponDetailPage() {
             <CouponOperations
               couponId={coupon.id}
               couponActive={coupon.is_active}
+              couponExpiry={formatDate(coupon.expiry_date)}
               canManage={canManage}
             />
           </VStack>

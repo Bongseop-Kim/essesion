@@ -70,7 +70,7 @@ export function serializeAdminListQuery(query: AdminListQuery) {
   if (query.page > 1) params.set("page", String(query.page));
   if (query.limit !== 20) params.set("limit", String(query.limit));
   if (query.sort !== undefined) params.set("sort", query.sort);
-  if (query.direction === "desc") params.set("direction", query.direction);
+  params.set("direction", query.direction);
   if (query.status !== undefined) params.set("status", query.status);
   if (query.type !== undefined) params.set("type", query.type);
   if (query.from !== undefined) params.set("from", query.from);

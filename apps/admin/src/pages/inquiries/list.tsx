@@ -5,6 +5,7 @@ import type {
 import { listAdminInquiries, searchAdminInquiries } from "@essesion/api-client";
 import {
   ActionButton,
+  Box,
   HStack,
   Text,
   TextField,
@@ -20,15 +21,14 @@ import {
   serializeAdminListQuery,
 } from "../../shared/lib/url-query";
 import { useAdminListPageCorrection } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
-import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
-import { Pagination } from "../../widgets/admin-table/pagination";
+import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
+import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const INQUIRY_STATUSES = ["all", "답변대기", "답변완료"] as const;
 const INQUIRY_CATEGORIES = ["all", "일반", "상품", "수선", "주문제작"] as const;
@@ -86,6 +86,10 @@ export function InquiriesPage() {
   const [search, setSearch] = useState<string>();
   const status = (parsed.status ?? "all") as InquiryStatus;
   const category = (parsed.type ?? "all") as InquiryCategory;
+  const [draftStatus, setDraftStatus] = useState<InquiryStatus>(status);
+  const [draftCategory, setDraftCategory] = useState<InquiryCategory>(category);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
   const sort = (parsed.sort ?? "created_at") as InquirySort;
   const offset = (parsed.page - 1) * parsed.limit;
   const requestParams = {
@@ -93,6 +97,8 @@ export function InquiriesPage() {
     category,
     sort,
     direction: parsed.direction,
+    start_date: parsed.from,
+    end_date: parsed.to,
     limit: parsed.limit,
     offset,
   };
@@ -146,108 +152,195 @@ export function InquiriesPage() {
         title="문의 관리"
         description="고객·상품 문맥을 확인하고 중복 없이 답변합니다. 검색어는 URL에 남기지 않습니다."
       />
-      <AdminCard title="검색·필터">
-        <VStack gap="x4" alignItems="stretch">
-          <HStack
-            as="form"
-            gap="x2"
-            align="flex-end"
-            wrap
-            onSubmit={submitSearch}
-          >
-            <TextField
-              label="제목·내용 검색"
-              placeholder="2자 이상 입력"
-              minLength={2}
-              maxLength={100}
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.currentTarget.value)}
-            />
-            <ActionButton
-              type="submit"
-              variant="neutralOutline"
-              disabled={searchInput.trim().length < 2}
-            >
-              검색
-            </ActionButton>
-            {search && (
-              <ActionButton
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setSearchInput("");
-                  setSearch(undefined);
-                  replaceQuery({ page: 1 });
-                }}
-              >
-                검색 초기화
-              </ActionButton>
-            )}
-          </HStack>
-          <HStack gap="x3" align="flex-end" wrap>
-            <FilterSelect
-              label="답변 상태"
-              value={status}
-              options={INQUIRY_STATUSES.map((value) => ({
-                value,
-                label: value === "all" ? "전체" : value,
-              }))}
-              onValueChange={(value) =>
-                replaceQuery({ status: value, page: 1 })
-              }
-            />
-            <FilterSelect
-              label="분류"
-              value={category}
-              options={INQUIRY_CATEGORIES.map((value) => ({
-                value,
-                label: value === "all" ? "전체" : value,
-              }))}
-              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
-            />
-          </HStack>
-        </VStack>
-      </AdminCard>
-      <AdminCard
+      <PaginatedAdminTableCard
         title="문의 목록"
-        description={`총 ${query.data?.total ?? 0}건`}
-        action={
-          <ActionButton
-            variant="ghost"
-            size="small"
-            loading={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            새로고침
-          </ActionButton>
+        label="문의 목록"
+        columns={columns}
+        rows={query.data?.items}
+        getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/inquiries/${row.id}`)}
+        status={
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <AdminTable
-            label="문의 목록"
-            columns={columns}
-            rows={query.data?.items}
-            getRowKey={(row) => row.id}
-            onRowClick={(row) => navigate(`/inquiries/${row.id}`)}
-            status={
-              query.isLoading ? "loading" : query.isError ? "error" : "success"
-            }
-            total={query.data?.total}
-            sort={{ key: sort, direction: parsed.direction }}
-            onSort={({ key, direction }) =>
-              replaceQuery({ sort: key, direction, page: 1 })
-            }
-            onRetry={() => void query.refetch()}
-            emptyTitle="조건에 맞는 문의가 없습니다"
-          />
-          <Pagination
-            page={Math.min(parsed.page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(page) => replaceQuery({ page })}
-            label="문의 목록 페이지"
-          />
-        </VStack>
-      </AdminCard>
+        total={query.data?.total}
+        limit={parsed.limit}
+        sort={{ key: sort, direction: parsed.direction }}
+        onSort={({ key, direction }) =>
+          replaceQuery({ sort: key, direction, page: 1 })
+        }
+        refreshing={query.isFetching}
+        onRefresh={() => void query.refetch()}
+        onRetry={() => void query.refetch()}
+        emptyTitle="조건에 맞는 문의가 없습니다"
+        page={Math.min(parsed.page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(page) => replaceQuery({ page })}
+        paginationLabel="문의 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <HStack
+                  as="form"
+                  width="full"
+                  gap="x2"
+                  align="flex-end"
+                  wrap
+                  onSubmit={submitSearch}
+                >
+                  <Box flex={1} minWidth={0}>
+                    <TextField
+                      label="제목·내용 검색"
+                      placeholder="2자 이상 입력"
+                      minLength={2}
+                      maxLength={100}
+                      value={searchInput}
+                      onChange={(event) =>
+                        setSearchInput(event.currentTarget.value)
+                      }
+                    />
+                  </Box>
+                  <ActionButton
+                    type="submit"
+                    variant="neutralOutline"
+                    disabled={searchInput.trim().length < 2}
+                  >
+                    검색
+                  </ActionButton>
+                  {search && (
+                    <ActionButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setSearchInput("");
+                        setSearch(undefined);
+                        replaceQuery({ page: 1 });
+                      }}
+                    >
+                      검색 초기화
+                    </ActionButton>
+                  )}
+                </HStack>
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="답변 상태"
+                    presentation="inline"
+                    value={draftStatus}
+                    options={INQUIRY_STATUSES.map((value) => ({
+                      value,
+                      label: value === "all" ? "전체" : value,
+                    }))}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as InquiryStatus)
+                    }
+                  />
+                  <FilterSelect
+                    label="분류"
+                    presentation="inline"
+                    value={draftCategory}
+                    options={INQUIRY_CATEGORIES.map((value) => ({
+                      value,
+                      label: value === "all" ? "전체" : value,
+                    }))}
+                    onValueChange={(value) =>
+                      setDraftCategory(value as InquiryCategory)
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(status !== "all") +
+                Number(category !== "all") +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              secondaryTitle="문의 상세 필터"
+              secondaryDescription="답변 상태, 문의 분류, 문의일을 한 번에 적용합니다."
+              onOpenSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftCategory(category);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({
+                  status: draftStatus === "all" ? undefined : draftStatus,
+                  type: draftCategory === "all" ? undefined : draftCategory,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: 1,
+                });
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftCategory(category);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearchInput("");
+                    setSearch(undefined);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                status !== "all" && {
+                  key: "status",
+                  label: `상태: ${status}`,
+                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+                },
+                category !== "all" && {
+                  key: "category",
+                  label: `분류: ${category}`,
+                  onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearchInput("");
+                setSearch(undefined);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: "created_at",
+                  direction: "desc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
+      />
     </VStack>
   );
 }

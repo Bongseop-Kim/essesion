@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 
 from api.db import SessionDep
 from api.deps import AdminOnly, AdminUser
+from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.schemas import Page
 from api.domains.admin.types import SortDirection
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/admin/coupons", tags=["admin-coupons"])
 KST = ZoneInfo("Asia/Seoul")
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
+MIN_SEARCH_LENGTH = 2
 
 CouponStatusFilter = Literal["all", "active", "inactive"]
 CouponSort = Literal["created_at", "expiry_date", "name"]
@@ -261,16 +263,41 @@ async def list_admin_coupons(
     session: SessionDep,
     admin: AdminUser,
     status: CouponStatusFilter = "all",
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     sort: CouponSort = "created_at",
     direction: SortDirection = "desc",
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[AdminCouponOut]:
-    query = _coupon_projection()
+    filters = []
     if status == "active":
-        query = query.where(Coupon.is_active.is_(True))
+        filters.append(Coupon.is_active.is_(True))
     elif status == "inactive":
-        query = query.where(Coupon.is_active.is_(False))
+        filters.append(Coupon.is_active.is_(False))
+    if q is not None and (search := q.strip()):
+        if len(search) < MIN_SEARCH_LENGTH:
+            raise DomainError(
+                f"Search query must be at least {MIN_SEARCH_LENGTH} characters",
+                code="invalid_search",
+            )
+        name_filter = or_(
+            Coupon.name.icontains(search, autoescape=True),
+            Coupon.display_name.icontains(search, autoescape=True),
+        )
+        try:
+            coupon_id = uuid.UUID(search)
+        except ValueError:
+            filters.append(name_filter)
+        else:
+            filters.append(or_(Coupon.id == coupon_id, name_filter))
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    if start_at is not None:
+        filters.append(Coupon.created_at >= start_at)
+    if end_at is not None:
+        filters.append(Coupon.created_at < end_at)
+    query = _coupon_projection().where(*filters)
     count_query = select(func.count()).select_from(query.order_by(None).subquery())
     total = int(await session.scalar(count_query) or 0)
     primary = {

@@ -10,7 +10,8 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
@@ -82,6 +83,9 @@ export function ManualOrdersPage() {
   const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState();
   const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
 
   const query = useQuery({
     ...listManualOrdersOptions({
@@ -120,40 +124,22 @@ export function ManualOrdersPage() {
         </ActionButton>
       </HStack>
 
-      <AdminCard title="검색·필터">
-        <VStack gap="x4" alignItems="stretch">
-          <SubmittedMemorySearch
-            label="고객 검색"
-            placeholder="이름 또는 휴대폰, 2자 이상 입력"
-            maxLength={64}
-            onSubmit={(value) => {
-              setSearch(value);
-              replaceQuery({ page: 1 });
-            }}
-          />
-          <HStack gap="x3" align="flex-end" wrap>
-            <DateRangeFilters
-              from={parsed.from}
-              to={parsed.to}
-              onFromChange={(from) => replaceQuery({ from, page: 1 })}
-              onToChange={(to) => replaceQuery({ to, page: 1 })}
-            />
-          </HStack>
-        </VStack>
-      </AdminCard>
-
       <PaginatedAdminTableCard
         title="수기 주문 목록"
-        description={`총 ${query.data?.total ?? 0}건`}
         label="수기 주문 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/manual-orders/${row.id}`)}
         status={
-          query.isLoading ? "loading" : query.isError ? "error" : "success"
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
         total={query.data?.total}
+        limit={parsed.limit}
         refreshing={query.isFetching}
         onRefresh={() => void query.refetch()}
         emptyTitle="조건에 맞는 수기 주문이 없습니다"
@@ -161,6 +147,86 @@ export function ManualOrdersPage() {
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="수기 주문 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
+                  label="고객 검색"
+                  placeholder="이름 또는 휴대폰, 2자 이상 입력"
+                  maxLength={64}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={Number(
+                parsed.from !== undefined || parsed.to !== undefined,
+              )}
+              onOpenSecondaryFilters={() => {
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({ from: draftFrom, to: draftTo, page: 1 });
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: undefined,
+                  direction: "asc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
       />
     </VStack>
   );

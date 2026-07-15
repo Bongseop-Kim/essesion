@@ -2,6 +2,7 @@ import type { AdminCouponOut } from "@essesion/api-client";
 import { listAdminCouponsOptions } from "@essesion/api-client/query";
 import { ActionButton, HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatDate, formatMoney } from "../../shared/lib/format";
@@ -9,10 +10,13 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
@@ -83,12 +87,20 @@ export function CouponsPage() {
     allowedStatuses: COUPON_STATUSES,
     defaultSort: "created_at",
   });
+  const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const status = (parsed.status ?? "all") as CouponStatus;
+  const [draftStatus, setDraftStatus] = useState<CouponStatus>(status);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
   const sort = (parsed.sort ?? "created_at") as CouponSort;
   const query = useQuery({
     ...listAdminCouponsOptions({
       query: {
+        q: search,
         status,
+        start_date: parsed.from,
+        end_date: parsed.to,
         sort,
         direction: parsed.direction,
         limit: parsed.limit,
@@ -122,43 +134,22 @@ export function CouponsPage() {
         </ActionButton>
       </HStack>
 
-      <AdminCard title="필터">
-        <HStack gap="x3" align="flex-end" wrap>
-          <FilterSelect
-            label="활성 상태"
-            value={status}
-            options={[
-              { value: "all", label: "전체" },
-              { value: "active", label: "활성" },
-              { value: "inactive", label: "비활성" },
-            ]}
-            onValueChange={(value) => replaceQuery({ status: value, page: 1 })}
-          />
-          <FilterSelect
-            label="정렬"
-            value={sort}
-            options={[
-              { value: "created_at", label: "등록일" },
-              { value: "expiry_date", label: "만료일" },
-              { value: "name", label: "이름" },
-            ]}
-            onValueChange={(value) => replaceQuery({ sort: value, page: 1 })}
-          />
-        </HStack>
-      </AdminCard>
-
       <PaginatedAdminTableCard
         title="쿠폰 목록"
-        description={`총 ${query.data?.total ?? 0}개`}
         label="쿠폰 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(coupon) => coupon.id}
         onRowClick={(coupon) => navigate(`/coupons/${coupon.id}`)}
         status={
-          query.isLoading ? "loading" : query.isError ? "error" : "success"
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
         total={query.data?.total}
+        limit={parsed.limit}
         sort={{ key: sort, direction: parsed.direction }}
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
@@ -171,6 +162,115 @@ export function CouponsPage() {
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="쿠폰 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
+                  label="쿠폰명·표시명·쿠폰 ID 검색"
+                  placeholder="2자 이상 입력"
+                  maxLength={100}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="활성 상태"
+                    presentation="inline"
+                    value={draftStatus}
+                    options={[
+                      { value: "all", label: "전체" },
+                      { value: "active", label: "활성" },
+                      { value: "inactive", label: "비활성" },
+                    ]}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as CouponStatus)
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(status !== "all") +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              secondaryTitle="쿠폰 필터"
+              secondaryDescription="활성 상태와 등록일을 한 번에 적용합니다."
+              onOpenSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({
+                  status: draftStatus === "all" ? undefined : draftStatus,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: 1,
+                });
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                status !== "all" && {
+                  key: "status",
+                  label: `상태: ${status === "active" ? "활성" : "비활성"}`,
+                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `등록 시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `등록 종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: "created_at",
+                  direction: "asc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
       />
     </VStack>
   );

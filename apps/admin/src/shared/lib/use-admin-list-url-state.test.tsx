@@ -55,7 +55,7 @@ describe("useAdminListUrlState", () => {
     await user.click(screen.getByRole("button", { name: "연속 변경" }));
 
     expect(screen.getByLabelText("현재 query").textContent).toBe(
-      "?page=3&status=paid",
+      "?page=3&direction=asc&status=paid",
     );
   });
 
@@ -67,7 +67,9 @@ describe("useAdminListUrlState", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByLabelText("현재 query").textContent).toBe("?page=3"),
+      expect(screen.getByLabelText("현재 query").textContent).toBe(
+        "?page=3&direction=asc",
+      ),
     );
   });
 });

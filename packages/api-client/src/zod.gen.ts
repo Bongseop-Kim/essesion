@@ -319,6 +319,7 @@ export const zAdminInquirySearchRequest = z.object({
         '주문제작'
     ]).optional().default('all'),
     direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    end_date: z.iso.date().nullish(),
     limit: z.int().gte(1).lte(100).optional().default(20),
     offset: z.int().gte(0).optional().default(0),
     q: z.string().min(2).max(100),
@@ -327,6 +328,7 @@ export const zAdminInquirySearchRequest = z.object({
         'updated_at',
         'status'
     ]).optional().default('created_at'),
+    start_date: z.iso.date().nullish(),
     status: z.enum([
         'all',
         '답변대기',
@@ -1009,10 +1011,12 @@ export const zCustomAmountResponse = z.object({
  */
 export const zCustomerSearchRequest = z.object({
     direction: z.enum(['asc', 'desc']).optional().default('desc'),
+    end_date: z.iso.date().nullish(),
     limit: z.int().gte(1).lte(100).optional().default(20),
     offset: z.int().gte(0).optional().default(0),
     q: z.string().min(2).max(100),
     sort: z.enum(['created_at', 'name']).optional().default('created_at'),
+    start_date: z.iso.date().nullish(),
     status: z.enum([
         'all',
         'active',
@@ -3005,6 +3009,9 @@ export const zListAdminCouponsQuery = z.object({
         'active',
         'inactive'
     ]).optional().default('all'),
+    q: z.string().max(100).nullish(),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
     sort: z.enum([
         'created_at',
         'expiry_date',
@@ -3115,6 +3122,8 @@ export const zListAdminCustomersQuery = z.object({
         'active',
         'inactive'
     ]).optional().default('all'),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
     sort: z.enum(['created_at', 'name']).optional().default('created_at'),
     direction: z.enum(['asc', 'desc']).optional().default('desc'),
     limit: z.int().gte(1).lte(100).optional().default(20),
@@ -3229,6 +3238,7 @@ export const zGetDashboardSummaryQuery = z.object({
 export const zGetDashboardSummaryResponse = zDashboardSummaryOut;
 
 export const zListAdminGenerationJobsQuery = z.object({
+    job_id: z.uuid().nullish(),
     kind: z.enum(['finalize', 'export']).nullish(),
     status: z.enum([
         'queued',
@@ -3249,6 +3259,7 @@ export const zListAdminGenerationJobsQuery = z.object({
 export const zListAdminGenerationJobsResponse = zPageGenerationJobSummaryOut;
 
 export const zGetAdminGenerationJobStatsQuery = z.object({
+    job_id: z.uuid().nullish(),
     kind: z.enum(['finalize', 'export']).nullish(),
     status: z.enum([
         'queued',
@@ -3341,6 +3352,8 @@ export const zListAdminInquiriesQuery = z.object({
         '수선',
         '주문제작'
     ]).optional().default('all'),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
     sort: z.enum([
         'created_at',
         'updated_at',
@@ -3435,6 +3448,9 @@ export const zUpdateManualOrderResponse = zManualOrderOut;
 export const zListAdminMotifsQuery = z.object({
     scope: z.enum(['whole', 'partial']).nullish(),
     source: z.string().max(50).nullish(),
+    q: z.string().min(2).max(100).nullish(),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
     limit: z.int().gte(1).lte(100).optional().default(20),
     offset: z.int().gte(0).optional().default(0)
 });
@@ -3570,6 +3586,7 @@ export const zAdminListPaymentIncidentsQuery = z.object({
     ]).optional().default('open'),
     start_date: z.iso.date().nullish(),
     end_date: z.iso.date().nullish(),
+    q: z.string().min(2).max(128).nullish(),
     sort: z.enum([
         'created_at',
         'updated_at',
@@ -3662,6 +3679,8 @@ export const zAdminListProductsQuery = z.object({
         'wool'
     ]).nullish(),
     q: z.string().max(100).nullish(),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
     sort: z.enum([
         'created_at',
         'updated_at',
@@ -3742,6 +3761,7 @@ export const zListAdminQuotesQuery = z.object({
     ]).optional().default('all'),
     start_date: z.iso.date().nullish(),
     end_date: z.iso.date().nullish(),
+    q: z.string().min(2).max(64).nullish(),
     sort: z.enum([
         'created_at',
         'updated_at',

@@ -43,11 +43,37 @@ async def test_customer_search_is_body_based_and_customer_only(client, db_sessio
     )
     inactive = await make_user(db_session, email="needle-inactive@test.local")
     inactive.is_active = False
+    customer.created_at = datetime(2026, 4, 30, 15, 0, tzinfo=UTC)
+    inactive.created_at = datetime(2026, 4, 30, 14, 59, tzinfo=UTC)
     await db_session.commit()
+
+    dated = await client.get(
+        "/admin/customers",
+        params={"start_date": "2026-05-01", "end_date": "2026-05-01"},
+        headers=auth_headers(admin, settings),
+    )
+    assert dated.status_code == 200, dated.text
+    assert [item["id"] for item in dated.json()["items"]] == [str(customer.id)]
+
+    open_start = await client.get(
+        "/admin/customers",
+        params={"start_date": "2026-04-30"},
+        headers=auth_headers(admin, settings),
+    )
+    assert open_start.status_code == 200, open_start.text
+    assert {item["id"] for item in open_start.json()["items"]} == {
+        str(customer.id),
+        str(inactive.id),
+    }
 
     response = await client.post(
         "/admin/customers/search",
-        json={"q": "needle", "status": "active"},
+        json={
+            "q": "needle",
+            "status": "active",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-01",
+        },
         headers=auth_headers(admin, settings),
     )
     assert response.status_code == 200
@@ -56,7 +82,12 @@ async def test_customer_search_is_body_based_and_customer_only(client, db_sessio
 
     inactive_result = await client.post(
         "/admin/customers/search",
-        json={"q": "needle", "status": "inactive"},
+        json={
+            "q": "needle",
+            "status": "inactive",
+            "start_date": "2026-04-30",
+            "end_date": "2026-04-30",
+        },
         headers=auth_headers(admin, settings),
     )
     assert inactive_result.json()["items"][0]["id"] == str(inactive.id)
@@ -70,6 +101,78 @@ async def test_customer_search_is_body_based_and_customer_only(client, db_sessio
     )
     assert detail.status_code == 200
     assert detail.json()["token_balance"] == 0
+
+
+async def test_admin_coupon_list_searches_names_and_exact_id(client, db_session, settings):
+    admin = await make_admin(db_session)
+    headers = auth_headers(admin, settings)
+    target = await make_coupon(db_session)
+    other = await make_coupon(db_session)
+    target.name = "100% 할인 쿠폰"
+    target.display_name = "VIP 여름 혜택"
+    other.name = "1000 할인 쿠폰"
+    other.display_name = "겨울 혜택"
+    await db_session.commit()
+
+    by_name = await client.get("/admin/coupons", params={"q": "100%"}, headers=headers)
+    assert by_name.status_code == 200
+    assert [item["id"] for item in by_name.json()["items"]] == [str(target.id)]
+
+    by_display_name = await client.get("/admin/coupons", params={"q": "여름 혜택"}, headers=headers)
+    assert by_display_name.status_code == 200
+    assert [item["id"] for item in by_display_name.json()["items"]] == [str(target.id)]
+
+    by_id = await client.get("/admin/coupons", params={"q": str(other.id)}, headers=headers)
+    assert by_id.status_code == 200
+    assert [item["id"] for item in by_id.json()["items"]] == [str(other.id)]
+
+    too_short = await client.get("/admin/coupons", params={"q": "쿠"}, headers=headers)
+    assert too_short.status_code == 400
+    assert too_short.json()["code"] == "invalid_search"
+
+
+async def test_admin_coupon_list_filters_status_and_kst_created_date(client, db_session, settings):
+    admin = await make_admin(db_session)
+    headers = auth_headers(admin, settings)
+    previous = await make_coupon(db_session)
+    target = await make_coupon(db_session)
+    later = await make_coupon(db_session)
+    previous.created_at = datetime(2026, 4, 30, 14, 59, tzinfo=UTC)
+    target.created_at = datetime(2026, 4, 30, 15, 0, tzinfo=UTC)
+    later.created_at = datetime(2026, 5, 1, 15, 0, tzinfo=UTC)
+    previous.is_active = True
+    target.is_active = True
+    later.is_active = False
+    await db_session.commit()
+
+    exact_day = await client.get(
+        "/admin/coupons",
+        params={
+            "status": "active",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-01",
+        },
+        headers=headers,
+    )
+    assert {item["id"] for item in exact_day.json()["items"]} == {str(target.id)}
+
+    open_start = await client.get(
+        "/admin/coupons", params={"start_date": "2026-05-02"}, headers=headers
+    )
+    assert {item["id"] for item in open_start.json()["items"]} == {str(later.id)}
+
+    open_end = await client.get(
+        "/admin/coupons", params={"end_date": "2026-04-30"}, headers=headers
+    )
+    assert {item["id"] for item in open_end.json()["items"]} == {str(previous.id)}
+
+    invalid_range = await client.get(
+        "/admin/coupons",
+        params={"start_date": "2026-05-02", "end_date": "2026-05-01"},
+        headers=headers,
+    )
+    assert invalid_range.status_code == 400
+    assert invalid_range.json()["code"] == "invalid_range"
 
 
 async def test_coupon_issue_snapshot_idempotency_and_target_filter(client, db_session, settings):

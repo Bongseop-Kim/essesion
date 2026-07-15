@@ -1,6 +1,6 @@
 import type { AdminClaimSummaryOut } from "@essesion/api-client";
 import { adminListClaimsV2Options } from "@essesion/api-client/query";
-import { HStack, Text, VStack } from "@essesion/shared";
+import { Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -10,7 +10,8 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -113,9 +114,14 @@ export function ClaimsPage() {
     defaultDirection: "desc",
   });
   const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const claimType = (parsed.type ?? "all") as ClaimType;
   const status = (parsed.status ?? "all") as ClaimStatus;
   const sort = (parsed.sort ?? "created_at") as ClaimSort;
+  const [draftStatus, setDraftStatus] = useState<ClaimStatus>(status);
+  const [draftClaimType, setDraftClaimType] = useState<ClaimType>(claimType);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
 
   const query = useQuery({
     ...adminListClaimsV2Options({
@@ -153,57 +159,22 @@ export function ClaimsPage() {
         description="취소·반품·교환·토큰 환불 요청과 처리 상태를 조회합니다."
       />
 
-      <AdminCard title="검색·필터">
-        <VStack gap="x4" alignItems="stretch">
-          <SubmittedMemorySearch
-            label="클레임번호 검색"
-            placeholder="2자 이상 입력"
-            maxLength={64}
-            onSubmit={(value) => {
-              setSearch(value);
-              replaceQuery({ page: 1 });
-            }}
-          />
-          <HStack gap="x3" align="flex-end" wrap>
-            <FilterSelect
-              label="클레임 유형"
-              value={claimType}
-              options={CLAIM_TYPES}
-              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
-            />
-            <FilterSelect
-              label="상태"
-              value={status}
-              options={CLAIM_STATUSES.map((value) => ({
-                value,
-                label: value === "all" ? "전체" : value,
-              }))}
-              onValueChange={(value) =>
-                replaceQuery({ status: value, page: 1 })
-              }
-            />
-            <DateRangeFilters
-              from={parsed.from}
-              to={parsed.to}
-              onFromChange={(from) => replaceQuery({ from, page: 1 })}
-              onToChange={(to) => replaceQuery({ to, page: 1 })}
-            />
-          </HStack>
-        </VStack>
-      </AdminCard>
-
       <PaginatedAdminTableCard
         title="클레임 목록"
-        description={`총 ${query.data?.total ?? 0}건`}
         label="클레임 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/claims/${row.id}`)}
         status={
-          query.isLoading ? "loading" : query.isError ? "error" : "success"
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
         total={query.data?.total}
+        limit={parsed.limit}
         sort={{ key: sort, direction: parsed.direction }}
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
@@ -215,6 +186,130 @@ export function ClaimsPage() {
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="클레임 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
+                  label="클레임번호 검색"
+                  placeholder="2자 이상 입력"
+                  maxLength={64}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="상태"
+                    presentation="inline"
+                    value={draftStatus}
+                    options={CLAIM_STATUSES.map((value) => ({
+                      value,
+                      label: value === "all" ? "전체" : value,
+                    }))}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as ClaimStatus)
+                    }
+                  />
+                  <FilterSelect
+                    label="클레임 유형"
+                    presentation="inline"
+                    value={draftClaimType}
+                    options={CLAIM_TYPES}
+                    onValueChange={(value) =>
+                      setDraftClaimType(value as ClaimType)
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(status !== "all") +
+                Number(claimType !== "all") +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              onOpenSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftClaimType(claimType);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftClaimType(claimType);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({
+                  status: draftStatus === "all" ? undefined : draftStatus,
+                  type: draftClaimType === "all" ? undefined : draftClaimType,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: 1,
+                });
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                claimType !== "all" && {
+                  key: "type",
+                  label: `유형: ${claimTypeLabel(claimType)}`,
+                  onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+                },
+                status !== "all" && {
+                  key: "status",
+                  label: `상태: ${status}`,
+                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: "created_at",
+                  direction: "desc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
       />
     </VStack>
   );

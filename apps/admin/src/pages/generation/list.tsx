@@ -15,10 +15,10 @@ import {
   Badge,
   Box,
   Callout,
-  DatePicker,
   Grid,
   HStack,
   Skeleton,
+  snackbar,
   TabContent,
   TabList,
   Tabs,
@@ -28,7 +28,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
@@ -39,8 +39,12 @@ import {
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
@@ -48,12 +52,23 @@ const TABS = ["jobs", "seamless"] as const;
 const JOB_STATUSES = ["queued", "processing", "succeeded", "failed"] as const;
 const JOB_KINDS = ["finalize", "export"] as const;
 const SEAMLESS_STATUSES = ["success", "partial", "error"] as const;
+const OPERATIONAL_STATUS_LABELS: Record<string, string> = {
+  queued: "대기",
+  processing: "처리 중",
+  succeeded: "성공",
+  failed: "실패",
+  success: "성공",
+  partial: "부분 성공",
+  error: "오류",
+};
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_REQUEST_ID_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 type GenerationTab = (typeof TABS)[number];
+type JobStatus = (typeof JOB_STATUSES)[number];
 type JobKind = (typeof JOB_KINDS)[number];
+type SeamlessStatus = (typeof SEAMLESS_STATUSES)[number];
 
 type ReplaceQuery = (changes: Partial<AdminListQuery>) => void;
 
@@ -88,6 +103,50 @@ function kindLabel(kind: JobKind) {
   return kind === "finalize" ? "원단 최종화" : "파일 내보내기";
 }
 
+function operationalStatusLabel(status: string) {
+  return OPERATIONAL_STATUS_LABELS[status] ?? status;
+}
+
+function compactIdentifier(value: string) {
+  return value.length <= 14 ? value : `${value.slice(0, 8)}…${value.slice(-4)}`;
+}
+
+function IdentifierLink({
+  value,
+  href,
+  label,
+}: {
+  value: string;
+  href: string;
+  label: string;
+}) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      snackbar(`${label}를 복사했습니다.`);
+    } catch {
+      snackbar(`${label}를 복사하지 못했습니다.`);
+    }
+  };
+
+  return (
+    <HStack gap="x1" wrap>
+      <Link to={href} aria-label={`${label} ${value}`} title={value}>
+        {compactIdentifier(value)}
+      </Link>
+      <ActionButton
+        type="button"
+        variant="ghost"
+        size="small"
+        aria-label={`${label} 복사`}
+        onClick={() => void copy()}
+      >
+        복사
+      </ActionButton>
+    </HStack>
+  );
+}
+
 function OperationalStatusBadge({ status }: { status: string }) {
   const tone = ["succeeded", "success"].includes(status)
     ? "positive"
@@ -96,7 +155,54 @@ function OperationalStatusBadge({ status }: { status: string }) {
       : ["queued", "partial"].includes(status)
         ? "warning"
         : "informative";
-  return <Badge tone={tone}>{status}</Badge>;
+  return <Badge tone={tone}>{operationalStatusLabel(status)}</Badge>;
+}
+
+function RefreshStatus({
+  label,
+  lastUpdatedAt,
+  paused,
+  description,
+  onToggle,
+}: {
+  label: string;
+  lastUpdatedAt: number;
+  paused: boolean;
+  description: string;
+  onToggle: () => void;
+}) {
+  return (
+    <HStack
+      role="group"
+      aria-label={`${label} 갱신 상태`}
+      justify="space-between"
+      align="center"
+      gap="x3"
+      wrap
+    >
+      <VStack gap="x1">
+        <HStack gap="x2" align="center" wrap>
+          <Badge tone={paused ? "warning" : "positive"}>
+            {paused ? "자동 갱신 일시정지됨" : "자동 갱신 켜짐"}
+          </Badge>
+          <Text role="status" aria-live="polite" textStyle="bodySm">
+            마지막 성공 갱신:{" "}
+            {lastUpdatedAt === 0
+              ? "아직 없음"
+              : formatDateTime(new Date(lastUpdatedAt))}
+          </Text>
+        </HStack>
+        <Text textStyle="caption" color="fg.neutral-muted">
+          {paused
+            ? "자동 갱신을 일시정지했습니다. 수동 새로고침은 계속 사용할 수 있습니다."
+            : description}
+        </Text>
+      </VStack>
+      <ActionButton variant="neutralOutline" size="small" onClick={onToggle}>
+        {paused ? "자동 갱신 재개" : "자동 갱신 일시정지"}
+      </ActionButton>
+    </HStack>
+  );
 }
 
 function MetricGrid({
@@ -135,31 +241,24 @@ function MetricGrid({
 }
 
 function PeriodFilters({
-  query,
-  replaceQuery,
+  from,
+  to,
+  onFromChange,
+  onToChange,
 }: {
-  query: AdminListQuery;
-  replaceQuery: ReplaceQuery;
+  from?: string;
+  to?: string;
+  onFromChange: (value: string | undefined) => void;
+  onToChange: (value: string | undefined) => void;
 }) {
   return (
-    <>
-      <DatePicker
-        label="시작일 (KST)"
-        value={query.from ?? ""}
-        max={query.to}
-        onValueChange={(value) =>
-          replaceQuery({ from: value || undefined, page: 1 })
-        }
-      />
-      <DatePicker
-        label="종료일 (KST)"
-        value={query.to ?? ""}
-        min={query.from}
-        onValueChange={(value) =>
-          replaceQuery({ to: value || undefined, page: 1 })
-        }
-      />
-    </>
+    <DateRangeFilters
+      from={from}
+      to={to}
+      onFromChange={onFromChange}
+      onToChange={onToChange}
+      presentation="inline"
+    />
   );
 }
 
@@ -219,19 +318,31 @@ function SeamlessStatistics({
 function JobsPanel({
   parsed,
   replaceQuery,
+  autoRefreshPaused,
+  onAutoRefreshPausedChange,
 }: {
   parsed: AdminListQuery;
   replaceQuery: ReplaceQuery;
+  autoRefreshPaused: boolean;
+  onAutoRefreshPausedChange: (paused: boolean) => void;
 }) {
   const navigate = useNavigate();
   const status = isOneOf(parsed.status, JOB_STATUSES)
     ? parsed.status
     : undefined;
   const kind = isOneOf(parsed.type, JOB_KINDS) ? parsed.type : undefined;
+  const [jobId, setJobId] = useState<string>();
+  const [jobSearchResetKey, setJobSearchResetKey] = useState(0);
+  const [draftStatus, setDraftStatus] = useState<JobStatus | undefined>(status);
   const [userInput, setUserInput] = useState("");
   const [userId, setUserId] = useState<string>();
   const [userError, setUserError] = useState<string>();
+  const [draftKind, setDraftKind] = useState<JobKind | undefined>(kind);
+  const [draftFrom, setDraftFrom] = useState<string | undefined>(parsed.from);
+  const [draftTo, setDraftTo] = useState<string | undefined>(parsed.to);
+  const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = useState(0);
   const commonQuery = {
+    job_id: jobId,
     kind,
     status,
     user_id: userId,
@@ -248,37 +359,65 @@ function JobsPanel({
     }),
     placeholderData: keepPreviousData,
     refetchInterval: (query) =>
-      activeAdminPollingInterval(
-        query.state.data?.items?.some((item) =>
-          ["queued", "processing"].includes(item.status),
-        ) ?? false,
-      ),
+      autoRefreshPaused
+        ? false
+        : activeAdminPollingInterval(
+            query.state.data?.items?.some((item) =>
+              ["queued", "processing"].includes(item.status),
+            ) ?? false,
+          ),
   });
   const statsQuery = useQuery({
     ...getAdminGenerationJobStatsOptions({ query: commonQuery }),
     refetchInterval: (query) =>
-      activeAdminPollingInterval(
-        (query.state.data?.queued ?? 0) + (query.state.data?.processing ?? 0) >
-          0,
-      ),
+      autoRefreshPaused
+        ? false
+        : activeAdminPollingInterval(
+            (query.state.data?.queued ?? 0) +
+              (query.state.data?.processing ?? 0) >
+              0,
+          ),
   });
 
-  const submitUser = (event: FormEvent) => {
-    event.preventDefault();
+  useEffect(() => {
+    if (
+      listQuery.fetchStatus === "idle" &&
+      statsQuery.fetchStatus === "idle" &&
+      listQuery.isSuccess &&
+      statsQuery.isSuccess
+    ) {
+      setLastSuccessfulRefreshAt(Date.now());
+    }
+  }, [
+    listQuery.fetchStatus,
+    listQuery.isSuccess,
+    statsQuery.fetchStatus,
+    statsQuery.isSuccess,
+  ]);
+
+  const toggleAutoRefresh = () => {
+    if (autoRefreshPaused) {
+      onAutoRefreshPausedChange(false);
+      void Promise.all([listQuery.refetch(), statsQuery.refetch()]);
+      return;
+    }
+    onAutoRefreshPausedChange(true);
+  };
+
+  const applyUserInput = () => {
     const value = userInput.trim();
     if (value === "") {
       setUserError(undefined);
       setUserId(undefined);
-      replaceQuery({ page: 1 });
-      return;
+      return true;
     }
     if (!UUID_PATTERN.test(value)) {
       setUserError("사용자 ID는 UUID 형식이어야 합니다.");
-      return;
+      return false;
     }
     setUserError(undefined);
     setUserId(value);
-    replaceQuery({ page: 1 });
+    return true;
   };
 
   const columns: readonly AdminTableColumn<GenerationJobSummaryOut>[] = [
@@ -286,7 +425,11 @@ function JobsPanel({
       key: "id",
       header: "작업 ID",
       render: (job) => (
-        <Link to={`/generation-logs/jobs/${job.id}`}>{job.id}</Link>
+        <IdentifierLink
+          value={job.id}
+          href={`/generation-logs/jobs/${job.id}`}
+          label="작업 ID"
+        />
       ),
     },
     {
@@ -339,76 +482,173 @@ function JobsPanel({
 
   return (
     <VStack gap="x5" alignItems="stretch">
-      <AdminCard title="작업 필터">
-        <VStack gap="x4" alignItems="stretch">
-          <HStack gap="x3" align="flex-end" wrap>
-            <FilterSelect
-              label="상태"
-              value={status ?? "all"}
-              options={[
-                { value: "all", label: "전체" },
-                { value: "queued", label: "대기" },
-                { value: "processing", label: "처리 중" },
-                { value: "succeeded", label: "성공" },
-                { value: "failed", label: "실패" },
-              ]}
-              onValueChange={(value) =>
-                replaceQuery({
-                  status: value === "all" ? undefined : value,
-                  page: 1,
-                })
+      <VStack gap="x3" alignItems="stretch">
+        <CompactFilterToolbar
+          primaryControls={
+            <SubmittedMemorySearch
+              label="작업 ID 검색"
+              placeholder="정확한 작업 ID 입력"
+              maxLength={36}
+              resetKey={jobSearchResetKey}
+              validate={(value) =>
+                UUID_PATTERN.test(value)
+                  ? undefined
+                  : "작업 ID는 UUID 형식이어야 합니다."
               }
+              onSubmit={(value) => {
+                setJobId(value);
+                replaceQuery({ page: 1 });
+              }}
             />
-            <FilterSelect
-              label="작업 단계"
-              value={kind ?? "all"}
-              options={[
-                { value: "all", label: "전체" },
-                { value: "finalize", label: "원단 최종화" },
-                { value: "export", label: "파일 내보내기" },
-              ]}
-              onValueChange={(value) =>
-                replaceQuery({
-                  type: value === "all" ? undefined : value,
-                  page: 1,
-                })
-              }
-            />
-            <PeriodFilters query={parsed} replaceQuery={replaceQuery} />
-          </HStack>
-          <HStack
-            as="form"
-            gap="x2"
-            align="flex-end"
-            wrap
-            onSubmit={submitUser}
-          >
-            <TextField
-              label="사용자 ID"
-              placeholder="정확한 사용자 ID 입력"
-              errorMessage={userError}
-              value={userInput}
-              onChange={(event) => setUserInput(event.currentTarget.value)}
-            />
-            <ActionButton type="submit" variant="neutralOutline">
-              사용자 적용
-            </ActionButton>
-            {userId !== undefined && (
-              <ActionButton
-                variant="ghost"
-                onClick={() => {
-                  setUserInput("");
-                  setUserId(undefined);
+          }
+          secondaryFilters={
+            <VStack gap="x4" alignItems="stretch">
+              <FilterSelect
+                label="상태"
+                presentation="inline"
+                value={draftStatus ?? "all"}
+                options={[
+                  { value: "all", label: "전체" },
+                  { value: "queued", label: "대기" },
+                  { value: "processing", label: "처리 중" },
+                  { value: "succeeded", label: "성공" },
+                  { value: "failed", label: "실패" },
+                ]}
+                onValueChange={(value) =>
+                  setDraftStatus(
+                    value === "all" ? undefined : (value as JobStatus),
+                  )
+                }
+              />
+              <FilterSelect
+                label="작업 단계"
+                presentation="inline"
+                value={draftKind ?? "all"}
+                options={[
+                  { value: "all", label: "전체" },
+                  { value: "finalize", label: "원단 최종화" },
+                  { value: "export", label: "파일 내보내기" },
+                ]}
+                onValueChange={(value) =>
+                  setDraftKind(value === "all" ? undefined : (value as JobKind))
+                }
+              />
+              <TextField
+                label="사용자 ID"
+                placeholder="정확한 사용자 ID 입력"
+                errorMessage={userError}
+                value={userInput}
+                onChange={(event) => {
+                  setUserInput(event.currentTarget.value);
                   setUserError(undefined);
-                  replaceQuery({ page: 1 });
                 }}
-              >
-                사용자 해제
-              </ActionButton>
-            )}
-          </HStack>
-        </VStack>
-      </AdminCard>
+              />
+              <HStack gap="x3" align="flex-end" wrap>
+                <PeriodFilters
+                  from={draftFrom}
+                  to={draftTo}
+                  onFromChange={setDraftFrom}
+                  onToChange={setDraftTo}
+                />
+              </HStack>
+            </VStack>
+          }
+          secondaryFilterCount={
+            Number(status !== undefined) +
+            Number(kind !== undefined) +
+            Number(userId !== undefined) +
+            Number(parsed.from !== undefined || parsed.to !== undefined)
+          }
+          secondaryTitle="생성 작업 필터"
+          secondaryDescription="상태, 작업 단계, 사용자 ID, 조회 기간을 한 번에 적용합니다."
+          onOpenSecondaryFilters={() => {
+            setDraftStatus(status);
+            setDraftKind(kind);
+            setUserInput(userId ?? "");
+            setUserError(undefined);
+            setDraftFrom(parsed.from);
+            setDraftTo(parsed.to);
+          }}
+          onCancelSecondaryFilters={() => {
+            setDraftStatus(status);
+            setDraftKind(kind);
+            setUserInput(userId ?? "");
+            setUserError(undefined);
+            setDraftFrom(parsed.from);
+            setDraftTo(parsed.to);
+          }}
+          onApplySecondaryFilters={() => {
+            if (!applyUserInput()) return false;
+            replaceQuery({
+              status: draftStatus,
+              type: draftKind,
+              from: draftFrom,
+              to: draftTo,
+              page: 1,
+            });
+          }}
+        />
+        <AppliedFilterBar
+          filters={[
+            jobId !== undefined && {
+              key: "job",
+              label: `작업 ID: ${jobId}`,
+              onRemove: () => {
+                setJobId(undefined);
+                setJobSearchResetKey((key) => key + 1);
+                replaceQuery({ page: 1 });
+              },
+            },
+            status !== undefined && {
+              key: "status",
+              label: `상태: ${operationalStatusLabel(status)}`,
+              onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+            },
+            kind !== undefined && {
+              key: "kind",
+              label: `작업 단계: ${kindLabel(kind)}`,
+              onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+            },
+            parsed.from !== undefined && {
+              key: "from",
+              label: `시작일: ${parsed.from}`,
+              onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+            },
+            parsed.to !== undefined && {
+              key: "to",
+              label: `종료일: ${parsed.to}`,
+              onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+            },
+            userId !== undefined && {
+              key: "user",
+              label: `사용자 ID: ${userId}`,
+              onRemove: () => {
+                setUserInput("");
+                setUserId(undefined);
+                setUserError(undefined);
+                replaceQuery({ page: 1 });
+              },
+            },
+          ]}
+          onReset={() => {
+            setJobId(undefined);
+            setJobSearchResetKey((key) => key + 1);
+            setUserInput("");
+            setUserId(undefined);
+            setUserError(undefined);
+            replaceQuery({
+              page: 1,
+              limit: 20,
+              sort: undefined,
+              direction: "asc",
+              status: undefined,
+              type: undefined,
+              from: undefined,
+              to: undefined,
+            });
+          }}
+        />
+      </VStack>
 
       <AdminCard title="작업 통계" description="현재 필터 기준 집계입니다.">
         {statsQuery.isError ? (
@@ -433,22 +673,30 @@ function JobsPanel({
         )}
       </AdminCard>
 
+      <RefreshStatus
+        label="생성 작업"
+        lastUpdatedAt={lastSuccessfulRefreshAt}
+        paused={autoRefreshPaused}
+        description="활성 작업이 있고 화면이 보일 때 30초마다 갱신합니다."
+        onToggle={toggleAutoRefresh}
+      />
+
       <PaginatedAdminTableCard
         title="생성 작업 목록"
-        description={`총 ${listQuery.data?.total ?? 0}건 · 활성 작업은 30초마다 갱신`}
         label="생성 작업 목록"
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/generation-logs/jobs/${row.id}`)}
         status={
-          listQuery.isLoading
+          listQuery.isLoading || listQuery.isPlaceholderData
             ? "loading"
             : listQuery.isError
               ? "error"
               : "success"
         }
         total={listQuery.data?.total}
+        limit={parsed.limit}
         refreshing={listQuery.isFetching || statsQuery.isFetching}
         onRefresh={() =>
           void Promise.all([listQuery.refetch(), statsQuery.refetch()])
@@ -467,17 +715,26 @@ function JobsPanel({
 function SeamlessPanel({
   parsed,
   replaceQuery,
+  autoRefreshPaused,
+  onAutoRefreshPausedChange,
 }: {
   parsed: AdminListQuery;
   replaceQuery: ReplaceQuery;
+  autoRefreshPaused: boolean;
+  onAutoRefreshPausedChange: (paused: boolean) => void;
 }) {
   const navigate = useNavigate();
   const status = isOneOf(parsed.status, SEAMLESS_STATUSES)
     ? parsed.status
     : undefined;
-  const [requestInput, setRequestInput] = useState("");
+  const [draftStatus, setDraftStatus] = useState<SeamlessStatus | undefined>(
+    status,
+  );
   const [requestId, setRequestId] = useState<string>();
-  const [requestError, setRequestError] = useState<string>();
+  const [requestSearchResetKey, setRequestSearchResetKey] = useState(0);
+  const [draftFrom, setDraftFrom] = useState<string | undefined>(parsed.from);
+  const [draftTo, setDraftTo] = useState<string | undefined>(parsed.to);
+  const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = useState(0);
   const commonQuery = {
     status,
     request_id: requestId,
@@ -493,27 +750,38 @@ function SeamlessPanel({
       },
     }),
     placeholderData: keepPreviousData,
+    refetchInterval: () =>
+      autoRefreshPaused ? false : activeAdminPollingInterval(true),
   });
   const statsQuery = useQuery({
     ...getAdminSeamlessStatsOptions({ query: commonQuery }),
+    refetchInterval: () =>
+      autoRefreshPaused ? false : activeAdminPollingInterval(true),
   });
 
-  const submitRequestId = (event: FormEvent) => {
-    event.preventDefault();
-    const value = requestInput.trim();
-    if (value === "") {
-      setRequestError(undefined);
-      setRequestId(undefined);
-      replaceQuery({ page: 1 });
+  useEffect(() => {
+    if (
+      listQuery.fetchStatus === "idle" &&
+      statsQuery.fetchStatus === "idle" &&
+      listQuery.isSuccess &&
+      statsQuery.isSuccess
+    ) {
+      setLastSuccessfulRefreshAt(Date.now());
+    }
+  }, [
+    listQuery.fetchStatus,
+    listQuery.isSuccess,
+    statsQuery.fetchStatus,
+    statsQuery.isSuccess,
+  ]);
+
+  const toggleAutoRefresh = () => {
+    if (autoRefreshPaused) {
+      onAutoRefreshPausedChange(false);
+      void Promise.all([listQuery.refetch(), statsQuery.refetch()]);
       return;
     }
-    if (!SAFE_REQUEST_ID_PATTERN.test(value)) {
-      setRequestError("request_id 형식이 올바르지 않습니다.");
-      return;
-    }
-    setRequestError(undefined);
-    setRequestId(value);
-    replaceQuery({ page: 1 });
+    onAutoRefreshPausedChange(true);
   };
 
   const columns: readonly AdminTableColumn<SeamlessSummaryOut>[] = [
@@ -521,7 +789,11 @@ function SeamlessPanel({
       key: "id",
       header: "로그 ID",
       render: (log) => (
-        <Link to={`/generation-logs/seamless/${log.id}`}>{log.id}</Link>
+        <IdentifierLink
+          value={log.id}
+          href={`/generation-logs/seamless/${log.id}`}
+          label="로그 ID"
+        />
       ),
     },
     {
@@ -575,61 +847,119 @@ function SeamlessPanel({
 
   return (
     <VStack gap="x5" alignItems="stretch">
-      <AdminCard title="Seamless 필터">
-        <VStack gap="x4" alignItems="stretch">
-          <HStack gap="x3" align="flex-end" wrap>
-            <FilterSelect
-              label="상태"
-              value={status ?? "all"}
-              options={[
-                { value: "all", label: "전체" },
-                { value: "success", label: "성공" },
-                { value: "partial", label: "부분 성공" },
-                { value: "error", label: "오류" },
-              ]}
-              onValueChange={(value) =>
-                replaceQuery({
-                  status: value === "all" ? undefined : value,
-                  page: 1,
-                })
-              }
-            />
-            <PeriodFilters query={parsed} replaceQuery={replaceQuery} />
-          </HStack>
-          <HStack
-            as="form"
-            gap="x2"
-            align="flex-end"
-            wrap
-            onSubmit={submitRequestId}
-          >
-            <TextField
-              label="request_id"
-              placeholder="정확한 request_id 입력"
-              errorMessage={requestError}
-              value={requestInput}
+      <VStack gap="x3" alignItems="stretch">
+        <CompactFilterToolbar
+          primaryControls={
+            <SubmittedMemorySearch
+              label="요청 ID 검색"
+              placeholder="정확한 요청 ID 입력"
               maxLength={128}
-              onChange={(event) => setRequestInput(event.currentTarget.value)}
+              resetKey={requestSearchResetKey}
+              validate={(value) =>
+                SAFE_REQUEST_ID_PATTERN.test(value)
+                  ? undefined
+                  : "요청 ID 형식이 올바르지 않습니다."
+              }
+              onSubmit={(value) => {
+                setRequestId(value);
+                replaceQuery({ page: 1 });
+              }}
             />
-            <ActionButton type="submit" variant="neutralOutline">
-              요청 ID 적용
-            </ActionButton>
-            {requestId !== undefined && (
-              <ActionButton
-                variant="ghost"
-                onClick={() => {
-                  setRequestInput("");
-                  setRequestId(undefined);
-                  setRequestError(undefined);
-                  replaceQuery({ page: 1 });
-                }}
-              >
-                요청 ID 해제
-              </ActionButton>
-            )}
-          </HStack>
-        </VStack>
-      </AdminCard>
+          }
+          secondaryFilters={
+            <VStack gap="x4" alignItems="stretch">
+              <FilterSelect
+                label="상태"
+                presentation="inline"
+                value={draftStatus ?? "all"}
+                options={[
+                  { value: "all", label: "전체" },
+                  { value: "success", label: "성공" },
+                  { value: "partial", label: "부분 성공" },
+                  { value: "error", label: "오류" },
+                ]}
+                onValueChange={(value) =>
+                  setDraftStatus(
+                    value === "all" ? undefined : (value as SeamlessStatus),
+                  )
+                }
+              />
+              <PeriodFilters
+                from={draftFrom}
+                to={draftTo}
+                onFromChange={setDraftFrom}
+                onToChange={setDraftTo}
+              />
+            </VStack>
+          }
+          secondaryFilterCount={
+            Number(status !== undefined) +
+            Number(parsed.from !== undefined || parsed.to !== undefined)
+          }
+          secondaryTitle="Seamless 상세 필터"
+          secondaryDescription="상태와 조회 기간을 한 번에 적용합니다."
+          onOpenSecondaryFilters={() => {
+            setDraftStatus(status);
+            setDraftFrom(parsed.from);
+            setDraftTo(parsed.to);
+          }}
+          onCancelSecondaryFilters={() => {
+            setDraftStatus(status);
+            setDraftFrom(parsed.from);
+            setDraftTo(parsed.to);
+          }}
+          onApplySecondaryFilters={() => {
+            replaceQuery({
+              status: draftStatus,
+              from: draftFrom,
+              to: draftTo,
+              page: 1,
+            });
+          }}
+        />
+        <AppliedFilterBar
+          filters={[
+            status !== undefined && {
+              key: "status",
+              label: `상태: ${operationalStatusLabel(status)}`,
+              onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+            },
+            parsed.from !== undefined && {
+              key: "from",
+              label: `시작일: ${parsed.from}`,
+              onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+            },
+            parsed.to !== undefined && {
+              key: "to",
+              label: `종료일: ${parsed.to}`,
+              onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+            },
+            requestId !== undefined && {
+              key: "request",
+              label: `요청 ID: ${requestId}`,
+              onRemove: () => {
+                setRequestId(undefined);
+                setRequestSearchResetKey((key) => key + 1);
+                replaceQuery({ page: 1 });
+              },
+            },
+          ]}
+          onReset={() => {
+            setRequestId(undefined);
+            setRequestSearchResetKey((key) => key + 1);
+            replaceQuery({
+              page: 1,
+              limit: 20,
+              sort: undefined,
+              direction: "asc",
+              status: undefined,
+              type: undefined,
+              from: undefined,
+              to: undefined,
+            });
+          }}
+        />
+      </VStack>
 
       <AdminCard title="Seamless 통계" description="현재 필터 기준 집계입니다.">
         {statsQuery.isError ? (
@@ -654,22 +984,30 @@ function SeamlessPanel({
         )}
       </AdminCard>
 
+      <RefreshStatus
+        label="Seamless 로그"
+        lastUpdatedAt={lastSuccessfulRefreshAt}
+        paused={autoRefreshPaused}
+        description="화면이 보일 때 새 로그를 30초마다 갱신합니다."
+        onToggle={toggleAutoRefresh}
+      />
+
       <PaginatedAdminTableCard
         title="Seamless 로그 목록"
-        description={`총 ${listQuery.data?.total ?? 0}건`}
         label="Seamless 로그 목록"
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/generation-logs/seamless/${row.id}`)}
         status={
-          listQuery.isLoading
+          listQuery.isLoading || listQuery.isPlaceholderData
             ? "loading"
             : listQuery.isError
               ? "error"
               : "success"
         }
         total={listQuery.data?.total}
+        limit={parsed.limit}
         refreshing={listQuery.isFetching || statsQuery.isFetching}
         onRefresh={() =>
           void Promise.all([listQuery.refetch(), statsQuery.refetch()])
@@ -692,12 +1030,13 @@ export function GenerationOperationsPage() {
     allowedTypes: JOB_KINDS,
   });
   const tab: GenerationTab = isOneOf(parsed.tab, TABS) ? parsed.tab : "jobs";
+  const [autoRefreshPaused, setAutoRefreshPaused] = useState(false);
 
   return (
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="생성 운영"
-        description="generation_jobs와 Seamless 생성 로그의 상태·지연·정제된 오류를 조회합니다."
+        description="생성 작업과 Seamless 로그의 상태·지연·정제된 오류를 조회합니다."
       />
 
       <Tabs
@@ -717,12 +1056,22 @@ export function GenerationOperationsPage() {
         </TabList>
         <TabContent value="jobs">
           <VStack pt="x5" alignItems="stretch">
-            <JobsPanel parsed={parsed} replaceQuery={replaceQuery} />
+            <JobsPanel
+              parsed={parsed}
+              replaceQuery={replaceQuery}
+              autoRefreshPaused={autoRefreshPaused}
+              onAutoRefreshPausedChange={setAutoRefreshPaused}
+            />
           </VStack>
         </TabContent>
         <TabContent value="seamless">
           <VStack pt="x5" alignItems="stretch">
-            <SeamlessPanel parsed={parsed} replaceQuery={replaceQuery} />
+            <SeamlessPanel
+              parsed={parsed}
+              replaceQuery={replaceQuery}
+              autoRefreshPaused={autoRefreshPaused}
+              onAutoRefreshPausedChange={setAutoRefreshPaused}
+            />
           </VStack>
         </TabContent>
       </Tabs>

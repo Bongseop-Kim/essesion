@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from db.models.commerce import Claim, Order, PaymentIncident
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.domains.admin.helpers import kst_day_bounds
@@ -59,21 +59,39 @@ def _filters(
     status: IncidentStatusFilter,
     start_date: date | None,
     end_date: date | None,
+    q: str | None,
 ) -> list[ColumnElement[bool]]:
     filters: list[ColumnElement[bool]] = []
     if incident_type != "all":
         filters.append(PaymentIncident.incident_type == incident_type)
     if status != "all":
         filters.append(PaymentIncident.status == status)
-    if start_date is not None or end_date is not None:
-        start = start_date or end_date
-        end = end_date or start_date
-        assert start is not None and end is not None
-        start_at, end_at = kst_day_bounds(start, end)
-        assert start_at is not None and end_at is not None
-        filters.extend(
-            (PaymentIncident.created_at >= start_at, PaymentIncident.created_at < end_at)
-        )
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    if start_at is not None:
+        filters.append(PaymentIncident.created_at >= start_at)
+    if end_at is not None:
+        filters.append(PaymentIncident.created_at < end_at)
+    if q is not None:
+        search = q.strip()
+        if len(search) < 2:
+            raise DomainError("검색어는 2자 이상이어야 합니다", code="invalid_search")
+        search_filters: list[ColumnElement[bool]] = [
+            PaymentIncident.operation_id.icontains(search, autoescape=True),
+            PaymentIncident.request_id.icontains(search, autoescape=True),
+        ]
+        try:
+            exact_id = uuid.UUID(search)
+        except ValueError:
+            exact_id = None
+        if exact_id is not None:
+            search_filters.extend(
+                (
+                    PaymentIncident.id == exact_id,
+                    PaymentIncident.order_id == exact_id,
+                    PaymentIncident.claim_id == exact_id,
+                )
+            )
+        filters.append(or_(*search_filters))
     return filters
 
 
@@ -180,6 +198,7 @@ async def list_incidents(
     status: IncidentStatusFilter,
     start_date: date | None,
     end_date: date | None,
+    q: str | None,
     sort: IncidentSort,
     direction: SortDirection,
     limit: int,
@@ -190,6 +209,7 @@ async def list_incidents(
         status=status,
         start_date=start_date,
         end_date=end_date,
+        q=q,
     )
     total = int(
         await session.scalar(select(func.count()).select_from(PaymentIncident).where(*filters)) or 0
