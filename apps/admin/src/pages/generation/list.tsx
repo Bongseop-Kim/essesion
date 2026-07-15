@@ -28,7 +28,7 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import {
@@ -226,6 +226,7 @@ function JobsPanel({
   parsed: AdminListQuery;
   replaceQuery: ReplaceQuery;
 }) {
+  const navigate = useNavigate();
   const status = isOneOf(parsed.status, JOB_STATUSES)
     ? parsed.status
     : undefined;
@@ -438,6 +439,7 @@ function JobsPanel({
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/generation-logs/jobs/${row.id}`)}
         status={
           listQuery.isLoading
             ? "loading"
@@ -468,6 +470,7 @@ function SeamlessPanel({
   parsed: AdminListQuery;
   replaceQuery: ReplaceQuery;
 }) {
+  const navigate = useNavigate();
   const status = isOneOf(parsed.status, SEAMLESS_STATUSES)
     ? parsed.status
     : undefined;
@@ -657,6 +660,7 @@ function SeamlessPanel({
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/generation-logs/seamless/${row.id}`)}
         status={
           listQuery.isLoading
             ? "loading"

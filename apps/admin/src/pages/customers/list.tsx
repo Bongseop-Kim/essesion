@@ -12,7 +12,7 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import {
@@ -89,6 +89,7 @@ const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
 ];
 
 export function CustomersPage() {
+  const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: CUSTOMER_SORTS,
     allowedStatuses: CUSTOMER_STATUSES,
@@ -243,6 +244,7 @@ export function CustomersPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/customers/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

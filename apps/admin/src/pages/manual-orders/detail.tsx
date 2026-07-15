@@ -1,32 +1,80 @@
+import type { ManualOrderOut } from "@essesion/api-client";
 import {
   deleteManualOrderMutation,
   getManualOrderOptions,
-  getManualOrderQueryKey,
   listManualOrdersQueryKey,
-  updateManualOrderMutation,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
   AlertDialog,
   Badge,
+  Box,
   ContentPlaceholder,
   HStack,
   Skeleton,
   snackbar,
+  Text,
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import { formatDateTime } from "../../shared/lib/format";
-import { AdminCard } from "../../shared/ui/admin-card";
-import { RouteHeading } from "../../shared/ui/route-heading";
 import {
-  ManualOrderForm,
-  manualOrderDraftBody,
-  manualOrderDraftFrom,
-} from "./manual-order-form";
+  formatDate,
+  formatDateTime,
+  formatMoney,
+} from "../../shared/lib/format";
+import { AdminCard } from "../../shared/ui/admin-card";
+import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
+import { RouteHeading } from "../../shared/ui/route-heading";
+
+type ManualOrderItemOut = ManualOrderOut["items"][number];
+
+function itemCategoryLabel(item: ManualOrderItemOut) {
+  const categories = [
+    item.automatic != null && "자동수선",
+    item.width != null && "폭수선",
+    item.restoration != null && "복원수선",
+  ].filter((value): value is string => typeof value === "string");
+  return categories.length === 0 ? "-" : categories.join(" · ");
+}
+
+function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
+  const items: DetailItem[] = [
+    { label: "수량", value: `${item.quantity.toLocaleString("ko-KR")}개` },
+    { label: "대분류", value: itemCategoryLabel(item) },
+  ];
+  if (item.automatic != null) {
+    items.push(
+      {
+        label: "[자동] 타입·마감",
+        value: `${item.automatic.mechanism === "string" ? "끈" : "지퍼"} · ${
+          item.automatic.turn_knot ? "돌려묶기" : "방"
+        } · ${item.automatic.dimple ? "딤플" : "기본"}`,
+      },
+      {
+        label: "[자동] 총장",
+        value: `${item.automatic.total_length_cm}cm`,
+      },
+    );
+  }
+  if (item.width != null) {
+    items.push({
+      label: "[폭] 폭",
+      value: `${item.width.target_width_cm}cm`,
+    });
+  }
+  if (item.restoration != null) {
+    items.push({
+      label: "[복원] 내용",
+      value: item.restoration.memo === "" ? "-" : item.restoration.memo,
+    });
+  }
+  const note = item.note ?? "";
+  if (note !== "") items.push({ label: "특이사항", value: note });
+  return items;
+}
 
 function ManualOrderDetailLoading() {
   return (
@@ -50,25 +98,10 @@ export function ManualOrderDetailPage() {
   const { manualOrderId = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [resetSignal, setResetSignal] = useState(0);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const query = useQuery({
     ...getManualOrderOptions({ path: { manual_order_id: manualOrderId } }),
     enabled: manualOrderId !== "",
-  });
-  const updateMutation = useMutation({
-    ...updateManualOrderMutation(),
-    onSuccess: async (order) => {
-      snackbar("수기 주문을 저장했습니다.");
-      queryClient.setQueryData(
-        getManualOrderQueryKey({ path: { manual_order_id: manualOrderId } }),
-        order,
-      );
-      await queryClient.invalidateQueries({
-        queryKey: listManualOrdersQueryKey(),
-      });
-      setResetSignal((current) => current + 1);
-    },
   });
   const deleteMutation = useMutation({
     ...deleteManualOrderMutation(),
@@ -81,18 +114,14 @@ export function ManualOrderDetailPage() {
     },
   });
   const order = query.data;
-  const initialDraft = useMemo(
-    () => (order === undefined ? undefined : manualOrderDraftFrom(order)),
-    [order],
-  );
 
   if (query.isLoading) return <ManualOrderDetailLoading />;
-  if (query.isError || order === undefined || initialDraft === undefined) {
+  if (query.isError || order === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
           title="수기 주문 상세"
-          description="작업지시서 내용을 확인하고 수정합니다."
+          description="작업지시서 내용을 확인합니다."
         />
         <ContentPlaceholder
           title="수기 주문을 불러오지 못했습니다"
@@ -121,48 +150,78 @@ export function ManualOrderDetailPage() {
           description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
         />
         <HStack gap="x2" wrap>
-          {statusFlags.map(([label, checked]) => (
-            <Badge key={label} tone={checked ? "positive" : "neutral"}>
-              {label}
-            </Badge>
-          ))}
+          <ActionButton
+            variant="ghost"
+            onClick={() => navigate("/manual-orders")}
+          >
+            목록으로
+          </ActionButton>
+          <ActionButton
+            variant="neutralWeak"
+            onClick={() => navigate(`/manual-orders/${order.id}/edit`)}
+          >
+            수정
+          </ActionButton>
         </HStack>
       </HStack>
 
-      <ManualOrderForm
-        initial={initialDraft}
-        revision={order.updated_at}
-        resetSignal={resetSignal}
-        submitLabel="변경 저장"
-        pending={updateMutation.isPending}
-        error={updateMutation.error}
-        errorAction={
+      <AdminCard
+        title="주문 정보"
+        action={
           <HStack gap="x2" wrap>
-            <ActionButton
-              variant="neutralOutline"
-              loading={query.isFetching}
-              onClick={async () => {
-                const result = await query.refetch();
-                if (result.data === undefined) return;
-                updateMutation.reset();
-                setResetSignal((current) => current + 1);
-              }}
-            >
-              서버 값으로 초기화
-            </ActionButton>
+            {statusFlags.map(([label, checked]) => (
+              <Badge key={label} tone={checked ? "positive" : "neutral"}>
+                {label}
+              </Badge>
+            ))}
           </HStack>
         }
-        onSubmit={(draft, revision) => {
-          if (revision === undefined) return;
-          updateMutation.mutate({
-            path: { manual_order_id: order.id },
-            body: {
-              ...manualOrderDraftBody(draft),
-              expected_updated_at: revision,
+      >
+        <DetailList
+          items={[
+            { label: "날짜", value: formatDate(order.order_date) },
+            { label: "이름", value: order.customer_name },
+            { label: "휴대폰", value: order.phone },
+            {
+              label: "주소",
+              value:
+                order.address === null || order.address === ""
+                  ? "-"
+                  : order.address,
             },
-          });
-        }}
-      />
+            { label: "금액", value: formatMoney(order.amount) },
+            { label: "택배비", value: formatMoney(order.shipping_fee) },
+          ]}
+        />
+      </AdminCard>
+
+      <AdminCard
+        title="수선 품목"
+        description={`총 ${order.items.length.toLocaleString("ko-KR")}개 품목`}
+      >
+        {order.items.length === 0 ? (
+          <ContentPlaceholder title="등록된 품목이 없습니다" />
+        ) : (
+          <VStack gap="x4" alignItems="stretch">
+            {order.items.map((item, index) => (
+              <Box
+                key={index}
+                borderWidth={1}
+                borderColor="stroke.neutral"
+                borderRadius="r2"
+                p="x4"
+              >
+                <VStack gap="x3" alignItems="stretch">
+                  <Text as="h3" textStyle="labelSm">
+                    품목 {index + 1}
+                  </Text>
+                  <DetailList items={itemDetailItems(item)} />
+                </VStack>
+              </Box>
+            ))}
+          </VStack>
+        )}
+      </AdminCard>
 
       <HStack justify="flex-end">
         <ActionButton

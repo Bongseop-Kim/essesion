@@ -3,7 +3,7 @@ import { adminListClaimsV2Options } from "@essesion/api-client/query";
 import { HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import {
@@ -104,6 +104,7 @@ const columns: readonly AdminTableColumn<AdminClaimSummaryOut>[] = [
 ];
 
 export function ClaimsPage() {
+  const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: CLAIM_SORTS,
     allowedStatuses: CLAIM_STATUSES,
@@ -198,6 +199,7 @@ export function ClaimsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/claims/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

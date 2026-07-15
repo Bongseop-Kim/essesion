@@ -19,6 +19,7 @@ type PaginatedAdminTableCardProps<Row> = {
   total?: number;
   sort?: AdminTableSort;
   onSort?: (sort: AdminTableSort) => void;
+  onRowClick?: (row: Row) => void;
   refreshing: boolean;
   onRefresh: () => void;
   onRetry?: () => void;
@@ -42,6 +43,7 @@ export function PaginatedAdminTableCard<Row>({
   total,
   sort,
   onSort,
+  onRowClick,
   refreshing,
   onRefresh,
   onRetry,
@@ -78,6 +80,7 @@ export function PaginatedAdminTableCard<Row>({
           total={total}
           sort={sort}
           onSort={onSort}
+          onRowClick={onRowClick}
           onRetry={onRetry ?? onRefresh}
           emptyTitle={emptyTitle}
           emptyDescription={emptyDescription}

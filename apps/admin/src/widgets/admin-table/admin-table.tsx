@@ -14,7 +14,7 @@ import {
   ChevronUpDownIcon,
   ChevronUpIcon,
 } from "@heroicons/react/20/solid";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
 export type AdminTableSort = {
   key: string;
@@ -39,6 +39,7 @@ export type AdminTableProps<Row> = {
   total?: number;
   sort?: AdminTableSort;
   onSort?: (sort: AdminTableSort) => void;
+  onRowClick?: (row: Row) => void;
   onRetry?: () => void;
   emptyTitle?: string;
   emptyDescription?: string;
@@ -87,6 +88,7 @@ export function AdminTable<Row>({
   total = rows.length,
   sort,
   onSort,
+  onRowClick,
   onRetry,
   emptyTitle = "표시할 데이터가 없습니다",
   emptyDescription,
@@ -216,7 +218,32 @@ export function AdminTable<Row>({
                   </Box>
                 ))
               : rows.map((row) => (
-                  <Box as="tr" key={getRowKey(row)}>
+                  <Box
+                    as="tr"
+                    key={getRowKey(row)}
+                    onClick={
+                      onRowClick === undefined
+                        ? undefined
+                        : (event: MouseEvent<HTMLTableRowElement>) => {
+                            const target = event.target as Element;
+                            if (
+                              target.closest(
+                                "a,button,input,label,select,textarea",
+                              )
+                            ) {
+                              return;
+                            }
+                            if (window.getSelection()?.isCollapsed === false) {
+                              return;
+                            }
+                            onRowClick(row);
+                          }
+                    }
+                    className={cn(
+                      onRowClick !== undefined &&
+                        "cursor-pointer hover:bg-bg-neutral-weak",
+                    )}
+                  >
                     {columns.map((column) => (
                       <Box
                         as="td"

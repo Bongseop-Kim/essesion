@@ -154,6 +154,7 @@ export function CouponsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(coupon) => coupon.id}
+        onRowClick={(coupon) => navigate(`/coupons/${coupon.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

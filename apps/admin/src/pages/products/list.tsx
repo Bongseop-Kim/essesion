@@ -76,7 +76,7 @@ const columns: readonly AdminTableColumn<AdminProductSummaryOut>[] = [
           <ImageFrame src={product.image} alt="" ratio={1} fit="cover" stroke />
         </Box>
         <VStack gap="x0_5" minWidth={0}>
-          <Link to={`/products/${product.id}/edit`}>{product.name}</Link>
+          <Link to={`/products/${product.id}`}>{product.name}</Link>
           <Text textStyle="caption" color="fg.neutral-muted">
             {product.code ?? "상품 코드 없음"}
           </Text>
@@ -323,6 +323,7 @@ export function ProductsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(product) => String(product.id)}
+        onRowClick={(product) => navigate(`/products/${product.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

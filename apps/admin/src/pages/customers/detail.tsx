@@ -28,7 +28,7 @@ import {
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import {
   formatDate,
@@ -150,6 +150,7 @@ function booleanLabel(value: boolean) {
 }
 
 export function CustomerDetailPage() {
+  const navigate = useNavigate();
   const { userId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -434,6 +435,7 @@ export function CustomerDetailPage() {
             columns={orderColumns}
             rows={orders.data?.items}
             getRowKey={(row) => row.id}
+            onRowClick={(row) => navigate(`/orders/${row.id}`)}
             status={
               orders.isLoading
                 ? "loading"
@@ -463,6 +465,7 @@ export function CustomerDetailPage() {
             columns={couponColumns}
             rows={coupons.data?.items}
             getRowKey={(row) => row.id}
+            onRowClick={(row) => navigate(`/coupons/${row.coupon_id}`)}
             status={
               coupons.isLoading
                 ? "loading"

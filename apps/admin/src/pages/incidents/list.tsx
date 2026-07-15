@@ -2,7 +2,7 @@ import type { PaymentIncidentSummaryOut } from "@essesion/api-client";
 import { adminListPaymentIncidentsOptions } from "@essesion/api-client/query";
 import { HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
 import { incidentPollingInterval } from "../../shared/lib/polling";
@@ -96,6 +96,7 @@ const columns: readonly AdminTableColumn<PaymentIncidentSummaryOut>[] = [
 ];
 
 export function IncidentsPage() {
+  const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: INCIDENT_SORTS,
     allowedStatuses: INCIDENT_STATUSES,
@@ -178,6 +179,7 @@ export function IncidentsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/incidents/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

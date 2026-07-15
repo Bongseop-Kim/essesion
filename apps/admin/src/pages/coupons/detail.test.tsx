@@ -52,6 +52,7 @@ vi.mock("../../shared/lib/use-dirty-form-blocker", () => ({
 }));
 
 import { CouponDetailPage } from "./detail";
+import { CouponEditPage } from "./edit";
 
 const coupon: AdminCouponOut = {
   id: "coupon-1",
@@ -110,12 +111,13 @@ const issuedPage: PageIssuedCouponOut = {
   offset: 0,
 };
 
-function renderPage() {
+function renderPage(entry = "/coupons/coupon-1") {
   renderAdminPage(
     <Routes>
       <Route path="/coupons/:couponId" element={<CouponDetailPage />} />
+      <Route path="/coupons/:couponId/edit" element={<CouponEditPage />} />
     </Routes>,
-    { entry: "/coupons/coupon-1" },
+    { entry },
   );
 }
 
@@ -136,7 +138,7 @@ describe("CouponDetailPage", () => {
     api.updateCoupon.mockRejectedValueOnce(
       new Error("다른 관리자가 수정했습니다"),
     );
-    renderPage();
+    renderPage("/coupons/coupon-1/edit");
 
     const discount = await screen.findByLabelText(/할인율/);
     await user.clear(discount);

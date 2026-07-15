@@ -149,6 +149,7 @@ export function ManualOrdersPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/manual-orders/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

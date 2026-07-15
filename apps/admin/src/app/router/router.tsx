@@ -96,6 +96,15 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
+    path: "manual-orders/:manualOrderId/edit",
+    lazy: async () => {
+      const { ManualOrderEditPage } = await import(
+        "../../pages/manual-orders/edit"
+      );
+      return { Component: ManualOrderEditPage };
+    },
+  },
+  {
     path: "products",
     lazy: async () => {
       const { ProductsPage } = await import("../../pages/products/list");
@@ -107,6 +116,13 @@ const pageRoutes: RouteObject[] = [
     lazy: async () => {
       const { ProductNewPage } = await import("../../pages/products/new");
       return { Component: ProductNewPage };
+    },
+  },
+  {
+    path: "products/:productId",
+    lazy: async () => {
+      const { ProductDetailPage } = await import("../../pages/products/detail");
+      return { Component: ProductDetailPage };
     },
   },
   {
@@ -135,6 +151,13 @@ const pageRoutes: RouteObject[] = [
     lazy: async () => {
       const { CouponDetailPage } = await import("../../pages/coupons/detail");
       return { Component: CouponDetailPage };
+    },
+  },
+  {
+    path: "coupons/:couponId/edit",
+    lazy: async () => {
+      const { CouponEditPage } = await import("../../pages/coupons/edit");
+      return { Component: CouponEditPage };
     },
   },
   {
@@ -236,6 +259,13 @@ const pageRoutes: RouteObject[] = [
     lazy: async () => {
       const { MotifsPage } = await import("../../pages/motifs/list");
       return { Component: MotifsPage };
+    },
+  },
+  {
+    path: "motifs/:motifId",
+    lazy: async () => {
+      const { MotifDetailPage } = await import("../../pages/motifs/detail");
+      return { Component: MotifDetailPage };
     },
   },
   {

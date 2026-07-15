@@ -12,7 +12,7 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import {
@@ -73,6 +73,7 @@ const columns: readonly AdminTableColumn<AdminInquirySummaryOut>[] = [
 ];
 
 export function InquiriesPage() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const parsed = parseAdminListQuery(params, {
     allowedSorts: INQUIRY_SORTS,
@@ -227,6 +228,7 @@ export function InquiriesPage() {
             columns={columns}
             rows={query.data?.items}
             getRowKey={(row) => row.id}
+            onRowClick={(row) => navigate(`/inquiries/${row.id}`)}
             status={
               query.isLoading ? "loading" : query.isError ? "error" : "success"
             }
