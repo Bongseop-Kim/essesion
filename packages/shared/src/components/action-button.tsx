@@ -81,11 +81,15 @@ export function ActionButton({
       {...props}
     >
       {loading ? (
-        <ProgressCircle
-          size={spinnerSizes[size]}
-          tone="contrast"
-          className="text-current"
-        />
+        <>
+          <span className="sr-only">{children}</span>
+          <ProgressCircle
+            size={spinnerSizes[size]}
+            tone="contrast"
+            aria-hidden="true"
+            className="text-current"
+          />
+        </>
       ) : (
         children
       )}

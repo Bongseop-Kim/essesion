@@ -19,6 +19,7 @@ from db.models.commerce import (
     ShippingAddress,
     UserCoupon,
 )
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 _seq = itertools.count(1)
@@ -80,7 +81,9 @@ async def make_product(
 
 
 def auth_headers(user: User, settings: Settings) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(user.id, user.role, settings)}"}
+    session_kind = "admin" if user.role in ("admin", "manager") else "store"
+    token = create_access_token(user.id, user.role, settings, session_kind=session_kind)
+    return {"Authorization": f"Bearer {token}"}
 
 
 async def make_address(session: AsyncSession, user: User) -> ShippingAddress:
@@ -136,7 +139,11 @@ async def seed_pricing(
 
 
 async def seed_setting(session: AsyncSession, key: str, value: str) -> None:
-    session.add(AdminSetting(key=key, value=value))
+    await session.execute(
+        pg_insert(AdminSetting)
+        .values(key=key, value=value)
+        .on_conflict_do_update(index_elements=[AdminSetting.key], set_={"value": value})
+    )
     await session.commit()
 
 

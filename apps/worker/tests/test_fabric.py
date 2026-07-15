@@ -423,6 +423,7 @@ def test_finalize_route_succeeds(weaves, monkeypatch):
 
     job = SimpleNamespace(
         id=uuid.uuid4(),
+        kind="finalize",
         status="queued",
         attempts=0,
         result=None,
@@ -442,6 +443,7 @@ def test_finalize_route_fabric_error_records_failed_and_returns_200(weaves, monk
 
     job = SimpleNamespace(
         id=uuid.uuid4(),
+        kind="finalize",
         status="queued",
         attempts=0,
         result=None,

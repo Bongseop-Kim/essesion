@@ -7,11 +7,13 @@ import {
 import { useNavigate, useSearchParams } from "react-router";
 
 import { CHECKOUT_PENDING_KEY, readPendingCheckout } from "@/features/checkout";
+import { useSession } from "@/shared/store/session";
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 
 export function PaymentFailPage() {
   const navigate = useNavigate();
+  const ownerUserId = useSession((state) => state.user?.id ?? null);
   const [params] = useSearchParams();
   const code = params.get("code") ?? "UNKNOWN";
   const message = params.get("message") ?? "결제를 완료하지 못했습니다.";
@@ -39,7 +41,7 @@ export function PaymentFailPage() {
                 cartItemIds?: string[];
                 returnPath?: string;
                 returnState?: unknown;
-              }>(CHECKOUT_PENDING_KEY);
+              }>(CHECKOUT_PENDING_KEY, ownerUserId);
               navigate(pending?.snapshot.returnPath ?? "/order/order-form", {
                 state: pending?.snapshot.returnState ?? {
                   cartItemIds: pending?.snapshot.cartItemIds,

@@ -76,6 +76,8 @@ def stripe_tiles(tile_mm: float, period_mm: float, p: int, q: int, tol: float = 
     if hypot == 0:
         return False
     k = tile_mm / (period_mm * hypot)
+    if not math.isfinite(k):
+        return False
     nearest = round(k)
     return nearest >= 1 and abs(nearest - k) <= tol * max(1.0, k)
 
@@ -83,7 +85,10 @@ def stripe_tiles(tile_mm: float, period_mm: float, p: int, q: int, tol: float = 
 def divides(whole: float, part: float, tol: float = 1e-6) -> bool:
     if part <= 0:
         return False
-    residue = round(whole / part) * part - whole
+    ratio = whole / part
+    if not math.isfinite(ratio):
+        return False
+    residue = round(ratio) * part - whole
     return abs(residue) <= tol * max(1.0, abs(whole))
 
 
@@ -91,5 +96,8 @@ def snap_spacing(closure_mm: float, spacing_mm: float) -> tuple[int, float]:
     """간격을 lane 폐곡선 길이의 정확한 약수로 스냅 — (개수, 유효 간격)."""
     if spacing_mm <= 0:
         raise ValueError(f"spacing_mm must be positive, got {spacing_mm}")
-    n = max(1, round(closure_mm / spacing_mm))
+    ratio = closure_mm / spacing_mm
+    if not math.isfinite(ratio):
+        raise ValueError("spacing_mm is too small to produce a finite instance count")
+    n = max(1, round(ratio))
     return n, closure_mm / n

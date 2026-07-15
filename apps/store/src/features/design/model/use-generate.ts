@@ -39,9 +39,27 @@ export type GenerateDesignResult = {
   response: DesignGenerateOut;
 };
 
+export class StaleDesignOperationError extends Error {
+  override name = "StaleDesignOperationError";
+
+  constructor() {
+    super("stale design operation");
+  }
+}
+
+let pendingOperationSequence = 0;
+
+function createPendingOperationId() {
+  pendingOperationSequence += 1;
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${pendingOperationSequence.toString(36)}`
+  );
+}
+
 export function useGenerateDesign(options?: {
   pendingStorage?: StorageLike | null;
-  onSessionReady?: (sessionId: string) => void;
+  onSessionReady?: (sessionId: string, input: GenerateDesignInput) => boolean;
 }) {
   const queryClient = useQueryClient();
 
@@ -57,8 +75,13 @@ export function useGenerateDesign(options?: {
         sessionId = session.id;
       }
 
-      options?.onSessionReady?.(sessionId);
-      writePendingDesign(sessionId, { storage: options?.pendingStorage });
+      const accepted = options?.onSessionReady?.(sessionId, input) ?? true;
+      if (!accepted) throw new StaleDesignOperationError();
+      const operationId = createPendingOperationId();
+      writePendingDesign(sessionId, {
+        storage: options?.pendingStorage,
+        operationId,
+      });
       try {
         const { data: response } = await generateDesign({
           body:
@@ -80,7 +103,10 @@ export function useGenerateDesign(options?: {
         });
         return { sessionId, response };
       } finally {
-        clearPendingDesign({ storage: options?.pendingStorage });
+        clearPendingDesign({
+          storage: options?.pendingStorage,
+          operationId,
+        });
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: listDesignSessionsQueryKey(),

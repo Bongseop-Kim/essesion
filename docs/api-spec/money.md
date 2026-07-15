@@ -2,7 +2,8 @@
 
 원본: YeongSeon `supabase/schemas/{93,95,98,99}_functions_*.sql`, `supabase/functions/{create-order,create-custom-order,create-sample-order,confirm-payment,cancel-token-payment}`. 기능 개편 금지 — 이 명세와 동작이 달라지면 버그다. 숫자·상태 문자열·수식은 원문 그대로.
 
-결제 프로바이더는 Toss Payments, **웹훅 없음** — 프론트 successUrl 콜백 기반(클라이언트가 결제 승인 후 confirm 엔드포인트 호출).
+결제 프로바이더는 Toss Payments다. 프론트 successUrl 콜백의 confirm이 주 경로이며,
+현재 구현은 상태 복구용 조회 검증 웹훅도 함께 사용한다(§7 자동 대사 참고).
 
 ## 1. 채번
 
@@ -15,7 +16,7 @@
 
 입력: 배송지 id, items[] `{item_id, item_type(product|reform), product_id, selected_option_id, reform_data, quantity, applied_user_coupon_id}`, repair_shipping `{method: direct|pickup, pickup:{recipient_name, recipient_phone, postal_code?, address, detail_address?}}`.
 
-검증: 아이템 최대 50개 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity>0·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 돌려묶기 불가) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하 / pickup은 reform 아이템이 있어야 하고 수령인 3필드 필수.
+검증: 아이템 최대 50개 / 요청 내 item_id 중복 불가·최대 200자 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity 1~10,000·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 돌려묶기 불가) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하 / pickup은 reform 아이템이 있어야 하고 수령인 3필드 필수(이름 100·전화 32·주소/상세 500·우편번호 20자 상한).
 
 재고 (결제 전 물리 차감):
 - 옵션 선택 시 옵션 재고, 아니면 상품 재고. `FOR UPDATE` 후 `stock IS NOT NULL AND stock < qty`면 오류, 아니면 차감. **NULL = 무제한**.
@@ -50,19 +51,19 @@
 - fabric: `fabric_provided=true → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + (design_type='YARN_DYED'? YARN_DYED_DESIGN_COST : 0)`. design/fabric_type null이면 오류.
 - total = sewing + fabric.
 
-주문 생성: `base_unit = floor(total/qty)`, remainder는 item_data.pricing.unit_price_remainder에. 쿠폰은 §2와 동일(unit=base_unit). options 페이로드 10KB 제한. reference_images `[{url, file_id?}]` 검증 후 images에 등록(entity_type='custom_order'). order_items: item_id=`custom-order-{order_id}`, item_type='custom', item_data=`{custom_order:true, quantity, options, reference_images, additional_notes, pricing:{sewing_cost,fabric_cost,total_cost,unit_price_remainder}}`. status='대기중'.
+주문 생성: quantity는 1~10,000. `base_unit = floor(total/qty)`, remainder는 item_data.pricing.unit_price_remainder에. 쿠폰은 §2와 동일(unit=base_unit). options 페이로드는 UTF-8 compact JSON 10KB, additional_notes는 500자 제한. reference_images는 최대 5개이며 `upload_id` 검증 후 images에 등록(entity_type='custom_order'). order_items: item_id=`custom-order-{order_id}`, item_type='custom', item_data=`{custom_order:true, quantity, options, reference_images, additional_notes, pricing:{sewing_cost,fabric_cost,total_cost,unit_price_remainder}}`. status='대기중'.
 
 ## 4. 샘플 주문 (sample)
 
 - `sample_type ∈ {fabric, sewing, fabric_and_sewing}`. fabric 계열이면 `design_type ∈ {PRINTING, YARN_DYED}` 필수.
 - 가격 키: sewing→`SAMPLE_SEWING_COST`, fabric+PRINTING→`SAMPLE_FABRIC_PRINTING_COST`, fabric+YD→`SAMPLE_FABRIC_YARN_DYED_COST`, both+PRINTING→`SAMPLE_FABRIC_AND_SEWING_PRINTING_COST`, both+YD→`SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST`. qty=1.
-- 쿠폰 적용 가능(§2 규칙, qty=1). item_id=`sample-order-{order_id}`, item_type='sample'.
+- options는 UTF-8 compact JSON 10KB, additional_notes는 500자, reference_images는 최대 5개. 쿠폰 적용 가능(§2 규칙, qty=1). item_id=`sample-order-{order_id}`, item_type='sample'.
 - **샘플 할인 정책**: 샘플 주문 자체는 정가. **결제 확정 시 후속 정규주문용 할인쿠폰 자동 발급** — sample_type×design_type → (쿠폰명, pricing_constants 키) 매핑 5종(예: sewing→`('SAMPLE_DISCOUNT_SEWING','sample_discount_sewing')`). coupons를 `ON CONFLICT(name) DO UPDATE`로 동기화(fixed, value=상수값, max=값, expiry 2099-12-31) 후 user_coupons INSERT `ON CONFLICT DO NOTHING`.
 
 ## 5. 결제: lock → Toss confirm → confirm / unlock
 
 엔드포인트 흐름 (구 confirm-payment 엣지):
-1. 입력 `{paymentKey, orderId(=payment_group_id), amount}`. amount 양의 정수.
+1. 입력 `{paymentKey, orderId(=payment_group_id), amount}`. `paymentKey`는 1~200자, amount는 양의 정수.
 2. 그룹 주문 조회(없으면 404) → 전부 본인 소유(아니면 403).
 3. **멱등 사전체크**: 전부 결제후 상태면 200 DONE(권위 매핑은 confirm 참조).
 4. 개별 status ∈ {대기중, 결제중} 아니면 409 `Order is not payable`.
@@ -89,7 +90,7 @@
 - **플랜**: pricing_constants `token_plan_{starter|popular|pro}_{price|amount}` 6키 (DB가 소스).
 - **토큰 주문 생성**: 플랜 검증 → `TKN-` 채번 → orders(order_type='token', 배송지 NULL, total=price) + order_items(item_type='token', item_data={plan_key, token_amount}).
 - **차감 (use)**: 비용 = admin_settings `design_token_cost_openai_render_standard`(현행 5). 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus(work_id `{work}_use_bonus`). 전부 ON CONFLICT(work_id) DO NOTHING — work_id 멱등(기존 `_use_paid|_use_paid_0|_use_paid_legacy|_use_bonus` 존재 시 이미 차감으로 간주).
-- **실패 환불 (refund)**: 내부 전용. 양수 INSERT type='refund' class='paid', work_id 필수 멱등.
+- **실패 환불 (refund)**: 내부 전용. 실제 차감 행마다 class·source_order_id·expires_at을 보존한 양수 반전 행을 INSERT한다. work_id는 각 `{work}_use_*_refund`로 필수 멱등.
 - **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합.
 - **가입 지급**: 신규 유저 생성 시(소셜 가입) admin_settings `design_token_initial_grant`(기본 30), type='grant', class='free', **만료 없음**.
 - **admin 지급/회수**: amount≠0, description 필수, 음수면 잔액 검증(유저 lock). type='admin', class='paid'.
@@ -135,4 +136,4 @@
 - **repair 발송 확인 단순화 (원문과 의도적 차이 — UX 재검토로 결정)**: 결제 후 고객에게 필수로 받는 것은 "발송했다"는 확인뿐. 송장번호·사진은 선택 증빙(송장 있으면 발송중, 없으면 발송확인중 — 두 상태는 유지), no_tracking의 reason(quick/overseas/lost)은 선택화(원문은 필수). tracking 영수증에도 memo 허용. 고객이 아무 확인 없이 보낸 실물이 입고되면 관리자가 `발송대기→접수` 강제 전이(원문 전이표에는 없던 추가).
 - **자동 대사 2겹 추가 (원문에 없던 보강 — 제품 관점 재검토로 결정)**:
   - confirm 재시도가 `ALREADY_PROCESSED_PAYMENT`를 받으면 실패(→unlock→stale 취소 = "돈 받고 주문 취소") 대신 **조회 API로 상태·orderId·금액 검증 후 DB 확정**.
-  - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 부분취소·혼합상태·금액불일치는 자동 교정하지 않고 critical 로그(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL 등록은 스테이징 개통(4단계) 때.
+  - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 토큰 회수는 결제 그룹의 user id를 먼저 조회·정렬해 `USER_LOCK`을 잡은 뒤 order row를 잠그므로 `use_tokens`와 직렬화되고, 환불 경로의 공통 잠금 순서(USER → order)를 지킨다. 입력 `paymentKey`는 최대 200자이며, Toss 조회에서 4xx로 확인된 키는 인스턴스별 bounded TTL cache로 짧게 억제한다. IP 제한과 이 cache는 Cloud Run 인스턴스 내부 보조선이고, 전체 트래픽 제한은 Cloudflare WAF가 담당한다. 취소 동기화 전에는 조회 응답·저장 `paymentKey`와 총액이 모두 일치해야 한다. 부분취소·혼합상태·식별자/금액불일치는 자동 교정하지 않고 open `mixed_state` incident와 critical 로그로 남긴다(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL 등록은 스테이징 개통(4단계) 때.

@@ -1,0 +1,441 @@
+{
+  "version": 1,
+  "source": "../YeongSeon/apps/admin/src/App.tsx",
+  "captured_at": "2026-07-12",
+  "rules": {
+    "source_code_usage": "feature-specification-only",
+    "canonical_detail_routes": "standalone-page",
+    "pii_search": "request-body-and-memory-only",
+    "state_transitions": "server-admin-actions-only"
+  },
+  "routes": [
+    {
+      "reference_route": "/login",
+      "canonical_route": "/login",
+      "display_fields": ["email", "password", "authentication error"],
+      "actions": [
+        "admin login",
+        "restore admin session",
+        "redirect authenticated operator"
+      ]
+    },
+    {
+      "reference_route": "/",
+      "canonical_route": "/",
+      "display_fields": [
+        "period",
+        "order type",
+        "order amount",
+        "order count",
+        "open claims",
+        "open inquiries",
+        "open payment incidents",
+        "recent orders",
+        "recent quotes",
+        "as-of time"
+      ],
+      "actions": [
+        "change period",
+        "change order type",
+        "refresh each read model",
+        "open related detail"
+      ]
+    },
+    {
+      "reference_route": "/orders",
+      "canonical_route": "/orders",
+      "display_fields": [
+        "order id",
+        "customer summary",
+        "order type",
+        "status",
+        "order amount",
+        "created at"
+      ],
+      "actions": [
+        "memory-only customer search",
+        "filter",
+        "sort",
+        "paginate",
+        "open order"
+      ]
+    },
+    {
+      "reference_route": "/orders/show/:id",
+      "canonical_route": "/orders/:orderId",
+      "display_fields": [
+        "order summary",
+        "transaction snapshot",
+        "customer",
+        "shipping address",
+        "item snapshots",
+        "type-specific details",
+        "active claim",
+        "payment group orders",
+        "status history",
+        "admin actions"
+      ],
+      "actions": [
+        "enter tracking",
+        "execute enabled server action",
+        "enter rollback memo",
+        "open related resource"
+      ]
+    },
+    {
+      "reference_route": "/products",
+      "canonical_route": "/products",
+      "display_fields": [
+        "product image",
+        "code",
+        "name",
+        "price",
+        "stock",
+        "option count",
+        "updated at"
+      ],
+      "actions": [
+        "search",
+        "filter",
+        "sort",
+        "paginate",
+        "create product",
+        "edit product"
+      ]
+    },
+    {
+      "reference_route": "/products/create",
+      "canonical_route": "/products/new",
+      "display_fields": [
+        "code",
+        "name",
+        "description",
+        "price",
+        "stock",
+        "ordered images",
+        "options"
+      ],
+      "actions": [
+        "request signed upload",
+        "preview image",
+        "add or remove option",
+        "validate",
+        "create atomically"
+      ]
+    },
+    {
+      "reference_route": "/products/edit/:id",
+      "canonical_route": "/products/:productId/edit",
+      "display_fields": [
+        "code",
+        "name",
+        "description",
+        "price",
+        "stock",
+        "ordered images",
+        "stable option ids",
+        "revision"
+      ],
+      "actions": [
+        "replace or remove image",
+        "create update or delete option by id",
+        "save atomically",
+        "recover from stale write"
+      ]
+    },
+    {
+      "reference_route": "/coupons",
+      "canonical_route": "/coupons",
+      "display_fields": [
+        "coupon name",
+        "discount type",
+        "discount value",
+        "maximum discount",
+        "expiry",
+        "active state",
+        "issued count"
+      ],
+      "actions": ["filter", "paginate", "create coupon", "open coupon"]
+    },
+    {
+      "reference_route": "/coupons/create",
+      "canonical_route": "/coupons/new",
+      "display_fields": [
+        "name",
+        "discount type",
+        "discount value",
+        "maximum discount",
+        "expiry",
+        "active state"
+      ],
+      "actions": ["validate", "create coupon"]
+    },
+    {
+      "reference_route": "/coupons/edit/:id",
+      "canonical_route": "/coupons/:couponId",
+      "display_fields": [
+        "coupon definition",
+        "revision",
+        "issued-condition snapshots",
+        "issue history",
+        "audience preview"
+      ],
+      "actions": [
+        "update definition",
+        "preview audience",
+        "issue idempotently",
+        "revoke issuance",
+        "paginate history"
+      ]
+    },
+    {
+      "reference_route": "/quote-requests",
+      "canonical_route": "/quote-requests",
+      "display_fields": [
+        "quote id",
+        "customer summary",
+        "status",
+        "quoted amount",
+        "created at",
+        "updated at"
+      ],
+      "actions": ["filter", "sort", "paginate", "open quote"]
+    },
+    {
+      "reference_route": "/quote-requests/show/:id",
+      "canonical_route": "/quote-requests/:quoteId",
+      "display_fields": [
+        "customer",
+        "shipping snapshot",
+        "request details",
+        "reference images",
+        "quoted amount",
+        "conditions",
+        "admin memo",
+        "status history",
+        "admin actions",
+        "revision"
+      ],
+      "actions": [
+        "renew signed image read",
+        "save amount conditions and memo",
+        "execute enabled server action",
+        "recover from stale write"
+      ]
+    },
+    {
+      "reference_route": "/claims",
+      "canonical_route": "/claims",
+      "display_fields": [
+        "claim id",
+        "claim type",
+        "order id",
+        "customer summary",
+        "status",
+        "created at",
+        "notification state"
+      ],
+      "actions": ["filter", "sort", "paginate", "open claim"]
+    },
+    {
+      "reference_route": "/claims/show/:id",
+      "canonical_route": "/claims/:claimId",
+      "display_fields": [
+        "order",
+        "customer",
+        "reason",
+        "claim-type context",
+        "shipping and tracking",
+        "repair receipt and images",
+        "combined timeline",
+        "notification outbox",
+        "admin actions"
+      ],
+      "actions": [
+        "update return or resend tracking",
+        "execute enabled server action",
+        "enter memo",
+        "approve token refund",
+        "retry notification",
+        "open payment incident"
+      ]
+    },
+    {
+      "reference_route": "/customers",
+      "canonical_route": "/customers",
+      "display_fields": [
+        "customer id",
+        "name",
+        "email",
+        "phone",
+        "active state",
+        "token balance",
+        "joined at"
+      ],
+      "actions": [
+        "body-based PII search",
+        "filter",
+        "sort",
+        "paginate",
+        "open customer"
+      ]
+    },
+    {
+      "reference_route": "/customers/show/:id",
+      "canonical_route": "/customers/:userId",
+      "display_fields": [
+        "profile",
+        "account state",
+        "token balance",
+        "orders",
+        "coupon issuances",
+        "token ledger"
+      ],
+      "actions": [
+        "paginate each history",
+        "grant token",
+        "revoke token",
+        "open related resource"
+      ]
+    },
+    {
+      "reference_route": "/inquiries",
+      "canonical_route": "/inquiries",
+      "display_fields": [
+        "inquiry id",
+        "customer summary",
+        "product summary",
+        "title",
+        "answered state",
+        "created at"
+      ],
+      "actions": [
+        "filter unanswered",
+        "body-based PII search",
+        "sort",
+        "paginate",
+        "open inquiry"
+      ]
+    },
+    {
+      "reference_route": "/inquiries/show/:id",
+      "canonical_route": "/inquiries/:inquiryId",
+      "display_fields": [
+        "customer",
+        "product",
+        "question",
+        "answer",
+        "answered by",
+        "answered at",
+        "revision"
+      ],
+      "actions": [
+        "submit answer once",
+        "recover from stale write",
+        "open customer or product"
+      ]
+    },
+    {
+      "reference_route": "/pricing",
+      "canonical_route": "/pricing",
+      "display_fields": [
+        "category",
+        "key",
+        "description",
+        "amount",
+        "unit",
+        "updated by",
+        "updated at",
+        "revision"
+      ],
+      "actions": [
+        "edit allowlisted values",
+        "review change summary",
+        "save batch atomically"
+      ]
+    },
+    {
+      "reference_route": "/generation-logs",
+      "canonical_route": "/generation-logs?tab=jobs",
+      "display_fields": [
+        "job id",
+        "status",
+        "stage",
+        "attempts",
+        "duration",
+        "created at",
+        "sanitized error"
+      ],
+      "actions": ["filter", "paginate", "open generation job"]
+    },
+    {
+      "reference_route": "/generation-logs/:id",
+      "canonical_route": "/generation-logs",
+      "display_fields": ["legacy source retired notice"],
+      "actions": ["open generation operations hub"]
+    },
+    {
+      "reference_route": "/seamless-logs",
+      "canonical_route": "/generation-logs?tab=seamless",
+      "display_fields": [
+        "log id",
+        "request id",
+        "status",
+        "candidate count",
+        "render duration",
+        "created at",
+        "sanitized error"
+      ],
+      "actions": ["filter", "paginate", "open seamless log"]
+    },
+    {
+      "reference_route": "/seamless-logs/:id",
+      "canonical_route": "/generation-logs/seamless/:logId",
+      "display_fields": [
+        "status",
+        "request id",
+        "performance",
+        "candidate metadata",
+        "safe candidate previews",
+        "sanitized error"
+      ],
+      "actions": ["renew authorized signed read", "inspect safe SVG candidate"]
+    },
+    {
+      "reference_route": "/motifs",
+      "canonical_route": "/motifs",
+      "display_fields": ["motif name", "metadata", "safe SVG preview"],
+      "actions": ["filter", "paginate", "inspect safe preview"]
+    },
+    {
+      "reference_route": "/settings",
+      "canonical_route": "/settings",
+      "display_fields": [
+        "default courier company",
+        "initial design token grant",
+        "updated by",
+        "updated at",
+        "revision"
+      ],
+      "actions": [
+        "edit typed allowlisted settings",
+        "review change summary",
+        "save atomically"
+      ]
+    }
+  ],
+  "new_operational_routes": [
+    {
+      "canonical_route": "/incidents",
+      "purpose": "unresolved payment incident queue"
+    },
+    {
+      "canonical_route": "/incidents/:incidentId",
+      "purpose": "Toss query, reconciliation, and resolution history"
+    },
+    {
+      "canonical_route": "/generation-logs/jobs/:jobId",
+      "purpose": "generation job detail backed by generation_jobs"
+    }
+  ]
+}

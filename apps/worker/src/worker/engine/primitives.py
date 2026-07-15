@@ -4,6 +4,7 @@ import html
 import math
 from dataclasses import dataclass
 
+from worker.config import get_settings
 from worker.engine.host import Centerline, LaneField
 from worker.engine.intent import Layer, StripeParams
 from worker.engine.palette import Palette
@@ -28,6 +29,28 @@ def build_stripe(params: StripeParams, tile_mm: float) -> "Stripe":
     return Stripe(params=params, tile_mm=tile_mm, snapped=snap_angle(params.angle))
 
 
+def stripe_line_count(params: StripeParams, tile_mm: float, *, cap: int | None = None) -> int:
+    """Return the exact number of SVG lines a stripe render would allocate."""
+    snapped = snap_angle(params.angle)
+    a = math.radians(snapped.angle_deg)
+    nx, ny = -math.sin(a), math.cos(a)
+    projections = (0.0, tile_mm * nx, tile_mm * ny, tile_mm * (nx + ny))
+    lo, hi = min(projections), max(projections)
+    total = 0
+    for band in params.bands:
+        center = band.offset_mm + band.width_mm / 2.0
+        lower = (lo - center) / params.period_mm
+        upper = (hi - center) / params.period_mm
+        if not (math.isfinite(lower) and math.isfinite(upper)):
+            return (cap + 1) if cap is not None else 10**100
+        k_min = math.floor(lower)
+        k_max = math.ceil(upper)
+        total += k_max - k_min + 1
+        if cap is not None and total > cap:
+            return total
+    return total
+
+
 @dataclass(frozen=True)
 class Stripe:
     params: StripeParams
@@ -40,6 +63,13 @@ class Stripe:
         타일 꼭짓점들의 법선 투영 범위 [lo, hi]를 period로 나눠 k 범위를 정하고,
         각 밴드 중심선(offset + width/2)을 k·period만큼 평행 이동해 그린다.
         """
+        cap = get_settings().max_placement_instances
+        line_count = stripe_line_count(self.params, self.tile_mm, cap=cap)
+        if line_count > cap:
+            raise ValueError(
+                f"stripe would render {line_count} lines (> max_placement_instances {cap})"
+            )
+
         angle = self.snapped.angle_deg
         a = math.radians(angle)
         dx, dy = math.cos(a), math.sin(a)

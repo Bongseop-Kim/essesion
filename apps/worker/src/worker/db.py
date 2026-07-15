@@ -8,7 +8,13 @@ from worker.config import Settings
 
 
 def build_engine(settings: Settings) -> AsyncEngine:
-    return create_async_engine(settings.database_url)
+    return create_async_engine(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout_seconds,
+        pool_pre_ping=True,
+    )
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:

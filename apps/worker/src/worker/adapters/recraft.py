@@ -11,8 +11,10 @@ motif_id로 저장하면 이후 런타임은 id만 참조하므로 같은 intent
 from __future__ import annotations
 
 import base64
+import binascii
 import re
 import xml.etree.ElementTree as ET
+from typing import Literal
 
 import httpx
 
@@ -27,6 +29,7 @@ _RGB_RE = re.compile(r"rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)", re.IGNOR
 _PAINT_ATTRS = ("fill", "stroke", "color")
 # 선두 filled 도형의 bbox가 viewBox의 이 비율 이상이면 전면 배경 — 제거(최소 1 drawable 유지).
 _BG_AREA_RATIO = 0.9
+_B64_RESPONSE_FORMAT = "b64_json"
 
 DEFAULT_VECTOR_MODEL = "recraftv4_1_vector"
 DEFAULT_SIZE = "1024x1024"
@@ -208,19 +211,24 @@ class RecraftHTTPClient:
         model: str = DEFAULT_VECTOR_MODEL,
         style: str = "",
         size: str = DEFAULT_SIZE,
-        response_format: str = "url",
+        response_format: Literal["b64_json"] = "b64_json",
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = 120.0,
+        max_svg_bytes: int = 2_000_000,
     ) -> None:
         if not api_key:
             raise RecraftError("RecraftHTTPClient requires a non-empty api_key")
+        if response_format != _B64_RESPONSE_FORMAT:
+            raise RecraftError("RecraftHTTPClient only supports response_format=b64_json")
+        if max_svg_bytes < 1:
+            raise RecraftError("RecraftHTTPClient requires max_svg_bytes >= 1")
         self._api_key = api_key
         self._model = model
         self._style = style
         self._size = size
-        self._response_format = response_format
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._max_svg_bytes = max_svg_bytes
         self._client: httpx.AsyncClient | None = None
 
     def _http(self) -> httpx.AsyncClient:
@@ -235,7 +243,7 @@ class RecraftHTTPClient:
         try:
             resp = await client.post(f"{self._base_url}{path}", headers=headers, **request_kwargs)
             resp.raise_for_status()
-            svg = await extract(client, resp.json())
+            svg = extract(resp.json())
         except httpx.HTTPStatusError as exc:
             raise RecraftError(
                 f"Recraft {label} HTTP {exc.response.status_code}: {exc.response.text[:500]}"
@@ -250,7 +258,7 @@ class RecraftHTTPClient:
         payload: dict = {
             "prompt": prompt,
             "model": self._model,
-            "response_format": self._response_format,
+            "response_format": _B64_RESPONSE_FORMAT,
             "n": 1,
         }
         if self._style:
@@ -258,13 +266,27 @@ class RecraftHTTPClient:
         if self._size:
             payload["size"] = self._size
 
-        async def _extract(client: httpx.AsyncClient, data: dict) -> str:
-            item = data["data"][0]
-            if self._response_format == "b64_json":
-                return base64.b64decode(item["b64_json"]).decode("utf-8")
-            file_resp = await client.get(item["url"])
-            file_resp.raise_for_status()
-            return file_resp.text
+        def _extract(data: dict) -> str:
+            encoded = data["data"][0]["b64_json"]
+            if not isinstance(encoded, str):
+                raise ValueError("Recraft b64_json must be a string")
+
+            # Strict base64 has no whitespace. Reject by encoded size before allocating the
+            # decoded buffer, then enforce the exact raw-byte ceiling as well.
+            max_encoded_bytes = 4 * ((self._max_svg_bytes + 2) // 3)
+            try:
+                encoded_bytes = encoded.encode("ascii")
+            except UnicodeEncodeError as exc:
+                raise ValueError("Recraft b64_json is not ASCII") from exc
+            if len(encoded_bytes) > max_encoded_bytes:
+                raise ValueError(f"Recraft SVG exceeds max_svg_bytes {self._max_svg_bytes}")
+            try:
+                raw = base64.b64decode(encoded_bytes, validate=True)
+            except binascii.Error as exc:
+                raise ValueError("Recraft returned invalid base64 SVG") from exc
+            if len(raw) > self._max_svg_bytes:
+                raise ValueError(f"Recraft SVG exceeds max_svg_bytes {self._max_svg_bytes}")
+            return raw.decode("utf-8")
 
         return await self._post_for_svg(_API_PATH, json=payload, extract=_extract, label="API")
 
@@ -282,8 +304,9 @@ def build_recraft_client(settings) -> RecraftHTTPClient | None:
         model=getattr(settings, "recraft_model", None) or DEFAULT_VECTOR_MODEL,
         style=getattr(settings, "recraft_style", "") or "",
         size=getattr(settings, "recraft_size", None) or DEFAULT_SIZE,
-        response_format=getattr(settings, "recraft_response_format", None) or "url",
+        response_format=getattr(settings, "recraft_response_format", None) or _B64_RESPONSE_FORMAT,
         base_url=getattr(settings, "recraft_base_url", None) or DEFAULT_BASE_URL,
+        max_svg_bytes=getattr(settings, "max_svg_bytes", 2_000_000),
     )
 
 

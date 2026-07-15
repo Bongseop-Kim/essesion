@@ -52,6 +52,7 @@ import {
   customOrderSummary,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
   DEFAULT_QUOTE_CONTACT,
+  handoffAnonymousCustomOrderFormDraft,
   invalidCustomOrderSection,
   MAX_CUSTOM_ORDER_QUANTITY,
   parseCustomOrderFormDraft,
@@ -76,15 +77,44 @@ const DESCRIPTION =
   "수량, 원단, 봉제 방식과 마감 사양을 선택하고 맞춤 넥타이 제작 비용을 확인하세요.";
 
 export function CustomOrderPage() {
+  const status = useSession((state) => state.status);
+  const user = useSession((state) => state.user);
+  const draftOwnerId =
+    status === "authenticated"
+      ? user?.id
+      : status === "anonymous"
+        ? null
+        : undefined;
+  const ownerKey =
+    draftOwnerId === undefined ? "loading" : (draftOwnerId ?? "anonymous");
+
+  return <CustomOrderPageContent key={ownerKey} draftOwnerId={draftOwnerId} />;
+}
+
+function CustomOrderPageContent({
+  draftOwnerId,
+}: {
+  draftOwnerId: string | null | undefined;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const location = useLocation();
   const { requireAuth } = useAuthGuard();
   const status = useSession((state) => state.status);
-  const user = useSession((state) => state.user);
-  const restored = useMemo(
-    () => readLoginDraft(location.state) ?? readCustomOrderFormDraft(),
+  const user = useSession((state) =>
+    state.status === "authenticated" ? state.user : null,
+  );
+  const loginDraft = useMemo(
+    () => readLoginDraft(location.state),
     [location.state],
+  );
+  const restored = useMemo(
+    () =>
+      loginDraft ??
+      (draftOwnerId === undefined
+        ? null
+        : readCustomOrderFormDraft(draftOwnerId)),
+    [draftOwnerId, loginDraft],
   );
   const initialDesigns = useMemo(
     () => readDesignJobs(location.state),
@@ -159,12 +189,29 @@ export function CustomOrderPage() {
   }, [address, addressesQuery.data]);
 
   useEffect(() => {
+    if (!loginDraft || !draftOwnerId) return;
+    handoffAnonymousCustomOrderFormDraft(draftOwnerId, loginDraft);
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: withoutLoginDraft(location.state),
+    });
+  }, [
+    draftOwnerId,
+    location.pathname,
+    location.search,
+    location.state,
+    loginDraft,
+    navigate,
+  ]);
+
+  useEffect(() => {
+    if (draftOwnerId === undefined) return;
     const timeout = window.setTimeout(
-      () => saveCustomOrderFormDraft({ options, contact }),
+      () => saveCustomOrderFormDraft(draftOwnerId, { options, contact }),
       400,
     );
     return () => window.clearTimeout(timeout);
-  }, [contact, options]);
+  }, [contact, draftOwnerId, options]);
 
   useEffect(() => {
     if (!user || profileDefaultsApplied.current) return;
@@ -254,17 +301,36 @@ export function CustomOrderPage() {
     else void submitOrderDraft();
   };
 
-  const uploadImages = async (kind: "custom_order" | "quote_request") => {
+  const uploadOrderImages = async () => {
     const [uploads, imported] = await Promise.all([
-      Promise.all(files.map((file) => uploadOrderImage(file, kind))),
+      Promise.all(files.map((file) => uploadOrderImage(file, "custom_order"))),
       Promise.all(
         selectedDesigns.map(async (job) => {
           const response = await createDesignOrderReference({
             path: { job_id: job.id },
-            query: { kind },
+            query: { kind: "custom_order" },
             throwOnError: true,
           });
-          return response.data;
+          if (!response.data.upload_id)
+            throw new Error("완성 디자인의 주문 업로드를 확인하지 못했습니다.");
+          return { upload_id: response.data.upload_id };
+        }),
+      ),
+    ]);
+    return [...uploads, ...imported];
+  };
+
+  const uploadQuoteImages = async () => {
+    const [uploads, imported] = await Promise.all([
+      Promise.all(files.map((file) => uploadOrderImage(file, "quote_request"))),
+      Promise.all(
+        selectedDesigns.map(async (job) => {
+          const response = await createDesignOrderReference({
+            path: { job_id: job.id },
+            query: { kind: "quote_request" },
+            throwOnError: true,
+          });
+          return { object_key: response.data.object_key };
         }),
       ),
     ]);
@@ -275,7 +341,7 @@ export function CustomOrderPage() {
     if (!amount || !calculation.isCurrent || submitting) return;
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages("custom_order");
+      const imageRefs = await uploadOrderImages();
       const draft: CustomOrderDraft = {
         options,
         contact,
@@ -299,7 +365,7 @@ export function CustomOrderPage() {
     setQuoteConfirmOpen(false);
     setSubmitting(true);
     try {
-      const imageRefs = await uploadImages("quote_request");
+      const imageRefs = await uploadQuoteImages();
       await createQuote.mutateAsync({
         body: {
           shipping_address_id: address.id,
@@ -318,7 +384,9 @@ export function CustomOrderPage() {
         refetchType: "all",
       });
       snackbar("견적 요청이 접수되었습니다.");
-      clearCustomOrderFormDraft();
+      if (draftOwnerId !== undefined) {
+        clearCustomOrderFormDraft(draftOwnerId);
+      }
       navigate("/my-page/quote-request");
     } catch (error) {
       snackbar(
@@ -1000,6 +1068,13 @@ function readLoginDraft(state: unknown): LoginDraft | null {
   return parseCustomOrderFormDraft(
     (state as { customOrderDraft?: unknown }).customOrderDraft,
   );
+}
+
+function withoutLoginDraft(state: unknown): unknown {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return state;
+  const next = { ...(state as Record<string, unknown>) };
+  delete next.customOrderDraft;
+  return Object.keys(next).length > 0 ? next : null;
 }
 
 function readDesignJobs(state: unknown): GenerationJobOut[] {

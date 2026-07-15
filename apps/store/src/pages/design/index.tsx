@@ -23,7 +23,7 @@ import {
   Squares2X2Icon,
 } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
@@ -36,6 +36,7 @@ import {
   completeDesignOnboarding,
   isDesignOnboardingComplete,
 } from "@/features/design/model/onboarding";
+import { createOperationEpoch } from "@/features/design/model/operation-epoch";
 import {
   clearPendingDesign,
   type DesignPending,
@@ -59,7 +60,11 @@ import {
   finalizeRetryInput,
   useCreateFinalizeJob,
 } from "@/features/design/model/use-finalize-job";
-import { useGenerateDesign } from "@/features/design/model/use-generate";
+import {
+  type GenerateDesignInput,
+  StaleDesignOperationError,
+  useGenerateDesign,
+} from "@/features/design/model/use-generate";
 import { useDesignSelection } from "@/features/design/model/use-selection";
 import { DesignComposer } from "@/features/design/ui/composer";
 import {
@@ -124,6 +129,11 @@ export function DesignPage() {
   const [exportDpi, setExportDpi] = useState<ExportDpi>(300);
   const [exportWidthMm, setExportWidthMm] = useState("100");
   const [exporting, setExporting] = useState(false);
+  const generationEpoch = useRef(createOperationEpoch()).current;
+  const selectionEpoch = useRef(createOperationEpoch()).current;
+  const generationOperations = useRef(
+    new WeakMap<GenerateDesignInput, number>(),
+  );
 
   const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
   const sessionQuery = useQuery(
@@ -153,9 +163,13 @@ export function DesignPage() {
   );
   const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
   const generateMutation = useGenerateDesign({
-    onSessionReady: (sessionId) => {
+    onSessionReady: (sessionId, input) => {
+      const operation = generationOperations.current.get(input);
+      if (operation === undefined || !generationEpoch.isCurrent(operation))
+        return false;
       setActiveSessionId(sessionId);
       setNewSessionMode(false);
+      return true;
     },
   });
   const selectionMutation = useDesignSelection();
@@ -197,22 +211,40 @@ export function DesignPage() {
       ),
     [activeSessionId, jobsQuery.data, localFinalizeTurns, turnsQuery.data],
   );
-  const generationError = generateMutation.error
-    ? parseDesignError(generateMutation.error)
-    : null;
+  const generationError =
+    generateMutation.error &&
+    !(generateMutation.error instanceof StaleDesignOperationError)
+      ? parseDesignError(generateMutation.error)
+      : null;
 
   const ensureDesignAuth = () => requireAuth({ path: "/design" });
+
+  const runGeneration = (input: GenerateDesignInput) => {
+    const operation = generationEpoch.begin();
+    generationOperations.current.set(input, operation);
+    return { operation, promise: generateMutation.mutateAsync(input) };
+  };
+
+  const invalidateSessionOperations = () => {
+    generationEpoch.invalidate();
+    selectionEpoch.invalidate();
+    generateMutation.reset();
+    selectionMutation.reset();
+  };
 
   const generatePrompt = async () => {
     if (!prompt.trim() || !ensureDesignAuth()) return;
     generateMutation.reset();
     try {
-      const result = await generateMutation.mutateAsync({
+      const input: GenerateDesignInput = {
         mode: "prompt",
         sessionId: activeSessionId,
         prompt: prompt.trim(),
         candidateCount,
-      });
+      };
+      const { operation, promise } = runGeneration(input);
+      const result = await promise;
+      if (!generationEpoch.isCurrent(operation)) return;
       setActiveSessionId(result.sessionId);
       setNewSessionMode(false);
       setSelectionOverride(null);
@@ -233,14 +265,15 @@ export function DesignPage() {
     }
     generateMutation.reset();
     try {
-      await generateMutation.mutateAsync({
+      const input: GenerateDesignInput = {
         mode: "variation",
         sessionId: activeSessionId,
         intent: selection.intent,
         seed: randomSeed(),
         candidateCount,
         colorway: selection.colorway,
-      });
+      };
+      await runGeneration(input).promise;
     } catch {
       // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
     }
@@ -258,7 +291,9 @@ export function DesignPage() {
         : previousInput;
     generateMutation.reset();
     try {
-      const result = await generateMutation.mutateAsync(retryInput);
+      const { operation, promise } = runGeneration(retryInput);
+      const result = await promise;
+      if (!generationEpoch.isCurrent(operation)) return;
       setActiveSessionId(result.sessionId);
       setNewSessionMode(false);
       if (retryInput.mode === "prompt") {
@@ -275,24 +310,32 @@ export function DesignPage() {
     intents: Record<string, unknown>[],
   ) => {
     if (!activeSessionId || !ensureDesignAuth()) return;
+    const sessionId = activeSessionId;
     const next = selectionForCandidate(candidate, intents);
     if (!next) {
       snackbar("선택한 후보 정보를 복원하지 못했습니다.");
       return;
     }
-    setSelectionOverride({ sessionId: activeSessionId, selection: next });
+    const operation = selectionEpoch.begin();
+    setSelectionOverride({ sessionId, selection: next });
     if (compactPreview) setPreviewOpen(true);
     try {
       const result = await selectionMutation.mutateAsync({
-        sessionId: activeSessionId,
+        sessionId,
         candidate,
         intents,
       });
-      if (result.turnAppendError) {
+      if (selectionEpoch.isCurrent(operation) && result.turnAppendError) {
         snackbar("선택은 저장했지만 이력 기록은 남기지 못했습니다.");
       }
     } catch {
-      setSelectionOverride(null);
+      if (!selectionEpoch.isCurrent(operation)) return;
+      setSelectionOverride((current) =>
+        current?.sessionId === sessionId &&
+        current.selection.candidateId === next.candidateId
+          ? null
+          : current,
+      );
       snackbar("디자인을 선택하지 못했습니다. 다시 시도해 주세요.");
     }
   };
@@ -391,6 +434,7 @@ export function DesignPage() {
 
   const openPendingSession = () => {
     if (!pending || !ensureDesignAuth()) return;
+    invalidateSessionOperations();
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
     clearPendingDesign();
@@ -398,17 +442,17 @@ export function DesignPage() {
   };
 
   const startNewSession = () => {
+    invalidateSessionOperations();
     setActiveSessionId(null);
     setNewSessionMode(true);
     setSelectionOverride(null);
-    generateMutation.reset();
   };
 
   const chooseSession = (sessionId: string) => {
+    invalidateSessionOperations();
     setActiveSessionId(sessionId);
     setNewSessionMode(false);
     setSelectionOverride(null);
-    generateMutation.reset();
     setSessionsOpen(false);
   };
 

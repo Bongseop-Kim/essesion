@@ -74,10 +74,11 @@ class Product(TimestampMixin, Base):
             "pattern IN ('solid', 'stripe', 'dot', 'check', 'paisley')", name="pattern"
         ),
         CheckConstraint("material IN ('silk', 'cotton', 'polyester', 'wool')", name="material"),
+        Index("ix_products_admin_list", "category", "created_at", "id"),
     )
 
 
-class ProductOption(CreatedAtMixin, Base):
+class ProductOption(TimestampMixin, Base):
     __tablename__ = "product_options"
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -88,7 +89,11 @@ class ProductOption(CreatedAtMixin, Base):
     additional_price: Mapped[int] = mapped_column(server_default=text("0"))
     stock: Mapped[int | None]
 
-    __table_args__ = (CheckConstraint("stock IS NULL OR stock >= 0", name="stock"),)
+    __table_args__ = (
+        UniqueConstraint("product_id", "name"),
+        CheckConstraint("additional_price >= 0", name="additional_price"),
+        CheckConstraint("stock IS NULL OR stock >= 0", name="stock"),
+    )
 
 
 class ProductLike(CreatedAtMixin, Base):
@@ -122,6 +127,7 @@ class Coupon(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("discount_type IN ('percentage', 'fixed')", name="discount_type"),
         CheckConstraint("discount_value > 0", name="discount_value"),
+        Index("ix_coupons_admin_list", "is_active", "expiry_date", "id"),
     )
 
 
@@ -135,6 +141,8 @@ class UserCoupon(TimestampMixin, Base):
     issued_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     expires_at: Mapped[datetime | None]
     used_at: Mapped[datetime | None]
+    # 발급 시점의 표시명·할인 조건. 기존 row는 migration에서 best-effort backfill한다.
+    terms_snapshot: Mapped[dict[str, Any] | None]
 
     __table_args__ = (
         UniqueConstraint("user_id", "coupon_id"),
@@ -224,6 +232,7 @@ class Order(TimestampMixin, Base):
             "created_at",
             postgresql_where=text("status = '대기중'"),
         ),
+        Index("ix_orders_admin_list", "status", "order_type", "created_at", "id"),
     )
 
 
@@ -272,6 +281,7 @@ class OrderStatusLog(CreatedAtMixin, Base):
     new_status: Mapped[str]
     memo: Mapped[str | None]
     is_rollback: Mapped[bool] = mapped_column(server_default=text("false"))
+    request_id: Mapped[str | None]
 
 
 class Claim(TimestampMixin, Base):
@@ -317,6 +327,7 @@ class Claim(TimestampMixin, Base):
             unique=True,
             postgresql_where=text("status IN ('접수', '처리중', '수거요청', '수거완료', '재발송')"),
         ),
+        Index("ix_claims_admin_list", "status", "type", "created_at", "id"),
     )
 
 
@@ -334,16 +345,29 @@ class ClaimStatusLog(CreatedAtMixin, Base):
     new_status: Mapped[str]
     memo: Mapped[str | None]
     is_rollback: Mapped[bool] = mapped_column(server_default=text("false"))
+    request_id: Mapped[str | None]
 
 
-class ClaimNotificationLog(CreatedAtMixin, Base):
+class ClaimNotificationLog(TimestampMixin, Base):
     __tablename__ = "claim_notification_logs"
 
     id: Mapped[uuid.UUID] = uuid_pk()
     claim_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("claims.id", ondelete="CASCADE"))
     status: Mapped[str]
+    delivery_status: Mapped[str] = mapped_column(server_default="pending")
+    attempts: Mapped[int] = mapped_column(server_default=text("0"))
+    last_error: Mapped[str | None]
+    sent_at: Mapped[datetime | None]
 
-    __table_args__ = (UniqueConstraint("claim_id", "status"),)
+    __table_args__ = (
+        UniqueConstraint("claim_id", "status"),
+        CheckConstraint(
+            "delivery_status IN ('pending', 'sent', 'failed', 'skipped')",
+            name="delivery_status",
+        ),
+        CheckConstraint("attempts >= 0", name="attempts"),
+        Index("ix_claim_notification_logs_delivery", "delivery_status", "created_at"),
+    )
 
 
 class Inquiry(TimestampMixin, Base):
@@ -359,6 +383,9 @@ class Inquiry(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(server_default="답변대기")
     answer: Mapped[str | None]
     answer_date: Mapped[datetime | None]
+    answered_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"))
 
     __table_args__ = (
@@ -366,6 +393,7 @@ class Inquiry(TimestampMixin, Base):
         CheckConstraint("status IN ('답변대기', '답변완료')", name="status"),
         CheckConstraint("char_length(title) BETWEEN 1 AND 200", name="title_length"),
         CheckConstraint("char_length(content) BETWEEN 1 AND 5000", name="content_length"),
+        Index("ix_inquiries_admin_list", "status", "created_at", "id"),
     )
 
 
@@ -375,7 +403,10 @@ class QuoteRequest(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     quote_number: Mapped[str] = mapped_column(unique=True)  # QUO-YYYYMMDD-NNN — 채번은 api
-    shipping_address_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("shipping_addresses.id"))
+    shipping_address_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("shipping_addresses.id", ondelete="SET NULL")
+    )
+    shipping_address_snapshot: Mapped[dict[str, Any] | None]
     options: Mapped[dict[str, Any]]
     quantity: Mapped[int]
     additional_notes: Mapped[str] = mapped_column(server_default="")
@@ -394,6 +425,7 @@ class QuoteRequest(TimestampMixin, Base):
         CheckConstraint("contact_method IN ('email', 'phone')", name="contact_method"),
         CheckConstraint("status IN ('요청', '견적발송', '협의중', '확정', '종료')", name="status"),
         CheckConstraint("quoted_amount IS NULL OR quoted_amount >= 0", name="quoted_amount"),
+        Index("ix_quote_requests_admin_list", "status", "created_at", "id"),
     )
 
 
@@ -410,6 +442,7 @@ class QuoteRequestStatusLog(CreatedAtMixin, Base):
     previous_status: Mapped[str]
     new_status: Mapped[str]
     memo: Mapped[str | None]
+    request_id: Mapped[str | None]
 
 
 class RepairPickupRequest(CreatedAtMixin, Base):
@@ -441,6 +474,76 @@ class RepairShippingReceipt(CreatedAtMixin, Base):
         CheckConstraint("receipt_type IN ('tracking', 'no_tracking')", name="receipt_type"),
         CheckConstraint("reason IS NULL OR reason IN ('quick', 'overseas', 'lost')", name="reason"),
         CheckConstraint("memo IS NULL OR char_length(memo) <= 500", name="memo_length"),
+    )
+
+
+class AdminOperationLog(CreatedAtMixin, Base):
+    """고위험 관리자 변경의 최소 append-only 감사 기록."""
+
+    __tablename__ = "admin_operation_logs"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    operation_id: Mapped[str] = mapped_column(unique=True)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    action: Mapped[str]
+    target_type: Mapped[str]
+    target_id: Mapped[str | None]
+    target_count: Mapped[int | None]
+    reason: Mapped[str]
+    before_data: Mapped[dict[str, Any] | None] = mapped_column("before")
+    after_data: Mapped[dict[str, Any] | None] = mapped_column("after")
+    request_id: Mapped[str]
+
+    __table_args__ = (
+        CheckConstraint(
+            "target_count IS NULL OR target_count >= 0",
+            name="target_count",
+        ),
+        Index("ix_admin_operation_logs_created_at", "created_at", "id"),
+    )
+
+
+class PaymentIncident(TimestampMixin, Base):
+    """외부 결제 결과가 불확실하거나 내부 상태와 어긋난 경우의 복구 queue."""
+
+    __tablename__ = "payment_incidents"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    operation_id: Mapped[str] = mapped_column(unique=True)
+    incident_type: Mapped[str] = mapped_column("type")
+    status: Mapped[str] = mapped_column(server_default="open")
+    request_id: Mapped[str]
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id", ondelete="SET NULL"))
+    claim_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("claims.id", ondelete="SET NULL"))
+    expected_amount: Mapped[int | None]
+    observed_amount: Mapped[int | None]
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    resolution_memo: Mapped[str | None]
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    resolved_at: Mapped[datetime | None]
+
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('confirm', 'refund', 'partial_cancel', 'mixed_state', 'amount_mismatch')",
+            name="type",
+        ),
+        CheckConstraint("status IN ('open', 'resolved')", name="status"),
+        CheckConstraint(
+            "expected_amount IS NULL OR expected_amount >= 0",
+            name="expected_amount",
+        ),
+        CheckConstraint(
+            "observed_amount IS NULL OR observed_amount >= 0",
+            name="observed_amount",
+        ),
+        Index("ix_payment_incidents_queue", "status", "created_at", "id"),
+        Index("ix_payment_incidents_order_id", "order_id"),
+        Index("ix_payment_incidents_claim_id", "claim_id"),
     )
 
 

@@ -1,6 +1,6 @@
 import type {
   CustomAmountRequest,
-  ReferenceImageIn,
+  OrderReferenceImageIn,
 } from "@essesion/api-client";
 
 export type CustomOrderOptions = {
@@ -35,7 +35,7 @@ export type QuoteContact = {
 export type CustomOrderDraft = {
   options: CustomOrderOptions;
   contact: QuoteContact;
-  imageRefs: ReferenceImageIn[];
+  imageRefs: OrderReferenceImageIn[];
   totalCost: number;
 };
 

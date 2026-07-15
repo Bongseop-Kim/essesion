@@ -1,17 +1,25 @@
 name: ci
 
+env:
+  # Vite production build validation. CI never sends traffic to these values.
+  VITE_API_BASE_URL: https://api.example.invalid
+  VITE_TOSS_CLIENT_KEY: test_ci_client_key
+
 on:
   push:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   js:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4 # 버전은 packageManager 필드에서
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4; packageManager 필드에서 pnpm 버전 결정
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -22,10 +30,10 @@ jobs:
   py:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       # worker fabric/raster 테스트의 래스터라이저 — 없으면 해당 테스트가 skip돼 공백이 생긴다
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends librsvg2-bin
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
         with:
           enable-cache: true
       - run: uv sync --all-packages
@@ -37,12 +45,12 @@ jobs:
   codegen-drift:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
         with:
           enable-cache: true
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -51,12 +59,67 @@ jobs:
       - run: pnpm codegen
       - run: git diff --exit-code -- packages/api-client
 
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: essesion
+          POSTGRES_PASSWORD: essesion
+          POSTGRES_DB: essesion
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U essesion -d essesion"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      ENV: local
+      DATABASE_URL: postgresql+asyncpg://essesion:essesion@localhost:5432/essesion
+      SEED_ADMIN_PASSWORD: admin-local-password
+      E2E_ADMIN_EMAIL: admin@local
+      E2E_ADMIN_PASSWORD: admin-local-password
+      E2E_CUSTOMER_EMAIL: customer@local
+      E2E_CUSTOMER_PASSWORD: customer-local-password
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: uv sync --all-packages
+      - run: pnpm install --frozen-lockfile
+      - run: uv run alembic -c db/alembic.ini upgrade head
+      - run: uv run python apps/api/scripts/seed.py
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
   osv-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: osv-scanner (pnpm-lock + uv.lock)
+        env:
+          OSV_SCANNER_VERSION: v2.3.8
+          OSV_SCANNER_SHA256: bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc
         run: |
-          curl -sSL -o osv-scanner https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
+          curl --fail --show-error --silent --location -o osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SCANNER_SHA256}  osv-scanner" | sha256sum --check --strict
           chmod +x osv-scanner
           ./osv-scanner scan source -r .

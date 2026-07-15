@@ -14,6 +14,8 @@ from pydantic import ValidationError
 from worker.config import get_settings
 from worker.engine.intent import Intent
 from worker.engine.palette import ColorSlot, Colorway, Palette, out_of_gamut
+from worker.engine.placement import lattice_axis_count, scatter_target_count
+from worker.engine.primitives import stripe_line_count
 from worker.engine.units import (
     ALLOWED_DPI,
     divides,
@@ -78,9 +80,9 @@ def _lattice_errors(layer, placement, tile: float) -> list[str]:
     if spec is None:
         return [f"layer {layer.id!r}: lattice placement requires a `lattice` spec"]
     errs: list[str] = []
-    nx = round(tile / spec.cell_w_mm)
-    ny = round(tile / spec.cell_h_mm)
     cap = get_settings().max_placement_instances
+    nx = lattice_axis_count(tile, spec.cell_w_mm, cap)
+    ny = lattice_axis_count(tile, spec.cell_h_mm, cap)
     if nx * ny > cap:
         errs.append(
             f"layer {layer.id!r}: lattice would place {nx * ny} instances "
@@ -174,7 +176,10 @@ def _repair_stripe_period(layer, tile: float):
     hypot = math.hypot(snapped.p, snapped.q)
     if hypot == 0:
         return layer, None
-    k = max(1, round(tile / (params.period_mm * hypot)))
+    ratio = tile / (params.period_mm * hypot)
+    if not math.isfinite(ratio):
+        return layer, None  # resource validation below reports the unrenderable repeat count
+    k = max(1, round(ratio))
     new_period = tile / (k * hypot)
     scale = new_period / params.period_mm
     bands = [
@@ -320,8 +325,10 @@ def validate_intent(
         dupes = sorted({i for i in all_layer_ids if all_layer_ids.count(i) > 1})
         errors.append(f"duplicate layer id: {dupes}")
     tile = intent.canvas.tile_mm
-    if tile > get_settings().max_tile_mm:
-        errors.append(f"canvas.tile_mm {tile} exceeds max_tile_mm {get_settings().max_tile_mm}")
+    settings = get_settings()
+    if tile > settings.max_tile_mm:
+        errors.append(f"canvas.tile_mm {tile} exceeds max_tile_mm {settings.max_tile_mm}")
+    repeated_elements = 0
 
     for layer in intent.layers:
         for slot_id in _layer_slot_refs(layer):
@@ -356,6 +363,13 @@ def validate_intent(
 
         if layer.type == "stripe":
             snapped = snap_angle(layer.params.angle)
+            line_count = stripe_line_count(layer.params, tile, cap=settings.max_placement_instances)
+            repeated_elements += line_count
+            if line_count > settings.max_placement_instances:
+                errors.append(
+                    f"layer {layer.id!r}: stripe would render {line_count} lines "
+                    f"(> max_placement_instances {settings.max_placement_instances})"
+                )
             if not stripe_tiles(tile, layer.params.period_mm, snapped.p, snapped.q):
                 errors.append(
                     f"layer {layer.id!r}: stripe (angle {layer.params.angle}, "
@@ -388,8 +402,20 @@ def validate_intent(
                     lane = _lane_closure(placement, layers_by_id, tile)
                     if lane is not None:
                         closure, lp, lq = lane
-                        if not divides(closure, placement.spacing_mm):
+                        try:
                             n, eff = snap_spacing(closure, placement.spacing_mm)
+                        except ValueError:
+                            n, eff = settings.max_placement_instances + 1, 0.0
+                        repeated_elements += n
+                        if n > settings.max_placement_instances:
+                            errors.append(
+                                f"layer {layer.id!r}: path_following would place {n} instances "
+                                f"(> max_placement_instances "
+                                f"{settings.max_placement_instances})"
+                            )
+                        if n <= settings.max_placement_instances and not divides(
+                            closure, placement.spacing_mm
+                        ):
                             warnings.append(
                                 f"layer {layer.id!r}: spacing_mm "
                                 f"{placement.spacing_mm} snapped to {eff:.4f}mm for "
@@ -398,10 +424,31 @@ def validate_intent(
                             )
             elif placement.type == "lattice":
                 errors.extend(_lattice_errors(layer, placement, tile))
+                spec = placement.lattice
+                if spec is not None:
+                    nx = lattice_axis_count(tile, spec.cell_w_mm, settings.max_placement_instances)
+                    ny = lattice_axis_count(tile, spec.cell_h_mm, settings.max_placement_instances)
+                    repeated_elements += nx * ny
             elif placement.type == "scatter":
                 errors.extend(_scatter_errors(layer, placement, tile))
+                spec = placement.scatter
+                if spec is not None:
+                    try:
+                        target = scatter_target_count(spec, tile, settings.max_placement_instances)
+                    except ValueError:
+                        pass  # _scatter_errors reports the missing required field
+                    else:
+                        repeated_elements += target
+                        if target > settings.max_placement_instances:
+                            errors.append(
+                                f"layer {layer.id!r}: scatter would place {target} instances "
+                                f"(> max_placement_instances "
+                                f"{settings.max_placement_instances})"
+                            )
             elif placement.type == "point_set":
                 errors.extend(_point_set_errors(layer, placement, tile))
+                if placement.point_set is not None:
+                    repeated_elements += len(placement.point_set.points)
 
             if placement.host_layer is not None:
                 if placement.host_layer == layer.id:
@@ -435,6 +482,12 @@ def validate_intent(
                         f"{placement.path.wavelength} does not divide the lane closure "
                         f"length {closure} (tile*hypot({snapped.p}, {snapped.q}))"
                     )
+
+    if repeated_elements > settings.max_placement_instances:
+        errors.append(
+            f"intent would render {repeated_elements} repeated elements in total "
+            f"(> max_placement_instances {settings.max_placement_instances})"
+        )
 
     if errors:
         raise IntentInvalid(errors)

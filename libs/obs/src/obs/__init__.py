@@ -63,11 +63,20 @@ class RequestIdMiddleware:
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
         rid = sanitize_request_id(headers.get(b"x-request-id", b"").decode("latin-1"))
+        # Starlette의 최외곽 500 handler는 사용자 middleware가 unwind된 뒤 실행된다.
+        # 그 경로에서도 같은 ID를 회수할 수 있도록 request scope에 보존한다.
+        scope["request_id"] = rid
         token = request_id_var.set(rid)
 
         async def send_with_rid(message):
             if message["type"] == "http.response.start":
-                message.setdefault("headers", []).append((b"x-request-id", rid.encode()))
+                headers = [
+                    (key, value)
+                    for key, value in message.get("headers", [])
+                    if key.lower() != b"x-request-id"
+                ]
+                headers.append((b"x-request-id", rid.encode()))
+                message["headers"] = headers
             await send(message)
 
         try:

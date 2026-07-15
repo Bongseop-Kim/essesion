@@ -9,6 +9,9 @@ app.state.object_store = DryRunObjectStore(). lifespan은 돌지 않으므로 st
 """
 
 import asyncio
+import hashlib
+import threading
+import time
 
 import httpx
 import pytest
@@ -95,7 +98,8 @@ def test_generate_returns_product_shape(client):
     assert len(body["candidates"]) == 4
     cand = body["candidates"][0]
     assert set(cand) == _CANDIDATE_KEYS
-    assert cand["png_object_key"] == f"previews/{body['request_id']}/{cand['id']}.png"
+    digest = hashlib.sha256(b"fake-png").hexdigest()[:16]
+    assert cand["png_object_key"] == (f"previews/{body['request_id']}/{cand['id']}/{digest}.png")
 
 
 def test_candidates_are_diverse_and_deduped(client):
@@ -128,6 +132,24 @@ def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
     body = resp.json()
     assert all(c["png_object_key"] is None for c in body["candidates"])
     assert any("preview upload skipped" in w for w in body["warnings"])
+
+
+def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeypatch):
+    class FailingObjectStore:
+        capability_mode = "real"
+
+        async def upload_bytes(self, *_args, **_kwargs):
+            raise RuntimeError("storage unavailable")
+
+    app = _configure_app(monkeypatch)
+    app.state.object_store = FailingObjectStore()
+
+    resp = TestClient(app).post("/generate", json={"intent": mvp_intent(), "candidate_count": 2})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert all(candidate["png_object_key"] is None for candidate in body["candidates"])
+    assert "preview upload skipped" in body["warnings"]
 
 
 def test_request_id_propagates_to_body_and_header(client):
@@ -204,6 +226,30 @@ def test_schema_invalid_request_returns_422(client):
     # candidate_count가 스키마 범위(1..8) 밖 — 요청 스키마 실패(422), 의미 오류 아님.
     resp = client.post("/generate", json={"intent": mvp_intent(), "candidate_count": 99})
     assert resp.status_code == 422
+
+
+def test_preview_render_parallelism_is_bounded(monkeypatch):
+    app = _configure_app(monkeypatch)
+    lock = threading.Lock()
+    active = 0
+    maximum = 0
+
+    def slow_raster(_svg, **_kwargs):
+        nonlocal active, maximum
+        with lock:
+            active += 1
+            maximum = max(maximum, active)
+        time.sleep(0.02)
+        with lock:
+            active -= 1
+        return b"fake-png", "image/png"
+
+    monkeypatch.setattr(routes, "rasterize_svg", slow_raster)
+    response = TestClient(app).post(
+        "/generate", json={"intent": mvp_intent(), "candidate_count": 8}
+    )
+    assert response.status_code == 200
+    assert maximum <= app.state.settings.preview_render_concurrency
 
 
 def test_prompt_only_without_gemini_returns_503(client):

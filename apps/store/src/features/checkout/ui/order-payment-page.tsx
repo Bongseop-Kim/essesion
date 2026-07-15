@@ -82,6 +82,7 @@ export function OrderPaymentPage({
   const total = original - discount;
   const payment = useCheckoutPayment({
     storageKey: CHECKOUT_PENDING_KEY,
+    ownerUserId: user?.id ?? null,
     snapshot: {
       ...snapshotBase,
       shippingAddressId: address?.id ?? null,

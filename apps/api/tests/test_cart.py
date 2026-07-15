@@ -1,10 +1,12 @@
 from datetime import UTC, datetime
 
+from db.models.commerce import Order, ProductOption
 from db.models.images import Image
 from sqlalchemy import select
 
 from .factories import (
     auth_headers,
+    make_address,
     make_coupon,
     make_product,
     make_user,
@@ -126,6 +128,94 @@ async def test_cart_validation(client, db_session, settings):
     assert response.json()["code"] == "invalid_quantity"
 
 
+async def test_deleted_option_remains_visible_and_cannot_be_ordered(client, db_session, settings):
+    user = await make_user(db_session)
+    address = await make_address(db_session, user)
+    product = await make_product(db_session, price=15000)
+    option = ProductOption(
+        product_id=product.id,
+        name="롱",
+        additional_price=2000,
+        stock=3,
+    )
+    db_session.add(option)
+    await db_session.commit()
+    option_id = str(option.id)
+    headers = auth_headers(user, settings)
+    cart_item = {
+        "item_id": f"product:{product.id}:{option_id}",
+        "item_type": "product",
+        "product_id": product.id,
+        "selected_option_id": option_id,
+        "quantity": 1,
+    }
+
+    saved = await client.put("/cart", json={"items": [cart_item]}, headers=headers)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()[0]["availability"] == "available"
+    assert saved.json()[0]["selected_option_id"] == option_id
+
+    await db_session.delete(option)
+    await db_session.commit()
+
+    cart = await client.get("/cart", headers=headers)
+    assert cart.status_code == 200, cart.text
+    line = cart.json()[0]
+    assert line["selected_option_id"] == option_id
+    assert line["selected_option"] is None
+    assert line["availability"] == "unavailable"
+    assert "옵션" in line["blocking_reason"]
+
+    order = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [cart_item],
+        },
+        headers=headers,
+    )
+    assert order.status_code == 404
+    assert order.json()["code"] == "option_not_found"
+    assert (await db_session.scalars(select(Order).where(Order.user_id == user.id))).all() == []
+
+
+async def test_product_with_options_requires_an_option(client, db_session, settings):
+    user = await make_user(db_session)
+    address = await make_address(db_session, user)
+    product = await make_product(db_session)
+    db_session.add(
+        ProductOption(
+            product_id=product.id,
+            name="롱",
+            additional_price=2000,
+            stock=3,
+        )
+    )
+    await db_session.commit()
+    headers = auth_headers(user, settings)
+    cart_item = {
+        "item_id": f"product:{product.id}:base",
+        "item_type": "product",
+        "product_id": product.id,
+        "quantity": 1,
+    }
+
+    cart = await client.put("/cart", json={"items": [cart_item]}, headers=headers)
+    assert cart.status_code == 200, cart.text
+    assert cart.json()[0]["availability"] == "unavailable"
+
+    order = await client.post(
+        "/orders",
+        json={
+            "shipping_address_id": str(address.id),
+            "items": [cart_item],
+        },
+        headers=headers,
+    )
+    assert order.status_code == 400
+    assert order.json()["code"] == "option_required"
+
+
 async def test_guest_reform_image_is_claimed_and_expired_on_remove(client, db_session, settings):
     user = await make_user(db_session)
     await seed_pricing(db_session, REFORM_CONSTANTS, category="reform")
@@ -177,3 +267,37 @@ async def test_guest_reform_image_is_claimed_and_expired_on_remove(client, db_se
     assert removed.status_code == 200
     await db_session.refresh(image)
     assert image.expires_at is not None
+
+
+async def test_cart_rejects_duplicate_and_oversized_inputs_with_422(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    item = {
+        "item_id": "product:bounded",
+        "item_type": "product",
+        "product_id": 1,
+        "quantity": 1,
+    }
+    payloads = [
+        {"items": [item, item]},
+        {"items": [{**item, "item_id": "x" * 201}]},
+        {"items": [{**item, "quantity": 10_001}]},
+        {"items": [{**item, "item_id": f"product:{index}"} for index in range(51)]},
+    ]
+
+    for payload in payloads:
+        response = await client.put("/cart", json=payload, headers=headers)
+        assert response.status_code == 422, response.text
+
+    duplicate_remove = await client.post(
+        "/cart/remove",
+        json={"item_ids": ["product:bounded", "product:bounded"]},
+        headers=headers,
+    )
+    oversized_remove = await client.post(
+        "/cart/remove",
+        json={"item_ids": [f"product:{index}" for index in range(51)]},
+        headers=headers,
+    )
+    assert duplicate_remove.status_code == 422
+    assert oversized_remove.status_code == 422

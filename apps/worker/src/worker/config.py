@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,8 +9,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     env: str = "local"
+    service_mode: Literal["all", "generate", "finalize"] = "all"
     database_url: str = "postgresql+asyncpg://essesion:essesion@localhost:5432/essesion"
     gcs_bucket: str = ""
+    db_pool_size: int = Field(default=2, ge=1, le=20)
+    db_max_overflow: int = Field(default=0, ge=0, le=20)
+    db_pool_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
 
     engine_version: str = "0.1.0"
     registry_version: str = "0.1.0"
@@ -19,6 +24,10 @@ class Settings(BaseSettings):
     max_tile_mm: float = Field(default=2000.0, gt=0.0, allow_inf_nan=False)
     max_svg_bytes: int = Field(default=2_000_000, ge=1)
     max_placement_instances: int = Field(default=50_000, ge=1)
+    preview_render_concurrency: int = Field(default=2, ge=1, le=8)
+    # Cloud Run finalize timeout is 900s. A lease must outlive one healthy request so a
+    # retry cannot execute the same job concurrently; Cloud Tasks retries span this value.
+    finalize_lease_seconds: int = Field(default=960, ge=1)
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
     stripe_diagonal_repeats: int = Field(default=2, ge=2)
 
@@ -31,7 +40,9 @@ class Settings(BaseSettings):
     recraft_model: str = "recraftv4_1_vector"
     recraft_style: str = ""
     recraft_size: str = "1024x1024"
-    recraft_response_format: str = "url"
+    # URL responses require a second request to an upstream-controlled address. Keep the
+    # transport inline so motif generation has no SSRF-capable redirect/download path.
+    recraft_response_format: Literal["b64_json"] = "b64_json"
     recraft_base_url: str = "https://external.api.recraft.ai/v1"
     recraft_max_color_slots: int = Field(default=6, ge=1)
 

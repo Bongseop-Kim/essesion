@@ -10,7 +10,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -43,17 +43,19 @@ class ResolveResult:
     similarity: float | None
 
 
-async def _read_or[T](result: Awaitable[T], fallback: T, session: AsyncSession, what: str) -> T:
+async def _read_or[T](
+    read: Callable[[], Awaitable[T]], fallback: T, session: AsyncSession, what: str
+) -> T:
     """store 읽기의 일시 오류를 miss로 흡수 — 재생성은 content-hash upsert로 멱등이라 정합.
 
-    실패한 트랜잭션은 rollback해 이후 문장(upsert)이 aborted 상태에 걸리지 않게 한다.
-    쓰기(upsert) 오류는 흡수하지 않는다.
+    읽기만 savepoint로 격리해 같은 요청에서 앞서 쓴 미커밋 motif는 보존한다. 쓰기(upsert)
+    오류나 savepoint로 복구할 수 없는 세션 오류는 이후 쓰기에서 전파한다.
     """
     try:
-        return await result
+        async with session.begin_nested():
+            return await read()
     except SQLAlchemyError:
         logger.warning("motif store read failed (%s) — treated as miss", what, exc_info=True)
-        await session.rollback()
         return fallback
 
 
@@ -104,7 +106,10 @@ async def _select_variant(
     if not variant_group:
         return fallback_id
     members = await _read_or(
-        store.find_variant_pool(session, variant_group), [], session, "find_variant_pool"
+        lambda: store.find_variant_pool(session, variant_group),
+        [],
+        session,
+        "find_variant_pool",
     )
     if query_vec is None:
         pool = [m.id for m in members]
@@ -138,7 +143,7 @@ async def resolve_spec(
     best_sim: float | None = None
     if scope:
         candidates = await _read_or(
-            store.find_by_scope(session, scope), [], session, "find_by_scope"
+            lambda: store.find_by_scope(session, scope), [], session, "find_by_scope"
         )
         if candidates:
             query_vec = await embed_query(descriptor_text(spec), client=embedding_client)
@@ -151,7 +156,7 @@ async def resolve_spec(
             match = None
             if query_vec is not None:
                 match = await _read_or(
-                    store.nearest_by_embedding(session, query_vec, scope=scope),
+                    lambda: store.nearest_by_embedding(session, query_vec, scope=scope),
                     None,
                     session,
                     "nearest_by_embedding",
@@ -195,7 +200,9 @@ async def present_candidates(
     scope = normalize_facet(spec.get("scope"))
     if not scope:
         return []
-    candidates = await _read_or(store.find_by_scope(session, scope), [], session, "find_by_scope")
+    candidates = await _read_or(
+        lambda: store.find_by_scope(session, scope), [], session, "find_by_scope"
+    )
     if not candidates:
         return []
     ranked: list[tuple[MotifMeta, float | None]] = []
@@ -210,7 +217,7 @@ async def present_candidates(
         query_vec = None  # 게이트 UI에서 임베딩 장애는 소프트 실패
     if query_vec is not None:
         match = await _read_or(
-            store.nearest_by_embedding(session, query_vec, scope=scope),
+            lambda: store.nearest_by_embedding(session, query_vec, scope=scope),
             None,
             session,
             "nearest_by_embedding",

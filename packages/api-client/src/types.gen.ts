@@ -5,6 +5,380 @@ export type ClientOptions = {
 };
 
 /**
+ * AdminAction
+ */
+export type AdminAction = {
+    /**
+     * Blocking Reason
+     */
+    blocking_reason?: string | null;
+    /**
+     * Destructive
+     */
+    destructive?: boolean;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Kind
+     */
+    kind: 'advance' | 'rollback' | 'cancel' | 'update_tracking';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Requires Memo
+     */
+    requires_memo?: boolean;
+    /**
+     * Target Status
+     */
+    target_status?: string | null;
+};
+
+/**
+ * AdminActiveClaimOut
+ */
+export type AdminActiveClaimOut = {
+    /**
+     * Claim Number
+     */
+    claim_number: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Type
+     */
+    type: string;
+};
+
+/**
+ * AdminCapabilitiesOut
+ */
+export type AdminCapabilitiesOut = {
+    /**
+     * Auth Secrets
+     */
+    auth_secrets: string;
+    /**
+     * Batch Auth
+     */
+    batch_auth: string;
+    /**
+     * Edge Proxy
+     */
+    edge_proxy: string;
+    /**
+     * Finalize Tasks
+     */
+    finalize_tasks: string;
+    /**
+     * Gcs
+     */
+    gcs: string;
+    /**
+     * Gcs Assets
+     */
+    gcs_assets: string;
+    /**
+     * Oauth Google
+     */
+    oauth_google: string;
+    /**
+     * Oauth Kakao
+     */
+    oauth_kakao: string;
+    /**
+     * Solapi
+     */
+    solapi: string;
+    /**
+     * Toss
+     */
+    toss: string;
+    /**
+     * Worker
+     */
+    worker: string;
+};
+
+/**
+ * AdminClaimAction
+ */
+export type AdminClaimAction = {
+    /**
+     * Blocking Reason
+     */
+    blocking_reason?: string | null;
+    /**
+     * Destructive
+     */
+    destructive?: boolean;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Kind
+     */
+    kind: 'advance' | 'reject' | 'rollback' | 'approve_refund';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Requires Memo
+     */
+    requires_memo?: boolean;
+    /**
+     * Target Status
+     */
+    target_status?: string | null;
+};
+
+/**
+ * AdminClaimCustomerOut
+ */
+export type AdminClaimCustomerOut = {
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Phone
+     */
+    phone: string | null;
+};
+
+/**
+ * AdminClaimDetailOut
+ */
+export type AdminClaimDetailOut = {
+    /**
+     * Admin Actions
+     */
+    admin_actions?: Array<AdminClaimAction>;
+    /**
+     * Claim Number
+     */
+    claim_number: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    customer: AdminClaimCustomerOut;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    item: OrderItemOut;
+    /**
+     * Notifications
+     */
+    notifications?: Array<ClaimNotificationOut>;
+    order: AdminClaimOrderOut;
+    /**
+     * Order Id
+     */
+    order_id: string;
+    /**
+     * Order Number
+     */
+    order_number: string;
+    /**
+     * Payment Incidents
+     */
+    payment_incidents?: Array<PaymentIncidentSummaryOut>;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Refund Data
+     */
+    refund_data: {
+        [key: string]: unknown;
+    } | null;
+    shipping: AdminClaimShippingOut;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Status Logs
+     */
+    status_logs?: Array<AdminClaimStatusLogOut>;
+    /**
+     * Timeline
+     */
+    timeline?: Array<AdminTimelineEvent>;
+    /**
+     * Tracking Actions
+     */
+    tracking_actions?: Array<AdminClaimTrackingAction>;
+    /**
+     * Type
+     */
+    type: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminClaimOrderOut
+ */
+export type AdminClaimOrderOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Order Amount
+     */
+    order_amount: number;
+    /**
+     * Order Number
+     */
+    order_number: string;
+    /**
+     * Order Type
+     */
+    order_type: string;
+    /**
+     * Payment Group Id
+     */
+    payment_group_id: string | null;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * AdminClaimShippingOut
+ */
+export type AdminClaimShippingOut = {
+    /**
+     * Company Courier Company
+     */
+    company_courier_company: string | null;
+    /**
+     * Company Tracking Number
+     */
+    company_tracking_number: string | null;
+    /**
+     * Order Courier Company
+     */
+    order_courier_company: string | null;
+    /**
+     * Order Tracking Number
+     */
+    order_tracking_number: string | null;
+    repair_pickup: RepairPickupOut | null;
+    /**
+     * Repair Receipts
+     */
+    repair_receipts?: Array<RepairShippingReceiptOut>;
+    /**
+     * Resend Courier Company
+     */
+    resend_courier_company: string | null;
+    /**
+     * Resend Tracking Number
+     */
+    resend_tracking_number: string | null;
+    /**
+     * Return Courier Company
+     */
+    return_courier_company: string | null;
+    /**
+     * Return Tracking Number
+     */
+    return_tracking_number: string | null;
+    shipping_address: OrderShippingAddressOut | null;
+};
+
+/**
+ * AdminClaimStatusLogOut
+ */
+export type AdminClaimStatusLogOut = {
+    /**
+     * Changed By
+     */
+    changed_by: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Rollback
+     */
+    is_rollback: boolean;
+    /**
+     * Memo
+     */
+    memo: string | null;
+    /**
+     * New Status
+     */
+    new_status: string;
+    /**
+     * Previous Status
+     */
+    previous_status: string;
+    /**
+     * Request Id
+     */
+    request_id: string | null;
+};
+
+/**
  * AdminClaimStatusRequest
  */
 export type AdminClaimStatusRequest = {
@@ -41,13 +415,598 @@ export type AdminClaimStatusResponse = {
 };
 
 /**
- * AdminOrderOut
+ * AdminClaimSummaryOut
  */
-export type AdminOrderOut = {
+export type AdminClaimSummaryOut = {
     /**
      * Admin Actions
      */
-    admin_actions?: Array<string>;
+    admin_actions?: Array<AdminClaimAction>;
+    /**
+     * Claim Number
+     */
+    claim_number: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    customer: AdminClaimCustomerOut;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Order Id
+     */
+    order_id: string;
+    /**
+     * Order Number
+     */
+    order_number: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Type
+     */
+    type: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminClaimTrackingAction
+ */
+export type AdminClaimTrackingAction = {
+    /**
+     * Blocking Reason
+     */
+    blocking_reason?: string | null;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Kind
+     */
+    kind: 'return' | 'resend';
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * AdminCouponOut
+ */
+export type AdminCouponOut = {
+    /**
+     * Active Issued Count
+     */
+    active_issued_count: number;
+    /**
+     * Additional Info
+     */
+    additional_info: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Discount Type
+     */
+    discount_type: string;
+    /**
+     * Discount Value
+     */
+    discount_value: string;
+    /**
+     * Display Name
+     */
+    display_name: string | null;
+    /**
+     * Expiry Date
+     */
+    expiry_date: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Issued Count
+     */
+    issued_count: number;
+    /**
+     * Max Discount Amount
+     */
+    max_discount_amount: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminCustomerCouponOut
+ */
+export type AdminCustomerCouponOut = {
+    /**
+     * Coupon Display Name
+     */
+    coupon_display_name: string | null;
+    /**
+     * Coupon Id
+     */
+    coupon_id: string;
+    /**
+     * Coupon Name
+     */
+    coupon_name: string;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Issued At
+     */
+    issued_at: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Terms Snapshot
+     */
+    terms_snapshot: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Used At
+     */
+    used_at: string | null;
+};
+
+/**
+ * AdminCustomerDetailOut
+ */
+export type AdminCustomerDetailOut = {
+    /**
+     * Active Coupon Count
+     */
+    active_coupon_count: number;
+    /**
+     * Birth
+     */
+    birth: string | null;
+    /**
+     * Bonus Token Balance
+     */
+    bonus_token_balance: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Marketing Kakao Sms Consent
+     */
+    marketing_kakao_sms_consent: boolean;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Notification Consent
+     */
+    notification_consent: boolean;
+    /**
+     * Notification Enabled
+     */
+    notification_enabled: boolean;
+    /**
+     * Order Count
+     */
+    order_count: number;
+    /**
+     * Paid Token Balance
+     */
+    paid_token_balance: number;
+    /**
+     * Phone
+     */
+    phone: string | null;
+    /**
+     * Phone Verified
+     */
+    phone_verified: boolean;
+    /**
+     * Token Balance
+     */
+    token_balance: number;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminCustomerOrderOut
+ */
+export type AdminCustomerOrderOut = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Order Number
+     */
+    order_number: string;
+    /**
+     * Order Type
+     */
+    order_type: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Total Price
+     */
+    total_price: number;
+};
+
+/**
+ * AdminCustomerSummaryOut
+ */
+export type AdminCustomerSummaryOut = {
+    /**
+     * Active Coupon Count
+     */
+    active_coupon_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Active
+     */
+    is_active: boolean;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Order Count
+     */
+    order_count: number;
+    /**
+     * Phone
+     */
+    phone: string | null;
+    /**
+     * Phone Verified
+     */
+    phone_verified: boolean;
+    /**
+     * Token Balance
+     */
+    token_balance: number;
+};
+
+/**
+ * AdminCustomerTokenOut
+ */
+export type AdminCustomerTokenOut = {
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Source Order Id
+     */
+    source_order_id: string | null;
+    /**
+     * Token Class
+     */
+    token_class: string;
+    /**
+     * Type
+     */
+    type: string;
+    /**
+     * Work Id
+     */
+    work_id: string | null;
+};
+
+/**
+ * AdminInquiryActorOut
+ */
+export type AdminInquiryActorOut = {
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * AdminInquiryAnswerRequest
+ */
+export type AdminInquiryAnswerRequest = {
+    /**
+     * Answer
+     */
+    answer: string;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+};
+
+/**
+ * AdminInquiryCustomerOut
+ */
+export type AdminInquiryCustomerOut = {
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Phone
+     */
+    phone: string | null;
+};
+
+/**
+ * AdminInquiryDetailOut
+ */
+export type AdminInquiryDetailOut = {
+    /**
+     * Answer
+     */
+    answer: string | null;
+    answer_actor: AdminInquiryActorOut | null;
+    /**
+     * Answer Date
+     */
+    answer_date: string | null;
+    /**
+     * Answered By
+     */
+    answered_by: string | null;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    customer: AdminInquiryCustomerOut | null;
+    /**
+     * Id
+     */
+    id: string;
+    product: AdminInquiryProductOut | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminInquiryProductOut
+ */
+export type AdminInquiryProductOut = {
+    /**
+     * Code
+     */
+    code: string | null;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * AdminInquirySearchRequest
+ */
+export type AdminInquirySearchRequest = {
+    /**
+     * Category
+     */
+    category?: 'all' | '일반' | '상품' | '수선' | '주문제작';
+    /**
+     * Direction
+     */
+    direction?: 'asc' | 'desc';
+    /**
+     * Limit
+     */
+    limit?: number;
+    /**
+     * Offset
+     */
+    offset?: number;
+    /**
+     * Q
+     */
+    q: string;
+    /**
+     * Sort
+     */
+    sort?: 'created_at' | 'updated_at' | 'status';
+    /**
+     * Status
+     */
+    status?: 'all' | '답변대기' | '답변완료';
+};
+
+/**
+ * AdminInquirySummaryOut
+ */
+export type AdminInquirySummaryOut = {
+    /**
+     * Answer Date
+     */
+    answer_date: string | null;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    customer: AdminInquiryCustomerOut | null;
+    /**
+     * Id
+     */
+    id: string;
+    product: AdminInquiryProductOut | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminOrderCustomerOut
+ */
+export type AdminOrderCustomerOut = {
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Phone
+     */
+    phone: string | null;
+};
+
+/**
+ * AdminOrderDetailOut
+ */
+export type AdminOrderDetailOut = {
+    active_claim?: AdminActiveClaimOut | null;
+    /**
+     * Admin Actions
+     */
+    admin_actions?: Array<AdminAction>;
     /**
      * Company Courier Company
      */
@@ -72,10 +1031,7 @@ export type AdminOrderOut = {
      * Created At
      */
     created_at: string;
-    /**
-     * Customer Actions
-     */
-    customer_actions?: Array<string>;
+    customer: AdminOrderCustomerOut;
     /**
      * Delivered At
      */
@@ -88,6 +1044,10 @@ export type AdminOrderOut = {
      * Items
      */
     items?: Array<OrderItemOut>;
+    /**
+     * Order Amount
+     */
+    order_amount: number;
     /**
      * Order Number
      */
@@ -105,9 +1065,14 @@ export type AdminOrderOut = {
      */
     payment_group_id: string | null;
     /**
+     * Related Orders
+     */
+    related_orders?: Array<AdminRelatedOrderOut>;
+    /**
      * Shipped At
      */
     shipped_at: string | null;
+    shipping_address: OrderShippingAddressOut | null;
     /**
      * Shipping Address Id
      */
@@ -121,13 +1086,13 @@ export type AdminOrderOut = {
      */
     status: string;
     /**
+     * Status Logs
+     */
+    status_logs?: Array<AdminOrderStatusLogOut>;
+    /**
      * Total Discount
      */
     total_discount: number;
-    /**
-     * Total Price
-     */
-    total_price: number;
     /**
      * Tracking Number
      */
@@ -139,6 +1104,700 @@ export type AdminOrderOut = {
 };
 
 /**
+ * AdminOrderReferenceImageOut
+ */
+export type AdminOrderReferenceImageOut = {
+    /**
+     * Content Type
+     */
+    content_type: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number | null;
+};
+
+/**
+ * AdminOrderStatusLogOut
+ */
+export type AdminOrderStatusLogOut = {
+    /**
+     * Changed By
+     */
+    changed_by: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Rollback
+     */
+    is_rollback: boolean;
+    /**
+     * Memo
+     */
+    memo: string | null;
+    /**
+     * New Status
+     */
+    new_status: string;
+    /**
+     * Previous Status
+     */
+    previous_status: string;
+};
+
+/**
+ * AdminOrderSummaryOut
+ */
+export type AdminOrderSummaryOut = {
+    /**
+     * Admin Actions
+     */
+    admin_actions?: Array<AdminAction>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    customer: AdminOrderCustomerOut;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Order Amount
+     */
+    order_amount: number;
+    /**
+     * Order Number
+     */
+    order_number: string;
+    /**
+     * Order Type
+     */
+    order_type: string;
+    /**
+     * Payment Group Id
+     */
+    payment_group_id: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminProductCreateRequest
+ */
+export type AdminProductCreateRequest = {
+    /**
+     * Category
+     */
+    category: '3fold' | 'sfolderato' | 'knit' | 'bowtie';
+    /**
+     * Code
+     */
+    code?: string | null;
+    /**
+     * Color
+     */
+    color: 'black' | 'navy' | 'gray' | 'wine' | 'blue' | 'brown' | 'beige' | 'silver';
+    /**
+     * Detail Image Upload Ids
+     */
+    detail_image_upload_ids?: Array<string>;
+    /**
+     * Image Upload Id
+     */
+    image_upload_id: string;
+    /**
+     * Info
+     */
+    info: string;
+    /**
+     * Material
+     */
+    material: 'silk' | 'cotton' | 'polyester' | 'wool';
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Option Label
+     */
+    option_label?: string | null;
+    /**
+     * Options
+     */
+    options?: Array<AdminProductOptionWrite>;
+    /**
+     * Pattern
+     */
+    pattern: 'solid' | 'stripe' | 'dot' | 'check' | 'paisley';
+    /**
+     * Price
+     */
+    price: number;
+    /**
+     * Stock
+     */
+    stock?: number | null;
+};
+
+/**
+ * AdminProductDetailImageLegacyRef
+ */
+export type AdminProductDetailImageLegacyRef = {
+    /**
+     * Legacy Url
+     */
+    legacy_url: string;
+};
+
+/**
+ * AdminProductDetailImageOut
+ */
+export type AdminProductDetailImageOut = {
+    /**
+     * Upload Id
+     */
+    upload_id: string | null;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
+ * AdminProductDetailImageUploadRef
+ */
+export type AdminProductDetailImageUploadRef = {
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
+ * AdminProductDetailOut
+ */
+export type AdminProductDetailOut = {
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Code
+     */
+    code: string | null;
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Detail Images
+     */
+    detail_images?: Array<AdminProductDetailImageOut>;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Image
+     */
+    image: string;
+    /**
+     * Image Upload Id
+     */
+    image_upload_id: string | null;
+    /**
+     * Info
+     */
+    info: string;
+    /**
+     * Material
+     */
+    material: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Option Count
+     */
+    option_count: number;
+    /**
+     * Option Label
+     */
+    option_label: string | null;
+    /**
+     * Option Stock Total
+     */
+    option_stock_total: number | null;
+    /**
+     * Options
+     */
+    options?: Array<ProductOptionOut>;
+    /**
+     * Pattern
+     */
+    pattern: string;
+    /**
+     * Price
+     */
+    price: number;
+    /**
+     * Stock
+     */
+    stock: number | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminProductImageCompleteOut
+ */
+export type AdminProductImageCompleteOut = {
+    /**
+     * Completed At
+     */
+    completed_at: string;
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Kind
+     */
+    kind: 'primary' | 'detail';
+    /**
+     * Public Url
+     */
+    public_url: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
+ * AdminProductImageUploadOut
+ */
+export type AdminProductImageUploadOut = {
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Required Headers
+     */
+    required_headers: {
+        [key: string]: string;
+    };
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+    /**
+     * Upload Required
+     */
+    upload_required: boolean;
+    /**
+     * Upload Url
+     */
+    upload_url: string;
+};
+
+/**
+ * AdminProductImageUploadRequest
+ */
+export type AdminProductImageUploadRequest = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Kind
+     */
+    kind: 'primary' | 'detail';
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
+ * AdminProductOptionWrite
+ */
+export type AdminProductOptionWrite = {
+    /**
+     * Additional Price
+     */
+    additional_price?: number;
+    /**
+     * Id
+     */
+    id?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Stock
+     */
+    stock?: number | null;
+};
+
+/**
+ * AdminProductSummaryOut
+ */
+export type AdminProductSummaryOut = {
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Code
+     */
+    code: string | null;
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Image
+     */
+    image: string;
+    /**
+     * Material
+     */
+    material: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Option Count
+     */
+    option_count: number;
+    /**
+     * Option Label
+     */
+    option_label: string | null;
+    /**
+     * Option Stock Total
+     */
+    option_stock_total: number | null;
+    /**
+     * Pattern
+     */
+    pattern: string;
+    /**
+     * Price
+     */
+    price: number;
+    /**
+     * Stock
+     */
+    stock: number | null;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminProductUpdateRequest
+ */
+export type AdminProductUpdateRequest = {
+    /**
+     * Category
+     */
+    category?: '3fold' | 'sfolderato' | 'knit' | 'bowtie' | null;
+    /**
+     * Color
+     */
+    color?: 'black' | 'navy' | 'gray' | 'wine' | 'blue' | 'brown' | 'beige' | 'silver' | null;
+    /**
+     * Detail Images
+     */
+    detail_images?: Array<AdminProductDetailImageUploadRef | AdminProductDetailImageLegacyRef> | null;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Image Upload Id
+     */
+    image_upload_id?: string | null;
+    /**
+     * Info
+     */
+    info?: string | null;
+    /**
+     * Material
+     */
+    material?: 'silk' | 'cotton' | 'polyester' | 'wool' | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Option Label
+     */
+    option_label?: string | null;
+    /**
+     * Options
+     */
+    options?: Array<AdminProductOptionWrite> | null;
+    /**
+     * Pattern
+     */
+    pattern?: 'solid' | 'stripe' | 'dot' | 'check' | 'paisley' | null;
+    /**
+     * Price
+     */
+    price?: number | null;
+    /**
+     * Stock
+     */
+    stock?: number | null;
+};
+
+/**
+ * AdminQuoteAction
+ */
+export type AdminQuoteAction = {
+    /**
+     * Blocking Reason
+     */
+    blocking_reason?: string | null;
+    /**
+     * Destructive
+     */
+    destructive?: boolean;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Kind
+     */
+    kind?: 'transition';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Requires Memo
+     */
+    requires_memo?: boolean;
+    /**
+     * Target Status
+     */
+    target_status: '요청' | '견적발송' | '협의중' | '확정' | '종료';
+};
+
+/**
+ * AdminQuoteActorOut
+ */
+export type AdminQuoteActorOut = {
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * AdminQuoteDetailOut
+ */
+export type AdminQuoteDetailOut = {
+    /**
+     * Additional Notes
+     */
+    additional_notes: string;
+    /**
+     * Admin Actions
+     */
+    admin_actions?: Array<AdminQuoteAction>;
+    /**
+     * Admin Memo
+     */
+    admin_memo: string | null;
+    /**
+     * Business Name
+     */
+    business_name: string;
+    /**
+     * Contact Method
+     */
+    contact_method: string;
+    /**
+     * Contact Name
+     */
+    contact_name: string;
+    /**
+     * Contact Value
+     */
+    contact_value: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    customer: AdminOrderCustomerOut;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Images
+     */
+    images?: Array<AdminQuoteImageOut>;
+    /**
+     * Options
+     */
+    options: {
+        [key: string]: unknown;
+    };
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Quote Conditions
+     */
+    quote_conditions: string | null;
+    /**
+     * Quote Number
+     */
+    quote_number: string;
+    /**
+     * Quoted Amount
+     */
+    quoted_amount: number | null;
+    shipping_address: OrderShippingAddressOut | null;
+    /**
+     * Shipping Address Id
+     */
+    shipping_address_id: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Status Logs
+     */
+    status_logs?: Array<AdminQuoteStatusLogOut>;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminQuoteImageOut
+ */
+export type AdminQuoteImageOut = {
+    /**
+     * Content Type
+     */
+    content_type: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number | null;
+};
+
+/**
+ * AdminQuoteStatusLogOut
+ */
+export type AdminQuoteStatusLogOut = {
+    actor: AdminQuoteActorOut | null;
+    /**
+     * Changed By
+     */
+    changed_by: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Memo
+     */
+    memo: string | null;
+    /**
+     * New Status
+     */
+    new_status: string;
+    /**
+     * Previous Status
+     */
+    previous_status: string;
+    /**
+     * Request Id
+     */
+    request_id: string | null;
+};
+
+/**
  * AdminQuoteStatusRequest
  */
 export type AdminQuoteStatusRequest = {
@@ -146,6 +1805,10 @@ export type AdminQuoteStatusRequest = {
      * Admin Memo
      */
     admin_memo?: string | null;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
     /**
      * Memo
      */
@@ -165,21 +1828,124 @@ export type AdminQuoteStatusRequest = {
 };
 
 /**
- * AdminQuoteStatusResponse
+ * AdminQuoteSummaryOut
  */
-export type AdminQuoteStatusResponse = {
+export type AdminQuoteSummaryOut = {
     /**
-     * New Status
+     * Admin Actions
      */
-    new_status: string;
+    admin_actions?: Array<AdminQuoteAction>;
     /**
-     * Previous Status
+     * Business Name
      */
-    previous_status: string;
+    business_name: string;
     /**
-     * Success
+     * Created At
      */
-    success: boolean;
+    created_at: string;
+    customer: AdminOrderCustomerOut;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    /**
+     * Quote Number
+     */
+    quote_number: string;
+    /**
+     * Quoted Amount
+     */
+    quoted_amount: number | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AdminRelatedOrderOut
+ */
+export type AdminRelatedOrderOut = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Order Amount
+     */
+    order_amount: number;
+    /**
+     * Order Number
+     */
+    order_number: string;
+    /**
+     * Order Type
+     */
+    order_type: string;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * AdminRepairPhotoOut
+ */
+export type AdminRepairPhotoOut = {
+    /**
+     * Content Type
+     */
+    content_type: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number | null;
+};
+
+/**
+ * AdminSettingOut
+ */
+export type AdminSettingOut = {
+    /**
+     * Key
+     */
+    key: 'default_courier_company' | 'design_token_initial_grant';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Updated By
+     */
+    updated_by: string | null;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Value Type
+     */
+    value_type: 'courier' | 'non_negative_integer';
 };
 
 /**
@@ -219,6 +1985,38 @@ export type AdminStatusUpdateResponse = {
 };
 
 /**
+ * AdminTimelineEvent
+ */
+export type AdminTimelineEvent = {
+    /**
+     * Actor Id
+     */
+    actor_id?: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Event Type
+     */
+    event_type: 'claim_created' | 'claim_status' | 'claim_shipping' | 'order_status' | 'repair_shipping' | 'notification';
+    /**
+     * Metadata
+     */
+    metadata?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
  * AdminTokenManageRequest
  */
 export type AdminTokenManageRequest = {
@@ -230,6 +2028,10 @@ export type AdminTokenManageRequest = {
      * Description
      */
     description: string;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
     /**
      * User Id
      */
@@ -244,6 +2046,10 @@ export type AdminTokenManageResponse = {
      * New Balance
      */
     new_balance: number;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
     /**
      * Success
      */
@@ -273,44 +2079,6 @@ export type AdminTrackingUpdateRequest = {
 };
 
 /**
- * AdminUserOut
- */
-export type AdminUserOut = {
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Email
-     */
-    email: string | null;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Is Active
-     */
-    is_active: boolean;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Phone
-     */
-    phone: string | null;
-    /**
-     * Phone Verified
-     */
-    phone_verified: boolean;
-    /**
-     * Role
-     */
-    role: string;
-};
-
-/**
  * AffectedResponse
  */
 export type AffectedResponse = {
@@ -318,6 +2086,10 @@ export type AffectedResponse = {
      * Affected Count
      */
     affected_count: number;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
     /**
      * Success
      */
@@ -393,6 +2165,14 @@ export type CartItemIn = {
 export type CartItemOut = {
     applied_coupon: UserCouponOut | null;
     /**
+     * Availability
+     */
+    availability: 'available' | 'unavailable';
+    /**
+     * Blocking Reason
+     */
+    blocking_reason?: string | null;
+    /**
      * Item Id
      */
     item_id: string;
@@ -407,6 +2187,10 @@ export type CartItemOut = {
     quantity: number;
     reform_data: ReformDataOut | null;
     selected_option: ProductOptionOut | null;
+    /**
+     * Selected Option Id
+     */
+    selected_option_id: string | null;
 };
 
 /**
@@ -457,6 +2241,44 @@ export type ClaimCreateRequest = {
      * Type
      */
     type: 'cancel' | 'return' | 'exchange';
+};
+
+/**
+ * ClaimNotificationOut
+ */
+export type ClaimNotificationOut = {
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Delivery Status
+     */
+    delivery_status: 'pending' | 'sent' | 'failed' | 'skipped';
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Last Error
+     */
+    last_error: string | null;
+    /**
+     * Sent At
+     */
+    sent_at: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
 };
 
 /**
@@ -541,6 +2363,32 @@ export type ClaimOut = {
 };
 
 /**
+ * ClaimTrackingUpdateRequest
+ */
+export type ClaimTrackingUpdateRequest = {
+    /**
+     * Courier Company
+     */
+    courier_company: string;
+    /**
+     * Kind
+     */
+    kind: 'return' | 'resend';
+    /**
+     * Memo
+     */
+    memo: string;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Tracking Number
+     */
+    tracking_number: string;
+};
+
+/**
  * ConfirmedOrder
  */
 export type ConfirmedOrder = {
@@ -571,9 +2419,61 @@ export type ConfirmedOrder = {
 };
 
 /**
+ * CouponAudienceCustomerOut
+ */
+export type CouponAudienceCustomerOut = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Phone
+     */
+    phone: string | null;
+};
+
+/**
+ * CouponAudienceRequest
+ */
+export type CouponAudienceRequest = {
+    /**
+     * Exclude Issued
+     */
+    exclude_issued?: boolean;
+    /**
+     * Limit
+     */
+    limit?: number;
+    /**
+     * Offset
+     */
+    offset?: number;
+    /**
+     * Segment
+     */
+    segment?: 'all' | 'new30' | 'birthdayThisMonth' | 'purchased' | 'notPurchased' | 'dormant';
+};
+
+/**
  * CouponCreateRequest
  */
 export type CouponCreateRequest = {
+    /**
+     * Additional Info
+     */
+    additional_info?: string | null;
     /**
      * Description
      */
@@ -595,6 +2495,10 @@ export type CouponCreateRequest = {
      */
     expiry_date: string;
     /**
+     * Is Active
+     */
+    is_active?: boolean;
+    /**
      * Max Discount Amount
      */
     max_discount_amount?: number | null;
@@ -609,9 +2513,29 @@ export type CouponCreateRequest = {
  */
 export type CouponIssueRequest = {
     /**
+     * Exclude Issued
+     */
+    exclude_issued?: boolean;
+    /**
+     * Expected Count
+     */
+    expected_count?: number | null;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * Segment
+     */
+    segment?: 'all' | 'new30' | 'birthdayThisMonth' | 'purchased' | 'notPurchased' | 'dormant' | null;
+    /**
      * User Ids
      */
-    user_ids: Array<string>;
+    user_ids?: Array<string> | null;
 };
 
 /**
@@ -658,6 +2582,88 @@ export type CouponOut = {
      * Name
      */
     name: string;
+};
+
+/**
+ * CouponRevokeRequest
+ */
+export type CouponRevokeRequest = {
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * User Coupon Ids
+     */
+    user_coupon_ids: Array<string>;
+};
+
+/**
+ * CouponRevokeUsersRequest
+ */
+export type CouponRevokeUsersRequest = {
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+    /**
+     * User Ids
+     */
+    user_ids: Array<string>;
+};
+
+/**
+ * CouponUpdateRequest
+ */
+export type CouponUpdateRequest = {
+    /**
+     * Additional Info
+     */
+    additional_info?: string | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Discount Type
+     */
+    discount_type?: 'percentage' | 'fixed' | null;
+    /**
+     * Discount Value
+     */
+    discount_value?: number | null;
+    /**
+     * Display Name
+     */
+    display_name?: string | null;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Expiry Date
+     */
+    expiry_date?: string | null;
+    /**
+     * Is Active
+     */
+    is_active?: boolean | null;
+    /**
+     * Max Discount Amount
+     */
+    max_discount_amount?: number | null;
+    /**
+     * Name
+     */
+    name?: string | null;
 };
 
 /**
@@ -733,7 +2739,7 @@ export type CustomOrderCreateRequest = {
     /**
      * Reference Images
      */
-    reference_images?: Array<ReferenceImageIn>;
+    reference_images?: Array<OrderReferenceImageIn>;
     /**
      * Shipping Address Id
      */
@@ -742,6 +2748,161 @@ export type CustomOrderCreateRequest = {
      * User Coupon Id
      */
     user_coupon_id?: string | null;
+};
+
+/**
+ * CustomerSearchRequest
+ */
+export type CustomerSearchRequest = {
+    /**
+     * Direction
+     */
+    direction?: 'asc' | 'desc';
+    /**
+     * Limit
+     */
+    limit?: number;
+    /**
+     * Offset
+     */
+    offset?: number;
+    /**
+     * Q
+     */
+    q: string;
+    /**
+     * Sort
+     */
+    sort?: 'created_at' | 'name';
+    /**
+     * Status
+     */
+    status?: 'all' | 'active' | 'inactive';
+};
+
+/**
+ * DashboardRecentOrdersPage
+ */
+export type DashboardRecentOrdersPage = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Items
+     */
+    items: Array<AdminOrderSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * DashboardRecentQuoteOut
+ */
+export type DashboardRecentQuoteOut = {
+    /**
+     * Business Name
+     */
+    business_name: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    customer: AdminOrderCustomerOut;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Quote Number
+     */
+    quote_number: string;
+    /**
+     * Quoted Amount
+     */
+    quoted_amount: number | null;
+    /**
+     * Status
+     */
+    status: string;
+};
+
+/**
+ * DashboardRecentQuotesPage
+ */
+export type DashboardRecentQuotesPage = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Items
+     */
+    items: Array<DashboardRecentQuoteOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * DashboardSummaryOut
+ */
+export type DashboardSummaryOut = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Open Claim Count
+     */
+    open_claim_count: number;
+    /**
+     * Open Payment Incident Count
+     */
+    open_payment_incident_count: number;
+    /**
+     * Order Amount
+     */
+    order_amount: number;
+    /**
+     * Order Count
+     */
+    order_count: number;
+    /**
+     * Order Type
+     */
+    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    /**
+     * Start Date
+     */
+    start_date: string;
+    /**
+     * Unanswered Inquiry Count
+     */
+    unanswered_inquiry_count: number;
 };
 
 /**
@@ -851,6 +3012,10 @@ export type DesignOrderReferenceOut = {
      * Object Key
      */
     object_key: string;
+    /**
+     * Upload Id
+     */
+    upload_id?: string | null;
 };
 
 /**
@@ -934,7 +3099,7 @@ export type DesignTurnCreateRequest = {
     /**
      * Role
      */
-    role: string;
+    role: 'user' | 'assistant';
 };
 
 /**
@@ -1008,6 +3173,66 @@ export type FinalizeRequest = {
 };
 
 /**
+ * GenerationJobDetailOut
+ */
+export type GenerationJobDetailOut = {
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Error Summary
+     */
+    error_summary: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'finalize' | 'export';
+    /**
+     * Owner Reference
+     */
+    owner_reference: string;
+    /**
+     * Parameter Summary
+     */
+    parameter_summary: {
+        [key: string]: unknown;
+    };
+    /**
+     * Request Id
+     */
+    request_id: string | null;
+    /**
+     * Result Available
+     */
+    result_available: boolean;
+    /**
+     * Result Url
+     */
+    result_url: string | null;
+    /**
+     * Session Id
+     */
+    session_id: string | null;
+    /**
+     * Status
+     */
+    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
  * GenerationJobOut
  */
 export type GenerationJobOut = {
@@ -1066,6 +3291,82 @@ export type GenerationJobOut = {
 };
 
 /**
+ * GenerationJobStatsOut
+ */
+export type GenerationJobStatsOut = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Average Attempts
+     */
+    average_attempts: number;
+    /**
+     * Failed
+     */
+    failed: number;
+    /**
+     * Processing
+     */
+    processing: number;
+    /**
+     * Queued
+     */
+    queued: number;
+    /**
+     * Succeeded
+     */
+    succeeded: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * GenerationJobSummaryOut
+ */
+export type GenerationJobSummaryOut = {
+    /**
+     * Attempts
+     */
+    attempts: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Error Summary
+     */
+    error_summary: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Kind
+     */
+    kind: 'finalize' | 'export';
+    /**
+     * Request Id
+     */
+    request_id: string | null;
+    /**
+     * Result Available
+     */
+    result_available: boolean;
+    /**
+     * Status
+     */
+    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -1106,13 +3407,47 @@ export type ImageOut = {
 };
 
 /**
- * InquiryAnswerRequest
+ * IncidentAdminAction
  */
-export type InquiryAnswerRequest = {
+export type IncidentAdminAction = {
     /**
-     * Answer
+     * Blocking Reason
      */
-    answer: string;
+    blocking_reason?: string | null;
+    /**
+     * Destructive
+     */
+    destructive?: boolean;
+    /**
+     * Enabled
+     */
+    enabled: boolean;
+    /**
+     * Kind
+     */
+    kind: 'reconcile' | 'resolve';
+    /**
+     * Label
+     */
+    label: string;
+    /**
+     * Requires Memo
+     */
+    requires_memo?: boolean;
+};
+
+/**
+ * IncidentResolveRequest
+ */
+export type IncidentResolveRequest = {
+    /**
+     * Memo
+     */
+    memo: string;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
 };
 
 /**
@@ -1199,6 +3534,54 @@ export type InquiryUpdateRequest = {
      * Title
      */
     title?: string;
+};
+
+/**
+ * IssuedCouponOut
+ */
+export type IssuedCouponOut = {
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Issued At
+     */
+    issued_at: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Terms Snapshot
+     */
+    terms_snapshot: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Used At
+     */
+    used_at: string | null;
+    /**
+     * User Email
+     */
+    user_email: string | null;
+    /**
+     * User Id
+     */
+    user_id: string;
+    /**
+     * User Name
+     */
+    user_name: string;
+    /**
+     * User Phone
+     */
+    user_phone: string | null;
 };
 
 /**
@@ -1343,6 +3726,84 @@ export type MotifCandidatesRequest = {
 };
 
 /**
+ * MotifDetailOut
+ */
+export type MotifDetailOut = {
+    /**
+     * Anchor
+     */
+    anchor: Array<number>;
+    /**
+     * Bbox
+     */
+    bbox: Array<number>;
+    /**
+     * Color Slot Count
+     */
+    color_slot_count: number;
+    /**
+     * Color Slots
+     */
+    color_slots: Array<string>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Description
+     */
+    description: string | null;
+    /**
+     * Expression
+     */
+    expression: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Quality
+     */
+    quality: number | null;
+    /**
+     * Scope
+     */
+    scope: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Style
+     */
+    style: string | null;
+    /**
+     * Subject
+     */
+    subject: string | null;
+    /**
+     * Svg Status
+     */
+    svg_status: 'safe' | 'unavailable' | 'unsafe';
+    /**
+     * Symbol
+     */
+    symbol: string | null;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Variant Group
+     */
+    variant_group: string | null;
+    /**
+     * View
+     */
+    view: string | null;
+};
+
+/**
  * MotifGenerateOut
  */
 export type MotifGenerateOut = {
@@ -1403,6 +3864,56 @@ export type MotifSpecIn = {
      * View
      */
     view?: string | null;
+};
+
+/**
+ * MotifSummaryOut
+ */
+export type MotifSummaryOut = {
+    /**
+     * Color Slot Count
+     */
+    color_slot_count: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Expression
+     */
+    expression: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Quality
+     */
+    quality: number | null;
+    /**
+     * Scope
+     */
+    scope: string | null;
+    /**
+     * Source
+     */
+    source: string;
+    /**
+     * Style
+     */
+    style: string | null;
+    /**
+     * Subject
+     */
+    subject: string | null;
+    /**
+     * Variant Group
+     */
+    variant_group: string | null;
+    /**
+     * View
+     */
+    view: string | null;
 };
 
 /**
@@ -1545,6 +4056,32 @@ export type OrderDetailOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * OrderImageUploadOut
+ */
+export type OrderImageUploadOut = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Kind
+     */
+    kind: 'custom_order' | 'sample_order';
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Upload Completed At
+     */
+    upload_completed_at: string;
+    /**
+     * Upload Id
+     */
+    upload_id: string;
 };
 
 /**
@@ -1725,6 +4262,16 @@ export type OrderOut = {
 };
 
 /**
+ * OrderReferenceImageIn
+ */
+export type OrderReferenceImageIn = {
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
  * OrderShippingAddressOut
  */
 export type OrderShippingAddressOut = {
@@ -1760,6 +4307,358 @@ export type OrderShippingAddressOut = {
      * Recipient Phone
      */
     recipient_phone: string;
+};
+
+/**
+ * Page[AdminClaimSummaryOut]
+ */
+export type PageAdminClaimSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminClaimSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminCouponOut]
+ */
+export type PageAdminCouponOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminCouponOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminCustomerCouponOut]
+ */
+export type PageAdminCustomerCouponOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminCustomerCouponOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminCustomerOrderOut]
+ */
+export type PageAdminCustomerOrderOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminCustomerOrderOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminCustomerSummaryOut]
+ */
+export type PageAdminCustomerSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminCustomerSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminCustomerTokenOut]
+ */
+export type PageAdminCustomerTokenOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminCustomerTokenOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminInquirySummaryOut]
+ */
+export type PageAdminInquirySummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminInquirySummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminOrderSummaryOut]
+ */
+export type PageAdminOrderSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminOrderSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminProductSummaryOut]
+ */
+export type PageAdminProductSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminProductSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AdminQuoteSummaryOut]
+ */
+export type PageAdminQuoteSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AdminQuoteSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[CouponAudienceCustomerOut]
+ */
+export type PageCouponAudienceCustomerOut = {
+    /**
+     * Items
+     */
+    items: Array<CouponAudienceCustomerOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[GenerationJobSummaryOut]
+ */
+export type PageGenerationJobSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<GenerationJobSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[IssuedCouponOut]
+ */
+export type PageIssuedCouponOut = {
+    /**
+     * Items
+     */
+    items: Array<IssuedCouponOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[MotifSummaryOut]
+ */
+export type PageMotifSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<MotifSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[PaymentIncidentSummaryOut]
+ */
+export type PagePaymentIncidentSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<PaymentIncidentSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[SeamlessSummaryOut]
+ */
+export type PageSeamlessSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<SeamlessSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
 };
 
 /**
@@ -1799,6 +4698,152 @@ export type PaymentConfirmResponse = {
 };
 
 /**
+ * PaymentIncidentDetailOut
+ */
+export type PaymentIncidentDetailOut = {
+    /**
+     * Actor Id
+     */
+    actor_id: string | null;
+    /**
+     * Admin Actions
+     */
+    admin_actions?: Array<IncidentAdminAction>;
+    /**
+     * Claim Id
+     */
+    claim_id: string | null;
+    /**
+     * Claim Number
+     */
+    claim_number: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Details
+     */
+    details: {
+        [key: string]: unknown;
+    };
+    /**
+     * Expected Amount
+     */
+    expected_amount: number | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Incident Type
+     */
+    incident_type: string;
+    /**
+     * Observed Amount
+     */
+    observed_amount: number | null;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Order Id
+     */
+    order_id: string | null;
+    /**
+     * Order Number
+     */
+    order_number: string | null;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Resolution Memo
+     */
+    resolution_memo: string | null;
+    /**
+     * Resolved At
+     */
+    resolved_at: string | null;
+    /**
+     * Resolved By
+     */
+    resolved_by: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * PaymentIncidentSummaryOut
+ */
+export type PaymentIncidentSummaryOut = {
+    /**
+     * Actor Id
+     */
+    actor_id: string | null;
+    /**
+     * Claim Id
+     */
+    claim_id: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Expected Amount
+     */
+    expected_amount: number | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Incident Type
+     */
+    incident_type: string;
+    /**
+     * Observed Amount
+     */
+    observed_amount: number | null;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Order Id
+     */
+    order_id: string | null;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Resolved At
+     */
+    resolved_at: string | null;
+    /**
+     * Resolved By
+     */
+    resolved_by: string | null;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
  * PhoneSendRequest
  */
 export type PhoneSendRequest = {
@@ -1823,75 +4868,73 @@ export type PhoneVerifyRequest = {
 };
 
 /**
- * ProductCreate
+ * PricingUpdateItem
  */
-export type ProductCreate = {
+export type PricingUpdateItem = {
     /**
-     * Category
+     * Amount
      */
-    category: '3fold' | 'sfolderato' | 'knit' | 'bowtie';
+    amount: number;
     /**
-     * Code
+     * Expected Updated At
      */
-    code?: string | null;
+    expected_updated_at: string;
     /**
-     * Color
+     * Key
      */
-    color: 'black' | 'navy' | 'gray' | 'wine' | 'blue' | 'brown' | 'beige' | 'silver';
-    /**
-     * Detail Images
-     */
-    detail_images?: Array<string> | null;
-    /**
-     * Image
-     */
-    image: string;
-    /**
-     * Info
-     */
-    info: string;
-    /**
-     * Material
-     */
-    material: 'silk' | 'cotton' | 'polyester' | 'wool';
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Option Label
-     */
-    option_label?: string | null;
-    /**
-     * Pattern
-     */
-    pattern: 'solid' | 'stripe' | 'dot' | 'check' | 'paisley';
-    /**
-     * Price
-     */
-    price: number;
-    /**
-     * Stock
-     */
-    stock?: number | null;
+    key: string;
 };
 
 /**
- * ProductOptionIn
+ * PricingUpdateRequest
  */
-export type ProductOptionIn = {
+export type PricingUpdateRequest = {
     /**
-     * Additional Price
+     * Items
      */
-    additional_price?: number;
+    items: Array<PricingUpdateItem>;
     /**
-     * Name
+     * Operation Id
      */
-    name: string;
+    operation_id: string;
     /**
-     * Stock
+     * Reason
      */
-    stock?: number | null;
+    reason: string;
+};
+
+/**
+ * PricingValueOut
+ */
+export type PricingValueOut = {
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Key
+     */
+    key: string;
+    /**
+     * Unit
+     */
+    unit: '원' | '개';
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Updated By
+     */
+    updated_by: string | null;
 };
 
 /**
@@ -1992,56 +5035,6 @@ export type ProductOut = {
      * Updated At
      */
     updated_at: string;
-};
-
-/**
- * ProductUpdate
- */
-export type ProductUpdate = {
-    /**
-     * Category
-     */
-    category?: '3fold' | 'sfolderato' | 'knit' | 'bowtie' | null;
-    /**
-     * Color
-     */
-    color?: 'black' | 'navy' | 'gray' | 'wine' | 'blue' | 'brown' | 'beige' | 'silver' | null;
-    /**
-     * Detail Images
-     */
-    detail_images?: Array<string> | null;
-    /**
-     * Image
-     */
-    image?: string | null;
-    /**
-     * Info
-     */
-    info?: string | null;
-    /**
-     * Material
-     */
-    material?: 'silk' | 'cotton' | 'polyester' | 'wool' | null;
-    /**
-     * Name
-     */
-    name?: string | null;
-    /**
-     * Option Label
-     */
-    option_label?: string | null;
-    /**
-     * Pattern
-     */
-    pattern?: 'solid' | 'stripe' | 'dot' | 'check' | 'paisley' | null;
-    /**
-     * Price
-     */
-    price?: number | null;
-    /**
-     * Stock
-     */
-    stock?: number | null;
 };
 
 /**
@@ -2173,7 +5166,13 @@ export type QuoteOut = {
     /**
      * Shipping Address Id
      */
-    shipping_address_id: string;
+    shipping_address_id: string | null;
+    /**
+     * Shipping Address Snapshot
+     */
+    shipping_address_snapshot: {
+        [key: string]: unknown;
+    } | null;
     /**
      * Status
      */
@@ -2479,6 +5478,44 @@ export type RepairPickupIn = {
 };
 
 /**
+ * RepairPickupOut
+ */
+export type RepairPickupOut = {
+    /**
+     * Address
+     */
+    address: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Detail Address
+     */
+    detail_address: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Pickup Fee
+     */
+    pickup_fee: number;
+    /**
+     * Postal Code
+     */
+    postal_code: string | null;
+    /**
+     * Recipient Name
+     */
+    recipient_name: string;
+    /**
+     * Recipient Phone
+     */
+    recipient_phone: string;
+};
+
+/**
  * RepairShippingIn
  */
 export type RepairShippingIn = {
@@ -2487,6 +5524,46 @@ export type RepairShippingIn = {
      */
     method: 'direct' | 'pickup';
     pickup?: RepairPickupIn | null;
+};
+
+/**
+ * RepairShippingReceiptOut
+ */
+export type RepairShippingReceiptOut = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Memo
+     */
+    memo: string | null;
+    /**
+     * Photo Count
+     */
+    photo_count: number;
+    /**
+     * Reason
+     */
+    reason: string | null;
+    /**
+     * Receipt Type
+     */
+    receipt_type: string;
+};
+
+/**
+ * RepairShippingUploadCompleteRequest
+ */
+export type RepairShippingUploadCompleteRequest = {
+    /**
+     * Upload Id
+     */
+    upload_id: string;
 };
 
 /**
@@ -2522,13 +5599,41 @@ export type RestorationReform = {
 };
 
 /**
- * RevokeByIdsRequest
+ * SafeCandidateOut
  */
-export type RevokeByIdsRequest = {
+export type SafeCandidateOut = {
     /**
-     * User Coupon Ids
+     * Colorway Id
      */
-    user_coupon_ids: Array<string>;
+    colorway_id: string | null;
+    /**
+     * Design Index
+     */
+    design_index: number | null;
+    /**
+     * Id
+     */
+    id: string | null;
+    /**
+     * Layout Id
+     */
+    layout_id: string | null;
+    /**
+     * Seed
+     */
+    seed: number | null;
+    /**
+     * Source Fidelity
+     */
+    source_fidelity: string | null;
+    /**
+     * Svg
+     */
+    svg: string | null;
+    /**
+     * Svg Status
+     */
+    svg_status: 'safe' | 'unavailable' | 'unsafe';
 };
 
 /**
@@ -2574,7 +5679,7 @@ export type SampleOrderCreateRequest = {
     /**
      * Reference Images
      */
-    reference_images?: Array<ReferenceImageIn>;
+    reference_images?: Array<OrderReferenceImageIn>;
     /**
      * Sample Type
      */
@@ -2587,6 +5692,244 @@ export type SampleOrderCreateRequest = {
      * User Coupon Id
      */
     user_coupon_id?: string | null;
+};
+
+/**
+ * SeamlessDetailOut
+ */
+export type SeamlessDetailOut = {
+    /**
+     * Available Strategies
+     */
+    available_strategies: number | null;
+    /**
+     * Candidate Count Requested
+     */
+    candidate_count_requested: number | null;
+    /**
+     * Candidate Count Returned
+     */
+    candidate_count_returned: number | null;
+    /**
+     * Candidates
+     */
+    candidates: Array<SafeCandidateOut>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Distinct Layouts
+     */
+    distinct_layouts: number | null;
+    /**
+     * Engine Version
+     */
+    engine_version: string | null;
+    /**
+     * Error Summary
+     */
+    error_summary: string | null;
+    /**
+     * Error Type
+     */
+    error_type: string | null;
+    /**
+     * Generate Ms
+     */
+    generate_ms: number | null;
+    /**
+     * Has Prompt
+     */
+    has_prompt: boolean;
+    /**
+     * Has Reference Image
+     */
+    has_reference_image: boolean;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Input Type
+     */
+    input_type: string;
+    /**
+     * Reference Image Available
+     */
+    reference_image_available: boolean;
+    /**
+     * Reference Image Bytes
+     */
+    reference_image_bytes: number | null;
+    /**
+     * Reference Image Id
+     */
+    reference_image_id: string | null;
+    /**
+     * Registry Version
+     */
+    registry_version: string | null;
+    /**
+     * Render Ms
+     */
+    render_ms: number | null;
+    /**
+     * Request Id
+     */
+    request_id: string | null;
+    /**
+     * Seed
+     */
+    seed: number | null;
+    /**
+     * Status
+     */
+    status: 'success' | 'partial' | 'error';
+    /**
+     * Warning Codes
+     */
+    warning_codes: Array<string>;
+    /**
+     * Warning Count
+     */
+    warning_count: number;
+};
+
+/**
+ * SeamlessStatsOut
+ */
+export type SeamlessStatsOut = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * Average Generate Ms
+     */
+    average_generate_ms: number | null;
+    /**
+     * Average Render Ms
+     */
+    average_render_ms: number | null;
+    /**
+     * Error
+     */
+    error: number;
+    /**
+     * Partial
+     */
+    partial: number;
+    /**
+     * Success
+     */
+    success: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * SeamlessSummaryOut
+ */
+export type SeamlessSummaryOut = {
+    /**
+     * Candidate Count Requested
+     */
+    candidate_count_requested: number | null;
+    /**
+     * Candidate Count Returned
+     */
+    candidate_count_returned: number | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Distinct Layouts
+     */
+    distinct_layouts: number | null;
+    /**
+     * Engine Version
+     */
+    engine_version: string | null;
+    /**
+     * Error Summary
+     */
+    error_summary: string | null;
+    /**
+     * Error Type
+     */
+    error_type: string | null;
+    /**
+     * Generate Ms
+     */
+    generate_ms: number | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Input Type
+     */
+    input_type: string;
+    /**
+     * Registry Version
+     */
+    registry_version: string | null;
+    /**
+     * Render Ms
+     */
+    render_ms: number | null;
+    /**
+     * Request Id
+     */
+    request_id: string | null;
+    /**
+     * Status
+     */
+    status: 'success' | 'partial' | 'error';
+    /**
+     * Warning Count
+     */
+    warning_count: number;
+};
+
+/**
+ * SettingUpdateItem
+ */
+export type SettingUpdateItem = {
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Key
+     */
+    key: 'default_courier_company' | 'design_token_initial_grant';
+    /**
+     * Value
+     */
+    value: string;
+};
+
+/**
+ * SettingsUpdateRequest
+ */
+export type SettingsUpdateRequest = {
+    /**
+     * Items
+     */
+    items: Array<SettingUpdateItem>;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
 };
 
 /**
@@ -2675,6 +6018,16 @@ export type ShippingAddressOut = {
      * Recipient Phone
      */
     recipient_phone: string;
+};
+
+/**
+ * SignedReadUrlOut
+ */
+export type SignedReadUrlOut = {
+    /**
+     * Read Url
+     */
+    read_url: string;
 };
 
 /**
@@ -2878,13 +6231,26 @@ export type TokenResponse = {
 };
 
 /**
- * UploadRegisterRequest
+ * TossWebhookData
  */
-export type UploadRegisterRequest = {
+export type TossWebhookData = {
     /**
-     * Object Key
+     * Paymentkey
      */
-    object_key: string;
+    paymentKey?: string | null;
+};
+
+/**
+ * TossWebhookRequest
+ *
+ * Toss 웹훅에서 신뢰하지 않는 paymentKey 힌트만 경계에서 제한한다.
+ */
+export type TossWebhookRequest = {
+    data?: TossWebhookData | null;
+    /**
+     * Paymentkey
+     */
+    paymentKey?: string | null;
 };
 
 /**
@@ -2906,7 +6272,7 @@ export type UploadUrlRequest = {
     /**
      * Size Bytes
      */
-    size_bytes?: number | null;
+    size_bytes: number;
 };
 
 /**
@@ -2923,6 +6289,10 @@ export type UploadUrlResponse = {
     required_headers: {
         [key: string]: string;
     };
+    /**
+     * Upload Id
+     */
+    upload_id: string;
     /**
      * Upload Required
      */
@@ -3062,23 +6432,143 @@ export type WorkerCandidateOut = {
     svg: string;
 };
 
-export type AdminListClaimsData = {
+export type GetAdminCapabilitiesData = {
     body?: never;
     path?: never;
     query?: never;
+    url: '/admin/capabilities';
+};
+
+export type GetAdminCapabilitiesResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminCapabilitiesOut;
+};
+
+export type GetAdminCapabilitiesResponse = GetAdminCapabilitiesResponses[keyof GetAdminCapabilitiesResponses];
+
+export type AdminRetryClaimNotificationData = {
+    body?: never;
+    path: {
+        /**
+         * Notification Id
+         */
+        notification_id: string;
+    };
+    query?: never;
+    url: '/admin/claim-notifications/{notification_id}/retry';
+};
+
+export type AdminRetryClaimNotificationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminRetryClaimNotificationError = AdminRetryClaimNotificationErrors[keyof AdminRetryClaimNotificationErrors];
+
+export type AdminRetryClaimNotificationResponses = {
+    /**
+     * Successful Response
+     */
+    200: ClaimNotificationOut;
+};
+
+export type AdminRetryClaimNotificationResponse = AdminRetryClaimNotificationResponses[keyof AdminRetryClaimNotificationResponses];
+
+export type AdminListClaimsV2Data = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Claim Type
+         */
+        claim_type?: 'all' | 'cancel' | 'return' | 'exchange' | 'token_refund';
+        /**
+         * Status
+         */
+        status?: 'all' | '접수' | '처리중' | '수거요청' | '수거완료' | '재발송' | '완료' | '거부';
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'updated_at' | 'claim_number' | 'status';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
     url: '/admin/claims';
 };
 
-export type AdminListClaimsResponses = {
+export type AdminListClaimsV2Errors = {
     /**
-     * Response Admin List Claims
-     *
-     * Successful Response
+     * Validation Error
      */
-    200: Array<ClaimOut>;
+    422: HttpValidationError;
 };
 
-export type AdminListClaimsResponse = AdminListClaimsResponses[keyof AdminListClaimsResponses];
+export type AdminListClaimsV2Error = AdminListClaimsV2Errors[keyof AdminListClaimsV2Errors];
+
+export type AdminListClaimsV2Responses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminClaimSummaryOut;
+};
+
+export type AdminListClaimsV2Response = AdminListClaimsV2Responses[keyof AdminListClaimsV2Responses];
+
+export type AdminGetClaimData = {
+    body?: never;
+    path: {
+        /**
+         * Claim Id
+         */
+        claim_id: string;
+    };
+    query?: never;
+    url: '/admin/claims/{claim_id}';
+};
+
+export type AdminGetClaimErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminGetClaimError = AdminGetClaimErrors[keyof AdminGetClaimErrors];
+
+export type AdminGetClaimResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminClaimDetailOut;
+};
+
+export type AdminGetClaimResponse = AdminGetClaimResponses[keyof AdminGetClaimResponses];
 
 export type AdminUpdateClaimStatusData = {
     body: AdminClaimStatusRequest;
@@ -3110,75 +6600,223 @@ export type AdminUpdateClaimStatusResponses = {
 
 export type AdminUpdateClaimStatusResponse = AdminUpdateClaimStatusResponses[keyof AdminUpdateClaimStatusResponses];
 
-export type ListCouponsData = {
+export type AdminUpdateClaimTrackingData = {
+    body: ClaimTrackingUpdateRequest;
+    path: {
+        /**
+         * Claim Id
+         */
+        claim_id: string;
+    };
+    query?: never;
+    url: '/admin/claims/{claim_id}/tracking';
+};
+
+export type AdminUpdateClaimTrackingErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminUpdateClaimTrackingError = AdminUpdateClaimTrackingErrors[keyof AdminUpdateClaimTrackingErrors];
+
+export type AdminUpdateClaimTrackingResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminClaimDetailOut;
+};
+
+export type AdminUpdateClaimTrackingResponse = AdminUpdateClaimTrackingResponses[keyof AdminUpdateClaimTrackingResponses];
+
+export type ListAdminCouponsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'all' | 'active' | 'inactive';
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'expiry_date' | 'name';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
     url: '/admin/coupons';
 };
 
-export type ListCouponsResponses = {
+export type ListAdminCouponsErrors = {
     /**
-     * Response List Coupons
-     *
-     * Successful Response
+     * Validation Error
      */
-    200: Array<CouponOut>;
+    422: HttpValidationError;
 };
 
-export type ListCouponsResponse = ListCouponsResponses[keyof ListCouponsResponses];
+export type ListAdminCouponsError = ListAdminCouponsErrors[keyof ListAdminCouponsErrors];
 
-export type CreateCouponData = {
+export type ListAdminCouponsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminCouponOut;
+};
+
+export type ListAdminCouponsResponse = ListAdminCouponsResponses[keyof ListAdminCouponsResponses];
+
+export type CreateAdminCouponData = {
     body: CouponCreateRequest;
     path?: never;
     query?: never;
     url: '/admin/coupons';
 };
 
-export type CreateCouponErrors = {
+export type CreateAdminCouponErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateCouponError = CreateCouponErrors[keyof CreateCouponErrors];
+export type CreateAdminCouponError = CreateAdminCouponErrors[keyof CreateAdminCouponErrors];
 
-export type CreateCouponResponses = {
+export type CreateAdminCouponResponses = {
     /**
      * Successful Response
      */
-    201: CouponOut;
+    201: AdminCouponOut;
 };
 
-export type CreateCouponResponse = CreateCouponResponses[keyof CreateCouponResponses];
+export type CreateAdminCouponResponse = CreateAdminCouponResponses[keyof CreateAdminCouponResponses];
 
-export type RevokeCouponsByIdsData = {
-    body: RevokeByIdsRequest;
+export type RevokeCouponsData = {
+    body: CouponRevokeRequest;
     path?: never;
     query?: never;
     url: '/admin/coupons/revoke';
 };
 
-export type RevokeCouponsByIdsErrors = {
+export type RevokeCouponsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RevokeCouponsByIdsError = RevokeCouponsByIdsErrors[keyof RevokeCouponsByIdsErrors];
+export type RevokeCouponsError = RevokeCouponsErrors[keyof RevokeCouponsErrors];
 
-export type RevokeCouponsByIdsResponses = {
+export type RevokeCouponsResponses = {
     /**
      * Successful Response
      */
     200: AffectedResponse;
 };
 
-export type RevokeCouponsByIdsResponse = RevokeCouponsByIdsResponses[keyof RevokeCouponsByIdsResponses];
+export type RevokeCouponsResponse = RevokeCouponsResponses[keyof RevokeCouponsResponses];
 
-export type BulkIssueCouponsData = {
+export type GetAdminCouponData = {
+    body?: never;
+    path: {
+        /**
+         * Coupon Id
+         */
+        coupon_id: string;
+    };
+    query?: never;
+    url: '/admin/coupons/{coupon_id}';
+};
+
+export type GetAdminCouponErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminCouponError = GetAdminCouponErrors[keyof GetAdminCouponErrors];
+
+export type GetAdminCouponResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminCouponOut;
+};
+
+export type GetAdminCouponResponse = GetAdminCouponResponses[keyof GetAdminCouponResponses];
+
+export type UpdateAdminCouponData = {
+    body: CouponUpdateRequest;
+    path: {
+        /**
+         * Coupon Id
+         */
+        coupon_id: string;
+    };
+    query?: never;
+    url: '/admin/coupons/{coupon_id}';
+};
+
+export type UpdateAdminCouponErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAdminCouponError = UpdateAdminCouponErrors[keyof UpdateAdminCouponErrors];
+
+export type UpdateAdminCouponResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminCouponOut;
+};
+
+export type UpdateAdminCouponResponse = UpdateAdminCouponResponses[keyof UpdateAdminCouponResponses];
+
+export type PreviewCouponAudienceData = {
+    body: CouponAudienceRequest;
+    path: {
+        /**
+         * Coupon Id
+         */
+        coupon_id: string;
+    };
+    query?: never;
+    url: '/admin/coupons/{coupon_id}/audience-preview';
+};
+
+export type PreviewCouponAudienceErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewCouponAudienceError = PreviewCouponAudienceErrors[keyof PreviewCouponAudienceErrors];
+
+export type PreviewCouponAudienceResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageCouponAudienceCustomerOut;
+};
+
+export type PreviewCouponAudienceResponse = PreviewCouponAudienceResponses[keyof PreviewCouponAudienceResponses];
+
+export type IssueCouponData = {
     body: CouponIssueRequest;
     path: {
         /**
@@ -3190,26 +6828,69 @@ export type BulkIssueCouponsData = {
     url: '/admin/coupons/{coupon_id}/issue';
 };
 
-export type BulkIssueCouponsErrors = {
+export type IssueCouponErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type BulkIssueCouponsError = BulkIssueCouponsErrors[keyof BulkIssueCouponsErrors];
+export type IssueCouponError = IssueCouponErrors[keyof IssueCouponErrors];
 
-export type BulkIssueCouponsResponses = {
+export type IssueCouponResponses = {
     /**
      * Successful Response
      */
     200: AffectedResponse;
 };
 
-export type BulkIssueCouponsResponse = BulkIssueCouponsResponses[keyof BulkIssueCouponsResponses];
+export type IssueCouponResponse = IssueCouponResponses[keyof IssueCouponResponses];
 
-export type RevokeCouponsByUsersData = {
-    body: CouponIssueRequest;
+export type ListIssuedCouponsData = {
+    body?: never;
+    path: {
+        /**
+         * Coupon Id
+         */
+        coupon_id: string;
+    };
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'all' | 'active' | 'used' | 'expired' | 'revoked' | 'reserved';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/coupons/{coupon_id}/issued';
+};
+
+export type ListIssuedCouponsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListIssuedCouponsError = ListIssuedCouponsErrors[keyof ListIssuedCouponsErrors];
+
+export type ListIssuedCouponsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageIssuedCouponOut;
+};
+
+export type ListIssuedCouponsResponse = ListIssuedCouponsResponses[keyof ListIssuedCouponsResponses];
+
+export type RevokeCouponUsersData = {
+    body: CouponRevokeUsersRequest;
     path: {
         /**
          * Coupon Id
@@ -3220,44 +6901,737 @@ export type RevokeCouponsByUsersData = {
     url: '/admin/coupons/{coupon_id}/revoke-users';
 };
 
-export type RevokeCouponsByUsersErrors = {
+export type RevokeCouponUsersErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RevokeCouponsByUsersError = RevokeCouponsByUsersErrors[keyof RevokeCouponsByUsersErrors];
+export type RevokeCouponUsersError = RevokeCouponUsersErrors[keyof RevokeCouponUsersErrors];
 
-export type RevokeCouponsByUsersResponses = {
+export type RevokeCouponUsersResponses = {
     /**
      * Successful Response
      */
     200: AffectedResponse;
 };
 
-export type RevokeCouponsByUsersResponse = RevokeCouponsByUsersResponses[keyof RevokeCouponsByUsersResponses];
+export type RevokeCouponUsersResponse = RevokeCouponUsersResponses[keyof RevokeCouponUsersResponses];
 
-export type AdminListInquiriesData = {
+export type ListAdminCustomersData = {
     body?: never;
     path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'all' | 'active' | 'inactive';
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'name';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/customers';
+};
+
+export type ListAdminCustomersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminCustomersError = ListAdminCustomersErrors[keyof ListAdminCustomersErrors];
+
+export type ListAdminCustomersResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminCustomerSummaryOut;
+};
+
+export type ListAdminCustomersResponse = ListAdminCustomersResponses[keyof ListAdminCustomersResponses];
+
+export type SearchAdminCustomersData = {
+    body: CustomerSearchRequest;
+    path?: never;
     query?: never;
+    url: '/admin/customers/search';
+};
+
+export type SearchAdminCustomersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchAdminCustomersError = SearchAdminCustomersErrors[keyof SearchAdminCustomersErrors];
+
+export type SearchAdminCustomersResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminCustomerSummaryOut;
+};
+
+export type SearchAdminCustomersResponse = SearchAdminCustomersResponses[keyof SearchAdminCustomersResponses];
+
+export type GetAdminCustomerData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: never;
+    url: '/admin/customers/{user_id}';
+};
+
+export type GetAdminCustomerErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminCustomerError = GetAdminCustomerErrors[keyof GetAdminCustomerErrors];
+
+export type GetAdminCustomerResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminCustomerDetailOut;
+};
+
+export type GetAdminCustomerResponse = GetAdminCustomerResponses[keyof GetAdminCustomerResponses];
+
+export type ListAdminCustomerCouponsData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/customers/{user_id}/coupons';
+};
+
+export type ListAdminCustomerCouponsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminCustomerCouponsError = ListAdminCustomerCouponsErrors[keyof ListAdminCustomerCouponsErrors];
+
+export type ListAdminCustomerCouponsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminCustomerCouponOut;
+};
+
+export type ListAdminCustomerCouponsResponse = ListAdminCustomerCouponsResponses[keyof ListAdminCustomerCouponsResponses];
+
+export type ListAdminCustomerOrdersData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/customers/{user_id}/orders';
+};
+
+export type ListAdminCustomerOrdersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminCustomerOrdersError = ListAdminCustomerOrdersErrors[keyof ListAdminCustomerOrdersErrors];
+
+export type ListAdminCustomerOrdersResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminCustomerOrderOut;
+};
+
+export type ListAdminCustomerOrdersResponse = ListAdminCustomerOrdersResponses[keyof ListAdminCustomerOrdersResponses];
+
+export type ListAdminCustomerTokensData = {
+    body?: never;
+    path: {
+        /**
+         * User Id
+         */
+        user_id: string;
+    };
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/customers/{user_id}/tokens';
+};
+
+export type ListAdminCustomerTokensErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminCustomerTokensError = ListAdminCustomerTokensErrors[keyof ListAdminCustomerTokensErrors];
+
+export type ListAdminCustomerTokensResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminCustomerTokenOut;
+};
+
+export type ListAdminCustomerTokensResponse = ListAdminCustomerTokensResponses[keyof ListAdminCustomerTokensResponses];
+
+export type GetDashboardRecentOrdersData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Order Type
+         */
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/admin/dashboard/recent-orders';
+};
+
+export type GetDashboardRecentOrdersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardRecentOrdersError = GetDashboardRecentOrdersErrors[keyof GetDashboardRecentOrdersErrors];
+
+export type GetDashboardRecentOrdersResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardRecentOrdersPage;
+};
+
+export type GetDashboardRecentOrdersResponse = GetDashboardRecentOrdersResponses[keyof GetDashboardRecentOrdersResponses];
+
+export type GetDashboardRecentQuotesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/admin/dashboard/recent-quotes';
+};
+
+export type GetDashboardRecentQuotesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardRecentQuotesError = GetDashboardRecentQuotesErrors[keyof GetDashboardRecentQuotesErrors];
+
+export type GetDashboardRecentQuotesResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardRecentQuotesPage;
+};
+
+export type GetDashboardRecentQuotesResponse = GetDashboardRecentQuotesResponses[keyof GetDashboardRecentQuotesResponses];
+
+export type GetDashboardSummaryData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Order Type
+         */
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    };
+    url: '/admin/dashboard/summary';
+};
+
+export type GetDashboardSummaryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardSummaryError = GetDashboardSummaryErrors[keyof GetDashboardSummaryErrors];
+
+export type GetDashboardSummaryResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardSummaryOut;
+};
+
+export type GetDashboardSummaryResponse = GetDashboardSummaryResponses[keyof GetDashboardSummaryResponses];
+
+export type ListAdminGenerationJobsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: 'finalize' | 'export' | null;
+        /**
+         * Status
+         */
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        /**
+         * User Id
+         */
+        user_id?: string | null;
+        /**
+         * Start
+         */
+        start?: string | null;
+        /**
+         * End
+         */
+        end?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/generation/jobs';
+};
+
+export type ListAdminGenerationJobsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminGenerationJobsError = ListAdminGenerationJobsErrors[keyof ListAdminGenerationJobsErrors];
+
+export type ListAdminGenerationJobsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageGenerationJobSummaryOut;
+};
+
+export type ListAdminGenerationJobsResponse = ListAdminGenerationJobsResponses[keyof ListAdminGenerationJobsResponses];
+
+export type GetAdminGenerationJobStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Kind
+         */
+        kind?: 'finalize' | 'export' | null;
+        /**
+         * Status
+         */
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        /**
+         * User Id
+         */
+        user_id?: string | null;
+        /**
+         * Start
+         */
+        start?: string | null;
+        /**
+         * End
+         */
+        end?: string | null;
+    };
+    url: '/admin/generation/jobs/stats';
+};
+
+export type GetAdminGenerationJobStatsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminGenerationJobStatsError = GetAdminGenerationJobStatsErrors[keyof GetAdminGenerationJobStatsErrors];
+
+export type GetAdminGenerationJobStatsResponses = {
+    /**
+     * Successful Response
+     */
+    200: GenerationJobStatsOut;
+};
+
+export type GetAdminGenerationJobStatsResponse = GetAdminGenerationJobStatsResponses[keyof GetAdminGenerationJobStatsResponses];
+
+export type GetAdminGenerationJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/admin/generation/jobs/{job_id}';
+};
+
+export type GetAdminGenerationJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminGenerationJobError = GetAdminGenerationJobErrors[keyof GetAdminGenerationJobErrors];
+
+export type GetAdminGenerationJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: GenerationJobDetailOut;
+};
+
+export type GetAdminGenerationJobResponse = GetAdminGenerationJobResponses[keyof GetAdminGenerationJobResponses];
+
+export type ListAdminSeamlessLogsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'success' | 'partial' | 'error' | null;
+        /**
+         * Request Id
+         */
+        request_id?: string | null;
+        /**
+         * Start
+         */
+        start?: string | null;
+        /**
+         * End
+         */
+        end?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/generation/seamless';
+};
+
+export type ListAdminSeamlessLogsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminSeamlessLogsError = ListAdminSeamlessLogsErrors[keyof ListAdminSeamlessLogsErrors];
+
+export type ListAdminSeamlessLogsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageSeamlessSummaryOut;
+};
+
+export type ListAdminSeamlessLogsResponse = ListAdminSeamlessLogsResponses[keyof ListAdminSeamlessLogsResponses];
+
+export type GetAdminSeamlessStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'success' | 'partial' | 'error' | null;
+        /**
+         * Request Id
+         */
+        request_id?: string | null;
+        /**
+         * Start
+         */
+        start?: string | null;
+        /**
+         * End
+         */
+        end?: string | null;
+    };
+    url: '/admin/generation/seamless/stats';
+};
+
+export type GetAdminSeamlessStatsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminSeamlessStatsError = GetAdminSeamlessStatsErrors[keyof GetAdminSeamlessStatsErrors];
+
+export type GetAdminSeamlessStatsResponses = {
+    /**
+     * Successful Response
+     */
+    200: SeamlessStatsOut;
+};
+
+export type GetAdminSeamlessStatsResponse = GetAdminSeamlessStatsResponses[keyof GetAdminSeamlessStatsResponses];
+
+export type GetAdminSeamlessLogData = {
+    body?: never;
+    path: {
+        /**
+         * Log Id
+         */
+        log_id: string;
+    };
+    query?: never;
+    url: '/admin/generation/seamless/{log_id}';
+};
+
+export type GetAdminSeamlessLogErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminSeamlessLogError = GetAdminSeamlessLogErrors[keyof GetAdminSeamlessLogErrors];
+
+export type GetAdminSeamlessLogResponses = {
+    /**
+     * Successful Response
+     */
+    200: SeamlessDetailOut;
+};
+
+export type GetAdminSeamlessLogResponse = GetAdminSeamlessLogResponses[keyof GetAdminSeamlessLogResponses];
+
+export type CreateAdminSeamlessReferenceImageReadUrlData = {
+    body?: never;
+    path: {
+        /**
+         * Log Id
+         */
+        log_id: string;
+        /**
+         * Image Id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/admin/generation/seamless/{log_id}/reference-image/{image_id}/read-url';
+};
+
+export type CreateAdminSeamlessReferenceImageReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminSeamlessReferenceImageReadUrlError = CreateAdminSeamlessReferenceImageReadUrlErrors[keyof CreateAdminSeamlessReferenceImageReadUrlErrors];
+
+export type CreateAdminSeamlessReferenceImageReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: SignedReadUrlOut;
+};
+
+export type CreateAdminSeamlessReferenceImageReadUrlResponse = CreateAdminSeamlessReferenceImageReadUrlResponses[keyof CreateAdminSeamlessReferenceImageReadUrlResponses];
+
+export type ListAdminInquiriesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'all' | '답변대기' | '답변완료';
+        /**
+         * Category
+         */
+        category?: 'all' | '일반' | '상품' | '수선' | '주문제작';
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'updated_at' | 'status';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
     url: '/admin/inquiries';
 };
 
-export type AdminListInquiriesResponses = {
+export type ListAdminInquiriesErrors = {
     /**
-     * Response Admin List Inquiries
-     *
-     * Successful Response
+     * Validation Error
      */
-    200: Array<InquiryOut>;
+    422: HttpValidationError;
 };
 
-export type AdminListInquiriesResponse = AdminListInquiriesResponses[keyof AdminListInquiriesResponses];
+export type ListAdminInquiriesError = ListAdminInquiriesErrors[keyof ListAdminInquiriesErrors];
 
-export type AnswerInquiryData = {
-    body: InquiryAnswerRequest;
+export type ListAdminInquiriesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminInquirySummaryOut;
+};
+
+export type ListAdminInquiriesResponse = ListAdminInquiriesResponses[keyof ListAdminInquiriesResponses];
+
+export type SearchAdminInquiriesData = {
+    body: AdminInquirySearchRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/inquiries/search';
+};
+
+export type SearchAdminInquiriesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchAdminInquiriesError = SearchAdminInquiriesErrors[keyof SearchAdminInquiriesErrors];
+
+export type SearchAdminInquiriesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminInquirySummaryOut;
+};
+
+export type SearchAdminInquiriesResponse = SearchAdminInquiriesResponses[keyof SearchAdminInquiriesResponses];
+
+export type GetAdminInquiryData = {
+    body?: never;
+    path: {
+        /**
+         * Inquiry Id
+         */
+        inquiry_id: string;
+    };
+    query?: never;
+    url: '/admin/inquiries/{inquiry_id}';
+};
+
+export type GetAdminInquiryErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminInquiryError = GetAdminInquiryErrors[keyof GetAdminInquiryErrors];
+
+export type GetAdminInquiryResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminInquiryDetailOut;
+};
+
+export type GetAdminInquiryResponse = GetAdminInquiryResponses[keyof GetAdminInquiryResponses];
+
+export type AnswerAdminInquiryData = {
+    body: AdminInquiryAnswerRequest;
     path: {
         /**
          * Inquiry Id
@@ -3268,23 +7642,95 @@ export type AnswerInquiryData = {
     url: '/admin/inquiries/{inquiry_id}/answer';
 };
 
-export type AnswerInquiryErrors = {
+export type AnswerAdminInquiryErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type AnswerInquiryError = AnswerInquiryErrors[keyof AnswerInquiryErrors];
+export type AnswerAdminInquiryError = AnswerAdminInquiryErrors[keyof AnswerAdminInquiryErrors];
 
-export type AnswerInquiryResponses = {
+export type AnswerAdminInquiryResponses = {
     /**
      * Successful Response
      */
-    200: InquiryOut;
+    200: AdminInquiryDetailOut;
 };
 
-export type AnswerInquiryResponse = AnswerInquiryResponses[keyof AnswerInquiryResponses];
+export type AnswerAdminInquiryResponse = AnswerAdminInquiryResponses[keyof AnswerAdminInquiryResponses];
+
+export type ListAdminMotifsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Scope
+         */
+        scope?: 'whole' | 'partial' | null;
+        /**
+         * Source
+         */
+        source?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/motifs';
+};
+
+export type ListAdminMotifsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminMotifsError = ListAdminMotifsErrors[keyof ListAdminMotifsErrors];
+
+export type ListAdminMotifsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageMotifSummaryOut;
+};
+
+export type ListAdminMotifsResponse = ListAdminMotifsResponses[keyof ListAdminMotifsResponses];
+
+export type GetAdminMotifData = {
+    body?: never;
+    path: {
+        /**
+         * Motif Id
+         */
+        motif_id: string;
+    };
+    query?: never;
+    url: '/admin/motifs/{motif_id}';
+};
+
+export type GetAdminMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminMotifError = GetAdminMotifErrors[keyof GetAdminMotifErrors];
+
+export type GetAdminMotifResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifDetailOut;
+};
+
+export type GetAdminMotifResponse = GetAdminMotifResponses[keyof GetAdminMotifResponses];
 
 export type ListAllOrdersData = {
     body?: never;
@@ -3297,7 +7743,35 @@ export type ListAllOrdersData = {
         /**
          * Status
          */
-        status?: string | null;
+        status?: 'all' | '대기중' | '결제중' | '진행중' | '배송중' | '배송완료' | '완료' | '취소' | '실패' | '접수' | '제작중' | '제작완료' | '수선중' | '수선완료' | '발송대기' | '발송중' | '발송확인중' | '수거예정';
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'updated_at' | 'order_number' | 'order_amount' | 'status';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
     };
     url: '/admin/orders';
 };
@@ -3313,14 +7787,108 @@ export type ListAllOrdersError = ListAllOrdersErrors[keyof ListAllOrdersErrors];
 
 export type ListAllOrdersResponses = {
     /**
-     * Response List All Orders
-     *
      * Successful Response
      */
-    200: Array<AdminOrderOut>;
+    200: PageAdminOrderSummaryOut;
 };
 
 export type ListAllOrdersResponse = ListAllOrdersResponses[keyof ListAllOrdersResponses];
+
+export type GetAdminOrderData = {
+    body?: never;
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/admin/orders/{order_id}';
+};
+
+export type GetAdminOrderErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminOrderError = GetAdminOrderErrors[keyof GetAdminOrderErrors];
+
+export type GetAdminOrderResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminOrderDetailOut;
+};
+
+export type GetAdminOrderResponse = GetAdminOrderResponses[keyof GetAdminOrderResponses];
+
+export type ListAdminOrderReferenceImagesData = {
+    body?: never;
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/admin/orders/{order_id}/reference-images';
+};
+
+export type ListAdminOrderReferenceImagesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminOrderReferenceImagesError = ListAdminOrderReferenceImagesErrors[keyof ListAdminOrderReferenceImagesErrors];
+
+export type ListAdminOrderReferenceImagesResponses = {
+    /**
+     * Response List Admin Order Reference Images
+     *
+     * Successful Response
+     */
+    200: Array<AdminOrderReferenceImageOut>;
+};
+
+export type ListAdminOrderReferenceImagesResponse = ListAdminOrderReferenceImagesResponses[keyof ListAdminOrderReferenceImagesResponses];
+
+export type CreateAdminOrderReferenceImageReadUrlData = {
+    body?: never;
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+        /**
+         * Image Id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/admin/orders/{order_id}/reference-images/{image_id}/read-url';
+};
+
+export type CreateAdminOrderReferenceImageReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminOrderReferenceImageReadUrlError = CreateAdminOrderReferenceImageReadUrlErrors[keyof CreateAdminOrderReferenceImageReadUrlErrors];
+
+export type CreateAdminOrderReferenceImageReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: SignedReadUrlOut;
+};
+
+export type CreateAdminOrderReferenceImageReadUrlResponse = CreateAdminOrderReferenceImageReadUrlResponses[keyof CreateAdminOrderReferenceImageReadUrlResponses];
 
 export type AdminUpdateOrderStatusData = {
     body: AdminStatusUpdateRequest;
@@ -3382,33 +7950,373 @@ export type AdminUpdateOrderTrackingResponses = {
 
 export type AdminUpdateOrderTrackingResponse = AdminUpdateOrderTrackingResponses[keyof AdminUpdateOrderTrackingResponses];
 
-export type CreateProductData = {
-    body: ProductCreate;
+export type AdminListPaymentIncidentsData = {
+    body?: never;
     path?: never;
-    query?: never;
-    url: '/admin/products';
+    query?: {
+        /**
+         * Incident Type
+         */
+        incident_type?: 'all' | 'confirm' | 'refund' | 'partial_cancel' | 'mixed_state' | 'amount_mismatch';
+        /**
+         * Status
+         */
+        status?: 'all' | 'open' | 'resolved';
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'updated_at' | 'status' | 'incident_type';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/payment-incidents';
 };
 
-export type CreateProductErrors = {
+export type AdminListPaymentIncidentsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type CreateProductError = CreateProductErrors[keyof CreateProductErrors];
+export type AdminListPaymentIncidentsError = AdminListPaymentIncidentsErrors[keyof AdminListPaymentIncidentsErrors];
 
-export type CreateProductResponses = {
+export type AdminListPaymentIncidentsResponses = {
     /**
      * Successful Response
      */
-    201: ProductOut;
+    200: PagePaymentIncidentSummaryOut;
 };
 
-export type CreateProductResponse = CreateProductResponses[keyof CreateProductResponses];
+export type AdminListPaymentIncidentsResponse = AdminListPaymentIncidentsResponses[keyof AdminListPaymentIncidentsResponses];
 
-export type UpdateProductData = {
-    body: ProductUpdate;
+export type AdminGetPaymentIncidentData = {
+    body?: never;
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: string;
+    };
+    query?: never;
+    url: '/admin/payment-incidents/{incident_id}';
+};
+
+export type AdminGetPaymentIncidentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminGetPaymentIncidentError = AdminGetPaymentIncidentErrors[keyof AdminGetPaymentIncidentErrors];
+
+export type AdminGetPaymentIncidentResponses = {
+    /**
+     * Successful Response
+     */
+    200: PaymentIncidentDetailOut;
+};
+
+export type AdminGetPaymentIncidentResponse = AdminGetPaymentIncidentResponses[keyof AdminGetPaymentIncidentResponses];
+
+export type AdminReconcilePaymentIncidentData = {
+    body?: never;
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: string;
+    };
+    query?: never;
+    url: '/admin/payment-incidents/{incident_id}/reconcile';
+};
+
+export type AdminReconcilePaymentIncidentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminReconcilePaymentIncidentError = AdminReconcilePaymentIncidentErrors[keyof AdminReconcilePaymentIncidentErrors];
+
+export type AdminReconcilePaymentIncidentResponses = {
+    /**
+     * Successful Response
+     */
+    200: PaymentIncidentDetailOut;
+};
+
+export type AdminReconcilePaymentIncidentResponse = AdminReconcilePaymentIncidentResponses[keyof AdminReconcilePaymentIncidentResponses];
+
+export type AdminResolvePaymentIncidentData = {
+    body: IncidentResolveRequest;
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: string;
+    };
+    query?: never;
+    url: '/admin/payment-incidents/{incident_id}/resolve';
+};
+
+export type AdminResolvePaymentIncidentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminResolvePaymentIncidentError = AdminResolvePaymentIncidentErrors[keyof AdminResolvePaymentIncidentErrors];
+
+export type AdminResolvePaymentIncidentResponses = {
+    /**
+     * Successful Response
+     */
+    200: PaymentIncidentDetailOut;
+};
+
+export type AdminResolvePaymentIncidentResponse = AdminResolvePaymentIncidentResponses[keyof AdminResolvePaymentIncidentResponses];
+
+export type GetAdminPricingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/pricing';
+};
+
+export type GetAdminPricingResponses = {
+    /**
+     * Response Get Admin Pricing
+     *
+     * Successful Response
+     */
+    200: Array<PricingValueOut>;
+};
+
+export type GetAdminPricingResponse = GetAdminPricingResponses[keyof GetAdminPricingResponses];
+
+export type UpdateAdminPricingData = {
+    body: PricingUpdateRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/pricing';
+};
+
+export type UpdateAdminPricingErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAdminPricingError = UpdateAdminPricingErrors[keyof UpdateAdminPricingErrors];
+
+export type UpdateAdminPricingResponses = {
+    /**
+     * Response Update Admin Pricing
+     *
+     * Successful Response
+     */
+    200: Array<PricingValueOut>;
+};
+
+export type UpdateAdminPricingResponse = UpdateAdminPricingResponses[keyof UpdateAdminPricingResponses];
+
+export type AdminListProductsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Category
+         */
+        category?: '3fold' | 'sfolderato' | 'knit' | 'bowtie' | null;
+        /**
+         * Color
+         */
+        color?: 'black' | 'navy' | 'gray' | 'wine' | 'blue' | 'brown' | 'beige' | 'silver' | null;
+        /**
+         * Pattern
+         */
+        pattern?: 'solid' | 'stripe' | 'dot' | 'check' | 'paisley' | null;
+        /**
+         * Material
+         */
+        material?: 'silk' | 'cotton' | 'polyester' | 'wool' | null;
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'updated_at' | 'name' | 'price' | 'stock';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/products';
+};
+
+export type AdminListProductsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminListProductsError = AdminListProductsErrors[keyof AdminListProductsErrors];
+
+export type AdminListProductsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminProductSummaryOut;
+};
+
+export type AdminListProductsResponse = AdminListProductsResponses[keyof AdminListProductsResponses];
+
+export type AdminCreateProductData = {
+    body: AdminProductCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/products';
+};
+
+export type AdminCreateProductErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminCreateProductError = AdminCreateProductErrors[keyof AdminCreateProductErrors];
+
+export type AdminCreateProductResponses = {
+    /**
+     * Successful Response
+     */
+    201: AdminProductDetailOut;
+};
+
+export type AdminCreateProductResponse = AdminCreateProductResponses[keyof AdminCreateProductResponses];
+
+export type CreateAdminProductImageUploadUrlData = {
+    body: AdminProductImageUploadRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/products/images/upload-url';
+};
+
+export type CreateAdminProductImageUploadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminProductImageUploadUrlError = CreateAdminProductImageUploadUrlErrors[keyof CreateAdminProductImageUploadUrlErrors];
+
+export type CreateAdminProductImageUploadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminProductImageUploadOut;
+};
+
+export type CreateAdminProductImageUploadUrlResponse = CreateAdminProductImageUploadUrlResponses[keyof CreateAdminProductImageUploadUrlResponses];
+
+export type DeleteAdminProductImageUploadData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/admin/products/images/{upload_id}';
+};
+
+export type DeleteAdminProductImageUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteAdminProductImageUploadError = DeleteAdminProductImageUploadErrors[keyof DeleteAdminProductImageUploadErrors];
+
+export type DeleteAdminProductImageUploadResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteAdminProductImageUploadResponse = DeleteAdminProductImageUploadResponses[keyof DeleteAdminProductImageUploadResponses];
+
+export type CompleteAdminProductImageUploadData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/admin/products/images/{upload_id}/complete';
+};
+
+export type CompleteAdminProductImageUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteAdminProductImageUploadError = CompleteAdminProductImageUploadErrors[keyof CompleteAdminProductImageUploadErrors];
+
+export type CompleteAdminProductImageUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminProductImageCompleteOut;
+};
+
+export type CompleteAdminProductImageUploadResponse = CompleteAdminProductImageUploadResponses[keyof CompleteAdminProductImageUploadResponses];
+
+export type AdminGetProductData = {
+    body?: never;
     path: {
         /**
          * Product Id
@@ -3419,29 +8327,26 @@ export type UpdateProductData = {
     url: '/admin/products/{product_id}';
 };
 
-export type UpdateProductErrors = {
+export type AdminGetProductErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type UpdateProductError = UpdateProductErrors[keyof UpdateProductErrors];
+export type AdminGetProductError = AdminGetProductErrors[keyof AdminGetProductErrors];
 
-export type UpdateProductResponses = {
+export type AdminGetProductResponses = {
     /**
      * Successful Response
      */
-    200: ProductOut;
+    200: AdminProductDetailOut;
 };
 
-export type UpdateProductResponse = UpdateProductResponses[keyof UpdateProductResponses];
+export type AdminGetProductResponse = AdminGetProductResponses[keyof AdminGetProductResponses];
 
-export type ReplaceProductOptionsData = {
-    /**
-     * Body
-     */
-    body: Array<ProductOptionIn>;
+export type AdminUpdateProductData = {
+    body: AdminProductUpdateRequest;
     path: {
         /**
          * Product Id
@@ -3449,48 +8354,146 @@ export type ReplaceProductOptionsData = {
         product_id: number;
     };
     query?: never;
-    url: '/admin/products/{product_id}/options';
+    url: '/admin/products/{product_id}';
 };
 
-export type ReplaceProductOptionsErrors = {
+export type AdminUpdateProductErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type ReplaceProductOptionsError = ReplaceProductOptionsErrors[keyof ReplaceProductOptionsErrors];
+export type AdminUpdateProductError = AdminUpdateProductErrors[keyof AdminUpdateProductErrors];
 
-export type ReplaceProductOptionsResponses = {
+export type AdminUpdateProductResponses = {
     /**
-     * Response Replace Product Options
-     *
      * Successful Response
      */
-    200: Array<ProductOptionOut>;
+    200: AdminProductDetailOut;
 };
 
-export type ReplaceProductOptionsResponse = ReplaceProductOptionsResponses[keyof ReplaceProductOptionsResponses];
+export type AdminUpdateProductResponse = AdminUpdateProductResponses[keyof AdminUpdateProductResponses];
 
-export type AdminListQuotesData = {
+export type ListAdminQuotesData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'all' | '요청' | '견적발송' | '협의중' | '확정' | '종료';
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Sort
+         */
+        sort?: 'created_at' | 'updated_at' | 'quote_number' | 'status' | 'quoted_amount';
+        /**
+         * Direction
+         */
+        direction?: 'asc' | 'desc';
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
     url: '/admin/quotes';
 };
 
-export type AdminListQuotesResponses = {
+export type ListAdminQuotesErrors = {
     /**
-     * Response Admin List Quotes
-     *
-     * Successful Response
+     * Validation Error
      */
-    200: Array<QuoteOut>;
+    422: HttpValidationError;
 };
 
-export type AdminListQuotesResponse = AdminListQuotesResponses[keyof AdminListQuotesResponses];
+export type ListAdminQuotesError = ListAdminQuotesErrors[keyof ListAdminQuotesErrors];
 
-export type AdminUpdateQuoteStatusData = {
+export type ListAdminQuotesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAdminQuoteSummaryOut;
+};
+
+export type ListAdminQuotesResponse = ListAdminQuotesResponses[keyof ListAdminQuotesResponses];
+
+export type GetAdminQuoteData = {
+    body?: never;
+    path: {
+        /**
+         * Quote Id
+         */
+        quote_id: string;
+    };
+    query?: never;
+    url: '/admin/quotes/{quote_id}';
+};
+
+export type GetAdminQuoteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAdminQuoteError = GetAdminQuoteErrors[keyof GetAdminQuoteErrors];
+
+export type GetAdminQuoteResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminQuoteDetailOut;
+};
+
+export type GetAdminQuoteResponse = GetAdminQuoteResponses[keyof GetAdminQuoteResponses];
+
+export type CreateAdminQuoteImageReadUrlData = {
+    body?: never;
+    path: {
+        /**
+         * Quote Id
+         */
+        quote_id: string;
+        /**
+         * Image Id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/admin/quotes/{quote_id}/images/{image_id}/read-url';
+};
+
+export type CreateAdminQuoteImageReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminQuoteImageReadUrlError = CreateAdminQuoteImageReadUrlErrors[keyof CreateAdminQuoteImageReadUrlErrors];
+
+export type CreateAdminQuoteImageReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: SignedReadUrlOut;
+};
+
+export type CreateAdminQuoteImageReadUrlResponse = CreateAdminQuoteImageReadUrlResponses[keyof CreateAdminQuoteImageReadUrlResponses];
+
+export type UpdateAdminQuoteStatusData = {
     body: AdminQuoteStatusRequest;
     path: {
         /**
@@ -3502,23 +8505,134 @@ export type AdminUpdateQuoteStatusData = {
     url: '/admin/quotes/{quote_id}/status';
 };
 
-export type AdminUpdateQuoteStatusErrors = {
+export type UpdateAdminQuoteStatusErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type AdminUpdateQuoteStatusError = AdminUpdateQuoteStatusErrors[keyof AdminUpdateQuoteStatusErrors];
+export type UpdateAdminQuoteStatusError = UpdateAdminQuoteStatusErrors[keyof UpdateAdminQuoteStatusErrors];
 
-export type AdminUpdateQuoteStatusResponses = {
+export type UpdateAdminQuoteStatusResponses = {
     /**
      * Successful Response
      */
-    200: AdminQuoteStatusResponse;
+    200: AdminQuoteDetailOut;
 };
 
-export type AdminUpdateQuoteStatusResponse = AdminUpdateQuoteStatusResponses[keyof AdminUpdateQuoteStatusResponses];
+export type UpdateAdminQuoteStatusResponse = UpdateAdminQuoteStatusResponses[keyof UpdateAdminQuoteStatusResponses];
+
+export type ListAdminRepairReceiptPhotosData = {
+    body?: never;
+    path: {
+        /**
+         * Receipt Id
+         */
+        receipt_id: string;
+    };
+    query?: never;
+    url: '/admin/repair-shipping-receipts/{receipt_id}/photos';
+};
+
+export type ListAdminRepairReceiptPhotosErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminRepairReceiptPhotosError = ListAdminRepairReceiptPhotosErrors[keyof ListAdminRepairReceiptPhotosErrors];
+
+export type ListAdminRepairReceiptPhotosResponses = {
+    /**
+     * Response List Admin Repair Receipt Photos
+     *
+     * Successful Response
+     */
+    200: Array<AdminRepairPhotoOut>;
+};
+
+export type ListAdminRepairReceiptPhotosResponse = ListAdminRepairReceiptPhotosResponses[keyof ListAdminRepairReceiptPhotosResponses];
+
+export type CreateAdminRepairReceiptPhotoReadUrlData = {
+    body?: never;
+    path: {
+        /**
+         * Receipt Id
+         */
+        receipt_id: string;
+        /**
+         * Image Id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/admin/repair-shipping-receipts/{receipt_id}/photos/{image_id}/read-url';
+};
+
+export type CreateAdminRepairReceiptPhotoReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminRepairReceiptPhotoReadUrlError = CreateAdminRepairReceiptPhotoReadUrlErrors[keyof CreateAdminRepairReceiptPhotoReadUrlErrors];
+
+export type CreateAdminRepairReceiptPhotoReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: SignedReadUrlOut;
+};
+
+export type CreateAdminRepairReceiptPhotoReadUrlResponse = CreateAdminRepairReceiptPhotoReadUrlResponses[keyof CreateAdminRepairReceiptPhotoReadUrlResponses];
+
+export type GetAdminSettingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/settings';
+};
+
+export type GetAdminSettingsResponses = {
+    /**
+     * Response Get Admin Settings
+     *
+     * Successful Response
+     */
+    200: Array<AdminSettingOut>;
+};
+
+export type GetAdminSettingsResponse = GetAdminSettingsResponses[keyof GetAdminSettingsResponses];
+
+export type UpdateAdminSettingsData = {
+    body: SettingsUpdateRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/settings';
+};
+
+export type UpdateAdminSettingsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAdminSettingsError = UpdateAdminSettingsErrors[keyof UpdateAdminSettingsErrors];
+
+export type UpdateAdminSettingsResponses = {
+    /**
+     * Response Update Admin Settings
+     *
+     * Successful Response
+     */
+    200: Array<AdminSettingOut>;
+};
+
+export type UpdateAdminSettingsResponse = UpdateAdminSettingsResponses[keyof UpdateAdminSettingsResponses];
 
 export type PeriodStatsData = {
     body?: never;
@@ -3651,23 +8765,62 @@ export type AdminManageTokensResponses = {
 
 export type AdminManageTokensResponse = AdminManageTokensResponses[keyof AdminManageTokensResponses];
 
-export type ListUsersData = {
+export type AdminLoginData = {
+    body: LoginRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/admin/login';
+};
+
+export type AdminLoginErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AdminLoginError = AdminLoginErrors[keyof AdminLoginErrors];
+
+export type AdminLoginResponses = {
+    /**
+     * Successful Response
+     */
+    200: TokenResponse;
+};
+
+export type AdminLoginResponse = AdminLoginResponses[keyof AdminLoginResponses];
+
+export type AdminLogoutData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/admin/users';
+    url: '/auth/admin/logout';
 };
 
-export type ListUsersResponses = {
+export type AdminLogoutResponses = {
     /**
-     * Response List Users
-     *
      * Successful Response
      */
-    200: Array<AdminUserOut>;
+    204: void;
 };
 
-export type ListUsersResponse = ListUsersResponses[keyof ListUsersResponses];
+export type AdminLogoutResponse = AdminLogoutResponses[keyof AdminLogoutResponses];
+
+export type AdminRefreshTokensData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/admin/refresh';
+};
+
+export type AdminRefreshTokensResponses = {
+    /**
+     * Successful Response
+     */
+    200: TokenResponse;
+};
+
+export type AdminRefreshTokensResponse = AdminRefreshTokensResponses[keyof AdminRefreshTokensResponses];
 
 export type LoginData = {
     body: LoginRequest;
@@ -3839,6 +8992,22 @@ export type CleanupImagesResponses = {
 };
 
 export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesResponses];
+
+export type ReconcileStaleGenerationJobsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/batch/reconcile-stale-generation-jobs';
+};
+
+export type ReconcileStaleGenerationJobsResponses = {
+    /**
+     * Successful Response
+     */
+    200: BatchResult;
+};
+
+export type ReconcileStaleGenerationJobsResponse = ReconcileStaleGenerationJobsResponses[keyof ReconcileStaleGenerationJobsResponses];
 
 export type GetCartData = {
     body?: never;
@@ -4444,6 +9613,36 @@ export type HealthzResponses = {
 
 export type HealthzResponse = HealthzResponses[keyof HealthzResponses];
 
+export type CompleteOrderImageData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/images/order-uploads/{upload_id}/complete';
+};
+
+export type CompleteOrderImageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteOrderImageError = CompleteOrderImageErrors[keyof CompleteOrderImageErrors];
+
+export type CompleteOrderImageResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrderImageUploadOut;
+};
+
+export type CompleteOrderImageResponse = CompleteOrderImageResponses[keyof CompleteOrderImageResponses];
+
 export type CreateReadUrlData = {
     body: ReadUrlRequest;
     path?: never;
@@ -4520,7 +9719,7 @@ export type RegisterReformUploadResponses = {
 export type RegisterReformUploadResponse = RegisterReformUploadResponses[keyof RegisterReformUploadResponses];
 
 export type RegisterRepairShippingUploadData = {
-    body: UploadRegisterRequest;
+    body: RepairShippingUploadCompleteRequest;
     path?: never;
     query?: never;
     url: '/images/repair-shipping-uploads';
@@ -5004,13 +10203,8 @@ export type ConfirmPaymentResponses = {
 
 export type ConfirmPaymentResponse = ConfirmPaymentResponses[keyof ConfirmPaymentResponses];
 
-export type TossWebhookData = {
-    /**
-     * Payload
-     */
-    body: {
-        [key: string]: unknown;
-    };
+export type TossWebhookData2 = {
+    body: TossWebhookRequest;
     path?: never;
     query?: never;
     url: '/payments/webhook';

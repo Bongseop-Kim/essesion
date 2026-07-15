@@ -29,10 +29,35 @@ variable "github_repo" {
   default = "Bongseop-Kim/essesion"
 }
 
+variable "github_repository_id" {
+  description = "GitHub OIDC trust에 사용하는 재사용 불가 numeric repository ID"
+  type        = string
+  default     = "1290445433"
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "github_repository_id must contain digits only."
+  }
+}
+
 variable "api_min_instances" {
   description = "api 콜드스타트 제거는 프로덕션 요구(ARCHITECTURE §2) — 스테이징 기본 0으로 비용 절약"
   type        = number
   default     = 0
+}
+
+variable "public_api_origin" {
+  description = "OAuth callback에 사용할 Cloudflare 공개 API origin (Cloud Run run.app 직통 금지)"
+  type        = string
+  default     = "https://api.essesion.shop"
+
+  validation {
+    condition = (
+      can(regex("^https://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?/?$", var.public_api_origin)) &&
+      length(regexall("(localhost|127\\.0\\.0\\.1|\\.run\\.app)(:[0-9]{1,5})?/?$", lower(var.public_api_origin))) == 0
+    )
+    error_message = "public_api_origin must be a public HTTPS origin and must not be a run.app URL."
+  }
 }
 
 variable "db_tier" {
@@ -55,6 +80,7 @@ variable "app_secret_ids" {
     "recraft-api-key",
     "jwt-secret",
     "session-secret",
+    "edge-proxy-secret",
     "sentry-dsn-api",
     "sentry-dsn-worker",
   ]
@@ -79,6 +105,8 @@ variable "upload_cors_origins" {
   type        = list(string)
   default = [
     "http://localhost:3000",
+    "http://localhost:3001",
     "https://app.essesion.shop",
+    "https://admin.essesion.shop",
   ]
 }

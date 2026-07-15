@@ -6,7 +6,10 @@ import type {
   QuoteContact,
 } from "./options";
 
-export const CUSTOM_ORDER_DRAFT_KEY = "custom-order:draft:v2";
+const CUSTOM_ORDER_DRAFT_KEY = "custom-order:draft:v3";
+
+const LEGACY_CUSTOM_ORDER_DRAFT_KEY = "custom-order:draft:v2";
+const ANONYMOUS_DRAFT_OWNER = "anonymous";
 
 const optionsSchema = z
   .object({
@@ -49,11 +52,18 @@ const formDraftSchema = z
   .object({ options: optionsSchema, contact: contactSchema })
   .strict();
 
+const storedFormDraftSchema = z
+  .object({
+    ownerUserId: z.string().nullable(),
+    draft: formDraftSchema,
+  })
+  .strict();
+
 const orderDraftSchema = z
   .object({
     options: orderOptionsSchema,
     contact: contactSchema,
-    imageRefs: z.array(z.object({ object_key: z.string().min(1) }).strict()),
+    imageRefs: z.array(z.object({ upload_id: z.string().uuid() }).strict()),
     totalCost: z.number().int().nonnegative(),
   })
   .strict();
@@ -70,22 +80,69 @@ export function parseCustomOrderFormDraft(
   return parsed.success ? parsed.data : null;
 }
 
-export function readCustomOrderFormDraft(): CustomOrderFormDraft | null {
+function customOrderDraftStorageKey(ownerUserId: string | null) {
+  const owner =
+    ownerUserId === null
+      ? ANONYMOUS_DRAFT_OWNER
+      : `user:${encodeURIComponent(ownerUserId)}`;
+  return `${CUSTOM_ORDER_DRAFT_KEY}:${owner}`;
+}
+
+function removeCustomOrderDraftItem(key: string) {
   try {
-    return parseCustomOrderFormDraft(
-      JSON.parse(sessionStorage.getItem(CUSTOM_ORDER_DRAFT_KEY) ?? "null"),
-    );
+    sessionStorage.removeItem(key);
   } catch {
+    // Storage 접근이 차단된 브라우저에서는 메모리의 폼 상태만 사용한다.
+  }
+}
+
+export function readCustomOrderFormDraft(
+  ownerUserId: string | null,
+): CustomOrderFormDraft | null {
+  const key = customOrderDraftStorageKey(ownerUserId);
+  try {
+    // v2에는 owner 정보가 없어 로그인 계정의 연락처인지 익명 draft인지
+    // 안전하게 판별할 수 없다. 다른 사용자에게 이관하지 않고 폐기한다.
+    removeCustomOrderDraftItem(LEGACY_CUSTOM_ORDER_DRAFT_KEY);
+    const raw = sessionStorage.getItem(key);
+    if (raw) {
+      const parsed = storedFormDraftSchema.safeParse(JSON.parse(raw));
+      if (parsed.success && parsed.data.ownerUserId === ownerUserId) {
+        return parsed.data.draft;
+      }
+      removeCustomOrderDraftItem(key);
+      return null;
+    }
+
+    return null;
+  } catch {
+    removeCustomOrderDraftItem(key);
+    removeCustomOrderDraftItem(LEGACY_CUSTOM_ORDER_DRAFT_KEY);
     return null;
   }
 }
 
-export function saveCustomOrderFormDraft(value: CustomOrderFormDraft) {
-  sessionStorage.setItem(CUSTOM_ORDER_DRAFT_KEY, JSON.stringify(value));
+export function saveCustomOrderFormDraft(
+  ownerUserId: string | null,
+  value: CustomOrderFormDraft,
+) {
+  sessionStorage.setItem(
+    customOrderDraftStorageKey(ownerUserId),
+    JSON.stringify({ ownerUserId, draft: value }),
+  );
 }
 
-export function clearCustomOrderFormDraft() {
-  sessionStorage.removeItem(CUSTOM_ORDER_DRAFT_KEY);
+export function clearCustomOrderFormDraft(ownerUserId: string | null) {
+  removeCustomOrderDraftItem(customOrderDraftStorageKey(ownerUserId));
+  removeCustomOrderDraftItem(LEGACY_CUSTOM_ORDER_DRAFT_KEY);
+}
+
+export function handoffAnonymousCustomOrderFormDraft(
+  ownerUserId: string,
+  value: CustomOrderFormDraft,
+) {
+  saveCustomOrderFormDraft(ownerUserId, value);
+  clearCustomOrderFormDraft(null);
 }
 
 export function parseCustomOrderDraft(value: unknown): CustomOrderDraft | null {

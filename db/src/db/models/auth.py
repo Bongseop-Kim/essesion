@@ -27,6 +27,9 @@ class User(TimestampMixin, Base):
     notification_consent: Mapped[bool] = mapped_column(server_default=text("false"))
     notification_enabled: Mapped[bool] = mapped_column(server_default=text("true"))
     marketing_kakao_sms_consent: Mapped[bool] = mapped_column(server_default=text("false"))
+    # soft-delete 보존 기간의 불변 기준. updated_at은 후속 정리 작업이 바꿀 수 있어
+    # retention anchor로 사용할 수 없다.
+    deleted_at: Mapped[datetime | None]
 
     __table_args__ = (
         Index("uq_users_email", "email", unique=True, postgresql_where=text("email IS NOT NULL")),
@@ -57,8 +60,14 @@ class RefreshToken(CreatedAtMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     token_hash: Mapped[str] = mapped_column(unique=True)
+    session_kind: Mapped[str] = mapped_column(server_default="store")
     expires_at: Mapped[datetime]
     revoked_at: Mapped[datetime | None]
+
+    __table_args__ = (
+        CheckConstraint("session_kind IN ('store', 'admin')", name="session_kind"),
+        Index("ix_refresh_tokens_user_id_session_kind", "user_id", "session_kind"),
+    )
 
 
 class PhoneVerification(CreatedAtMixin, Base):
@@ -69,6 +78,10 @@ class PhoneVerification(CreatedAtMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     phone: Mapped[str]
-    code: Mapped[str]
+    code: Mapped[str]  # keyed HMAC digest; 6자리 원문은 SMS에만 존재
     expires_at: Mapped[datetime]  # 발급 시 api가 now+5분 설정 (재전송 60초/일 5회 제한도 api)
     verified: Mapped[bool] = mapped_column(server_default=text("false"))
+    failed_attempts: Mapped[int] = mapped_column(server_default=text("0"))
+    locked_at: Mapped[datetime | None]
+
+    __table_args__ = (CheckConstraint("failed_attempts >= 0", name="failed_attempts_nonnegative"),)

@@ -1,4 +1,3 @@
-import { getMe } from "@essesion/api-client";
 import { loginMutation } from "@essesion/api-client/query";
 import { zLoginRequest } from "@essesion/api-client/zod";
 import {
@@ -25,6 +24,11 @@ import {
 } from "@/features/auth/model/return-after-login";
 import { syncGuestCartToAccount } from "@/features/cart";
 import { API_BASE_URL } from "@/shared/config/env";
+import {
+  authenticateCurrentToken,
+  clearStoreSession,
+  setStoreAccessToken,
+} from "@/shared/lib/api-client";
 import { useZodForm } from "@/shared/lib/form";
 import { useSession } from "@/shared/store/session";
 
@@ -50,14 +54,12 @@ export function LoginPage() {
   const login = useMutation({
     ...loginMutation(),
     onSuccess: async (data) => {
-      useSession.getState().setAccessToken(data.access_token);
+      setStoreAccessToken(data.access_token);
       try {
-        const me = await getMe();
-        if (!me.data) {
-          useSession.getState().clear();
+        if (!(await authenticateCurrentToken())) {
+          clearStoreSession();
           return;
         }
-        useSession.getState().setUser(me.data);
         const fallback = (location.state as { from?: unknown } | null)?.from;
         const destination = takeAuthReturn() ?? {
           path: typeof fallback === "string" ? fallback : "/",
@@ -73,13 +75,16 @@ export function LoginPage() {
           navigate("/cart", { replace: true });
         }
       } catch {
-        useSession.getState().clear();
+        clearStoreSession();
       }
     },
   });
 
-  // 이미 로그인 상태면 홈으로.
-  if (status === "authenticated") return <Navigate to="/" replace />;
+  // 이미 로그인한 방문자는 홈으로 보낸다. 현재 로그인 mutation은 onSuccess의
+  // 장바구니 동기화와 원래 목적지 이동까지 끝날 때까지 pending을 유지한다.
+  if (status === "authenticated" && !login.isPending) {
+    return <Navigate to="/" replace />;
+  }
 
   const startOAuth = (provider: AuthProviderId) => {
     const fallback = (location.state as { from?: unknown } | null)?.from;

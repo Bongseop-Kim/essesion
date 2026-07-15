@@ -1,8 +1,8 @@
 export { CUSTOM_IMAGE_ACCEPT, uploadOrderImage } from "./api/upload";
 export type { CustomOrderFormDraft } from "./model/draft";
 export {
-  CUSTOM_ORDER_DRAFT_KEY,
   clearCustomOrderFormDraft,
+  handoffAnonymousCustomOrderFormDraft,
   parseCustomOrderDraft,
   parseCustomOrderFormDraft,
   readCustomOrderFormDraft,

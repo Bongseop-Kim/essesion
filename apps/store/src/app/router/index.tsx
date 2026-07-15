@@ -2,13 +2,16 @@ import { createBrowserRouter } from "react-router";
 
 import { AppLayout } from "@/app/layout/app-layout";
 import { ProtectedRoute } from "@/app/router/protected-route";
+import { RouteErrorBoundary } from "@/app/router/route-error";
 import { Home } from "@/pages/home";
+import { NotFoundPage } from "@/pages/not-found";
 
 // route별 lazy() → 자동 코드스플리팅. 데이터는 TanStack Query가 소유하므로 loader는 두지 않는다.
 
-export const router = createBrowserRouter([
+export const storeRouteObjects = [
   {
     element: <AppLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       { index: true, element: <Home /> },
       {
@@ -255,8 +258,9 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      // 임시: 미구현 라우트는 홈으로(YeongSeon catch-all과 동일).
-      { path: "*", element: <Home /> },
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
-]);
+] satisfies Parameters<typeof createBrowserRouter>[0];
+
+export const router = createBrowserRouter(storeRouteObjects);

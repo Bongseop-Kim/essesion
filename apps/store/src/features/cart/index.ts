@@ -1,5 +1,6 @@
 export {
   applyCartItemCoupon,
+  cartItemBlockingReason,
   cartItemId,
   cartItemsToInputs,
   cartItemToInput,

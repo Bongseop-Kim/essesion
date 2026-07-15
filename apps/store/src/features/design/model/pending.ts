@@ -4,6 +4,7 @@ export const DESIGN_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 export type DesignPending = {
   sessionId: string;
   at: number;
+  operationId?: string;
 };
 
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -11,6 +12,7 @@ export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type StorageOptions = {
   storage?: StorageLike | null;
   now?: number;
+  operationId?: string;
 };
 
 function browserStorage(): StorageLike | null {
@@ -44,8 +46,20 @@ export function parsePendingDesign(
     if (typeof value.at !== "number" || !Number.isFinite(value.at)) {
       return null;
     }
+    if (
+      value.operationId !== undefined &&
+      (typeof value.operationId !== "string" || !value.operationId.trim())
+    ) {
+      return null;
+    }
     if (now - value.at >= DESIGN_PENDING_TTL_MS) return null;
-    return { sessionId: value.sessionId, at: value.at };
+    return {
+      sessionId: value.sessionId,
+      at: value.at,
+      ...(typeof value.operationId === "string"
+        ? { operationId: value.operationId }
+        : {}),
+    };
   } catch {
     return null;
   }
@@ -77,7 +91,11 @@ export function writePendingDesign(
   try {
     storage.setItem(
       DESIGN_PENDING_KEY,
-      JSON.stringify({ sessionId, at: options.now ?? Date.now() }),
+      JSON.stringify({
+        sessionId,
+        at: options.now ?? Date.now(),
+        ...(options.operationId ? { operationId: options.operationId } : {}),
+      }),
     );
     return true;
   } catch {
@@ -90,6 +108,13 @@ export function clearPendingDesign(options: StorageOptions = {}): void {
   if (!storage) return;
 
   try {
+    if (options.operationId) {
+      const pending = parsePendingDesign(
+        storage.getItem(DESIGN_PENDING_KEY),
+        options.now ?? Date.now(),
+      );
+      if (pending?.operationId !== options.operationId) return;
+    }
     storage.removeItem(DESIGN_PENDING_KEY);
   } catch {
     // Storage can be disabled by the browser.

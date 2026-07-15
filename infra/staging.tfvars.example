@@ -1,14 +1,20 @@
 # cp staging.tfvars.example staging.tfvars 후 채우기 (tfvars는 gitignore)
-project_id      = "essesion-staging"
-billing_account = "XXXXXX-XXXXXX-XXXXXX"
-alert_email     = "biblecookie@naver.com"
+project_id        = "essesion-staging"
+billing_account   = "XXXXXX-XXXXXX-XXXXXX"
+alert_email       = "biblecookie@naver.com"
+public_api_origin = "https://api.essesion.shop"
 
-# 비시크릿 운영 env — Cloudflare zone 연결(5단계) 후 활성화 (시크릿은 gcloud 주입, README)
-# 도메인 확정: essesion.shop. zone 연결 전 스테이징 테스트는 workers.dev·run.app URL 사용.
+# 비시크릿 운영 env — 첫 apply부터 공개 Cloudflare 도메인으로 설정 (시크릿은 gcloud 주입, README)
+# 도메인 확정: essesion.shop. 일반 API에 run.app URL을 사용하거나 외부 콘솔에 등록하지 않는다.
 # api_extra_env = {
 #   FRONTEND_ORIGIN  = "https://app.essesion.shop"
+#   ADMIN_FRONTEND_ORIGIN = "https://admin.essesion.shop"
 #   CORS_ORIGINS     = "[\"https://app.essesion.shop\", \"https://admin.essesion.shop\"]"
 #   GOOGLE_CLIENT_ID = "..."
 #   KAKAO_CLIENT_ID  = "..."
 #   SOLAPI_SENDER_NUMBER = "01000000000"
+#   SOLAPI_PF_ID = "..."
+#   SOLAPI_TEMPLATE_CLAIM_DONE = "..."
+#   SOLAPI_TEMPLATE_CLAIM_REJECTED = "..."
+#   SOLAPI_TEMPLATE_QUOTE_RECEIVED = "..."
 # }

@@ -12,10 +12,15 @@ from db.models.images import Image
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from api.db import SessionDep
 from api.deps import CurrentUser, OptionalUser
+from api.domains.images.service import (
+    MAX_ORDER_IMAGE_BYTES,
+    OrderImageKind,
+    complete_order_image_upload,
+    order_upload_entity_type,
+)
 from api.errors import ConflictError, DomainError
 
 router = APIRouter(tags=["images"])
@@ -27,17 +32,20 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_REFORM_IMAGE_BYTES = 10 * 1024 * 1024
 REFORM_UPLOAD_TTL = timedelta(hours=24)
 QUOTE_UPLOAD_TTL = timedelta(hours=24)
+ORDER_UPLOAD_TTL = timedelta(hours=24)
+REPAIR_SHIPPING_UPLOAD_PREFIX = "uploads/repair_shipping_upload/"
 
 
 class UploadUrlRequest(BaseModel):
     kind: UploadKind
     filename: str
     content_type: str
-    size_bytes: int | None = Field(default=None, gt=0, le=MAX_REFORM_IMAGE_BYTES)
+    size_bytes: int = Field(gt=0, le=MAX_ORDER_IMAGE_BYTES)
 
 
 class UploadUrlResponse(BaseModel):
     object_key: str
+    upload_id: uuid.UUID
     upload_url: str
     required_headers: dict[str, str]
     upload_required: bool
@@ -60,6 +68,10 @@ class ReformUploadUrlResponse(BaseModel):
 
 class UploadRegisterRequest(BaseModel):
     object_key: str
+
+
+class RepairShippingUploadCompleteRequest(BaseModel):
+    upload_id: uuid.UUID
 
 
 class ReformUploadCompleteRequest(UploadRegisterRequest):
@@ -87,6 +99,14 @@ class ImageOut(BaseModel):
     created_at: datetime
 
 
+class OrderImageUploadOut(BaseModel):
+    upload_id: uuid.UUID
+    kind: OrderImageKind
+    content_type: str
+    size_bytes: int
+    upload_completed_at: datetime
+
+
 @router.post("/images/upload-url", response_model=UploadUrlResponse)
 async def create_upload_url(
     body: UploadUrlRequest,
@@ -97,40 +117,75 @@ async def create_upload_url(
     extension = PurePosixPath(body.filename).suffix.lower()
     if extension not in ALLOWED_EXTENSIONS or body.content_type not in ALLOWED_CONTENT_TYPES:
         raise DomainError("지원하지 않는 이미지 형식입니다", code="invalid_image_type")
-    if body.kind == "quote_request" and body.size_bytes is None:
-        raise DomainError("견적 이미지 크기가 필요합니다", code="invalid_image_size")
     object_key = f"uploads/{body.kind}/{uuid.uuid4().hex}{extension}"
-    if body.kind == "quote_request":
-        # 견적 생성이 임의의 object_key를 신뢰하지 않도록 발급 시점에
-        # 소유자·MIME·키를 스테이징한다. 미귀속 업로드는 정리 배치가 회수한다.
-        session.add(
-            Image(
-                object_key=object_key,
-                entity_type="quote_request_upload",
-                entity_id=object_key,
-                uploaded_by=user.id,
-                content_type=body.content_type,
-                size_bytes=body.size_bytes,
-                expires_at=datetime.now(UTC) + QUOTE_UPLOAD_TTL,
-            )
+    # 모든 업로드 종류를 발급 시점에 스테이징해 완료 요청이 임의의 object_key를
+    # 등록하지 못하게 한다.
+    entity_type = (
+        "quote_request_upload"
+        if body.kind == "quote_request"
+        else (
+            "repair_shipping_upload"
+            if body.kind == "repair_shipping_upload"
+            else order_upload_entity_type(body.kind)
         )
-        await session.flush()
-    max_size_bytes = MAX_REFORM_IMAGE_BYTES if body.kind == "quote_request" else None
+    )
+    staged_image = Image(
+        object_key=object_key,
+        entity_type=entity_type,
+        entity_id=object_key,
+        uploaded_by=user.id,
+        content_type=body.content_type,
+        size_bytes=body.size_bytes,
+        expires_at=datetime.now(UTC)
+        + (QUOTE_UPLOAD_TTL if body.kind == "quote_request" else ORDER_UPLOAD_TTL),
+    )
+    session.add(staged_image)
+    await session.flush()
     upload_url = await request.app.state.gcs.signed_upload_url(
         object_key,
         body.content_type,
-        max_size_bytes=max_size_bytes,
+        max_size_bytes=MAX_ORDER_IMAGE_BYTES,
+        create_only=True,
     )
-    if body.kind == "quote_request":
-        await session.commit()
-    required_headers = {"Content-Type": body.content_type}
-    if max_size_bytes is not None:
-        required_headers["x-goog-content-length-range"] = f"1,{max_size_bytes}"
+    await session.commit()
     return UploadUrlResponse(
         object_key=object_key,
+        upload_id=staged_image.id,
         upload_url=upload_url,
-        required_headers=required_headers,
+        required_headers={
+            "Content-Type": body.content_type,
+            "x-goog-if-generation-match": "0",
+            "x-goog-content-length-range": f"1,{MAX_ORDER_IMAGE_BYTES}",
+        },
         upload_required=request.app.state.gcs.upload_required,
+    )
+
+
+@router.post(
+    "/images/order-uploads/{upload_id}/complete",
+    response_model=OrderImageUploadOut,
+)
+async def complete_order_image(
+    upload_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> OrderImageUploadOut:
+    image = await complete_order_image_upload(session, user, upload_id, request.app.state.gcs)
+    await session.commit()
+    await session.refresh(image)
+    kind: OrderImageKind = (
+        "custom_order" if image.entity_type == "custom_order_upload" else "sample_order"
+    )
+    assert image.content_type is not None
+    assert image.size_bytes is not None
+    assert image.upload_completed_at is not None
+    return OrderImageUploadOut(
+        upload_id=image.id,
+        kind=kind,
+        content_type=image.content_type,
+        size_bytes=image.size_bytes,
+        upload_completed_at=image.upload_completed_at,
     )
 
 
@@ -166,6 +221,7 @@ async def create_reform_upload_url(
         object_key,
         body.content_type,
         max_size_bytes=MAX_REFORM_IMAGE_BYTES,
+        create_only=True,
     )
     await session.commit()
     return ReformUploadUrlResponse(
@@ -174,38 +230,12 @@ async def create_reform_upload_url(
         required_headers={
             "Content-Type": body.content_type,
             "x-goog-content-length-range": f"1,{MAX_REFORM_IMAGE_BYTES}",
+            "x-goog-if-generation-match": "0",
         },
         claim_token=raw_token,
         expires_at=expires_at,
         upload_required=request.app.state.gcs.upload_required,
     )
-
-
-async def _register_upload(session, user_id: uuid.UUID, entity_type: str, object_key: str) -> Image:
-    """entity_id=object_key 부분 unique upsert — 소유자만 갱신 가능 (원 동작)."""
-    result = await session.execute(
-        pg_insert(Image)
-        .values(
-            object_key=object_key,
-            entity_type=entity_type,
-            entity_id=object_key,
-            uploaded_by=user_id,
-            deleted_at=None,
-            deletion_claimed_at=None,
-        )
-        .on_conflict_do_update(
-            index_elements=[Image.entity_type, Image.entity_id],
-            index_where=Image.entity_type == entity_type,
-            set_={"uploaded_by": user_id, "deleted_at": None, "deletion_claimed_at": None},
-            where=Image.uploaded_by == user_id,
-        )
-        .returning(Image.id)
-    )
-    image_id = result.scalar()
-    if image_id is None:
-        raise ConflictError(f"{entity_type} ownership conflict", code="ownership_conflict")
-    await session.commit()
-    return await session.get(Image, image_id)
 
 
 @router.post("/images/reform-uploads", response_model=ImageOut, status_code=201)
@@ -291,7 +321,51 @@ async def create_read_url(
 
 @router.post("/images/repair-shipping-uploads", response_model=ImageOut, status_code=201)
 async def register_repair_shipping_upload(
-    body: UploadRegisterRequest, session: SessionDep, user: CurrentUser
+    body: RepairShippingUploadCompleteRequest,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
 ) -> ImageOut:
-    image = await _register_upload(session, user.id, "repair_shipping_upload", body.object_key)
+    image = await session.scalar(select(Image).where(Image.id == body.upload_id).with_for_update())
+    if (
+        image is None
+        or image.entity_type != "repair_shipping_upload"
+        or image.entity_id != image.object_key
+        or not image.object_key.startswith(REPAIR_SHIPPING_UPLOAD_PREFIX)
+    ):
+        raise DomainError(
+            "유효하지 않은 수선 배송 사진입니다",
+            code="invalid_repair_shipping_image",
+        )
+    if image.uploaded_by != user.id:
+        raise ConflictError(
+            "수선 배송 사진 소유권이 일치하지 않습니다",
+            code="ownership_conflict",
+        )
+    if image.deleted_at is not None or (
+        image.expires_at is not None and image.expires_at <= datetime.now(UTC)
+    ):
+        raise DomainError(
+            "만료되거나 삭제된 수선 배송 사진입니다",
+            code="repair_shipping_image_expired",
+        )
+    if image.content_type not in ALLOWED_CONTENT_TYPES:
+        raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+    if image.size_bytes is None or not 0 < image.size_bytes <= MAX_ORDER_IMAGE_BYTES:
+        raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+
+    if request.app.state.gcs.upload_required:
+        metadata = await request.app.state.gcs.object_metadata(image.object_key)
+        if metadata is None:
+            raise DomainError("업로드된 수선 배송 사진을 찾을 수 없습니다", code="upload_not_found")
+        if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
+            raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+        if metadata.content_type != image.content_type:
+            raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+        if metadata.size_bytes != image.size_bytes:
+            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+
+    image.upload_completed_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(image)
     return ImageOut.model_validate(image)

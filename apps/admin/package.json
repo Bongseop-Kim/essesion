@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@essesion/api-client": "workspace:*",
     "@essesion/shared": "workspace:*",
     "@heroicons/react": "catalog:",
     "@hookform/resolvers": "catalog:",
@@ -24,12 +26,16 @@
   "devDependencies": {
     "@essesion/tsconfig": "workspace:*",
     "@tailwindcss/vite": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
+    "vitest": "catalog:",
+    "jsdom": "catalog:",
     "wrangler": "catalog:"
   }
 }

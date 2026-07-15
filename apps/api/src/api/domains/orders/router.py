@@ -2,7 +2,7 @@ import uuid
 from typing import Literal
 
 from db.models.commerce import Claim, Order, OrderItem, ShippingAddress
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from api.db import SessionDep
@@ -52,16 +52,26 @@ async def calculate_custom_order(
 
 @router.post("/orders/custom", response_model=SingleOrderCreateResponse, status_code=201)
 async def create_custom_order(
-    body: CustomOrderCreateRequest, session: SessionDep, user: CurrentUser
+    body: CustomOrderCreateRequest,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
 ) -> SingleOrderCreateResponse:
-    return SingleOrderCreateResponse(**await service.create_custom_order(session, user, body))
+    return SingleOrderCreateResponse(
+        **await service.create_custom_order(session, user, body, request.app.state.gcs)
+    )
 
 
 @router.post("/orders/sample", response_model=SingleOrderCreateResponse, status_code=201)
 async def create_sample_order(
-    body: SampleOrderCreateRequest, session: SessionDep, user: CurrentUser
+    body: SampleOrderCreateRequest,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
 ) -> SingleOrderCreateResponse:
-    return SingleOrderCreateResponse(**await service.create_sample_order(session, user, body))
+    return SingleOrderCreateResponse(
+        **await service.create_sample_order(session, user, body, request.app.state.gcs)
+    )
 
 
 @router.post("/orders/sample/calculate", response_model=SampleAmountResponse)

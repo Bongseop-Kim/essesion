@@ -24,7 +24,9 @@ async def api_schema(app, db_session, settings):
     admin = await make_admin(db_session)
     _auth_headers.clear()
     _auth_headers.update(auth_headers(admin, settings))
-    # 퍼징이 /payments/webhook 등에서 실제 Toss로 나가지 않도록 DryRun으로 교체
+    # Schemathesis의 ASGI transport가 lifespan을 다시 열어 클라이언트를 재구성하므로
+    # 현재 state뿐 아니라 lifespan closure가 참조하는 설정도 DryRun으로 고정한다.
+    settings.toss_secret_key = ""
     app.state.toss = DryRunTossClient()
     return schemathesis.openapi.from_asgi("/openapi.json", app)
 

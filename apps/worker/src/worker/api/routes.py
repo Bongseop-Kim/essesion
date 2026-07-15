@@ -1,9 +1,18 @@
 import asyncio
+import logging
 import time
 import uuid
+from datetime import UTC, datetime, timedelta
+from functools import wraps
 from typing import Any, Literal
 
-from db.models.design import GenerationJob
+from db.models.design import (
+    FINALIZE_DISPATCH_FAILED_MESSAGE,
+    FINALIZE_TEMPORARY_FAILURE_CODE,
+    FINALIZE_TEMPORARY_FAILURE_MARKER,
+    FINALIZE_TEMPORARY_FAILURE_MESSAGE,
+    GenerationJob,
+)
 from db.models.seamless import SeamlessGenerationLog
 from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
@@ -27,12 +36,16 @@ from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import present_candidates, resolve_motifs, resolve_spec
 from worker.motifs.store import get_motifs
 from worker.render.fabric import FabricError, render_fabric
-from worker.render.raster import RasterError, rasterize_svg
+from worker.render.raster import RasterError, RasterLimitError, rasterize_svg
 from worker.render.sanitize import scrub_svg
 
-router = APIRouter()
+generate_router = APIRouter()
+finalize_router = APIRouter()
+logger = logging.getLogger(__name__)
 
 NOT_IMPLEMENTED = 501
+FINALIZE_INVALID_INPUT_CODE = "FINALIZE_INVALID_INPUT"
+FINALIZE_INVALID_INPUT_MESSAGE = "finalize input is invalid"
 
 
 class GenerateRequest(BaseModel):
@@ -94,6 +107,61 @@ class MotifGenerateRequest(BaseModel):
     seed: int | None = None
 
 
+def _safe_generation_error(exc: Exception) -> tuple[str, str]:
+    source = exc.__cause__ if isinstance(exc.__cause__, Exception) else exc
+    error_type = source.__class__.__name__
+    if isinstance(source, IntentInvalid):
+        return error_type, "intent validation failed"
+    if isinstance(source, AdapterNotConfigured):
+        return error_type, "generation adapter is not configured"
+    if isinstance(source, AdapterClientError):
+        return error_type, "generation adapter request failed"
+    if isinstance(source, (AssertionError, ValueError)):
+        return error_type, "generation input is invalid"
+    if isinstance(exc, HTTPException):
+        return "HTTPException", f"generation request rejected ({exc.status_code})"
+    return error_type, "generation failed"
+
+
+def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserved by wraps
+    @wraps(endpoint)
+    async def wrapped(body: GenerateRequest, request: Request, session: SessionDep):
+        started = time.perf_counter()
+        request.state.generation_generate_ms = None
+        request.state.generation_render_ms = 0.0
+        try:
+            return await endpoint(body, request, session)
+        except Exception as exc:
+            error_type, error_message = _safe_generation_error(exc)
+            generate_ms = request.state.generation_generate_ms
+            if generate_ms is None:
+                generate_ms = round((time.perf_counter() - started) * 1000, 3)
+            try:
+                await session.rollback()
+                session.add(
+                    SeamlessGenerationLog(
+                        request_id=request_id_var.get(),
+                        input_type="intent" if body.intent is not None else "prompt",
+                        prompt=body.prompt,
+                        colorway=body.colorway,
+                        seed=body.seed,
+                        candidate_count_requested=body.candidate_count,
+                        warnings=[],
+                        generate_ms=generate_ms,
+                        render_ms=request.state.generation_render_ms,
+                        status="error",
+                        error_type=error_type,
+                        error_message=error_message,
+                    )
+                )
+                await session.commit()
+            except Exception:
+                logger.exception("generation error log persistence failed")
+            raise
+
+    return wrapped
+
+
 async def _render_candidates(
     candidate_set, tile_mm: float, request: Request, settings, warnings: list[str]
 ) -> list[CandidateOut]:
@@ -102,17 +170,33 @@ async def _render_candidates(
     후보별 렌더+업로드는 병렬(gather), 응답의 후보·경고 순서는 입력 순서 그대로.
     """
 
+    semaphore = asyncio.Semaphore(settings.preview_render_concurrency)
+
     async def _one(ranked) -> tuple[CandidateOut, str | None]:
         png_key = None
         warning = None
-        try:
-            png, _media = await run_in_threadpool(
-                rasterize_svg, ranked.candidate.svg, width_mm=tile_mm, dpi=settings.preview_dpi
-            )
-            png_key = f"previews/{request_id_var.get()}/{ranked.id}.png"
-            await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
-        except (RasterError, OSError) as exc:
-            warning = f"preview upload skipped: {exc}"
+        async with semaphore:
+            try:
+                png, _media = await run_in_threadpool(
+                    rasterize_svg,
+                    ranked.candidate.svg,
+                    width_mm=tile_mm,
+                    dpi=settings.preview_dpi,
+                )
+            except (RasterError, OSError):
+                warning = "preview upload skipped"
+            else:
+                # X-Request-ID is caller-controlled and may be reused. Include the PNG
+                # digest so create-only uploads never alias different preview bytes.
+                png_key = content_key(f"previews/{request_id_var.get()}/{ranked.id}", png, "png")
+                try:
+                    await request.app.state.object_store.upload_bytes(png_key, png, "image/png")
+                except Exception:
+                    # Preview persistence is best-effort. Keep this catch scoped to the
+                    # storage adapter so unexpected renderer bugs still fail the request.
+                    logger.warning("preview upload failed: %s", png_key, exc_info=True)
+                    png_key = None
+                    warning = "preview upload skipped"
         out = CandidateOut(
             id=ranked.id,
             design_index=ranked.design_index,
@@ -125,16 +209,21 @@ async def _render_candidates(
         )
         return out, warning
 
-    rendered = await asyncio.gather(*(_one(r) for r in candidate_set.candidates))
-    outs: list[CandidateOut] = []
-    for out, warning in rendered:
-        if warning is not None:
-            warnings.append(warning)
-        outs.append(out)
-    return outs
+    render_started = time.perf_counter()
+    try:
+        rendered = await asyncio.gather(*(_one(r) for r in candidate_set.candidates))
+        outs: list[CandidateOut] = []
+        for out, warning in rendered:
+            if warning is not None:
+                warnings.append(warning)
+            outs.append(out)
+        return outs
+    finally:
+        request.state.generation_render_ms = round((time.perf_counter() - render_started) * 1000, 3)
 
 
-@router.post("/generate", response_model=GenerateResponse)
+@generate_router.post("/generate", response_model=GenerateResponse)
+@_logged_generation
 async def generate(
     body: GenerateRequest, request: Request, session: SessionDep
 ) -> GenerateResponse:
@@ -184,11 +273,15 @@ async def generate(
         except AdapterClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-        seed = body.seed if body.seed is not None else 0
         embedding = request_scoped(adapters.embedding)  # design 간 같은 descriptor 재임베딩 방지
         resolved_intents: list[dict[str, Any]] = []
         try:
             for design in designs:
+                # Motif variant selection and candidate composition must share one effective
+                # seed. With no request override, generate_candidates uses each authored seed.
+                effective_seed = (
+                    body.seed if body.seed is not None else int(design.intent.get("seed", 0))
+                )
                 resolved_intents.append(
                     await resolve_motifs(
                         session,
@@ -197,7 +290,7 @@ async def generate(
                         recraft_client=adapters.recraft,
                         embedding_client=embedding,
                         settings=settings,
-                        seed=seed,
+                        seed=effective_seed,
                         warnings=warnings,
                     )
                 )
@@ -231,6 +324,8 @@ async def generate(
 
     warnings.extend(candidate_set.warnings)
     warnings = list(dict.fromkeys(warnings))
+    generate_ms = round((time.perf_counter() - started) * 1000, 3)
+    request.state.generation_generate_ms = generate_ms
     outs = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
 
     log = SeamlessGenerationLog(
@@ -248,7 +343,8 @@ async def generate(
         intent=intent_log,
         candidates=[c.model_dump() for c in outs],
         warnings=warnings,
-        generate_ms=round((time.perf_counter() - started) * 1000, 3),
+        generate_ms=generate_ms,
+        render_ms=request.state.generation_render_ms,
         status="partial" if warnings else "success",
     )
     session.add(log)
@@ -263,7 +359,7 @@ async def generate(
     )
 
 
-@router.post("/motifs/candidates")
+@generate_router.post("/motifs/candidates")
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
@@ -279,7 +375,7 @@ async def motif_candidates(
     }
 
 
-@router.post("/motifs/generate")
+@generate_router.post("/motifs/generate")
 async def motif_generate(
     body: MotifGenerateRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
@@ -308,7 +404,7 @@ async def motif_generate(
     }
 
 
-@router.post("/export")
+@finalize_router.post("/export")
 async def export(body: ExportRequest, request: Request) -> Response:
     settings = request.app.state.settings
     if body.dpi > settings.max_dpi:
@@ -333,7 +429,7 @@ async def export(body: ExportRequest, request: Request) -> Response:
     return Response(content=data, media_type=media)
 
 
-@router.post("/tasks/finalize")
+@finalize_router.post("/tasks/finalize")
 async def finalize_task(
     body: FinalizeTaskRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
@@ -341,17 +437,51 @@ async def finalize_task(
         select(GenerationJob).where(GenerationJob.id == body.job_id).with_for_update()
     )
     if job is None:
-        raise HTTPException(status_code=404, detail="job not found")
+        await session.commit()
+        # DB에 없는 task는 재시도해도 생기지 않는다. 2xx로 ACK해 폐기한다.
+        return {"status": "ignored", "reason": "job_not_found"}
+    if job.kind != "finalize":
+        await session.commit()
+        return {"status": "ignored", "reason": "job_kind_is_not_finalize"}
     if job.status == "succeeded":
         await session.commit()
         return {"status": "succeeded", "result": job.result}  # 멱등 — Cloud Tasks 재전송
+    if job.status == "failed" and job.error_message == FINALIZE_DISPATCH_FAILED_MESSAGE:
+        await session.commit()
+        # API가 전달 실패를 확정하고 예산을 환불한 job은 늦게 도착한 task가 실행하면 안 된다.
+        return {"status": "canceled"}
+    if job.status == "failed" and job.error_message != FINALIZE_TEMPORARY_FAILURE_MARKER:
+        await session.commit()
+        # 입력 오류와 출처를 알 수 없는 legacy 실패는 재실행해도 안전하다는 근거가 없다.
+        # 명시적인 일시 실패 marker만 Cloud Tasks 재시도 대상으로 인정하고,
+        # terminal 상태는 2xx로 ACK해 재전송을 끝낸다.
+        return {"status": "failed"}
     if job.status not in {"queued", "processing", "failed"}:
         await session.commit()
-        raise HTTPException(status_code=409, detail="job is not runnable")
+        return {"status": "ignored", "reason": "job_is_not_runnable"}
+
+    if job.status == "processing":
+        updated_at = job.updated_at
+        if updated_at is None:
+            lease_expired = False
+        else:
+            if updated_at.tzinfo is None:
+                updated_at = updated_at.replace(tzinfo=UTC)
+            lease_expired = datetime.now(UTC) - updated_at >= timedelta(
+                seconds=request.app.state.settings.finalize_lease_seconds
+            )
+        if not lease_expired:
+            await session.commit()
+            # Cloud Tasks must retry this delivery; acknowledging it could strand a job if the
+            # current worker dies. Queue backoff is configured to span the full lease.
+            raise HTTPException(status_code=409, detail="job is already processing")
 
     # processing 전이를 먼저 커밋 — 수십 초 렌더 동안 행 잠금·트랜잭션을 잡고 있지 않는다
     job.status = "processing"
     job.attempts += 1
+    job.result = None
+    job.error_message = None
+    attempt = job.attempts
     params = dict(job.params)
     await session.commit()
 
@@ -359,29 +489,93 @@ async def finalize_task(
         png = await run_in_threadpool(render_fabric, params, request.app.state.settings)
         key = content_key("fabric", png, "png")
         await request.app.state.object_store.upload_bytes(key, png, "image/png")
-    except FabricError as exc:
+    except (FabricError, IntentInvalid, RasterLimitError):
         # 영구 실패(잘못된 intent/weave/colorway 등) — failed 기록 후 200. 재렌더해도 같은
         # 입력은 같은 실패라 Cloud Tasks 재시도가 무의미하다(예산·큐 낭비).
-        await _finish_job(session, body.job_id, status="failed", error=str(exc))
-        return {"status": "failed", "error": str(exc)}
+        logger.warning(
+            "finalize input rejected (job_id=%s attempt=%s)",
+            body.job_id,
+            attempt,
+            exc_info=True,
+        )
+        finished = await _finish_job(
+            session,
+            body.job_id,
+            attempt=attempt,
+            status="failed",
+            error=f"{FINALIZE_INVALID_INPUT_CODE}: {FINALIZE_INVALID_INPUT_MESSAGE}",
+        )
+        if not finished:
+            return {"status": "superseded"}
+        return {
+            "status": "failed",
+            "error": {
+                "code": FINALIZE_INVALID_INPUT_CODE,
+                "message": FINALIZE_INVALID_INPUT_MESSAGE,
+            },
+        }
     except Exception as exc:
         # 일시 실패(RasterError 등) — 5xx로 Cloud Tasks 재시도에 위임.
-        await _finish_job(session, body.job_id, status="failed", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("finalize attempt failed (job_id=%s attempt=%s)", body.job_id, attempt)
+        finished = await _finish_job(
+            session,
+            body.job_id,
+            attempt=attempt,
+            status="failed",
+            error=FINALIZE_TEMPORARY_FAILURE_MARKER,
+        )
+        if not finished:
+            return {"status": "superseded"}
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": FINALIZE_TEMPORARY_FAILURE_CODE,
+                "message": FINALIZE_TEMPORARY_FAILURE_MESSAGE,
+            },
+        ) from exc
 
-    await _finish_job(session, body.job_id, status="succeeded", result={"object_key": key})
+    finished = await _finish_job(
+        session,
+        body.job_id,
+        attempt=attempt,
+        status="succeeded",
+        result={"object_key": key},
+    )
+    if not finished:
+        return {"status": "superseded"}
     return {"status": "succeeded", "result": {"object_key": key}}
 
 
 async def _finish_job(
-    session, job_id: uuid.UUID, *, status: str, result: dict | None = None, error: str | None = None
-) -> None:
+    session,
+    job_id: uuid.UUID,
+    *,
+    attempt: int,
+    status: str,
+    result: dict | None = None,
+    error: str | None = None,
+) -> bool:
     job = await session.scalar(
-        select(GenerationJob).where(GenerationJob.id == job_id).with_for_update()
+        select(GenerationJob)
+        .where(GenerationJob.id == job_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if job is None:
-        return
+        await session.commit()
+        return False
+    # A stale lease may have been reclaimed while this attempt was still rendering. Only the
+    # current processing attempt may publish a terminal state, so late success/failure is inert.
+    if job.status != "processing" or job.attempts != attempt:
+        await session.commit()
+        return False
     job.status = status
     job.result = result
     job.error_message = error
     await session.commit()
+    return True
+
+
+router = APIRouter()
+router.include_router(generate_router)
+router.include_router(finalize_router)

@@ -7,11 +7,8 @@ export function useCustomQuote(payload: CustomAmountRequest) {
   const [debounced, setDebounced] = useState(payload);
   const currentKey = useMemo(() => JSON.stringify(payload), [payload]);
   const debouncedKey = useMemo(() => JSON.stringify(debounced), [debounced]);
-  const enabled =
-    payload.quantity >= 4 &&
-    payload.quantity <= 10_000 &&
-    (payload.options.fabric_provided === true ||
-      (!!payload.options.design_type && !!payload.options.fabric_type));
+  const currentEnabled = isValidQuotePayload(payload);
+  const debouncedEnabled = isValidQuotePayload(debounced);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebounced(payload), 400);
@@ -20,7 +17,7 @@ export function useCustomQuote(payload: CustomAmountRequest) {
 
   const query = useQuery({
     queryKey: ["custom-order", "calculate", debounced],
-    enabled,
+    enabled: debouncedEnabled,
     placeholderData: keepPreviousData,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -35,10 +32,19 @@ export function useCustomQuote(payload: CustomAmountRequest) {
   return {
     ...query,
     isCurrent:
-      enabled &&
+      currentEnabled &&
       currentKey === debouncedKey &&
       !query.isFetching &&
       !query.isPlaceholderData &&
       query.data != null,
   };
+}
+
+function isValidQuotePayload(payload: CustomAmountRequest) {
+  return (
+    payload.quantity >= 4 &&
+    payload.quantity <= 10_000 &&
+    (payload.options.fabric_provided === true ||
+      (!!payload.options.design_type && !!payload.options.fabric_type))
+  );
 }

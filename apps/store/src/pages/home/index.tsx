@@ -63,12 +63,16 @@ export function Home() {
           {
             nm: "워크숍과 행사에 맞춘 기업 넥타이",
             desc: "로고, 컬러, 행사 분위기를 반영해 제작합니다",
-            image: "/images/home/custom1.png",
+            image: "/images/home/custom1-1448.webp",
+            srcSet:
+              "/images/home/custom1-724.webp 724w, /images/home/custom1-1448.webp 1448w",
           },
           {
             nm: "관공서 단체 착용을 위한 넥타이",
             desc: "격식 있는 자리에도 어울리도록 단정하게 완성합니다",
-            image: "/images/home/custom2.png",
+            image: "/images/home/custom2-1448.webp",
+            srcSet:
+              "/images/home/custom2-724.webp 724w, /images/home/custom2-1448.webp 1448w",
           },
         ]}
       />
@@ -81,12 +85,16 @@ export function Home() {
           {
             nm: "손으로 묶던 넥타이를 간편한 자동 매듭으로",
             desc: "매번 매듭을 잡지 않아도 단정하게 착용할 수 있어요",
-            image: "/images/home/repair1.png",
+            image: "/images/home/repair1-1448.webp",
+            srcSet:
+              "/images/home/repair1-724.webp 724w, /images/home/repair1-1448.webp 1448w",
           },
           {
             nm: "행사·출근용 넥타이를 더 편하게 착용",
             desc: "기존 넥타이의 분위기는 살리고 착용 방식만 바꿔드려요",
-            image: "/images/home/repair2.png",
+            image: "/images/home/repair2-1448.webp",
+            srcSet:
+              "/images/home/repair2-724.webp 724w, /images/home/repair2-1448.webp 1448w",
           },
         ]}
       />

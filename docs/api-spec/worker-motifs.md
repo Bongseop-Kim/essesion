@@ -26,8 +26,8 @@ motif_id = "recraft-" + sha256(geometry.encode()).hexdigest()[:12]
 ## 3. Recraft 연동
 
 - base `https://external.api.recraft.ai/v1`; generate `POST /images/generations`, vectorize `POST /images/vectorize`(multipart png). 헤더 `Authorization: Bearer {key}`. 타임아웃 **120s**. HTTP 재시도 없음.
-- generate payload: `{prompt, model: "recraftv4_1_vector", response_format: "url"|"b64_json", n: 1, size: "1024x1024"}` — style은 빈 문자열이면 **생략**(substyle 파라미터 없음).
-- 응답: url이면 별도 GET으로 SVG 다운로드. `<svg` 미포함이면 오류.
+- generate payload: `{prompt, model: "recraftv4_1_vector", response_format: "b64_json", n: 1, size: "1024x1024"}` — style은 빈 문자열이면 **생략**(substyle 파라미터 없음). 응답 URL을 따라가는 2차 요청은 허용하지 않는다(SSRF 경로 제거).
+- 응답: `b64_json`만 수용하며 strict base64로 디코딩한다. 디코딩 전 인코딩 길이와 디코딩 후 SVG 바이트를 모두 `max_svg_bytes`로 제한하고, `<svg` 미포함이면 오류.
 - **프롬프트**(spec dict → 개행 join — 재구현 결정 반영, 아래 gradient 항 참조):
 ```
 Draw ONE single, isolated object as one inline SVG. Output ONLY the SVG markup — no markdown, no prose, no <?xml?> prolog.
@@ -60,6 +60,9 @@ scope: {scope}
 6. **변이 선택**: `variant_group = sha256(canonical_json({"v":2, "subject", "scope"}))[:16]` — 같은 (subject, scope) 풀. 풀은 τ-스코핑(fallback id는 항상 유지, 임베딩 없거나 차원 불일치 멤버는 keep) 후 `select_variant(pool, group, seed)`.
 7. `present_candidates`(게이트 UI용, 최대 top_k=5): exact(sim 1.0) + best embedding(round 4) + id순 채움. **Recraft 호출 없음**.
 
+store 읽기 오류는 해당 읽기만 savepoint로 rollback한 뒤 miss로 흡수한다. 같은 요청에서 앞서
+upsert한 미커밋 motif까지 전체 rollback하지 않으며, 쓰기 오류는 그대로 전파한다.
+
 상위 오케스트레이션: spec을 motif layer에 매칭; `text` 있으면 글리프 파이프라인(§7), `source_image_index` 있으면 vectorize. 개별 모티프 게이트 소진 시 그 layer만 drop(+host cascade drop, fixpoint), 전부 실패 시에만 502. 생존자 있으면 partial 200 + 경고.
 
 ## 6. Gemini intent 저작
@@ -86,4 +89,4 @@ scope: {scope}
 
 ## 10. 설정값
 
-gemini_api_key/model/temperature(0.7), openai_api_key, embedding_model, motif_similarity_tau=0.84, motif_candidate_top_k=5, recraft_api_key/model/style("")/size/response_format/base_url, recraft_max_color_slots=6, motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True. (원본은 부팅 시 GEMINI·OPENAI 키 필수 — 재구현도 worker-generate 기동 요건으로 유지, 로컬은 dry-run 허용 검토.)
+gemini_api_key/model/temperature(0.7), openai_api_key, embedding_model, motif_similarity_tau=0.84, motif_candidate_top_k=5, recraft_api_key/model/style("")/size/response_format(`b64_json` 고정)/base_url, recraft_max_color_slots=6, motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True. (원본은 부팅 시 GEMINI·OPENAI 키 필수 — 재구현도 worker-generate 기동 요건으로 유지, 로컬은 dry-run 허용 검토.)

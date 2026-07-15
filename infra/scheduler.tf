@@ -1,4 +1,4 @@
-# Cloud Scheduler → api /batch/* — 정리 배치 3종 (ARCHITECTURE §4, domains.md 배치)
+# Cloud Scheduler → api /batch/* — 정리 배치 4종 (ARCHITECTURE §8.4, domains.md 배치)
 # api가 공개 서비스라 Cloud Run IAM으로 못 막는다 — api 앱이 OIDC id-token의
 # audience + email 클레임(scheduler SA)을 직접 검증한다 (api deps.verify_batch_token).
 
@@ -10,9 +10,10 @@ locals {
   batch_audience = "https://api-${data.google_project.this.number}.${var.region}.run.app"
 
   batch_jobs = {
-    auto-confirm-orders = "10 4 * * *"   # 일 1회 — 배송완료 7일 경과 자동 구매확정
-    cancel-stale-orders = "*/15 * * * *" # 대기중 30분 SLA — 최악 45분 내 정리
-    cleanup-images      = "40 4 * * *"   # 일 1회 — 만료·클레임 이미지 2단계 삭제(LIMIT 100)
+    auto-confirm-orders             = "10 4 * * *"   # 일 1회 — 배송완료 7일 경과 자동 구매확정
+    cancel-stale-orders             = "*/15 * * * *" # 대기중 30분 SLA — 최악 45분 내 정리
+    reconcile-stale-generation-jobs = "*/15 * * * *" # Tasks 1h 재시도 종료 후 job·예산 회수
+    cleanup-images                  = "40 4 * * *"   # 일 1회 — 만료·클레임 이미지 2단계 삭제(LIMIT 100)
   }
 }
 

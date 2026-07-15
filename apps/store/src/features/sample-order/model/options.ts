@@ -1,5 +1,5 @@
 import type {
-  ReferenceImageIn,
+  OrderReferenceImageIn,
   SampleOrderCreateRequest,
 } from "@essesion/api-client";
 
@@ -14,7 +14,7 @@ export type SampleOrderOptions = {
 
 export type SampleOrderDraft = {
   options: SampleOrderOptions;
-  imageRefs: ReferenceImageIn[];
+  imageRefs: OrderReferenceImageIn[];
   totalCost: number;
 };
 
@@ -66,8 +66,11 @@ export function readSampleOrderDraft(state: unknown): SampleOrderDraft | null {
       (image) =>
         image != null &&
         typeof image === "object" &&
-        "object_key" in image &&
-        typeof image.object_key === "string",
+        "upload_id" in image &&
+        typeof image.upload_id === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          image.upload_id,
+        ),
     )
   )
     return null;

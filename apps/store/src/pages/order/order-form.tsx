@@ -36,6 +36,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import {
+  cartItemBlockingReason,
   productUnitPrice,
   useCartActions,
   useCartItems,
@@ -85,8 +86,8 @@ export function OrderFormPage() {
       readPendingCheckout<{
         repairShipping?: RepairShippingIn | null;
         repairShipmentDraft?: unknown;
-      }>(CHECKOUT_PENDING_KEY)?.snapshot ?? null,
-    [],
+      }>(CHECKOUT_PENDING_KEY, user?.id ?? null)?.snapshot ?? null,
+    [user?.id],
   );
   const pendingRepair = pendingSnapshot?.repairShipping ?? null;
   const pendingDraft = isRepairShipmentDraft(
@@ -240,6 +241,7 @@ export function OrderFormPage() {
   };
   const payment = useCheckoutPayment({
     storageKey: CHECKOUT_PENDING_KEY,
+    ownerUserId: user?.id ?? null,
     snapshot,
     orderName,
     expectedAmount: totals.total,
@@ -305,6 +307,7 @@ export function OrderFormPage() {
     items.length !== cartItemIds.length ||
     items.some(
       (item) =>
+        cartItemBlockingReason(item) != null ||
         (item.item_type === "product" && !item.product) ||
         (item.item_type === "reform" && !item.reform_data),
     ) ||

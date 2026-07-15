@@ -4,18 +4,23 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.domains.orders.schemas import ReferenceImageIn
+from api.domains.orders.schemas import (
+    MAX_ADDITIONAL_NOTES_LENGTH,
+    MAX_ORDER_QUANTITY,
+    OptionsPayload,
+    ReferenceImageIn,
+)
 
 
 class QuoteCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
-    options: dict[str, Any]
-    quantity: int
-    contact_name: str
+    options: OptionsPayload
+    quantity: int = Field(le=MAX_ORDER_QUANTITY)
+    contact_name: str = Field(max_length=100)
     contact_method: Literal["email", "phone"]
-    contact_value: str
-    business_name: str = ""
-    additional_notes: str = ""
+    contact_value: str = Field(max_length=320)
+    business_name: str = Field(default="", max_length=200)
+    additional_notes: str = Field(default="", max_length=MAX_ADDITIONAL_NOTES_LENGTH)
     reference_images: list[ReferenceImageIn] = Field(default_factory=list, max_length=5)
 
 
@@ -25,7 +30,8 @@ class QuoteOut(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     quote_number: str
-    shipping_address_id: uuid.UUID
+    shipping_address_id: uuid.UUID | None
+    shipping_address_snapshot: dict[str, Any] | None
     options: dict[str, Any]
     quantity: int
     additional_notes: str
@@ -40,17 +46,3 @@ class QuoteOut(BaseModel):
     reference_images: list[Any]
     created_at: datetime
     updated_at: datetime
-
-
-class AdminQuoteStatusRequest(BaseModel):
-    new_status: Literal["요청", "견적발송", "협의중", "확정", "종료"]
-    quoted_amount: int | None = None
-    quote_conditions: str | None = None
-    admin_memo: str | None = None
-    memo: str | None = None
-
-
-class AdminQuoteStatusResponse(BaseModel):
-    success: bool
-    previous_status: str
-    new_status: str

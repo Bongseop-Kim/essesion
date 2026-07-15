@@ -10,13 +10,18 @@ import type {
 export const cartItemId = (productId: number, optionId?: string | null) =>
   `product:${productId}:${optionId ?? "base"}`;
 
+export function cartItemBlockingReason(item: CartItemOut): string | null {
+  if (item.availability !== "unavailable") return null;
+  return item.blocking_reason ?? "현재 구매할 수 없는 항목입니다.";
+}
+
 export function cartItemToInput(item: CartItemOut): CartItemIn | null {
   if (item.item_type === "product" && item.product) {
     return {
       item_id: item.item_id,
       item_type: "product",
       product_id: item.product.id,
-      selected_option_id: item.selected_option?.id ?? null,
+      selected_option_id: item.selected_option_id,
       quantity: item.quantity,
       reform_data: null,
       applied_user_coupon_id: item.applied_coupon?.id ?? null,

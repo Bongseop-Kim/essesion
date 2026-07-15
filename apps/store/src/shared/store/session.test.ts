@@ -37,6 +37,30 @@ beforeEach(() => {
 });
 
 describe("session query-cache boundary", () => {
+  it("토큰만 설치된 동안에는 인증 완료 상태를 노출하지 않는다", () => {
+    useSession.setState({
+      status: "loading",
+      accessToken: null,
+      user: null,
+    });
+
+    useSession.getState().setAccessToken("access-a");
+
+    expect(useSession.getState()).toMatchObject({
+      status: "loading",
+      accessToken: "access-a",
+      user: null,
+    });
+
+    useSession.getState().completeAuthentication(user("a"), "access-a");
+
+    expect(useSession.getState()).toMatchObject({
+      status: "authenticated",
+      accessToken: "access-a",
+      user: user("a"),
+    });
+  });
+
   it("인증 세션을 지울 때 이전 사용자의 쿼리 캐시를 제거한다", () => {
     useSession.setState({
       status: "authenticated",

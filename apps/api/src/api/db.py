@@ -17,9 +17,13 @@ from api.config import Settings
 
 
 def build_engine(settings: Settings) -> AsyncEngine:
-    # 4단계: Cloud Run에서는 cloud-sql-python-connector(create_async_connector,
-    # refresh_strategy="lazy")를 여기에 삽입 — 이 함수가 유일한 교체 지점.
-    return create_async_engine(settings.database_url)
+    return create_async_engine(
+        settings.database_url,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout_seconds,
+        pool_pre_ping=True,
+    )
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:

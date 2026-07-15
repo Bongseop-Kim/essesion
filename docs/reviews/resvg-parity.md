@@ -3,7 +3,7 @@
 - 날짜: 2026-07-07
 - 대상: `apps/worker/src/worker/render/raster.py`의 `rsvg-convert` 서브프로세스를
   resvg 파이썬 바인딩(PyPI `resvg-py`) 인프로세스 호출로 교체 가능한지 판정.
-- 근거: ARCHITECTURE §3 이미지 파이프라인 — "resvg 인프로세스화, 렌더 결과 동등성
+- 근거: ARCHITECTURE §9.1 이미지 파이프라인 — "resvg 인프로세스화, 렌더 결과 동등성
   확인 실패 시 librsvg 폴백".
 
 ## 판정: (b) 조건부 — librsvg 기준선 유지, 코드 무변경

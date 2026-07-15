@@ -1,12 +1,16 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+EMAIL_MAX_LENGTH = 320
+PASSWORD_MAX_LENGTH = 1024
+PHONE_MAX_LENGTH = 32
 
 
 class LoginRequest(BaseModel):
-    email: str
-    password: str
+    email: str = Field(min_length=1, max_length=EMAIL_MAX_LENGTH)
+    password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
 
 
 class TokenResponse(BaseModel):
@@ -31,12 +35,12 @@ class MeResponse(BaseModel):
 
 
 class PhoneSendRequest(BaseModel):
-    phone: str
+    phone: str = Field(min_length=1, max_length=PHONE_MAX_LENGTH)
 
 
 class PhoneVerifyRequest(BaseModel):
-    phone: str
-    code: str
+    phone: str = Field(min_length=1, max_length=PHONE_MAX_LENGTH)
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
 class MessageResponse(BaseModel):

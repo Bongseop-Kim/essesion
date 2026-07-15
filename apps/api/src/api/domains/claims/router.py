@@ -73,17 +73,6 @@ async def cancel_claim(claim_id: uuid.UUID, session: SessionDep, user: CurrentUs
 # ---- 관리자 ----
 
 
-@router.get("/admin/claims", response_model=list[ClaimOut])
-async def admin_list_claims(session: SessionDep, admin: AdminUser) -> list[ClaimOut]:
-    rows = await session.execute(
-        select(Claim, Order.order_number, OrderItem)
-        .join(Order, Order.id == Claim.order_id)
-        .join(OrderItem, OrderItem.id == Claim.order_item_id)
-        .order_by(Claim.created_at.desc())
-    )
-    return [_claim_out(*row) for row in rows]
-
-
 @router.post("/admin/claims/{claim_id}/status", response_model=AdminClaimStatusResponse)
 async def admin_update_claim_status(
     claim_id: uuid.UUID,

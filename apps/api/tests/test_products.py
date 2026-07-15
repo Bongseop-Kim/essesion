@@ -82,31 +82,61 @@ async def test_list_products_searches_name_with_literal_wildcards(client, db_ses
 async def test_admin_create_product_auto_code(client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
+
+    async def _primary_upload_id() -> str:
+        issued = await client.post(
+            "/admin/products/images/upload-url",
+            json={
+                "kind": "primary",
+                "filename": "primary.png",
+                "content_type": "image/png",
+                "size_bytes": 100,
+            },
+            headers=headers,
+        )
+        assert issued.status_code == 200, issued.text
+        upload_id = issued.json()["upload_id"]
+        completed = await client.post(
+            f"/admin/products/images/{upload_id}/complete", headers=headers
+        )
+        assert completed.status_code == 200, completed.text
+        return upload_id
+
     body = {
         "name": "자동코드",
         "price": 20000,
-        "image": "https://img.test/i.png",
         "category": "knit",
         "color": "navy",
         "pattern": "solid",
         "material": "silk",
         "info": "테스트",
     }
-    first = await client.post("/admin/products", json=body, headers=headers)
-    second = await client.post("/admin/products", json=body, headers=headers)
+    first = await client.post(
+        "/admin/products",
+        json={**body, "image_upload_id": await _primary_upload_id()},
+        headers=headers,
+    )
+    second = await client.post(
+        "/admin/products",
+        json={**body, "image_upload_id": await _primary_upload_id()},
+        headers=headers,
+    )
     assert first.status_code == 201 and second.status_code == 201
     code1, code2 = first.json()["code"], second.json()["code"]
     assert code1.startswith("KN-") and code1.endswith("-001")
     assert code2.endswith("-002")
 
 
-async def test_replace_options_forces_product_stock_null(client, db_session, settings):
+async def test_admin_product_update_forces_product_stock_null(client, db_session, settings):
     admin = await make_admin(db_session)
     product = await make_product(db_session, stock=10)
     headers = auth_headers(admin, settings)
-    res = await client.put(
-        f"/admin/products/{product.id}/options",
-        json=[{"name": "L", "additional_price": 1000, "stock": 5}],
+    res = await client.patch(
+        f"/admin/products/{product.id}",
+        json={
+            "expected_updated_at": product.updated_at.isoformat(),
+            "options": [{"name": "L", "additional_price": 1000, "stock": 5}],
+        },
         headers=headers,
     )
     assert res.status_code == 200

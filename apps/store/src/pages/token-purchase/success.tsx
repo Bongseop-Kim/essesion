@@ -9,20 +9,29 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { useNavigate } from "react-router";
 
 import {
   CHECKOUT_PENDING_KEY,
   clearPendingCheckout,
+  readPendingCheckout,
   usePaymentConfirm,
+  waitForSettledPaymentOwner,
 } from "@/features/checkout";
 import { krw } from "@/pages/shop/constants";
+import { useSession } from "@/shared/store/session";
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 
 export function TokenPurchaseSuccessPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const ownerUserId = useSession((state) => state.user?.id ?? null);
+  const confirmationContext = useRef({
+    ownerUserId,
+    pending: readPendingCheckout(CHECKOUT_PENDING_KEY, ownerUserId),
+  });
   const {
     valid,
     confirmed,
@@ -30,13 +39,39 @@ export function TokenPurchaseSuccessPage() {
     data: tokenAmount,
     isPending,
     retry,
-  } = usePaymentConfirm<number>(async (result) => {
-    clearPendingCheckout(CHECKOUT_PENDING_KEY);
-    await queryClient.invalidateQueries({
-      queryKey: getTokenBalanceQueryKey(),
-    });
-    return result.token_amount ?? 0;
-  });
+  } = usePaymentConfirm<number>(
+    async (result, paymentGroupId) => {
+      const context = confirmationContext.current;
+      const pending =
+        context.pending?.paymentGroupId === paymentGroupId
+          ? context.pending
+          : null;
+      const ownerState = await waitForSettledPaymentOwner(context.ownerUserId);
+      if (pending) {
+        clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
+      }
+      if (ownerState !== "current") return 0;
+      await queryClient.invalidateQueries({
+        queryKey: getTokenBalanceQueryKey(),
+      });
+      return result.token_amount ?? 0;
+    },
+    {
+      onTerminalFailure: (_error, paymentGroupId) => {
+        const context = confirmationContext.current;
+        void waitForSettledPaymentOwner(context.ownerUserId).then(
+          (ownerState) => {
+            if (
+              ownerState === "current" &&
+              context.pending?.paymentGroupId === paymentGroupId
+            ) {
+              clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
+            }
+          },
+        );
+      },
+    },
+  );
 
   if (!valid) {
     return (

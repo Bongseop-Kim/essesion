@@ -2,50 +2,36 @@
 
 import uuid
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, cast
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from db.models.auth import User
-from db.models.commerce import Coupon, Order, UserCoupon
-from fastapi import APIRouter
-from pydantic import BaseModel, ConfigDict
-from sqlalchemy import CursorResult, func, select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from db.models.commerce import Order
+from fastapi import APIRouter, Query, Request
+from pydantic import BaseModel
+from sqlalchemy import func, select
 
 from api.db import SessionDep
 from api.deps import AdminUser
-from api.domains.coupons.schemas import CouponOut
-from api.domains.orders.schemas import OrderOut
-from api.domains.orders.status_machine import admin_actions
+from api.domains.admin import orders as order_queries
+from api.domains.admin.quote_schemas import SignedReadUrlOut
+from api.domains.admin.schemas import (
+    AdminOrderDetailOut,
+    AdminOrderReferenceImageOut,
+    AdminOrderSummaryOut,
+    DashboardRecentOrdersPage,
+    DashboardRecentQuotesPage,
+    DashboardSummaryOut,
+    OrderSort,
+    OrderStatusFilter,
+    OrderTypeFilter,
+    Page,
+)
+from api.domains.admin.types import SortDirection
 from api.errors import DomainError
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 KST = ZoneInfo("Asia/Seoul")
-OrderTypeFilter = Literal["all", "sale", "custom", "repair", "token", "sample"]
-
-
-class CouponCreateRequest(BaseModel):
-    name: str
-    discount_type: Literal["percentage", "fixed"]
-    discount_value: int
-    expiry_date: date
-    max_discount_amount: int | None = None
-    description: str | None = None
-    display_name: str | None = None
-
-
-class CouponIssueRequest(BaseModel):
-    user_ids: list[uuid.UUID]
-
-
-class AffectedResponse(BaseModel):
-    success: bool = True
-    affected_count: int
-
-
-class RevokeByIdsRequest(BaseModel):
-    user_coupon_ids: list[uuid.UUID]
 
 
 class StatsResponse(BaseModel):
@@ -53,97 +39,18 @@ class StatsResponse(BaseModel):
     revenue: int
 
 
-class AdminUserOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    email: str | None
-    name: str
-    phone: str | None
-    role: str
-    is_active: bool
-    phone_verified: bool
-    created_at: datetime
-
-
-class AdminOrderOut(OrderOut):
-    admin_actions: list[str] = []
-
-
-@router.post("/coupons", response_model=CouponOut, status_code=201)
-async def create_coupon(
-    body: CouponCreateRequest, session: SessionDep, admin: AdminUser
-) -> CouponOut:
-    coupon = Coupon(**body.model_dump())
-    session.add(coupon)
-    await session.commit()
-    await session.refresh(coupon)
-    return CouponOut.model_validate(coupon)
-
-
-@router.get("/coupons", response_model=list[CouponOut])
-async def list_coupons(session: SessionDep, admin: AdminUser) -> list[CouponOut]:
-    rows = await session.scalars(select(Coupon).order_by(Coupon.created_at.desc()))
-    return [CouponOut.model_validate(c) for c in rows]
-
-
-@router.post("/coupons/{coupon_id}/issue", response_model=AffectedResponse)
-async def bulk_issue_coupons(
-    coupon_id: uuid.UUID, body: CouponIssueRequest, session: SessionDep, admin: AdminUser
-) -> AffectedResponse:
-    """일괄 발급 — 이미 보유한 유저는 재활성화(upsert)."""
-    if not body.user_ids:
-        return AffectedResponse(affected_count=0)
-    if await session.get(Coupon, coupon_id) is None:
-        raise DomainError("Coupon not found", code="coupon_not_found", status=404)
-    affected = 0
-    for user_id in set(body.user_ids):
-        result = await session.execute(
-            pg_insert(UserCoupon)
-            .values(user_id=user_id, coupon_id=coupon_id, status="active")
-            .on_conflict_do_update(
-                index_elements=[UserCoupon.user_id, UserCoupon.coupon_id],
-                set_={"status": "active"},
-            )
-        )
-        affected += cast("CursorResult[Any]", result).rowcount
-    await session.commit()
-    return AffectedResponse(affected_count=affected)
-
-
-@router.post("/coupons/revoke", response_model=AffectedResponse)
-async def revoke_coupons_by_ids(
-    body: RevokeByIdsRequest, session: SessionDep, admin: AdminUser
-) -> AffectedResponse:
-    """회수 — active 상태만 revoked로."""
-    if not body.user_coupon_ids:
-        return AffectedResponse(affected_count=0)
-    result = await session.execute(
-        update(UserCoupon)
-        .where(UserCoupon.id.in_(body.user_coupon_ids), UserCoupon.status == "active")
-        .values(status="revoked")
-    )
-    await session.commit()
-    return AffectedResponse(affected_count=cast("CursorResult[Any]", result).rowcount)
-
-
-@router.post("/coupons/{coupon_id}/revoke-users", response_model=AffectedResponse)
-async def revoke_coupons_by_users(
-    coupon_id: uuid.UUID, body: CouponIssueRequest, session: SessionDep, admin: AdminUser
-) -> AffectedResponse:
-    if not body.user_ids:
-        return AffectedResponse(affected_count=0)
-    result = await session.execute(
-        update(UserCoupon)
-        .where(
-            UserCoupon.coupon_id == coupon_id,
-            UserCoupon.user_id.in_(body.user_ids),
-            UserCoupon.status == "active",
-        )
-        .values(status="revoked")
-    )
-    await session.commit()
-    return AffectedResponse(affected_count=cast("CursorResult[Any]", result).rowcount)
+class AdminCapabilitiesOut(BaseModel):
+    toss: str
+    gcs: str
+    gcs_assets: str
+    solapi: str
+    worker: str
+    finalize_tasks: str
+    batch_auth: str
+    oauth_google: str
+    oauth_kakao: str
+    auth_secrets: str
+    edge_proxy: str
 
 
 def _apply_type_filter(query, order_type: OrderTypeFilter):
@@ -186,26 +93,107 @@ async def period_stats(
     return StatsResponse(order_count=count, revenue=revenue)
 
 
-@router.get("/users", response_model=list[AdminUserOut])
-async def list_users(session: SessionDep, admin: AdminUser) -> list[AdminUserOut]:
-    rows = await session.scalars(select(User).order_by(User.created_at.desc()))
-    return [AdminUserOut.model_validate(u) for u in rows]
+@router.get("/capabilities", response_model=AdminCapabilitiesOut)
+async def get_admin_capabilities(request: Request, admin: AdminUser) -> AdminCapabilitiesOut:
+    return AdminCapabilitiesOut.model_validate(request.app.state.capabilities)
 
 
-@router.get("/orders", response_model=list[AdminOrderOut])
+@router.get("/dashboard/summary", response_model=DashboardSummaryOut)
+async def get_dashboard_summary(
+    session: SessionDep,
+    admin: AdminUser,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    order_type: OrderTypeFilter = "all",
+) -> DashboardSummaryOut:
+    return await order_queries.dashboard_summary(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        order_type=order_type,
+    )
+
+
+@router.get("/dashboard/recent-orders", response_model=DashboardRecentOrdersPage)
+async def get_dashboard_recent_orders(
+    session: SessionDep,
+    admin: AdminUser,
+    order_type: OrderTypeFilter = "all",
+    limit: Annotated[
+        int, Query(ge=1, le=order_queries.MAX_RECENT_LIMIT)
+    ] = order_queries.DEFAULT_RECENT_LIMIT,
+) -> DashboardRecentOrdersPage:
+    return await order_queries.recent_orders(session, order_type=order_type, limit=limit)
+
+
+@router.get("/dashboard/recent-quotes", response_model=DashboardRecentQuotesPage)
+async def get_dashboard_recent_quotes(
+    session: SessionDep,
+    admin: AdminUser,
+    limit: Annotated[
+        int, Query(ge=1, le=order_queries.MAX_RECENT_LIMIT)
+    ] = order_queries.DEFAULT_RECENT_LIMIT,
+) -> DashboardRecentQuotesPage:
+    return await order_queries.recent_quotes(session, limit=limit)
+
+
+@router.get("/orders", response_model=Page[AdminOrderSummaryOut])
 async def list_all_orders(
     session: SessionDep,
     admin: AdminUser,
     order_type: OrderTypeFilter = "all",
-    status: str | None = None,
-) -> list[AdminOrderOut]:
-    query = _apply_type_filter(select(Order), order_type).order_by(Order.created_at.desc())
-    if status:
-        query = query.where(Order.status == status)
-    orders = (await session.scalars(query)).all()
-    results = []
-    for order in orders:
-        out = AdminOrderOut.model_validate(order)
-        out.admin_actions = admin_actions(order.order_type, order.status)
-        results.append(out)
-    return results
+    status: OrderStatusFilter = "all",
+    start_date: date | None = None,
+    end_date: date | None = None,
+    q: Annotated[str | None, Query(max_length=64)] = None,
+    sort: OrderSort = "created_at",
+    direction: SortDirection = "desc",
+    limit: Annotated[
+        int, Query(ge=1, le=order_queries.MAX_PAGE_LIMIT)
+    ] = order_queries.DEFAULT_PAGE_LIMIT,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Page[AdminOrderSummaryOut]:
+    return await order_queries.list_orders(
+        session,
+        order_type=order_type,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+        q=q,
+        sort=sort,
+        direction=direction,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/orders/{order_id}", response_model=AdminOrderDetailOut)
+async def get_admin_order(
+    order_id: uuid.UUID, session: SessionDep, admin: AdminUser
+) -> AdminOrderDetailOut:
+    return await order_queries.get_order_detail(session, order_id)
+
+
+@router.get(
+    "/orders/{order_id}/reference-images",
+    response_model=list[AdminOrderReferenceImageOut],
+)
+async def list_admin_order_reference_images(
+    order_id: uuid.UUID, session: SessionDep, admin: AdminUser
+) -> list[AdminOrderReferenceImageOut]:
+    return await order_queries.list_order_reference_images(session, order_id)
+
+
+@router.post(
+    "/orders/{order_id}/reference-images/{image_id}/read-url",
+    response_model=SignedReadUrlOut,
+)
+async def create_admin_order_reference_image_read_url(
+    order_id: uuid.UUID,
+    image_id: uuid.UUID,
+    session: SessionDep,
+    admin: AdminUser,
+    request: Request,
+) -> SignedReadUrlOut:
+    image = await order_queries.get_order_reference_image(session, order_id, image_id)
+    return SignedReadUrlOut(read_url=await request.app.state.gcs.signed_read_url(image.object_key))

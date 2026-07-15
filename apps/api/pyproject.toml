@@ -8,6 +8,7 @@ dependencies = [
     "uvicorn>=0.34",
     "essesion-obs",
     "essesion-db",
+    "essesion-svg-safety",
     "pydantic-settings>=2.6",
     "pyjwt>=2.9",
     "pwdlib[argon2]>=0.2",
@@ -29,6 +30,7 @@ dev = [
 [tool.uv.sources]
 essesion-obs = { workspace = true }
 essesion-db = { workspace = true }
+essesion-svg-safety = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

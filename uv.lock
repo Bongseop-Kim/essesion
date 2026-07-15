@@ -11,6 +11,7 @@ members = [
     "essesion-api",
     "essesion-db",
     "essesion-obs",
+    "essesion-svg-safety",
     "essesion-worker",
 ]
 
@@ -375,6 +376,7 @@ dependencies = [
     { name = "authlib" },
     { name = "essesion-db" },
     { name = "essesion-obs" },
+    { name = "essesion-svg-safety" },
     { name = "fastapi" },
     { name = "google-auth" },
     { name = "google-cloud-storage" },
@@ -399,6 +401,7 @@ requires-dist = [
     { name = "authlib", specifier = ">=1.3" },
     { name = "essesion-db", editable = "db" },
     { name = "essesion-obs", editable = "libs/obs" },
+    { name = "essesion-svg-safety", editable = "libs/svg-safety" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "google-auth", specifier = ">=2" },
     { name = "google-cloud-storage", specifier = ">=2.18" },
@@ -461,13 +464,24 @@ dependencies = [
 requires-dist = [{ name = "sentry-sdk", specifier = ">=2" }]
 
 [[package]]
+name = "essesion-svg-safety"
+version = "0.1.0"
+source = { editable = "libs/svg-safety" }
+dependencies = [
+    { name = "defusedxml" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "defusedxml", specifier = ">=0.7" }]
+
+[[package]]
 name = "essesion-worker"
 version = "0.1.0"
 source = { editable = "apps/worker" }
 dependencies = [
-    { name = "defusedxml" },
     { name = "essesion-db" },
     { name = "essesion-obs" },
+    { name = "essesion-svg-safety" },
     { name = "fastapi" },
     { name = "google-cloud-storage" },
     { name = "httpx" },
@@ -483,9 +497,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "defusedxml", specifier = ">=0.7" },
     { name = "essesion-db", editable = "db" },
     { name = "essesion-obs", editable = "libs/obs" },
+    { name = "essesion-svg-safety", editable = "libs/svg-safety" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "google-cloud-storage", specifier = ">=2.18" },
     { name = "httpx", specifier = ">=0.28" },

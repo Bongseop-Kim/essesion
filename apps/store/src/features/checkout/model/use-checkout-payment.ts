@@ -1,9 +1,11 @@
 import { snackbar } from "@essesion/shared";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "@/shared/store/session";
 
 import type { PaymentWidgetHandle } from "../ui/payment-widget";
 
 export const CHECKOUT_PENDING_KEY = "checkout:pending";
+export const CHECKOUT_PENDING_TTL_MS = 29 * 60 * 1000;
 
 type CreatedPayment = {
   paymentGroupId: string;
@@ -11,31 +13,102 @@ type CreatedPayment = {
 };
 
 export type PendingCheckout<T = unknown> = CreatedPayment & {
+  ownerUserId: string;
+  createdAt: number;
   signature: string;
   snapshot: T;
 };
 
-export function readPendingCheckout<T>(key: string): PendingCheckout<T> | null {
+function pendingCheckoutStorageKey(key: string, ownerUserId: string) {
+  return `${key}:user:${encodeURIComponent(ownerUserId)}`;
+}
+
+function removePendingCheckoutItem(key: string) {
   try {
-    const value = JSON.parse(sessionStorage.getItem(key) ?? "null") as unknown;
+    sessionStorage.removeItem(key);
+  } catch {
+    // Storage 접근이 차단된 브라우저에서도 결제 화면 자체는 계속 동작한다.
+  }
+}
+
+export function readPendingCheckout<T>(
+  key: string,
+  ownerUserId: string | null,
+  now = Date.now(),
+): PendingCheckout<T> | null {
+  // v1은 owner 정보가 없어 현재 계정의 주문이라고 안전하게 판정할 수 없다.
+  removePendingCheckoutItem(key);
+  if (!ownerUserId) return null;
+
+  const scopedKey = pendingCheckoutStorageKey(key, ownerUserId);
+  try {
+    const value = JSON.parse(
+      sessionStorage.getItem(scopedKey) ?? "null",
+    ) as unknown;
     if (!value || typeof value !== "object") return null;
     const pending = value as Record<string, unknown>;
+    const age =
+      typeof pending.createdAt === "number"
+        ? now - pending.createdAt
+        : Number.NaN;
     if (
+      pending.ownerUserId !== ownerUserId ||
+      typeof pending.createdAt !== "number" ||
+      !Number.isFinite(pending.createdAt) ||
+      !Number.isInteger(pending.createdAt) ||
+      age < 0 ||
+      age >= CHECKOUT_PENDING_TTL_MS ||
       typeof pending.signature !== "string" ||
       typeof pending.paymentGroupId !== "string" ||
       typeof pending.totalAmount !== "number" ||
+      !Number.isFinite(pending.totalAmount) ||
       !("snapshot" in pending)
     ) {
+      removePendingCheckoutItem(scopedKey);
       return null;
     }
     return pending as PendingCheckout<T>;
   } catch {
+    removePendingCheckoutItem(scopedKey);
     return null;
   }
 }
 
-export function clearPendingCheckout(key: string) {
-  sessionStorage.removeItem(key);
+export function clearPendingCheckout(key: string, ownerUserId: string | null) {
+  removePendingCheckoutItem(key);
+  if (ownerUserId) {
+    removePendingCheckoutItem(pendingCheckoutStorageKey(key, ownerUserId));
+  }
+}
+
+export type PaymentOwnerState = "current" | "loading" | "different";
+
+export function paymentOwnerState(
+  ownerUserId: string | null,
+): PaymentOwnerState {
+  const session = useSession.getState();
+  if (session.status === "loading") return "loading";
+  return session.status === "authenticated" &&
+    ownerUserId !== null &&
+    session.user?.id === ownerUserId
+    ? "current"
+    : "different";
+}
+
+export function waitForSettledPaymentOwner(
+  ownerUserId: string | null,
+): Promise<Exclude<PaymentOwnerState, "loading">> {
+  const current = paymentOwnerState(ownerUserId);
+  if (current !== "loading") return Promise.resolve(current);
+
+  return new Promise((resolve) => {
+    const unsubscribe = useSession.subscribe(() => {
+      const next = paymentOwnerState(ownerUserId);
+      if (next === "loading") return;
+      unsubscribe();
+      resolve(next);
+    });
+  });
 }
 
 export function useCheckoutPayment<T>({
@@ -43,6 +116,7 @@ export function useCheckoutPayment<T>({
   orderName,
   expectedAmount,
   failPath = "/order/payment/fail",
+  ownerUserId,
   storageKey,
   successPath = "/order/payment/success",
   snapshot,
@@ -51,12 +125,23 @@ export function useCheckoutPayment<T>({
   orderName: string;
   expectedAmount?: number;
   failPath?: string;
+  ownerUserId: string | null;
   storageKey: string;
   successPath?: string;
   snapshot: T;
 }) {
   const [isPending, setPending] = useState(false);
   const submitting = useRef(false);
+  const currentOwner = useRef(ownerUserId);
+  const mounted = useRef(true);
+  currentOwner.current = ownerUserId;
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   return {
     isPending,
@@ -70,19 +155,33 @@ export function useCheckoutPayment<T>({
       submitting.current = true;
       setPending(true);
       try {
+        const paymentOwner = ownerUserId;
+        if (!paymentOwner) {
+          snackbar("로그인 정보를 확인하고 있습니다.");
+          return;
+        }
         const signature = JSON.stringify(snapshot);
-        const cached = readPendingCheckout<T>(storageKey);
-        const payment =
-          cached?.signature === signature ? cached : await createOrder();
+        const cached = readPendingCheckout<T>(storageKey, paymentOwner);
+        const reusable = cached?.signature === signature ? cached : null;
+        const payment = reusable ?? (await createOrder());
 
         // 금액 불일치여도 생성된 주문을 pending으로 보존 — 버리면 재시도마다
         // 새 주문이 쌓이고, 예약된 쿠폰이 stale 취소 배치 전까지 잠긴다.
         const pending: PendingCheckout<T> = {
           ...payment,
+          ownerUserId: paymentOwner,
+          createdAt: reusable?.createdAt ?? Date.now(),
           signature,
           snapshot,
         };
-        sessionStorage.setItem(storageKey, JSON.stringify(pending));
+        sessionStorage.setItem(
+          pendingCheckoutStorageKey(storageKey, paymentOwner),
+          JSON.stringify(pending),
+        );
+
+        // 주문 생성 중 계정이 바뀌었다면 원래 소유자 namespace에만 보존하고
+        // 새 계정 화면에서는 Toss 결제를 시작하지 않는다.
+        if (!mounted.current || currentOwner.current !== paymentOwner) return;
 
         if (
           expectedAmount !== undefined &&
@@ -94,6 +193,7 @@ export function useCheckoutPayment<T>({
           return;
         }
         await widget.setAmount(payment.totalAmount);
+        if (!mounted.current || currentOwner.current !== paymentOwner) return;
         await widget.requestPayment({
           orderId: payment.paymentGroupId,
           orderName,
@@ -104,7 +204,7 @@ export function useCheckoutPayment<T>({
         if (!isUserCancel(error)) snackbar("결제를 시작하지 못했습니다.");
       } finally {
         submitting.current = false;
-        setPending(false);
+        if (mounted.current) setPending(false);
       }
     },
   };

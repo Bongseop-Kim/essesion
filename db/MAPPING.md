@@ -6,7 +6,7 @@
 
 | 기존 | 새 | 변환·비고 |
 |---|---|---|
-| auth.users + profiles | **users** (병합) | id·email·created_at 승계 + profiles 전 컬럼 병합. 비밀번호 해시 이관 없음(전원 소셜 — ARCHITECTURE §5), 기존 유저 연결은 재로그인 시 best-effort. email nullable+부분 unique(카카오 이메일 미동의 대비). password_hash는 id/pw 테스트 로그인 전용 |
+| auth.users + profiles | **users** (병합) | id·email·created_at 승계 + profiles 전 컬럼 병합. 비밀번호 해시 이관 없음(전원 소셜 — ARCHITECTURE §5), 기존 유저 연결은 재로그인 시 best-effort. email nullable+부분 unique(카카오 이메일 미동의 대비). password_hash는 id/pw 테스트 로그인 전용. soft-delete의 보존 기간 기준은 `deleted_at`에 별도 기록 |
 | auth.identities | **user_identities** (신규) | provider(google/kakao/apple/naver) + provider_user_id 복합 unique |
 | (Supabase 세션) | **refresh_tokens** (신규) | JWT refresh 회전. 컷오버 시 전원 재로그인이므로 이관 없음 |
 | phone_verifications | phone_verifications | 동일. expires_at DB default(now+5분) 제거 — api가 설정. 재전송 60초/일 5회 제한도 api |

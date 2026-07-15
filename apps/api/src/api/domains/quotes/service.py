@@ -1,12 +1,12 @@
 """견적 — 생성·상태 전이·이미지 만료 (docs/api-spec/domains.md §7)."""
 
-import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from db.models.auth import User
 from db.models.commerce import QuoteRequest, QuoteRequestStatusLog, ShippingAddress
 from db.models.images import Image
+from obs import request_id_var
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +15,6 @@ from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.gcs import GcsClient
 from api.numbering import generate_number
 
-MAX_OPTIONS_BYTES = 10_000
 MAX_REFERENCE_IMAGE_BYTES = 10 * 1024 * 1024
 IMAGE_EXPIRY = timedelta(days=90)
 QUOTE_IMAGE_PREFIX = "uploads/quote_request/"
@@ -29,6 +28,20 @@ TRANSITIONS: set[tuple[str, str]] = {
     ("협의중", "확정"),
     ("협의중", "종료"),
 }
+
+
+def _address_snapshot(address: ShippingAddress) -> dict[str, str | bool | None]:
+    return {
+        "id": str(address.id),
+        "recipient_name": address.recipient_name,
+        "recipient_phone": address.recipient_phone,
+        "postal_code": address.postal_code,
+        "address": address.address,
+        "address_detail": address.address_detail,
+        "is_default": address.is_default,
+        "delivery_memo": address.delivery_memo,
+        "delivery_request": address.delivery_request,
+    }
 
 
 async def _staged_reference_images(
@@ -95,8 +108,6 @@ async def create_quote(
 ) -> QuoteRequest:
     if body.quantity < 100:
         raise DomainError("Quantity must be 100 or more", code="invalid_quantity")
-    if len(json.dumps(body.options).encode()) > MAX_OPTIONS_BYTES:
-        raise DomainError("Options payload too large", code="payload_too_large", status=413)
     if not body.contact_name.strip():
         raise DomainError("Contact name is required", code="invalid_contact")
     if not body.contact_value.strip():
@@ -121,6 +132,7 @@ async def create_quote(
         user_id=user.id,
         quote_number=await generate_number(session, QuoteRequest.quote_number, "QUO"),
         shipping_address_id=body.shipping_address_id,
+        shipping_address_snapshot=_address_snapshot(address),
         options=body.options,
         quantity=body.quantity,
         additional_notes=body.additional_notes,
@@ -148,17 +160,23 @@ async def admin_update_status(
     admin: User,
     quote_id: uuid.UUID,
     *,
+    expected_updated_at: datetime,
     new_status: str,
     quoted_amount: int | None,
     quote_conditions: str | None,
     admin_memo: str | None,
     memo: str | None,
-) -> dict:
+) -> QuoteRequest:
     quote = await session.scalar(
         select(QuoteRequest).where(QuoteRequest.id == quote_id).with_for_update()
     )
     if quote is None:
         raise NotFoundError("Quote request not found")
+    if quote.updated_at != expected_updated_at:
+        raise ConflictError(
+            "다른 관리자가 견적을 먼저 변경했습니다. 최신 내용을 다시 확인해 주세요.",
+            code="stale_quote",
+        )
     if quote.status == new_status:
         raise ConflictError(f"Status is already {new_status}", code="same_status")
     if (quote.status, new_status) not in TRANSITIONS:
@@ -168,6 +186,12 @@ async def admin_update_status(
         )
     if quoted_amount is not None and quoted_amount < 0:
         raise DomainError("Quoted amount must be non-negative", code="invalid_amount")
+    if new_status == "견적발송" and quoted_amount is None and quote.quoted_amount is None:
+        raise DomainError(
+            "견적발송 시 견적 금액이 필요합니다",
+            code="quoted_amount_required",
+            status=422,
+        )
 
     previous = quote.status
     quote.status = new_status
@@ -184,6 +208,7 @@ async def admin_update_status(
             previous_status=previous,
             new_status=new_status,
             memo=memo,
+            request_id=request_id_var.get() or None,
         )
     )
 
@@ -199,4 +224,5 @@ async def admin_update_status(
             .values(expires_at=datetime.now(UTC) + IMAGE_EXPIRY)
         )
     await session.commit()
-    return {"success": True, "previous_status": previous, "new_status": new_status}
+    await session.refresh(quote)
+    return quote

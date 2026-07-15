@@ -33,8 +33,8 @@ resource "google_storage_bucket" "assets" {
 
   cors {
     origin          = var.upload_cors_origins
-    method          = ["GET", "HEAD"]
-    response_header = ["Content-Type", "ETag"]
+    method          = ["GET", "HEAD", "PUT"]
+    response_header = ["Content-Type", "ETag", "x-goog-content-length-range", "x-goog-if-generation-match"]
     max_age_seconds = 3600
   }
 }
@@ -55,7 +55,7 @@ resource "google_storage_bucket" "uploads" {
   cors {
     origin          = var.upload_cors_origins
     method          = ["GET", "HEAD", "PUT"]
-    response_header = ["Content-Type", "ETag", "x-goog-content-length-range"]
+    response_header = ["Content-Type", "ETag", "x-goog-content-length-range", "x-goog-if-generation-match"]
     max_age_seconds = 3600
   }
 }
@@ -70,7 +70,13 @@ resource "google_cloud_tasks_queue" "finalize" {
   }
 
   retry_config {
-    max_attempts = 5
+    # max_retry_duration은 긴 dispatch에서 횟수 상한보다 먼저 재시도를
+    # 끊을 수 있어 생략한다. 실패 전달의 횟수 상한은 최초를 포함한
+    # max_attempts 4회만으로 제어한다.
+    max_attempts  = 4
+    min_backoff   = "10s"
+    max_backoff   = "60s"
+    max_doublings = 3
   }
 
   depends_on = [google_project_service.apis]

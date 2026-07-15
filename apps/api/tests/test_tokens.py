@@ -1,14 +1,19 @@
 """토큰 원장 — 유료 우선·만료 임박순 차감·work_id 멱등·환불 (money.md §6)."""
 
+import asyncio
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import respx
 from api.domains.tokens import ledger
+from api.errors import DomainError
+from api.integrations.toss import DryRunTossClient
+from db.models.auth import User
 from db.models.tokens import DesignToken
 from httpx import Response
 from sqlalchemy import select
 
-from .factories import auth_headers, make_user, seed_pricing, seed_setting
+from .factories import auth_headers, make_order, make_user, seed_pricing, seed_setting
 
 COST_SETTING = ("design_token_cost_openai_render_standard", "5")
 
@@ -66,6 +71,58 @@ async def test_use_tokens_paid_first_expiry_order(db_session):
     assert by_work["work-2_use_paid_0"].expires_at is not None
     assert by_work["work-2_use_paid_1"].amount == -1
     assert "work-2_use_bonus" not in by_work
+
+
+async def test_failed_generation_refund_reverses_original_buckets_idempotently(db_session):
+    await seed_setting(db_session, *COST_SETTING)
+    user = await make_user(db_session)
+    source_order = await make_order(db_session, user, order_type="token", status="완료")
+    paid_expiry = datetime.now(UTC) + timedelta(days=5)
+    bonus_expiry = datetime.now(UTC) + timedelta(days=10)
+    db_session.add_all(
+        [
+            DesignToken(
+                user_id=user.id,
+                amount=2,
+                type="purchase",
+                token_class="paid",
+                source_order_id=source_order.id,
+                expires_at=paid_expiry,
+            ),
+            _grant(user.id, 2, token_class="bonus", expires_at=bonus_expiry),
+            _grant(user.id, 5, token_class="free"),
+        ]
+    )
+    await db_session.commit()
+
+    charge = await ledger.use_tokens(db_session, user.id, "work-refund-buckets")
+    assert charge.success and charge.cost == 5
+    await ledger.refund_failed_generation(db_session, user.id, charge.cost, "work-refund-buckets")
+    # 재시도해도 각 차감 행의 반전은 work_id로 한 번만 기록된다.
+    await ledger.refund_failed_generation(db_session, user.id, charge.cost, "work-refund-buckets")
+
+    rows = list(
+        await db_session.scalars(
+            select(DesignToken).where(
+                DesignToken.user_id == user.id,
+                DesignToken.work_id.startswith("work-refund-buckets_use_"),
+            )
+        )
+    )
+    debits = {row.work_id: row for row in rows if row.type == "use"}
+    refunds = {row.work_id: row for row in rows if row.type == "refund"}
+    assert len(debits) == len(refunds) == 3
+    for debit_work_id, debit in debits.items():
+        refund = refunds[f"{debit_work_id}_refund"]
+        assert refund.amount == -debit.amount
+        assert refund.token_class == debit.token_class
+        assert refund.source_order_id == debit.source_order_id
+        assert refund.expires_at == debit.expires_at
+    assert await ledger.get_balance(db_session, user.id) == {
+        "total": 9,
+        "paid": 2,
+        "bonus": 7,
+    }
 
 
 async def test_use_tokens_insufficient(db_session):
@@ -330,6 +387,54 @@ async def test_refund_approve_cancels_payment_and_order(client, db_session, sett
     assert cancel_route.call_count == 1
 
 
+async def test_refund_request_and_approval_concurrency_does_not_deadlock(
+    app, client, db_session, settings
+):
+    user = await make_user(db_session)
+    from .factories import make_admin
+
+    admin = await make_admin(db_session)
+    order = await _completed_token_order(client, db_session, settings, user)
+    claim_id = uuid.UUID(
+        (
+            await client.post(
+                "/tokens/refund-requests",
+                json={"order_id": str(order.id)},
+                headers=auth_headers(user, settings),
+            )
+        ).json()["claim_id"]
+    )
+
+    async def request_again():
+        async with app.state.sessionmaker() as session:
+            current_user = await session.get(User, user.id)
+            assert current_user is not None
+            return await ledger.request_refund(session, current_user, order.id)
+
+    async def approve():
+        async with app.state.sessionmaker() as session:
+            current_admin = await session.get(User, admin.id)
+            assert current_admin is not None
+            return await ledger.approve_refund(
+                session,
+                current_admin,
+                DryRunTossClient(),
+                claim_id,
+            )
+
+    duplicate_result, approval_result = await asyncio.wait_for(
+        asyncio.gather(request_again(), approve(), return_exceptions=True),
+        timeout=5,
+    )
+
+    assert isinstance(duplicate_result, DomainError)
+    assert not isinstance(approval_result, Exception)
+    assert approval_result == {"success": True, "already_approved": False}
+    detail = (await client.get(f"/orders/{order.id}", headers=auth_headers(user, settings))).json()
+    assert detail["status"] == "취소"
+    assert (await ledger.get_balance(db_session, user.id))["paid"] == 0
+
+
 @respx.mock
 async def test_previous_order_becomes_refundable_after_latest_refund(client, db_session, settings):
     cancel_route = respx.post(
@@ -371,7 +476,12 @@ async def test_admin_manage_insufficient(client, db_session, settings):
     user = await make_user(db_session)
     res = await client.post(
         "/admin/tokens/manage",
-        json={"user_id": str(user.id), "amount": -10, "description": "회수"},
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "user_id": str(user.id),
+            "amount": -10,
+            "description": "토큰 회수",
+        },
         headers=auth_headers(admin, settings),
     )
     assert res.status_code == 400 and res.json()["detail"] == "insufficient_tokens"

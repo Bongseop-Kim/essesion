@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { adminApproveTokenRefund, adminListClaims, adminListInquiries, adminListQuotes, adminManageTokens, adminUpdateClaimStatus, adminUpdateOrderStatus, adminUpdateOrderTracking, adminUpdateQuoteStatus, answerInquiry, appendDesignTurn, autoConfirmOrders, bulkIssueCoupons, calculateCustomOrder, calculateSampleOrder, cancelClaim, cancelStaleOrders, cancelTokenRefund, cleanupImages, confirmPayment, confirmPurchase, createClaim, createCoupon, createCustomOrder, createDesignOrderReference, createDesignSession, createFinalizeJob, createInquiry, createOrder, createProduct, createQuote, createReadUrl, createReformUploadUrl, createSampleOrder, createTokenOrder, createUploadUrl, deleteAccount, deleteAddress, deleteInquiry, exportDesign, generateDesign, getCart, getDesignSession, getGenerationJob, getInquiry, getMe, getOrder, getProduct, getQuote, getReformPricing, getTokenBalance, getTokenPlans, healthz, likeProduct, listAddresses, listAllOrders, listCoupons, listDesignSessions, listDesignTurns, listGenerationJobs, listMyClaims, listMyCoupons, listMyInquiries, listMyOrders, listMyQuotes, listProducts, listRefundableTokenOrders, listTokenHistory, listUsers, login, logout, motifCandidates, motifGenerate, type Options, periodStats, refreshTokens, registerReformUpload, registerRepairShippingUpload, removeCartItems, replaceCart, replaceProductOptions, requestTokenRefund, revokeCouponsByIds, revokeCouponsByUsers, sendPhoneVerification, setNotificationPreferences, submitRepairNoTracking, submitRepairTracking, todayStats, tossWebhook, unlikeProduct, updateDesignSession, updateInquiry, updateProduct, updateProfile, upsertAddress, verifyPhone } from '../sdk.gen';
-import type { AdminApproveTokenRefundData, AdminApproveTokenRefundError, AdminApproveTokenRefundResponse, AdminListClaimsData, AdminListClaimsResponse, AdminListInquiriesData, AdminListInquiriesResponse, AdminListQuotesData, AdminListQuotesResponse, AdminManageTokensData, AdminManageTokensError, AdminManageTokensResponse, AdminUpdateClaimStatusData, AdminUpdateClaimStatusError, AdminUpdateClaimStatusResponse, AdminUpdateOrderStatusData, AdminUpdateOrderStatusError, AdminUpdateOrderStatusResponse, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingError, AdminUpdateOrderTrackingResponse, AdminUpdateQuoteStatusData, AdminUpdateQuoteStatusError, AdminUpdateQuoteStatusResponse, AnswerInquiryData, AnswerInquiryError, AnswerInquiryResponse, AppendDesignTurnData, AppendDesignTurnError, AppendDesignTurnResponse, AutoConfirmOrdersData, AutoConfirmOrdersResponse, BulkIssueCouponsData, BulkIssueCouponsError, BulkIssueCouponsResponse, CalculateCustomOrderData, CalculateCustomOrderError, CalculateCustomOrderResponse, CalculateSampleOrderData, CalculateSampleOrderError, CalculateSampleOrderResponse, CancelClaimData, CancelClaimError, CancelClaimResponse, CancelStaleOrdersData, CancelStaleOrdersResponse, CancelTokenRefundData, CancelTokenRefundError, CancelTokenRefundResponse, CleanupImagesData, CleanupImagesResponse, ConfirmPaymentData, ConfirmPaymentError, ConfirmPaymentResponse, ConfirmPurchaseData, ConfirmPurchaseError, ConfirmPurchaseResponse, CreateClaimData, CreateClaimError, CreateClaimResponse, CreateCouponData, CreateCouponError, CreateCouponResponse, CreateCustomOrderData, CreateCustomOrderError, CreateCustomOrderResponse, CreateDesignOrderReferenceData, CreateDesignOrderReferenceError, CreateDesignOrderReferenceResponse, CreateDesignSessionData, CreateDesignSessionResponse, CreateFinalizeJobData, CreateFinalizeJobError, CreateFinalizeJobResponse, CreateInquiryData, CreateInquiryError, CreateInquiryResponse, CreateOrderData, CreateOrderError, CreateOrderResponse, CreateProductData, CreateProductError, CreateProductResponse, CreateQuoteData, CreateQuoteError, CreateQuoteResponse, CreateReadUrlData, CreateReadUrlError, CreateReadUrlResponse, CreateReformUploadUrlData, CreateReformUploadUrlError, CreateReformUploadUrlResponse, CreateSampleOrderData, CreateSampleOrderError, CreateSampleOrderResponse, CreateTokenOrderData, CreateTokenOrderError, CreateTokenOrderResponse, CreateUploadUrlData, CreateUploadUrlError, CreateUploadUrlResponse, DeleteAccountData, DeleteAccountResponse, DeleteAddressData, DeleteAddressError, DeleteAddressResponse, DeleteInquiryData, DeleteInquiryError, DeleteInquiryResponse, ExportDesignData, ExportDesignError, GenerateDesignData, GenerateDesignError, GenerateDesignResponse, GetCartData, GetCartResponse, GetDesignSessionData, GetDesignSessionError, GetDesignSessionResponse, GetGenerationJobData, GetGenerationJobError, GetGenerationJobResponse, GetInquiryData, GetInquiryError, GetInquiryResponse, GetMeData, GetMeResponse, GetOrderData, GetOrderError, GetOrderResponse, GetProductData, GetProductError, GetProductResponse, GetQuoteData, GetQuoteError, GetQuoteResponse, GetReformPricingData, GetReformPricingResponse, GetTokenBalanceData, GetTokenBalanceResponse, GetTokenPlansData, GetTokenPlansResponse, HealthzData, HealthzResponse, LikeProductData, LikeProductError, LikeProductResponse, ListAddressesData, ListAddressesResponse, ListAllOrdersData, ListAllOrdersError, ListAllOrdersResponse, ListCouponsData, ListCouponsResponse, ListDesignSessionsData, ListDesignSessionsResponse, ListDesignTurnsData, ListDesignTurnsError, ListDesignTurnsResponse, ListGenerationJobsData, ListGenerationJobsError, ListGenerationJobsResponse, ListMyClaimsData, ListMyClaimsResponse, ListMyCouponsData, ListMyCouponsError, ListMyCouponsResponse, ListMyInquiriesData, ListMyInquiriesResponse, ListMyOrdersData, ListMyOrdersError, ListMyOrdersResponse, ListMyQuotesData, ListMyQuotesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponse, ListTokenHistoryData, ListTokenHistoryError, ListTokenHistoryResponse, ListUsersData, ListUsersResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MotifCandidatesData, MotifCandidatesError, MotifCandidatesResponse, MotifGenerateData, MotifGenerateError, MotifGenerateResponse, PeriodStatsData, PeriodStatsError, PeriodStatsResponse, RefreshTokensData, RefreshTokensResponse, RegisterReformUploadData, RegisterReformUploadError, RegisterReformUploadResponse, RegisterRepairShippingUploadData, RegisterRepairShippingUploadError, RegisterRepairShippingUploadResponse, RemoveCartItemsData, RemoveCartItemsError, RemoveCartItemsResponse, ReplaceCartData, ReplaceCartError, ReplaceCartResponse, ReplaceProductOptionsData, ReplaceProductOptionsError, ReplaceProductOptionsResponse, RequestTokenRefundData, RequestTokenRefundError, RequestTokenRefundResponse, RevokeCouponsByIdsData, RevokeCouponsByIdsError, RevokeCouponsByIdsResponse, RevokeCouponsByUsersData, RevokeCouponsByUsersError, RevokeCouponsByUsersResponse, SendPhoneVerificationData, SendPhoneVerificationError, SendPhoneVerificationResponse, SetNotificationPreferencesData, SetNotificationPreferencesError, SetNotificationPreferencesResponse, SubmitRepairNoTrackingData, SubmitRepairNoTrackingError, SubmitRepairNoTrackingResponse, SubmitRepairTrackingData, SubmitRepairTrackingError, SubmitRepairTrackingResponse, TodayStatsData, TodayStatsError, TodayStatsResponse, TossWebhookData, TossWebhookError, TossWebhookResponse, UnlikeProductData, UnlikeProductError, UnlikeProductResponse, UpdateDesignSessionData, UpdateDesignSessionError, UpdateDesignSessionResponse, UpdateInquiryData, UpdateInquiryError, UpdateInquiryResponse, UpdateProductData, UpdateProductError, UpdateProductResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse, UpsertAddressData, UpsertAddressError, UpsertAddressResponse, VerifyPhoneData, VerifyPhoneError, VerifyPhoneResponse } from '../types.gen';
+import { adminApproveTokenRefund, adminCreateProduct, adminGetClaim, adminGetPaymentIncident, adminGetProduct, adminListClaimsV2, adminListPaymentIncidents, adminListProducts, adminLogin, adminLogout, adminManageTokens, adminReconcilePaymentIncident, adminRefreshTokens, adminResolvePaymentIncident, adminRetryClaimNotification, adminUpdateClaimStatus, adminUpdateClaimTracking, adminUpdateOrderStatus, adminUpdateOrderTracking, adminUpdateProduct, answerAdminInquiry, appendDesignTurn, autoConfirmOrders, calculateCustomOrder, calculateSampleOrder, cancelClaim, cancelStaleOrders, cancelTokenRefund, cleanupImages, completeAdminProductImageUpload, completeOrderImage, confirmPayment, confirmPurchase, createAdminCoupon, createAdminOrderReferenceImageReadUrl, createAdminProductImageUploadUrl, createAdminQuoteImageReadUrl, createAdminRepairReceiptPhotoReadUrl, createAdminSeamlessReferenceImageReadUrl, createClaim, createCustomOrder, createDesignOrderReference, createDesignSession, createFinalizeJob, createInquiry, createOrder, createQuote, createReadUrl, createReformUploadUrl, createSampleOrder, createTokenOrder, createUploadUrl, deleteAccount, deleteAddress, deleteAdminProductImageUpload, deleteInquiry, exportDesign, generateDesign, getAdminCapabilities, getAdminCoupon, getAdminCustomer, getAdminGenerationJob, getAdminGenerationJobStats, getAdminInquiry, getAdminMotif, getAdminOrder, getAdminPricing, getAdminQuote, getAdminSeamlessLog, getAdminSeamlessStats, getAdminSettings, getCart, getDashboardRecentOrders, getDashboardRecentQuotes, getDashboardSummary, getDesignSession, getGenerationJob, getInquiry, getMe, getOrder, getProduct, getQuote, getReformPricing, getTokenBalance, getTokenPlans, healthz, issueCoupon, likeProduct, listAddresses, listAdminCoupons, listAdminCustomerCoupons, listAdminCustomerOrders, listAdminCustomers, listAdminCustomerTokens, listAdminGenerationJobs, listAdminInquiries, listAdminMotifs, listAdminOrderReferenceImages, listAdminQuotes, listAdminRepairReceiptPhotos, listAdminSeamlessLogs, listAllOrders, listDesignSessions, listDesignTurns, listGenerationJobs, listIssuedCoupons, listMyClaims, listMyCoupons, listMyInquiries, listMyOrders, listMyQuotes, listProducts, listRefundableTokenOrders, listTokenHistory, login, logout, motifCandidates, motifGenerate, type Options, periodStats, previewCouponAudience, reconcileStaleGenerationJobs, refreshTokens, registerReformUpload, registerRepairShippingUpload, removeCartItems, replaceCart, requestTokenRefund, revokeCoupons, revokeCouponUsers, searchAdminCustomers, searchAdminInquiries, sendPhoneVerification, setNotificationPreferences, submitRepairNoTracking, submitRepairTracking, todayStats, tossWebhook, unlikeProduct, updateAdminCoupon, updateAdminPricing, updateAdminQuoteStatus, updateAdminSettings, updateDesignSession, updateInquiry, updateProfile, upsertAddress, verifyPhone } from '../sdk.gen';
+import type { AdminApproveTokenRefundData, AdminApproveTokenRefundError, AdminApproveTokenRefundResponse, AdminCreateProductData, AdminCreateProductError, AdminCreateProductResponse, AdminGetClaimData, AdminGetClaimError, AdminGetClaimResponse, AdminGetPaymentIncidentData, AdminGetPaymentIncidentError, AdminGetPaymentIncidentResponse, AdminGetProductData, AdminGetProductError, AdminGetProductResponse, AdminListClaimsV2Data, AdminListClaimsV2Error, AdminListClaimsV2Response, AdminListPaymentIncidentsData, AdminListPaymentIncidentsError, AdminListPaymentIncidentsResponse, AdminListProductsData, AdminListProductsError, AdminListProductsResponse, AdminLoginData, AdminLoginError, AdminLoginResponse, AdminLogoutData, AdminLogoutResponse, AdminManageTokensData, AdminManageTokensError, AdminManageTokensResponse, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentError, AdminReconcilePaymentIncidentResponse, AdminRefreshTokensData, AdminRefreshTokensResponse, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentError, AdminResolvePaymentIncidentResponse, AdminRetryClaimNotificationData, AdminRetryClaimNotificationError, AdminRetryClaimNotificationResponse, AdminUpdateClaimStatusData, AdminUpdateClaimStatusError, AdminUpdateClaimStatusResponse, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingError, AdminUpdateClaimTrackingResponse, AdminUpdateOrderStatusData, AdminUpdateOrderStatusError, AdminUpdateOrderStatusResponse, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingError, AdminUpdateOrderTrackingResponse, AdminUpdateProductData, AdminUpdateProductError, AdminUpdateProductResponse, AnswerAdminInquiryData, AnswerAdminInquiryError, AnswerAdminInquiryResponse, AppendDesignTurnData, AppendDesignTurnError, AppendDesignTurnResponse, AutoConfirmOrdersData, AutoConfirmOrdersResponse, CalculateCustomOrderData, CalculateCustomOrderError, CalculateCustomOrderResponse, CalculateSampleOrderData, CalculateSampleOrderError, CalculateSampleOrderResponse, CancelClaimData, CancelClaimError, CancelClaimResponse, CancelStaleOrdersData, CancelStaleOrdersResponse, CancelTokenRefundData, CancelTokenRefundError, CancelTokenRefundResponse, CleanupImagesData, CleanupImagesResponse, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadError, CompleteAdminProductImageUploadResponse, CompleteOrderImageData, CompleteOrderImageError, CompleteOrderImageResponse, ConfirmPaymentData, ConfirmPaymentError, ConfirmPaymentResponse, ConfirmPurchaseData, ConfirmPurchaseError, ConfirmPurchaseResponse, CreateAdminCouponData, CreateAdminCouponError, CreateAdminCouponResponse, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlError, CreateAdminOrderReferenceImageReadUrlResponse, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlError, CreateAdminProductImageUploadUrlResponse, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlError, CreateAdminQuoteImageReadUrlResponse, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlError, CreateAdminRepairReceiptPhotoReadUrlResponse, CreateAdminSeamlessReferenceImageReadUrlData, CreateAdminSeamlessReferenceImageReadUrlError, CreateAdminSeamlessReferenceImageReadUrlResponse, CreateClaimData, CreateClaimError, CreateClaimResponse, CreateCustomOrderData, CreateCustomOrderError, CreateCustomOrderResponse, CreateDesignOrderReferenceData, CreateDesignOrderReferenceError, CreateDesignOrderReferenceResponse, CreateDesignSessionData, CreateDesignSessionResponse, CreateFinalizeJobData, CreateFinalizeJobError, CreateFinalizeJobResponse, CreateInquiryData, CreateInquiryError, CreateInquiryResponse, CreateOrderData, CreateOrderError, CreateOrderResponse, CreateQuoteData, CreateQuoteError, CreateQuoteResponse, CreateReadUrlData, CreateReadUrlError, CreateReadUrlResponse, CreateReformUploadUrlData, CreateReformUploadUrlError, CreateReformUploadUrlResponse, CreateSampleOrderData, CreateSampleOrderError, CreateSampleOrderResponse, CreateTokenOrderData, CreateTokenOrderError, CreateTokenOrderResponse, CreateUploadUrlData, CreateUploadUrlError, CreateUploadUrlResponse, DeleteAccountData, DeleteAccountResponse, DeleteAddressData, DeleteAddressError, DeleteAddressResponse, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadError, DeleteAdminProductImageUploadResponse, DeleteInquiryData, DeleteInquiryError, DeleteInquiryResponse, ExportDesignData, ExportDesignError, GenerateDesignData, GenerateDesignError, GenerateDesignResponse, GetAdminCapabilitiesData, GetAdminCapabilitiesResponse, GetAdminCouponData, GetAdminCouponError, GetAdminCouponResponse, GetAdminCustomerData, GetAdminCustomerError, GetAdminCustomerResponse, GetAdminGenerationJobData, GetAdminGenerationJobError, GetAdminGenerationJobResponse, GetAdminGenerationJobStatsData, GetAdminGenerationJobStatsError, GetAdminGenerationJobStatsResponse, GetAdminInquiryData, GetAdminInquiryError, GetAdminInquiryResponse, GetAdminMotifData, GetAdminMotifError, GetAdminMotifResponse, GetAdminOrderData, GetAdminOrderError, GetAdminOrderResponse, GetAdminPricingData, GetAdminPricingResponse, GetAdminQuoteData, GetAdminQuoteError, GetAdminQuoteResponse, GetAdminSeamlessLogData, GetAdminSeamlessLogError, GetAdminSeamlessLogResponse, GetAdminSeamlessStatsData, GetAdminSeamlessStatsError, GetAdminSeamlessStatsResponse, GetAdminSettingsData, GetAdminSettingsResponse, GetCartData, GetCartResponse, GetDashboardRecentOrdersData, GetDashboardRecentOrdersError, GetDashboardRecentOrdersResponse, GetDashboardRecentQuotesData, GetDashboardRecentQuotesError, GetDashboardRecentQuotesResponse, GetDashboardSummaryData, GetDashboardSummaryError, GetDashboardSummaryResponse, GetDesignSessionData, GetDesignSessionError, GetDesignSessionResponse, GetGenerationJobData, GetGenerationJobError, GetGenerationJobResponse, GetInquiryData, GetInquiryError, GetInquiryResponse, GetMeData, GetMeResponse, GetOrderData, GetOrderError, GetOrderResponse, GetProductData, GetProductError, GetProductResponse, GetQuoteData, GetQuoteError, GetQuoteResponse, GetReformPricingData, GetReformPricingResponse, GetTokenBalanceData, GetTokenBalanceResponse, GetTokenPlansData, GetTokenPlansResponse, HealthzData, HealthzResponse, IssueCouponData, IssueCouponError, IssueCouponResponse, LikeProductData, LikeProductError, LikeProductResponse, ListAddressesData, ListAddressesResponse, ListAdminCouponsData, ListAdminCouponsError, ListAdminCouponsResponse, ListAdminCustomerCouponsData, ListAdminCustomerCouponsError, ListAdminCustomerCouponsResponse, ListAdminCustomerOrdersData, ListAdminCustomerOrdersError, ListAdminCustomerOrdersResponse, ListAdminCustomersData, ListAdminCustomersError, ListAdminCustomersResponse, ListAdminCustomerTokensData, ListAdminCustomerTokensError, ListAdminCustomerTokensResponse, ListAdminGenerationJobsData, ListAdminGenerationJobsError, ListAdminGenerationJobsResponse, ListAdminInquiriesData, ListAdminInquiriesError, ListAdminInquiriesResponse, ListAdminMotifsData, ListAdminMotifsError, ListAdminMotifsResponse, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesError, ListAdminOrderReferenceImagesResponse, ListAdminQuotesData, ListAdminQuotesError, ListAdminQuotesResponse, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosError, ListAdminRepairReceiptPhotosResponse, ListAdminSeamlessLogsData, ListAdminSeamlessLogsError, ListAdminSeamlessLogsResponse, ListAllOrdersData, ListAllOrdersError, ListAllOrdersResponse, ListDesignSessionsData, ListDesignSessionsResponse, ListDesignTurnsData, ListDesignTurnsError, ListDesignTurnsResponse, ListGenerationJobsData, ListGenerationJobsError, ListGenerationJobsResponse, ListIssuedCouponsData, ListIssuedCouponsError, ListIssuedCouponsResponse, ListMyClaimsData, ListMyClaimsResponse, ListMyCouponsData, ListMyCouponsError, ListMyCouponsResponse, ListMyInquiriesData, ListMyInquiriesResponse, ListMyOrdersData, ListMyOrdersError, ListMyOrdersResponse, ListMyQuotesData, ListMyQuotesResponse, ListProductsData, ListProductsError, ListProductsResponse, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponse, ListTokenHistoryData, ListTokenHistoryError, ListTokenHistoryResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MotifCandidatesData, MotifCandidatesError, MotifCandidatesResponse, MotifGenerateData, MotifGenerateError, MotifGenerateResponse, PeriodStatsData, PeriodStatsError, PeriodStatsResponse, PreviewCouponAudienceData, PreviewCouponAudienceError, PreviewCouponAudienceResponse, ReconcileStaleGenerationJobsData, ReconcileStaleGenerationJobsResponse, RefreshTokensData, RefreshTokensResponse, RegisterReformUploadData, RegisterReformUploadError, RegisterReformUploadResponse, RegisterRepairShippingUploadData, RegisterRepairShippingUploadError, RegisterRepairShippingUploadResponse, RemoveCartItemsData, RemoveCartItemsError, RemoveCartItemsResponse, ReplaceCartData, ReplaceCartError, ReplaceCartResponse, RequestTokenRefundData, RequestTokenRefundError, RequestTokenRefundResponse, RevokeCouponsData, RevokeCouponsError, RevokeCouponsResponse, RevokeCouponUsersData, RevokeCouponUsersError, RevokeCouponUsersResponse, SearchAdminCustomersData, SearchAdminCustomersError, SearchAdminCustomersResponse, SearchAdminInquiriesData, SearchAdminInquiriesError, SearchAdminInquiriesResponse, SendPhoneVerificationData, SendPhoneVerificationError, SendPhoneVerificationResponse, SetNotificationPreferencesData, SetNotificationPreferencesError, SetNotificationPreferencesResponse, SubmitRepairNoTrackingData, SubmitRepairNoTrackingError, SubmitRepairNoTrackingResponse, SubmitRepairTrackingData, SubmitRepairTrackingError, SubmitRepairTrackingResponse, TodayStatsData, TodayStatsError, TodayStatsResponse, TossWebhookData2, TossWebhookError, TossWebhookResponse, UnlikeProductData, UnlikeProductError, UnlikeProductResponse, UpdateAdminCouponData, UpdateAdminCouponError, UpdateAdminCouponResponse, UpdateAdminPricingData, UpdateAdminPricingError, UpdateAdminPricingResponse, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusError, UpdateAdminQuoteStatusResponse, UpdateAdminSettingsData, UpdateAdminSettingsError, UpdateAdminSettingsResponse, UpdateDesignSessionData, UpdateDesignSessionError, UpdateDesignSessionResponse, UpdateInquiryData, UpdateInquiryError, UpdateInquiryResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse, UpsertAddressData, UpsertAddressError, UpsertAddressResponse, VerifyPhoneData, VerifyPhoneError, VerifyPhoneResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -39,14 +39,14 @@ const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions
     return [params];
 };
 
-export const adminListClaimsQueryKey = (options?: Options<AdminListClaimsData>) => createQueryKey('adminListClaims', options);
+export const getAdminCapabilitiesQueryKey = (options?: Options<GetAdminCapabilitiesData>) => createQueryKey('getAdminCapabilities', options);
 
 /**
- * Admin List Claims
+ * Get Admin Capabilities
  */
-export const adminListClaimsOptions = (options?: Options<AdminListClaimsData>) => queryOptions<AdminListClaimsResponse, DefaultError, AdminListClaimsResponse, ReturnType<typeof adminListClaimsQueryKey>>({
+export const getAdminCapabilitiesOptions = (options?: Options<GetAdminCapabilitiesData>) => queryOptions<GetAdminCapabilitiesResponse, DefaultError, GetAdminCapabilitiesResponse, ReturnType<typeof getAdminCapabilitiesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await adminListClaims({
+        const { data } = await getAdminCapabilities({
             ...options,
             ...queryKey[0],
             signal,
@@ -54,7 +54,119 @@ export const adminListClaimsOptions = (options?: Options<AdminListClaimsData>) =
         });
         return data;
     },
-    queryKey: adminListClaimsQueryKey(options)
+    queryKey: getAdminCapabilitiesQueryKey(options)
+});
+
+/**
+ * Admin Retry Claim Notification
+ */
+export const adminRetryClaimNotificationMutation = (options?: Partial<Options<AdminRetryClaimNotificationData>>): UseMutationOptions<AdminRetryClaimNotificationResponse, AdminRetryClaimNotificationError, Options<AdminRetryClaimNotificationData>> => {
+    const mutationOptions: UseMutationOptions<AdminRetryClaimNotificationResponse, AdminRetryClaimNotificationError, Options<AdminRetryClaimNotificationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminRetryClaimNotification({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const adminListClaimsV2QueryKey = (options?: Options<AdminListClaimsV2Data>) => createQueryKey('adminListClaimsV2', options);
+
+/**
+ * Admin List Claims V2
+ */
+export const adminListClaimsV2Options = (options?: Options<AdminListClaimsV2Data>) => queryOptions<AdminListClaimsV2Response, AdminListClaimsV2Error, AdminListClaimsV2Response, ReturnType<typeof adminListClaimsV2QueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await adminListClaimsV2({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: adminListClaimsV2QueryKey(options)
+});
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
+
+export const adminListClaimsV2InfiniteQueryKey = (options?: Options<AdminListClaimsV2Data>): QueryKey<Options<AdminListClaimsV2Data>> => createQueryKey('adminListClaimsV2', options, true);
+
+/**
+ * Admin List Claims V2
+ */
+export const adminListClaimsV2InfiniteOptions = (options?: Options<AdminListClaimsV2Data>) => {
+    const opts = infiniteQueryOptions<AdminListClaimsV2Response, AdminListClaimsV2Error, InfiniteData<AdminListClaimsV2Response>, QueryKey<Options<AdminListClaimsV2Data>>, number | Pick<QueryKey<Options<AdminListClaimsV2Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<AdminListClaimsV2Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await adminListClaimsV2({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: adminListClaimsV2InfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const adminGetClaimQueryKey = (options: Options<AdminGetClaimData>) => createQueryKey('adminGetClaim', options);
+
+/**
+ * Admin Get Claim
+ */
+export const adminGetClaimOptions = (options: Options<AdminGetClaimData>) => queryOptions<AdminGetClaimResponse, AdminGetClaimError, AdminGetClaimResponse, ReturnType<typeof adminGetClaimQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await adminGetClaim({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: adminGetClaimQueryKey(options)
 });
 
 /**
@@ -74,14 +186,31 @@ export const adminUpdateClaimStatusMutation = (options?: Partial<Options<AdminUp
     return mutationOptions;
 };
 
-export const listCouponsQueryKey = (options?: Options<ListCouponsData>) => createQueryKey('listCoupons', options);
+/**
+ * Admin Update Claim Tracking
+ */
+export const adminUpdateClaimTrackingMutation = (options?: Partial<Options<AdminUpdateClaimTrackingData>>): UseMutationOptions<AdminUpdateClaimTrackingResponse, AdminUpdateClaimTrackingError, Options<AdminUpdateClaimTrackingData>> => {
+    const mutationOptions: UseMutationOptions<AdminUpdateClaimTrackingResponse, AdminUpdateClaimTrackingError, Options<AdminUpdateClaimTrackingData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminUpdateClaimTracking({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAdminCouponsQueryKey = (options?: Options<ListAdminCouponsData>) => createQueryKey('listAdminCoupons', options);
 
 /**
- * List Coupons
+ * List Admin Coupons
  */
-export const listCouponsOptions = (options?: Options<ListCouponsData>) => queryOptions<ListCouponsResponse, DefaultError, ListCouponsResponse, ReturnType<typeof listCouponsQueryKey>>({
+export const listAdminCouponsOptions = (options?: Options<ListAdminCouponsData>) => queryOptions<ListAdminCouponsResponse, ListAdminCouponsError, ListAdminCouponsResponse, ReturnType<typeof listAdminCouponsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listCoupons({
+        const { data } = await listAdminCoupons({
             ...options,
             ...queryKey[0],
             signal,
@@ -89,16 +218,46 @@ export const listCouponsOptions = (options?: Options<ListCouponsData>) => queryO
         });
         return data;
     },
-    queryKey: listCouponsQueryKey(options)
+    queryKey: listAdminCouponsQueryKey(options)
 });
 
+export const listAdminCouponsInfiniteQueryKey = (options?: Options<ListAdminCouponsData>): QueryKey<Options<ListAdminCouponsData>> => createQueryKey('listAdminCoupons', options, true);
+
 /**
- * Create Coupon
+ * List Admin Coupons
  */
-export const createCouponMutation = (options?: Partial<Options<CreateCouponData>>): UseMutationOptions<CreateCouponResponse, CreateCouponError, Options<CreateCouponData>> => {
-    const mutationOptions: UseMutationOptions<CreateCouponResponse, CreateCouponError, Options<CreateCouponData>> = {
+export const listAdminCouponsInfiniteOptions = (options?: Options<ListAdminCouponsData>) => {
+    const opts = infiniteQueryOptions<ListAdminCouponsResponse, ListAdminCouponsError, InfiniteData<ListAdminCouponsResponse>, QueryKey<Options<ListAdminCouponsData>>, number | Pick<QueryKey<Options<ListAdminCouponsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminCouponsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminCoupons({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminCouponsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Create Admin Coupon
+ */
+export const createAdminCouponMutation = (options?: Partial<Options<CreateAdminCouponData>>): UseMutationOptions<CreateAdminCouponResponse, CreateAdminCouponError, Options<CreateAdminCouponData>> => {
+    const mutationOptions: UseMutationOptions<CreateAdminCouponResponse, CreateAdminCouponError, Options<CreateAdminCouponData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await createCoupon({
+            const { data } = await createAdminCoupon({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -110,14 +269,12 @@ export const createCouponMutation = (options?: Partial<Options<CreateCouponData>
 };
 
 /**
- * Revoke Coupons By Ids
- *
- * 회수 — active 상태만 revoked로.
+ * Revoke Coupons
  */
-export const revokeCouponsByIdsMutation = (options?: Partial<Options<RevokeCouponsByIdsData>>): UseMutationOptions<RevokeCouponsByIdsResponse, RevokeCouponsByIdsError, Options<RevokeCouponsByIdsData>> => {
-    const mutationOptions: UseMutationOptions<RevokeCouponsByIdsResponse, RevokeCouponsByIdsError, Options<RevokeCouponsByIdsData>> = {
+export const revokeCouponsMutation = (options?: Partial<Options<RevokeCouponsData>>): UseMutationOptions<RevokeCouponsResponse, RevokeCouponsError, Options<RevokeCouponsData>> => {
+    const mutationOptions: UseMutationOptions<RevokeCouponsResponse, RevokeCouponsError, Options<RevokeCouponsData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await revokeCouponsByIds({
+            const { data } = await revokeCoupons({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -128,50 +285,14 @@ export const revokeCouponsByIdsMutation = (options?: Partial<Options<RevokeCoupo
     return mutationOptions;
 };
 
-/**
- * Bulk Issue Coupons
- *
- * 일괄 발급 — 이미 보유한 유저는 재활성화(upsert).
- */
-export const bulkIssueCouponsMutation = (options?: Partial<Options<BulkIssueCouponsData>>): UseMutationOptions<BulkIssueCouponsResponse, BulkIssueCouponsError, Options<BulkIssueCouponsData>> => {
-    const mutationOptions: UseMutationOptions<BulkIssueCouponsResponse, BulkIssueCouponsError, Options<BulkIssueCouponsData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await bulkIssueCoupons({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
+export const getAdminCouponQueryKey = (options: Options<GetAdminCouponData>) => createQueryKey('getAdminCoupon', options);
 
 /**
- * Revoke Coupons By Users
+ * Get Admin Coupon
  */
-export const revokeCouponsByUsersMutation = (options?: Partial<Options<RevokeCouponsByUsersData>>): UseMutationOptions<RevokeCouponsByUsersResponse, RevokeCouponsByUsersError, Options<RevokeCouponsByUsersData>> => {
-    const mutationOptions: UseMutationOptions<RevokeCouponsByUsersResponse, RevokeCouponsByUsersError, Options<RevokeCouponsByUsersData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await revokeCouponsByUsers({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const adminListInquiriesQueryKey = (options?: Options<AdminListInquiriesData>) => createQueryKey('adminListInquiries', options);
-
-/**
- * Admin List Inquiries
- */
-export const adminListInquiriesOptions = (options?: Options<AdminListInquiriesData>) => queryOptions<AdminListInquiriesResponse, DefaultError, AdminListInquiriesResponse, ReturnType<typeof adminListInquiriesQueryKey>>({
+export const getAdminCouponOptions = (options: Options<GetAdminCouponData>) => queryOptions<GetAdminCouponResponse, GetAdminCouponError, GetAdminCouponResponse, ReturnType<typeof getAdminCouponQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await adminListInquiries({
+        const { data } = await getAdminCoupon({
             ...options,
             ...queryKey[0],
             signal,
@@ -179,16 +300,16 @@ export const adminListInquiriesOptions = (options?: Options<AdminListInquiriesDa
         });
         return data;
     },
-    queryKey: adminListInquiriesQueryKey(options)
+    queryKey: getAdminCouponQueryKey(options)
 });
 
 /**
- * Answer Inquiry
+ * Update Admin Coupon
  */
-export const answerInquiryMutation = (options?: Partial<Options<AnswerInquiryData>>): UseMutationOptions<AnswerInquiryResponse, AnswerInquiryError, Options<AnswerInquiryData>> => {
-    const mutationOptions: UseMutationOptions<AnswerInquiryResponse, AnswerInquiryError, Options<AnswerInquiryData>> = {
+export const updateAdminCouponMutation = (options?: Partial<Options<UpdateAdminCouponData>>): UseMutationOptions<UpdateAdminCouponResponse, UpdateAdminCouponError, Options<UpdateAdminCouponData>> => {
+    const mutationOptions: UseMutationOptions<UpdateAdminCouponResponse, UpdateAdminCouponError, Options<UpdateAdminCouponData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await answerInquiry({
+            const { data } = await updateAdminCoupon({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -198,6 +319,797 @@ export const answerInquiryMutation = (options?: Partial<Options<AnswerInquiryDat
     };
     return mutationOptions;
 };
+
+/**
+ * Preview Coupon Audience
+ */
+export const previewCouponAudienceMutation = (options?: Partial<Options<PreviewCouponAudienceData>>): UseMutationOptions<PreviewCouponAudienceResponse, PreviewCouponAudienceError, Options<PreviewCouponAudienceData>> => {
+    const mutationOptions: UseMutationOptions<PreviewCouponAudienceResponse, PreviewCouponAudienceError, Options<PreviewCouponAudienceData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await previewCouponAudience({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Issue Coupon
+ */
+export const issueCouponMutation = (options?: Partial<Options<IssueCouponData>>): UseMutationOptions<IssueCouponResponse, IssueCouponError, Options<IssueCouponData>> => {
+    const mutationOptions: UseMutationOptions<IssueCouponResponse, IssueCouponError, Options<IssueCouponData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await issueCoupon({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listIssuedCouponsQueryKey = (options: Options<ListIssuedCouponsData>) => createQueryKey('listIssuedCoupons', options);
+
+/**
+ * List Issued Coupons
+ */
+export const listIssuedCouponsOptions = (options: Options<ListIssuedCouponsData>) => queryOptions<ListIssuedCouponsResponse, ListIssuedCouponsError, ListIssuedCouponsResponse, ReturnType<typeof listIssuedCouponsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listIssuedCoupons({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listIssuedCouponsQueryKey(options)
+});
+
+export const listIssuedCouponsInfiniteQueryKey = (options: Options<ListIssuedCouponsData>): QueryKey<Options<ListIssuedCouponsData>> => createQueryKey('listIssuedCoupons', options, true);
+
+/**
+ * List Issued Coupons
+ */
+export const listIssuedCouponsInfiniteOptions = (options: Options<ListIssuedCouponsData>) => {
+    const opts = infiniteQueryOptions<ListIssuedCouponsResponse, ListIssuedCouponsError, InfiniteData<ListIssuedCouponsResponse>, QueryKey<Options<ListIssuedCouponsData>>, number | Pick<QueryKey<Options<ListIssuedCouponsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListIssuedCouponsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listIssuedCoupons({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listIssuedCouponsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Revoke Coupon Users
+ */
+export const revokeCouponUsersMutation = (options?: Partial<Options<RevokeCouponUsersData>>): UseMutationOptions<RevokeCouponUsersResponse, RevokeCouponUsersError, Options<RevokeCouponUsersData>> => {
+    const mutationOptions: UseMutationOptions<RevokeCouponUsersResponse, RevokeCouponUsersError, Options<RevokeCouponUsersData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await revokeCouponUsers({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAdminCustomersQueryKey = (options?: Options<ListAdminCustomersData>) => createQueryKey('listAdminCustomers', options);
+
+/**
+ * List Admin Customers
+ */
+export const listAdminCustomersOptions = (options?: Options<ListAdminCustomersData>) => queryOptions<ListAdminCustomersResponse, ListAdminCustomersError, ListAdminCustomersResponse, ReturnType<typeof listAdminCustomersQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminCustomers({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminCustomersQueryKey(options)
+});
+
+export const listAdminCustomersInfiniteQueryKey = (options?: Options<ListAdminCustomersData>): QueryKey<Options<ListAdminCustomersData>> => createQueryKey('listAdminCustomers', options, true);
+
+/**
+ * List Admin Customers
+ */
+export const listAdminCustomersInfiniteOptions = (options?: Options<ListAdminCustomersData>) => {
+    const opts = infiniteQueryOptions<ListAdminCustomersResponse, ListAdminCustomersError, InfiniteData<ListAdminCustomersResponse>, QueryKey<Options<ListAdminCustomersData>>, number | Pick<QueryKey<Options<ListAdminCustomersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminCustomersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminCustomers({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminCustomersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Search Admin Customers
+ */
+export const searchAdminCustomersMutation = (options?: Partial<Options<SearchAdminCustomersData>>): UseMutationOptions<SearchAdminCustomersResponse, SearchAdminCustomersError, Options<SearchAdminCustomersData>> => {
+    const mutationOptions: UseMutationOptions<SearchAdminCustomersResponse, SearchAdminCustomersError, Options<SearchAdminCustomersData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await searchAdminCustomers({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getAdminCustomerQueryKey = (options: Options<GetAdminCustomerData>) => createQueryKey('getAdminCustomer', options);
+
+/**
+ * Get Admin Customer
+ */
+export const getAdminCustomerOptions = (options: Options<GetAdminCustomerData>) => queryOptions<GetAdminCustomerResponse, GetAdminCustomerError, GetAdminCustomerResponse, ReturnType<typeof getAdminCustomerQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminCustomer({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminCustomerQueryKey(options)
+});
+
+export const listAdminCustomerCouponsQueryKey = (options: Options<ListAdminCustomerCouponsData>) => createQueryKey('listAdminCustomerCoupons', options);
+
+/**
+ * List Admin Customer Coupons
+ */
+export const listAdminCustomerCouponsOptions = (options: Options<ListAdminCustomerCouponsData>) => queryOptions<ListAdminCustomerCouponsResponse, ListAdminCustomerCouponsError, ListAdminCustomerCouponsResponse, ReturnType<typeof listAdminCustomerCouponsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminCustomerCoupons({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminCustomerCouponsQueryKey(options)
+});
+
+export const listAdminCustomerCouponsInfiniteQueryKey = (options: Options<ListAdminCustomerCouponsData>): QueryKey<Options<ListAdminCustomerCouponsData>> => createQueryKey('listAdminCustomerCoupons', options, true);
+
+/**
+ * List Admin Customer Coupons
+ */
+export const listAdminCustomerCouponsInfiniteOptions = (options: Options<ListAdminCustomerCouponsData>) => {
+    const opts = infiniteQueryOptions<ListAdminCustomerCouponsResponse, ListAdminCustomerCouponsError, InfiniteData<ListAdminCustomerCouponsResponse>, QueryKey<Options<ListAdminCustomerCouponsData>>, number | Pick<QueryKey<Options<ListAdminCustomerCouponsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminCustomerCouponsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminCustomerCoupons({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminCustomerCouponsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const listAdminCustomerOrdersQueryKey = (options: Options<ListAdminCustomerOrdersData>) => createQueryKey('listAdminCustomerOrders', options);
+
+/**
+ * List Admin Customer Orders
+ */
+export const listAdminCustomerOrdersOptions = (options: Options<ListAdminCustomerOrdersData>) => queryOptions<ListAdminCustomerOrdersResponse, ListAdminCustomerOrdersError, ListAdminCustomerOrdersResponse, ReturnType<typeof listAdminCustomerOrdersQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminCustomerOrders({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminCustomerOrdersQueryKey(options)
+});
+
+export const listAdminCustomerOrdersInfiniteQueryKey = (options: Options<ListAdminCustomerOrdersData>): QueryKey<Options<ListAdminCustomerOrdersData>> => createQueryKey('listAdminCustomerOrders', options, true);
+
+/**
+ * List Admin Customer Orders
+ */
+export const listAdminCustomerOrdersInfiniteOptions = (options: Options<ListAdminCustomerOrdersData>) => {
+    const opts = infiniteQueryOptions<ListAdminCustomerOrdersResponse, ListAdminCustomerOrdersError, InfiniteData<ListAdminCustomerOrdersResponse>, QueryKey<Options<ListAdminCustomerOrdersData>>, number | Pick<QueryKey<Options<ListAdminCustomerOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminCustomerOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminCustomerOrders({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminCustomerOrdersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const listAdminCustomerTokensQueryKey = (options: Options<ListAdminCustomerTokensData>) => createQueryKey('listAdminCustomerTokens', options);
+
+/**
+ * List Admin Customer Tokens
+ */
+export const listAdminCustomerTokensOptions = (options: Options<ListAdminCustomerTokensData>) => queryOptions<ListAdminCustomerTokensResponse, ListAdminCustomerTokensError, ListAdminCustomerTokensResponse, ReturnType<typeof listAdminCustomerTokensQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminCustomerTokens({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminCustomerTokensQueryKey(options)
+});
+
+export const listAdminCustomerTokensInfiniteQueryKey = (options: Options<ListAdminCustomerTokensData>): QueryKey<Options<ListAdminCustomerTokensData>> => createQueryKey('listAdminCustomerTokens', options, true);
+
+/**
+ * List Admin Customer Tokens
+ */
+export const listAdminCustomerTokensInfiniteOptions = (options: Options<ListAdminCustomerTokensData>) => {
+    const opts = infiniteQueryOptions<ListAdminCustomerTokensResponse, ListAdminCustomerTokensError, InfiniteData<ListAdminCustomerTokensResponse>, QueryKey<Options<ListAdminCustomerTokensData>>, number | Pick<QueryKey<Options<ListAdminCustomerTokensData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminCustomerTokensData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminCustomerTokens({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminCustomerTokensInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getDashboardRecentOrdersQueryKey = (options?: Options<GetDashboardRecentOrdersData>) => createQueryKey('getDashboardRecentOrders', options);
+
+/**
+ * Get Dashboard Recent Orders
+ */
+export const getDashboardRecentOrdersOptions = (options?: Options<GetDashboardRecentOrdersData>) => queryOptions<GetDashboardRecentOrdersResponse, GetDashboardRecentOrdersError, GetDashboardRecentOrdersResponse, ReturnType<typeof getDashboardRecentOrdersQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getDashboardRecentOrders({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getDashboardRecentOrdersQueryKey(options)
+});
+
+export const getDashboardRecentQuotesQueryKey = (options?: Options<GetDashboardRecentQuotesData>) => createQueryKey('getDashboardRecentQuotes', options);
+
+/**
+ * Get Dashboard Recent Quotes
+ */
+export const getDashboardRecentQuotesOptions = (options?: Options<GetDashboardRecentQuotesData>) => queryOptions<GetDashboardRecentQuotesResponse, GetDashboardRecentQuotesError, GetDashboardRecentQuotesResponse, ReturnType<typeof getDashboardRecentQuotesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getDashboardRecentQuotes({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getDashboardRecentQuotesQueryKey(options)
+});
+
+export const getDashboardSummaryQueryKey = (options?: Options<GetDashboardSummaryData>) => createQueryKey('getDashboardSummary', options);
+
+/**
+ * Get Dashboard Summary
+ */
+export const getDashboardSummaryOptions = (options?: Options<GetDashboardSummaryData>) => queryOptions<GetDashboardSummaryResponse, GetDashboardSummaryError, GetDashboardSummaryResponse, ReturnType<typeof getDashboardSummaryQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getDashboardSummary({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getDashboardSummaryQueryKey(options)
+});
+
+export const listAdminGenerationJobsQueryKey = (options?: Options<ListAdminGenerationJobsData>) => createQueryKey('listAdminGenerationJobs', options);
+
+/**
+ * List Admin Generation Jobs
+ */
+export const listAdminGenerationJobsOptions = (options?: Options<ListAdminGenerationJobsData>) => queryOptions<ListAdminGenerationJobsResponse, ListAdminGenerationJobsError, ListAdminGenerationJobsResponse, ReturnType<typeof listAdminGenerationJobsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminGenerationJobs({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminGenerationJobsQueryKey(options)
+});
+
+export const listAdminGenerationJobsInfiniteQueryKey = (options?: Options<ListAdminGenerationJobsData>): QueryKey<Options<ListAdminGenerationJobsData>> => createQueryKey('listAdminGenerationJobs', options, true);
+
+/**
+ * List Admin Generation Jobs
+ */
+export const listAdminGenerationJobsInfiniteOptions = (options?: Options<ListAdminGenerationJobsData>) => {
+    const opts = infiniteQueryOptions<ListAdminGenerationJobsResponse, ListAdminGenerationJobsError, InfiniteData<ListAdminGenerationJobsResponse>, QueryKey<Options<ListAdminGenerationJobsData>>, string | null | Pick<QueryKey<Options<ListAdminGenerationJobsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminGenerationJobsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminGenerationJobs({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminGenerationJobsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getAdminGenerationJobStatsQueryKey = (options?: Options<GetAdminGenerationJobStatsData>) => createQueryKey('getAdminGenerationJobStats', options);
+
+/**
+ * Get Admin Generation Job Stats
+ */
+export const getAdminGenerationJobStatsOptions = (options?: Options<GetAdminGenerationJobStatsData>) => queryOptions<GetAdminGenerationJobStatsResponse, GetAdminGenerationJobStatsError, GetAdminGenerationJobStatsResponse, ReturnType<typeof getAdminGenerationJobStatsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminGenerationJobStats({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminGenerationJobStatsQueryKey(options)
+});
+
+export const getAdminGenerationJobStatsInfiniteQueryKey = (options?: Options<GetAdminGenerationJobStatsData>): QueryKey<Options<GetAdminGenerationJobStatsData>> => createQueryKey('getAdminGenerationJobStats', options, true);
+
+/**
+ * Get Admin Generation Job Stats
+ */
+export const getAdminGenerationJobStatsInfiniteOptions = (options?: Options<GetAdminGenerationJobStatsData>) => {
+    const opts = infiniteQueryOptions<GetAdminGenerationJobStatsResponse, GetAdminGenerationJobStatsError, InfiniteData<GetAdminGenerationJobStatsResponse>, QueryKey<Options<GetAdminGenerationJobStatsData>>, string | null | Pick<QueryKey<Options<GetAdminGenerationJobStatsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<GetAdminGenerationJobStatsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await getAdminGenerationJobStats({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: getAdminGenerationJobStatsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getAdminGenerationJobQueryKey = (options: Options<GetAdminGenerationJobData>) => createQueryKey('getAdminGenerationJob', options);
+
+/**
+ * Get Admin Generation Job
+ */
+export const getAdminGenerationJobOptions = (options: Options<GetAdminGenerationJobData>) => queryOptions<GetAdminGenerationJobResponse, GetAdminGenerationJobError, GetAdminGenerationJobResponse, ReturnType<typeof getAdminGenerationJobQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminGenerationJob({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminGenerationJobQueryKey(options)
+});
+
+export const listAdminSeamlessLogsQueryKey = (options?: Options<ListAdminSeamlessLogsData>) => createQueryKey('listAdminSeamlessLogs', options);
+
+/**
+ * List Admin Seamless Logs
+ */
+export const listAdminSeamlessLogsOptions = (options?: Options<ListAdminSeamlessLogsData>) => queryOptions<ListAdminSeamlessLogsResponse, ListAdminSeamlessLogsError, ListAdminSeamlessLogsResponse, ReturnType<typeof listAdminSeamlessLogsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminSeamlessLogs({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminSeamlessLogsQueryKey(options)
+});
+
+export const listAdminSeamlessLogsInfiniteQueryKey = (options?: Options<ListAdminSeamlessLogsData>): QueryKey<Options<ListAdminSeamlessLogsData>> => createQueryKey('listAdminSeamlessLogs', options, true);
+
+/**
+ * List Admin Seamless Logs
+ */
+export const listAdminSeamlessLogsInfiniteOptions = (options?: Options<ListAdminSeamlessLogsData>) => {
+    const opts = infiniteQueryOptions<ListAdminSeamlessLogsResponse, ListAdminSeamlessLogsError, InfiniteData<ListAdminSeamlessLogsResponse>, QueryKey<Options<ListAdminSeamlessLogsData>>, string | null | Pick<QueryKey<Options<ListAdminSeamlessLogsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminSeamlessLogsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminSeamlessLogs({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminSeamlessLogsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getAdminSeamlessStatsQueryKey = (options?: Options<GetAdminSeamlessStatsData>) => createQueryKey('getAdminSeamlessStats', options);
+
+/**
+ * Get Admin Seamless Stats
+ */
+export const getAdminSeamlessStatsOptions = (options?: Options<GetAdminSeamlessStatsData>) => queryOptions<GetAdminSeamlessStatsResponse, GetAdminSeamlessStatsError, GetAdminSeamlessStatsResponse, ReturnType<typeof getAdminSeamlessStatsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminSeamlessStats({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminSeamlessStatsQueryKey(options)
+});
+
+export const getAdminSeamlessStatsInfiniteQueryKey = (options?: Options<GetAdminSeamlessStatsData>): QueryKey<Options<GetAdminSeamlessStatsData>> => createQueryKey('getAdminSeamlessStats', options, true);
+
+/**
+ * Get Admin Seamless Stats
+ */
+export const getAdminSeamlessStatsInfiniteOptions = (options?: Options<GetAdminSeamlessStatsData>) => {
+    const opts = infiniteQueryOptions<GetAdminSeamlessStatsResponse, GetAdminSeamlessStatsError, InfiniteData<GetAdminSeamlessStatsResponse>, QueryKey<Options<GetAdminSeamlessStatsData>>, string | null | Pick<QueryKey<Options<GetAdminSeamlessStatsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<GetAdminSeamlessStatsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await getAdminSeamlessStats({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: getAdminSeamlessStatsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getAdminSeamlessLogQueryKey = (options: Options<GetAdminSeamlessLogData>) => createQueryKey('getAdminSeamlessLog', options);
+
+/**
+ * Get Admin Seamless Log
+ */
+export const getAdminSeamlessLogOptions = (options: Options<GetAdminSeamlessLogData>) => queryOptions<GetAdminSeamlessLogResponse, GetAdminSeamlessLogError, GetAdminSeamlessLogResponse, ReturnType<typeof getAdminSeamlessLogQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminSeamlessLog({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminSeamlessLogQueryKey(options)
+});
+
+/**
+ * Create Admin Seamless Reference Image Read Url
+ */
+export const createAdminSeamlessReferenceImageReadUrlMutation = (options?: Partial<Options<CreateAdminSeamlessReferenceImageReadUrlData>>): UseMutationOptions<CreateAdminSeamlessReferenceImageReadUrlResponse, CreateAdminSeamlessReferenceImageReadUrlError, Options<CreateAdminSeamlessReferenceImageReadUrlData>> => {
+    const mutationOptions: UseMutationOptions<CreateAdminSeamlessReferenceImageReadUrlResponse, CreateAdminSeamlessReferenceImageReadUrlError, Options<CreateAdminSeamlessReferenceImageReadUrlData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createAdminSeamlessReferenceImageReadUrl({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAdminInquiriesQueryKey = (options?: Options<ListAdminInquiriesData>) => createQueryKey('listAdminInquiries', options);
+
+/**
+ * List Admin Inquiries
+ */
+export const listAdminInquiriesOptions = (options?: Options<ListAdminInquiriesData>) => queryOptions<ListAdminInquiriesResponse, ListAdminInquiriesError, ListAdminInquiriesResponse, ReturnType<typeof listAdminInquiriesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminInquiries({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminInquiriesQueryKey(options)
+});
+
+export const listAdminInquiriesInfiniteQueryKey = (options?: Options<ListAdminInquiriesData>): QueryKey<Options<ListAdminInquiriesData>> => createQueryKey('listAdminInquiries', options, true);
+
+/**
+ * List Admin Inquiries
+ */
+export const listAdminInquiriesInfiniteOptions = (options?: Options<ListAdminInquiriesData>) => {
+    const opts = infiniteQueryOptions<ListAdminInquiriesResponse, ListAdminInquiriesError, InfiniteData<ListAdminInquiriesResponse>, QueryKey<Options<ListAdminInquiriesData>>, number | Pick<QueryKey<Options<ListAdminInquiriesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminInquiriesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminInquiries({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminInquiriesInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Search Admin Inquiries
+ */
+export const searchAdminInquiriesMutation = (options?: Partial<Options<SearchAdminInquiriesData>>): UseMutationOptions<SearchAdminInquiriesResponse, SearchAdminInquiriesError, Options<SearchAdminInquiriesData>> => {
+    const mutationOptions: UseMutationOptions<SearchAdminInquiriesResponse, SearchAdminInquiriesError, Options<SearchAdminInquiriesData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await searchAdminInquiries({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getAdminInquiryQueryKey = (options: Options<GetAdminInquiryData>) => createQueryKey('getAdminInquiry', options);
+
+/**
+ * Get Admin Inquiry
+ */
+export const getAdminInquiryOptions = (options: Options<GetAdminInquiryData>) => queryOptions<GetAdminInquiryResponse, GetAdminInquiryError, GetAdminInquiryResponse, ReturnType<typeof getAdminInquiryQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminInquiry({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminInquiryQueryKey(options)
+});
+
+/**
+ * Answer Admin Inquiry
+ */
+export const answerAdminInquiryMutation = (options?: Partial<Options<AnswerAdminInquiryData>>): UseMutationOptions<AnswerAdminInquiryResponse, AnswerAdminInquiryError, Options<AnswerAdminInquiryData>> => {
+    const mutationOptions: UseMutationOptions<AnswerAdminInquiryResponse, AnswerAdminInquiryError, Options<AnswerAdminInquiryData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await answerAdminInquiry({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAdminMotifsQueryKey = (options?: Options<ListAdminMotifsData>) => createQueryKey('listAdminMotifs', options);
+
+/**
+ * List Admin Motifs
+ */
+export const listAdminMotifsOptions = (options?: Options<ListAdminMotifsData>) => queryOptions<ListAdminMotifsResponse, ListAdminMotifsError, ListAdminMotifsResponse, ReturnType<typeof listAdminMotifsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminMotifs({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminMotifsQueryKey(options)
+});
+
+export const listAdminMotifsInfiniteQueryKey = (options?: Options<ListAdminMotifsData>): QueryKey<Options<ListAdminMotifsData>> => createQueryKey('listAdminMotifs', options, true);
+
+/**
+ * List Admin Motifs
+ */
+export const listAdminMotifsInfiniteOptions = (options?: Options<ListAdminMotifsData>) => {
+    const opts = infiniteQueryOptions<ListAdminMotifsResponse, ListAdminMotifsError, InfiniteData<ListAdminMotifsResponse>, QueryKey<Options<ListAdminMotifsData>>, number | Pick<QueryKey<Options<ListAdminMotifsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminMotifsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminMotifs({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminMotifsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getAdminMotifQueryKey = (options: Options<GetAdminMotifData>) => createQueryKey('getAdminMotif', options);
+
+/**
+ * Get Admin Motif
+ */
+export const getAdminMotifOptions = (options: Options<GetAdminMotifData>) => queryOptions<GetAdminMotifResponse, GetAdminMotifError, GetAdminMotifResponse, ReturnType<typeof getAdminMotifQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminMotif({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminMotifQueryKey(options)
+});
 
 export const listAllOrdersQueryKey = (options?: Options<ListAllOrdersData>) => createQueryKey('listAllOrders', options);
 
@@ -216,6 +1128,89 @@ export const listAllOrdersOptions = (options?: Options<ListAllOrdersData>) => qu
     },
     queryKey: listAllOrdersQueryKey(options)
 });
+
+export const listAllOrdersInfiniteQueryKey = (options?: Options<ListAllOrdersData>): QueryKey<Options<ListAllOrdersData>> => createQueryKey('listAllOrders', options, true);
+
+/**
+ * List All Orders
+ */
+export const listAllOrdersInfiniteOptions = (options?: Options<ListAllOrdersData>) => {
+    const opts = infiniteQueryOptions<ListAllOrdersResponse, ListAllOrdersError, InfiniteData<ListAllOrdersResponse>, QueryKey<Options<ListAllOrdersData>>, number | Pick<QueryKey<Options<ListAllOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAllOrdersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAllOrders({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAllOrdersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getAdminOrderQueryKey = (options: Options<GetAdminOrderData>) => createQueryKey('getAdminOrder', options);
+
+/**
+ * Get Admin Order
+ */
+export const getAdminOrderOptions = (options: Options<GetAdminOrderData>) => queryOptions<GetAdminOrderResponse, GetAdminOrderError, GetAdminOrderResponse, ReturnType<typeof getAdminOrderQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminOrder({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminOrderQueryKey(options)
+});
+
+export const listAdminOrderReferenceImagesQueryKey = (options: Options<ListAdminOrderReferenceImagesData>) => createQueryKey('listAdminOrderReferenceImages', options);
+
+/**
+ * List Admin Order Reference Images
+ */
+export const listAdminOrderReferenceImagesOptions = (options: Options<ListAdminOrderReferenceImagesData>) => queryOptions<ListAdminOrderReferenceImagesResponse, ListAdminOrderReferenceImagesError, ListAdminOrderReferenceImagesResponse, ReturnType<typeof listAdminOrderReferenceImagesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminOrderReferenceImages({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminOrderReferenceImagesQueryKey(options)
+});
+
+/**
+ * Create Admin Order Reference Image Read Url
+ */
+export const createAdminOrderReferenceImageReadUrlMutation = (options?: Partial<Options<CreateAdminOrderReferenceImageReadUrlData>>): UseMutationOptions<CreateAdminOrderReferenceImageReadUrlResponse, CreateAdminOrderReferenceImageReadUrlError, Options<CreateAdminOrderReferenceImageReadUrlData>> => {
+    const mutationOptions: UseMutationOptions<CreateAdminOrderReferenceImageReadUrlResponse, CreateAdminOrderReferenceImageReadUrlError, Options<CreateAdminOrderReferenceImageReadUrlData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createAdminOrderReferenceImageReadUrl({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
  * Admin Update Order Status
@@ -251,67 +1246,14 @@ export const adminUpdateOrderTrackingMutation = (options?: Partial<Options<Admin
     return mutationOptions;
 };
 
-/**
- * Create Product
- */
-export const createProductMutation = (options?: Partial<Options<CreateProductData>>): UseMutationOptions<CreateProductResponse, CreateProductError, Options<CreateProductData>> => {
-    const mutationOptions: UseMutationOptions<CreateProductResponse, CreateProductError, Options<CreateProductData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await createProduct({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
+export const adminListPaymentIncidentsQueryKey = (options?: Options<AdminListPaymentIncidentsData>) => createQueryKey('adminListPaymentIncidents', options);
 
 /**
- * Update Product
+ * Admin List Payment Incidents
  */
-export const updateProductMutation = (options?: Partial<Options<UpdateProductData>>): UseMutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> => {
-    const mutationOptions: UseMutationOptions<UpdateProductResponse, UpdateProductError, Options<UpdateProductData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await updateProduct({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-/**
- * Replace Product Options
- *
- * 전체 교체. 옵션이 1개 이상이면 상품 재고는 NULL로 강제(옵션별 재고 관리 전환).
- */
-export const replaceProductOptionsMutation = (options?: Partial<Options<ReplaceProductOptionsData>>): UseMutationOptions<ReplaceProductOptionsResponse, ReplaceProductOptionsError, Options<ReplaceProductOptionsData>> => {
-    const mutationOptions: UseMutationOptions<ReplaceProductOptionsResponse, ReplaceProductOptionsError, Options<ReplaceProductOptionsData>> = {
-        mutationFn: async (fnOptions) => {
-            const { data } = await replaceProductOptions({
-                ...options,
-                ...fnOptions,
-                throwOnError: true
-            });
-            return data;
-        }
-    };
-    return mutationOptions;
-};
-
-export const adminListQuotesQueryKey = (options?: Options<AdminListQuotesData>) => createQueryKey('adminListQuotes', options);
-
-/**
- * Admin List Quotes
- */
-export const adminListQuotesOptions = (options?: Options<AdminListQuotesData>) => queryOptions<AdminListQuotesResponse, DefaultError, AdminListQuotesResponse, ReturnType<typeof adminListQuotesQueryKey>>({
+export const adminListPaymentIncidentsOptions = (options?: Options<AdminListPaymentIncidentsData>) => queryOptions<AdminListPaymentIncidentsResponse, AdminListPaymentIncidentsError, AdminListPaymentIncidentsResponse, ReturnType<typeof adminListPaymentIncidentsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await adminListQuotes({
+        const { data } = await adminListPaymentIncidents({
             ...options,
             ...queryKey[0],
             signal,
@@ -319,16 +1261,437 @@ export const adminListQuotesOptions = (options?: Options<AdminListQuotesData>) =
         });
         return data;
     },
-    queryKey: adminListQuotesQueryKey(options)
+    queryKey: adminListPaymentIncidentsQueryKey(options)
+});
+
+export const adminListPaymentIncidentsInfiniteQueryKey = (options?: Options<AdminListPaymentIncidentsData>): QueryKey<Options<AdminListPaymentIncidentsData>> => createQueryKey('adminListPaymentIncidents', options, true);
+
+/**
+ * Admin List Payment Incidents
+ */
+export const adminListPaymentIncidentsInfiniteOptions = (options?: Options<AdminListPaymentIncidentsData>) => {
+    const opts = infiniteQueryOptions<AdminListPaymentIncidentsResponse, AdminListPaymentIncidentsError, InfiniteData<AdminListPaymentIncidentsResponse>, QueryKey<Options<AdminListPaymentIncidentsData>>, number | Pick<QueryKey<Options<AdminListPaymentIncidentsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<AdminListPaymentIncidentsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await adminListPaymentIncidents({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: adminListPaymentIncidentsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const adminGetPaymentIncidentQueryKey = (options: Options<AdminGetPaymentIncidentData>) => createQueryKey('adminGetPaymentIncident', options);
+
+/**
+ * Admin Get Payment Incident
+ */
+export const adminGetPaymentIncidentOptions = (options: Options<AdminGetPaymentIncidentData>) => queryOptions<AdminGetPaymentIncidentResponse, AdminGetPaymentIncidentError, AdminGetPaymentIncidentResponse, ReturnType<typeof adminGetPaymentIncidentQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await adminGetPaymentIncident({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: adminGetPaymentIncidentQueryKey(options)
 });
 
 /**
- * Admin Update Quote Status
+ * Admin Reconcile Payment Incident
  */
-export const adminUpdateQuoteStatusMutation = (options?: Partial<Options<AdminUpdateQuoteStatusData>>): UseMutationOptions<AdminUpdateQuoteStatusResponse, AdminUpdateQuoteStatusError, Options<AdminUpdateQuoteStatusData>> => {
-    const mutationOptions: UseMutationOptions<AdminUpdateQuoteStatusResponse, AdminUpdateQuoteStatusError, Options<AdminUpdateQuoteStatusData>> = {
+export const adminReconcilePaymentIncidentMutation = (options?: Partial<Options<AdminReconcilePaymentIncidentData>>): UseMutationOptions<AdminReconcilePaymentIncidentResponse, AdminReconcilePaymentIncidentError, Options<AdminReconcilePaymentIncidentData>> => {
+    const mutationOptions: UseMutationOptions<AdminReconcilePaymentIncidentResponse, AdminReconcilePaymentIncidentError, Options<AdminReconcilePaymentIncidentData>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await adminUpdateQuoteStatus({
+            const { data } = await adminReconcilePaymentIncident({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Admin Resolve Payment Incident
+ */
+export const adminResolvePaymentIncidentMutation = (options?: Partial<Options<AdminResolvePaymentIncidentData>>): UseMutationOptions<AdminResolvePaymentIncidentResponse, AdminResolvePaymentIncidentError, Options<AdminResolvePaymentIncidentData>> => {
+    const mutationOptions: UseMutationOptions<AdminResolvePaymentIncidentResponse, AdminResolvePaymentIncidentError, Options<AdminResolvePaymentIncidentData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminResolvePaymentIncident({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getAdminPricingQueryKey = (options?: Options<GetAdminPricingData>) => createQueryKey('getAdminPricing', options);
+
+/**
+ * Get Admin Pricing
+ */
+export const getAdminPricingOptions = (options?: Options<GetAdminPricingData>) => queryOptions<GetAdminPricingResponse, DefaultError, GetAdminPricingResponse, ReturnType<typeof getAdminPricingQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminPricing({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminPricingQueryKey(options)
+});
+
+/**
+ * Update Admin Pricing
+ */
+export const updateAdminPricingMutation = (options?: Partial<Options<UpdateAdminPricingData>>): UseMutationOptions<UpdateAdminPricingResponse, UpdateAdminPricingError, Options<UpdateAdminPricingData>> => {
+    const mutationOptions: UseMutationOptions<UpdateAdminPricingResponse, UpdateAdminPricingError, Options<UpdateAdminPricingData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateAdminPricing({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const adminListProductsQueryKey = (options?: Options<AdminListProductsData>) => createQueryKey('adminListProducts', options);
+
+/**
+ * Admin List Products
+ */
+export const adminListProductsOptions = (options?: Options<AdminListProductsData>) => queryOptions<AdminListProductsResponse, AdminListProductsError, AdminListProductsResponse, ReturnType<typeof adminListProductsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await adminListProducts({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: adminListProductsQueryKey(options)
+});
+
+export const adminListProductsInfiniteQueryKey = (options?: Options<AdminListProductsData>): QueryKey<Options<AdminListProductsData>> => createQueryKey('adminListProducts', options, true);
+
+/**
+ * Admin List Products
+ */
+export const adminListProductsInfiniteOptions = (options?: Options<AdminListProductsData>) => {
+    const opts = infiniteQueryOptions<AdminListProductsResponse, AdminListProductsError, InfiniteData<AdminListProductsResponse>, QueryKey<Options<AdminListProductsData>>, number | Pick<QueryKey<Options<AdminListProductsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<AdminListProductsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await adminListProducts({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: adminListProductsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Admin Create Product
+ */
+export const adminCreateProductMutation = (options?: Partial<Options<AdminCreateProductData>>): UseMutationOptions<AdminCreateProductResponse, AdminCreateProductError, Options<AdminCreateProductData>> => {
+    const mutationOptions: UseMutationOptions<AdminCreateProductResponse, AdminCreateProductError, Options<AdminCreateProductData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminCreateProduct({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Create Admin Product Image Upload Url
+ */
+export const createAdminProductImageUploadUrlMutation = (options?: Partial<Options<CreateAdminProductImageUploadUrlData>>): UseMutationOptions<CreateAdminProductImageUploadUrlResponse, CreateAdminProductImageUploadUrlError, Options<CreateAdminProductImageUploadUrlData>> => {
+    const mutationOptions: UseMutationOptions<CreateAdminProductImageUploadUrlResponse, CreateAdminProductImageUploadUrlError, Options<CreateAdminProductImageUploadUrlData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createAdminProductImageUploadUrl({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Admin Product Image Upload
+ */
+export const deleteAdminProductImageUploadMutation = (options?: Partial<Options<DeleteAdminProductImageUploadData>>): UseMutationOptions<DeleteAdminProductImageUploadResponse, DeleteAdminProductImageUploadError, Options<DeleteAdminProductImageUploadData>> => {
+    const mutationOptions: UseMutationOptions<DeleteAdminProductImageUploadResponse, DeleteAdminProductImageUploadError, Options<DeleteAdminProductImageUploadData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteAdminProductImageUpload({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Complete Admin Product Image Upload
+ */
+export const completeAdminProductImageUploadMutation = (options?: Partial<Options<CompleteAdminProductImageUploadData>>): UseMutationOptions<CompleteAdminProductImageUploadResponse, CompleteAdminProductImageUploadError, Options<CompleteAdminProductImageUploadData>> => {
+    const mutationOptions: UseMutationOptions<CompleteAdminProductImageUploadResponse, CompleteAdminProductImageUploadError, Options<CompleteAdminProductImageUploadData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await completeAdminProductImageUpload({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const adminGetProductQueryKey = (options: Options<AdminGetProductData>) => createQueryKey('adminGetProduct', options);
+
+/**
+ * Admin Get Product
+ */
+export const adminGetProductOptions = (options: Options<AdminGetProductData>) => queryOptions<AdminGetProductResponse, AdminGetProductError, AdminGetProductResponse, ReturnType<typeof adminGetProductQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await adminGetProduct({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: adminGetProductQueryKey(options)
+});
+
+/**
+ * Admin Update Product
+ */
+export const adminUpdateProductMutation = (options?: Partial<Options<AdminUpdateProductData>>): UseMutationOptions<AdminUpdateProductResponse, AdminUpdateProductError, Options<AdminUpdateProductData>> => {
+    const mutationOptions: UseMutationOptions<AdminUpdateProductResponse, AdminUpdateProductError, Options<AdminUpdateProductData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminUpdateProduct({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAdminQuotesQueryKey = (options?: Options<ListAdminQuotesData>) => createQueryKey('listAdminQuotes', options);
+
+/**
+ * List Admin Quotes
+ */
+export const listAdminQuotesOptions = (options?: Options<ListAdminQuotesData>) => queryOptions<ListAdminQuotesResponse, ListAdminQuotesError, ListAdminQuotesResponse, ReturnType<typeof listAdminQuotesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminQuotes({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminQuotesQueryKey(options)
+});
+
+export const listAdminQuotesInfiniteQueryKey = (options?: Options<ListAdminQuotesData>): QueryKey<Options<ListAdminQuotesData>> => createQueryKey('listAdminQuotes', options, true);
+
+/**
+ * List Admin Quotes
+ */
+export const listAdminQuotesInfiniteOptions = (options?: Options<ListAdminQuotesData>) => {
+    const opts = infiniteQueryOptions<ListAdminQuotesResponse, ListAdminQuotesError, InfiniteData<ListAdminQuotesResponse>, QueryKey<Options<ListAdminQuotesData>>, number | Pick<QueryKey<Options<ListAdminQuotesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminQuotesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminQuotes({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminQuotesInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getAdminQuoteQueryKey = (options: Options<GetAdminQuoteData>) => createQueryKey('getAdminQuote', options);
+
+/**
+ * Get Admin Quote
+ */
+export const getAdminQuoteOptions = (options: Options<GetAdminQuoteData>) => queryOptions<GetAdminQuoteResponse, GetAdminQuoteError, GetAdminQuoteResponse, ReturnType<typeof getAdminQuoteQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminQuote({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminQuoteQueryKey(options)
+});
+
+/**
+ * Create Admin Quote Image Read Url
+ */
+export const createAdminQuoteImageReadUrlMutation = (options?: Partial<Options<CreateAdminQuoteImageReadUrlData>>): UseMutationOptions<CreateAdminQuoteImageReadUrlResponse, CreateAdminQuoteImageReadUrlError, Options<CreateAdminQuoteImageReadUrlData>> => {
+    const mutationOptions: UseMutationOptions<CreateAdminQuoteImageReadUrlResponse, CreateAdminQuoteImageReadUrlError, Options<CreateAdminQuoteImageReadUrlData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createAdminQuoteImageReadUrl({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Update Admin Quote Status
+ */
+export const updateAdminQuoteStatusMutation = (options?: Partial<Options<UpdateAdminQuoteStatusData>>): UseMutationOptions<UpdateAdminQuoteStatusResponse, UpdateAdminQuoteStatusError, Options<UpdateAdminQuoteStatusData>> => {
+    const mutationOptions: UseMutationOptions<UpdateAdminQuoteStatusResponse, UpdateAdminQuoteStatusError, Options<UpdateAdminQuoteStatusData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateAdminQuoteStatus({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAdminRepairReceiptPhotosQueryKey = (options: Options<ListAdminRepairReceiptPhotosData>) => createQueryKey('listAdminRepairReceiptPhotos', options);
+
+/**
+ * List Admin Repair Receipt Photos
+ */
+export const listAdminRepairReceiptPhotosOptions = (options: Options<ListAdminRepairReceiptPhotosData>) => queryOptions<ListAdminRepairReceiptPhotosResponse, ListAdminRepairReceiptPhotosError, ListAdminRepairReceiptPhotosResponse, ReturnType<typeof listAdminRepairReceiptPhotosQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminRepairReceiptPhotos({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminRepairReceiptPhotosQueryKey(options)
+});
+
+/**
+ * Create Admin Repair Receipt Photo Read Url
+ */
+export const createAdminRepairReceiptPhotoReadUrlMutation = (options?: Partial<Options<CreateAdminRepairReceiptPhotoReadUrlData>>): UseMutationOptions<CreateAdminRepairReceiptPhotoReadUrlResponse, CreateAdminRepairReceiptPhotoReadUrlError, Options<CreateAdminRepairReceiptPhotoReadUrlData>> => {
+    const mutationOptions: UseMutationOptions<CreateAdminRepairReceiptPhotoReadUrlResponse, CreateAdminRepairReceiptPhotoReadUrlError, Options<CreateAdminRepairReceiptPhotoReadUrlData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createAdminRepairReceiptPhotoReadUrl({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getAdminSettingsQueryKey = (options?: Options<GetAdminSettingsData>) => createQueryKey('getAdminSettings', options);
+
+/**
+ * Get Admin Settings
+ */
+export const getAdminSettingsOptions = (options?: Options<GetAdminSettingsData>) => queryOptions<GetAdminSettingsResponse, DefaultError, GetAdminSettingsResponse, ReturnType<typeof getAdminSettingsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getAdminSettings({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getAdminSettingsQueryKey(options)
+});
+
+/**
+ * Update Admin Settings
+ */
+export const updateAdminSettingsMutation = (options?: Partial<Options<UpdateAdminSettingsData>>): UseMutationOptions<UpdateAdminSettingsResponse, UpdateAdminSettingsError, Options<UpdateAdminSettingsData>> => {
+    const mutationOptions: UseMutationOptions<UpdateAdminSettingsResponse, UpdateAdminSettingsError, Options<UpdateAdminSettingsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateAdminSettings({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -409,23 +1772,56 @@ export const adminManageTokensMutation = (options?: Partial<Options<AdminManageT
     return mutationOptions;
 };
 
-export const listUsersQueryKey = (options?: Options<ListUsersData>) => createQueryKey('listUsers', options);
+/**
+ * Admin Login
+ */
+export const adminLoginMutation = (options?: Partial<Options<AdminLoginData>>): UseMutationOptions<AdminLoginResponse, AdminLoginError, Options<AdminLoginData>> => {
+    const mutationOptions: UseMutationOptions<AdminLoginResponse, AdminLoginError, Options<AdminLoginData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminLogin({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
- * List Users
+ * Admin Logout
  */
-export const listUsersOptions = (options?: Options<ListUsersData>) => queryOptions<ListUsersResponse, DefaultError, ListUsersResponse, ReturnType<typeof listUsersQueryKey>>({
-    queryFn: async ({ queryKey, signal }) => {
-        const { data } = await listUsers({
-            ...options,
-            ...queryKey[0],
-            signal,
-            throwOnError: true
-        });
-        return data;
-    },
-    queryKey: listUsersQueryKey(options)
-});
+export const adminLogoutMutation = (options?: Partial<Options<AdminLogoutData>>): UseMutationOptions<AdminLogoutResponse, DefaultError, Options<AdminLogoutData>> => {
+    const mutationOptions: UseMutationOptions<AdminLogoutResponse, DefaultError, Options<AdminLogoutData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminLogout({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Admin Refresh Tokens
+ */
+export const adminRefreshTokensMutation = (options?: Partial<Options<AdminRefreshTokensData>>): UseMutationOptions<AdminRefreshTokensResponse, DefaultError, Options<AdminRefreshTokensData>> => {
+    const mutationOptions: UseMutationOptions<AdminRefreshTokensResponse, DefaultError, Options<AdminRefreshTokensData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await adminRefreshTokens({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
  * Login
@@ -579,6 +1975,25 @@ export const cleanupImagesMutation = (options?: Partial<Options<CleanupImagesDat
     const mutationOptions: UseMutationOptions<CleanupImagesResponse, DefaultError, Options<CleanupImagesData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await cleanupImages({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Reconcile Stale Generation Jobs
+ *
+ * Cloud Tasks 재시도 창을 넘긴 finalize job을 종료하고 세션 예산을 복구한다.
+ */
+export const reconcileStaleGenerationJobsMutation = (options?: Partial<Options<ReconcileStaleGenerationJobsData>>): UseMutationOptions<ReconcileStaleGenerationJobsResponse, DefaultError, Options<ReconcileStaleGenerationJobsData>> => {
+    const mutationOptions: UseMutationOptions<ReconcileStaleGenerationJobsResponse, DefaultError, Options<ReconcileStaleGenerationJobsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await reconcileStaleGenerationJobs({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -764,35 +2179,6 @@ export const listGenerationJobsOptions = (options?: Options<ListGenerationJobsDa
     },
     queryKey: listGenerationJobsQueryKey(options)
 });
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
 
 export const listGenerationJobsInfiniteQueryKey = (options?: Options<ListGenerationJobsData>): QueryKey<Options<ListGenerationJobsData>> => createQueryKey('listGenerationJobs', options, true);
 
@@ -1036,6 +2422,23 @@ export const healthzOptions = (options?: Options<HealthzData>) => queryOptions<H
     },
     queryKey: healthzQueryKey(options)
 });
+
+/**
+ * Complete Order Image
+ */
+export const completeOrderImageMutation = (options?: Partial<Options<CompleteOrderImageData>>): UseMutationOptions<CompleteOrderImageResponse, CompleteOrderImageError, Options<CompleteOrderImageData>> => {
+    const mutationOptions: UseMutationOptions<CompleteOrderImageResponse, CompleteOrderImageError, Options<CompleteOrderImageData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await completeOrderImage({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
  * Create Read Url
@@ -1410,8 +2813,8 @@ export const confirmPaymentMutation = (options?: Partial<Options<ConfirmPaymentD
  * 페이로드를 신뢰하지 않고 조회 API로 재검증하므로 위조 요청은 무해하다
  * (Toss 공식 권장 검증 방식). 대시보드에 URL 등록은 스테이징 개통 시.
  */
-export const tossWebhookMutation = (options?: Partial<Options<TossWebhookData>>): UseMutationOptions<TossWebhookResponse, TossWebhookError, Options<TossWebhookData>> => {
-    const mutationOptions: UseMutationOptions<TossWebhookResponse, TossWebhookError, Options<TossWebhookData>> = {
+export const tossWebhookMutation = (options?: Partial<Options<TossWebhookData2>>): UseMutationOptions<TossWebhookResponse, TossWebhookError, Options<TossWebhookData2>> => {
+    const mutationOptions: UseMutationOptions<TossWebhookResponse, TossWebhookError, Options<TossWebhookData2>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await tossWebhook({
                 ...options,
@@ -1751,7 +3154,7 @@ export const listRefundableTokenOrdersOptions = (options?: Options<ListRefundabl
 /**
  * Delete Account
  *
- * 탈퇴 — 이력 없으면 하드 삭제(CASCADE), 있으면 비활성화 + 개인정보 익명화.
+ * 탈퇴 — 보존 이력 없으면 하드 삭제(CASCADE), 있으면 비활성화 + 개인정보 익명화.
  *
  * (구 delete-account는 auth.users 삭제 + 전체 CASCADE — 새 스키마는 주문·클레임
  * 이력이 NO ACTION이므로 이력 보존을 위해 소프트 처리. MAPPING.md §1)

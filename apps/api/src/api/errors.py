@@ -3,10 +3,26 @@
 detail의 한국어 메시지는 기존 시스템의 프론트 노출 계약 — docs/api-spec/domains.md §11.
 """
 
+import logging
+import math
+from typing import Any
+
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from obs import request_id_var, sanitize_request_id
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
+
+logger = logging.getLogger(__name__)
+
+SECURITY_RESPONSE_HEADERS = {
+    "Content-Security-Policy": "default-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+}
 
 
 class ErrorResponse(BaseModel):
@@ -68,11 +84,28 @@ class UpstreamError(DomainError):
     code = "upstream_error"
 
 
+class ServiceUnavailableError(DomainError):
+    status = 503
+    code = "service_unavailable"
+
+
 class WorkerRequestError(DomainError):
     """워커가 요청 자체를 거부(400/422) — 일시 장애가 아니라 재시도 무의미한 요청 오류."""
 
     status = 422
     code = "worker_rejected"
+
+
+def _json_safe_validation_detail(value: Any) -> Any:
+    """검증 실패 input의 NaN/Infinity가 422 응답 자체를 500으로 만들지 않게 한다."""
+
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _json_safe_validation_detail(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_validation_detail(item) for item in value]
+    return value
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -90,3 +123,34 @@ def register_error_handlers(app: FastAPI) -> None:
             status_code=409,
             content={"detail": "이미 존재하거나 충돌하는 요청입니다", "code": "conflict"},
         )
+
+    @app.exception_handler(RequestValidationError)
+    async def _request_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        detail = _json_safe_validation_detail(jsonable_encoder(exc.errors()))
+        return JSONResponse(status_code=422, content={"detail": detail})
+
+    @app.exception_handler(Exception)
+    async def _unhandled_error(request: Request, exc: Exception) -> JSONResponse:
+        # Starlette 최외곽 500 handler는 사용자 middleware가 unwind된 뒤 실행된다.
+        # scope의 ID를 로그 context에 다시 주입하고 send wrapper를 우회하는 응답
+        # 헤더도 직접 설정해 같은 request_id로 연결한다.
+        request_id = request.scope.get("request_id") or sanitize_request_id(
+            request.headers.get("x-request-id", "")
+        )
+        token = request_id_var.set(request_id)
+        try:
+            logger.exception("처리되지 않은 API 오류")
+            headers = {**SECURITY_RESPONSE_HEADERS, "X-Request-ID": request_id}
+            if request.url.path == "/admin" or request.url.path.startswith(
+                ("/admin/", "/auth/admin")
+            ):
+                headers["Cache-Control"] = "no-store"
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "서버 오류가 발생했습니다", "code": "internal_error"},
+                headers=headers,
+            )
+        finally:
+            request_id_var.reset(token)

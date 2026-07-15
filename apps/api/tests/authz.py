@@ -217,7 +217,12 @@ ADMIN_CASES: list[AdminCase] = [
         "admin_tokens_manage",
         "POST",
         "/admin/tokens/manage",
-        {"user_id": "00000000-0000-0000-0000-000000000000", "amount": 1, "description": "t"},
+        {
+            "operation_id": "00000000-0000-0000-0000-000000000001",
+            "user_id": "00000000-0000-0000-0000-000000000000",
+            "amount": 1,
+            "description": "권한 확인",
+        },
     ),
     AdminCase(
         "admin_products_create",
@@ -226,7 +231,7 @@ ADMIN_CASES: list[AdminCase] = [
         {
             "name": "t",
             "price": 1000,
-            "image": "https://img.test/i.png",
+            "image_upload_id": "00000000-0000-0000-0000-000000000000",
             "category": "3fold",
             "color": "navy",
             "pattern": "solid",
@@ -237,7 +242,7 @@ ADMIN_CASES: list[AdminCase] = [
     AdminCase("admin_claims_list", "GET", "/admin/claims"),
     AdminCase("admin_quotes_list", "GET", "/admin/quotes"),
     AdminCase("admin_stats_today", "GET", "/admin/stats/today?stat_date=2026-01-01"),
-    AdminCase("admin_users_list", "GET", "/admin/users"),
+    AdminCase("admin_capabilities", "GET", "/admin/capabilities"),
     AdminCase("admin_inquiries_list", "GET", "/admin/inquiries"),
     AdminCase("admin_coupons_list", "GET", "/admin/coupons"),
     # 404여도 인가 통과(401·403 아님)로 판정되므로 더미 UUID로 충분

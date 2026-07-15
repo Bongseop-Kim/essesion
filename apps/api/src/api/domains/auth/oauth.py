@@ -3,6 +3,8 @@
 Authlib starlette 통합 — state/nonce는 SessionMiddleware 쿠키에 저장된다.
 """
 
+from dataclasses import dataclass
+
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from starlette.requests import Request
 
@@ -10,6 +12,14 @@ from api.config import Settings
 from api.errors import DomainError, UnauthorizedError
 
 SUPPORTED_PROVIDERS = ("google", "kakao")
+
+
+@dataclass(frozen=True)
+class OAuthProfile:
+    provider_user_id: str
+    email: str | None
+    name: str | None
+    email_verified: bool
 
 
 def build_oauth(settings: Settings) -> OAuth:
@@ -49,10 +59,8 @@ def get_oauth_client(request: Request, provider: str):
     return client
 
 
-async def fetch_profile(
-    client, provider: str, request: Request
-) -> tuple[str, str | None, str | None]:
-    """(provider_user_id, email, name). 카카오는 이메일 미동의 가능."""
+async def fetch_profile(client, provider: str, request: Request) -> OAuthProfile:
+    """Provider별 검증 claim을 보존한 프로필. 카카오는 이메일 미동의 가능."""
     try:
         token = await client.authorize_access_token(request)
     except OAuthError as exc:
@@ -60,10 +68,30 @@ async def fetch_profile(
 
     if provider == "google":
         info = token.get("userinfo") or {}
-        return str(info["sub"]), info.get("email"), info.get("name")
+        email = info.get("email") if isinstance(info.get("email"), str) else None
+        name = info.get("name") if isinstance(info.get("name"), str) else None
+        return OAuthProfile(
+            provider_user_id=str(info["sub"]),
+            email=email,
+            name=name,
+            # Google OIDC의 email_verified boolean만 신뢰한다. 문자열 "true"는 거부.
+            email_verified=email is not None and info.get("email_verified") is True,
+        )
 
     res = await client.get("v2/user/me", token=token)
     body = res.json()
     account = body.get("kakao_account") or {}
     profile = account.get("profile") or {}
-    return str(body["id"]), account.get("email"), profile.get("nickname")
+    email = account.get("email") if isinstance(account.get("email"), str) else None
+    name = profile.get("nickname") if isinstance(profile.get("nickname"), str) else None
+    return OAuthProfile(
+        provider_user_id=str(body["id"]),
+        email=email,
+        name=name,
+        # Kakao는 유효성과 검증 여부가 별도다. 둘 다 명시적 true여야 자동 링크 가능.
+        email_verified=(
+            email is not None
+            and account.get("is_email_valid") is True
+            and account.get("is_email_verified") is True
+        ),
+    )

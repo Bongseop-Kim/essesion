@@ -1,5 +1,6 @@
-# PR 프리뷰: Cloudflare 프리뷰 URL(versions upload) + Cloud Run 태그 리비전(트래픽 0)
-# 프리뷰 URL은 각 스텝 로그에 출력 — PR 코멘트 자동화는 필요해지면 추가
+# PR 배포 산출물 검증. PR 코드는 배포 자격증명이나 런타임 서비스 계정을
+# 사용할 수 없다. 격리된 preview 프로젝트/서비스 계정을 마련하기 전에는
+# Cloudflare/Cloud Run에 실제 배포하지 않는다.
 name: preview
 
 on:
@@ -7,45 +8,45 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  cloudflare-preview:
-    if: vars.CLOUDFLARE_ACCOUNT_ID != ''
+  frontend-preview-build:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.CLOUDFLARE_ACCOUNT_ID != ''
     runs-on: ubuntu-latest
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      VITE_TOSS_CLIENT_KEY: ${{ vars.VITE_TOSS_CLIENT_KEY }}
+      VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+      VITE_SENTRY_ENVIRONMENT: preview
+      VITE_SENTRY_RELEASE: pr-${{ github.event.number }}-${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm turbo build
-      - run: pnpm -C apps/store exec wrangler versions upload
-      - run: pnpm -C apps/admin exec wrangler versions upload
+      - name: Reject local or placeholder frontend endpoints
+        run: |
+          if grep -R -E 'http://localhost|api\.example\.invalid' apps/store/dist apps/admin/dist; then
+            echo 'frontend build contains a non-deployable endpoint' >&2
+            exit 1
+          fi
 
-  api-preview:
-    if: vars.GCP_PROJECT_ID != ''
+  api-preview-build:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.GCP_PROJECT_ID != ''
     runs-on: ubuntu-latest
     env:
       REGION: ${{ vars.GCP_REGION }}
       IMAGE_BASE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/essesion
     steps:
-      - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
-      - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-      - name: Tagged revision (no traffic)
-        run: |
-          docker build -t "$IMAGE_BASE/api:pr-${{ github.event.number }}" --build-arg APP=api .
-          docker push "$IMAGE_BASE/api:pr-${{ github.event.number }}"
-          gcloud run deploy api --region "$REGION" \
-            --image "$IMAGE_BASE/api:pr-${{ github.event.number }}" \
-            --tag "pr-${{ github.event.number }}" --no-traffic
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Build preview image
+        run: docker build -t "$IMAGE_BASE/api:pr-${{ github.event.number }}" --build-arg APP=api .

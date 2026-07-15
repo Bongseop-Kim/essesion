@@ -1,28 +1,57 @@
+import json
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
 from api.domains.reform.schemas import ReformDataIn
 
+MAX_ORDER_ITEMS = 50
+MAX_ORDER_QUANTITY = 10_000
+MAX_ITEM_ID_LENGTH = 200
+MAX_OPTION_ID_LENGTH = 64
+MAX_OPTIONS_BYTES = 10_000
+MAX_ADDITIONAL_NOTES_LENGTH = 500
+MAX_REFERENCE_IMAGES = 5
+MAX_OBJECT_KEY_LENGTH = 1_024
+
+
+def _validate_options_payload(value: dict[str, Any]) -> dict[str, Any]:
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode()
+    except (TypeError, ValueError, OverflowError, RecursionError) as exc:
+        raise ValueError("options must be finite JSON") from exc
+    if len(encoded) > MAX_OPTIONS_BYTES:
+        raise ValueError(f"options must be at most {MAX_OPTIONS_BYTES} bytes")
+    return value
+
+
+OptionsPayload = Annotated[dict[str, Any], AfterValidator(_validate_options_payload)]
+ItemId = Annotated[str, Field(min_length=1, max_length=MAX_ITEM_ID_LENGTH)]
+
 
 class OrderItemIn(BaseModel):
-    item_id: str
+    item_id: ItemId
     item_type: Literal["product", "reform"]
-    quantity: int
+    quantity: int = Field(le=MAX_ORDER_QUANTITY)
     product_id: int | None = None
-    selected_option_id: str | None = None
+    selected_option_id: str | None = Field(default=None, max_length=MAX_OPTION_ID_LENGTH)
     reform_data: ReformDataIn | None = None
     applied_user_coupon_id: uuid.UUID | None = None
 
 
 class RepairPickupIn(BaseModel):
-    recipient_name: str
-    recipient_phone: str
-    address: str
-    postal_code: str | None = None
-    detail_address: str | None = None
+    recipient_name: str = Field(max_length=100)
+    recipient_phone: str = Field(max_length=32)
+    address: str = Field(max_length=500)
+    postal_code: str | None = Field(default=None, max_length=20)
+    detail_address: str | None = Field(default=None, max_length=500)
 
 
 class RepairShippingIn(BaseModel):
@@ -32,8 +61,16 @@ class RepairShippingIn(BaseModel):
 
 class OrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
-    items: list[OrderItemIn]
+    items: list[OrderItemIn] = Field(max_length=MAX_ORDER_ITEMS)
     repair_shipping: RepairShippingIn | None = None
+
+    @field_validator("items")
+    @classmethod
+    def reject_duplicate_item_ids(cls, value: list[OrderItemIn]) -> list[OrderItemIn]:
+        item_ids = [item.item_id for item in value]
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError("item_id must be unique within an order")
+        return value
 
 
 class CreatedOrder(BaseModel):
@@ -49,8 +86,8 @@ class OrderCreateResponse(BaseModel):
 
 
 class CustomAmountRequest(BaseModel):
-    options: dict[str, Any]
-    quantity: int
+    options: OptionsPayload
+    quantity: int = Field(le=MAX_ORDER_QUANTITY)
 
 
 class CustomAmountResponse(BaseModel):
@@ -60,30 +97,41 @@ class CustomAmountResponse(BaseModel):
 
 
 class ReferenceImageIn(BaseModel):
-    object_key: str  # GCS 서명 업로드로 올린 객체 키 (구 ImageKit url/fileId 대체)
+    object_key: str = Field(
+        min_length=1,
+        max_length=MAX_OBJECT_KEY_LENGTH,
+    )  # GCS 서명 업로드로 올린 객체 키 (구 ImageKit url/fileId 대체)
+
+
+class OrderReferenceImageIn(BaseModel):
+    upload_id: uuid.UUID
 
 
 class CustomOrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
-    options: dict[str, Any]
-    quantity: int
-    reference_images: list[ReferenceImageIn] = []
-    additional_notes: str = ""
+    options: OptionsPayload
+    quantity: int = Field(le=MAX_ORDER_QUANTITY)
+    reference_images: list[OrderReferenceImageIn] = Field(
+        default_factory=list, max_length=MAX_REFERENCE_IMAGES
+    )
+    additional_notes: str = Field(default="", max_length=MAX_ADDITIONAL_NOTES_LENGTH)
     user_coupon_id: uuid.UUID | None = None
 
 
 class SampleOrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
     sample_type: Literal["fabric", "sewing", "fabric_and_sewing"]
-    options: dict[str, Any]
-    reference_images: list[ReferenceImageIn] = []
-    additional_notes: str = ""
+    options: OptionsPayload
+    reference_images: list[OrderReferenceImageIn] = Field(
+        default_factory=list, max_length=MAX_REFERENCE_IMAGES
+    )
+    additional_notes: str = Field(default="", max_length=MAX_ADDITIONAL_NOTES_LENGTH)
     user_coupon_id: uuid.UUID | None = None
 
 
 class SampleAmountRequest(BaseModel):
     sample_type: Literal["fabric", "sewing", "fabric_and_sewing"]
-    options: dict[str, Any]
+    options: OptionsPayload
 
 
 class SampleAmountResponse(BaseModel):
@@ -158,21 +206,21 @@ class OrderDetailOut(OrderOut):
 
 
 class RepairPhotoIn(BaseModel):
-    object_key: str
+    object_key: str = Field(min_length=1, max_length=MAX_OBJECT_KEY_LENGTH)
 
 
 class RepairTrackingRequest(BaseModel):
-    courier_company: str
-    tracking_number: str
-    memo: str | None = None
-    photos: list[RepairPhotoIn] = []
+    courier_company: str = Field(max_length=30)
+    tracking_number: str = Field(max_length=100)
+    memo: str | None = Field(default=None, max_length=500)
+    photos: list[RepairPhotoIn] = Field(default_factory=list, max_length=3)
 
 
 class RepairNoTrackingRequest(BaseModel):
     # reason 없는 순수 "발송 확인" 허용 — 사유 강제는 폐기 (money.md §9)
     reason: Literal["quick", "overseas", "lost"] | None = None
-    memo: str | None = None
-    photos: list[RepairPhotoIn] = []
+    memo: str | None = Field(default=None, max_length=500)
+    photos: list[RepairPhotoIn] = Field(default_factory=list, max_length=3)
 
 
 class AdminStatusUpdateRequest(BaseModel):

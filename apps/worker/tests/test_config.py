@@ -49,10 +49,20 @@ def test_settings_resource_ceiling_defaults() -> None:
     assert s.max_placement_instances == 50_000
     assert s.max_svg_bytes == 2_000_000
     assert s.preview_dpi == 192
+    assert s.preview_render_concurrency == 2
+    assert s.finalize_lease_seconds == 960
+    assert s.service_mode == "all"
+    assert s.recraft_response_format == "b64_json"
 
 
 def test_settings_validates_resource_ceilings() -> None:
-    _settings(max_placement_instances=1, max_svg_bytes=1, preview_dpi=1200)
+    _settings(
+        max_placement_instances=1,
+        max_svg_bytes=1,
+        preview_dpi=1200,
+        preview_render_concurrency=8,
+        finalize_lease_seconds=1,
+    )
 
     with pytest.raises(ValidationError):
         _settings(max_placement_instances=0)
@@ -60,6 +70,23 @@ def test_settings_validates_resource_ceilings() -> None:
         _settings(max_svg_bytes=0)
     with pytest.raises(ValidationError):
         _settings(preview_dpi=1201)
+    with pytest.raises(ValidationError):
+        _settings(preview_render_concurrency=9)
+    with pytest.raises(ValidationError):
+        _settings(finalize_lease_seconds=0)
+
+
+def test_settings_validates_service_mode() -> None:
+    _settings(service_mode="generate")
+    _settings(service_mode="finalize")
+
+    with pytest.raises(ValidationError):
+        _settings(service_mode="other")
+
+
+def test_settings_rejects_recraft_url_response_format() -> None:
+    with pytest.raises(ValidationError):
+        _settings(recraft_response_format="url")
 
 
 def test_settings_validates_gemini_temperature() -> None:
