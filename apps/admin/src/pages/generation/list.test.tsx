@@ -196,7 +196,8 @@ describe("GenerationOperationsPage", () => {
     await screen.findByRole("table", { name: "생성 작업 목록" });
 
     const userId = "33333333-3333-4333-8333-333333333333";
-    await user.type(screen.getByLabelText("사용자 ID"), userId);
+    await user.click(screen.getByLabelText("사용자 ID"));
+    await user.paste(userId);
     await user.click(screen.getByRole("button", { name: "사용자 적용" }));
 
     await waitFor(() =>

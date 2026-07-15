@@ -48,9 +48,12 @@ describe("ProductNewPage", () => {
     api.create.mockRejectedValueOnce(new Error("일시적인 상품 저장 실패"));
     renderPage();
 
-    await user.type(screen.getByLabelText(/상품 이름/), "새 실크 타이");
-    await user.type(screen.getByLabelText(/상품 설명/), "새 상품 설명");
-    await user.type(screen.getByLabelText(/기본 가격/), "45000");
+    await user.click(screen.getByLabelText(/상품 이름/));
+    await user.paste("새 실크 타이");
+    await user.click(screen.getByLabelText(/상품 설명/));
+    await user.paste("새 상품 설명");
+    await user.click(screen.getByLabelText(/기본 가격/));
+    await user.paste("45000");
     const file = new File(["image"], "product.webp", {
       type: "image/webp",
     });
