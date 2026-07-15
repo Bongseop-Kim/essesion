@@ -338,7 +338,7 @@ export function MotifsPage() {
           >
             <TextField
               label="소스"
-              description="정확한 source 키로 필터합니다."
+              placeholder="정확한 source 키"
               value={sourceInput}
               maxLength={50}
               errorMessage={sourceError}

@@ -160,7 +160,7 @@ export function OrdersPage() {
         <VStack gap="x4" alignItems="stretch">
           <SubmittedMemorySearch
             label="주문번호 검색"
-            description="2자 이상 입력해 주세요. 검색어는 URL에 저장하지 않습니다."
+            placeholder="2자 이상 입력"
             maxLength={64}
             onSubmit={(value) => {
               setSearch(value);

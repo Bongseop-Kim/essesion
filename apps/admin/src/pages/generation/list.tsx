@@ -383,7 +383,7 @@ function JobsPanel({
           >
             <TextField
               label="사용자 ID"
-              description="개인 식별자는 주소에 남기지 않고 메모리에서만 필터합니다."
+              placeholder="정확한 사용자 ID 입력"
               errorMessage={userError}
               value={userInput}
               onChange={(event) => setUserInput(event.currentTarget.value)}
@@ -601,7 +601,7 @@ function SeamlessPanel({
           >
             <TextField
               label="request_id"
-              description="요청 추적용 안전 식별자를 정확히 입력합니다."
+              placeholder="정확한 request_id 입력"
               errorMessage={requestError}
               value={requestInput}
               maxLength={128}

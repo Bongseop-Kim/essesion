@@ -223,7 +223,7 @@ export function ProductsPage() {
           >
             <TextField
               label="상품명·상품 코드 검색"
-              description="2자 이상 입력해 주세요. 상품 검색어는 URL에서 복구됩니다."
+              placeholder="2자 이상 입력"
               value={searchInput}
               minLength={2}
               maxLength={100}

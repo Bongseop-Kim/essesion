@@ -156,7 +156,7 @@ export function InquiriesPage() {
           >
             <TextField
               label="제목·내용 검색"
-              description="2자 이상 입력해 주세요. 요청 본문으로만 전송됩니다."
+              placeholder="2자 이상 입력"
               minLength={2}
               maxLength={100}
               value={searchInput}

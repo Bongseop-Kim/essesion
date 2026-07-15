@@ -3,14 +3,14 @@ import { type FormEvent, useState } from "react";
 
 type SubmittedMemorySearchProps = {
   label: string;
-  description: string;
+  placeholder: string;
   maxLength: number;
   onSubmit: (value: string | undefined) => void;
 };
 
 export function SubmittedMemorySearch({
   label,
-  description,
+  placeholder,
   maxLength,
   onSubmit,
 }: SubmittedMemorySearchProps) {
@@ -29,7 +29,7 @@ export function SubmittedMemorySearch({
     <HStack as="form" gap="x2" align="flex-end" wrap onSubmit={submit}>
       <TextField
         label={label}
-        description={description}
+        placeholder={placeholder}
         value={input}
         maxLength={maxLength}
         onChange={(event) => setInput(event.currentTarget.value)}

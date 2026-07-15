@@ -266,7 +266,7 @@ export function CouponDefinitionForm({
                 min={1}
                 step={1}
                 label="최대 할인액"
-                description="비워 두면 최대 할인액 제한이 없습니다."
+                placeholder="비워 두면 제한 없음"
                 suffix="원"
                 value={draft.maxDiscountAmount}
                 errorMessage={attempted ? errors.maxDiscountAmount : undefined}

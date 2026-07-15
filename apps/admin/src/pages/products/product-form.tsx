@@ -306,11 +306,7 @@ export function ProductForm({
               />
               <TextField
                 label="상품 코드"
-                description={
-                  mode === "create"
-                    ? "비워 두면 카테고리 기준으로 자동 생성됩니다."
-                    : "등록 후에는 변경할 수 없습니다."
-                }
+                placeholder="비워 두면 자동 생성"
                 maxLength={100}
                 value={draft.code}
                 disabled={mode === "edit" || pending}
@@ -511,7 +507,7 @@ export function ProductForm({
               <>
                 <TextField
                   label="옵션 묶음 이름"
-                  description="예: 길이, 사이즈, 색상"
+                  placeholder="예: 길이, 사이즈, 색상"
                   required
                   maxLength={100}
                   value={draft.optionLabel}

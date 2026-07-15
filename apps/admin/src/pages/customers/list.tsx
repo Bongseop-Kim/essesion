@@ -183,7 +183,7 @@ export function CustomersPage() {
           >
             <TextField
               label="이름·이메일·전화번호 검색"
-              description="2자 이상 입력해 주세요. 검색어는 요청 본문으로만 전송됩니다."
+              placeholder="2자 이상 입력"
               value={searchInput}
               minLength={2}
               maxLength={100}
