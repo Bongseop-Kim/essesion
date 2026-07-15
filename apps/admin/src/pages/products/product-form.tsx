@@ -333,11 +333,8 @@ export function ProductForm({
                 value={draft.category}
                 options={PRODUCT_CATEGORIES}
                 disabled={pending}
-                onChange={(event) =>
-                  update(
-                    "category",
-                    event.currentTarget.value as ProductCategory,
-                  )
+                onValueChange={(value) =>
+                  update("category", value as ProductCategory)
                 }
               />
               <FilterSelect
@@ -345,8 +342,8 @@ export function ProductForm({
                 value={draft.color}
                 options={PRODUCT_COLORS}
                 disabled={pending}
-                onChange={(event) =>
-                  update("color", event.currentTarget.value as ProductColor)
+                onValueChange={(value) =>
+                  update("color", value as ProductColor)
                 }
               />
               <FilterSelect
@@ -354,8 +351,8 @@ export function ProductForm({
                 value={draft.pattern}
                 options={PRODUCT_PATTERNS}
                 disabled={pending}
-                onChange={(event) =>
-                  update("pattern", event.currentTarget.value as ProductPattern)
+                onValueChange={(value) =>
+                  update("pattern", value as ProductPattern)
                 }
               />
               <FilterSelect
@@ -363,11 +360,8 @@ export function ProductForm({
                 value={draft.material}
                 options={PRODUCT_MATERIALS}
                 disabled={pending}
-                onChange={(event) =>
-                  update(
-                    "material",
-                    event.currentTarget.value as ProductMaterial,
-                  )
+                onValueChange={(value) =>
+                  update("material", value as ProductMaterial)
                 }
               />
             </Grid>

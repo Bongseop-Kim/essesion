@@ -1,41 +1,21 @@
-import { Text, VStack } from "@essesion/shared";
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import { Box, ListPicker, type ListPickerOption } from "@essesion/shared";
+import type { ReactNode } from "react";
 
-export type FilterSelectOption = {
-  value: string;
-  label: ReactNode;
-};
+export type FilterSelectOption = ListPickerOption;
 
-export type FilterSelectProps = Omit<
-  ComponentPropsWithRef<"select">,
-  "children"
-> & {
+export type FilterSelectProps = {
   label: ReactNode;
   options: readonly FilterSelectOption[];
+  value?: string;
+  onValueChange?: (value: string) => void;
+  disabled?: boolean;
 };
 
-export function FilterSelect({
-  label,
-  options,
-  id,
-  ...props
-}: FilterSelectProps) {
+/* 필터 바 표준 피커 — ListPicker(모바일 시트 ↔ PC 모달)에 필터 폭만 고정 */
+export function FilterSelect(props: FilterSelectProps) {
   return (
-    <VStack as="label" gap="x1_5" minWidth={140}>
-      <Text as="span" textStyle="labelSm">
-        {label}
-      </Text>
-      <select
-        id={id}
-        className="h-10 rounded-r2 border border-stroke-neutral-weak bg-bg-layer-default px-x3 text-t4 text-fg-neutral outline-none focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-stroke-brand disabled:bg-bg-disabled disabled:text-fg-disabled"
-        {...props}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </VStack>
+    <Box minWidth={140}>
+      <ListPicker {...props} />
+    </Box>
   );
 }

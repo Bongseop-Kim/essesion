@@ -132,9 +132,7 @@ export function CouponsPage() {
               { value: "active", label: "활성" },
               { value: "inactive", label: "비활성" },
             ]}
-            onChange={(event) =>
-              replaceQuery({ status: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ status: value, page: 1 })}
           />
           <FilterSelect
             label="정렬"
@@ -144,9 +142,7 @@ export function CouponsPage() {
               { value: "expiry_date", label: "만료일" },
               { value: "name", label: "이름" },
             ]}
-            onChange={(event) =>
-              replaceQuery({ sort: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ sort: value, page: 1 })}
           />
         </HStack>
       </AdminCard>

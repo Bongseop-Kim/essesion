@@ -191,8 +191,8 @@ export function InquiriesPage() {
                 value,
                 label: value === "all" ? "전체" : value,
               }))}
-              onChange={(event) =>
-                replaceQuery({ status: event.currentTarget.value, page: 1 })
+              onValueChange={(value) =>
+                replaceQuery({ status: value, page: 1 })
               }
             />
             <FilterSelect
@@ -202,9 +202,7 @@ export function InquiriesPage() {
                 value,
                 label: value === "all" ? "전체" : value,
               }))}
-              onChange={(event) =>
-                replaceQuery({ type: event.currentTarget.value, page: 1 })
-              }
+              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
             />
           </HStack>
         </VStack>

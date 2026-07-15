@@ -194,8 +194,8 @@ export function CouponOperations({
               value={segment}
               options={AUDIENCE_SEGMENTS}
               disabled={previewMutation.isPending}
-              onChange={(event) => {
-                setSegment(event.currentTarget.value as AudienceSegment);
+              onValueChange={(value) => {
+                setSegment(value as AudienceSegment);
                 setPreviewPage(1);
                 setSelectedUsers(new Set());
                 previewMutation.reset();

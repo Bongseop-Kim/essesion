@@ -258,9 +258,7 @@ export function DashboardPage() {
             label="주문 유형"
             value={orderType}
             options={ORDER_TYPES}
-            onChange={(event) =>
-              updateFilter("type", event.currentTarget.value)
-            }
+            onValueChange={(value) => updateFilter("type", value)}
           />
         </HStack>
       </AdminCard>

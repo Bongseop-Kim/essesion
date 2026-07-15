@@ -355,12 +355,9 @@ function JobsPanel({
                 { value: "succeeded", label: "성공" },
                 { value: "failed", label: "실패" },
               ]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceQuery({
-                  status:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  status: value === "all" ? undefined : value,
                   page: 1,
                 })
               }
@@ -373,12 +370,9 @@ function JobsPanel({
                 { value: "finalize", label: "원단 최종화" },
                 { value: "export", label: "파일 내보내기" },
               ]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceQuery({
-                  type:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  type: value === "all" ? undefined : value,
                   page: 1,
                 })
               }
@@ -594,12 +588,9 @@ function SeamlessPanel({
                 { value: "partial", label: "부분 성공" },
                 { value: "error", label: "오류" },
               ]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceQuery({
-                  status:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  status: value === "all" ? undefined : value,
                   page: 1,
                 })
               }

@@ -150,9 +150,7 @@ export function IncidentsPage() {
             label="이상 유형"
             value={incidentType}
             options={INCIDENT_TYPES}
-            onChange={(event) =>
-              replaceQuery({ type: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
           />
           <FilterSelect
             label="상태"
@@ -162,9 +160,7 @@ export function IncidentsPage() {
               { value: "open", label: "미해결" },
               { value: "resolved", label: "해결" },
             ]}
-            onChange={(event) =>
-              replaceQuery({ status: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ status: value, page: 1 })}
           />
           <DateRangeFilters
             from={parsed.from}

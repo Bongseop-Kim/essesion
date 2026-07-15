@@ -205,8 +205,8 @@ export function CouponIssuedHistory({
               value,
               label: value === "all" ? "전체" : value,
             }))}
-            onChange={(event) => {
-              setStatus(event.currentTarget.value as IssuedStatus);
+            onValueChange={(value) => {
+              setStatus(value as IssuedStatus);
               setPage(1);
               setSelected(new Set());
             }}

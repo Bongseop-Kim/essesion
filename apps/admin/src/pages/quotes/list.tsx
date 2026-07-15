@@ -130,9 +130,7 @@ export function QuotesPage() {
               value,
               label: value === "all" ? "전체" : value,
             }))}
-            onChange={(event) =>
-              replaceQuery({ status: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ status: value, page: 1 })}
           />
           <DateRangeFilters
             from={parsed.from}

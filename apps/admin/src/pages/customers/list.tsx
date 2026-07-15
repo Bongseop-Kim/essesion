@@ -219,8 +219,8 @@ export function CustomersPage() {
                 { value: "active", label: "활성" },
                 { value: "inactive", label: "비활성" },
               ]}
-              onChange={(event) =>
-                replaceQuery({ status: event.currentTarget.value, page: 1 })
+              onValueChange={(value) =>
+                replaceQuery({ status: value, page: 1 })
               }
             />
             <FilterSelect
@@ -230,9 +230,7 @@ export function CustomersPage() {
                 { value: "created_at", label: "가입일" },
                 { value: "name", label: "이름" },
               ]}
-              onChange={(event) =>
-                replaceQuery({ sort: event.currentTarget.value, page: 1 })
-              }
+              onValueChange={(value) => replaceQuery({ sort: value, page: 1 })}
             />
           </HStack>
         </VStack>

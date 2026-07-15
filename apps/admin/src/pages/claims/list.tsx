@@ -168,9 +168,7 @@ export function ClaimsPage() {
               label="클레임 유형"
               value={claimType}
               options={CLAIM_TYPES}
-              onChange={(event) =>
-                replaceQuery({ type: event.currentTarget.value, page: 1 })
-              }
+              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
             />
             <FilterSelect
               label="상태"
@@ -179,8 +177,8 @@ export function ClaimsPage() {
                 value,
                 label: value === "all" ? "전체" : value,
               }))}
-              onChange={(event) =>
-                replaceQuery({ status: event.currentTarget.value, page: 1 })
+              onValueChange={(value) =>
+                replaceQuery({ status: value, page: 1 })
               }
             />
             <DateRangeFilters

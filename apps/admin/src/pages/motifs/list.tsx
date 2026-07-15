@@ -321,13 +321,10 @@ export function MotifsPage() {
               { value: "whole", label: "전체 모티프" },
               { value: "partial", label: "부분 모티프" },
             ]}
-            onChange={(event) => {
+            onValueChange={(value) => {
               setSelectedId(undefined);
               replaceQuery({
-                type:
-                  event.currentTarget.value === "all"
-                    ? undefined
-                    : event.currentTarget.value,
+                type: value === "all" ? undefined : value,
                 page: 1,
               });
             }}

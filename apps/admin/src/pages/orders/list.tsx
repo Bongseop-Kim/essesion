@@ -172,9 +172,7 @@ export function OrdersPage() {
               label="주문 유형"
               value={orderType}
               options={ORDER_TYPES}
-              onChange={(event) =>
-                replaceQuery({ type: event.currentTarget.value, page: 1 })
-              }
+              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
             />
             <FilterSelect
               label="상태"
@@ -183,8 +181,8 @@ export function OrdersPage() {
                 value,
                 label: value === "all" ? "전체" : value,
               }))}
-              onChange={(event) =>
-                replaceQuery({ status: event.currentTarget.value, page: 1 })
+              onValueChange={(value) =>
+                replaceQuery({ status: value, page: 1 })
               }
             />
             <DateRangeFilters
