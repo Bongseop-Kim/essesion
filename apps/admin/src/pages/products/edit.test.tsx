@@ -126,7 +126,7 @@ describe("ProductEditPage", () => {
 
     const name = await screen.findByLabelText(/상품 이름/);
     await user.clear(name);
-    await user.type(name, "내가 입력한 상품 이름");
+    await user.paste("내가 입력한 상품 이름");
     await user.click(screen.getByRole("button", { name: "상품 변경 저장" }));
 
     await waitFor(() =>

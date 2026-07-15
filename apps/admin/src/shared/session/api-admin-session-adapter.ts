@@ -35,7 +35,6 @@ async function loadCurrentAdmin(signal?: AbortSignal) {
 }
 
 export const apiAdminSessionAdapter: AdminSessionAdapter = {
-  availability: "ready",
   subscribe: subscribeToAdminSessionInvalidation,
   async bootstrap(signal) {
     // Provider cancellation suppresses stale state writes. Do not abort the shared

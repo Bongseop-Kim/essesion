@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     db_pool_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
 
     engine_version: str = "0.1.0"
-    registry_version: str = "0.1.0"
     preview_dpi: int = Field(default=192, ge=1, le=1200)
     fabric_dpi: int = Field(default=300, ge=1, le=1200)
     max_dpi: int = Field(default=600, ge=1)
@@ -40,14 +39,10 @@ class Settings(BaseSettings):
     recraft_model: str = "recraftv4_1_vector"
     recraft_style: str = ""
     recraft_size: str = "1024x1024"
-    # URL responses require a second request to an upstream-controlled address. Keep the
-    # transport inline so motif generation has no SSRF-capable redirect/download path.
-    recraft_response_format: Literal["b64_json"] = "b64_json"
     recraft_base_url: str = "https://external.api.recraft.ai/v1"
     recraft_max_color_slots: int = Field(default=6, ge=1)
 
     motif_similarity_tau: float = Field(default=0.84, ge=0.0, le=1.0)
-    motif_candidate_top_k: int = Field(default=5, ge=1)
     motif_max_aspect_ratio: float = Field(default=20.0, gt=1.0, allow_inf_nan=False)
     motif_edge_seam_tol: float = Field(default=2.0, gt=0.0, allow_inf_nan=False)
     motif_render_check: bool = True

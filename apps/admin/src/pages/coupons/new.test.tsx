@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { pickDate } from "../../test/pickers";
 import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({ create: vi.fn() }));
@@ -42,7 +43,7 @@ describe("CouponNewPage", () => {
     await user.type(screen.getByLabelText("고객 표시 이름"), "신규 할인");
     await user.click(screen.getByRole("radio", { name: "정액 할인" }));
     await user.type(screen.getByLabelText(/할인 금액/), "3000");
-    await user.type(screen.getByLabelText(/만료일 \(KST\)/), "2027-12-31");
+    await pickDate(user, /만료일 \(KST\)/, "2027-12-31");
     await user.type(screen.getByLabelText("쿠폰 설명"), "신규 고객 할인");
     await user.click(screen.getByRole("button", { name: "쿠폰 등록" }));
 
@@ -75,7 +76,7 @@ describe("CouponNewPage", () => {
     const name = screen.getByLabelText(/관리용 쿠폰 이름/);
     await user.type(name, "중복 쿠폰");
     await user.type(screen.getByLabelText(/할인율/), "10");
-    await user.type(screen.getByLabelText(/만료일 \(KST\)/), "2027-12-31");
+    await pickDate(user, /만료일 \(KST\)/, "2027-12-31");
     await user.click(screen.getByRole("button", { name: "쿠폰 등록" }));
 
     expect(await screen.findByText("이름 충돌")).toBeTruthy();

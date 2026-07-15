@@ -4,7 +4,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.domains.orders.schemas import OrderItemOut, OrderShippingAddressOut
+from api.domains.orders.schemas import (
+    OrderItemOut,
+    OrderShippingAddressOut,
+    RepairPickupOut,
+    RepairShippingReceiptOut,
+)
 
 ClaimTypeFilter = Literal["all", "cancel", "return", "exchange", "token_refund"]
 ClaimStatusFilter = Literal[
@@ -113,28 +118,6 @@ class ClaimNotificationOut(BaseModel):
     sent_at: datetime | None
     created_at: datetime
     updated_at: datetime
-
-
-class RepairPickupOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    recipient_name: str
-    recipient_phone: str
-    postal_code: str | None
-    address: str
-    detail_address: str | None
-    pickup_fee: int
-    created_at: datetime
-
-
-class RepairShippingReceiptOut(BaseModel):
-    id: uuid.UUID
-    receipt_type: str
-    reason: str | None
-    memo: str | None
-    photo_count: int
-    created_at: datetime
 
 
 class AdminClaimShippingOut(BaseModel):

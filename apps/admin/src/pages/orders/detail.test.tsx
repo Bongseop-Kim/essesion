@@ -10,7 +10,10 @@ const api = vi.hoisted(() => ({
   getOrder: vi.fn(),
   getReferenceImages: vi.fn(),
   getReferenceImagesOptions: vi.fn(),
+  getRepairReceiptPhotos: vi.fn(),
+  getRepairReceiptPhotosOptions: vi.fn(),
   createReferenceImageReadUrl: vi.fn(),
+  createRepairReceiptPhotoReadUrl: vi.fn(),
   updateStatus: vi.fn(),
   updateTracking: vi.fn(),
 }));
@@ -31,6 +34,18 @@ vi.mock("@essesion/api-client/query", () => ({
   createAdminOrderReferenceImageReadUrlMutation: () => ({
     mutationFn: api.createReferenceImageReadUrl,
   }),
+  listAdminRepairReceiptPhotosOptions: (options: {
+    path: { receipt_id: string };
+  }) => {
+    api.getRepairReceiptPhotosOptions(options);
+    return {
+      queryKey: ["repair-receipt-photos", options.path.receipt_id],
+      queryFn: () => api.getRepairReceiptPhotos(options),
+    };
+  },
+  createAdminRepairReceiptPhotoReadUrlMutation: () => ({
+    mutationFn: api.createRepairReceiptPhotoReadUrl,
+  }),
   listAllOrdersQueryKey: () => ["orders"],
   adminUpdateOrderStatusMutation: () => ({ mutationFn: api.updateStatus }),
   adminUpdateOrderTrackingMutation: () => ({
@@ -50,6 +65,11 @@ const order: AdminOrderDetailOut = {
   shipping_cost: 0,
   payment_group_id: "payment-1",
   status: "진행중",
+  claim_summary: {
+    claim_number: "CLM-001",
+    type: "cancel",
+    status: "처리중",
+  },
   created_at: "2026-07-12T01:00:00Z",
   updated_at: "2026-07-12T01:00:00Z",
   confirmed_at: null,
@@ -81,9 +101,23 @@ const order: AdminOrderDetailOut = {
       unit_price: 50_000,
       discount_amount: 0,
       line_discount_amount: 0,
+      claim: {
+        claim_number: "CLM-001",
+        type: "cancel",
+        status: "처리중",
+      },
     },
   ],
-  active_claim: null,
+  active_claim: {
+    id: "claim-1",
+    claim_number: "CLM-001",
+    type: "cancel",
+    status: "처리중",
+    reason: "change_mind",
+    description: null,
+    quantity: 1,
+    created_at: "2026-07-12T01:00:00Z",
+  },
   related_orders: [],
   status_logs: [],
   admin_actions: [
@@ -111,6 +145,7 @@ describe("OrderDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getReferenceImages.mockResolvedValue([]);
+    api.getRepairReceiptPhotos.mockResolvedValue([]);
   });
 
   it("오류에서 다시 시도해 상세 heading과 native item table을 복구한다", async () => {
@@ -133,7 +168,60 @@ describe("OrderDetailPage", () => {
     expect(
       screen.getByRole("columnheader", { name: "거래 시점 상품·옵션" }),
     ).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "클레임" })).toBeTruthy();
+    expect(screen.getAllByText("취소 처리중")).toHaveLength(2);
+    expect(screen.getByText("활성 클레임 CLM-001")).toBeTruthy();
     expect(api.getOrder).toHaveBeenCalledTimes(2);
+  });
+
+  it("완료된 취소를 표시하고 차단된 운영 액션의 이유를 안내한다", async () => {
+    api.getOrder.mockResolvedValue({
+      ...order,
+      claim_summary: { ...order.claim_summary!, status: "완료" },
+      active_claim: null,
+      items: (order.items ?? []).map((item) => ({
+        ...item,
+        claim: item.claim ? { ...item.claim, status: "완료" } : null,
+      })),
+      admin_actions: [
+        {
+          kind: "advance",
+          label: "배송중 상태로 진행",
+          target_status: "배송중",
+          enabled: false,
+          blocking_reason:
+            "취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
+        },
+        {
+          kind: "update_tracking",
+          label: "송장 정보 수정",
+          enabled: false,
+          blocking_reason: "취소 클레임이 완료되어 송장을 수정할 수 없습니다",
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findAllByText("취소 완료")).toHaveLength(2);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "배송중 상태로 진행",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "송장 정보 수정",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByText(
+        "배송중 상태로 진행: 취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
+      ),
+    ).toBeTruthy();
   });
 
   it("pending 중 중복 작업을 막고 실패 뒤에도 입력을 보존한다", async () => {
@@ -206,6 +294,7 @@ describe("OrderDetailPage", () => {
             options: {
               fabric_type: "SILK",
               tie_type: "AUTO",
+              lining_color: "navy",
               object_key: "uploads/custom_order/private-option.png",
             },
             additional_notes: "광택을 낮춰 주세요.",
@@ -230,8 +319,13 @@ describe("OrderDetailPage", () => {
       .mockResolvedValueOnce({ read_url: "https://storage.test/signed-2" });
     renderPage();
 
-    expect(await screen.findByText("맞춤 제작")).toBeTruthy();
-    expect(screen.getByText(/원단: SILK/)).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: /맞춤 제작$/ }),
+    ).toBeTruthy();
+    expect(screen.getByText("원단")).toBeTruthy();
+    expect(screen.getByText("실크")).toBeTruthy();
+    expect(screen.getByText("lining color")).toBeTruthy();
+    expect(screen.getByText("navy")).toBeTruthy();
     expect(screen.getByText("광택을 낮춰 주세요.")).toBeTruthy();
     expect(api.getReferenceImagesOptions).toHaveBeenCalledWith({
       path: { order_id: order.id },
@@ -242,7 +336,7 @@ describe("OrderDetailPage", () => {
       await screen.findByRole("button", { name: "이미지 보기" }),
     );
     const image = await screen.findByRole("img", {
-      name: "주문 참고 이미지 1",
+      name: "주문 첨부 이미지 1",
     });
     expect(image.getAttribute("src")).toBe("https://storage.test/signed-1");
     expect(api.createReferenceImageReadUrl).toHaveBeenCalledWith(
@@ -282,10 +376,133 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    expect(await screen.findByText("원단 + 봉제 샘플")).toBeTruthy();
-    expect(screen.getByText(/원단: POLY/)).toBeTruthy();
     expect(
-      await screen.findByText("등록된 참고 이미지가 없습니다."),
+      await screen.findByRole("heading", { name: /원단 \+ 봉제 샘플$/ }),
     ).toBeTruthy();
+    expect(screen.getByText("원단")).toBeTruthy();
+    expect(screen.getByText("폴리")).toBeTruthy();
+    expect(
+      await screen.findByText("등록된 첨부 이미지가 없습니다."),
+    ).toBeTruthy();
+  });
+
+  it("수선 주문의 항목별 사양과 배송·수거·발송 정보를 모두 표시한다", async () => {
+    const user = userEvent.setup();
+    api.getOrder.mockResolvedValue({
+      ...order,
+      order_type: "repair",
+      shipping_address_id: "address-1",
+      shipping_address: {
+        id: "address-1",
+        recipient_name: "수령 고객",
+        recipient_phone: "010-2222-3333",
+        postal_code: "04524",
+        address: "서울시 중구",
+        address_detail: "202호",
+        delivery_request: "경비실에 맡겨 주세요.",
+        delivery_memo: "오후 배송 희망",
+      },
+      repair_pickup: {
+        id: "pickup-1",
+        recipient_name: "수거 고객",
+        recipient_phone: "010-1111-2222",
+        postal_code: "04524",
+        address: "서울시 중구",
+        detail_address: "101호",
+        pickup_fee: 5_000,
+        created_at: "2026-07-15T01:00:00Z",
+      },
+      repair_receipts: [
+        {
+          id: "receipt-1",
+          receipt_type: "no_tracking",
+          reason: "lost",
+          memo: "송장을 분실했습니다.",
+          photo_count: 2,
+          created_at: "2026-07-15T02:00:00Z",
+        },
+      ],
+      items: [
+        {
+          ...order.items?.[0],
+          id: "repair-item-1",
+          item_type: "reform",
+          item_data: {
+            tie: {
+              automatic: {
+                mechanism: "zipper",
+                wearer_height_cm: 175,
+                dimple: true,
+              },
+              width: { target_width_cm: 7.5 },
+              restoration: { memo: "원형을 유지해 주세요." },
+            },
+          },
+        },
+        {
+          ...order.items?.[0],
+          id: "repair-item-2",
+          item_id: "sku-2",
+          item_type: "reform",
+          item_data: {
+            tie: {
+              automatic: {
+                mechanism: "string",
+                wearer_height_cm: 182,
+                turn_knot: true,
+              },
+            },
+          },
+        },
+      ],
+    });
+    api.getRepairReceiptPhotos.mockResolvedValue([
+      {
+        id: "receipt-photo-1",
+        content_type: "image/png",
+        size_bytes: 1_024,
+        created_at: "2026-07-15T02:00:00Z",
+      },
+    ]);
+    api.createRepairReceiptPhotoReadUrl.mockResolvedValue({
+      read_url: "https://storage.test/receipt-photo",
+    });
+    renderPage();
+
+    expect(await screen.findByText("수선")).toBeTruthy();
+    expect(screen.getByText("010-2222-3333")).toBeTruthy();
+    expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();
+    expect(screen.getByText("오후 배송 희망")).toBeTruthy();
+    expect(screen.getByText("수거 고객 · 010-1111-2222")).toBeTruthy();
+    expect(screen.getByText("송장 없이 발송")).toBeTruthy();
+    expect(screen.getByText("송장 분실")).toBeTruthy();
+    expect(screen.getByText("2장")).toBeTruthy();
+    expect(screen.getByText("송장을 분실했습니다.")).toBeTruthy();
+    expect(screen.getByText("175cm")).toBeTruthy();
+    expect(screen.getByText("182cm")).toBeTruthy();
+    expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
+    expect(screen.getByText("딤플")).toBeTruthy();
+    expect(screen.getByText("돌려묶기")).toBeTruthy();
+    expect(api.getReferenceImagesOptions).toHaveBeenCalledWith({
+      path: { order_id: order.id },
+    });
+    expect(api.getRepairReceiptPhotosOptions).toHaveBeenCalledWith({
+      path: { receipt_id: "receipt-1" },
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "이미지 보기" }),
+    );
+    expect(
+      (
+        await screen.findByRole("img", { name: "수선 발송 사진 1" })
+      ).getAttribute("src"),
+    ).toBe("https://storage.test/receipt-photo");
+    expect(api.createRepairReceiptPhotoReadUrl).toHaveBeenCalledWith(
+      {
+        path: { receipt_id: "receipt-1", image_id: "receipt-photo-1" },
+      },
+      expect.anything(),
+    );
   });
 });

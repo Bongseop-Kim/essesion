@@ -7,7 +7,6 @@
 from typing import Any
 
 from worker.config import get_settings
-from worker.engine.determinism import sorted_layers
 from worker.engine.intent import Intent, Layer, MotifLayer
 from worker.engine.palette import Palette
 from worker.engine.placement import Instance, place
@@ -39,7 +38,7 @@ def compose(
     motifs: MotifCatalog | None = None,
 ) -> str:
     tile = intent.canvas.tile_mm
-    layers = sorted_layers(intent.layers)
+    layers = sorted(intent.layers, key=lambda layer: (layer.z_order, layer.id))
 
     hosts: dict[str, Any] = {
         layer.id: build_primitive(layer, tile)

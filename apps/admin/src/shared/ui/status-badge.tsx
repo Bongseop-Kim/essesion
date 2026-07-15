@@ -1,4 +1,5 @@
-import { Badge } from "@essesion/shared";
+import type { ClaimBadgeOut } from "@essesion/api-client";
+import { Badge, claimBadge } from "@essesion/shared";
 
 const positive = new Set(["완료", "배송완료", "sent", "resolved", "active"]);
 const critical = new Set(["실패", "거부", "취소", "failed", "inactive"]);
@@ -13,4 +14,9 @@ export function StatusBadge({ status }: { status: string }) {
         ? "warning"
         : "informative";
   return <Badge tone={tone}>{status}</Badge>;
+}
+
+export function ClaimStatusBadge({ claim }: { claim: ClaimBadgeOut }) {
+  const presentation = claimBadge(claim);
+  return <Badge tone={presentation.tone}>{presentation.label}</Badge>;
 }

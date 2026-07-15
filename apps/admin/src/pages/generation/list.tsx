@@ -15,6 +15,7 @@ import {
   Badge,
   Box,
   Callout,
+  DatePicker,
   Grid,
   HStack,
   Skeleton,
@@ -28,13 +29,10 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
-import {
-  activeAdminPollingInterval,
-  generationPollingInterval,
-} from "../../shared/lib/polling";
+import { activeAdminPollingInterval } from "../../shared/lib/polling";
 import type { AdminListQuery } from "../../shared/lib/url-query";
 import {
   useAdminListPageCorrection,
@@ -145,26 +143,20 @@ function PeriodFilters({
 }) {
   return (
     <>
-      <TextField
-        type="date"
+      <DatePicker
         label="시작일 (KST)"
         value={query.from ?? ""}
-        onChange={(event) =>
-          replaceQuery({
-            from: event.currentTarget.value || undefined,
-            page: 1,
-          })
+        max={query.to}
+        onValueChange={(value) =>
+          replaceQuery({ from: value || undefined, page: 1 })
         }
       />
-      <TextField
-        type="date"
+      <DatePicker
         label="종료일 (KST)"
         value={query.to ?? ""}
-        onChange={(event) =>
-          replaceQuery({
-            to: event.currentTarget.value || undefined,
-            page: 1,
-          })
+        min={query.from}
+        onValueChange={(value) =>
+          replaceQuery({ to: value || undefined, page: 1 })
         }
       />
     </>
@@ -231,6 +223,7 @@ function JobsPanel({
   parsed: AdminListQuery;
   replaceQuery: ReplaceQuery;
 }) {
+  const navigate = useNavigate();
   const status = isOneOf(parsed.status, JOB_STATUSES)
     ? parsed.status
     : undefined;
@@ -255,7 +248,11 @@ function JobsPanel({
     }),
     placeholderData: keepPreviousData,
     refetchInterval: (query) =>
-      generationPollingInterval(query.state.data?.items),
+      activeAdminPollingInterval(
+        query.state.data?.items?.some((item) =>
+          ["queued", "processing"].includes(item.status),
+        ) ?? false,
+      ),
   });
   const statsQuery = useQuery({
     ...getAdminGenerationJobStatsOptions({ query: commonQuery }),
@@ -355,12 +352,9 @@ function JobsPanel({
                 { value: "succeeded", label: "성공" },
                 { value: "failed", label: "실패" },
               ]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceQuery({
-                  status:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  status: value === "all" ? undefined : value,
                   page: 1,
                 })
               }
@@ -373,12 +367,9 @@ function JobsPanel({
                 { value: "finalize", label: "원단 최종화" },
                 { value: "export", label: "파일 내보내기" },
               ]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceQuery({
-                  type:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  type: value === "all" ? undefined : value,
                   page: 1,
                 })
               }
@@ -394,7 +385,7 @@ function JobsPanel({
           >
             <TextField
               label="사용자 ID"
-              description="개인 식별자는 주소에 남기지 않고 메모리에서만 필터합니다."
+              placeholder="정확한 사용자 ID 입력"
               errorMessage={userError}
               value={userInput}
               onChange={(event) => setUserInput(event.currentTarget.value)}
@@ -449,6 +440,7 @@ function JobsPanel({
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/generation-logs/jobs/${row.id}`)}
         status={
           listQuery.isLoading
             ? "loading"
@@ -479,6 +471,7 @@ function SeamlessPanel({
   parsed: AdminListQuery;
   replaceQuery: ReplaceQuery;
 }) {
+  const navigate = useNavigate();
   const status = isOneOf(parsed.status, SEAMLESS_STATUSES)
     ? parsed.status
     : undefined;
@@ -594,12 +587,9 @@ function SeamlessPanel({
                 { value: "partial", label: "부분 성공" },
                 { value: "error", label: "오류" },
               ]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceQuery({
-                  status:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  status: value === "all" ? undefined : value,
                   page: 1,
                 })
               }
@@ -615,7 +605,7 @@ function SeamlessPanel({
           >
             <TextField
               label="request_id"
-              description="요청 추적용 안전 식별자를 정확히 입력합니다."
+              placeholder="정확한 request_id 입력"
               errorMessage={requestError}
               value={requestInput}
               maxLength={128}
@@ -671,6 +661,7 @@ function SeamlessPanel({
         columns={columns}
         rows={listQuery.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/generation-logs/seamless/${row.id}`)}
         status={
           listQuery.isLoading
             ? "loading"

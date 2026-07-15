@@ -15,6 +15,7 @@ import {
 import {
   ActionButton,
   AlertDialog,
+  Box,
   Callout,
   ContentPlaceholder,
   Grid,
@@ -27,7 +28,7 @@ import {
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import {
   formatDate,
@@ -149,6 +150,7 @@ function booleanLabel(value: boolean) {
 }
 
 export function CustomerDetailPage() {
+  const navigate = useNavigate();
   const { userId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -375,30 +377,30 @@ export function CustomerDetailPage() {
             alignItems="stretch"
             onSubmit={submitAdjustment}
           >
-            <HStack gap="x3" align="flex-end" wrap>
+            <Box maxWidth={240}>
               <TextField
                 type="number"
                 step={1}
                 label="조정 수량"
-                description="지급은 양수, 회수는 음수로 입력합니다."
+                placeholder="지급은 양수, 회수는 음수"
                 value={amount}
                 disabled={mutation.isPending}
                 onChange={(event) => setAmount(event.currentTarget.value)}
               />
-              <TextAreaField
-                label="처리 사유"
-                required
-                maxLength={500}
-                value={reason}
-                errorMessage={
-                  reason !== "" && reason.trim().length < 3
-                    ? "3자 이상 입력해 주세요."
-                    : undefined
-                }
-                disabled={mutation.isPending}
-                onChange={(event) => setReason(event.currentTarget.value)}
-              />
-            </HStack>
+            </Box>
+            <TextAreaField
+              label="처리 사유"
+              required
+              maxLength={500}
+              value={reason}
+              errorMessage={
+                reason !== "" && reason.trim().length < 3
+                  ? "3자 이상 입력해 주세요."
+                  : undefined
+              }
+              disabled={mutation.isPending}
+              onChange={(event) => setReason(event.currentTarget.value)}
+            />
             {mutation.isError && (
               <Callout
                 role="alert"
@@ -410,13 +412,15 @@ export function CustomerDetailPage() {
                 )}
               />
             )}
-            <ActionButton
-              type="submit"
-              loading={mutation.isPending}
-              disabled={!adjustmentValid}
-            >
-              조정 내용 확인
-            </ActionButton>
+            <HStack>
+              <ActionButton
+                type="submit"
+                loading={mutation.isPending}
+                disabled={!adjustmentValid}
+              >
+                조정 내용 확인
+              </ActionButton>
+            </HStack>
           </VStack>
         )}
       </AdminCard>
@@ -431,6 +435,7 @@ export function CustomerDetailPage() {
             columns={orderColumns}
             rows={orders.data?.items}
             getRowKey={(row) => row.id}
+            onRowClick={(row) => navigate(`/orders/${row.id}`)}
             status={
               orders.isLoading
                 ? "loading"
@@ -460,6 +465,7 @@ export function CustomerDetailPage() {
             columns={couponColumns}
             rows={coupons.data?.items}
             getRowKey={(row) => row.id}
+            onRowClick={(row) => navigate(`/coupons/${row.coupon_id}`)}
             status={
               coupons.isLoading
                 ? "loading"

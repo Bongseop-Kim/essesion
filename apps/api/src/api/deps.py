@@ -177,7 +177,3 @@ def verify_batch_token(creds: BearerDep, settings: SettingsDep) -> None:
 
 
 BatchAuth = Depends(verify_batch_token)
-
-
-async def get_user_by_id_for_update(session, user_id: uuid.UUID) -> User | None:
-    return await session.scalar(select(User).where(User.id == user_id).with_for_update())

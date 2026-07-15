@@ -1,25 +1,35 @@
 import uuid
 from typing import Literal
 
-from db.models.commerce import Claim, Order, OrderItem, ShippingAddress
+from db.models.commerce import Claim, Order, OrderItem, RepairShippingReceipt, ShippingAddress
 from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from api.db import SessionDep
 from api.deps import AdminUser, CurrentUser, ensure_owner
+from api.domains.images.service import (
+    ORDER_REFERENCE_IMAGE_TYPES,
+    get_linked_order_image,
+    get_repair_receipt_photo,
+    list_linked_order_images,
+    list_repair_receipt_photos,
+)
 from api.domains.orders import service
 from api.domains.orders.schemas import (
     AdminStatusUpdateRequest,
     AdminStatusUpdateResponse,
     AdminTrackingUpdateRequest,
+    ClaimBadgeOut,
     CustomAmountRequest,
     CustomAmountResponse,
     CustomOrderCreateRequest,
     OrderCreateRequest,
     OrderCreateResponse,
     OrderDetailOut,
+    OrderImageReadUrlOut,
     OrderItemOut,
     OrderOut,
+    OrderReferenceImageOut,
     OrderShippingAddressOut,
     RepairNoTrackingRequest,
     RepairTrackingRequest,
@@ -28,7 +38,8 @@ from api.domains.orders.schemas import (
     SampleOrderCreateRequest,
     SingleOrderCreateResponse,
 )
-from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES, customer_actions
+from api.domains.orders.status_machine import customer_actions
+from api.errors import NotFoundError
 
 router = APIRouter(tags=["orders"])
 
@@ -84,17 +95,6 @@ async def calculate_sample_order(
     )
 
 
-async def _active_claim_order_ids(session, order_ids: list[uuid.UUID]) -> set[uuid.UUID]:
-    if not order_ids:
-        return set()
-    rows = await session.scalars(
-        select(Claim.order_id).where(
-            Claim.order_id.in_(order_ids), Claim.status.in_(ACTIVE_CLAIM_STATUSES)
-        )
-    )
-    return set(rows)
-
-
 @router.get("/orders", response_model=list[OrderOut])
 async def list_my_orders(
     session: SessionDep,
@@ -106,7 +106,12 @@ async def list_my_orders(
         query = query.where(Order.order_type == order_type)
     orders = (await session.scalars(query)).all()
     order_ids = [order.id for order in orders]
-    with_claims = await _active_claim_order_ids(session, order_ids)
+    claims = (
+        (await session.scalars(select(Claim).where(Claim.order_id.in_(order_ids)))).all()
+        if order_ids
+        else []
+    )
+    claim_context = service.claim_read_model(claims)
     items_by_order: dict[uuid.UUID, list[OrderItemOut]] = {}
     if order_ids:
         items = await session.scalars(
@@ -115,13 +120,25 @@ async def list_my_orders(
             .order_by(OrderItem.created_at)
         )
         for item in items:
-            items_by_order.setdefault(item.order_id, []).append(OrderItemOut.model_validate(item))
+            item_out = OrderItemOut.model_validate(item)
+            item_claim = claim_context.by_item.get(item.id)
+            if item_claim is not None:
+                item_out.claim = ClaimBadgeOut.model_validate(item_claim)
+            items_by_order.setdefault(item.order_id, []).append(item_out)
     results = []
     for order in orders:
         out = OrderOut.model_validate(order)
         out.items = items_by_order.get(order.id, [])
+        summary_claim = claim_context.by_order.get(order.id)
+        if summary_claim is not None:
+            out.claim_summary = ClaimBadgeOut.model_validate(summary_claim)
         out.customer_actions = customer_actions(
-            order.order_type, order.status, has_active_claim=order.id in with_claims
+            order.order_type,
+            order.status,
+            has_blocking_claim=(
+                order.id in claim_context.active_order_ids
+                or order.id in claim_context.completed_cancel_order_ids
+            ),
         )
         results.append(out)
     return results
@@ -137,9 +154,19 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
             select(OrderItem).where(OrderItem.order_id == order.id).order_by(OrderItem.created_at)
         )
     ).all()
-    has_claim = bool(await _active_claim_order_ids(session, [order.id]))
+    claims = (await session.scalars(select(Claim).where(Claim.order_id == order.id))).all()
+    claim_context = service.claim_read_model(claims)
     out = OrderDetailOut.model_validate(order)
-    out.items = [OrderItemOut.model_validate(i) for i in items]
+    out.items = []
+    for item in items:
+        item_out = OrderItemOut.model_validate(item)
+        item_claim = claim_context.by_item.get(item.id)
+        if item_claim is not None:
+            item_out.claim = ClaimBadgeOut.model_validate(item_claim)
+        out.items.append(item_out)
+    summary_claim = claim_context.by_order.get(order.id)
+    if summary_claim is not None:
+        out.claim_summary = ClaimBadgeOut.model_validate(summary_claim)
     if order.shipping_address_snapshot:
         out.shipping_address = OrderShippingAddressOut.model_validate(
             order.shipping_address_snapshot
@@ -149,10 +176,120 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         address = await session.get(ShippingAddress, order.shipping_address_id)
         if address is not None:
             out.shipping_address = OrderShippingAddressOut.model_validate(address)
+    if order.order_type == "repair":
+        out.repair_pickup, out.repair_receipts = await service.repair_shipping_read_model(
+            session, order.id
+        )
     out.customer_actions = customer_actions(
-        order.order_type, order.status, has_active_claim=has_claim
+        order.order_type,
+        order.status,
+        has_blocking_claim=(
+            order.id in claim_context.active_order_ids
+            or order.id in claim_context.completed_cancel_order_ids
+        ),
     )
     return out
+
+
+@router.get(
+    "/orders/{order_id}/reference-images",
+    response_model=list[OrderReferenceImageOut],
+)
+async def list_my_order_reference_images(
+    order_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> list[OrderReferenceImageOut]:
+    order = await session.get(Order, order_id)
+    ensure_owner(order, user)
+    images = await list_linked_order_images(session, order_id, ORDER_REFERENCE_IMAGE_TYPES)
+    return [
+        OrderReferenceImageOut(
+            id=image.id,
+            content_type=image.content_type,
+            size_bytes=image.size_bytes,
+            created_at=image.created_at,
+        )
+        for image in images
+    ]
+
+
+@router.post(
+    "/orders/{order_id}/reference-images/{image_id}/read-url",
+    response_model=OrderImageReadUrlOut,
+)
+async def create_my_order_reference_image_read_url(
+    order_id: uuid.UUID,
+    image_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> OrderImageReadUrlOut:
+    order = await session.get(Order, order_id)
+    ensure_owner(order, user)
+    image = await get_linked_order_image(session, order_id, image_id, ORDER_REFERENCE_IMAGE_TYPES)
+    return OrderImageReadUrlOut(
+        read_url=await request.app.state.gcs.signed_read_url(image.object_key)
+    )
+
+
+async def _owned_repair_receipt(
+    session: SessionDep,
+    user: CurrentUser,
+    order_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+) -> RepairShippingReceipt:
+    order = await session.get(Order, order_id)
+    ensure_owner(order, user)
+    receipt = await session.scalar(
+        select(RepairShippingReceipt).where(
+            RepairShippingReceipt.id == receipt_id,
+            RepairShippingReceipt.order_id == order_id,
+        )
+    )
+    if receipt is None:
+        raise NotFoundError("수선 발송 접수를 찾을 수 없습니다")
+    return receipt
+
+
+@router.get(
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos",
+    response_model=list[OrderReferenceImageOut],
+)
+async def list_my_repair_receipt_photos(
+    order_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> list[OrderReferenceImageOut]:
+    receipt = await _owned_repair_receipt(session, user, order_id, receipt_id)
+    images = await list_repair_receipt_photos(session, receipt)
+    return [
+        OrderReferenceImageOut(
+            id=image.id,
+            content_type=image.content_type,
+            size_bytes=image.size_bytes,
+            created_at=image.created_at,
+        )
+        for image in images
+    ]
+
+
+@router.post(
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos/{image_id}/read-url",
+    response_model=OrderImageReadUrlOut,
+)
+async def create_my_repair_receipt_photo_read_url(
+    order_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    image_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> OrderImageReadUrlOut:
+    receipt = await _owned_repair_receipt(session, user, order_id, receipt_id)
+    image = await get_repair_receipt_photo(session, receipt, image_id)
+    return OrderImageReadUrlOut(
+        read_url=await request.app.state.gcs.signed_read_url(image.object_key)
+    )
 
 
 @router.post("/orders/{order_id}/confirm-purchase", response_model=OrderOut)

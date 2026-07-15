@@ -63,6 +63,36 @@ describe("AdminTable", () => {
     expect(onSort).toHaveBeenCalledWith({ key: "id", direction: "desc" });
   });
 
+  it("row 클릭은 내비게이션을 호출하되 내부 인터랙티브 요소 클릭은 무시한다", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const linkColumns: readonly AdminTableColumn<Row>[] = [
+      {
+        key: "id",
+        header: "주문 번호",
+        render: (row) => <a href={`/orders/${row.id}`}>{row.id}</a>,
+      },
+      ...columns.slice(1),
+    ];
+    render(
+      <AdminTable
+        label="주문 목록"
+        columns={linkColumns}
+        rows={[{ id: "ORDER-1", amount: 10000 }]}
+        getRowKey={(row) => row.id}
+        status="success"
+        onRowClick={onRowClick}
+      />,
+    );
+
+    await user.click(screen.getByText("10000"));
+    expect(onRowClick).toHaveBeenCalledWith({ id: "ORDER-1", amount: 10000 });
+
+    onRowClick.mockClear();
+    await user.click(screen.getByRole("link", { name: "ORDER-1" }));
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it("loading·empty·error 상태를 서로 다른 문구로 표시한다", () => {
     const { rerender } = render(
       <AdminTable

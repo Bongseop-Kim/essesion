@@ -12,6 +12,10 @@ import {
   Grid,
   HStack,
   snackbar,
+  TabContent,
+  TabList,
+  Tabs,
+  TabTrigger,
   Text,
   TextAreaField,
   TextField,
@@ -20,15 +24,67 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  formatDateTime,
-  formatMoney,
-  getErrorMessage,
-} from "../shared/lib/format";
+import { getErrorMessage } from "../shared/lib/format";
 import { useDirtyFormBlocker } from "../shared/lib/use-dirty-form-blocker";
 import { useAdminSession } from "../shared/session/admin-session";
 import { AdminCard } from "../shared/ui/admin-card";
 import { RouteHeading } from "../shared/ui/route-heading";
+
+const CATEGORY_TABS = [
+  { value: "reform", label: "수선" },
+  { value: "custom_order", label: "주문제작" },
+  { value: "fabric", label: "원단" },
+  { value: "sample_discount", label: "샘플 할인" },
+  { value: "token", label: "토큰" },
+] as const;
+
+// 라벨 원문: YeongSeon admin pricing-form의 CONSTANT_LABELS·SAMPLE_COUPON_LABELS
+const PRICING_LABELS: Record<string, string> = {
+  REFORM_AUTOMATIC_COST: "자동수선 비용",
+  REFORM_WIDTH_COST: "폭수선 비용",
+  REFORM_RESTORATION_COST: "복원수선 비용",
+  REFORM_AUTOMATIC_COMBINED_COST: "자동+폭·복원 결합 비용",
+  REFORM_WIDTH_RESTORATION_COST: "폭+복원 결합 비용",
+  REFORM_SHIPPING_COST: "수선 택배비",
+  REFORM_PICKUP_FEE: "방문 수거비",
+  START_COST: "봉제 시작 비용 (기본 세팅비)",
+  SEWING_PER_COST: "봉제 단가",
+  AUTO_TIE_COST: "자동 타이",
+  TRIANGLE_STITCH_COST: "삼각 봉제",
+  SIDE_STITCH_COST: "옆선 봉제",
+  BAR_TACK_COST: "바택",
+  DIMPLE_COST: "딤플",
+  SPODERATO_COST: "스포데라토",
+  FOLD7_COST: "7폴드",
+  WOOL_INTERLINING_COST: "울 심지 추가",
+  BRAND_LABEL_COST: "브랜드 라벨",
+  CARE_LABEL_COST: "케어 라벨",
+  YARN_DYED_DESIGN_COST: "선염 디자인 비용",
+  FABRIC_PRINTING_POLY: "날염 원단 (폴리)",
+  FABRIC_PRINTING_SILK: "날염 원단 (실크)",
+  FABRIC_YARN_DYED_POLY: "선염 원단 (폴리)",
+  FABRIC_YARN_DYED_SILK: "선염 원단 (실크)",
+  SAMPLE_SEWING_COST: "봉제 샘플",
+  SAMPLE_FABRIC_PRINTING_COST: "원단 샘플 (날염)",
+  SAMPLE_FABRIC_YARN_DYED_COST: "원단 샘플 (선염)",
+  SAMPLE_FABRIC_AND_SEWING_PRINTING_COST: "원단+봉제 샘플 (날염)",
+  SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST: "원단+봉제 샘플 (선염)",
+  sample_discount_sewing: "봉제 샘플 할인",
+  sample_discount_fabric_printing: "원단 샘플 (날염) 할인",
+  sample_discount_fabric_yarn_dyed: "원단 샘플 (선염) 할인",
+  sample_discount_fabric_and_sewing_printing: "원단+봉제 샘플 (날염) 할인",
+  sample_discount_fabric_and_sewing_yarn_dyed: "원단+봉제 샘플 (선염) 할인",
+  token_plan_starter_price: "Starter 플랜 가격",
+  token_plan_starter_amount: "Starter 플랜 토큰 수량",
+  token_plan_popular_price: "Popular 플랜 가격",
+  token_plan_popular_amount: "Popular 플랜 토큰 수량",
+  token_plan_pro_price: "Pro 플랜 가격",
+  token_plan_pro_amount: "Pro 플랜 토큰 수량",
+};
+
+function pricingLabel(key: string) {
+  return PRICING_LABELS[key] ?? key;
+}
 
 function newOperationId() {
   return crypto.randomUUID();
@@ -49,6 +105,7 @@ export function PricingPage() {
   const [reason, setReason] = useState("");
   const [operationId, setOperationId] = useState(newOperationId);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [tab, setTab] = useState<string>(CATEGORY_TABS[0].value);
 
   const changed = useMemo(
     () =>
@@ -156,40 +213,45 @@ export function PricingPage() {
           description="가격 변경은 admin 역할만 실행할 수 있습니다."
         />
       )}
-      {Object.entries(groups).map(([category, items]) => (
-        <AdminCard key={category} title={category}>
-          <Grid columns={{ base: 1, md: 2 }} gap="x4">
-            {items.map((item) => (
-              <VStack key={item.key} gap="x1_5" minWidth={0}>
-                <TextField
-                  type="number"
-                  min={0}
-                  max={1_000_000_000}
-                  step={1}
-                  label={item.key}
-                  description={`${item.description} · ${formatDateTime(item.updated_at)}`}
-                  suffix={item.unit}
-                  value={draft[item.key] ?? String(item.amount)}
-                  disabled={!canEdit || mutation.isPending}
-                  onChange={(event) => {
-                    const value = event.currentTarget.value;
-                    setDraft((current) => ({
-                      ...current,
-                      [item.key]: value,
-                    }));
-                  }}
-                />
-                <Text textStyle="caption" color="fg.neutral-muted">
-                  현재{" "}
-                  {item.unit === "원"
-                    ? formatMoney(item.amount)
-                    : `${item.amount}개`}
-                </Text>
-              </VStack>
-            ))}
-          </Grid>
-        </AdminCard>
-      ))}
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabList aria-label="가격 분류 선택" triggerLayout="fill">
+          {CATEGORY_TABS.map((category) => (
+            <TabTrigger key={category.value} value={category.value}>
+              {category.label}
+            </TabTrigger>
+          ))}
+        </TabList>
+        {CATEGORY_TABS.map((category) => (
+          <TabContent key={category.value} value={category.value}>
+            <VStack pt="x5" alignItems="stretch">
+              <AdminCard title={`${category.label} 가격`}>
+                <Grid columns={{ base: 1, md: 2 }} gap="x4">
+                  {(groups[category.value] ?? []).map((item) => (
+                    <TextField
+                      key={item.key}
+                      type="number"
+                      min={0}
+                      max={1_000_000_000}
+                      step={1}
+                      label={pricingLabel(item.key)}
+                      suffix={item.unit}
+                      value={draft[item.key] ?? String(item.amount)}
+                      disabled={!canEdit || mutation.isPending}
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        setDraft((current) => ({
+                          ...current,
+                          [item.key]: value,
+                        }));
+                      }}
+                    />
+                  ))}
+                </Grid>
+              </AdminCard>
+            </VStack>
+          </TabContent>
+        ))}
+      </Tabs>
 
       {canEdit && (
         <AdminCard title="변경 확인" description={`operation ${operationId}`}>
@@ -200,7 +262,8 @@ export function PricingPage() {
               <VStack as="ul" gap="x2">
                 {changed.map((item) => (
                   <Text as="li" key={item.key} textStyle="bodySm">
-                    {item.key}: {item.amount} → {draft[item.key]} {item.unit}
+                    {pricingLabel(item.key)}: {item.amount} → {draft[item.key]}{" "}
+                    {item.unit}
                   </Text>
                 ))}
               </VStack>

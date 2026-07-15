@@ -44,6 +44,18 @@ export function formatIdentifier(value: string | number | null | undefined) {
     : String(value);
 }
 
+export function formatOrderType(value: string) {
+  return (
+    {
+      sale: "일반",
+      custom: "주문 제작",
+      repair: "수선",
+      token: "토큰",
+      sample: "샘플",
+    }[value] ?? value
+  );
+}
+
 export function formatFileSize(value: number | null, unknownLabel = "-") {
   if (value === null) return unknownLabel;
   if (value < 1_024) return `${value.toLocaleString("ko-KR")}B`;

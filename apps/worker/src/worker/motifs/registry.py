@@ -72,11 +72,6 @@ def iter_motif_ids(raw: object) -> set[str]:
     return ids
 
 
-def clear_registry() -> None:
-    """테스트 전용 — 프로세스 상태 격리."""
-    _REGISTRY.clear()
-
-
 def slot_render_symbols(motif: MotifDef) -> list[tuple[str, str]]:
     """슬롯별 colorway-agnostic 심볼 파생 (worker-engine.md §6).
 

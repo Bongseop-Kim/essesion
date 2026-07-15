@@ -2,10 +2,10 @@ import type { PaymentIncidentSummaryOut } from "@essesion/api-client";
 import { adminListPaymentIncidentsOptions } from "@essesion/api-client/query";
 import { HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
-import { incidentPollingInterval } from "../../shared/lib/polling";
+import { activeAdminPollingInterval } from "../../shared/lib/polling";
 import {
   useAdminListPageCorrection,
   useAdminListUrlState,
@@ -96,6 +96,7 @@ const columns: readonly AdminTableColumn<PaymentIncidentSummaryOut>[] = [
 ];
 
 export function IncidentsPage() {
+  const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: INCIDENT_SORTS,
     allowedStatuses: INCIDENT_STATUSES,
@@ -122,7 +123,10 @@ export function IncidentsPage() {
     }),
     placeholderData: keepPreviousData,
     refetchInterval: (query) =>
-      incidentPollingInterval(query.state.data?.items),
+      activeAdminPollingInterval(
+        query.state.data?.items?.some((item) => item.status === "open") ??
+          false,
+      ),
   });
 
   const totalPages = Math.max(
@@ -150,9 +154,7 @@ export function IncidentsPage() {
             label="이상 유형"
             value={incidentType}
             options={INCIDENT_TYPES}
-            onChange={(event) =>
-              replaceQuery({ type: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
           />
           <FilterSelect
             label="상태"
@@ -162,9 +164,7 @@ export function IncidentsPage() {
               { value: "open", label: "미해결" },
               { value: "resolved", label: "해결" },
             ]}
-            onChange={(event) =>
-              replaceQuery({ status: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ status: value, page: 1 })}
           />
           <DateRangeFilters
             from={parsed.from}
@@ -182,6 +182,7 @@ export function IncidentsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/incidents/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

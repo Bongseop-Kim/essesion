@@ -94,12 +94,6 @@ variable "api_extra_env" {
   default     = {}
 }
 
-variable "worker_extra_env" {
-  description = "worker 두 서비스 공통 추가 env (비시크릿)"
-  type        = map(string)
-  default     = {}
-}
-
 variable "upload_cors_origins" {
   description = "GCS 사용자 업로드를 허용할 store origin"
   type        = list(string)

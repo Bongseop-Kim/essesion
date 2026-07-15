@@ -1811,6 +1811,16 @@
             "title": "Admin Actions",
             "type": "array"
           },
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "company_courier_company": {
             "anyOf": [
               {
@@ -1933,6 +1943,23 @@
               "$ref": "#/components/schemas/AdminRelatedOrderOut"
             },
             "title": "Related Orders",
+            "type": "array"
+          },
+          "repair_pickup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RepairPickupOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repair_receipts": {
+            "items": {
+              "$ref": "#/components/schemas/RepairShippingReceiptOut"
+            },
+            "title": "Repair Receipts",
             "type": "array"
           },
           "shipped_at": {
@@ -2144,6 +2171,16 @@
             },
             "title": "Admin Actions",
             "type": "array"
+          },
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "format": "date-time",
@@ -4145,6 +4182,29 @@
           "items"
         ],
         "title": "CartReplaceRequest",
+        "type": "object"
+      },
+      "ClaimBadgeOut": {
+        "properties": {
+          "claim_number": {
+            "title": "Claim Number",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_number",
+          "type",
+          "status"
+        ],
+        "title": "ClaimBadgeOut",
         "type": "object"
       },
       "ClaimCreateRequest": {
@@ -6683,6 +6743,341 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "ManualAutomaticSpec": {
+        "additionalProperties": false,
+        "description": "자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름).",
+        "properties": {
+          "dimple": {
+            "default": false,
+            "title": "Dimple",
+            "type": "boolean"
+          },
+          "mechanism": {
+            "enum": [
+              "zipper",
+              "string"
+            ],
+            "title": "Mechanism",
+            "type": "string"
+          },
+          "total_length_cm": {
+            "exclusiveMinimum": 0.0,
+            "title": "Total Length Cm",
+            "type": "number"
+          },
+          "turn_knot": {
+            "default": false,
+            "title": "Turn Knot",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mechanism",
+          "total_length_cm"
+        ],
+        "title": "ManualAutomaticSpec",
+        "type": "object"
+      },
+      "ManualOrderCreateRequest": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amount": {
+            "minimum": 0.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "customer_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "is_confirmed": {
+            "default": false,
+            "title": "Is Confirmed",
+            "type": "boolean"
+          },
+          "is_paid": {
+            "default": false,
+            "title": "Is Paid",
+            "type": "boolean"
+          },
+          "is_received": {
+            "default": false,
+            "title": "Is Received",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManualOrderItem"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "phone": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Phone",
+            "type": "string"
+          },
+          "shipping_fee": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Shipping Fee",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_date",
+          "customer_name",
+          "phone",
+          "amount",
+          "items"
+        ],
+        "title": "ManualOrderCreateRequest",
+        "type": "object"
+      },
+      "ManualOrderItem": {
+        "additionalProperties": false,
+        "description": "품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태.",
+        "properties": {
+          "automatic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManualAutomaticSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Note",
+            "type": "string"
+          },
+          "quantity": {
+            "maximum": 999.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "restoration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestorationReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "width": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WidthReform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quantity"
+        ],
+        "title": "ManualOrderItem",
+        "type": "object"
+      },
+      "ManualOrderOut": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_confirmed": {
+            "title": "Is Confirmed",
+            "type": "boolean"
+          },
+          "is_paid": {
+            "title": "Is Paid",
+            "type": "boolean"
+          },
+          "is_received": {
+            "title": "Is Received",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManualOrderItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "shipping_fee": {
+            "title": "Shipping Fee",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_date",
+          "customer_name",
+          "phone",
+          "address",
+          "amount",
+          "shipping_fee",
+          "is_received",
+          "is_paid",
+          "is_confirmed",
+          "items",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ManualOrderOut",
+        "type": "object"
+      },
+      "ManualOrderUpdateRequest": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "amount": {
+            "minimum": 0.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "customer_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "expected_updated_at": {
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
+          "is_confirmed": {
+            "default": false,
+            "title": "Is Confirmed",
+            "type": "boolean"
+          },
+          "is_paid": {
+            "default": false,
+            "title": "Is Paid",
+            "type": "boolean"
+          },
+          "is_received": {
+            "default": false,
+            "title": "Is Received",
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManualOrderItem"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "order_date": {
+            "format": "date",
+            "title": "Order Date",
+            "type": "string"
+          },
+          "phone": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Phone",
+            "type": "string"
+          },
+          "shipping_fee": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Shipping Fee",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_date",
+          "customer_name",
+          "phone",
+          "amount",
+          "items",
+          "expected_updated_at"
+        ],
+        "title": "ManualOrderUpdateRequest",
+        "type": "object"
+      },
       "MeResponse": {
         "properties": {
           "birth": {
@@ -7431,6 +7826,16 @@
       },
       "OrderDetailOut": {
         "properties": {
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "company_courier_company": {
             "anyOf": [
               {
@@ -7550,6 +7955,23 @@
             ],
             "title": "Payment Group Id"
           },
+          "repair_pickup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RepairPickupOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repair_receipts": {
+            "items": {
+              "$ref": "#/components/schemas/RepairShippingReceiptOut"
+            },
+            "title": "Repair Receipts",
+            "type": "array"
+          },
           "shipped_at": {
             "anyOf": [
               {
@@ -7640,6 +8062,19 @@
           "updated_at"
         ],
         "title": "OrderDetailOut",
+        "type": "object"
+      },
+      "OrderImageReadUrlOut": {
+        "properties": {
+          "read_url": {
+            "title": "Read Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "read_url"
+        ],
+        "title": "OrderImageReadUrlOut",
         "type": "object"
       },
       "OrderImageUploadOut": {
@@ -7770,6 +8205,16 @@
             ],
             "title": "Applied User Coupon Id"
           },
+          "claim": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "discount_amount": {
             "title": "Discount Amount",
             "type": "integer"
@@ -7852,6 +8297,16 @@
       },
       "OrderOut": {
         "properties": {
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "company_courier_company": {
             "anyOf": [
               {
@@ -8065,6 +8520,50 @@
           "upload_id"
         ],
         "title": "OrderReferenceImageIn",
+        "type": "object"
+      },
+      "OrderReferenceImageOut": {
+        "properties": {
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          }
+        },
+        "required": [
+          "id",
+          "content_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "title": "OrderReferenceImageOut",
         "type": "object"
       },
       "OrderShippingAddressOut": {
@@ -8538,6 +9037,37 @@
           "offset"
         ],
         "title": "Page[IssuedCouponOut]",
+        "type": "object"
+      },
+      "Page_ManualOrderOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManualOrderOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[ManualOrderOut]",
         "type": "object"
       },
       "Page_MotifSummaryOut_": {
@@ -14438,6 +14968,305 @@
         ]
       }
     },
+    "/admin/manual-orders": {
+      "get": {
+        "operationId": "list_manual_orders",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ManualOrderOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Manual Orders",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      },
+      "post": {
+        "operationId": "create_manual_order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualOrderCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Manual Order",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      }
+    },
+    "/admin/manual-orders/{manual_order_id}": {
+      "delete": {
+        "operationId": "delete_manual_order",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "manual_order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Manual Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Manual Order",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      },
+      "get": {
+        "operationId": "get_manual_order",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "manual_order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Manual Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Manual Order",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      },
+      "put": {
+        "operationId": "update_manual_order",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "manual_order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Manual Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualOrderUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Manual Order",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      }
+    },
     "/admin/motifs": {
       "get": {
         "operationId": "list_admin_motifs",
@@ -18988,6 +19817,116 @@
         ]
       }
     },
+    "/orders/{order_id}/reference-images": {
+      "get": {
+        "operationId": "list_my_order_reference_images",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrderReferenceImageOut"
+                  },
+                  "title": "Response List My Order Reference Images",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List My Order Reference Images",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{order_id}/reference-images/{image_id}/read-url": {
+      "post": {
+        "operationId": "create_my_order_reference_image_read_url",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderImageReadUrlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create My Order Reference Image Read Url",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/orders/{order_id}/repair-no-tracking": {
       "post": {
         "operationId": "submit_repair_no_tracking",
@@ -19041,6 +19980,136 @@
           }
         ],
         "summary": "Submit Repair No Tracking",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos": {
+      "get": {
+        "operationId": "list_my_repair_receipt_photos",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrderReferenceImageOut"
+                  },
+                  "title": "Response List My Repair Receipt Photos",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List My Repair Receipt Photos",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos/{image_id}/read-url": {
+      "post": {
+        "operationId": "create_my_repair_receipt_photo_read_url",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderImageReadUrlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create My Repair Receipt Photo Read Url",
         "tags": [
           "orders"
         ]

@@ -1,15 +1,18 @@
 """주문 참고 이미지의 스테이징·완료·귀속 규칙."""
 
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Literal
 
 from db.models.auth import User
+from db.models.commerce import RepairShippingReceipt
 from db.models.images import Image
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
-from api.errors import ConflictError, DomainError
+from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.gcs import GcsClient
 
 OrderImageKind = Literal["custom_order", "sample_order"]
@@ -20,6 +23,13 @@ ORDER_UPLOAD_ENTITY_TYPES: dict[OrderImageKind, str] = {
     "custom_order": "custom_order_upload",
     "sample_order": "sample_order_upload",
 }
+ORDER_REFERENCE_IMAGE_TYPES = ("custom_order", "sample_order")
+ADMIN_ORDER_IMAGE_TYPES = (*ORDER_REFERENCE_IMAGE_TYPES, "reform")
+REPAIR_IMAGE_PREFIX = "uploads/repair_shipping_upload/"
+
+
+def _unexpired_image(now: datetime) -> ColumnElement[bool]:
+    return or_(Image.expires_at.is_(None), Image.expires_at > now)
 
 
 def order_upload_entity_type(kind: OrderImageKind) -> str:
@@ -109,3 +119,101 @@ def link_order_images(images: list[Image], kind: OrderImageKind, order_id: uuid.
         image.entity_type = kind
         image.entity_id = str(order_id)
         image.expires_at = None
+
+
+async def list_linked_order_images(
+    session: AsyncSession,
+    order_id: uuid.UUID,
+    entity_types: Sequence[str],
+) -> list[Image]:
+    now = datetime.now(UTC)
+    return list(
+        await session.scalars(
+            select(Image)
+            .where(
+                Image.entity_type.in_(entity_types),
+                Image.entity_id == str(order_id),
+                Image.upload_completed_at.is_not(None),
+                Image.deleted_at.is_(None),
+                _unexpired_image(now),
+            )
+            .order_by(Image.created_at.asc(), Image.id.asc())
+        )
+    )
+
+
+async def get_linked_order_image(
+    session: AsyncSession,
+    order_id: uuid.UUID,
+    image_id: uuid.UUID,
+    entity_types: Sequence[str],
+) -> Image:
+    now = datetime.now(UTC)
+    image = await session.scalar(
+        select(Image).where(
+            Image.id == image_id,
+            Image.entity_type.in_(entity_types),
+            Image.entity_id == str(order_id),
+            Image.upload_completed_at.is_not(None),
+            Image.deleted_at.is_(None),
+            _unexpired_image(now),
+        )
+    )
+    if image is None:
+        raise NotFoundError("주문 이미지를 찾을 수 없습니다")
+    return image
+
+
+def repair_receipt_photo_keys(receipt: RepairShippingReceipt) -> list[str]:
+    return [
+        key
+        for value in receipt.photos or []
+        if isinstance(value, dict)
+        and isinstance(key := value.get("object_key"), str)
+        and key.startswith(REPAIR_IMAGE_PREFIX)
+    ]
+
+
+async def list_repair_receipt_photos(
+    session: AsyncSession, receipt: RepairShippingReceipt
+) -> list[Image]:
+    keys = repair_receipt_photo_keys(receipt)
+    if not keys:
+        return []
+    now = datetime.now(UTC)
+    images = list(
+        await session.scalars(
+            select(Image).where(
+                Image.entity_type == "repair_shipping",
+                Image.entity_id == str(receipt.order_id),
+                Image.object_key.in_(keys),
+                Image.upload_completed_at.is_not(None),
+                Image.deleted_at.is_(None),
+                _unexpired_image(now),
+            )
+        )
+    )
+    by_key = {image.object_key: image for image in images}
+    return [image for key in keys if (image := by_key.get(key)) is not None]
+
+
+async def get_repair_receipt_photo(
+    session: AsyncSession,
+    receipt: RepairShippingReceipt,
+    image_id: uuid.UUID,
+) -> Image:
+    now = datetime.now(UTC)
+    image = await session.scalar(
+        select(Image).where(
+            Image.id == image_id,
+            Image.entity_type == "repair_shipping",
+            Image.entity_id == str(receipt.order_id),
+            Image.object_key.in_(repair_receipt_photo_keys(receipt)),
+            Image.upload_completed_at.is_not(None),
+            Image.deleted_at.is_(None),
+            _unexpired_image(now),
+        )
+    )
+    if image is None or not image.object_key.startswith(REPAIR_IMAGE_PREFIX):
+        raise NotFoundError("수선 발송 사진을 찾을 수 없습니다")
+    return image

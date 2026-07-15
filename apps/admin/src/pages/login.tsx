@@ -71,13 +71,7 @@ export function LoginPage() {
               description="승인된 ESSE SION 운영 계정으로 로그인해 주세요."
             />
 
-            {state.status === "unavailable" ? (
-              <Callout
-                tone="informative"
-                title="관리자 인증 API 연결 대기"
-                description="관리자 인증 서비스를 사용할 수 없어 접근을 허용하지 않습니다."
-              />
-            ) : state.status === "error" ? (
+            {state.status === "error" ? (
               <Callout
                 tone="critical"
                 title="세션을 확인하지 못했습니다"

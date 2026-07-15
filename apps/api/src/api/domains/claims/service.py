@@ -62,6 +62,21 @@ async def create_claim(session: AsyncSession, user: User, body: ClaimCreateReque
     if order is None:
         raise NotFoundError("Order not found")
 
+    completed_cancel = await session.scalar(
+        select(
+            exists().where(
+                Claim.order_id == order.id,
+                Claim.type == "cancel",
+                Claim.status == "완료",
+            )
+        )
+    )
+    if completed_cancel:
+        raise DomainError(
+            "완료된 취소 클레임이 있는 주문은 새 클레임을 신청할 수 없습니다",
+            code="completed_cancel_claim",
+        )
+
     if body.type == "cancel":
         if order.status not in CLAIM_CANCEL_ACTION_FROM.get(order.order_type, set()):
             raise DomainError("현재 주문 상태에서는 취소할 수 없습니다", code="invalid_status")

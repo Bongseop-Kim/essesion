@@ -3,7 +3,7 @@ import { adminListClaimsV2Options } from "@essesion/api-client/query";
 import { HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import {
@@ -104,6 +104,7 @@ const columns: readonly AdminTableColumn<AdminClaimSummaryOut>[] = [
 ];
 
 export function ClaimsPage() {
+  const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: CLAIM_SORTS,
     allowedStatuses: CLAIM_STATUSES,
@@ -156,7 +157,7 @@ export function ClaimsPage() {
         <VStack gap="x4" alignItems="stretch">
           <SubmittedMemorySearch
             label="클레임번호 검색"
-            description="2자 이상 입력해 주세요. 검색어는 URL에 저장하지 않습니다."
+            placeholder="2자 이상 입력"
             maxLength={64}
             onSubmit={(value) => {
               setSearch(value);
@@ -168,9 +169,7 @@ export function ClaimsPage() {
               label="클레임 유형"
               value={claimType}
               options={CLAIM_TYPES}
-              onChange={(event) =>
-                replaceQuery({ type: event.currentTarget.value, page: 1 })
-              }
+              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
             />
             <FilterSelect
               label="상태"
@@ -179,8 +178,8 @@ export function ClaimsPage() {
                 value,
                 label: value === "all" ? "전체" : value,
               }))}
-              onChange={(event) =>
-                replaceQuery({ status: event.currentTarget.value, page: 1 })
+              onValueChange={(value) =>
+                replaceQuery({ status: value, page: 1 })
               }
             />
             <DateRangeFilters
@@ -200,6 +199,7 @@ export function ClaimsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/claims/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

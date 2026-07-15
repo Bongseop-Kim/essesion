@@ -1,14 +1,13 @@
 """stage-0 intent 검증·repair 계약 — 원본 seamless-tile tests/test_intent.py 전량 이식.
 
 worker.engine.validate(IntentInvalid, validate_intent) · worker.engine.intent(ScatterSpec) ·
-worker.engine.determinism(ReproMeta, seeded_rng, sorted_layers) · worker.engine.seamless로 매핑.
+worker.engine.seamless로 매핑.
 """
 
 import copy
 
 import pytest
 from pydantic import ValidationError
-from worker.engine.determinism import ReproMeta, seeded_rng, sorted_layers
 from worker.engine.intent import ScatterSpec, StripeLayer, StripeParams
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import IntentInvalid, ValidationResult, validate_intent
@@ -235,9 +234,11 @@ def test_unknown_top_level_field_rejected():
 
 def test_layer_order_is_stable_and_deterministic():
     result = validate_intent(mvp_intent())
-    order = [layer.id for layer in sorted_layers(result.intent.layers)]
+    ordered = sorted(result.intent.layers, key=lambda layer: (layer.z_order, layer.id))
+    order = [layer.id for layer in ordered]
     assert order == ["ground", "stripe_base", "circle_on_stripe", "bee_on_stripe"]
-    assert order == [layer.id for layer in sorted_layers(result.intent.layers)]
+    ordered_again = sorted(result.intent.layers, key=lambda layer: (layer.z_order, layer.id))
+    assert order == [layer.id for layer in ordered_again]
 
 
 def test_validation_does_not_mutate_input():
@@ -252,16 +253,6 @@ def test_color_resolution_is_repeatable_and_colorway_aware():
     palette = result.palette
     assert palette.resolve_color("accent", "default") == "#ef8a7a"
     assert palette.resolve_color("accent", None) == palette.resolve_color("accent", "default")
-
-
-def test_seeded_rng_is_deterministic():
-    assert seeded_rng(7).random() == seeded_rng(7).random()
-
-
-def test_repro_meta_carries_versions():
-    meta = ReproMeta(intent_version=1, seed=42, colorway_id="default")
-    assert meta.engine_version and meta.registry_version
-    assert meta.seed == 42 and meta.colorway_id == "default"
 
 
 def _full_coverage_stripe_intent() -> dict:

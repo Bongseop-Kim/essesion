@@ -2,7 +2,7 @@ import type { AdminQuoteSummaryOut } from "@essesion/api-client";
 import { listAdminQuotesOptions } from "@essesion/api-client/query";
 import { HStack, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
 import {
@@ -80,6 +80,7 @@ const columns: readonly AdminTableColumn<AdminQuoteSummaryOut>[] = [
 ];
 
 export function QuotesPage() {
+  const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: QUOTE_SORTS,
     allowedStatuses: QUOTE_STATUSES,
@@ -130,9 +131,7 @@ export function QuotesPage() {
               value,
               label: value === "all" ? "전체" : value,
             }))}
-            onChange={(event) =>
-              replaceQuery({ status: event.currentTarget.value, page: 1 })
-            }
+            onValueChange={(value) => replaceQuery({ status: value, page: 1 })}
           />
           <DateRangeFilters
             from={parsed.from}
@@ -149,6 +148,7 @@ export function QuotesPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/quote-requests/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

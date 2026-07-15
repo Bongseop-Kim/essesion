@@ -8,6 +8,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = [
   { key: "dashboard", label: "대시보드", href: "/" },
   { key: "incidents", label: "결제 이상", href: "/incidents" },
   { key: "orders", label: "주문 관리", href: "/orders" },
+  { key: "manual-orders", label: "수기 주문", href: "/manual-orders" },
   { key: "products", label: "상품 관리", href: "/products" },
   { key: "coupons", label: "쿠폰 관리", href: "/coupons" },
   { key: "quote-requests", label: "견적 관리", href: "/quote-requests" },

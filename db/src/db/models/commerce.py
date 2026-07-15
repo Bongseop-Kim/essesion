@@ -589,3 +589,27 @@ class NotificationPreferenceLog(CreatedAtMixin, Base):
     new_notification_consent: Mapped[bool]
     previous_notification_enabled: Mapped[bool]
     new_notification_enabled: Mapped[bool]
+
+
+class ManualOrder(TimestampMixin, Base):
+    """수기 주문 — 무통장·전화 접수 종이 작업지시서의 디지털 장부. 기존 주문 파이프라인과 무관."""
+
+    __tablename__ = "manual_orders"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    order_date: Mapped[date]
+    customer_name: Mapped[str]
+    phone: Mapped[str]
+    address: Mapped[str | None]
+    amount: Mapped[int]
+    shipping_fee: Mapped[int] = mapped_column(server_default=text("0"))
+    is_received: Mapped[bool] = mapped_column(server_default=text("false"))  # 접수
+    is_paid: Mapped[bool] = mapped_column(server_default=text("false"))  # 결제
+    is_confirmed: Mapped[bool] = mapped_column(server_default=text("false"))  # 확인
+    items: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="amount"),
+        CheckConstraint("shipping_fee >= 0", name="shipping_fee"),
+        Index("ix_manual_orders_admin_list", "order_date", "id"),
+    )

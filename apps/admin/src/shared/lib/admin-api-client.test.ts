@@ -44,6 +44,13 @@ class FakeBroadcastChannel {
   }
 }
 
+// 메모리 access token은 요청 인터셉터가 Authorization 헤더를 붙이는지로만 관찰한다.
+function requestCarriesAuthorization() {
+  const requestInterceptor = client.interceptors.request.use.mock.calls[0]?.[0];
+  const request = requestInterceptor(new Request("http://test/admin/orders"));
+  return request.headers.has("Authorization");
+}
+
 function serialLocks() {
   let tail = Promise.resolve();
   return {
@@ -106,7 +113,7 @@ describe("admin API session coordination", () => {
 
     FakeBroadcastChannel.instances[0]?.emit({ type: "logout" });
 
-    expect(module.getAdminAccessToken()).toBeNull();
+    expect(requestCarriesAuthorization()).toBe(false);
     expect(invalidated).toHaveBeenCalledTimes(1);
     unsubscribe();
   });
@@ -121,7 +128,6 @@ describe("admin API session coordination", () => {
       response: new Response(null, { status: 500 }),
     });
     const sessionApi = await import("../session/api-admin-session-adapter");
-    const tokenApi = await import("./admin-api-client");
 
     await expect(
       sessionApi.apiAdminSessionAdapter.login({
@@ -129,7 +135,7 @@ describe("admin API session coordination", () => {
         password: "password",
       }),
     ).rejects.toThrow("role lookup failed");
-    expect(tokenApi.getAdminAccessToken()).toBeNull();
+    expect(requestCarriesAuthorization()).toBe(false);
   });
 
   it.each([
@@ -179,6 +185,6 @@ describe("admin API session coordination", () => {
       new Request("http://test/admin/orders"),
     );
 
-    expect(module.getAdminAccessToken() === null).toBe(cleared);
+    expect(requestCarriesAuthorization()).toBe(!cleared);
   });
 });

@@ -6,4 +6,3 @@ export {
   sampleOrderApiOptions,
   sampleTypeLabel,
 } from "./model/options";
-export { useSampleQuote } from "./model/use-sample-quote";

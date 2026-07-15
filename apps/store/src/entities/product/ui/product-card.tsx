@@ -9,7 +9,7 @@ import {
 } from "@essesion/shared";
 import { Link } from "react-router";
 
-const krw = new Intl.NumberFormat("ko-KR");
+import { krw } from "@/shared/lib/format";
 
 export function ProductCard({ product }: { product: ProductOut }) {
   return (

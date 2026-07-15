@@ -14,10 +14,6 @@ import {
 
 export type GenerationJobFilters = NonNullable<ListGenerationJobsData["query"]>;
 
-type AuthenticatedResource = {
-  authenticated: boolean;
-};
-
 export function designSessionsQueryOptions(authenticated: boolean) {
   return {
     ...listDesignSessionsOptions(),
@@ -31,7 +27,10 @@ export const designSessionQueryKey = (sessionId: string) =>
 export function designSessionQueryOptions({
   sessionId,
   authenticated,
-}: AuthenticatedResource & { sessionId: string | null }) {
+}: {
+  authenticated: boolean;
+  sessionId: string | null;
+}) {
   return {
     ...getDesignSessionOptions({ path: { session_id: sessionId ?? "" } }),
     enabled: authenticated && !!sessionId,
@@ -44,20 +43,25 @@ export const designTurnsQueryKey = (sessionId: string) =>
 export function designTurnsQueryOptions({
   sessionId,
   authenticated,
-}: AuthenticatedResource & { sessionId: string | null }) {
+}: {
+  authenticated: boolean;
+  sessionId: string | null;
+}) {
   return {
     ...listDesignTurnsOptions({ path: { session_id: sessionId ?? "" } }),
     enabled: authenticated && !!sessionId,
   };
 }
 
-export const generationJobsQueryKey = (filters?: GenerationJobFilters) =>
-  listGenerationJobsQueryKey(filters ? { query: filters } : undefined);
+export const generationJobsQueryKey = () => listGenerationJobsQueryKey();
 
 export function generationJobsQueryOptions({
   filters,
   authenticated,
-}: AuthenticatedResource & { filters?: GenerationJobFilters }) {
+}: {
+  authenticated: boolean;
+  filters?: GenerationJobFilters;
+}) {
   return {
     ...listGenerationJobsOptions(filters ? { query: filters } : undefined),
     enabled: authenticated,
@@ -70,7 +74,10 @@ export const generationJobQueryKey = (jobId: string) =>
 export function generationJobQueryOptions({
   jobId,
   authenticated,
-}: AuthenticatedResource & { jobId: string | null }) {
+}: {
+  authenticated: boolean;
+  jobId: string | null;
+}) {
   return {
     ...getGenerationJobOptions({ path: { job_id: jobId ?? "" } }),
     enabled: authenticated && !!jobId,

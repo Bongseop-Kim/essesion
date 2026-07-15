@@ -1,26 +1,18 @@
 import type { AdminCouponOut } from "@essesion/api-client";
-import {
-  getAdminCouponOptions,
-  getAdminCouponQueryKey,
-  listAdminCouponsQueryKey,
-  updateAdminCouponMutation,
-} from "@essesion/api-client/query";
+import { getAdminCouponOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
-  AlertDialog,
   ContentPlaceholder,
   HStack,
   Skeleton,
-  snackbar,
   TabContent,
   TabList,
   Tabs,
   TabTrigger,
   VStack,
 } from "@essesion/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router";
 
 import {
   formatDate,
@@ -32,30 +24,8 @@ import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
-import {
-  CouponDefinitionForm,
-  type CouponDraft,
-  couponDraftBody,
-} from "./coupon-form";
 import { CouponIssuedHistory } from "./issued-history";
 import { CouponOperations } from "./operations";
-
-function draftFromCoupon(coupon: AdminCouponOut): CouponDraft {
-  return {
-    name: coupon.name,
-    displayName: coupon.display_name ?? "",
-    discountType: coupon.discount_type === "fixed" ? "fixed" : "percentage",
-    discountValue: String(Number(coupon.discount_value)),
-    maxDiscountAmount:
-      coupon.max_discount_amount === null
-        ? ""
-        : String(Number(coupon.max_discount_amount)),
-    expiryDate: coupon.expiry_date,
-    description: coupon.description ?? "",
-    additionalInfo: coupon.additional_info ?? "",
-    isActive: coupon.is_active,
-  };
-}
 
 function discountLabel(coupon: AdminCouponOut) {
   return coupon.discount_type === "percentage"
@@ -83,40 +53,18 @@ function CouponDetailLoading() {
 
 export function CouponDetailPage() {
   const { couponId = "" } = useParams();
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { state } = useAdminSession();
   const canManage =
     state.status === "authenticated" && state.session.role === "admin";
-  const [resetSignal, setResetSignal] = useState(0);
-  const [showServerComparison, setShowServerComparison] = useState(false);
-  const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false);
-  const queryOptions = getAdminCouponOptions({
-    path: { coupon_id: couponId },
-  });
-  const query = useQuery({ ...queryOptions, enabled: couponId !== "" });
-  const mutation = useMutation({
-    ...updateAdminCouponMutation(),
-    onSuccess: async (coupon) => {
-      snackbar("쿠폰 정의를 저장했습니다.");
-      queryClient.setQueryData(
-        getAdminCouponQueryKey({ path: { coupon_id: couponId } }),
-        coupon,
-      );
-      await queryClient.invalidateQueries({
-        queryKey: listAdminCouponsQueryKey(),
-      });
-      setShowServerComparison(false);
-      setResetSignal((current) => current + 1);
-    },
+  const query = useQuery({
+    ...getAdminCouponOptions({ path: { coupon_id: couponId } }),
+    enabled: couponId !== "",
   });
   const coupon = query.data;
-  const initialDraft = useMemo(
-    () => (coupon === undefined ? undefined : draftFromCoupon(coupon)),
-    [coupon],
-  );
 
   if (query.isLoading) return <CouponDetailLoading />;
-  if (query.isError || coupon === undefined || initialDraft === undefined) {
+  if (query.isError || coupon === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
@@ -136,18 +84,6 @@ export function CouponDetailPage() {
     );
   }
 
-  const compareServer = async () => {
-    await query.refetch();
-    setShowServerComparison(true);
-  };
-  const resetFromServer = async () => {
-    const result = await query.refetch();
-    if (result.data === undefined) return;
-    mutation.reset();
-    setShowServerComparison(false);
-    setResetSignal((current) => current + 1);
-  };
-
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
@@ -155,7 +91,20 @@ export function CouponDetailPage() {
           title={coupon.name}
           description={`마지막 수정 ${formatDateTime(coupon.updated_at)}`}
         />
-        <StatusBadge status={coupon.is_active ? "active" : "inactive"} />
+        <HStack gap="x2" align="center" wrap>
+          <StatusBadge status={coupon.is_active ? "active" : "inactive"} />
+          <ActionButton variant="ghost" onClick={() => navigate("/coupons")}>
+            목록으로
+          </ActionButton>
+          {canManage && (
+            <ActionButton
+              variant="neutralWeak"
+              onClick={() => navigate(`/coupons/${coupon.id}/edit`)}
+            >
+              수정
+            </ActionButton>
+          )}
+        </HStack>
       </HStack>
 
       <AdminCard title="쿠폰 요약">
@@ -185,66 +134,65 @@ export function CouponDetailPage() {
         </TabList>
         <TabContent value="definition">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <CouponDefinitionForm
-              initial={initialDraft}
-              revision={coupon.updated_at}
-              resetSignal={resetSignal}
-              submitLabel="쿠폰 변경 저장"
-              pending={mutation.isPending}
-              error={mutation.error}
-              errorAction={
-                <HStack gap="x2" wrap>
+            <AdminCard
+              title="쿠폰 정의"
+              action={
+                canManage ? (
                   <ActionButton
-                    variant="neutralOutline"
-                    loading={query.isFetching}
-                    onClick={() => void compareServer()}
+                    variant="neutralWeak"
+                    size="small"
+                    onClick={() => navigate(`/coupons/${coupon.id}/edit`)}
                   >
-                    최신 서버 값 비교
+                    수정
                   </ActionButton>
-                  <ActionButton
-                    variant="ghost"
-                    onClick={() => setReloadConfirmOpen(true)}
-                  >
-                    서버 값으로 초기화
-                  </ActionButton>
-                </HStack>
+                ) : undefined
               }
-              onSubmit={(draft, revision) => {
-                if (revision === undefined) return;
-                mutation.mutate({
-                  path: { coupon_id: coupon.id },
-                  body: {
-                    ...couponDraftBody(draft),
-                    expected_updated_at: revision,
+            >
+              <DetailList
+                items={[
+                  { label: "이름", value: coupon.name },
+                  {
+                    label: "고객 표시 이름",
+                    value: coupon.display_name ?? "-",
                   },
-                });
-              }}
-            />
-            {showServerComparison && (
-              <AdminCard
-                title="현재 서버 값"
-                description={`서버 revision ${coupon.updated_at}`}
-              >
-                <DetailList
-                  items={[
-                    { label: "이름", value: coupon.name },
-                    { label: "할인 조건", value: discountLabel(coupon) },
-                    {
-                      label: "최대 할인액",
-                      value: formatMoney(coupon.max_discount_amount),
-                    },
-                    {
-                      label: "만료일",
-                      value: formatDate(coupon.expiry_date),
-                    },
-                    {
-                      label: "상태",
-                      value: coupon.is_active ? "활성" : "비활성",
-                    },
-                  ]}
-                />
-              </AdminCard>
-            )}
+                  {
+                    label: "할인 방식",
+                    value:
+                      coupon.discount_type === "percentage"
+                        ? "정률 할인"
+                        : "정액 할인",
+                  },
+                  { label: "할인 값", value: discountLabel(coupon) },
+                  {
+                    label: "최대 할인액",
+                    value: formatMoney(coupon.max_discount_amount),
+                  },
+                  {
+                    label: "만료일 (KST)",
+                    value: formatDate(coupon.expiry_date),
+                  },
+                  {
+                    label: "설명",
+                    value:
+                      coupon.description === null || coupon.description === ""
+                        ? "-"
+                        : coupon.description,
+                  },
+                  {
+                    label: "추가 안내",
+                    value:
+                      coupon.additional_info === null ||
+                      coupon.additional_info === ""
+                        ? "-"
+                        : coupon.additional_info,
+                  },
+                  {
+                    label: "상태",
+                    value: coupon.is_active ? "활성" : "비활성",
+                  },
+                ]}
+              />
+            </AdminCard>
           </VStack>
         </TabContent>
         <TabContent value="operations">
@@ -262,19 +210,6 @@ export function CouponDetailPage() {
           </VStack>
         </TabContent>
       </Tabs>
-
-      <AlertDialog
-        open={reloadConfirmOpen}
-        onOpenChange={setReloadConfirmOpen}
-        title="입력한 변경을 서버 값으로 초기화할까요?"
-        description="현재 입력은 사라지고 최신 저장 값으로 돌아갑니다."
-        primaryActionProps={{
-          children: "서버 값 불러오기",
-          variant: "criticalSolid",
-          onClick: () => void resetFromServer(),
-        }}
-        secondaryActionProps={{ children: "계속 편집" }}
-      />
     </VStack>
   );
 }

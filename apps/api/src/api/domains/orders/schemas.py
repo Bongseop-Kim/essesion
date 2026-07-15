@@ -145,6 +145,14 @@ class SingleOrderCreateResponse(BaseModel):
     total_amount: int
 
 
+class ClaimBadgeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    claim_number: str
+    type: str
+    status: str
+
+
 class OrderItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,6 +167,7 @@ class OrderItemOut(BaseModel):
     discount_amount: int
     line_discount_amount: int
     applied_user_coupon_id: uuid.UUID | None
+    claim: ClaimBadgeOut | None = None
 
 
 class OrderOut(BaseModel):
@@ -186,6 +195,7 @@ class OrderOut(BaseModel):
     updated_at: datetime
     items: list[OrderItemOut] = []
     customer_actions: list[str] = []
+    claim_summary: ClaimBadgeOut | None = None
 
 
 class OrderShippingAddressOut(BaseModel):
@@ -201,8 +211,43 @@ class OrderShippingAddressOut(BaseModel):
     delivery_request: str | None
 
 
+class RepairPickupOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    recipient_name: str
+    recipient_phone: str
+    postal_code: str | None
+    address: str
+    detail_address: str | None
+    pickup_fee: int
+    created_at: datetime
+
+
+class RepairShippingReceiptOut(BaseModel):
+    id: uuid.UUID
+    receipt_type: str
+    reason: str | None
+    memo: str | None
+    photo_count: int
+    created_at: datetime
+
+
+class OrderReferenceImageOut(BaseModel):
+    id: uuid.UUID
+    content_type: str | None
+    size_bytes: int | None
+    created_at: datetime
+
+
+class OrderImageReadUrlOut(BaseModel):
+    read_url: str
+
+
 class OrderDetailOut(OrderOut):
     shipping_address: OrderShippingAddressOut | None = None
+    repair_pickup: RepairPickupOut | None = None
+    repair_receipts: list[RepairShippingReceiptOut] = Field(default_factory=list)
 
 
 class RepairPhotoIn(BaseModel):

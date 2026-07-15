@@ -46,7 +46,7 @@ export function ProductNewPage() {
       await queryClient.invalidateQueries({
         queryKey: adminListProductsQueryKey(),
       });
-      navigate(`/products/${product.id}/edit`, { replace: true });
+      navigate(`/products/${product.id}`, { replace: true });
     },
   });
 

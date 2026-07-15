@@ -106,7 +106,6 @@ class Stripe:
         """
         p, q = self.snapped.p, self.snapped.q
         angle = self.snapped.angle_deg
-        period = self.params.period_mm
         single = len(self.params.bands) == 1
 
         lanes: list[LaneField] = []
@@ -118,23 +117,9 @@ class Stripe:
             }
             for name, offset in edges.items():
                 centerline = Centerline(angle_deg=angle, offset_mm=offset, p=p, q=q)
-                lanes.append(
-                    LaneField(
-                        id=f"b{i}.{name}",
-                        centerline_path=centerline,
-                        spacing_mm=period,
-                        phase_mm=0.0,
-                    )
-                )
+                lanes.append(LaneField(id=f"b{i}.{name}", centerline_path=centerline))
                 if single:
-                    lanes.append(
-                        LaneField(
-                            id=name,
-                            centerline_path=centerline,
-                            spacing_mm=period,
-                            phase_mm=0.0,
-                        )
-                    )
+                    lanes.append(LaneField(id=name, centerline_path=centerline))
         return lanes
 
 

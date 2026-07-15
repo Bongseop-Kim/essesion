@@ -3,6 +3,7 @@ import {
   ActionButton,
   AlertDialog,
   Callout,
+  DatePicker,
   Grid,
   HStack,
   RadioGroup,
@@ -265,7 +266,7 @@ export function CouponDefinitionForm({
                 min={1}
                 step={1}
                 label="최대 할인액"
-                description="비워 두면 최대 할인액 제한이 없습니다."
+                placeholder="비워 두면 제한 없음"
                 suffix="원"
                 value={draft.maxDiscountAmount}
                 errorMessage={attempted ? errors.maxDiscountAmount : undefined}
@@ -275,31 +276,25 @@ export function CouponDefinitionForm({
                 }
               />
             ) : (
-              <TextField
-                type="date"
+              <DatePicker
                 label="만료일 (KST)"
                 required
                 value={draft.expiryDate}
                 errorMessage={attempted ? errors.expiryDate : undefined}
                 disabled={pending}
-                onChange={(event) =>
-                  update("expiryDate", event.currentTarget.value)
-                }
+                onValueChange={(value) => update("expiryDate", value)}
               />
             )}
           </Grid>
 
           {draft.discountType === "percentage" && (
-            <TextField
-              type="date"
+            <DatePicker
               label="만료일 (KST)"
               required
               value={draft.expiryDate}
               errorMessage={attempted ? errors.expiryDate : undefined}
               disabled={pending}
-              onChange={(event) =>
-                update("expiryDate", event.currentTarget.value)
-              }
+              onValueChange={(value) => update("expiryDate", value)}
             />
           )}
 

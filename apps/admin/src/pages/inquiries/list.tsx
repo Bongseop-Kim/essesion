@@ -12,7 +12,7 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import {
@@ -73,6 +73,7 @@ const columns: readonly AdminTableColumn<AdminInquirySummaryOut>[] = [
 ];
 
 export function InquiriesPage() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const parsed = parseAdminListQuery(params, {
     allowedSorts: INQUIRY_SORTS,
@@ -156,7 +157,7 @@ export function InquiriesPage() {
           >
             <TextField
               label="제목·내용 검색"
-              description="2자 이상 입력해 주세요. 요청 본문으로만 전송됩니다."
+              placeholder="2자 이상 입력"
               minLength={2}
               maxLength={100}
               value={searchInput}
@@ -191,8 +192,8 @@ export function InquiriesPage() {
                 value,
                 label: value === "all" ? "전체" : value,
               }))}
-              onChange={(event) =>
-                replaceQuery({ status: event.currentTarget.value, page: 1 })
+              onValueChange={(value) =>
+                replaceQuery({ status: value, page: 1 })
               }
             />
             <FilterSelect
@@ -202,9 +203,7 @@ export function InquiriesPage() {
                 value,
                 label: value === "all" ? "전체" : value,
               }))}
-              onChange={(event) =>
-                replaceQuery({ type: event.currentTarget.value, page: 1 })
-              }
+              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
             />
           </HStack>
         </VStack>
@@ -229,6 +228,7 @@ export function InquiriesPage() {
             columns={columns}
             rows={query.data?.items}
             getRowKey={(row) => row.id}
+            onRowClick={(row) => navigate(`/inquiries/${row.id}`)}
             status={
               query.isLoading ? "loading" : query.isError ? "error" : "success"
             }

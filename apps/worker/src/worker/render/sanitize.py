@@ -2,12 +2,9 @@
 
 from svg_safety import (
     ALLOWED_ATTRS,
-    ALLOWED_TAGS,
-    COLOR_ATTRS,
     HEX_RE,
     SanitizeError,
     _validate_tree,
-    is_internal_href,
     parse_svg_tree,
     sanitize_svg,
     scrub_svg,
@@ -15,12 +12,9 @@ from svg_safety import (
 
 __all__ = [
     "ALLOWED_ATTRS",
-    "ALLOWED_TAGS",
-    "COLOR_ATTRS",
     "HEX_RE",
     "SanitizeError",
     "_validate_tree",
-    "is_internal_href",
     "parse_svg_tree",
     "sanitize_svg",
     "scrub_svg",

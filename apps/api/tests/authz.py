@@ -245,6 +245,19 @@ ADMIN_CASES: list[AdminCase] = [
     AdminCase("admin_capabilities", "GET", "/admin/capabilities"),
     AdminCase("admin_inquiries_list", "GET", "/admin/inquiries"),
     AdminCase("admin_coupons_list", "GET", "/admin/coupons"),
+    AdminCase("admin_manual_orders_list", "GET", "/admin/manual-orders"),
+    AdminCase(
+        "admin_manual_orders_create",
+        "POST",
+        "/admin/manual-orders",
+        {
+            "order_date": "2026-01-01",
+            "customer_name": "t",
+            "phone": "01011112222",
+            "amount": 1000,
+            "items": [{"quantity": 1, "width": {"target_width_cm": 8}}],
+        },
+    ),
     # 404여도 인가 통과(401·403 아님)로 판정되므로 더미 UUID로 충분
     AdminCase(
         "admin_orders_status",

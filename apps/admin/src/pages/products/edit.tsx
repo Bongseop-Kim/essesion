@@ -210,8 +210,11 @@ function ProductEditPageContent({ productId }: { productId: string }) {
           title={product.name}
           description={`${product.code ?? "상품 코드 없음"} · 마지막 수정 ${formatDateTime(product.updated_at)}`}
         />
-        <ActionButton variant="ghost" onClick={() => navigate("/products")}>
-          목록으로
+        <ActionButton
+          variant="ghost"
+          onClick={() => navigate(`/products/${product.id}`)}
+        >
+          상세로
         </ActionButton>
       </HStack>
 

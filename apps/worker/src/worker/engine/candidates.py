@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from typing import cast
 
 from worker.engine.composition import compose
-from worker.engine.determinism import REGISTRY_VERSION, ReproMeta, layout_id_for
+from worker.engine.determinism import REGISTRY_VERSION, layout_id_for
 from worker.engine.generate import Candidate
 from worker.engine.intent import (
     Band,
@@ -144,17 +144,10 @@ def generate_candidates(
                 except (AssertionError, ValueError, IntentInvalid):
                     render_failures += 1
                     continue
-                repro = ReproMeta(
-                    intent_version=eff.intent_version,
-                    seed=s,
-                    colorway_id=cw,
-                    layout_id=lid,
-                    registry_version=registry_version,
-                )
                 pool.append(
                     RankedCandidate(
                         id=_candidate_id(lid, cw, s),
-                        candidate=Candidate(svg=svg, repro=repro, warnings=[], layout_id=lid),
+                        candidate=Candidate(svg=svg, layout_id=lid),
                         intent=eff,
                         colorway_id=cw,
                         seed=s,

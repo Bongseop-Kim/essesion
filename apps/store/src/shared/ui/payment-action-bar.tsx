@@ -1,6 +1,6 @@
 import { ActionButton, Box, Text, VStack } from "@essesion/shared";
 
-const krw = new Intl.NumberFormat("ko-KR");
+import { krw } from "@/shared/lib/format";
 
 export function PaymentActionBar({
   amount,

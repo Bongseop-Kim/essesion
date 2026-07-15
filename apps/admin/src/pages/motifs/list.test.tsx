@@ -1,6 +1,6 @@
 import type { MotifDetailOut, PageMotifSummaryOut } from "@essesion/api-client";
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderAdminPage } from "../../test/render-admin-page";
@@ -29,7 +29,8 @@ vi.mock("@essesion/api-client/query", () => ({
   },
 }));
 
-import { MotifsPage, motifPreviewDocument } from "./list";
+import { MotifDetailPage, motifPreviewDocument } from "./detail";
+import { MotifsPage } from "./list";
 
 const page: PageMotifSummaryOut = {
   items: [
@@ -100,12 +101,33 @@ describe("MotifsPage", () => {
     });
   });
 
-  it("상세 선택 시 safe symbol을 Blob 이미지로 표현한다", async () => {
-    const user = userEvent.setup();
+  it("목록의 Motif 이름이 상세 페이지로 링크된다", async () => {
     renderPage();
-    await screen.findByText("동백꽃");
 
-    await user.click(screen.getByRole("button", { name: "미리보기" }));
+    const link = await screen.findByRole("link", { name: "동백꽃" });
+    expect(link.getAttribute("href")).toBe("/motifs/motif-1");
+  });
+});
+
+describe("MotifDetailPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    createObjectURL.mockClear();
+    revokeObjectURL.mockClear();
+    Object.defineProperties(URL, {
+      createObjectURL: { configurable: true, value: createObjectURL },
+      revokeObjectURL: { configurable: true, value: revokeObjectURL },
+    });
+    api.detail.mockResolvedValue(detail);
+  });
+
+  it("safe symbol을 Blob 이미지로 표현한다", async () => {
+    renderAdminPage(
+      <Routes>
+        <Route path="/motifs/:motifId" element={<MotifDetailPage />} />
+      </Routes>,
+      { entry: "/motifs/motif-1" },
+    );
 
     expect(
       await screen.findByRole("img", {

@@ -18,6 +18,8 @@ export function ClaimItemActions({
   customerActions,
   onSelect,
 }: ClaimItemActionsProps) {
+  if (item.claim && item.claim.status !== "거부") return null;
+
   const actions = new Set(customerActions);
   const available = CLAIM_TYPES.filter((type) =>
     actions.has(CLAIM_TYPE_CONFIG[type].action),

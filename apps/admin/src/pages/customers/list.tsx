@@ -12,7 +12,7 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import {
@@ -89,6 +89,7 @@ const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
 ];
 
 export function CustomersPage() {
+  const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedSorts: CUSTOMER_SORTS,
     allowedStatuses: CUSTOMER_STATUSES,
@@ -183,7 +184,7 @@ export function CustomersPage() {
           >
             <TextField
               label="이름·이메일·전화번호 검색"
-              description="2자 이상 입력해 주세요. 검색어는 요청 본문으로만 전송됩니다."
+              placeholder="2자 이상 입력"
               value={searchInput}
               minLength={2}
               maxLength={100}
@@ -219,8 +220,8 @@ export function CustomersPage() {
                 { value: "active", label: "활성" },
                 { value: "inactive", label: "비활성" },
               ]}
-              onChange={(event) =>
-                replaceQuery({ status: event.currentTarget.value, page: 1 })
+              onValueChange={(value) =>
+                replaceQuery({ status: value, page: 1 })
               }
             />
             <FilterSelect
@@ -230,9 +231,7 @@ export function CustomersPage() {
                 { value: "created_at", label: "가입일" },
                 { value: "name", label: "이름" },
               ]}
-              onChange={(event) =>
-                replaceQuery({ sort: event.currentTarget.value, page: 1 })
-              }
+              onValueChange={(value) => replaceQuery({ sort: value, page: 1 })}
             />
           </HStack>
         </VStack>
@@ -245,6 +244,7 @@ export function CustomersPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/customers/${row.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

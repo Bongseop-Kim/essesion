@@ -76,7 +76,7 @@ const columns: readonly AdminTableColumn<AdminProductSummaryOut>[] = [
           <ImageFrame src={product.image} alt="" ratio={1} fit="cover" stroke />
         </Box>
         <VStack gap="x0_5" minWidth={0}>
-          <Link to={`/products/${product.id}/edit`}>{product.name}</Link>
+          <Link to={`/products/${product.id}`}>{product.name}</Link>
           <Text textStyle="caption" color="fg.neutral-muted">
             {product.code ?? "상품 코드 없음"}
           </Text>
@@ -223,7 +223,7 @@ export function ProductsPage() {
           >
             <TextField
               label="상품명·상품 코드 검색"
-              description="2자 이상 입력해 주세요. 상품 검색어는 URL에서 복구됩니다."
+              placeholder="2자 이상 입력"
               value={searchInput}
               minLength={2}
               maxLength={100}
@@ -257,12 +257,9 @@ export function ProductsPage() {
               label="카테고리"
               value={category ?? "all"}
               options={[{ value: "all", label: "전체" }, ...PRODUCT_CATEGORIES]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceParams({
-                  category:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  category: value === "all" ? undefined : value,
                   page: undefined,
                 })
               }
@@ -271,12 +268,9 @@ export function ProductsPage() {
               label="색상"
               value={color ?? "all"}
               options={[{ value: "all", label: "전체" }, ...PRODUCT_COLORS]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceParams({
-                  color:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  color: value === "all" ? undefined : value,
                   page: undefined,
                 })
               }
@@ -285,12 +279,9 @@ export function ProductsPage() {
               label="패턴"
               value={pattern ?? "all"}
               options={[{ value: "all", label: "전체" }, ...PRODUCT_PATTERNS]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceParams({
-                  pattern:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  pattern: value === "all" ? undefined : value,
                   page: undefined,
                 })
               }
@@ -299,12 +290,9 @@ export function ProductsPage() {
               label="소재"
               value={material ?? "all"}
               options={[{ value: "all", label: "전체" }, ...PRODUCT_MATERIALS]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceParams({
-                  material:
-                    event.currentTarget.value === "all"
-                      ? undefined
-                      : event.currentTarget.value,
+                  material: value === "all" ? undefined : value,
                   page: undefined,
                 })
               }
@@ -317,9 +305,9 @@ export function ProductsPage() {
                 { value: "50", label: "50개" },
                 { value: "100", label: "100개" },
               ]}
-              onChange={(event) =>
+              onValueChange={(value) =>
                 replaceParams({
-                  limit: event.currentTarget.value,
+                  limit: value,
                   page: undefined,
                 })
               }
@@ -335,6 +323,7 @@ export function ProductsPage() {
         columns={columns}
         rows={query.data?.items}
         getRowKey={(product) => String(product.id)}
+        onRowClick={(product) => navigate(`/products/${product.id}`)}
         status={
           query.isLoading ? "loading" : query.isError ? "error" : "success"
         }

@@ -116,9 +116,9 @@ CLAIM_RETURN_EXCHANGE_ACTION_FROM: dict[str, set[str]] = {
 }
 
 
-def customer_actions(order_type: str, status: str, *, has_active_claim: bool) -> list[str]:
+def customer_actions(order_type: str, status: str, *, has_blocking_claim: bool) -> list[str]:
     actions: list[str] = []
-    if not has_active_claim:
+    if not has_blocking_claim:
         if status in CLAIM_CANCEL_ACTION_FROM.get(order_type, set()):
             actions.append("claim_cancel")
         if status in CLAIM_RETURN_EXCHANGE_ACTION_FROM.get(order_type, set()):

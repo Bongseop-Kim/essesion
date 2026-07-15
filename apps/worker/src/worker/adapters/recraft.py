@@ -14,7 +14,6 @@ import base64
 import binascii
 import re
 import xml.etree.ElementTree as ET
-from typing import Literal
 
 import httpx
 
@@ -211,15 +210,12 @@ class RecraftHTTPClient:
         model: str = DEFAULT_VECTOR_MODEL,
         style: str = "",
         size: str = DEFAULT_SIZE,
-        response_format: Literal["b64_json"] = "b64_json",
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = 120.0,
         max_svg_bytes: int = 2_000_000,
     ) -> None:
         if not api_key:
             raise RecraftError("RecraftHTTPClient requires a non-empty api_key")
-        if response_format != _B64_RESPONSE_FORMAT:
-            raise RecraftError("RecraftHTTPClient only supports response_format=b64_json")
         if max_svg_bytes < 1:
             raise RecraftError("RecraftHTTPClient requires max_svg_bytes >= 1")
         self._api_key = api_key
@@ -236,23 +232,6 @@ class RecraftHTTPClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(timeout=self._timeout)
         return self._client
-
-    async def _post_for_svg(self, path: str, *, extract, label: str, **request_kwargs) -> str:
-        headers = {"Authorization": f"Bearer {self._api_key}"}
-        client = self._http()
-        try:
-            resp = await client.post(f"{self._base_url}{path}", headers=headers, **request_kwargs)
-            resp.raise_for_status()
-            svg = extract(resp.json())
-        except httpx.HTTPStatusError as exc:
-            raise RecraftError(
-                f"Recraft {label} HTTP {exc.response.status_code}: {exc.response.text[:500]}"
-            ) from exc
-        except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
-            raise RecraftError(f"Recraft {label} request failed: {exc}") from exc
-        if not svg or "<svg" not in svg.lower():
-            raise RecraftError(f"Recraft {label} returned a non-SVG payload")
-        return svg
 
     async def generate(self, prompt: str) -> str:
         payload: dict = {
@@ -288,7 +267,21 @@ class RecraftHTTPClient:
                 raise ValueError(f"Recraft SVG exceeds max_svg_bytes {self._max_svg_bytes}")
             return raw.decode("utf-8")
 
-        return await self._post_for_svg(_API_PATH, json=payload, extract=_extract, label="API")
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        client = self._http()
+        try:
+            resp = await client.post(f"{self._base_url}{_API_PATH}", headers=headers, json=payload)
+            resp.raise_for_status()
+            svg = _extract(resp.json())
+        except httpx.HTTPStatusError as exc:
+            raise RecraftError(
+                f"Recraft API HTTP {exc.response.status_code}: {exc.response.text[:500]}"
+            ) from exc
+        except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
+            raise RecraftError(f"Recraft API request failed: {exc}") from exc
+        if not svg or "<svg" not in svg.lower():
+            raise RecraftError("Recraft API returned a non-SVG payload")
+        return svg
 
     async def aclose(self) -> None:
         if self._client is not None and not self._client.is_closed:
@@ -304,7 +297,6 @@ def build_recraft_client(settings) -> RecraftHTTPClient | None:
         model=getattr(settings, "recraft_model", None) or DEFAULT_VECTOR_MODEL,
         style=getattr(settings, "recraft_style", "") or "",
         size=getattr(settings, "recraft_size", None) or DEFAULT_SIZE,
-        response_format=getattr(settings, "recraft_response_format", None) or _B64_RESPONSE_FORMAT,
         base_url=getattr(settings, "recraft_base_url", None) or DEFAULT_BASE_URL,
         max_svg_bytes=getattr(settings, "max_svg_bytes", 2_000_000),
     )

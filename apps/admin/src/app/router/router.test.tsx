@@ -5,7 +5,6 @@ import type {
   AdminSession,
   AdminSessionAdapter,
 } from "../../shared/session/admin-session";
-import { unavailableAdminSessionAdapter } from "../../shared/session/admin-session";
 import { AppProviders } from "../providers/app-providers";
 import { adminRouteObjects } from "./router";
 
@@ -17,7 +16,6 @@ const adminSession: AdminSession = {
 
 function readySessionAdapter(): AdminSessionAdapter {
   return {
-    availability: "ready",
     bootstrap: vi.fn(async () => adminSession),
     login: vi.fn(async () => adminSession),
     logout: vi.fn(async () => undefined),
@@ -68,17 +66,8 @@ describe("admin router", () => {
     ).toBeTruthy();
   });
 
-  it("인증 결선 전에는 보호 라우트를 fail closed로 유지한다", async () => {
-    renderRoute("/orders", unavailableAdminSessionAdapter);
-    expect(await screen.findByText("관리자 인증 연결 대기")).toBeTruthy();
-    expect(
-      screen.queryByRole("navigation", { name: "관리자 메뉴" }),
-    ).toBeNull();
-  });
-
   it("익명 세션은 로그인으로 복귀 경로를 전달한다", async () => {
     const adapter: AdminSessionAdapter = {
-      availability: "ready",
       bootstrap: vi.fn(async () => null),
       login: vi.fn(async () => adminSession),
       logout: vi.fn(async () => undefined),

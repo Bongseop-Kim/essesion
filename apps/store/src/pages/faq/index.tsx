@@ -10,12 +10,11 @@ import {
 } from "@essesion/shared";
 
 import { VISIBLE_FAQS } from "@/pages/faq/model/faq-data";
-import { applyTemplateTokens } from "@/shared/lib/template-tokens";
 import { useReformPricingTokens } from "@/shared/lib/use-reform-pricing-tokens";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function FaqPage() {
-  const { feeTokens, pricingStatus } = useReformPricingTokens();
+  const { fees, pricingStatus } = useReformPricingTokens();
 
   return (
     <>
@@ -67,7 +66,15 @@ export function FaqPage() {
                         color="fg.neutral-muted"
                         className="whitespace-pre-line"
                       >
-                        {applyTemplateTokens(faq.answer, feeTokens)}
+                        {faq.answer
+                          .replaceAll(
+                            "{{REFORM_SHIPPING_COST}}",
+                            fees.REFORM_SHIPPING_COST,
+                          )
+                          .replaceAll(
+                            "{{REFORM_PICKUP_FEE}}",
+                            fees.REFORM_PICKUP_FEE,
+                          )}
                       </Text>
                     </Article>
                   </AccordionContent>

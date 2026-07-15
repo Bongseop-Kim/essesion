@@ -14,7 +14,6 @@ from db.models.commerce import (
     RepairPickupRequest,
     RepairShippingReceipt,
 )
-from db.models.images import Image
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,7 +41,13 @@ from api.domains.admin.schemas import (
     Page,
 )
 from api.domains.admin.types import SortDirection
-from api.domains.orders.schemas import OrderItemOut
+from api.domains.images.service import (
+    ADMIN_ORDER_IMAGE_TYPES,
+    get_linked_order_image,
+    list_linked_order_images,
+)
+from api.domains.orders import service as order_service
+from api.domains.orders.schemas import ClaimBadgeOut, OrderItemOut
 from api.domains.orders.status_machine import (
     ACTIVE_CLAIM_STATUSES,
     FORWARD,
@@ -58,7 +63,6 @@ MAX_PAGE_LIMIT = 100
 DEFAULT_RECENT_LIMIT = 5
 MAX_RECENT_LIMIT = 20
 MIN_SEARCH_LENGTH = 2
-ORDER_REFERENCE_IMAGE_TYPES = ("custom_order", "sample_order")
 
 
 def _sanitize_private_item_value(value: Any) -> Any:
@@ -83,11 +87,13 @@ def _sanitize_private_item_value(value: Any) -> Any:
     return value
 
 
-def safe_order_item_out(item: OrderItem) -> OrderItemOut:
+def safe_order_item_out(item: OrderItem, claim: Claim | None = None) -> OrderItemOut:
     out = OrderItemOut.model_validate(item)
     out.item_data = (
         _sanitize_private_item_value(item.item_data) if item.item_data is not None else None
     )
+    if claim is not None:
+        out.claim = ClaimBadgeOut.model_validate(claim)
     return out
 
 
@@ -144,19 +150,6 @@ def _sort_clauses(sort: OrderSort, direction: SortDirection) -> tuple[Any, Any]:
     return column.desc(), Order.id.desc()
 
 
-async def _active_claim_order_ids(
-    session: AsyncSession, order_ids: list[uuid.UUID]
-) -> set[uuid.UUID]:
-    if not order_ids:
-        return set()
-    rows = await session.scalars(
-        select(Claim.order_id).where(
-            Claim.order_id.in_(order_ids), Claim.status.in_(ACTIVE_CLAIM_STATUSES)
-        )
-    )
-    return set(rows)
-
-
 async def _repair_previous_statuses(
     session: AsyncSession, orders: list[Order]
 ) -> dict[uuid.UUID, str]:
@@ -196,7 +189,7 @@ def _status_action(
     *,
     kind: Literal["advance", "rollback", "cancel"],
     target_status: str,
-    has_active_claim: bool,
+    blocking_reason: str | None,
 ) -> AdminAction:
     labels = {
         "advance": f"{target_status} 상태로 진행",
@@ -207,10 +200,8 @@ def _status_action(
         kind=kind,
         target_status=target_status,
         label=labels[kind],
-        enabled=not has_active_claim,
-        blocking_reason=(
-            "활성 클레임이 있어 주문 상태를 변경할 수 없습니다" if has_active_claim else None
-        ),
+        enabled=blocking_reason is None,
+        blocking_reason=blocking_reason,
         requires_memo=kind == "rollback",
         destructive=kind in ("rollback", "cancel"),
     )
@@ -220,16 +211,26 @@ def _admin_actions(
     order: Order,
     *,
     has_active_claim: bool,
+    has_completed_cancel_claim: bool,
     repair_previous_status: str | None,
 ) -> list[AdminAction]:
     actions: list[AdminAction] = []
+    status_blocking_reason = (
+        "취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다"
+        if has_completed_cancel_claim
+        else "활성 클레임이 있어 주문 상태를 변경할 수 없습니다"
+        if has_active_claim
+        else None
+    )
     kinds = available_admin_actions(order.order_type, order.status)
     if "advance" in kinds:
         targets = sorted(
             target for current, target in FORWARD[order.order_type] if current == order.status
         )
         actions.extend(
-            _status_action(kind="advance", target_status=target, has_active_claim=has_active_claim)
+            _status_action(
+                kind="advance", target_status=target, blocking_reason=status_blocking_reason
+            )
             for target in targets
         )
     if "rollback" in kinds:
@@ -239,36 +240,36 @@ def _admin_actions(
         if order.order_type == "repair" and order.status == "접수" and repair_previous_status:
             targets.append(repair_previous_status)
         actions.extend(
-            _status_action(kind="rollback", target_status=target, has_active_claim=has_active_claim)
+            _status_action(
+                kind="rollback", target_status=target, blocking_reason=status_blocking_reason
+            )
             for target in dict.fromkeys(targets)
         )
     if "cancel" in kinds:
         actions.append(
-            _status_action(kind="cancel", target_status="취소", has_active_claim=has_active_claim)
+            _status_action(
+                kind="cancel", target_status="취소", blocking_reason=status_blocking_reason
+            )
         )
 
-    tracking_enabled = order.status not in ("배송완료", "완료", "취소")
+    tracking_blocking_reason = (
+        "취소 클레임이 완료되어 송장을 수정할 수 없습니다"
+        if has_completed_cancel_claim
+        else "활성 클레임이 있어 송장을 수정할 수 없습니다"
+        if has_active_claim
+        else "현재 주문 상태에서는 송장을 수정할 수 없습니다"
+        if order.status in ("배송완료", "완료", "취소")
+        else None
+    )
     actions.append(
         AdminAction(
             kind="update_tracking",
             label="송장 정보 수정",
-            enabled=tracking_enabled,
-            blocking_reason=(
-                None if tracking_enabled else "현재 주문 상태에서는 송장을 수정할 수 없습니다"
-            ),
+            enabled=tracking_blocking_reason is None,
+            blocking_reason=tracking_blocking_reason,
         )
     )
     return actions
-
-
-async def _action_context(
-    session: AsyncSession, orders: list[Order]
-) -> tuple[set[uuid.UUID], dict[uuid.UUID, str]]:
-    ids = [order.id for order in orders]
-    return (
-        await _active_claim_order_ids(session, ids),
-        await _repair_previous_statuses(session, orders),
-    )
 
 
 def _summary(
@@ -276,7 +277,9 @@ def _summary(
     customer: User,
     *,
     has_active_claim: bool,
+    has_completed_cancel_claim: bool,
     repair_previous_status: str | None,
+    claim: Claim | None,
 ) -> AdminOrderSummaryOut:
     return AdminOrderSummaryOut(
         id=order.id,
@@ -288,9 +291,11 @@ def _summary(
         created_at=order.created_at,
         updated_at=order.updated_at,
         customer=AdminOrderCustomerOut.model_validate(customer),
+        claim_summary=ClaimBadgeOut.model_validate(claim) if claim is not None else None,
         admin_actions=_admin_actions(
             order,
             has_active_claim=has_active_claim,
+            has_completed_cancel_claim=has_completed_cancel_claim,
             repair_previous_status=repair_previous_status,
         ),
     )
@@ -329,14 +334,23 @@ async def list_orders(
         )
     ).all()
     orders = [order for order, _ in rows]
-    active_claim_ids, repair_previous = await _action_context(session, orders)
+    order_ids = [order.id for order in orders]
+    claims = (
+        (await session.scalars(select(Claim).where(Claim.order_id.in_(order_ids)))).all()
+        if order_ids
+        else []
+    )
+    claim_context = order_service.claim_read_model(claims)
+    repair_previous = await _repair_previous_statuses(session, orders)
     return Page[AdminOrderSummaryOut](
         items=[
             _summary(
                 order,
                 customer,
-                has_active_claim=order.id in active_claim_ids,
+                has_active_claim=order.id in claim_context.active_order_ids,
+                has_completed_cancel_claim=(order.id in claim_context.completed_cancel_order_ids),
                 repair_previous_status=repair_previous.get(order.id),
+                claim=claim_context.by_order.get(order.id),
             )
             for order, customer in rows
         ],
@@ -471,11 +485,13 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
             .order_by(OrderStatusLog.created_at.asc(), OrderStatusLog.id.asc())
         )
     ).all()
-    active_claim = await session.scalar(
-        select(Claim)
-        .where(Claim.order_id == order.id, Claim.status.in_(ACTIVE_CLAIM_STATUSES))
-        .order_by(Claim.created_at.desc(), Claim.id.desc())
-        .limit(1)
+    claims = (await session.scalars(select(Claim).where(Claim.order_id == order.id))).all()
+    claim_context = order_service.claim_read_model(claims)
+    selected_claim = claim_context.by_order.get(order.id)
+    active_claim = (
+        selected_claim
+        if selected_claim is not None and selected_claim.status in ACTIVE_CLAIM_STATUSES
+        else None
     )
     related_orders: list[Order] = []
     if order.payment_group_id is not None:
@@ -489,12 +505,19 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
                 .order_by(Order.created_at.asc(), Order.id.asc())
             )
         )
-    active_claim_ids, repair_previous = await _action_context(session, [order])
+    repair_previous = await _repair_previous_statuses(session, [order])
+    repair_pickup, repair_receipts = (
+        await order_service.repair_shipping_read_model(session, order.id)
+        if order.order_type == "repair"
+        else (None, [])
+    )
     summary = _summary(
         order,
         customer,
-        has_active_claim=order.id in active_claim_ids,
+        has_active_claim=order.id in claim_context.active_order_ids,
+        has_completed_cancel_claim=order.id in claim_context.completed_cancel_order_ids,
         repair_previous_status=repair_previous.get(order.id),
+        claim=selected_claim,
     )
     return AdminOrderDetailOut(
         **summary.model_dump(),
@@ -513,7 +536,7 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
         company_courier_company=order.company_courier_company,
         company_tracking_number=order.company_tracking_number,
         company_shipped_at=order.company_shipped_at,
-        items=[safe_order_item_out(item) for item in items],
+        items=[safe_order_item_out(item, claim_context.by_item.get(item.id)) for item in items],
         status_logs=[AdminOrderStatusLogOut.model_validate(log) for log in status_logs],
         active_claim=(
             AdminActiveClaimOut.model_validate(active_claim) if active_claim is not None else None
@@ -529,6 +552,8 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
             )
             for related in related_orders
         ],
+        repair_pickup=repair_pickup,
+        repair_receipts=repair_receipts,
     )
 
 
@@ -537,18 +562,7 @@ async def list_order_reference_images(
 ) -> list[AdminOrderReferenceImageOut]:
     if await session.get(Order, order_id) is None:
         raise NotFoundError("Order not found")
-    images = list(
-        await session.scalars(
-            select(Image)
-            .where(
-                Image.entity_type.in_(ORDER_REFERENCE_IMAGE_TYPES),
-                Image.entity_id == str(order_id),
-                Image.upload_completed_at.is_not(None),
-                Image.deleted_at.is_(None),
-            )
-            .order_by(Image.created_at.asc(), Image.id.asc())
-        )
-    )
+    images = await list_linked_order_images(session, order_id, ADMIN_ORDER_IMAGE_TYPES)
     return [
         AdminOrderReferenceImageOut(
             id=image.id,
@@ -562,16 +576,5 @@ async def list_order_reference_images(
 
 async def get_order_reference_image(
     session: AsyncSession, order_id: uuid.UUID, image_id: uuid.UUID
-) -> Image:
-    image = await session.scalar(
-        select(Image).where(
-            Image.id == image_id,
-            Image.entity_type.in_(ORDER_REFERENCE_IMAGE_TYPES),
-            Image.entity_id == str(order_id),
-            Image.upload_completed_at.is_not(None),
-            Image.deleted_at.is_(None),
-        )
-    )
-    if image is None or (image.expires_at is not None and image.expires_at <= datetime.now(UTC)):
-        raise NotFoundError("주문 참고 이미지를 찾을 수 없습니다")
-    return image
+):
+    return await get_linked_order_image(session, order_id, image_id, ADMIN_ORDER_IMAGE_TYPES)

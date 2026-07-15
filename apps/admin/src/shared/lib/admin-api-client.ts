@@ -29,10 +29,6 @@ function publish(message: SessionMessage) {
   channel?.postMessage(message);
 }
 
-export function getAdminAccessToken() {
-  return accessToken;
-}
-
 export function setAdminAccessToken(token: string, broadcast = true) {
   accessToken = token;
   tokenRevision += 1;

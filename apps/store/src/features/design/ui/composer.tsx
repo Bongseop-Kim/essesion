@@ -12,6 +12,8 @@ import {
 import { CreditCardIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import type { FormEvent } from "react";
 
+import { krw } from "@/shared/lib/format";
+
 const CANDIDATE_COUNTS = [1, 2, 3, 4] as const;
 
 const DEFAULT_HINTS: readonly ComposerHint[] = [
@@ -19,8 +21,6 @@ const DEFAULT_HINTS: readonly ComposerHint[] = [
   { id: "geometric", label: "기하학", prompt: "기하학 패턴으로" },
   { id: "silk", label: "실크", prompt: "실크 원단에 어울리게" },
 ];
-
-const tokenFormatter = new Intl.NumberFormat("ko-KR");
 
 export type ComposerHint = {
   id: string;
@@ -187,5 +187,5 @@ export function DesignComposer({
 }
 
 function formatTokens(value: number | null | undefined) {
-  return value == null ? "—" : tokenFormatter.format(value);
+  return value == null ? "—" : krw.format(value);
 }

@@ -11,15 +11,15 @@ import {
 import {
   ActionButton,
   Callout,
+  DatePicker,
   Grid,
   HStack,
   Skeleton,
   Text,
-  TextField,
   VStack,
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime, formatMoney } from "../shared/lib/format";
 import { AdminCard } from "../shared/ui/admin-card";
@@ -152,6 +152,7 @@ function MetricCard({
 }
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const today = kstToday();
   const startDate = searchParams.get("from") ?? today;
@@ -238,29 +239,23 @@ export function DashboardPage() {
 
       <AdminCard title="조회 기준">
         <HStack gap="x3" align="flex-end" wrap>
-          <TextField
-            type="date"
+          <DatePicker
             label="시작일 (KST)"
             value={startDate}
             max={endDate}
-            onChange={(event) =>
-              updateFilter("from", event.currentTarget.value)
-            }
+            onValueChange={(value) => updateFilter("from", value)}
           />
-          <TextField
-            type="date"
+          <DatePicker
             label="종료일 (KST)"
             value={endDate}
             min={startDate}
-            onChange={(event) => updateFilter("to", event.currentTarget.value)}
+            onValueChange={(value) => updateFilter("to", value)}
           />
           <FilterSelect
             label="주문 유형"
             value={orderType}
             options={ORDER_TYPES}
-            onChange={(event) =>
-              updateFilter("type", event.currentTarget.value)
-            }
+            onValueChange={(value) => updateFilter("type", value)}
           />
         </HStack>
       </AdminCard>
@@ -356,6 +351,7 @@ export function DashboardPage() {
           columns={orderColumns}
           rows={recentOrders.data?.items}
           getRowKey={(row) => row.id}
+          onRowClick={(row) => navigate(`/orders/${row.id}`)}
           status={
             recentOrders.isLoading
               ? "loading"
@@ -377,6 +373,7 @@ export function DashboardPage() {
           columns={quoteColumns}
           rows={recentQuotes.data?.items}
           getRowKey={(row) => row.id}
+          onRowClick={(row) => navigate(`/quote-requests/${row.id}`)}
           status={
             recentQuotes.isLoading
               ? "loading"
