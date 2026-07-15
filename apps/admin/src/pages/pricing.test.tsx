@@ -36,7 +36,8 @@ import { PricingPage } from "./pricing";
 
 const pricing: PricingValueOut = {
   key: "sample_shipping_fee",
-  category: "샘플",
+  // 페이지는 CATEGORY_TABS에 있는 category만 렌더한다 — 기본 탭(reform)에 배치
+  category: "reform",
   description: "샘플 배송비",
   amount: 1_000,
   unit: "원",

@@ -440,7 +440,6 @@ export function ManualOrderForm({
                 : {};
               return (
                 <Box
-                  // biome-ignore lint/suspicious/noArrayIndexKey: 품목은 순서 외 식별자가 없다
                   key={index}
                   borderWidth={1}
                   borderColor="stroke.neutral"
