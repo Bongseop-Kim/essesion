@@ -41,6 +41,7 @@ import {
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { DatePicker } from "../../shared/ui/date-picker";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
@@ -145,26 +146,20 @@ function PeriodFilters({
 }) {
   return (
     <>
-      <TextField
-        type="date"
+      <DatePicker
         label="시작일 (KST)"
         value={query.from ?? ""}
-        onChange={(event) =>
-          replaceQuery({
-            from: event.currentTarget.value || undefined,
-            page: 1,
-          })
+        max={query.to}
+        onValueChange={(value) =>
+          replaceQuery({ from: value || undefined, page: 1 })
         }
       />
-      <TextField
-        type="date"
+      <DatePicker
         label="종료일 (KST)"
         value={query.to ?? ""}
-        onChange={(event) =>
-          replaceQuery({
-            to: event.currentTarget.value || undefined,
-            page: 1,
-          })
+        min={query.from}
+        onValueChange={(value) =>
+          replaceQuery({ to: value || undefined, page: 1 })
         }
       />
     </>

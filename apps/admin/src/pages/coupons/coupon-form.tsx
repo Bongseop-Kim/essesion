@@ -25,6 +25,7 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { DatePicker } from "../../shared/ui/date-picker";
 
 export type CouponDraft = {
   name: string;
@@ -275,31 +276,25 @@ export function CouponDefinitionForm({
                 }
               />
             ) : (
-              <TextField
-                type="date"
+              <DatePicker
                 label="만료일 (KST)"
                 required
                 value={draft.expiryDate}
                 errorMessage={attempted ? errors.expiryDate : undefined}
                 disabled={pending}
-                onChange={(event) =>
-                  update("expiryDate", event.currentTarget.value)
-                }
+                onValueChange={(value) => update("expiryDate", value)}
               />
             )}
           </Grid>
 
           {draft.discountType === "percentage" && (
-            <TextField
-              type="date"
+            <DatePicker
               label="만료일 (KST)"
               required
               value={draft.expiryDate}
               errorMessage={attempted ? errors.expiryDate : undefined}
               disabled={pending}
-              onChange={(event) =>
-                update("expiryDate", event.currentTarget.value)
-              }
+              onValueChange={(value) => update("expiryDate", value)}
             />
           )}
 

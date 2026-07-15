@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { pickOption } from "../../test/pickers";
 import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({ list: vi.fn(), options: vi.fn() }));
@@ -85,7 +86,7 @@ describe("ProductsPage", () => {
     renderPage("/products?page=2");
     await screen.findByText("네이비 솔리드 타이");
 
-    await user.selectOptions(screen.getByLabelText("카테고리"), "knit");
+    await pickOption(user, "카테고리", "니트");
 
     await waitFor(() =>
       expect(api.options).toHaveBeenLastCalledWith(

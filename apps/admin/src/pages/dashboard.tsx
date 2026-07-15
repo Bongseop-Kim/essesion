@@ -15,7 +15,6 @@ import {
   HStack,
   Skeleton,
   Text,
-  TextField,
   VStack,
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -23,6 +22,7 @@ import { Link, useSearchParams } from "react-router";
 
 import { formatDateTime, formatMoney } from "../shared/lib/format";
 import { AdminCard } from "../shared/ui/admin-card";
+import { DatePicker } from "../shared/ui/date-picker";
 import { FilterSelect } from "../shared/ui/filter-select";
 import { RouteHeading } from "../shared/ui/route-heading";
 import { StatusBadge } from "../shared/ui/status-badge";
@@ -238,21 +238,17 @@ export function DashboardPage() {
 
       <AdminCard title="조회 기준">
         <HStack gap="x3" align="flex-end" wrap>
-          <TextField
-            type="date"
+          <DatePicker
             label="시작일 (KST)"
             value={startDate}
             max={endDate}
-            onChange={(event) =>
-              updateFilter("from", event.currentTarget.value)
-            }
+            onValueChange={(value) => updateFilter("from", value)}
           />
-          <TextField
-            type="date"
+          <DatePicker
             label="종료일 (KST)"
             value={endDate}
             min={startDate}
-            onChange={(event) => updateFilter("to", event.currentTarget.value)}
+            onValueChange={(value) => updateFilter("to", value)}
           />
           <FilterSelect
             label="주문 유형"

@@ -1,4 +1,4 @@
-import { TextField } from "@essesion/shared";
+import { DatePicker } from "./date-picker";
 
 type DateRangeFiltersProps = {
   from?: string;
@@ -15,19 +15,17 @@ export function DateRangeFilters({
 }: DateRangeFiltersProps) {
   return (
     <>
-      <TextField
-        type="date"
+      <DatePicker
         label="시작일 (KST)"
         value={from ?? ""}
-        onChange={(event) =>
-          onFromChange(event.currentTarget.value || undefined)
-        }
+        max={to}
+        onValueChange={(value) => onFromChange(value || undefined)}
       />
-      <TextField
-        type="date"
+      <DatePicker
         label="종료일 (KST)"
         value={to ?? ""}
-        onChange={(event) => onToChange(event.currentTarget.value || undefined)}
+        min={from}
+        onValueChange={(value) => onToChange(value || undefined)}
       />
     </>
   );
