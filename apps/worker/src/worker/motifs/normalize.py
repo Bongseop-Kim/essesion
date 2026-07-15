@@ -13,6 +13,7 @@ import hashlib
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import cast
 
 from worker.engine.palette import hex_to_rgb, is_hex_color
 from worker.engine.units import fmt
@@ -44,15 +45,6 @@ class NormalizedMotif:
     bbox_mm: BBox = _UNIT_BBOX
     anchor: Anchor = _ORIGIN
     color_slots: tuple[str, ...] = ("s0",)
-
-    def to_motif_def(self) -> MotifDef:
-        return MotifDef(
-            id=self.id,
-            symbol=self.symbol,
-            bbox_mm=self.bbox_mm,
-            anchor=self.anchor,
-            color_slots=self.color_slots,
-        )
 
 
 def _tag(el: ET.Element) -> str:
@@ -219,7 +211,7 @@ def _render_gate(motif: NormalizedMotif, *, edge_seam_tol: float) -> None:
     size = float(_GATE_RENDER_MM)
     scale = size * (1.0 - 2.0 * _GATE_MARGIN_FRAC)
     transform = f"translate({fmt(size / 2.0)} {fmt(size / 2.0)}) scale({fmt(scale)})"
-    symbols = slot_render_symbols(motif.to_motif_def())
+    symbols = slot_render_symbols(cast(MotifDef, motif))
     defs = "".join(symbol for _, symbol in symbols)
     body = "".join(
         f'<use href="#{sym_id}" color="#000000" transform="{transform}"/>' for sym_id, _ in symbols

@@ -1,4 +1,4 @@
-import type { StorageLike } from "./pending";
+import { resolveStorage, type StorageLike } from "@/shared/lib/browser-storage";
 
 export const DESIGN_ONBOARDING_KEY = "design:onboarding:v1";
 const DESIGN_ONBOARDING_COMPLETE = "1";
@@ -6,18 +6,6 @@ const DESIGN_ONBOARDING_COMPLETE = "1";
 type StorageOptions = {
   storage?: StorageLike | null;
 };
-
-function browserStorage(): StorageLike | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function resolveStorage(storage: StorageLike | null | undefined) {
-  return storage === undefined ? browserStorage() : storage;
-}
 
 export function isDesignOnboardingComplete(
   options: StorageOptions = {},

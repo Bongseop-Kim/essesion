@@ -35,12 +35,6 @@ class SnappedAngle:
     angle_deg: float
     p: int
     q: int
-    deviation_deg: float
-
-
-def _deviation(snapped_deg: float, requested_deg: float) -> float:
-    # lane 방향은 mod 180 — 부호 있는 스냅 오차를 (-90, 90]로 축약
-    return ((snapped_deg - requested_deg + 90.0) % 180.0) - 90.0
 
 
 def snap_angle(requested_deg: float) -> SnappedAngle:
@@ -48,7 +42,7 @@ def snap_angle(requested_deg: float) -> SnappedAngle:
     theta = ((requested_deg + 90.0) % 180.0) - 90.0
     cos_t = math.cos(math.radians(theta))
     if abs(abs(theta) - 90.0) < 1e-9 or abs(cos_t) < 1e-12:
-        return SnappedAngle(90.0, 1, 0, _deviation(90.0, requested_deg))
+        return SnappedAngle(90.0, 1, 0)
 
     slope = math.tan(math.radians(theta))
     abs_slope = abs(slope)
@@ -60,12 +54,12 @@ def snap_angle(requested_deg: float) -> SnappedAngle:
         # 수직에 가까우면 cot로 근사 후 역수 (조건수 개선)
         cot = Fraction(1.0 / abs_slope).limit_denominator(MAX_LANE_PERIOD_TILES)
         if cot.numerator == 0:
-            return SnappedAngle(90.0, 1, 0, _deviation(90.0, requested_deg))
+            return SnappedAngle(90.0, 1, 0)
         p_abs, q = cot.denominator, cot.numerator
 
     p = sign * p_abs
     angle = math.degrees(math.atan2(p, q))
-    return SnappedAngle(angle, p, q, _deviation(angle, requested_deg))
+    return SnappedAngle(angle, p, q)
 
 
 def stripe_tiles(tile_mm: float, period_mm: float, p: int, q: int, tol: float = 1e-6) -> bool:

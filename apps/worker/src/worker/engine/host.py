@@ -2,7 +2,7 @@
 
 import math
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal
 
 Point = tuple[float, float]
 
@@ -35,35 +35,24 @@ class Centerline:
         y = self.offset_mm * ny + s_mm * dy
         if self.kind == "straight":
             return (x % tile_mm, y % tile_mm), self.angle_deg
-        if self.kind == "wave":
-            if self.wavelength_mm is None or self.amplitude_mm is None:
-                raise ValueError("wave centerline requires wavelength_mm and amplitude_mm")
-            w = 2.0 * math.pi / self.wavelength_mm
-            perp = self.amplitude_mm * math.sin(w * s_mm)
-            perp_prime = self.amplitude_mm * w * math.cos(w * s_mm)
-            x += perp * nx
-            y += perp * ny
-            vx = dx + perp_prime * nx
-            vy = dy + perp_prime * ny
-            tangent = math.degrees(math.atan2(vy, vx))
-            return (x % tile_mm, y % tile_mm), tangent
-        raise NotImplementedError(f"point_at not implemented for kind={self.kind!r}")
+        # kind == "wave" (Literal["straight", "wave"]의 나머지 분기)
+        if self.wavelength_mm is None or self.amplitude_mm is None:
+            raise ValueError("wave centerline requires wavelength_mm and amplitude_mm")
+        w = 2.0 * math.pi / self.wavelength_mm
+        perp = self.amplitude_mm * math.sin(w * s_mm)
+        perp_prime = self.amplitude_mm * w * math.cos(w * s_mm)
+        x += perp * nx
+        y += perp * ny
+        vx = dx + perp_prime * nx
+        vy = dy + perp_prime * ny
+        tangent = math.degrees(math.atan2(vy, vx))
+        return (x % tile_mm, y % tile_mm), tangent
 
 
 @dataclass(frozen=True)
 class LaneField:
     id: str
     centerline_path: Centerline
-    spacing_mm: float
-    phase_mm: float
-
-    @property
-    def angle_deg(self) -> float:
-        return self.centerline_path.angle_deg
-
-
-class HostLayer(Protocol):
-    def lanes(self) -> list[LaneField]: ...
 
 
 def resolve_lane(lanes: list[LaneField], key: str) -> LaneField:

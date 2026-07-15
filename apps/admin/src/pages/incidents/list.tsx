@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
-import { incidentPollingInterval } from "../../shared/lib/polling";
+import { activeAdminPollingInterval } from "../../shared/lib/polling";
 import {
   useAdminListPageCorrection,
   useAdminListUrlState,
@@ -123,7 +123,10 @@ export function IncidentsPage() {
     }),
     placeholderData: keepPreviousData,
     refetchInterval: (query) =>
-      incidentPollingInterval(query.state.data?.items),
+      activeAdminPollingInterval(
+        query.state.data?.items?.some((item) => item.status === "open") ??
+          false,
+      ),
   });
 
   const totalPages = Math.max(

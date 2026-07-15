@@ -21,7 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
-import { krw } from "@/pages/shop/constants";
+import { krw } from "@/shared/lib/format";
 
 /**
  * 토큰 주문 상세의 환불 섹션 — 자격 판정은 서버 `RefundableTokenOrder`를

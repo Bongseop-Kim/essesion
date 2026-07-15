@@ -43,7 +43,6 @@ generate_router = APIRouter()
 finalize_router = APIRouter()
 logger = logging.getLogger(__name__)
 
-NOT_IMPLEMENTED = 501
 FINALIZE_INVALID_INPUT_CODE = "FINALIZE_INVALID_INPUT"
 FINALIZE_INVALID_INPUT_MESSAGE = "finalize input is invalid"
 

@@ -21,7 +21,7 @@ import {
   couponLabel,
 } from "@/features/coupon";
 import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
-import { krw } from "@/pages/shop/constants";
+import { krw } from "@/shared/lib/format";
 import { useSession } from "@/shared/store/session";
 import { SummaryCard } from "@/shared/ui/summary-card";
 

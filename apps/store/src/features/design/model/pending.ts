@@ -1,3 +1,7 @@
+import { resolveStorage, type StorageLike } from "@/shared/lib/browser-storage";
+
+export type { StorageLike };
+
 export const DESIGN_PENDING_KEY = "design:pending";
 export const DESIGN_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -7,25 +11,11 @@ export type DesignPending = {
   operationId?: string;
 };
 
-export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
 type StorageOptions = {
   storage?: StorageLike | null;
   now?: number;
   operationId?: string;
 };
-
-function browserStorage(): StorageLike | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-function resolveStorage(storage: StorageLike | null | undefined) {
-  return storage === undefined ? browserStorage() : storage;
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);

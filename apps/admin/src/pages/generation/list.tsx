@@ -31,10 +31,7 @@ import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
-import {
-  activeAdminPollingInterval,
-  generationPollingInterval,
-} from "../../shared/lib/polling";
+import { activeAdminPollingInterval } from "../../shared/lib/polling";
 import type { AdminListQuery } from "../../shared/lib/url-query";
 import {
   useAdminListPageCorrection,
@@ -251,7 +248,11 @@ function JobsPanel({
     }),
     placeholderData: keepPreviousData,
     refetchInterval: (query) =>
-      generationPollingInterval(query.state.data?.items),
+      activeAdminPollingInterval(
+        query.state.data?.items?.some((item) =>
+          ["queued", "processing"].includes(item.status),
+        ) ?? false,
+      ),
   });
   const statsQuery = useQuery({
     ...getAdminGenerationJobStatsOptions({ query: commonQuery }),

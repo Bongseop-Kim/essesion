@@ -23,32 +23,16 @@ export type AdminCredentials = {
 };
 
 export type AdminSessionAdapter = {
-  availability: "ready" | "unavailable";
   bootstrap: (signal: AbortSignal) => Promise<AdminSession | null>;
   login: (credentials: AdminCredentials) => Promise<AdminSession>;
   logout: () => Promise<void>;
   subscribe?: (onInvalidated: () => void) => () => void;
 };
 
-/**
- * Admin auth OpenAPI가 생성되기 전 사용하는 명시적 경계다.
- * 직접 HTTP 요청이나 임시 세션을 만들지 않고 UI를 fail closed로 유지한다.
- */
-export const unavailableAdminSessionAdapter: AdminSessionAdapter = {
-  availability: "unavailable",
-  bootstrap: () =>
-    Promise.reject(new Error("관리자 인증 API가 아직 연결되지 않았습니다.")),
-  login: () =>
-    Promise.reject(new Error("관리자 인증 API가 아직 연결되지 않았습니다.")),
-  logout: () =>
-    Promise.reject(new Error("관리자 인증 API가 아직 연결되지 않았습니다.")),
-};
-
 type AdminSessionState =
   | { status: "loading" }
   | { status: "authenticated"; session: AdminSession }
   | { status: "anonymous" }
-  | { status: "unavailable" }
   | { status: "error" };
 
 type AdminSessionContextValue = {
@@ -74,19 +58,9 @@ export function AdminSessionProvider({
   children,
 }: AdminSessionProviderProps) {
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
-  const [state, setState] = useState<AdminSessionState>(() =>
-    adapter.availability === "ready"
-      ? { status: "loading" }
-      : { status: "unavailable" },
-  );
+  const [state, setState] = useState<AdminSessionState>({ status: "loading" });
 
   useEffect(() => {
-    if (adapter.availability === "unavailable") {
-      clearSensitiveCache();
-      setState({ status: "unavailable" });
-      return;
-    }
-
     const controller = new AbortController();
     setState({ status: "loading" });
     void adapter
@@ -117,10 +91,8 @@ export function AdminSessionProvider({
   }, [adapter, clearSensitiveCache]);
 
   const retryBootstrap = useCallback(() => {
-    if (adapter.availability === "ready") {
-      setBootstrapAttempt((attempt) => attempt + 1);
-    }
-  }, [adapter]);
+    setBootstrapAttempt((attempt) => attempt + 1);
+  }, []);
 
   const login = useCallback(
     async (credentials: AdminCredentials) => {

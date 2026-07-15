@@ -36,10 +36,10 @@ locals {
     SENTRY_DSN           = google_secret_manager_secret.app["sentry-dsn-api"].secret_id
   }
 
-  worker_plain_env = merge({
+  worker_plain_env = {
     ENV        = "staging"
     GCS_BUCKET = google_storage_bucket.assets.name
-  }, var.worker_extra_env)
+  }
 
   # 같은 이미지를 배포하되 HTTP 표면은 역할별로 닫는다. all은 로컬 개발 전용 기본값.
   worker_generate_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "generate" })

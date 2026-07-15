@@ -13,15 +13,11 @@
     "@essesion/api-client": "workspace:*",
     "@essesion/shared": "workspace:*",
     "@heroicons/react": "catalog:",
-    "@hookform/resolvers": "catalog:",
     "@tanstack/react-query": "catalog:",
     "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-hook-form": "catalog:",
-    "react-router": "catalog:",
-    "zod": "catalog:",
-    "zustand": "catalog:"
+    "react-router": "catalog:"
   },
   "devDependencies": {
     "@essesion/tsconfig": "workspace:*",

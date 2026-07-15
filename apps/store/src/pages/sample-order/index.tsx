@@ -1,3 +1,4 @@
+import { calculateSampleOrder } from "@essesion/api-client";
 import {
   ActionButton,
   AttachmentDisplayField,
@@ -13,6 +14,7 @@ import {
   TextAreaField,
   VStack,
 } from "@essesion/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -23,8 +25,8 @@ import {
   type SampleOrderDraft,
   type SampleOrderOptions,
   sampleFabricLabel,
+  sampleOrderApiOptions,
   sampleTypeLabel,
-  useSampleQuote,
 } from "@/features/sample-order";
 import { krw } from "@/pages/shop/constants";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -42,7 +44,26 @@ export function SampleOrderPage() {
   );
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const calculation = useSampleQuote(options);
+  const designType =
+    options.sampleType === "sewing" ? null : options.designType;
+  const calculation = useQuery({
+    queryKey: [
+      "sample-order",
+      "calculate",
+      { sample_type: options.sampleType, design_type: designType },
+    ],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await calculateSampleOrder({
+        body: {
+          sample_type: options.sampleType,
+          options: sampleOrderApiOptions(options),
+        },
+        throwOnError: true,
+      });
+      return data;
+    },
+  });
   const totalCost = calculation.data?.total_cost ?? null;
   const previews = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),

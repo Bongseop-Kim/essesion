@@ -1,5 +1,7 @@
 import type { ListProductsData } from "@essesion/api-client";
 
+export { krw } from "@/shared/lib/format";
+
 type ProductQuery = NonNullable<ListProductsData["query"]>;
 
 export type ProductCategory = NonNullable<ProductQuery["category"]>;
@@ -114,5 +116,3 @@ export function selectedFilter<T extends string>(
 ): T | undefined {
   return value === "all" ? undefined : value;
 }
-
-export const krw = new Intl.NumberFormat("ko-KR");

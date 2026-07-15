@@ -51,7 +51,6 @@ export type DatePickerProps = {
   required?: boolean;
   disabled?: boolean;
   errorMessage?: ReactNode;
-  placeholder?: string;
 };
 
 /* 날짜 피커 — FieldButton(트리거) + ResponsiveModal(모바일 시트↔PC 모달) + 월 달력.
@@ -65,7 +64,6 @@ export function DatePicker({
   required,
   disabled,
   errorMessage,
-  placeholder = "날짜 선택",
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   // 닫혀 있어도 Modal이 children을 마운트하므로 유효한 달로 초기화해야 한다
@@ -116,7 +114,7 @@ export function DatePicker({
           errorMessage={errorMessage}
         >
           <FieldButton
-            placeholder={placeholder}
+            placeholder="날짜 선택"
             value={value ? formatDate(value) : undefined}
             disabled={disabled}
             aria-haspopup="dialog"

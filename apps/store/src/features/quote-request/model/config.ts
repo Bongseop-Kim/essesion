@@ -1,3 +1,5 @@
+import { dateMedium, krw } from "@/shared/lib/format";
+
 export const QUOTE_REQUEST_STATUSES = [
   "요청",
   "견적발송",
@@ -40,9 +42,6 @@ const CONTACT_METHOD_LABELS: Record<string, string> = {
   phone: "전화",
 };
 
-const amountFormat = new Intl.NumberFormat("ko-KR");
-const dateFormat = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" });
-
 export function quoteRequestStatusTone(status: string): StatusTone {
   return STATUS_TONES[status as QuoteRequestStatus] ?? "neutral";
 }
@@ -60,9 +59,9 @@ export function quoteContactName(
 }
 
 export function formatQuoteAmount(amount: number): string {
-  return `${amountFormat.format(amount)}원`;
+  return `${krw.format(amount)}원`;
 }
 
 export function formatQuoteDate(iso: string): string {
-  return dateFormat.format(new Date(iso));
+  return dateMedium.format(new Date(iso));
 }

@@ -52,7 +52,6 @@ def test_settings_resource_ceiling_defaults() -> None:
     assert s.preview_render_concurrency == 2
     assert s.finalize_lease_seconds == 960
     assert s.service_mode == "all"
-    assert s.recraft_response_format == "b64_json"
 
 
 def test_settings_validates_resource_ceilings() -> None:
@@ -82,11 +81,6 @@ def test_settings_validates_service_mode() -> None:
 
     with pytest.raises(ValidationError):
         _settings(service_mode="other")
-
-
-def test_settings_rejects_recraft_url_response_format() -> None:
-    with pytest.raises(ValidationError):
-        _settings(recraft_response_format="url")
 
 
 def test_settings_validates_gemini_temperature() -> None:

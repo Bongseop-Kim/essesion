@@ -1,13 +1,11 @@
-"""결정론 장치 — 안정 정렬·시드 RNG·해시·repro 메타 (worker-engine.md §5).
+"""결정론 장치 — 안정 해시·변형 선택 (worker-engine.md §5).
 
-내장 hash()·전역 random 금지. 같은 (intent, seed, colorway, registry_version)
-→ byte-identical SVG의 움직이는 부품(순서·난수·메타)을 여기서 고정한다.
+내장 hash() 금지. 같은 (intent, seed, colorway, registry_version)
+→ byte-identical SVG를 위한 안정 해시·layout_id·variant 선택을 여기서 고정한다.
 """
 
 import hashlib
 import json
-import random
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 ENGINE_VERSION = "0.1.0"
@@ -15,18 +13,6 @@ REGISTRY_VERSION = "0.1.0"
 
 if TYPE_CHECKING:
     from worker.engine.intent import Intent
-
-
-def layer_sort_key(layer) -> tuple[int, str]:
-    return (layer.z_order, layer.id)
-
-
-def sorted_layers(layers):
-    return sorted(layers, key=layer_sort_key)
-
-
-def seeded_rng(seed: int) -> random.Random:
-    return random.Random(seed)
 
 
 def layout_id_for(intent: "Intent") -> str:
@@ -49,13 +35,3 @@ def select_variant(pool_ids: list[str], variant_group: str, seed: int) -> str:
         raise ValueError("select_variant requires a non-empty pool")
     pool = sorted(pool_ids)
     return pool[stable_hash(f"{variant_group}:{seed}") % len(pool)]
-
-
-@dataclass(frozen=True, kw_only=True)
-class ReproMeta:
-    intent_version: int
-    seed: int
-    colorway_id: str
-    engine_version: str = ENGINE_VERSION
-    registry_version: str = REGISTRY_VERSION
-    layout_id: str | None = None

@@ -1,3 +1,5 @@
+import { dateMedium } from "@/shared/lib/format";
+
 const ORDER_TYPE_LABELS: Record<string, string> = {
   sale: "상품",
   repair: "수선",
@@ -42,8 +44,6 @@ export function canRegisterRepairShipment(order: {
   return order.order_type === "repair" && order.status === "발송대기";
 }
 
-const dateFormat = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" });
-
 export function formatOrderDate(iso: string): string {
-  return dateFormat.format(new Date(iso));
+  return dateMedium.format(new Date(iso));
 }

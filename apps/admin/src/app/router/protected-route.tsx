@@ -43,17 +43,6 @@ export function ProtectedRoute({
     );
   }
 
-  if (state.status === "unavailable") {
-    return (
-      <GuardPage>
-        <ContentPlaceholder
-          title="관리자 인증 연결 대기"
-          description="관리자 전용 세션 계약이 생성될 때까지 보호 화면은 닫혀 있습니다."
-        />
-      </GuardPage>
-    );
-  }
-
   if (state.status === "error") {
     return (
       <GuardPage>

@@ -4,12 +4,13 @@ scatter poisson만 RNG를 소비한다(시도당 x, y 정확히 2회 — 회전�
 """
 
 import math
+import random
 from dataclasses import dataclass
 
 from worker.config import get_settings
-from worker.engine.determinism import seeded_rng
-from worker.engine.host import Centerline, HostLayer, resolve_lane
+from worker.engine.host import Centerline, resolve_lane
 from worker.engine.intent import MotifLayer, PathSpec, Placement, ScatterSpec
+from worker.engine.primitives import Stripe
 from worker.engine.units import snap_angle, snap_spacing
 
 _EPS = 1e-9
@@ -24,7 +25,7 @@ class Instance:
     rotation_deg: float
 
 
-def place(layer: MotifLayer, host: HostLayer | None, tile_mm: float, seed: int) -> list[Instance]:
+def place(layer: MotifLayer, host: Stripe | None, tile_mm: float, seed: int) -> list[Instance]:
     placement = layer.placement
     if placement is None:
         raise ValueError(f"motif layer {layer.id!r} has no placement")
@@ -60,7 +61,7 @@ def _centerline_from_path(path: PathSpec, tile_mm: float) -> Centerline:
     return Centerline(angle_deg=snapped.angle_deg, offset_mm=0.0, p=snapped.p, q=snapped.q)
 
 
-def _resolve_centerline(host: HostLayer | None, placement: Placement, tile_mm: float) -> Centerline:
+def _resolve_centerline(host: Stripe | None, placement: Placement, tile_mm: float) -> Centerline:
     if placement.path is not None and placement.host_layer is None:
         return _centerline_from_path(placement.path, tile_mm)
     if placement.lane is None:
@@ -71,7 +72,7 @@ def _resolve_centerline(host: HostLayer | None, placement: Placement, tile_mm: f
 
 
 def place_path_following(
-    host: HostLayer | None, placement: Placement, tile_mm: float
+    host: Stripe | None, placement: Placement, tile_mm: float
 ) -> list[Instance]:
     if placement.spacing_mm is None:
         raise ValueError("path_following placement requires `spacing_mm`")
@@ -183,7 +184,7 @@ def place_scatter(placement: Placement, tile_mm: float, seed: int) -> list[Insta
     if spec.min_dist_mm is None:
         raise ValueError("poisson scatter placement requires `min_dist_mm`")
     min_dist = spec.min_dist_mm
-    rng = seeded_rng(seed)
+    rng = random.Random(seed)
     cap = get_settings().max_placement_instances
     target = scatter_target_count(spec, tile_mm, cap)
     if target > cap:

@@ -11,7 +11,7 @@ import {
 } from "@essesion/shared";
 import { useEffect, useState } from "react";
 
-import { krw } from "@/pages/shop/constants";
+import { krw } from "@/shared/lib/format";
 import { couponLabel } from "../model/discount";
 
 const NONE_COUPON = "__none__";
