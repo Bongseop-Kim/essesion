@@ -1339,6 +1339,18 @@ export const zLoginRequest = z.object({
 });
 
 /**
+ * ManualAutomaticSpec
+ *
+ * 자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름).
+ */
+export const zManualAutomaticSpec = z.object({
+    dimple: z.boolean().optional().default(false),
+    mechanism: z.enum(['zipper', 'string']),
+    total_length_cm: z.number().gt(0),
+    turn_knot: z.boolean().optional().default(false)
+});
+
+/**
  * MeResponse
  */
 export const zMeResponse = z.object({
@@ -2677,6 +2689,81 @@ export const zWidthReform = z.object({
 });
 
 /**
+ * ManualOrderItem
+ *
+ * 품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태.
+ */
+export const zManualOrderItem = z.object({
+    automatic: zManualAutomaticSpec.nullish(),
+    note: z.string().max(500).optional().default(''),
+    quantity: z.int().gte(1).lte(999),
+    restoration: zRestorationReform.nullish(),
+    width: zWidthReform.nullish()
+});
+
+/**
+ * ManualOrderCreateRequest
+ */
+export const zManualOrderCreateRequest = z.object({
+    address: z.string().max(500).nullish(),
+    amount: z.int().gte(0),
+    customer_name: z.string().min(1).max(100),
+    is_confirmed: z.boolean().optional().default(false),
+    is_paid: z.boolean().optional().default(false),
+    is_received: z.boolean().optional().default(false),
+    items: z.array(zManualOrderItem).min(1).max(50),
+    order_date: z.iso.date(),
+    phone: z.string().min(1).max(20),
+    shipping_fee: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * ManualOrderOut
+ */
+export const zManualOrderOut = z.object({
+    address: z.string().nullable(),
+    amount: z.int(),
+    created_at: z.iso.datetime(),
+    customer_name: z.string(),
+    id: z.uuid(),
+    is_confirmed: z.boolean(),
+    is_paid: z.boolean(),
+    is_received: z.boolean(),
+    items: z.array(zManualOrderItem),
+    order_date: z.iso.date(),
+    phone: z.string(),
+    shipping_fee: z.int(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * ManualOrderUpdateRequest
+ */
+export const zManualOrderUpdateRequest = z.object({
+    address: z.string().max(500).nullish(),
+    amount: z.int().gte(0),
+    customer_name: z.string().min(1).max(100),
+    expected_updated_at: z.iso.datetime(),
+    is_confirmed: z.boolean().optional().default(false),
+    is_paid: z.boolean().optional().default(false),
+    is_received: z.boolean().optional().default(false),
+    items: z.array(zManualOrderItem).min(1).max(50),
+    order_date: z.iso.date(),
+    phone: z.string().min(1).max(20),
+    shipping_fee: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Page[ManualOrderOut]
+ */
+export const zPageManualOrderOut = z.object({
+    items: z.array(zManualOrderOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
  * ReformTieIn
  */
 export const zReformTieIn = z.object({
@@ -3260,6 +3347,55 @@ export const zAnswerAdminInquiryPath = z.object({
  * Successful Response
  */
 export const zAnswerAdminInquiryResponse = zAdminInquiryDetailOut;
+
+export const zListManualOrdersQuery = z.object({
+    q: z.string().max(64).nullish(),
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListManualOrdersResponse = zPageManualOrderOut;
+
+export const zCreateManualOrderBody = zManualOrderCreateRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateManualOrderResponse = zManualOrderOut;
+
+export const zDeleteManualOrderPath = z.object({
+    manual_order_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteManualOrderResponse = z.void();
+
+export const zGetManualOrderPath = z.object({
+    manual_order_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetManualOrderResponse = zManualOrderOut;
+
+export const zUpdateManualOrderBody = zManualOrderUpdateRequest;
+
+export const zUpdateManualOrderPath = z.object({
+    manual_order_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zUpdateManualOrderResponse = zManualOrderOut;
 
 export const zListAdminMotifsQuery = z.object({
     scope: z.enum(['whole', 'partial']).nullish(),

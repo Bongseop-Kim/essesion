@@ -69,6 +69,33 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
+    path: "manual-orders",
+    lazy: async () => {
+      const { ManualOrdersPage } = await import(
+        "../../pages/manual-orders/list"
+      );
+      return { Component: ManualOrdersPage };
+    },
+  },
+  {
+    path: "manual-orders/new",
+    lazy: async () => {
+      const { ManualOrderNewPage } = await import(
+        "../../pages/manual-orders/new"
+      );
+      return { Component: ManualOrderNewPage };
+    },
+  },
+  {
+    path: "manual-orders/:manualOrderId",
+    lazy: async () => {
+      const { ManualOrderDetailPage } = await import(
+        "../../pages/manual-orders/detail"
+      );
+      return { Component: ManualOrderDetailPage };
+    },
+  },
+  {
     path: "products",
     lazy: async () => {
       const { ProductsPage } = await import("../../pages/products/list");

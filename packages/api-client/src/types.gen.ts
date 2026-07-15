@@ -3599,6 +3599,203 @@ export type LoginRequest = {
 };
 
 /**
+ * ManualAutomaticSpec
+ *
+ * 자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름).
+ */
+export type ManualAutomaticSpec = {
+    /**
+     * Dimple
+     */
+    dimple?: boolean;
+    /**
+     * Mechanism
+     */
+    mechanism: 'zipper' | 'string';
+    /**
+     * Total Length Cm
+     */
+    total_length_cm: number;
+    /**
+     * Turn Knot
+     */
+    turn_knot?: boolean;
+};
+
+/**
+ * ManualOrderCreateRequest
+ */
+export type ManualOrderCreateRequest = {
+    /**
+     * Address
+     */
+    address?: string | null;
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Customer Name
+     */
+    customer_name: string;
+    /**
+     * Is Confirmed
+     */
+    is_confirmed?: boolean;
+    /**
+     * Is Paid
+     */
+    is_paid?: boolean;
+    /**
+     * Is Received
+     */
+    is_received?: boolean;
+    /**
+     * Items
+     */
+    items: Array<ManualOrderItem>;
+    /**
+     * Order Date
+     */
+    order_date: string;
+    /**
+     * Phone
+     */
+    phone: string;
+    /**
+     * Shipping Fee
+     */
+    shipping_fee?: number;
+};
+
+/**
+ * ManualOrderItem
+ *
+ * 품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태.
+ */
+export type ManualOrderItem = {
+    automatic?: ManualAutomaticSpec | null;
+    /**
+     * Note
+     */
+    note?: string;
+    /**
+     * Quantity
+     */
+    quantity: number;
+    restoration?: RestorationReform | null;
+    width?: WidthReform | null;
+};
+
+/**
+ * ManualOrderOut
+ */
+export type ManualOrderOut = {
+    /**
+     * Address
+     */
+    address: string | null;
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Customer Name
+     */
+    customer_name: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Confirmed
+     */
+    is_confirmed: boolean;
+    /**
+     * Is Paid
+     */
+    is_paid: boolean;
+    /**
+     * Is Received
+     */
+    is_received: boolean;
+    /**
+     * Items
+     */
+    items: Array<ManualOrderItem>;
+    /**
+     * Order Date
+     */
+    order_date: string;
+    /**
+     * Phone
+     */
+    phone: string;
+    /**
+     * Shipping Fee
+     */
+    shipping_fee: number;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * ManualOrderUpdateRequest
+ */
+export type ManualOrderUpdateRequest = {
+    /**
+     * Address
+     */
+    address?: string | null;
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Customer Name
+     */
+    customer_name: string;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Is Confirmed
+     */
+    is_confirmed?: boolean;
+    /**
+     * Is Paid
+     */
+    is_paid?: boolean;
+    /**
+     * Is Received
+     */
+    is_received?: boolean;
+    /**
+     * Items
+     */
+    items: Array<ManualOrderItem>;
+    /**
+     * Order Date
+     */
+    order_date: string;
+    /**
+     * Phone
+     */
+    phone: string;
+    /**
+     * Shipping Fee
+     */
+    shipping_fee?: number;
+};
+
+/**
  * MeResponse
  */
 export type MeResponse = {
@@ -4581,6 +4778,28 @@ export type PageIssuedCouponOut = {
      * Items
      */
     items: Array<IssuedCouponOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[ManualOrderOut]
+ */
+export type PageManualOrderOut = {
+    /**
+     * Items
+     */
+    items: Array<ManualOrderOut>;
     /**
      * Limit
      */
@@ -7659,6 +7878,167 @@ export type AnswerAdminInquiryResponses = {
 };
 
 export type AnswerAdminInquiryResponse = AnswerAdminInquiryResponses[keyof AnswerAdminInquiryResponses];
+
+export type ListManualOrdersData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/manual-orders';
+};
+
+export type ListManualOrdersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListManualOrdersError = ListManualOrdersErrors[keyof ListManualOrdersErrors];
+
+export type ListManualOrdersResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageManualOrderOut;
+};
+
+export type ListManualOrdersResponse = ListManualOrdersResponses[keyof ListManualOrdersResponses];
+
+export type CreateManualOrderData = {
+    body: ManualOrderCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/manual-orders';
+};
+
+export type CreateManualOrderErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateManualOrderError = CreateManualOrderErrors[keyof CreateManualOrderErrors];
+
+export type CreateManualOrderResponses = {
+    /**
+     * Successful Response
+     */
+    201: ManualOrderOut;
+};
+
+export type CreateManualOrderResponse = CreateManualOrderResponses[keyof CreateManualOrderResponses];
+
+export type DeleteManualOrderData = {
+    body?: never;
+    path: {
+        /**
+         * Manual Order Id
+         */
+        manual_order_id: string;
+    };
+    query?: never;
+    url: '/admin/manual-orders/{manual_order_id}';
+};
+
+export type DeleteManualOrderErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteManualOrderError = DeleteManualOrderErrors[keyof DeleteManualOrderErrors];
+
+export type DeleteManualOrderResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteManualOrderResponse = DeleteManualOrderResponses[keyof DeleteManualOrderResponses];
+
+export type GetManualOrderData = {
+    body?: never;
+    path: {
+        /**
+         * Manual Order Id
+         */
+        manual_order_id: string;
+    };
+    query?: never;
+    url: '/admin/manual-orders/{manual_order_id}';
+};
+
+export type GetManualOrderErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetManualOrderError = GetManualOrderErrors[keyof GetManualOrderErrors];
+
+export type GetManualOrderResponses = {
+    /**
+     * Successful Response
+     */
+    200: ManualOrderOut;
+};
+
+export type GetManualOrderResponse = GetManualOrderResponses[keyof GetManualOrderResponses];
+
+export type UpdateManualOrderData = {
+    body: ManualOrderUpdateRequest;
+    path: {
+        /**
+         * Manual Order Id
+         */
+        manual_order_id: string;
+    };
+    query?: never;
+    url: '/admin/manual-orders/{manual_order_id}';
+};
+
+export type UpdateManualOrderErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateManualOrderError = UpdateManualOrderErrors[keyof UpdateManualOrderErrors];
+
+export type UpdateManualOrderResponses = {
+    /**
+     * Successful Response
+     */
+    200: ManualOrderOut;
+};
+
+export type UpdateManualOrderResponse = UpdateManualOrderResponses[keyof UpdateManualOrderResponses];
 
 export type ListAdminMotifsData = {
     body?: never;
