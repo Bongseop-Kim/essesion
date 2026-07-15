@@ -180,3 +180,8 @@ export type {
 export { TextAreaField, TextField } from "./components/text-field";
 export type { ToggleButtonProps } from "./components/toggle-button";
 export { ToggleButton } from "./components/toggle-button";
+export type {
+  OrderContentRow,
+  OrderItemContent,
+} from "./order-content";
+export { decodeOrderItemContent } from "./order-content";

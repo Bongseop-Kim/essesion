@@ -1945,6 +1945,23 @@
             "title": "Related Orders",
             "type": "array"
           },
+          "repair_pickup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RepairPickupOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repair_receipts": {
+            "items": {
+              "$ref": "#/components/schemas/RepairShippingReceiptOut"
+            },
+            "title": "Repair Receipts",
+            "type": "array"
+          },
           "shipped_at": {
             "anyOf": [
               {
@@ -7938,6 +7955,23 @@
             ],
             "title": "Payment Group Id"
           },
+          "repair_pickup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RepairPickupOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "repair_receipts": {
+            "items": {
+              "$ref": "#/components/schemas/RepairShippingReceiptOut"
+            },
+            "title": "Repair Receipts",
+            "type": "array"
+          },
           "shipped_at": {
             "anyOf": [
               {
@@ -8028,6 +8062,19 @@
           "updated_at"
         ],
         "title": "OrderDetailOut",
+        "type": "object"
+      },
+      "OrderImageReadUrlOut": {
+        "properties": {
+          "read_url": {
+            "title": "Read Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "read_url"
+        ],
+        "title": "OrderImageReadUrlOut",
         "type": "object"
       },
       "OrderImageUploadOut": {
@@ -8473,6 +8520,50 @@
           "upload_id"
         ],
         "title": "OrderReferenceImageIn",
+        "type": "object"
+      },
+      "OrderReferenceImageOut": {
+        "properties": {
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          }
+        },
+        "required": [
+          "id",
+          "content_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "title": "OrderReferenceImageOut",
         "type": "object"
       },
       "OrderShippingAddressOut": {
@@ -19726,6 +19817,116 @@
         ]
       }
     },
+    "/orders/{order_id}/reference-images": {
+      "get": {
+        "operationId": "list_my_order_reference_images",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrderReferenceImageOut"
+                  },
+                  "title": "Response List My Order Reference Images",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List My Order Reference Images",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{order_id}/reference-images/{image_id}/read-url": {
+      "post": {
+        "operationId": "create_my_order_reference_image_read_url",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderImageReadUrlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create My Order Reference Image Read Url",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/orders/{order_id}/repair-no-tracking": {
       "post": {
         "operationId": "submit_repair_no_tracking",
@@ -19779,6 +19980,136 @@
           }
         ],
         "summary": "Submit Repair No Tracking",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos": {
+      "get": {
+        "operationId": "list_my_repair_receipt_photos",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrderReferenceImageOut"
+                  },
+                  "title": "Response List My Repair Receipt Photos",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List My Repair Receipt Photos",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos/{image_id}/read-url": {
+      "post": {
+        "operationId": "create_my_repair_receipt_photo_read_url",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderImageReadUrlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create My Repair Receipt Photo Read Url",
         "tags": [
           "orders"
         ]

@@ -40,12 +40,11 @@ from api.domains.admin.phase_d_schemas import (
     ClaimTrackingUpdateRequest,
     ClaimTypeFilter,
     PaymentIncidentSummaryOut,
-    RepairPickupOut,
-    RepairShippingReceiptOut,
 )
 from api.domains.admin.schemas import Page
 from api.domains.admin.types import SortDirection
 from api.domains.claims.service import FORWARD_CLAIM, REJECTABLE_FROM, ROLLBACK_CLAIM
+from api.domains.orders.schemas import RepairPickupOut, RepairShippingReceiptOut
 from api.errors import DomainError, NotFoundError
 
 DEFAULT_PAGE_LIMIT = 20

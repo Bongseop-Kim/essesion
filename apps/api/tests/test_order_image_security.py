@@ -210,10 +210,12 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
     client, db_session, settings
 ):
     customer = await make_user(db_session)
+    other = await make_user(db_session)
     address = await make_address(db_session, customer)
     admin = await make_admin(db_session)
     await seed_pricing(db_session, CUSTOM_PRICING)
     customer_headers = auth_headers(customer, settings)
+    other_headers = auth_headers(other, settings)
     admin_headers = auth_headers(admin, settings)
     issued = await _issue_order_image(client, customer_headers)
     upload_id = issued["upload_id"]
@@ -271,6 +273,25 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
         }
     ]
     assert object_key not in images.text
+
+    customer_images = await client.get(
+        f"/orders/{order_id}/reference-images", headers=customer_headers
+    )
+    assert customer_images.status_code == 200, customer_images.text
+    assert customer_images.json() == images.json()
+    assert object_key not in customer_images.text
+
+    customer_read_url = await client.post(
+        f"/orders/{order_id}/reference-images/{upload_id}/read-url",
+        headers=customer_headers,
+    )
+    assert customer_read_url.status_code == 200, customer_read_url.text
+    assert customer_read_url.json()["read_url"].endswith(object_key)
+
+    forbidden = await client.get(
+        f"/orders/{order_id}/reference-images", headers=other_headers
+    )
+    assert forbidden.status_code == 403
 
     read_url = await client.post(
         f"/admin/orders/{order_id}/reference-images/{upload_id}/read-url",

@@ -14,7 +14,6 @@ from db.models.commerce import (
     RepairPickupRequest,
     RepairShippingReceipt,
 )
-from db.models.images import Image
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +41,11 @@ from api.domains.admin.schemas import (
     Page,
 )
 from api.domains.admin.types import SortDirection
+from api.domains.images.service import (
+    ADMIN_ORDER_IMAGE_TYPES,
+    get_linked_order_image,
+    list_linked_order_images,
+)
 from api.domains.orders import service as order_service
 from api.domains.orders.schemas import ClaimBadgeOut, OrderItemOut
 from api.domains.orders.status_machine import (
@@ -59,7 +63,6 @@ MAX_PAGE_LIMIT = 100
 DEFAULT_RECENT_LIMIT = 5
 MAX_RECENT_LIMIT = 20
 MIN_SEARCH_LENGTH = 2
-ORDER_REFERENCE_IMAGE_TYPES = ("custom_order", "sample_order")
 
 
 def _sanitize_private_item_value(value: Any) -> Any:
@@ -503,6 +506,11 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
             )
         )
     repair_previous = await _repair_previous_statuses(session, [order])
+    repair_pickup, repair_receipts = (
+        await order_service.repair_shipping_read_model(session, order.id)
+        if order.order_type == "repair"
+        else (None, [])
+    )
     summary = _summary(
         order,
         customer,
@@ -544,6 +552,8 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
             )
             for related in related_orders
         ],
+        repair_pickup=repair_pickup,
+        repair_receipts=repair_receipts,
     )
 
 
@@ -552,18 +562,7 @@ async def list_order_reference_images(
 ) -> list[AdminOrderReferenceImageOut]:
     if await session.get(Order, order_id) is None:
         raise NotFoundError("Order not found")
-    images = list(
-        await session.scalars(
-            select(Image)
-            .where(
-                Image.entity_type.in_(ORDER_REFERENCE_IMAGE_TYPES),
-                Image.entity_id == str(order_id),
-                Image.upload_completed_at.is_not(None),
-                Image.deleted_at.is_(None),
-            )
-            .order_by(Image.created_at.asc(), Image.id.asc())
-        )
-    )
+    images = await list_linked_order_images(session, order_id, ADMIN_ORDER_IMAGE_TYPES)
     return [
         AdminOrderReferenceImageOut(
             id=image.id,
@@ -577,16 +576,5 @@ async def list_order_reference_images(
 
 async def get_order_reference_image(
     session: AsyncSession, order_id: uuid.UUID, image_id: uuid.UUID
-) -> Image:
-    image = await session.scalar(
-        select(Image).where(
-            Image.id == image_id,
-            Image.entity_type.in_(ORDER_REFERENCE_IMAGE_TYPES),
-            Image.entity_id == str(order_id),
-            Image.upload_completed_at.is_not(None),
-            Image.deleted_at.is_(None),
-        )
-    )
-    if image is None or (image.expires_at is not None and image.expires_at <= datetime.now(UTC)):
-        raise NotFoundError("주문 참고 이미지를 찾을 수 없습니다")
-    return image
+):
+    return await get_linked_order_image(session, order_id, image_id, ADMIN_ORDER_IMAGE_TYPES)

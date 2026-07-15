@@ -5,7 +5,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { formatDateTime, formatMoney } from "../../shared/lib/format";
+import {
+  formatDateTime,
+  formatMoney,
+  formatOrderType,
+} from "../../shared/lib/format";
 import {
   useAdminListPageCorrection,
   useAdminListUrlState,
@@ -19,14 +23,18 @@ import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
-const ORDER_TYPES = [
-  { value: "all", label: "전체" },
-  { value: "sale", label: "일반" },
-  { value: "custom", label: "주문 제작" },
-  { value: "repair", label: "수선" },
-  { value: "token", label: "토큰" },
-  { value: "sample", label: "샘플" },
+const ORDER_TYPE_VALUES = [
+  "all",
+  "sale",
+  "custom",
+  "repair",
+  "token",
+  "sample",
 ] as const;
+const ORDER_TYPES = ORDER_TYPE_VALUES.map((value) => ({
+  value,
+  label: value === "all" ? "전체" : formatOrderType(value),
+}));
 const ORDER_STATUSES = [
   "all",
   "대기중",
@@ -55,7 +63,7 @@ const ORDER_SORTS = [
   "status",
 ] as const;
 
-type OrderType = (typeof ORDER_TYPES)[number]["value"];
+type OrderType = (typeof ORDER_TYPE_VALUES)[number];
 type OrderStatus = (typeof ORDER_STATUSES)[number];
 type OrderSort = (typeof ORDER_SORTS)[number];
 
@@ -84,7 +92,7 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
     key: "order_type",
     header: "유형",
     visibility: "medium",
-    render: (order) => order.order_type,
+    render: (order) => formatOrderType(order.order_type),
   },
   {
     key: "order_amount",

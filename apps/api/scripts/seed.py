@@ -28,8 +28,11 @@ from db.models.commerce import (
     PricingConstant,
     Product,
     ProductOption,
+    RepairPickupRequest,
+    RepairShippingReceipt,
     UserCoupon,
 )
+from db.models.images import Image
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -116,6 +119,11 @@ PRODUCTS = [
 
 TEST_COUPON_NAME = "local-cart-test-5000"
 ADMIN_SMOKE_ORDER_NUMBER = "E2E-ADMIN-001"
+CONTENT_ORDER_NUMBERS = {
+    "custom": "E2E-CONTENT-CUSTOM-001",
+    "sample": "E2E-CONTENT-SAMPLE-001",
+    "repair": "E2E-CONTENT-REPAIR-001",
+}
 
 
 async def _ensure_user(session, email: str, name: str, role: str, password: str) -> None:
@@ -231,6 +239,180 @@ async def _ensure_admin_smoke_order(session) -> None:
     await session.execute(delete(OrderStatusLog).where(OrderStatusLog.order_id == order.id))
 
 
+async def _ensure_content_visibility_orders(session) -> None:
+    customer = await session.scalar(select(User).where(User.email == "customer@local"))
+    if customer is None:
+        return
+
+    now = datetime.now(timezone.utc)
+    address = {
+        "id": "00000000-0000-4000-8000-000000000201",
+        "recipient_name": "로컬고객",
+        "recipient_phone": "01012345678",
+        "postal_code": "04524",
+        "address": "서울시 중구 로컬로 1",
+        "address_detail": "콘텐츠 확인",
+        "delivery_request": "문 앞에 놓아 주세요.",
+        "delivery_memo": "오후 배송 희망",
+    }
+
+    for kind, order_id, image_id, item_data in (
+        (
+            "custom",
+            uuid.UUID("00000000-0000-4000-8000-000000000211"),
+            uuid.UUID("00000000-0000-4000-8000-000000000221"),
+            {
+                "options": {
+                    "fabric_type": "SILK",
+                    "tie_type": "AUTO",
+                    "triangle_stitch": True,
+                    "lining_color": "navy",
+                },
+                "additional_notes": "광택을 낮춰 주세요.",
+            },
+        ),
+        (
+            "sample",
+            uuid.UUID("00000000-0000-4000-8000-000000000212"),
+            uuid.UUID("00000000-0000-4000-8000-000000000222"),
+            {
+                "sample_type": "fabric_and_sewing",
+                "options": {"fabric_type": "POLY", "interlining": "WOOL"},
+                "additional_notes": "봉제 간격을 확인해 주세요.",
+            },
+        ),
+    ):
+        if await session.scalar(
+            select(Order.id).where(Order.order_number == CONTENT_ORDER_NUMBERS[kind])
+        ):
+            continue
+        order = Order(
+            id=order_id,
+            user_id=customer.id,
+            order_number=CONTENT_ORDER_NUMBERS[kind],
+            order_type=kind,
+            status="진행중",
+            shipping_address_snapshot=address,
+            total_price=50000,
+            original_price=50000,
+            payment_group_id=uuid.uuid4(),
+        )
+        session.add(order)
+        item_data["reference_images"] = [{"image_id": str(image_id)}]
+        session.add(
+            OrderItem(
+                order_id=order.id,
+                item_id=f"{kind}-fixture",
+                item_type=kind,
+                item_data=item_data,
+                quantity=2,
+                unit_price=25000,
+            )
+        )
+        session.add(
+            Image(
+                id=image_id,
+                object_key=f"uploads/{kind}_order/fixture.png",
+                entity_type=f"{kind}_order",
+                entity_id=str(order.id),
+                uploaded_by=customer.id,
+                content_type="image/png",
+                size_bytes=128,
+                upload_completed_at=now,
+            )
+        )
+        print(f"  order: {CONTENT_ORDER_NUMBERS[kind]}")
+
+    repair_id = uuid.UUID("00000000-0000-4000-8000-000000000213")
+    if await session.scalar(
+        select(Order.id).where(Order.order_number == CONTENT_ORDER_NUMBERS["repair"])
+    ):
+        return
+    repair = Order(
+        id=repair_id,
+        user_id=customer.id,
+        order_number=CONTENT_ORDER_NUMBERS["repair"],
+        order_type="repair",
+        status="수선중",
+        shipping_address_snapshot=address,
+        total_price=46000,
+        original_price=46000,
+        shipping_cost=5000,
+        payment_group_id=uuid.uuid4(),
+    )
+    original_key = "uploads/reform_upload/content-fixture.png"
+    receipt_key = "uploads/repair_shipping_upload/content-fixture.png"
+    session.add(repair)
+    session.add(
+        OrderItem(
+            order_id=repair.id,
+            item_id="repair-fixture",
+            item_type="reform",
+            item_data={
+                "tie": {
+                    "image": {"object_key": original_key},
+                    "automatic": {
+                        "mechanism": "zipper",
+                        "wearer_height_cm": 175,
+                        "dimple": True,
+                        "turn_knot": True,
+                    },
+                    "width": {"target_width_cm": 7.5},
+                    "restoration": {"memo": "원형을 유지해 주세요."},
+                }
+            },
+            quantity=1,
+            unit_price=41000,
+        )
+    )
+    session.add(
+        RepairPickupRequest(
+            order_id=repair.id,
+            recipient_name="로컬고객",
+            recipient_phone="01012345678",
+            postal_code="04524",
+            address="서울시 중구 로컬로 1",
+            detail_address="콘텐츠 확인",
+            pickup_fee=5000,
+        )
+    )
+    session.add(
+        RepairShippingReceipt(
+            id=uuid.UUID("00000000-0000-4000-8000-000000000231"),
+            order_id=repair.id,
+            receipt_type="no_tracking",
+            reason="lost",
+            memo="송장을 분실해 사진으로 접수합니다.",
+            photos=[{"object_key": receipt_key}],
+        )
+    )
+    session.add_all(
+        [
+            Image(
+                id=uuid.UUID("00000000-0000-4000-8000-000000000223"),
+                object_key=original_key,
+                entity_type="reform",
+                entity_id=str(repair.id),
+                uploaded_by=customer.id,
+                content_type="image/png",
+                size_bytes=128,
+                upload_completed_at=now,
+            ),
+            Image(
+                id=uuid.UUID("00000000-0000-4000-8000-000000000224"),
+                object_key=receipt_key,
+                entity_type="repair_shipping",
+                entity_id=str(repair.id),
+                uploaded_by=customer.id,
+                content_type="image/png",
+                size_bytes=128,
+                upload_completed_at=now,
+            ),
+        ]
+    )
+    print(f"  order: {CONTENT_ORDER_NUMBERS['repair']}")
+
+
 async def main() -> None:
     settings = get_settings()
     if settings.env not in ("local", "test"):
@@ -293,6 +475,7 @@ async def main() -> None:
 
         await _ensure_test_coupon(session)
         await _ensure_admin_smoke_order(session)
+        await _ensure_content_visibility_orders(session)
 
         await session.commit()
     await engine.dispose()

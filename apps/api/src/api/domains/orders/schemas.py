@@ -211,8 +211,43 @@ class OrderShippingAddressOut(BaseModel):
     delivery_request: str | None
 
 
+class RepairPickupOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    recipient_name: str
+    recipient_phone: str
+    postal_code: str | None
+    address: str
+    detail_address: str | None
+    pickup_fee: int
+    created_at: datetime
+
+
+class RepairShippingReceiptOut(BaseModel):
+    id: uuid.UUID
+    receipt_type: str
+    reason: str | None
+    memo: str | None
+    photo_count: int
+    created_at: datetime
+
+
+class OrderReferenceImageOut(BaseModel):
+    id: uuid.UUID
+    content_type: str | None
+    size_bytes: int | None
+    created_at: datetime
+
+
+class OrderImageReadUrlOut(BaseModel):
+    read_url: str
+
+
 class OrderDetailOut(OrderOut):
     shipping_address: OrderShippingAddressOut | None = None
+    repair_pickup: RepairPickupOut | None = None
+    repair_receipts: list[RepairShippingReceiptOut] = Field(default_factory=list)
 
 
 class RepairPhotoIn(BaseModel):

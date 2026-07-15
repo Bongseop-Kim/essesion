@@ -1069,6 +1069,11 @@ export type AdminOrderDetailOut = {
      * Related Orders
      */
     related_orders?: Array<AdminRelatedOrderOut>;
+    repair_pickup?: RepairPickupOut | null;
+    /**
+     * Repair Receipts
+     */
+    repair_receipts?: Array<RepairShippingReceiptOut>;
     /**
      * Shipped At
      */
@@ -4241,6 +4246,11 @@ export type OrderDetailOut = {
      * Payment Group Id
      */
     payment_group_id: string | null;
+    repair_pickup?: RepairPickupOut | null;
+    /**
+     * Repair Receipts
+     */
+    repair_receipts?: Array<RepairShippingReceiptOut>;
     /**
      * Shipped At
      */
@@ -4274,6 +4284,16 @@ export type OrderDetailOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * OrderImageReadUrlOut
+ */
+export type OrderImageReadUrlOut = {
+    /**
+     * Read Url
+     */
+    read_url: string;
 };
 
 /**
@@ -4489,6 +4509,28 @@ export type OrderReferenceImageIn = {
      * Upload Id
      */
     upload_id: string;
+};
+
+/**
+ * OrderReferenceImageOut
+ */
+export type OrderReferenceImageOut = {
+    /**
+     * Content Type
+     */
+    content_type: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number | null;
 };
 
 /**
@@ -10521,6 +10563,72 @@ export type ConfirmPurchaseResponses = {
 
 export type ConfirmPurchaseResponse = ConfirmPurchaseResponses[keyof ConfirmPurchaseResponses];
 
+export type ListMyOrderReferenceImagesData = {
+    body?: never;
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+    };
+    query?: never;
+    url: '/orders/{order_id}/reference-images';
+};
+
+export type ListMyOrderReferenceImagesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMyOrderReferenceImagesError = ListMyOrderReferenceImagesErrors[keyof ListMyOrderReferenceImagesErrors];
+
+export type ListMyOrderReferenceImagesResponses = {
+    /**
+     * Response List My Order Reference Images
+     *
+     * Successful Response
+     */
+    200: Array<OrderReferenceImageOut>;
+};
+
+export type ListMyOrderReferenceImagesResponse = ListMyOrderReferenceImagesResponses[keyof ListMyOrderReferenceImagesResponses];
+
+export type CreateMyOrderReferenceImageReadUrlData = {
+    body?: never;
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+        /**
+         * Image Id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/orders/{order_id}/reference-images/{image_id}/read-url';
+};
+
+export type CreateMyOrderReferenceImageReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateMyOrderReferenceImageReadUrlError = CreateMyOrderReferenceImageReadUrlErrors[keyof CreateMyOrderReferenceImageReadUrlErrors];
+
+export type CreateMyOrderReferenceImageReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrderImageReadUrlOut;
+};
+
+export type CreateMyOrderReferenceImageReadUrlResponse = CreateMyOrderReferenceImageReadUrlResponses[keyof CreateMyOrderReferenceImageReadUrlResponses];
+
 export type SubmitRepairNoTrackingData = {
     body: RepairNoTrackingRequest;
     path: {
@@ -10550,6 +10658,80 @@ export type SubmitRepairNoTrackingResponses = {
 };
 
 export type SubmitRepairNoTrackingResponse = SubmitRepairNoTrackingResponses[keyof SubmitRepairNoTrackingResponses];
+
+export type ListMyRepairReceiptPhotosData = {
+    body?: never;
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+        /**
+         * Receipt Id
+         */
+        receipt_id: string;
+    };
+    query?: never;
+    url: '/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos';
+};
+
+export type ListMyRepairReceiptPhotosErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListMyRepairReceiptPhotosError = ListMyRepairReceiptPhotosErrors[keyof ListMyRepairReceiptPhotosErrors];
+
+export type ListMyRepairReceiptPhotosResponses = {
+    /**
+     * Response List My Repair Receipt Photos
+     *
+     * Successful Response
+     */
+    200: Array<OrderReferenceImageOut>;
+};
+
+export type ListMyRepairReceiptPhotosResponse = ListMyRepairReceiptPhotosResponses[keyof ListMyRepairReceiptPhotosResponses];
+
+export type CreateMyRepairReceiptPhotoReadUrlData = {
+    body?: never;
+    path: {
+        /**
+         * Order Id
+         */
+        order_id: string;
+        /**
+         * Receipt Id
+         */
+        receipt_id: string;
+        /**
+         * Image Id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos/{image_id}/read-url';
+};
+
+export type CreateMyRepairReceiptPhotoReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateMyRepairReceiptPhotoReadUrlError = CreateMyRepairReceiptPhotoReadUrlErrors[keyof CreateMyRepairReceiptPhotoReadUrlErrors];
+
+export type CreateMyRepairReceiptPhotoReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: OrderImageReadUrlOut;
+};
+
+export type CreateMyRepairReceiptPhotoReadUrlResponse = CreateMyRepairReceiptPhotoReadUrlResponses[keyof CreateMyRepairReceiptPhotoReadUrlResponses];
 
 export type SubmitRepairTrackingData = {
     body: RepairTrackingRequest;

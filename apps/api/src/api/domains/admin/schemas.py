@@ -4,7 +4,13 @@ from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.domains.orders.schemas import ClaimBadgeOut, OrderItemOut, OrderShippingAddressOut
+from api.domains.orders.schemas import (
+    ClaimBadgeOut,
+    OrderItemOut,
+    OrderShippingAddressOut,
+    RepairPickupOut,
+    RepairShippingReceiptOut,
+)
 
 OrderTypeFilter = Literal["all", "sale", "custom", "repair", "token", "sample"]
 OrderStatusFilter = Literal[
@@ -160,3 +166,5 @@ class AdminOrderDetailOut(AdminOrderSummaryOut):
     status_logs: list[AdminOrderStatusLogOut] = Field(default_factory=list)
     active_claim: AdminActiveClaimOut | None = None
     related_orders: list[AdminRelatedOrderOut] = Field(default_factory=list)
+    repair_pickup: RepairPickupOut | None = None
+    repair_receipts: list[RepairShippingReceiptOut] = Field(default_factory=list)

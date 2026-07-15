@@ -1,20 +1,35 @@
-import type { OrderItemOut } from "@essesion/api-client";
+import {
+  createMyOrderReferenceImageReadUrl,
+  createMyRepairReceiptPhotoReadUrl,
+  createReadUrl,
+  type OrderItemOut,
+  type OrderReferenceImageOut,
+  type RepairShippingReceiptOut,
+} from "@essesion/api-client";
 import {
   confirmPurchaseMutation,
   getOrderOptions,
   getOrderQueryKey,
+  listMyOrderReferenceImagesOptions,
   listMyOrdersQueryKey,
+  listMyRepairReceiptPhotosOptions,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
   AlertDialog,
   Badge,
   Box,
+  Callout,
   ContentPlaceholder,
   Divider,
+  decodeOrderItemContent,
+  Grid,
   HStack,
+  ImageFrame,
   Skeleton,
   snackbar,
+  Tag,
+  TagGroup,
   Text,
   VStack,
 } from "@essesion/shared";
@@ -59,6 +74,15 @@ export function OrderDetailPage() {
     ...getOrderOptions({ path: { order_id: orderId ?? "" } }),
     enabled: !!orderId,
   });
+  const order = orderQuery.data;
+  const referenceImagesQuery = useQuery({
+    ...listMyOrderReferenceImagesOptions({
+      path: { order_id: orderId ?? "" },
+    }),
+    enabled:
+      !!orderId &&
+      (order?.order_type === "custom" || order?.order_type === "sample"),
+  });
   const confirmPurchase = useMutation({
     ...confirmPurchaseMutation(),
     onSuccess: async () => {
@@ -75,7 +99,6 @@ export function OrderDetailPage() {
 
   if (!orderId) return <Navigate to="/my-page/orders" replace />;
 
-  const order = orderQuery.data;
   const customerActions = order?.customer_actions ?? [];
   const summaryClaim = order?.claim_summary
     ? claimBadge(order.claim_summary)
@@ -223,6 +246,41 @@ export function OrderDetailPage() {
             </VStack>
           ) : null}
 
+          {order.repair_pickup ? (
+            <VStack gap="x3" alignItems="stretch">
+              <Text as="h2" textStyle="title3">
+                수거 요청
+              </Text>
+              <InfoRow
+                label="수거 대상"
+                value={`${order.repair_pickup.recipient_name} · ${order.repair_pickup.recipient_phone}`}
+              />
+              <InfoRow
+                label="수거지"
+                value={`${order.repair_pickup.postal_code ?? ""} ${order.repair_pickup.address} ${order.repair_pickup.detail_address ?? ""}`.trim()}
+              />
+              <InfoRow
+                label="수거 비용"
+                value={`${krw.format(order.repair_pickup.pickup_fee)}원`}
+              />
+            </VStack>
+          ) : null}
+
+          {(order.repair_receipts ?? []).length > 0 ? (
+            <VStack gap="x3" alignItems="stretch">
+              <Text as="h2" textStyle="title3">
+                고객 발송 접수
+              </Text>
+              {(order.repair_receipts ?? []).map((receipt) => (
+                <RepairReceipt
+                  key={receipt.id}
+                  orderId={order.id}
+                  receipt={receipt}
+                />
+              ))}
+            </VStack>
+          ) : null}
+
           {order.order_type === "token" ? (
             <TokenRefundSection orderId={order.id} />
           ) : null}
@@ -288,6 +346,7 @@ export function OrderDetailPage() {
                           {krw.format(item.unit_price * item.quantity)}원
                         </Text>
                       </HStack>
+                      <OrderContent orderType={order.order_type} item={item} />
                       <ClaimItemActions
                         item={item}
                         customerActions={customerActions}
@@ -301,6 +360,17 @@ export function OrderDetailPage() {
               })}
             </VStack>
           </VStack>
+
+          <OrderReferenceImages
+            orderId={order.id}
+            show={
+              order.order_type === "custom" || order.order_type === "sample"
+            }
+            images={referenceImagesQuery.data}
+            pending={referenceImagesQuery.isPending}
+            error={referenceImagesQuery.isError}
+            onRetry={() => void referenceImagesQuery.refetch()}
+          />
 
           <AlertDialog
             open={confirmOpen}
@@ -330,6 +400,250 @@ export function OrderDetailPage() {
         </VStack>
       )}
     </ContentLayout>
+  );
+}
+
+function OrderContent({
+  orderType,
+  item,
+}: {
+  orderType: string;
+  item: OrderItemOut;
+}) {
+  const content = decodeOrderItemContent(
+    orderType,
+    item.item_data,
+    item.quantity,
+  );
+  const imageKey = repairImageKey(item.item_data);
+  if (!content && !imageKey) return null;
+  return (
+    <VStack gap="x3" alignItems="stretch">
+      <Text as="h3" textStyle="labelSm">
+        주문 내용
+      </Text>
+      {content?.rows.map((row) => (
+        <InfoRow key={row.label} label={row.label} value={row.value} />
+      ))}
+      {content && content.tags.length > 0 ? (
+        <TagGroup>
+          {content.tags.map((tag) => (
+            <Tag key={tag}>{tag}</Tag>
+          ))}
+        </TagGroup>
+      ) : null}
+      {content?.memo ? (
+        <Callout
+          tone="informative"
+          title="요청사항"
+          description={content.memo}
+        />
+      ) : null}
+      {imageKey ? (
+        <Grid columns={{ base: 2, md: 3 }} gap="x3">
+          <SignedOrderImage
+            alt="수선 접수 사진"
+            load={async () => {
+              const response = await createReadUrl({
+                body: { object_key: imageKey },
+                throwOnError: true,
+              });
+              return response.data.read_url;
+            }}
+          />
+        </Grid>
+      ) : null}
+    </VStack>
+  );
+}
+
+function repairImageKey(itemData: unknown): string | null {
+  if (!itemData || typeof itemData !== "object" || !("tie" in itemData))
+    return null;
+  const tie = itemData.tie;
+  if (!tie || typeof tie !== "object" || !("image" in tie)) return null;
+  const image = tie.image;
+  if (!image || typeof image !== "object" || !("object_key" in image))
+    return null;
+  return typeof image.object_key === "string" ? image.object_key : null;
+}
+
+function OrderReferenceImages({
+  orderId,
+  show,
+  images,
+  pending,
+  error,
+  onRetry,
+}: {
+  orderId: string;
+  show: boolean;
+  images: OrderReferenceImageOut[] | undefined;
+  pending: boolean;
+  error: boolean;
+  onRetry: () => void;
+}) {
+  if (!show) return null;
+  if (pending) return <Skeleton width="100%" height={180} />;
+  if (error) {
+    return (
+      <Callout
+        role="alert"
+        tone="critical"
+        title="참고 이미지를 불러오지 못했습니다"
+        description="잠시 후 다시 시도해 주세요."
+      >
+        <ActionButton size="small" variant="neutralOutline" onClick={onRetry}>
+          다시 시도
+        </ActionButton>
+      </Callout>
+    );
+  }
+  if (!images?.length) return null;
+  return (
+    <VStack gap="x3" alignItems="stretch">
+      <Text as="h2" textStyle="title3">
+        참고 이미지
+      </Text>
+      <Grid columns={{ base: 2, md: 3 }} gap="x3">
+        {images.map((image, index) => (
+          <SignedOrderImage
+            key={image.id}
+            alt={`주문 참고 이미지 ${index + 1}`}
+            load={async () => {
+              const response = await createMyOrderReferenceImageReadUrl({
+                path: { order_id: orderId, image_id: image.id },
+                throwOnError: true,
+              });
+              return response.data.read_url;
+            }}
+          />
+        ))}
+      </Grid>
+    </VStack>
+  );
+}
+
+function RepairReceipt({
+  orderId,
+  receipt,
+}: {
+  orderId: string;
+  receipt: RepairShippingReceiptOut;
+}) {
+  const reason = receipt.reason
+    ? ({ quick: "퀵서비스", overseas: "해외 발송", lost: "송장 분실" }[
+        receipt.reason
+      ] ?? receipt.reason)
+    : null;
+  return (
+    <Box
+      borderWidth={1}
+      borderColor="stroke.neutral-weak"
+      borderRadius="r3"
+      p="x4"
+    >
+      <VStack gap="x3" alignItems="stretch">
+        <Text as="h3" textStyle="labelSm">
+          {receipt.receipt_type === "tracking" ? "송장 등록" : "송장 없이 발송"}
+        </Text>
+        {reason ? <InfoRow label="사유" value={reason} /> : null}
+        <InfoRow
+          label="접수 시각"
+          value={formatOrderDate(receipt.created_at)}
+        />
+        {receipt.memo ? (
+          <Callout
+            tone="informative"
+            title="발송 메모"
+            description={receipt.memo}
+          />
+        ) : null}
+        {receipt.photo_count > 0 ? (
+          <RepairReceiptPhotos orderId={orderId} receipt={receipt} />
+        ) : null}
+      </VStack>
+    </Box>
+  );
+}
+
+function RepairReceiptPhotos({
+  orderId,
+  receipt,
+}: {
+  orderId: string;
+  receipt: RepairShippingReceiptOut;
+}) {
+  const query = useQuery({
+    ...listMyRepairReceiptPhotosOptions({
+      path: { order_id: orderId, receipt_id: receipt.id },
+    }),
+  });
+  if (query.isPending) return <Skeleton width="100%" height={160} />;
+  if (query.isError) {
+    return (
+      <Callout
+        role="alert"
+        tone="critical"
+        title="발송 사진을 불러오지 못했습니다"
+        description="잠시 후 다시 시도해 주세요."
+      />
+    );
+  }
+  return (
+    <Grid columns={{ base: 2, md: 3 }} gap="x3">
+      {(query.data ?? []).map((image, index) => (
+        <SignedOrderImage
+          key={image.id}
+          alt={`수선 발송 사진 ${index + 1}`}
+          load={async () => {
+            const response = await createMyRepairReceiptPhotoReadUrl({
+              path: {
+                order_id: orderId,
+                receipt_id: receipt.id,
+                image_id: image.id,
+              },
+              throwOnError: true,
+            });
+            return response.data.read_url;
+          }}
+        />
+      ))}
+    </Grid>
+  );
+}
+
+function SignedOrderImage({
+  alt,
+  load,
+}: {
+  alt: string;
+  load: () => Promise<string>;
+}) {
+  const [readUrl, setReadUrl] = useState<string>();
+  const mutation = useMutation({ mutationFn: load, onSuccess: setReadUrl });
+  return (
+    <VStack gap="x2" alignItems="stretch">
+      <ImageFrame src={readUrl} alt={alt} ratio={1} fit="contain" stroke />
+      <ActionButton
+        type="button"
+        size="small"
+        variant="neutralOutline"
+        loading={mutation.isPending}
+        onClick={() =>
+          readUrl
+            ? window.open(readUrl, "_blank", "noopener,noreferrer")
+            : mutation.mutate()
+        }
+      >
+        {readUrl ? "원본 보기" : "이미지 보기"}
+      </ActionButton>
+      {mutation.isError ? (
+        <Text role="alert" textStyle="caption" color="fg.critical">
+          이미지를 불러오지 못했습니다.
+        </Text>
+      ) : null}
+    </VStack>
   );
 }
 

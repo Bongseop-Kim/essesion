@@ -15,11 +15,15 @@ import {
 import {
   ActionButton,
   AlertDialog,
+  Box,
   Callout,
   ContentPlaceholder,
+  decodeOrderItemContent,
   HStack,
   Skeleton,
   snackbar,
+  Tag,
+  TagGroup,
   Text,
   TextAreaField,
   TextField,
@@ -34,6 +38,7 @@ import {
   formatFileSize,
   formatIdentifier,
   formatMoney,
+  formatOrderType,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
@@ -67,57 +72,55 @@ function snapshotLabel(item: OrderItemOut) {
   );
 }
 
-const optionLabels: Record<string, string> = {
-  fabric_provided: "원단 제공",
-  reorder: "재주문",
-  fabric_type: "원단",
-  design_type: "디자인",
-  tie_type: "타이 방식",
-  interlining: "심지",
-  size_type: "사이즈",
-  tie_width: "타이 폭",
-  triangle_stitch: "삼각 봉제",
-  side_stitch: "옆선 봉제",
-  bar_tack: "바텍",
-  fold7: "7폴드",
-  dimple: "딤플",
-  turn_knot: "턴 노트",
-  spoderato: "스포데라토",
-  brand_label: "브랜드 라벨",
-  care_label: "케어 라벨",
-};
-
-function optionSummary(item: OrderItemOut | undefined) {
-  const options = record(record(item?.item_data)?.options);
-  if (options === null) return "-";
-  const values = Object.entries(optionLabels).flatMap(([key, label]) => {
-    const value = options[key];
-    if (value === null || value === undefined || value === "") return [];
-    if (typeof value === "boolean")
-      return [`${label}: ${value ? "예" : "아니오"}`];
-    if (typeof value === "string" || typeof value === "number") {
-      return [`${label}: ${value}`];
-    }
-    return [];
-  });
-  return values.join(" · ") || "-";
+function repairReasonLabel(reason: string) {
+  return (
+    { quick: "퀵서비스", overseas: "해외 발송", lost: "송장 분실" }[reason] ??
+    reason
+  );
 }
 
-function productionTypeLabel(
-  orderType: string,
-  item: OrderItemOut | undefined,
-) {
-  if (orderType === "custom") return "맞춤 제작";
-  const sampleType = record(item?.item_data)?.sample_type;
-  const label =
-    sampleType === "fabric"
-      ? "원단 샘플"
-      : sampleType === "sewing"
-        ? "봉제 샘플"
-        : sampleType === "fabric_and_sewing"
-          ? "원단 + 봉제 샘플"
-          : "샘플 제작";
-  return label;
+function AdminOrderContent({
+  orderType,
+  item,
+}: {
+  orderType: string;
+  item: OrderItemOut;
+}) {
+  const content = decodeOrderItemContent(
+    orderType,
+    item.item_data,
+    item.quantity,
+  );
+  if (!content) return null;
+  return (
+    <Box
+      borderWidth={1}
+      borderColor="stroke.neutral-weak"
+      borderRadius="r2"
+      p="x4"
+    >
+      <VStack gap="x3" alignItems="stretch">
+        <Text as="h3" textStyle="label">
+          {snapshotLabel(item)} · {content.typeLabel}
+        </Text>
+        {content.rows.length > 0 ? <DetailList items={content.rows} /> : null}
+        {content.tags.length > 0 ? (
+          <TagGroup>
+            {content.tags.map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
+          </TagGroup>
+        ) : null}
+        {content.memo ? (
+          <Callout
+            tone="informative"
+            title="요청사항"
+            description={content.memo}
+          />
+        ) : null}
+      </VStack>
+    </Box>
+  );
 }
 
 function OrderReferenceImage({
@@ -138,7 +141,7 @@ function OrderReferenceImage({
   return (
     <PrivateAssetPreview
       src={readUrl}
-      alt={`주문 참고 이미지 ${index + 1}`}
+      alt={`주문 첨부 이미지 ${index + 1}`}
       metadata={
         <>
           {image.content_type ?? "이미지"} ·{" "}
@@ -201,13 +204,15 @@ export function OrderDetailPage() {
     ...getAdminOrderOptions({ path: { order_id: orderId } }),
     enabled: orderId !== "",
   });
-  const isProductionOrder =
-    query.data?.order_type === "custom" || query.data?.order_type === "sample";
+  const hasOrderImages =
+    query.data?.order_type === "custom" ||
+    query.data?.order_type === "sample" ||
+    query.data?.order_type === "repair";
   const referenceImagesQuery = useQuery({
     ...listAdminOrderReferenceImagesOptions({
       path: { order_id: orderId },
     }),
-    enabled: orderId !== "" && isProductionOrder,
+    enabled: orderId !== "" && hasOrderImages,
   });
   const [selectedAction, setSelectedAction] = useState<AdminAction>();
   const [memo, setMemo] = useState("");
@@ -338,13 +343,6 @@ export function OrderDetailPage() {
     }
   };
   const orderItems = data.items ?? [];
-  const productionItem = orderItems[0];
-  const productionData = record(productionItem?.item_data);
-  const additionalNotes =
-    typeof productionData?.additional_notes === "string" &&
-    productionData.additional_notes.trim() !== ""
-      ? productionData.additional_notes
-      : "-";
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -373,7 +371,7 @@ export function OrderDetailPage() {
       <AdminCard title="주문 정보">
         <DetailList
           items={[
-            { label: "주문 유형", value: data.order_type },
+            { label: "주문 유형", value: formatOrderType(data.order_type) },
             { label: "주문 상태", value: data.status },
             { label: "주문 금액", value: formatMoney(data.order_amount) },
             { label: "원금", value: formatMoney(data.original_price) },
@@ -398,6 +396,14 @@ export function OrderDetailPage() {
               label: "받는 분",
               value: data.shipping_address?.recipient_name ?? "-",
             },
+            ...(data.shipping_address?.recipient_phone
+              ? [
+                  {
+                    label: "수령인 연락처",
+                    value: data.shipping_address.recipient_phone,
+                  },
+                ]
+              : []),
             {
               label: "배송 주소",
               value: data.shipping_address
@@ -418,9 +424,101 @@ export function OrderDetailPage() {
                   .filter(Boolean)
                   .join(" · ") || "-",
             },
+            ...(data.shipping_address?.delivery_request
+              ? [
+                  {
+                    label: "배송 요청",
+                    value: data.shipping_address.delivery_request,
+                  },
+                ]
+              : []),
+            ...(data.shipping_address?.delivery_memo
+              ? [
+                  {
+                    label: "배송 메모",
+                    value: data.shipping_address.delivery_memo,
+                  },
+                ]
+              : []),
           ]}
         />
       </AdminCard>
+
+      {data.repair_pickup ? (
+        <AdminCard title="수선 수거 요청">
+          <DetailList
+            items={[
+              {
+                label: "수거 대상",
+                value: `${data.repair_pickup.recipient_name} · ${data.repair_pickup.recipient_phone}`,
+              },
+              {
+                label: "수거지",
+                value:
+                  `${data.repair_pickup.postal_code ?? ""} ${data.repair_pickup.address} ${data.repair_pickup.detail_address ?? ""}`.trim(),
+              },
+              {
+                label: "수거 비용",
+                value: formatMoney(data.repair_pickup.pickup_fee),
+              },
+              {
+                label: "요청 시각",
+                value: formatDateTime(data.repair_pickup.created_at),
+              },
+            ]}
+          />
+        </AdminCard>
+      ) : null}
+
+      {(data.repair_receipts ?? []).length > 0 ? (
+        <AdminCard title="수선 발송 접수">
+          <VStack gap="x3" alignItems="stretch">
+            {(data.repair_receipts ?? []).map((receipt) => (
+              <Box
+                key={receipt.id}
+                borderWidth={1}
+                borderColor="stroke.neutral-weak"
+                borderRadius="r2"
+                p="x4"
+              >
+                <VStack gap="x3" alignItems="stretch">
+                  <DetailList
+                    items={[
+                      {
+                        label: "발송 방식",
+                        value:
+                          receipt.receipt_type === "tracking"
+                            ? "송장 등록"
+                            : "송장 없이 발송",
+                      },
+                      ...(receipt.reason
+                        ? [
+                            {
+                              label: "사유",
+                              value: repairReasonLabel(receipt.reason),
+                            },
+                          ]
+                        : []),
+                      { label: "첨부 사진", value: `${receipt.photo_count}장` },
+                      {
+                        label: "접수 시각",
+                        value: formatDateTime(receipt.created_at),
+                      },
+                    ]}
+                  />
+                  {receipt.memo ? (
+                    <Callout
+                      tone="informative"
+                      title="발송 메모"
+                      description={receipt.memo}
+                    />
+                  ) : null}
+                </VStack>
+              </Box>
+            ))}
+          </VStack>
+        </AdminCard>
+      ) : null}
 
       <AdminCard
         title="주문 항목"
@@ -433,39 +531,20 @@ export function OrderDetailPage() {
           getRowKey={(row) => row.id}
           status="success"
         />
+        <VStack gap="x3" alignItems="stretch">
+          {orderItems.map((item) => (
+            <AdminOrderContent
+              key={item.id}
+              orderType={data.order_type}
+              item={item}
+            />
+          ))}
+        </VStack>
       </AdminCard>
 
-      {isProductionOrder && (
+      {hasOrderImages && (
         <AdminCard
-          title="제작 주문 요약"
-          description="허용된 제작 사양만 표시하며 비공개 저장소 키는 노출하지 않습니다."
-        >
-          <DetailList
-            items={[
-              {
-                label: "제작 유형",
-                value: productionTypeLabel(data.order_type, productionItem),
-              },
-              {
-                label: "제작 수량",
-                value: `${productionItem?.quantity ?? 0}개`,
-              },
-              { label: "제작 사양", value: optionSummary(productionItem) },
-              { label: "추가 요청", value: additionalNotes },
-              {
-                label: "참고 이미지",
-                value: referenceImagesQuery.isPending
-                  ? "확인 중"
-                  : `${referenceImagesQuery.data?.length ?? 0}개`,
-              },
-            ]}
-          />
-        </AdminCard>
-      )}
-
-      {isProductionOrder && (
-        <AdminCard
-          title="참고 이미지"
+          title="첨부 이미지"
           description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
         >
           {referenceImagesQuery.isPending ? (
@@ -483,7 +562,7 @@ export function OrderDetailPage() {
               }
             />
           ) : (referenceImagesQuery.data ?? []).length === 0 ? (
-            <Text color="fg.neutral-muted">등록된 참고 이미지가 없습니다.</Text>
+            <Text color="fg.neutral-muted">등록된 첨부 이미지가 없습니다.</Text>
           ) : (
             <VStack gap="x5" alignItems="stretch">
               {(referenceImagesQuery.data ?? []).map((image, index) => (

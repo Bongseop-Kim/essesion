@@ -278,6 +278,7 @@ describe("OrderDetailPage", () => {
             options: {
               fabric_type: "SILK",
               tie_type: "AUTO",
+              lining_color: "navy",
               object_key: "uploads/custom_order/private-option.png",
             },
             additional_notes: "광택을 낮춰 주세요.",
@@ -302,8 +303,13 @@ describe("OrderDetailPage", () => {
       .mockResolvedValueOnce({ read_url: "https://storage.test/signed-2" });
     renderPage();
 
-    expect(await screen.findByText("맞춤 제작")).toBeTruthy();
-    expect(screen.getByText(/원단: SILK/)).toBeTruthy();
+    expect(
+      await screen.findByRole("heading", { name: /맞춤 제작$/ }),
+    ).toBeTruthy();
+    expect(screen.getByText("원단")).toBeTruthy();
+    expect(screen.getByText("실크")).toBeTruthy();
+    expect(screen.getByText("lining color")).toBeTruthy();
+    expect(screen.getByText("navy")).toBeTruthy();
     expect(screen.getByText("광택을 낮춰 주세요.")).toBeTruthy();
     expect(api.getReferenceImagesOptions).toHaveBeenCalledWith({
       path: { order_id: order.id },
@@ -314,7 +320,7 @@ describe("OrderDetailPage", () => {
       await screen.findByRole("button", { name: "이미지 보기" }),
     );
     const image = await screen.findByRole("img", {
-      name: "주문 참고 이미지 1",
+      name: "주문 첨부 이미지 1",
     });
     expect(image.getAttribute("src")).toBe("https://storage.test/signed-1");
     expect(api.createReferenceImageReadUrl).toHaveBeenCalledWith(
@@ -354,10 +360,103 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    expect(await screen.findByText("원단 + 봉제 샘플")).toBeTruthy();
-    expect(screen.getByText(/원단: POLY/)).toBeTruthy();
     expect(
-      await screen.findByText("등록된 참고 이미지가 없습니다."),
+      await screen.findByRole("heading", { name: /원단 \+ 봉제 샘플$/ }),
     ).toBeTruthy();
+    expect(screen.getByText("원단")).toBeTruthy();
+    expect(screen.getByText("폴리")).toBeTruthy();
+    expect(
+      await screen.findByText("등록된 첨부 이미지가 없습니다."),
+    ).toBeTruthy();
+  });
+
+  it("수선 주문의 항목별 사양과 배송·수거·발송 정보를 모두 표시한다", async () => {
+    api.getOrder.mockResolvedValue({
+      ...order,
+      order_type: "repair",
+      shipping_address_id: "address-1",
+      shipping_address: {
+        id: "address-1",
+        recipient_name: "수령 고객",
+        recipient_phone: "010-2222-3333",
+        postal_code: "04524",
+        address: "서울시 중구",
+        address_detail: "202호",
+        delivery_request: "경비실에 맡겨 주세요.",
+        delivery_memo: "오후 배송 희망",
+      },
+      repair_pickup: {
+        id: "pickup-1",
+        recipient_name: "수거 고객",
+        recipient_phone: "010-1111-2222",
+        postal_code: "04524",
+        address: "서울시 중구",
+        detail_address: "101호",
+        pickup_fee: 5_000,
+        created_at: "2026-07-15T01:00:00Z",
+      },
+      repair_receipts: [
+        {
+          id: "receipt-1",
+          receipt_type: "no_tracking",
+          reason: "lost",
+          memo: "송장을 분실했습니다.",
+          photo_count: 2,
+          created_at: "2026-07-15T02:00:00Z",
+        },
+      ],
+      items: [
+        {
+          ...order.items?.[0],
+          id: "repair-item-1",
+          item_type: "reform",
+          item_data: {
+            tie: {
+              automatic: {
+                mechanism: "zipper",
+                wearer_height_cm: 175,
+                dimple: true,
+              },
+              width: { target_width_cm: 7.5 },
+              restoration: { memo: "원형을 유지해 주세요." },
+            },
+          },
+        },
+        {
+          ...order.items?.[0],
+          id: "repair-item-2",
+          item_id: "sku-2",
+          item_type: "reform",
+          item_data: {
+            tie: {
+              automatic: {
+                mechanism: "string",
+                wearer_height_cm: 182,
+                turn_knot: true,
+              },
+            },
+          },
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText("수선")).toBeTruthy();
+    expect(screen.getByText("010-2222-3333")).toBeTruthy();
+    expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();
+    expect(screen.getByText("오후 배송 희망")).toBeTruthy();
+    expect(screen.getByText("수거 고객 · 010-1111-2222")).toBeTruthy();
+    expect(screen.getByText("송장 없이 발송")).toBeTruthy();
+    expect(screen.getByText("송장 분실")).toBeTruthy();
+    expect(screen.getByText("2장")).toBeTruthy();
+    expect(screen.getByText("송장을 분실했습니다.")).toBeTruthy();
+    expect(screen.getByText("175cm")).toBeTruthy();
+    expect(screen.getByText("182cm")).toBeTruthy();
+    expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
+    expect(screen.getByText("딤플")).toBeTruthy();
+    expect(screen.getByText("돌려묶기")).toBeTruthy();
+    expect(api.getReferenceImagesOptions).toHaveBeenCalledWith({
+      path: { order_id: order.id },
+    });
   });
 });

@@ -1,5 +1,7 @@
 """관리자 견적·문의·엔티티 관계 이미지 계약 — 실제 PostgreSQL."""
 
+from datetime import UTC, datetime
+
 from db.models.commerce import Inquiry, QuoteRequestStatusLog, RepairShippingReceipt
 from db.models.images import Image
 from sqlalchemy import select
@@ -240,6 +242,7 @@ async def test_admin_repair_receipt_photo_signed_read_requires_receipt_relation(
         uploaded_by=customer.id,
         content_type="image/png",
         size_bytes=100,
+        upload_completed_at=datetime.now(UTC),
     )
     receipt = RepairShippingReceipt(
         order_id=order.id,

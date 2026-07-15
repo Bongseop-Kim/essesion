@@ -1,12 +1,19 @@
 import uuid
 from typing import Literal
 
-from db.models.commerce import Claim, Order, OrderItem, ShippingAddress
+from db.models.commerce import Claim, Order, OrderItem, RepairShippingReceipt, ShippingAddress
 from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from api.db import SessionDep
 from api.deps import AdminUser, CurrentUser, ensure_owner
+from api.domains.images.service import (
+    ORDER_REFERENCE_IMAGE_TYPES,
+    get_linked_order_image,
+    get_repair_receipt_photo,
+    list_linked_order_images,
+    list_repair_receipt_photos,
+)
 from api.domains.orders import service
 from api.domains.orders.schemas import (
     AdminStatusUpdateRequest,
@@ -19,8 +26,10 @@ from api.domains.orders.schemas import (
     OrderCreateRequest,
     OrderCreateResponse,
     OrderDetailOut,
+    OrderImageReadUrlOut,
     OrderItemOut,
     OrderOut,
+    OrderReferenceImageOut,
     OrderShippingAddressOut,
     RepairNoTrackingRequest,
     RepairTrackingRequest,
@@ -30,6 +39,7 @@ from api.domains.orders.schemas import (
     SingleOrderCreateResponse,
 )
 from api.domains.orders.status_machine import customer_actions
+from api.errors import NotFoundError
 
 router = APIRouter(tags=["orders"])
 
@@ -166,6 +176,10 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         address = await session.get(ShippingAddress, order.shipping_address_id)
         if address is not None:
             out.shipping_address = OrderShippingAddressOut.model_validate(address)
+    if order.order_type == "repair":
+        out.repair_pickup, out.repair_receipts = await service.repair_shipping_read_model(
+            session, order.id
+        )
     out.customer_actions = customer_actions(
         order.order_type,
         order.status,
@@ -175,6 +189,109 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         ),
     )
     return out
+
+
+@router.get(
+    "/orders/{order_id}/reference-images",
+    response_model=list[OrderReferenceImageOut],
+)
+async def list_my_order_reference_images(
+    order_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> list[OrderReferenceImageOut]:
+    order = await session.get(Order, order_id)
+    ensure_owner(order, user)
+    images = await list_linked_order_images(session, order_id, ORDER_REFERENCE_IMAGE_TYPES)
+    return [
+        OrderReferenceImageOut(
+            id=image.id,
+            content_type=image.content_type,
+            size_bytes=image.size_bytes,
+            created_at=image.created_at,
+        )
+        for image in images
+    ]
+
+
+@router.post(
+    "/orders/{order_id}/reference-images/{image_id}/read-url",
+    response_model=OrderImageReadUrlOut,
+)
+async def create_my_order_reference_image_read_url(
+    order_id: uuid.UUID,
+    image_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> OrderImageReadUrlOut:
+    order = await session.get(Order, order_id)
+    ensure_owner(order, user)
+    image = await get_linked_order_image(
+        session, order_id, image_id, ORDER_REFERENCE_IMAGE_TYPES
+    )
+    return OrderImageReadUrlOut(
+        read_url=await request.app.state.gcs.signed_read_url(image.object_key)
+    )
+
+
+async def _owned_repair_receipt(
+    session: SessionDep,
+    user: CurrentUser,
+    order_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+) -> RepairShippingReceipt:
+    order = await session.get(Order, order_id)
+    ensure_owner(order, user)
+    receipt = await session.scalar(
+        select(RepairShippingReceipt).where(
+            RepairShippingReceipt.id == receipt_id,
+            RepairShippingReceipt.order_id == order_id,
+        )
+    )
+    if receipt is None:
+        raise NotFoundError("수선 발송 접수를 찾을 수 없습니다")
+    return receipt
+
+
+@router.get(
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos",
+    response_model=list[OrderReferenceImageOut],
+)
+async def list_my_repair_receipt_photos(
+    order_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> list[OrderReferenceImageOut]:
+    receipt = await _owned_repair_receipt(session, user, order_id, receipt_id)
+    images = await list_repair_receipt_photos(session, receipt)
+    return [
+        OrderReferenceImageOut(
+            id=image.id,
+            content_type=image.content_type,
+            size_bytes=image.size_bytes,
+            created_at=image.created_at,
+        )
+        for image in images
+    ]
+
+
+@router.post(
+    "/orders/{order_id}/repair-shipping-receipts/{receipt_id}/photos/{image_id}/read-url",
+    response_model=OrderImageReadUrlOut,
+)
+async def create_my_repair_receipt_photo_read_url(
+    order_id: uuid.UUID,
+    receipt_id: uuid.UUID,
+    image_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> OrderImageReadUrlOut:
+    receipt = await _owned_repair_receipt(session, user, order_id, receipt_id)
+    image = await get_repair_receipt_photo(session, receipt, image_id)
+    return OrderImageReadUrlOut(
+        read_url=await request.app.state.gcs.signed_read_url(image.object_key)
+    )
 
 
 @router.post("/orders/{order_id}/confirm-purchase", response_model=OrderOut)

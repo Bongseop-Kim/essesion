@@ -41,6 +41,8 @@ from api.domains.orders.schemas import (
     OrderCreateRequest,
     OrderItemIn,
     RepairNoTrackingRequest,
+    RepairPickupOut,
+    RepairShippingReceiptOut,
     RepairTrackingRequest,
     SampleOrderCreateRequest,
 )
@@ -344,6 +346,35 @@ async def _relink_images(
         .values(entity_type=to_entity_type, entity_id=to_entity_id, expires_at=None)
     )
     return cast("CursorResult[Any]", result).rowcount
+
+
+async def repair_shipping_read_model(
+    session: AsyncSession, order_id: uuid.UUID
+) -> tuple[RepairPickupOut | None, list[RepairShippingReceiptOut]]:
+    pickup = await session.scalar(
+        select(RepairPickupRequest).where(RepairPickupRequest.order_id == order_id)
+    )
+    receipts = list(
+        await session.scalars(
+            select(RepairShippingReceipt)
+            .where(RepairShippingReceipt.order_id == order_id)
+            .order_by(RepairShippingReceipt.created_at.asc(), RepairShippingReceipt.id.asc())
+        )
+    )
+    return (
+        RepairPickupOut.model_validate(pickup) if pickup else None,
+        [
+            RepairShippingReceiptOut(
+                id=receipt.id,
+                receipt_type=receipt.receipt_type,
+                reason=receipt.reason,
+                memo=receipt.memo,
+                photo_count=len(receipt.photos or []),
+                created_at=receipt.created_at,
+            )
+            for receipt in receipts
+        ],
+    )
 
 
 # ---- 일반 주문 (sale/repair) ----

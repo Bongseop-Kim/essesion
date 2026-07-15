@@ -1508,6 +1508,13 @@ export const zOrderCreateResponse = z.object({
 });
 
 /**
+ * OrderImageReadUrlOut
+ */
+export const zOrderImageReadUrlOut = z.object({
+    read_url: z.string()
+});
+
+/**
  * OrderImageUploadOut
  */
 export const zOrderImageUploadOut = z.object({
@@ -1610,6 +1617,16 @@ export const zCustomOrderCreateRequest = z.object({
 });
 
 /**
+ * OrderReferenceImageOut
+ */
+export const zOrderReferenceImageOut = z.object({
+    content_type: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    size_bytes: z.int().nullable()
+});
+
+/**
  * OrderShippingAddressOut
  */
 export const zOrderShippingAddressOut = z.object({
@@ -1621,40 +1638,6 @@ export const zOrderShippingAddressOut = z.object({
     postal_code: z.string(),
     recipient_name: z.string(),
     recipient_phone: z.string()
-});
-
-/**
- * AdminOrderDetailOut
- */
-export const zAdminOrderDetailOut = z.object({
-    active_claim: zAdminActiveClaimOut.nullish(),
-    admin_actions: z.array(zAdminAction).optional(),
-    claim_summary: zClaimBadgeOut.nullish(),
-    company_courier_company: z.string().nullable(),
-    company_shipped_at: z.iso.datetime().nullable(),
-    company_tracking_number: z.string().nullable(),
-    confirmed_at: z.iso.datetime().nullable(),
-    courier_company: z.string().nullable(),
-    created_at: z.iso.datetime(),
-    customer: zAdminOrderCustomerOut,
-    delivered_at: z.iso.datetime().nullable(),
-    id: z.uuid(),
-    items: z.array(zOrderItemOut).optional(),
-    order_amount: z.int(),
-    order_number: z.string(),
-    order_type: z.string(),
-    original_price: z.int(),
-    payment_group_id: z.uuid().nullable(),
-    related_orders: z.array(zAdminRelatedOrderOut).optional(),
-    shipped_at: z.iso.datetime().nullable(),
-    shipping_address: zOrderShippingAddressOut.nullable(),
-    shipping_address_id: z.uuid().nullable(),
-    shipping_cost: z.int(),
-    status: z.string(),
-    status_logs: z.array(zAdminOrderStatusLogOut).optional(),
-    total_discount: z.int(),
-    tracking_number: z.string().nullable(),
-    updated_at: z.iso.datetime()
 });
 
 /**
@@ -1681,36 +1664,6 @@ export const zAdminQuoteDetailOut = z.object({
     shipping_address_id: z.uuid().nullable(),
     status: z.string(),
     status_logs: z.array(zAdminQuoteStatusLogOut).optional(),
-    updated_at: z.iso.datetime()
-});
-
-/**
- * OrderDetailOut
- */
-export const zOrderDetailOut = z.object({
-    claim_summary: zClaimBadgeOut.nullish(),
-    company_courier_company: z.string().nullable(),
-    company_shipped_at: z.iso.datetime().nullable(),
-    company_tracking_number: z.string().nullable(),
-    confirmed_at: z.iso.datetime().nullable(),
-    courier_company: z.string().nullable(),
-    created_at: z.iso.datetime(),
-    customer_actions: z.array(z.string()).optional().default([]),
-    delivered_at: z.iso.datetime().nullable(),
-    id: z.uuid(),
-    items: z.array(zOrderItemOut).optional().default([]),
-    order_number: z.string(),
-    order_type: z.string(),
-    original_price: z.int(),
-    payment_group_id: z.uuid().nullable(),
-    shipped_at: z.iso.datetime().nullable(),
-    shipping_address: zOrderShippingAddressOut.nullish(),
-    shipping_address_id: z.uuid().nullable(),
-    shipping_cost: z.int(),
-    status: z.string(),
-    total_discount: z.int(),
-    total_price: z.int(),
-    tracking_number: z.string().nullable(),
     updated_at: z.iso.datetime()
 });
 
@@ -2284,6 +2237,74 @@ export const zAdminClaimDetailOut = z.object({
     timeline: z.array(zAdminTimelineEvent).optional(),
     tracking_actions: z.array(zAdminClaimTrackingAction).optional(),
     type: z.string(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AdminOrderDetailOut
+ */
+export const zAdminOrderDetailOut = z.object({
+    active_claim: zAdminActiveClaimOut.nullish(),
+    admin_actions: z.array(zAdminAction).optional(),
+    claim_summary: zClaimBadgeOut.nullish(),
+    company_courier_company: z.string().nullable(),
+    company_shipped_at: z.iso.datetime().nullable(),
+    company_tracking_number: z.string().nullable(),
+    confirmed_at: z.iso.datetime().nullable(),
+    courier_company: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    customer: zAdminOrderCustomerOut,
+    delivered_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    items: z.array(zOrderItemOut).optional(),
+    order_amount: z.int(),
+    order_number: z.string(),
+    order_type: z.string(),
+    original_price: z.int(),
+    payment_group_id: z.uuid().nullable(),
+    related_orders: z.array(zAdminRelatedOrderOut).optional(),
+    repair_pickup: zRepairPickupOut.nullish(),
+    repair_receipts: z.array(zRepairShippingReceiptOut).optional(),
+    shipped_at: z.iso.datetime().nullable(),
+    shipping_address: zOrderShippingAddressOut.nullable(),
+    shipping_address_id: z.uuid().nullable(),
+    shipping_cost: z.int(),
+    status: z.string(),
+    status_logs: z.array(zAdminOrderStatusLogOut).optional(),
+    total_discount: z.int(),
+    tracking_number: z.string().nullable(),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * OrderDetailOut
+ */
+export const zOrderDetailOut = z.object({
+    claim_summary: zClaimBadgeOut.nullish(),
+    company_courier_company: z.string().nullable(),
+    company_shipped_at: z.iso.datetime().nullable(),
+    company_tracking_number: z.string().nullable(),
+    confirmed_at: z.iso.datetime().nullable(),
+    courier_company: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    customer_actions: z.array(z.string()).optional().default([]),
+    delivered_at: z.iso.datetime().nullable(),
+    id: z.uuid(),
+    items: z.array(zOrderItemOut).optional().default([]),
+    order_number: z.string(),
+    order_type: z.string(),
+    original_price: z.int(),
+    payment_group_id: z.uuid().nullable(),
+    repair_pickup: zRepairPickupOut.nullish(),
+    repair_receipts: z.array(zRepairShippingReceiptOut).optional(),
+    shipped_at: z.iso.datetime().nullable(),
+    shipping_address: zOrderShippingAddressOut.nullish(),
+    shipping_address_id: z.uuid().nullable(),
+    shipping_cost: z.int(),
+    status: z.string(),
+    total_discount: z.int(),
+    total_price: z.int(),
+    tracking_number: z.string().nullable(),
     updated_at: z.iso.datetime()
 });
 
@@ -4292,6 +4313,27 @@ export const zConfirmPurchasePath = z.object({
  */
 export const zConfirmPurchaseResponse = zOrderOut;
 
+export const zListMyOrderReferenceImagesPath = z.object({
+    order_id: z.uuid()
+});
+
+/**
+ * Response List My Order Reference Images
+ *
+ * Successful Response
+ */
+export const zListMyOrderReferenceImagesResponse = z.array(zOrderReferenceImageOut);
+
+export const zCreateMyOrderReferenceImageReadUrlPath = z.object({
+    order_id: z.uuid(),
+    image_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateMyOrderReferenceImageReadUrlResponse = zOrderImageReadUrlOut;
+
 export const zSubmitRepairNoTrackingBody = zRepairNoTrackingRequest;
 
 export const zSubmitRepairNoTrackingPath = z.object({
@@ -4302,6 +4344,29 @@ export const zSubmitRepairNoTrackingPath = z.object({
  * Successful Response
  */
 export const zSubmitRepairNoTrackingResponse = zOrderOut;
+
+export const zListMyRepairReceiptPhotosPath = z.object({
+    order_id: z.uuid(),
+    receipt_id: z.uuid()
+});
+
+/**
+ * Response List My Repair Receipt Photos
+ *
+ * Successful Response
+ */
+export const zListMyRepairReceiptPhotosResponse = z.array(zOrderReferenceImageOut);
+
+export const zCreateMyRepairReceiptPhotoReadUrlPath = z.object({
+    order_id: z.uuid(),
+    receipt_id: z.uuid(),
+    image_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCreateMyRepairReceiptPhotoReadUrlResponse = zOrderImageReadUrlOut;
 
 export const zSubmitRepairTrackingBody = zRepairTrackingRequest;
 
