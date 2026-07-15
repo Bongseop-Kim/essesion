@@ -145,6 +145,14 @@ class SingleOrderCreateResponse(BaseModel):
     total_amount: int
 
 
+class ClaimBadgeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    claim_number: str
+    type: str
+    status: str
+
+
 class OrderItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,6 +167,7 @@ class OrderItemOut(BaseModel):
     discount_amount: int
     line_discount_amount: int
     applied_user_coupon_id: uuid.UUID | None
+    claim: ClaimBadgeOut | None = None
 
 
 class OrderOut(BaseModel):
@@ -186,6 +195,7 @@ class OrderOut(BaseModel):
     updated_at: datetime
     items: list[OrderItemOut] = []
     customer_actions: list[str] = []
+    claim_summary: ClaimBadgeOut | None = None
 
 
 class OrderShippingAddressOut(BaseModel):

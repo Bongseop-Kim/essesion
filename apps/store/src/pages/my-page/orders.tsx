@@ -16,6 +16,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { claimBadge } from "@/features/claims";
 import { orderStatusTone, orderTypeLabel } from "@/features/orders";
 import { krw } from "@/pages/shop/constants";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
@@ -121,19 +122,29 @@ export function OrderListPage() {
               <VStack key={date} gap="x1" alignItems="stretch">
                 <ListHeader variant="boldSolid">{date}</ListHeader>
                 <List>
-                  {dateOrders.map((order) => (
-                    <ListItem
-                      key={order.id}
-                      title={`${orderTypeLabel(order.order_type)} · ${order.order_number}`}
-                      description={`${krw.format(order.total_price)}원 · 상품 ${order.items?.length ?? 0}개`}
-                      suffix={
-                        <Badge tone={orderStatusTone(order.status)}>
-                          {order.status}
-                        </Badge>
-                      }
-                      onClick={() => navigate(`/order/${order.id}`)}
-                    />
-                  ))}
+                  {dateOrders.map((order) => {
+                    const claim = order.claim_summary
+                      ? claimBadge(order.claim_summary)
+                      : null;
+                    return (
+                      <ListItem
+                        key={order.id}
+                        title={`${orderTypeLabel(order.order_type)} · ${order.order_number}`}
+                        description={`${krw.format(order.total_price)}원 · 상품 ${order.items?.length ?? 0}개`}
+                        suffix={
+                          <HStack gap="x1" wrap>
+                            <Badge tone={orderStatusTone(order.status)}>
+                              {order.status}
+                            </Badge>
+                            {claim ? (
+                              <Badge tone={claim.tone}>{claim.label}</Badge>
+                            ) : null}
+                          </HStack>
+                        }
+                        onClick={() => navigate(`/order/${order.id}`)}
+                      />
+                    );
+                  })}
                 </List>
               </VStack>
             ))}

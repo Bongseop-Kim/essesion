@@ -40,7 +40,7 @@ import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
+import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
 import {
   AdminTable,
   type AdminTableColumn,
@@ -158,32 +158,40 @@ function OrderReferenceImage({
   );
 }
 
-const itemColumns: readonly AdminTableColumn<OrderItemOut>[] = [
-  {
-    key: "item",
-    header: "거래 시점 상품·옵션",
-    render: snapshotLabel,
-  },
-  {
-    key: "quantity",
-    header: "수량",
-    align: "end",
-    render: (item) => `${item.quantity}개`,
-  },
-  {
-    key: "unit_price",
-    header: "단가",
-    align: "end",
-    render: (item) => formatMoney(item.unit_price),
-  },
-  {
-    key: "discount",
-    header: "할인",
-    align: "end",
-    visibility: "medium",
-    render: (item) => formatMoney(item.line_discount_amount),
-  },
-];
+function itemColumns(): readonly AdminTableColumn<OrderItemOut>[] {
+  return [
+    {
+      key: "item",
+      header: "거래 시점 상품·옵션",
+      render: snapshotLabel,
+    },
+    {
+      key: "claim",
+      header: "클레임",
+      render: (item) =>
+        item.claim ? <ClaimStatusBadge claim={item.claim} /> : "-",
+    },
+    {
+      key: "quantity",
+      header: "수량",
+      align: "end",
+      render: (item) => `${item.quantity}개`,
+    },
+    {
+      key: "unit_price",
+      header: "단가",
+      align: "end",
+      render: (item) => formatMoney(item.unit_price),
+    },
+    {
+      key: "discount",
+      header: "할인",
+      align: "end",
+      visibility: "medium",
+      render: (item) => formatMoney(item.line_discount_amount),
+    },
+  ];
+}
 
 export function OrderDetailPage() {
   const { orderId = "" } = useParams();
@@ -345,7 +353,12 @@ export function OrderDetailPage() {
           title={`주문 ${data.order_number}`}
           description="거래 시점 스냅샷과 서버가 허용한 운영 액션을 확인합니다."
         />
-        <StatusBadge status={data.status} />
+        <HStack gap="x1" wrap>
+          <StatusBadge status={data.status} />
+          {data.claim_summary ? (
+            <ClaimStatusBadge claim={data.claim_summary} />
+          ) : null}
+        </HStack>
       </HStack>
 
       {data.active_claim !== null && data.active_claim !== undefined && (
@@ -415,7 +428,7 @@ export function OrderDetailPage() {
       >
         <AdminTable
           label="주문 항목"
-          columns={itemColumns}
+          columns={itemColumns()}
           rows={orderItems}
           getRowKey={(row) => row.id}
           status="success"

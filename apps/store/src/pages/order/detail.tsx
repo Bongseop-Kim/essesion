@@ -26,6 +26,7 @@ import {
   ClaimFormModal,
   ClaimItemActions,
   type ClaimType,
+  claimBadge,
   claimItemTitle,
   TokenRefundSection,
 } from "@/features/claims";
@@ -76,6 +77,9 @@ export function OrderDetailPage() {
 
   const order = orderQuery.data;
   const customerActions = order?.customer_actions ?? [];
+  const summaryClaim = order?.claim_summary
+    ? claimBadge(order.claim_summary)
+    : null;
 
   return (
     <ContentLayout
@@ -133,11 +137,14 @@ export function OrderDetailPage() {
       ) : (
         <VStack gap="x6" alignItems="stretch">
           <VStack gap="x2">
-            <HStack gap="x3">
+            <HStack gap="x3" wrap>
               <Text as="h1" textStyle="title1">
                 {order.order_number}
               </Text>
               <Badge tone={orderStatusTone(order.status)}>{order.status}</Badge>
+              {summaryClaim ? (
+                <Badge tone={summaryClaim.tone}>{summaryClaim.label}</Badge>
+              ) : null}
             </HStack>
             <Text textStyle="caption" color="fg.neutral-muted">
               {orderTypeLabel(order.order_type)} 주문 ·{" "}
@@ -145,7 +152,8 @@ export function OrderDetailPage() {
             </Text>
           </VStack>
 
-          {canRegisterRepairShipment(order) ? (
+          {canRegisterRepairShipment(order) &&
+          customerActions.includes("claim_cancel") ? (
             <RepairInboundAddress
               onRegisterShipment={() =>
                 navigate(`/order/${order.id}/repair-shipping`)
@@ -247,36 +255,50 @@ export function OrderDetailPage() {
               주문 상품 {order.items?.length ?? 0}개
             </Text>
             <VStack gap="x3" alignItems="stretch">
-              {(order.items ?? []).map((item) => (
-                <Box
-                  key={item.id}
-                  borderWidth={1}
-                  borderColor="stroke.neutral-weak"
-                  borderRadius="r3"
-                  p="x4"
-                >
-                  <VStack gap="x3" alignItems="stretch">
-                    <HStack justify="space-between" gap="x4" align="flex-start">
-                      <VStack gap="x1">
-                        <Text textStyle="body">{orderItemTitle(item)}</Text>
-                        <Text textStyle="caption" color="fg.neutral-muted">
-                          {item.quantity}개 · {krw.format(item.unit_price)}원
+              {(order.items ?? []).map((item) => {
+                const itemClaim = item.claim ? claimBadge(item.claim) : null;
+                return (
+                  <Box
+                    key={item.id}
+                    borderWidth={1}
+                    borderColor="stroke.neutral-weak"
+                    borderRadius="r3"
+                    p="x4"
+                  >
+                    <VStack gap="x3" alignItems="stretch">
+                      <HStack
+                        justify="space-between"
+                        gap="x4"
+                        align="flex-start"
+                      >
+                        <VStack gap="x1">
+                          <HStack gap="x2" wrap>
+                            <Text textStyle="body">{orderItemTitle(item)}</Text>
+                            {itemClaim ? (
+                              <Badge tone={itemClaim.tone}>
+                                {itemClaim.label}
+                              </Badge>
+                            ) : null}
+                          </HStack>
+                          <Text textStyle="caption" color="fg.neutral-muted">
+                            {item.quantity}개 · {krw.format(item.unit_price)}원
+                          </Text>
+                        </VStack>
+                        <Text textStyle="labelSm">
+                          {krw.format(item.unit_price * item.quantity)}원
                         </Text>
-                      </VStack>
-                      <Text textStyle="labelSm">
-                        {krw.format(item.unit_price * item.quantity)}원
-                      </Text>
-                    </HStack>
-                    <ClaimItemActions
-                      item={item}
-                      customerActions={customerActions}
-                      onSelect={(type, selectedItem) =>
-                        setClaimTarget({ type, item: selectedItem })
-                      }
-                    />
-                  </VStack>
-                </Box>
-              ))}
+                      </HStack>
+                      <ClaimItemActions
+                        item={item}
+                        customerActions={customerActions}
+                        onSelect={(type, selectedItem) =>
+                          setClaimTarget({ type, item: selectedItem })
+                        }
+                      />
+                    </VStack>
+                  </Box>
+                );
+              })}
             </VStack>
           </VStack>
 

@@ -1007,6 +1007,7 @@ export type AdminOrderDetailOut = {
      * Admin Actions
      */
     admin_actions?: Array<AdminAction>;
+    claim_summary?: ClaimBadgeOut | null;
     /**
      * Company Courier Company
      */
@@ -1167,6 +1168,7 @@ export type AdminOrderSummaryOut = {
      * Admin Actions
      */
     admin_actions?: Array<AdminAction>;
+    claim_summary?: ClaimBadgeOut | null;
     /**
      * Created At
      */
@@ -2211,6 +2213,24 @@ export type CartReplaceRequest = {
      * Items
      */
     items: Array<CartItemIn>;
+};
+
+/**
+ * ClaimBadgeOut
+ */
+export type ClaimBadgeOut = {
+    /**
+     * Claim Number
+     */
+    claim_number: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Type
+     */
+    type: string;
 };
 
 /**
@@ -4164,6 +4184,7 @@ export type OrderCreateResponse = {
  * OrderDetailOut
  */
 export type OrderDetailOut = {
+    claim_summary?: ClaimBadgeOut | null;
     /**
      * Company Courier Company
      */
@@ -4320,6 +4341,7 @@ export type OrderItemOut = {
      * Applied User Coupon Id
      */
     applied_user_coupon_id: string | null;
+    claim?: ClaimBadgeOut | null;
     /**
      * Discount Amount
      */
@@ -4368,6 +4390,7 @@ export type OrderItemOut = {
  * OrderOut
  */
 export type OrderOut = {
+    claim_summary?: ClaimBadgeOut | null;
     /**
      * Company Courier Company
      */

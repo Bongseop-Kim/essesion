@@ -1811,6 +1811,16 @@
             "title": "Admin Actions",
             "type": "array"
           },
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "company_courier_company": {
             "anyOf": [
               {
@@ -2144,6 +2154,16 @@
             },
             "title": "Admin Actions",
             "type": "array"
+          },
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "format": "date-time",
@@ -4145,6 +4165,29 @@
           "items"
         ],
         "title": "CartReplaceRequest",
+        "type": "object"
+      },
+      "ClaimBadgeOut": {
+        "properties": {
+          "claim_number": {
+            "title": "Claim Number",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_number",
+          "type",
+          "status"
+        ],
+        "title": "ClaimBadgeOut",
         "type": "object"
       },
       "ClaimCreateRequest": {
@@ -7766,6 +7809,16 @@
       },
       "OrderDetailOut": {
         "properties": {
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "company_courier_company": {
             "anyOf": [
               {
@@ -8105,6 +8158,16 @@
             ],
             "title": "Applied User Coupon Id"
           },
+          "claim": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "discount_amount": {
             "title": "Discount Amount",
             "type": "integer"
@@ -8187,6 +8250,16 @@
       },
       "OrderOut": {
         "properties": {
+          "claim_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimBadgeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "company_courier_company": {
             "anyOf": [
               {

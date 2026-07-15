@@ -4,6 +4,7 @@
 """
 
 import uuid
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -78,11 +79,65 @@ SAMPLE_PRICING_KEY = {
 }
 
 
+@dataclass(frozen=True)
+class ClaimReadModel:
+    by_order: dict[uuid.UUID, Claim]
+    by_item: dict[uuid.UUID, Claim]
+    active_order_ids: set[uuid.UUID]
+    completed_cancel_order_ids: set[uuid.UUID]
+
+
+def claim_read_model(claims: Sequence[Claim]) -> ClaimReadModel:
+    """주문 화면용 대표 클레임: 활성 우선, 없으면 생성 시각·ID 최신."""
+    by_order_candidates: dict[uuid.UUID, list[Claim]] = defaultdict(list)
+    by_item_candidates: dict[uuid.UUID, list[Claim]] = defaultdict(list)
+    active_order_ids: set[uuid.UUID] = set()
+    completed_cancel_order_ids: set[uuid.UUID] = set()
+    for claim in claims:
+        by_order_candidates[claim.order_id].append(claim)
+        by_item_candidates[claim.order_item_id].append(claim)
+        if claim.status in ACTIVE_CLAIM_STATUSES:
+            active_order_ids.add(claim.order_id)
+        if claim.type == "cancel" and claim.status == "완료":
+            completed_cancel_order_ids.add(claim.order_id)
+
+    def preferred(candidates: list[Claim]) -> Claim:
+        return max(
+            candidates,
+            key=lambda claim: (
+                claim.status in ACTIVE_CLAIM_STATUSES,
+                claim.created_at,
+                claim.id,
+            ),
+        )
+
+    return ClaimReadModel(
+        by_order={order_id: preferred(group) for order_id, group in by_order_candidates.items()},
+        by_item={item_id: preferred(group) for item_id, group in by_item_candidates.items()},
+        active_order_ids=active_order_ids,
+        completed_cancel_order_ids=completed_cancel_order_ids,
+    )
+
+
 async def has_active_claim(session: AsyncSession, order_id: uuid.UUID) -> bool:
     return bool(
         await session.scalar(
             select(
                 exists().where(Claim.order_id == order_id, Claim.status.in_(ACTIVE_CLAIM_STATUSES))
+            )
+        )
+    )
+
+
+async def has_completed_cancel_claim(session: AsyncSession, order_id: uuid.UUID) -> bool:
+    return bool(
+        await session.scalar(
+            select(
+                exists().where(
+                    Claim.order_id == order_id,
+                    Claim.type == "cancel",
+                    Claim.status == "완료",
+                )
             )
         )
     )
@@ -824,6 +879,11 @@ async def confirm_purchase(session: AsyncSession, user: User, order_id: uuid.UUI
     order = await get_owned_order_for_update(session, user, order_id)
     if order.status not in ("배송완료", "배송중"):
         raise DomainError("현재 주문 상태에서는 구매확정할 수 없습니다", code="invalid_status")
+    if await has_completed_cancel_claim(session, order.id):
+        raise DomainError(
+            "완료된 취소 클레임이 있는 주문은 구매확정할 수 없습니다",
+            code="completed_cancel_claim",
+        )
     if await has_active_claim(session, order.id):
         raise DomainError(
             "진행 중인 클레임이 있는 주문은 구매확정할 수 없습니다", code="active_claim"
@@ -854,6 +914,13 @@ async def submit_repair_tracking(
         raise DomainError("발송 사진은 최대 3장까지 등록할 수 있습니다", code="too_many_photos")
 
     order = await get_owned_order_for_update(session, user, order_id)
+    if await has_completed_cancel_claim(session, order.id):
+        raise DomainError(
+            "완료된 취소 클레임이 있는 주문은 발송 처리할 수 없습니다",
+            code="completed_cancel_claim",
+        )
+    if await has_active_claim(session, order.id):
+        raise DomainError("활성 클레임이 있는 주문은 발송 처리할 수 없습니다", code="active_claim")
     if order.status != "발송대기":
         raise DomainError(
             f"발송대기 상태에서만 송장번호를 등록할 수 있습니다 (현재 상태: {order.status})",
@@ -892,6 +959,13 @@ async def submit_repair_no_tracking(
         raise DomainError("발송 사진은 최대 3장까지 등록할 수 있습니다", code="too_many_photos")
 
     order = await get_owned_order_for_update(session, user, order_id)
+    if await has_completed_cancel_claim(session, order.id):
+        raise DomainError(
+            "완료된 취소 클레임이 있는 주문은 발송 처리할 수 없습니다",
+            code="completed_cancel_claim",
+        )
+    if await has_active_claim(session, order.id):
+        raise DomainError("활성 클레임이 있는 주문은 발송 처리할 수 없습니다", code="active_claim")
     if order.status != "발송대기":
         raise DomainError(
             f"발송대기 상태에서만 송장번호를 등록할 수 있습니다 (현재 상태: {order.status})",
@@ -967,6 +1041,11 @@ async def admin_update_status(
     order = await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
     if order is None:
         raise NotFoundError(f"Order not found: {order_id}")
+    if await has_completed_cancel_claim(session, order.id):
+        raise DomainError(
+            "완료된 취소 클레임이 있는 주문은 주문 상태를 직접 변경할 수 없습니다",
+            code="completed_cancel_claim",
+        )
     if await has_active_claim(session, order.id):
         raise DomainError(
             "활성 클레임이 있는 주문은 주문 상태를 직접 변경할 수 없습니다", code="active_claim"
@@ -1004,6 +1083,15 @@ async def admin_update_tracking(
     order = await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
     if order is None:
         raise NotFoundError("Order not found")
+    if await has_completed_cancel_claim(session, order.id):
+        raise DomainError(
+            "완료된 취소 클레임이 있는 주문은 송장을 수정할 수 없습니다",
+            code="completed_cancel_claim",
+        )
+    if await has_active_claim(session, order.id):
+        raise DomainError(
+            "활성 클레임이 있는 주문은 송장을 수정할 수 없습니다", code="active_claim"
+        )
     if order.status in ("배송완료", "완료", "취소"):
         raise DomainError(
             f"Tracking cannot be updated for order status: {order.status}", code="invalid_status"

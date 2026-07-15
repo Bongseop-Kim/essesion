@@ -1,5 +1,7 @@
 """클레임 — 생성 가드·상태기계·알림 dedupe (domains.md §4)."""
 
+from datetime import UTC, datetime, timedelta
+
 from api.domains.claims.service import notify_status
 from db.models.commerce import Claim, OrderItem
 
@@ -190,6 +192,159 @@ async def test_order_list_includes_items(client, db_session, settings):
     assert response.status_code == 200
     listed = next(entry for entry in response.json() if entry["id"] == str(order.id))
     assert [entry["id"] for entry in listed["items"]] == [str(item.id)]
+
+
+async def test_order_reads_include_preferred_claim_badges(client, db_session, settings):
+    user = await make_user(db_session)
+    admin = await make_admin(db_session)
+    order = await make_order(db_session, user, status="배송완료")
+    first_item = OrderItem(
+        order_id=order.id,
+        item_id="claim-badge-first",
+        item_type="product",
+        quantity=1,
+        unit_price=10000,
+    )
+    second_item = OrderItem(
+        order_id=order.id,
+        item_id="claim-badge-second",
+        item_type="product",
+        quantity=1,
+        unit_price=10000,
+    )
+    db_session.add_all([first_item, second_item])
+    await db_session.flush()
+    created_at = datetime(2026, 7, 15, tzinfo=UTC)
+    active = Claim(
+        user_id=user.id,
+        order_id=order.id,
+        order_item_id=first_item.id,
+        claim_number="CLM-BADGE-ACTIVE",
+        type="cancel",
+        status="처리중",
+        reason="change_mind",
+        quantity=1,
+        created_at=created_at,
+    )
+    completed = Claim(
+        user_id=user.id,
+        order_id=order.id,
+        order_item_id=second_item.id,
+        claim_number="CLM-BADGE-COMPLETE",
+        type="return",
+        status="완료",
+        reason="defect",
+        quantity=1,
+        created_at=created_at + timedelta(minutes=1),
+    )
+    db_session.add_all([active, completed])
+    await db_session.commit()
+
+    customer_headers = auth_headers(user, settings)
+    admin_headers = auth_headers(admin, settings)
+    expected_active = {
+        "claim_number": "CLM-BADGE-ACTIVE",
+        "type": "cancel",
+        "status": "처리중",
+    }
+    expected_completed = {
+        "claim_number": "CLM-BADGE-COMPLETE",
+        "type": "return",
+        "status": "완료",
+    }
+
+    detail = (await client.get(f"/orders/{order.id}", headers=customer_headers)).json()
+    assert detail["claim_summary"] == expected_active
+    assert {item["id"]: item["claim"] for item in detail["items"]} == {
+        str(first_item.id): expected_active,
+        str(second_item.id): expected_completed,
+    }
+    listed = (await client.get("/orders", headers=customer_headers)).json()
+    listed_order = next(item for item in listed if item["id"] == str(order.id))
+    assert listed_order["claim_summary"] == expected_active
+
+    admin_list = (await client.get("/admin/orders", headers=admin_headers)).json()["items"]
+    admin_order = next(item for item in admin_list if item["id"] == str(order.id))
+    assert admin_order["claim_summary"] == expected_active
+    admin_detail = (await client.get(f"/admin/orders/{order.id}", headers=admin_headers)).json()
+    assert admin_detail["claim_summary"] == expected_active
+    assert admin_detail["active_claim"]["claim_number"] == active.claim_number
+    assert {item["id"]: item["claim"] for item in admin_detail["items"]} == {
+        str(first_item.id): expected_active,
+        str(second_item.id): expected_completed,
+    }
+
+    active.status = "거부"
+    await db_session.commit()
+    terminal_detail = (await client.get(f"/orders/{order.id}", headers=customer_headers)).json()
+    assert terminal_detail["claim_summary"] == expected_completed
+    assert next(item for item in terminal_detail["items"] if item["id"] == str(first_item.id))[
+        "claim"
+    ] == {
+        "claim_number": "CLM-BADGE-ACTIVE",
+        "type": "cancel",
+        "status": "거부",
+    }
+
+
+async def test_completed_cancel_blocks_order_actions(client, db_session, settings):
+    user = await make_user(db_session)
+    admin = await make_admin(db_session)
+    order, item = await _order_with_item(db_session, user, status="진행중")
+    db_session.add(
+        Claim(
+            user_id=user.id,
+            order_id=order.id,
+            order_item_id=item.id,
+            claim_number="CLM-CANCEL-COMPLETE",
+            type="cancel",
+            status="완료",
+            reason="change_mind",
+            quantity=item.quantity,
+        )
+    )
+    await db_session.commit()
+
+    customer_headers = auth_headers(user, settings)
+    admin_headers = auth_headers(admin, settings)
+    customer_detail = (await client.get(f"/orders/{order.id}", headers=customer_headers)).json()
+    assert "claim_cancel" not in customer_detail["customer_actions"]
+
+    admin_detail = (await client.get(f"/admin/orders/{order.id}", headers=admin_headers)).json()
+    assert all(not action["enabled"] for action in admin_detail["admin_actions"])
+    assert all(
+        "취소 클레임이 완료" in action["blocking_reason"]
+        for action in admin_detail["admin_actions"]
+    )
+
+    status_update = await client.post(
+        f"/admin/orders/{order.id}/status",
+        json={"new_status": "배송중", "is_rollback": False},
+        headers=admin_headers,
+    )
+    assert status_update.status_code == 400
+    assert status_update.json()["code"] == "completed_cancel_claim"
+
+    tracking_update = await client.post(
+        f"/admin/orders/{order.id}/tracking",
+        json={"courier_company": "cj", "tracking_number": "123"},
+        headers=admin_headers,
+    )
+    assert tracking_update.status_code == 400
+    assert tracking_update.json()["code"] == "completed_cancel_claim"
+
+    duplicate = await client.post(
+        "/claims",
+        json={
+            "type": "cancel",
+            "order_id": str(order.id),
+            "item_id": item.item_id,
+            "reason": "other",
+        },
+        headers=customer_headers,
+    )
+    assert duplicate.status_code == 400
+    assert duplicate.json()["code"] == "completed_cancel_claim"
 
 
 async def test_customer_cancel_deletes_received_claim(client, db_session, settings):

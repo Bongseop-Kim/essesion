@@ -359,7 +359,8 @@ async def test_admin_order_detail_read_model_and_blocked_actions(client, db_sess
     assert actions["rollback"]["target_status"] == "대기중"
     assert actions["rollback"]["requires_memo"] is True
     assert actions["cancel"]["destructive"] is True
-    assert actions["update_tracking"]["enabled"] is True
+    assert actions["update_tracking"]["enabled"] is False
+    assert "활성 클레임" in actions["update_tracking"]["blocking_reason"]
 
     missing = await client.get(
         f"/admin/orders/{uuid.uuid4()}", headers=auth_headers(admin, settings)

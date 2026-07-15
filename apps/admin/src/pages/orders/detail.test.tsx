@@ -50,6 +50,11 @@ const order: AdminOrderDetailOut = {
   shipping_cost: 0,
   payment_group_id: "payment-1",
   status: "진행중",
+  claim_summary: {
+    claim_number: "CLM-001",
+    type: "cancel",
+    status: "처리중",
+  },
   created_at: "2026-07-12T01:00:00Z",
   updated_at: "2026-07-12T01:00:00Z",
   confirmed_at: null,
@@ -81,9 +86,23 @@ const order: AdminOrderDetailOut = {
       unit_price: 50_000,
       discount_amount: 0,
       line_discount_amount: 0,
+      claim: {
+        claim_number: "CLM-001",
+        type: "cancel",
+        status: "처리중",
+      },
     },
   ],
-  active_claim: null,
+  active_claim: {
+    id: "claim-1",
+    claim_number: "CLM-001",
+    type: "cancel",
+    status: "처리중",
+    reason: "change_mind",
+    description: null,
+    quantity: 1,
+    created_at: "2026-07-12T01:00:00Z",
+  },
   related_orders: [],
   status_logs: [],
   admin_actions: [
@@ -133,7 +152,60 @@ describe("OrderDetailPage", () => {
     expect(
       screen.getByRole("columnheader", { name: "거래 시점 상품·옵션" }),
     ).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "클레임" })).toBeTruthy();
+    expect(screen.getAllByText("취소 처리중")).toHaveLength(2);
+    expect(screen.getByText("활성 클레임 CLM-001")).toBeTruthy();
     expect(api.getOrder).toHaveBeenCalledTimes(2);
+  });
+
+  it("완료된 취소를 표시하고 차단된 운영 액션의 이유를 안내한다", async () => {
+    api.getOrder.mockResolvedValue({
+      ...order,
+      claim_summary: { ...order.claim_summary!, status: "완료" },
+      active_claim: null,
+      items: (order.items ?? []).map((item) => ({
+        ...item,
+        claim: item.claim ? { ...item.claim, status: "완료" } : null,
+      })),
+      admin_actions: [
+        {
+          kind: "advance",
+          label: "배송중 상태로 진행",
+          target_status: "배송중",
+          enabled: false,
+          blocking_reason:
+            "취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
+        },
+        {
+          kind: "update_tracking",
+          label: "송장 정보 수정",
+          enabled: false,
+          blocking_reason: "취소 클레임이 완료되어 송장을 수정할 수 없습니다",
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findAllByText("취소 완료")).toHaveLength(2);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "배송중 상태로 진행",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "송장 정보 수정",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByText(
+        "배송중 상태로 진행: 취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
+      ),
+    ).toBeTruthy();
   });
 
   it("pending 중 중복 작업을 막고 실패 뒤에도 입력을 보존한다", async () => {

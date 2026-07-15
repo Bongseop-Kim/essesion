@@ -12,6 +12,7 @@ from api.domains.orders.schemas import (
     AdminStatusUpdateRequest,
     AdminStatusUpdateResponse,
     AdminTrackingUpdateRequest,
+    ClaimBadgeOut,
     CustomAmountRequest,
     CustomAmountResponse,
     CustomOrderCreateRequest,
@@ -28,7 +29,7 @@ from api.domains.orders.schemas import (
     SampleOrderCreateRequest,
     SingleOrderCreateResponse,
 )
-from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES, customer_actions
+from api.domains.orders.status_machine import customer_actions
 
 router = APIRouter(tags=["orders"])
 
@@ -84,17 +85,6 @@ async def calculate_sample_order(
     )
 
 
-async def _active_claim_order_ids(session, order_ids: list[uuid.UUID]) -> set[uuid.UUID]:
-    if not order_ids:
-        return set()
-    rows = await session.scalars(
-        select(Claim.order_id).where(
-            Claim.order_id.in_(order_ids), Claim.status.in_(ACTIVE_CLAIM_STATUSES)
-        )
-    )
-    return set(rows)
-
-
 @router.get("/orders", response_model=list[OrderOut])
 async def list_my_orders(
     session: SessionDep,
@@ -106,7 +96,12 @@ async def list_my_orders(
         query = query.where(Order.order_type == order_type)
     orders = (await session.scalars(query)).all()
     order_ids = [order.id for order in orders]
-    with_claims = await _active_claim_order_ids(session, order_ids)
+    claims = (
+        (await session.scalars(select(Claim).where(Claim.order_id.in_(order_ids)))).all()
+        if order_ids
+        else []
+    )
+    claim_context = service.claim_read_model(claims)
     items_by_order: dict[uuid.UUID, list[OrderItemOut]] = {}
     if order_ids:
         items = await session.scalars(
@@ -115,13 +110,25 @@ async def list_my_orders(
             .order_by(OrderItem.created_at)
         )
         for item in items:
-            items_by_order.setdefault(item.order_id, []).append(OrderItemOut.model_validate(item))
+            item_out = OrderItemOut.model_validate(item)
+            item_claim = claim_context.by_item.get(item.id)
+            if item_claim is not None:
+                item_out.claim = ClaimBadgeOut.model_validate(item_claim)
+            items_by_order.setdefault(item.order_id, []).append(item_out)
     results = []
     for order in orders:
         out = OrderOut.model_validate(order)
         out.items = items_by_order.get(order.id, [])
+        summary_claim = claim_context.by_order.get(order.id)
+        if summary_claim is not None:
+            out.claim_summary = ClaimBadgeOut.model_validate(summary_claim)
         out.customer_actions = customer_actions(
-            order.order_type, order.status, has_active_claim=order.id in with_claims
+            order.order_type,
+            order.status,
+            has_blocking_claim=(
+                order.id in claim_context.active_order_ids
+                or order.id in claim_context.completed_cancel_order_ids
+            ),
         )
         results.append(out)
     return results
@@ -137,9 +144,19 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
             select(OrderItem).where(OrderItem.order_id == order.id).order_by(OrderItem.created_at)
         )
     ).all()
-    has_claim = bool(await _active_claim_order_ids(session, [order.id]))
+    claims = (await session.scalars(select(Claim).where(Claim.order_id == order.id))).all()
+    claim_context = service.claim_read_model(claims)
     out = OrderDetailOut.model_validate(order)
-    out.items = [OrderItemOut.model_validate(i) for i in items]
+    out.items = []
+    for item in items:
+        item_out = OrderItemOut.model_validate(item)
+        item_claim = claim_context.by_item.get(item.id)
+        if item_claim is not None:
+            item_out.claim = ClaimBadgeOut.model_validate(item_claim)
+        out.items.append(item_out)
+    summary_claim = claim_context.by_order.get(order.id)
+    if summary_claim is not None:
+        out.claim_summary = ClaimBadgeOut.model_validate(summary_claim)
     if order.shipping_address_snapshot:
         out.shipping_address = OrderShippingAddressOut.model_validate(
             order.shipping_address_snapshot
@@ -150,7 +167,12 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         if address is not None:
             out.shipping_address = OrderShippingAddressOut.model_validate(address)
     out.customer_actions = customer_actions(
-        order.order_type, order.status, has_active_claim=has_claim
+        order.order_type,
+        order.status,
+        has_blocking_claim=(
+            order.id in claim_context.active_order_ids
+            or order.id in claim_context.completed_cancel_order_ids
+        ),
     )
     return out
 

@@ -30,6 +30,11 @@ const order: AdminOrderSummaryOut = {
   order_amount: 50_000,
   payment_group_id: "payment-1",
   status: "진행중",
+  claim_summary: {
+    claim_number: "CLM-001",
+    type: "cancel",
+    status: "처리중",
+  },
   created_at: "2026-07-12T01:00:00Z",
   updated_at: "2026-07-12T01:00:00Z",
   customer: {
@@ -86,6 +91,7 @@ describe("OrdersPage", () => {
       await screen.findByRole("table", { name: "주문 목록" }),
     ).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: /주문번호/ })).toBeTruthy();
+    expect(await screen.findByText("취소 처리중")).toBeTruthy();
     expect(api.options).toHaveBeenCalledWith({
       query: {
         order_type: "sale",

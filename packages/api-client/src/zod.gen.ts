@@ -383,22 +383,6 @@ export const zAdminOrderStatusLogOut = z.object({
 });
 
 /**
- * AdminOrderSummaryOut
- */
-export const zAdminOrderSummaryOut = z.object({
-    admin_actions: z.array(zAdminAction).optional(),
-    created_at: z.iso.datetime(),
-    customer: zAdminOrderCustomerOut,
-    id: z.uuid(),
-    order_amount: z.int(),
-    order_number: z.string(),
-    order_type: z.string(),
-    payment_group_id: z.uuid().nullable(),
-    status: z.string(),
-    updated_at: z.iso.datetime()
-});
-
-/**
  * AdminProductDetailImageLegacyRef
  */
 export const zAdminProductDetailImageLegacyRef = z.object({
@@ -788,6 +772,32 @@ export const zBatchResult = z.object({
  */
 export const zCartRemoveRequest = z.object({
     item_ids: z.array(z.string().min(1).max(200)).max(50)
+});
+
+/**
+ * ClaimBadgeOut
+ */
+export const zClaimBadgeOut = z.object({
+    claim_number: z.string(),
+    status: z.string(),
+    type: z.string()
+});
+
+/**
+ * AdminOrderSummaryOut
+ */
+export const zAdminOrderSummaryOut = z.object({
+    admin_actions: z.array(zAdminAction).optional(),
+    claim_summary: zClaimBadgeOut.nullish(),
+    created_at: z.iso.datetime(),
+    customer: zAdminOrderCustomerOut,
+    id: z.uuid(),
+    order_amount: z.int(),
+    order_number: z.string(),
+    order_type: z.string(),
+    payment_group_id: z.uuid().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
 });
 
 /**
@@ -1513,6 +1523,7 @@ export const zOrderImageUploadOut = z.object({
  */
 export const zOrderItemOut = z.object({
     applied_user_coupon_id: z.uuid().nullable(),
+    claim: zClaimBadgeOut.nullish(),
     discount_amount: z.int(),
     id: z.uuid(),
     item_data: z.record(z.string(), z.unknown()).nullable(),
@@ -1554,6 +1565,7 @@ export const zClaimOut = z.object({
  * OrderOut
  */
 export const zOrderOut = z.object({
+    claim_summary: zClaimBadgeOut.nullish(),
     company_courier_company: z.string().nullable(),
     company_shipped_at: z.iso.datetime().nullable(),
     company_tracking_number: z.string().nullable(),
@@ -1617,6 +1629,7 @@ export const zOrderShippingAddressOut = z.object({
 export const zAdminOrderDetailOut = z.object({
     active_claim: zAdminActiveClaimOut.nullish(),
     admin_actions: z.array(zAdminAction).optional(),
+    claim_summary: zClaimBadgeOut.nullish(),
     company_courier_company: z.string().nullable(),
     company_shipped_at: z.iso.datetime().nullable(),
     company_tracking_number: z.string().nullable(),
@@ -1675,6 +1688,7 @@ export const zAdminQuoteDetailOut = z.object({
  * OrderDetailOut
  */
 export const zOrderDetailOut = z.object({
+    claim_summary: zClaimBadgeOut.nullish(),
     company_courier_company: z.string().nullable(),
     company_shipped_at: z.iso.datetime().nullable(),
     company_tracking_number: z.string().nullable(),

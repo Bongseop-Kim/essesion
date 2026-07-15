@@ -14,7 +14,7 @@ import { AdminCard } from "../../shared/ui/admin-card";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
-import { StatusBadge } from "../../shared/ui/status-badge";
+import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
@@ -97,7 +97,14 @@ const columns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
     key: "status",
     header: "상태",
     sortable: true,
-    render: (order) => <StatusBadge status={order.status} />,
+    render: (order) => (
+      <HStack gap="x1" wrap>
+        <StatusBadge status={order.status} />
+        {order.claim_summary ? (
+          <ClaimStatusBadge claim={order.claim_summary} />
+        ) : null}
+      </HStack>
+    ),
   },
   {
     key: "created_at",

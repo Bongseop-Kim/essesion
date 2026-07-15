@@ -4,6 +4,7 @@ export {
   type ClaimListType,
   type ClaimReason,
   type ClaimType,
+  claimBadge,
   claimItemTitle,
   claimReasonLabel,
   claimStatusTone,
