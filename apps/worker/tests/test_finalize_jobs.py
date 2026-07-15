@@ -37,7 +37,6 @@ async def _job(
     return job
 
 
-@pytest.mark.anyio
 async def test_fresh_processing_delivery_is_retryable_without_reclaim(client, db_session, settings):
     job = await _job(
         db_session,
@@ -54,7 +53,6 @@ async def test_fresh_processing_delivery_is_retryable_without_reclaim(client, db
     assert job.attempts == 1
 
 
-@pytest.mark.anyio
 async def test_stale_processing_lease_is_reclaimed(client, db_session, settings, monkeypatch):
     job = await _job(
         db_session,
@@ -73,7 +71,6 @@ async def test_stale_processing_lease_is_reclaimed(client, db_session, settings,
     assert job.attempts == 2
 
 
-@pytest.mark.anyio
 async def test_late_attempt_cannot_overwrite_current_or_terminal_state(db_session):
     job = await _job(db_session, status="processing", attempts=2)
 
@@ -103,7 +100,6 @@ async def test_late_attempt_cannot_overwrite_current_or_terminal_state(db_sessio
     assert job.error_message is None
 
 
-@pytest.mark.anyio
 async def test_finalize_task_rejects_non_finalize_job(client, db_session):
     job = await _job(db_session, status="queued", attempts=0, kind="export")
 
@@ -116,7 +112,6 @@ async def test_finalize_task_rejects_non_finalize_job(client, db_session):
     assert job.attempts == 0
 
 
-@pytest.mark.anyio
 async def test_late_task_cannot_run_dispatch_failed_refunded_job(client, db_session):
     job = await _job(
         db_session,
@@ -142,7 +137,6 @@ async def test_late_task_cannot_run_dispatch_failed_refunded_job(client, db_sess
         None,
     ],
 )
-@pytest.mark.anyio
 async def test_permanent_or_unknown_failed_job_is_terminal(
     client, db_session, monkeypatch, error_message
 ):
@@ -167,7 +161,6 @@ async def test_permanent_or_unknown_failed_job_is_terminal(
     assert job.error_message == error_message
 
 
-@pytest.mark.anyio
 async def test_missing_finalize_job_is_acknowledged_without_retry(client):
     response = await client.post("/tasks/finalize", json={"job_id": str(uuid.uuid4())})
 
@@ -175,7 +168,6 @@ async def test_missing_finalize_job_is_acknowledged_without_retry(client):
     assert response.json() == {"status": "ignored", "reason": "job_not_found"}
 
 
-@pytest.mark.anyio
 async def test_temporary_failed_job_is_retryable(client, db_session, monkeypatch):
     job = await _job(
         db_session,
@@ -195,7 +187,6 @@ async def test_temporary_failed_job_is_retryable(client, db_session, monkeypatch
     assert job.error_message is None
 
 
-@pytest.mark.anyio
 async def test_finalize_invalid_input_exposes_only_stable_public_error(
     client, db_session, monkeypatch, caplog
 ):
@@ -236,7 +227,6 @@ async def test_finalize_invalid_input_exposes_only_stable_public_error(
         RasterLimitError("raster area exceeds limit"),
     ],
 )
-@pytest.mark.anyio
 async def test_finalize_deterministic_render_errors_are_terminal(
     client, db_session, monkeypatch, error
 ):
@@ -259,7 +249,6 @@ async def test_finalize_deterministic_render_errors_are_terminal(
     )
 
 
-@pytest.mark.anyio
 async def test_finalize_transient_failure_exposes_only_stable_public_error(
     client, db_session, monkeypatch, caplog
 ):

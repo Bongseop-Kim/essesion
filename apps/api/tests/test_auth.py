@@ -23,8 +23,6 @@ from starlette.responses import RedirectResponse
 
 from .factories import auth_headers, make_order, make_user, seed_setting
 
-pytestmark = pytest.mark.anyio if False else []  # asyncio_mode=auto
-
 
 def _legacy_access_token(user_id: uuid.UUID, role: str, settings: Settings) -> str:
     now = datetime.now(UTC)

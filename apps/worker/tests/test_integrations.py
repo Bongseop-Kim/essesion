@@ -33,7 +33,6 @@ def _store(blob: _Blob) -> tuple[GcsObjectStore, _Bucket]:
     return store, bucket
 
 
-@pytest.mark.anyio
 async def test_gcs_upload_is_create_only() -> None:
     blob = _Blob()
     store, bucket = _store(blob)
@@ -50,7 +49,6 @@ async def test_gcs_upload_is_create_only() -> None:
     ]
 
 
-@pytest.mark.anyio
 async def test_gcs_upload_treats_existing_deterministic_key_as_success() -> None:
     blob = _Blob(PreconditionFailed("object already exists"))
     store, _ = _store(blob)
@@ -61,7 +59,6 @@ async def test_gcs_upload_treats_existing_deterministic_key_as_success() -> None
     assert blob.calls[0][1]["if_generation_match"] == 0
 
 
-@pytest.mark.anyio
 async def test_gcs_upload_does_not_hide_other_failures() -> None:
     store, _ = _store(_Blob(RuntimeError("storage unavailable")))
 
