@@ -288,9 +288,7 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
     assert customer_read_url.status_code == 200, customer_read_url.text
     assert customer_read_url.json()["read_url"].endswith(object_key)
 
-    forbidden = await client.get(
-        f"/orders/{order_id}/reference-images", headers=other_headers
-    )
+    forbidden = await client.get(f"/orders/{order_id}/reference-images", headers=other_headers)
     assert forbidden.status_code == 403
 
     read_url = await client.post(

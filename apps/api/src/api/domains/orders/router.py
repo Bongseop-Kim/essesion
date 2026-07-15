@@ -225,9 +225,7 @@ async def create_my_order_reference_image_read_url(
 ) -> OrderImageReadUrlOut:
     order = await session.get(Order, order_id)
     ensure_owner(order, user)
-    image = await get_linked_order_image(
-        session, order_id, image_id, ORDER_REFERENCE_IMAGE_TYPES
-    )
+    image = await get_linked_order_image(session, order_id, image_id, ORDER_REFERENCE_IMAGE_TYPES)
     return OrderImageReadUrlOut(
         read_url=await request.app.state.gcs.signed_read_url(image.object_key)
     )

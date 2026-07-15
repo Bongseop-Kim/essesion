@@ -18,6 +18,7 @@ from api.errors import NotFoundError
 
 router = APIRouter(prefix="/admin/repair-shipping-receipts", tags=["admin-images"])
 
+
 class AdminRepairPhotoOut(BaseModel):
     id: uuid.UUID
     content_type: str | None
