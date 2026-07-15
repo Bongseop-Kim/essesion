@@ -120,7 +120,13 @@ const seamlessStats: SeamlessStatsOut = {
 };
 
 function LocationProbe() {
-  return <span data-testid="location-search">{useLocation().search}</span>;
+  const location = useLocation();
+  return (
+    <>
+      <span data-testid="location-pathname">{location.pathname}</span>
+      <span data-testid="location-search">{location.search}</span>
+    </>
+  );
 }
 
 function renderPage(entry = "/generation-logs?tab=jobs") {
@@ -167,6 +173,21 @@ describe("GenerationOperationsPage", () => {
         .getByRole("button", { name: "2페이지" })
         .getAttribute("aria-current"),
     ).toBe("page");
+  });
+
+  it("작업 ID 링크를 키보드로 열 수 있다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const link = await screen.findByRole("link", {
+      name: "11111111-1111-4111-8111-111111111111",
+    });
+    link.focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.getByTestId("location-pathname").textContent).toBe(
+      "/generation-logs/jobs/11111111-1111-4111-8111-111111111111",
+    );
   });
 
   it("사용자 식별자를 URL에 남기지 않고 작업 탭 요청에만 적용한다", async () => {

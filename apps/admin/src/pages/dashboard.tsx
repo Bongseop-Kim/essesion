@@ -11,6 +11,7 @@ import {
 import {
   ActionButton,
   Callout,
+  DatePicker,
   Grid,
   HStack,
   Skeleton,
@@ -22,7 +23,6 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime, formatMoney } from "../shared/lib/format";
 import { AdminCard } from "../shared/ui/admin-card";
-import { DatePicker } from "../shared/ui/date-picker";
 import { FilterSelect } from "../shared/ui/filter-select";
 import { RouteHeading } from "../shared/ui/route-heading";
 import { StatusBadge } from "../shared/ui/status-badge";

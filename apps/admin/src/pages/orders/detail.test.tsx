@@ -10,7 +10,10 @@ const api = vi.hoisted(() => ({
   getOrder: vi.fn(),
   getReferenceImages: vi.fn(),
   getReferenceImagesOptions: vi.fn(),
+  getRepairReceiptPhotos: vi.fn(),
+  getRepairReceiptPhotosOptions: vi.fn(),
   createReferenceImageReadUrl: vi.fn(),
+  createRepairReceiptPhotoReadUrl: vi.fn(),
   updateStatus: vi.fn(),
   updateTracking: vi.fn(),
 }));
@@ -30,6 +33,18 @@ vi.mock("@essesion/api-client/query", () => ({
   },
   createAdminOrderReferenceImageReadUrlMutation: () => ({
     mutationFn: api.createReferenceImageReadUrl,
+  }),
+  listAdminRepairReceiptPhotosOptions: (options: {
+    path: { receipt_id: string };
+  }) => {
+    api.getRepairReceiptPhotosOptions(options);
+    return {
+      queryKey: ["repair-receipt-photos", options.path.receipt_id],
+      queryFn: () => api.getRepairReceiptPhotos(options),
+    };
+  },
+  createAdminRepairReceiptPhotoReadUrlMutation: () => ({
+    mutationFn: api.createRepairReceiptPhotoReadUrl,
   }),
   listAllOrdersQueryKey: () => ["orders"],
   adminUpdateOrderStatusMutation: () => ({ mutationFn: api.updateStatus }),
@@ -130,6 +145,7 @@ describe("OrderDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getReferenceImages.mockResolvedValue([]);
+    api.getRepairReceiptPhotos.mockResolvedValue([]);
   });
 
   it("오류에서 다시 시도해 상세 heading과 native item table을 복구한다", async () => {
@@ -371,6 +387,7 @@ describe("OrderDetailPage", () => {
   });
 
   it("수선 주문의 항목별 사양과 배송·수거·발송 정보를 모두 표시한다", async () => {
+    const user = userEvent.setup();
     api.getOrder.mockResolvedValue({
       ...order,
       order_type: "repair",
@@ -439,6 +456,17 @@ describe("OrderDetailPage", () => {
         },
       ],
     });
+    api.getRepairReceiptPhotos.mockResolvedValue([
+      {
+        id: "receipt-photo-1",
+        content_type: "image/png",
+        size_bytes: 1_024,
+        created_at: "2026-07-15T02:00:00Z",
+      },
+    ]);
+    api.createRepairReceiptPhotoReadUrl.mockResolvedValue({
+      read_url: "https://storage.test/receipt-photo",
+    });
     renderPage();
 
     expect(await screen.findByText("수선")).toBeTruthy();
@@ -458,5 +486,23 @@ describe("OrderDetailPage", () => {
     expect(api.getReferenceImagesOptions).toHaveBeenCalledWith({
       path: { order_id: order.id },
     });
+    expect(api.getRepairReceiptPhotosOptions).toHaveBeenCalledWith({
+      path: { receipt_id: "receipt-1" },
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "이미지 보기" }),
+    );
+    expect(
+      (
+        await screen.findByRole("img", { name: "수선 발송 사진 1" })
+      ).getAttribute("src"),
+    ).toBe("https://storage.test/receipt-photo");
+    expect(api.createRepairReceiptPhotoReadUrl).toHaveBeenCalledWith(
+      {
+        path: { receipt_id: "receipt-1", image_id: "receipt-photo-1" },
+      },
+      expect.anything(),
+    );
   });
 });

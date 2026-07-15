@@ -1,41 +1,38 @@
-import {
-  ActionButton,
-  Box,
-  cn,
-  Field,
-  FieldButton,
-  Grid,
-  HStack,
-  Icon,
-  ResponsiveModal,
-  Text,
-} from "@essesion/shared";
-import {
-  ChevronDoubleLeftIcon,
-  ChevronDoubleRightIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-} from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
-const pad = (n: number) => String(n).padStart(2, "0");
+import { cn } from "../cn";
+import { ActionButton } from "./action-button";
+import { Box } from "./box";
+import { Field } from "./field";
+import { FieldButton } from "./field-button";
+import { Grid } from "./grid";
+import { Icon } from "./icon";
+import {
+  ChevronDoubleLeftGlyph,
+  ChevronDoubleRightGlyph,
+  ChevronLeftGlyph,
+  ChevronRightGlyph,
+} from "./internal/glyphs";
+import { ResponsiveModal } from "./responsive-modal";
+import { HStack } from "./stack";
+import { Text } from "./text";
+
+const pad = (value: number) => String(value).padStart(2, "0");
 const toIso = (year: number, month: number, day: number) =>
   `${year}-${pad(month)}-${pad(day)}`;
 
-/** month는 1–12. 요일 오프셋·후행 패딩은 null, 그 사이 해당 월의 "YYYY-MM-DD" 문자열.
-    항상 42칸(6주) — 월이 바뀌어도 피커 높이가 출렁이지 않는다. */
+/** month는 1–12. 요일 오프셋·후행 패딩은 null이며 항상 6주를 반환한다. */
 export function monthGrid(year: number, month: number): (string | null)[] {
   const offset = new Date(year, month - 1, 1).getDay();
   const days = new Date(year, month, 0).getDate();
-  return Array.from({ length: 42 }, (_, i) => {
-    const day = i - offset + 1;
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = index - offset + 1;
     return day >= 1 && day <= days ? toIso(year, month, day) : null;
   });
 }
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
 const formatter = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" });
 const formatDate = (iso: string) => formatter.format(new Date(`${iso}T00:00`));
 
@@ -43,7 +40,7 @@ export type DatePickerProps = {
   label?: ReactNode;
   /** "YYYY-MM-DD" — 빈 문자열/undefined는 미선택 */
   value?: string;
-  /** 선택 시 "YYYY-MM-DD", 지우기 시 "" */
+  /** 선택 시 "YYYY-MM-DD", 지우기 시 빈 문자열 */
   onValueChange?: (value: string) => void;
   /** "YYYY-MM-DD" — 범위 밖 날짜는 비활성 */
   min?: string;
@@ -53,8 +50,7 @@ export type DatePickerProps = {
   errorMessage?: ReactNode;
 };
 
-/* 날짜 피커 — FieldButton(트리거) + ResponsiveModal(모바일 시트↔PC 모달) + 월 달력.
-   값 계약은 <input type="date">와 동일한 "YYYY-MM-DD"라 min/max도 문자열 비교로 충분. */
+/** FieldButton + ResponsiveModal로 구성한 YYYY-MM-DD 날짜 선택기. */
 export function DatePicker({
   label,
   value,
@@ -66,10 +62,9 @@ export function DatePicker({
   errorMessage,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
-  // 닫혀 있어도 Modal이 children을 마운트하므로 유효한 달로 초기화해야 한다
   const [view, setView] = useState(() => {
-    const d = new Date();
-    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    const date = new Date();
+    return { year: date.getFullYear(), month: date.getMonth() + 1 };
   });
 
   const now = new Date();
@@ -83,9 +78,9 @@ export function DatePicker({
     setOpen(true);
   };
   const moveMonth = (delta: number) =>
-    setView((v) => {
-      const d = new Date(v.year, v.month - 1 + delta, 1);
-      return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    setView((current) => {
+      const date = new Date(current.year, current.month - 1 + delta, 1);
+      return { year: date.getFullYear(), month: date.getMonth() + 1 };
     });
   const pick = (iso: string) => {
     onValueChange?.(iso);
@@ -147,19 +142,19 @@ export function DatePicker({
         <HStack justify="space-between" gap="x1">
           <HStack gap="x1">
             {nav(
-              <Icon svg={<ChevronDoubleLeftIcon />} size={16} />,
+              <Icon svg={<ChevronDoubleLeftGlyph />} size={16} />,
               "이전 해",
               -12,
             )}
-            {nav(<Icon svg={<ChevronLeftIcon />} size={16} />, "이전 달", -1)}
+            {nav(<Icon svg={<ChevronLeftGlyph />} size={16} />, "이전 달", -1)}
           </HStack>
           <Text textStyle="label" aria-live="polite">
             {view.year}년 {view.month}월
           </Text>
           <HStack gap="x1">
-            {nav(<Icon svg={<ChevronRightIcon />} size={16} />, "다음 달", 1)}
+            {nav(<Icon svg={<ChevronRightGlyph />} size={16} />, "다음 달", 1)}
             {nav(
-              <Icon svg={<ChevronDoubleRightIcon />} size={16} />,
+              <Icon svg={<ChevronDoubleRightGlyph />} size={16} />,
               "다음 해",
               12,
             )}

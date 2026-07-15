@@ -9,6 +9,7 @@ import {
   Box,
   Callout,
   Checkbox,
+  DatePicker,
   Grid,
   HStack,
   SegmentedControl,
@@ -31,7 +32,6 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { DatePicker } from "../../shared/ui/date-picker";
 
 type ItemDraft = {
   quantity: string;

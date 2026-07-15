@@ -31,6 +31,7 @@ from obs import request_id_var
 from sqlalchemy import CursorResult, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.db import advisory_xact_lock
 from api.domains.images.service import (
     claim_completed_order_images,
     link_order_images,
@@ -898,6 +899,7 @@ async def create_sample_order(
 async def get_owned_order_for_update(
     session: AsyncSession, user: User, order_id: uuid.UUID
 ) -> Order:
+    await advisory_xact_lock(session, f"order:{order_id}")
     order = await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
     if order is None:
         raise NotFoundError("주문을 찾을 수 없습니다")
@@ -1069,6 +1071,7 @@ async def admin_update_status(
 ) -> dict:
     from api.domains.orders.status_machine import validate_transition
 
+    await advisory_xact_lock(session, f"order:{order_id}")
     order = await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
     if order is None:
         raise NotFoundError(f"Order not found: {order_id}")
@@ -1111,6 +1114,7 @@ async def admin_update_tracking(
     company_courier_company: str | None,
     company_tracking_number: str | None,
 ) -> Order:
+    await advisory_xact_lock(session, f"order:{order_id}")
     order = await session.scalar(select(Order).where(Order.id == order_id).with_for_update())
     if order is None:
         raise NotFoundError("Order not found")

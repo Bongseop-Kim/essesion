@@ -1,4 +1,4 @@
-import type { ClaimBadgeOut, OrderItemOut } from "@essesion/api-client";
+import type { OrderItemOut } from "@essesion/api-client";
 
 export type ClaimType = "cancel" | "return" | "exchange";
 export type ClaimListType = ClaimType | "token_refund";
@@ -99,35 +99,6 @@ export function claimStatusTone(
     return "informative";
   }
   return "neutral";
-}
-
-export function claimBadge(claim: ClaimBadgeOut): {
-  label: string;
-  tone: "neutral" | "positive" | "critical" | "warning" | "informative";
-} {
-  const typeLabel = claimTypeLabel(claim.type);
-  if (claim.status === "거부") {
-    return { label: `${typeLabel} 거부`, tone: "neutral" };
-  }
-  if (claim.type === "cancel") {
-    return claim.status === "완료"
-      ? { label: "취소 완료", tone: "critical" }
-      : { label: "취소 처리중", tone: "warning" };
-  }
-  if (claim.type === "return" || claim.type === "exchange") {
-    return claim.status === "완료"
-      ? { label: `${typeLabel} 완료`, tone: "positive" }
-      : { label: `${typeLabel} 진행중`, tone: "informative" };
-  }
-  if (claim.type === "token_refund") {
-    return claim.status === "완료"
-      ? { label: "토큰 환불 완료", tone: "positive" }
-      : { label: "토큰 환불 처리중", tone: "warning" };
-  }
-  return {
-    label: `${typeLabel} ${claim.status}`,
-    tone: claimStatusTone(claim.status),
-  };
 }
 
 export function claimItemTitle(item: OrderItemOut): string {

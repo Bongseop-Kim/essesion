@@ -15,6 +15,7 @@ import {
   Badge,
   Box,
   Callout,
+  DatePicker,
   Grid,
   HStack,
   Skeleton,
@@ -28,7 +29,7 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import { activeAdminPollingInterval } from "../../shared/lib/polling";
@@ -38,7 +39,6 @@ import {
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { DatePicker } from "../../shared/ui/date-picker";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
@@ -285,7 +285,9 @@ function JobsPanel({
     {
       key: "id",
       header: "작업 ID",
-      render: (job) => job.id,
+      render: (job) => (
+        <Link to={`/generation-logs/jobs/${job.id}`}>{job.id}</Link>
+      ),
     },
     {
       key: "status",
@@ -518,7 +520,9 @@ function SeamlessPanel({
     {
       key: "id",
       header: "로그 ID",
-      render: (log) => log.id,
+      render: (log) => (
+        <Link to={`/generation-logs/seamless/${log.id}`}>{log.id}</Link>
+      ),
     },
     {
       key: "request_id",

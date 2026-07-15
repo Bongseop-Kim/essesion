@@ -21,6 +21,7 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
+  claimBadge,
   Divider,
   decodeOrderItemContent,
   Grid,
@@ -41,7 +42,6 @@ import {
   ClaimFormModal,
   ClaimItemActions,
   type ClaimType,
-  claimBadge,
   claimItemTitle,
   TokenRefundSection,
 } from "@/features/claims";
@@ -587,7 +587,15 @@ function RepairReceiptPhotos({
         tone="critical"
         title="발송 사진을 불러오지 못했습니다"
         description="잠시 후 다시 시도해 주세요."
-      />
+      >
+        <ActionButton
+          size="small"
+          variant="neutralOutline"
+          onClick={() => void query.refetch()}
+        >
+          다시 시도
+        </ActionButton>
+      </Callout>
     );
   }
   return (

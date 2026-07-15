@@ -4,6 +4,7 @@ import {
   Badge,
   Chip,
   ContentPlaceholder,
+  claimBadge,
   HStack,
   List,
   ListHeader,
@@ -16,7 +17,6 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { claimBadge } from "@/features/claims";
 import { orderStatusTone, orderTypeLabel } from "@/features/orders";
 import { krw } from "@/pages/shop/constants";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";

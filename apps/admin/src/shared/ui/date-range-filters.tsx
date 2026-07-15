@@ -1,4 +1,4 @@
-import { DatePicker } from "./date-picker";
+import { DatePicker } from "@essesion/shared";
 
 type DateRangeFiltersProps = {
   from?: string;

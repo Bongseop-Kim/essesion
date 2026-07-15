@@ -1,6 +1,6 @@
 """수선 발송 확인 — 송장(선택)·사유(선택)·관리자 강제 접수 (money.md §9 의도적 차이)."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from db.models.commerce import RepairPickupRequest, RepairShippingReceipt
 from db.models.images import Image
@@ -118,6 +118,8 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
     )
     reform_key = "uploads/reform_upload/tie.png"
     receipt_key = "uploads/repair_shipping_upload/receipt.png"
+    expired_reform_key = "uploads/reform_upload/expired.png"
+    expired_receipt_key = "uploads/repair_shipping_upload/expired.png"
     reform_image = Image(
         object_key=reform_key,
         entity_type="reform",
@@ -136,14 +138,46 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
         size_bytes=200,
         upload_completed_at=datetime.now(UTC),
     )
+    expired_reform_image = Image(
+        object_key=expired_reform_key,
+        entity_type="reform",
+        entity_id=str(order.id),
+        uploaded_by=owner.id,
+        content_type="image/png",
+        size_bytes=300,
+        upload_completed_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
+    expired_receipt_image = Image(
+        object_key=expired_receipt_key,
+        entity_type="repair_shipping",
+        entity_id=str(order.id),
+        uploaded_by=owner.id,
+        content_type="image/png",
+        size_bytes=400,
+        upload_completed_at=datetime.now(UTC),
+        expires_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
     receipt = RepairShippingReceipt(
         order_id=order.id,
         receipt_type="no_tracking",
         reason="lost",
         memo="송장 분실",
-        photos=[{"object_key": receipt_key}],
+        photos=[
+            {"object_key": receipt_key},
+            {"object_key": expired_receipt_key},
+        ],
     )
-    db_session.add_all([pickup, reform_image, receipt_image, receipt])
+    db_session.add_all(
+        [
+            pickup,
+            reform_image,
+            receipt_image,
+            expired_reform_image,
+            expired_receipt_image,
+            receipt,
+        ]
+    )
     await db_session.commit()
     await db_session.refresh(receipt_image)
     await db_session.refresh(receipt)
@@ -157,18 +191,20 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
         "receipt_type": "no_tracking",
         "reason": "lost",
         "memo": "송장 분실",
-        "photo_count": 1,
+        "photo_count": 2,
         "created_at": detail.json()["repair_receipts"][0]["created_at"],
     }
-    assert "object_key" not in detail.text
+    assert receipt_key not in detail.text
+    assert expired_receipt_key not in detail.text
 
     photos = await client.get(
         f"/orders/{order.id}/repair-shipping-receipts/{receipt.id}/photos",
         headers=owner_headers,
     )
     assert photos.status_code == 200, photos.text
-    assert photos.json()[0]["id"] == str(receipt_image.id)
+    assert [photo["id"] for photo in photos.json()] == [str(receipt_image.id)]
     assert receipt_key not in photos.text
+    assert expired_receipt_key not in photos.text
 
     signed = await client.post(
         f"/orders/{order.id}/repair-shipping-receipts/{receipt.id}/photos/{receipt_image.id}/read-url",
@@ -176,6 +212,12 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
     )
     assert signed.status_code == 200, signed.text
     assert signed.json()["read_url"].endswith(receipt_key)
+
+    expired_signed = await client.post(
+        f"/orders/{order.id}/repair-shipping-receipts/{receipt.id}/photos/{expired_receipt_image.id}/read-url",
+        headers=owner_headers,
+    )
+    assert expired_signed.status_code == 404
 
     forbidden = await client.get(
         f"/orders/{order.id}/repair-shipping-receipts/{receipt.id}/photos",
@@ -188,16 +230,15 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
     )
     assert admin_detail.status_code == 200, admin_detail.text
     assert admin_detail.json()["repair_pickup"]["recipient_phone"] == "01012345678"
-    assert admin_detail.json()["repair_receipts"][0]["photo_count"] == 1
+    assert admin_detail.json()["repair_receipts"][0]["photo_count"] == 2
 
     admin_images = await client.get(
         f"/admin/orders/{order.id}/reference-images",
         headers=auth_headers(admin, settings),
     )
     assert admin_images.status_code == 200, admin_images.text
-    assert {image["id"] for image in admin_images.json()} == {
-        str(reform_image.id),
-        str(receipt_image.id),
-    }
+    assert {image["id"] for image in admin_images.json()} == {str(reform_image.id)}
     assert reform_key not in admin_images.text
     assert receipt_key not in admin_images.text
+    assert expired_reform_key not in admin_images.text
+    assert expired_receipt_key not in admin_images.text

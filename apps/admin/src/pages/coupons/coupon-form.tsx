@@ -3,6 +3,7 @@ import {
   ActionButton,
   AlertDialog,
   Callout,
+  DatePicker,
   Grid,
   HStack,
   RadioGroup,
@@ -25,7 +26,6 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { DatePicker } from "../../shared/ui/date-picker";
 
 export type CouponDraft = {
   name: string;

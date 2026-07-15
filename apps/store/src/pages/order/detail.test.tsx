@@ -272,4 +272,43 @@ describe("OrderDetailPage", () => {
       ).getAttribute("src"),
     ).toBe("https://storage.test/receipt.png");
   });
+
+  it("수선 발송 사진 조회 실패 후 다시 시도한다", async () => {
+    api.detail.mockResolvedValue({
+      ...order,
+      order_type: "repair",
+      repair_receipts: [
+        {
+          id: "receipt-1",
+          receipt_type: "tracking",
+          reason: null,
+          memo: null,
+          photo_count: 1,
+          created_at: "2026-07-15T02:00:00Z",
+        },
+      ],
+      items: [],
+    });
+    api.receiptPhotos
+      .mockRejectedValueOnce(new Error("사진 조회 실패"))
+      .mockResolvedValueOnce([
+        {
+          id: "photo-1",
+          content_type: "image/png",
+          size_bytes: 100,
+          created_at: "2026-07-15T02:00:00Z",
+        },
+      ]);
+    renderPage();
+
+    expect(
+      await screen.findByText("발송 사진을 불러오지 못했습니다"),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+
+    await waitFor(() => expect(api.receiptPhotos).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByRole("button", { name: "이미지 보기" }),
+    ).toBeTruthy();
+  });
 });
