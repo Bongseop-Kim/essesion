@@ -13,7 +13,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
@@ -48,6 +48,8 @@ export function ManualOrderEditPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [resetSignal, setResetSignal] = useState(0);
+  // 저장 성공 후 navigate가 "저장하지 않은 변경" 다이얼로그를 띄우지 않도록 차단을 건너뛴다.
+  const savedRef = useRef(false);
   const query = useQuery({
     ...getManualOrderOptions({ path: { manual_order_id: manualOrderId } }),
     enabled: manualOrderId !== "",
@@ -55,6 +57,7 @@ export function ManualOrderEditPage() {
   const updateMutation = useMutation({
     ...updateManualOrderMutation(),
     onSuccess: async (order) => {
+      savedRef.current = true;
       snackbar("수기 주문을 저장했습니다.");
       queryClient.setQueryData(
         getManualOrderQueryKey({ path: { manual_order_id: manualOrderId } }),
@@ -73,7 +76,9 @@ export function ManualOrderEditPage() {
   );
 
   if (query.isLoading) return <ManualOrderEditLoading />;
-  if (query.isError || order === undefined || initialDraft === undefined) {
+  // 편집 중 백그라운드 refetch가 실패해도(query.isError) 기존 데이터가 있으면
+  // 폼을 유지한다. 편집할 데이터가 아예 없을 때만 에러 화면을 보여준다.
+  if (order === undefined || initialDraft === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
@@ -115,6 +120,7 @@ export function ManualOrderEditPage() {
         submitLabel="변경 저장"
         pending={updateMutation.isPending}
         error={updateMutation.error}
+        blockerBypassRef={savedRef}
         errorAction={
           <HStack gap="x2" wrap>
             <ActionButton
@@ -122,7 +128,7 @@ export function ManualOrderEditPage() {
               loading={query.isFetching}
               onClick={async () => {
                 const result = await query.refetch();
-                if (result.data === undefined) return;
+                if (!result.isSuccess) return;
                 updateMutation.reset();
                 setResetSignal((current) => current + 1);
               }}

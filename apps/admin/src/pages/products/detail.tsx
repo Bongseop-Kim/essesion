@@ -103,7 +103,27 @@ export function ProductDetailPage() {
   const product = query.data;
 
   if (query.isLoading) return <ProductDetailLoading />;
-  if (!validProductId || query.isError || product === undefined) {
+  if (!validProductId) {
+    // ID 자체가 잘못됐으면 query가 비활성(enabled:false)이라 refetch로 회복할 수 없다.
+    return (
+      <VStack gap="x6" alignItems="stretch">
+        <RouteHeading
+          title="상품 상세"
+          description="상품과 옵션 정보를 확인합니다."
+        />
+        <ContentPlaceholder
+          title="상품을 찾을 수 없습니다"
+          description="유효하지 않은 상품 ID입니다. 목록에서 다시 선택해 주세요."
+          action={
+            <ActionButton onClick={() => navigate("/products")}>
+              목록으로
+            </ActionButton>
+          }
+        />
+      </VStack>
+    );
+  }
+  if (query.isError || product === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading

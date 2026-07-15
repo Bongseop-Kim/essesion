@@ -28,7 +28,7 @@ import {
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
 import { activeAdminPollingInterval } from "../../shared/lib/polling";
@@ -285,9 +285,7 @@ function JobsPanel({
     {
       key: "id",
       header: "작업 ID",
-      render: (job) => (
-        <Link to={`/generation-logs/jobs/${job.id}`}>{job.id}</Link>
-      ),
+      render: (job) => job.id,
     },
     {
       key: "status",
@@ -520,9 +518,7 @@ function SeamlessPanel({
     {
       key: "id",
       header: "로그 ID",
-      render: (log) => (
-        <Link to={`/generation-logs/seamless/${log.id}`}>{log.id}</Link>
-      ),
+      render: (log) => log.id,
     },
     {
       key: "request_id",

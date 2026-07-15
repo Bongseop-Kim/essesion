@@ -44,20 +44,21 @@ export function SampleOrderPage() {
   );
   const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const designType =
-    options.sampleType === "sewing" ? null : options.designType;
+  // key와 fn이 같은 옵션을 공유하도록 한 번만 계산한다. fabric/tie/interlining 등
+  // 모든 API 옵션이 key에 들어가야 값 변경 시 재계산된다(그렇지 않으면 staleTime 동안 캐시).
+  const apiOptions = sampleOrderApiOptions(options);
   const calculation = useQuery({
     queryKey: [
       "sample-order",
       "calculate",
-      { sample_type: options.sampleType, design_type: designType },
+      { sample_type: options.sampleType, options: apiOptions },
     ],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data } = await calculateSampleOrder({
         body: {
           sample_type: options.sampleType,
-          options: sampleOrderApiOptions(options),
+          options: apiOptions,
         },
         throwOnError: true,
       });

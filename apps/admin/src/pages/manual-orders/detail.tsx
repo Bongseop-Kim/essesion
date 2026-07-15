@@ -112,6 +112,9 @@ export function ManualOrderDetailPage() {
       });
       navigate("/manual-orders", { replace: true });
     },
+    onError: () => {
+      snackbar("수기 주문을 삭제하지 못했습니다.");
+    },
   });
   const order = query.data;
 
@@ -241,6 +244,7 @@ export function ManualOrderDetailPage() {
         primaryActionProps={{
           children: "삭제",
           variant: "criticalSolid",
+          loading: deleteMutation.isPending,
           onClick: () =>
             deleteMutation.mutate({ path: { manual_order_id: order.id } }),
         }}

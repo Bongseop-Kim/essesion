@@ -37,7 +37,9 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
     header: "Motif",
     render: (motif) => (
       <VStack gap="x0_5">
-        <Link to={`/motifs/${motif.id}`}>{motif.subject ?? motif.id}</Link>
+        <Link to={`/motifs/${motif.id}`}>
+          <Text textStyle="bodySm">{motif.subject ?? motif.id}</Text>
+        </Link>
         <Text textStyle="caption" color="fg.neutral-muted">
           {motif.id}
         </Text>

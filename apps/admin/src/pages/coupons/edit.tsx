@@ -144,12 +144,13 @@ export function CouponEditPage() {
   }
 
   const compareServer = async () => {
-    await query.refetch();
+    const result = await query.refetch();
+    if (!result.isSuccess) return;
     setShowServerComparison(true);
   };
   const resetFromServer = async () => {
     const result = await query.refetch();
-    if (result.data === undefined) return;
+    if (!result.isSuccess) return;
     mutation.reset();
     setShowServerComparison(false);
     setResetSignal((current) => current + 1);

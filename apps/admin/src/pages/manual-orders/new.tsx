@@ -4,7 +4,7 @@ import {
 } from "@essesion/api-client/query";
 import { ActionButton, HStack, snackbar, VStack } from "@essesion/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useNavigate } from "react-router";
 
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -25,9 +25,12 @@ export function ManualOrderNewPage() {
     [],
   );
   const queryClient = useQueryClient();
+  // 저장 성공 후 navigate가 "저장하지 않은 변경" 다이얼로그를 띄우지 않도록 차단을 건너뛴다.
+  const savedRef = useRef(false);
   const mutation = useMutation({
     ...createManualOrderMutation(),
     onSuccess: async (order) => {
+      savedRef.current = true;
       snackbar("수기 주문을 등록했습니다.");
       await queryClient.invalidateQueries({
         queryKey: listManualOrdersQueryKey(),
@@ -56,6 +59,7 @@ export function ManualOrderNewPage() {
         submitLabel="수기 주문 등록"
         pending={mutation.isPending}
         error={mutation.error}
+        blockerBypassRef={savedRef}
         onSubmit={(draft) =>
           mutation.mutate({ body: manualOrderDraftBody(draft) })
         }

@@ -21,6 +21,7 @@ import {
 import {
   type FormEvent,
   type ReactNode,
+  type RefObject,
   useEffect,
   useMemo,
   useRef,
@@ -234,6 +235,8 @@ export type ManualOrderFormProps = {
   pending: boolean;
   error?: unknown;
   errorAction?: ReactNode;
+  // 저장 성공 후 navigate() 직전 부모가 true로 설정해 이탈 차단을 건너뛴다.
+  blockerBypassRef?: RefObject<boolean>;
   onSubmit: (draft: ManualOrderDraft, revision?: string) => void;
 };
 
@@ -245,6 +248,7 @@ export function ManualOrderForm({
   pending,
   error,
   errorAction,
+  blockerBypassRef,
   onSubmit,
 }: ManualOrderFormProps) {
   const [draft, setDraft] = useState(initial);
@@ -259,7 +263,7 @@ export function ManualOrderForm({
     () => JSON.stringify(draft) !== JSON.stringify(baseDraft),
     [baseDraft, draft],
   );
-  const blocker = useDirtyFormBlocker(dirty);
+  const blocker = useDirtyFormBlocker(dirty, blockerBypassRef);
 
   useEffect(() => {
     if (invalidSubmitCount === 0) return;
