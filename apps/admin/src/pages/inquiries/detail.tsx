@@ -31,6 +31,8 @@ import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 
+type AnswerMode = "read" | "edit" | "review";
+
 export function InquiryDetailPage() {
   const { inquiryId = "" } = useParams();
   const queryClient = useQueryClient();
@@ -42,7 +44,7 @@ export function InquiryDetailPage() {
   const [baseAnswer, setBaseAnswer] = useState("");
   const [baseRevision, setBaseRevision] = useState("");
   const [loadedInquiryId, setLoadedInquiryId] = useState("");
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [answerMode, setAnswerMode] = useState<AnswerMode>("read");
   const dirty =
     query.data !== undefined &&
     loadedInquiryId === query.data.id &&
@@ -58,6 +60,7 @@ export function InquiryDetailPage() {
     setBaseAnswer(query.data.answer ?? "");
     setBaseRevision(query.data.updated_at);
     setLoadedInquiryId(query.data.id);
+    if (changedInquiry) setAnswerMode("read");
   }, [baseRevision, dirty, loadedInquiryId, query.data]);
 
   const mutation = useMutation({
@@ -70,6 +73,7 @@ export function InquiryDetailPage() {
       setAnswer(data.answer ?? "");
       setBaseAnswer(data.answer ?? "");
       setBaseRevision(data.updated_at);
+      setAnswerMode("read");
       snackbar("문의 답변을 저장했습니다.");
       await Promise.all([
         queryClient.invalidateQueries({
@@ -122,7 +126,19 @@ export function InquiryDetailPage() {
       mutation.isPending
     )
       return;
-    setConfirmOpen(true);
+    setAnswerMode("review");
+  };
+
+  const startEditing = () => {
+    mutation.reset();
+    setAnswer(baseAnswer);
+    setAnswerMode("edit");
+  };
+
+  const cancelEditing = () => {
+    mutation.reset();
+    setAnswer(baseAnswer);
+    setAnswerMode("read");
   };
   const save = () => {
     if (answer.trim().length === 0 || mutation.isPending) return;
@@ -173,83 +189,142 @@ export function InquiryDetailPage() {
       <AdminCard title="문의 내용">
         <Text className="whitespace-pre-wrap break-words">{data.content}</Text>
       </AdminCard>
-      {data.answer !== null && (
-        <AdminCard title="현재 답변">
-          <VStack gap="x3" alignItems="stretch">
-            <Text className="whitespace-pre-wrap break-words">
-              {data.answer}
+      {answerMode === "read" && (
+        <AdminCard
+          title="고객 답변"
+          action={
+            <ActionButton
+              variant="neutralWeak"
+              size="small"
+              onClick={startEditing}
+            >
+              {data.answer === null ? "답변 작성" : "답변 수정"}
+            </ActionButton>
+          }
+        >
+          {data.answer === null ? (
+            <Text textStyle="bodySm" color="fg.neutral-muted">
+              아직 등록된 답변이 없습니다.
             </Text>
-            <Text textStyle="caption" color="fg.neutral-muted">
-              {data.answer_actor?.name ?? "담당자 미상"} ·{" "}
-              {formatDateTime(data.answer_date)}
-            </Text>
+          ) : (
+            <VStack gap="x3" alignItems="stretch">
+              <Text className="whitespace-pre-wrap break-words">
+                {data.answer}
+              </Text>
+              <Text textStyle="caption" color="fg.neutral-muted">
+                {data.answer_actor?.name ?? "담당자 미상"} ·{" "}
+                {formatDateTime(data.answer_date)}
+              </Text>
+            </VStack>
+          )}
+        </AdminCard>
+      )}
+
+      {answerMode === "edit" && (
+        <AdminCard title={baseAnswer === "" ? "답변 작성" : "답변 수정"}>
+          <VStack as="form" gap="x3" alignItems="stretch" onSubmit={submit}>
+            <TextAreaField
+              label="답변"
+              required
+              maxLength={5000}
+              value={answer}
+              errorMessage={
+                answer !== "" && answer.trim().length === 0
+                  ? "공백만 입력할 수 없습니다."
+                  : undefined
+              }
+              onChange={(event) => setAnswer(event.currentTarget.value)}
+            />
+            {mutation.isError && (
+              <Callout
+                role="alert"
+                tone="critical"
+                title="답변을 저장하지 못했습니다"
+                description={getErrorMessage(
+                  mutation.error,
+                  "다른 관리자가 먼저 답변했을 수 있습니다. 작성한 답변은 유지되므로 최신 내용을 비교해 주세요.",
+                )}
+              />
+            )}
+            <HStack gap="x2" wrap>
+              <ActionButton
+                type="submit"
+                disabled={!dirty || answer.trim().length === 0}
+              >
+                답변 미리보기
+              </ActionButton>
+              <ActionButton
+                type="button"
+                variant="ghost"
+                disabled={mutation.isPending}
+                onClick={cancelEditing}
+              >
+                편집 취소
+              </ActionButton>
+            </HStack>
           </VStack>
         </AdminCard>
       )}
-      <AdminCard title={data.answer === null ? "답변 작성" : "답변 수정"}>
-        <VStack as="form" gap="x3" alignItems="stretch" onSubmit={submit}>
-          <TextAreaField
-            label="답변"
-            required
-            maxLength={5000}
-            value={answer}
-            errorMessage={
-              answer !== "" && answer.trim().length === 0
-                ? "공백만 입력할 수 없습니다."
-                : undefined
-            }
-            onChange={(event) => setAnswer(event.currentTarget.value)}
-          />
-          {mutation.isError && (
+
+      {answerMode === "review" && (
+        <AdminCard
+          title="답변 미리보기"
+          description="고객에게 표시될 답변을 마지막으로 확인해 주세요."
+        >
+          <VStack gap="x4" alignItems="stretch">
+            {baseAnswer !== "" && (
+              <VStack gap="x1">
+                <Text textStyle="caption" color="fg.neutral-muted">
+                  현재 답변
+                </Text>
+                <Text className="whitespace-pre-wrap break-words">
+                  {baseAnswer}
+                </Text>
+              </VStack>
+            )}
+            <VStack gap="x1">
+              <Text textStyle="caption" color="fg.neutral-muted">
+                {baseAnswer === "" ? "등록할 답변" : "수정할 답변"}
+              </Text>
+              <Text className="whitespace-pre-wrap break-words">
+                {answer.trim()}
+              </Text>
+            </VStack>
             <Callout
-              role="alert"
-              tone="critical"
-              title="답변을 저장하지 못했습니다"
-              description={getErrorMessage(
-                mutation.error,
-                "다른 관리자가 먼저 답변했을 수 있습니다. 작성한 답변은 유지되므로 최신 내용을 비교해 주세요.",
-              )}
+              tone="informative"
+              title={
+                data.customer === null
+                  ? "탈퇴/비회원 고객에게 표시되는 답변입니다"
+                  : `${data.customer.name} 고객에게 표시되는 답변입니다`
+              }
+              description="편집을 시작한 문의 수정 시각을 기준으로 동시 변경 여부를 확인합니다."
             />
-          )}
-          <HStack gap="x2">
-            <ActionButton
-              type="submit"
-              disabled={!dirty || answer.trim().length === 0}
-              loading={mutation.isPending}
-            >
-              답변 확인
-            </ActionButton>
-            <ActionButton
-              type="button"
-              variant="ghost"
-              disabled={!dirty || mutation.isPending}
-              onClick={() => setAnswer(baseAnswer)}
-            >
-              변경 취소
-            </ActionButton>
-          </HStack>
-        </VStack>
-      </AdminCard>
-      <AlertDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={
-          data.answer === null
-            ? "답변을 등록할까요?"
-            : "기존 답변을 수정할까요?"
-        }
-        description="현재 문의의 최신 수정 시각을 확인한 뒤 저장하며, 중복 제출은 차단됩니다."
-        primaryActionProps={{
-          children: "저장",
-          loading: mutation.isPending,
-          disabled: mutation.isPending,
-          onClick: save,
-        }}
-        secondaryActionProps={{
-          children: "취소",
-          disabled: mutation.isPending,
-        }}
-      />
+            {mutation.isError && (
+              <Callout
+                role="alert"
+                tone="critical"
+                title="답변을 저장하지 못했습니다"
+                description={getErrorMessage(
+                  mutation.error,
+                  "다른 관리자가 먼저 답변했을 수 있습니다. 작성한 답변은 유지되므로 최신 내용을 비교해 주세요.",
+                )}
+              />
+            )}
+            <HStack gap="x2" wrap>
+              <ActionButton
+                variant="ghost"
+                disabled={mutation.isPending}
+                onClick={() => setAnswerMode("edit")}
+              >
+                내용 수정
+              </ActionButton>
+              <ActionButton loading={mutation.isPending} onClick={save}>
+                {baseAnswer === "" ? "답변 등록" : "답변 수정"}
+              </ActionButton>
+            </HStack>
+          </VStack>
+        </AdminCard>
+      )}
       <AlertDialog
         open={blocker.state === "blocked"}
         title="작성 중인 답변을 버릴까요?"

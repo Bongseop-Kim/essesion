@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, Field
@@ -53,6 +53,8 @@ class AdminInquirySearchRequest(BaseModel):
     q: str = Field(min_length=2, max_length=100)
     status: InquiryStatusFilter = "all"
     category: InquiryCategoryFilter = "all"
+    start_date: date | None = None
+    end_date: date | None = None
     sort: InquirySort = "created_at"
     direction: SortDirection = "desc"
     limit: int = Field(default=20, ge=1, le=100)

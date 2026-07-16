@@ -1,14 +1,8 @@
 import type { MotifSummaryOut } from "@essesion/api-client";
 import { listAdminMotifsOptions } from "@essesion/api-client/query";
-import {
-  ActionButton,
-  HStack,
-  Text,
-  TextField,
-  VStack,
-} from "@essesion/shared";
+import { Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
@@ -16,14 +10,16 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const SCOPES = ["whole", "partial"] as const;
-const SAFE_SOURCE_PATTERN = /^[A-Za-z0-9_.:-]{1,50}$/;
 
 type MotifScope = (typeof SCOPES)[number];
 
@@ -88,38 +84,24 @@ export function MotifsPage() {
     allowedTypes: SCOPES,
   });
   const scope = isScope(parsed.type) ? parsed.type : undefined;
-  const [sourceInput, setSourceInput] = useState("");
-  const [source, setSource] = useState<string>();
-  const [sourceError, setSourceError] = useState<string>();
+  const [draftScope, setDraftScope] = useState<MotifScope | undefined>(scope);
+  const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
   const query = useQuery({
     ...listAdminMotifsOptions({
       query: {
         scope,
-        source,
+        q: search,
+        start_date: parsed.from,
+        end_date: parsed.to,
         limit: parsed.limit,
         offset: (parsed.page - 1) * parsed.limit,
       },
     }),
     placeholderData: keepPreviousData,
   });
-
-  const submitSource = (event: FormEvent) => {
-    event.preventDefault();
-    const value = sourceInput.trim();
-    if (value === "") {
-      setSource(undefined);
-      setSourceError(undefined);
-      replaceQuery({ page: 1 });
-      return;
-    }
-    if (!SAFE_SOURCE_PATTERN.test(value)) {
-      setSourceError("소스는 영문·숫자와 . _ : -만 입력할 수 있습니다.");
-      return;
-    }
-    setSource(value);
-    setSourceError(undefined);
-    replaceQuery({ page: 1 });
-  };
 
   const totalPages = Math.max(
     1,
@@ -140,70 +122,22 @@ export function MotifsPage() {
         description="등록된 Motif 메타데이터와 서버 안전성 검사를 통과한 SVG를 읽기 전용으로 조회합니다."
       />
 
-      <AdminCard title="Motif 필터">
-        <HStack gap="x3" align="flex-end" wrap>
-          <FilterSelect
-            label="범위"
-            value={scope ?? "all"}
-            options={[
-              { value: "all", label: "전체" },
-              { value: "whole", label: "전체 모티프" },
-              { value: "partial", label: "부분 모티프" },
-            ]}
-            onValueChange={(value) => {
-              replaceQuery({
-                type: value === "all" ? undefined : value,
-                page: 1,
-              });
-            }}
-          />
-          <HStack
-            as="form"
-            gap="x2"
-            align="flex-end"
-            wrap
-            onSubmit={submitSource}
-          >
-            <TextField
-              label="소스"
-              placeholder="정확한 source 키"
-              value={sourceInput}
-              maxLength={50}
-              errorMessage={sourceError}
-              onChange={(event) => setSourceInput(event.currentTarget.value)}
-            />
-            <ActionButton type="submit" variant="neutralOutline">
-              소스 적용
-            </ActionButton>
-            {source !== undefined && (
-              <ActionButton
-                variant="ghost"
-                onClick={() => {
-                  setSourceInput("");
-                  setSource(undefined);
-                  setSourceError(undefined);
-                  replaceQuery({ page: 1 });
-                }}
-              >
-                소스 해제
-              </ActionButton>
-            )}
-          </HStack>
-        </HStack>
-      </AdminCard>
-
       <PaginatedAdminTableCard
         title="Motif 목록"
-        description={`총 ${query.data?.total ?? 0}건`}
         label="Motif 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(motif) => navigate(`/motifs/${motif.id}`)}
         status={
-          query.isLoading ? "loading" : query.isError ? "error" : "success"
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
         total={query.data?.total}
+        limit={parsed.limit}
         refreshing={query.isFetching}
         onRefresh={() => void query.refetch()}
         emptyTitle="조건에 맞는 Motif가 없습니다"
@@ -211,6 +145,117 @@ export function MotifsPage() {
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="Motif 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
+                  label="Motif ID·이름·소스 검색"
+                  placeholder="2자 이상 입력"
+                  maxLength={100}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="범위"
+                    presentation="inline"
+                    value={draftScope ?? "all"}
+                    options={[
+                      { value: "all", label: "전체" },
+                      { value: "whole", label: "전체 모티프" },
+                      { value: "partial", label: "부분 모티프" },
+                    ]}
+                    onValueChange={(value) =>
+                      setDraftScope(
+                        value === "all" ? undefined : (value as MotifScope),
+                      )
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(scope !== undefined) +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              secondaryTitle="Motif 필터"
+              secondaryDescription="Motif 범위와 생성일을 한 번에 적용합니다."
+              onOpenSecondaryFilters={() => {
+                setDraftScope(scope);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({
+                  type: draftScope,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: 1,
+                });
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftScope(scope);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                scope !== undefined && {
+                  key: "scope",
+                  label: `범위: ${scope === "whole" ? "전체 모티프" : "부분 모티프"}`,
+                  onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `생성 시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `생성 종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: undefined,
+                  direction: "asc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
       />
     </VStack>
   );

@@ -46,6 +46,19 @@ const ISSUED_STATUSES = [
 
 type IssuedStatus = (typeof ISSUED_STATUSES)[number];
 
+function issuedStatusLabel(status: IssuedStatus) {
+  return (
+    {
+      all: "전체",
+      active: "활성",
+      reserved: "예약",
+      used: "사용 완료",
+      expired: "만료",
+      revoked: "회수",
+    } satisfies Record<IssuedStatus, string>
+  )[status];
+}
+
 export type CouponIssuedHistoryProps = {
   couponId: string;
   canManage: boolean;
@@ -118,6 +131,12 @@ export function CouponIssuedHistory({
     },
   });
 
+  const resetFailedRevokeOperation = () => {
+    if (!revokeMutation.isError) return;
+    setOperationId(crypto.randomUUID());
+    revokeMutation.reset();
+  };
+
   const selectionColumn: AdminTableColumn<IssuedCouponOut> = {
     key: "select",
     header: "선택",
@@ -130,11 +149,12 @@ export function CouponIssuedHistory({
           query.isFetching ||
           revokeMutation.isPending
         }
-        onChange={(event) =>
+        onChange={(event) => {
+          resetFailedRevokeOperation();
           setSelected((current) =>
             changedSelection(current, issuance.id, event.currentTarget.checked),
-          )
-        }
+          );
+        }}
       />
     ),
   };
@@ -195,7 +215,7 @@ export function CouponIssuedHistory({
     <VStack gap="x5" alignItems="stretch">
       <AdminCard
         title="발급 이력"
-        description={`총 ${query.data?.total ?? 0}건 · 발급 당시 금전 조건을 표시합니다.`}
+        description="발급 당시 금전 조건을 표시합니다."
       >
         <VStack gap="x4" alignItems="stretch">
           <FilterSelect
@@ -203,9 +223,10 @@ export function CouponIssuedHistory({
             value={status}
             options={ISSUED_STATUSES.map((value) => ({
               value,
-              label: value === "all" ? "전체" : value,
+              label: issuedStatusLabel(value),
             }))}
             onValueChange={(value) => {
+              resetFailedRevokeOperation();
               setStatus(value as IssuedStatus);
               setPage(1);
               setSelected(new Set());
@@ -217,28 +238,37 @@ export function CouponIssuedHistory({
             rows={query.data?.items}
             getRowKey={(issuance) => issuance.id}
             status={
-              query.isLoading ? "loading" : query.isError ? "error" : "success"
+              query.isLoading || query.isPlaceholderData
+                ? "loading"
+                : query.isError
+                  ? "error"
+                  : "success"
             }
             total={query.data?.total}
             onRetry={() => void query.refetch()}
             emptyTitle="발급 이력이 없습니다"
           />
-          <Pagination
-            page={Math.min(page, totalPages)}
-            totalPages={totalPages}
-            onPageChange={(nextPage) => {
-              setPage(nextPage);
-              setSelected(new Set());
-            }}
-            label="쿠폰 발급 이력 페이지"
-          />
+          {query.isSuccess && !query.isPlaceholderData && (
+            <Pagination
+              page={Math.min(page, totalPages)}
+              totalPages={totalPages}
+              total={query.data?.total}
+              limit={20}
+              onPageChange={(nextPage) => {
+                resetFailedRevokeOperation();
+                setPage(nextPage);
+                setSelected(new Set());
+              }}
+              label="쿠폰 발급 이력 페이지"
+            />
+          )}
         </VStack>
       </AdminCard>
 
       {canManage && (
         <AdminCard
           title="선택 발급 건 회수"
-          description={`operation ${operationId}`}
+          description="활성 발급 건만 선택해 회수할 수 있습니다."
         >
           <VStack gap="x4" alignItems="stretch">
             <Text textStyle="bodySm">
@@ -256,7 +286,10 @@ export function CouponIssuedHistory({
                   : undefined
               }
               disabled={revokeMutation.isPending}
-              onChange={(event) => setReason(event.currentTarget.value)}
+              onChange={(event) => {
+                resetFailedRevokeOperation();
+                setReason(event.currentTarget.value);
+              }}
             />
             {revokeMutation.isError && (
               <Callout
@@ -265,7 +298,7 @@ export function CouponIssuedHistory({
                 title="쿠폰을 회수하지 못했습니다"
                 description={getErrorMessage(
                   revokeMutation.error,
-                  "입력과 operation ID가 유지됩니다. 같은 작업을 안전하게 다시 시도할 수 있습니다.",
+                  "선택과 사유는 유지됩니다. 오류 원인을 확인한 뒤 같은 회수 요청을 안전하게 다시 시도할 수 있습니다.",
                 )}
               />
             )}
@@ -279,7 +312,7 @@ export function CouponIssuedHistory({
               loading={revokeMutation.isPending}
               onClick={() => setConfirmOpen(true)}
             >
-              회수 내용 확인
+              쿠폰 {selectedIds.length.toLocaleString("ko-KR")}건 회수 검토
             </ActionButton>
           </VStack>
         </AdminCard>
@@ -289,9 +322,9 @@ export function CouponIssuedHistory({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${selectedIds.length.toLocaleString("ko-KR")}건의 쿠폰을 회수할까요?`}
-        description={`사용 중인 발급 건만 회수됩니다.\n사유: ${reason.trim()}\noperation: ${operationId}`}
+        description={`대상: 현재 선택한 활성 쿠폰 ${selectedIds.length.toLocaleString("ko-KR")}건\n영향: 회수 후 고객이 사용할 수 없으며 이 화면에서 되돌릴 수 없습니다.\n사유: ${reason.trim()}`}
         primaryActionProps={{
-          children: "회수",
+          children: `쿠폰 ${selectedIds.length.toLocaleString("ko-KR")}건 회수`,
           variant: "criticalSolid",
           loading: revokeMutation.isPending,
           onClick: revoke,

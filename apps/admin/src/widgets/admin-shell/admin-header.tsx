@@ -11,7 +11,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { Link, useLocation } from "react-router";
 
-import { ADMIN_NAVIGATION } from "../../shared/config/navigation";
+import {
+  ADMIN_NAVIGATION,
+  ADMIN_NAVIGATION_GROUPS,
+} from "../../shared/config/navigation";
 import { useAdminSession } from "../../shared/session/admin-session";
 
 export function AdminHeader() {
@@ -34,6 +37,7 @@ export function AdminHeader() {
       brandHref="/"
       brandLogoSrc="/logo/logo.png"
       navItems={[...ADMIN_NAVIGATION]}
+      mobileNavGroups={ADMIN_NAVIGATION_GROUPS}
       activePathname={location.pathname}
       renderLink={renderLink}
       menuIcon={<Icon svg={<Bars3Icon />} size={20} />}

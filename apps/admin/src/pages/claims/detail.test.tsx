@@ -5,7 +5,7 @@ import type {
 } from "@essesion/api-client";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router";
+import { Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderAdminPage } from "../../test/render-admin-page";
@@ -19,6 +19,11 @@ const api = vi.hoisted(() => ({
   listPhotos: vi.fn(),
   createPhotoReadUrl: vi.fn(),
   photoListOptions: vi.fn(),
+}));
+const blocker = vi.hoisted(() => ({
+  state: "unblocked",
+  proceed: vi.fn(),
+  reset: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client/query", () => ({
@@ -46,6 +51,10 @@ vi.mock("@essesion/api-client/query", () => ({
   createAdminRepairReceiptPhotoReadUrlMutation: () => ({
     mutationFn: api.createPhotoReadUrl,
   }),
+}));
+
+vi.mock("../../shared/lib/use-dirty-form-blocker", () => ({
+  useDirtyFormBlocker: () => blocker,
 }));
 
 import { ClaimDetailPage } from "./detail";
@@ -145,7 +154,7 @@ const repairClaim: AdminClaimDetailOut = {
       {
         id: "receipt-1",
         receipt_type: "tracking",
-        reason: "수선품 발송",
+        reason: "lost",
         memo: "포장 상태 확인",
         photo_count: 1,
         created_at: "2026-07-12T02:00:00Z",
@@ -161,34 +170,104 @@ const repairPhoto: AdminRepairPhotoOut = {
   created_at: "2026-07-12T02:01:00Z",
 };
 
-function renderPage() {
+function LocationProbe() {
+  const location = useLocation();
+  return <output aria-label="현재 검색 조건">{location.search}</output>;
+}
+
+function renderPage(entry = "/claims/claim-1") {
   return renderAdminPage(
     <Routes>
-      <Route path="/claims/:claimId" element={<ClaimDetailPage />} />
+      <Route
+        path="/claims/:claimId"
+        element={
+          <>
+            <ClaimDetailPage />
+            <LocationProbe />
+          </>
+        }
+      />
     </Routes>,
-    { entry: "/claims/claim-1" },
+    { entry },
   );
 }
 
 describe("ClaimDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    blocker.state = "unblocked";
     api.getClaim.mockResolvedValue(claim);
     api.listPhotos.mockResolvedValue([]);
+  });
+
+  it("URL의 업무 탭을 복원하고 운영 액션을 모든 탭 상단에 유지한다", async () => {
+    const user = userEvent.setup();
+    renderPage("/claims/claim-1?tab=shipping");
+
+    expect(
+      await screen.findByRole("tab", { name: "배송·첨부", selected: true }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByText("등록된 배송 정보가 없습니다."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "거부 처리" })).toBeTruthy();
+
+    await user.click(screen.getByRole("tab", { name: "개요" }));
+
+    expect(
+      await screen.findByRole("button", { name: "거부 처리" }),
+    ).toBeTruthy();
+    expect(screen.getByText("상품 불량")).toBeTruthy();
+    expect(screen.queryByText("defect")).toBeNull();
+    expect(screen.getByLabelText("현재 검색 조건").textContent).toBe("");
+  });
+
+  it("토큰 환불은 배송 탭과 긴 빈 배송 필드를 노출하지 않는다", async () => {
+    api.getClaim.mockResolvedValueOnce({
+      ...claim,
+      type: "token_refund",
+      tracking_actions: [],
+    });
+    renderPage("/claims/claim-1?tab=shipping");
+
+    expect(
+      await screen.findByRole("tab", { name: "개요", selected: true }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "배송·첨부" })).toBeNull();
+    expect(screen.queryByText("배송 주소")).toBeNull();
+    expect(screen.getByRole("button", { name: "거부 처리" })).toBeTruthy();
   });
 
   it("위험 상태 변경을 확인하고 실패해도 입력한 사유를 보존한다", async () => {
     const user = userEvent.setup();
     api.updateStatus.mockRejectedValueOnce(new Error("상태 충돌"));
+    api.getClaim.mockResolvedValueOnce({
+      ...claim,
+      admin_actions: [
+        ...(claim.admin_actions ?? []),
+        {
+          kind: "advance",
+          label: "승인 처리",
+          target_status: "승인",
+          enabled: true,
+        },
+      ],
+    });
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "거부 처리" }));
     const memo = screen.getByLabelText("처리 사유 (필수)");
     await user.type(memo, "검수 결과 불량");
-    await user.click(screen.getByRole("button", { name: "실행" }));
+    expect(
+      (screen.getByRole("button", { name: "승인 처리" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect((memo as HTMLTextAreaElement).value).toBe("검수 결과 불량");
+    await user.click(screen.getByRole("button", { name: "거부 처리 검토" }));
 
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "실행" }));
+    expect(within(dialog).getByText(/상태 접수 → 거부/)).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "거부 처리" }));
 
     await waitFor(() =>
       expect(api.updateStatus).toHaveBeenCalledWith(
@@ -207,6 +286,47 @@ describe("ClaimDetailPage", () => {
     expect((memo as HTMLTextAreaElement).value).toBe("검수 결과 불량");
   });
 
+  it("다른 송장 작업으로 전환하기 전에 입력 폐기를 확인한다", async () => {
+    const user = userEvent.setup();
+    api.getClaim.mockResolvedValueOnce({
+      ...claim,
+      tracking_actions: [
+        ...(claim.tracking_actions ?? []),
+        { kind: "resend", label: "재발송 송장 수정", enabled: true },
+      ],
+    });
+    renderPage("/claims/claim-1?tab=shipping");
+
+    await user.click(
+      await screen.findByRole("button", { name: "반송 송장 수정" }),
+    );
+    await user.type(screen.getByLabelText("택배사"), "우체국");
+    await user.type(screen.getByLabelText("송장번호"), "1234-5678");
+    await user.click(screen.getByRole("button", { name: "재발송 송장 수정" }));
+
+    let dialog = await screen.findByRole("alertdialog", {
+      name: "작성 중인 송장 정보를 버릴까요?",
+    });
+    expect((screen.getByLabelText("택배사") as HTMLInputElement).value).toBe(
+      "우체국",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "계속 작성" }));
+    expect((screen.getByLabelText("택배사") as HTMLInputElement).value).toBe(
+      "우체국",
+    );
+
+    await user.click(screen.getByRole("button", { name: "재발송 송장 수정" }));
+    dialog = await screen.findByRole("alertdialog", {
+      name: "작성 중인 송장 정보를 버릴까요?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "버리고 작업 전환" }),
+    );
+    expect((screen.getByLabelText("택배사") as HTMLInputElement).value).toBe(
+      "",
+    );
+  });
+
   it("실패한 알림을 생성 클라이언트 뮤테이션으로 다시 요청한다", async () => {
     const user = userEvent.setup();
     api.retryNotification.mockResolvedValueOnce({
@@ -215,6 +335,7 @@ describe("ClaimDetailPage", () => {
     } as ClaimNotificationOut);
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: "알림·결제" }));
     await user.click(await screen.findByRole("button", { name: "다시 발송" }));
 
     await waitFor(() =>
@@ -227,11 +348,42 @@ describe("ClaimDetailPage", () => {
     );
   });
 
+  it("이동 확인 후 기본·송장 작업 상태를 모두 지우고 blocker를 진행한다", async () => {
+    const user = userEvent.setup();
+    blocker.proceed.mockImplementation(() => {
+      blocker.state = "unblocked";
+    });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "거부 처리" }));
+    await user.type(screen.getByLabelText("처리 사유 (필수)"), "검수 불량");
+    await user.click(screen.getByRole("tab", { name: "배송·첨부" }));
+    await user.click(
+      await screen.findByRole("button", { name: "반송 송장 수정" }),
+    );
+    const courier = screen.getByLabelText("택배사");
+    await user.type(courier, "우체국");
+    blocker.state = "blocked";
+    await user.type(courier, "택배");
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "작성 중인 클레임 작업을 버릴까요?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "클레임 작업 버리기" }),
+    );
+
+    expect(blocker.proceed).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("처리 사유 (필수)")).toBeNull();
+    expect(screen.queryByLabelText("택배사")).toBeNull();
+  });
+
   it("송장 저장 실패 시 멱등 키와 운영자 입력을 보존한다", async () => {
     const user = userEvent.setup();
     api.updateTracking.mockRejectedValueOnce(new Error("송장 충돌"));
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: "배송·첨부" }));
     await user.click(
       await screen.findByRole("button", { name: "반송 송장 수정" }),
     );
@@ -268,6 +420,64 @@ describe("ClaimDetailPage", () => {
     );
   });
 
+  it("송장 저장 실패 뒤 입력을 바꾸면 새 멱등 키를 사용한다", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
+      .mockReturnValue("00000000-0000-4000-8000-000000000002");
+    api.updateTracking.mockRejectedValue(new Error("송장 충돌"));
+    renderPage("/claims/claim-1?tab=shipping");
+
+    await user.click(
+      await screen.findByRole("button", { name: "반송 송장 수정" }),
+    );
+    await user.type(screen.getByLabelText("택배사"), "우체국");
+    await user.type(screen.getByLabelText("송장번호"), "1234-5678");
+    await user.type(screen.getByLabelText("변경 사유"), "고객 반송 확인");
+    await user.click(screen.getByRole("button", { name: "송장 저장" }));
+    expect(await screen.findByText("송장 충돌")).toBeTruthy();
+
+    await user.type(screen.getByLabelText("변경 사유"), " 완료");
+    await user.click(screen.getByRole("button", { name: "송장 저장" }));
+
+    await waitFor(() => expect(api.updateTracking).toHaveBeenCalledTimes(2));
+    expect(api.updateTracking.mock.calls[0]?.[0].body.operation_id).toBe(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    expect(api.updateTracking.mock.calls[1]?.[0].body.operation_id).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    );
+  });
+
+  it("활동 이력은 업무 설명을 우선하고 내부 식별자는 접힌 기술 정보에 둔다", async () => {
+    const user = userEvent.setup();
+    api.getClaim.mockResolvedValueOnce({
+      ...claim,
+      timeline: [
+        {
+          event_type: "claim_status",
+          title: "검수 완료",
+          description: "반품 검수를 완료했습니다.",
+          actor_id: "operator-1",
+          created_at: "2026-07-12T03:00:00Z",
+        },
+      ],
+    });
+    renderPage("/claims/claim-1?tab=activity");
+
+    expect(await screen.findByText("검수 완료")).toBeTruthy();
+    expect(screen.getByText("반품 검수를 완료했습니다.")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "기술 정보" }));
+
+    expect(
+      within(screen.getByRole("region", { name: "기술 정보" })).getByText(
+        /"actor_id": "operator-1"/,
+      ),
+    ).toBeTruthy();
+  });
+
   it("접수·사진 ID 관계로 목록과 만료 URL을 발급하고 재발급한다", async () => {
     const user = userEvent.setup();
     api.getClaim.mockResolvedValueOnce(repairClaim);
@@ -275,9 +485,10 @@ describe("ClaimDetailPage", () => {
     api.createPhotoReadUrl
       .mockResolvedValueOnce({ read_url: "https://storage.example/signed-1" })
       .mockResolvedValueOnce({ read_url: "https://storage.example/signed-2" });
-    const { container } = renderPage();
+    const { container } = renderPage("/claims/claim-1?tab=shipping");
 
-    expect(await screen.findByText("수선품 발송 · 사진 1장")).toBeTruthy();
+    expect(await screen.findByText("송장 분실 · 사진 1장")).toBeTruthy();
+    expect(screen.getByText("송장 등록")).toBeTruthy();
     expect(api.photoListOptions).toHaveBeenCalledWith({
       path: { receipt_id: "receipt-1" },
     });
@@ -313,7 +524,7 @@ describe("ClaimDetailPage", () => {
 
   it("관계형 사진 목록이 비어 있으면 명시적인 빈 상태를 표시한다", async () => {
     api.getClaim.mockResolvedValueOnce(repairClaim);
-    renderPage();
+    renderPage("/claims/claim-1?tab=shipping");
 
     expect(await screen.findByText("등록된 사진이 없습니다")).toBeTruthy();
   });
@@ -322,7 +533,7 @@ describe("ClaimDetailPage", () => {
     const user = userEvent.setup();
     api.getClaim.mockResolvedValueOnce(repairClaim);
     api.listPhotos.mockRejectedValueOnce(new Error("사진 목록 오류"));
-    renderPage();
+    renderPage("/claims/claim-1?tab=shipping");
 
     expect(
       await screen.findByText("사진 목록을 불러오지 못했습니다"),

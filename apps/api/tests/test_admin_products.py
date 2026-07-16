@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata
 from db.models.images import Image
@@ -100,6 +101,62 @@ async def test_admin_product_list_is_paged_and_detail_has_options(client, db_ses
     assert detail.json()["option_count"] == 1
     assert detail.json()["option_stock_total"] == 3
     assert detail.json()["options"][0]["name"] == "L"
+
+
+async def test_admin_product_list_filters_search_and_kst_created_date(client, db_session, settings):
+    admin = await make_admin(db_session)
+    headers = auth_headers(admin, settings)
+    previous = await make_product(db_session, name="이전 상품")
+    target = await make_product(db_session, name="검색 대상 상품", category="knit")
+    later = await make_product(db_session, name="이후 상품")
+    previous.code = "OLD-100"
+    target.code = "TARGET-100"
+    later.code = "LATER-100"
+    previous.created_at = datetime(2026, 4, 30, 14, 59, tzinfo=UTC)
+    target.created_at = datetime(2026, 4, 30, 15, 0, tzinfo=UTC)
+    later.created_at = datetime(2026, 5, 1, 15, 0, tzinfo=UTC)
+    await db_session.commit()
+
+    by_name = await client.get("/admin/products", params={"q": "대상 상품"}, headers=headers)
+    assert by_name.status_code == 200
+    assert [item["id"] for item in by_name.json()["items"]] == [target.id]
+
+    by_code = await client.get("/admin/products", params={"q": "TARGET-100"}, headers=headers)
+    assert by_code.status_code == 200
+    assert [item["id"] for item in by_code.json()["items"]] == [target.id]
+
+    exact_day = await client.get(
+        "/admin/products",
+        params={
+            "category": "knit",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-01",
+        },
+        headers=headers,
+    )
+    assert {item["id"] for item in exact_day.json()["items"]} == {target.id}
+
+    open_start = await client.get(
+        "/admin/products", params={"start_date": "2026-05-02"}, headers=headers
+    )
+    assert {item["id"] for item in open_start.json()["items"]} == {later.id}
+
+    open_end = await client.get(
+        "/admin/products", params={"end_date": "2026-04-30"}, headers=headers
+    )
+    assert {item["id"] for item in open_end.json()["items"]} == {previous.id}
+
+    too_short = await client.get("/admin/products", params={"q": "검"}, headers=headers)
+    assert too_short.status_code == 400
+    assert too_short.json()["code"] == "invalid_search"
+
+    invalid_range = await client.get(
+        "/admin/products",
+        params={"start_date": "2026-05-02", "end_date": "2026-05-01"},
+        headers=headers,
+    )
+    assert invalid_range.status_code == 400
+    assert invalid_range.json()["code"] == "invalid_range"
 
 
 async def test_option_stock_total_is_unlimited_when_any_option_is_unlimited(

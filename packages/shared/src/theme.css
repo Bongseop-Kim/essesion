@@ -231,6 +231,13 @@
 
 /* duration — v4에 @theme 네임스페이스가 없어 일반 변수로 (항상 방출됨) */
 :root {
+  /* 콘텐츠 크기·레이어 — inline style 프리미티브에서 시맨틱 토큰으로 소비 */
+  --size-field-narrow: 240px;
+  --size-content-scroll: 384px;
+  --size-loading-media: 220px;
+  --size-loading-result: 280px;
+  --z-sticky: 10;
+
   --duration-fast: 100ms; /* 마이크로 인터랙션 (hover, pressed) */
   --duration-normal: 200ms; /* 일반 전환 */
   --duration-slow: 300ms; /* 매크로 (모달·시트) */

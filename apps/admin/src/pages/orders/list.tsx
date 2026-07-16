@@ -14,7 +14,8 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -133,9 +134,14 @@ export function OrdersPage() {
     defaultDirection: "desc",
   });
   const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const orderType = (parsed.type ?? "all") as OrderType;
   const status = (parsed.status ?? "all") as OrderStatus;
   const sort = (parsed.sort ?? "created_at") as OrderSort;
+  const [draftStatus, setDraftStatus] = useState<OrderStatus>(status);
+  const [draftOrderType, setDraftOrderType] = useState<OrderType>(orderType);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
 
   const query = useQuery({
     ...listAllOrdersOptions({
@@ -172,57 +178,22 @@ export function OrdersPage() {
         title="주문 관리"
         description="주문번호와 운영 상태를 기준으로 주문을 조회합니다."
       />
-      <AdminCard title="검색·필터">
-        <VStack gap="x4" alignItems="stretch">
-          <SubmittedMemorySearch
-            label="주문번호 검색"
-            placeholder="2자 이상 입력"
-            maxLength={64}
-            onSubmit={(value) => {
-              setSearch(value);
-              replaceQuery({ page: 1 });
-            }}
-          />
-          <HStack gap="x3" align="flex-end" wrap>
-            <FilterSelect
-              label="주문 유형"
-              value={orderType}
-              options={ORDER_TYPES}
-              onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
-            />
-            <FilterSelect
-              label="상태"
-              value={status}
-              options={ORDER_STATUSES.map((value) => ({
-                value,
-                label: value === "all" ? "전체" : value,
-              }))}
-              onValueChange={(value) =>
-                replaceQuery({ status: value, page: 1 })
-              }
-            />
-            <DateRangeFilters
-              from={parsed.from}
-              to={parsed.to}
-              onFromChange={(from) => replaceQuery({ from, page: 1 })}
-              onToChange={(to) => replaceQuery({ to, page: 1 })}
-            />
-          </HStack>
-        </VStack>
-      </AdminCard>
-
       <PaginatedAdminTableCard
         title="주문 목록"
-        description={`총 ${query.data?.total ?? 0}건`}
         label="주문 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/orders/${row.id}`)}
         status={
-          query.isLoading ? "loading" : query.isError ? "error" : "success"
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
         total={query.data?.total}
+        limit={parsed.limit}
         sort={{ key: sort, direction: parsed.direction }}
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
@@ -234,6 +205,130 @@ export function OrdersPage() {
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="주문 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
+                  label="주문번호 검색"
+                  placeholder="2자 이상 입력"
+                  maxLength={64}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="상태"
+                    presentation="inline"
+                    value={draftStatus}
+                    options={ORDER_STATUSES.map((value) => ({
+                      value,
+                      label: value === "all" ? "전체" : value,
+                    }))}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as OrderStatus)
+                    }
+                  />
+                  <FilterSelect
+                    label="주문 유형"
+                    presentation="inline"
+                    value={draftOrderType}
+                    options={ORDER_TYPES}
+                    onValueChange={(value) =>
+                      setDraftOrderType(value as OrderType)
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(status !== "all") +
+                Number(orderType !== "all") +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              onOpenSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftOrderType(orderType);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftOrderType(orderType);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({
+                  status: draftStatus === "all" ? undefined : draftStatus,
+                  type: draftOrderType === "all" ? undefined : draftOrderType,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: 1,
+                });
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                orderType !== "all" && {
+                  key: "type",
+                  label: `유형: ${ORDER_TYPES.find((item) => item.value === orderType)?.label ?? orderType}`,
+                  onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+                },
+                status !== "all" && {
+                  key: "status",
+                  label: `상태: ${status}`,
+                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: "created_at",
+                  direction: "desc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
       />
     </VStack>
   );

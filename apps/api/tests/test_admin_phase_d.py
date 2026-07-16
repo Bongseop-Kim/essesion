@@ -213,7 +213,8 @@ async def test_claim_list_detail_shipping_timeline_and_safe_photos(client, db_se
     )
     await db_session.commit()
 
-    today = datetime.now(KST).date().isoformat()
+    today_date = datetime.now(KST).date()
+    today = today_date.isoformat()
     listed = await client.get(
         "/admin/claims",
         params={
@@ -231,6 +232,28 @@ async def test_claim_list_detail_shipping_timeline_and_safe_photos(client, db_se
     assert listed.json()["limit"] == 1
     assert listed.json()["items"][0]["claim_number"] == claim.claim_number
     assert listed.json()["items"][0]["admin_actions"][0]["target_status"] == "완료"
+
+    open_start = await client.get(
+        "/admin/claims",
+        params={
+            "start_date": (today_date - timedelta(days=1)).isoformat(),
+            "q": "PHASE-D",
+        },
+        headers=auth_headers(manager, settings),
+    )
+    assert open_start.status_code == 200, open_start.text
+    assert [item["id"] for item in open_start.json()["items"]] == [str(claim.id)]
+
+    open_end = await client.get(
+        "/admin/claims",
+        params={
+            "end_date": (today_date + timedelta(days=1)).isoformat(),
+            "q": "PHASE-D",
+        },
+        headers=auth_headers(manager, settings),
+    )
+    assert open_end.status_code == 200, open_end.text
+    assert [item["id"] for item in open_end.json()["items"]] == [str(claim.id)]
 
     detail = await client.get(f"/admin/claims/{claim.id}", headers=auth_headers(manager, settings))
     assert detail.status_code == 200, detail.text
@@ -468,6 +491,47 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
     listed = await client.get("/admin/payment-incidents", headers=manager_headers)
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
+
+    yesterday = (datetime.now(KST).date() - timedelta(days=1)).isoformat()
+    by_text_and_open_date = await client.get(
+        "/admin/payment-incidents",
+        params={"q": "req-payment", "start_date": yesterday},
+        headers=manager_headers,
+    )
+    assert by_text_and_open_date.status_code == 200, by_text_and_open_date.text
+    assert [item["id"] for item in by_text_and_open_date.json()["items"]] == [str(incident.id)]
+
+    by_operation_id = await client.get(
+        "/admin/payment-incidents",
+        params={"q": incident.operation_id[:8]},
+        headers=manager_headers,
+    )
+    assert [item["id"] for item in by_operation_id.json()["items"]] == [str(incident.id)]
+
+    by_incident_id = await client.get(
+        "/admin/payment-incidents",
+        params={"q": str(incident.id)},
+        headers=manager_headers,
+    )
+    assert [item["id"] for item in by_incident_id.json()["items"]] == [str(incident.id)]
+
+    by_order_id = await client.get(
+        "/admin/payment-incidents",
+        params={"q": str(order.id)},
+        headers=manager_headers,
+    )
+    assert [item["id"] for item in by_order_id.json()["items"]] == [str(incident.id)]
+
+    short_search = await client.get(
+        "/admin/payment-incidents", params={"q": "x"}, headers=manager_headers
+    )
+    assert short_search.status_code == 422
+
+    long_search = await client.get(
+        "/admin/payment-incidents", params={"q": "x" * 129}, headers=manager_headers
+    )
+    assert long_search.status_code == 422
+
     detail = await client.get(f"/admin/payment-incidents/{incident.id}", headers=manager_headers)
     assert detail.status_code == 200
     assert detail.json()["details"]["paymentKey"] == "[redacted]"

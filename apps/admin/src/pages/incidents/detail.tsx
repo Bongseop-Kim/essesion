@@ -9,7 +9,6 @@ import {
 import {
   ActionButton,
   AlertDialog,
-  Box,
   Callout,
   ContentPlaceholder,
   HStack,
@@ -25,15 +24,16 @@ import { Link, useParams } from "react-router";
 
 import {
   formatDateTime,
-  formatIdentifier,
   formatMoney,
   getErrorMessage,
 } from "../../shared/lib/format";
+import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
+import { TechnicalDetails } from "../../shared/ui/technical-details";
 
 function incidentTypeLabel(type: string) {
   const labels: Record<string, string> = {
@@ -48,6 +48,33 @@ function incidentTypeLabel(type: string) {
 
 function createOperationId() {
   return crypto.randomUUID();
+}
+
+function incidentAmountSummary(
+  expected: number | null,
+  observed: number | null,
+) {
+  if (expected === null || observed === null) {
+    return {
+      title: "금액 비교 정보가 부족합니다",
+      description: "기대 금액과 확인 금액을 모두 확보한 뒤 판단해 주세요.",
+      difference: null,
+    };
+  }
+  const difference = observed - expected;
+  if (difference === 0) {
+    return {
+      title: "기대 금액과 확인 금액이 일치합니다",
+      description: "금액 외 결제 상태와 요청 근거를 확인해 주세요.",
+      difference,
+    };
+  }
+  const direction = difference > 0 ? "많습니다" : "부족합니다";
+  return {
+    title: `${formatMoney(Math.abs(difference))} 차이`,
+    description: `확인 금액이 기대 금액보다 ${formatMoney(Math.abs(difference))} ${direction}`,
+    difference,
+  };
 }
 
 function IncidentDetailLoading() {
@@ -122,6 +149,11 @@ export function IncidentDetailPage() {
   const data = query.data;
   const actionPending =
     reconcileMutation.isPending || resolveMutation.isPending;
+  const blocker = useDirtyFormBlocker(
+    selectedAction !== undefined,
+    undefined,
+    true,
+  );
   const isAdmin =
     session.state.status === "authenticated" &&
     session.state.session.role === "admin";
@@ -160,6 +192,21 @@ export function IncidentDetailPage() {
     });
   };
 
+  const selectAction = (action: IncidentAdminAction) => {
+    setSelectedAction(action);
+    setMemo("");
+    setValidationError(undefined);
+    setOperationId(createOperationId());
+    reconcileMutation.reset();
+    resolveMutation.reset();
+  };
+
+  const resetFailedResolveOperation = () => {
+    if (!resolveMutation.isError) return;
+    setOperationId(createOperationId());
+    resolveMutation.reset();
+  };
+
   const submitAction = (event: FormEvent) => {
     event.preventDefault();
     setValidationError(undefined);
@@ -169,6 +216,11 @@ export function IncidentDetailPage() {
     }
     setConfirmOpen(true);
   };
+
+  const amountSummary = incidentAmountSummary(
+    data.expected_amount,
+    data.observed_amount,
+  );
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -180,6 +232,12 @@ export function IncidentDetailPage() {
         <StatusBadge status={data.status} />
       </HStack>
 
+      <Callout
+        tone={amountSummary.difference === 0 ? "positive" : "warning"}
+        title={amountSummary.title}
+        description={amountSummary.description}
+      />
+
       <AdminCard title="이상 정보">
         <DetailList
           items={[
@@ -187,8 +245,13 @@ export function IncidentDetailPage() {
             { label: "상태", value: data.status },
             { label: "기대 금액", value: formatMoney(data.expected_amount) },
             { label: "확인 금액", value: formatMoney(data.observed_amount) },
-            { label: "요청 ID", value: data.request_id },
-            { label: "원 작업 ID", value: data.operation_id },
+            {
+              label: "금액 차이",
+              value:
+                amountSummary.difference === null
+                  ? "확인 불가"
+                  : formatMoney(amountSummary.difference),
+            },
             { label: "발생 시각", value: formatDateTime(data.created_at) },
             { label: "수정 시각", value: formatDateTime(data.updated_at) },
           ]}
@@ -212,29 +275,9 @@ export function IncidentDetailPage() {
         </AdminCard>
       )}
 
-      <AdminCard
-        title="대사 근거"
-        description="민감 결제 키를 제외하고 서버가 정제한 데이터만 표시합니다."
-      >
-        <Box
-          as="pre"
-          bg="bg.neutral-weak"
-          borderRadius="r2"
-          p="x4"
-          overflow="auto"
-          className="max-h-96 whitespace-pre-wrap break-words"
-        >
-          <Text as="code" textStyle="caption">
-            {JSON.stringify(data.details, null, 2)}
-          </Text>
-        </Box>
-      </AdminCard>
-
       <AdminCard title="처리 감사 정보">
         <DetailList
           items={[
-            { label: "발생 행위자", value: formatIdentifier(data.actor_id) },
-            { label: "해결 처리자", value: formatIdentifier(data.resolved_by) },
             { label: "해결 시각", value: formatDateTime(data.resolved_at) },
             { label: "해결 메모", value: data.resolution_memo ?? "-" },
           ]}
@@ -257,12 +300,13 @@ export function IncidentDetailPage() {
                   variant={
                     action.destructive ? "criticalSolid" : "neutralOutline"
                   }
-                  disabled={!action.enabled || actionPending}
+                  disabled={
+                    !action.enabled ||
+                    actionPending ||
+                    selectedAction !== undefined
+                  }
                   title={action.blocking_reason ?? undefined}
-                  onClick={() => {
-                    setSelectedAction(action);
-                    setValidationError(undefined);
-                  }}
+                  onClick={() => selectAction(action)}
                 >
                   {action.label}
                 </ActionButton>
@@ -297,7 +341,10 @@ export function IncidentDetailPage() {
                     value={memo}
                     maxLength={1000}
                     errorMessage={validationError}
-                    onChange={(event) => setMemo(event.currentTarget.value)}
+                    onChange={(event) => {
+                      resetFailedResolveOperation();
+                      setMemo(event.currentTarget.value);
+                    }}
                   />
                 )}
                 {(reconcileMutation.isError || resolveMutation.isError) && (
@@ -313,13 +360,16 @@ export function IncidentDetailPage() {
                 )}
                 <HStack gap="x2">
                   <ActionButton type="submit" loading={actionPending}>
-                    확인 후 실행
+                    {selectedAction.label} 검토
                   </ActionButton>
                   <ActionButton
                     type="button"
                     variant="ghost"
                     disabled={actionPending}
-                    onClick={() => setSelectedAction(undefined)}
+                    onClick={() => {
+                      setSelectedAction(undefined);
+                      setMemo("");
+                    }}
                   >
                     취소
                   </ActionButton>
@@ -329,6 +379,17 @@ export function IncidentDetailPage() {
           </VStack>
         )}
       </AdminCard>
+
+      <TechnicalDetails
+        json={{
+          incident_id: data.id,
+          request_id: data.request_id,
+          operation_id: data.operation_id,
+          actor_id: data.actor_id,
+          resolved_by: data.resolved_by,
+          reconciliation_details: data.details,
+        }}
+      />
 
       <AlertDialog
         open={confirmOpen}
@@ -340,13 +401,27 @@ export function IncidentDetailPage() {
             : `이 작업은 인시던트를 해결 상태로 변경합니다. 입력한 근거: ${memo.trim() || "없음"}`
         }
         primaryActionProps={{
-          children: "실행",
+          children: selectedAction?.label ?? "작업 실행",
           variant: "criticalSolid",
           loading: actionPending,
           disabled: actionPending,
           onClick: runAction,
         }}
         secondaryActionProps={{ children: "취소", disabled: actionPending }}
+      />
+      <AlertDialog
+        open={blocker.state === "blocked"}
+        title="작성 중인 결제 이상 작업을 버릴까요?"
+        description="선택한 작업과 저장하지 않은 해결 근거가 사라집니다."
+        primaryActionProps={{
+          children: "결제 이상 작업 버리기",
+          variant: "criticalSolid",
+          onClick: () => blocker.proceed?.(),
+        }}
+        secondaryActionProps={{
+          children: "계속 작성",
+          onClick: () => blocker.reset?.(),
+        }}
       />
     </VStack>
   );

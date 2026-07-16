@@ -37,6 +37,10 @@ vi.mock("../../shared/session/admin-session", () => ({
   }),
 }));
 
+vi.mock("../../shared/lib/use-dirty-form-blocker", () => ({
+  useDirtyFormBlocker: () => ({ state: "unblocked" }),
+}));
+
 import { IncidentDetailPage } from "./detail";
 
 const incident: PaymentIncidentDetailOut = {
@@ -98,14 +102,22 @@ describe("IncidentDetailPage", () => {
     api.reconcile.mockResolvedValueOnce(incident);
     renderPage();
 
+    expect(await screen.findByText("₩10,000 차이")).toBeTruthy();
+    expect(
+      screen.getByText("확인 금액이 기대 금액보다 ₩10,000 부족합니다"),
+    ).toBeTruthy();
+    expect(screen.getByText("-₩10,000")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "외부 상태 대사" }));
     await user.click(
-      await screen.findByRole("button", { name: "외부 상태 대사" }),
+      screen.getByRole("button", { name: "외부 상태 대사 검토" }),
     );
-    await user.click(screen.getByRole("button", { name: "확인 후 실행" }));
     expect(api.reconcile).not.toHaveBeenCalled();
 
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "실행" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "외부 상태 대사" }),
+    );
 
     await waitFor(() =>
       expect(api.reconcile).toHaveBeenCalledWith(
@@ -115,6 +127,29 @@ describe("IncidentDetailPage", () => {
         expect.anything(),
       ),
     );
+  });
+
+  it("작업 초안이 열리면 다른 액션 선택을 막고 입력을 보존한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "해결 처리" }));
+    await user.type(screen.getByLabelText("해결 근거 (필수)"), "확인 중");
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "외부 상태 대사",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "해결 처리" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("해결 근거 (필수)") as HTMLTextAreaElement).value,
+    ).toBe("확인 중");
   });
 
   it("403 실패 후에도 해결 메모와 동일한 멱등 키를 보존한다", async () => {
@@ -127,9 +162,9 @@ describe("IncidentDetailPage", () => {
     await user.click(await screen.findByRole("button", { name: "해결 처리" }));
     const memo = screen.getByLabelText("해결 근거 (필수)");
     await user.type(memo, "Toss 승인 금액과 원장 금액 불일치 확인");
-    await user.click(screen.getByRole("button", { name: "확인 후 실행" }));
+    await user.click(screen.getByRole("button", { name: "해결 처리 검토" }));
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "실행" }));
+    await user.click(within(dialog).getByRole("button", { name: "해결 처리" }));
 
     await waitFor(() =>
       expect(api.resolve).toHaveBeenCalledWith(
@@ -151,6 +186,46 @@ describe("IncidentDetailPage", () => {
     );
   });
 
+  it("해결 실패 뒤 근거를 바꾸면 새 멱등 키를 사용한다", async () => {
+    const user = userEvent.setup();
+    vi.mocked(crypto.randomUUID)
+      .mockReset()
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000000")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
+      .mockReturnValue("00000000-0000-4000-8000-000000000002");
+    api.resolve.mockRejectedValue(new Error("해결 충돌"));
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "해결 처리" }));
+    await user.type(
+      screen.getByLabelText("해결 근거 (필수)"),
+      "Toss 대사 결과 확인",
+    );
+    await user.click(screen.getByRole("button", { name: "해결 처리 검토" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "해결 처리",
+      }),
+    );
+    expect(await screen.findByText("해결 충돌")).toBeTruthy();
+
+    await user.type(screen.getByLabelText("해결 근거 (필수)"), " 완료");
+    await user.click(screen.getByRole("button", { name: "해결 처리 검토" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "해결 처리",
+      }),
+    );
+
+    await waitFor(() => expect(api.resolve).toHaveBeenCalledTimes(2));
+    expect(api.resolve.mock.calls[0]?.[0].body.operation_id).toBe(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    expect(api.resolve.mock.calls[1]?.[0].body.operation_id).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    );
+  });
+
   it("매니저에게는 조회 근거만 제공하고 실행 버튼을 숨긴다", async () => {
     session.role = "manager";
     renderPage();
@@ -160,5 +235,20 @@ describe("IncidentDetailPage", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "외부 상태 대사" })).toBeNull();
     expect(screen.queryByRole("button", { name: "해결 처리" })).toBeNull();
+  });
+
+  it("원 JSON과 기술 식별자를 기본으로 접어 둔다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const trigger = await screen.findByRole("button", { name: "기술 정보" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
+
+    await user.click(trigger);
+
+    const region = screen.getByRole("region", { name: "기술 정보" });
+    expect(within(region).getByText(/"request_id": "request-1"/)).toBeTruthy();
+    expect(within(region).getByText(/"toss_status": "DONE"/)).toBeTruthy();
   });
 });

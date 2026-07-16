@@ -66,6 +66,28 @@ async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_sessio
     }
     assert stats.json()["average_attempts"] == 1.5
 
+    filtered_page = await client.get(
+        "/admin/generation/jobs", params={"job_id": str(succeeded.id)}, headers=headers
+    )
+    assert filtered_page.status_code == 200
+    assert filtered_page.json()["total"] == 1
+    assert [item["id"] for item in filtered_page.json()["items"]] == [str(succeeded.id)]
+
+    filtered_stats = await client.get(
+        "/admin/generation/jobs/stats", params={"job_id": str(succeeded.id)}, headers=headers
+    )
+    assert filtered_stats.status_code == 200
+    assert {key: filtered_stats.json()[key] for key in ("total", "succeeded", "failed")} == {
+        "total": 1,
+        "succeeded": 1,
+        "failed": 0,
+    }
+
+    invalid_job_id = await client.get(
+        "/admin/generation/jobs", params={"job_id": "not-a-uuid"}, headers=headers
+    )
+    assert invalid_job_id.status_code == 422
+
     detail = await client.get(f"/admin/generation/jobs/{succeeded.id}", headers=headers)
     assert detail.status_code == 200
     body = detail.json()
@@ -204,6 +226,112 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     unsafe_detail = await client.get(f"/admin/motifs/{unsafe_motif.id}", headers=headers)
     assert unsafe_detail.json()["svg_status"] == "unsafe"
     assert unsafe_detail.json()["symbol"] is None
+
+
+async def test_motif_list_searches_fields_and_filters_kst_created_date(
+    client, db_session, settings
+):
+    admin = await make_user(db_session, role="admin")
+    headers = auth_headers(admin, settings)
+    motifs = [
+        Motif(
+            id="motif-id-needle",
+            symbol='<symbol id="motif-id-needle"/>',
+            color_slots=["s0"],
+            bbox=[0, 0, 1, 1],
+            anchor=[0.5, 0.5],
+            subject="Rose",
+            scope="whole",
+            source="seed",
+            created_at=datetime(2026, 6, 30, 15, 0, tzinfo=UTC),
+        ),
+        Motif(
+            id="motif-subject",
+            symbol='<symbol id="motif-subject"/>',
+            color_slots=["s0"],
+            bbox=[0, 0, 1, 1],
+            anchor=[0.5, 0.5],
+            subject="Needle Flower",
+            scope="partial",
+            source="catalog",
+            created_at=datetime(2026, 7, 1, 14, 59, 59, tzinfo=UTC),
+        ),
+        Motif(
+            id="motif-source",
+            symbol='<symbol id="motif-source"/>',
+            color_slots=["s0"],
+            bbox=[0, 0, 1, 1],
+            anchor=[0.5, 0.5],
+            subject="Plain",
+            scope="whole",
+            source="needle-source",
+            created_at=datetime(2026, 7, 1, 15, 0, tzinfo=UTC),
+        ),
+        Motif(
+            id="motif-literal",
+            symbol='<symbol id="motif-literal"/>',
+            color_slots=["s0"],
+            bbox=[0, 0, 1, 1],
+            anchor=[0.5, 0.5],
+            subject="literal %_ mark",
+            scope="whole",
+            source="seed",
+            created_at=datetime(2026, 7, 1, 3, 0, tzinfo=UTC),
+        ),
+    ]
+    db_session.add_all(motifs)
+    await db_session.commit()
+
+    for query, expected_id in (
+        ("id-needle", "motif-id-needle"),
+        ("NEEDLE FLOWER", "motif-subject"),
+        ("needle-source", "motif-source"),
+        ("%_", "motif-literal"),
+    ):
+        searched = await client.get("/admin/motifs", params={"q": query}, headers=headers)
+        assert searched.status_code == 200
+        assert [item["id"] for item in searched.json()["items"]] == [expected_id]
+
+    filtered = await client.get(
+        "/admin/motifs",
+        params={"scope": "whole", "source": "seed"},
+        headers=headers,
+    )
+    assert filtered.status_code == 200
+    assert {item["id"] for item in filtered.json()["items"]} == {
+        "motif-id-needle",
+        "motif-literal",
+    }
+
+    dated = await client.get(
+        "/admin/motifs",
+        params={"start_date": "2026-07-01", "end_date": "2026-07-01"},
+        headers=headers,
+    )
+    assert dated.status_code == 200
+    assert {item["id"] for item in dated.json()["items"]} == {
+        "motif-id-needle",
+        "motif-subject",
+        "motif-literal",
+    }
+
+    invalid_range = await client.get(
+        "/admin/motifs",
+        params={"start_date": "2026-07-02", "end_date": "2026-07-01"},
+        headers=headers,
+    )
+    assert invalid_range.status_code == 400
+    assert invalid_range.json()["code"] == "invalid_range"
+
+    assert (
+        await client.get("/admin/motifs", params={"q": "x"}, headers=headers)
+    ).status_code == 422
+    assert (
+        await client.get("/admin/motifs", params={"q": "x" * 101}, headers=headers)
+    ).status_code == 422
+    blank_search = await client.get("/admin/motifs", params={"q": "  "}, headers=headers)
+    assert blank_search.status_code == 400
+    assert blank_search.json()["code"] == "invalid_search"
 
 
 async def test_seamless_reference_image_is_relation_checked_and_never_exposes_object_key(

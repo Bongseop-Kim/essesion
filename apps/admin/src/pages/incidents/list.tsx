@@ -1,7 +1,8 @@
 import type { PaymentIncidentSummaryOut } from "@essesion/api-client";
 import { adminListPaymentIncidentsOptions } from "@essesion/api-client/query";
-import { HStack, Text, VStack } from "@essesion/shared";
+import { Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
@@ -10,11 +11,13 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
@@ -107,10 +110,18 @@ export function IncidentsPage() {
   const incidentType = (parsed.type ?? "all") as IncidentType;
   const status = (parsed.status ?? "open") as IncidentStatus;
   const sort = (parsed.sort ?? "created_at") as IncidentSort;
+  const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
+  const [draftStatus, setDraftStatus] = useState<IncidentStatus>(status);
+  const [draftIncidentType, setDraftIncidentType] =
+    useState<IncidentType>(incidentType);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
 
   const query = useQuery({
     ...adminListPaymentIncidentsOptions({
       query: {
+        q: search,
         incident_type: incidentType,
         status,
         start_date: parsed.from,
@@ -148,45 +159,23 @@ export function IncidentsPage() {
         description="결제·취소의 불확실한 상태를 조회하고 안전하게 대사합니다."
       />
 
-      <AdminCard title="필터">
-        <HStack gap="x3" align="flex-end" wrap>
-          <FilterSelect
-            label="이상 유형"
-            value={incidentType}
-            options={INCIDENT_TYPES}
-            onValueChange={(value) => replaceQuery({ type: value, page: 1 })}
-          />
-          <FilterSelect
-            label="상태"
-            value={status}
-            options={[
-              { value: "all", label: "전체" },
-              { value: "open", label: "미해결" },
-              { value: "resolved", label: "해결" },
-            ]}
-            onValueChange={(value) => replaceQuery({ status: value, page: 1 })}
-          />
-          <DateRangeFilters
-            from={parsed.from}
-            to={parsed.to}
-            onFromChange={(from) => replaceQuery({ from, page: 1 })}
-            onToChange={(to) => replaceQuery({ to, page: 1 })}
-          />
-        </HStack>
-      </AdminCard>
-
       <PaginatedAdminTableCard
         title="결제 이상 목록"
-        description={`총 ${query.data?.total ?? 0}건 · 미해결 목록은 30초마다 갱신`}
+        description="미해결 목록은 30초마다 갱신"
         label="결제 이상 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(row) => row.id}
         onRowClick={(row) => navigate(`/incidents/${row.id}`)}
         status={
-          query.isLoading ? "loading" : query.isError ? "error" : "success"
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
         total={query.data?.total}
+        limit={parsed.limit}
         sort={{ key: sort, direction: parsed.direction }}
         onSort={({ key, direction }) =>
           replaceQuery({ sort: key, direction, page: 1 })
@@ -198,6 +187,133 @@ export function IncidentsPage() {
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="결제 이상 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
+                  label="결제 이상·요청 ID 검색"
+                  placeholder="2자 이상 입력"
+                  maxLength={128}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="상태"
+                    presentation="inline"
+                    value={draftStatus}
+                    options={[
+                      { value: "all", label: "전체" },
+                      { value: "open", label: "미해결" },
+                      { value: "resolved", label: "해결" },
+                    ]}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as IncidentStatus)
+                    }
+                  />
+                  <FilterSelect
+                    label="이상 유형"
+                    presentation="inline"
+                    value={draftIncidentType}
+                    options={INCIDENT_TYPES}
+                    onValueChange={(value) =>
+                      setDraftIncidentType(value as IncidentType)
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(status !== "open") +
+                Number(incidentType !== "all") +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              secondaryTitle="결제 이상 필터"
+              secondaryDescription="상태, 이상 유형, 조회 기간을 한 번에 적용합니다."
+              onOpenSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftIncidentType(incidentType);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftIncidentType(incidentType);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({
+                  status: draftStatus === "open" ? undefined : draftStatus,
+                  type: draftIncidentType,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: 1,
+                });
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                incidentType !== "all" && {
+                  key: "type",
+                  label: `유형: ${incidentTypeLabel(incidentType)}`,
+                  onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+                },
+                status !== "open" && {
+                  key: "status",
+                  label: `상태: ${status === "all" ? "전체" : "해결"}`,
+                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: "created_at",
+                  direction: "desc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
       />
     </VStack>
   );

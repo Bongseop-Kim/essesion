@@ -13,6 +13,7 @@ from sqlalchemy import func, or_, select
 
 from api.db import SessionDep
 from api.deps import AdminUser
+from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.schemas import Page
 from api.domains.admin.types import SortDirection
 from api.domains.tokens import ledger
@@ -29,6 +30,8 @@ MAX_LIMIT = 100
 class CustomerSearchRequest(BaseModel):
     q: str = Field(min_length=2, max_length=100)
     status: CustomerStatus = "all"
+    start_date: date | None = None
+    end_date: date | None = None
     sort: CustomerSort = "created_at"
     direction: SortDirection = "desc"
     limit: int = Field(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT)
@@ -112,7 +115,12 @@ def _escape_like(value: str) -> str:
     return f"%{escaped}%"
 
 
-def _summary_query(status: CustomerStatus, q: str | None = None):
+def _summary_query(
+    status: CustomerStatus,
+    q: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+):
     token_total = (
         select(func.coalesce(func.sum(DesignToken.amount), 0))
         .where(
@@ -144,6 +152,11 @@ def _summary_query(status: CustomerStatus, q: str | None = None):
         order_count.label("order_count"),
         active_coupon_count.label("active_coupon_count"),
     ).where(*_customer_filters(status))
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    if start_at is not None:
+        query = query.where(User.created_at >= start_at)
+    if end_at is not None:
+        query = query.where(User.created_at < end_at)
     if q is not None:
         pattern = _escape_like(q)
         query = query.where(
@@ -161,12 +174,14 @@ async def _customer_page(
     *,
     status: CustomerStatus,
     q: str | None,
+    start_date: date | None,
+    end_date: date | None,
     sort: CustomerSort,
     direction: SortDirection,
     limit: int,
     offset: int,
 ) -> Page[AdminCustomerSummaryOut]:
-    query = _summary_query(status, q)
+    query = _summary_query(status, q, start_date, end_date)
     total = int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
     primary = User.created_at if sort == "created_at" else User.name
     ordering = primary.asc() if direction == "asc" else primary.desc()
@@ -199,6 +214,8 @@ async def list_admin_customers(
     session: SessionDep,
     admin: AdminUser,
     status: CustomerStatus = "all",
+    start_date: date | None = None,
+    end_date: date | None = None,
     sort: CustomerSort = "created_at",
     direction: SortDirection = "desc",
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
@@ -208,6 +225,8 @@ async def list_admin_customers(
         session,
         status=status,
         q=None,
+        start_date=start_date,
+        end_date=end_date,
         sort=sort,
         direction=direction,
         limit=limit,

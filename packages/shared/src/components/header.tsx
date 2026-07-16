@@ -1,9 +1,10 @@
 import type { MouseEventHandler, ReactNode } from "react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import { cn } from "../cn";
 import { ActionButton } from "./action-button";
 import { Box } from "./box";
+import { Divider } from "./divider";
 import { LayoutContent, type LayoutContentProps } from "./layout";
 import { ScrollFog } from "./scroll-fog";
 import { SidePanel } from "./side-panel";
@@ -14,6 +15,12 @@ export type HeaderNavItem = {
   href: string;
   label: string;
   key?: string;
+};
+
+export type HeaderNavGroup = {
+  key: string;
+  label: string | null;
+  items: readonly HeaderNavItem[];
 };
 
 export type HeaderLinkProps = {
@@ -28,7 +35,8 @@ export type HeaderProps = {
   brandLabel: string;
   brandHref: string;
   brandLogoSrc?: string;
-  navItems: HeaderNavItem[];
+  navItems: readonly HeaderNavItem[];
+  mobileNavGroups?: readonly HeaderNavGroup[];
   activePathname: string;
   renderLink: (item: HeaderNavItem, props: HeaderLinkProps) => ReactNode;
   menuIcon: ReactNode;
@@ -51,6 +59,7 @@ export function Header({
   brandHref,
   brandLogoSrc,
   navItems,
+  mobileNavGroups,
   activePathname,
   renderLink,
   menuIcon,
@@ -62,6 +71,9 @@ export function Header({
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const brandItem = { href: brandHref, label: brandLabel, key: "brand" };
+  const mobileGroups = mobileNavGroups ?? [
+    { key: "navigation", label: null, items: navItems },
+  ];
 
   return (
     <>
@@ -169,22 +181,44 @@ export function Header({
             : mobileMenuFooter
         }
       >
-        <VStack gap="x1">
-          {navItems.map((item) => {
-            const active = isActivePath(activePathname, item.href);
-            return renderLink(item, {
-              className: cn(
-                "flex min-h-13 w-full items-center rounded-r2 px-x3 text-t5 font-medium",
-                "transition-colors duration-100 ease-standard",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
-                active
-                  ? "bg-bg-neutral-weak text-fg-neutral"
-                  : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
-              ),
-              "aria-current": active ? "page" : undefined,
-              onClick: () => setMenuOpen(false),
-              children: item.label,
-            });
+        <VStack gap="x2" alignItems="stretch">
+          {mobileGroups.map((group, index) => {
+            return (
+              <Fragment key={group.key}>
+                {index === 0 ? null : (
+                  <Box px="x3">
+                    <Divider />
+                  </Box>
+                )}
+                <VStack
+                  as={group.label === null ? "div" : "section"}
+                  gap="x1"
+                  alignItems="stretch"
+                  aria-label={group.label ?? undefined}
+                >
+                  {group.items.map((item) => {
+                    const active = isActivePath(activePathname, item.href);
+                    return (
+                      <Fragment key={item.key ?? item.href}>
+                        {renderLink(item, {
+                          className: cn(
+                            "flex min-h-13 w-full items-center rounded-r2 px-x3 text-t5 font-medium",
+                            "transition-colors duration-100 ease-standard",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                            active
+                              ? "bg-bg-neutral-weak text-fg-neutral"
+                              : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
+                          ),
+                          "aria-current": active ? "page" : undefined,
+                          onClick: () => setMenuOpen(false),
+                          children: item.label,
+                        })}
+                      </Fragment>
+                    );
+                  })}
+                </VStack>
+              </Fragment>
+            );
           })}
         </VStack>
       </SidePanel>

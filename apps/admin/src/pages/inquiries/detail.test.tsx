@@ -52,17 +52,56 @@ describe("InquiryDetailPage", () => {
     api.get.mockResolvedValue(inquiry);
   });
 
-  it("stale 오류에 작성 답변을 유지하고 중복 mutation payload에 revision을 포함한다", async () => {
+  it("기본 화면은 답변을 읽기 전용으로 두고 명시적 작성 버튼만 제공한다", async () => {
+    renderPage();
+
+    await screen.findByRole("heading", { name: "배송 문의", level: 1 });
+    expect(screen.queryByRole("textbox", { name: /^답변/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "답변 작성" })).toBeTruthy();
+    expect(screen.getByText("아직 등록된 답변이 없습니다.")).toBeTruthy();
+  });
+
+  it("답변 수정 취소 시 기존 읽기 전용 답변으로 복귀한다", async () => {
+    const user = userEvent.setup();
+    api.get.mockResolvedValue({
+      ...inquiry,
+      status: "답변완료",
+      answer: "오늘 출고했습니다.",
+      answer_date: "2026-07-12T02:00:00Z",
+      answered_by: "admin-1",
+      answer_actor: { id: "admin-1", name: "운영자", email: null },
+    });
+    renderPage();
+
+    expect(await screen.findByText("오늘 출고했습니다.")).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: /^답변/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "답변 수정" }));
+    const field = screen.getByRole("textbox", {
+      name: /^답변/,
+    }) as HTMLTextAreaElement;
+    await user.clear(field);
+    await user.type(field, "내일 출고합니다.");
+    await user.click(screen.getByRole("button", { name: "편집 취소" }));
+
+    expect(screen.queryByRole("textbox", { name: /^답변/ })).toBeNull();
+    expect(screen.getByText("오늘 출고했습니다.")).toBeTruthy();
+  });
+
+  it("미리보기 뒤 구체적인 버튼으로 저장하고 stale 오류에도 작성 답변을 유지한다", async () => {
     const user = userEvent.setup();
     api.answer.mockRejectedValue(new Error("다른 관리자가 먼저 답변했습니다."));
     renderPage();
 
-    const field = await screen.findByRole("textbox", { name: /^답변/ });
+    await screen.findByRole("heading", { name: "배송 문의", level: 1 });
+    await user.click(screen.getByRole("button", { name: "답변 작성" }));
+    const field = screen.getByRole("textbox", { name: /^답변/ });
     await user.type(field, "내일 출고 예정입니다.");
-    await user.click(screen.getByRole("button", { name: "답변 확인" }));
-    await user.click(screen.getByRole("button", { name: "저장" }));
+    await user.click(screen.getByRole("button", { name: "답변 미리보기" }));
+    expect(screen.getByText("내일 출고 예정입니다.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "답변 등록" }));
 
     expect(await screen.findByText("답변을 저장하지 못했습니다")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "내용 수정" }));
     expect(
       (screen.getByRole("textbox", { name: /^답변/ }) as HTMLTextAreaElement)
         .value,
@@ -86,7 +125,9 @@ describe("InquiryDetailPage", () => {
     api.answer.mockRejectedValue(new Error("동시 수정 충돌"));
     const { queryClient } = renderPage();
 
-    const field = await screen.findByRole("textbox", { name: /^답변/ });
+    await screen.findByRole("heading", { name: "배송 문의", level: 1 });
+    await user.click(screen.getByRole("button", { name: "답변 작성" }));
+    const field = screen.getByRole("textbox", { name: /^답변/ });
     await user.type(field, "내일 출고 예정입니다.");
     act(() => {
       queryClient.setQueryData(["inquiry"], {
@@ -96,8 +137,8 @@ describe("InquiryDetailPage", () => {
       });
     });
 
-    await user.click(screen.getByRole("button", { name: "답변 확인" }));
-    await user.click(screen.getByRole("button", { name: "저장" }));
+    await user.click(screen.getByRole("button", { name: "답변 미리보기" }));
+    await user.click(screen.getByRole("button", { name: "답변 등록" }));
 
     await waitFor(() =>
       expect(api.answer).toHaveBeenCalledWith(

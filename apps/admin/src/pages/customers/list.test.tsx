@@ -1,8 +1,9 @@
 import type { PageAdminCustomerSummaryOut } from "@essesion/api-client";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { pickOption } from "../../test/pickers";
 import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
@@ -42,8 +43,18 @@ const page: PageAdminCustomerSummaryOut = {
   offset: 0,
 };
 
+function LocationProbe() {
+  return <output aria-label="현재 URL">{useLocation().search}</output>;
+}
+
 function renderPage(entry = "/customers") {
-  return renderAdminPage(<CustomersPage />, { entry });
+  return renderAdminPage(
+    <>
+      <CustomersPage />
+      <LocationProbe />
+    </>,
+    { entry },
+  );
 }
 
 describe("CustomersPage", () => {
@@ -65,6 +76,8 @@ describe("CustomersPage", () => {
       expect.objectContaining({
         query: {
           status: "inactive",
+          start_date: undefined,
+          end_date: undefined,
           sort: "name",
           direction: "desc",
           limit: 50,
@@ -77,23 +90,77 @@ describe("CustomersPage", () => {
 
   it("PII 검색어를 query string이 아닌 request body로만 보낸다", async () => {
     const user = userEvent.setup();
-    renderPage();
+    renderPage("/customers?from=2026-07-01&to=2026-07-12");
     await screen.findByText("홍길동");
 
-    await user.type(
-      screen.getByLabelText("이름·이메일·전화번호 검색"),
-      "01012345678",
+    const searchInput = screen.getByLabelText("이름·이메일·전화번호 검색");
+    const searchForm = searchInput.closest("form");
+    expect(searchForm?.style.width).toBe("100%");
+    expect((searchForm?.firstElementChild as HTMLElement).style.flex).toBe(
+      "1 1 0%",
     );
+    expect((searchForm?.firstElementChild as HTMLElement).style.minWidth).toBe(
+      "0",
+    );
+
+    await user.type(searchInput, "01012345678");
     await user.click(screen.getByRole("button", { name: "검색" }));
 
     await waitFor(() =>
       expect(api.search).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.objectContaining({ q: "01012345678" }),
+          body: expect.objectContaining({
+            q: "01012345678",
+            start_date: "2026-07-01",
+            end_date: "2026-07-12",
+          }),
           throwOnError: true,
         }),
       ),
     );
     expect(api.list).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("현재 URL").textContent).not.toContain(
+      "01012345678",
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "검색: 01012345678 필터 제거",
+      }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+
+    expect(
+      (screen.getByLabelText("이름·이메일·전화번호 검색") as HTMLInputElement)
+        .value,
+    ).toBe("");
+    expect(screen.queryByRole("group", { name: "적용된 필터" })).toBeNull();
+    expect(screen.getByLabelText("현재 URL").textContent).not.toContain(
+      "01012345678",
+    );
+  });
+
+  it("공유 피커에서 계정 상태를 선택하면 즉시 URL과 조회에 반영한다", async () => {
+    const user = userEvent.setup();
+    renderPage("/customers?status=inactive");
+    await screen.findByText("홍길동");
+
+    expect(screen.queryByRole("button", { name: "필터 1" })).toBeNull();
+    await pickOption(user, "계정 상태", "활성");
+
+    await waitFor(() =>
+      expect(api.list).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({
+            status: "active",
+            offset: 0,
+          }),
+          throwOnError: true,
+        }),
+      ),
+    );
+    expect(screen.getByLabelText("현재 URL").textContent).toContain(
+      "status=active",
+    );
   });
 });

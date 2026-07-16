@@ -4,7 +4,7 @@ import type {
   PageCouponAudienceCustomerOut,
   PageIssuedCouponOut,
 } from "@essesion/api-client";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -128,9 +128,9 @@ describe("CouponDetailPage", () => {
     api.getCoupon.mockResolvedValue(coupon);
     api.preview.mockResolvedValue(preview);
     api.listIssued.mockResolvedValue(issuedPage);
-    vi.spyOn(crypto, "randomUUID").mockReturnValue(
-      "00000000-0000-4000-8000-000000000001",
-    );
+    vi.spyOn(crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
+      .mockReturnValue("00000000-0000-4000-8000-000000000002");
   });
 
   it("stale 저장 실패 시 입력과 기준 revision을 보존한다", async () => {
@@ -161,18 +161,52 @@ describe("CouponDetailPage", () => {
     expect((discount as HTMLInputElement).value).toBe("15");
   });
 
-  it("미리보기 고객군을 같은 operation UUID와 사유로 발급한다", async () => {
+  it("대상 미리보기 로딩 중에는 임시 0건 요약을 숨기고 성공 후 범위를 표시한다", async () => {
     const user = userEvent.setup();
-    api.issue.mockRejectedValueOnce(new Error("일시적인 발급 실패"));
+    let resolvePreview:
+      | ((value: PageCouponAudienceCustomerOut) => void)
+      | undefined;
+    api.preview.mockReturnValue(
+      new Promise<PageCouponAudienceCustomerOut>((resolve) => {
+        resolvePreview = resolve;
+      }),
+    );
+    renderPage();
+
+    await user.click(await screen.findByRole("tab", { name: "발급 운영" }));
+    await user.click(screen.getByRole("button", { name: "대상 미리보기" }));
+
+    expect(screen.queryByText(/예상 대상 0명/)).toBeNull();
+    expect(
+      screen.queryByRole("navigation", {
+        name: "쿠폰 대상 미리보기 페이지",
+      }),
+    ).toBeNull();
+    expect(screen.queryByText(/총 0건/)).toBeNull();
+
+    await act(async () => resolvePreview?.(preview));
+    expect(await screen.findByText("1–1 / 총 1건")).toBeTruthy();
+    expect(screen.getByText("페이지당 20개")).toBeTruthy();
+  });
+
+  it("미리보기 고객군 발급의 동일 재시도는 작업 ID를 유지하고 입력 변경 시 교체한다", async () => {
+    const user = userEvent.setup();
+    api.issue.mockRejectedValue(new Error("일시적인 발급 실패"));
     renderPage();
 
     await user.click(await screen.findByRole("tab", { name: "발급 운영" }));
     await user.click(screen.getByRole("button", { name: "대상 미리보기" }));
     expect(await screen.findByText("customer@example.com")).toBeTruthy();
     await user.type(screen.getByLabelText(/발급 사유/), "여름 행사 대상 발급");
-    await user.click(screen.getByRole("button", { name: "발급 내용 확인" }));
+    await user.click(
+      screen.getByRole("button", { name: "쿠폰 1명 발급 검토" }),
+    );
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "발급" }));
+    expect(within(dialog).getByText(/이미 발급된 고객 제외/)).toBeTruthy();
+    expect(within(dialog).getByText(/2027.*8.*31/)).toBeTruthy();
+    await user.click(
+      within(dialog).getByRole("button", { name: "1명에게 쿠폰 발급" }),
+    );
 
     await waitFor(() =>
       expect(api.issue).toHaveBeenCalledWith(
@@ -194,13 +228,41 @@ describe("CouponDetailPage", () => {
       (screen.getByLabelText(/발급 사유/) as HTMLTextAreaElement).value,
     ).toBe("여름 행사 대상 발급");
     expect(
-      screen.getByText(/operation 00000000-0000-4000-8000-000000000001/),
-    ).toBeTruthy();
+      screen.queryByText(/00000000-0000-4000-8000-000000000001/),
+    ).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: "쿠폰 1명 발급 검토" }),
+    );
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "1명에게 쿠폰 발급",
+      }),
+    );
+    await waitFor(() => expect(api.issue).toHaveBeenCalledTimes(2));
+    expect(api.issue.mock.calls[1]?.[0].body.operation_id).toBe(
+      api.issue.mock.calls[0]?.[0].body.operation_id,
+    );
+
+    await user.type(screen.getByLabelText(/발급 사유/), " 추가");
+    expect(screen.queryByText("일시적인 발급 실패")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "쿠폰 1명 발급 검토" }),
+    );
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "1명에게 쿠폰 발급",
+      }),
+    );
+    await waitFor(() => expect(api.issue).toHaveBeenCalledTimes(3));
+    expect(api.issue.mock.calls[2]?.[0].body.operation_id).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    );
   });
 
-  it("활성 발급 건을 operation UUID·사유·확인과 함께 회수한다", async () => {
+  it("활성 발급 건의 대상·영향·사유를 확인하고 회수한다", async () => {
     const user = userEvent.setup();
-    api.revoke.mockRejectedValueOnce(new Error("일시적인 회수 실패"));
+    api.revoke.mockRejectedValue(new Error("일시적인 회수 실패"));
     renderPage();
 
     await user.click(await screen.findByRole("tab", { name: "발급 이력" }));
@@ -208,9 +270,16 @@ describe("CouponDetailPage", () => {
       await screen.findByRole("checkbox", { name: "홍길동 발급 건 선택" }),
     );
     await user.type(screen.getByLabelText(/회수 사유/), "오발급 회수 처리");
-    await user.click(screen.getByRole("button", { name: "회수 내용 확인" }));
+    await user.click(
+      screen.getByRole("button", { name: "쿠폰 1건 회수 검토" }),
+    );
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "회수" }));
+    expect(
+      within(dialog).getByText(/이 화면에서 되돌릴 수 없습니다/),
+    ).toBeTruthy();
+    await user.click(
+      within(dialog).getByRole("button", { name: "쿠폰 1건 회수" }),
+    );
 
     await waitFor(() =>
       expect(api.revoke).toHaveBeenCalledWith(
@@ -228,6 +297,34 @@ describe("CouponDetailPage", () => {
     expect(
       (screen.getByLabelText(/회수 사유/) as HTMLTextAreaElement).value,
     ).toBe("오발급 회수 처리");
+
+    await user.click(
+      screen.getByRole("button", { name: "쿠폰 1건 회수 검토" }),
+    );
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "쿠폰 1건 회수",
+      }),
+    );
+    await waitFor(() => expect(api.revoke).toHaveBeenCalledTimes(2));
+    expect(api.revoke.mock.calls[1]?.[0].body.operation_id).toBe(
+      api.revoke.mock.calls[0]?.[0].body.operation_id,
+    );
+
+    await user.type(screen.getByLabelText(/회수 사유/), " 추가");
+    expect(screen.queryByText("일시적인 회수 실패")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "쿠폰 1건 회수 검토" }),
+    );
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "쿠폰 1건 회수",
+      }),
+    );
+    await waitFor(() => expect(api.revoke).toHaveBeenCalledTimes(3));
+    expect(api.revoke.mock.calls[2]?.[0].body.operation_id).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    );
   });
 
   it("manager에게는 고객군 미리보기만 제공하고 일괄 변경 입력을 숨긴다", async () => {

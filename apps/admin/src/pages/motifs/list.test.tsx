@@ -1,5 +1,6 @@
 import type { MotifDetailOut, PageMotifSummaryOut } from "@essesion/api-client";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -94,7 +95,9 @@ describe("MotifsPage", () => {
     expect(api.listOptions).toHaveBeenCalledWith({
       query: {
         scope: "whole",
-        source: undefined,
+        q: undefined,
+        start_date: undefined,
+        end_date: undefined,
         limit: 50,
         offset: 50,
       },
@@ -106,6 +109,98 @@ describe("MotifsPage", () => {
 
     const link = await screen.findByRole("link", { name: "동백꽃" });
     expect(link.getAttribute("href")).toBe("/motifs/motif-1");
+  });
+
+  it("검색과 생성일 필터를 적용하고 칩·전체 초기화로 해제한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("table", { name: "Motif 목록" });
+
+    await user.type(
+      screen.getByLabelText("Motif ID·이름·소스 검색"),
+      "motif-1",
+    );
+    await user.click(screen.getByRole("button", { name: "검색" }));
+    await waitFor(() =>
+      expect(api.listOptions).toHaveBeenLastCalledWith({
+        query: expect.objectContaining({ q: "motif-1", offset: 0 }),
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "필터" }));
+    await user.type(screen.getByLabelText("시작일 (KST)"), "2026-07-01");
+    await user.type(screen.getByLabelText("종료일 (KST)"), "2026-07-12");
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+    await waitFor(() =>
+      expect(api.listOptions).toHaveBeenLastCalledWith({
+        query: expect.objectContaining({
+          q: "motif-1",
+          start_date: "2026-07-01",
+          end_date: "2026-07-12",
+          offset: 0,
+        }),
+      }),
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "검색: motif-1 필터 제거",
+      }),
+    );
+    await waitFor(() =>
+      expect(api.listOptions).toHaveBeenLastCalledWith({
+        query: expect.objectContaining({
+          q: undefined,
+          start_date: "2026-07-01",
+          end_date: "2026-07-12",
+        }),
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+    await waitFor(() =>
+      expect(api.listOptions).toHaveBeenLastCalledWith({
+        query: expect.objectContaining({
+          q: undefined,
+          start_date: undefined,
+          end_date: undefined,
+        }),
+      }),
+    );
+    expect(
+      (screen.getByLabelText("Motif ID·이름·소스 검색") as HTMLInputElement)
+        .value,
+    ).toBe("");
+  });
+
+  it("범위 필터 초안은 취소하면 버리고 적용할 때 조회한다", async () => {
+    const user = userEvent.setup();
+    renderPage("/motifs?type=whole");
+    await screen.findByRole("table", { name: "Motif 목록" });
+
+    const requestCount = api.list.mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "필터 1" }));
+    await user.click(screen.getByRole("radio", { name: "부분 모티프" }));
+    await user.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(api.list).toHaveBeenCalledTimes(requestCount);
+
+    await user.click(screen.getByRole("button", { name: "필터 1" }));
+    expect(
+      (
+        screen.getByRole("radio", {
+          name: "전체 모티프",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    await user.click(screen.getByRole("radio", { name: "부분 모티프" }));
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+
+    await waitFor(() =>
+      expect(api.listOptions).toHaveBeenLastCalledWith({
+        query: expect.objectContaining({ scope: "partial", offset: 0 }),
+      }),
+    );
   });
 });
 

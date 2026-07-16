@@ -24,11 +24,17 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
-import { getErrorMessage } from "../shared/lib/format";
+import { formatDateTime, getErrorMessage } from "../shared/lib/format";
 import { useDirtyFormBlocker } from "../shared/lib/use-dirty-form-blocker";
 import { useAdminSession } from "../shared/session/admin-session";
 import { AdminCard } from "../shared/ui/admin-card";
+import { ChangeReviewDialog } from "../shared/ui/change-review-dialog";
+import { EditModeShell } from "../shared/ui/edit-mode-shell";
 import { RouteHeading } from "../shared/ui/route-heading";
+import {
+  AdminTable,
+  type AdminTableColumn,
+} from "../widgets/admin-table/admin-table";
 
 const CATEGORY_TABS = [
   { value: "reform", label: "수선" },
@@ -96,6 +102,30 @@ function pricingDraft(items: readonly PricingValueOut[]) {
   );
 }
 
+function formatPricingAmount(item: PricingValueOut, value = item.amount) {
+  return `${Number(value).toLocaleString("ko-KR")}${item.unit}`;
+}
+
+const readOnlyColumns: readonly AdminTableColumn<PricingValueOut>[] = [
+  {
+    key: "name",
+    header: "항목",
+    render: (item) => pricingLabel(item.key),
+  },
+  {
+    key: "amount",
+    header: "현재 가격",
+    align: "end",
+    render: (item) => formatPricingAmount(item),
+  },
+  {
+    key: "updated",
+    header: "최근 변경",
+    visibility: "medium",
+    render: (item) => formatDateTime(item.updated_at),
+  },
+];
+
 export function PricingPage() {
   const queryClient = useQueryClient();
   const { state } = useAdminSession();
@@ -105,6 +135,7 @@ export function PricingPage() {
   const [reason, setReason] = useState("");
   const [operationId, setOperationId] = useState(newOperationId);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState<string>(CATEGORY_TABS[0].value);
 
   const changed = useMemo(
@@ -116,16 +147,16 @@ export function PricingPage() {
       ),
     [baseItems, draft],
   );
-  const isDirty = changed.length > 0 || reason !== "";
+  const isDirty = editing && (changed.length > 0 || reason !== "");
   const blocker = useDirtyFormBlocker(isDirty);
   const canEdit =
     state.status === "authenticated" && state.session.role === "admin";
 
   useEffect(() => {
-    if (query.data === undefined || isDirty) return;
+    if (query.data === undefined || editing) return;
     setBaseItems(query.data);
     setDraft(pricingDraft(query.data));
-  }, [isDirty, query.data]);
+  }, [editing, query.data]);
 
   const mutation = useMutation({
     ...updateAdminPricingMutation(),
@@ -135,11 +166,20 @@ export function PricingPage() {
       setDraft(pricingDraft(data));
       setReason("");
       setOperationId(newOperationId());
+      queryClient.setQueryData(getAdminPricingQueryKey(), data);
+      setEditing(false);
+      setConfirmOpen(false);
       await queryClient.invalidateQueries({
         queryKey: getAdminPricingQueryKey(),
       });
     },
   });
+
+  const resetFailedOperation = () => {
+    if (!mutation.isError) return;
+    setOperationId(newOperationId());
+    mutation.reset();
+  };
 
   if (query.isLoading) {
     return (
@@ -200,31 +240,47 @@ export function PricingPage() {
     });
   };
 
-  return (
-    <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="가격 관리"
-        description="모든 변경은 서버에서 한 트랜잭션으로 검증·저장됩니다."
-      />
-      {!canEdit && (
-        <Callout
-          tone="informative"
-          title="조회 전용 권한"
-          description="가격 변경은 admin 역할만 실행할 수 있습니다."
-        />
-      )}
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabList aria-label="가격 분류 선택" triggerLayout="fill">
-          {CATEGORY_TABS.map((category) => (
-            <TabTrigger key={category.value} value={category.value}>
-              {category.label}
-            </TabTrigger>
-          ))}
-        </TabList>
+  const startEditing = () => {
+    setBaseItems(query.data);
+    setDraft(pricingDraft(query.data));
+    setReason("");
+    setOperationId(newOperationId());
+    setConfirmOpen(false);
+    mutation.reset();
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setBaseItems(query.data);
+    setDraft(pricingDraft(query.data));
+    setReason("");
+    setOperationId(newOperationId());
+    setConfirmOpen(false);
+    setEditing(false);
+    mutation.reset();
+  };
+
+  const pricingTabs = (
+    <Tabs value={tab} onValueChange={setTab}>
+      <TabList aria-label="가격 분류 선택" triggerLayout="fill">
         {CATEGORY_TABS.map((category) => (
-          <TabContent key={category.value} value={category.value}>
-            <VStack pt="x5" alignItems="stretch">
-              <AdminCard title={`${category.label} 가격`}>
+          <TabTrigger key={category.value} value={category.value}>
+            {category.label}
+          </TabTrigger>
+        ))}
+      </TabList>
+      {CATEGORY_TABS.map((category) => (
+        <TabContent key={category.value} value={category.value}>
+          <VStack pt="x5" alignItems="stretch">
+            <AdminCard
+              title={`${category.label} 가격`}
+              description={
+                editing
+                  ? "숫자는 0 이상 10억 이하의 정수로 입력해 주세요."
+                  : "현재 적용 중인 값과 최근 변경 시각입니다."
+              }
+            >
+              {editing ? (
                 <Grid columns={{ base: 1, md: 2 }} gap="x4">
                   {(groups[category.value] ?? []).map((item) => (
                     <TextField
@@ -234,10 +290,12 @@ export function PricingPage() {
                       max={1_000_000_000}
                       step={1}
                       label={pricingLabel(item.key)}
+                      description={`현재 ${formatPricingAmount(item)}`}
                       suffix={item.unit}
                       value={draft[item.key] ?? String(item.amount)}
-                      disabled={!canEdit || mutation.isPending}
+                      disabled={mutation.isPending}
                       onChange={(event) => {
+                        resetFailedOperation();
                         const value = event.currentTarget.value;
                         setDraft((current) => ({
                           ...current,
@@ -247,59 +305,57 @@ export function PricingPage() {
                     />
                   ))}
                 </Grid>
-              </AdminCard>
-            </VStack>
-          </TabContent>
-        ))}
-      </Tabs>
+              ) : (
+                <AdminTable
+                  label={`${category.label} 가격표`}
+                  columns={readOnlyColumns}
+                  rows={groups[category.value] ?? []}
+                  getRowKey={(item) => item.key}
+                  status="success"
+                  emptyTitle="등록된 가격이 없습니다"
+                />
+              )}
+            </AdminCard>
+          </VStack>
+        </TabContent>
+      ))}
+    </Tabs>
+  );
 
-      {canEdit && (
-        <AdminCard title="변경 확인" description={`operation ${operationId}`}>
-          <VStack gap="x4" alignItems="stretch">
-            {changed.length === 0 ? (
-              <Text color="fg.neutral-muted">변경한 가격이 없습니다.</Text>
-            ) : (
-              <VStack as="ul" gap="x2">
-                {changed.map((item) => (
-                  <Text as="li" key={item.key} textStyle="bodySm">
-                    {pricingLabel(item.key)}: {item.amount} → {draft[item.key]}{" "}
-                    {item.unit}
-                  </Text>
-                ))}
-              </VStack>
-            )}
-            <TextAreaField
-              label="변경 사유"
-              required
-              maxLength={500}
-              value={reason}
-              errorMessage={
-                reason !== "" && reason.trim().length < 3
-                  ? "3자 이상 입력해 주세요."
-                  : undefined
-              }
-              disabled={mutation.isPending}
-              onChange={(event) => setReason(event.currentTarget.value)}
-            />
-            {invalid && (
-              <Callout
-                role="alert"
-                tone="critical"
-                title="가격은 0 이상의 정수여야 합니다"
-              />
-            )}
-            {mutation.isError && (
-              <Callout
-                role="alert"
-                tone="critical"
-                title="가격을 저장하지 못했습니다"
-                description={getErrorMessage(
-                  mutation.error,
-                  "다른 관리자가 먼저 변경했을 수 있습니다. 입력은 보존되며 재조회 후 비교할 수 있습니다.",
-                )}
-              />
-            )}
-            <HStack gap="x2">
+  return (
+    <VStack gap="x6" alignItems="stretch">
+      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
+        <RouteHeading
+          title="가격 관리"
+          description="현재 가격을 확인한 뒤 명시적으로 편집을 시작합니다."
+        />
+        {canEdit && !editing && (
+          <ActionButton onClick={startEditing}>가격 수정</ActionButton>
+        )}
+      </HStack>
+      {!canEdit && (
+        <Callout
+          tone="informative"
+          title="조회 전용 권한"
+          description="가격 변경은 admin 역할만 실행할 수 있습니다."
+        />
+      )}
+      {editing ? (
+        <EditModeShell
+          status={
+            changed.length === 0
+              ? "변경한 가격이 없습니다."
+              : `${changed.length}개 가격을 변경했습니다.`
+          }
+          actions={
+            <>
+              <ActionButton
+                variant="ghost"
+                disabled={mutation.isPending}
+                onClick={cancelEditing}
+              >
+                편집 취소
+              </ActionButton>
               <ActionButton
                 disabled={
                   changed.length === 0 || invalid || reason.trim().length < 3
@@ -307,35 +363,84 @@ export function PricingPage() {
                 loading={mutation.isPending}
                 onClick={() => setConfirmOpen(true)}
               >
-                변경 내용 확인
+                변경 {changed.length}건 검토
               </ActionButton>
-              <ActionButton
-                variant="ghost"
-                disabled={mutation.isPending || changed.length === 0}
-                onClick={() => {
-                  setBaseItems(query.data);
-                  setDraft(pricingDraft(query.data));
-                  setReason("");
+            </>
+          }
+        >
+          {pricingTabs}
+          <AdminCard title="변경 사유와 영향">
+            <VStack gap="x4" alignItems="stretch">
+              {changed.length > 0 && (
+                <VStack as="ul" gap="x2" alignItems="stretch">
+                  {changed.map((item) => (
+                    <Text as="li" key={item.key} textStyle="bodySm">
+                      {pricingLabel(item.key)}: {formatPricingAmount(item)} →{" "}
+                      {formatPricingAmount(item, Number(draft[item.key]))}
+                    </Text>
+                  ))}
+                </VStack>
+              )}
+              <Callout
+                tone="warning"
+                title="저장 즉시 신규 주문 계산에 적용됩니다"
+                description="이미 생성된 주문과 견적의 저장 금액은 변경되지 않습니다."
+              />
+              <TextAreaField
+                label="변경 사유"
+                required
+                maxLength={500}
+                value={reason}
+                errorMessage={
+                  reason !== "" && reason.trim().length < 3
+                    ? "3자 이상 입력해 주세요."
+                    : undefined
+                }
+                disabled={mutation.isPending}
+                onChange={(event) => {
+                  resetFailedOperation();
+                  setReason(event.currentTarget.value);
                 }}
-              >
-                변경 취소
-              </ActionButton>
-            </HStack>
-          </VStack>
-        </AdminCard>
+              />
+              {invalid && (
+                <Callout
+                  role="alert"
+                  tone="critical"
+                  title="가격은 0 이상의 정수여야 합니다"
+                />
+              )}
+              {mutation.isError && (
+                <Callout
+                  role="alert"
+                  tone="critical"
+                  title="가격을 저장하지 못했습니다"
+                  description={getErrorMessage(
+                    mutation.error,
+                    "다른 관리자가 먼저 변경했을 수 있습니다. 입력은 보존되며 재조회 후 비교할 수 있습니다.",
+                  )}
+                />
+              )}
+            </VStack>
+          </AdminCard>
+        </EditModeShell>
+      ) : (
+        pricingTabs
       )}
 
-      <AlertDialog
+      <ChangeReviewDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`${changed.length}개 가격을 변경할까요?`}
-        description={`사유: ${reason.trim()}`}
-        primaryActionProps={{
-          children: "저장",
-          loading: mutation.isPending,
-          onClick: save,
-        }}
-        secondaryActionProps={{ children: "취소" }}
+        title={`${changed.length}개 가격을 즉시 적용할까요?`}
+        items={changed.map((item) => ({
+          label: pricingLabel(item.key),
+          before: formatPricingAmount(item),
+          after: formatPricingAmount(item, Number(draft[item.key])),
+        }))}
+        reason={reason.trim()}
+        impact="신규 주문 계산부터 적용되며 기존 주문·견적의 저장 금액은 유지됩니다."
+        confirmLabel={`가격 ${changed.length}건 적용`}
+        loading={mutation.isPending}
+        onConfirm={save}
       />
       <AlertDialog
         open={blocker.state === "blocked"}

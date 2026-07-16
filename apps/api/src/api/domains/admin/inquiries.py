@@ -1,7 +1,7 @@
 """관리자 문의 목록·상세·답변. PII 가능 검색어는 POST body로만 받는다."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
 from db.models.auth import User
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import SessionDep
 from api.deps import AdminUser
+from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.inquiry_schemas import (
     AdminInquiryActorOut,
     AdminInquiryAnswerRequest,
@@ -38,6 +39,8 @@ def _filters(
     *,
     status: InquiryStatusFilter,
     category: InquiryCategoryFilter,
+    start_date: date | None,
+    end_date: date | None,
     q: str | None,
 ) -> list[ColumnElement[bool]]:
     filters: list[ColumnElement[bool]] = []
@@ -45,6 +48,11 @@ def _filters(
         filters.append(Inquiry.status == status)
     if category != "all":
         filters.append(Inquiry.category == category)
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    if start_at is not None:
+        filters.append(Inquiry.created_at >= start_at)
+    if end_at is not None:
+        filters.append(Inquiry.created_at < end_at)
     if q is not None:
         search = q.strip()
         if len(search) < 2:
@@ -109,13 +117,21 @@ async def _page(
     *,
     status: InquiryStatusFilter,
     category: InquiryCategoryFilter,
+    start_date: date | None,
+    end_date: date | None,
     q: str | None,
     sort: InquirySort,
     direction: SortDirection,
     limit: int,
     offset: int,
 ) -> Page[AdminInquirySummaryOut]:
-    filters = _filters(status=status, category=category, q=q)
+    filters = _filters(
+        status=status,
+        category=category,
+        start_date=start_date,
+        end_date=end_date,
+        q=q,
+    )
     total = int(await session.scalar(select(func.count(Inquiry.id)).where(*filters)) or 0)
     rows = (
         await session.execute(
@@ -162,6 +178,8 @@ async def list_admin_inquiries(
     admin: AdminUser,
     status: InquiryStatusFilter = "all",
     category: InquiryCategoryFilter = "all",
+    start_date: date | None = None,
+    end_date: date | None = None,
     sort: InquirySort = "created_at",
     direction: SortDirection = "desc",
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_LIMIT)] = DEFAULT_PAGE_LIMIT,
@@ -171,6 +189,8 @@ async def list_admin_inquiries(
         session,
         status=status,
         category=category,
+        start_date=start_date,
+        end_date=end_date,
         q=None,
         sort=sort,
         direction=direction,

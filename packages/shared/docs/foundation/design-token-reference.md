@@ -154,6 +154,18 @@ CSS 변수 `--breakpoint-{key}`(값은 `src/breakpoint.ts`와 동기), Tailwind 
 | `lg` | 1280px | `lg:` |
 | `xl` | 1440px | `xl:` |
 
+## 콘텐츠 크기·레이어
+
+프리미티브의 크기와 `zIndex` prop에서 사용하는 시맨틱 토큰이다.
+
+| 토큰 | CSS 변수 | 값 | 용도 |
+|---|---|---|---|
+| `size.field-narrow` | `--size-field-narrow` | 240px | 좁은 단일 필드 |
+| `size.content-scroll` | `--size-content-scroll` | 384px | 스크롤 가능한 상세 콘텐츠 |
+| `size.loading-media` | `--size-loading-media` | 220px | 미디어 로딩 영역 |
+| `size.loading-result` | `--size-loading-result` | 280px | 생성 결과 로딩 영역 |
+| `z.sticky` | `--z-sticky` | 10 | 콘텐츠 내부 sticky 액션 |
+
 ## 이징·duration
 
 이징은 `@theme`, duration은 `:root` 일반 변수(v4에 duration 네임스페이스가 없어 항상 방출). duration은 Tailwind 유틸리티가 생성되지 않으므로 `var(--duration-fast)`로 소비. 상세는 [motion.md](./motion.md).

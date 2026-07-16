@@ -115,6 +115,73 @@ describe("OrdersPage", () => {
     expect(screen.queryByRole("table", { name: "주문 목록" })).toBeNull();
   });
 
+  it("적용 필터를 사람이 읽는 칩으로 표시하고 한 번에 기본값으로 초기화한다", async () => {
+    const user = userEvent.setup();
+    api.list.mockResolvedValue(successPage);
+    renderPage(
+      "/orders?limit=50&type=repair&status=진행중&sort=status&direction=asc&from=2026-07-01&to=2026-07-12",
+    );
+
+    await screen.findByRole("table", { name: "주문 목록" });
+    expect(screen.getByRole("button", { name: "필터 4" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "유형: 수선 필터 제거" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "상태: 진행중 필터 제거" }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("현재 URL").textContent).toBe(
+        "?sort=created_at&direction=desc",
+      ),
+    );
+    expect(screen.queryByRole("group", { name: "적용된 필터" })).toBeNull();
+  });
+
+  it("보조 필터 초안은 취소 시 버리고 적용할 때만 URL과 조회 조건에 반영한다", async () => {
+    const user = userEvent.setup();
+    api.list.mockResolvedValue(successPage);
+    renderPage();
+
+    await screen.findByRole("table", { name: "주문 목록" });
+    const filterButton = screen.getByRole("button", { name: "필터" });
+    await user.click(filterButton);
+    await user.click(screen.getByRole("radio", { name: "진행중" }));
+    await user.click(screen.getByRole("radio", { name: "수선" }));
+
+    expect(screen.getByLabelText("현재 URL").textContent).toBe("");
+    expect(api.options.mock.lastCall?.[0]).toEqual({
+      query: expect.objectContaining({ order_type: "all" }),
+    });
+
+    await user.click(screen.getByRole("button", { name: "취소" }));
+    expect(screen.getByLabelText("현재 URL").textContent).toBe("");
+
+    await user.click(filterButton);
+    expect(screen.getByRole("radio", { name: "진행중" })).toHaveProperty(
+      "checked",
+      false,
+    );
+    await user.click(screen.getByRole("radio", { name: "수선" }));
+    await user.click(screen.getByRole("radio", { name: "진행중" }));
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("현재 URL").textContent).toBe(
+        "?sort=created_at&direction=desc&status=%EC%A7%84%ED%96%89%EC%A4%91&type=repair",
+      ),
+    );
+    expect(api.options.mock.lastCall?.[0]).toEqual({
+      query: expect.objectContaining({
+        order_type: "repair",
+        status: "진행중",
+      }),
+    });
+  });
+
   it("오류 상태에서 다시 시도해 성공 응답으로 복구한다", async () => {
     const user = userEvent.setup();
     api.list

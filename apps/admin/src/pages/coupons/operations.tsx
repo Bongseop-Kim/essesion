@@ -43,6 +43,7 @@ type AudienceSegment = (typeof AUDIENCE_SEGMENTS)[number]["value"];
 export type CouponOperationsProps = {
   couponId: string;
   couponActive: boolean;
+  couponExpiry: string;
   canManage: boolean;
 };
 
@@ -60,6 +61,7 @@ function changedSelection(
 export function CouponOperations({
   couponId,
   couponActive,
+  couponExpiry,
   canManage,
 }: CouponOperationsProps) {
   const queryClient = useQueryClient();
@@ -83,18 +85,6 @@ export function CouponOperations({
     },
   });
 
-  const runPreview = (page: number) => {
-    previewMutation.mutate({
-      path: { coupon_id: couponId },
-      body: {
-        segment,
-        exclude_issued: excludeIssued,
-        limit: 20,
-        offset: (page - 1) * 20,
-      },
-    });
-  };
-
   const issueMutation = useMutation({
     ...issueCouponMutation(),
     onSuccess: async (result) => {
@@ -108,6 +98,25 @@ export function CouponOperations({
       runPreview(previewPage);
     },
   });
+
+  const resetFailedIssueOperation = () => {
+    if (!issueMutation.isError) return;
+    setOperationId(crypto.randomUUID());
+    issueMutation.reset();
+  };
+
+  function runPreview(page: number) {
+    resetFailedIssueOperation();
+    previewMutation.mutate({
+      path: { coupon_id: couponId },
+      body: {
+        segment,
+        exclude_issued: excludeIssued,
+        limit: 20,
+        offset: (page - 1) * 20,
+      },
+    });
+  }
 
   const selectedIds = Array.from(selectedUsers);
   const preview = previewMutation.data;
@@ -123,15 +132,16 @@ export function CouponOperations({
           aria-label={`${customer.name} 선택`}
           checked={selectedUsers.has(customer.id)}
           disabled={!canManage || issueMutation.isPending}
-          onChange={(event) =>
+          onChange={(event) => {
+            resetFailedIssueOperation();
             setSelectedUsers((current) =>
               changedSelection(
                 current,
                 customer.id,
                 event.currentTarget.checked,
               ),
-            )
-          }
+            );
+          }}
         />
       ),
     },
@@ -195,6 +205,7 @@ export function CouponOperations({
               options={AUDIENCE_SEGMENTS}
               disabled={previewMutation.isPending}
               onValueChange={(value) => {
+                resetFailedIssueOperation();
                 setSegment(value as AudienceSegment);
                 setPreviewPage(1);
                 setSelectedUsers(new Set());
@@ -206,6 +217,7 @@ export function CouponOperations({
               checked={excludeIssued}
               disabled={previewMutation.isPending}
               onChange={(event) => {
+                resetFailedIssueOperation();
                 setExcludeIssued(event.currentTarget.checked);
                 setPreviewPage(1);
                 setSelectedUsers(new Set());
@@ -235,10 +247,12 @@ export function CouponOperations({
 
           {(previewMutation.isPending || preview !== undefined) && (
             <VStack gap="x4" alignItems="stretch">
-              <Text textStyle="bodySm" color="fg.neutral-muted">
-                예상 대상 {preview?.total.toLocaleString("ko-KR") ?? 0}명 · 현재
-                페이지에서 {selectedIds.length.toLocaleString("ko-KR")}명 선택
-              </Text>
+              {!previewMutation.isPending && preview !== undefined && (
+                <Text textStyle="bodySm" color="fg.neutral-muted">
+                  예상 대상 {preview.total.toLocaleString("ko-KR")}명 · 현재
+                  페이지에서 {selectedIds.length.toLocaleString("ko-KR")}명 선택
+                </Text>
+              )}
               <AdminTable
                 label="쿠폰 대상 고객 미리보기"
                 columns={columns}
@@ -248,12 +262,16 @@ export function CouponOperations({
                 total={preview?.total}
                 emptyTitle="조건에 맞는 고객이 없습니다"
               />
-              <Pagination
-                page={Math.min(previewPage, totalPages)}
-                totalPages={totalPages}
-                onPageChange={runPreview}
-                label="쿠폰 대상 미리보기 페이지"
-              />
+              {!previewMutation.isPending && preview !== undefined && (
+                <Pagination
+                  page={Math.min(previewPage, totalPages)}
+                  totalPages={totalPages}
+                  total={preview.total}
+                  limit={20}
+                  onPageChange={runPreview}
+                  label="쿠폰 대상 미리보기 페이지"
+                />
+              )}
             </VStack>
           )}
         </VStack>
@@ -268,7 +286,7 @@ export function CouponOperations({
       ) : (
         <AdminCard
           title="쿠폰 일괄 발급"
-          description={`operation ${operationId}`}
+          description="대상과 발급 조건을 검토한 뒤 한 번에 적용합니다."
         >
           <VStack gap="x4" alignItems="stretch">
             {!couponActive && (
@@ -294,7 +312,10 @@ export function CouponOperations({
                   : undefined
               }
               disabled={issueMutation.isPending}
-              onChange={(event) => setReason(event.currentTarget.value)}
+              onChange={(event) => {
+                resetFailedIssueOperation();
+                setReason(event.currentTarget.value);
+              }}
             />
             {issueMutation.isError && (
               <Callout
@@ -303,7 +324,7 @@ export function CouponOperations({
                 title="쿠폰을 발급하지 못했습니다"
                 description={getErrorMessage(
                   issueMutation.error,
-                  "입력과 operation ID가 유지됩니다. 같은 작업을 안전하게 다시 시도할 수 있습니다.",
+                  "입력은 유지됩니다. 오류 원인을 확인한 뒤 같은 발급 요청을 안전하게 다시 시도할 수 있습니다.",
                 )}
               />
             )}
@@ -318,7 +339,7 @@ export function CouponOperations({
               loading={issueMutation.isPending}
               onClick={() => setConfirmOpen(true)}
             >
-              발급 내용 확인
+              쿠폰 {targetCount.toLocaleString("ko-KR")}명 발급 검토
             </ActionButton>
           </VStack>
         </AdminCard>
@@ -328,9 +349,9 @@ export function CouponOperations({
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${targetCount.toLocaleString("ko-KR")}명에게 쿠폰을 발급할까요?`}
-        description={`사유: ${reason.trim()}\noperation: ${operationId}`}
+        description={`대상: ${selectedIds.length > 0 ? "직접 선택한 고객" : (AUDIENCE_SEGMENTS.find((item) => item.value === segment)?.label ?? segment)} ${targetCount.toLocaleString("ko-KR")}명\n중복 기준: ${excludeIssued ? "이미 발급된 고객 제외" : "기존 발급 여부와 관계없이 서버 중복 규칙 적용"}\n만료일: ${couponExpiry}\n사유: ${reason.trim()}`}
         primaryActionProps={{
-          children: "발급",
+          children: `${targetCount.toLocaleString("ko-KR")}명에게 쿠폰 발급`,
           loading: issueMutation.isPending,
           onClick: issue,
         }}

@@ -6,7 +6,7 @@ worker와 공유하는 allowlist sanitizer를 다시 통과한 payload만 노출
 
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
@@ -20,6 +20,7 @@ from svg_safety import SanitizeError, sanitize_svg
 
 from api.db import SessionDep
 from api.deps import AdminUser, SettingsDep
+from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.quote_schemas import SignedReadUrlOut
 from api.domains.admin.schemas import Page
 from api.errors import DomainError, NotFoundError
@@ -191,6 +192,7 @@ def _milliseconds(value: Decimal | None) -> float | None:
 
 def _job_filters(
     *,
+    job_id: uuid.UUID | None,
     kind: JobKind | None,
     status: JobStatus | None,
     user_id: uuid.UUID | None,
@@ -198,6 +200,8 @@ def _job_filters(
     end: datetime | None,
 ) -> list[ColumnElement[bool]]:
     filters = _period_filters(GenerationJob.created_at, start, end)
+    if job_id is not None:
+        filters.append(GenerationJob.id == job_id)
     if kind is not None:
         filters.append(GenerationJob.kind == kind)
     if status is not None:
@@ -246,13 +250,21 @@ def _result_url(job: GenerationJob, settings) -> str | None:  # noqa: ANN001 —
 async def get_admin_generation_job_stats(
     session: SessionDep,
     admin: AdminUser,
+    job_id: uuid.UUID | None = None,
     kind: JobKind | None = None,
     status: JobStatus | None = None,
     user_id: uuid.UUID | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
 ) -> GenerationJobStatsOut:
-    filters = _job_filters(kind=kind, status=status, user_id=user_id, start=start, end=end)
+    filters = _job_filters(
+        job_id=job_id,
+        kind=kind,
+        status=status,
+        user_id=user_id,
+        start=start,
+        end=end,
+    )
     row = (
         await session.execute(
             select(
@@ -280,6 +292,7 @@ async def get_admin_generation_job_stats(
 async def list_admin_generation_jobs(
     session: SessionDep,
     admin: AdminUser,
+    job_id: uuid.UUID | None = None,
     kind: JobKind | None = None,
     status: JobStatus | None = None,
     user_id: uuid.UUID | None = None,
@@ -288,7 +301,14 @@ async def list_admin_generation_jobs(
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[GenerationJobSummaryOut]:
-    filters = _job_filters(kind=kind, status=status, user_id=user_id, start=start, end=end)
+    filters = _job_filters(
+        job_id=job_id,
+        kind=kind,
+        status=status,
+        user_id=user_id,
+        start=start,
+        end=end,
+    )
     total = int(
         await session.scalar(select(func.count()).select_from(GenerationJob).where(*filters)) or 0
     )
@@ -584,10 +604,18 @@ async def list_admin_motifs(
     admin: AdminUser,
     scope: Literal["whole", "partial"] | None = None,
     source: Annotated[str | None, Query(max_length=50)] = None,
+    q: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[MotifSummaryOut]:
     filters: list[ColumnElement[bool]] = []
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    if start_at is not None:
+        filters.append(Motif.created_at >= start_at)
+    if end_at is not None:
+        filters.append(Motif.created_at < end_at)
     if scope is not None:
         filters.append(Motif.scope == scope)
     if source is not None:
@@ -595,6 +623,15 @@ async def list_admin_motifs(
         if clean_source is None:
             raise DomainError("source 형식이 올바르지 않습니다", code="invalid_source")
         filters.append(Motif.source == clean_source)
+    if q is not None:
+        search = q.strip()
+        if len(search) < 2:
+            raise DomainError("검색어는 2자 이상이어야 합니다", code="invalid_search")
+        filters.append(
+            Motif.id.icontains(search, autoescape=True)
+            | Motif.subject.icontains(search, autoescape=True)
+            | Motif.source.icontains(search, autoescape=True)
+        )
     total = int(await session.scalar(select(func.count()).select_from(Motif).where(*filters)) or 0)
     rows = await session.scalars(
         select(Motif)

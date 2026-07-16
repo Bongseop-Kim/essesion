@@ -9,9 +9,7 @@ import {
   AlertDialog,
   Callout,
   ContentPlaceholder,
-  HStack,
   snackbar,
-  Text,
   TextAreaField,
   TextField,
   VStack,
@@ -23,10 +21,50 @@ import { formatDateTime, getErrorMessage } from "../shared/lib/format";
 import { useDirtyFormBlocker } from "../shared/lib/use-dirty-form-blocker";
 import { useAdminSession } from "../shared/session/admin-session";
 import { AdminCard } from "../shared/ui/admin-card";
+import { ChangeReviewDialog } from "../shared/ui/change-review-dialog";
+import { DetailList } from "../shared/ui/detail-list";
+import { EditModeShell } from "../shared/ui/edit-mode-shell";
 import { RouteHeading } from "../shared/ui/route-heading";
 
 function settingsDraft(items: readonly AdminSettingOut[]) {
   return Object.fromEntries(items.map((item) => [item.key, item.value]));
+}
+
+const SETTING_PRESENTATION: Record<
+  string,
+  { title: string; description: string; scope: string; defaultValue: string }
+> = {
+  default_courier_company: {
+    title: "기본 택배사",
+    description: "운영자가 송장을 등록할 때 기본으로 제안하는 택배사입니다.",
+    scope: "새 배송·수거 송장 입력",
+    defaultValue: "롯데택배",
+  },
+  design_token_initial_grant: {
+    title: "신규 사용자 초기 토큰",
+    description: "관리자가 새 계정을 만들 때 최초 지급하는 디자인 토큰입니다.",
+    scope: "변경 후 생성되는 신규 계정",
+    defaultValue: "30개",
+  },
+};
+
+function settingPresentation(item: AdminSettingOut) {
+  return (
+    SETTING_PRESENTATION[item.key] ?? {
+      title: "관리자 설정",
+      description: "서버에서 허용한 운영 설정입니다.",
+      scope: "관련 신규 작업",
+      defaultValue: "확인되지 않음",
+    }
+  );
+}
+
+function formatSettingValue(item: AdminSettingOut, value = item.value) {
+  if (item.value_type !== "non_negative_integer") return value;
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? `${number.toLocaleString("ko-KR")}개`
+    : value;
 }
 
 export function SettingsPage() {
@@ -38,6 +76,7 @@ export function SettingsPage() {
   const [reason, setReason] = useState("");
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const canEdit =
     state.status === "authenticated" && state.session.role === "admin";
 
@@ -49,14 +88,14 @@ export function SettingsPage() {
       ),
     [baseItems, draft],
   );
-  const dirty = changed.length > 0 || reason !== "";
+  const dirty = editingKey !== null && (changed.length > 0 || reason !== "");
   const blocker = useDirtyFormBlocker(dirty);
 
   useEffect(() => {
-    if (query.data === undefined || dirty) return;
+    if (query.data === undefined || editingKey !== null) return;
     setBaseItems(query.data);
     setDraft(settingsDraft(query.data));
-  }, [dirty, query.data]);
+  }, [editingKey, query.data]);
 
   const mutation = useMutation({
     ...updateAdminSettingsMutation(),
@@ -66,11 +105,20 @@ export function SettingsPage() {
       setDraft(settingsDraft(data));
       setReason("");
       setOperationId(crypto.randomUUID());
+      queryClient.setQueryData(getAdminSettingsQueryKey(), data);
+      setEditingKey(null);
+      setConfirmOpen(false);
       await queryClient.invalidateQueries({
         queryKey: getAdminSettingsQueryKey(),
       });
     },
   });
+
+  const resetFailedOperation = () => {
+    if (!mutation.isError) return;
+    setOperationId(crypto.randomUUID());
+    mutation.reset();
+  };
 
   if (query.isLoading) {
     return (
@@ -125,11 +173,148 @@ export function SettingsPage() {
     });
   };
 
+  const startEditing = (key: string) => {
+    setBaseItems(query.data);
+    setDraft(settingsDraft(query.data));
+    setReason("");
+    setOperationId(crypto.randomUUID());
+    setConfirmOpen(false);
+    mutation.reset();
+    setEditingKey(key);
+  };
+
+  const cancelEditing = () => {
+    setBaseItems(query.data);
+    setDraft(settingsDraft(query.data));
+    setReason("");
+    setOperationId(crypto.randomUUID());
+    setConfirmOpen(false);
+    setEditingKey(null);
+    mutation.reset();
+  };
+
+  const settingsCards = (
+    <VStack gap="x4" alignItems="stretch">
+      {baseItems.map((item) => {
+        const presentation = settingPresentation(item);
+        const editing = editingKey === item.key;
+        return (
+          <AdminCard
+            key={item.key}
+            title={presentation.title}
+            description={`${presentation.description} · 최근 변경 ${formatDateTime(item.updated_at)}`}
+            action={
+              canEdit && editingKey === null ? (
+                <ActionButton
+                  variant="neutralOutline"
+                  size="small"
+                  onClick={() => startEditing(item.key)}
+                >
+                  수정
+                </ActionButton>
+              ) : undefined
+            }
+          >
+            {editing ? (
+              <VStack gap="x4" alignItems="stretch">
+                <TextField
+                  type={
+                    item.value_type === "non_negative_integer"
+                      ? "number"
+                      : "text"
+                  }
+                  min={
+                    item.value_type === "non_negative_integer" ? 0 : undefined
+                  }
+                  step={
+                    item.value_type === "non_negative_integer" ? 1 : undefined
+                  }
+                  label={
+                    item.value_type === "courier" ? "택배사명" : "토큰 수량"
+                  }
+                  description={`현재 ${formatSettingValue(item)}`}
+                  suffix={
+                    item.value_type === "non_negative_integer"
+                      ? "개"
+                      : undefined
+                  }
+                  value={draft[item.key] ?? item.value}
+                  disabled={mutation.isPending}
+                  onChange={(event) => {
+                    resetFailedOperation();
+                    const value = event.currentTarget.value;
+                    setDraft((current) => ({
+                      ...current,
+                      [item.key]: value,
+                    }));
+                  }}
+                />
+                {item.key === "design_token_initial_grant" && (
+                  <Callout
+                    tone="warning"
+                    title="신규 계정의 토큰 비용 정책에 영향을 줍니다"
+                    description="기존 계정의 토큰 잔액은 변경되지 않습니다."
+                  />
+                )}
+                <TextAreaField
+                  label="변경 사유"
+                  required
+                  maxLength={500}
+                  value={reason}
+                  errorMessage={
+                    reason !== "" && reason.trim().length < 3
+                      ? "3자 이상 입력해 주세요."
+                      : undefined
+                  }
+                  disabled={mutation.isPending}
+                  onChange={(event) => {
+                    resetFailedOperation();
+                    setReason(event.currentTarget.value);
+                  }}
+                />
+                {invalid && (
+                  <Callout
+                    role="alert"
+                    tone="critical"
+                    title="설정 값을 확인해 주세요"
+                  />
+                )}
+                {mutation.isError && (
+                  <Callout
+                    role="alert"
+                    tone="critical"
+                    title="설정을 저장하지 못했습니다"
+                    description={getErrorMessage(
+                      mutation.error,
+                      "stale 변경일 수 있습니다. 입력은 유지되므로 최신 값을 재조회해 비교해 주세요.",
+                    )}
+                  />
+                )}
+              </VStack>
+            ) : (
+              <DetailList
+                items={[
+                  { label: "현재 값", value: formatSettingValue(item) },
+                  { label: "적용 범위", value: presentation.scope },
+                  { label: "시스템 기본값", value: presentation.defaultValue },
+                  {
+                    label: "마지막 변경",
+                    value: formatDateTime(item.updated_at),
+                  },
+                ]}
+              />
+            )}
+          </AdminCard>
+        );
+      })}
+    </VStack>
+  );
+
   return (
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="설정"
-        description="허용된 typed 설정만 조회·수정하며 임의 key는 서버가 거부합니다."
+        description="현재 값을 확인한 뒤 필요한 설정 한 개만 편집합니다."
       />
       {!canEdit && (
         <Callout
@@ -139,84 +324,24 @@ export function SettingsPage() {
         />
       )}
 
-      {baseItems.map((item) => (
-        <AdminCard
-          key={item.key}
-          title={
-            item.key === "default_courier_company"
-              ? "기본 택배사"
-              : "신규 사용자 초기 토큰"
+      {editingKey === null ? (
+        settingsCards
+      ) : (
+        <EditModeShell
+          status={
+            changed.length === 0
+              ? "변경한 설정이 없습니다."
+              : "설정 1개를 변경했습니다."
           }
-          description={`${item.key} · 마지막 수정 ${formatDateTime(item.updated_at)}`}
-        >
-          <TextField
-            type={
-              item.value_type === "non_negative_integer" ? "number" : "text"
-            }
-            min={item.value_type === "non_negative_integer" ? 0 : undefined}
-            step={item.value_type === "non_negative_integer" ? 1 : undefined}
-            label={item.value_type === "courier" ? "택배사명" : "토큰 수량"}
-            suffix={
-              item.value_type === "non_negative_integer" ? "개" : undefined
-            }
-            value={draft[item.key] ?? item.value}
-            disabled={!canEdit || mutation.isPending}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              setDraft((current) => ({
-                ...current,
-                [item.key]: value,
-              }));
-            }}
-          />
-        </AdminCard>
-      ))}
-
-      {canEdit && (
-        <AdminCard title="변경 확인" description={`operation ${operationId}`}>
-          <VStack gap="x4" alignItems="stretch">
-            {changed.length === 0 ? (
-              <Text color="fg.neutral-muted">변경한 설정이 없습니다.</Text>
-            ) : (
-              <VStack as="ul" gap="x2">
-                {changed.map((item) => (
-                  <Text as="li" key={item.key} textStyle="bodySm">
-                    {item.key}: {item.value} → {draft[item.key]}
-                  </Text>
-                ))}
-              </VStack>
-            )}
-            <TextAreaField
-              label="변경 사유"
-              required
-              maxLength={500}
-              value={reason}
-              errorMessage={
-                reason !== "" && reason.trim().length < 3
-                  ? "3자 이상 입력해 주세요."
-                  : undefined
-              }
-              onChange={(event) => setReason(event.currentTarget.value)}
-            />
-            {invalid && (
-              <Callout
-                role="alert"
-                tone="critical"
-                title="설정 값을 확인해 주세요"
-              />
-            )}
-            {mutation.isError && (
-              <Callout
-                role="alert"
-                tone="critical"
-                title="설정을 저장하지 못했습니다"
-                description={getErrorMessage(
-                  mutation.error,
-                  "stale 변경일 수 있습니다. 입력은 유지되므로 최신 값을 재조회해 비교해 주세요.",
-                )}
-              />
-            )}
-            <HStack gap="x2">
+          actions={
+            <>
+              <ActionButton
+                variant="ghost"
+                disabled={mutation.isPending}
+                onClick={cancelEditing}
+              >
+                편집 취소
+              </ActionButton>
               <ActionButton
                 disabled={
                   changed.length === 0 || invalid || reason.trim().length < 3
@@ -224,35 +349,33 @@ export function SettingsPage() {
                 loading={mutation.isPending}
                 onClick={() => setConfirmOpen(true)}
               >
-                변경 내용 확인
+                설정 변경 검토
               </ActionButton>
-              <ActionButton
-                variant="ghost"
-                disabled={mutation.isPending || changed.length === 0}
-                onClick={() => {
-                  setBaseItems(query.data);
-                  setDraft(settingsDraft(query.data));
-                  setReason("");
-                }}
-              >
-                변경 취소
-              </ActionButton>
-            </HStack>
-          </VStack>
-        </AdminCard>
+            </>
+          }
+        >
+          {settingsCards}
+        </EditModeShell>
       )}
 
-      <AlertDialog
+      <ChangeReviewDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`${changed.length}개 설정을 변경할까요?`}
-        description={`사유: ${reason.trim()}`}
-        primaryActionProps={{
-          children: "저장",
-          loading: mutation.isPending,
-          onClick: save,
-        }}
-        secondaryActionProps={{ children: "취소" }}
+        title="설정 변경을 적용할까요?"
+        items={changed.map((item) => ({
+          label: settingPresentation(item).title,
+          before: formatSettingValue(item),
+          after: formatSettingValue(item, draft[item.key]),
+        }))}
+        reason={reason.trim()}
+        impact={
+          changed[0]?.key === "design_token_initial_grant"
+            ? "변경 후 생성되는 신규 계정에만 적용되며 기존 잔액은 유지됩니다."
+            : "변경 후 입력하는 새 배송·수거 송장에 기본값으로 제안됩니다."
+        }
+        confirmLabel="설정 변경 적용"
+        loading={mutation.isPending}
+        onConfirm={save}
       />
       <AlertDialog
         open={blocker.state === "blocked"}

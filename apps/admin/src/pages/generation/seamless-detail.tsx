@@ -1,11 +1,10 @@
-import type { SafeCandidateOut } from "@essesion/api-client";
+import type { SafeCandidateOut, SeamlessDetailOut } from "@essesion/api-client";
 import {
   createAdminSeamlessReferenceImageReadUrlMutation,
   getAdminSeamlessLogOptions,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
-  Badge,
   Box,
   Callout,
   ContentPlaceholder,
@@ -13,8 +12,6 @@ import {
   HStack,
   ImageFrame,
   Skeleton,
-  Tag,
-  TagGroup,
   Text,
   VStack,
 } from "@essesion/shared";
@@ -30,6 +27,8 @@ import {
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { StatusBadge } from "../../shared/ui/status-badge";
+import { TechnicalDetails } from "../../shared/ui/technical-details";
 import { SafeSvgPreview } from "./safe-svg-preview";
 
 function formatMilliseconds(value: number | null) {
@@ -38,14 +37,44 @@ function formatMilliseconds(value: number | null) {
     : `${Math.round(value).toLocaleString("ko-KR")}ms`;
 }
 
-function SeamlessStatusBadge({ status }: { status: string }) {
-  const tone =
-    status === "success"
-      ? "positive"
-      : status === "error"
-        ? "critical"
-        : "warning";
-  return <Badge tone={tone}>{status}</Badge>;
+const SEAMLESS_STATUS_LABELS: Readonly<
+  Record<SeamlessDetailOut["status"], string>
+> = {
+  success: "성공",
+  partial: "부분 성공",
+  error: "오류",
+};
+
+const INPUT_TYPE_LABELS: Readonly<Record<string, string>> = {
+  intent: "구조화된 디자인 의도",
+  prompt: "텍스트 프롬프트",
+  reference_image: "참고 이미지",
+};
+
+function inputTypeLabel(inputType: string) {
+  return INPUT_TYPE_LABELS[inputType] ?? "알 수 없는 입력 방식";
+}
+
+function warningPresentation(code: string) {
+  if (code === "preview_unavailable") {
+    return {
+      title: "미리보기를 저장하지 못했습니다",
+      description:
+        "후보 SVG를 확인하고, 이미지 미리보기가 필요하면 생성을 다시 실행해 주세요.",
+    };
+  }
+  if (code === "partial_candidates") {
+    return {
+      title: "후보가 일부만 생성되었습니다",
+      description:
+        "반환된 후보를 검토하고, 선택지가 부족하면 같은 조건으로 다시 생성해 주세요.",
+    };
+  }
+  return {
+    title: "생성 결과를 확인해 주세요",
+    description:
+      "입력 조건과 반환된 후보를 검토하고, 결과가 적합하지 않으면 다시 생성해 주세요.",
+  };
 }
 
 function CandidateCard({
@@ -55,37 +84,14 @@ function CandidateCard({
   candidate: SafeCandidateOut;
   index: number;
 }) {
-  const label = candidate.id ?? `후보 ${index + 1}`;
+  const label = `후보 ${index + 1}`;
   return (
-    <AdminCard title={label} description={`SVG 상태: ${candidate.svg_status}`}>
-      <VStack gap="x4" alignItems="stretch">
-        <SafeSvgPreview
-          svg={candidate.svg}
-          status={candidate.svg_status}
-          alt={`${label} 안전 미리보기`}
-        />
-        <DetailList
-          items={[
-            {
-              label: "디자인 인덱스",
-              value: formatIdentifier(candidate.design_index),
-            },
-            {
-              label: "레이아웃",
-              value: formatIdentifier(candidate.layout_id),
-            },
-            {
-              label: "컬러웨이",
-              value: formatIdentifier(candidate.colorway_id),
-            },
-            {
-              label: "소스 충실도",
-              value: formatIdentifier(candidate.source_fidelity),
-            },
-            { label: "seed", value: formatIdentifier(candidate.seed) },
-          ]}
-        />
-      </VStack>
+    <AdminCard title={label}>
+      <SafeSvgPreview
+        svg={candidate.svg}
+        status={candidate.svg_status}
+        alt={`${label} 안전 미리보기`}
+      />
     </AdminCard>
   );
 }
@@ -202,13 +208,13 @@ export function SeamlessLogDetailPage() {
           title="Seamless 로그 상세"
           description="서버가 다시 검사한 SVG만 격리된 이미지로 표시합니다."
         />
-        <SeamlessStatusBadge status={log.status} />
+        <StatusBadge status={log.status} />
       </HStack>
 
       {log.error_summary !== null && (
         <Callout
           tone="critical"
-          title={log.error_type ?? "생성 오류"}
+          title="생성 오류"
           description={log.error_summary}
         />
       )}
@@ -216,13 +222,10 @@ export function SeamlessLogDetailPage() {
       <AdminCard title="로그 정보">
         <DetailList
           items={[
-            { label: "로그 ID", value: log.id },
-            { label: "요청 ID", value: formatIdentifier(log.request_id) },
-            { label: "상태", value: log.status },
-            { label: "입력 유형", value: log.input_type },
-            { label: "seed", value: formatIdentifier(log.seed) },
+            { label: "상태", value: SEAMLESS_STATUS_LABELS[log.status] },
+            { label: "입력 유형", value: inputTypeLabel(log.input_type) },
             {
-              label: "prompt 보유",
+              label: "프롬프트",
               value: log.has_prompt ? "있음 (내용 비공개)" : "없음",
             },
             {
@@ -232,14 +235,6 @@ export function SeamlessLogDetailPage() {
                 : "없음",
             },
             { label: "생성 시각", value: formatDateTime(log.created_at) },
-            {
-              label: "엔진 버전",
-              value: formatIdentifier(log.engine_version),
-            },
-            {
-              label: "레지스트리 버전",
-              value: formatIdentifier(log.registry_version),
-            },
           ]}
         />
       </AdminCard>
@@ -275,12 +270,23 @@ export function SeamlessLogDetailPage() {
       </AdminCard>
 
       {log.warning_codes.length > 0 && (
-        <AdminCard title="경고 코드">
-          <TagGroup>
-            {log.warning_codes.map((warning) => (
-              <Tag key={warning}>{warning}</Tag>
-            ))}
-          </TagGroup>
+        <AdminCard
+          title="생성 경고"
+          description={`${log.warning_count.toLocaleString("ko-KR")}건의 경고가 기록되었습니다.`}
+        >
+          <VStack gap="x3" alignItems="stretch">
+            {log.warning_codes.map((warning) => {
+              const presentation = warningPresentation(warning);
+              return (
+                <Callout
+                  key={warning}
+                  tone="warning"
+                  title={presentation.title}
+                  description={presentation.description}
+                />
+              );
+            })}
+          </VStack>
         </AdminCard>
       )}
 
@@ -311,6 +317,30 @@ export function SeamlessLogDetailPage() {
           Seamless 로그 목록으로 돌아가기
         </Link>
       </Text>
+
+      <TechnicalDetails
+        json={{
+          log_id: log.id,
+          request_id: log.request_id,
+          status: log.status,
+          input_type: log.input_type,
+          warning_codes: log.warning_codes,
+          error_type: log.error_type,
+          reference_image_id: log.reference_image_id,
+          seed: log.seed,
+          engine_version: log.engine_version,
+          registry_version: log.registry_version,
+          candidates: log.candidates.map((candidate) => ({
+            candidate_id: candidate.id,
+            design_index: candidate.design_index,
+            layout_id: candidate.layout_id,
+            colorway_id: candidate.colorway_id,
+            source_fidelity: candidate.source_fidelity,
+            seed: candidate.seed,
+            svg_status: candidate.svg_status,
+          })),
+        }}
+      />
     </VStack>
   );
 }

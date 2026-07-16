@@ -12,12 +12,15 @@ import { useBlocker } from "react-router";
 export function useDirtyFormBlocker(
   isDirty: boolean,
   bypassRef?: { current: boolean },
+  includeSearchChanges = false,
 ) {
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       isDirty &&
       !bypassRef?.current &&
-      currentLocation.pathname !== nextLocation.pathname,
+      (currentLocation.pathname !== nextLocation.pathname ||
+        (includeSearchChanges &&
+          currentLocation.search !== nextLocation.search)),
   );
 
   useEffect(() => {

@@ -89,11 +89,19 @@ def _date_filters(start_date: date | None, end_date: date | None) -> list[Column
 
 
 def _filters(
-    status: QuoteStatusFilter, start_date: date | None, end_date: date | None
+    status: QuoteStatusFilter,
+    start_date: date | None,
+    end_date: date | None,
+    q: str | None,
 ) -> list[ColumnElement[bool]]:
     filters = _date_filters(start_date, end_date)
     if status != "all":
         filters.append(QuoteRequest.status == status)
+    if q is not None:
+        search = q.strip()
+        if len(search) < 2:
+            raise DomainError("검색어는 2자 이상이어야 합니다", code="invalid_search")
+        filters.append(QuoteRequest.quote_number.icontains(search, autoescape=True))
     return filters
 
 
@@ -211,12 +219,13 @@ async def list_admin_quotes(
     status: QuoteStatusFilter = "all",
     start_date: date | None = None,
     end_date: date | None = None,
+    q: Annotated[str | None, Query(min_length=2, max_length=64)] = None,
     sort: QuoteSort = "created_at",
     direction: SortDirection = "desc",
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_LIMIT)] = DEFAULT_PAGE_LIMIT,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[AdminQuoteSummaryOut]:
-    filters = _filters(status, start_date, end_date)
+    filters = _filters(status, start_date, end_date, q)
     total = int(await session.scalar(select(func.count(QuoteRequest.id)).where(*filters)) or 0)
     rows = (
         await session.execute(

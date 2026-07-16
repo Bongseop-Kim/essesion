@@ -16,7 +16,9 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { formatDateTime, formatMoney } from "../../shared/lib/format";
 import { parseAdminListQuery } from "../../shared/lib/url-query";
 import { useAdminListPageCorrection } from "../../shared/lib/use-admin-list-url-state";
-import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
@@ -27,6 +29,9 @@ import {
   PRODUCT_MATERIALS,
   PRODUCT_PATTERNS,
   type ProductCategory,
+  type ProductColor,
+  type ProductMaterial,
+  type ProductPattern,
 } from "./product-attributes";
 
 const PRODUCT_SORTS = [
@@ -140,6 +145,18 @@ export function ProductsPage() {
   const material = enumParam(params, "material", MATERIALS);
   const search = (params.get("q") ?? "").trim();
   const sort = (parsed.sort ?? "created_at") as ProductSort;
+  const [draftCategory, setDraftCategory] = useState<
+    ProductCategory | undefined
+  >(category);
+  const [draftColor, setDraftColor] = useState<ProductColor | undefined>(color);
+  const [draftPattern, setDraftPattern] = useState<ProductPattern | undefined>(
+    pattern,
+  );
+  const [draftMaterial, setDraftMaterial] = useState<
+    ProductMaterial | undefined
+  >(material);
+  const [draftFrom, setDraftFrom] = useState(parsed.from);
+  const [draftTo, setDraftTo] = useState(parsed.to);
 
   const query = useQuery({
     ...adminListProductsOptions({
@@ -149,6 +166,8 @@ export function ProductsPage() {
         pattern,
         material,
         q: search.length >= 2 ? search : undefined,
+        start_date: parsed.from,
+        end_date: parsed.to,
         sort,
         direction: parsed.direction,
         limit: parsed.limit,
@@ -212,122 +231,26 @@ export function ProductsPage() {
         </ActionButton>
       </HStack>
 
-      <AdminCard title="검색·필터">
-        <VStack gap="x4" alignItems="stretch">
-          <HStack
-            as="form"
-            gap="x2"
-            align="flex-end"
-            wrap
-            onSubmit={submitSearch}
-          >
-            <TextField
-              label="상품명·상품 코드 검색"
-              placeholder="2자 이상 입력"
-              value={searchInput}
-              minLength={2}
-              maxLength={100}
-              onChange={(event) => setSearchInput(event.currentTarget.value)}
-            />
-            <ActionButton
-              type="submit"
-              variant="neutralOutline"
-              disabled={
-                searchInput.trim() !== "" && searchInput.trim().length < 2
-              }
-            >
-              검색
-            </ActionButton>
-            {search !== "" && (
-              <ActionButton
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setSearchInput("");
-                  replaceParams({ q: undefined, page: undefined });
-                }}
-              >
-                검색 초기화
-              </ActionButton>
-            )}
-          </HStack>
-
-          <HStack gap="x3" align="flex-end" wrap>
-            <FilterSelect
-              label="카테고리"
-              value={category ?? "all"}
-              options={[{ value: "all", label: "전체" }, ...PRODUCT_CATEGORIES]}
-              onValueChange={(value) =>
-                replaceParams({
-                  category: value === "all" ? undefined : value,
-                  page: undefined,
-                })
-              }
-            />
-            <FilterSelect
-              label="색상"
-              value={color ?? "all"}
-              options={[{ value: "all", label: "전체" }, ...PRODUCT_COLORS]}
-              onValueChange={(value) =>
-                replaceParams({
-                  color: value === "all" ? undefined : value,
-                  page: undefined,
-                })
-              }
-            />
-            <FilterSelect
-              label="패턴"
-              value={pattern ?? "all"}
-              options={[{ value: "all", label: "전체" }, ...PRODUCT_PATTERNS]}
-              onValueChange={(value) =>
-                replaceParams({
-                  pattern: value === "all" ? undefined : value,
-                  page: undefined,
-                })
-              }
-            />
-            <FilterSelect
-              label="소재"
-              value={material ?? "all"}
-              options={[{ value: "all", label: "전체" }, ...PRODUCT_MATERIALS]}
-              onValueChange={(value) =>
-                replaceParams({
-                  material: value === "all" ? undefined : value,
-                  page: undefined,
-                })
-              }
-            />
-            <FilterSelect
-              label="페이지당 표시"
-              value={String(parsed.limit)}
-              options={[
-                { value: "20", label: "20개" },
-                { value: "50", label: "50개" },
-                { value: "100", label: "100개" },
-              ]}
-              onValueChange={(value) =>
-                replaceParams({
-                  limit: value,
-                  page: undefined,
-                })
-              }
-            />
-          </HStack>
-        </VStack>
-      </AdminCard>
-
       <PaginatedAdminTableCard
         title="상품 목록"
-        description={`총 ${query.data?.total ?? 0}개`}
         label="상품 목록"
         columns={columns}
         rows={query.data?.items}
         getRowKey={(product) => String(product.id)}
         onRowClick={(product) => navigate(`/products/${product.id}`)}
         status={
-          query.isLoading ? "loading" : query.isError ? "error" : "success"
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
         }
         total={query.data?.total}
+        limit={parsed.limit}
+        pageSizeOptions={[20, 50, 100]}
+        onPageSizeChange={(pageSize) =>
+          replaceParams({ limit: String(pageSize), page: undefined })
+        }
         sort={{ key: sort, direction: parsed.direction }}
         onSort={({ key, direction }) =>
           replaceParams({ sort: key, direction, page: undefined })
@@ -341,6 +264,225 @@ export function ProductsPage() {
           replaceParams({ page: page === 1 ? undefined : String(page) })
         }
         paginationLabel="상품 목록 페이지"
+        toolbar={
+          <VStack gap="x3" alignItems="stretch">
+            <CompactFilterToolbar
+              primaryControls={
+                <HStack
+                  as="form"
+                  width="full"
+                  gap="x2"
+                  align="flex-end"
+                  wrap
+                  onSubmit={submitSearch}
+                >
+                  <Box flex={1} minWidth={0}>
+                    <TextField
+                      label="상품명·상품 코드 검색"
+                      placeholder="2자 이상 입력"
+                      value={searchInput}
+                      minLength={2}
+                      maxLength={100}
+                      onChange={(event) =>
+                        setSearchInput(event.currentTarget.value)
+                      }
+                    />
+                  </Box>
+                  <ActionButton
+                    type="submit"
+                    variant="neutralOutline"
+                    disabled={
+                      searchInput.trim() !== "" && searchInput.trim().length < 2
+                    }
+                  >
+                    검색
+                  </ActionButton>
+                  {search !== "" && (
+                    <ActionButton
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setSearchInput("");
+                        replaceParams({ q: undefined, page: undefined });
+                      }}
+                    >
+                      검색 초기화
+                    </ActionButton>
+                  )}
+                </HStack>
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="카테고리"
+                    presentation="inline"
+                    value={draftCategory ?? "all"}
+                    options={[
+                      { value: "all", label: "전체" },
+                      ...PRODUCT_CATEGORIES,
+                    ]}
+                    onValueChange={(value) =>
+                      setDraftCategory(
+                        value === "all"
+                          ? undefined
+                          : (value as ProductCategory),
+                      )
+                    }
+                  />
+                  <FilterSelect
+                    label="색상"
+                    presentation="inline"
+                    value={draftColor ?? "all"}
+                    options={[
+                      { value: "all", label: "전체" },
+                      ...PRODUCT_COLORS,
+                    ]}
+                    onValueChange={(value) =>
+                      setDraftColor(
+                        value === "all" ? undefined : (value as ProductColor),
+                      )
+                    }
+                  />
+                  <FilterSelect
+                    label="패턴"
+                    presentation="inline"
+                    value={draftPattern ?? "all"}
+                    options={[
+                      { value: "all", label: "전체" },
+                      ...PRODUCT_PATTERNS,
+                    ]}
+                    onValueChange={(value) =>
+                      setDraftPattern(
+                        value === "all" ? undefined : (value as ProductPattern),
+                      )
+                    }
+                  />
+                  <FilterSelect
+                    label="소재"
+                    presentation="inline"
+                    value={draftMaterial ?? "all"}
+                    options={[
+                      { value: "all", label: "전체" },
+                      ...PRODUCT_MATERIALS,
+                    ]}
+                    onValueChange={(value) =>
+                      setDraftMaterial(
+                        value === "all"
+                          ? undefined
+                          : (value as ProductMaterial),
+                      )
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(category !== undefined) +
+                Number(color !== undefined) +
+                Number(pattern !== undefined) +
+                Number(material !== undefined) +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              secondaryTitle="상품 상세 필터"
+              secondaryDescription="카테고리·색상·패턴·소재·등록일을 한 번에 적용합니다."
+              onOpenSecondaryFilters={() => {
+                setDraftCategory(category);
+                setDraftColor(color);
+                setDraftPattern(pattern);
+                setDraftMaterial(material);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceParams({
+                  category: draftCategory,
+                  color: draftColor,
+                  pattern: draftPattern,
+                  material: draftMaterial,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: undefined,
+                });
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftCategory(category);
+                setDraftColor(color);
+                setDraftPattern(pattern);
+                setDraftMaterial(material);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search.length >= 2 && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearchInput("");
+                    replaceParams({ q: undefined, page: undefined });
+                  },
+                },
+                category !== undefined && {
+                  key: "category",
+                  label: `카테고리: ${PRODUCT_CATEGORIES.find((item) => item.value === category)?.label ?? category}`,
+                  onRemove: () =>
+                    replaceParams({ category: undefined, page: undefined }),
+                },
+                color !== undefined && {
+                  key: "color",
+                  label: `색상: ${PRODUCT_COLORS.find((item) => item.value === color)?.label ?? color}`,
+                  onRemove: () =>
+                    replaceParams({ color: undefined, page: undefined }),
+                },
+                pattern !== undefined && {
+                  key: "pattern",
+                  label: `패턴: ${PRODUCT_PATTERNS.find((item) => item.value === pattern)?.label ?? pattern}`,
+                  onRemove: () =>
+                    replaceParams({ pattern: undefined, page: undefined }),
+                },
+                material !== undefined && {
+                  key: "material",
+                  label: `소재: ${PRODUCT_MATERIALS.find((item) => item.value === material)?.label ?? material}`,
+                  onRemove: () =>
+                    replaceParams({ material: undefined, page: undefined }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `등록 시작일: ${parsed.from}`,
+                  onRemove: () =>
+                    replaceParams({ from: undefined, page: undefined }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `등록 종료일: ${parsed.to}`,
+                  onRemove: () =>
+                    replaceParams({ to: undefined, page: undefined }),
+                },
+              ]}
+              onReset={() => {
+                setSearchInput("");
+                replaceParams({
+                  q: undefined,
+                  category: undefined,
+                  color: undefined,
+                  pattern: undefined,
+                  material: undefined,
+                  from: undefined,
+                  to: undefined,
+                  page: undefined,
+                });
+              }}
+            />
+          </VStack>
+        }
       />
     </VStack>
   );

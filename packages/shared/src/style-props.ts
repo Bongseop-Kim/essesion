@@ -9,16 +9,24 @@ import type {
   ColorToken,
   RadiusToken,
   ShadowToken,
+  SizeToken,
   SpacingToken,
+  ZIndexToken,
 } from "./tokens";
 
 /* ── 값 타입: 토큰 우선. (string & {})는 CSS 문자열 탈출구 —
    raw 숫자 금지 등 사용 규칙은 packages/shared/AGENTS.md가 강제 ── */
 export type TokenColor = ColorToken | (string & {});
 export type TokenSpacing = 0 | SpacingToken | (string & {});
-export type TokenSize = number | SpacingToken | "full" | (string & {});
+export type TokenSize =
+  | number
+  | SpacingToken
+  | SizeToken
+  | "full"
+  | (string & {});
 export type TokenRadius = 0 | RadiusToken | (string & {});
 export type TokenShadow = ShadowToken | (string & {});
+export type TokenZIndex = number | ZIndexToken | (string & {});
 
 type Resp<T> = ResponsiveValue<T>;
 
@@ -54,7 +62,7 @@ export type BoxStyleProps = {
   overflow?: Resp<OverflowValue>;
   overflowX?: Resp<OverflowValue>;
   overflowY?: Resp<OverflowValue>;
-  zIndex?: Resp<number>;
+  zIndex?: Resp<TokenZIndex>;
 
   width?: Resp<TokenSize>;
   minWidth?: Resp<TokenSize>;
@@ -120,7 +128,16 @@ export function resolveSpacing(value: TokenSpacing | "auto"): string | number {
 
 export function resolveSize(value: TokenSize): string | number {
   if (value === "full") return "100%";
+  if (typeof value === "string" && value.startsWith("size.")) {
+    return `var(--size-${value.slice(5)})`;
+  }
   return typeof value === "string" ? resolveSpacing(value) : value;
+}
+
+export function resolveZIndex(value: TokenZIndex): string | number {
+  return typeof value === "string" && value.startsWith("z.")
+    ? `var(--z-${value.slice(2)})`
+    : value;
 }
 
 const RADIUS_RE = /^(?:r\d+(?:_5)?|full)$/;
@@ -145,6 +162,7 @@ type Kind =
   | "size"
   | "radius"
   | "shadow"
+  | "zIndex"
   | "borderWidth"
   | "grow"
   | "wrap"
@@ -161,7 +179,7 @@ const DEFS: [prop: string, css: string[], kind: Kind][] = [
   ["overflow", ["overflow"], "raw"],
   ["overflowX", ["overflowX"], "raw"],
   ["overflowY", ["overflowY"], "raw"],
-  ["zIndex", ["zIndex"], "raw"],
+  ["zIndex", ["zIndex"], "zIndex"],
   ["width", ["width"], "size"],
   ["minWidth", ["minWidth"], "size"],
   ["maxWidth", ["maxWidth"], "size"],
@@ -213,6 +231,7 @@ const RESOLVERS: Record<Kind, (v: unknown) => string | number> = {
   size: (v) => resolveSize(v as TokenSize),
   radius: (v) => resolveRadius(v as TokenRadius),
   shadow: (v) => resolveShadow(v as TokenShadow),
+  zIndex: (v) => resolveZIndex(v as TokenZIndex),
   borderWidth: (v) => v as number,
   grow: (v) => (v === true ? 1 : (v as number)),
   wrap: (v) => (v === true ? "wrap" : (v as string)),

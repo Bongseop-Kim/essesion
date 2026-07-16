@@ -919,6 +919,10 @@ export type AdminInquirySearchRequest = {
      */
     direction?: 'asc' | 'desc';
     /**
+     * End Date
+     */
+    end_date?: string | null;
+    /**
      * Limit
      */
     limit?: number;
@@ -934,6 +938,10 @@ export type AdminInquirySearchRequest = {
      * Sort
      */
     sort?: 'created_at' | 'updated_at' | 'status';
+    /**
+     * Start Date
+     */
+    start_date?: string | null;
     /**
      * Status
      */
@@ -2784,6 +2792,10 @@ export type CustomerSearchRequest = {
      */
     direction?: 'asc' | 'desc';
     /**
+     * End Date
+     */
+    end_date?: string | null;
+    /**
      * Limit
      */
     limit?: number;
@@ -2799,6 +2811,10 @@ export type CustomerSearchRequest = {
      * Sort
      */
     sort?: 'created_at' | 'name';
+    /**
+     * Start Date
+     */
+    start_date?: string | null;
     /**
      * Status
      */
@@ -6923,6 +6939,18 @@ export type ListAdminCouponsData = {
          */
         status?: 'all' | 'active' | 'inactive';
         /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
          * Sort
          */
         sort?: 'created_at' | 'expiry_date' | 'name';
@@ -7211,6 +7239,14 @@ export type ListAdminCustomersData = {
          * Status
          */
         status?: 'all' | 'active' | 'inactive';
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
         /**
          * Sort
          */
@@ -7528,6 +7564,10 @@ export type ListAdminGenerationJobsData = {
     path?: never;
     query?: {
         /**
+         * Job Id
+         */
+        job_id?: string | null;
+        /**
          * Kind
          */
         kind?: 'finalize' | 'export' | null;
@@ -7581,6 +7621,10 @@ export type GetAdminGenerationJobStatsData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * Job Id
+         */
+        job_id?: string | null;
         /**
          * Kind
          */
@@ -7821,6 +7865,14 @@ export type ListAdminInquiriesData = {
          * Category
          */
         category?: 'all' | '일반' | '상품' | '수선' | '주문제작';
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
         /**
          * Sort
          */
@@ -8117,6 +8169,18 @@ export type ListAdminMotifsData = {
          * Source
          */
         source?: string | null;
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
         /**
          * Limit
          */
@@ -8416,6 +8480,10 @@ export type AdminListPaymentIncidentsData = {
          */
         end_date?: string | null;
         /**
+         * Q
+         */
+        q?: string | null;
+        /**
          * Sort
          */
         sort?: 'created_at' | 'updated_at' | 'status' | 'incident_type';
@@ -8612,6 +8680,14 @@ export type AdminListProductsData = {
          * Q
          */
         q?: string | null;
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
         /**
          * Sort
          */
@@ -8836,6 +8912,10 @@ export type ListAdminQuotesData = {
          * End Date
          */
         end_date?: string | null;
+        /**
+         * Q
+         */
+        q?: string | null;
         /**
          * Sort
          */

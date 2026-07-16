@@ -70,7 +70,14 @@ describe("AdminTable", () => {
       {
         key: "id",
         header: "주문 번호",
-        render: (row) => <a href={`/orders/${row.id}`}>{row.id}</a>,
+        render: (row) => (
+          <a
+            href={`/orders/${row.id}`}
+            onClick={(event) => event.preventDefault()}
+          >
+            {row.id}
+          </a>
+        ),
       },
       ...columns.slice(1),
     ];
