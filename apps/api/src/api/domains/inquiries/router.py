@@ -26,7 +26,7 @@ class InquiryCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1, max_length=5000)
     product_id: int | None = None
-    is_secret: bool = False
+    is_secret: bool = True
 
 
 class InquiryUpdateRequest(BaseModel):

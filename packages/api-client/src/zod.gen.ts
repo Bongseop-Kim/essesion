@@ -1298,7 +1298,7 @@ export const zInquiryCreateRequest = z.object({
         '샘플제작'
     ]).optional().default('일반'),
     content: z.string().min(1).max(5000),
-    is_secret: z.boolean().optional().default(false),
+    is_secret: z.boolean().optional().default(true),
     product_id: z.int().nullish(),
     title: z.string().min(1).max(200)
 });

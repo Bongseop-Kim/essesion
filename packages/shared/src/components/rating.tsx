@@ -92,7 +92,13 @@ export function Rating({
             aria-label={`${star}점`}
             onChange={() => onChange(star)}
           />
-          <span className="block rounded-r1 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring peer-disabled:opacity-50">
+          <span
+            className={cn(
+              "block rounded-r1 transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring peer-disabled:opacity-50",
+              !disabled &&
+                "hover:bg-bg-neutral-weak active:bg-bg-neutral-weak-pressed",
+            )}
+          >
             <Star fill={value >= star ? 1 : 0} />
           </span>
         </label>

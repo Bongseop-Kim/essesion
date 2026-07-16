@@ -62,20 +62,24 @@ export function ReviewFormModal({
   const deleteReview = useMutation(deleteReviewMutation());
   const saving = createReview.isPending || updateReview.isPending;
 
+  // open/target 변경 시 즉시 모드·초안 리셋 — 이전 초안이 로딩 중에 남지 않게 한다.
   useEffect(() => {
     if (!open || !target) return;
+    setEditing(target.reviewId === undefined);
     if (target.reviewId === undefined) {
       setRating(5);
       setContent("");
-      setEditing(true);
-      return;
     }
+  }, [open, target]);
+
+  // 편집 중이 아닐 때만 조회 데이터로 초안 동기화 — 편집 취소 시 서버 값 복원도 담당.
+  useEffect(() => {
+    if (!open || !target?.reviewId || editing) return;
     if (reviewQuery.data?.id === target.reviewId) {
       setRating(reviewQuery.data.rating);
       setContent(reviewQuery.data.content);
-      setEditing(false);
     }
-  }, [open, reviewQuery.data, target]);
+  }, [open, target, editing, reviewQuery.data]);
 
   useEffect(() => () => window.clearTimeout(deleteTimer.current), []);
 
@@ -266,9 +270,16 @@ export function ReviewFormModal({
           children: "삭제",
           variant: "criticalSolid",
           loading: deleteReview.isPending,
-          onClick: () => void confirmDelete(),
+          onClick: (event) => {
+            // 요청 완료 전 닫히지 않도록 기본 닫힘을 막는다 — 성공 시 confirmDelete가 닫는다.
+            event.preventDefault();
+            void confirmDelete();
+          },
         }}
-        secondaryActionProps={{ children: "취소" }}
+        secondaryActionProps={{
+          children: "취소",
+          disabled: deleteReview.isPending,
+        }}
       />
     </>
   );

@@ -6542,7 +6542,7 @@
             "type": "string"
           },
           "is_secret": {
-            "default": false,
+            "default": true,
             "title": "Is Secret",
             "type": "boolean"
           },

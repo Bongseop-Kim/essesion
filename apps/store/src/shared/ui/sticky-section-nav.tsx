@@ -1,6 +1,6 @@
-import { Box, cn, VStack } from "@essesion/shared";
+import { Box, cn, Flex, VStack } from "@essesion/shared";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type StickySection = {
   id: string;
@@ -17,18 +17,44 @@ export function StickySectionNav({
   sections,
   "aria-label": ariaLabel,
 }: StickySectionNavProps) {
-  const [activeId, setActiveId] = useState(sections[0]?.id);
+  const [activeId, setActiveId] = useState(() => {
+    const hash = window.location.hash.slice(1);
+    return sections.some((section) => section.id === hash)
+      ? hash
+      : sections[0]?.id;
+  });
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    // 스크롤 스파이 — sticky 헤더+탭 아래 상단 밴드에 걸린 섹션을 활성으로 표시.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const topmost = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort(
+            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
+          )[0];
+        if (topmost) setActiveId(topmost.target.id);
+      },
+      { rootMargin: "-120px 0px -60% 0px" },
+    );
+    for (const section of sections) {
+      const element = document.getElementById(section.id);
+      if (element) observer.observe(element);
+    }
+    return () => observer.disconnect();
+  }, [sections]);
 
   return (
     <>
-      <Box
+      <Flex
         as="nav"
         aria-label={ariaLabel}
         position="sticky"
         top={{ base: "x14", md: "x16" }}
         zIndex="z.sticky"
         bg="bg.layer-default"
-        className="flex border-b border-stroke-neutral-weak"
+        className="border-b border-stroke-neutral-weak"
       >
         {sections.map((section) => {
           const active = activeId === section.id;
@@ -50,7 +76,7 @@ export function StickySectionNav({
             </a>
           );
         })}
-      </Box>
+      </Flex>
 
       <VStack gap={0} alignItems="stretch">
         {sections.map((section, index) => (

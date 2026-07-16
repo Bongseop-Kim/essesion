@@ -124,6 +124,7 @@ async def test_public_inquiries_mask_secrets_except_for_the_author(client, db_se
             "title": "공개 문의",
             "content": "공개 내용",
             "product_id": product.id,
+            "is_secret": False,
         },
         headers=headers,
     )
@@ -134,7 +135,6 @@ async def test_public_inquiries_mask_secrets_except_for_the_author(client, db_se
             "title": "주문번호가 든 문의",
             "content": "개인정보가 든 내용",
             "product_id": product.id,
-            "is_secret": True,
         },
         headers=headers,
     )
@@ -171,7 +171,12 @@ async def test_public_inquiry_filters_and_sample_category(client, db_session, se
     headers = auth_headers(user, settings)
     created = await client.post(
         "/inquiries",
-        json={"category": "샘플제작", "title": "샘플 문의", "content": "내용"},
+        json={
+            "category": "샘플제작",
+            "title": "샘플 문의",
+            "content": "내용",
+            "is_secret": False,
+        },
         headers=headers,
     )
     assert created.status_code == 201

@@ -286,7 +286,7 @@ export function ReviewsPage() {
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
+          if (!open && !deleteReview.isPending) setDeleteTarget(null);
         }}
         title="후기를 삭제할까요?"
         description="삭제한 후기는 복구할 수 없습니다."
@@ -294,15 +294,20 @@ export function ReviewsPage() {
           children: "삭제",
           variant: "criticalSolid",
           loading: deleteReview.isPending,
-          onClick: () => {
-            if (deleteTarget) {
+          onClick: (event) => {
+            // 요청 완료 전 닫히지 않도록 기본 닫힘을 막고, 성공 시 onSuccess가 닫는다.
+            event.preventDefault();
+            if (deleteTarget && !deleteReview.isPending) {
               deleteReview.mutate({
                 path: { review_id: deleteTarget.id },
               });
             }
           },
         }}
-        secondaryActionProps={{ children: "취소" }}
+        secondaryActionProps={{
+          children: "취소",
+          disabled: deleteReview.isPending,
+        }}
       />
     </VStack>
   );
