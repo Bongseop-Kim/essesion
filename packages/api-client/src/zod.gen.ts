@@ -1489,6 +1489,7 @@ export const zMotifGenerateRequest = z.object({
  * MotifSummaryOut
  */
 export const zMotifSummaryOut = z.object({
+    bbox: z.array(z.number()),
     color_slot_count: z.int(),
     created_at: z.iso.datetime(),
     expression: z.string().nullable(),
@@ -1498,6 +1499,12 @@ export const zMotifSummaryOut = z.object({
     source: z.string(),
     style: z.string().nullable(),
     subject: z.string().nullable(),
+    svg_status: z.enum([
+        'safe',
+        'unavailable',
+        'unsafe'
+    ]),
+    symbol: z.string().nullable(),
     variant_group: z.string().nullable(),
     view: z.string().nullable()
 });

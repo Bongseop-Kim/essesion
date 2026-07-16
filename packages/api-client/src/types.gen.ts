@@ -4129,6 +4129,10 @@ export type MotifSpecIn = {
  */
 export type MotifSummaryOut = {
     /**
+     * Bbox
+     */
+    bbox: Array<number>;
+    /**
      * Color Slot Count
      */
     color_slot_count: number;
@@ -4164,6 +4168,14 @@ export type MotifSummaryOut = {
      * Subject
      */
     subject: string | null;
+    /**
+     * Svg Status
+     */
+    svg_status: 'safe' | 'unavailable' | 'unsafe';
+    /**
+     * Symbol
+     */
+    symbol: string | null;
     /**
      * Variant Group
      */

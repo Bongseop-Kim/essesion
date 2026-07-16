@@ -7557,13 +7557,13 @@
           "variant_group",
           "color_slot_count",
           "created_at",
+          "bbox",
+          "symbol",
+          "svg_status",
           "description",
           "tags",
-          "bbox",
           "anchor",
-          "color_slots",
-          "symbol",
-          "svg_status"
+          "color_slots"
         ],
         "title": "MotifDetailOut",
         "type": "object"
@@ -7700,6 +7700,13 @@
       },
       "MotifSummaryOut": {
         "properties": {
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Bbox",
+            "type": "array"
+          },
           "color_slot_count": {
             "title": "Color Slot Count",
             "type": "integer"
@@ -7772,6 +7779,26 @@
             ],
             "title": "Subject"
           },
+          "svg_status": {
+            "enum": [
+              "safe",
+              "unavailable",
+              "unsafe"
+            ],
+            "title": "Svg Status",
+            "type": "string"
+          },
+          "symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbol"
+          },
           "variant_group": {
             "anyOf": [
               {
@@ -7806,7 +7833,10 @@
           "quality",
           "variant_group",
           "color_slot_count",
-          "created_at"
+          "created_at",
+          "bbox",
+          "symbol",
+          "svg_status"
         ],
         "title": "MotifSummaryOut",
         "type": "object"
