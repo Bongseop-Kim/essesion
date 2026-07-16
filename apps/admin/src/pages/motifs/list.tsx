@@ -1,6 +1,6 @@
 import type { MotifSummaryOut } from "@essesion/api-client";
 import { listAdminMotifsOptions } from "@essesion/api-client/query";
-import { Text, VStack } from "@essesion/shared";
+import { Box, ImageFrame, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -18,6 +18,7 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
+import { motifPreviewDocument } from "./detail";
 
 const SCOPES = ["whole", "partial"] as const;
 
@@ -27,7 +28,34 @@ function isScope(value: string | undefined): value is MotifScope {
   return value !== undefined && SCOPES.includes(value as MotifScope);
 }
 
+function MotifPreviewCell({ motif }: { motif: MotifSummaryOut }) {
+  const doc =
+    motif.svg_status === "safe"
+      ? motifPreviewDocument(motif.symbol, motif.bbox)
+      : null;
+  return (
+    <Box width={44}>
+      <ImageFrame
+        ratio={1}
+        fit="contain"
+        stroke
+        src={
+          doc === null || doc === ""
+            ? undefined
+            : `data:image/svg+xml;utf8,${encodeURIComponent(doc)}`
+        }
+        alt={`${motif.subject ?? motif.id} 미리보기`}
+      />
+    </Box>
+  );
+}
+
 const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
+  {
+    key: "preview",
+    header: "미리보기",
+    render: (motif) => <MotifPreviewCell motif={motif} />,
+  },
   {
     key: "subject",
     header: "Motif",

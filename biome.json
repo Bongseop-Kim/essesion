@@ -10,6 +10,7 @@
       "**",
       "!packages/api-client/src",
       "!packages/api-client/openapi.json",
+      "!apps/worker/scripts/motif_assets",
       "!apps/worker/src/worker/assets",
       "!apps/worker/src/worker/render/assets",
       "!apps/worker/tests/golden",

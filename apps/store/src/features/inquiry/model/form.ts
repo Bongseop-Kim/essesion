@@ -40,6 +40,7 @@ export const DEFAULT_INQUIRY_FORM_VALUES: InquiryFormValues = {
   title: "",
   content: "",
   product_id: null,
+  is_secret: false,
 };
 
 export function inquiryFormValues(
@@ -52,6 +53,7 @@ export function inquiryFormValues(
       title: inquiry.title,
       content: inquiry.content,
       product_id: inquiry.product_id,
+      is_secret: inquiry.is_secret,
     };
   }
   if (prefill) {
@@ -72,5 +74,6 @@ export function inquiryRequestFromForm(
     title: values.title.trim(),
     content: values.content.trim(),
     product_id: values.category === "상품" ? values.product_id : null,
+    is_secret: values.is_secret,
   };
 }

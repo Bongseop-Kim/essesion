@@ -64,6 +64,14 @@ describe("custom order draft account boundary", () => {
   beforeEach(() => {
     sessionStorage.clear();
     vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal(
       "matchMedia",
       vi.fn().mockReturnValue({
         matches: false,

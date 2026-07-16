@@ -2,20 +2,23 @@
 
 import uuid
 from datetime import datetime
-from typing import Literal, cast
+from typing import Annotated, Literal, cast
 
+from db.models.auth import User
 from db.models.commerce import Inquiry
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from api.db import SessionDep
-from api.deps import CurrentUser, ensure_owner
+from api.deps import CurrentUser, OptionalUser, ensure_owner
+from api.domains.reviews.service import masked_author_name
 from api.errors import DomainError
 
 router = APIRouter(tags=["inquiries"])
 
-InquiryCategory = Literal["일반", "상품", "수선", "주문제작"]
+InquiryCategory = Literal["일반", "상품", "수선", "주문제작", "샘플제작"]
+PublicInquiryCategory = Literal["수선", "주문제작", "샘플제작"]
 
 
 class InquiryCreateRequest(BaseModel):
@@ -23,6 +26,7 @@ class InquiryCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1, max_length=5000)
     product_id: int | None = None
+    is_secret: bool = True
 
 
 class InquiryUpdateRequest(BaseModel):
@@ -31,6 +35,7 @@ class InquiryUpdateRequest(BaseModel):
     title: str = Field(default=cast(str, None), min_length=1, max_length=200)
     content: str = Field(default=cast(str, None), min_length=1, max_length=5000)
     product_id: int | None = None
+    is_secret: bool = cast(bool, None)
 
 
 class InquiryOut(BaseModel):
@@ -44,7 +49,29 @@ class InquiryOut(BaseModel):
     answer: str | None
     answer_date: datetime | None
     product_id: int | None
+    is_secret: bool
     created_at: datetime
+
+
+class PublicInquiryOut(BaseModel):
+    id: uuid.UUID
+    category: str
+    title: str
+    content: str | None
+    status: str
+    answer: str | None
+    answer_date: datetime | None
+    created_at: datetime
+    author_name: str
+    is_secret: bool
+    is_mine: bool
+
+
+class PublicInquiryListOut(BaseModel):
+    items: list[PublicInquiryOut]
+    total: int
+    limit: int
+    offset: int
 
 
 @router.post("/inquiries", response_model=InquiryOut, status_code=201)
@@ -64,6 +91,59 @@ async def list_my_inquiries(session: SessionDep, user: CurrentUser) -> list[Inqu
         select(Inquiry).where(Inquiry.user_id == user.id).order_by(Inquiry.created_at.desc())
     )
     return [InquiryOut.model_validate(i) for i in rows]
+
+
+@router.get("/inquiries/public", response_model=PublicInquiryListOut)
+async def list_public_inquiries(
+    session: SessionDep,
+    user: OptionalUser,
+    product_id: Annotated[int | None, Query(ge=1)] = None,
+    category: PublicInquiryCategory | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PublicInquiryListOut:
+    if (product_id is None) == (category is None):
+        raise DomainError(
+            "product_id와 category 중 하나만 지정해 주세요",
+            code="invalid_inquiry_filter",
+            status=422,
+        )
+    filters = (
+        [Inquiry.product_id == product_id, Inquiry.category == "상품"]
+        if product_id is not None
+        else [Inquiry.category == category]
+    )
+    total = int(await session.scalar(select(func.count(Inquiry.id)).where(*filters)) or 0)
+    rows = (
+        await session.execute(
+            select(Inquiry, User)
+            .outerjoin(User, User.id == Inquiry.user_id)
+            .where(*filters)
+            .order_by(Inquiry.created_at.desc(), Inquiry.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    items = []
+    for inquiry, author in rows:
+        is_mine = user is not None and inquiry.user_id == user.id
+        masked = inquiry.is_secret and not is_mine
+        items.append(
+            PublicInquiryOut(
+                id=inquiry.id,
+                category=inquiry.category,
+                title="비밀글입니다" if masked else inquiry.title,
+                content=None if masked else inquiry.content,
+                status=inquiry.status,
+                answer=None if masked else inquiry.answer,
+                answer_date=inquiry.answer_date,
+                created_at=inquiry.created_at,
+                author_name=masked_author_name(author.name if author is not None else None),
+                is_secret=inquiry.is_secret,
+                is_mine=is_mine,
+            )
+        )
+    return PublicInquiryListOut(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/inquiries/{inquiry_id}", response_model=InquiryOut)

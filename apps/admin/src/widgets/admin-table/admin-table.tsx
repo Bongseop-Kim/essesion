@@ -165,7 +165,7 @@ export function AdminTable<Row>({
                     px="x3"
                     py="x2_5"
                     className={cn(
-                      "border-b border-stroke-neutral-weak",
+                      "border-b border-stroke-neutral-weak text-left",
                       visibilityClasses[visibility],
                       column.align === "end" && "text-right tabular-nums",
                     )}
@@ -175,6 +175,7 @@ export function AdminTable<Row>({
                         variant="ghost"
                         size="xsmall"
                         aria-label={`${column.header} 정렬`}
+                        className="-mx-x3"
                         onClick={() => onSort(nextSort(sort, column.key))}
                       >
                         <HStack gap="x1">

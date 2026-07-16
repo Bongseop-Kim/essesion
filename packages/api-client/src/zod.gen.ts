@@ -301,6 +301,7 @@ export const zAdminInquiryDetailOut = z.object({
     created_at: z.iso.datetime(),
     customer: zAdminInquiryCustomerOut.nullable(),
     id: z.uuid(),
+    is_secret: z.boolean(),
     product: zAdminInquiryProductOut.nullable(),
     status: z.string(),
     title: z.string(),
@@ -316,7 +317,8 @@ export const zAdminInquirySearchRequest = z.object({
         '일반',
         '상품',
         '수선',
-        '주문제작'
+        '주문제작',
+        '샘플제작'
     ]).optional().default('all'),
     direction: z.enum(['asc', 'desc']).optional().default('desc'),
     end_date: z.iso.date().nullish(),
@@ -345,6 +347,7 @@ export const zAdminInquirySummaryOut = z.object({
     created_at: z.iso.datetime(),
     customer: zAdminInquiryCustomerOut.nullable(),
     id: z.uuid(),
+    is_secret: z.boolean(),
     product: zAdminInquiryProductOut.nullable(),
     status: z.string(),
     title: z.string(),
@@ -1291,9 +1294,11 @@ export const zInquiryCreateRequest = z.object({
         '일반',
         '상품',
         '수선',
-        '주문제작'
+        '주문제작',
+        '샘플제작'
     ]).optional().default('일반'),
     content: z.string().min(1).max(5000),
+    is_secret: z.boolean().optional().default(true),
     product_id: z.int().nullish(),
     title: z.string().min(1).max(200)
 });
@@ -1308,6 +1313,7 @@ export const zInquiryOut = z.object({
     content: z.string(),
     created_at: z.iso.datetime(),
     id: z.uuid(),
+    is_secret: z.boolean(),
     product_id: z.int().nullable(),
     status: z.string(),
     title: z.string()
@@ -1321,9 +1327,11 @@ export const zInquiryUpdateRequest = z.object({
         '일반',
         '상품',
         '수선',
-        '주문제작'
+        '주문제작',
+        '샘플제작'
     ]).optional(),
     content: z.string().min(1).max(5000).optional(),
+    is_secret: z.boolean().optional(),
     product_id: z.int().nullish(),
     title: z.string().min(1).max(200).optional()
 });
@@ -1481,6 +1489,7 @@ export const zMotifGenerateRequest = z.object({
  * MotifSummaryOut
  */
 export const zMotifSummaryOut = z.object({
+    bbox: z.array(z.number()),
     color_slot_count: z.int(),
     created_at: z.iso.datetime(),
     expression: z.string().nullable(),
@@ -1490,6 +1499,12 @@ export const zMotifSummaryOut = z.object({
     source: z.string(),
     style: z.string().nullable(),
     subject: z.string().nullable(),
+    svg_status: z.enum([
+        'safe',
+        'unavailable',
+        'unsafe'
+    ]),
+    symbol: z.string().nullable(),
     variant_group: z.string().nullable(),
     view: z.string().nullable()
 });
@@ -1543,6 +1558,7 @@ export const zOrderItemOut = z.object({
     line_discount_amount: z.int(),
     product_id: z.int().nullable(),
     quantity: z.int(),
+    review_id: z.uuid().nullish(),
     selected_option_id: z.string().nullable(),
     unit_price: z.int()
 });
@@ -1591,6 +1607,7 @@ export const zOrderOut = z.object({
     order_type: z.string(),
     original_price: z.int(),
     payment_group_id: z.uuid().nullable(),
+    review_id: z.uuid().nullish(),
     shipped_at: z.iso.datetime().nullable(),
     shipping_address_id: z.uuid().nullable(),
     shipping_cost: z.int(),
@@ -2001,6 +2018,33 @@ export const zProfileUpdateRequest = z.object({
 });
 
 /**
+ * PublicInquiryOut
+ */
+export const zPublicInquiryOut = z.object({
+    answer: z.string().nullable(),
+    answer_date: z.iso.datetime().nullable(),
+    author_name: z.string(),
+    category: z.string(),
+    content: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    is_mine: z.boolean(),
+    is_secret: z.boolean(),
+    status: z.string(),
+    title: z.string()
+});
+
+/**
+ * PublicInquiryListOut
+ */
+export const zPublicInquiryListOut = z.object({
+    items: z.array(zPublicInquiryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
  * QuoteOut
  */
 export const zQuoteOut = z.object({
@@ -2301,6 +2345,7 @@ export const zOrderDetailOut = z.object({
     payment_group_id: z.uuid().nullable(),
     repair_pickup: zRepairPickupOut.nullish(),
     repair_receipts: z.array(zRepairShippingReceiptOut).optional(),
+    review_id: z.uuid().nullish(),
     shipped_at: z.iso.datetime().nullable(),
     shipping_address: zOrderShippingAddressOut.nullish(),
     shipping_address_id: z.uuid().nullable(),
@@ -2334,6 +2379,63 @@ export const zRepairTrackingRequest = z.object({
  */
 export const zRestorationReform = z.object({
     memo: z.string().max(200).optional().default('')
+});
+
+/**
+ * ReviewCreateRequest
+ */
+export const zReviewCreateRequest = z.object({
+    content: z.string().min(1).max(1000),
+    order_id: z.uuid(),
+    order_item_id: z.uuid().nullish(),
+    rating: z.int().gte(1).lte(5)
+});
+
+/**
+ * ReviewOut
+ */
+export const zReviewOut = z.object({
+    author_name: z.string(),
+    content: z.string(),
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    order_type: z.enum([
+        'sale',
+        'repair',
+        'custom',
+        'sample'
+    ]),
+    product_id: z.int().nullable(),
+    rating: z.int()
+});
+
+/**
+ * Page[ReviewOut]
+ */
+export const zPageReviewOut = z.object({
+    items: z.array(zReviewOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * ReviewListOut
+ */
+export const zReviewListOut = z.object({
+    avg_rating: z.number(),
+    items: z.array(zReviewOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * ReviewUpdateRequest
+ */
+export const zReviewUpdateRequest = z.object({
+    content: z.string().min(1).max(1000).optional(),
+    rating: z.int().gte(1).lte(5).optional()
 });
 
 /**
@@ -3350,7 +3452,8 @@ export const zListAdminInquiriesQuery = z.object({
         '일반',
         '상품',
         '수선',
-        '주문제작'
+        '주문제작',
+        '샘플제작'
     ]).optional().default('all'),
     start_date: z.iso.date().nullish(),
     end_date: z.iso.date().nullish(),
@@ -3830,6 +3933,33 @@ export const zCreateAdminRepairReceiptPhotoReadUrlPath = z.object({
  */
 export const zCreateAdminRepairReceiptPhotoReadUrlResponse = zSignedReadUrlOut;
 
+export const zListAdminReviewsQuery = z.object({
+    order_type: z.enum([
+        'sale',
+        'repair',
+        'custom',
+        'sample'
+    ]).nullish(),
+    rating: z.int().gte(1).lte(5).nullish(),
+    q: z.string().max(100).nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAdminReviewsResponse = zPageReviewOut;
+
+export const zDeleteAdminReviewPath = z.object({
+    review_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteAdminReviewResponse = z.void();
+
 /**
  * Response Get Admin Settings
  *
@@ -4234,6 +4364,22 @@ export const zCreateInquiryBody = zInquiryCreateRequest;
  */
 export const zCreateInquiryResponse = zInquiryOut;
 
+export const zListPublicInquiriesQuery = z.object({
+    product_id: z.int().gte(1).nullish(),
+    category: z.enum([
+        '수선',
+        '주문제작',
+        '샘플제작'
+    ]).nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListPublicInquiriesResponse = zPublicInquiryListOut;
+
 export const zDeleteInquiryPath = z.object({
     inquiry_id: z.uuid()
 });
@@ -4515,6 +4661,58 @@ export const zGetQuoteResponse = zQuoteOut;
  * Successful Response
  */
 export const zGetReformPricingResponse = zReformPricingOut;
+
+export const zListReviewsQuery = z.object({
+    product_id: z.int().gte(1).nullish(),
+    order_type: z.enum([
+        'repair',
+        'custom',
+        'sample'
+    ]).nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListReviewsResponse = zReviewListOut;
+
+export const zCreateReviewBody = zReviewCreateRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateReviewResponse = zReviewOut;
+
+export const zDeleteReviewPath = z.object({
+    review_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteReviewResponse = z.void();
+
+export const zGetReviewPath = z.object({
+    review_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetReviewResponse = zReviewOut;
+
+export const zUpdateReviewBody = zReviewUpdateRequest;
+
+export const zUpdateReviewPath = z.object({
+    review_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zUpdateReviewResponse = zReviewOut;
 
 /**
  * Successful Response

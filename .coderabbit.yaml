@@ -1,0 +1,12 @@
+reviews:
+  path_filters:
+    - "!**/*.svg"
+    - "!packages/api-client/**"
+    - "!**/*.test.ts"
+    - "!**/*.test.tsx"
+    - "!apps/api/tests/**"
+    - "!docs/**"
+    - "!packages/shared/docs/**"
+    - "!.agents/**"
+    - "!.claude/**"
+    - "!.codex/**"

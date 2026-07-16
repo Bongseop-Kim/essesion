@@ -8,6 +8,7 @@ export const INQUIRY_CATEGORY_VALUES = [
   "상품",
   "수선",
   "주문제작",
+  "샘플제작",
 ] as const satisfies readonly InquiryCategory[];
 
 export const INQUIRY_CATEGORIES = INQUIRY_CATEGORY_VALUES.map((value) => ({

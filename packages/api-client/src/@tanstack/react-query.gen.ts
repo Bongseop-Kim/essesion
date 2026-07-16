@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { adminApproveTokenRefund, adminCreateProduct, adminGetClaim, adminGetPaymentIncident, adminGetProduct, adminListClaimsV2, adminListPaymentIncidents, adminListProducts, adminLogin, adminLogout, adminManageTokens, adminReconcilePaymentIncident, adminRefreshTokens, adminResolvePaymentIncident, adminRetryClaimNotification, adminUpdateClaimStatus, adminUpdateClaimTracking, adminUpdateOrderStatus, adminUpdateOrderTracking, adminUpdateProduct, answerAdminInquiry, appendDesignTurn, autoConfirmOrders, calculateCustomOrder, calculateSampleOrder, cancelClaim, cancelStaleOrders, cancelTokenRefund, cleanupImages, completeAdminProductImageUpload, completeOrderImage, confirmPayment, confirmPurchase, createAdminCoupon, createAdminOrderReferenceImageReadUrl, createAdminProductImageUploadUrl, createAdminQuoteImageReadUrl, createAdminRepairReceiptPhotoReadUrl, createAdminSeamlessReferenceImageReadUrl, createClaim, createCustomOrder, createDesignOrderReference, createDesignSession, createFinalizeJob, createInquiry, createManualOrder, createMyOrderReferenceImageReadUrl, createMyRepairReceiptPhotoReadUrl, createOrder, createQuote, createReadUrl, createReformUploadUrl, createSampleOrder, createTokenOrder, createUploadUrl, deleteAccount, deleteAddress, deleteAdminProductImageUpload, deleteInquiry, deleteManualOrder, exportDesign, generateDesign, getAdminCapabilities, getAdminCoupon, getAdminCustomer, getAdminGenerationJob, getAdminGenerationJobStats, getAdminInquiry, getAdminMotif, getAdminOrder, getAdminPricing, getAdminQuote, getAdminSeamlessLog, getAdminSeamlessStats, getAdminSettings, getCart, getDashboardRecentOrders, getDashboardRecentQuotes, getDashboardSummary, getDesignSession, getGenerationJob, getInquiry, getManualOrder, getMe, getOrder, getProduct, getQuote, getReformPricing, getTokenBalance, getTokenPlans, healthz, issueCoupon, likeProduct, listAddresses, listAdminCoupons, listAdminCustomerCoupons, listAdminCustomerOrders, listAdminCustomers, listAdminCustomerTokens, listAdminGenerationJobs, listAdminInquiries, listAdminMotifs, listAdminOrderReferenceImages, listAdminQuotes, listAdminRepairReceiptPhotos, listAdminSeamlessLogs, listAllOrders, listDesignSessions, listDesignTurns, listGenerationJobs, listIssuedCoupons, listManualOrders, listMyClaims, listMyCoupons, listMyInquiries, listMyOrderReferenceImages, listMyOrders, listMyQuotes, listMyRepairReceiptPhotos, listProducts, listRefundableTokenOrders, listTokenHistory, login, logout, motifCandidates, motifGenerate, type Options, periodStats, previewCouponAudience, reconcileStaleGenerationJobs, refreshTokens, registerReformUpload, registerRepairShippingUpload, removeCartItems, replaceCart, requestTokenRefund, revokeCoupons, revokeCouponUsers, searchAdminCustomers, searchAdminInquiries, sendPhoneVerification, setNotificationPreferences, submitRepairNoTracking, submitRepairTracking, todayStats, tossWebhook, unlikeProduct, updateAdminCoupon, updateAdminPricing, updateAdminQuoteStatus, updateAdminSettings, updateDesignSession, updateInquiry, updateManualOrder, updateProfile, upsertAddress, verifyPhone } from '../sdk.gen';
-import type { AdminApproveTokenRefundData, AdminApproveTokenRefundError, AdminApproveTokenRefundResponse, AdminCreateProductData, AdminCreateProductError, AdminCreateProductResponse, AdminGetClaimData, AdminGetClaimError, AdminGetClaimResponse, AdminGetPaymentIncidentData, AdminGetPaymentIncidentError, AdminGetPaymentIncidentResponse, AdminGetProductData, AdminGetProductError, AdminGetProductResponse, AdminListClaimsV2Data, AdminListClaimsV2Error, AdminListClaimsV2Response, AdminListPaymentIncidentsData, AdminListPaymentIncidentsError, AdminListPaymentIncidentsResponse, AdminListProductsData, AdminListProductsError, AdminListProductsResponse, AdminLoginData, AdminLoginError, AdminLoginResponse, AdminLogoutData, AdminLogoutResponse, AdminManageTokensData, AdminManageTokensError, AdminManageTokensResponse, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentError, AdminReconcilePaymentIncidentResponse, AdminRefreshTokensData, AdminRefreshTokensResponse, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentError, AdminResolvePaymentIncidentResponse, AdminRetryClaimNotificationData, AdminRetryClaimNotificationError, AdminRetryClaimNotificationResponse, AdminUpdateClaimStatusData, AdminUpdateClaimStatusError, AdminUpdateClaimStatusResponse, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingError, AdminUpdateClaimTrackingResponse, AdminUpdateOrderStatusData, AdminUpdateOrderStatusError, AdminUpdateOrderStatusResponse, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingError, AdminUpdateOrderTrackingResponse, AdminUpdateProductData, AdminUpdateProductError, AdminUpdateProductResponse, AnswerAdminInquiryData, AnswerAdminInquiryError, AnswerAdminInquiryResponse, AppendDesignTurnData, AppendDesignTurnError, AppendDesignTurnResponse, AutoConfirmOrdersData, AutoConfirmOrdersResponse, CalculateCustomOrderData, CalculateCustomOrderError, CalculateCustomOrderResponse, CalculateSampleOrderData, CalculateSampleOrderError, CalculateSampleOrderResponse, CancelClaimData, CancelClaimError, CancelClaimResponse, CancelStaleOrdersData, CancelStaleOrdersResponse, CancelTokenRefundData, CancelTokenRefundError, CancelTokenRefundResponse, CleanupImagesData, CleanupImagesResponse, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadError, CompleteAdminProductImageUploadResponse, CompleteOrderImageData, CompleteOrderImageError, CompleteOrderImageResponse, ConfirmPaymentData, ConfirmPaymentError, ConfirmPaymentResponse, ConfirmPurchaseData, ConfirmPurchaseError, ConfirmPurchaseResponse, CreateAdminCouponData, CreateAdminCouponError, CreateAdminCouponResponse, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlError, CreateAdminOrderReferenceImageReadUrlResponse, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlError, CreateAdminProductImageUploadUrlResponse, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlError, CreateAdminQuoteImageReadUrlResponse, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlError, CreateAdminRepairReceiptPhotoReadUrlResponse, CreateAdminSeamlessReferenceImageReadUrlData, CreateAdminSeamlessReferenceImageReadUrlError, CreateAdminSeamlessReferenceImageReadUrlResponse, CreateClaimData, CreateClaimError, CreateClaimResponse, CreateCustomOrderData, CreateCustomOrderError, CreateCustomOrderResponse, CreateDesignOrderReferenceData, CreateDesignOrderReferenceError, CreateDesignOrderReferenceResponse, CreateDesignSessionData, CreateDesignSessionResponse, CreateFinalizeJobData, CreateFinalizeJobError, CreateFinalizeJobResponse, CreateInquiryData, CreateInquiryError, CreateInquiryResponse, CreateManualOrderData, CreateManualOrderError, CreateManualOrderResponse, CreateMyOrderReferenceImageReadUrlData, CreateMyOrderReferenceImageReadUrlError, CreateMyOrderReferenceImageReadUrlResponse, CreateMyRepairReceiptPhotoReadUrlData, CreateMyRepairReceiptPhotoReadUrlError, CreateMyRepairReceiptPhotoReadUrlResponse, CreateOrderData, CreateOrderError, CreateOrderResponse, CreateQuoteData, CreateQuoteError, CreateQuoteResponse, CreateReadUrlData, CreateReadUrlError, CreateReadUrlResponse, CreateReformUploadUrlData, CreateReformUploadUrlError, CreateReformUploadUrlResponse, CreateSampleOrderData, CreateSampleOrderError, CreateSampleOrderResponse, CreateTokenOrderData, CreateTokenOrderError, CreateTokenOrderResponse, CreateUploadUrlData, CreateUploadUrlError, CreateUploadUrlResponse, DeleteAccountData, DeleteAccountResponse, DeleteAddressData, DeleteAddressError, DeleteAddressResponse, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadError, DeleteAdminProductImageUploadResponse, DeleteInquiryData, DeleteInquiryError, DeleteInquiryResponse, DeleteManualOrderData, DeleteManualOrderError, DeleteManualOrderResponse, ExportDesignData, ExportDesignError, GenerateDesignData, GenerateDesignError, GenerateDesignResponse, GetAdminCapabilitiesData, GetAdminCapabilitiesResponse, GetAdminCouponData, GetAdminCouponError, GetAdminCouponResponse, GetAdminCustomerData, GetAdminCustomerError, GetAdminCustomerResponse, GetAdminGenerationJobData, GetAdminGenerationJobError, GetAdminGenerationJobResponse, GetAdminGenerationJobStatsData, GetAdminGenerationJobStatsError, GetAdminGenerationJobStatsResponse, GetAdminInquiryData, GetAdminInquiryError, GetAdminInquiryResponse, GetAdminMotifData, GetAdminMotifError, GetAdminMotifResponse, GetAdminOrderData, GetAdminOrderError, GetAdminOrderResponse, GetAdminPricingData, GetAdminPricingResponse, GetAdminQuoteData, GetAdminQuoteError, GetAdminQuoteResponse, GetAdminSeamlessLogData, GetAdminSeamlessLogError, GetAdminSeamlessLogResponse, GetAdminSeamlessStatsData, GetAdminSeamlessStatsError, GetAdminSeamlessStatsResponse, GetAdminSettingsData, GetAdminSettingsResponse, GetCartData, GetCartResponse, GetDashboardRecentOrdersData, GetDashboardRecentOrdersError, GetDashboardRecentOrdersResponse, GetDashboardRecentQuotesData, GetDashboardRecentQuotesError, GetDashboardRecentQuotesResponse, GetDashboardSummaryData, GetDashboardSummaryError, GetDashboardSummaryResponse, GetDesignSessionData, GetDesignSessionError, GetDesignSessionResponse, GetGenerationJobData, GetGenerationJobError, GetGenerationJobResponse, GetInquiryData, GetInquiryError, GetInquiryResponse, GetManualOrderData, GetManualOrderError, GetManualOrderResponse, GetMeData, GetMeResponse, GetOrderData, GetOrderError, GetOrderResponse, GetProductData, GetProductError, GetProductResponse, GetQuoteData, GetQuoteError, GetQuoteResponse, GetReformPricingData, GetReformPricingResponse, GetTokenBalanceData, GetTokenBalanceResponse, GetTokenPlansData, GetTokenPlansResponse, HealthzData, HealthzResponse, IssueCouponData, IssueCouponError, IssueCouponResponse, LikeProductData, LikeProductError, LikeProductResponse, ListAddressesData, ListAddressesResponse, ListAdminCouponsData, ListAdminCouponsError, ListAdminCouponsResponse, ListAdminCustomerCouponsData, ListAdminCustomerCouponsError, ListAdminCustomerCouponsResponse, ListAdminCustomerOrdersData, ListAdminCustomerOrdersError, ListAdminCustomerOrdersResponse, ListAdminCustomersData, ListAdminCustomersError, ListAdminCustomersResponse, ListAdminCustomerTokensData, ListAdminCustomerTokensError, ListAdminCustomerTokensResponse, ListAdminGenerationJobsData, ListAdminGenerationJobsError, ListAdminGenerationJobsResponse, ListAdminInquiriesData, ListAdminInquiriesError, ListAdminInquiriesResponse, ListAdminMotifsData, ListAdminMotifsError, ListAdminMotifsResponse, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesError, ListAdminOrderReferenceImagesResponse, ListAdminQuotesData, ListAdminQuotesError, ListAdminQuotesResponse, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosError, ListAdminRepairReceiptPhotosResponse, ListAdminSeamlessLogsData, ListAdminSeamlessLogsError, ListAdminSeamlessLogsResponse, ListAllOrdersData, ListAllOrdersError, ListAllOrdersResponse, ListDesignSessionsData, ListDesignSessionsResponse, ListDesignTurnsData, ListDesignTurnsError, ListDesignTurnsResponse, ListGenerationJobsData, ListGenerationJobsError, ListGenerationJobsResponse, ListIssuedCouponsData, ListIssuedCouponsError, ListIssuedCouponsResponse, ListManualOrdersData, ListManualOrdersError, ListManualOrdersResponse, ListMyClaimsData, ListMyClaimsResponse, ListMyCouponsData, ListMyCouponsError, ListMyCouponsResponse, ListMyInquiriesData, ListMyInquiriesResponse, ListMyOrderReferenceImagesData, ListMyOrderReferenceImagesError, ListMyOrderReferenceImagesResponse, ListMyOrdersData, ListMyOrdersError, ListMyOrdersResponse, ListMyQuotesData, ListMyQuotesResponse, ListMyRepairReceiptPhotosData, ListMyRepairReceiptPhotosError, ListMyRepairReceiptPhotosResponse, ListProductsData, ListProductsError, ListProductsResponse, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponse, ListTokenHistoryData, ListTokenHistoryError, ListTokenHistoryResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MotifCandidatesData, MotifCandidatesError, MotifCandidatesResponse, MotifGenerateData, MotifGenerateError, MotifGenerateResponse, PeriodStatsData, PeriodStatsError, PeriodStatsResponse, PreviewCouponAudienceData, PreviewCouponAudienceError, PreviewCouponAudienceResponse, ReconcileStaleGenerationJobsData, ReconcileStaleGenerationJobsResponse, RefreshTokensData, RefreshTokensResponse, RegisterReformUploadData, RegisterReformUploadError, RegisterReformUploadResponse, RegisterRepairShippingUploadData, RegisterRepairShippingUploadError, RegisterRepairShippingUploadResponse, RemoveCartItemsData, RemoveCartItemsError, RemoveCartItemsResponse, ReplaceCartData, ReplaceCartError, ReplaceCartResponse, RequestTokenRefundData, RequestTokenRefundError, RequestTokenRefundResponse, RevokeCouponsData, RevokeCouponsError, RevokeCouponsResponse, RevokeCouponUsersData, RevokeCouponUsersError, RevokeCouponUsersResponse, SearchAdminCustomersData, SearchAdminCustomersError, SearchAdminCustomersResponse, SearchAdminInquiriesData, SearchAdminInquiriesError, SearchAdminInquiriesResponse, SendPhoneVerificationData, SendPhoneVerificationError, SendPhoneVerificationResponse, SetNotificationPreferencesData, SetNotificationPreferencesError, SetNotificationPreferencesResponse, SubmitRepairNoTrackingData, SubmitRepairNoTrackingError, SubmitRepairNoTrackingResponse, SubmitRepairTrackingData, SubmitRepairTrackingError, SubmitRepairTrackingResponse, TodayStatsData, TodayStatsError, TodayStatsResponse, TossWebhookData2, TossWebhookError, TossWebhookResponse, UnlikeProductData, UnlikeProductError, UnlikeProductResponse, UpdateAdminCouponData, UpdateAdminCouponError, UpdateAdminCouponResponse, UpdateAdminPricingData, UpdateAdminPricingError, UpdateAdminPricingResponse, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusError, UpdateAdminQuoteStatusResponse, UpdateAdminSettingsData, UpdateAdminSettingsError, UpdateAdminSettingsResponse, UpdateDesignSessionData, UpdateDesignSessionError, UpdateDesignSessionResponse, UpdateInquiryData, UpdateInquiryError, UpdateInquiryResponse, UpdateManualOrderData, UpdateManualOrderError, UpdateManualOrderResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse, UpsertAddressData, UpsertAddressError, UpsertAddressResponse, VerifyPhoneData, VerifyPhoneError, VerifyPhoneResponse } from '../types.gen';
+import { adminApproveTokenRefund, adminCreateProduct, adminGetClaim, adminGetPaymentIncident, adminGetProduct, adminListClaimsV2, adminListPaymentIncidents, adminListProducts, adminLogin, adminLogout, adminManageTokens, adminReconcilePaymentIncident, adminRefreshTokens, adminResolvePaymentIncident, adminRetryClaimNotification, adminUpdateClaimStatus, adminUpdateClaimTracking, adminUpdateOrderStatus, adminUpdateOrderTracking, adminUpdateProduct, answerAdminInquiry, appendDesignTurn, autoConfirmOrders, calculateCustomOrder, calculateSampleOrder, cancelClaim, cancelStaleOrders, cancelTokenRefund, cleanupImages, completeAdminProductImageUpload, completeOrderImage, confirmPayment, confirmPurchase, createAdminCoupon, createAdminOrderReferenceImageReadUrl, createAdminProductImageUploadUrl, createAdminQuoteImageReadUrl, createAdminRepairReceiptPhotoReadUrl, createAdminSeamlessReferenceImageReadUrl, createClaim, createCustomOrder, createDesignOrderReference, createDesignSession, createFinalizeJob, createInquiry, createManualOrder, createMyOrderReferenceImageReadUrl, createMyRepairReceiptPhotoReadUrl, createOrder, createQuote, createReadUrl, createReformUploadUrl, createReview, createSampleOrder, createTokenOrder, createUploadUrl, deleteAccount, deleteAddress, deleteAdminProductImageUpload, deleteAdminReview, deleteInquiry, deleteManualOrder, deleteReview, exportDesign, generateDesign, getAdminCapabilities, getAdminCoupon, getAdminCustomer, getAdminGenerationJob, getAdminGenerationJobStats, getAdminInquiry, getAdminMotif, getAdminOrder, getAdminPricing, getAdminQuote, getAdminSeamlessLog, getAdminSeamlessStats, getAdminSettings, getCart, getDashboardRecentOrders, getDashboardRecentQuotes, getDashboardSummary, getDesignSession, getGenerationJob, getInquiry, getManualOrder, getMe, getOrder, getProduct, getQuote, getReformPricing, getReview, getTokenBalance, getTokenPlans, healthz, issueCoupon, likeProduct, listAddresses, listAdminCoupons, listAdminCustomerCoupons, listAdminCustomerOrders, listAdminCustomers, listAdminCustomerTokens, listAdminGenerationJobs, listAdminInquiries, listAdminMotifs, listAdminOrderReferenceImages, listAdminQuotes, listAdminRepairReceiptPhotos, listAdminReviews, listAdminSeamlessLogs, listAllOrders, listDesignSessions, listDesignTurns, listGenerationJobs, listIssuedCoupons, listManualOrders, listMyClaims, listMyCoupons, listMyInquiries, listMyOrderReferenceImages, listMyOrders, listMyQuotes, listMyRepairReceiptPhotos, listProducts, listPublicInquiries, listRefundableTokenOrders, listReviews, listTokenHistory, login, logout, motifCandidates, motifGenerate, type Options, periodStats, previewCouponAudience, reconcileStaleGenerationJobs, refreshTokens, registerReformUpload, registerRepairShippingUpload, removeCartItems, replaceCart, requestTokenRefund, revokeCoupons, revokeCouponUsers, searchAdminCustomers, searchAdminInquiries, sendPhoneVerification, setNotificationPreferences, submitRepairNoTracking, submitRepairTracking, todayStats, tossWebhook, unlikeProduct, updateAdminCoupon, updateAdminPricing, updateAdminQuoteStatus, updateAdminSettings, updateDesignSession, updateInquiry, updateManualOrder, updateProfile, updateReview, upsertAddress, verifyPhone } from '../sdk.gen';
+import type { AdminApproveTokenRefundData, AdminApproveTokenRefundError, AdminApproveTokenRefundResponse, AdminCreateProductData, AdminCreateProductError, AdminCreateProductResponse, AdminGetClaimData, AdminGetClaimError, AdminGetClaimResponse, AdminGetPaymentIncidentData, AdminGetPaymentIncidentError, AdminGetPaymentIncidentResponse, AdminGetProductData, AdminGetProductError, AdminGetProductResponse, AdminListClaimsV2Data, AdminListClaimsV2Error, AdminListClaimsV2Response, AdminListPaymentIncidentsData, AdminListPaymentIncidentsError, AdminListPaymentIncidentsResponse, AdminListProductsData, AdminListProductsError, AdminListProductsResponse, AdminLoginData, AdminLoginError, AdminLoginResponse, AdminLogoutData, AdminLogoutResponse, AdminManageTokensData, AdminManageTokensError, AdminManageTokensResponse, AdminReconcilePaymentIncidentData, AdminReconcilePaymentIncidentError, AdminReconcilePaymentIncidentResponse, AdminRefreshTokensData, AdminRefreshTokensResponse, AdminResolvePaymentIncidentData, AdminResolvePaymentIncidentError, AdminResolvePaymentIncidentResponse, AdminRetryClaimNotificationData, AdminRetryClaimNotificationError, AdminRetryClaimNotificationResponse, AdminUpdateClaimStatusData, AdminUpdateClaimStatusError, AdminUpdateClaimStatusResponse, AdminUpdateClaimTrackingData, AdminUpdateClaimTrackingError, AdminUpdateClaimTrackingResponse, AdminUpdateOrderStatusData, AdminUpdateOrderStatusError, AdminUpdateOrderStatusResponse, AdminUpdateOrderTrackingData, AdminUpdateOrderTrackingError, AdminUpdateOrderTrackingResponse, AdminUpdateProductData, AdminUpdateProductError, AdminUpdateProductResponse, AnswerAdminInquiryData, AnswerAdminInquiryError, AnswerAdminInquiryResponse, AppendDesignTurnData, AppendDesignTurnError, AppendDesignTurnResponse, AutoConfirmOrdersData, AutoConfirmOrdersResponse, CalculateCustomOrderData, CalculateCustomOrderError, CalculateCustomOrderResponse, CalculateSampleOrderData, CalculateSampleOrderError, CalculateSampleOrderResponse, CancelClaimData, CancelClaimError, CancelClaimResponse, CancelStaleOrdersData, CancelStaleOrdersResponse, CancelTokenRefundData, CancelTokenRefundError, CancelTokenRefundResponse, CleanupImagesData, CleanupImagesResponse, CompleteAdminProductImageUploadData, CompleteAdminProductImageUploadError, CompleteAdminProductImageUploadResponse, CompleteOrderImageData, CompleteOrderImageError, CompleteOrderImageResponse, ConfirmPaymentData, ConfirmPaymentError, ConfirmPaymentResponse, ConfirmPurchaseData, ConfirmPurchaseError, ConfirmPurchaseResponse, CreateAdminCouponData, CreateAdminCouponError, CreateAdminCouponResponse, CreateAdminOrderReferenceImageReadUrlData, CreateAdminOrderReferenceImageReadUrlError, CreateAdminOrderReferenceImageReadUrlResponse, CreateAdminProductImageUploadUrlData, CreateAdminProductImageUploadUrlError, CreateAdminProductImageUploadUrlResponse, CreateAdminQuoteImageReadUrlData, CreateAdminQuoteImageReadUrlError, CreateAdminQuoteImageReadUrlResponse, CreateAdminRepairReceiptPhotoReadUrlData, CreateAdminRepairReceiptPhotoReadUrlError, CreateAdminRepairReceiptPhotoReadUrlResponse, CreateAdminSeamlessReferenceImageReadUrlData, CreateAdminSeamlessReferenceImageReadUrlError, CreateAdminSeamlessReferenceImageReadUrlResponse, CreateClaimData, CreateClaimError, CreateClaimResponse, CreateCustomOrderData, CreateCustomOrderError, CreateCustomOrderResponse, CreateDesignOrderReferenceData, CreateDesignOrderReferenceError, CreateDesignOrderReferenceResponse, CreateDesignSessionData, CreateDesignSessionResponse, CreateFinalizeJobData, CreateFinalizeJobError, CreateFinalizeJobResponse, CreateInquiryData, CreateInquiryError, CreateInquiryResponse, CreateManualOrderData, CreateManualOrderError, CreateManualOrderResponse, CreateMyOrderReferenceImageReadUrlData, CreateMyOrderReferenceImageReadUrlError, CreateMyOrderReferenceImageReadUrlResponse, CreateMyRepairReceiptPhotoReadUrlData, CreateMyRepairReceiptPhotoReadUrlError, CreateMyRepairReceiptPhotoReadUrlResponse, CreateOrderData, CreateOrderError, CreateOrderResponse, CreateQuoteData, CreateQuoteError, CreateQuoteResponse, CreateReadUrlData, CreateReadUrlError, CreateReadUrlResponse, CreateReformUploadUrlData, CreateReformUploadUrlError, CreateReformUploadUrlResponse, CreateReviewData, CreateReviewError, CreateReviewResponse, CreateSampleOrderData, CreateSampleOrderError, CreateSampleOrderResponse, CreateTokenOrderData, CreateTokenOrderError, CreateTokenOrderResponse, CreateUploadUrlData, CreateUploadUrlError, CreateUploadUrlResponse, DeleteAccountData, DeleteAccountResponse, DeleteAddressData, DeleteAddressError, DeleteAddressResponse, DeleteAdminProductImageUploadData, DeleteAdminProductImageUploadError, DeleteAdminProductImageUploadResponse, DeleteAdminReviewData, DeleteAdminReviewError, DeleteAdminReviewResponse, DeleteInquiryData, DeleteInquiryError, DeleteInquiryResponse, DeleteManualOrderData, DeleteManualOrderError, DeleteManualOrderResponse, DeleteReviewData, DeleteReviewError, DeleteReviewResponse, ExportDesignData, ExportDesignError, GenerateDesignData, GenerateDesignError, GenerateDesignResponse, GetAdminCapabilitiesData, GetAdminCapabilitiesResponse, GetAdminCouponData, GetAdminCouponError, GetAdminCouponResponse, GetAdminCustomerData, GetAdminCustomerError, GetAdminCustomerResponse, GetAdminGenerationJobData, GetAdminGenerationJobError, GetAdminGenerationJobResponse, GetAdminGenerationJobStatsData, GetAdminGenerationJobStatsError, GetAdminGenerationJobStatsResponse, GetAdminInquiryData, GetAdminInquiryError, GetAdminInquiryResponse, GetAdminMotifData, GetAdminMotifError, GetAdminMotifResponse, GetAdminOrderData, GetAdminOrderError, GetAdminOrderResponse, GetAdminPricingData, GetAdminPricingResponse, GetAdminQuoteData, GetAdminQuoteError, GetAdminQuoteResponse, GetAdminSeamlessLogData, GetAdminSeamlessLogError, GetAdminSeamlessLogResponse, GetAdminSeamlessStatsData, GetAdminSeamlessStatsError, GetAdminSeamlessStatsResponse, GetAdminSettingsData, GetAdminSettingsResponse, GetCartData, GetCartResponse, GetDashboardRecentOrdersData, GetDashboardRecentOrdersError, GetDashboardRecentOrdersResponse, GetDashboardRecentQuotesData, GetDashboardRecentQuotesError, GetDashboardRecentQuotesResponse, GetDashboardSummaryData, GetDashboardSummaryError, GetDashboardSummaryResponse, GetDesignSessionData, GetDesignSessionError, GetDesignSessionResponse, GetGenerationJobData, GetGenerationJobError, GetGenerationJobResponse, GetInquiryData, GetInquiryError, GetInquiryResponse, GetManualOrderData, GetManualOrderError, GetManualOrderResponse, GetMeData, GetMeResponse, GetOrderData, GetOrderError, GetOrderResponse, GetProductData, GetProductError, GetProductResponse, GetQuoteData, GetQuoteError, GetQuoteResponse, GetReformPricingData, GetReformPricingResponse, GetReviewData, GetReviewError, GetReviewResponse, GetTokenBalanceData, GetTokenBalanceResponse, GetTokenPlansData, GetTokenPlansResponse, HealthzData, HealthzResponse, IssueCouponData, IssueCouponError, IssueCouponResponse, LikeProductData, LikeProductError, LikeProductResponse, ListAddressesData, ListAddressesResponse, ListAdminCouponsData, ListAdminCouponsError, ListAdminCouponsResponse, ListAdminCustomerCouponsData, ListAdminCustomerCouponsError, ListAdminCustomerCouponsResponse, ListAdminCustomerOrdersData, ListAdminCustomerOrdersError, ListAdminCustomerOrdersResponse, ListAdminCustomersData, ListAdminCustomersError, ListAdminCustomersResponse, ListAdminCustomerTokensData, ListAdminCustomerTokensError, ListAdminCustomerTokensResponse, ListAdminGenerationJobsData, ListAdminGenerationJobsError, ListAdminGenerationJobsResponse, ListAdminInquiriesData, ListAdminInquiriesError, ListAdminInquiriesResponse, ListAdminMotifsData, ListAdminMotifsError, ListAdminMotifsResponse, ListAdminOrderReferenceImagesData, ListAdminOrderReferenceImagesError, ListAdminOrderReferenceImagesResponse, ListAdminQuotesData, ListAdminQuotesError, ListAdminQuotesResponse, ListAdminRepairReceiptPhotosData, ListAdminRepairReceiptPhotosError, ListAdminRepairReceiptPhotosResponse, ListAdminReviewsData, ListAdminReviewsError, ListAdminReviewsResponse, ListAdminSeamlessLogsData, ListAdminSeamlessLogsError, ListAdminSeamlessLogsResponse, ListAllOrdersData, ListAllOrdersError, ListAllOrdersResponse, ListDesignSessionsData, ListDesignSessionsResponse, ListDesignTurnsData, ListDesignTurnsError, ListDesignTurnsResponse, ListGenerationJobsData, ListGenerationJobsError, ListGenerationJobsResponse, ListIssuedCouponsData, ListIssuedCouponsError, ListIssuedCouponsResponse, ListManualOrdersData, ListManualOrdersError, ListManualOrdersResponse, ListMyClaimsData, ListMyClaimsResponse, ListMyCouponsData, ListMyCouponsError, ListMyCouponsResponse, ListMyInquiriesData, ListMyInquiriesResponse, ListMyOrderReferenceImagesData, ListMyOrderReferenceImagesError, ListMyOrderReferenceImagesResponse, ListMyOrdersData, ListMyOrdersError, ListMyOrdersResponse, ListMyQuotesData, ListMyQuotesResponse, ListMyRepairReceiptPhotosData, ListMyRepairReceiptPhotosError, ListMyRepairReceiptPhotosResponse, ListProductsData, ListProductsError, ListProductsResponse, ListPublicInquiriesData, ListPublicInquiriesError, ListPublicInquiriesResponse, ListRefundableTokenOrdersData, ListRefundableTokenOrdersResponse, ListReviewsData, ListReviewsError, ListReviewsResponse, ListTokenHistoryData, ListTokenHistoryError, ListTokenHistoryResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MotifCandidatesData, MotifCandidatesError, MotifCandidatesResponse, MotifGenerateData, MotifGenerateError, MotifGenerateResponse, PeriodStatsData, PeriodStatsError, PeriodStatsResponse, PreviewCouponAudienceData, PreviewCouponAudienceError, PreviewCouponAudienceResponse, ReconcileStaleGenerationJobsData, ReconcileStaleGenerationJobsResponse, RefreshTokensData, RefreshTokensResponse, RegisterReformUploadData, RegisterReformUploadError, RegisterReformUploadResponse, RegisterRepairShippingUploadData, RegisterRepairShippingUploadError, RegisterRepairShippingUploadResponse, RemoveCartItemsData, RemoveCartItemsError, RemoveCartItemsResponse, ReplaceCartData, ReplaceCartError, ReplaceCartResponse, RequestTokenRefundData, RequestTokenRefundError, RequestTokenRefundResponse, RevokeCouponsData, RevokeCouponsError, RevokeCouponsResponse, RevokeCouponUsersData, RevokeCouponUsersError, RevokeCouponUsersResponse, SearchAdminCustomersData, SearchAdminCustomersError, SearchAdminCustomersResponse, SearchAdminInquiriesData, SearchAdminInquiriesError, SearchAdminInquiriesResponse, SendPhoneVerificationData, SendPhoneVerificationError, SendPhoneVerificationResponse, SetNotificationPreferencesData, SetNotificationPreferencesError, SetNotificationPreferencesResponse, SubmitRepairNoTrackingData, SubmitRepairNoTrackingError, SubmitRepairNoTrackingResponse, SubmitRepairTrackingData, SubmitRepairTrackingError, SubmitRepairTrackingResponse, TodayStatsData, TodayStatsError, TodayStatsResponse, TossWebhookData2, TossWebhookError, TossWebhookResponse, UnlikeProductData, UnlikeProductError, UnlikeProductResponse, UpdateAdminCouponData, UpdateAdminCouponError, UpdateAdminCouponResponse, UpdateAdminPricingData, UpdateAdminPricingError, UpdateAdminPricingResponse, UpdateAdminQuoteStatusData, UpdateAdminQuoteStatusError, UpdateAdminQuoteStatusResponse, UpdateAdminSettingsData, UpdateAdminSettingsError, UpdateAdminSettingsResponse, UpdateDesignSessionData, UpdateDesignSessionError, UpdateDesignSessionResponse, UpdateInquiryData, UpdateInquiryError, UpdateInquiryResponse, UpdateManualOrderData, UpdateManualOrderError, UpdateManualOrderResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse, UpdateReviewData, UpdateReviewError, UpdateReviewResponse, UpsertAddressData, UpsertAddressError, UpsertAddressResponse, VerifyPhoneData, VerifyPhoneError, VerifyPhoneResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -1784,6 +1784,71 @@ export const createAdminRepairReceiptPhotoReadUrlMutation = (options?: Partial<O
     return mutationOptions;
 };
 
+export const listAdminReviewsQueryKey = (options?: Options<ListAdminReviewsData>) => createQueryKey('listAdminReviews', options);
+
+/**
+ * List Admin Reviews
+ */
+export const listAdminReviewsOptions = (options?: Options<ListAdminReviewsData>) => queryOptions<ListAdminReviewsResponse, ListAdminReviewsError, ListAdminReviewsResponse, ReturnType<typeof listAdminReviewsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAdminReviews({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAdminReviewsQueryKey(options)
+});
+
+export const listAdminReviewsInfiniteQueryKey = (options?: Options<ListAdminReviewsData>): QueryKey<Options<ListAdminReviewsData>> => createQueryKey('listAdminReviews', options, true);
+
+/**
+ * List Admin Reviews
+ */
+export const listAdminReviewsInfiniteOptions = (options?: Options<ListAdminReviewsData>) => {
+    const opts = infiniteQueryOptions<ListAdminReviewsResponse, ListAdminReviewsError, InfiniteData<ListAdminReviewsResponse>, QueryKey<Options<ListAdminReviewsData>>, number | Pick<QueryKey<Options<ListAdminReviewsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAdminReviewsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAdminReviews({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAdminReviewsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Delete Admin Review
+ */
+export const deleteAdminReviewMutation = (options?: Partial<Options<DeleteAdminReviewData>>): UseMutationOptions<DeleteAdminReviewResponse, DeleteAdminReviewError, Options<DeleteAdminReviewData>> => {
+    const mutationOptions: UseMutationOptions<DeleteAdminReviewResponse, DeleteAdminReviewError, Options<DeleteAdminReviewData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteAdminReview({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const getAdminSettingsQueryKey = (options?: Options<GetAdminSettingsData>) => createQueryKey('getAdminSettings', options);
 
 /**
@@ -2677,6 +2742,54 @@ export const createInquiryMutation = (options?: Partial<Options<CreateInquiryDat
     return mutationOptions;
 };
 
+export const listPublicInquiriesQueryKey = (options?: Options<ListPublicInquiriesData>) => createQueryKey('listPublicInquiries', options);
+
+/**
+ * List Public Inquiries
+ */
+export const listPublicInquiriesOptions = (options?: Options<ListPublicInquiriesData>) => queryOptions<ListPublicInquiriesResponse, ListPublicInquiriesError, ListPublicInquiriesResponse, ReturnType<typeof listPublicInquiriesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listPublicInquiries({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listPublicInquiriesQueryKey(options)
+});
+
+export const listPublicInquiriesInfiniteQueryKey = (options?: Options<ListPublicInquiriesData>): QueryKey<Options<ListPublicInquiriesData>> => createQueryKey('listPublicInquiries', options, true);
+
+/**
+ * List Public Inquiries
+ */
+export const listPublicInquiriesInfiniteOptions = (options?: Options<ListPublicInquiriesData>) => {
+    const opts = infiniteQueryOptions<ListPublicInquiriesResponse, ListPublicInquiriesError, InfiniteData<ListPublicInquiriesResponse>, QueryKey<Options<ListPublicInquiriesData>>, number | Pick<QueryKey<Options<ListPublicInquiriesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListPublicInquiriesData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listPublicInquiries({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listPublicInquiriesInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
 /**
  * Delete Inquiry
  */
@@ -3184,6 +3297,123 @@ export const getReformPricingOptions = (options?: Options<GetReformPricingData>)
     },
     queryKey: getReformPricingQueryKey(options)
 });
+
+export const listReviewsQueryKey = (options?: Options<ListReviewsData>) => createQueryKey('listReviews', options);
+
+/**
+ * List Reviews
+ */
+export const listReviewsOptions = (options?: Options<ListReviewsData>) => queryOptions<ListReviewsResponse, ListReviewsError, ListReviewsResponse, ReturnType<typeof listReviewsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listReviews({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listReviewsQueryKey(options)
+});
+
+export const listReviewsInfiniteQueryKey = (options?: Options<ListReviewsData>): QueryKey<Options<ListReviewsData>> => createQueryKey('listReviews', options, true);
+
+/**
+ * List Reviews
+ */
+export const listReviewsInfiniteOptions = (options?: Options<ListReviewsData>) => {
+    const opts = infiniteQueryOptions<ListReviewsResponse, ListReviewsError, InfiniteData<ListReviewsResponse>, QueryKey<Options<ListReviewsData>>, number | Pick<QueryKey<Options<ListReviewsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListReviewsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listReviews({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listReviewsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Create Review
+ */
+export const createReviewMutation = (options?: Partial<Options<CreateReviewData>>): UseMutationOptions<CreateReviewResponse, CreateReviewError, Options<CreateReviewData>> => {
+    const mutationOptions: UseMutationOptions<CreateReviewResponse, CreateReviewError, Options<CreateReviewData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createReview({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Review
+ */
+export const deleteReviewMutation = (options?: Partial<Options<DeleteReviewData>>): UseMutationOptions<DeleteReviewResponse, DeleteReviewError, Options<DeleteReviewData>> => {
+    const mutationOptions: UseMutationOptions<DeleteReviewResponse, DeleteReviewError, Options<DeleteReviewData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteReview({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getReviewQueryKey = (options: Options<GetReviewData>) => createQueryKey('getReview', options);
+
+/**
+ * Get Review
+ */
+export const getReviewOptions = (options: Options<GetReviewData>) => queryOptions<GetReviewResponse, GetReviewError, GetReviewResponse, ReturnType<typeof getReviewQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getReview({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getReviewQueryKey(options)
+});
+
+/**
+ * Update Review
+ */
+export const updateReviewMutation = (options?: Partial<Options<UpdateReviewData>>): UseMutationOptions<UpdateReviewResponse, UpdateReviewError, Options<UpdateReviewData>> => {
+    const mutationOptions: UseMutationOptions<UpdateReviewResponse, UpdateReviewError, Options<UpdateReviewData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateReview({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const getTokenBalanceQueryKey = (options?: Options<GetTokenBalanceData>) => createQueryKey('getTokenBalance', options);
 

@@ -27,6 +27,7 @@ const inquiry: AdminInquiryDetailOut = {
   category: "일반",
   content: "언제 배송되나요?",
   status: "답변대기",
+  is_secret: false,
   answer: null,
   answer_date: null,
   answered_by: null,

@@ -36,6 +36,7 @@
 - [x] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로 — *35테이블, `db/src/db/models/`*
 - [x] **기존→새 스키마 매핑 표 작성** — `db/MAPPING.md` (테이블·함수/트리거 소유 이동·이관 정책)
 - [x] Alembic 첫 리비전 생성·로컬 적용 — *베이스라인 리비전 생성, 로컬 upgrade와 `alembic check` 드리프트 0*
+- [x] 후기·공개 문의 스키마 확장 — *`reviews` 신규 테이블과 문의 `is_secret`·`샘플제작`·공개 목록 인덱스를 Alembic 리비전 2개로 적용, `alembic check` 드리프트 0 (`docs/plans/store-reviews.md`)*
 - [ ] Alembic 스테이징 적용 — *4단계 첫 배포의 migrate Cloud Run job 성공과 단일 head를 확인한 뒤 체크*
 - [x] 데이터 변환 스크립트 초안(상품·단가·모티프 등 — 유저·이미지 제외) — *`db/scripts/migrate_data.py`, 유저 종속은 3단계 유저 매칭 확정 후 스텁 해제*
 
@@ -48,6 +49,7 @@
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
 - [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm + ALREADY_PROCESSED 조회 복구 + `/payments/webhook` 조회 재검증 대사(money.md §9). DONE 재수신도 provider/stored key·총액을 재검증하고, CANCELED는 USER advisory→order row 순서로 토큰 사용과 직렬화해 reserved 쿠폰만 복원한다. 웹훅은 스테이징 프록시 개통 후 처음부터 `api.essesion.shop`만 등록한다.*
+- [x] 후기·공개 Q&A API — *완료 주문 기반 후기 CRUD·공개 평균/목록·관리자 목록/삭제, 주문 `write_review` 액션·review_id 읽기모델, 공개 문의 목록과 서버 비밀글 마스킹·샘플제작 카테고리를 구현하고 api-client 재생성. 실제 PostgreSQL 인가/도메인 테스트 포함 (`docs/plans/store-reviews.md`)*
 - [x] GCS 서명 업로드 URL 발급(ImageKit 대체) + 회원 탈퇴 + 정리 배치(Cloud Scheduler → api) — *배치 4종 `/batch/*`, 4단계에서 Scheduler OIDC 연결*
 - [x] OpenAPI 스펙 확정 → api-client 코드젠(Hey API + TanStack Query + zod) → **CI 드리프트 검사** — *`pnpm codegen`, ci.yml codegen-drift 잡*
 - [x] schemathesis CI 스텝 — *pytest 통합(tests/test_contract.py) — CI py 잡에 포함*
@@ -77,6 +79,7 @@
 - [x] 주문·클레임 통합 상태 표시 — DDL·money-first 상태기계 변경 없이 API 주문 읽기모델에 활성 우선·최신 클레임 요약/아이템 필드를 추가하고 api-client 재생성, store·admin 주문 목록/상세 배지와 취소 완료·반품·교환·토큰 환불·거부 매핑을 구현. 완료 취소는 고객 재요청·구매확정·수선 발송과 관리자 주문 상태·송장 변경을 API부터 차단하고, store에서는 CTA를 숨기며 admin에서는 사유와 함께 비활성화. 실제 PostgreSQL API 테스트와 store/admin 단위 테스트, 전체 빌드·타입체크·테스트, Aside 실데이터 화면 확인 완료 (`docs/plans/order-claim-status-display.md`)
 - [x] 주문 내용 누락 방지 — custom·sample·repair 항목 사양/요청사항을 shared 디코더로 통합하고 store·admin 상세에 전 항목 렌더. 소유자/관리자 관계 검증 이미지 URL, 수선 수거·발송 읽기모델, 배송 요청 표시, 주문 유형 지역화, 멱등 로컬 시드를 추가하고 api-client 재생성. 실제 PostgreSQL 652건·store 174건·admin 111건·shared 51건, 빌드·타입체크·Aside 실데이터 화면 검증 완료 (`docs/plans/order-content-visibility.md`)
 - [x] store C11 정적 페이지 — `/faq`·`/notice`·약관 3종 공개 라우트, 수선 요금 토큰 치환, 공지 고정 정렬, 마이페이지 고객지원 링크. 회사명 `영선산업`·상호명 `ESSE SION`·이메일 `biblecookie@naver.com`으로 통일하고, 운영 확정이 필요한 약관 책임자·시행일·수탁자 상세는 placeholder로 표시. Aside 데스크톱·390px 모바일·API 오류 폴백 검증 (`docs/plans/store-static.md`)
+- [x] store 후기·공개 Q&A·서비스 안내 — *상품·수선·주문제작·샘플제작에 후기 공개 목록과 공개/비밀 문의, 주문 상세 후기 작성·조회·수정·삭제를 연결하고 custom/sample 안내를 추가. 정보·문의·후기는 한 스크롤에 동시 렌더하며 3등분 내비게이션은 Header 아래 sticky 앵커로 이동. shared Rating과 admin 후기 목록/필터/삭제·문의 비밀글 표시 포함. repo lint, Turbo build/typecheck/test, Python 666건, Aside 실제 DB 왕복·sticky 위치 검증 완료 (`docs/plans/store-reviews.md`)*
 - [x] custom-order 선택 UI 의미 정합성 — 원단·타이·심지는 비교형 SelectBox, 사이즈는 RadioGroup, 즉시 입력 전환인 연락 방법만 SegmentedControl 유지
 - [x] custom-order 정보 계층 정리 — 번호형 대분류는 유지하고 단일 내용은 제목에 통합, 복수 내용은 주문 방식·제작 수량·봉제 옵션·마감 옵션 소제목으로 일관되게 그룹화
 - [x] custom-order 폴리 원단 계산 복구 — 로컬 가격 시드에 날염·선염 폴리 키 추가, 계산 API 회귀 테스트로 두 조합 검증

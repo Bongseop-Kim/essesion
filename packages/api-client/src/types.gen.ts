@@ -873,6 +873,10 @@ export type AdminInquiryDetailOut = {
      * Id
      */
     id: string;
+    /**
+     * Is Secret
+     */
+    is_secret: boolean;
     product: AdminInquiryProductOut | null;
     /**
      * Status
@@ -913,7 +917,7 @@ export type AdminInquirySearchRequest = {
     /**
      * Category
      */
-    category?: 'all' | '일반' | '상품' | '수선' | '주문제작';
+    category?: 'all' | '일반' | '상품' | '수선' | '주문제작' | '샘플제작';
     /**
      * Direction
      */
@@ -969,6 +973,10 @@ export type AdminInquirySummaryOut = {
      * Id
      */
     id: string;
+    /**
+     * Is Secret
+     */
+    is_secret: boolean;
     product: AdminInquiryProductOut | null;
     /**
      * Status
@@ -3498,11 +3506,15 @@ export type InquiryCreateRequest = {
     /**
      * Category
      */
-    category?: '일반' | '상품' | '수선' | '주문제작';
+    category?: '일반' | '상품' | '수선' | '주문제작' | '샘플제작';
     /**
      * Content
      */
     content: string;
+    /**
+     * Is Secret
+     */
+    is_secret?: boolean;
     /**
      * Product Id
      */
@@ -3542,6 +3554,10 @@ export type InquiryOut = {
      */
     id: string;
     /**
+     * Is Secret
+     */
+    is_secret: boolean;
+    /**
      * Product Id
      */
     product_id: number | null;
@@ -3562,11 +3578,15 @@ export type InquiryUpdateRequest = {
     /**
      * Category
      */
-    category?: '일반' | '상품' | '수선' | '주문제작';
+    category?: '일반' | '상품' | '수선' | '주문제작' | '샘플제작';
     /**
      * Content
      */
     content?: string;
+    /**
+     * Is Secret
+     */
+    is_secret?: boolean;
     /**
      * Product Id
      */
@@ -4109,6 +4129,10 @@ export type MotifSpecIn = {
  */
 export type MotifSummaryOut = {
     /**
+     * Bbox
+     */
+    bbox: Array<number>;
+    /**
      * Color Slot Count
      */
     color_slot_count: number;
@@ -4144,6 +4168,14 @@ export type MotifSummaryOut = {
      * Subject
      */
     subject: string | null;
+    /**
+     * Svg Status
+     */
+    svg_status: 'safe' | 'unavailable' | 'unsafe';
+    /**
+     * Symbol
+     */
+    symbol: string | null;
     /**
      * Variant Group
      */
@@ -4267,6 +4299,10 @@ export type OrderDetailOut = {
      * Repair Receipts
      */
     repair_receipts?: Array<RepairShippingReceiptOut>;
+    /**
+     * Review Id
+     */
+    review_id?: string | null;
     /**
      * Shipped At
      */
@@ -4413,6 +4449,10 @@ export type OrderItemOut = {
      */
     quantity: number;
     /**
+     * Review Id
+     */
+    review_id?: string | null;
+    /**
      * Selected Option Id
      */
     selected_option_id: string | null;
@@ -4483,6 +4523,10 @@ export type OrderOut = {
      * Payment Group Id
      */
     payment_group_id: string | null;
+    /**
+     * Review Id
+     */
+    review_id?: string | null;
     /**
      * Shipped At
      */
@@ -4940,6 +4984,28 @@ export type PagePaymentIncidentSummaryOut = {
 };
 
 /**
+ * Page[ReviewOut]
+ */
+export type PageReviewOut = {
+    /**
+     * Items
+     */
+    items: Array<ReviewOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
  * Page[SeamlessSummaryOut]
  */
 export type PageSeamlessSummaryOut = {
@@ -5355,6 +5421,78 @@ export type ProfileUpdateRequest = {
      * Name
      */
     name?: string | null;
+};
+
+/**
+ * PublicInquiryListOut
+ */
+export type PublicInquiryListOut = {
+    /**
+     * Items
+     */
+    items: Array<PublicInquiryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * PublicInquiryOut
+ */
+export type PublicInquiryOut = {
+    /**
+     * Answer
+     */
+    answer: string | null;
+    /**
+     * Answer Date
+     */
+    answer_date: string | null;
+    /**
+     * Author Name
+     */
+    author_name: string;
+    /**
+     * Category
+     */
+    category: string;
+    /**
+     * Content
+     */
+    content: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Is Mine
+     */
+    is_mine: boolean;
+    /**
+     * Is Secret
+     */
+    is_secret: boolean;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Title
+     */
+    title: string;
 };
 
 /**
@@ -5896,6 +6034,102 @@ export type RestorationReform = {
      * Memo
      */
     memo?: string;
+};
+
+/**
+ * ReviewCreateRequest
+ */
+export type ReviewCreateRequest = {
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Order Id
+     */
+    order_id: string;
+    /**
+     * Order Item Id
+     */
+    order_item_id?: string | null;
+    /**
+     * Rating
+     */
+    rating: number;
+};
+
+/**
+ * ReviewListOut
+ */
+export type ReviewListOut = {
+    /**
+     * Avg Rating
+     */
+    avg_rating: number;
+    /**
+     * Items
+     */
+    items: Array<ReviewOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * ReviewOut
+ */
+export type ReviewOut = {
+    /**
+     * Author Name
+     */
+    author_name: string;
+    /**
+     * Content
+     */
+    content: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Order Type
+     */
+    order_type: 'sale' | 'repair' | 'custom' | 'sample';
+    /**
+     * Product Id
+     */
+    product_id: number | null;
+    /**
+     * Rating
+     */
+    rating: number;
+};
+
+/**
+ * ReviewUpdateRequest
+ */
+export type ReviewUpdateRequest = {
+    /**
+     * Content
+     */
+    content?: string;
+    /**
+     * Rating
+     */
+    rating?: number;
 };
 
 /**
@@ -7864,7 +8098,7 @@ export type ListAdminInquiriesData = {
         /**
          * Category
          */
-        category?: 'all' | '일반' | '상품' | '수선' | '주문제작';
+        category?: 'all' | '일반' | '상품' | '수선' | '주문제작' | '샘플제작';
         /**
          * Start Date
          */
@@ -9114,6 +9348,82 @@ export type CreateAdminRepairReceiptPhotoReadUrlResponses = {
 
 export type CreateAdminRepairReceiptPhotoReadUrlResponse = CreateAdminRepairReceiptPhotoReadUrlResponses[keyof CreateAdminRepairReceiptPhotoReadUrlResponses];
 
+export type ListAdminReviewsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Order Type
+         */
+        order_type?: 'sale' | 'repair' | 'custom' | 'sample' | null;
+        /**
+         * Rating
+         */
+        rating?: number | null;
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/reviews';
+};
+
+export type ListAdminReviewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAdminReviewsError = ListAdminReviewsErrors[keyof ListAdminReviewsErrors];
+
+export type ListAdminReviewsResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageReviewOut;
+};
+
+export type ListAdminReviewsResponse = ListAdminReviewsResponses[keyof ListAdminReviewsResponses];
+
+export type DeleteAdminReviewData = {
+    body?: never;
+    path: {
+        /**
+         * Review Id
+         */
+        review_id: string;
+    };
+    query?: never;
+    url: '/admin/reviews/{review_id}';
+};
+
+export type DeleteAdminReviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteAdminReviewError = DeleteAdminReviewErrors[keyof DeleteAdminReviewErrors];
+
+export type DeleteAdminReviewResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteAdminReviewResponse = DeleteAdminReviewResponses[keyof DeleteAdminReviewResponses];
+
 export type GetAdminSettingsData = {
     body?: never;
     path?: never;
@@ -10336,6 +10646,48 @@ export type CreateInquiryResponses = {
 
 export type CreateInquiryResponse = CreateInquiryResponses[keyof CreateInquiryResponses];
 
+export type ListPublicInquiriesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Product Id
+         */
+        product_id?: number | null;
+        /**
+         * Category
+         */
+        category?: '수선' | '주문제작' | '샘플제작' | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/inquiries/public';
+};
+
+export type ListPublicInquiriesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPublicInquiriesError = ListPublicInquiriesErrors[keyof ListPublicInquiriesErrors];
+
+export type ListPublicInquiriesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PublicInquiryListOut;
+};
+
+export type ListPublicInquiriesResponse = ListPublicInquiriesResponses[keyof ListPublicInquiriesResponses];
+
 export type DeleteInquiryData = {
     body?: never;
     path: {
@@ -11131,6 +11483,163 @@ export type GetReformPricingResponses = {
 };
 
 export type GetReformPricingResponse = GetReformPricingResponses[keyof GetReformPricingResponses];
+
+export type ListReviewsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Product Id
+         */
+        product_id?: number | null;
+        /**
+         * Order Type
+         */
+        order_type?: 'repair' | 'custom' | 'sample' | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/reviews';
+};
+
+export type ListReviewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListReviewsError = ListReviewsErrors[keyof ListReviewsErrors];
+
+export type ListReviewsResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReviewListOut;
+};
+
+export type ListReviewsResponse = ListReviewsResponses[keyof ListReviewsResponses];
+
+export type CreateReviewData = {
+    body: ReviewCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/reviews';
+};
+
+export type CreateReviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReviewError = CreateReviewErrors[keyof CreateReviewErrors];
+
+export type CreateReviewResponses = {
+    /**
+     * Successful Response
+     */
+    201: ReviewOut;
+};
+
+export type CreateReviewResponse = CreateReviewResponses[keyof CreateReviewResponses];
+
+export type DeleteReviewData = {
+    body?: never;
+    path: {
+        /**
+         * Review Id
+         */
+        review_id: string;
+    };
+    query?: never;
+    url: '/reviews/{review_id}';
+};
+
+export type DeleteReviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteReviewError = DeleteReviewErrors[keyof DeleteReviewErrors];
+
+export type DeleteReviewResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteReviewResponse = DeleteReviewResponses[keyof DeleteReviewResponses];
+
+export type GetReviewData = {
+    body?: never;
+    path: {
+        /**
+         * Review Id
+         */
+        review_id: string;
+    };
+    query?: never;
+    url: '/reviews/{review_id}';
+};
+
+export type GetReviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetReviewError = GetReviewErrors[keyof GetReviewErrors];
+
+export type GetReviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReviewOut;
+};
+
+export type GetReviewResponse = GetReviewResponses[keyof GetReviewResponses];
+
+export type UpdateReviewData = {
+    body: ReviewUpdateRequest;
+    path: {
+        /**
+         * Review Id
+         */
+        review_id: string;
+    };
+    query?: never;
+    url: '/reviews/{review_id}';
+};
+
+export type UpdateReviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateReviewError = UpdateReviewErrors[keyof UpdateReviewErrors];
+
+export type UpdateReviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReviewOut;
+};
+
+export type UpdateReviewResponse = UpdateReviewResponses[keyof UpdateReviewResponses];
 
 export type GetTokenBalanceData = {
     body?: never;

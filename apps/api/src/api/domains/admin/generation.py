@@ -136,16 +136,16 @@ class MotifSummaryOut(BaseModel):
     variant_group: str | None
     color_slot_count: int
     created_at: datetime
+    bbox: list[float]
+    symbol: str | None
+    svg_status: SvgStatus
 
 
 class MotifDetailOut(MotifSummaryOut):
     description: str | None
     tags: list[str]
-    bbox: list[float]
     anchor: list[float]
     color_slots: list[str]
-    symbol: str | None
-    svg_status: SvgStatus
 
 
 def _validate_range(start: datetime | None, end: datetime | None) -> None:
@@ -583,6 +583,14 @@ async def create_admin_seamless_reference_image_read_url(
 
 
 def _motif_summary(row: Motif) -> MotifSummaryOut:
+    symbol = None
+    svg_status: SvgStatus = "unavailable"
+    if row.symbol:
+        try:
+            symbol = sanitize_svg(row.symbol)
+            svg_status = "safe"
+        except SanitizeError:
+            svg_status = "unsafe"
     return MotifSummaryOut(
         id=row.id,
         subject=_safe_metadata(row.subject),
@@ -595,6 +603,9 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
         variant_group=_safe_token(row.variant_group),
         color_slot_count=len(row.color_slots or []),
         created_at=row.created_at,
+        bbox=_number_list(row.bbox, size=4),
+        symbol=symbol,
+        svg_status=svg_status,
     )
 
 
@@ -653,22 +664,11 @@ async def get_admin_motif(motif_id: str, session: SessionDep, admin: AdminUser) 
     row = await session.get(Motif, motif_id)
     if row is None:
         raise NotFoundError("Motif를 찾을 수 없습니다")
-    symbol = None
-    svg_status: SvgStatus = "unavailable"
-    if row.symbol:
-        try:
-            symbol = sanitize_svg(row.symbol)
-            svg_status = "safe"
-        except SanitizeError:
-            svg_status = "unsafe"
     summary = _motif_summary(row)
     return MotifDetailOut(
         **summary.model_dump(),
         description=_safe_metadata(row.description, limit=500),
         tags=[safe for tag in row.tags if (safe := _safe_metadata(tag, limit=80))],
-        bbox=_number_list(row.bbox, size=4),
         anchor=_number_list(row.anchor, size=2),
         color_slots=[safe for slot in row.color_slots if (safe := _safe_token(slot))],
-        symbol=symbol,
-        svg_status=svg_status,
     )

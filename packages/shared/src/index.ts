@@ -129,6 +129,8 @@ export type {
   RadioGroupProps,
 } from "./components/radio-group";
 export { RadioGroup, RadioGroupItem } from "./components/radio-group";
+export type { RatingProps } from "./components/rating";
+export { Rating } from "./components/rating";
 export type { ResponsiveModalProps } from "./components/responsive-modal";
 export { ResponsiveModal } from "./components/responsive-modal";
 export type { ResultSectionProps } from "./components/result-section";

@@ -25,3 +25,4 @@ export {
   MAX_CUSTOM_ORDER_QUANTITY,
 } from "./model/options";
 export { useCustomQuote } from "./model/use-custom-quote";
+export { CustomOrderServiceGuide } from "./ui/custom-order-service-guide";

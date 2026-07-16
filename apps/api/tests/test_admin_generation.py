@@ -211,10 +211,15 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     assert "png_object_key" not in detail.text
     assert "customer-secret@test.local" not in detail.text
 
-    motif_page = await client.get("/admin/motifs", params={"limit": 1}, headers=headers)
+    motif_page = await client.get("/admin/motifs", headers=headers)
     assert motif_page.json()["total"] == 2
-    assert "symbol" not in motif_page.json()["items"][0]
-    assert "description" not in motif_page.json()["items"][0]
+    motif_items = {item["id"]: item for item in motif_page.json()["items"]}
+    assert motif_items["motif-safe"]["svg_status"] == "safe"
+    assert motif_items["motif-safe"]["symbol"] == safe_motif.symbol
+    assert motif_items["motif-unsafe"]["svg_status"] == "unsafe"
+    assert motif_items["motif-unsafe"]["symbol"] is None
+    assert "description" not in motif_items["motif-safe"]
+    assert "alert(1)" not in motif_page.text
     assert "customer-secret@test.local" not in motif_page.text
 
     safe_detail = await client.get(f"/admin/motifs/{safe_motif.id}", headers=headers)

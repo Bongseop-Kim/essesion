@@ -480,176 +480,178 @@ function JobsPanel({
     replaceQuery,
   });
 
-  return (
-    <VStack gap="x5" alignItems="stretch">
-      <VStack gap="x3" alignItems="stretch">
-        <CompactFilterToolbar
-          primaryControls={
-            <SubmittedMemorySearch
-              label="작업 ID 검색"
-              placeholder="정확한 작업 ID 입력"
-              maxLength={36}
-              resetKey={jobSearchResetKey}
-              validate={(value) =>
-                UUID_PATTERN.test(value)
-                  ? undefined
-                  : "작업 ID는 UUID 형식이어야 합니다."
+  const toolbar = (
+    <VStack gap="x3" alignItems="stretch">
+      <CompactFilterToolbar
+        primaryControls={
+          <SubmittedMemorySearch
+            label="작업 ID 검색"
+            placeholder="정확한 작업 ID 입력"
+            maxLength={36}
+            resetKey={jobSearchResetKey}
+            validate={(value) =>
+              UUID_PATTERN.test(value)
+                ? undefined
+                : "작업 ID는 UUID 형식이어야 합니다."
+            }
+            onSubmit={(value) => {
+              setJobId(value);
+              replaceQuery({ page: 1 });
+            }}
+          />
+        }
+        secondaryFilters={
+          <VStack gap="x4" alignItems="stretch">
+            <FilterSelect
+              label="상태"
+              presentation="inline"
+              value={draftStatus ?? "all"}
+              options={[
+                { value: "all", label: "전체" },
+                { value: "queued", label: "대기" },
+                { value: "processing", label: "처리 중" },
+                { value: "succeeded", label: "성공" },
+                { value: "failed", label: "실패" },
+              ]}
+              onValueChange={(value) =>
+                setDraftStatus(
+                  value === "all" ? undefined : (value as JobStatus),
+                )
               }
-              onSubmit={(value) => {
-                setJobId(value);
-                replaceQuery({ page: 1 });
+            />
+            <FilterSelect
+              label="작업 단계"
+              presentation="inline"
+              value={draftKind ?? "all"}
+              options={[
+                { value: "all", label: "전체" },
+                { value: "finalize", label: "원단 최종화" },
+                { value: "export", label: "파일 내보내기" },
+              ]}
+              onValueChange={(value) =>
+                setDraftKind(value === "all" ? undefined : (value as JobKind))
+              }
+            />
+            <TextField
+              label="사용자 ID"
+              placeholder="정확한 사용자 ID 입력"
+              errorMessage={userError}
+              value={userInput}
+              onChange={(event) => {
+                setUserInput(event.currentTarget.value);
+                setUserError(undefined);
               }}
             />
-          }
-          secondaryFilters={
-            <VStack gap="x4" alignItems="stretch">
-              <FilterSelect
-                label="상태"
-                presentation="inline"
-                value={draftStatus ?? "all"}
-                options={[
-                  { value: "all", label: "전체" },
-                  { value: "queued", label: "대기" },
-                  { value: "processing", label: "처리 중" },
-                  { value: "succeeded", label: "성공" },
-                  { value: "failed", label: "실패" },
-                ]}
-                onValueChange={(value) =>
-                  setDraftStatus(
-                    value === "all" ? undefined : (value as JobStatus),
-                  )
-                }
+            <HStack gap="x3" align="flex-end" wrap>
+              <PeriodFilters
+                from={draftFrom}
+                to={draftTo}
+                onFromChange={setDraftFrom}
+                onToChange={setDraftTo}
               />
-              <FilterSelect
-                label="작업 단계"
-                presentation="inline"
-                value={draftKind ?? "all"}
-                options={[
-                  { value: "all", label: "전체" },
-                  { value: "finalize", label: "원단 최종화" },
-                  { value: "export", label: "파일 내보내기" },
-                ]}
-                onValueChange={(value) =>
-                  setDraftKind(value === "all" ? undefined : (value as JobKind))
-                }
-              />
-              <TextField
-                label="사용자 ID"
-                placeholder="정확한 사용자 ID 입력"
-                errorMessage={userError}
-                value={userInput}
-                onChange={(event) => {
-                  setUserInput(event.currentTarget.value);
-                  setUserError(undefined);
-                }}
-              />
-              <HStack gap="x3" align="flex-end" wrap>
-                <PeriodFilters
-                  from={draftFrom}
-                  to={draftTo}
-                  onFromChange={setDraftFrom}
-                  onToChange={setDraftTo}
-                />
-              </HStack>
-            </VStack>
-          }
-          secondaryFilterCount={
-            Number(status !== undefined) +
-            Number(kind !== undefined) +
-            Number(userId !== undefined) +
-            Number(parsed.from !== undefined || parsed.to !== undefined)
-          }
-          secondaryTitle="생성 작업 필터"
-          secondaryDescription="상태, 작업 단계, 사용자 ID, 조회 기간을 한 번에 적용합니다."
-          onOpenSecondaryFilters={() => {
-            setDraftStatus(status);
-            setDraftKind(kind);
-            setUserInput(userId ?? "");
-            setUserError(undefined);
-            setDraftFrom(parsed.from);
-            setDraftTo(parsed.to);
-          }}
-          onCancelSecondaryFilters={() => {
-            setDraftStatus(status);
-            setDraftKind(kind);
-            setUserInput(userId ?? "");
-            setUserError(undefined);
-            setDraftFrom(parsed.from);
-            setDraftTo(parsed.to);
-          }}
-          onApplySecondaryFilters={() => {
-            if (!applyUserInput()) return false;
-            replaceQuery({
-              status: draftStatus,
-              type: draftKind,
-              from: draftFrom,
-              to: draftTo,
-              page: 1,
-            });
-          }}
-        />
-        <AppliedFilterBar
-          filters={[
-            jobId !== undefined && {
-              key: "job",
-              label: `작업 ID: ${jobId}`,
-              onRemove: () => {
-                setJobId(undefined);
-                setJobSearchResetKey((key) => key + 1);
-                replaceQuery({ page: 1 });
-              },
+            </HStack>
+          </VStack>
+        }
+        secondaryFilterCount={
+          Number(status !== undefined) +
+          Number(kind !== undefined) +
+          Number(userId !== undefined) +
+          Number(parsed.from !== undefined || parsed.to !== undefined)
+        }
+        secondaryTitle="생성 작업 필터"
+        secondaryDescription="상태, 작업 단계, 사용자 ID, 조회 기간을 한 번에 적용합니다."
+        onOpenSecondaryFilters={() => {
+          setDraftStatus(status);
+          setDraftKind(kind);
+          setUserInput(userId ?? "");
+          setUserError(undefined);
+          setDraftFrom(parsed.from);
+          setDraftTo(parsed.to);
+        }}
+        onCancelSecondaryFilters={() => {
+          setDraftStatus(status);
+          setDraftKind(kind);
+          setUserInput(userId ?? "");
+          setUserError(undefined);
+          setDraftFrom(parsed.from);
+          setDraftTo(parsed.to);
+        }}
+        onApplySecondaryFilters={() => {
+          if (!applyUserInput()) return false;
+          replaceQuery({
+            status: draftStatus,
+            type: draftKind,
+            from: draftFrom,
+            to: draftTo,
+            page: 1,
+          });
+        }}
+      />
+      <AppliedFilterBar
+        filters={[
+          jobId !== undefined && {
+            key: "job",
+            label: `작업 ID: ${jobId}`,
+            onRemove: () => {
+              setJobId(undefined);
+              setJobSearchResetKey((key) => key + 1);
+              replaceQuery({ page: 1 });
             },
-            status !== undefined && {
-              key: "status",
-              label: `상태: ${operationalStatusLabel(status)}`,
-              onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+          },
+          status !== undefined && {
+            key: "status",
+            label: `상태: ${operationalStatusLabel(status)}`,
+            onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+          },
+          kind !== undefined && {
+            key: "kind",
+            label: `작업 단계: ${kindLabel(kind)}`,
+            onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+          },
+          parsed.from !== undefined && {
+            key: "from",
+            label: `시작일: ${parsed.from}`,
+            onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+          },
+          parsed.to !== undefined && {
+            key: "to",
+            label: `종료일: ${parsed.to}`,
+            onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+          },
+          userId !== undefined && {
+            key: "user",
+            label: `사용자 ID: ${userId}`,
+            onRemove: () => {
+              setUserInput("");
+              setUserId(undefined);
+              setUserError(undefined);
+              replaceQuery({ page: 1 });
             },
-            kind !== undefined && {
-              key: "kind",
-              label: `작업 단계: ${kindLabel(kind)}`,
-              onRemove: () => replaceQuery({ type: undefined, page: 1 }),
-            },
-            parsed.from !== undefined && {
-              key: "from",
-              label: `시작일: ${parsed.from}`,
-              onRemove: () => replaceQuery({ from: undefined, page: 1 }),
-            },
-            parsed.to !== undefined && {
-              key: "to",
-              label: `종료일: ${parsed.to}`,
-              onRemove: () => replaceQuery({ to: undefined, page: 1 }),
-            },
-            userId !== undefined && {
-              key: "user",
-              label: `사용자 ID: ${userId}`,
-              onRemove: () => {
-                setUserInput("");
-                setUserId(undefined);
-                setUserError(undefined);
-                replaceQuery({ page: 1 });
-              },
-            },
-          ]}
-          onReset={() => {
-            setJobId(undefined);
-            setJobSearchResetKey((key) => key + 1);
-            setUserInput("");
-            setUserId(undefined);
-            setUserError(undefined);
-            replaceQuery({
-              page: 1,
-              limit: 20,
-              sort: undefined,
-              direction: "asc",
-              status: undefined,
-              type: undefined,
-              from: undefined,
-              to: undefined,
-            });
-          }}
-        />
-      </VStack>
+          },
+        ]}
+        onReset={() => {
+          setJobId(undefined);
+          setJobSearchResetKey((key) => key + 1);
+          setUserInput("");
+          setUserId(undefined);
+          setUserError(undefined);
+          replaceQuery({
+            page: 1,
+            limit: 20,
+            sort: undefined,
+            direction: "asc",
+            status: undefined,
+            type: undefined,
+            from: undefined,
+            to: undefined,
+          });
+        }}
+      />
+    </VStack>
+  );
 
+  return (
+    <VStack gap="x5" alignItems="stretch">
       <AdminCard title="작업 통계" description="현재 필터 기준 집계입니다.">
         {statsQuery.isError ? (
           <VStack gap="x3" alignItems="stretch">
@@ -707,6 +709,7 @@ function JobsPanel({
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="생성 작업 목록 페이지"
+        toolbar={toolbar}
       />
     </VStack>
   );
@@ -845,122 +848,124 @@ function SeamlessPanel({
     replaceQuery,
   });
 
+  const toolbar = (
+    <VStack gap="x3" alignItems="stretch">
+      <CompactFilterToolbar
+        primaryControls={
+          <SubmittedMemorySearch
+            label="요청 ID 검색"
+            placeholder="정확한 요청 ID 입력"
+            maxLength={128}
+            resetKey={requestSearchResetKey}
+            validate={(value) =>
+              SAFE_REQUEST_ID_PATTERN.test(value)
+                ? undefined
+                : "요청 ID 형식이 올바르지 않습니다."
+            }
+            onSubmit={(value) => {
+              setRequestId(value);
+              replaceQuery({ page: 1 });
+            }}
+          />
+        }
+        secondaryFilters={
+          <VStack gap="x4" alignItems="stretch">
+            <FilterSelect
+              label="상태"
+              presentation="inline"
+              value={draftStatus ?? "all"}
+              options={[
+                { value: "all", label: "전체" },
+                { value: "success", label: "성공" },
+                { value: "partial", label: "부분 성공" },
+                { value: "error", label: "오류" },
+              ]}
+              onValueChange={(value) =>
+                setDraftStatus(
+                  value === "all" ? undefined : (value as SeamlessStatus),
+                )
+              }
+            />
+            <PeriodFilters
+              from={draftFrom}
+              to={draftTo}
+              onFromChange={setDraftFrom}
+              onToChange={setDraftTo}
+            />
+          </VStack>
+        }
+        secondaryFilterCount={
+          Number(status !== undefined) +
+          Number(parsed.from !== undefined || parsed.to !== undefined)
+        }
+        secondaryTitle="Seamless 상세 필터"
+        secondaryDescription="상태와 조회 기간을 한 번에 적용합니다."
+        onOpenSecondaryFilters={() => {
+          setDraftStatus(status);
+          setDraftFrom(parsed.from);
+          setDraftTo(parsed.to);
+        }}
+        onCancelSecondaryFilters={() => {
+          setDraftStatus(status);
+          setDraftFrom(parsed.from);
+          setDraftTo(parsed.to);
+        }}
+        onApplySecondaryFilters={() => {
+          replaceQuery({
+            status: draftStatus,
+            from: draftFrom,
+            to: draftTo,
+            page: 1,
+          });
+        }}
+      />
+      <AppliedFilterBar
+        filters={[
+          status !== undefined && {
+            key: "status",
+            label: `상태: ${operationalStatusLabel(status)}`,
+            onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+          },
+          parsed.from !== undefined && {
+            key: "from",
+            label: `시작일: ${parsed.from}`,
+            onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+          },
+          parsed.to !== undefined && {
+            key: "to",
+            label: `종료일: ${parsed.to}`,
+            onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+          },
+          requestId !== undefined && {
+            key: "request",
+            label: `요청 ID: ${requestId}`,
+            onRemove: () => {
+              setRequestId(undefined);
+              setRequestSearchResetKey((key) => key + 1);
+              replaceQuery({ page: 1 });
+            },
+          },
+        ]}
+        onReset={() => {
+          setRequestId(undefined);
+          setRequestSearchResetKey((key) => key + 1);
+          replaceQuery({
+            page: 1,
+            limit: 20,
+            sort: undefined,
+            direction: "asc",
+            status: undefined,
+            type: undefined,
+            from: undefined,
+            to: undefined,
+          });
+        }}
+      />
+    </VStack>
+  );
+
   return (
     <VStack gap="x5" alignItems="stretch">
-      <VStack gap="x3" alignItems="stretch">
-        <CompactFilterToolbar
-          primaryControls={
-            <SubmittedMemorySearch
-              label="요청 ID 검색"
-              placeholder="정확한 요청 ID 입력"
-              maxLength={128}
-              resetKey={requestSearchResetKey}
-              validate={(value) =>
-                SAFE_REQUEST_ID_PATTERN.test(value)
-                  ? undefined
-                  : "요청 ID 형식이 올바르지 않습니다."
-              }
-              onSubmit={(value) => {
-                setRequestId(value);
-                replaceQuery({ page: 1 });
-              }}
-            />
-          }
-          secondaryFilters={
-            <VStack gap="x4" alignItems="stretch">
-              <FilterSelect
-                label="상태"
-                presentation="inline"
-                value={draftStatus ?? "all"}
-                options={[
-                  { value: "all", label: "전체" },
-                  { value: "success", label: "성공" },
-                  { value: "partial", label: "부분 성공" },
-                  { value: "error", label: "오류" },
-                ]}
-                onValueChange={(value) =>
-                  setDraftStatus(
-                    value === "all" ? undefined : (value as SeamlessStatus),
-                  )
-                }
-              />
-              <PeriodFilters
-                from={draftFrom}
-                to={draftTo}
-                onFromChange={setDraftFrom}
-                onToChange={setDraftTo}
-              />
-            </VStack>
-          }
-          secondaryFilterCount={
-            Number(status !== undefined) +
-            Number(parsed.from !== undefined || parsed.to !== undefined)
-          }
-          secondaryTitle="Seamless 상세 필터"
-          secondaryDescription="상태와 조회 기간을 한 번에 적용합니다."
-          onOpenSecondaryFilters={() => {
-            setDraftStatus(status);
-            setDraftFrom(parsed.from);
-            setDraftTo(parsed.to);
-          }}
-          onCancelSecondaryFilters={() => {
-            setDraftStatus(status);
-            setDraftFrom(parsed.from);
-            setDraftTo(parsed.to);
-          }}
-          onApplySecondaryFilters={() => {
-            replaceQuery({
-              status: draftStatus,
-              from: draftFrom,
-              to: draftTo,
-              page: 1,
-            });
-          }}
-        />
-        <AppliedFilterBar
-          filters={[
-            status !== undefined && {
-              key: "status",
-              label: `상태: ${operationalStatusLabel(status)}`,
-              onRemove: () => replaceQuery({ status: undefined, page: 1 }),
-            },
-            parsed.from !== undefined && {
-              key: "from",
-              label: `시작일: ${parsed.from}`,
-              onRemove: () => replaceQuery({ from: undefined, page: 1 }),
-            },
-            parsed.to !== undefined && {
-              key: "to",
-              label: `종료일: ${parsed.to}`,
-              onRemove: () => replaceQuery({ to: undefined, page: 1 }),
-            },
-            requestId !== undefined && {
-              key: "request",
-              label: `요청 ID: ${requestId}`,
-              onRemove: () => {
-                setRequestId(undefined);
-                setRequestSearchResetKey((key) => key + 1);
-                replaceQuery({ page: 1 });
-              },
-            },
-          ]}
-          onReset={() => {
-            setRequestId(undefined);
-            setRequestSearchResetKey((key) => key + 1);
-            replaceQuery({
-              page: 1,
-              limit: 20,
-              sort: undefined,
-              direction: "asc",
-              status: undefined,
-              type: undefined,
-              from: undefined,
-              to: undefined,
-            });
-          }}
-        />
-      </VStack>
-
       <AdminCard title="Seamless 통계" description="현재 필터 기준 집계입니다.">
         {statsQuery.isError ? (
           <VStack gap="x3" alignItems="stretch">
@@ -1018,6 +1023,7 @@ function SeamlessPanel({
         totalPages={totalPages}
         onPageChange={(page) => replaceQuery({ page })}
         paginationLabel="Seamless 로그 목록 페이지"
+        toolbar={toolbar}
       />
     </VStack>
   );

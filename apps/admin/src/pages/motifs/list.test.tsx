@@ -47,6 +47,10 @@ const page: PageMotifSummaryOut = {
       variant_group: "flowers",
       color_slot_count: 2,
       created_at: "2026-07-12T01:00:00Z",
+      bbox: [0, 0, 24, 24],
+      symbol:
+        '<symbol id="motif-1"><path fill="currentColor" d="M0 0h24v24H0z"/></symbol>',
+      svg_status: "safe",
     },
   ],
   total: 1,
@@ -58,12 +62,8 @@ const detail: MotifDetailOut = {
   ...page.items[0]!,
   description: "정면 동백꽃 모티프",
   tags: ["flower", "camellia"],
-  bbox: [0, 0, 24, 24],
   anchor: [12, 12],
   color_slots: ["primary", "secondary"],
-  symbol:
-    '<symbol id="motif-1"><path fill="currentColor" d="M0 0h24v24H0z"/></symbol>',
-  svg_status: "safe",
 };
 
 const createObjectURL = vi.fn(() => "blob:motif-preview");
@@ -109,6 +109,14 @@ describe("MotifsPage", () => {
 
     const link = await screen.findByRole("link", { name: "동백꽃" });
     expect(link.getAttribute("href")).toBe("/motifs/motif-1");
+  });
+
+  it("safe symbol을 목록에서 미리보기 이미지로 보여준다", async () => {
+    renderPage();
+
+    const img = await screen.findByRole("img", { name: "동백꽃 미리보기" });
+    expect(img.getAttribute("src")).toContain("data:image/svg+xml");
+    expect(img.getAttribute("src")).toContain(encodeURIComponent("<svg"));
   });
 
   it("검색과 생성일 필터를 적용하고 칩·전체 초기화로 해제한다", async () => {

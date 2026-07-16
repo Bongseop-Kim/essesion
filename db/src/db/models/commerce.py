@@ -267,6 +267,38 @@ class OrderItem(CreatedAtMixin, Base):
     )
 
 
+class Review(TimestampMixin, Base):
+    __tablename__ = "reviews"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"))
+    order_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("order_items.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    order_type: Mapped[str]
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"), index=True
+    )
+    rating: Mapped[int]
+    content: Mapped[str]
+
+    __table_args__ = (
+        UniqueConstraint(
+            "order_id",
+            "order_item_id",
+            name="uq_reviews_order_item",
+            postgresql_nulls_not_distinct=True,
+        ),
+        CheckConstraint("order_type IN ('sale', 'repair', 'custom', 'sample')", name="order_type"),
+        CheckConstraint("rating BETWEEN 1 AND 5", name="rating"),
+        CheckConstraint("char_length(content) BETWEEN 1 AND 1000", name="content_length"),
+        Index("ix_reviews_public_list", "order_type", "created_at", "id"),
+    )
+
+
 class OrderStatusLog(CreatedAtMixin, Base):
     __tablename__ = "order_status_logs"
 
@@ -381,19 +413,25 @@ class Inquiry(TimestampMixin, Base):
     title: Mapped[str]
     content: Mapped[str]
     status: Mapped[str] = mapped_column(server_default="답변대기")
+    is_secret: Mapped[bool] = mapped_column(server_default=text("true"))
     answer: Mapped[str | None]
     answer_date: Mapped[datetime | None]
     answered_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
-    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"))
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="SET NULL"), index=True
+    )
 
     __table_args__ = (
-        CheckConstraint("category IN ('일반', '상품', '수선', '주문제작')", name="category"),
+        CheckConstraint(
+            "category IN ('일반', '상품', '수선', '주문제작', '샘플제작')", name="category"
+        ),
         CheckConstraint("status IN ('답변대기', '답변완료')", name="status"),
         CheckConstraint("char_length(title) BETWEEN 1 AND 200", name="title_length"),
         CheckConstraint("char_length(content) BETWEEN 1 AND 5000", name="content_length"),
         Index("ix_inquiries_admin_list", "status", "created_at", "id"),
+        Index("ix_inquiries_public_list", "category", "created_at", "id"),
     )
 
 

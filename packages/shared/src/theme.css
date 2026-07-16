@@ -249,13 +249,16 @@
     color: var(--color-fg-neutral);
     background-color: var(--color-bg-layer-default);
     word-break: keep-all; /* 한국어 어절 단위 줄바꿈 */
+    /* 스크롤바 자리를 항상 예약 — 모달 스크롤 잠금·페이지 이동으로 스크롤바가
+       생기고 사라져도 레이아웃 시프트 없음 (JS padding 보상 불필요) */
+    scrollbar-gutter: stable;
   }
 
   /* 모달 dialog 열림 동안 배경 문서 스크롤 잠금 (docs/foundation/overlay.md).
-     컴포넌트 클래스로는 body에 도달할 수 없어(임의 variant는 하네스 금지) 여기가 승인된 유일한 탈출구.
+     컴포넌트 클래스로는 루트에 도달할 수 없어(임의 variant는 하네스 금지) 여기가 승인된 유일한 탈출구.
      퇴장 전환(data-closing) 중에도 [open]이 유지되므로 잠금이 끝까지 유지된다.
-     스크롤바 소멸로 인한 레이아웃 시프트는 use-dialog.ts가 body padding-right로 보상한다. */
-  body:has(dialog:modal) {
+     html에 직접 걸어 scrollbar-gutter와 같은 요소에서 동작 — 시프트 없음. */
+  html:has(dialog:modal) {
     overflow: hidden;
   }
 }

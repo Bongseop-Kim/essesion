@@ -7,6 +7,7 @@ import {
 import {
   ActionButton,
   AlertDialog,
+  Badge,
   Callout,
   ContentPlaceholder,
   HStack,
@@ -155,7 +156,10 @@ export function InquiryDetailPage() {
           title={data.title}
           description={`${data.category} 문의의 고객·상품 문맥을 확인합니다.`}
         />
-        <StatusBadge status={data.status} />
+        <HStack gap="x2">
+          {data.is_secret ? <Badge>비밀글</Badge> : null}
+          <StatusBadge status={data.status} />
+        </HStack>
       </HStack>
       <AdminCard title="문의 정보">
         <DetailList

@@ -3,7 +3,6 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { pickOption } from "../../test/pickers";
 import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
@@ -140,13 +139,17 @@ describe("CustomersPage", () => {
     );
   });
 
-  it("공유 피커에서 계정 상태를 선택하면 즉시 URL과 조회에 반영한다", async () => {
+  it("필터 패널에서 계정 상태를 적용하면 URL과 조회에 반영한다", async () => {
     const user = userEvent.setup();
     renderPage("/customers?status=inactive");
     await screen.findByText("홍길동");
 
-    expect(screen.queryByRole("button", { name: "필터 1" })).toBeNull();
-    await pickOption(user, "계정 상태", "활성");
+    expect(
+      screen.getByRole("button", { name: "상태: 비활성 필터 제거" }),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "필터 1" }));
+    await user.click(screen.getByRole("radio", { name: "활성" }));
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
 
     await waitFor(() =>
       expect(api.list).toHaveBeenLastCalledWith(
