@@ -191,18 +191,14 @@ async def test_service_review_update_delete_and_admin_filter(client, db_session,
     assert admin_page.status_code == 200
     assert admin_page.json()["total"] == 1
 
-    matched = await client.get(
-        "/admin/reviews", params={"q": "수정한"}, headers=admin_headers
-    )
+    matched = await client.get("/admin/reviews", params={"q": "수정한"}, headers=admin_headers)
     assert matched.status_code == 200
     assert matched.json()["total"] == 1
     unmatched = await client.get(
         "/admin/reviews", params={"q": "없는 검색어"}, headers=admin_headers
     )
     assert unmatched.json()["total"] == 0
-    too_short = await client.get(
-        "/admin/reviews", params={"q": " 수 "}, headers=admin_headers
-    )
+    too_short = await client.get("/admin/reviews", params={"q": " 수 "}, headers=admin_headers)
     assert too_short.status_code == 400
 
     deleted = await client.delete(f"/admin/reviews/{review_id}", headers=admin_headers)

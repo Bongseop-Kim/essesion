@@ -10,7 +10,10 @@ vi.mock("@/shared/lib/observability", () => ({
 }));
 
 describe("store router", () => {
-  it("root 오류 경계와 진짜 404 페이지를 제공한다", async () => {
+  // 전체 스위트 병렬 실행 시 라우트 모듈 동적 import가 5초 기본 타임아웃을 넘길 수 있다
+  it("root 오류 경계와 진짜 404 페이지를 제공한다", {
+    timeout: 20_000,
+  }, async () => {
     const { storeRouteObjects } = await import("./index");
     const { RouteErrorBoundary } = await import("./route-error");
     const { NotFoundPage } = await import("@/pages/not-found");
