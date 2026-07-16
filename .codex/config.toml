@@ -1,5 +1,5 @@
 [mcp_servers.aside]
-command = "/Users/gimbongseob/.local/bin/aside"
+command = "aside"
 args = ["mcp"]
 
 [mcp_servers.aside.tools.repl]

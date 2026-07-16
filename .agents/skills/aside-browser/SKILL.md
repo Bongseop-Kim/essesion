@@ -56,7 +56,7 @@ aside account list
 codex mcp list
 ```
 
-- `aside` MCP가 없으면 `codex mcp add aside -- /Users/gimbongseob/.local/bin/aside mcp`로 등록하고 에이전트 세션을 다시 시작한다.
+- `aside` MCP가 없으면 `codex mcp add aside -- aside mcp`로 등록하고 에이전트 세션을 다시 시작한다.
 - 계정이 signed out이면 Aside **Settings > Account**에서 다시 로그인하거나 `aside account use <id>`로 로그인된 계정을 선택한다.
 - 프로젝트 MCP 설정은 루트 `.mcp.json`이 소유한다.
 
