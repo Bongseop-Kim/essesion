@@ -57,6 +57,7 @@ import {
   courierTrackingUrl,
   RepairInboundAddress,
 } from "@/features/repair-shipping";
+import { ReviewFormModal, type ReviewTarget } from "@/features/reviews";
 import { deliveryRequestLabel } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -70,6 +71,8 @@ export function OrderDetailPage() {
   const queryClient = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [claimTarget, setClaimTarget] = useState<ClaimTarget | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const orderQuery = useQuery({
     ...getOrderOptions({ path: { order_id: orderId ?? "" } }),
     enabled: !!orderId,
@@ -103,6 +106,10 @@ export function OrderDetailPage() {
   const summaryClaim = order?.claim_summary
     ? claimBadge(order.claim_summary)
     : null;
+  const openReview = (target: ReviewTarget) => {
+    setReviewTarget(target);
+    setReviewOpen(true);
+  };
 
   return (
     <ContentLayout
@@ -308,6 +315,35 @@ export function OrderDetailPage() {
             </Box>
           ) : null}
 
+          {order.order_type !== "sale" &&
+          order.order_type !== "token" &&
+          (customerActions.includes("write_review") || order.review_id) ? (
+            <Box bg="bg.neutral-weak" borderRadius="r3" p="x4">
+              <VStack gap="x3" alignItems="stretch">
+                <VStack gap="x1">
+                  <Text as="h2" textStyle="title3">
+                    서비스 후기
+                  </Text>
+                  <Text textStyle="bodySm" color="fg.neutral-muted">
+                    이용한 서비스의 별점과 후기를 남겨 주세요.
+                  </Text>
+                </VStack>
+                <ActionButton
+                  type="button"
+                  variant="neutralWeak"
+                  onClick={() =>
+                    openReview({
+                      orderId: order.id,
+                      reviewId: order.review_id ?? undefined,
+                    })
+                  }
+                >
+                  {order.review_id ? "작성한 후기 보기" : "후기 작성"}
+                </ActionButton>
+              </VStack>
+            </Box>
+          ) : null}
+
           <VStack gap="x3" alignItems="stretch">
             <Text as="h2" textStyle="title3">
               주문 상품 {order.items?.length ?? 0}개
@@ -354,6 +390,24 @@ export function OrderDetailPage() {
                           setClaimTarget({ type, item: selectedItem })
                         }
                       />
+                      {order.order_type === "sale" &&
+                      item.item_type === "product" &&
+                      (item.review_id ||
+                        customerActions.includes("write_review")) ? (
+                        <ActionButton
+                          type="button"
+                          variant="neutralOutline"
+                          onClick={() =>
+                            openReview({
+                              orderId: order.id,
+                              orderItemId: item.id,
+                              reviewId: item.review_id ?? undefined,
+                            })
+                          }
+                        >
+                          {item.review_id ? "작성한 후기 보기" : "후기 작성"}
+                        </ActionButton>
+                      ) : null}
                     </VStack>
                   </Box>
                 );
@@ -397,6 +451,12 @@ export function OrderDetailPage() {
               item={claimTarget.item}
             />
           ) : null}
+
+          <ReviewFormModal
+            open={reviewOpen}
+            target={reviewTarget}
+            onOpenChange={setReviewOpen}
+          />
         </VStack>
       )}
     </ContentLayout>

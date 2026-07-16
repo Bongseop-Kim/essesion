@@ -83,6 +83,7 @@ def _summary(
         category=inquiry.category,
         title=inquiry.title,
         status=inquiry.status,
+        is_secret=inquiry.is_secret,
         answer_date=inquiry.answer_date,
         created_at=inquiry.created_at,
         updated_at=inquiry.updated_at,

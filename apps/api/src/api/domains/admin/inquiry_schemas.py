@@ -7,7 +7,7 @@ from pydantic import AwareDatetime, BaseModel, Field
 from api.domains.admin.types import SortDirection
 
 InquiryStatusFilter = Literal["all", "답변대기", "답변완료"]
-InquiryCategoryFilter = Literal["all", "일반", "상품", "수선", "주문제작"]
+InquiryCategoryFilter = Literal["all", "일반", "상품", "수선", "주문제작", "샘플제작"]
 InquirySort = Literal["created_at", "updated_at", "status"]
 
 
@@ -35,6 +35,7 @@ class AdminInquirySummaryOut(BaseModel):
     category: str
     title: str
     status: str
+    is_secret: bool
     answer_date: datetime | None
     created_at: datetime
     updated_at: datetime

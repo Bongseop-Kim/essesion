@@ -32,6 +32,7 @@ import { useNavigate, useSearchParams } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
 import { useCartActions, useCartItems } from "@/features/cart";
+import { InquirySection } from "@/features/inquiry";
 import {
   BulkApplyModal,
   calculateReformCost,
@@ -48,7 +49,9 @@ import {
   TieItemForm,
   uploadReformImage,
 } from "@/features/reform";
+import { ReviewListSection } from "@/features/reviews";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 const MAX_TIES = 50;
@@ -366,7 +369,28 @@ export function ReformPage() {
             </Box>
           </HStack>
         }
-        detail={<ReformServiceGuide />}
+        detail={
+          <StickySectionNav
+            aria-label="수선 서비스 상세 메뉴"
+            sections={[
+              {
+                id: "reform-info",
+                label: "정보",
+                content: <ReformServiceGuide />,
+              },
+              {
+                id: "reform-inquiry",
+                label: "문의",
+                content: <InquirySection category="수선" />,
+              },
+              {
+                id: "reform-reviews",
+                label: "후기",
+                content: <ReviewListSection orderType="repair" />,
+              },
+            ]}
+          />
+        }
       >
         <VStack gap="x5" alignItems="stretch">
           <VStack gap="x2">

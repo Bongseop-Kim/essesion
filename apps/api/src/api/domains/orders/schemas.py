@@ -168,6 +168,7 @@ class OrderItemOut(BaseModel):
     line_discount_amount: int
     applied_user_coupon_id: uuid.UUID | None
     claim: ClaimBadgeOut | None = None
+    review_id: uuid.UUID | None = None
 
 
 class OrderOut(BaseModel):
@@ -196,6 +197,7 @@ class OrderOut(BaseModel):
     items: list[OrderItemOut] = []
     customer_actions: list[str] = []
     claim_summary: ClaimBadgeOut | None = None
+    review_id: uuid.UUID | None = None
 
 
 class OrderShippingAddressOut(BaseModel):

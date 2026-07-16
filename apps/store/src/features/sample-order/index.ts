@@ -6,3 +6,4 @@ export {
   sampleOrderApiOptions,
   sampleTypeLabel,
 } from "./model/options";
+export { SampleOrderServiceGuide } from "./ui/sample-order-service-guide";

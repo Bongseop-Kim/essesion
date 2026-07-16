@@ -46,6 +46,7 @@ import {
   type CustomOrderFieldId,
   type CustomOrderOptions,
   type CustomOrderSectionId,
+  CustomOrderServiceGuide,
   type CustomOrderValidationError,
   clearCustomOrderFormDraft,
   customOrderApiOptions,
@@ -63,10 +64,13 @@ import {
   useCustomQuote,
 } from "@/features/custom-order";
 import { DesignPicker } from "@/features/design/ui/design-picker";
+import { InquirySection } from "@/features/inquiry";
+import { ReviewListSection } from "@/features/reviews";
 import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 type LoginDraft = Pick<CustomOrderDraft, "options" | "contact">;
@@ -478,6 +482,28 @@ function CustomOrderPageContent({
               </Text>
             ) : null}
           </VStack>
+        }
+        detail={
+          <StickySectionNav
+            aria-label="주문 제작 상세 메뉴"
+            sections={[
+              {
+                id: "custom-order-info",
+                label: "정보",
+                content: <CustomOrderServiceGuide />,
+              },
+              {
+                id: "custom-order-inquiry",
+                label: "문의",
+                content: <InquirySection category="주문제작" />,
+              },
+              {
+                id: "custom-order-reviews",
+                label: "후기",
+                content: <ReviewListSection orderType="custom" />,
+              },
+            ]}
+          />
         }
       >
         <VStack gap="x8" alignItems="stretch">

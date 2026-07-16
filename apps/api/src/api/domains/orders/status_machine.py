@@ -114,9 +114,16 @@ CLAIM_CANCEL_ACTION_FROM: dict[str, set[str]] = {
 CLAIM_RETURN_EXCHANGE_ACTION_FROM: dict[str, set[str]] = {
     "sale": {"배송중", "배송완료"},
 }
+REVIEWABLE_STATUSES = {"완료", "배송완료", "제작완료", "수선완료"}
 
 
-def customer_actions(order_type: str, status: str, *, has_blocking_claim: bool) -> list[str]:
+def customer_actions(
+    order_type: str,
+    status: str,
+    *,
+    has_blocking_claim: bool,
+    has_review_target: bool = False,
+) -> list[str]:
     actions: list[str] = []
     if not has_blocking_claim:
         if status in CLAIM_CANCEL_ACTION_FROM.get(order_type, set()):
@@ -125,6 +132,8 @@ def customer_actions(order_type: str, status: str, *, has_blocking_claim: bool) 
             actions += ["claim_return", "claim_exchange"]
         if order_type != "token" and status in ("배송중", "배송완료"):
             actions.append("confirm_purchase")
+    if has_review_target and status in REVIEWABLE_STATUSES:
+        actions.append("write_review")
     return actions
 
 

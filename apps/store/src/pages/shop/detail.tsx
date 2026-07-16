@@ -38,8 +38,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { useAuthGuard } from "@/features/auth";
 import { useCartActions } from "@/features/cart";
+import { InquirySection } from "@/features/inquiry";
+import { ReviewListSection } from "@/features/reviews";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import {
   categoryLabel,
   colorLabel,
@@ -243,7 +246,35 @@ export function ShopDetailPage() {
             onBuy={() => addToCart(true)}
           />
         }
-        detail={<ProductDetail product={product} detailImages={detailImages} />}
+        detail={
+          <StickySectionNav
+            aria-label="상품 상세 메뉴"
+            sections={[
+              {
+                id: "product-info",
+                label: "정보",
+                content: (
+                  <ProductDetail
+                    product={product}
+                    detailImages={detailImages}
+                  />
+                ),
+              },
+              {
+                id: "product-inquiry",
+                label: "문의",
+                content: (
+                  <InquirySection category="상품" productId={product.id} />
+                ),
+              },
+              {
+                id: "product-reviews",
+                label: "후기",
+                content: <ReviewListSection productId={product.id} />,
+              },
+            ]}
+          />
+        }
       >
         <ImageFrame
           ratio={1}

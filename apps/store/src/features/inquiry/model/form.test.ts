@@ -10,6 +10,7 @@ describe("inquiry form", () => {
         title: "   ",
         content: "내용",
         product_id: null,
+        is_secret: false,
       }).success,
     ).toBe(false);
     expect(
@@ -18,6 +19,7 @@ describe("inquiry form", () => {
         title: "상품 문의",
         content: "내용",
         product_id: null,
+        is_secret: false,
       }).success,
     ).toBe(false);
   });
@@ -29,12 +31,14 @@ describe("inquiry form", () => {
         title: "  수선 문의  ",
         content: "  수선이 가능한가요?  ",
         product_id: 12,
+        is_secret: true,
       }),
     ).toEqual({
       category: "수선",
       title: "수선 문의",
       content: "수선이 가능한가요?",
       product_id: null,
+      is_secret: true,
     });
   });
 });

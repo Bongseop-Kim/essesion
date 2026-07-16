@@ -3,7 +3,7 @@ import type {
   PageAdminInquirySummaryOut,
 } from "@essesion/api-client";
 import { listAdminInquiries, searchAdminInquiries } from "@essesion/api-client";
-import { Text, VStack } from "@essesion/shared";
+import { Badge, HStack, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -25,7 +25,14 @@ import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const INQUIRY_STATUSES = ["all", "답변대기", "답변완료"] as const;
-const INQUIRY_CATEGORIES = ["all", "일반", "상품", "수선", "주문제작"] as const;
+const INQUIRY_CATEGORIES = [
+  "all",
+  "일반",
+  "상품",
+  "수선",
+  "주문제작",
+  "샘플제작",
+] as const;
 const INQUIRY_SORTS = ["created_at", "updated_at", "status"] as const;
 type InquiryStatus = (typeof INQUIRY_STATUSES)[number];
 type InquiryCategory = (typeof INQUIRY_CATEGORIES)[number];
@@ -37,7 +44,10 @@ const columns: readonly AdminTableColumn<AdminInquirySummaryOut>[] = [
     header: "문의",
     render: (inquiry) => (
       <VStack gap="x0_5">
-        <Link to={`/inquiries/${inquiry.id}`}>{inquiry.title}</Link>
+        <HStack gap="x2" wrap>
+          <Link to={`/inquiries/${inquiry.id}`}>{inquiry.title}</Link>
+          {inquiry.is_secret ? <Badge>비밀글</Badge> : null}
+        </HStack>
         <Text textStyle="caption" color="fg.neutral-muted">
           {inquiry.customer?.name ?? "탈퇴/비회원 고객"}
         </Text>

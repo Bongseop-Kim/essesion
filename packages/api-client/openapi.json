@@ -1532,6 +1532,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_secret": {
+            "title": "Is Secret",
+            "type": "boolean"
+          },
           "product": {
             "anyOf": [
               {
@@ -1561,6 +1565,7 @@
           "category",
           "title",
           "status",
+          "is_secret",
           "answer_date",
           "created_at",
           "updated_at",
@@ -1613,7 +1618,8 @@
               "일반",
               "상품",
               "수선",
-              "주문제작"
+              "주문제작",
+              "샘플제작"
             ],
             "title": "Category",
             "type": "string"
@@ -1735,6 +1741,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_secret": {
+            "title": "Is Secret",
+            "type": "boolean"
+          },
           "product": {
             "anyOf": [
               {
@@ -1764,6 +1774,7 @@
           "category",
           "title",
           "status",
+          "is_secret",
           "answer_date",
           "created_at",
           "updated_at",
@@ -6518,7 +6529,8 @@
               "일반",
               "상품",
               "수선",
-              "주문제작"
+              "주문제작",
+              "샘플제작"
             ],
             "title": "Category",
             "type": "string"
@@ -6528,6 +6540,11 @@
             "minLength": 1,
             "title": "Content",
             "type": "string"
+          },
+          "is_secret": {
+            "default": false,
+            "title": "Is Secret",
+            "type": "boolean"
           },
           "product_id": {
             "anyOf": [
@@ -6597,6 +6614,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_secret": {
+            "title": "Is Secret",
+            "type": "boolean"
+          },
           "product_id": {
             "anyOf": [
               {
@@ -6626,6 +6647,7 @@
           "answer",
           "answer_date",
           "product_id",
+          "is_secret",
           "created_at"
         ],
         "title": "InquiryOut",
@@ -6638,7 +6660,8 @@
               "일반",
               "상품",
               "수선",
-              "주문제작"
+              "주문제작",
+              "샘플제작"
             ],
             "title": "Category",
             "type": "string"
@@ -6648,6 +6671,10 @@
             "minLength": 1,
             "title": "Content",
             "type": "string"
+          },
+          "is_secret": {
+            "title": "Is Secret",
+            "type": "boolean"
           },
           "product_id": {
             "anyOf": [
@@ -8020,6 +8047,18 @@
             "title": "Repair Receipts",
             "type": "array"
           },
+          "review_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Id"
+          },
           "shipped_at": {
             "anyOf": [
               {
@@ -8311,6 +8350,18 @@
             "title": "Quantity",
             "type": "integer"
           },
+          "review_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Id"
+          },
           "selected_option_id": {
             "anyOf": [
               {
@@ -8473,6 +8524,18 @@
               }
             ],
             "title": "Payment Group Id"
+          },
+          "review_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Id"
           },
           "shipped_at": {
             "anyOf": [
@@ -9178,6 +9241,37 @@
           "offset"
         ],
         "title": "Page[PaymentIncidentSummaryOut]",
+        "type": "object"
+      },
+      "Page_ReviewOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[ReviewOut]",
         "type": "object"
       },
       "Page_SeamlessSummaryOut_": {
@@ -9951,6 +10045,124 @@
           }
         },
         "title": "ProfileUpdateRequest",
+        "type": "object"
+      },
+      "PublicInquiryListOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicInquiryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PublicInquiryListOut",
+        "type": "object"
+      },
+      "PublicInquiryOut": {
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "answer_date": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Date"
+          },
+          "author_name": {
+            "title": "Author Name",
+            "type": "string"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_mine": {
+            "title": "Is Mine",
+            "type": "boolean"
+          },
+          "is_secret": {
+            "title": "Is Secret",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "title",
+          "content",
+          "status",
+          "answer",
+          "answer_date",
+          "created_at",
+          "author_name",
+          "is_secret",
+          "is_mine"
+        ],
+        "title": "PublicInquiryOut",
         "type": "object"
       },
       "QuoteCreateRequest": {
@@ -10915,6 +11127,158 @@
           }
         },
         "title": "RestorationReform",
+        "type": "object"
+      },
+      "ReviewCreateRequest": {
+        "properties": {
+          "content": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Item Id"
+          },
+          "rating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_id",
+          "rating",
+          "content"
+        ],
+        "title": "ReviewCreateRequest",
+        "type": "object"
+      },
+      "ReviewListOut": {
+        "properties": {
+          "avg_rating": {
+            "title": "Avg Rating",
+            "type": "number"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "avg_rating",
+          "limit",
+          "offset"
+        ],
+        "title": "ReviewListOut",
+        "type": "object"
+      },
+      "ReviewOut": {
+        "properties": {
+          "author_name": {
+            "title": "Author Name",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_type": {
+            "enum": [
+              "sale",
+              "repair",
+              "custom",
+              "sample"
+            ],
+            "title": "Order Type",
+            "type": "string"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Id"
+          },
+          "rating": {
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "rating",
+          "content",
+          "created_at",
+          "order_type",
+          "product_id",
+          "author_name"
+        ],
+        "title": "ReviewOut",
+        "type": "object"
+      },
+      "ReviewUpdateRequest": {
+        "properties": {
+          "content": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "rating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating",
+            "type": "integer"
+          }
+        },
+        "title": "ReviewUpdateRequest",
         "type": "object"
       },
       "SafeCandidateOut": {
@@ -14891,7 +15255,8 @@
                 "일반",
                 "상품",
                 "수선",
-                "주문제작"
+                "주문제작",
+                "샘플제작"
               ],
               "title": "Category",
               "type": "string"
@@ -17491,6 +17856,148 @@
         ]
       }
     },
+    "/admin/reviews": {
+      "get": {
+        "operationId": "list_admin_reviews",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "order_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "sale",
+                    "repair",
+                    "custom",
+                    "sample"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rating",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rating"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReviewOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Admin Reviews",
+        "tags": [
+          "admin-reviews"
+        ]
+      }
+    },
+    "/admin/reviews/{review_id}": {
+      "delete": {
+        "operationId": "delete_admin_review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Admin Review",
+        "tags": [
+          "admin-reviews"
+        ]
+      }
+    },
     "/admin/settings": {
       "get": {
         "operationId": "get_admin_settings",
@@ -19616,6 +20123,105 @@
         ]
       }
     },
+    "/inquiries/public": {
+      "get": {
+        "operationId": "list_public_inquiries",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "수선",
+                    "주문제작",
+                    "샘플제작"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicInquiryListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Public Inquiries",
+        "tags": [
+          "inquiries"
+        ]
+      }
+    },
     "/inquiries/{inquiry_id}": {
       "delete": {
         "operationId": "delete_inquiry",
@@ -21046,6 +21652,282 @@
         "summary": "Get Reform Pricing",
         "tags": [
           "reform"
+        ]
+      }
+    },
+    "/reviews": {
+      "get": {
+        "operationId": "list_reviews",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "repair",
+                    "custom",
+                    "sample"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Order Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Reviews",
+        "tags": [
+          "reviews"
+        ]
+      },
+      "post": {
+        "operationId": "create_review",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Review",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/reviews/{review_id}": {
+      "delete": {
+        "operationId": "delete_review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Review",
+        "tags": [
+          "reviews"
+        ]
+      },
+      "get": {
+        "operationId": "get_review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Review",
+        "tags": [
+          "reviews"
+        ]
+      },
+      "patch": {
+        "operationId": "update_review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Review",
+        "tags": [
+          "reviews"
         ]
       }
     },

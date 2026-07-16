@@ -1,7 +1,14 @@
 import uuid
 from typing import Literal
 
-from db.models.commerce import Claim, Order, OrderItem, RepairShippingReceipt, ShippingAddress
+from db.models.commerce import (
+    Claim,
+    Order,
+    OrderItem,
+    RepairShippingReceipt,
+    Review,
+    ShippingAddress,
+)
 from fastapi import APIRouter, Request
 from sqlalchemy import select
 
@@ -112,6 +119,17 @@ async def list_my_orders(
         else []
     )
     claim_context = service.claim_read_model(claims)
+    reviews = (
+        (await session.scalars(select(Review).where(Review.order_id.in_(order_ids)))).all()
+        if order_ids
+        else []
+    )
+    review_by_item = {
+        review.order_item_id: review.id for review in reviews if review.order_item_id is not None
+    }
+    review_by_order = {
+        review.order_id: review.id for review in reviews if review.order_item_id is None
+    }
     items_by_order: dict[uuid.UUID, list[OrderItemOut]] = {}
     if order_ids:
         items = await session.scalars(
@@ -124,6 +142,7 @@ async def list_my_orders(
             item_claim = claim_context.by_item.get(item.id)
             if item_claim is not None:
                 item_out.claim = ClaimBadgeOut.model_validate(item_claim)
+            item_out.review_id = review_by_item.get(item.id)
             items_by_order.setdefault(item.order_id, []).append(item_out)
     results = []
     for order in orders:
@@ -132,6 +151,12 @@ async def list_my_orders(
         summary_claim = claim_context.by_order.get(order.id)
         if summary_claim is not None:
             out.claim_summary = ClaimBadgeOut.model_validate(summary_claim)
+        out.review_id = review_by_order.get(order.id)
+        has_review_target = (
+            any(item.item_type == "product" and item.review_id is None for item in out.items)
+            if order.order_type == "sale"
+            else order.order_type in ("custom", "repair", "sample") and out.review_id is None
+        )
         out.customer_actions = customer_actions(
             order.order_type,
             order.status,
@@ -139,6 +164,7 @@ async def list_my_orders(
                 order.id in claim_context.active_order_ids
                 or order.id in claim_context.completed_cancel_order_ids
             ),
+            has_review_target=has_review_target,
         )
         results.append(out)
     return results
@@ -155,6 +181,10 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         )
     ).all()
     claims = (await session.scalars(select(Claim).where(Claim.order_id == order.id))).all()
+    reviews = (await session.scalars(select(Review).where(Review.order_id == order.id))).all()
+    review_by_item = {
+        review.order_item_id: review.id for review in reviews if review.order_item_id is not None
+    }
     claim_context = service.claim_read_model(claims)
     out = OrderDetailOut.model_validate(order)
     out.items = []
@@ -163,7 +193,9 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         item_claim = claim_context.by_item.get(item.id)
         if item_claim is not None:
             item_out.claim = ClaimBadgeOut.model_validate(item_claim)
+        item_out.review_id = review_by_item.get(item.id)
         out.items.append(item_out)
+    out.review_id = next((review.id for review in reviews if review.order_item_id is None), None)
     summary_claim = claim_context.by_order.get(order.id)
     if summary_claim is not None:
         out.claim_summary = ClaimBadgeOut.model_validate(summary_claim)
@@ -186,6 +218,11 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         has_blocking_claim=(
             order.id in claim_context.active_order_ids
             or order.id in claim_context.completed_cancel_order_ids
+        ),
+        has_review_target=(
+            any(item.item_type == "product" and item.review_id is None for item in out.items)
+            if order.order_type == "sale"
+            else order.order_type in ("custom", "repair", "sample") and out.review_id is None
         ),
     )
     return out

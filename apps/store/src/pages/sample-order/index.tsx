@@ -20,16 +20,20 @@ import { useLocation, useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
 import { CUSTOM_IMAGE_ACCEPT, uploadOrderImage } from "@/features/custom-order";
+import { InquirySection } from "@/features/inquiry";
+import { ReviewListSection } from "@/features/reviews";
 import {
   DEFAULT_SAMPLE_ORDER_OPTIONS,
   type SampleOrderDraft,
   type SampleOrderOptions,
+  SampleOrderServiceGuide,
   sampleFabricLabel,
   sampleOrderApiOptions,
   sampleTypeLabel,
 } from "@/features/sample-order";
 import { krw } from "@/pages/shop/constants";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 const MAX_IMAGES = 5;
@@ -154,6 +158,28 @@ export function SampleOrderPage() {
         >
           {totalCost ? `${krw.format(totalCost)}원 주문하기` : "금액 확인 중"}
         </Box>
+      }
+      detail={
+        <StickySectionNav
+          aria-label="샘플 제작 상세 메뉴"
+          sections={[
+            {
+              id: "sample-order-info",
+              label: "정보",
+              content: <SampleOrderServiceGuide />,
+            },
+            {
+              id: "sample-order-inquiry",
+              label: "문의",
+              content: <InquirySection category="샘플제작" />,
+            },
+            {
+              id: "sample-order-reviews",
+              label: "후기",
+              content: <ReviewListSection orderType="sample" />,
+            },
+          ]}
+        />
       }
     >
       <VStack gap="x8" alignItems="stretch">

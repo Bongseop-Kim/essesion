@@ -221,6 +221,13 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
+    path: "reviews",
+    lazy: async () => {
+      const { ReviewsPage } = await import("../../pages/reviews/list");
+      return { Component: ReviewsPage };
+    },
+  },
+  {
     path: "pricing",
     lazy: async () => {
       const { PricingPage } = await import("../../pages/pricing");

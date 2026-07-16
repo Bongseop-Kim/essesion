@@ -28,6 +28,7 @@ describe("AdminSidebar", () => {
       "클레임 관리",
       "결제 이상",
       "문의 관리",
+      "후기 관리",
     ]);
     expect(
       within(within(sidebar).getByRole("region", { name: "상품·프로모션" }))

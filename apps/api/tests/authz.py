@@ -100,6 +100,46 @@ async def _inquiry_delete(session: AsyncSession, owner: User) -> tuple[str, dict
     return await _inquiry_detail(session, owner)
 
 
+async def _review_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.commerce import OrderItem, Review
+
+    from .factories import make_order, make_product
+
+    product = await make_product(session)
+    order = await make_order(session, owner, status="완료")
+    item = OrderItem(
+        order_id=order.id,
+        item_id=f"product:{product.id}",
+        item_type="product",
+        product_id=product.id,
+        quantity=1,
+        unit_price=product.price,
+    )
+    session.add(item)
+    await session.flush()
+    review = Review(
+        order_id=order.id,
+        order_item_id=item.id,
+        user_id=owner.id,
+        order_type="sale",
+        product_id=product.id,
+        rating=5,
+        content="인가 테스트 후기",
+    )
+    session.add(review)
+    await session.commit()
+    return f"/reviews/{review.id}", None
+
+
+async def _review_update(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    url, _ = await _review_detail(session, owner)
+    return url, {"rating": 4}
+
+
+async def _review_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    return await _review_detail(session, owner)
+
+
 async def _design_session_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.design import DesignSession
 
@@ -205,6 +245,8 @@ OWNER_CASES: list[OwnerCase] = [
     OwnerCase("inquiries_detail", "GET", _inquiry_detail),
     OwnerCase("inquiries_update", "PATCH", _inquiry_update),
     OwnerCase("inquiries_delete", "DELETE", _inquiry_delete),
+    OwnerCase("reviews_update", "PATCH", _review_update),
+    OwnerCase("reviews_delete", "DELETE", _review_delete),
     OwnerCase("design_session_detail", "GET", _design_session_detail),
     OwnerCase("design_job_detail", "GET", _design_job_detail),
     OwnerCase("design_motif_candidates", "POST", _design_motif_candidates),
@@ -244,6 +286,12 @@ ADMIN_CASES: list[AdminCase] = [
     AdminCase("admin_stats_today", "GET", "/admin/stats/today?stat_date=2026-01-01"),
     AdminCase("admin_capabilities", "GET", "/admin/capabilities"),
     AdminCase("admin_inquiries_list", "GET", "/admin/inquiries"),
+    AdminCase("admin_reviews_list", "GET", "/admin/reviews"),
+    AdminCase(
+        "admin_reviews_delete",
+        "DELETE",
+        "/admin/reviews/00000000-0000-0000-0000-000000000000",
+    ),
     AdminCase("admin_coupons_list", "GET", "/admin/coupons"),
     AdminCase("admin_manual_orders_list", "GET", "/admin/manual-orders"),
     AdminCase(

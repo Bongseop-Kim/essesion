@@ -4,12 +4,14 @@ import {
   getProductOptions,
   listMyInquiriesQueryKey,
   listProductsOptions,
+  listPublicInquiriesQueryKey,
   updateInquiryMutation,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
   Badge,
   Box,
+  Checkbox,
   Chip,
   ContentPlaceholder,
   cn,
@@ -103,6 +105,9 @@ export function InquiryFormModal({
       }
       await queryClient.invalidateQueries({
         queryKey: listMyInquiriesQueryKey(),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: listPublicInquiriesQueryKey(),
       });
       onOpenChange(false);
       snackbar(inquiry ? "문의를 수정했습니다." : "문의를 등록했습니다.");
@@ -260,6 +265,13 @@ export function InquiryFormModal({
               </ProductChoiceGroup>
             </Field>
           ) : null}
+
+          <Checkbox
+            label="비밀글로 문의하기"
+            description="작성자와 관리자만 내용을 볼 수 있어요."
+            disabled={isSaving}
+            {...form.register("is_secret")}
+          />
 
           <TextField
             label="제목"

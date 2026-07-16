@@ -1,0 +1,41 @@
+import uuid
+from typing import Annotated
+
+from db.models.commerce import Review
+from fastapi import APIRouter, Query
+
+from api.db import SessionDep
+from api.deps import AdminUser
+from api.domains.admin.schemas import Page
+from api.domains.reviews import service
+from api.domains.reviews.schemas import ReviewOrderType, ReviewOut
+from api.errors import NotFoundError
+
+router = APIRouter(prefix="/admin/reviews", tags=["admin-reviews"])
+
+
+@router.get("", response_model=Page[ReviewOut])
+async def list_admin_reviews(
+    session: SessionDep,
+    admin: AdminUser,
+    order_type: ReviewOrderType | None = None,
+    rating: Annotated[int | None, Query(ge=1, le=5)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Page[ReviewOut]:
+    filters = []
+    if order_type is not None:
+        filters.append(Review.order_type == order_type)
+    if rating is not None:
+        filters.append(Review.rating == rating)
+    page = await service.list_reviews(session, filters, limit=limit, offset=offset)
+    return Page(items=page.items, total=page.total, limit=limit, offset=offset)
+
+
+@router.delete("/{review_id}", status_code=204)
+async def delete_admin_review(review_id: uuid.UUID, session: SessionDep, admin: AdminUser) -> None:
+    review = await session.get(Review, review_id)
+    if review is None:
+        raise NotFoundError("후기를 찾을 수 없습니다")
+    await session.delete(review)
+    await session.commit()

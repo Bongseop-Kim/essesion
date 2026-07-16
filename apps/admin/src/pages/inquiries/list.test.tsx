@@ -32,6 +32,7 @@ const page: PageAdminInquirySummaryOut = {
       title: "배송 문의",
       category: "일반",
       status: "답변대기",
+      is_secret: false,
       answer_date: null,
       created_at: "2026-07-12T01:00:00Z",
       updated_at: "2026-07-12T01:00:00Z",

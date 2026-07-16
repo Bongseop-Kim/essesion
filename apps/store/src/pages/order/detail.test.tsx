@@ -14,6 +14,10 @@ const api = vi.hoisted(() => ({
   receiptPhotos: vi.fn(),
   receiptReadUrl: vi.fn(),
   readUrl: vi.fn(),
+  createReview: vi.fn(),
+  updateReview: vi.fn(),
+  deleteReview: vi.fn(),
+  review: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client", () => ({
@@ -35,6 +39,12 @@ vi.mock("@essesion/api-client/query", () => ({
     queryFn: api.receiptPhotos,
   }),
   confirmPurchaseMutation: () => ({ mutationFn: api.confirm }),
+  createReviewMutation: () => ({ mutationFn: api.createReview }),
+  updateReviewMutation: () => ({ mutationFn: api.updateReview }),
+  deleteReviewMutation: () => ({ mutationFn: api.deleteReview }),
+  getReviewOptions: () => ({ queryKey: ["review"], queryFn: api.review }),
+  getReviewQueryKey: () => ["review"],
+  listReviewsQueryKey: () => ["reviews"],
 }));
 
 import { OrderDetailPage } from "./detail";

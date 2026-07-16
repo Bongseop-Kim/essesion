@@ -5,7 +5,7 @@ import asyncio
 from db.models.commerce import Inquiry
 from sqlalchemy import select
 
-from .factories import auth_headers, make_admin, make_user
+from .factories import auth_headers, make_admin, make_product, make_user
 
 
 async def test_owner_can_update_and_delete_pending_inquiry(client, db_session, settings):
@@ -110,3 +110,80 @@ async def test_admin_answer_waits_for_concurrent_delete_lock(client, db_session,
     await db_session.commit()
     answered = await answer_task
     assert answered.status_code == 404
+
+
+async def test_public_inquiries_mask_secrets_except_for_the_author(client, db_session, settings):
+    owner = await make_user(db_session, name="김영선")
+    other = await make_user(db_session)
+    product = await make_product(db_session)
+    headers = auth_headers(owner, settings)
+    public = await client.post(
+        "/inquiries",
+        json={
+            "category": "상품",
+            "title": "공개 문의",
+            "content": "공개 내용",
+            "product_id": product.id,
+        },
+        headers=headers,
+    )
+    secret = await client.post(
+        "/inquiries",
+        json={
+            "category": "상품",
+            "title": "주문번호가 든 문의",
+            "content": "개인정보가 든 내용",
+            "product_id": product.id,
+            "is_secret": True,
+        },
+        headers=headers,
+    )
+    assert public.status_code == 201 and public.json()["is_secret"] is False
+    assert secret.status_code == 201 and secret.json()["is_secret"] is True
+
+    anonymous = await client.get("/inquiries/public", params={"product_id": product.id})
+    assert anonymous.status_code == 200
+    by_id = {item["id"]: item for item in anonymous.json()["items"]}
+    assert by_id[public.json()["id"]]["content"] == "공개 내용"
+    assert by_id[public.json()["id"]]["author_name"] == "김**"
+    assert by_id[secret.json()["id"]]["title"] == "비밀글입니다"
+    assert by_id[secret.json()["id"]]["content"] is None
+    assert by_id[secret.json()["id"]]["answer"] is None
+    assert by_id[secret.json()["id"]]["is_mine"] is False
+
+    mine = await client.get("/inquiries/public", params={"product_id": product.id}, headers=headers)
+    mine_by_id = {item["id"]: item for item in mine.json()["items"]}
+    assert mine_by_id[secret.json()["id"]]["title"] == "주문번호가 든 문의"
+    assert mine_by_id[secret.json()["id"]]["content"] == "개인정보가 든 내용"
+    assert mine_by_id[secret.json()["id"]]["is_mine"] is True
+
+    someone_else = await client.get(
+        "/inquiries/public",
+        params={"product_id": product.id},
+        headers=auth_headers(other, settings),
+    )
+    assert someone_else.json()["items"][0]["title"] == "비밀글입니다"
+
+
+async def test_public_inquiry_filters_and_sample_category(client, db_session, settings):
+    user = await make_user(db_session)
+    product = await make_product(db_session)
+    headers = auth_headers(user, settings)
+    created = await client.post(
+        "/inquiries",
+        json={"category": "샘플제작", "title": "샘플 문의", "content": "내용"},
+        headers=headers,
+    )
+    assert created.status_code == 201
+
+    listed = await client.get("/inquiries/public", params={"category": "샘플제작"})
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["title"] == "샘플 문의"
+
+    assert (await client.get("/inquiries/public")).status_code == 422
+    assert (
+        await client.get(
+            "/inquiries/public",
+            params={"category": "샘플제작", "product_id": product.id},
+        )
+    ).status_code == 422
