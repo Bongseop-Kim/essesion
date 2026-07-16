@@ -1,8 +1,9 @@
 """모티프 시드 카탈로그 — 데모용 재사용 풀 (worker-motifs.md §9).
 
 인라인 5개(flower/whole ×3, leaf/whole ×2, style=flat)로 variant pool ≥ 2를 시연하고,
-`motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 동물 글리프,
-파일명 = subject, style=outline)를 기본 모티프로 얹는다. 전부 source="seed", 단색 → s0.
+`motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 글리프 —
+동물·마린·하늘·문장·과일·취미·식물, subject = 파일명 첫 토큰, style=outline)를
+기본 모티프로 얹는다. 전부 source="seed", 단색 → s0.
 멱등 — content-hash id + ON CONFLICT DO NOTHING이라 여러 번 실행해도 안전.
 render_check는 끈다(librsvg 없는 환경에서도 결정론적으로 시드).
 
@@ -72,10 +73,19 @@ _ASSET_DIR = pathlib.Path(__file__).parent / "motif_assets"
 
 
 def _all_seeds() -> list[tuple[str, str, str, str]]:
-    """(subject, style, description, raw_svg) — 인라인 데모 + 에셋 동물 글리프."""
+    """(subject, style, description, raw_svg) — 인라인 데모 + 에셋 글리프.
+
+    에셋 subject = 파일명 첫 토큰 — `cat-head`·`cat-space`가 `cat`으로 묶여
+    variant pool을 이룬다(leaf/flower는 인라인 시드 풀에 합류).
+    """
     seeds = [(subject, "flat", desc, svg) for subject, desc, svg in _SEEDS]
     seeds += [
-        (path.stem, "outline", f"{path.stem} outline icon", path.read_text())
+        (
+            path.stem.split("-")[0],
+            "outline",
+            f"{path.stem.replace('-', ' ')} outline icon",
+            path.read_text(),
+        )
         for path in sorted(_ASSET_DIR.glob("*.svg"))
     ]
     return seeds
