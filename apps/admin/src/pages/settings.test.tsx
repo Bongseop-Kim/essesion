@@ -248,6 +248,6 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(setQueryData).toHaveBeenCalledWith(["settings"], updated),
     );
-    expect(screen.queryByLabelText("택배사명")).toBeNull();
+    await waitFor(() => expect(screen.queryByLabelText("택배사명")).toBeNull());
   });
 });

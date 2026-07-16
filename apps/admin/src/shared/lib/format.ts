@@ -56,12 +56,15 @@ export function formatOrderType(value: string) {
   );
 }
 
+const REPAIR_RECEIPT_REASONS: Record<string, string> = {
+  quick: "퀵서비스",
+  overseas: "해외 발송",
+  lost: "송장 분실",
+};
+
 export function formatRepairReceiptReason(value: string | null | undefined) {
   if (value === null || value === undefined || value === "") return "사유 없음";
-  return (
-    { quick: "퀵서비스", overseas: "해외 발송", lost: "송장 분실" }[value] ??
-    "사유 없음"
-  );
+  return REPAIR_RECEIPT_REASONS[value] ?? "사유 없음";
 }
 
 export function formatFileSize(value: number | null, unknownLabel = "-") {
