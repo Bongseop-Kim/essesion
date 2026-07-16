@@ -52,6 +52,7 @@ import {
   formatIdentifier,
   formatMoney,
   formatOrderType,
+  formatRepairReceiptReason,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
@@ -253,13 +254,6 @@ function snapshotLabel(item: OrderItemOut) {
         (value): value is string => typeof value === "string" && value !== "",
       )
       .join(" · ") || "상품 정보 없음"
-  );
-}
-
-function repairReasonLabel(reason: string) {
-  return (
-    { quick: "퀵서비스", overseas: "해외 발송", lost: "송장 분실" }[reason] ??
-    reason
   );
 }
 
@@ -644,7 +638,7 @@ export function OrderDetailPage() {
             <ActionButton
               key={`${action.kind}-${action.target_status ?? ""}`}
               variant={action.destructive ? "criticalSolid" : "neutralOutline"}
-              disabled={!action.enabled || actionPending}
+              disabled={!action.enabled || actionPending || actionOpen}
               title={action.blocking_reason ?? undefined}
               onClick={() => selectAction(action)}
             >
@@ -941,7 +935,9 @@ export function OrderDetailPage() {
                                 ? [
                                     {
                                       label: "사유",
-                                      value: repairReasonLabel(receipt.reason),
+                                      value: formatRepairReceiptReason(
+                                        receipt.reason,
+                                      ),
                                     },
                                   ]
                                 : []),
@@ -978,7 +974,7 @@ export function OrderDetailPage() {
                   description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
                 >
                   {referenceImagesQuery.isPending ? (
-                    <Skeleton width="100%" height={220} />
+                    <Skeleton preset="media" />
                   ) : referenceImagesQuery.isError ? (
                     <ContentPlaceholder
                       title="참고 이미지를 불러오지 못했습니다"
@@ -1170,7 +1166,10 @@ export function OrderDetailPage() {
         primaryActionProps={{
           children: "주문 작업 버리기",
           variant: "criticalSolid",
-          onClick: () => blocker.proceed?.(),
+          onClick: () => {
+            cancelAction();
+            blocker.proceed?.();
+          },
         }}
         secondaryActionProps={{
           children: "계속 작성",

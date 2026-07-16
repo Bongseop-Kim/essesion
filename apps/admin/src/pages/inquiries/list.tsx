@@ -3,16 +3,9 @@ import type {
   PageAdminInquirySummaryOut,
 } from "@essesion/api-client";
 import { listAdminInquiries, searchAdminInquiries } from "@essesion/api-client";
-import {
-  ActionButton,
-  Box,
-  HStack,
-  Text,
-  TextField,
-  VStack,
-} from "@essesion/shared";
+import { Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
@@ -27,6 +20,7 @@ import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
@@ -82,8 +76,8 @@ export function InquiriesPage() {
     defaultSort: "created_at",
     defaultDirection: "desc",
   });
-  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const status = (parsed.status ?? "all") as InquiryStatus;
   const category = (parsed.type ?? "all") as InquiryCategory;
   const [draftStatus, setDraftStatus] = useState<InquiryStatus>(status);
@@ -126,13 +120,6 @@ export function InquiriesPage() {
     setParams(serializeAdminListQuery({ ...parsed, ...changes }), {
       replace: true,
     });
-  };
-  const submitSearch = (event: FormEvent) => {
-    event.preventDefault();
-    const value = searchInput.trim();
-    if (value.length < 2) return;
-    setSearch(value);
-    replaceQuery({ page: 1 });
   };
   const totalPages = Math.max(
     1,
@@ -184,47 +171,16 @@ export function InquiriesPage() {
           <VStack gap="x3" alignItems="stretch">
             <CompactFilterToolbar
               primaryControls={
-                <HStack
-                  as="form"
-                  width="full"
-                  gap="x2"
-                  align="flex-end"
-                  wrap
-                  onSubmit={submitSearch}
-                >
-                  <Box flex={1} minWidth={0}>
-                    <TextField
-                      label="제목·내용 검색"
-                      placeholder="2자 이상 입력"
-                      minLength={2}
-                      maxLength={100}
-                      value={searchInput}
-                      onChange={(event) =>
-                        setSearchInput(event.currentTarget.value)
-                      }
-                    />
-                  </Box>
-                  <ActionButton
-                    type="submit"
-                    variant="neutralOutline"
-                    disabled={searchInput.trim().length < 2}
-                  >
-                    검색
-                  </ActionButton>
-                  {search && (
-                    <ActionButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setSearchInput("");
-                        setSearch(undefined);
-                        replaceQuery({ page: 1 });
-                      }}
-                    >
-                      검색 초기화
-                    </ActionButton>
-                  )}
-                </HStack>
+                <SubmittedMemorySearch
+                  label="제목·내용 검색"
+                  placeholder="2자 이상 입력"
+                  maxLength={100}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
               }
               secondaryFilters={
                 <VStack gap="x4" alignItems="stretch">
@@ -297,8 +253,8 @@ export function InquiriesPage() {
                   key: "search",
                   label: `검색: ${search}`,
                   onRemove: () => {
-                    setSearchInput("");
                     setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
                     replaceQuery({ page: 1 });
                   },
                 },
@@ -324,8 +280,8 @@ export function InquiriesPage() {
                 },
               ]}
               onReset={() => {
-                setSearchInput("");
                 setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
                 replaceQuery({
                   page: 1,
                   limit: 20,

@@ -75,6 +75,7 @@ export type { GridProps } from "./components/grid";
 export { Grid } from "./components/grid";
 export type {
   HeaderLinkProps,
+  HeaderNavGroup,
   HeaderNavItem,
   HeaderProps,
 } from "./components/header";
@@ -149,7 +150,7 @@ export type {
 export { SelectBox, SelectBoxItem } from "./components/select-box";
 export type { SidePanelProps } from "./components/side-panel";
 export { SidePanel } from "./components/side-panel";
-export type { SkeletonProps } from "./components/skeleton";
+export type { SkeletonPreset, SkeletonProps } from "./components/skeleton";
 export { Skeleton } from "./components/skeleton";
 export type { SnackbarAction } from "./components/snackbar";
 export {

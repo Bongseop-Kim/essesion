@@ -62,6 +62,8 @@ const QUOTE_STAGES = [
 ] as const;
 
 const OPTION_LABELS: Record<string, string> = {
+  fabric: "원단",
+  width: "규격",
   fabric_provided: "원단 제공",
   reorder: "재주문",
   fabric_type: "원단",
@@ -82,6 +84,8 @@ const OPTION_LABELS: Record<string, string> = {
 };
 
 const OPTION_VALUES: Record<string, string> = {
+  silk: "실크",
+  standard: "기본",
   SILK: "실크",
   POLY: "폴리",
   YARN_DYED: "선염",
@@ -327,7 +331,7 @@ export function QuoteDetailPage() {
           <HStack gap="x2" wrap>
             {primaryAction && (
               <ActionButton
-                disabled={mutation.isPending}
+                disabled={mutation.isPending || selectedAction !== undefined}
                 onClick={() => selectAction(primaryAction)}
               >
                 {quoteActionLabel(
@@ -348,7 +352,11 @@ export function QuoteDetailPage() {
                   variant={
                     action.destructive ? "criticalSolid" : "neutralOutline"
                   }
-                  disabled={!action.enabled || mutation.isPending}
+                  disabled={
+                    !action.enabled ||
+                    mutation.isPending ||
+                    selectedAction !== undefined
+                  }
                   title={action.blocking_reason ?? undefined}
                   onClick={() => selectAction(action)}
                 >

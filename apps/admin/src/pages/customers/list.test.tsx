@@ -1,9 +1,9 @@
 import type { PageAdminCustomerSummaryOut } from "@essesion/api-client";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { pickOption } from "../../test/pickers";
 import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
@@ -140,41 +140,19 @@ describe("CustomersPage", () => {
     );
   });
 
-  it("계정 상태 초안을 취소하면 버리고 적용할 때만 URL과 조회에 반영한다", async () => {
+  it("공유 피커에서 계정 상태를 선택하면 즉시 URL과 조회에 반영한다", async () => {
     const user = userEvent.setup();
     renderPage("/customers?status=inactive");
     await screen.findByText("홍길동");
 
-    const filterButton = screen.getByRole("button", { name: "필터 1" });
-    await user.click(filterButton);
-    await user.click(screen.getByRole("radio", { name: "활성" }));
-    await user.click(screen.getByRole("button", { name: "취소" }));
-
-    expect(screen.getByLabelText("현재 URL").textContent).toContain(
-      "status=inactive",
-    );
-
-    await user.click(filterButton);
-    expect(
-      (screen.getByRole("radio", { name: "비활성" }) as HTMLInputElement)
-        .checked,
-    ).toBe(true);
-    await user.click(screen.getByRole("radio", { name: "활성" }));
-    fireEvent.change(screen.getByLabelText("시작일 (KST)"), {
-      target: { value: "2026-07-01" },
-    });
-    fireEvent.change(screen.getByLabelText("종료일 (KST)"), {
-      target: { value: "2026-07-12" },
-    });
-    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+    expect(screen.queryByRole("button", { name: "필터 1" })).toBeNull();
+    await pickOption(user, "계정 상태", "활성");
 
     await waitFor(() =>
       expect(api.list).toHaveBeenLastCalledWith(
         expect.objectContaining({
           query: expect.objectContaining({
             status: "active",
-            start_date: "2026-07-01",
-            end_date: "2026-07-12",
             offset: 0,
           }),
           throwOnError: true,

@@ -129,6 +129,29 @@ describe("IncidentDetailPage", () => {
     );
   });
 
+  it("작업 초안이 열리면 다른 액션 선택을 막고 입력을 보존한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "해결 처리" }));
+    await user.type(screen.getByLabelText("해결 근거 (필수)"), "확인 중");
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "외부 상태 대사",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "해결 처리" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("해결 근거 (필수)") as HTMLTextAreaElement).value,
+    ).toBe("확인 중");
+  });
+
   it("403 실패 후에도 해결 메모와 동일한 멱등 키를 보존한다", async () => {
     const user = userEvent.setup();
     api.resolve.mockRejectedValueOnce({

@@ -300,7 +300,11 @@ export function IncidentDetailPage() {
                   variant={
                     action.destructive ? "criticalSolid" : "neutralOutline"
                   }
-                  disabled={!action.enabled || actionPending}
+                  disabled={
+                    !action.enabled ||
+                    actionPending ||
+                    selectedAction !== undefined
+                  }
                   title={action.blocking_reason ?? undefined}
                   onClick={() => selectAction(action)}
                 >

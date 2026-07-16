@@ -6,7 +6,10 @@ import { listAdminCustomers, searchAdminCustomers } from "@essesion/api-client";
 import {
   ActionButton,
   Box,
+  Chip,
+  DatePicker,
   HStack,
+  ListPicker,
   Text,
   TextField,
   VStack,
@@ -20,10 +23,6 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
-import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
-import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
-import { DateRangeFilters } from "../../shared/ui/date-range-filters";
-import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
@@ -103,9 +102,6 @@ export function CustomersPage() {
   const [search, setSearch] = useState<string>();
   const status = (parsed.status ?? "all") as CustomerStatus;
   const sort = (parsed.sort ?? "created_at") as CustomerSort;
-  const [draftStatus, setDraftStatus] = useState<CustomerStatus>(status);
-  const [draftFrom, setDraftFrom] = useState(parsed.from);
-  const [draftTo, setDraftTo] = useState(parsed.to);
   const offset = (parsed.page - 1) * parsed.limit;
 
   const query = useQuery<PageAdminCustomerSummaryOut>({
@@ -177,6 +173,11 @@ export function CustomersPage() {
     ready: query.isSuccess && !query.isPlaceholderData,
     replaceQuery,
   });
+  const activeFilterCount =
+    Number(search !== undefined) +
+    Number(status !== "all") +
+    Number(parsed.from !== undefined) +
+    Number(parsed.to !== undefined);
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -214,142 +215,161 @@ export function CustomersPage() {
         paginationLabel="고객 목록 페이지"
         toolbar={
           <VStack gap="x3" alignItems="stretch">
-            <CompactFilterToolbar
-              primaryControls={
-                <HStack
-                  as="form"
-                  width="full"
-                  gap="x2"
-                  align="flex-end"
-                  wrap
-                  onSubmit={submitSearch}
-                >
-                  <Box flex={1} minWidth={0}>
-                    <TextField
-                      label="이름·이메일·전화번호 검색"
-                      placeholder="2자 이상 입력"
-                      value={searchInput}
-                      minLength={2}
-                      maxLength={100}
-                      onChange={(event) =>
-                        setSearchInput(event.currentTarget.value)
-                      }
-                    />
-                  </Box>
-                  <ActionButton
-                    type="submit"
-                    variant="neutralOutline"
-                    disabled={searchInput.trim().length < 2}
-                  >
-                    검색
-                  </ActionButton>
-                  {search !== undefined && (
-                    <ActionButton
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setSearchInput("");
-                        setSearch(undefined);
-                        replaceQuery({ page: 1 });
-                      }}
-                    >
-                      검색 초기화
-                    </ActionButton>
-                  )}
-                </HStack>
-              }
-              secondaryFilters={
-                <VStack gap="x4" alignItems="stretch">
-                  <FilterSelect
-                    label="계정 상태"
-                    presentation="inline"
-                    value={draftStatus}
-                    options={[
-                      { value: "all", label: "전체" },
-                      { value: "active", label: "활성" },
-                      { value: "inactive", label: "비활성" },
-                    ]}
-                    onValueChange={(value) =>
-                      setDraftStatus(value as CustomerStatus)
-                    }
-                  />
-                  <DateRangeFilters
-                    presentation="inline"
-                    from={draftFrom}
-                    to={draftTo}
-                    onFromChange={setDraftFrom}
-                    onToChange={setDraftTo}
-                  />
-                </VStack>
-              }
-              secondaryFilterCount={
-                Number(status !== "all") +
-                Number(parsed.from !== undefined) +
-                Number(parsed.to !== undefined)
-              }
-              secondaryTitle="고객 상세 필터"
-              secondaryDescription="계정 상태와 가입일을 한 번에 적용합니다."
-              onOpenSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
-              }}
-              onCancelSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
-              }}
-              onApplySecondaryFilters={() => {
-                replaceQuery({
-                  status: draftStatus === "all" ? undefined : draftStatus,
-                  from: draftFrom,
-                  to: draftTo,
-                  page: 1,
-                });
-              }}
-            />
-            <AppliedFilterBar
-              filters={[
-                search !== undefined && {
-                  key: "search",
-                  label: `검색: ${search}`,
-                  onRemove: () => {
+            <HStack
+              as="form"
+              width="full"
+              gap="x2"
+              align="flex-end"
+              wrap
+              onSubmit={submitSearch}
+            >
+              <Box flex={1} minWidth={0}>
+                <TextField
+                  label="이름·이메일·전화번호 검색"
+                  placeholder="2자 이상 입력"
+                  value={searchInput}
+                  minLength={2}
+                  maxLength={100}
+                  onChange={(event) =>
+                    setSearchInput(event.currentTarget.value)
+                  }
+                />
+              </Box>
+              <ActionButton
+                type="submit"
+                variant="neutralOutline"
+                disabled={searchInput.trim().length < 2}
+              >
+                검색
+              </ActionButton>
+              {search !== undefined && (
+                <ActionButton
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
                     setSearchInput("");
                     setSearch(undefined);
                     replaceQuery({ page: 1 });
-                  },
-                },
-                status !== "all" && {
-                  key: "status",
-                  label: `상태: ${status === "active" ? "활성" : "비활성"}`,
-                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
-                },
-                parsed.from !== undefined && {
-                  key: "from",
-                  label: `가입 시작일: ${parsed.from}`,
-                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
-                },
-                parsed.to !== undefined && {
-                  key: "to",
-                  label: `가입 종료일: ${parsed.to}`,
-                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
-                },
-              ]}
-              onReset={() => {
-                setSearchInput("");
-                setSearch(undefined);
-                replaceQuery({
-                  page: 1,
-                  limit: 20,
-                  sort: "created_at",
-                  direction: "desc",
-                  status: undefined,
-                  type: undefined,
-                  from: undefined,
-                  to: undefined,
-                });
-              }}
-            />
+                  }}
+                >
+                  검색 초기화
+                </ActionButton>
+              )}
+            </HStack>
+            <HStack
+              as="section"
+              aria-label="목록 필터"
+              gap="x2"
+              align="flex-end"
+              wrap
+            >
+              <ListPicker
+                label="계정 상태"
+                value={status}
+                options={[
+                  { value: "all", label: "전체" },
+                  { value: "active", label: "활성" },
+                  { value: "inactive", label: "비활성" },
+                ]}
+                onValueChange={(value) =>
+                  replaceQuery({
+                    status: value === "all" ? undefined : value,
+                    page: 1,
+                  })
+                }
+              />
+              <DatePicker
+                label="가입 시작일 (KST)"
+                value={parsed.from}
+                max={parsed.to}
+                onValueChange={(value) =>
+                  replaceQuery({ from: value || undefined, page: 1 })
+                }
+              />
+              <DatePicker
+                label="가입 종료일 (KST)"
+                value={parsed.to}
+                min={parsed.from}
+                onValueChange={(value) =>
+                  replaceQuery({ to: value || undefined, page: 1 })
+                }
+              />
+            </HStack>
+            {activeFilterCount > 0 ? (
+              <HStack
+                role="group"
+                aria-label="적용된 필터"
+                gap="x2"
+                align="center"
+                wrap
+              >
+                <Text textStyle="labelSm">필터 {activeFilterCount}</Text>
+                {search !== undefined ? (
+                  <Chip
+                    selected
+                    size="small"
+                    aria-label={`검색: ${search} 필터 제거`}
+                    onClick={() => {
+                      setSearchInput("");
+                      setSearch(undefined);
+                      replaceQuery({ page: 1 });
+                    }}
+                  >
+                    검색: {search} ×
+                  </Chip>
+                ) : null}
+                {status !== "all" ? (
+                  <Chip
+                    selected
+                    size="small"
+                    aria-label={`상태: ${status === "active" ? "활성" : "비활성"} 필터 제거`}
+                    onClick={() => replaceQuery({ status: undefined, page: 1 })}
+                  >
+                    상태: {status === "active" ? "활성" : "비활성"} ×
+                  </Chip>
+                ) : null}
+                {parsed.from !== undefined ? (
+                  <Chip
+                    selected
+                    size="small"
+                    aria-label={`가입 시작일: ${parsed.from} 필터 제거`}
+                    onClick={() => replaceQuery({ from: undefined, page: 1 })}
+                  >
+                    가입 시작일: {parsed.from} ×
+                  </Chip>
+                ) : null}
+                {parsed.to !== undefined ? (
+                  <Chip
+                    selected
+                    size="small"
+                    aria-label={`가입 종료일: ${parsed.to} 필터 제거`}
+                    onClick={() => replaceQuery({ to: undefined, page: 1 })}
+                  >
+                    가입 종료일: {parsed.to} ×
+                  </Chip>
+                ) : null}
+                <ActionButton
+                  variant="ghost"
+                  size="small"
+                  onClick={() => {
+                    setSearchInput("");
+                    setSearch(undefined);
+                    replaceQuery({
+                      page: 1,
+                      limit: 20,
+                      sort: "created_at",
+                      direction: "desc",
+                      status: undefined,
+                      type: undefined,
+                      from: undefined,
+                      to: undefined,
+                    });
+                  }}
+                >
+                  전체 초기화
+                </ActionButton>
+              </HStack>
+            ) : null}
           </VStack>
         }
       />

@@ -87,7 +87,8 @@ describe("CouponsPage", () => {
 
   it("검색과 등록일 필터를 적용하고 칩·전체 초기화로 해제한다", async () => {
     const user = userEvent.setup();
-    renderPage("/coupons?page=2");
+    api.list.mockResolvedValue({ ...page, total: 51 });
+    renderPage("/coupons?page=2&limit=50&sort=name&direction=desc");
     await screen.findByText("여름 할인");
 
     await user.type(
@@ -137,6 +138,10 @@ describe("CouponsPage", () => {
           q: undefined,
           start_date: undefined,
           end_date: undefined,
+          limit: 50,
+          sort: "name",
+          direction: "desc",
+          offset: 0,
         }),
       }),
     );

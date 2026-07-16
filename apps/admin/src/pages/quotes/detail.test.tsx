@@ -47,10 +47,15 @@ const quote: AdminQuoteDetailOut = {
       label: "견적발송(으)로 변경",
       enabled: true,
     },
+    {
+      target_status: "협의중",
+      label: "협의중(으)로 변경",
+      enabled: true,
+    },
   ],
   shipping_address_id: null,
   shipping_address: null,
-  options: { fabric_type: "SILK" },
+  options: { fabric: "silk", width: "standard" },
   additional_notes: "빠른 납기",
   contact_name: "홍길동",
   contact_method: "phone",
@@ -190,6 +195,11 @@ describe("QuoteDetailPage", () => {
     await user.click(await screen.findByRole("tab", { name: "제작 사양" }));
     expect(screen.getByText("원단")).toBeTruthy();
     expect(screen.getByText("실크")).toBeTruthy();
+    expect(screen.getByText("규격")).toBeTruthy();
+    expect(screen.getByText("기본")).toBeTruthy();
+    expect(screen.queryByText("silk")).toBeNull();
+    expect(screen.queryByText("standard")).toBeNull();
+    expect(screen.queryByText("기술 정보에서 확인")).toBeNull();
     const trigger = await screen.findByRole("button", { name: "기술 정보" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
@@ -198,9 +208,34 @@ describe("QuoteDetailPage", () => {
 
     expect(
       within(screen.getByRole("region", { name: "기술 정보" })).getByText(
-        /"fabric_type": "SILK"/,
+        /"fabric": "silk"/,
       ),
     ).toBeTruthy();
+  });
+
+  it("작업 초안이 열리면 다른 액션 선택을 막고 입력을 보존한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "견적 작성·발송" }),
+    );
+    await user.type(screen.getByLabelText("견적 조건"), "배송비 포함");
+
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "견적 작성·발송",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: "협의 시작" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByLabelText("견적 조건") as HTMLTextAreaElement).value,
+    ).toBe("배송비 포함");
   });
 
   it("상세 탭을 URL로 복원하고 첫 화면에 진행 단계와 작업을 둔다", async () => {

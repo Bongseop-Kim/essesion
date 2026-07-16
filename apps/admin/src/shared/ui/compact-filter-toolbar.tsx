@@ -88,7 +88,7 @@ export function CompactFilterToolbar({
             {primaryControls}
           </Box>
         ) : null}
-        {secondaryFilters !== undefined ? (
+        {secondaryFilters != null ? (
           <Box flexShrink={0}>
             <ActionButton
               variant="neutralOutline"
@@ -104,7 +104,7 @@ export function CompactFilterToolbar({
         ) : null}
       </Flex>
 
-      {secondaryFilters !== undefined ? (
+      {secondaryFilters != null ? (
         isDesktop ? (
           <SidePanel {...overlayProps} size="small">
             {secondaryFilters}

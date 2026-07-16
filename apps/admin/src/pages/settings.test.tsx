@@ -218,4 +218,36 @@ describe("SettingsPage", () => {
       "00000000-0000-4000-8000-000000000003",
     );
   });
+
+  it("저장 성공 데이터를 편집 종료 전에 설정 캐시에 반영한다", async () => {
+    const user = userEvent.setup();
+    const updated = settings.map((item) =>
+      item.key === "default_courier_company"
+        ? { ...item, value: "한진택배" }
+        : item,
+    );
+    api.getSettings.mockResolvedValue(settings);
+    api.updateSettings.mockResolvedValue(updated);
+    const { queryClient } = renderPage();
+    const setQueryData = vi.spyOn(queryClient, "setQueryData");
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "수정" }))[0]!,
+    );
+    const courier = await screen.findByLabelText("택배사명");
+    await user.clear(courier);
+    await user.type(courier, "한진택배");
+    await user.type(screen.getByLabelText(/변경 사유/), "계약 택배사 변경");
+    await user.click(screen.getByRole("button", { name: "설정 변경 검토" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "설정 변경 적용",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(setQueryData).toHaveBeenCalledWith(["settings"], updated),
+    );
+    expect(screen.queryByLabelText("택배사명")).toBeNull();
+  });
 });

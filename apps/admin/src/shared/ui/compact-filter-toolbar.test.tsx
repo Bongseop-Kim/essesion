@@ -42,6 +42,18 @@ describe("CompactFilterToolbar", () => {
     expect(screen.queryByRole("button", { name: "필터" })).toBeNull();
   });
 
+  it("null 보조 필터는 트리거와 dialog를 렌더링하지 않는다", () => {
+    render(
+      <CompactFilterToolbar
+        primaryControls={<Text>주문 검색</Text>}
+        secondaryFilters={null}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "필터" })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("활성 개수를 표시하고 보조 필터를 적용한다", async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

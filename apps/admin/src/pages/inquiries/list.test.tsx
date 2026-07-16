@@ -102,6 +102,21 @@ describe("InquiriesPage", () => {
     expect(router.state.location.search).not.toContain("급한");
     expect(screen.getByText("1–1 / 총 1건")).toBeTruthy();
     expect(screen.getByText("페이지당 20개")).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "검색: 급한 배송 필터 제거",
+      }),
+    );
+    expect((searchInput as HTMLInputElement).value).toBe("");
+
+    await user.type(searchInput, "재검색");
+    await user.click(screen.getByRole("button", { name: "검색" }));
+    await waitFor(() => expect(api.search).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("button", { name: "전체 초기화" }));
+
+    expect((searchInput as HTMLInputElement).value).toBe("");
+    expect(screen.queryByRole("group", { name: "적용된 필터" })).toBeNull();
   });
 
   it("페이지 크기가 바뀌면 새 limit으로 다시 조회한다", async () => {

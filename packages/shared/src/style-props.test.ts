@@ -11,6 +11,7 @@ import {
   resolveShadow,
   resolveSize,
   resolveSpacing,
+  resolveZIndex,
   splitStyleProps,
 } from "./style-props";
 import {
@@ -18,9 +19,11 @@ import {
   fgRoles,
   radiusSteps,
   shadowSteps,
+  sizeRoles,
   spacingSteps,
   strokeRoles,
   textSteps,
+  zLayers,
 } from "./tokens";
 
 describe("리졸버: 토큰 → var(), 비토큰은 raw 통과", () => {
@@ -48,7 +51,13 @@ describe("리졸버: 토큰 → var(), 비토큰은 raw 통과", () => {
   it("resolveSize", () => {
     expect(resolveSize("full")).toBe("100%");
     expect(resolveSize("x4")).toBe("var(--spacing-x4)");
+    expect(resolveSize("size.field-narrow")).toBe("var(--size-field-narrow)");
     expect(resolveSize(240)).toBe(240);
+  });
+
+  it("resolveZIndex", () => {
+    expect(resolveZIndex("z.sticky")).toBe("var(--z-sticky)");
+    expect(resolveZIndex(10)).toBe(10);
   });
 
   it("resolveRadius / resolveShadow", () => {
@@ -158,6 +167,8 @@ describe("드리프트 가드: tokens.ts ↔ theme.css ↔ breakpoint.ts", () =>
         `--text-${t}:`,
         `--text-${t}--line-height:`,
       ]),
+      ...sizeRoles.map((s) => `--size-${s}:`),
+      ...zLayers.map((z) => `--z-${z}:`),
     ];
     for (const decl of declarations) {
       expect(css, `theme.css에 ${decl} 누락`).toContain(decl);

@@ -105,6 +105,7 @@ export function SettingsPage() {
       setDraft(settingsDraft(data));
       setReason("");
       setOperationId(crypto.randomUUID());
+      queryClient.setQueryData(getAdminSettingsQueryKey(), data);
       setEditingKey(null);
       setConfirmOpen(false);
       await queryClient.invalidateQueries({

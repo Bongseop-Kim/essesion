@@ -44,6 +44,17 @@ export function DateRangeFilters({
   onToChange,
   presentation = "picker",
 }: DateRangeFiltersProps) {
+  const changeFrom = (value: string) => {
+    const next = value || undefined;
+    if (next !== undefined && to !== undefined && next > to) return;
+    onFromChange(next);
+  };
+  const changeTo = (value: string) => {
+    const next = value || undefined;
+    if (next !== undefined && from !== undefined && next < from) return;
+    onToChange(next);
+  };
+
   if (presentation === "inline") {
     const today = kstToday();
     return (
@@ -83,18 +94,14 @@ export function DateRangeFilters({
             label="시작일 (KST)"
             value={from ?? ""}
             max={to}
-            onChange={(event) =>
-              onFromChange(event.currentTarget.value || undefined)
-            }
+            onChange={(event) => changeFrom(event.currentTarget.value)}
           />
           <TextField
             type="date"
             label="종료일 (KST)"
             value={to ?? ""}
             min={from}
-            onChange={(event) =>
-              onToChange(event.currentTarget.value || undefined)
-            }
+            onChange={(event) => changeTo(event.currentTarget.value)}
           />
         </HStack>
       </VStack>
@@ -107,13 +114,13 @@ export function DateRangeFilters({
         label="시작일 (KST)"
         value={from ?? ""}
         max={to}
-        onValueChange={(value) => onFromChange(value || undefined)}
+        onValueChange={changeFrom}
       />
       <DatePicker
         label="종료일 (KST)"
         value={to ?? ""}
         min={from}
-        onValueChange={(value) => onToChange(value || undefined)}
+        onValueChange={changeTo}
       />
     </>
   );

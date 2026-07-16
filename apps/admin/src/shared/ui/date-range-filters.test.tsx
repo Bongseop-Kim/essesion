@@ -35,4 +35,38 @@ describe("DateRangeFilters", () => {
     expect(onFromChange).toHaveBeenLastCalledWith("2026-07-09");
     expect(onToChange).toHaveBeenLastCalledWith("2026-07-15");
   });
+
+  it("역전된 범위는 콜백으로 전달하지 않고 날짜 삭제는 허용한다", () => {
+    const onFromChange = vi.fn();
+    const onToChange = vi.fn();
+    render(
+      <DateRangeFilters
+        presentation="inline"
+        from="2026-07-10"
+        to="2026-07-20"
+        onFromChange={onFromChange}
+        onToChange={onToChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("시작일 (KST)"), {
+      target: { value: "2026-07-21" },
+    });
+    fireEvent.change(screen.getByLabelText("종료일 (KST)"), {
+      target: { value: "2026-07-09" },
+    });
+
+    expect(onFromChange).not.toHaveBeenCalled();
+    expect(onToChange).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("시작일 (KST)"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("종료일 (KST)"), {
+      target: { value: "" },
+    });
+
+    expect(onFromChange).toHaveBeenCalledWith(undefined);
+    expect(onToChange).toHaveBeenCalledWith(undefined);
+  });
 });

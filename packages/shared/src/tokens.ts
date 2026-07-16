@@ -115,6 +115,15 @@ export const textSteps = [
   "t12",
 ] as const;
 
+export const sizeRoles = [
+  "field-narrow",
+  "content-scroll",
+  "loading-media",
+  "loading-result",
+] as const;
+
+export const zLayers = ["sticky"] as const;
+
 export type FgRole = (typeof fgRoles)[number];
 export type BgRole = (typeof bgRoles)[number];
 export type StrokeRole = (typeof strokeRoles)[number];
@@ -122,6 +131,10 @@ export type SpacingToken = (typeof spacingSteps)[number];
 export type RadiusToken = (typeof radiusSteps)[number];
 export type ShadowToken = (typeof shadowSteps)[number];
 export type TextStep = (typeof textSteps)[number];
+export type SizeRole = (typeof sizeRoles)[number];
+export type ZLayer = (typeof zLayers)[number];
+export type SizeToken = `size.${SizeRole}`;
+export type ZIndexToken = `z.${ZLayer}`;
 
 /** `fg.neutral` · `bg.brand-solid` · `stroke.focus-ring` · `palette.gray-100`(직접 사용 금지) */
 export type ColorToken =

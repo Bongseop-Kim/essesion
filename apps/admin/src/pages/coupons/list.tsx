@@ -259,9 +259,6 @@ export function CouponsPage() {
                 setSearchResetKey((current) => current + 1);
                 replaceQuery({
                   page: 1,
-                  limit: 20,
-                  sort: "created_at",
-                  direction: "asc",
                   status: undefined,
                   type: undefined,
                   from: undefined,

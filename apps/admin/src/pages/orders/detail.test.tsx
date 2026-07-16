@@ -17,6 +17,11 @@ const api = vi.hoisted(() => ({
   updateStatus: vi.fn(),
   updateTracking: vi.fn(),
 }));
+const blocker = vi.hoisted(() => ({
+  state: "unblocked",
+  proceed: vi.fn(),
+  reset: vi.fn(),
+}));
 
 vi.mock("@essesion/api-client/query", () => ({
   getAdminOrderOptions: (_options: unknown) => ({
@@ -54,7 +59,7 @@ vi.mock("@essesion/api-client/query", () => ({
 }));
 
 vi.mock("../../shared/lib/use-dirty-form-blocker", () => ({
-  useDirtyFormBlocker: () => ({ state: "unblocked" }),
+  useDirtyFormBlocker: () => blocker,
 }));
 
 import { OrderDetailPage } from "./detail";
@@ -161,6 +166,7 @@ function renderPage(entry = "/orders/order-1") {
 describe("OrderDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    blocker.state = "unblocked";
     api.getReferenceImages.mockResolvedValue([]);
     api.getRepairReceiptPhotos.mockResolvedValue([]);
   });
@@ -380,7 +386,17 @@ describe("OrderDetailPage", () => {
   it("pending 중 중복 작업을 막고 실패 뒤에도 입력을 보존한다", async () => {
     const user = userEvent.setup();
     let rejectMutation: ((error: Error) => void) | undefined;
-    api.getOrder.mockResolvedValue(order);
+    api.getOrder.mockResolvedValue({
+      ...order,
+      admin_actions: [
+        ...(order.admin_actions ?? []),
+        {
+          kind: "update_tracking",
+          label: "송장 정보 수정",
+          enabled: true,
+        },
+      ],
+    });
     api.updateStatus.mockReturnValue(
       new Promise((_resolve, reject) => {
         rejectMutation = reject;
@@ -395,6 +411,14 @@ describe("OrderDetailPage", () => {
     expect(screen.getByText("현재 작업을 먼저 완료해 주세요")).toBeTruthy();
     const memo = screen.getByLabelText("변경 사유 (필수)");
     await user.type(memo, "출고 검수 완료");
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "송장 정보 수정",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect((memo as HTMLTextAreaElement).value).toBe("출고 검수 완료");
     await user.click(screen.getByRole("button", { name: "배송 시작 적용" }));
 
     await waitFor(() => expect(api.updateStatus).toHaveBeenCalledTimes(1));
@@ -435,6 +459,31 @@ describe("OrderDetailPage", () => {
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["order"] });
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["orders"] });
     });
+    expect(screen.queryByLabelText("변경 사유 (필수)")).toBeNull();
+  });
+
+  it("이동 확인 후 작업 상태를 지우고 blocker를 진행한다", async () => {
+    const user = userEvent.setup();
+    api.getOrder.mockResolvedValue(order);
+    blocker.proceed.mockImplementation(() => {
+      blocker.state = "unblocked";
+    });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "배송 시작" }));
+    const memo = screen.getByLabelText("변경 사유 (필수)");
+    await user.type(memo, "출고 검수");
+    blocker.state = "blocked";
+    await user.type(memo, " 완료");
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "작성 중인 주문 작업을 버릴까요?",
+    });
+    await user.click(
+      within(dialog).getByRole("button", { name: "주문 작업 버리기" }),
+    );
+
+    expect(blocker.proceed).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("변경 사유 (필수)")).toBeNull();
   });
 

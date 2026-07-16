@@ -130,20 +130,20 @@ function JobDetailLoading() {
       />
       <AdminCard title="작업 정보">
         <VStack gap="x3" alignItems="stretch">
-          <Skeleton width="60%" height={24} />
-          <Skeleton width="100%" height={20} />
-          <Skeleton width="80%" height={20} />
+          <Skeleton preset="title" />
+          <Skeleton preset="line" />
+          <Skeleton preset="line-medium" />
         </VStack>
       </AdminCard>
       <AdminCard title="입력 요약">
         <VStack gap="x3" alignItems="stretch">
-          <Skeleton width="70%" height={20} />
-          <Skeleton width="85%" height={20} />
-          <Skeleton width="60%" height={20} />
+          <Skeleton preset="line-medium" />
+          <Skeleton preset="line" />
+          <Skeleton preset="title" />
         </VStack>
       </AdminCard>
       <AdminCard title="결과">
-        <Skeleton width="100%" height={280} />
+        <Skeleton preset="result" />
       </AdminCard>
     </VStack>
   );

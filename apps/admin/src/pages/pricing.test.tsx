@@ -204,12 +204,14 @@ describe("PricingPage", () => {
     api.updatePricing.mockResolvedValue([updated]);
     const queryClient = renderPage();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const setQueryData = vi.spyOn(queryClient, "setQueryData");
 
     await editAndConfirm(user);
 
     await waitFor(() =>
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["pricing"] }),
     );
+    expect(setQueryData).toHaveBeenCalledWith(["pricing"], [updated]);
     expect(
       await screen.findByRole("button", { name: "가격 수정" }),
     ).toBeTruthy();

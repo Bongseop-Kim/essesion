@@ -166,6 +166,7 @@ export function PricingPage() {
       setDraft(pricingDraft(data));
       setReason("");
       setOperationId(newOperationId());
+      queryClient.setQueryData(getAdminPricingQueryKey(), data);
       setEditing(false);
       setConfirmOpen(false);
       await queryClient.invalidateQueries({

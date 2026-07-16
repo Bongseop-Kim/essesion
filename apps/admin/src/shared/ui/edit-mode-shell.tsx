@@ -19,7 +19,7 @@ export function EditModeShell({
       <Box
         position="sticky"
         bottom="x3"
-        zIndex={10}
+        zIndex="z.sticky"
         bg="bg.layer-floating"
         borderRadius="r3"
         boxShadow="s1"

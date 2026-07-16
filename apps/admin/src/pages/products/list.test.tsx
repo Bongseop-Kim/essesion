@@ -85,7 +85,7 @@ describe("ProductsPage", () => {
 
   it("검색과 등록일 필터를 적용하고 칩·전체 초기화로 해제한다", async () => {
     const user = userEvent.setup();
-    renderPage("/products?page=2");
+    renderPage("/products?page=2&limit=50&sort=price&direction=asc");
     await screen.findByText("네이비 솔리드 타이");
 
     await user.type(
@@ -136,6 +136,10 @@ describe("ProductsPage", () => {
           q: undefined,
           start_date: undefined,
           end_date: undefined,
+          limit: 50,
+          sort: "price",
+          direction: "asc",
+          offset: 0,
         }),
       }),
     );

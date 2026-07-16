@@ -184,7 +184,7 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
 
     open_start = await client.get(
         "/admin/orders",
-        params={"start_date": "2026-04-30"},
+        params={"start_date": "2026-05-01"},
         headers=headers,
     )
     assert open_start.status_code == 200
@@ -192,19 +192,15 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
         str(sale_a.id),
         str(sale_b.id),
         str(token.id),
-        str(outside.id),
     }
 
     open_end = await client.get(
         "/admin/orders",
-        params={"end_date": "2026-05-01"},
+        params={"end_date": "2026-04-30"},
         headers=headers,
     )
     assert open_end.status_code == 200
     assert {item["id"] for item in open_end.json()["items"]} == {
-        str(sale_a.id),
-        str(sale_b.id),
-        str(token.id),
         str(outside.id),
     }
 

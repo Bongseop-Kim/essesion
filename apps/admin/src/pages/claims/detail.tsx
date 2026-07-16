@@ -44,6 +44,7 @@ import {
   formatFileSize,
   formatIdentifier,
   formatMoney,
+  formatRepairReceiptReason,
   getErrorMessage,
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
@@ -266,6 +267,8 @@ export function ClaimDetailPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [trackingAction, setTrackingAction] =
     useState<AdminClaimTrackingAction>();
+  const [pendingTrackingAction, setPendingTrackingAction] =
+    useState<AdminClaimTrackingAction>();
   const [trackingCourier, setTrackingCourier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
   const [trackingMemo, setTrackingMemo] = useState("");
@@ -467,6 +470,25 @@ export function ClaimDetailPage() {
     }
   };
 
+  const requestTrackingAction = (action: AdminClaimTrackingAction) => {
+    if (trackingAction === undefined) {
+      selectTrackingAction(action);
+      return;
+    }
+    if (trackingAction.kind !== action.kind) setPendingTrackingAction(action);
+  };
+
+  const cancelTrackingAction = () => {
+    setTrackingAction(undefined);
+    setPendingTrackingAction(undefined);
+    setTrackingCourier("");
+    setTrackingNumber("");
+    setTrackingMemo("");
+    setTrackingOperationId("");
+    setTrackingValidationError(undefined);
+    trackingMutation.reset();
+  };
+
   const resetFailedTrackingOperation = () => {
     if (!trackingMutation.isError) return;
     setTrackingOperationId(crypto.randomUUID());
@@ -519,7 +541,9 @@ export function ClaimDetailPage() {
             <ActionButton
               key={`${action.kind}-${action.target_status ?? ""}`}
               variant={action.destructive ? "criticalSolid" : "neutralOutline"}
-              disabled={!action.enabled || actionPending}
+              disabled={
+                !action.enabled || actionPending || selectedAction !== undefined
+              }
               title={action.blocking_reason ?? undefined}
               onClick={() => selectPrimaryAction(action)}
             >
@@ -703,10 +727,12 @@ export function ClaimDetailPage() {
                             size="small"
                             variant="neutralOutline"
                             disabled={
-                              !action.enabled || trackingMutation.isPending
+                              !action.enabled ||
+                              trackingMutation.isPending ||
+                              trackingAction?.kind === action.kind
                             }
                             title={action.blocking_reason ?? undefined}
-                            onClick={() => selectTrackingAction(action)}
+                            onClick={() => requestTrackingAction(action)}
                           >
                             {action.label}
                           </ActionButton>
@@ -769,7 +795,7 @@ export function ClaimDetailPage() {
                               type="button"
                               variant="ghost"
                               disabled={trackingMutation.isPending}
-                              onClick={() => setTrackingAction(undefined)}
+                              onClick={cancelTrackingAction}
                             >
                               취소
                             </ActionButton>
@@ -830,8 +856,8 @@ export function ClaimDetailPage() {
                                   {repairReceiptTypeLabel(receipt.receipt_type)}
                                 </Text>
                                 <Text textStyle="bodySm">
-                                  {receipt.reason ?? "사유 없음"} · 사진{" "}
-                                  {receipt.photo_count}장
+                                  {formatRepairReceiptReason(receipt.reason)} ·
+                                  사진 {receipt.photo_count}장
                                 </Text>
                                 {receipt.memo !== null && (
                                   <Text
@@ -1011,6 +1037,27 @@ export function ClaimDetailPage() {
       </Tabs>
 
       <AlertDialog
+        open={pendingTrackingAction !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setPendingTrackingAction(undefined);
+        }}
+        title="작성 중인 송장 정보를 버릴까요?"
+        description="다른 송장 작업을 선택하면 입력한 택배사·송장번호·변경 사유가 사라집니다."
+        primaryActionProps={{
+          children: "버리고 작업 전환",
+          variant: "criticalSolid",
+          onClick: () => {
+            if (pendingTrackingAction === undefined) return;
+            selectTrackingAction(pendingTrackingAction);
+            setPendingTrackingAction(undefined);
+          },
+        }}
+        secondaryActionProps={{
+          children: "계속 작성",
+          onClick: () => setPendingTrackingAction(undefined),
+        }}
+      />
+      <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${selectedAction?.label ?? "위험 작업"}을 실행할까요?`}
@@ -1031,7 +1078,11 @@ export function ClaimDetailPage() {
         primaryActionProps={{
           children: "클레임 작업 버리기",
           variant: "criticalSolid",
-          onClick: () => blocker.proceed?.(),
+          onClick: () => {
+            cancelPrimaryAction();
+            cancelTrackingAction();
+            blocker.proceed?.();
+          },
         }}
         secondaryActionProps={{
           children: "계속 작성",

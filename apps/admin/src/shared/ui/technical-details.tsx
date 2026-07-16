@@ -44,7 +44,7 @@ export function TechnicalDetails({
             <VStack gap="x3" alignItems="stretch">
               <Box
                 as="pre"
-                maxHeight={384}
+                maxHeight="size.content-scroll"
                 overflowY="auto"
                 bg="bg.neutral-weak"
                 borderRadius="r2"

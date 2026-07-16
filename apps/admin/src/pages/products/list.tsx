@@ -478,9 +478,6 @@ export function ProductsPage() {
                   from: undefined,
                   to: undefined,
                   page: undefined,
-                  limit: undefined,
-                  sort: undefined,
-                  direction: undefined,
                 });
               }}
             />

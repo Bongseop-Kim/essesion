@@ -728,7 +728,7 @@ export function CustomerDetailPage() {
                   },
                 ]}
               />
-              <Box maxWidth={240}>
+              <Box maxWidth="size.field-narrow">
                 <TextField
                   type="number"
                   step={1}

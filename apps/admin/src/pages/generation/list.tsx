@@ -132,7 +132,7 @@ function IdentifierLink({
   return (
     <HStack gap="x1" wrap>
       <Link to={href} aria-label={`${label} ${value}`} title={value}>
-        {compactIdentifier(value)}
+        <Text textStyle="bodySm">{compactIdentifier(value)}</Text>
       </Link>
       <ActionButton
         type="button"
