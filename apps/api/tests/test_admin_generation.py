@@ -77,9 +77,11 @@ async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_sessio
         "/admin/generation/jobs/stats", params={"job_id": str(succeeded.id)}, headers=headers
     )
     assert filtered_stats.status_code == 200
-    assert {
-        key: filtered_stats.json()[key] for key in ("total", "succeeded", "failed")
-    } == {"total": 1, "succeeded": 1, "failed": 0}
+    assert {key: filtered_stats.json()[key] for key in ("total", "succeeded", "failed")} == {
+        "total": 1,
+        "succeeded": 1,
+        "failed": 0,
+    }
 
     invalid_job_id = await client.get(
         "/admin/generation/jobs", params={"job_id": "not-a-uuid"}, headers=headers
