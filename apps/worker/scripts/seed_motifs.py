@@ -1,14 +1,17 @@
 """모티프 시드 카탈로그 — 데모용 재사용 풀 (worker-motifs.md §9).
 
-모티프 5개(flower/whole ×3, leaf/whole ×2, 전부 style=flat, source="seed", 단색 → s0):
-variant pool ≥ 2를 시연한다. 멱등 — content-hash id + ON CONFLICT DO NOTHING이라 여러 번
-실행해도 안전. render_check는 끈다(librsvg 없는 환경에서도 결정론적으로 시드).
+인라인 5개(flower/whole ×3, leaf/whole ×2, style=flat)로 variant pool ≥ 2를 시연하고,
+`motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 동물 글리프,
+파일명 = subject, style=outline)를 기본 모티프로 얹는다. 전부 source="seed", 단색 → s0.
+멱등 — content-hash id + ON CONFLICT DO NOTHING이라 여러 번 실행해도 안전.
+render_check는 끈다(librsvg 없는 환경에서도 결정론적으로 시드).
 
 실행: docker compose up -d && uv run alembic -c db/alembic.ini upgrade head
       && uv run python apps/worker/scripts/seed_motifs.py
 """
 
 import asyncio
+import pathlib
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.config import get_settings
@@ -63,13 +66,28 @@ _SEEDS: list[tuple[str, str, str]] = [
 ]
 
 
+# 출처: https://github.com/freepik-company/flaticon-uicons (Flaticon license) —
+# uicons-regular-rounded 웹폰트 글리프를 SVG path로 추출해 커밋한 것.
+_ASSET_DIR = pathlib.Path(__file__).parent / "motif_assets"
+
+
+def _all_seeds() -> list[tuple[str, str, str, str]]:
+    """(subject, style, description, raw_svg) — 인라인 데모 + 에셋 동물 글리프."""
+    seeds = [(subject, "flat", desc, svg) for subject, desc, svg in _SEEDS]
+    seeds += [
+        (path.stem, "outline", f"{path.stem} outline icon", path.read_text())
+        for path in sorted(_ASSET_DIR.glob("*.svg"))
+    ]
+    return seeds
+
+
 async def seed_motifs() -> int:
     settings = get_settings()
     engine = build_engine(settings)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     inserted = 0
     async with sessionmaker() as session:
-        for subject, description, svg in _SEEDS:
+        for subject, style, description, svg in _all_seeds():
             normalized = normalize_motif_svg(svg, render_check=False)
             await store.upsert_motif(
                 session,
@@ -77,7 +95,7 @@ async def seed_motifs() -> int:
                 facets={
                     "subject": subject,
                     "scope": "whole",
-                    "style": "flat",
+                    "style": style,
                     "description": description,
                 },
                 source="seed",
