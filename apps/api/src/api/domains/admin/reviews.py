@@ -9,7 +9,7 @@ from api.deps import AdminUser
 from api.domains.admin.schemas import Page
 from api.domains.reviews import service
 from api.domains.reviews.schemas import ReviewOrderType, ReviewOut
-from api.errors import NotFoundError
+from api.errors import DomainError, NotFoundError
 
 router = APIRouter(prefix="/admin/reviews", tags=["admin-reviews"])
 
@@ -20,6 +20,7 @@ async def list_admin_reviews(
     admin: AdminUser,
     order_type: ReviewOrderType | None = None,
     rating: Annotated[int | None, Query(ge=1, le=5)] = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[ReviewOut]:
@@ -28,6 +29,11 @@ async def list_admin_reviews(
         filters.append(Review.order_type == order_type)
     if rating is not None:
         filters.append(Review.rating == rating)
+    if q is not None:
+        search = q.strip()
+        if len(search) < 2:
+            raise DomainError("검색어는 2자 이상이어야 합니다", code="search_too_short")
+        filters.append(Review.content.icontains(search, autoescape=True))
     page = await service.list_reviews(session, filters, limit=limit, offset=offset)
     return Page(items=page.items, total=page.total, limit=limit, offset=offset)
 

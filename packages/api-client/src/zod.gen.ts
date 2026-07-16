@@ -3941,6 +3941,7 @@ export const zListAdminReviewsQuery = z.object({
         'sample'
     ]).nullish(),
     rating: z.int().gte(1).lte(5).nullish(),
+    q: z.string().max(100).nullish(),
     limit: z.int().gte(1).lte(100).optional().default(20),
     offset: z.int().gte(0).optional().default(0)
 });

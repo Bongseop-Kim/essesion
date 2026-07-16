@@ -9361,6 +9361,10 @@ export type ListAdminReviewsData = {
          */
         rating?: number | null;
         /**
+         * Q
+         */
+        q?: string | null;
+        /**
          * Limit
          */
         limit?: number;

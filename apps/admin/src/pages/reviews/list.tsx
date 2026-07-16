@@ -31,6 +31,7 @@ import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
 import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
@@ -59,6 +60,8 @@ export function ReviewsPage() {
   const rating = (parsed.status ?? "all") as RatingFilter;
   const [draftOrderType, setDraftOrderType] = useState(orderType);
   const [draftRating, setDraftRating] = useState(rating);
+  const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<ReviewOut | null>(null);
   const offset = (parsed.page - 1) * parsed.limit;
   const query = useQuery({
@@ -66,6 +69,7 @@ export function ReviewsPage() {
       query: {
         order_type: orderType === "all" ? undefined : orderType,
         rating: rating === "all" ? undefined : Number(rating),
+        q: search,
         limit: parsed.limit,
         offset,
       },
@@ -181,6 +185,18 @@ export function ReviewsPage() {
         toolbar={
           <VStack gap="x3" alignItems="stretch">
             <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
+                  label="후기 내용 검색"
+                  placeholder="2자 이상 입력"
+                  maxLength={100}
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
+                    replaceQuery({ page: 1 });
+                  }}
+                />
+              }
               secondaryFilters={
                 <VStack gap="x4" alignItems="stretch">
                   <FilterSelect
@@ -232,6 +248,15 @@ export function ReviewsPage() {
             />
             <AppliedFilterBar
               filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
+                    setSearch(undefined);
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
                 orderType !== "all" && {
                   key: "type",
                   label: `유형: ${ORDER_TYPE_LABELS[orderType]}`,
@@ -243,14 +268,16 @@ export function ReviewsPage() {
                   onRemove: () => replaceQuery({ status: undefined, page: 1 }),
                 },
               ]}
-              onReset={() =>
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
                 replaceQuery({
                   page: 1,
                   limit: 20,
                   type: undefined,
                   status: undefined,
-                })
-              }
+                });
+              }}
             />
           </VStack>
         }

@@ -3,19 +3,9 @@ import type {
   PageAdminCustomerSummaryOut,
 } from "@essesion/api-client";
 import { listAdminCustomers, searchAdminCustomers } from "@essesion/api-client";
-import {
-  ActionButton,
-  Box,
-  Chip,
-  DatePicker,
-  HStack,
-  ListPicker,
-  Text,
-  TextField,
-  VStack,
-} from "@essesion/shared";
+import { Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
@@ -23,8 +13,13 @@ import {
   useAdminListPageCorrection,
   useAdminListUrlState,
 } from "../../shared/lib/use-admin-list-url-state";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
+import { DateRangeFilters } from "../../shared/ui/date-range-filters";
+import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
@@ -33,6 +28,12 @@ const CUSTOMER_SORTS = ["created_at", "name"] as const;
 
 type CustomerStatus = (typeof CUSTOMER_STATUSES)[number];
 type CustomerSort = (typeof CUSTOMER_SORTS)[number];
+
+const CUSTOMER_STATUS_LABELS: Record<CustomerStatus, string> = {
+  all: "전체",
+  active: "활성",
+  inactive: "비활성",
+};
 
 const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
   {
@@ -98,10 +99,13 @@ export function CustomersPage() {
     defaultSort: "created_at",
     defaultDirection: "desc",
   });
-  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const status = (parsed.status ?? "all") as CustomerStatus;
   const sort = (parsed.sort ?? "created_at") as CustomerSort;
+  const [draftStatus, setDraftStatus] = useState(status);
+  const [draftFrom, setDraftFrom] = useState<string | undefined>(parsed.from);
+  const [draftTo, setDraftTo] = useState<string | undefined>(parsed.to);
   const offset = (parsed.page - 1) * parsed.limit;
 
   const query = useQuery<PageAdminCustomerSummaryOut>({
@@ -154,14 +158,6 @@ export function CustomersPage() {
     placeholderData: keepPreviousData,
   });
 
-  const submitSearch = (event: FormEvent) => {
-    event.preventDefault();
-    const value = searchInput.trim();
-    if (value.length < 2) return;
-    setSearch(value);
-    replaceQuery({ page: 1 });
-  };
-
   const totalPages = Math.max(
     1,
     Math.ceil((query.data?.total ?? 0) / parsed.limit),
@@ -173,11 +169,6 @@ export function CustomersPage() {
     ready: query.isSuccess && !query.isPlaceholderData,
     replaceQuery,
   });
-  const activeFilterCount =
-    Number(search !== undefined) +
-    Number(status !== "all") +
-    Number(parsed.from !== undefined) +
-    Number(parsed.to !== undefined);
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -215,161 +206,109 @@ export function CustomersPage() {
         paginationLabel="고객 목록 페이지"
         toolbar={
           <VStack gap="x3" alignItems="stretch">
-            <HStack
-              as="form"
-              width="full"
-              gap="x2"
-              align="flex-end"
-              wrap
-              onSubmit={submitSearch}
-            >
-              <Box flex={1} minWidth={0}>
-                <TextField
+            <CompactFilterToolbar
+              primaryControls={
+                <SubmittedMemorySearch
                   label="이름·이메일·전화번호 검색"
                   placeholder="2자 이상 입력"
-                  value={searchInput}
-                  minLength={2}
                   maxLength={100}
-                  onChange={(event) =>
-                    setSearchInput(event.currentTarget.value)
-                  }
-                />
-              </Box>
-              <ActionButton
-                type="submit"
-                variant="neutralOutline"
-                disabled={searchInput.trim().length < 2}
-              >
-                검색
-              </ActionButton>
-              {search !== undefined && (
-                <ActionButton
-                  type="button"
-                  variant="ghost"
-                  onClick={() => {
-                    setSearchInput("");
-                    setSearch(undefined);
+                  resetKey={searchResetKey}
+                  onSubmit={(value) => {
+                    setSearch(value);
                     replaceQuery({ page: 1 });
                   }}
-                >
-                  검색 초기화
-                </ActionButton>
-              )}
-            </HStack>
-            <HStack
-              as="section"
-              aria-label="목록 필터"
-              gap="x2"
-              align="flex-end"
-              wrap
-            >
-              <ListPicker
-                label="계정 상태"
-                value={status}
-                options={[
-                  { value: "all", label: "전체" },
-                  { value: "active", label: "활성" },
-                  { value: "inactive", label: "비활성" },
-                ]}
-                onValueChange={(value) =>
-                  replaceQuery({
-                    status: value === "all" ? undefined : value,
-                    page: 1,
-                  })
-                }
-              />
-              <DatePicker
-                label="가입 시작일 (KST)"
-                value={parsed.from}
-                max={parsed.to}
-                onValueChange={(value) =>
-                  replaceQuery({ from: value || undefined, page: 1 })
-                }
-              />
-              <DatePicker
-                label="가입 종료일 (KST)"
-                value={parsed.to}
-                min={parsed.from}
-                onValueChange={(value) =>
-                  replaceQuery({ to: value || undefined, page: 1 })
-                }
-              />
-            </HStack>
-            {activeFilterCount > 0 ? (
-              <HStack
-                role="group"
-                aria-label="적용된 필터"
-                gap="x2"
-                align="center"
-                wrap
-              >
-                <Text textStyle="labelSm">필터 {activeFilterCount}</Text>
-                {search !== undefined ? (
-                  <Chip
-                    selected
-                    size="small"
-                    aria-label={`검색: ${search} 필터 제거`}
-                    onClick={() => {
-                      setSearchInput("");
-                      setSearch(undefined);
-                      replaceQuery({ page: 1 });
-                    }}
-                  >
-                    검색: {search} ×
-                  </Chip>
-                ) : null}
-                {status !== "all" ? (
-                  <Chip
-                    selected
-                    size="small"
-                    aria-label={`상태: ${status === "active" ? "활성" : "비활성"} 필터 제거`}
-                    onClick={() => replaceQuery({ status: undefined, page: 1 })}
-                  >
-                    상태: {status === "active" ? "활성" : "비활성"} ×
-                  </Chip>
-                ) : null}
-                {parsed.from !== undefined ? (
-                  <Chip
-                    selected
-                    size="small"
-                    aria-label={`가입 시작일: ${parsed.from} 필터 제거`}
-                    onClick={() => replaceQuery({ from: undefined, page: 1 })}
-                  >
-                    가입 시작일: {parsed.from} ×
-                  </Chip>
-                ) : null}
-                {parsed.to !== undefined ? (
-                  <Chip
-                    selected
-                    size="small"
-                    aria-label={`가입 종료일: ${parsed.to} 필터 제거`}
-                    onClick={() => replaceQuery({ to: undefined, page: 1 })}
-                  >
-                    가입 종료일: {parsed.to} ×
-                  </Chip>
-                ) : null}
-                <ActionButton
-                  variant="ghost"
-                  size="small"
-                  onClick={() => {
-                    setSearchInput("");
+                />
+              }
+              secondaryFilters={
+                <VStack gap="x4" alignItems="stretch">
+                  <FilterSelect
+                    label="계정 상태"
+                    presentation="inline"
+                    value={draftStatus}
+                    options={CUSTOMER_STATUSES.map((value) => ({
+                      value,
+                      label: CUSTOMER_STATUS_LABELS[value],
+                    }))}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as CustomerStatus)
+                    }
+                  />
+                  <DateRangeFilters
+                    presentation="inline"
+                    from={draftFrom}
+                    to={draftTo}
+                    onFromChange={setDraftFrom}
+                    onToChange={setDraftTo}
+                  />
+                </VStack>
+              }
+              secondaryFilterCount={
+                Number(status !== "all") +
+                Number(parsed.from !== undefined) +
+                Number(parsed.to !== undefined)
+              }
+              secondaryTitle="고객 필터"
+              onOpenSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onCancelSecondaryFilters={() => {
+                setDraftStatus(status);
+                setDraftFrom(parsed.from);
+                setDraftTo(parsed.to);
+              }}
+              onApplySecondaryFilters={() => {
+                replaceQuery({
+                  status: draftStatus === "all" ? undefined : draftStatus,
+                  from: draftFrom,
+                  to: draftTo,
+                  page: 1,
+                });
+              }}
+            />
+            <AppliedFilterBar
+              filters={[
+                search !== undefined && {
+                  key: "search",
+                  label: `검색: ${search}`,
+                  onRemove: () => {
                     setSearch(undefined);
-                    replaceQuery({
-                      page: 1,
-                      limit: 20,
-                      sort: "created_at",
-                      direction: "desc",
-                      status: undefined,
-                      type: undefined,
-                      from: undefined,
-                      to: undefined,
-                    });
-                  }}
-                >
-                  전체 초기화
-                </ActionButton>
-              </HStack>
-            ) : null}
+                    setSearchResetKey((current) => current + 1);
+                    replaceQuery({ page: 1 });
+                  },
+                },
+                status !== "all" && {
+                  key: "status",
+                  label: `상태: ${CUSTOMER_STATUS_LABELS[status]}`,
+                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
+                },
+                parsed.from !== undefined && {
+                  key: "from",
+                  label: `가입 시작일: ${parsed.from}`,
+                  onRemove: () => replaceQuery({ from: undefined, page: 1 }),
+                },
+                parsed.to !== undefined && {
+                  key: "to",
+                  label: `가입 종료일: ${parsed.to}`,
+                  onRemove: () => replaceQuery({ to: undefined, page: 1 }),
+                },
+              ]}
+              onReset={() => {
+                setSearch(undefined);
+                setSearchResetKey((current) => current + 1);
+                replaceQuery({
+                  page: 1,
+                  limit: 20,
+                  sort: "created_at",
+                  direction: "desc",
+                  status: undefined,
+                  type: undefined,
+                  from: undefined,
+                  to: undefined,
+                });
+              }}
+            />
           </VStack>
         }
       />
