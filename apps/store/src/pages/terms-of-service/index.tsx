@@ -148,7 +148,7 @@ export function TermsOfServiceContent() {
 
       <PolicySection title="15. 시행일">
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: [운영 확정 필요]</Text>
+          <Text textStyle="labelSm">시행일: 2026년 7월 17일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>
