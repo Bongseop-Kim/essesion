@@ -56,10 +56,10 @@ const CAPABILITY_LABELS = {
   edge_proxy: "API 엣지 프록시",
 } as const;
 
-function kstToday() {
+function kstDate(daysAgo = 0) {
   return new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Asia/Seoul",
-  }).format(new Date());
+  }).format(new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000));
 }
 
 const orderColumns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
@@ -117,7 +117,7 @@ const quoteColumns: readonly AdminTableColumn<DashboardRecentQuoteOut>[] = [
     key: "amount",
     header: "견적 금액",
     align: "end",
-    render: (quote) => formatMoney(quote.quoted_amount),
+    render: (quote) => formatMoney(quote.quoted_amount, "미책정"),
   },
   {
     key: "status",
@@ -154,9 +154,9 @@ function MetricCard({
 export function DashboardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const today = kstToday();
-  const startDate = searchParams.get("from") ?? today;
-  const endDate = searchParams.get("to") ?? today;
+  // 기본 조회 기간은 최근 7일 — '오늘'만 보면 지표 0건과 최근 주문 목록이 어긋나 보인다
+  const startDate = searchParams.get("from") ?? kstDate(6);
+  const endDate = searchParams.get("to") ?? kstDate();
   const requestedType = searchParams.get("type");
   const orderType = ORDER_TYPES.some((item) => item.value === requestedType)
     ? (requestedType as OrderType)
@@ -341,11 +341,15 @@ export function DashboardPage() {
       </Grid>
 
       <Text textStyle="caption" color="fg.neutral-muted" aria-live="polite">
-        기준 시각 {formatDateTime(data?.as_of)} · 모든 날짜 경계는 Asia/Seoul
-        기준
+        조회 기간 {startDate} ~ {endDate} · 기준 시각{" "}
+        {formatDateTime(data?.as_of)} · 모든 날짜 경계는 Asia/Seoul 기준
       </Text>
 
-      <AdminCard title="최근 주문" action={<Link to="/orders">전체 보기</Link>}>
+      <AdminCard
+        title="최근 주문"
+        description="조회 기간과 무관한 최신 5건"
+        action={<Link to="/orders">전체 보기</Link>}
+      >
         <AdminTable
           label="최근 주문"
           columns={orderColumns}
@@ -366,6 +370,7 @@ export function DashboardPage() {
 
       <AdminCard
         title="최근 견적"
+        description="조회 기간과 무관한 최신 5건"
         action={<Link to="/quote-requests">전체 보기</Link>}
       >
         <AdminTable

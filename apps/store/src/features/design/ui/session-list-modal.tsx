@@ -31,6 +31,8 @@ export type DesignSessionSummary = {
   createdAt: string;
   status: string;
   finalizeUsed: number;
+  /** 마지막 생성 프롬프트 — 세션 구분용 요약 (프롬프트 턴이 없으면 null) */
+  lastPrompt: string | null;
 };
 
 export type SessionListModalProps = {
@@ -117,6 +119,11 @@ export function SessionListModal({
                     <Text textStyle="labelSm">
                       {formatDate(session.createdAt)}
                     </Text>
+                    {session.lastPrompt ? (
+                      <Text textStyle="caption" color="fg.neutral" maxLines={1}>
+                        “{session.lastPrompt}”
+                      </Text>
+                    ) : null}
                     <HStack gap="x2" wrap>
                       <Badge tone={status.tone}>{status.label}</Badge>
                       <Text textStyle="caption" color="fg.neutral-muted">

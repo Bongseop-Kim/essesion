@@ -60,6 +60,7 @@ import {
   type QuoteContact,
   readCustomOrderFormDraft,
   saveCustomOrderFormDraft,
+  TIE_WIDTH_ERROR,
   uploadOrderImage,
   useCustomQuote,
 } from "@/features/custom-order";
@@ -845,6 +846,7 @@ function CustomOrderPageContent({
               <TextField
                 ref={tieWidthRef}
                 label="넥타이 폭 (cm)"
+                required
                 type="number"
                 min={6}
                 max={12}
@@ -865,7 +867,11 @@ function CustomOrderPageContent({
                   )
                 }
                 onBlur={() => {
-                  if (options.tieWidth === "") return;
+                  // 필수값 — 제출 클릭까지 기다리지 않고 blur 시점에 인라인으로 알린다
+                  if (options.tieWidth === "") {
+                    setValidationError(TIE_WIDTH_ERROR);
+                    return;
+                  }
                   update(
                     "tieWidth",
                     Math.min(

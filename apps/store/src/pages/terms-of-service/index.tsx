@@ -1,5 +1,6 @@
 import { Text, VStack } from "@essesion/shared";
 
+import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
   policyBodyProps as bodyProps,
@@ -158,10 +159,10 @@ export function TermsOfServiceContent() {
 export function TermsOfServicePage() {
   return (
     <>
-      <title>이용약관 | ESSE SION</title>
-      <meta
-        name="description"
-        content="ESSE SION의 상품, 수선, 맞춤 제작, AI 디자인 서비스 이용 조건을 안내합니다."
+      <PageMeta
+        title="이용약관 | ESSE SION"
+        description="ESSE SION의 상품, 수선, 맞춤 제작, AI 디자인 서비스 이용 조건을 안내합니다."
+        path="/terms-of-service"
       />
       <ContentLayout
         breadcrumbs={[{ label: "홈", href: "/" }, { label: "이용약관" }]}

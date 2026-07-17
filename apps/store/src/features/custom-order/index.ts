@@ -23,6 +23,7 @@ export {
   DEFAULT_QUOTE_CONTACT,
   invalidCustomOrderSection,
   MAX_CUSTOM_ORDER_QUANTITY,
+  TIE_WIDTH_ERROR,
 } from "./model/options";
 export { useCustomQuote } from "./model/use-custom-quote";
 export { CustomOrderServiceGuide } from "./ui/custom-order-service-guide";

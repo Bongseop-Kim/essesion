@@ -5781,6 +5781,17 @@
             "title": "Id",
             "type": "string"
           },
+          "last_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Prompt"
+          },
           "recraft_used": {
             "title": "Recraft Used",
             "type": "integer"

@@ -3094,6 +3094,10 @@ export type DesignSessionOut = {
      */
     id: string;
     /**
+     * Last Prompt
+     */
+    last_prompt?: string | null;
+    /**
      * Recraft Used
      */
     recraft_used: number;

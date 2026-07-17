@@ -2,7 +2,7 @@ import { type ChangeEvent, type ReactNode, useId } from "react";
 
 import type { ResponsiveValue } from "../breakpoint";
 import { Box } from "./box";
-import { Field } from "./field";
+import { Field, useFieldContext } from "./field";
 import { Flex } from "./flex";
 import { Float } from "./float";
 import { ImageFrame } from "./image-frame";
@@ -111,30 +111,14 @@ export function AttachmentDisplayField({
           </Box>
         ))}
         {canAdd && (
-          <Box position="relative" width={size} height={size}>
-            <input
-              id={inputId}
-              type="file"
-              accept={accept}
-              multiple={max !== 1}
-              aria-label={addLabel}
-              className="peer sr-only"
-              onChange={handleAddFiles}
-            />
-            <Flex
-              as="label"
-              htmlFor={inputId}
-              aria-label={addLabel}
-              align="center"
-              justify="center"
-              width="full"
-              height="full"
-              borderRadius="r2"
-              className="cursor-pointer border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring"
-            >
-              <PlusGlyph className="size-6" />
-            </Flex>
-          </Box>
+          <AddFileTile
+            inputId={inputId}
+            accept={accept}
+            multiple={max !== 1}
+            addLabel={addLabel}
+            size={size}
+            onChange={handleAddFiles}
+          />
         )}
       </Flex>
       {max != null && max > 1 && (
@@ -156,5 +140,52 @@ export function AttachmentDisplayField({
     <Field label={label} description={description} errorMessage={errorMessage}>
       {content}
     </Field>
+  );
+}
+
+/** 파일 선택 타일 — Field 컨텍스트에서 aria-invalid/aria-describedby를 가져간다(TextField와 동일 패턴). */
+function AddFileTile({
+  inputId,
+  accept,
+  multiple,
+  addLabel,
+  size,
+  onChange,
+}: {
+  inputId: string;
+  accept?: string;
+  multiple: boolean;
+  addLabel: string;
+  size: ResponsiveValue<number>;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const field = useFieldContext();
+  return (
+    <Box position="relative" width={size} height={size}>
+      <input
+        id={inputId}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        aria-label={addLabel}
+        aria-invalid={field?.invalid || undefined}
+        aria-describedby={field?.describedBy}
+        className="peer sr-only"
+        onChange={onChange}
+      />
+      <Flex
+        as="label"
+        htmlFor={inputId}
+        aria-label={addLabel}
+        align="center"
+        justify="center"
+        width="full"
+        height="full"
+        borderRadius="r2"
+        className="cursor-pointer border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring"
+      >
+        <PlusGlyph className="size-6" />
+      </Flex>
+    </Box>
   );
 }

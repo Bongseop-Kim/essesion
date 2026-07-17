@@ -1,5 +1,6 @@
 import { Text, VStack } from "@essesion/shared";
 
+import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
   policyBodyProps as bodyProps,
@@ -146,10 +147,10 @@ export function PrivacyPolicyContent() {
 export function PrivacyPolicyPage() {
   return (
     <>
-      <title>개인정보처리방침 | ESSE SION</title>
-      <meta
-        name="description"
-        content="ESSE SION의 개인정보 처리 목적, 항목, 보유기간과 정보주체의 권리를 안내합니다."
+      <PageMeta
+        title="개인정보처리방침 | ESSE SION"
+        description="ESSE SION의 개인정보 처리 목적, 항목, 보유기간과 정보주체의 권리를 안내합니다."
+        path="/privacy-policy"
       />
       <ContentLayout
         breadcrumbs={[

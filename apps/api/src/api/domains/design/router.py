@@ -80,6 +80,8 @@ class DesignSessionOut(BaseModel):
     finalize_used: int
     created_at: datetime
     updated_at: datetime
+    # 목록 전용 — 마지막 generate_request 턴의 프롬프트 (세션 구분용 요약)
+    last_prompt: str | None = None
 
 
 class DesignSessionUpdateRequest(BaseModel):
@@ -198,12 +200,26 @@ async def create_design_session(session: SessionDep, user: CurrentUser) -> Desig
 
 @router.get("/design/sessions", response_model=list[DesignSessionOut])
 async def list_design_sessions(session: SessionDep, user: CurrentUser) -> list[DesignSessionOut]:
-    rows = await session.scalars(
-        select(DesignSession)
+    last_prompt = (
+        select(DesignSessionTurn.payload["prompt"].astext)
+        .where(
+            DesignSessionTurn.session_id == DesignSession.id,
+            DesignSessionTurn.payload["type"].astext == "generate_request",
+            DesignSessionTurn.payload["prompt"].astext.is_not(None),
+        )
+        .order_by(DesignSessionTurn.seq.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
+    rows = await session.execute(
+        select(DesignSession, last_prompt)
         .where(DesignSession.user_id == user.id)
         .order_by(DesignSession.created_at.desc())
     )
-    return [DesignSessionOut.model_validate(s) for s in rows]
+    return [
+        DesignSessionOut.model_validate(s).model_copy(update={"last_prompt": prompt})
+        for s, prompt in rows.all()
+    ]
 
 
 @router.get("/design/sessions/{session_id}", response_model=DesignSessionOut)

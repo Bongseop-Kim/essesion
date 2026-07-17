@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /my-page
+Disallow: /order
+Disallow: /cart
+Disallow: /design
+Disallow: /login
+Disallow: /auth
+Disallow: /token
+
+Sitemap: https://essesion.shop/sitemap.xml

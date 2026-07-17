@@ -1,4 +1,4 @@
-import { Box } from "@essesion/shared";
+import { Box, Text } from "@essesion/shared";
 
 import {
   CaseSection,
@@ -53,6 +53,10 @@ export function Home() {
       <link rel="canonical" href="https://essesion.shop" />
       <script type="application/ld+json">{JSON.stringify(HOME_JSON_LD)}</script>
 
+      {/* 히어로는 배너별 h3 캐로셀이라 문서 h1은 핵심 문구로 별도 제공 (route-error·not-found와 같은 sr-only 패턴) */}
+      <Text as="h1" textStyle="title1" className="sr-only">
+        영선산업 — 맞춤 넥타이 제작·수선 전문
+      </Text>
       <Hero />
       <PopularProducts />
       <CaseSection

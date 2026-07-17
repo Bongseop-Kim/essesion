@@ -673,6 +673,7 @@ export function DesignPage() {
           createdAt: session.created_at,
           status: session.status,
           finalizeUsed: session.finalize_used,
+          lastPrompt: session.last_prompt ?? null,
         }))}
         selectedId={activeSessionId}
         loading={sessionsQuery.isPending}

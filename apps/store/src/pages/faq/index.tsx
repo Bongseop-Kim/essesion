@@ -11,6 +11,7 @@ import {
 
 import { VISIBLE_FAQS } from "@/pages/faq/model/faq-data";
 import { useReformPricingTokens } from "@/shared/lib/use-reform-pricing-tokens";
+import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function FaqPage() {
@@ -18,10 +19,10 @@ export function FaqPage() {
 
   return (
     <>
-      <title>자주 묻는 질문 | ESSE SION</title>
-      <meta
-        name="description"
-        content="ESSE SION의 배송, 주문, 맞춤 제작, 수선과 디자인 토큰 이용 방법을 안내합니다."
+      <PageMeta
+        title="자주 묻는 질문 | ESSE SION"
+        description="ESSE SION의 배송, 주문, 맞춤 제작, 수선과 디자인 토큰 이용 방법을 안내합니다."
+        path="/faq"
       />
       <ContentLayout
         breadcrumbs={[{ label: "홈", href: "/" }, { label: "자주 묻는 질문" }]}

@@ -809,10 +809,20 @@ export function OrderDetailPage() {
                     label: "전화번호",
                     value: formatIdentifier(data.customer.phone),
                   },
-                  { label: "주문 금액", value: formatMoney(data.order_amount) },
+                  // 결제 금액이 어떻게 계산됐는지 읽히도록 원금 − 할인 + 배송비 순서로 나열
                   { label: "원금", value: formatMoney(data.original_price) },
-                  { label: "할인", value: formatMoney(data.total_discount) },
-                  { label: "배송비", value: formatMoney(data.shipping_cost) },
+                  {
+                    label: "할인",
+                    value: `− ${formatMoney(data.total_discount)}`,
+                  },
+                  {
+                    label: "배송비",
+                    value: `+ ${formatMoney(data.shipping_cost)}`,
+                  },
+                  {
+                    label: "주문 금액",
+                    value: `= ${formatMoney(data.order_amount)}`,
+                  },
                   {
                     label: "주문 시각",
                     value: formatDateTime(data.created_at),
@@ -1068,7 +1078,7 @@ export function OrderDetailPage() {
                         {data.active_claim.claim_number}
                       </Link>
                     ) : (
-                      "-"
+                      "활성 클레임 없음"
                     ),
                   },
                 ]}

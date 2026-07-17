@@ -45,9 +45,11 @@ class FakeBroadcastChannel {
 }
 
 // 메모리 access token은 요청 인터셉터가 Authorization 헤더를 붙이는지로만 관찰한다.
-function requestCarriesAuthorization() {
+async function requestCarriesAuthorization() {
   const requestInterceptor = client.interceptors.request.use.mock.calls[0]?.[0];
-  const request = requestInterceptor(new Request("http://test/admin/orders"));
+  const request = await requestInterceptor(
+    new Request("http://test/admin/orders"),
+  );
   return request.headers.has("Authorization");
 }
 
@@ -78,6 +80,8 @@ describe("admin API session coordination", () => {
     FakeBroadcastChannel.instances = [];
     vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
     vi.stubGlobal("navigator", { locks: serialLocks() });
+    // 요청 인터셉터가 콜드 스타트에서 refresh를 시도하므로, 명시하지 않은 테스트는 실패로 고정한다.
+    api.adminRefreshTokens.mockRejectedValue(new Error("no refresh session"));
   });
 
   afterEach(() => {
@@ -113,7 +117,7 @@ describe("admin API session coordination", () => {
 
     FakeBroadcastChannel.instances[0]?.emit({ type: "logout" });
 
-    expect(requestCarriesAuthorization()).toBe(false);
+    expect(await requestCarriesAuthorization()).toBe(false);
     expect(invalidated).toHaveBeenCalledTimes(1);
     unsubscribe();
   });
@@ -135,7 +139,7 @@ describe("admin API session coordination", () => {
         password: "password",
       }),
     ).rejects.toThrow("role lookup failed");
-    expect(requestCarriesAuthorization()).toBe(false);
+    expect(await requestCarriesAuthorization()).toBe(false);
   });
 
   it.each([
@@ -185,6 +189,110 @@ describe("admin API session coordination", () => {
       new Request("http://test/admin/orders"),
     );
 
-    expect(requestCarriesAuthorization()).toBe(!cleared);
+    expect(await requestCarriesAuthorization()).toBe(!cleared);
+  });
+
+  it("토큰 없는 첫 요청은 refresh 완료를 기다렸다가 Authorization을 부착한다", async () => {
+    api.adminRefreshTokens.mockResolvedValue({
+      data: { access_token: "cold-start-token" },
+      response: new Response(null, { status: 200 }),
+    });
+    await import("./admin-api-client");
+    const requestInterceptor =
+      client.interceptors.request.use.mock.calls[0]?.[0];
+
+    const request = await requestInterceptor(
+      new Request("http://test/admin/orders"),
+    );
+
+    expect(request.headers.get("Authorization")).toBe(
+      "Bearer cold-start-token",
+    );
+    expect(api.adminRefreshTokens).toHaveBeenCalledTimes(1);
+  });
+
+  it("401을 받은 POST 요청도 refresh 후 원본 body로 재시도한다", async () => {
+    api.adminRefreshTokens.mockResolvedValue({
+      data: { access_token: "rotated-token" },
+      response: new Response(null, { status: 200 }),
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const module = await import("./admin-api-client");
+    module.setAdminAccessToken("stale-token", false);
+    const requestInterceptor =
+      client.interceptors.request.use.mock.calls[0]?.[0];
+    const responseInterceptor =
+      client.interceptors.response.use.mock.calls[0]?.[0];
+
+    const request = await requestInterceptor(
+      new Request("http://test/admin/orders/1/memo", {
+        method: "POST",
+        body: JSON.stringify({ memo: "리테스트" }),
+      }),
+    );
+    const result = await responseInterceptor(
+      new Response(null, { status: 401 }),
+      request,
+    );
+
+    expect(result.status).toBe(200);
+    const retried = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(retried.method).toBe("POST");
+    expect(retried.headers.get("Authorization")).toBe("Bearer rotated-token");
+    await expect(retried.text()).resolves.toBe(
+      JSON.stringify({ memo: "리테스트" }),
+    );
+  });
+
+  it("재시도마저 401이면 세션을 무효화해 로그인으로 유도한다", async () => {
+    api.adminRefreshTokens.mockResolvedValue({
+      data: { access_token: "rotated-token" },
+      response: new Response(null, { status: 200 }),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    );
+    const module = await import("./admin-api-client");
+    const invalidated = vi.fn();
+    module.subscribeToAdminSessionInvalidation(invalidated);
+    module.setAdminAccessToken("stale-token", false);
+    const requestInterceptor =
+      client.interceptors.request.use.mock.calls[0]?.[0];
+    const responseInterceptor =
+      client.interceptors.response.use.mock.calls[0]?.[0];
+
+    const request = await requestInterceptor(
+      new Request("http://test/admin/orders"),
+    );
+    const result = await responseInterceptor(
+      new Response(null, { status: 401 }),
+      request,
+    );
+
+    expect(result.status).toBe(401);
+    expect(invalidated).toHaveBeenCalledTimes(1);
+    expect(FakeBroadcastChannel.instances[0]?.messages).toContainEqual({
+      type: "logout",
+    });
+  });
+
+  it("refresh가 네트워크 오류로 실패하면 원래 401 응답을 반환한다", async () => {
+    api.adminRefreshTokens.mockRejectedValue(new Error("network down"));
+    const module = await import("./admin-api-client");
+    module.setAdminAccessToken("stale-token", false);
+    const responseInterceptor =
+      client.interceptors.response.use.mock.calls[0]?.[0];
+
+    const original = new Response(null, { status: 401 });
+    const request = new Request("http://test/admin/orders", {
+      headers: { Authorization: "Bearer stale-token" },
+    });
+    const result = await responseInterceptor(original, request);
+
+    expect(result).toBe(original);
   });
 });

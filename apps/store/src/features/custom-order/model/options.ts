@@ -151,11 +151,7 @@ export function invalidCustomOrderSection(
     options.tieWidth > 12 ||
     !Number.isInteger(options.tieWidth * 2)
   ) {
-    return {
-      section: "spec",
-      field: "tieWidth",
-      message: "넥타이 폭은 6~12cm 사이에서 0.5cm 단위로 입력해 주세요.",
-    };
+    return TIE_WIDTH_ERROR;
   }
   if (isQuoteMode && !contact?.contactName.trim()) {
     return {
@@ -176,6 +172,13 @@ export function invalidCustomOrderSection(
   }
   return null;
 }
+
+/** 넥타이 폭 필수 검증 — 제출 시(invalidCustomOrderSection)와 blur 인라인 검증이 공유 */
+export const TIE_WIDTH_ERROR: CustomOrderValidationError = {
+  section: "spec",
+  field: "tieWidth",
+  message: "넥타이 폭은 6~12cm 사이에서 0.5cm 단위로 입력해 주세요.",
+};
 
 function validContact(contact: QuoteContact | undefined) {
   const value = contact?.contactValue.trim() ?? "";
