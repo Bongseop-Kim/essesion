@@ -191,7 +191,9 @@ client.interceptors.response.use(async (response, request) => {
   if (token === null) return response;
 
   // api의 401은 전부 의존성 단계(핸들러 실행 전)에서 발생하므로 메서드와 무관하게 재시도해도 안전하다.
-  const retried = retryClones.get(request) ?? new Request(request);
+  // 복제본이 없으면 body를 다시 읽을 수 없어 재시도를 포기한다.
+  const retried = retryClones.get(request);
+  if (retried === undefined) return response;
   retried.headers.set("Authorization", `Bearer ${token}`);
   const retriedResponse = await fetch(retried);
 

@@ -294,33 +294,48 @@ export function ReformPage() {
     }
   };
 
-  if (pricingQuery.isPending) return <ReformSkeleton />;
+  // 로딩·에러 상태에서도 title/canonical이 렌더되도록 early return 앞에서 만든다.
+  const meta = (
+    <PageMeta
+      title="넥타이 수선·리폼 | 영선산업"
+      description="폭 조절, 길이 수선, 리폼까지 — 소중한 넥타이를 새것처럼 되살려 드립니다."
+      path="/reform"
+    />
+  );
+
+  if (pricingQuery.isPending) {
+    return (
+      <>
+        {meta}
+        <ReformSkeleton />
+      </>
+    );
+  }
   if (pricingQuery.isError || !pricingQuery.data) {
     return (
-      <ContentLayout breadcrumbs={reformCrumbs()}>
-        <ContentPlaceholder
-          title="수선 비용을 불러오지 못했습니다"
-          description="잠시 후 다시 시도해 주세요."
-          action={
-            <ActionButton
-              variant="neutralOutline"
-              onClick={() => void pricingQuery.refetch()}
-            >
-              다시 시도
-            </ActionButton>
-          }
-        />
-      </ContentLayout>
+      <>
+        {meta}
+        <ContentLayout breadcrumbs={reformCrumbs()}>
+          <ContentPlaceholder
+            title="수선 비용을 불러오지 못했습니다"
+            description="잠시 후 다시 시도해 주세요."
+            action={
+              <ActionButton
+                variant="neutralOutline"
+                onClick={() => void pricingQuery.refetch()}
+              >
+                다시 시도
+              </ActionButton>
+            }
+          />
+        </ContentLayout>
+      </>
     );
   }
 
   return (
     <FormProvider {...form}>
-      <PageMeta
-        title="넥타이 수선·리폼 | 영선산업"
-        description="폭 조절, 길이 수선, 리폼까지 — 소중한 넥타이를 새것처럼 되살려 드립니다."
-        path="/reform"
-      />
+      {meta}
       <ContentLayout
         breadcrumbs={reformCrumbs()}
         sidebar={

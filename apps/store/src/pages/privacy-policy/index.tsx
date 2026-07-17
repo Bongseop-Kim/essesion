@@ -93,7 +93,7 @@ export function PrivacyPolicyContent() {
         <PolicyList
           items={[
             "Cloudflare, Inc.(미국): 웹 콘텐츠 전송과 보안 프록시 운영을 위해 접속 기록(IP 주소, 브라우저·기기 정보)을 전 세계 엣지 서버에서 처리하며, 처리 목적 달성 또는 위탁 계약 종료 시 파기합니다. 연락처: privacyquestions@cloudflare.com",
-            "Google LLC(미국): 소셜 로그인 인증과 Gemini API를 통한 AI 디자인 생성을 위해 계정 식별 정보, 프롬프트와 참조 이미지를 처리합니다. API 입력 데이터는 모델 학습에 사용되지 않으며, 부정 사용 감시 목적으로 최대 55일 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
+            "Google LLC(미국): 소셜 로그인 인증과 Gemini API를 통한 AI 디자인 생성을 위해 계정 식별 정보, 프롬프트와 참조 이미지를 처리합니다. 소셜 로그인 계정 식별 정보는 위 제3조의 계정 보유기간 동안 인증에 이용되며, Gemini API에 입력한 프롬프트와 참조 이미지는 모델 학습에 사용되지 않고 부정 사용 감시 목적으로 최대 55일 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
             "OpenAI, L.L.C.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. API 입력 데이터는 모델 학습에 사용되지 않으며, 부정 사용 감시 목적으로 최대 30일 보관 후 삭제됩니다. 연락처: privacy@openai.com",
             "Recraft, Inc.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. 입력 데이터는 결과 생성에만 사용되고 모델 학습에 사용되지 않으며, 결과 전달 후 저장하지 않습니다. 연락처: recraft.ai/legal/privacy",
           ]}

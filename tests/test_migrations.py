@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 
 from alembic import command
@@ -18,6 +19,17 @@ def test_backfill_order_item_product_snapshot():
     """c7d2e94a5b18: 스냅샷 없는 레거시 product 주문 항목을 현재 상품 값으로 백필한다."""
     user_id, order_id, option_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     plain_item, optioned_item, reform_item = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    snapshotted_item = uuid.uuid4()
+    existing_snapshot = {
+        "product": {
+            "id": 1,
+            "code": "OLD-1",
+            "name": "옛 실크 넥타이",
+            "image": "old-tie.png",
+            "category": "3fold",
+        },
+        "option": None,
+    }
 
     async def run(url: str, sql: str, params: dict | list[dict] | None = None):
         engine = create_async_engine(url)
@@ -99,6 +111,15 @@ def test_backfill_order_item_product_snapshot():
                         "selected_option_id": None,
                         "item_data": '{"width": 8}',
                     },
+                    {
+                        "id": snapshotted_item,
+                        "order_id": order_id,
+                        "item_id": "product:1",
+                        "item_type": "product",
+                        "product_id": 1,
+                        "selected_option_id": None,
+                        "item_data": json.dumps(existing_snapshot),
+                    },
                 ],
             )
         )
@@ -129,3 +150,6 @@ def test_backfill_order_item_product_snapshot():
 
         # product 외 타입의 기존 스냅샷은 건드리지 않는다
         assert by_id[reform_item] == {"width": 8}
+
+        # 이미 product 스냅샷이 있는 항목은 과거 값 그대로 보존한다
+        assert by_id[snapshotted_item] == existing_snapshot
