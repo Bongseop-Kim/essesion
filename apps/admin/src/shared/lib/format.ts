@@ -20,10 +20,13 @@ function parsed(value: string | Date) {
   return Number.isNaN(result.valueOf()) ? null : result;
 }
 
-export function formatMoney(value: number | string | null | undefined) {
-  if (value === null || value === undefined) return "-";
+export function formatMoney(
+  value: number | string | null | undefined,
+  emptyLabel = "-",
+) {
+  if (value === null || value === undefined) return emptyLabel;
   const numeric = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(numeric) ? money.format(numeric) : "-";
+  return Number.isFinite(numeric) ? money.format(numeric) : emptyLabel;
 }
 
 export function formatDateTime(value: string | Date | null | undefined) {

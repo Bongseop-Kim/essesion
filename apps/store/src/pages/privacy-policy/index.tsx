@@ -1,5 +1,6 @@
 import { Text, VStack } from "@essesion/shared";
 
+import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
   policyBodyProps as bodyProps,
@@ -82,13 +83,21 @@ export function PrivacyPolicyContent() {
             "Google Gemini·OpenAI·Recraft: AI 디자인 기능에서 입력한 프롬프트·참조 이미지 처리",
           ]}
         />
-        <PolicyInfoBox>
-          <Text textStyle="labelSm">공개 전 운영 확인 항목</Text>
-          <Text {...bodyProps}>
-            각 수탁자 법인명, 처리 국가, 이전 일시·방법, 보유기간과 연락처는
-            실제 계약 및 배포 리전에 맞춰 확정해야 합니다.
-          </Text>
-        </PolicyInfoBox>
+        <Text as="p" {...bodyProps}>
+          Google Cloud를 통한 데이터 저장·처리(서울 리전)와 토스페이먼츠,
+          Solapi, 카카오 위탁 업무는 국내에서 처리됩니다. 아래 업무는 개인정보가
+          국외에서 처리되며, 이전은 서비스 이용 시 네트워크를 통해 수시로
+          이루어집니다. 정보주체는 개인정보 고충처리 연락처를 통해 국외 이전을
+          거부할 수 있으나, 거부 시 해당 기능의 이용이 제한될 수 있습니다.
+        </Text>
+        <PolicyList
+          items={[
+            "Cloudflare, Inc.(미국): 웹 콘텐츠 전송과 보안 프록시 운영을 위해 접속 기록(IP 주소, 브라우저·기기 정보)을 전 세계 엣지 서버에서 처리하며, 처리 목적 달성 또는 위탁 계약 종료 시 파기합니다. 연락처: privacyquestions@cloudflare.com",
+            "Google LLC(미국): 소셜 로그인 인증과 Gemini API를 통한 AI 디자인 생성을 위해 계정 식별 정보, 프롬프트와 참조 이미지를 처리합니다. 소셜 로그인 계정 식별 정보는 위 제3조의 계정 보유기간 동안 인증에 이용되며, Gemini API에 입력한 프롬프트와 참조 이미지는 모델 학습에 사용되지 않고 부정 사용 감시 목적으로 최대 55일 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
+            "OpenAI, L.L.C.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. API 입력 데이터는 모델 학습에 사용되지 않으며, 부정 사용 감시 목적으로 최대 30일 보관 후 삭제됩니다. 연락처: privacy@openai.com",
+            "Recraft, Inc.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. 입력 데이터는 결과 생성에만 사용되고 모델 학습에 사용되지 않으며, 결과 전달 후 저장하지 않습니다. 연락처: recraft.ai/legal/privacy",
+          ]}
+        />
       </PolicySection>
 
       <PolicySection title="6. 정보주체의 권리와 행사 방법">
@@ -116,7 +125,7 @@ export function PrivacyPolicyContent() {
         </Text>
         <PolicyInfoBox>
           <Text textStyle="labelSm">개인정보 보호책임자</Text>
-          <Text {...bodyProps}>이름·직책: [운영 확정 필요]</Text>
+          <Text {...bodyProps}>이름·직책: 김영선 (대표)</Text>
           <Text {...bodyProps}>이메일: biblecookie@naver.com</Text>
           <Text {...bodyProps}>전화번호: 042-626-9055</Text>
         </PolicyInfoBox>
@@ -128,7 +137,7 @@ export function PrivacyPolicyContent() {
           안내합니다.
         </Text>
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: [운영 확정 필요]</Text>
+          <Text textStyle="labelSm">시행일: 2026년 7월 17일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>
@@ -138,10 +147,10 @@ export function PrivacyPolicyContent() {
 export function PrivacyPolicyPage() {
   return (
     <>
-      <title>개인정보처리방침 | ESSE SION</title>
-      <meta
-        name="description"
-        content="ESSE SION의 개인정보 처리 목적, 항목, 보유기간과 정보주체의 권리를 안내합니다."
+      <PageMeta
+        title="개인정보처리방침 | ESSE SION"
+        description="ESSE SION의 개인정보 처리 목적, 항목, 보유기간과 정보주체의 권리를 안내합니다."
+        path="/privacy-policy"
       />
       <ContentLayout
         breadcrumbs={[

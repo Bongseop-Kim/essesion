@@ -1130,6 +1130,7 @@ export const zDesignSessionOut = z.object({
     current_intent: z.record(z.string(), z.unknown()).nullable(),
     finalize_used: z.int(),
     id: z.uuid(),
+    last_prompt: z.string().nullish(),
     recraft_used: z.int(),
     registry_version: z.string().nullable(),
     seed: z.int().nullable(),

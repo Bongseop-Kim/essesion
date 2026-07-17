@@ -144,6 +144,35 @@ async def test_session_lifecycle_and_turns(client, db_session, settings):
     assert updated.json()["seed"] == 42
 
 
+async def test_session_list_returns_last_prompt(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+
+    with_prompt = (await client.post("/design/sessions", headers=headers)).json()
+    without_prompt = (await client.post("/design/sessions", headers=headers)).json()
+
+    sid = with_prompt["id"]
+    payloads = [
+        {"type": "generate_request", "mode": "prompt", "prompt": "잔잔한 페이즐리"},
+        {"type": "generate", "response": {}},
+        {"type": "generate_request", "mode": "prompt", "prompt": "네이비 스트라이프"},
+        # variation 턴은 prompt가 null — last_prompt 계산에서 건너뛴다
+        {"type": "generate_request", "mode": "variation", "prompt": None},
+    ]
+    for payload in payloads:
+        response = await client.post(
+            f"/design/sessions/{sid}/turns",
+            json={"role": "user", "payload": payload},
+            headers=headers,
+        )
+        assert response.status_code == 201
+
+    sessions = (await client.get("/design/sessions", headers=headers)).json()
+    by_id = {s["id"]: s for s in sessions}
+    assert by_id[sid]["last_prompt"] == "네이비 스트라이프"
+    assert by_id[without_prompt["id"]]["last_prompt"] is None
+
+
 async def test_generate_and_finalize_job(client, app, db_session, settings):
     app.state.worker = FakeWorker()
     user = await make_user(db_session)

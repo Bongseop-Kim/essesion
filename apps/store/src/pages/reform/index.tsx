@@ -50,6 +50,7 @@ import {
   uploadReformImage,
 } from "@/features/reform";
 import { ReviewListSection } from "@/features/reviews";
+import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
@@ -210,7 +211,7 @@ export function ReformPage() {
       snackbar("접수할 넥타이를 선택해 주세요.");
       return false;
     }
-    let valid = true;
+    let firstInvalid: number | null = null;
     ties.forEach((tie, index) => {
       if (!selectedIds.has(tie.itemId)) return;
       if (!tie.file && !tie.uploadedImage) {
@@ -218,11 +219,22 @@ export function ReformPage() {
           type: "manual",
           message: "넥타이 사진을 선택해 주세요.",
         });
-        valid = false;
+        firstInvalid ??= index;
       }
     });
-    if (!valid) snackbar("사진을 확인해 주세요.");
-    return valid;
+    if (firstInvalid != null) {
+      snackbar("사진을 확인해 주세요.");
+      // 첫 에러 항목으로 포커스 이동 — custom-order의 focusInvalid와 같은 지연(스크롤 완료 후 포커스)
+      const container = document.getElementById(`reform-tie-${firstInvalid}`);
+      container?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => {
+        container
+          ?.querySelector<HTMLInputElement>('input[type="file"]')
+          ?.focus({ preventScroll: true });
+      }, 300);
+      return false;
+    }
+    return true;
   };
 
   const submit = async (directOrder: boolean) => {
@@ -282,28 +294,48 @@ export function ReformPage() {
     }
   };
 
-  if (pricingQuery.isPending) return <ReformSkeleton />;
+  // 로딩·에러 상태에서도 title/canonical이 렌더되도록 early return 앞에서 만든다.
+  const meta = (
+    <PageMeta
+      title="넥타이 수선·리폼 | 영선산업"
+      description="폭 조절, 길이 수선, 리폼까지 — 소중한 넥타이를 새것처럼 되살려 드립니다."
+      path="/reform"
+    />
+  );
+
+  if (pricingQuery.isPending) {
+    return (
+      <>
+        {meta}
+        <ReformSkeleton />
+      </>
+    );
+  }
   if (pricingQuery.isError || !pricingQuery.data) {
     return (
-      <ContentLayout breadcrumbs={reformCrumbs()}>
-        <ContentPlaceholder
-          title="수선 비용을 불러오지 못했습니다"
-          description="잠시 후 다시 시도해 주세요."
-          action={
-            <ActionButton
-              variant="neutralOutline"
-              onClick={() => void pricingQuery.refetch()}
-            >
-              다시 시도
-            </ActionButton>
-          }
-        />
-      </ContentLayout>
+      <>
+        {meta}
+        <ContentLayout breadcrumbs={reformCrumbs()}>
+          <ContentPlaceholder
+            title="수선 비용을 불러오지 못했습니다"
+            description="잠시 후 다시 시도해 주세요."
+            action={
+              <ActionButton
+                variant="neutralOutline"
+                onClick={() => void pricingQuery.refetch()}
+              >
+                다시 시도
+              </ActionButton>
+            }
+          />
+        </ContentLayout>
+      </>
     );
   }
 
   return (
     <FormProvider {...form}>
+      {meta}
       <ContentLayout
         breadcrumbs={reformCrumbs()}
         sidebar={

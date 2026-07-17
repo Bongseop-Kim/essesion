@@ -137,23 +137,42 @@ client.setConfig({
   credentials: "include",
 });
 
-client.interceptors.request.use((request) => {
+// 401 재시도 시 body를 다시 읽을 수 있도록 전송 전 복제본을 보관한다.
+const retryClones = new WeakMap<Request, Request>();
+
+client.interceptors.request.use(async (request) => {
+  const path = new URL(request.url).pathname;
+
+  if (accessToken === null && !path.startsWith("/auth/")) {
+    // 콜드 스타트: 부트스트랩 refresh가 끝나기 전에 발사된 요청은 갱신을 기다린다.
+    try {
+      await refreshAdminAccessToken(undefined, null);
+    } catch {
+      // refresh 실패 시 토큰 없이 보내고 401 처리에 맡긴다.
+    }
+  }
+
   if (accessToken !== null && !request.headers.has("Authorization")) {
     request.headers.set("Authorization", `Bearer ${accessToken}`);
   }
+  retryClones.set(request, request.clone());
   return request;
 });
 
-client.interceptors.response.use(async (response, request) => {
-  const path = new URL(request.url).pathname;
-
-  if (response.status === 403 && path.startsWith("/admin")) {
+async function handleForbidden(response: Response, path: string) {
+  if (path.startsWith("/admin")) {
     roleCheck ??= verifyRoleAfterForbidden().finally(() => {
       roleCheck = null;
     });
     await roleCheck;
-    return response;
   }
+  return response;
+}
+
+client.interceptors.response.use(async (response, request) => {
+  const path = new URL(request.url).pathname;
+
+  if (response.status === 403) return handleForbidden(response, path);
 
   if (response.status !== 401 || path.startsWith("/auth/")) return response;
 
@@ -161,15 +180,29 @@ client.interceptors.response.use(async (response, request) => {
   const staleToken = authorization?.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length)
     : null;
-  const token = await refreshAdminAccessToken(undefined, staleToken);
-  if (
-    token === null ||
-    (request.method !== "GET" && request.method !== "HEAD")
-  ) {
+
+  let token: string | null;
+  try {
+    token = await refreshAdminAccessToken(undefined, staleToken);
+  } catch {
+    // refresh의 네트워크·5xx 실패는 원래 401을 돌려 쿼리 재시도에 맡긴다.
     return response;
   }
+  if (token === null) return response;
 
-  const retried = new Request(request);
+  // api의 401은 전부 의존성 단계(핸들러 실행 전)에서 발생하므로 메서드와 무관하게 재시도해도 안전하다.
+  // 복제본이 없으면 body를 다시 읽을 수 없어 재시도를 포기한다.
+  const retried = retryClones.get(request);
+  if (retried === undefined) return response;
   retried.headers.set("Authorization", `Bearer ${token}`);
-  return fetch(retried);
+  const retriedResponse = await fetch(retried);
+
+  if (retriedResponse.status === 401) {
+    clearAdminAccessToken({ broadcast: true, notify: true });
+    return retriedResponse;
+  }
+  if (retriedResponse.status === 403) {
+    return handleForbidden(retriedResponse, path);
+  }
+  return retriedResponse;
 });

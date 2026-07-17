@@ -40,6 +40,7 @@ import { useAuthGuard } from "@/features/auth";
 import { useCartActions } from "@/features/cart";
 import { InquirySection } from "@/features/inquiry";
 import { ReviewListSection } from "@/features/reviews";
+import { PageMeta } from "@/shared/seo/page-meta";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
@@ -50,6 +51,32 @@ import {
   materialLabel,
   patternLabel,
 } from "./constants";
+
+function absoluteImageUrl(image: string) {
+  return image.startsWith("http") ? image : `https://essesion.shop${image}`;
+}
+
+// schema.org Product 구조화 데이터 — 검색 결과 리치스니펫(가격·재고)
+function productJsonLd(product: ProductOut, soldOut: boolean) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    image: [absoluteImageUrl(product.image)],
+    description: product.info,
+    ...(product.code ? { sku: product.code } : {}),
+    brand: { "@type": "Brand", name: "ESSE SION" },
+    offers: {
+      "@type": "Offer",
+      url: `https://essesion.shop/shop/${product.id}`,
+      priceCurrency: "KRW",
+      price: product.price,
+      availability: soldOut
+        ? "https://schema.org/OutOfStock"
+        : "https://schema.org/InStock",
+    },
+  };
+}
 
 type CartAddDraft = {
   product: ProductOut;
@@ -218,6 +245,16 @@ export function ShopDetailPage() {
 
   return (
     <>
+      <PageMeta
+        title={`${product.name} | 영선산업`}
+        description={product.info}
+        path={`/shop/${product.id}`}
+        ogImage={absoluteImageUrl(product.image)}
+        ogType="product"
+      />
+      <script type="application/ld+json">
+        {JSON.stringify(productJsonLd(product, soldOut))}
+      </script>
       <ContentLayout
         breadcrumbs={shopCrumbs(product.name)}
         sidebar={

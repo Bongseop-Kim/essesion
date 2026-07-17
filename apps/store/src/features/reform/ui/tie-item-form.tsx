@@ -41,6 +41,7 @@ export function TieItemForm({
 
   return (
     <Box
+      id={`reform-tie-${index}`}
       bg="bg.layer-default"
       borderWidth={1}
       borderColor="stroke.neutral-weak"

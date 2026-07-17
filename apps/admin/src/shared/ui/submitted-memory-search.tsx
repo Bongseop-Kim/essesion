@@ -31,6 +31,11 @@ export function SubmittedMemorySearch({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const value = input.trim();
+    // 빈 입력 제출은 검색 해제, 1자는 조용히 무시하지 않고 최소 길이를 안내한다
+    if (value.length === 1) {
+      setError("검색어를 2자 이상 입력해 주세요.");
+      return;
+    }
     const nextValue = value.length >= 2 ? value : undefined;
     const validationError =
       nextValue === undefined ? undefined : validate?.(nextValue);

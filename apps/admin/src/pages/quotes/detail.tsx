@@ -558,7 +558,7 @@ export function QuoteDetailPage() {
                   { label: "상태", value: data.status },
                   {
                     label: "견적 금액",
-                    value: formatMoney(data.quoted_amount),
+                    value: formatMoney(data.quoted_amount, "미책정"),
                   },
                   { label: "견적 조건", value: data.quote_conditions ?? "-" },
                 ]}
@@ -626,7 +626,7 @@ export function QuoteDetailPage() {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${selectedAction?.target_status ?? "선택 상태"}(으)로 변경할까요?`}
-        description={`상태 ${data.status} → ${selectedAction?.target_status ?? "선택 상태"} · 견적 금액 ${formatMoney(data.quoted_amount)} → ${amount === "" ? "미입력" : formatMoney(Number(amount))} · 견적 조건 ${conditions.trim() || "없음"} · 변경 근거 ${transitionMemo.trim() || "없음"}`}
+        description={`상태 ${data.status} → ${selectedAction?.target_status ?? "선택 상태"} · 견적 금액 ${formatMoney(data.quoted_amount, "미책정")} → ${amount === "" ? "미입력" : formatMoney(Number(amount))} · 견적 조건 ${conditions.trim() || "없음"} · 변경 근거 ${transitionMemo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction
             ? `${selectedAction.target_status} 상태로 변경`

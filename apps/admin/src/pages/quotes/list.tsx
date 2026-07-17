@@ -65,7 +65,7 @@ const columns: readonly AdminTableColumn<AdminQuoteSummaryOut>[] = [
     header: "견적 금액",
     sortable: true,
     align: "end",
-    render: (quote) => formatMoney(quote.quoted_amount),
+    render: (quote) => formatMoney(quote.quoted_amount, "미책정"),
   },
   {
     key: "status",

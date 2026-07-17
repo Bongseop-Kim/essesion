@@ -101,10 +101,31 @@ export function claimStatusTone(
   return "neutral";
 }
 
+/** 주문 시점 item_data 스냅샷에서 "상품명 (옵션명)" 라벨을 복원한다. 스냅샷이 없는 레거시 주문은 null. */
+function productSnapshotTitle(
+  itemData: OrderItemOut["item_data"],
+): string | null {
+  const product = itemData?.product;
+  if (typeof product !== "object" || product === null) return null;
+  const name = (product as { name?: unknown }).name;
+  if (typeof name !== "string" || name === "") return null;
+  const option = itemData?.option;
+  const optionName =
+    typeof option === "object" && option !== null
+      ? (option as { name?: unknown }).name
+      : null;
+  return typeof optionName === "string" && optionName !== ""
+    ? `${name} (${optionName})`
+    : name;
+}
+
 export function claimItemTitle(item: OrderItemOut): string {
   if (item.item_type === "reform") return "넥타이 수선";
   if (item.item_type === "custom") return "맞춤 주문";
   if (item.item_type === "sample") return "샘플 주문";
   if (item.item_type === "token") return "디자인 토큰";
-  return item.product_id ? `상품 #${item.product_id}` : "상품";
+  return (
+    productSnapshotTitle(item.item_data) ??
+    (item.product_id ? `상품 #${item.product_id}` : "상품")
+  );
 }

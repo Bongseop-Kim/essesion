@@ -247,7 +247,7 @@ class OrderItem(CreatedAtMixin, Base):
     item_type: Mapped[str]
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
     selected_option_id: Mapped[str | None]
-    item_data: Mapped[dict[str, Any] | None]  # reform/custom/sample 스냅샷
+    item_data: Mapped[dict[str, Any] | None]  # 주문 시점 스냅샷 — product/option 포함 전 타입
     quantity: Mapped[int]
     unit_price: Mapped[int]
     discount_amount: Mapped[int] = mapped_column(server_default=text("0"))

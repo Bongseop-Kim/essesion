@@ -17,6 +17,7 @@ import {
   type DesignTurnPayload,
   parseDesignTurnPayload,
 } from "../model/turn-payload";
+import { localizeDesignWarnings } from "../model/warnings";
 import {
   CandidateGrid,
   CandidateGridSkeleton,
@@ -185,7 +186,7 @@ function TurnItem({
       <CandidateGrid
         candidates={candidates}
         selectedId={selectedCandidateId}
-        warnings={payload.response.warnings}
+        warnings={localizeDesignWarnings(payload.response.warnings)}
         disabled={selectionLoading}
         onSelect={(selected) => {
           const candidate = payload.response.candidates.find(
