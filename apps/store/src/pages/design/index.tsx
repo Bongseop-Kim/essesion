@@ -118,6 +118,10 @@ export function DesignPage() {
     sessionId: string;
     selection: DesignSelection;
   } | null>(null);
+  const [resultPreview, setResultPreview] = useState<{
+    jobId: string;
+    src: string;
+  } | null>(null);
   const [localFinalizeTurns, setLocalFinalizeTurns] = useState<
     LocalFinalizeTurn[]
   >([]);
@@ -198,6 +202,8 @@ export function DesignPage() {
   const selectedImageSrc = selection?.candidate?.svg
     ? svgToDataUri(selection.candidate.svg)
     : null;
+  const previewImageSrc = resultPreview?.src ?? selectedImageSrc;
+  const previewAlt = resultPreview ? "완성된 원단 시뮬레이션" : undefined;
   const remainingFinalize = Math.max(
     0,
     FINALIZE_BUDGET - (sessionQuery.data?.finalize_used ?? 0),
@@ -319,6 +325,7 @@ export function DesignPage() {
     }
     const operation = selectionEpoch.begin();
     setSelectionOverride({ sessionId, selection: next });
+    setResultPreview(null);
     if (compactPreview) setPreviewOpen(true);
     try {
       const result = await selectionMutation.mutateAsync({
@@ -390,6 +397,12 @@ export function DesignPage() {
     );
   };
 
+  const previewFinalizeResult = (job: GenerationJobOut) => {
+    if (!job.result_url) return;
+    setResultPreview({ jobId: job.id, src: job.result_url });
+    if (compactPreview) setPreviewOpen(true);
+  };
+
   const retryFinalize = async (job: GenerationJobOut) => {
     if (!ensureDesignAuth()) return;
     const input = finalizeRetryInput(job);
@@ -438,6 +451,7 @@ export function DesignPage() {
     invalidateSessionOperations();
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
+    setResultPreview(null);
     clearPendingDesign();
     setPending(null);
   };
@@ -447,6 +461,7 @@ export function DesignPage() {
     setActiveSessionId(null);
     setNewSessionMode(true);
     setSelectionOverride(null);
+    setResultPreview(null);
   };
 
   const chooseSession = (sessionId: string) => {
@@ -454,6 +469,7 @@ export function DesignPage() {
     setActiveSessionId(sessionId);
     setNewSessionMode(false);
     setSelectionOverride(null);
+    setResultPreview(null);
     setSessionsOpen(false);
   };
 
@@ -515,7 +531,8 @@ export function DesignPage() {
         >
           <Box display={{ base: "none", lg: "block" }} minHeight={0}>
             <PreviewPanel
-              imageSrc={selectedImageSrc}
+              imageSrc={previewImageSrc}
+              alt={previewAlt}
               mode={previewMode}
               onModeChange={setPreviewMode}
               actions={panelActions}
@@ -557,6 +574,8 @@ export function DesignPage() {
                   <FinalizeTurnCard
                     payload={payload}
                     authenticated={authenticated}
+                    previewActive={resultPreview?.jobId === payload.job_id}
+                    onPreview={previewFinalizeResult}
                     onRetry={retryFinalize}
                     onOrder={(job) =>
                       navigate("/custom-order", {
@@ -618,7 +637,8 @@ export function DesignPage() {
       <PreviewModal
         open={previewOpen}
         onOpenChange={setPreviewOpen}
-        imageSrc={selectedImageSrc}
+        imageSrc={previewImageSrc}
+        alt={previewAlt}
         mode={previewMode}
         onModeChange={setPreviewMode}
         actions={modalActions}

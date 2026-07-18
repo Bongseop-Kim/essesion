@@ -56,50 +56,17 @@ export function CandidateGrid({
 
       {candidates.length > 0 ? (
         <Grid columns={{ base: 2, md: 4 }} gap="x3" aria-label="디자인 후보">
-          {candidates.map((candidate, index) => {
-            const selected = candidate.id === selectedId;
-            return (
-              <Box
-                as="button"
-                type="button"
-                key={candidate.id}
-                aria-label={`디자인 후보 ${index + 1}`}
-                aria-pressed={selected}
-                disabled={disabled}
-                onClick={() => onSelect(candidate)}
-                borderWidth={2}
-                borderColor={selected ? "stroke.brand" : "stroke.neutral-weak"}
-                borderRadius="r3"
-                bg={selected ? "bg.brand-weak" : "bg.layer-default"}
-                p="x1"
-                className="text-left transition-colors duration-100 ease-standard hover:border-stroke-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
-              >
-                <ImageFrame
-                  ratio={1}
-                  src={candidate.imageSrc}
-                  alt={candidate.alt ?? `AI 디자인 후보 ${index + 1}`}
-                  fit="cover"
-                  borderRadius="r2"
-                >
-                  {selected ? (
-                    <Float placement="top-end" offsetX="x2" offsetY="x2">
-                      <Flex
-                        align="center"
-                        justify="center"
-                        width={28}
-                        height={28}
-                        borderRadius="full"
-                        bg="bg.brand-solid"
-                        className="text-fg-contrast"
-                      >
-                        <Icon svg={<CheckIcon />} size={18} />
-                      </Flex>
-                    </Float>
-                  ) : null}
-                </ImageFrame>
-              </Box>
-            );
-          })}
+          {candidates.map((candidate, index) => (
+            <CandidateTile
+              key={candidate.id}
+              label={`디자인 후보 ${index + 1}`}
+              imageSrc={candidate.imageSrc}
+              alt={candidate.alt ?? `AI 디자인 후보 ${index + 1}`}
+              selected={candidate.id === selectedId}
+              disabled={disabled}
+              onClick={() => onSelect(candidate)}
+            />
+          ))}
         </Grid>
       ) : (
         <ContentPlaceholder
@@ -109,6 +76,65 @@ export function CandidateGrid({
         />
       )}
     </VStack>
+  );
+}
+
+export type CandidateTileProps = {
+  label: string;
+  imageSrc?: string;
+  alt: string;
+  selected?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+};
+
+export function CandidateTile({
+  label,
+  imageSrc,
+  alt,
+  selected = false,
+  disabled = false,
+  onClick,
+}: CandidateTileProps) {
+  return (
+    <Box
+      as="button"
+      type="button"
+      aria-label={label}
+      aria-pressed={selected}
+      disabled={disabled}
+      onClick={onClick}
+      borderWidth={2}
+      borderColor={selected ? "stroke.brand" : "stroke.neutral-weak"}
+      borderRadius="r3"
+      bg={selected ? "bg.brand-weak" : "bg.layer-default"}
+      p="x1"
+      className="text-left transition-colors duration-100 ease-standard hover:border-stroke-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+    >
+      <ImageFrame
+        ratio={1}
+        src={imageSrc}
+        alt={alt}
+        fit="cover"
+        borderRadius="r2"
+      >
+        {selected ? (
+          <Float placement="top-end" offsetX="x2" offsetY="x2">
+            <Flex
+              align="center"
+              justify="center"
+              width={28}
+              height={28}
+              borderRadius="full"
+              bg="bg.brand-solid"
+              className="text-fg-contrast"
+            >
+              <Icon svg={<CheckIcon />} size={18} />
+            </Flex>
+          </Float>
+        ) : null}
+      </ImageFrame>
+    </Box>
   );
 }
 

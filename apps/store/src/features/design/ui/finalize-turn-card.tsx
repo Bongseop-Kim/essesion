@@ -4,9 +4,9 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
+  Grid,
   HStack,
   Icon,
-  ImageFrame,
   ProgressCircle,
   snackbar,
   Text,
@@ -25,6 +25,7 @@ import {
   useCancelFinalizeJob,
   useFinalizeJobQuery,
 } from "../model/use-finalize-job";
+import { CandidateTile } from "./candidate-grid";
 import type { FinalizeTurnPayload } from "./turn-feed";
 
 // 서버(db/src/db/models/design.py)의 TTL 자동 취소 메시지 — 사용자 취소와 문구 구분용
@@ -33,6 +34,8 @@ const FINALIZE_STALE_MESSAGE = "finalize 작업 처리 시간이 초과되었습
 export type FinalizeTurnCardProps = {
   payload: FinalizeTurnPayload;
   authenticated: boolean;
+  previewActive: boolean;
+  onPreview: (job: GenerationJobOut) => void;
   onRetry: (job: GenerationJobOut) => Promise<void>;
   onOrder: (job: GenerationJobOut) => void;
 };
@@ -40,6 +43,8 @@ export type FinalizeTurnCardProps = {
 export function FinalizeTurnCard({
   payload,
   authenticated,
+  previewActive,
+  onPreview,
   onRetry,
   onOrder,
 }: FinalizeTurnCardProps) {
@@ -207,14 +212,16 @@ export function FinalizeTurnCard({
   return (
     <VStack gap="x3" alignItems="stretch">
       <Text textStyle="label">원단 시뮬레이션이 완성됐어요</Text>
-      <ImageFrame
-        ratio={1}
-        src={job.result_url ?? undefined}
-        alt="완성된 원단 시뮬레이션"
-        fit="cover"
-        borderRadius="r3"
-        stroke
-      />
+      <Grid columns={{ base: 2, md: 4 }} gap="x3">
+        <CandidateTile
+          label="완성된 원단 시뮬레이션 미리보기"
+          imageSrc={job.result_url ?? undefined}
+          alt="완성된 원단 시뮬레이션"
+          selected={previewActive}
+          disabled={!job.result_url}
+          onClick={() => onPreview(job)}
+        />
+      </Grid>
       <HStack gap="x2" wrap>
         <ActionButton
           type="button"

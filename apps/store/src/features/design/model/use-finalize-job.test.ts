@@ -30,20 +30,21 @@ describe("finalizeJobPollInterval", () => {
     ).toBe(FINALIZE_JOB_POLL_INTERVAL_MS);
   });
 
-  it.each(["succeeded", "failed", "canceled"])(
-    "%s 잡은 폴링하지 않는다",
-    (status) => {
-      expect(
-        finalizeJobPollInterval(
-          {
-            status,
-            created_at: new Date(now - 1_000).toISOString(),
-          },
-          now,
-        ),
-      ).toBe(false);
-    },
-  );
+  it.each([
+    "succeeded",
+    "failed",
+    "canceled",
+  ])("%s 잡은 폴링하지 않는다", (status) => {
+    expect(
+      finalizeJobPollInterval(
+        {
+          status,
+          created_at: new Date(now - 1_000).toISOString(),
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
 
   it("생성 후 5분이 된 활성 잡은 저빈도 폴링으로 전환한다", () => {
     expect(
