@@ -218,6 +218,45 @@ async def test_refresh_rotation_and_reuse_detection(client, db_session, settings
     assert active == 0
 
 
+async def test_store_refresh_ignores_stale_generic_localhost_cookie(client, db_session):
+    user = await make_user(db_session, email="cookie-collision@test.local", password="pw")
+    login = await client.post(
+        "/auth/login",
+        json={"email": user.email, "password": "pw"},
+    )
+    assert login.status_code == 200
+
+    stale_raw, stale_hash = new_refresh_token()
+    db_session.add(
+        RefreshToken(
+            user_id=user.id,
+            token_hash=stale_hash,
+            session_kind="store",
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+            revoked_at=datetime.now(UTC),
+        )
+    )
+    await db_session.commit()
+
+    # Cookies ignore ports. Another localhost app can leave this generic root-path
+    # cookie alongside ESSE SION's more specific store refresh cookie.
+    client.cookies.set("refresh_token", stale_raw, path="/")
+    refreshed = await client.post("/auth/refresh")
+
+    assert refreshed.status_code == 200
+    assert "essesion_store_refresh" in refreshed.cookies
+    active = await db_session.scalar(
+        select(func.count())
+        .select_from(RefreshToken)
+        .where(
+            RefreshToken.user_id == user.id,
+            RefreshToken.session_kind == "store",
+            RefreshToken.revoked_at.is_(None),
+        )
+    )
+    assert active == 1
+
+
 async def test_admin_refresh_replay_revokes_only_admin_sessions(client, db_session, settings):
     admin = await make_user(
         db_session,

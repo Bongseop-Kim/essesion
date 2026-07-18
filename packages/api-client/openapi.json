@@ -19736,6 +19736,46 @@
       }
     },
     "/design/jobs/{job_id}": {
+      "delete": {
+        "description": "종결된 잡을 삭제한다 — 진행 중이면 먼저 취소(예산 환불)를 거쳐야 한다.\n\n주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하고, 소비한\nfinalize 예산은 환불하지 않는다(삭제-재생성 무한 루프 방지).",
+        "operationId": "delete_generation_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Generation Job",
+        "tags": [
+          "design"
+        ]
+      },
       "get": {
         "operationId": "get_generation_job",
         "parameters": [
@@ -19950,6 +19990,46 @@
       }
     },
     "/design/sessions/{session_id}": {
+      "delete": {
+        "description": "세션과 턴 이력을 삭제한다.\n\nfinalize 결과물(generation_jobs)은 세션과 독립적인 사용자 소유 산출물이라\n남긴다(FK SET NULL) — 완성본 정리는 DELETE /design/jobs/{job_id}로.",
+        "operationId": "delete_design_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Design Session",
+        "tags": [
+          "design"
+        ]
+      },
       "get": {
         "operationId": "get_design_session",
         "parameters": [

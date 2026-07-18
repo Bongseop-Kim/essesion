@@ -374,6 +374,89 @@ async def test_cancel_rejects_terminal_jobs_and_other_kinds(client, db_session, 
     assert failed_session.finalize_used == 1
 
 
+async def test_delete_session_removes_turns_but_keeps_finalize_results(
+    client, db_session, settings
+):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session, job = await _make_finalize_job(
+        db_session, user, status="succeeded", result={"object_key": "fabric/keep.png"}
+    )
+    session_id, job_id = design_session.id, job.id
+    db_session.add(
+        DesignSessionTurn(
+            session_id=session_id,
+            seq=1,
+            role="user",
+            payload={"type": "generate_request", "prompt": "체크 패턴"},
+        )
+    )
+    await db_session.commit()
+
+    response = await client.delete(f"/design/sessions/{session_id}", headers=headers)
+
+    assert response.status_code == 204
+    db_session.expire_all()
+    assert await db_session.get(DesignSession, session_id) is None
+    remaining_turns = await db_session.scalar(
+        select(func.count())
+        .select_from(DesignSessionTurn)
+        .where(DesignSessionTurn.session_id == session_id)
+    )
+    assert remaining_turns == 0
+    # finalize 결과물은 SET NULL로 살아남아 완성본 목록에 계속 노출된다
+    surviving = await db_session.get(GenerationJob, job_id)
+    assert surviving is not None
+    assert surviving.session_id is None
+    assert surviving.result == {"object_key": "fabric/keep.png"}
+    listed = await client.get("/design/jobs", headers=headers)
+    assert [row["id"] for row in listed.json()] == [str(job_id)]
+
+
+async def test_delete_job_removes_row_and_result_object_without_refund(
+    client, app, db_session, settings
+):
+    settings.gcp_project_id = "test-project"
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session, job = await _make_finalize_job(
+        db_session, user, status="succeeded", result={"object_key": "fabric/delete-me.png"}
+    )
+    session_id, job_id = design_session.id, job.id
+
+    response = await client.delete(f"/design/jobs/{job_id}", headers=headers)
+
+    assert response.status_code == 204
+    db_session.expire_all()
+    assert await db_session.get(GenerationJob, job_id) is None
+    assert app.state.gcs.deleted_from == [("test-project-assets", "fabric/delete-me.png")]
+    # 소비한 finalize 예산은 환불하지 않는다 (삭제-재생성 루프 방지)
+    surviving_session = await db_session.get(DesignSession, session_id)
+    assert surviving_session is not None
+    assert surviving_session.finalize_used == 1
+
+
+async def test_delete_job_rejects_active_and_skips_object_cleanup_without_result(
+    client, app, db_session, settings
+):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    for status in ("queued", "processing"):
+        _, active = await _make_finalize_job(db_session, user, status=status)
+        active_id = active.id
+        response = await client.delete(f"/design/jobs/{active_id}", headers=headers)
+        assert response.status_code == 409
+        remaining = await db_session.scalar(
+            select(func.count()).select_from(GenerationJob).where(GenerationJob.id == active_id)
+        )
+        assert remaining == 1
+
+    _, failed = await _make_finalize_job(db_session, user, status="failed")
+    failed_id = failed.id
+    assert (await client.delete(f"/design/jobs/{failed_id}", headers=headers)).status_code == 204
+    assert app.state.gcs.deleted == []
+
+
 async def test_get_job_lazily_cancels_past_ttl_and_refunds(client, db_session, settings):
     user = await make_user(db_session)
     headers = auth_headers(user, settings)

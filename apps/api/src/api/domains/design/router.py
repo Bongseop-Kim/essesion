@@ -256,6 +256,22 @@ async def update_design_session(
     return DesignSessionOut.model_validate(design_session)
 
 
+@router.delete("/design/sessions/{session_id}", status_code=204)
+async def delete_design_session(
+    session_id: uuid.UUID, session: SessionDep, user: CurrentUser
+) -> None:
+    """세션과 턴 이력을 삭제한다.
+
+    finalize 결과물(generation_jobs)은 세션과 독립적인 사용자 소유 산출물이라
+    남긴다(FK SET NULL) — 완성본 정리는 DELETE /design/jobs/{job_id}로.
+    """
+    design_session = await session.get(DesignSession, session_id)
+    ensure_owner(design_session, user)
+    assert design_session is not None
+    await session.delete(design_session)
+    await session.commit()
+
+
 @router.get("/design/sessions/{session_id}/turns", response_model=list[DesignTurnOut])
 async def list_design_turns(
     session_id: uuid.UUID, session: SessionDep, user: CurrentUser
@@ -583,6 +599,48 @@ async def cancel_generation_job(
     if job.status != "canceled":
         raise ConflictError("이미 종료된 작업은 취소할 수 없습니다")
     return _generation_job_out(job, settings)
+
+
+@router.delete("/design/jobs/{job_id}", status_code=204)
+async def delete_generation_job(
+    job_id: uuid.UUID,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    settings: SettingsDep,
+) -> None:
+    """종결된 잡을 삭제한다 — 진행 중이면 먼저 취소(예산 환불)를 거쳐야 한다.
+
+    주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하고, 소비한
+    finalize 예산은 환불하지 않는다(삭제-재생성 무한 루프 방지).
+    """
+    job = await session.get(GenerationJob, job_id)
+    ensure_owner(job, user)
+    assert job is not None
+    if job.status not in ("succeeded", "failed", "canceled"):
+        raise ConflictError("진행 중인 작업은 취소한 뒤에 삭제할 수 있습니다")
+    object_key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    await session.delete(job)
+    await session.commit()
+    # 산출물 정리는 커밋 후 best-effort — 실패해도 사용자 상태는 이미 일관적이고,
+    # 고아 객체는 로그로만 추적한다(멱등 delete_object라 재시도 부담 없음).
+    if (
+        isinstance(object_key, str)
+        and object_key.startswith("fabric/")
+        and ".." not in object_key.split("/")
+    ):
+        source_bucket = assets_bucket_name(settings)
+        if source_bucket is None and request.app.state.gcs.upload_required:
+            logger.error(
+                "assets 버킷 미설정 — 삭제한 finalize 산출물을 정리하지 못했습니다: %s",
+                object_key,
+            )
+        else:
+            deleted = await request.app.state.gcs.delete_object(
+                object_key, bucket_name=source_bucket
+            )
+            if not deleted:
+                logger.error("삭제한 finalize 잡의 산출물 정리 실패: %s", object_key)
 
 
 @router.post(

@@ -1,6 +1,7 @@
 import { exportDesign, type GenerationJobOut } from "@essesion/api-client";
 import {
   ActionButton,
+  AlertDialog,
   Box,
   Callout,
   Grid,
@@ -19,6 +20,7 @@ import {
   FolderOpenIcon,
   PlusIcon,
   Squares2X2Icon,
+  SwatchIcon,
 } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -54,6 +56,10 @@ import {
 } from "@/features/design/model/selection";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
 import {
+  useDeleteDesignSession,
+  useDeleteFinalizedJob,
+} from "@/features/design/model/use-delete";
+import {
   type CreateFinalizeJobInput,
   finalizeRetryInput,
   useCreateFinalizeJob,
@@ -81,10 +87,14 @@ import {
   type ProductionMethod,
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizeTurnCard } from "@/features/design/ui/finalize-turn-card";
+import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { PreviewModal } from "@/features/design/ui/preview-modal";
 import { PreviewPanel } from "@/features/design/ui/preview-panel";
-import { SessionListModal } from "@/features/design/ui/session-list-modal";
+import {
+  type DesignSessionSummary,
+  SessionListModal,
+} from "@/features/design/ui/session-list-modal";
 import type { DesignPreviewMode } from "@/features/design/ui/tie-canvas";
 import { type TurnCandidate, TurnFeed } from "@/features/design/ui/turn-feed";
 import { useSession } from "@/shared/store/session";
@@ -92,6 +102,12 @@ import { useSession } from "@/shared/store/session";
 const DESCRIPTION =
   "AI와 함께 반복 가능한 넥타이 패턴을 만들고 원단 시뮬레이션까지 확인하세요.";
 const FINALIZE_BUDGET = 10;
+// 모달 위 모달 금지 — 목록 모달이 닫히는 모션이 끝난 뒤 확인 다이얼로그를 연다.
+const OVERLAY_EXIT_MS = 250;
+
+type DeleteTarget =
+  | { kind: "session"; id: string }
+  | { kind: "job"; id: string };
 
 export function DesignPage() {
   const navigate = useNavigate();
@@ -108,6 +124,9 @@ export function DesignPage() {
   const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [finalizedOpen, setFinalizedOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const deleteFlowTimer = useRef<number | undefined>(undefined);
   const [onboardingOpen, setOnboardingOpen] = useState(
     () => !isDesignOnboardingComplete(),
   );
@@ -167,6 +186,12 @@ export function DesignPage() {
     }),
   );
   const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
+  const finalizedJobsQuery = useQuery(
+    generationJobsQueryOptions({
+      filters: { kind: "finalize", status: "succeeded", limit: 100, offset: 0 },
+      authenticated: authenticated && finalizedOpen,
+    }),
+  );
   const generateMutation = useGenerateDesign({
     onSessionReady: (sessionId, input) => {
       const operation = generationOperations.current.get(input);
@@ -179,6 +204,12 @@ export function DesignPage() {
   });
   const selectionMutation = useDesignSelection();
   const finalizeMutation = useCreateFinalizeJob();
+  const deleteSessionMutation = useDeleteDesignSession();
+  const deleteJobMutation = useDeleteFinalizedJob();
+  const deleting =
+    deleteSessionMutation.isPending || deleteJobMutation.isPending;
+
+  useEffect(() => () => window.clearTimeout(deleteFlowTimer.current), []);
 
   useEffect(() => {
     if (
@@ -473,6 +504,72 @@ export function DesignPage() {
     setSessionsOpen(false);
   };
 
+  const scheduleAfterOverlayExit = (run: () => void) => {
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    window.clearTimeout(deleteFlowTimer.current);
+    deleteFlowTimer.current = window.setTimeout(
+      run,
+      reducedMotion ? 0 : OVERLAY_EXIT_MS,
+    );
+  };
+
+  const requestDeleteSession = (session: DesignSessionSummary) => {
+    setSessionsOpen(false);
+    scheduleAfterOverlayExit(() =>
+      setDeleteTarget({ kind: "session", id: session.id }),
+    );
+  };
+
+  const requestDeleteJob = (job: GenerationJobOut) => {
+    setFinalizedOpen(false);
+    scheduleAfterOverlayExit(() =>
+      setDeleteTarget({ kind: "job", id: job.id }),
+    );
+  };
+
+  // 확인 다이얼로그가 닫히면(취소·성공 공통) 원래의 목록 모달로 돌아간다.
+  const closeDeleteConfirm = (target: DeleteTarget) => {
+    setDeleteTarget(null);
+    scheduleAfterOverlayExit(() =>
+      target.kind === "session"
+        ? setSessionsOpen(true)
+        : setFinalizedOpen(true),
+    );
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    const target = deleteTarget;
+    try {
+      if (target.kind === "session") {
+        await deleteSessionMutation.mutateAsync(target.id);
+        if (activeSessionId === target.id) {
+          // 삭제된 세션이 열려 있었다면 초기화 — 목록 갱신 후 최신 세션이 자동 선택된다.
+          invalidateSessionOperations();
+          setActiveSessionId(null);
+          setSelectionOverride(null);
+          setResultPreview(null);
+        }
+        snackbar("세션을 삭제했습니다.");
+      } else {
+        await deleteJobMutation.mutateAsync(target.id);
+        setResultPreview((current) =>
+          current?.jobId === target.id ? null : current,
+        );
+        snackbar("완성본을 삭제했습니다.");
+      }
+      closeDeleteConfirm(target);
+    } catch {
+      snackbar(
+        target.kind === "session"
+          ? "세션을 삭제하지 못했습니다. 다시 시도해 주세요."
+          : "완성본을 삭제하지 못했습니다. 다시 시도해 주세요.",
+      );
+    }
+  };
+
   const actionProps = {
     selected: !!selection?.intent,
     canExport: !!selection?.candidate?.svg,
@@ -622,6 +719,12 @@ export function DesignPage() {
                       disabled={!authenticated}
                     />
                     <ComposerPanelItem
+                      icon={<Icon svg={<SwatchIcon />} size={24} />}
+                      label="내 완성본"
+                      onClick={() => setFinalizedOpen(true)}
+                      disabled={!authenticated}
+                    />
+                    <ComposerPanelItem
                       icon={<Icon svg={<PlusIcon />} size={24} />}
                       label="새로 만들기"
                       onClick={startNewSession}
@@ -693,6 +796,49 @@ export function DesignPage() {
         error={sessionsQuery.isError}
         onRetry={() => void sessionsQuery.refetch()}
         onSelect={(session) => chooseSession(session.id)}
+        onDelete={requestDeleteSession}
+      />
+      <FinalizedListModal
+        open={finalizedOpen}
+        onOpenChange={setFinalizedOpen}
+        jobs={finalizedJobsQuery.data ?? []}
+        loading={finalizedJobsQuery.isPending}
+        error={finalizedJobsQuery.isError}
+        onRetry={() => void finalizedJobsQuery.refetch()}
+        onOrder={(job) =>
+          navigate("/custom-order", { state: { designJobs: [job] } })
+        }
+        onDelete={requestDeleteJob}
+      />
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && deleteTarget) closeDeleteConfirm(deleteTarget);
+        }}
+        title={
+          deleteTarget?.kind === "session"
+            ? "세션을 삭제할까요?"
+            : "완성본을 삭제할까요?"
+        }
+        description={
+          deleteTarget?.kind === "session"
+            ? "대화 이력이 함께 삭제돼요. 완성한 원단 시뮬레이션 결과는 내 완성본에 남아요."
+            : "삭제한 완성본은 복구할 수 없어요. 이미 접수한 주문에는 영향이 없어요."
+        }
+        primaryActionProps={{
+          children: "삭제",
+          variant: "criticalSolid",
+          loading: deleting,
+          onClick: (event) => {
+            // 요청 완료 전 닫히지 않도록 기본 닫힘을 막는다 — 성공 시 confirmDelete가 닫는다.
+            event.preventDefault();
+            void confirmDelete();
+          },
+        }}
+        secondaryActionProps={{
+          children: "취소",
+          disabled: deleting,
+        }}
       />
       <OnboardingDialog
         open={onboardingOpen}

@@ -10403,6 +10403,36 @@ export type ListGenerationJobsResponses = {
 
 export type ListGenerationJobsResponse = ListGenerationJobsResponses[keyof ListGenerationJobsResponses];
 
+export type DeleteGenerationJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/design/jobs/{job_id}';
+};
+
+export type DeleteGenerationJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteGenerationJobError = DeleteGenerationJobErrors[keyof DeleteGenerationJobErrors];
+
+export type DeleteGenerationJobResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteGenerationJobResponse = DeleteGenerationJobResponses[keyof DeleteGenerationJobResponses];
+
 export type GetGenerationJobData = {
     body?: never;
     path: {
@@ -10531,6 +10561,36 @@ export type CreateDesignSessionResponses = {
 };
 
 export type CreateDesignSessionResponse = CreateDesignSessionResponses[keyof CreateDesignSessionResponses];
+
+export type DeleteDesignSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}';
+};
+
+export type DeleteDesignSessionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteDesignSessionError = DeleteDesignSessionErrors[keyof DeleteDesignSessionErrors];
+
+export type DeleteDesignSessionResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteDesignSessionResponse = DeleteDesignSessionResponses[keyof DeleteDesignSessionResponses];
 
 export type GetDesignSessionData = {
     body?: never;

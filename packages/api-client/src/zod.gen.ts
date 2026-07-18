@@ -4319,6 +4319,15 @@ export const zListGenerationJobsQuery = z.object({
  */
 export const zListGenerationJobsResponse = z.array(zGenerationJobOut);
 
+export const zDeleteGenerationJobPath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteGenerationJobResponse = z.void();
+
 export const zGetGenerationJobPath = z.object({
     job_id: z.uuid()
 });
@@ -4361,6 +4370,15 @@ export const zListDesignSessionsResponse = z.array(zDesignSessionOut);
  * Successful Response
  */
 export const zCreateDesignSessionResponse = zDesignSessionOut;
+
+export const zDeleteDesignSessionPath = z.object({
+    session_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteDesignSessionResponse = z.void();
 
 export const zGetDesignSessionPath = z.object({
     session_id: z.uuid()

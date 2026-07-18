@@ -133,8 +133,9 @@ function CustomOrderPageContent({
     restored?.contact ?? DEFAULT_QUOTE_CONTACT,
   );
   const [files, setFiles] = useState<File[]>([]);
-  const [selectedDesigns, setSelectedDesigns] =
-    useState<GenerationJobOut[]>(initialDesigns);
+  const [selectedDesigns, setSelectedDesigns] = useState<GenerationJobOut[]>(
+    () => initialDesigns.slice(0, 1),
+  );
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
@@ -965,10 +966,13 @@ function CustomOrderPageContent({
                 description="JPG, PNG, WebP · 파일당 10MB 이하"
                 pickerSlot={
                   <DesignPicker
-                    selected={selectedDesigns}
-                    onChange={setSelectedDesigns}
-                    max={MAX_IMAGES - files.length}
-                    disabled={submitting}
+                    selected={selectedDesigns[0] ?? null}
+                    onChange={(job) => setSelectedDesigns(job ? [job] : [])}
+                    disabled={
+                      submitting ||
+                      (selectedDesigns.length === 0 &&
+                        files.length >= MAX_IMAGES)
+                    }
                   />
                 }
                 items={attachmentItems}
@@ -1005,8 +1009,9 @@ function CustomOrderPageContent({
                   }
                   const fileId = id.slice("file:".length);
                   const index = previewUrls.findIndex(
-                    ({ file }, candidate) =>
-                      `${file.name}-${candidate}` === fileId,
+                    ({ file }) =>
+                      `${file.name}-${file.size}-${file.lastModified}` ===
+                      fileId,
                   );
                   if (index >= 0)
                     setFiles((current) =>
