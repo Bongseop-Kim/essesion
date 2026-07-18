@@ -3,6 +3,7 @@ import {
   ActionButton,
   Box,
   ContentPlaceholder,
+  Flex,
   Icon,
   Text,
   VStack,
@@ -67,33 +68,37 @@ export function TurnFeed({
 
   if (error) {
     return (
-      <ContentPlaceholder
-        title="세션 기록을 불러오지 못했어요"
-        description="잠시 후 다시 시도해 주세요."
-        action={
-          onRetry ? (
-            <ActionButton
-              type="button"
-              size="small"
-              variant="neutralOutline"
-              onClick={onRetry}
-            >
-              <Icon svg={<ArrowPathIcon />} size={18} />
-              다시 시도
-            </ActionButton>
-          ) : undefined
-        }
-      />
+      <FeedCenter>
+        <ContentPlaceholder
+          title="세션 기록을 불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+          action={
+            onRetry ? (
+              <ActionButton
+                type="button"
+                size="small"
+                variant="neutralOutline"
+                onClick={onRetry}
+              >
+                <Icon svg={<ArrowPathIcon />} size={18} />
+                다시 시도
+              </ActionButton>
+            ) : undefined
+          }
+        />
+      </FeedCenter>
     );
   }
 
   if (turns.length === 0 && !generating) {
     return (
-      <ContentPlaceholder
-        icon={<Icon svg={<ChatBubbleLeftRightIcon />} size={32} />}
-        title="첫 디자인을 만들어 보세요"
-        description="색상, 무늬와 분위기를 설명하면 반복 가능한 패턴을 제안해 드려요."
-      />
+      <FeedCenter>
+        <ContentPlaceholder
+          icon={<Icon svg={<ChatBubbleLeftRightIcon />} size={32} />}
+          title="첫 디자인을 만들어 보세요"
+          description="색상, 무늬와 분위기를 설명하면 반복 가능한 패턴을 제안해 드려요."
+        />
+      </FeedCenter>
     );
   }
 
@@ -127,6 +132,14 @@ export function TurnFeed({
         </Box>
       ) : null}
     </VStack>
+  );
+}
+
+function FeedCenter({ children }: { children: ReactNode }) {
+  return (
+    <Flex direction="column" justify="center" minHeight="full" px="x4">
+      {children}
+    </Flex>
   );
 }
 

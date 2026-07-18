@@ -587,7 +587,7 @@ export function DesignPage() {
             </Box>
 
             {generationError ? (
-              <Box px="x4" pt="x3">
+              <Box px="x4" py="x3">
                 <GenerationErrorCallout
                   error={generationError}
                   onRetry={() => void retryGeneration()}
