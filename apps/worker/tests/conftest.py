@@ -35,8 +35,7 @@ def pg_url() -> Iterator[str]:
 @pytest.fixture
 def settings(pg_url: str) -> Settings:
     # 시크릿은 비워 둔다(DryRun) — 어댑터가 필요한 테스트는 respx로 목킹하거나 클라이언트를 주입.
-    # local_storage_dir도 비워 테스트가 디스크에 쓰지 않게 한다(DryRun object store).
-    return _TestSettings(database_url=pg_url, motif_render_check=False, local_storage_dir="")
+    return _TestSettings(database_url=pg_url, motif_render_check=False)
 
 
 @pytest.fixture

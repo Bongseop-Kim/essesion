@@ -22,21 +22,6 @@ export const FINALIZE_JOB_POLL_TIMEOUT_MS = 5 * 60 * 1_000;
 // 5분 이후엔 저빈도 폴링으로 전환 — 서버가 폴링 시점에 TTL(75분) 초과 작업을
 // 자동 취소하므로, 탭을 열어둔 사용자는 배치를 기다리지 않고 종결을 본다.
 export const FINALIZE_JOB_SLOW_POLL_INTERVAL_MS = 60_000;
-export const FINALIZE_JOB_POLL_HARD_STOP_MS = 80 * 60 * 1_000;
-
-export function finalizeJobDelayed(
-  job: Pick<GenerationJobOut, "status" | "created_at"> | undefined,
-  now = Date.now(),
-): boolean {
-  if (!job || (job.status !== "queued" && job.status !== "processing")) {
-    return false;
-  }
-  const createdAt = Date.parse(job.created_at);
-  return (
-    !Number.isFinite(createdAt) ||
-    now - createdAt >= FINALIZE_JOB_POLL_TIMEOUT_MS
-  );
-}
 
 export function finalizeJobPollInterval(
   job: Pick<GenerationJobOut, "status" | "created_at"> | undefined,
@@ -46,17 +31,23 @@ export function finalizeJobPollInterval(
     return false;
   }
   const createdAt = Date.parse(job.created_at);
-  if (!Number.isFinite(createdAt)) {
-    return false;
-  }
-  const elapsed = now - createdAt;
-  if (elapsed >= FINALIZE_JOB_POLL_HARD_STOP_MS) {
-    return false;
-  }
-  if (elapsed >= FINALIZE_JOB_POLL_TIMEOUT_MS) {
+  // 생성 시각을 못 읽으면 지연으로 취급 — 저빈도 폴링이 서버 lazy 취소로 수렴한다
+  if (
+    !Number.isFinite(createdAt) ||
+    now - createdAt >= FINALIZE_JOB_POLL_TIMEOUT_MS
+  ) {
     return FINALIZE_JOB_SLOW_POLL_INTERVAL_MS;
   }
   return FINALIZE_JOB_POLL_INTERVAL_MS;
+}
+
+export function finalizeJobDelayed(
+  job: Pick<GenerationJobOut, "status" | "created_at"> | undefined,
+  now = Date.now(),
+): boolean {
+  return (
+    finalizeJobPollInterval(job, now) === FINALIZE_JOB_SLOW_POLL_INTERVAL_MS
+  );
 }
 
 export type CreateFinalizeJobInput = {

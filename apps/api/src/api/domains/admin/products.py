@@ -61,11 +61,8 @@ def _assets_bucket(request: Request) -> str:
     settings = request.app.state.settings
     if settings.gcs_assets_bucket:
         return settings.gcs_assets_bucket
-    if settings.env in ("local", "test") and request.app.state.gcs.capability_mode in (
-        "dry_run",
-        "local",
-    ):
-        # public_asset_url이 가리키는 assets 버킷과 같은 이름이어야 로컬 서빙 URL이 맞는다
+    if settings.env in ("local", "test") and request.app.state.gcs.capability_mode == "dry_run":
+        # cleanup_images·public_asset_url이 쓰는 assets 버킷명과 일치해야 한다
         return assets_bucket_name(settings) or "dry-run-assets"
     raise DomainError(
         "상품 이미지 저장소를 사용할 수 없습니다",

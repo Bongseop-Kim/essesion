@@ -47,23 +47,13 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
+import { JOB_STATUS_LABELS, JOB_STATUSES } from "./job-status";
 
 const TABS = ["jobs", "seamless"] as const;
-const JOB_STATUSES = [
-  "queued",
-  "processing",
-  "succeeded",
-  "failed",
-  "canceled",
-] as const;
 const JOB_KINDS = ["finalize", "export"] as const;
 const SEAMLESS_STATUSES = ["success", "partial", "error"] as const;
 const OPERATIONAL_STATUS_LABELS: Record<string, string> = {
-  queued: "대기",
-  processing: "처리 중",
-  succeeded: "성공",
-  failed: "실패",
-  canceled: "취소",
+  ...JOB_STATUS_LABELS,
   success: "성공",
   partial: "부분 성공",
   error: "오류",
@@ -518,11 +508,10 @@ function JobsPanel({
               value={draftStatus ?? "all"}
               options={[
                 { value: "all", label: "전체" },
-                { value: "queued", label: "대기" },
-                { value: "processing", label: "처리 중" },
-                { value: "succeeded", label: "성공" },
-                { value: "failed", label: "실패" },
-                { value: "canceled", label: "취소" },
+                ...JOB_STATUSES.map((status) => ({
+                  value: status,
+                  label: JOB_STATUS_LABELS[status],
+                })),
               ]}
               onValueChange={(value) =>
                 setDraftStatus(

@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from api.domains.batch.router import ACTIVE_GENERATION_JOB_LEASE
+from api.domains.design.job_lifecycle import ACTIVE_GENERATION_JOB_LEASE
 from db.models.commerce import Claim, Order, OrderItem
 from db.models.design import (
     FINALIZE_STALE_MESSAGE,

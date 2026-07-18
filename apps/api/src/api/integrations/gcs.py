@@ -3,20 +3,17 @@
 고객 첨부는 비공개 업로드 버킷에서 signed read를 사용하고, 상품 이미지는 공개
 assets 버킷에 직접 업로드한다. 서명은 IAM signBlob(네트워크), 메타데이터 조회와
 삭제는 blocking IO라 threadpool로 실행한다.
-버킷 미설정 시 local/test는 local_storage_dir이 있으면 로컬 디스크 저장·서빙
-(LocalGcsClient + /local-storage 라우트), 비어 있으면 DryRun(no-op)한다.
-그 밖의 환경은 가짜 URL을 반환하지 않고 capability unavailable(503)로 실패한다.
+로컬은 gcs_emulator_host(docker compose의 fake-gcs-server)를 지정하면 같은
+RealGcsClient 경로를 탄다 — 서명만 생략하고 에뮬레이터가 서명을 검증하지 않는
+URL을 발급한다. 버킷 미설정 시 local/test는 DryRun(no-op), 그 밖의 환경은
+가짜 URL을 반환하지 않고 capability unavailable(503)로 실패한다.
 """
 
 import logging
-import mimetypes
-import re
-import shutil
 from dataclasses import dataclass
 from datetime import timedelta
-from pathlib import Path
 from typing import Never, Protocol
-from urllib.parse import quote, urlencode
+from urllib.parse import quote
 
 from starlette.concurrency import run_in_threadpool
 
@@ -27,56 +24,6 @@ logger = logging.getLogger(__name__)
 
 UPLOAD_URL_TTL = timedelta(minutes=15)
 READ_URL_TTL = timedelta(minutes=15)
-
-# 로컬 스토리지 레이아웃: <local_storage_dir>/<bucket>/<object_key>
-# 비공개 업로드 버킷은 아래 디렉터리명으로 대응된다 (worker의 공개 assets는 dry-run-assets).
-LOCAL_UPLOADS_BUCKET = "dry-run-uploads"
-LOCAL_STORAGE_PREFIX = "/local-storage"
-LOCAL_CTYPE_SUFFIX = ".ctype"  # 콘텐츠 타입 사이드카 — 확장자 추정보다 업로드 헤더가 정확
-_LOCAL_BUCKET_RE = re.compile(r"^[A-Za-z0-9._-]{1,63}$")
-
-
-def _uses_local_storage(settings: Settings) -> bool:
-    return (
-        settings.env in ("local", "test")
-        and not settings.gcs_upload_bucket
-        and bool(settings.local_storage_dir)
-    )
-
-
-def local_storage_root(settings: Settings) -> Path:
-    return Path(settings.local_storage_dir).resolve()
-
-
-def local_object_path(root: Path, bucket: str, object_key: str) -> Path:
-    """로컬 객체의 디스크 경로 — 경로 이탈은 ValueError로 거부한다."""
-    if not _LOCAL_BUCKET_RE.match(bucket):
-        raise ValueError(f"invalid bucket: {bucket!r}")
-    if not object_key or object_key.endswith(LOCAL_CTYPE_SUFFIX):
-        raise ValueError(f"invalid object key: {object_key!r}")
-    parts = object_key.split("/")
-    if any(part in ("", ".", "..") or "\\" in part for part in parts):
-        raise ValueError(f"invalid object key: {object_key!r}")
-    path = root.joinpath(bucket, *parts)
-    if not path.resolve().is_relative_to(root):
-        raise ValueError(f"object key escapes storage root: {object_key!r}")
-    return path
-
-
-def local_object_content_type(path: Path, object_key: str) -> str:
-    sidecar = Path(f"{path}{LOCAL_CTYPE_SUFFIX}")
-    if sidecar.is_file():
-        recorded = sidecar.read_text().strip()
-        if recorded:
-            return recorded
-    return mimetypes.guess_type(object_key)[0] or "application/octet-stream"
-
-
-def write_local_object(path: Path, data: bytes, content_type: str | None) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
-    if content_type:
-        Path(f"{path}{LOCAL_CTYPE_SUFFIX}").write_text(content_type)
 
 
 def assets_bucket_name(settings: Settings) -> str | None:
@@ -95,7 +42,7 @@ def assets_capability_mode(settings: Settings) -> str:
     if settings.gcs_assets_bucket:
         return "real"
     if settings.env in ("local", "test") and not settings.gcs_upload_bucket:
-        return "local" if settings.local_storage_dir else "dry_run"
+        return "dry_run"
     return "unavailable"
 
 
@@ -106,9 +53,8 @@ def public_asset_url(settings: Settings, object_key: str) -> str | None:
         return None
     if settings.gcs_assets_public_base_url:
         base_url = settings.gcs_assets_public_base_url.rstrip("/")
-    elif not settings.gcs_assets_bucket and _uses_local_storage(settings):
-        base = settings.local_storage_base_url.rstrip("/")
-        base_url = f"{base}{LOCAL_STORAGE_PREFIX}/{assets_bucket_name(settings)}"
+    elif settings.gcs_emulator_host and (bucket := assets_bucket_name(settings)):
+        base_url = f"{settings.gcs_emulator_host.rstrip('/')}/{bucket}"
     elif bucket := assets_bucket_name(settings):
         base_url = f"https://storage.googleapis.com/{bucket}"
     elif settings.env in ("local", "test") and not settings.gcs_upload_bucket:
@@ -155,11 +101,30 @@ class RealGcsClient:
     upload_required = True
     capability_mode = "real"
 
-    def __init__(self, bucket_name: str):
+    def __init__(self, bucket_name: str, emulator_host: str = ""):
         from google.cloud import storage
 
-        self._client = storage.Client()
+        self._emulator_host = emulator_host.rstrip("/")
+        if self._emulator_host:
+            from google.auth.credentials import AnonymousCredentials
+
+            self._client = storage.Client(
+                project="local",
+                credentials=AnonymousCredentials(),
+                client_options={"api_endpoint": self._emulator_host},
+            )
+        else:
+            self._client = storage.Client()
+        self._bucket_name = bucket_name
         self._bucket = self._client.bucket(bucket_name)
+
+    def _emulator_url(self, bucket_name: str, object_key: str, *, upload: bool = False) -> str:
+        url = f"{self._emulator_host}/{bucket_name}/{quote(object_key, safe='/')}"
+        if upload:
+            # fake-gcs-server는 서명을 검증하지 않지만, X-Goog-Algorithm 쿼리가
+            # 있어야 PUT을 signed-URL 업로드로 라우팅한다.
+            url += "?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=emulator"
+        return url
 
     async def signed_upload_url(
         self,
@@ -170,6 +135,8 @@ class RealGcsClient:
         bucket_name: str | None = None,
         create_only: bool = False,
     ) -> str:
+        if self._emulator_host:
+            return self._emulator_url(bucket_name or self._bucket_name, object_key, upload=True)
         bucket = self._client.bucket(bucket_name) if bucket_name else self._bucket
         blob = bucket.blob(object_key)
         headers = (
@@ -191,6 +158,8 @@ class RealGcsClient:
         )
 
     async def signed_read_url(self, object_key: str) -> str:
+        if self._emulator_host:
+            return self._emulator_url(self._bucket_name, object_key)
         blob = self._bucket.blob(object_key)
         return await run_in_threadpool(
             blob.generate_signed_url,
@@ -321,112 +290,6 @@ class DryRunGcsClient:
         return True
 
 
-class LocalGcsClient:
-    """GCS 계약을 로컬 디스크로 재현 — 서명 대신 /local-storage 라우트 URL을 발급한다.
-
-    upload_required=True라서 프론트가 실제 PUT을 수행하고, 메타데이터 검증도
-    실경로로 돈다. 인증·서명이 없으므로 로컬 개발 전용이다.
-    """
-
-    upload_required = True
-    capability_mode = "local"
-
-    def __init__(self, settings: Settings):
-        self._root = local_storage_root(settings)
-        base = settings.local_storage_base_url.rstrip("/")
-        self._base_url = f"{base}{LOCAL_STORAGE_PREFIX}"
-        self._default_bucket = LOCAL_UPLOADS_BUCKET
-
-    def _url(self, bucket: str, object_key: str, query: dict[str, str] | None = None) -> str:
-        url = f"{self._base_url}/{bucket}/{quote(object_key, safe='/')}"
-        return f"{url}?{urlencode(query)}" if query else url
-
-    def _path(self, object_key: str, bucket_name: str | None) -> Path:
-        return local_object_path(self._root, bucket_name or self._default_bucket, object_key)
-
-    async def signed_upload_url(
-        self,
-        object_key: str,
-        content_type: str,
-        *,
-        max_size_bytes: int | None = None,
-        bucket_name: str | None = None,
-        create_only: bool = False,
-    ) -> str:
-        self._path(object_key, bucket_name)  # 키 검증 — 발급 시점에 이탈 거부
-        query: dict[str, str] = {}
-        if max_size_bytes is not None:
-            query["max_size"] = str(max_size_bytes)
-        if create_only:
-            query["create_only"] = "1"
-        return self._url(bucket_name or self._default_bucket, object_key, query)
-
-    async def signed_read_url(self, object_key: str) -> str:
-        return self._url(self._default_bucket, object_key)
-
-    async def delete_object(self, object_key: str, *, bucket_name: str | None = None) -> bool:
-        try:
-            path = self._path(object_key, bucket_name)
-        except ValueError:
-            logger.warning("로컬 스토리지 삭제 거부(잘못된 키): %s", object_key)
-            return False
-
-        def _remove() -> bool:
-            path.unlink(missing_ok=True)  # 이미 없음 = 삭제 목적 달성(멱등)
-            Path(f"{path}{LOCAL_CTYPE_SUFFIX}").unlink(missing_ok=True)
-            return True
-
-        return await run_in_threadpool(_remove)
-
-    async def object_metadata(
-        self, object_key: str, *, bucket_name: str | None = None
-    ) -> GcsObjectMetadata | None:
-        try:
-            path = self._path(object_key, bucket_name)
-        except ValueError:
-            return None
-
-        def _load() -> GcsObjectMetadata | None:
-            if not path.is_file():
-                return None
-            return GcsObjectMetadata(
-                size_bytes=path.stat().st_size,
-                content_type=local_object_content_type(path, object_key),
-            )
-
-        return await run_in_threadpool(_load)
-
-    async def copy_from_bucket(
-        self, source_bucket: str, source_key: str, destination_key: str
-    ) -> bool:
-        try:
-            source = local_object_path(self._root, source_bucket, source_key)
-            destination = self._path(destination_key, None)
-        except ValueError:
-            logger.warning(
-                "로컬 스토리지 복사 거부(잘못된 키): %s/%s -> %s",
-                source_bucket,
-                source_key,
-                destination_key,
-            )
-            return False
-
-        def _copy() -> bool:
-            if destination.is_file():
-                return True  # create-only 의미 보존 — 기존 객체를 덮어쓰지 않음
-            if not source.is_file():
-                logger.error("로컬 스토리지 복사 원본 없음: %s/%s", source_bucket, source_key)
-                return False
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, destination)
-            source_sidecar = Path(f"{source}{LOCAL_CTYPE_SUFFIX}")
-            if source_sidecar.is_file():
-                shutil.copyfile(source_sidecar, Path(f"{destination}{LOCAL_CTYPE_SUFFIX}"))
-            return True
-
-        return await run_in_threadpool(_copy)
-
-
 class UnavailableGcsClient:
     upload_required = True
     capability_mode = "unavailable"
@@ -466,15 +329,12 @@ class UnavailableGcsClient:
 
 
 def build_gcs_client(settings: Settings) -> GcsClient:
+    if settings.gcs_emulator_host and settings.env not in ("local", "test"):
+        # 서명·인가가 없는 에뮬레이터 경로가 배포 환경에 섞이지 않도록 fail-closed
+        raise RuntimeError("GCS_EMULATOR_HOST는 local/test 전용입니다")
     if settings.gcs_upload_bucket:
-        return RealGcsClient(settings.gcs_upload_bucket)
+        return RealGcsClient(settings.gcs_upload_bucket, emulator_host=settings.gcs_emulator_host)
     if settings.env in ("local", "test"):
-        if settings.local_storage_dir:
-            logger.warning(
-                "GCS_UPLOAD_BUCKET 없음 — 로컬 스토리지(%s) 저장·서빙으로 동작",
-                settings.local_storage_dir,
-            )
-            return LocalGcsClient(settings)
         logger.warning("GCS_UPLOAD_BUCKET 없음 — local/test DryRun GCS 클라이언트로 동작")
         return DryRunGcsClient()
     logger.error("GCS_UPLOAD_BUCKET 없음 — GCS capability unavailable")

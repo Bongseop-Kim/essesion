@@ -307,15 +307,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
     _include_routers(app)
 
-    if settings.env in ("local", "test") and not settings.gcs_upload_bucket and (
-        settings.local_storage_dir
-    ):
-        # LocalGcsClient가 발급하는 GET(서빙)·PUT(직접 업로드) URL의 대상 라우트.
-        # 서명·인가가 없는 로컬 개발 전용이라 이 조건에서만 마운트한다.
-        from api.integrations.local_storage_router import router as local_storage_router
-
-        app.include_router(local_storage_router)
-
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}

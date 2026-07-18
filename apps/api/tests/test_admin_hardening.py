@@ -212,15 +212,14 @@ def test_nonlocal_missing_toss_and_gcs_are_unavailable_and_not_ready():
 
 
 def test_local_missing_toss_and_gcs_remain_dry_run_ready():
-    # local_storage_dir 기본값이 있으므로 GCS 미설정 local은 로컬 디스크 저장·서빙 모드
     application = create_app(_TestSettings(env="local", toss_secret_key="", gcs_upload_bucket=""))
     with TestClient(application) as client:
         ready = client.get("/readyz")
     assert ready.status_code == 200
     assert ready.json()["capabilities"] == {
         "toss": "dry_run",
-        "gcs": "local",
-        "gcs_assets": "local",
+        "gcs": "dry_run",
+        "gcs_assets": "dry_run",
         "solapi": "dry_run",
         "worker": "local",
         "finalize_tasks": "dry_run",

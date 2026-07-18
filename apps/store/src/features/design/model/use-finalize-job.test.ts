@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  FINALIZE_JOB_POLL_HARD_STOP_MS,
   FINALIZE_JOB_POLL_INTERVAL_MS,
   FINALIZE_JOB_POLL_TIMEOUT_MS,
   FINALIZE_JOB_SLOW_POLL_INTERVAL_MS,
@@ -60,28 +59,14 @@ describe("finalizeJobPollInterval", () => {
     ).toBe(FINALIZE_JOB_SLOW_POLL_INTERVAL_MS);
   });
 
-  it("서버 TTL을 넘긴 잡은 폴링을 완전히 중단한다", () => {
-    expect(
-      finalizeJobPollInterval(
-        {
-          status: "queued",
-          created_at: new Date(
-            now - FINALIZE_JOB_POLL_HARD_STOP_MS,
-          ).toISOString(),
-        },
-        now,
-      ),
-    ).toBe(false);
-  });
-
-  it("잡이 없거나 생성 시각이 잘못되면 폴링하지 않는다", () => {
+  it("잡이 없으면 폴링하지 않고, 생성 시각이 잘못되면 저빈도 폴링한다", () => {
     expect(finalizeJobPollInterval(undefined, now)).toBe(false);
     expect(
       finalizeJobPollInterval(
         { status: "processing", created_at: "invalid" },
         now,
       ),
-    ).toBe(false);
+    ).toBe(FINALIZE_JOB_SLOW_POLL_INTERVAL_MS);
   });
 });
 

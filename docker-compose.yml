@@ -1,4 +1,4 @@
-# 로컬 개발용 Postgres + pgvector 하나만 — 에뮬레이터류 도입 금지 (ARCHITECTURE §1.3)
+# 로컬 개발용 인프라 — Postgres + fake-gcs-server(파일 스토리지) 둘만 (ARCHITECTURE §1.3)
 services:
   db:
     image: pgvector/pgvector:pg17
@@ -11,5 +11,23 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  # GCS 대체 — api·worker가 GCS_EMULATOR_HOST로 붙어 실제 GCS 클라이언트 경로를 탄다.
+  # cors-headers는 브라우저 직접 PUT(putToSignedUrl)의 preflight에 필요.
+  gcs:
+    image: fsouza/fake-gcs-server:1.55.0
+    ports:
+      - "4443:4443"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        mkdir -p /data/dev-uploads /data/dev-assets &&
+        exec /bin/fake-gcs-server -data /data -scheme http
+        -public-host localhost:4443 -external-url http://localhost:4443
+        -cors-headers content-type,x-goog-if-generation-match,x-goog-content-length-range
+    volumes:
+      - gcsdata:/storage
+
 volumes:
   pgdata:
+  gcsdata:

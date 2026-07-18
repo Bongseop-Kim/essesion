@@ -75,7 +75,7 @@ React clients → generated OpenAPI client → FastAPI domain API
 - LangGraph나 범용 workflow framework를 유지하지 않는다. 현재 필요한 세션 전이는 일반 테이블과 명시적 API로 충분하다.
 - 모든 작업을 비동기화하지 않는다. 사용자가 결과를 기다리는 generate와 작은 export는 동기 경로가 더 단순하다.
 - 기존 운영 데이터 전체를 한 번에 자동 이관한다고 약속하지 않는다.
-- 로컬 인프라는 PostgreSQL 17 + pgvector 하나만 실행하며 GCP·Cloudflare 에뮬레이터를 추가하지 않는다.
+- 로컬 인프라는 PostgreSQL 17 + pgvector와 fake-gcs-server(파일 스토리지) 둘만 실행한다. 그 밖의 GCP·Cloudflare 서비스는 에뮬레이터 없이 DryRun/fail-closed로 다룬다.
 - 스테이징 지표 없이 성급하게 resvg로 렌더러를 교체하거나 리소스 값을 최적화하지 않는다.
 
 ---

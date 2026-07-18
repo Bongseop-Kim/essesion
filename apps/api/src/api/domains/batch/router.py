@@ -12,8 +12,6 @@ from sqlalchemy import and_, exists, func, not_, or_, select
 from api.db import SessionDep
 from api.deps import BatchAuth
 from api.domains.design.job_lifecycle import (
-    ACTIVE_GENERATION_JOB_LEASE,  # noqa: F401 — 테스트·외부 참조용 재노출
-    STALE_GENERATION_JOB_AFTER,  # noqa: F401
     resolve_stale_finalize_jobs,
     stale_finalize_clause,
 )

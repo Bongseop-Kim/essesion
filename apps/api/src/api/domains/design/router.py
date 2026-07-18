@@ -35,7 +35,7 @@ from api.db import SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, SettingsDep, ensure_owner
 from api.domains.design.job_lifecycle import (
     CANCELABLE_STATUSES,
-    may_be_stale,
+    STALE_GENERATION_JOB_AFTER,
     refund_finalize_budget,
     resolve_stale_finalize_jobs,
     stale_finalize_clause,
@@ -533,8 +533,14 @@ async def get_generation_job(
     assert job is not None
     # TTL(75분)을 넘긴 채 종결되지 못한 job은 폴링 시점에 lazy 회수 — Cloud
     # Scheduler가 없는 로컬에서도 동작하고, 배치 주기를 기다리지 않는다.
+    # 인메모리 사전 판정으로 통과 못 하면 잠금 시도 없이 바로 반환한다.
     now = datetime.now(UTC)
-    if may_be_stale(job, now):
+    may_be_stale = (
+        job.kind == "finalize"
+        and job.status in ("queued", "processing", "failed")
+        and job.created_at < now - STALE_GENERATION_JOB_AFTER
+    )
+    if may_be_stale:
         stale = (
             await session.scalars(
                 select(GenerationJob)

@@ -48,15 +48,6 @@ def stale_finalize_clause(now: datetime) -> ColumnElement[bool]:
     )
 
 
-def may_be_stale(job: GenerationJob, now: datetime) -> bool:
-    """DB 왕복 전 빠른 사전 판정 — 폴링 경로에서 매 요청 잠금 시도를 피한다."""
-    return (
-        job.kind == "finalize"
-        and job.status in ("queued", "processing", "failed")
-        and job.created_at < now - STALE_GENERATION_JOB_AFTER
-    )
-
-
 async def refund_finalize_budget(session: AsyncSession, session_id: uuid.UUID) -> None:
     await session.execute(
         update(DesignSession)
