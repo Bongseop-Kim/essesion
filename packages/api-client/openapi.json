@@ -145,12 +145,20 @@
             "title": "Gcs Assets",
             "type": "string"
           },
+          "oauth_apple": {
+            "title": "Oauth Apple",
+            "type": "string"
+          },
           "oauth_google": {
             "title": "Oauth Google",
             "type": "string"
           },
           "oauth_kakao": {
             "title": "Oauth Kakao",
+            "type": "string"
+          },
+          "oauth_naver": {
+            "title": "Oauth Naver",
             "type": "string"
           },
           "solapi": {
@@ -176,6 +184,8 @@
           "batch_auth",
           "oauth_google",
           "oauth_kakao",
+          "oauth_naver",
+          "oauth_apple",
           "auth_secrets",
           "edge_proxy"
         ],

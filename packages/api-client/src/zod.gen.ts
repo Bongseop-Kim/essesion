@@ -44,8 +44,10 @@ export const zAdminCapabilitiesOut = z.object({
     finalize_tasks: z.string(),
     gcs: z.string(),
     gcs_assets: z.string(),
+    oauth_apple: z.string(),
     oauth_google: z.string(),
     oauth_kakao: z.string(),
+    oauth_naver: z.string(),
     solapi: z.string(),
     toss: z.string(),
     worker: z.string()

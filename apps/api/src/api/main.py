@@ -201,6 +201,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if settings.kakao_client_id and settings.kakao_client_secret
                 else "unavailable"
             ),
+            "oauth_naver": (
+                "optional"
+                if settings.env in ("local", "test")
+                else "ready"
+                if settings.naver_client_id and settings.naver_client_secret
+                else "unavailable"
+            ),
+            "oauth_apple": (
+                "optional"
+                if settings.env in ("local", "test")
+                else "ready"
+                if settings.apple_client_id
+                and settings.apple_team_id
+                and settings.apple_key_id
+                and settings.apple_private_key
+                else "unavailable"
+            ),
             "auth_secrets": (
                 "bypassed"
                 if settings.env in ("local", "test")
@@ -264,6 +281,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         SessionMiddleware,
         secret_key=settings.session_secret,
         https_only=settings.env not in ("local", "test"),
+        # Apple 콜백은 크로스사이트 POST(form_post) — Lax면 state 쿠키가 전송되지 않는다.
+        # None은 Secure 필수라 local/test(HTTP)에서는 Lax 유지 (애플은 로컬 테스트 불가).
+        same_site="none" if settings.env not in ("local", "test") else "lax",
     )  # Authlib state
     app.add_middleware(
         CORSMiddleware,

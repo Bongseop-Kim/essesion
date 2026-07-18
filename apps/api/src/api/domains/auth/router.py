@@ -160,10 +160,11 @@ async def get_me(user: CurrentUser) -> MeResponse:
     return MeResponse.model_validate(user)
 
 
+OAuthProvider = Literal["google", "kakao", "naver", "apple"]
+
+
 @router.get("/{provider}/login", include_in_schema=False)
-async def oauth_login(
-    provider: Literal["google", "kakao"], request: Request, settings: SettingsDep
-):
+async def oauth_login(provider: OAuthProvider, request: Request, settings: SettingsDep):
     client = get_oauth_client(request, provider)
     redirect_uri = (
         str(request.url_for("oauth_callback", provider=provider))
@@ -173,12 +174,8 @@ async def oauth_login(
     return await client.authorize_redirect(request, redirect_uri)
 
 
-@router.get("/{provider}/callback", include_in_schema=False)
-async def oauth_callback(
-    provider: Literal["google", "kakao"],
-    request: Request,
-    session: SessionDep,
-    settings: SettingsDep,
+async def _complete_oauth(
+    provider: str, request: Request, session, settings: Settings
 ) -> RedirectResponse:
     client = get_oauth_client(request, provider)
     profile = await fetch_profile(client, provider, request)
@@ -191,9 +188,27 @@ async def oauth_callback(
         email_verified=profile.email_verified,
     )
     raw = await service.issue_refresh_token(session, user.id, settings)
-    response = RedirectResponse(f"{settings.frontend_origin}/auth/callback")
+    response = RedirectResponse(f"{settings.frontend_origin}/auth/callback", status_code=303)
     _set_refresh_cookie(response, raw, settings)
     return response
+
+
+@router.get("/{provider}/callback", include_in_schema=False)
+async def oauth_callback(
+    provider: OAuthProvider,
+    request: Request,
+    session: SessionDep,
+    settings: SettingsDep,
+) -> RedirectResponse:
+    return await _complete_oauth(provider, request, session, settings)
+
+
+# Apple은 name/email scope 요청 시 response_mode=form_post — 콜백이 POST로 온다.
+@router.post("/apple/callback", include_in_schema=False)
+async def apple_oauth_callback(
+    request: Request, session: SessionDep, settings: SettingsDep
+) -> RedirectResponse:
+    return await _complete_oauth("apple", request, session, settings)
 
 
 @router.post("/phone/send", response_model=MessageResponse, status_code=202)

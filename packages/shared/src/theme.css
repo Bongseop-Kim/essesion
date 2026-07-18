@@ -141,6 +141,10 @@
   --color-bg-naver: #03c75a;
   --color-bg-naver-hover: #02b350;
   --color-bg-naver-pressed: #029e47;
+  /* apple=순검정(HIG 지정) — 어두워질 수 없어 hover/pressed는 밝아진다 */
+  --color-bg-apple: #000000;
+  --color-bg-apple-hover: #1f1f1f;
+  --color-bg-apple-pressed: #333333;
 
   /* overlay — 모달 <dialog> ::backdrop 딤 전용(45% 검정, 정적 값).
      소비: backdrop:bg-bg-overlay 유틸리티 (docs/foundation/overlay.md) */

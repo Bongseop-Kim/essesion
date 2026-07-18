@@ -74,6 +74,8 @@ const capabilities: AdminCapabilitiesOut = {
   batch_auth: "oidc",
   oauth_google: "ready",
   oauth_kakao: "ready",
+  oauth_naver: "ready",
+  oauth_apple: "ready",
   auth_secrets: "ready",
   edge_proxy: "ready",
 };

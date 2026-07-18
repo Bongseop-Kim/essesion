@@ -45,7 +45,7 @@
 - [x] Auth 골격: JWT(access 단명 + refresh 회전), argon2id — *refresh는 불투명 토큰 sha256 저장, 재사용 감지 시 전체 무효화*
 - [x] id/pw 로그인 — 공개 가입 없음, 계정은 시드/관리자 생성만 — *`apps/api/scripts/seed.py`*
 - [x] 소셜 OAuth(Authlib): Google·Kakao — *provider 검증 이메일만 연결, 공개 Cloudflare callback origin 고정*
-- [ ] 소셜 OAuth(Authlib): Apple·Naver — *계정·키·앱 준비물은 확보했으나 provider 등록과 callback/E2E는 미구현*
+- [x] 소셜 OAuth(Authlib): Apple·Naver — *Naver는 @naver.com 주소만 검증 취급, Apple은 .p8 ES256 client_secret JWT + form_post POST 콜백(세션 쿠키 SameSite=None). Apple Services ID 등록·운영 E2E는 미완(Services ID 발급 대기)*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
 - [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm + ALREADY_PROCESSED 조회 복구 + `/payments/webhook` 조회 재검증 대사(money.md §9). DONE 재수신도 provider/stored key·총액을 재검증하고, CANCELED는 USER advisory→order row 순서로 토큰 사용과 직렬화해 reserved 쿠폰만 복원한다. 웹훅은 스테이징 프록시 개통 후 처음부터 `api.essesion.shop`만 등록한다.*

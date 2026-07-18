@@ -19,6 +19,8 @@ const variants = {
     "bg-bg-kakao text-fg-neutral hover:bg-bg-kakao-hover active:bg-bg-kakao-pressed",
   naver:
     "bg-bg-naver text-fg-contrast hover:bg-bg-naver-hover active:bg-bg-naver-pressed",
+  apple:
+    "bg-bg-apple text-fg-contrast hover:bg-bg-apple-hover active:bg-bg-apple-pressed",
 };
 
 const sizes = {

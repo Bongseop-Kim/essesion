@@ -105,6 +105,10 @@ export type AdminCapabilitiesOut = {
      */
     gcs_assets: string;
     /**
+     * Oauth Apple
+     */
+    oauth_apple: string;
+    /**
      * Oauth Google
      */
     oauth_google: string;
@@ -112,6 +116,10 @@ export type AdminCapabilitiesOut = {
      * Oauth Kakao
      */
     oauth_kakao: string;
+    /**
+     * Oauth Naver
+     */
+    oauth_naver: string;
     /**
      * Solapi
      */

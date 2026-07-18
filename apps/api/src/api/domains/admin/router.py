@@ -51,6 +51,8 @@ class AdminCapabilitiesOut(BaseModel):
     batch_auth: str
     oauth_google: str
     oauth_kakao: str
+    oauth_naver: str
+    oauth_apple: str
     auth_secrets: str
     edge_proxy: str
 

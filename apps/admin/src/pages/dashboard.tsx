@@ -57,6 +57,8 @@ const CAPABILITY_LABELS = {
   batch_auth: "배치 OIDC 인증",
   oauth_google: "Google OAuth",
   oauth_kakao: "Kakao OAuth",
+  oauth_naver: "Naver OAuth",
+  oauth_apple: "Apple OAuth",
   auth_secrets: "인증 시크릿",
   edge_proxy: "API 엣지 프록시",
 } as const;
