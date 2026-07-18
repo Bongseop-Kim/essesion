@@ -44,9 +44,7 @@ async def list_admin_reviews(
 
 @router.delete("/{review_id}", status_code=204)
 async def delete_admin_review(review_id: uuid.UUID, session: SessionDep, admin: AdminUser) -> None:
-    review = await session.scalar(
-        select(Review).where(Review.id == review_id).with_for_update()
-    )
+    review = await session.scalar(select(Review).where(Review.id == review_id).with_for_update())
     if review is None:
         raise NotFoundError("후기를 찾을 수 없습니다")
     await service.expire_review_photos(session, review)

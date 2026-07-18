@@ -279,9 +279,7 @@ async def update_review(
     settings: Settings,
 ) -> ReviewOut:
     # 사진 링크·만료가 동시 변이와 엇갈리지 않도록 후기 행을 먼저 잠근다.
-    review = await session.scalar(
-        select(Review).where(Review.id == review_id).with_for_update()
-    )
+    review = await session.scalar(select(Review).where(Review.id == review_id).with_for_update())
     ensure_owner(review, user)
     assert review is not None
     changes = body.model_dump(exclude_unset=True)
@@ -300,9 +298,7 @@ async def update_review(
 
 
 async def delete_review(session: AsyncSession, user: User, review_id: uuid.UUID) -> None:
-    review = await session.scalar(
-        select(Review).where(Review.id == review_id).with_for_update()
-    )
+    review = await session.scalar(select(Review).where(Review.id == review_id).with_for_update())
     ensure_owner(review, user)
     assert review is not None
     await expire_review_photos(session, review)
