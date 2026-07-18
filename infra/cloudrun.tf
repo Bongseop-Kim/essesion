@@ -33,6 +33,8 @@ locals {
     SOLAPI_API_SECRET    = google_secret_manager_secret.app["solapi-api-secret"].secret_id
     GOOGLE_CLIENT_SECRET = google_secret_manager_secret.app["google-client-secret"].secret_id
     KAKAO_CLIENT_SECRET  = google_secret_manager_secret.app["kakao-client-secret"].secret_id
+    NAVER_CLIENT_SECRET  = google_secret_manager_secret.app["naver-client-secret"].secret_id
+    APPLE_PRIVATE_KEY    = google_secret_manager_secret.app["apple-private-key"].secret_id
     SENTRY_DSN           = google_secret_manager_secret.app["sentry-dsn-api"].secret_id
   }
 

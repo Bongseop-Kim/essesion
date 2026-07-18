@@ -284,6 +284,8 @@ class Review(TimestampMixin, Base):
     )
     rating: Mapped[int]
     content: Mapped[str]
+    # 공개 assets 버킷 object_key 목록 [{"object_key": str}] — 표시 순서 보존
+    photos: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
 
     __table_args__ = (
         UniqueConstraint(

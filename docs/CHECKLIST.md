@@ -45,7 +45,7 @@
 - [x] Auth 골격: JWT(access 단명 + refresh 회전), argon2id — *refresh는 불투명 토큰 sha256 저장, 재사용 감지 시 전체 무효화*
 - [x] id/pw 로그인 — 공개 가입 없음, 계정은 시드/관리자 생성만 — *`apps/api/scripts/seed.py`*
 - [x] 소셜 OAuth(Authlib): Google·Kakao — *provider 검증 이메일만 연결, 공개 Cloudflare callback origin 고정*
-- [ ] 소셜 OAuth(Authlib): Apple·Naver — *계정·키·앱 준비물은 확보했으나 provider 등록과 callback/E2E는 미구현*
+- [x] 소셜 OAuth(Authlib): Apple·Naver — *Naver는 @naver.com 주소만 검증 취급, Apple은 .p8 ES256 client_secret JWT + form_post POST 콜백(세션 쿠키 SameSite=None). Apple Services ID 등록·운영 E2E는 미완(Services ID 발급 대기)*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
 - [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm + ALREADY_PROCESSED 조회 복구 + `/payments/webhook` 조회 재검증 대사(money.md §9). DONE 재수신도 provider/stored key·총액을 재검증하고, CANCELED는 USER advisory→order row 순서로 토큰 사용과 직렬화해 reserved 쿠폰만 복원한다. 웹훅은 스테이징 프록시 개통 후 처음부터 `api.essesion.shop`만 등록한다.*
@@ -80,6 +80,7 @@
 - [x] 주문 내용 누락 방지 — custom·sample·repair 항목 사양/요청사항을 shared 디코더로 통합하고 store·admin 상세에 전 항목 렌더. 소유자/관리자 관계 검증 이미지 URL, 수선 수거·발송 읽기모델, 배송 요청 표시, 주문 유형 지역화, 멱등 로컬 시드를 추가하고 api-client 재생성. 실제 PostgreSQL 652건·store 174건·admin 111건·shared 51건, 빌드·타입체크·Aside 실데이터 화면 검증 완료 (`docs/plans/order-content-visibility.md`)
 - [x] store C11 정적 페이지 — `/faq`·`/notice`·약관 3종 공개 라우트, 수선 요금 토큰 치환, 공지 고정 정렬, 마이페이지 고객지원 링크. 회사명 `영선산업`·상호명 `ESSE SION`·이메일 `biblecookie@naver.com`으로 통일하고, 운영 확정이 필요한 약관 책임자·시행일·수탁자 상세는 placeholder로 표시. Aside 데스크톱·390px 모바일·API 오류 폴백 검증 (`docs/plans/store-static.md`)
 - [x] store 후기·공개 Q&A·서비스 안내 — *상품·수선·주문제작·샘플제작에 후기 공개 목록과 공개/비밀 문의, 주문 상세 후기 작성·조회·수정·삭제를 연결하고 custom/sample 안내를 추가. 정보·문의·후기는 한 스크롤에 동시 렌더하며 3등분 내비게이션은 Header 아래 sticky 앵커로 이동. shared Rating과 admin 후기 목록/필터/삭제·문의 비밀글 표시 포함. repo lint, Turbo build/typecheck/test, Python 666건, Aside 실제 DB 왕복·sticky 위치 검증 완료 (`docs/plans/store-reviews.md`)*
+- [x] 사진 후기(리뷰 D9 이연분) — *후기는 공개 콘텐츠라 사진을 공개 assets 버킷에 두는 상품 이미지 패턴 재사용: `reviews/` prefix 스테이징 발급(`POST /reviews/photo-uploads`)→서명 PUT→complete→작성/수정 시 최대 5장 링크(`Review.photos` JSONB 순서 보존, 소유권·완료·prefix 검증), 교체/삭제 시 만료→cleanup 배치가 assets 버킷에서 삭제. 공개 목록·단건에 `photos[{upload_id,url}]` 동봉(`public_asset_url`, 서명 read URL 아님 — 공개 목록 signBlob 비용 회피). store 폼 즉시 업로드 AttachmentDisplayField·조회/목록 썸네일, admin 목록 사진 컬럼. pytest 3건 추가(671 통과)·api-client 재생성·Aside 작성→수정→공개 노출·admin 왕복 검증 (`docs/plans/store-reviews.md` §15)*
 - [x] custom-order 선택 UI 의미 정합성 — 원단·타이·심지는 비교형 SelectBox, 사이즈는 RadioGroup, 즉시 입력 전환인 연락 방법만 SegmentedControl 유지
 - [x] custom-order 정보 계층 정리 — 번호형 대분류는 유지하고 단일 내용은 제목에 통합, 복수 내용은 주문 방식·제작 수량·봉제 옵션·마감 옵션 소제목으로 일관되게 그룹화
 - [x] custom-order 폴리 원단 계산 복구 — 로컬 가격 시드에 날염·선염 폴리 키 추가, 계산 API 회귀 테스트로 두 조합 검증

@@ -105,6 +105,10 @@ export type AdminCapabilitiesOut = {
      */
     gcs_assets: string;
     /**
+     * Oauth Apple
+     */
+    oauth_apple: string;
+    /**
      * Oauth Google
      */
     oauth_google: string;
@@ -112,6 +116,10 @@ export type AdminCapabilitiesOut = {
      * Oauth Kakao
      */
     oauth_kakao: string;
+    /**
+     * Oauth Naver
+     */
+    oauth_naver: string;
     /**
      * Solapi
      */
@@ -2952,6 +2960,114 @@ export type DashboardSummaryOut = {
      * Unanswered Inquiry Count
      */
     unanswered_inquiry_count: number;
+};
+
+/**
+ * DashboardTimeseriesOut
+ */
+export type DashboardTimeseriesOut = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Order Type
+     */
+    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    /**
+     * Points
+     */
+    points: Array<DashboardTimeseriesPointOut>;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * DashboardTimeseriesPointOut
+ */
+export type DashboardTimeseriesPointOut = {
+    /**
+     * Day
+     */
+    day: string;
+    /**
+     * Generation Failed
+     */
+    generation_failed: number;
+    /**
+     * Generation Total
+     */
+    generation_total: number;
+    /**
+     * New Customer Count
+     */
+    new_customer_count: number;
+    /**
+     * Order Amount
+     */
+    order_amount: number;
+    /**
+     * Order Count
+     */
+    order_count: number;
+    /**
+     * Token Consumed
+     */
+    token_consumed: number;
+    /**
+     * Token Sold
+     */
+    token_sold: number;
+};
+
+/**
+ * DashboardTopProductOut
+ */
+export type DashboardTopProductOut = {
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Product Id
+     */
+    product_id: number;
+    /**
+     * Quantity
+     */
+    quantity: number;
+};
+
+/**
+ * DashboardTopProductsOut
+ */
+export type DashboardTopProductsOut = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Items
+     */
+    items: Array<DashboardTopProductOut>;
+    /**
+     * Start Date
+     */
+    start_date: string;
 };
 
 /**
@@ -6057,6 +6173,10 @@ export type ReviewCreateRequest = {
      */
     order_item_id?: string | null;
     /**
+     * Photo Upload Ids
+     */
+    photo_upload_ids?: Array<string>;
+    /**
      * Rating
      */
     rating: number;
@@ -6113,6 +6233,10 @@ export type ReviewOut = {
      */
     order_type: 'sale' | 'repair' | 'custom' | 'sample';
     /**
+     * Photos
+     */
+    photos: Array<ReviewPhotoOut>;
+    /**
      * Product Id
      */
     product_id: number | null;
@@ -6123,6 +6247,80 @@ export type ReviewOut = {
 };
 
 /**
+ * ReviewPhotoOut
+ */
+export type ReviewPhotoOut = {
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
+ * ReviewPhotoUploadCompleteOut
+ */
+export type ReviewPhotoUploadCompleteOut = {
+    /**
+     * Completed At
+     */
+    completed_at: string;
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
+ * ReviewPhotoUploadOut
+ */
+export type ReviewPhotoUploadOut = {
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Required Headers
+     */
+    required_headers: {
+        [key: string]: string;
+    };
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+    /**
+     * Upload Required
+     */
+    upload_required: boolean;
+    /**
+     * Upload Url
+     */
+    upload_url: string;
+};
+
+/**
+ * ReviewPhotoUploadRequest
+ */
+export type ReviewPhotoUploadRequest = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
  * ReviewUpdateRequest
  */
 export type ReviewUpdateRequest = {
@@ -6130,6 +6328,10 @@ export type ReviewUpdateRequest = {
      * Content
      */
     content?: string;
+    /**
+     * Photo Upload Ids
+     */
+    photo_upload_ids?: Array<string>;
     /**
      * Rating
      */
@@ -7796,6 +7998,82 @@ export type GetDashboardSummaryResponses = {
 };
 
 export type GetDashboardSummaryResponse = GetDashboardSummaryResponses[keyof GetDashboardSummaryResponses];
+
+export type GetDashboardTimeseriesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Order Type
+         */
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    };
+    url: '/admin/dashboard/timeseries';
+};
+
+export type GetDashboardTimeseriesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardTimeseriesError = GetDashboardTimeseriesErrors[keyof GetDashboardTimeseriesErrors];
+
+export type GetDashboardTimeseriesResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardTimeseriesOut;
+};
+
+export type GetDashboardTimeseriesResponse = GetDashboardTimeseriesResponses[keyof GetDashboardTimeseriesResponses];
+
+export type GetDashboardTopProductsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/admin/dashboard/top-products';
+};
+
+export type GetDashboardTopProductsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardTopProductsError = GetDashboardTopProductsErrors[keyof GetDashboardTopProductsErrors];
+
+export type GetDashboardTopProductsResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardTopProductsOut;
+};
+
+export type GetDashboardTopProductsResponse = GetDashboardTopProductsResponses[keyof GetDashboardTopProductsResponses];
 
 export type ListAdminGenerationJobsData = {
     body?: never;
@@ -11554,6 +11832,61 @@ export type CreateReviewResponses = {
 };
 
 export type CreateReviewResponse = CreateReviewResponses[keyof CreateReviewResponses];
+
+export type CreateReviewPhotoUploadUrlData = {
+    body: ReviewPhotoUploadRequest;
+    path?: never;
+    query?: never;
+    url: '/reviews/photo-uploads';
+};
+
+export type CreateReviewPhotoUploadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReviewPhotoUploadUrlError = CreateReviewPhotoUploadUrlErrors[keyof CreateReviewPhotoUploadUrlErrors];
+
+export type CreateReviewPhotoUploadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReviewPhotoUploadOut;
+};
+
+export type CreateReviewPhotoUploadUrlResponse = CreateReviewPhotoUploadUrlResponses[keyof CreateReviewPhotoUploadUrlResponses];
+
+export type CompleteReviewPhotoUploadData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/reviews/photo-uploads/{upload_id}/complete';
+};
+
+export type CompleteReviewPhotoUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteReviewPhotoUploadError = CompleteReviewPhotoUploadErrors[keyof CompleteReviewPhotoUploadErrors];
+
+export type CompleteReviewPhotoUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReviewPhotoUploadCompleteOut;
+};
+
+export type CompleteReviewPhotoUploadResponse = CompleteReviewPhotoUploadResponses[keyof CompleteReviewPhotoUploadResponses];
 
 export type DeleteReviewData = {
     body?: never;

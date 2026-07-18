@@ -34,12 +34,13 @@ import {
   ShoppingBagIcon,
 } from "@heroicons/react/24/outline";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { useAuthGuard } from "@/features/auth";
 import { useCartActions } from "@/features/cart";
 import { InquirySection } from "@/features/inquiry";
 import { ReviewListSection } from "@/features/reviews";
+import { trackEvent } from "@/shared/lib/analytics";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -84,6 +85,15 @@ type CartAddDraft = {
   quantity: number;
   goCart: boolean;
 };
+
+function productAnalyticsItem(product: ProductOut) {
+  return {
+    item_id: String(product.id),
+    item_name: product.name,
+    price: product.price,
+    item_category: product.category,
+  };
+}
 
 export function ShopDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -138,6 +148,18 @@ export function ShopDetailPage() {
     setQuantity(1);
   }, [product?.id]);
 
+  // ref 중복 방지 — 찜/리뷰 invalidation의 refetch로 product 객체가 바뀌어도 재발화하지 않는다
+  const viewedProductId = useRef<number | null>(null);
+  useEffect(() => {
+    if (!product || viewedProductId.current === product.id) return;
+    viewedProductId.current = product.id;
+    trackEvent("view_item", {
+      currency: "KRW",
+      value: product.price,
+      items: [productAnalyticsItem(product)],
+    });
+  }, [product]);
+
   useEffect(() => {
     setQuantity(1);
   }, [selectedOptionId]);
@@ -173,6 +195,11 @@ export function ShopDetailPage() {
         await unlikeProduct.mutateAsync({ path: { product_id: product.id } });
       } else {
         await likeProduct.mutateAsync({ path: { product_id: product.id } });
+        trackEvent("add_to_wishlist", {
+          currency: "KRW",
+          value: product.price,
+          items: [productAnalyticsItem(product)],
+        });
       }
       await refreshProductQueries();
     } catch {
@@ -197,6 +224,18 @@ export function ShopDetailPage() {
         product: draft.product,
         option: draft.option,
         quantity: draft.quantity,
+      });
+      const unit = draft.product.price + (draft.option?.additional_price ?? 0);
+      trackEvent("add_to_cart", {
+        currency: "KRW",
+        value: unit * draft.quantity,
+        items: [
+          {
+            ...productAnalyticsItem(draft.product),
+            price: unit,
+            quantity: draft.quantity,
+          },
+        ],
       });
       if (draft.goCart) {
         navigate("/cart");

@@ -59,6 +59,9 @@
 | `bg.naver` | `--color-bg-naver` | `#03c75a` (브랜드) | `bg-bg-naver` (소셜 로그인 전용) |
 | `bg.naver-hover` | `--color-bg-naver-hover` | `#02b350` | `bg-bg-naver-hover` |
 | `bg.naver-pressed` | `--color-bg-naver-pressed` | `#029e47` | `bg-bg-naver-pressed` |
+| `bg.apple` | `--color-bg-apple` | `#000000` (브랜드, HIG) | `bg-bg-apple` (소셜 로그인 전용) |
+| `bg.apple-hover` | `--color-bg-apple-hover` | `#1f1f1f` | `bg-bg-apple-hover` |
+| `bg.apple-pressed` | `--color-bg-apple-pressed` | `#333333` | `bg-bg-apple-pressed` |
 
 ## stroke (선 — 테두리·구분선·포커스)
 

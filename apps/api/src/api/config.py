@@ -48,11 +48,17 @@ class Settings(BaseSettings):
     edge_proxy_secret: str = ""
     session_secret: str = "dev-session-secret"  # Authlib OAuth state 쿠키용
 
-    # 소셜 OAuth — Google·Kakao만 (Apple·Naver는 준비물 도착 후)
+    # 소셜 OAuth — Google·Kakao·Naver·Apple
     google_client_id: str = ""
     google_client_secret: str = ""
     kakao_client_id: str = ""
     kakao_client_secret: str = ""
+    naver_client_id: str = ""
+    naver_client_secret: str = ""
+    apple_client_id: str = ""  # Services ID (웹 로그인용, 예: shop.essesion.signin)
+    apple_team_id: str = ""
+    apple_key_id: str = ""
+    apple_private_key: str = ""  # Sign in with Apple .p8 PEM — 개행은 \n 이스케이프 허용
 
     # 외부 연동 — 비어 있으면 local/test만 DryRun, 그 밖의 환경은 unavailable
     toss_secret_key: str = ""

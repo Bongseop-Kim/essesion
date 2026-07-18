@@ -75,6 +75,8 @@ variable "app_secret_ids" {
     "solapi-api-secret",
     "google-client-secret",
     "kakao-client-secret",
+    "naver-client-secret",
+    "apple-private-key",
     "openai-api-key",
     "gemini-api-key",
     "recraft-api-key",

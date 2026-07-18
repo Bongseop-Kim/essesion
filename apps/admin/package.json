@@ -17,7 +17,8 @@
     "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-router": "catalog:"
+    "react-router": "catalog:",
+    "recharts": "catalog:"
   },
   "devDependencies": {
     "@essesion/tsconfig": "workspace:*",

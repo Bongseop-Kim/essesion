@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from db.models.auth import User
@@ -10,12 +10,16 @@ from db.models.commerce import (
     OrderItem,
     OrderStatusLog,
     PaymentIncident,
+    Product,
     QuoteRequest,
     RepairPickupRequest,
     RepairShippingReceipt,
 )
+from db.models.design import GenerationJob
+from db.models.tokens import DesignToken, TokenPurchase
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from api.domains.admin.helpers import (
     KST,
@@ -35,6 +39,10 @@ from api.domains.admin.schemas import (
     DashboardRecentQuoteOut,
     DashboardRecentQuotesPage,
     DashboardSummaryOut,
+    DashboardTimeseriesOut,
+    DashboardTimeseriesPointOut,
+    DashboardTopProductOut,
+    DashboardTopProductsOut,
     OrderSort,
     OrderStatusFilter,
     OrderTypeFilter,
@@ -63,6 +71,16 @@ MAX_PAGE_LIMIT = 100
 DEFAULT_RECENT_LIMIT = 5
 MAX_RECENT_LIMIT = 20
 MIN_SEARCH_LENGTH = 2
+MAX_TIMESERIES_DAYS = 92
+DEFAULT_TOP_PRODUCT_LIMIT = 5
+MAX_TOP_PRODUCT_LIMIT = 20
+
+# 매출 지표에서 제외하는 상태 — 미결제(대기중·결제중)와 취소는 매출이 아니다.
+NON_REVENUE_ORDER_STATUSES = ("대기중", "결제중", "취소")
+
+
+def _revenue_order_filter() -> ColumnElement[bool]:
+    return Order.status.not_in(NON_REVENUE_ORDER_STATUSES)
 
 
 def _sanitize_private_item_value(value: Any) -> Any:
@@ -371,6 +389,7 @@ async def dashboard_summary(
     filters: list[ColumnElement[bool]] = [
         Order.created_at >= start_at,
         Order.created_at < end_at,
+        _revenue_order_filter(),
     ]
     if order_type != "all":
         filters.append(Order.order_type == order_type)
@@ -408,6 +427,140 @@ async def dashboard_summary(
         open_claim_count=open_claim_count,
         unanswered_inquiry_count=unanswered_inquiry_count,
         open_payment_incident_count=open_payment_incident_count,
+        as_of=datetime.now(UTC),
+    )
+
+
+def _kst_day(column: InstrumentedAttribute[datetime]) -> ColumnElement[date]:
+    """timestamptz 컬럼을 KST 기준 날짜로 버킷팅한다."""
+    return func.date(func.timezone("Asia/Seoul", column))
+
+
+async def dashboard_timeseries(
+    session: AsyncSession,
+    *,
+    start_date: date | None,
+    end_date: date | None,
+    order_type: OrderTypeFilter,
+) -> DashboardTimeseriesOut:
+    """지표 5종의 KST 일별 시계열. order_type 필터는 주문 시리즈에만 적용된다."""
+    start, end = _dashboard_dates(start_date, end_date)
+    if (end - start).days + 1 > MAX_TIMESERIES_DAYS:
+        raise DomainError(
+            f"Date range must be at most {MAX_TIMESERIES_DAYS} days",
+            code="invalid_range",
+        )
+    start_at, end_at = kst_day_bounds(start, end)
+    assert start_at is not None and end_at is not None
+
+    async def by_day(
+        column: InstrumentedAttribute[datetime], *exprs: ColumnElement[Any], filters: list[Any]
+    ) -> dict[date, tuple[Any, ...]]:
+        day = _kst_day(column)
+        rows = await session.execute(
+            select(day, *exprs).where(column >= start_at, column < end_at, *filters).group_by(day)
+        )
+        return {row[0]: tuple(row[1:]) for row in rows.all()}
+
+    order_filters: list[Any] = [_revenue_order_filter()]
+    if order_type != "all":
+        order_filters.append(Order.order_type == order_type)
+    orders = await by_day(
+        Order.created_at,
+        func.count(),
+        func.coalesce(func.sum(Order.total_price), 0),
+        filters=order_filters,
+    )
+    customers = await by_day(User.created_at, func.count(), filters=[User.role == "customer"])
+    generations = await by_day(
+        GenerationJob.created_at,
+        func.count(),
+        func.count().filter(GenerationJob.status == "failed"),
+        filters=[],
+    )
+    consumed = await by_day(
+        DesignToken.created_at,
+        func.coalesce(func.sum(-DesignToken.amount), 0),
+        filters=[DesignToken.amount < 0],
+    )
+    sold = await by_day(
+        TokenPurchase.created_at,
+        func.coalesce(func.sum(TokenPurchase.token_amount), 0),
+        filters=[TokenPurchase.status == "완료"],
+    )
+
+    points: list[DashboardTimeseriesPointOut] = []
+    day = start
+    while day <= end:
+        order_count, order_amount = orders.get(day, (0, 0))
+        generation_total, generation_failed = generations.get(day, (0, 0))
+        points.append(
+            DashboardTimeseriesPointOut(
+                day=day,
+                order_count=int(order_count),
+                order_amount=int(order_amount),
+                new_customer_count=int(customers.get(day, (0,))[0]),
+                generation_total=int(generation_total),
+                generation_failed=int(generation_failed),
+                token_consumed=int(consumed.get(day, (0,))[0]),
+                token_sold=int(sold.get(day, (0,))[0]),
+            )
+        )
+        day += timedelta(days=1)
+    return DashboardTimeseriesOut(
+        start_date=start,
+        end_date=end,
+        order_type=order_type,
+        points=points,
+        as_of=datetime.now(UTC),
+    )
+
+
+async def dashboard_top_products(
+    session: AsyncSession,
+    *,
+    start_date: date | None,
+    end_date: date | None,
+    limit: int,
+) -> DashboardTopProductsOut:
+    """기간 내 주문 수량 기준 상품 랭킹 — product_id 없는 항목(custom/reform)은 제외."""
+    start, end = _dashboard_dates(start_date, end_date)
+    if (end - start).days + 1 > MAX_TIMESERIES_DAYS:
+        raise DomainError(
+            f"Date range must be at most {MAX_TIMESERIES_DAYS} days",
+            code="invalid_range",
+        )
+    start_at, end_at = kst_day_bounds(start, end)
+    assert start_at is not None and end_at is not None
+    quantity = func.sum(OrderItem.quantity)
+    amount = func.sum(OrderItem.unit_price * OrderItem.quantity)
+    rows = (
+        await session.execute(
+            select(OrderItem.product_id, Product.name, quantity, amount)
+            .join(Order, Order.id == OrderItem.order_id)
+            .join(Product, Product.id == OrderItem.product_id)
+            .where(
+                Order.created_at >= start_at,
+                Order.created_at < end_at,
+                _revenue_order_filter(),
+            )
+            .group_by(OrderItem.product_id, Product.name)
+            .order_by(quantity.desc(), OrderItem.product_id.asc())
+            .limit(limit)
+        )
+    ).all()
+    return DashboardTopProductsOut(
+        items=[
+            DashboardTopProductOut(
+                product_id=product_id,
+                name=name,
+                quantity=int(item_quantity),
+                amount=int(item_amount),
+            )
+            for product_id, name, item_quantity, item_amount in rows
+        ],
+        start_date=start,
+        end_date=end,
         as_of=datetime.now(UTC),
     )
 

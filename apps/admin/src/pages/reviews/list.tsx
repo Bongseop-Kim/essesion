@@ -7,6 +7,9 @@ import {
 import {
   ActionButton,
   AlertDialog,
+  Box,
+  HStack,
+  ImageFrame,
   Rating,
   snackbar,
   Text,
@@ -131,6 +134,29 @@ export function ReviewsPage() {
           {review.content}
         </Text>
       ),
+    },
+    {
+      key: "photos",
+      header: "사진",
+      render: (review) =>
+        review.photos.length > 0 ? (
+          <HStack gap="x1">
+            {review.photos.map((photo, index) => (
+              <Box key={photo.upload_id} width={40}>
+                <ImageFrame
+                  ratio={1}
+                  stroke
+                  src={photo.url}
+                  alt={`후기 사진 ${index + 1}`}
+                />
+              </Box>
+            ))}
+          </HStack>
+        ) : (
+          <Text textStyle="bodySm" color="fg.neutral-muted">
+            —
+          </Text>
+        ),
     },
     {
       key: "author",

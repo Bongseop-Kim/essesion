@@ -5,6 +5,7 @@ import {
   Box,
   ContentPlaceholder,
   HStack,
+  ImageFrame,
   Rating,
   Skeleton,
   Text,
@@ -113,6 +114,20 @@ export function ReviewListSection({
               <Text className="whitespace-pre-wrap break-words">
                 {review.content}
               </Text>
+              {review.photos.length > 0 ? (
+                <HStack gap="x2" wrap>
+                  {review.photos.map((photo, index) => (
+                    <Box key={photo.upload_id} width={72}>
+                      <ImageFrame
+                        ratio={1}
+                        stroke
+                        src={photo.url}
+                        alt={`${review.author_name}님의 후기 사진 ${index + 1}`}
+                      />
+                    </Box>
+                  ))}
+                </HStack>
+              ) : null}
             </VStack>
           </Box>
         ))}

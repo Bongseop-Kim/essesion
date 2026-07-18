@@ -6,6 +6,7 @@ import { useNavigate } from "react-router";
 import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
 import { takeAuthReturn } from "@/features/auth/model/return-after-login";
 import { syncGuestCartToAccount } from "@/features/cart";
+import { trackEvent } from "@/shared/lib/analytics";
 
 /**
  * OAuth 콜백 착지점. api가 refresh 쿠키를 심고 이 경로로 리다이렉트한다.
@@ -25,6 +26,7 @@ export function AuthCallbackPage() {
         navigate("/login", { replace: true });
         return;
       }
+      trackEvent("login", { method: "oauth" });
       const destination = takeAuthReturn() ?? { path: "/" };
       try {
         await syncGuestCartToAccount(queryClient);

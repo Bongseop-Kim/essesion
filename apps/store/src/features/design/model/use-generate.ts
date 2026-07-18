@@ -9,6 +9,8 @@ import {
 } from "@essesion/api-client/query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { trackEvent } from "@/shared/lib/analytics";
+
 import {
   clearPendingDesign,
   type StorageLike,
@@ -101,6 +103,8 @@ export function useGenerateDesign(options?: {
                 },
           throwOnError: true,
         });
+        // prompt 원문·sessionId는 넣지 않는다
+        trackEvent("generate_design", { mode: input.mode });
         return { sessionId, response };
       } finally {
         clearPendingDesign({

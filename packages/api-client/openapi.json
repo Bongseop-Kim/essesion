@@ -145,12 +145,20 @@
             "title": "Gcs Assets",
             "type": "string"
           },
+          "oauth_apple": {
+            "title": "Oauth Apple",
+            "type": "string"
+          },
           "oauth_google": {
             "title": "Oauth Google",
             "type": "string"
           },
           "oauth_kakao": {
             "title": "Oauth Kakao",
+            "type": "string"
+          },
+          "oauth_naver": {
+            "title": "Oauth Naver",
             "type": "string"
           },
           "solapi": {
@@ -176,6 +184,8 @@
           "batch_auth",
           "oauth_google",
           "oauth_kakao",
+          "oauth_naver",
+          "oauth_apple",
           "auth_secrets",
           "edge_proxy"
         ],
@@ -5533,6 +5543,164 @@
           "as_of"
         ],
         "title": "DashboardSummaryOut",
+        "type": "object"
+      },
+      "DashboardTimeseriesOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "order_type": {
+            "enum": [
+              "all",
+              "sale",
+              "custom",
+              "repair",
+              "token",
+              "sample"
+            ],
+            "title": "Order Type",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardTimeseriesPointOut"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_date",
+          "end_date",
+          "order_type",
+          "points",
+          "as_of"
+        ],
+        "title": "DashboardTimeseriesOut",
+        "type": "object"
+      },
+      "DashboardTimeseriesPointOut": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "generation_failed": {
+            "title": "Generation Failed",
+            "type": "integer"
+          },
+          "generation_total": {
+            "title": "Generation Total",
+            "type": "integer"
+          },
+          "new_customer_count": {
+            "title": "New Customer Count",
+            "type": "integer"
+          },
+          "order_amount": {
+            "title": "Order Amount",
+            "type": "integer"
+          },
+          "order_count": {
+            "title": "Order Count",
+            "type": "integer"
+          },
+          "token_consumed": {
+            "title": "Token Consumed",
+            "type": "integer"
+          },
+          "token_sold": {
+            "title": "Token Sold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "order_count",
+          "order_amount",
+          "new_customer_count",
+          "generation_total",
+          "generation_failed",
+          "token_consumed",
+          "token_sold"
+        ],
+        "title": "DashboardTimeseriesPointOut",
+        "type": "object"
+      },
+      "DashboardTopProductOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "title": "Product Id",
+            "type": "integer"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "quantity",
+          "amount"
+        ],
+        "title": "DashboardTopProductOut",
+        "type": "object"
+      },
+      "DashboardTopProductsOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardTopProductOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_date",
+          "end_date",
+          "items",
+          "as_of"
+        ],
+        "title": "DashboardTopProductsOut",
         "type": "object"
       },
       "DesignExportRequest": {
@@ -11195,6 +11363,15 @@
             ],
             "title": "Order Item Id"
           },
+          "photo_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Photo Upload Ids",
+            "type": "array"
+          },
           "rating": {
             "maximum": 5.0,
             "minimum": 1.0,
@@ -11276,6 +11453,13 @@
             "title": "Order Type",
             "type": "string"
           },
+          "photos": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewPhotoOut"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
           "product_id": {
             "anyOf": [
               {
@@ -11299,9 +11483,112 @@
           "created_at",
           "order_type",
           "product_id",
-          "author_name"
+          "author_name",
+          "photos"
         ],
         "title": "ReviewOut",
+        "type": "object"
+      },
+      "ReviewPhotoOut": {
+        "properties": {
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "url"
+        ],
+        "title": "ReviewPhotoOut",
+        "type": "object"
+      },
+      "ReviewPhotoUploadCompleteOut": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "completed_at"
+        ],
+        "title": "ReviewPhotoUploadCompleteOut",
+        "type": "object"
+      },
+      "ReviewPhotoUploadOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Required Headers",
+            "type": "object"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          },
+          "upload_required": {
+            "title": "Upload Required",
+            "type": "boolean"
+          },
+          "upload_url": {
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "upload_url",
+          "required_headers",
+          "expires_at",
+          "upload_required"
+        ],
+        "title": "ReviewPhotoUploadOut",
+        "type": "object"
+      },
+      "ReviewPhotoUploadRequest": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10485760.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "ReviewPhotoUploadRequest",
         "type": "object"
       },
       "ReviewUpdateRequest": {
@@ -11311,6 +11598,15 @@
             "minLength": 1,
             "title": "Content",
             "type": "string"
+          },
+          "photo_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Photo Upload Ids",
+            "type": "array"
           },
           "rating": {
             "maximum": 5.0,
@@ -14547,6 +14843,180 @@
           }
         ],
         "summary": "Get Dashboard Summary",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dashboard/timeseries": {
+      "get": {
+        "operationId": "get_dashboard_timeseries",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order_type",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "sale",
+                "custom",
+                "repair",
+                "token",
+                "sample"
+              ],
+              "title": "Order Type",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardTimeseriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Dashboard Timeseries",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/dashboard/top-products": {
+      "get": {
+        "operationId": "get_dashboard_top_products",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardTopProductsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Dashboard Top Products",
         "tags": [
           "admin"
         ]
@@ -21846,6 +22316,100 @@
           }
         ],
         "summary": "Create Review",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/reviews/photo-uploads": {
+      "post": {
+        "operationId": "create_review_photo_upload_url",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewPhotoUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPhotoUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Review Photo Upload Url",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/reviews/photo-uploads/{upload_id}/complete": {
+      "post": {
+        "operationId": "complete_review_photo_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPhotoUploadCompleteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Review Photo Upload",
         "tags": [
           "reviews"
         ]

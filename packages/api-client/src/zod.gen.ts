@@ -44,8 +44,10 @@ export const zAdminCapabilitiesOut = z.object({
     finalize_tasks: z.string(),
     gcs: z.string(),
     gcs_assets: z.string(),
+    oauth_apple: z.string(),
     oauth_google: z.string(),
     oauth_kakao: z.string(),
+    oauth_naver: z.string(),
     solapi: z.string(),
     toss: z.string(),
     worker: z.string()
@@ -1082,6 +1084,58 @@ export const zDashboardSummaryOut = z.object({
     ]),
     start_date: z.iso.date(),
     unanswered_inquiry_count: z.int()
+});
+
+/**
+ * DashboardTimeseriesPointOut
+ */
+export const zDashboardTimeseriesPointOut = z.object({
+    day: z.iso.date(),
+    generation_failed: z.int(),
+    generation_total: z.int(),
+    new_customer_count: z.int(),
+    order_amount: z.int(),
+    order_count: z.int(),
+    token_consumed: z.int(),
+    token_sold: z.int()
+});
+
+/**
+ * DashboardTimeseriesOut
+ */
+export const zDashboardTimeseriesOut = z.object({
+    as_of: z.iso.datetime(),
+    end_date: z.iso.date(),
+    order_type: z.enum([
+        'all',
+        'sale',
+        'custom',
+        'repair',
+        'token',
+        'sample'
+    ]),
+    points: z.array(zDashboardTimeseriesPointOut),
+    start_date: z.iso.date()
+});
+
+/**
+ * DashboardTopProductOut
+ */
+export const zDashboardTopProductOut = z.object({
+    amount: z.int(),
+    name: z.string(),
+    product_id: z.int(),
+    quantity: z.int()
+});
+
+/**
+ * DashboardTopProductsOut
+ */
+export const zDashboardTopProductsOut = z.object({
+    as_of: z.iso.datetime(),
+    end_date: z.iso.date(),
+    items: z.array(zDashboardTopProductOut),
+    start_date: z.iso.date()
 });
 
 /**
@@ -2389,7 +2443,16 @@ export const zReviewCreateRequest = z.object({
     content: z.string().min(1).max(1000),
     order_id: z.uuid(),
     order_item_id: z.uuid().nullish(),
+    photo_upload_ids: z.array(z.uuid()).max(5).optional(),
     rating: z.int().gte(1).lte(5)
+});
+
+/**
+ * ReviewPhotoOut
+ */
+export const zReviewPhotoOut = z.object({
+    upload_id: z.uuid(),
+    url: z.string()
 });
 
 /**
@@ -2406,6 +2469,7 @@ export const zReviewOut = z.object({
         'custom',
         'sample'
     ]),
+    photos: z.array(zReviewPhotoOut),
     product_id: z.int().nullable(),
     rating: z.int()
 });
@@ -2432,10 +2496,39 @@ export const zReviewListOut = z.object({
 });
 
 /**
+ * ReviewPhotoUploadCompleteOut
+ */
+export const zReviewPhotoUploadCompleteOut = z.object({
+    completed_at: z.iso.datetime(),
+    upload_id: z.uuid()
+});
+
+/**
+ * ReviewPhotoUploadOut
+ */
+export const zReviewPhotoUploadOut = z.object({
+    expires_at: z.iso.datetime(),
+    required_headers: z.record(z.string(), z.string()),
+    upload_id: z.uuid(),
+    upload_required: z.boolean(),
+    upload_url: z.string()
+});
+
+/**
+ * ReviewPhotoUploadRequest
+ */
+export const zReviewPhotoUploadRequest = z.object({
+    content_type: z.string(),
+    filename: z.string(),
+    size_bytes: z.int().gt(0).lte(10485760)
+});
+
+/**
  * ReviewUpdateRequest
  */
 export const zReviewUpdateRequest = z.object({
     content: z.string().min(1).max(1000).optional(),
+    photo_upload_ids: z.array(z.uuid()).max(5).optional(),
     rating: z.int().gte(1).lte(5).optional()
 });
 
@@ -3339,6 +3432,35 @@ export const zGetDashboardSummaryQuery = z.object({
  * Successful Response
  */
 export const zGetDashboardSummaryResponse = zDashboardSummaryOut;
+
+export const zGetDashboardTimeseriesQuery = z.object({
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    order_type: z.enum([
+        'all',
+        'sale',
+        'custom',
+        'repair',
+        'token',
+        'sample'
+    ]).optional().default('all')
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDashboardTimeseriesResponse = zDashboardTimeseriesOut;
+
+export const zGetDashboardTopProductsQuery = z.object({
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    limit: z.int().gte(1).lte(20).optional().default(5)
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDashboardTopProductsResponse = zDashboardTopProductsOut;
 
 export const zListAdminGenerationJobsQuery = z.object({
     job_id: z.uuid().nullish(),
@@ -4685,6 +4807,22 @@ export const zCreateReviewBody = zReviewCreateRequest;
  * Successful Response
  */
 export const zCreateReviewResponse = zReviewOut;
+
+export const zCreateReviewPhotoUploadUrlBody = zReviewPhotoUploadRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateReviewPhotoUploadUrlResponse = zReviewPhotoUploadOut;
+
+export const zCompleteReviewPhotoUploadPath = z.object({
+    upload_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCompleteReviewPhotoUploadResponse = zReviewPhotoUploadCompleteOut;
 
 export const zDeleteReviewPath = z.object({
     review_id: z.uuid()

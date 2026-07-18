@@ -38,7 +38,7 @@ def _legacy_access_token(user_id: uuid.UUID, role: str, settings: Settings) -> s
     )
 
 
-@pytest.mark.parametrize("provider", ["google", "kakao"])
+@pytest.mark.parametrize("provider", ["google", "kakao", "naver", "apple"])
 async def test_oauth_login_uses_public_origin_behind_cloud_run_proxy_host(
     app, client, settings, monkeypatch, provider
 ):
@@ -770,6 +770,82 @@ async def test_kakao_profile_requires_valid_and_verified_email(valid, verified, 
     profile = await fetch_profile(client, "kakao", cast("Request", object()))
 
     assert profile.email_verified is expected
+
+
+@pytest.mark.parametrize(
+    ("email", "expected"),
+    [
+        ("user@naver.com", True),
+        ("User@NAVER.com", True),
+        ("user@gmail.com", False),  # 외부 연락처 이메일은 소유 증빙 없음 — 자동 링크 금지
+        (None, False),
+    ],
+)
+async def test_naver_profile_trusts_only_naver_account_email(email, expected):
+    client = _OAuthProfileClient(
+        token={},
+        profile={
+            "resultcode": "00",
+            "response": {"id": "naver-123", "email": email, "name": "네이버 유저"},
+        },
+    )
+
+    profile = await fetch_profile(client, "naver", cast("Request", object()))
+
+    assert profile.provider_user_id == "naver-123"
+    assert profile.email_verified is expected
+
+
+class _FormRequest:
+    """Apple form_post 콜백 흉내 — request.form()의 user 필드만 제공."""
+
+    def __init__(self, form: dict):
+        self._form = form
+
+    async def form(self) -> dict:
+        return self._form
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected"),
+    [(True, True), ("true", True), ("false", False), (False, False), (None, False)],
+)
+async def test_apple_profile_accepts_bool_or_true_string_verified_email(claim, expected):
+    client = _OAuthProfileClient(
+        token={
+            "userinfo": {
+                "sub": "apple-sub",
+                "email": "apple@privaterelay.appleid.com",
+                "email_verified": claim,
+            }
+        }
+    )
+
+    profile = await fetch_profile(client, "apple", cast("Request", _FormRequest({})))
+
+    assert profile.provider_user_id == "apple-sub"
+    assert profile.email_verified is expected
+
+
+@pytest.mark.parametrize(
+    ("raw_user", "expected"),
+    [
+        ('{"name": {"lastName": "김", "firstName": "사과"}}', "김사과"),
+        ('{"name": {"firstName": "Apple"}}', "Apple"),
+        ("not-json", None),
+        ('"just-a-string"', None),
+        (None, None),
+    ],
+)
+async def test_apple_profile_reads_name_from_first_auth_form_user(raw_user, expected):
+    client = _OAuthProfileClient(token={"userinfo": {"sub": "apple-sub"}})
+    form = {} if raw_user is None else {"user": raw_user}
+
+    profile = await fetch_profile(client, "apple", cast("Request", _FormRequest(form)))
+
+    assert profile.name == expected
+    assert profile.email is None
+    assert profile.email_verified is False
 
 
 async def test_oauth_same_identity_first_callback_race_reuses_winner(app, db_session):

@@ -18,6 +18,7 @@ from api.db import SessionDep
 from api.deps import BatchAuth
 from api.domains.orders.service import log_status, restore_reserved_order_coupons
 from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
+from api.integrations.gcs import assets_bucket_name
 
 router = APIRouter(prefix="/batch", tags=["batch"], dependencies=[BatchAuth])
 
@@ -176,6 +177,13 @@ async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
             bucket_name = settings.gcs_assets_bucket or (
                 "dry-run-product-assets" if settings.env in ("local", "test") else None
             )
+        elif image.entity_type.startswith("review_photo"):
+            # 후기 사진은 공개 assets 버킷 소속 (reviews/router.py의 서명 버킷과 동일)
+            bucket_name = assets_bucket_name(request.app.state.settings)
+        if bucket_name is None and image.entity_type.startswith(("product_", "review_photo")):
+            # assets 버킷 미설정이면 기본(비공개) 버킷을 지우게 되므로 건너뛴다.
+            # claim은 유지되어 설정 후 재시도된다.
+            continue
         if await gcs.delete_object(
             image.object_key, bucket_name=bucket_name
         ):  # ② 스토리지 삭제 (멱등)
