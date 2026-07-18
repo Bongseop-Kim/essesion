@@ -75,6 +75,13 @@ MAX_TIMESERIES_DAYS = 92
 DEFAULT_TOP_PRODUCT_LIMIT = 5
 MAX_TOP_PRODUCT_LIMIT = 20
 
+# 매출 지표에서 제외하는 상태 — 미결제(대기중·결제중)와 취소는 매출이 아니다.
+NON_REVENUE_ORDER_STATUSES = ("대기중", "결제중", "취소")
+
+
+def _revenue_order_filter() -> ColumnElement[bool]:
+    return Order.status.not_in(NON_REVENUE_ORDER_STATUSES)
+
 
 def _sanitize_private_item_value(value: Any) -> Any:
     if isinstance(value, dict):
@@ -382,6 +389,7 @@ async def dashboard_summary(
     filters: list[ColumnElement[bool]] = [
         Order.created_at >= start_at,
         Order.created_at < end_at,
+        _revenue_order_filter(),
     ]
     if order_type != "all":
         filters.append(Order.order_type == order_type)
@@ -454,7 +462,7 @@ async def dashboard_timeseries(
         )
         return {row[0]: tuple(row[1:]) for row in rows.all()}
 
-    order_filters: list[Any] = []
+    order_filters: list[Any] = [_revenue_order_filter()]
     if order_type != "all":
         order_filters.append(Order.order_type == order_type)
     orders = await by_day(
@@ -517,6 +525,11 @@ async def dashboard_top_products(
 ) -> DashboardTopProductsOut:
     """기간 내 주문 수량 기준 상품 랭킹 — product_id 없는 항목(custom/reform)은 제외."""
     start, end = _dashboard_dates(start_date, end_date)
+    if (end - start).days + 1 > MAX_TIMESERIES_DAYS:
+        raise DomainError(
+            f"Date range must be at most {MAX_TIMESERIES_DAYS} days",
+            code="invalid_range",
+        )
     start_at, end_at = kst_day_bounds(start, end)
     assert start_at is not None and end_at is not None
     quantity = func.sum(OrderItem.quantity)
@@ -526,7 +539,11 @@ async def dashboard_top_products(
             select(OrderItem.product_id, Product.name, quantity, amount)
             .join(Order, Order.id == OrderItem.order_id)
             .join(Product, Product.id == OrderItem.product_id)
-            .where(Order.created_at >= start_at, Order.created_at < end_at)
+            .where(
+                Order.created_at >= start_at,
+                Order.created_at < end_at,
+                _revenue_order_filter(),
+            )
             .group_by(OrderItem.product_id, Product.name)
             .order_by(quantity.desc(), OrderItem.product_id.asc())
             .limit(limit)

@@ -3,6 +3,7 @@ from typing import Annotated
 
 from db.models.commerce import Review
 from fastapi import APIRouter, Query, Request
+from sqlalchemy import select
 
 from api.db import SessionDep
 from api.deps import AdminUser
@@ -43,7 +44,9 @@ async def list_admin_reviews(
 
 @router.delete("/{review_id}", status_code=204)
 async def delete_admin_review(review_id: uuid.UUID, session: SessionDep, admin: AdminUser) -> None:
-    review = await session.get(Review, review_id)
+    review = await session.scalar(
+        select(Review).where(Review.id == review_id).with_for_update()
+    )
     if review is None:
         raise NotFoundError("후기를 찾을 수 없습니다")
     await service.expire_review_photos(session, review)

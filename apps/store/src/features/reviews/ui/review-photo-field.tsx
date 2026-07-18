@@ -31,10 +31,23 @@ export function ReviewPhotoField({
   // 비동기 업로드 완료 시점의 최신 photos를 참조하기 위한 미러
   const photosRef = useRef(photos);
   photosRef.current = photos;
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     onUploadingChange?.(pendingCount > 0);
   }, [onUploadingChange, pendingCount]);
+
+  // 언마운트 후 늦게 끝난 업로드가 상태를 만지지 않게 하고, 남은 미리보기
+  // blob URL을 해제한다 — 부모는 리마운트 전에 항상 photos를 리셋한다.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      for (const photo of photosRef.current) {
+        if (photo.src.startsWith("blob:")) URL.revokeObjectURL(photo.src);
+      }
+    };
+  }, []);
 
   const handleAddFiles = async (files: File[]) => {
     const remaining =
@@ -45,6 +58,7 @@ export function ReviewPhotoField({
     await mapWithConcurrency(accepted, 2, async (file) => {
       try {
         const uploadId = await uploadReviewPhoto(file);
+        if (!mountedRef.current) return;
         const next = [
           ...photosRef.current,
           { uploadId, src: URL.createObjectURL(file) },
@@ -52,13 +66,14 @@ export function ReviewPhotoField({
         photosRef.current = next;
         onChange(next);
       } catch (error) {
+        if (!mountedRef.current) return;
         snackbar(
           error instanceof Error
             ? error.message
             : "사진을 업로드하지 못했습니다.",
         );
       } finally {
-        setPendingCount((count) => count - 1);
+        if (mountedRef.current) setPendingCount((count) => count - 1);
       }
     });
   };

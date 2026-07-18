@@ -275,10 +275,10 @@ export function DashboardPage() {
     ]);
   };
 
-  // 생성 스택 차트용 파생값 — '정상' = 실패 외(성공·대기·진행 포함)
+  // 생성 스택 차트용 파생값 — '비실패' = 실패 외(성공·대기·진행 포함)
   const points = (timeseries.data?.points ?? []).map((point) => ({
     ...point,
-    generation_ok: point.generation_total - point.generation_failed,
+    generation_not_failed: point.generation_total - point.generation_failed,
   }));
   const rankedProducts = (topProducts.data?.items ?? []).map(
     (product, index) => ({ ...product, rank: index + 1 }),
@@ -309,6 +309,8 @@ export function DashboardPage() {
           variant="neutralOutline"
           loading={
             summary.isFetching ||
+            timeseries.isFetching ||
+            topProducts.isFetching ||
             recentOrders.isFetching ||
             recentQuotes.isFetching ||
             capabilities.isFetching
@@ -477,8 +479,8 @@ export function DashboardPage() {
             data={points}
             series={[
               {
-                key: "generation_ok",
-                label: "정상",
+                key: "generation_not_failed",
+                label: "비실패",
                 color: POSITIVE_COLOR,
                 kind: "bar",
                 stackId: "generation",

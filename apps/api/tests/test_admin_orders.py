@@ -241,6 +241,7 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
     sale = await make_order(
         db_session,
         user,
+        status="진행중",
         total_price=10000,
         created_at=datetime(2026, 6, 1, 0, 0, tzinfo=UTC),
     )
@@ -251,6 +252,21 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
         status="완료",
         total_price=2500,
         created_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+    )
+    # 미결제(대기중)·취소 주문은 매출 지표에서 제외
+    await make_order(
+        db_session,
+        user,
+        status="대기중",
+        total_price=99999,
+        created_at=datetime(2026, 6, 1, 2, 0, tzinfo=UTC),
+    )
+    await make_order(
+        db_session,
+        user,
+        status="취소",
+        total_price=88888,
+        created_at=datetime(2026, 6, 1, 3, 0, tzinfo=UTC),
     )
     item = OrderItem(
         order_id=sale.id, item_id="summary-item", item_type="product", quantity=1, unit_price=10000
@@ -421,10 +437,26 @@ async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session
     user = await make_user(db_session)
     # 2026-06-10 14:59Z = 6/10 23:59 KST, 15:00Z = 6/11 00:00 KST — 서로 다른 일 버킷
     await make_order(
-        db_session, user, total_price=10000, created_at=datetime(2026, 6, 10, 14, 59, tzinfo=UTC)
+        db_session,
+        user,
+        status="진행중",
+        total_price=10000,
+        created_at=datetime(2026, 6, 10, 14, 59, tzinfo=UTC),
     )
     await make_order(
-        db_session, user, total_price=3000, created_at=datetime(2026, 6, 10, 15, 0, tzinfo=UTC)
+        db_session,
+        user,
+        status="완료",
+        total_price=3000,
+        created_at=datetime(2026, 6, 10, 15, 0, tzinfo=UTC),
+    )
+    # 미결제 주문은 매출 시계열에서 제외
+    await make_order(
+        db_session,
+        user,
+        status="대기중",
+        total_price=77777,
+        created_at=datetime(2026, 6, 10, 10, 0, tzinfo=UTC),
     )
     # 신규 가입: customer는 집계, admin은 제외
     user.created_at = datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
@@ -520,7 +552,9 @@ async def test_dashboard_timeseries_order_type_filter_scopes_order_series_only(
     admin = await make_admin(db_session)
     user = await make_user(db_session)
     day = datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
-    await make_order(db_session, user, order_type="token", total_price=2500, created_at=day)
+    await make_order(
+        db_session, user, order_type="token", status="완료", total_price=2500, created_at=day
+    )
     user.created_at = day
     await db_session.commit()
 
@@ -552,10 +586,13 @@ async def test_dashboard_top_products(client, db_session, settings):
     tie = await make_product(db_session, name="많이 팔린 타이", price=30000)
     scarf = await make_product(db_session, name="덜 팔린 스카프", price=20000)
     in_range = await make_order(
-        db_session, user, created_at=datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
+        db_session, user, status="완료", created_at=datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
     )
     out_of_range = await make_order(
-        db_session, user, created_at=datetime(2026, 7, 1, 3, 0, tzinfo=UTC)
+        db_session, user, status="완료", created_at=datetime(2026, 7, 1, 3, 0, tzinfo=UTC)
+    )
+    canceled = await make_order(
+        db_session, user, status="취소", created_at=datetime(2026, 6, 10, 4, 0, tzinfo=UTC)
     )
     db_session.add_all(
         [
@@ -592,6 +629,15 @@ async def test_dashboard_top_products(client, db_session, settings):
                 quantity=5,
                 unit_price=20000,
             ),
+            # 취소 주문은 매출 랭킹에서 제외
+            OrderItem(
+                order_id=canceled.id,
+                item_id="top-5",
+                item_type="product",
+                product_id=scarf.id,
+                quantity=7,
+                unit_price=20000,
+            ),
         ]
     )
     await db_session.commit()
@@ -622,3 +668,11 @@ async def test_dashboard_top_products(client, db_session, settings):
     assert (
         await client.get("/admin/dashboard/top-products", params={"limit": 21}, headers=headers)
     ).status_code == 422
+
+    too_wide = await client.get(
+        "/admin/dashboard/top-products",
+        params={"start_date": "2026-01-01", "end_date": "2026-04-03"},  # 93일
+        headers=headers,
+    )
+    assert too_wide.status_code == 400
+    assert too_wide.json()["code"] == "invalid_range"
