@@ -55,7 +55,7 @@ export function CandidateGrid({
       ) : null}
 
       {candidates.length > 0 ? (
-        <Grid columns={2} gap="x3" aria-label="디자인 후보">
+        <Grid columns={{ base: 2, md: 4 }} gap="x3" aria-label="디자인 후보">
           {candidates.map((candidate, index) => {
             const selected = candidate.id === selectedId;
             return (
@@ -123,7 +123,7 @@ export function CandidateGridSkeleton() {
       <Text textStyle="bodySm" color="fg.neutral-muted">
         디자인을 생성하고 있어요. 수십 초 정도 걸릴 수 있어요.
       </Text>
-      <Grid columns={2} gap="x3">
+      <Grid columns={{ base: 2, md: 4 }} gap="x3">
         {Array.from({ length: 4 }, (_, index) => (
           <Skeleton
             key={index}

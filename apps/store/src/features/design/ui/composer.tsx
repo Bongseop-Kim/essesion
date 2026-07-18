@@ -6,13 +6,18 @@ import {
   HStack,
   Icon,
   Text,
-  TextAreaField,
   VStack,
 } from "@essesion/shared";
-import { CreditCardIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline";
-import type { FormEvent } from "react";
+import {
+  CreditCardIcon,
+  PaperAirplaneIcon,
+  PlusIcon,
+} from "@heroicons/react/24/outline";
+import { type FormEvent, type ReactNode, useState } from "react";
 
 import { krw } from "@/shared/lib/format";
+
+import { ChatInput } from "./chat-input";
 
 const CANDIDATE_COUNTS = [1, 2, 3, 4] as const;
 
@@ -28,6 +33,49 @@ export type ComposerHint = {
   prompt: string;
 };
 
+export type ComposerPanelItemProps = {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+};
+
+/** ＋ 패널의 원형 아이콘 + 아래 라벨 항목 (카카오톡 첨부 패널 스타일). */
+export function ComposerPanelItem({
+  icon,
+  label,
+  onClick,
+  disabled = false,
+}: ComposerPanelItemProps) {
+  return (
+    <Flex
+      as="button"
+      type="button"
+      direction="column"
+      align="center"
+      gap="x1_5"
+      onClick={onClick}
+      disabled={disabled}
+      className="group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+    >
+      <Flex
+        align="center"
+        justify="center"
+        width={52}
+        height={52}
+        borderRadius="full"
+        bg="bg.neutral-weak"
+        className="transition-colors duration-100 ease-standard group-hover:bg-bg-neutral-weak-hover group-active:bg-bg-neutral-weak-pressed"
+      >
+        {icon}
+      </Flex>
+      <Text textStyle="captionSm" color="fg.neutral">
+        {label}
+      </Text>
+    </Flex>
+  );
+}
+
 export type DesignComposerProps = {
   prompt: string;
   candidateCount: number;
@@ -42,6 +90,8 @@ export type DesignComposerProps = {
   loading?: boolean;
   disabled?: boolean;
   submitLabel?: string;
+  /** ＋ 패널 그리드에 붙는 슬롯 — ComposerPanelItem들을 넘긴다 (예: 내 세션·새로 만들기). */
+  sessionActions?: ReactNode;
 };
 
 export function DesignComposer({
@@ -58,7 +108,9 @@ export function DesignComposer({
   loading = false,
   disabled = false,
   submitLabel = "디자인 생성",
+  sessionActions,
 }: DesignComposerProps) {
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const submitDisabled = disabled || prompt.trim().length === 0;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -86,101 +138,108 @@ export function DesignComposer({
 
   return (
     <Box as="form" onSubmit={handleSubmit} width="full">
-      <VStack gap="x4" alignItems="stretch">
-        <TextAreaField
-          label="어떤 디자인을 만들까요?"
-          description="색상, 무늬, 분위기를 구체적으로 알려 주세요."
-          placeholder="예: 짙은 네이비 바탕에 작은 실버 도트가 반복되는 클래식 패턴"
+      <VStack gap="x3" alignItems="stretch">
+        <ChatInput
+          aria-label="어떤 디자인을 만들까요?"
+          placeholder="원하는 색상, 무늬, 분위기를 입력하세요"
           value={prompt}
           onChange={(event) => onPromptChange(event.currentTarget.value)}
-          autoResize
-          rows={3}
           disabled={disabled || loading}
+          leading={
+            <ActionButton
+              type="button"
+              variant="neutralWeak"
+              size="small"
+              iconOnly
+              aria-label="옵션 더보기"
+              aria-expanded={optionsOpen}
+              className={`rounded-full transition-transform duration-100 ease-standard ${optionsOpen ? "rotate-45" : ""}`}
+              onClick={() => setOptionsOpen((open) => !open)}
+            >
+              <Icon svg={<PlusIcon />} size={20} />
+            </ActionButton>
+          }
+          trailing={
+            <ActionButton
+              type="submit"
+              size="small"
+              iconOnly
+              aria-label={submitLabel}
+              loading={loading}
+              disabled={submitDisabled}
+              className="rounded-full"
+            >
+              <Icon svg={<PaperAirplaneIcon />} size={18} />
+            </ActionButton>
+          }
         />
 
-        {hints.length > 0 ? (
-          <VStack gap="x2" alignItems="stretch">
-            <Text textStyle="caption" color="fg.neutral-muted">
-              프롬프트 힌트
-            </Text>
-            <Flex wrap gap="x2">
-              {hints.map((hint) => (
-                <Chip
-                  key={hint.id}
-                  size="small"
-                  variant="outline"
-                  selected={prompt.includes(hint.prompt)}
-                  disabled={disabled || loading}
-                  onClick={() =>
-                    handleHintSelect(hint, prompt.includes(hint.prompt))
-                  }
-                >
-                  {hint.label}
-                </Chip>
-              ))}
+        {optionsOpen ? (
+          <VStack gap="x4" alignItems="stretch" pt="x1">
+            <HStack gap="x5" align="flex-start">
+              {sessionActions}
+              {onPurchaseTokens ? (
+                <ComposerPanelItem
+                  icon={<Icon svg={<CreditCardIcon />} size={24} />}
+                  label="충전"
+                  onClick={onPurchaseTokens}
+                  disabled={loading}
+                />
+              ) : null}
+            </HStack>
+
+            {hints.length > 0 ? (
+              <VStack gap="x2" alignItems="stretch">
+                <Text textStyle="caption" color="fg.neutral-muted">
+                  프롬프트 힌트
+                </Text>
+                <Flex wrap gap="x2">
+                  {hints.map((hint) => (
+                    <Chip
+                      key={hint.id}
+                      size="small"
+                      variant="outline"
+                      selected={prompt.includes(hint.prompt)}
+                      disabled={disabled || loading}
+                      onClick={() =>
+                        handleHintSelect(hint, prompt.includes(hint.prompt))
+                      }
+                    >
+                      {hint.label}
+                    </Chip>
+                  ))}
+                </Flex>
+              </VStack>
+            ) : null}
+
+            <VStack gap="x2" alignItems="stretch">
+              <Text textStyle="caption" color="fg.neutral-muted">
+                한 번에 만들 후보 수
+              </Text>
+              <HStack gap="x2" role="group" aria-label="후보 수">
+                {CANDIDATE_COUNTS.map((count) => (
+                  <Chip
+                    key={count}
+                    size="small"
+                    selected={candidateCount === count}
+                    disabled={disabled || loading}
+                    onClick={() => onCandidateCountChange(count)}
+                    aria-label={`후보 ${count}개`}
+                  >
+                    {count}개
+                  </Chip>
+                ))}
+              </HStack>
+            </VStack>
+
+            <Flex justify="flex-end">
+              <Text textStyle="captionSm" color="fg.neutral-subtle">
+                잔액 {formatTokens(balance)}토큰 · 생성 1회{" "}
+                {formatTokens(generateCost)}토큰
+              </Text>
             </Flex>
           </VStack>
         ) : null}
-
-        <VStack gap="x2" alignItems="stretch">
-          <Text textStyle="caption" color="fg.neutral-muted">
-            한 번에 만들 후보 수
-          </Text>
-          <HStack gap="x2" role="group" aria-label="후보 수">
-            {CANDIDATE_COUNTS.map((count) => (
-              <Chip
-                key={count}
-                size="small"
-                selected={candidateCount === count}
-                disabled={disabled || loading}
-                onClick={() => onCandidateCountChange(count)}
-                aria-label={`후보 ${count}개`}
-              >
-                {count}개
-              </Chip>
-            ))}
-          </HStack>
-        </VStack>
-
-        <Flex
-          direction={{ base: "column", sm: "row" }}
-          align={{ base: "stretch", sm: "center" }}
-          justify="space-between"
-          gap="x3"
-        >
-          <VStack gap="x0_5" alignItems="stretch">
-            <Text textStyle="caption" color="fg.neutral-muted">
-              잔액 {formatTokens(balance)}토큰
-            </Text>
-            <Text textStyle="captionSm" color="fg.neutral-subtle">
-              생성 1회 {formatTokens(generateCost)}토큰
-            </Text>
-          </VStack>
-
-          <HStack gap="x2" justify="flex-end">
-            {onPurchaseTokens ? (
-              <ActionButton
-                type="button"
-                variant="ghost"
-                size="small"
-                onClick={onPurchaseTokens}
-                disabled={loading}
-              >
-                <Icon svg={<CreditCardIcon />} size={16} />
-                충전
-              </ActionButton>
-            ) : null}
-            <ActionButton
-              type="submit"
-              size="large"
-              loading={loading}
-              disabled={submitDisabled}
-            >
-              <Icon svg={<PaperAirplaneIcon />} size={20} />
-              {submitLabel}
-            </ActionButton>
-          </HStack>
-        </Flex>
       </VStack>
     </Box>
   );

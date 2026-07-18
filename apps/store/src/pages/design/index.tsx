@@ -3,7 +3,6 @@ import {
   ActionButton,
   Box,
   Callout,
-  Divider,
   Grid,
   HStack,
   Icon,
@@ -17,7 +16,6 @@ import {
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
-  EyeIcon,
   FolderOpenIcon,
   PlusIcon,
   Squares2X2Icon,
@@ -66,7 +64,10 @@ import {
   useGenerateDesign,
 } from "@/features/design/model/use-generate";
 import { useDesignSelection } from "@/features/design/model/use-selection";
-import { DesignComposer } from "@/features/design/ui/composer";
+import {
+  ComposerPanelItem,
+  DesignComposer,
+} from "@/features/design/ui/composer";
 import {
   ExportDialog,
   type ExportDialogValue,
@@ -104,7 +105,7 @@ export function DesignPage() {
   const [newSessionMode, setNewSessionMode] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [candidateCount, setCandidateCount] = useState(4);
-  const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("repeat");
+  const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(
@@ -456,18 +457,29 @@ export function DesignPage() {
     setSessionsOpen(false);
   };
 
-  const actions = (
+  const actionProps = {
+    selected: !!selection?.intent,
+    canExport: !!selection?.candidate?.svg,
+    generateCost: balanceQuery.data?.generate_cost ?? null,
+    remainingFinalize,
+    loading: generateMutation.isPending,
+    onVariation: () => void generateVariation(),
+    onExport: openExport,
+    onFinalize: () => openFinalize(),
+  };
+  const panelActions = <DesignActions {...actionProps} />;
+  // 미리보기 모달 위에 다른 다이얼로그를 겹치지 않도록 모달을 닫고 연다.
+  const modalActions = (
     <DesignActions
-      selected={!!selection?.intent}
-      canExport={!!selection?.candidate?.svg}
-      generateCost={balanceQuery.data?.generate_cost ?? null}
-      remainingFinalize={remainingFinalize}
-      loading={generateMutation.isPending}
-      showPreview={compactPreview && !!selectedImageSrc}
-      onPreview={() => setPreviewOpen(true)}
-      onVariation={() => void generateVariation()}
-      onExport={openExport}
-      onFinalize={() => openFinalize()}
+      {...actionProps}
+      onExport={() => {
+        setPreviewOpen(false);
+        openExport();
+      }}
+      onFinalize={() => {
+        setPreviewOpen(false);
+        openFinalize();
+      }}
     />
   );
 
@@ -506,7 +518,7 @@ export function DesignPage() {
               imageSrc={selectedImageSrc}
               mode={previewMode}
               onModeChange={setPreviewMode}
-              actions={actions}
+              actions={panelActions}
             />
           </Box>
 
@@ -520,39 +532,9 @@ export function DesignPage() {
             borderRadius={{ base: 0, lg: "r4" }}
             bg="bg.layer-default"
           >
-            <HStack justify="space-between" gap="x3" px="x4" py="x3">
-              <VStack minWidth={0} gap="x0_5" alignItems="stretch">
-                <Text as="h1" textStyle="title3">
-                  AI 패턴 디자인
-                </Text>
-                <Text textStyle="captionSm" color="fg.neutral-subtle">
-                  {activeSessionId
-                    ? "작업 내용은 자동으로 저장돼요"
-                    : "새 디자인 세션"}
-                </Text>
-              </VStack>
-              <HStack gap="x1">
-                <ActionButton
-                  type="button"
-                  variant="ghost"
-                  size="small"
-                  onClick={() => setSessionsOpen(true)}
-                  disabled={!authenticated}
-                >
-                  <Icon svg={<FolderOpenIcon />} size={18} />내 세션
-                </ActionButton>
-                <ActionButton
-                  type="button"
-                  variant="ghost"
-                  size="small"
-                  onClick={startNewSession}
-                >
-                  <Icon svg={<PlusIcon />} size={18} />
-                  새로 만들기
-                </ActionButton>
-              </HStack>
-            </HStack>
-            <Divider />
+            <Text as="h1" className="sr-only">
+              AI 패턴 디자인
+            </Text>
 
             <Box
               minHeight={0}
@@ -595,11 +577,6 @@ export function DesignPage() {
                 />
               </Box>
             ) : null}
-            {compactPreview && selection?.intent ? (
-              <Box px="x4" pt="x3">
-                {actions}
-              </Box>
-            ) : null}
             <Box
               px="x4"
               py="x4"
@@ -617,6 +594,21 @@ export function DesignPage() {
                 onPurchaseTokens={() => navigate("/token/purchase")}
                 loading={generateMutation.isPending}
                 disabled={status === "loading"}
+                sessionActions={
+                  <>
+                    <ComposerPanelItem
+                      icon={<Icon svg={<FolderOpenIcon />} size={24} />}
+                      label="내 세션"
+                      onClick={() => setSessionsOpen(true)}
+                      disabled={!authenticated}
+                    />
+                    <ComposerPanelItem
+                      icon={<Icon svg={<PlusIcon />} size={24} />}
+                      label="새로 만들기"
+                      onClick={startNewSession}
+                    />
+                  </>
+                }
               />
             </Box>
           </VStack>
@@ -629,6 +621,7 @@ export function DesignPage() {
         imageSrc={selectedImageSrc}
         mode={previewMode}
         onModeChange={setPreviewMode}
+        actions={modalActions}
       />
       <FinalizeDialog
         open={finalizeOpen}
@@ -699,8 +692,6 @@ function DesignActions({
   generateCost,
   remainingFinalize,
   loading,
-  showPreview,
-  onPreview,
   onVariation,
   onExport,
   onFinalize,
@@ -710,25 +701,12 @@ function DesignActions({
   generateCost: number | null;
   remainingFinalize: number;
   loading: boolean;
-  showPreview: boolean;
-  onPreview: () => void;
   onVariation: () => void;
   onExport: () => void;
   onFinalize: () => void;
 }) {
   return (
     <HStack gap="x2" wrap>
-      {showPreview ? (
-        <ActionButton
-          type="button"
-          size="small"
-          variant="neutralWeak"
-          onClick={onPreview}
-        >
-          <Icon svg={<EyeIcon />} size={18} />
-          미리보기
-        </ActionButton>
-      ) : null}
       <ActionButton
         type="button"
         size="small"
