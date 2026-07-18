@@ -1085,6 +1085,58 @@ export const zDashboardSummaryOut = z.object({
 });
 
 /**
+ * DashboardTimeseriesPointOut
+ */
+export const zDashboardTimeseriesPointOut = z.object({
+    day: z.iso.date(),
+    generation_failed: z.int(),
+    generation_total: z.int(),
+    new_customer_count: z.int(),
+    order_amount: z.int(),
+    order_count: z.int(),
+    token_consumed: z.int(),
+    token_sold: z.int()
+});
+
+/**
+ * DashboardTimeseriesOut
+ */
+export const zDashboardTimeseriesOut = z.object({
+    as_of: z.iso.datetime(),
+    end_date: z.iso.date(),
+    order_type: z.enum([
+        'all',
+        'sale',
+        'custom',
+        'repair',
+        'token',
+        'sample'
+    ]),
+    points: z.array(zDashboardTimeseriesPointOut),
+    start_date: z.iso.date()
+});
+
+/**
+ * DashboardTopProductOut
+ */
+export const zDashboardTopProductOut = z.object({
+    amount: z.int(),
+    name: z.string(),
+    product_id: z.int(),
+    quantity: z.int()
+});
+
+/**
+ * DashboardTopProductsOut
+ */
+export const zDashboardTopProductsOut = z.object({
+    as_of: z.iso.datetime(),
+    end_date: z.iso.date(),
+    items: z.array(zDashboardTopProductOut),
+    start_date: z.iso.date()
+});
+
+/**
  * DesignExportRequest
  *
  * SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
@@ -3378,6 +3430,35 @@ export const zGetDashboardSummaryQuery = z.object({
  * Successful Response
  */
 export const zGetDashboardSummaryResponse = zDashboardSummaryOut;
+
+export const zGetDashboardTimeseriesQuery = z.object({
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    order_type: z.enum([
+        'all',
+        'sale',
+        'custom',
+        'repair',
+        'token',
+        'sample'
+    ]).optional().default('all')
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDashboardTimeseriesResponse = zDashboardTimeseriesOut;
+
+export const zGetDashboardTopProductsQuery = z.object({
+    start_date: z.iso.date().nullish(),
+    end_date: z.iso.date().nullish(),
+    limit: z.int().gte(1).lte(20).optional().default(5)
+});
+
+/**
+ * Successful Response
+ */
+export const zGetDashboardTopProductsResponse = zDashboardTopProductsOut;
 
 export const zListAdminGenerationJobsQuery = z.object({
     job_id: z.uuid().nullish(),

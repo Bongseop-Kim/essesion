@@ -1,12 +1,15 @@
 import type {
   AdminOrderSummaryOut,
   DashboardRecentQuoteOut,
+  DashboardTopProductOut,
 } from "@essesion/api-client";
 import {
   getAdminCapabilitiesOptions,
   getDashboardRecentOrdersOptions,
   getDashboardRecentQuotesOptions,
   getDashboardSummaryOptions,
+  getDashboardTimeseriesOptions,
+  getDashboardTopProductsOptions,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -19,6 +22,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime, formatMoney } from "../shared/lib/format";
@@ -30,6 +34,7 @@ import {
   AdminTable,
   type AdminTableColumn,
 } from "../widgets/admin-table/admin-table";
+import { TrendChart } from "../widgets/dashboard-charts/trend-chart";
 
 const ORDER_TYPES = [
   { value: "all", label: "전체 주문" },
@@ -126,6 +131,56 @@ const quoteColumns: readonly AdminTableColumn<DashboardRecentQuoteOut>[] = [
   },
 ];
 
+const BRAND_COLOR = "var(--color-bg-brand-solid)";
+const POSITIVE_COLOR = "var(--color-bg-positive-solid)";
+const CRITICAL_COLOR = "var(--color-bg-critical-solid)";
+const INFORMATIVE_COLOR = "var(--color-bg-informative-solid)";
+
+const topProductColumns: readonly AdminTableColumn<
+  DashboardTopProductOut & { rank: number }
+>[] = [
+  {
+    key: "rank",
+    header: "순위",
+    render: (product) => `${product.rank}위`,
+  },
+  {
+    key: "name",
+    header: "상품명",
+    render: (product) => (
+      <Link to={`/products/${product.product_id}`}>{product.name}</Link>
+    ),
+  },
+  {
+    key: "quantity",
+    header: "판매 수량",
+    align: "end",
+    render: (product) => `${product.quantity.toLocaleString("ko")}개`,
+  },
+  {
+    key: "amount",
+    header: "판매 금액",
+    align: "end",
+    render: (product) => formatMoney(product.amount),
+  },
+];
+
+function ChartCard({
+  title,
+  loading,
+  children,
+}: {
+  title: string;
+  loading: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <AdminCard title={title}>
+      {loading ? <Skeleton width="100%" height={240} /> : children}
+    </AdminCard>
+  );
+}
+
 function MetricCard({
   label,
   value,
@@ -176,6 +231,20 @@ export function DashboardPage() {
         ? 30_000
         : false,
   });
+  const timeseries = useQuery(
+    getDashboardTimeseriesOptions({
+      query: {
+        start_date: startDate,
+        end_date: endDate,
+        order_type: orderType,
+      },
+    }),
+  );
+  const topProducts = useQuery(
+    getDashboardTopProductsOptions({
+      query: { start_date: startDate, end_date: endDate, limit: 5 },
+    }),
+  );
   const recentOrders = useQuery(
     getDashboardRecentOrdersOptions({
       query: { order_type: orderType, limit: 5 },
@@ -196,11 +265,22 @@ export function DashboardPage() {
   const refresh = () => {
     void Promise.all([
       summary.refetch(),
+      timeseries.refetch(),
+      topProducts.refetch(),
       recentOrders.refetch(),
       recentQuotes.refetch(),
       capabilities.refetch(),
     ]);
   };
+
+  // 생성 스택 차트용 파생값 — '정상' = 실패 외(성공·대기·진행 포함)
+  const points = (timeseries.data?.points ?? []).map((point) => ({
+    ...point,
+    generation_ok: point.generation_total - point.generation_failed,
+  }));
+  const rankedProducts = (topProducts.data?.items ?? []).map(
+    (product, index) => ({ ...product, rank: index + 1 }),
+  );
 
   const data = summary.data;
   const capabilityEntries = Object.entries(capabilities.data ?? {}).map(
@@ -344,6 +424,134 @@ export function DashboardPage() {
         조회 기간 {startDate} ~ {endDate} · 기준 시각{" "}
         {formatDateTime(data?.as_of)} · 모든 날짜 경계는 Asia/Seoul 기준
       </Text>
+
+      {timeseries.isError && (
+        <Callout
+          tone="critical"
+          title="일별 추이를 불러오지 못했습니다"
+          description="조회 기간을 확인하거나 다시 시도해 주세요. 최대 92일까지 조회할 수 있습니다."
+          onClick={() => void timeseries.refetch()}
+        />
+      )}
+
+      <Grid columns={{ base: 1, lg: 2 }} gap="x3">
+        <ChartCard title="매출 추이" loading={timeseries.isLoading}>
+          <TrendChart
+            data={points}
+            series={[
+              {
+                key: "order_amount",
+                label: "주문 금액",
+                color: BRAND_COLOR,
+                kind: "bar",
+              },
+            ]}
+            tooltipRows={(point) => [
+              {
+                label: "주문 금액",
+                value: formatMoney(point.order_amount),
+                color: BRAND_COLOR,
+              },
+              { label: "주문 수", value: `${point.order_count}건` },
+            ]}
+          />
+        </ChartCard>
+        <ChartCard title="신규 가입" loading={timeseries.isLoading}>
+          <TrendChart
+            data={points}
+            series={[
+              {
+                key: "new_customer_count",
+                label: "신규 가입",
+                color: BRAND_COLOR,
+                kind: "bar",
+              },
+            ]}
+            valueFormatter={(value) => `${value.toLocaleString("ko")}명`}
+          />
+        </ChartCard>
+        <ChartCard title="이미지 생성" loading={timeseries.isLoading}>
+          <TrendChart
+            data={points}
+            series={[
+              {
+                key: "generation_ok",
+                label: "정상",
+                color: POSITIVE_COLOR,
+                kind: "bar",
+                stackId: "generation",
+              },
+              {
+                key: "generation_failed",
+                label: "실패",
+                color: CRITICAL_COLOR,
+                kind: "bar",
+                stackId: "generation",
+              },
+            ]}
+            tooltipRows={(point) => [
+              {
+                label: "전체",
+                value: `${point.generation_total.toLocaleString("ko")}건`,
+              },
+              {
+                label: "실패",
+                value: `${point.generation_failed.toLocaleString("ko")}건`,
+                color: CRITICAL_COLOR,
+              },
+              {
+                label: "실패율",
+                value:
+                  point.generation_total > 0
+                    ? `${Math.round((point.generation_failed / point.generation_total) * 100)}%`
+                    : "-",
+              },
+            ]}
+          />
+        </ChartCard>
+        <ChartCard title="토큰 판매·소모" loading={timeseries.isLoading}>
+          <TrendChart
+            data={points}
+            series={[
+              {
+                key: "token_sold",
+                label: "판매",
+                color: POSITIVE_COLOR,
+                kind: "line",
+              },
+              {
+                key: "token_consumed",
+                label: "소모",
+                color: INFORMATIVE_COLOR,
+                kind: "line",
+              },
+            ]}
+            valueFormatter={(value) => `${value.toLocaleString("ko")}개`}
+          />
+        </ChartCard>
+      </Grid>
+
+      <AdminCard
+        title="인기 상품 TOP 5"
+        description="조회 기간 내 판매 수량 기준 (커스텀·수선 항목 제외)"
+        action={<Link to="/products">전체 보기</Link>}
+      >
+        <AdminTable
+          label="인기 상품"
+          columns={topProductColumns}
+          rows={rankedProducts}
+          getRowKey={(row) => String(row.product_id)}
+          onRowClick={(row) => navigate(`/products/${row.product_id}`)}
+          status={
+            topProducts.isLoading
+              ? "loading"
+              : topProducts.isError
+                ? "error"
+                : "success"
+          }
+          onRetry={() => void topProducts.refetch()}
+        />
+      </AdminCard>
 
       <AdminCard
         title="최근 주문"

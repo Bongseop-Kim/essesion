@@ -69,6 +69,7 @@ import { InquirySection } from "@/features/inquiry";
 import { ReviewListSection } from "@/features/reviews";
 import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
+import { trackEvent } from "@/shared/lib/analytics";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
@@ -384,6 +385,8 @@ function CustomOrderPageContent({
           reference_images: imageRefs,
         },
       });
+      // contact_* 등 연락처 정보는 절대 넣지 않는다
+      trackEvent("quote_request", { quantity: options.quantity });
       await queryClient.invalidateQueries({
         queryKey: listMyQuotesQueryKey(),
         refetchType: "all",

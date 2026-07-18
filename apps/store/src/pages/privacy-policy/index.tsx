@@ -81,6 +81,7 @@ export function PrivacyPolicyContent() {
             "Solapi: 휴대폰 인증과 서비스 알림 메시지 발송",
             "Google·Kakao: 소셜 로그인 인증",
             "Google Gemini·OpenAI·Recraft: AI 디자인 기능에서 입력한 프롬프트·참조 이미지 처리",
+            "Google Analytics: 서비스 이용 통계 분석 (제6조 참조)",
           ]}
         />
         <Text as="p" {...bodyProps}>
@@ -93,14 +94,31 @@ export function PrivacyPolicyContent() {
         <PolicyList
           items={[
             "Cloudflare, Inc.(미국): 웹 콘텐츠 전송과 보안 프록시 운영을 위해 접속 기록(IP 주소, 브라우저·기기 정보)을 전 세계 엣지 서버에서 처리하며, 처리 목적 달성 또는 위탁 계약 종료 시 파기합니다. 연락처: privacyquestions@cloudflare.com",
-            "Google LLC(미국): 소셜 로그인 인증과 Gemini API를 통한 AI 디자인 생성을 위해 계정 식별 정보, 프롬프트와 참조 이미지를 처리합니다. 소셜 로그인 계정 식별 정보는 위 제3조의 계정 보유기간 동안 인증에 이용되며, Gemini API에 입력한 프롬프트와 참조 이미지는 모델 학습에 사용되지 않고 부정 사용 감시 목적으로 최대 55일 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
+            "Google LLC(미국): 소셜 로그인 인증, Gemini API를 통한 AI 디자인 생성, Google Analytics를 통한 서비스 이용 통계 분석을 위해 계정 식별 정보, 프롬프트와 참조 이미지, 쿠키 기반 식별자와 서비스 이용 기록을 처리합니다. 소셜 로그인 계정 식별 정보는 위 제3조의 계정 보유기간 동안 인증에 이용되고, Gemini API에 입력한 프롬프트와 참조 이미지는 모델 학습에 사용되지 않고 부정 사용 감시 목적으로 최대 55일 보관 후 파기되며, Google Analytics 수집 정보는 수집일로부터 최대 14개월 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
             "OpenAI, L.L.C.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. API 입력 데이터는 모델 학습에 사용되지 않으며, 부정 사용 감시 목적으로 최대 30일 보관 후 삭제됩니다. 연락처: privacy@openai.com",
             "Recraft, Inc.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. 입력 데이터는 결과 생성에만 사용되고 모델 학습에 사용되지 않으며, 결과 전달 후 저장하지 않습니다. 연락처: recraft.ai/legal/privacy",
           ]}
         />
       </PolicySection>
 
-      <PolicySection title="6. 정보주체의 권리와 행사 방법">
+      <PolicySection title="6. 쿠키 등 자동수집 장치의 설치·운영 및 거부">
+        <Text as="p" {...bodyProps}>
+          회사는 서비스 이용 현황을 파악하고 품질을 개선하기 위해 쿠키를
+          사용하며, Google Analytics를 통해 방문·이용 통계를 분석합니다. 이
+          과정에서 쿠키 기반 식별자, 방문 일시와 이용 기록, 접속 기기·브라우저
+          정보가 수집됩니다. 수집된 정보는 통계 분석 목적으로만 사용하고 맞춤형
+          광고에는 사용하지 않으며, 이름·연락처 등 개인을 직접 식별하는 정보와
+          결합하지 않습니다.
+        </Text>
+        <PolicyList
+          items={[
+            "거부 방법 1: 브라우저 설정에서 쿠키 저장을 차단하거나 기존 쿠키를 삭제할 수 있습니다. 다만 일부 기능(로그인 유지 등)의 이용이 제한될 수 있습니다.",
+            "거부 방법 2: Google Analytics 수집만 차단하려면 Google이 제공하는 차단 브라우저 부가기능(tools.google.com/dlpage/gaoptout)을 설치할 수 있습니다.",
+          ]}
+        />
+      </PolicySection>
+
+      <PolicySection title="7. 정보주체의 권리와 행사 방법">
         <Text as="p" {...bodyProps}>
           정보주체는 개인정보의 열람, 정정·삭제, 처리정지 및 동의 철회를 요청할
           수 있습니다. 계정 정보와 알림 설정은 마이페이지에서 변경할 수 있고, 그
@@ -109,7 +127,7 @@ export function PrivacyPolicyContent() {
         </Text>
       </PolicySection>
 
-      <PolicySection title="7. 개인정보의 파기 및 안전성 확보조치">
+      <PolicySection title="8. 개인정보의 파기 및 안전성 확보조치">
         <Text as="p" {...bodyProps}>
           전자적 파일은 복구하기 어려운 방법으로 삭제하고, 출력물은 분쇄하거나
           소각합니다. 회사는 접근권한 최소화, 인증정보 암호화, 전송구간 보호,
@@ -118,7 +136,7 @@ export function PrivacyPolicyContent() {
         </Text>
       </PolicySection>
 
-      <PolicySection title="8. 개인정보 보호책임자 및 고충처리">
+      <PolicySection title="9. 개인정보 보호책임자 및 고충처리">
         <Text as="p" {...bodyProps}>
           개인정보 처리와 관련한 문의, 불만 처리와 피해구제 요청은 아래 담당
           창구로 접수할 수 있습니다.
@@ -131,7 +149,7 @@ export function PrivacyPolicyContent() {
         </PolicyInfoBox>
       </PolicySection>
 
-      <PolicySection title="9. 개인정보처리방침의 변경">
+      <PolicySection title="10. 개인정보처리방침의 변경">
         <Text as="p" {...bodyProps}>
           이 방침의 내용이 변경되면 시행일과 주요 변경사항을 공지사항을 통해
           안내합니다.

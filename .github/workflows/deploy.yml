@@ -1,7 +1,7 @@
 # 스테이징 배포 — 선행: tofu apply(infra/README.md) + GitHub vars/secrets 설정
 # vars: GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_DEPLOYER_SA,
 #       CLOUDFLARE_ACCOUNT_ID, VITE_API_BASE_URL, VITE_TOSS_CLIENT_KEY,
-#       VITE_SENTRY_DSN, VITE_SENTRY_ENVIRONMENT
+#       VITE_SENTRY_DSN, VITE_SENTRY_ENVIRONMENT, VITE_GA_MEASUREMENT_ID
 # secrets: CLOUDFLARE_API_TOKEN
 name: deploy
 
@@ -100,6 +100,7 @@ jobs:
       VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
       VITE_SENTRY_ENVIRONMENT: ${{ vars.VITE_SENTRY_ENVIRONMENT }}
       VITE_SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
+      VITE_GA_MEASUREMENT_ID: ${{ vars.VITE_GA_MEASUREMENT_ID }}
       API_PROXY_ORIGIN: ${{ needs.backend.outputs.api_origin }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

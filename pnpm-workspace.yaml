@@ -27,6 +27,7 @@ catalog:
   motion: ^12.42.2
   react-hook-form: ^7.81.0
   react-router: ^8.1.0
+  recharts: ^3.9.2
   jsdom: ^26.1.0
   tailwind-merge: ^3.6.0
   tailwindcss: ^4.3.2

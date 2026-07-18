@@ -27,6 +27,7 @@ import {
   type RepairShipmentDraft,
   submitRepairShipment,
 } from "@/features/repair-shipping";
+import { trackEvent } from "@/shared/lib/analytics";
 import { useSession } from "@/shared/store/session";
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
@@ -76,6 +77,18 @@ export function PaymentSuccessPage() {
       const context = confirmationContext.current;
       const pending =
         context.value?.paymentGroupId === paymentGroupId ? context.value : null;
+      // 새로고침 재confirm 시에도 발화되지만 transaction_id로 GA가 dedup한다.
+      // paymentKey·orderId 원문은 넣지 않는다.
+      trackEvent("purchase", {
+        currency: "KRW",
+        value:
+          pending?.totalAmount ??
+          // usePaymentConfirm이 amount 정수·양수 검증을 통과한 뒤에만 여기 도달한다
+          Number(
+            new URLSearchParams(window.location.search).get("amount") ?? 0,
+          ),
+        transaction_id: result.orders[0]?.order_number,
+      });
       const initialOwnerState = await waitForSettledPaymentOwner(
         context.ownerUserId,
       );

@@ -21,6 +21,8 @@ from api.domains.admin.schemas import (
     DashboardRecentOrdersPage,
     DashboardRecentQuotesPage,
     DashboardSummaryOut,
+    DashboardTimeseriesOut,
+    DashboardTopProductsOut,
     OrderSort,
     OrderStatusFilter,
     OrderTypeFilter,
@@ -111,6 +113,40 @@ async def get_dashboard_summary(
         start_date=start_date,
         end_date=end_date,
         order_type=order_type,
+    )
+
+
+@router.get("/dashboard/timeseries", response_model=DashboardTimeseriesOut)
+async def get_dashboard_timeseries(
+    session: SessionDep,
+    admin: AdminUser,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    order_type: OrderTypeFilter = "all",
+) -> DashboardTimeseriesOut:
+    return await order_queries.dashboard_timeseries(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        order_type=order_type,
+    )
+
+
+@router.get("/dashboard/top-products", response_model=DashboardTopProductsOut)
+async def get_dashboard_top_products(
+    session: SessionDep,
+    admin: AdminUser,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    limit: Annotated[
+        int, Query(ge=1, le=order_queries.MAX_TOP_PRODUCT_LIMIT)
+    ] = order_queries.DEFAULT_TOP_PRODUCT_LIMIT,
+) -> DashboardTopProductsOut:
+    return await order_queries.dashboard_top_products(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
     )
 
 

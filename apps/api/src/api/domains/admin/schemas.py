@@ -93,6 +93,39 @@ class DashboardRecentOrdersPage(Page[AdminOrderSummaryOut]):
     as_of: datetime
 
 
+class DashboardTimeseriesPointOut(BaseModel):
+    day: date
+    order_count: int
+    order_amount: int
+    new_customer_count: int
+    generation_total: int
+    generation_failed: int
+    token_consumed: int
+    token_sold: int
+
+
+class DashboardTimeseriesOut(BaseModel):
+    start_date: date
+    end_date: date
+    order_type: OrderTypeFilter
+    points: list[DashboardTimeseriesPointOut]
+    as_of: datetime
+
+
+class DashboardTopProductOut(BaseModel):
+    product_id: int
+    name: str
+    quantity: int
+    amount: int
+
+
+class DashboardTopProductsOut(BaseModel):
+    start_date: date
+    end_date: date
+    items: list[DashboardTopProductOut]
+    as_of: datetime
+
+
 class DashboardRecentQuoteOut(BaseModel):
     id: uuid.UUID
     quote_number: str

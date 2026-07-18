@@ -20,6 +20,7 @@ import {
   waitForSettledPaymentOwner,
 } from "@/features/checkout";
 import { krw } from "@/pages/shop/constants";
+import { trackEvent } from "@/shared/lib/analytics";
 import { useSession } from "@/shared/store/session";
 import { ResultEmoji } from "@/shared/ui/result-emoji";
 import { ResultPageLayout } from "@/shared/ui/result-page-layout";
@@ -46,6 +47,16 @@ export function TokenPurchaseSuccessPage() {
         context.pending?.paymentGroupId === paymentGroupId
           ? context.pending
           : null;
+      // 새로고침 재confirm 시에도 발화되지만 GA 세션 내 동일 파라미터로 사실상 dedup된다
+      trackEvent("token_purchase", {
+        currency: "KRW",
+        value:
+          pending?.totalAmount ??
+          Number(
+            new URLSearchParams(window.location.search).get("amount") ?? 0,
+          ),
+        token_amount: result.token_amount ?? 0,
+      });
       const ownerState = await waitForSettledPaymentOwner(context.ownerUserId);
       if (pending) {
         clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);

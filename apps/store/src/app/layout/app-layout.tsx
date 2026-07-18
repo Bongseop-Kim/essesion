@@ -24,6 +24,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 import { AuthGuardProvider, LogoutButton } from "@/features/auth";
+import { trackPageView } from "@/shared/lib/analytics";
 import { useSession } from "@/shared/store/session";
 
 const STORE_NAV_ITEMS = [
@@ -234,6 +235,11 @@ export function AppLayout() {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [location.key]);
+
+  // pathname 키 — 같은 경로에서 쿼리만 바뀌는 필터 조작은 중복 발화하지 않는다
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
 
   return (
     <AuthGuardProvider>

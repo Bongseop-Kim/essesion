@@ -2955,6 +2955,114 @@ export type DashboardSummaryOut = {
 };
 
 /**
+ * DashboardTimeseriesOut
+ */
+export type DashboardTimeseriesOut = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Order Type
+     */
+    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    /**
+     * Points
+     */
+    points: Array<DashboardTimeseriesPointOut>;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
+ * DashboardTimeseriesPointOut
+ */
+export type DashboardTimeseriesPointOut = {
+    /**
+     * Day
+     */
+    day: string;
+    /**
+     * Generation Failed
+     */
+    generation_failed: number;
+    /**
+     * Generation Total
+     */
+    generation_total: number;
+    /**
+     * New Customer Count
+     */
+    new_customer_count: number;
+    /**
+     * Order Amount
+     */
+    order_amount: number;
+    /**
+     * Order Count
+     */
+    order_count: number;
+    /**
+     * Token Consumed
+     */
+    token_consumed: number;
+    /**
+     * Token Sold
+     */
+    token_sold: number;
+};
+
+/**
+ * DashboardTopProductOut
+ */
+export type DashboardTopProductOut = {
+    /**
+     * Amount
+     */
+    amount: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Product Id
+     */
+    product_id: number;
+    /**
+     * Quantity
+     */
+    quantity: number;
+};
+
+/**
+ * DashboardTopProductsOut
+ */
+export type DashboardTopProductsOut = {
+    /**
+     * As Of
+     */
+    as_of: string;
+    /**
+     * End Date
+     */
+    end_date: string;
+    /**
+     * Items
+     */
+    items: Array<DashboardTopProductOut>;
+    /**
+     * Start Date
+     */
+    start_date: string;
+};
+
+/**
  * DesignExportRequest
  *
  * SVG → PNG/TIFF 형식 변환 — 이미 생성된 디자인의 재출력이라 토큰 과금 없음.
@@ -7882,6 +7990,82 @@ export type GetDashboardSummaryResponses = {
 };
 
 export type GetDashboardSummaryResponse = GetDashboardSummaryResponses[keyof GetDashboardSummaryResponses];
+
+export type GetDashboardTimeseriesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Order Type
+         */
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    };
+    url: '/admin/dashboard/timeseries';
+};
+
+export type GetDashboardTimeseriesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardTimeseriesError = GetDashboardTimeseriesErrors[keyof GetDashboardTimeseriesErrors];
+
+export type GetDashboardTimeseriesResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardTimeseriesOut;
+};
+
+export type GetDashboardTimeseriesResponse = GetDashboardTimeseriesResponses[keyof GetDashboardTimeseriesResponses];
+
+export type GetDashboardTopProductsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/admin/dashboard/top-products';
+};
+
+export type GetDashboardTopProductsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardTopProductsError = GetDashboardTopProductsErrors[keyof GetDashboardTopProductsErrors];
+
+export type GetDashboardTopProductsResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardTopProductsOut;
+};
+
+export type GetDashboardTopProductsResponse = GetDashboardTopProductsResponses[keyof GetDashboardTopProductsResponses];
 
 export type ListAdminGenerationJobsData = {
     body?: never;

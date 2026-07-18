@@ -24,6 +24,7 @@ import {
 } from "@/features/auth/model/return-after-login";
 import { syncGuestCartToAccount } from "@/features/cart";
 import { API_BASE_URL } from "@/shared/config/env";
+import { trackEvent } from "@/shared/lib/analytics";
 import {
   authenticateCurrentToken,
   clearStoreSession,
@@ -60,6 +61,7 @@ export function LoginPage() {
           clearStoreSession();
           return;
         }
+        trackEvent("login", { method: "password" });
         const fallback = (location.state as { from?: unknown } | null)?.from;
         const destination = takeAuthReturn() ?? {
           path: typeof fallback === "string" ? fallback : "/",
