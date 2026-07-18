@@ -63,7 +63,9 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 ```bash
 printf '%s' '<값>' | gcloud secrets versions add toss-secret-key --data-file=- --project=essesion-staging
 # 수집한 기존 값: solapi-api-key solapi-api-secret google-client-secret kakao-client-secret
-#                 openai-api-key gemini-api-key recraft-api-key sentry-dsn-api sentry-dsn-worker
+#                 naver-client-secret openai-api-key gemini-api-key recraft-api-key
+#                 sentry-dsn-api sentry-dsn-worker
+# apple-private-key는 .p8 파일을 통째로: gcloud secrets versions add apple-private-key --data-file=<AuthKey.p8 경로>
 
 # 새 환경마다 독립적으로 생성할 값(각 명령을 따로 실행)
 openssl rand -base64 48 | gcloud secrets versions add jwt-secret --data-file=- --project=essesion-staging
