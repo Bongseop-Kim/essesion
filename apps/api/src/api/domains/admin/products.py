@@ -33,7 +33,7 @@ from api.domains.admin.schemas import Page
 from api.domains.admin.types import SortDirection
 from api.domains.products.schemas import Category, Color, Material, Pattern, ProductOptionOut
 from api.errors import ConflictError, DomainError, NotFoundError
-from api.integrations.gcs import public_asset_url
+from api.integrations.gcs import assets_bucket_name, public_asset_url
 from api.numbering import generate_number
 
 router = APIRouter(prefix="/admin/products", tags=["admin-products"])
@@ -61,8 +61,12 @@ def _assets_bucket(request: Request) -> str:
     settings = request.app.state.settings
     if settings.gcs_assets_bucket:
         return settings.gcs_assets_bucket
-    if settings.env in ("local", "test") and request.app.state.gcs.capability_mode == "dry_run":
-        return "dry-run-product-assets"
+    if settings.env in ("local", "test") and request.app.state.gcs.capability_mode in (
+        "dry_run",
+        "local",
+    ):
+        # public_asset_url이 가리키는 assets 버킷과 같은 이름이어야 로컬 서빙 URL이 맞는다
+        return assets_bucket_name(settings) or "dry-run-assets"
     raise DomainError(
         "상품 이미지 저장소를 사용할 수 없습니다",
         code="product_assets_unavailable",

@@ -34,6 +34,7 @@ from worker.engine.composition import compose
 from worker.engine.palette import hex_to_rgb
 from worker.engine.units import mm_to_px
 from worker.engine.validate import validate_intent
+from worker.motifs.registry import MotifCatalog, iter_motif_ids, resolve_motif
 from worker.render import inlay, materials, raster
 from worker.render import segment as segment_mod
 from worker.render.inlay import MOTIF_WEAVE
@@ -48,8 +49,16 @@ class FabricError(ValueError):
     """잘못된 fabric 요청(unknown weave/colorway/slot 등). 영구 실패 — 라우트는 failed 기록."""
 
 
-def _render_design(intent, palette, colorway_id, *, dpi: int, tile_mm: float) -> Image.Image:
-    svg = compose(intent, palette, colorway_id)
+def _render_design(
+    intent,
+    palette,
+    colorway_id,
+    *,
+    dpi: int,
+    tile_mm: float,
+    motifs: MotifCatalog | None = None,
+) -> Image.Image:
+    svg = compose(intent, palette, colorway_id, motifs)
     png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi)
     return Image.open(io.BytesIO(png)).convert("RGB")
 
@@ -60,13 +69,23 @@ def _encode(out: Image.Image, dpi: int) -> bytes:
     return buf.getvalue()
 
 
-def render_fabric(params: dict[str, Any], settings: Settings) -> bytes:
+def render_fabric(
+    params: dict[str, Any], settings: Settings, motifs: MotifCatalog | None = None
+) -> bytes:
     intent_raw = params.get("intent")
     if not isinstance(intent_raw, dict):
         raise FabricError("finalize params require an `intent`")
     result = validate_intent(intent_raw)
     intent = result.intent
     palette = result.palette
+
+    # 모티프는 렌더 깊숙이에서 resolve된다 — 미등록을 여기서 영구 실패로 확정해
+    # 일시 실패로 오분류된 무의미한 재시도를 막는다.
+    for motif_id in sorted(iter_motif_ids(intent_raw)):
+        try:
+            resolve_motif(motif_id, motifs)
+        except ValueError as exc:
+            raise FabricError(str(exc)) from None
 
     dpi = int(params.get("dpi") or settings.fabric_dpi)
     if not 0 < dpi <= settings.max_dpi:
@@ -104,7 +123,9 @@ def render_fabric(params: dict[str, Any], settings: Settings) -> bytes:
             raise FabricError("print method requires a twill weave")
         if material_map:
             raise FabricError("material_map is only valid for yarn_dyed")
-        design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)
+        design = _render_design(
+            intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs
+        )
         return _encode(apply_weave(design, weave, strength), dpi)
 
     # --- yarn_dyed ---
@@ -127,13 +148,16 @@ def render_fabric(params: dict[str, Any], settings: Settings) -> bytes:
             relief=relief,
             dpi=dpi,
             tile_mm=tile_mm,
+            motifs=motifs,
         )
         return _encode(out, dpi)
 
-    design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)
+    design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs)
     seg = None
     if material_map or relief > 0:
-        seg = segment_mod.segment(intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=False)
+        seg = segment_mod.segment(
+            intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=False, motifs=motifs
+        )
     out = materials.apply_materials(
         design, weave=weave, material_map=material_map, strength=strength, seg=seg
     )
@@ -154,23 +178,30 @@ def _render_yarn_dyed_motifs(
     relief: float,
     dpi: int,
     tile_mm: float,
+    motifs: MotifCatalog | None = None,
 ) -> Image.Image:
     n_px = max(1, mm_to_px(tile_mm, dpi)) ** 2
     if n_px > _MAX_INLAY_PIXELS:
         raise FabricError(f"motif inlay exceeds {_MAX_INLAY_PIXELS}px; lower dpi or tile_mm")
 
-    seg = segment_mod.segment(intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=True)  # R1
+    seg = segment_mod.segment(
+        intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=True, motifs=motifs
+    )  # R1
     base_intent = segment_mod.without_motif_layers(intent)
     if base_intent is None or not seg.motif_masks:
         # 모티프만 있는 intent(base 없음) — 실색 fallback(정상 경로 아님)
-        design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)
+        design = _render_design(
+            intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs
+        )
         return apply_weave(design, weave, strength)
 
-    base_design = _render_design(base_intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm)  # R2
+    base_design = _render_design(
+        base_intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs
+    )  # R2
     base_seg = None
     if material_map:
         base_seg = segment_mod.segment(
-            base_intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=False
+            base_intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=False, motifs=motifs
         )  # R3
     base = materials.apply_materials(
         base_design, weave=weave, material_map=material_map, strength=strength, seg=base_seg

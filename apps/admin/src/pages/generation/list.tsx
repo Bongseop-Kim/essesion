@@ -49,7 +49,13 @@ import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
 const TABS = ["jobs", "seamless"] as const;
-const JOB_STATUSES = ["queued", "processing", "succeeded", "failed"] as const;
+const JOB_STATUSES = [
+  "queued",
+  "processing",
+  "succeeded",
+  "failed",
+  "canceled",
+] as const;
 const JOB_KINDS = ["finalize", "export"] as const;
 const SEAMLESS_STATUSES = ["success", "partial", "error"] as const;
 const OPERATIONAL_STATUS_LABELS: Record<string, string> = {
@@ -57,6 +63,7 @@ const OPERATIONAL_STATUS_LABELS: Record<string, string> = {
   processing: "처리 중",
   succeeded: "성공",
   failed: "실패",
+  canceled: "취소",
   success: "성공",
   partial: "부분 성공",
   error: "오류",
@@ -154,7 +161,9 @@ function OperationalStatusBadge({ status }: { status: string }) {
       ? "critical"
       : ["queued", "partial"].includes(status)
         ? "warning"
-        : "informative";
+        : status === "canceled"
+          ? "neutral"
+          : "informative";
   return <Badge tone={tone}>{operationalStatusLabel(status)}</Badge>;
 }
 
@@ -278,6 +287,7 @@ function JobStatistics({
         { label: "처리 중", value: `${data?.processing ?? 0}건` },
         { label: "성공", value: `${data?.succeeded ?? 0}건` },
         { label: "실패", value: `${data?.failed ?? 0}건` },
+        { label: "취소", value: `${data?.canceled ?? 0}건` },
         {
           label: "평균 시도",
           value: `${(data?.average_attempts ?? 0).toFixed(1)}회`,
@@ -512,6 +522,7 @@ function JobsPanel({
                 { value: "processing", label: "처리 중" },
                 { value: "succeeded", label: "성공" },
                 { value: "failed", label: "실패" },
+                { value: "canceled", label: "취소" },
               ]}
               onValueChange={(value) =>
                 setDraftStatus(

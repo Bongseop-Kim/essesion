@@ -16,6 +16,7 @@ from db.models.base import Base, CreatedAtMixin, TimestampMixin, uuid_pk
 
 FINALIZE_DISPATCH_FAILED_MESSAGE = "finalize 작업 전달에 실패했습니다"
 FINALIZE_STALE_MESSAGE = "finalize 작업 처리 시간이 초과되었습니다"
+FINALIZE_CANCELED_MESSAGE = "사용자가 finalize 작업을 취소했습니다"
 FINALIZE_TEMPORARY_FAILURE_CODE = "FINALIZE_TEMPORARY_FAILURE"
 FINALIZE_TEMPORARY_FAILURE_MESSAGE = "finalize temporarily failed"
 FINALIZE_TEMPORARY_FAILURE_MARKER = (
@@ -77,6 +78,9 @@ class GenerationJob(TimestampMixin, Base):
 
     __table_args__ = (
         CheckConstraint("kind IN ('finalize', 'export')", name="kind"),
-        CheckConstraint("status IN ('queued', 'processing', 'succeeded', 'failed')", name="status"),
+        CheckConstraint(
+            "status IN ('queued', 'processing', 'succeeded', 'failed', 'canceled')",
+            name="status",
+        ),
         Index("ix_generation_jobs_status_created", "status", "created_at"),
     )

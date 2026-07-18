@@ -32,6 +32,7 @@ const JOB_STATUS_LABELS: Readonly<
   processing: "처리 중",
   succeeded: "성공",
   failed: "실패",
+  canceled: "취소",
 };
 
 const PRODUCTION_METHOD_LABELS: Readonly<Record<string, string>> = {

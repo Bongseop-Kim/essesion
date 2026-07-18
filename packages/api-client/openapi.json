@@ -6308,7 +6308,8 @@
               "queued",
               "processing",
               "succeeded",
-              "failed"
+              "failed",
+              "canceled"
             ],
             "title": "Status",
             "type": "string"
@@ -6457,6 +6458,10 @@
             "title": "Average Attempts",
             "type": "number"
           },
+          "canceled": {
+            "title": "Canceled",
+            "type": "integer"
+          },
           "failed": {
             "title": "Failed",
             "type": "integer"
@@ -6484,6 +6489,7 @@
           "processing",
           "succeeded",
           "failed",
+          "canceled",
           "average_attempts",
           "as_of"
         ],
@@ -6545,7 +6551,8 @@
               "queued",
               "processing",
               "succeeded",
-              "failed"
+              "failed",
+              "canceled"
             ],
             "title": "Status",
             "type": "string"
@@ -15074,7 +15081,8 @@
                     "queued",
                     "processing",
                     "succeeded",
-                    "failed"
+                    "failed",
+                    "canceled"
                   ],
                   "type": "string"
                 },
@@ -15245,7 +15253,8 @@
                     "queued",
                     "processing",
                     "succeeded",
-                    "failed"
+                    "failed",
+                    "canceled"
                   ],
                   "type": "string"
                 },
@@ -19196,7 +19205,7 @@
     },
     "/batch/reconcile-stale-generation-jobs": {
       "post": {
-        "description": "Cloud Tasks 재시도 창을 넘긴 finalize job을 종료하고 세션 예산을 복구한다.",
+        "description": "Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결하고 세션 예산을 복구한다.",
         "operationId": "reconcile_stale_generation_jobs",
         "responses": {
           "200": {
@@ -19636,7 +19645,8 @@
                     "queued",
                     "processing",
                     "succeeded",
-                    "failed"
+                    "failed",
+                    "canceled"
                   ],
                   "type": "string"
                 },
@@ -19768,6 +19778,55 @@
           }
         ],
         "summary": "Get Generation Job",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/jobs/{job_id}/cancel": {
+      "post": {
+        "description": "진행 중인 finalize job을 취소하고 소비한 예산을 되돌린다 (멱등).\n\n조건부 UPDATE가 전이·환불의 원자성을 보장한다 — 워커가 먼저 종결하면\nrowcount=0으로 지고, 늦게 도착한 워커 렌더 결과는 _finish_job의\nprocessing 가드에 걸려 무효화된다.",
+        "operationId": "cancel_generation_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancel Generation Job",
         "tags": [
           "design"
         ]

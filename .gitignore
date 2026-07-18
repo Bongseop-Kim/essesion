@@ -17,3 +17,6 @@ test-results/
 *.tfstate*
 *.tfvars
 !*.tfvars.example
+
+# 로컬 개발용 파일 스토리지 (GCS 대체 — api /local-storage가 서빙)
+.local-storage/

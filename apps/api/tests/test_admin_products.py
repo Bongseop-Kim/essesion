@@ -596,7 +596,7 @@ async def test_deleted_product_upload_is_cleaned_from_assets_bucket(
     )
     assert cleanup.status_code == 200
     assert cleanup.json()["processed"] == 1
-    assert app.state.gcs.deleted_from == [("dry-run-product-assets", app.state.gcs.deleted[0])]
+    assert app.state.gcs.deleted_from == [("dry-run-assets", app.state.gcs.deleted[0])]
 
 
 async def test_product_upload_completion_verifies_assets_object_metadata(
@@ -646,4 +646,4 @@ async def test_product_upload_completion_verifies_assets_object_metadata(
     gcs.metadata = GcsObjectMetadata(size_bytes=100, content_type="image/png")
     completed = await client.post(f"/admin/products/images/{upload_id}/complete", headers=headers)
     assert completed.status_code == 200, completed.text
-    assert gcs.metadata_bucket == "dry-run-product-assets"
+    assert gcs.metadata_bucket == "dry-run-assets"

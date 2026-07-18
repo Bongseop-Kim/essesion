@@ -231,7 +231,7 @@ async def test_reconcile_stale_finalize_jobs_fails_and_restores_budget(client, d
     assert response.json() == {"processed": 3}
     for job in (queued, processing, temporarily_failed):
         await db_session.refresh(job)
-        assert job.status == "failed"
+        assert job.status == "canceled"
         assert job.error_message == FINALIZE_STALE_MESSAGE
     await db_session.refresh(fresh)
     await db_session.refresh(fresh_temporary_failure)
@@ -323,7 +323,9 @@ async def test_reconcile_stale_finalize_uses_creation_ttl_and_protects_active_le
     await db_session.refresh(recently_failed)
     await db_session.refresh(design_session)
     assert active_processing.status == "processing"
+    assert expired_processing.status == "canceled"
     assert expired_processing.error_message == FINALIZE_STALE_MESSAGE
+    assert recently_failed.status == "canceled"
     assert recently_failed.error_message == FINALIZE_STALE_MESSAGE
     assert design_session.finalize_used == 1
 

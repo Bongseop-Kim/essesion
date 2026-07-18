@@ -39,6 +39,7 @@ def settings(pg_url: str) -> Settings:
         jwt_secret="test-jwt-secret-0123456789abcdef",
         batch_token="test-batch-token",
         toss_secret_key="test-toss-secret",  # RealTossClient 사용 — respx로 목킹
+        local_storage_dir="",  # 테스트는 디스크 저장 없는 DryRun GCS 의미를 유지
     )
 
 

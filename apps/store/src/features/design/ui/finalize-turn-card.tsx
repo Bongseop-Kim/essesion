@@ -16,14 +16,19 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   ShoppingBagIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useState } from "react";
 
 import {
-  finalizeJobPollInterval,
+  finalizeJobDelayed,
+  useCancelFinalizeJob,
   useFinalizeJobQuery,
 } from "../model/use-finalize-job";
 import type { FinalizeTurnPayload } from "./turn-feed";
+
+// 서버(db/src/db/models/design.py)의 TTL 자동 취소 메시지 — 사용자 취소와 문구 구분용
+const FINALIZE_STALE_MESSAGE = "finalize 작업 처리 시간이 초과되었습니다";
 
 export type FinalizeTurnCardProps = {
   payload: FinalizeTurnPayload;
@@ -39,6 +44,7 @@ export function FinalizeTurnCard({
   onOrder,
 }: FinalizeTurnCardProps) {
   const jobQuery = useFinalizeJobQuery(payload.job_id, authenticated);
+  const cancelMutation = useCancelFinalizeJob();
   const [downloading, setDownloading] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
@@ -62,6 +68,17 @@ export function FinalizeTurnCard({
       await onRetry(job);
     } finally {
       setRetrying(false);
+    }
+  };
+
+  const handleCancel = async (job: GenerationJobOut) => {
+    if (cancelMutation.isPending) return;
+    try {
+      await cancelMutation.mutateAsync(job.id);
+      snackbar("원단 시뮬레이션을 취소했어요. 사용한 횟수는 복구됐어요.");
+    } catch {
+      snackbar("취소하지 못했어요. 작업이 이미 끝났을 수 있어요.");
+      void jobQuery.refetch();
     }
   };
 
@@ -91,16 +108,71 @@ export function FinalizeTurnCard({
 
   const job = jobQuery.data;
   if (job.status === "queued" || job.status === "processing") {
-    const delayed = finalizeJobPollInterval(job) === false;
-    return delayed ? (
-      <Callout
-        tone="neutral"
-        title="원단 시뮬레이션이 지연되고 있어요"
-        description="나중에 이 세션을 다시 열면 완성 결과를 확인할 수 있어요."
-        onClick={() => void jobQuery.refetch()}
-      />
+    const cancelButton = (
+      <ActionButton
+        type="button"
+        size="small"
+        variant="neutralOutline"
+        loading={cancelMutation.isPending}
+        onClick={() => void handleCancel(job)}
+      >
+        <Icon svg={<XMarkIcon />} size={18} />
+        취소하고 횟수 되돌리기
+      </ActionButton>
+    );
+    return finalizeJobDelayed(job) ? (
+      <VStack gap="x3" alignItems="stretch">
+        <Callout
+          tone="neutral"
+          title="원단 시뮬레이션이 지연되고 있어요"
+          description="나중에 이 세션을 다시 열면 완성 결과를 확인할 수 있어요. 너무 오래 걸리면 자동으로 취소되고 횟수가 복구돼요."
+        />
+        <HStack gap="x2" wrap>
+          <ActionButton
+            type="button"
+            size="small"
+            variant="neutralOutline"
+            onClick={() => void jobQuery.refetch()}
+          >
+            <Icon svg={<ArrowPathIcon />} size={18} />
+            상태 다시 확인
+          </ActionButton>
+          {cancelButton}
+        </HStack>
+      </VStack>
     ) : (
-      <FinalizeProgress attempts={job.attempts} />
+      <VStack gap="x3" alignItems="stretch">
+        <FinalizeProgress attempts={job.attempts} />
+        <HStack gap="x2" wrap>
+          {cancelButton}
+        </HStack>
+      </VStack>
+    );
+  }
+
+  if (job.status === "canceled") {
+    const timedOut = job.error_message === FINALIZE_STALE_MESSAGE;
+    return (
+      <ContentPlaceholder
+        title={
+          timedOut
+            ? "원단 시뮬레이션이 시간 초과로 취소됐어요"
+            : "원단 시뮬레이션을 취소했어요"
+        }
+        description="사용한 횟수는 복구됐어요. 언제든 다시 시도할 수 있어요."
+        action={
+          <ActionButton
+            type="button"
+            size="small"
+            variant="neutralOutline"
+            loading={retrying}
+            onClick={() => void handleRetry(job)}
+          >
+            <Icon svg={<ArrowPathIcon />} size={18} />
+            다시 시도
+          </ActionButton>
+        }
+      />
     );
   }
 

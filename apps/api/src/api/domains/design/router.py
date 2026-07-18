@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal, cast
 
 from db.models.design import (
+    FINALIZE_CANCELED_MESSAGE,
     FINALIZE_DISPATCH_FAILED_MESSAGE,
     DesignSession,
     DesignSessionTurn,
@@ -32,6 +33,13 @@ from sqlalchemy import CursorResult, func, select, update
 
 from api.db import SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, SettingsDep, ensure_owner
+from api.domains.design.job_lifecycle import (
+    CANCELABLE_STATUSES,
+    may_be_stale,
+    refund_finalize_budget,
+    resolve_stale_finalize_jobs,
+    stale_finalize_clause,
+)
 from api.domains.images.service import MAX_ORDER_IMAGE_BYTES, order_upload_entity_type
 from api.domains.tokens import ledger
 from api.errors import ConflictError, DomainError, UpstreamError, WorkerRequestError
@@ -486,11 +494,7 @@ async def _fail_finalize_dispatch(
     )
     dispatch_failed = cast("CursorResult[Any]", failed).rowcount > 0
     if dispatch_failed:
-        await session.execute(
-            update(DesignSession)
-            .where(DesignSession.id == session_id)
-            .values(finalize_used=func.greatest(DesignSession.finalize_used - 1, 0))
-        )
+        await refund_finalize_budget(session, session_id)
     await session.commit()
     return dispatch_failed
 
@@ -501,7 +505,7 @@ async def list_generation_jobs(
     user: CurrentUser,
     settings: SettingsDep,
     kind: Literal["finalize", "export"] = "finalize",
-    status: Literal["queued", "processing", "succeeded", "failed"] | None = None,
+    status: Literal["queued", "processing", "succeeded", "failed", "canceled"] | None = None,
     session_id: uuid.UUID | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -527,6 +531,51 @@ async def get_generation_job(
     job = await session.get(GenerationJob, job_id)
     ensure_owner(job, user)
     assert job is not None
+    # TTL(75분)을 넘긴 채 종결되지 못한 job은 폴링 시점에 lazy 회수 — Cloud
+    # Scheduler가 없는 로컬에서도 동작하고, 배치 주기를 기다리지 않는다.
+    now = datetime.now(UTC)
+    if may_be_stale(job, now):
+        stale = (
+            await session.scalars(
+                select(GenerationJob)
+                .where(GenerationJob.id == job_id, stale_finalize_clause(now))
+                .with_for_update(skip_locked=True)
+            )
+        ).first()
+        if stale is not None:
+            await resolve_stale_finalize_jobs(session, [stale])
+            await session.commit()
+            await session.refresh(job)
+    return _generation_job_out(job, settings)
+
+
+@router.post("/design/jobs/{job_id}/cancel", response_model=GenerationJobOut)
+async def cancel_generation_job(
+    job_id: uuid.UUID, session: SessionDep, user: CurrentUser, settings: SettingsDep
+) -> GenerationJobOut:
+    """진행 중인 finalize job을 취소하고 소비한 예산을 되돌린다 (멱등).
+
+    조건부 UPDATE가 전이·환불의 원자성을 보장한다 — 워커가 먼저 종결하면
+    rowcount=0으로 지고, 늦게 도착한 워커 렌더 결과는 _finish_job의
+    processing 가드에 걸려 무효화된다.
+    """
+    job = await session.get(GenerationJob, job_id)
+    ensure_owner(job, user)
+    assert job is not None
+    if job.kind != "finalize":
+        raise ConflictError("취소할 수 있는 작업이 아닙니다")
+    canceled = await session.execute(
+        update(GenerationJob)
+        .where(GenerationJob.id == job_id, GenerationJob.status.in_(CANCELABLE_STATUSES))
+        .values(status="canceled", result=None, error_message=FINALIZE_CANCELED_MESSAGE)
+    )
+    if cast("CursorResult[Any]", canceled).rowcount > 0:
+        if job.session_id is not None:
+            await refund_finalize_budget(session, job.session_id)
+        await session.commit()
+    await session.refresh(job)
+    if job.status != "canceled":
+        raise ConflictError("이미 종료된 작업은 취소할 수 없습니다")
     return _generation_job_out(job, settings)
 
 

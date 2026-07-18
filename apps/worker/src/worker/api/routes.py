@@ -445,6 +445,10 @@ async def finalize_task(
     if job.status == "succeeded":
         await session.commit()
         return {"status": "succeeded", "result": job.result}  # 멱등 — Cloud Tasks 재전송
+    if job.status == "canceled":
+        await session.commit()
+        # API가 취소를 확정하고 예산을 환불한 job — 늦게 도착한 task는 실행하지 않고 ACK.
+        return {"status": "canceled"}
     if job.status == "failed" and job.error_message == FINALIZE_DISPATCH_FAILED_MESSAGE:
         await session.commit()
         # API가 전달 실패를 확정하고 예산을 환불한 job은 늦게 도착한 task가 실행하면 안 된다.
@@ -484,8 +488,14 @@ async def finalize_task(
     params = dict(job.params)
     await session.commit()
 
+    # generate와 동일하게 DB 모티프 카탈로그를 렌더에 공급 — 빈 카탈로그는 전역
+    # registry 폴백(테스트/시드 경로). 미등록 모티프는 render_fabric이 영구 실패 처리.
+    motif_catalog = await get_motifs(session, iter_motif_ids(params.get("intent"))) or None
+
     try:
-        png = await run_in_threadpool(render_fabric, params, request.app.state.settings)
+        png = await run_in_threadpool(
+            render_fabric, params, request.app.state.settings, motif_catalog
+        )
         key = content_key("fabric", png, "png")
         await request.app.state.object_store.upload_bytes(key, png, "image/png")
     except (FabricError, IntentInvalid, RasterLimitError):

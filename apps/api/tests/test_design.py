@@ -22,7 +22,13 @@ from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
 from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata, public_asset_url
 from api.integrations.tasks import DryRunTaskQueue
-from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
+from db.models.design import (
+    FINALIZE_CANCELED_MESSAGE,
+    FINALIZE_STALE_MESSAGE,
+    DesignSession,
+    DesignSessionTurn,
+    GenerationJob,
+)
 from db.models.images import Image
 from db.models.tokens import DesignToken
 from sqlalchemy import func, select, update
@@ -283,6 +289,133 @@ async def test_finalize_ambiguous_enqueue_returns_claimed_job_without_refund(
     assert job.attempts == 1
     assert job.error_message is None
     assert persisted_session.finalize_used == 1
+
+
+async def _make_finalize_job(db_session, user, *, status="queued", finalize_used=1, **extra):
+    design_session = DesignSession(user_id=user.id, status="active", finalize_used=finalize_used)
+    db_session.add(design_session)
+    await db_session.flush()
+    job = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status=status,
+        params={"intent": {}},
+        **extra,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    return design_session, job
+
+
+async def test_cancel_finalize_job_refunds_budget(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session, job = await _make_finalize_job(db_session, user, status="queued")
+
+    response = await client.post(f"/design/jobs/{job.id}/cancel", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "canceled"
+    assert response.json()["error_message"] == FINALIZE_CANCELED_MESSAGE
+    await db_session.refresh(design_session)
+    assert design_session.finalize_used == 0
+
+
+async def test_cancel_finalize_job_is_idempotent_and_refunds_once(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session, job = await _make_finalize_job(db_session, user, status="processing")
+
+    first = await client.post(f"/design/jobs/{job.id}/cancel", headers=headers)
+    second = await client.post(f"/design/jobs/{job.id}/cancel", headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["status"] == "canceled"
+    await db_session.refresh(design_session)
+    assert design_session.finalize_used == 0
+
+
+async def test_cancel_rejects_terminal_jobs_and_other_kinds(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    _, succeeded = await _make_finalize_job(
+        db_session, user, status="succeeded", result={"object_key": "fabric/abc.png"}
+    )
+    failed_session, failed = await _make_finalize_job(db_session, user, status="failed")
+    export_session = DesignSession(user_id=user.id, status="active")
+    db_session.add(export_session)
+    await db_session.flush()
+    export_job = GenerationJob(
+        user_id=user.id,
+        session_id=export_session.id,
+        kind="export",
+        status="queued",
+        params={},
+    )
+    db_session.add(export_job)
+    await db_session.commit()
+
+    assert (
+        await client.post(f"/design/jobs/{succeeded.id}/cancel", headers=headers)
+    ).status_code == 409
+    assert (
+        await client.post(f"/design/jobs/{failed.id}/cancel", headers=headers)
+    ).status_code == 409
+    assert (
+        await client.post(f"/design/jobs/{export_job.id}/cancel", headers=headers)
+    ).status_code == 409
+    # 종결 상태 취소 시도는 결과·예산을 건드리지 않는다
+    await db_session.refresh(succeeded)
+    assert succeeded.status == "succeeded"
+    assert succeeded.result == {"object_key": "fabric/abc.png"}
+    await db_session.refresh(failed_session)
+    assert failed_session.finalize_used == 1
+
+
+async def test_get_job_lazily_cancels_past_ttl_and_refunds(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    old = datetime.now(UTC) - timedelta(hours=2)
+    design_session, job = await _make_finalize_job(
+        db_session, user, status="queued", created_at=old, updated_at=old
+    )
+
+    response = await client.get(f"/design/jobs/{job.id}", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "canceled"
+    assert response.json()["error_message"] == FINALIZE_STALE_MESSAGE
+    await db_session.refresh(design_session)
+    assert design_session.finalize_used == 0
+
+    # 반복 조회는 멱등 — 추가 환불 없음
+    again = await client.get(f"/design/jobs/{job.id}", headers=headers)
+    assert again.json()["status"] == "canceled"
+    await db_session.refresh(design_session)
+    assert design_session.finalize_used == 0
+
+
+async def test_get_job_keeps_active_lease_processing_past_ttl(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    old = datetime.now(UTC) - timedelta(hours=2)
+    design_session, job = await _make_finalize_job(
+        db_session,
+        user,
+        status="processing",
+        attempts=1,
+        created_at=old,
+        updated_at=datetime.now(UTC),
+    )
+
+    response = await client.get(f"/design/jobs/{job.id}", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processing"
+    await db_session.refresh(design_session)
+    assert design_session.finalize_used == 1
 
 
 async def test_prompt_generate_select_and_finalize(client, app, db_session, settings):

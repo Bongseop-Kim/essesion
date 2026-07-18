@@ -403,6 +403,14 @@ class _FakeFinalizeSession:
     async def scalar(self, _stmt):
         return self.job
 
+    async def scalars(self, _stmt):
+        # 모티프 카탈로그 조회용 — 빈 결과면 렌더는 전역 registry로 폴백한다
+        class _Empty:
+            def all(self):
+                return []
+
+        return _Empty()
+
     async def commit(self):
         pass
 

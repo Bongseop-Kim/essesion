@@ -10,7 +10,8 @@ def test_healthz():
     assert "x-request-id" in res.headers
 
 
-def test_local_readyz_bypasses_external_database_and_uses_dry_run_store():
+def test_local_readyz_bypasses_external_database_and_uses_local_store():
+    # local_storage_dir 기본값이 있으므로 GCS 미설정 local은 로컬 디스크 저장 모드
     application = create_app(Settings(_env_file=None))  # type: ignore[call-arg]
     with TestClient(application) as client:
         response = client.get("/readyz")
@@ -18,7 +19,7 @@ def test_local_readyz_bypasses_external_database_and_uses_dry_run_store():
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
-        "capabilities": {"database": "bypassed", "gcs_assets": "dry_run"},
+        "capabilities": {"database": "bypassed", "gcs_assets": "local"},
     }
 
 

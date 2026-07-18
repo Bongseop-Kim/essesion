@@ -200,7 +200,7 @@ pnpm --filter store dev
 pnpm --filter admin dev
 ```
 
-로컬에서 Toss·Solapi·GCS 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 자연어 authoring에는 Gemini 키가 필요하고 OpenAI embedding은 선택 사항이며, catalog miss에서 새 motif를 만들려면 Recraft 키가 필요합니다. 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. Cloud Tasks 없이 finalize 전체 흐름을 확인하려면 로컬 `.env`에 `WORKER_FINALIZE_INLINE=true`를 설정합니다.
+로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. GCS 버킷이 없으면 파일은 `.local-storage/`(설정 `LOCAL_STORAGE_DIR`)에 저장되고 api의 `/local-storage` 라우트가 서빙해, 업로드·원단 시뮬레이션 이미지까지 로컬에서 끝까지 확인할 수 있습니다. 자연어 authoring에는 Gemini 키가 필요하고 OpenAI embedding은 선택 사항이며, catalog miss에서 새 motif를 만들려면 Recraft 키가 필요합니다. 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. Cloud Tasks 없이 finalize 전체 흐름을 확인하려면 로컬 `.env`에 `WORKER_FINALIZE_INLINE=true`를 설정합니다.
 
 ## 검증
 

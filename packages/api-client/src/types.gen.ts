@@ -3394,7 +3394,7 @@ export type GenerationJobDetailOut = {
     /**
      * Status
      */
-    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    status: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled';
     /**
      * Updated At
      */
@@ -3472,6 +3472,10 @@ export type GenerationJobStatsOut = {
      */
     average_attempts: number;
     /**
+     * Canceled
+     */
+    canceled: number;
+    /**
      * Failed
      */
     failed: number;
@@ -3528,7 +3532,7 @@ export type GenerationJobSummaryOut = {
     /**
      * Status
      */
-    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    status: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled';
     /**
      * Updated At
      */
@@ -8090,7 +8094,7 @@ export type ListAdminGenerationJobsData = {
         /**
          * Status
          */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
         /**
          * User Id
          */
@@ -8148,7 +8152,7 @@ export type GetAdminGenerationJobStatsData = {
         /**
          * Status
          */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
         /**
          * User Id
          */
@@ -10362,7 +10366,7 @@ export type ListGenerationJobsData = {
         /**
          * Status
          */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
         /**
          * Session Id
          */
@@ -10428,6 +10432,36 @@ export type GetGenerationJobResponses = {
 };
 
 export type GetGenerationJobResponse = GetGenerationJobResponses[keyof GetGenerationJobResponses];
+
+export type CancelGenerationJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/design/jobs/{job_id}/cancel';
+};
+
+export type CancelGenerationJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelGenerationJobError = CancelGenerationJobErrors[keyof CancelGenerationJobErrors];
+
+export type CancelGenerationJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: GenerationJobOut;
+};
+
+export type CancelGenerationJobResponse = CancelGenerationJobResponses[keyof CancelGenerationJobResponses];
 
 export type CreateDesignOrderReferenceData = {
     body?: never;

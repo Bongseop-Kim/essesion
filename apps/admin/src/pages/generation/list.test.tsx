@@ -78,8 +78,9 @@ const jobStats: GenerationJobStatsOut = {
   total: 51,
   queued: 1,
   processing: 2,
-  succeeded: 47,
+  succeeded: 46,
   failed: 1,
+  canceled: 1,
   average_attempts: 1.2,
   as_of: "2026-07-12T01:00:00Z",
 };

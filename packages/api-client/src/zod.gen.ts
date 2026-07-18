@@ -1253,7 +1253,8 @@ export const zGenerationJobDetailOut = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]),
     updated_at: z.iso.datetime()
 });
@@ -1282,6 +1283,7 @@ export const zGenerationJobOut = z.object({
 export const zGenerationJobStatsOut = z.object({
     as_of: z.iso.datetime(),
     average_attempts: z.number(),
+    canceled: z.int(),
     failed: z.int(),
     processing: z.int(),
     queued: z.int(),
@@ -1304,7 +1306,8 @@ export const zGenerationJobSummaryOut = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]),
     updated_at: z.iso.datetime()
 });
@@ -3469,7 +3472,8 @@ export const zListAdminGenerationJobsQuery = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]).nullish(),
     user_id: z.uuid().nullish(),
     start: z.iso.datetime().nullish(),
@@ -3490,7 +3494,8 @@ export const zGetAdminGenerationJobStatsQuery = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]).nullish(),
     user_id: z.uuid().nullish(),
     start: z.iso.datetime().nullish(),
@@ -4299,7 +4304,8 @@ export const zListGenerationJobsQuery = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]).nullish(),
     session_id: z.uuid().nullish(),
     limit: z.int().gte(1).lte(100).optional().default(20),
@@ -4321,6 +4327,15 @@ export const zGetGenerationJobPath = z.object({
  * Successful Response
  */
 export const zGetGenerationJobResponse = zGenerationJobOut;
+
+export const zCancelGenerationJobPath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCancelGenerationJobResponse = zGenerationJobOut;
 
 export const zCreateDesignOrderReferencePath = z.object({
     job_id: z.uuid()
