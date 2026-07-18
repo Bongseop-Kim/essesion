@@ -2,7 +2,7 @@ import uuid
 from typing import Annotated
 
 from db.models.commerce import Review
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 
 from api.db import SessionDep
 from api.deps import AdminUser
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/admin/reviews", tags=["admin-reviews"])
 async def list_admin_reviews(
     session: SessionDep,
     admin: AdminUser,
+    request: Request,
     order_type: ReviewOrderType | None = None,
     rating: Annotated[int | None, Query(ge=1, le=5)] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
@@ -34,7 +35,9 @@ async def list_admin_reviews(
         if len(search) < 2:
             raise DomainError("검색어는 2자 이상이어야 합니다", code="search_too_short")
         filters.append(Review.content.icontains(search, autoescape=True))
-    page = await service.list_reviews(session, filters, limit=limit, offset=offset)
+    page = await service.list_reviews(
+        session, filters, request.app.state.settings, limit=limit, offset=offset
+    )
     return Page(items=page.items, total=page.total, limit=limit, offset=offset)
 
 
@@ -43,5 +46,6 @@ async def delete_admin_review(review_id: uuid.UUID, session: SessionDep, admin: 
     review = await session.get(Review, review_id)
     if review is None:
         raise NotFoundError("후기를 찾을 수 없습니다")
+    await service.expire_review_photos(session, review)
     await session.delete(review)
     await session.commit()

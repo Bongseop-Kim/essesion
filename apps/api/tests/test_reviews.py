@@ -1,4 +1,7 @@
+import uuid
+
 from db.models.commerce import OrderItem
+from db.models.images import Image
 
 from .factories import (
     auth_headers,
@@ -7,6 +10,24 @@ from .factories import (
     make_product,
     make_user,
 )
+
+BATCH_HEADERS = {"Authorization": "Bearer test-batch-token"}
+
+
+async def _staged_photo(client, headers, *, complete=True):
+    issued = await client.post(
+        "/reviews/photo-uploads",
+        json={"filename": "tie.jpg", "content_type": "image/jpeg", "size_bytes": 1234},
+        headers=headers,
+    )
+    assert issued.status_code == 200, issued.text
+    if complete:
+        completed = await client.post(
+            f"/reviews/photo-uploads/{issued.json()['upload_id']}/complete",
+            headers=headers,
+        )
+        assert completed.status_code == 200, completed.text
+    return issued.json()["upload_id"]
 
 
 async def _sale_order_item(db_session, user, *, status="배송완료"):
@@ -204,3 +225,189 @@ async def test_service_review_update_delete_and_admin_filter(client, db_session,
     deleted = await client.delete(f"/admin/reviews/{review_id}", headers=admin_headers)
     assert deleted.status_code == 204
     assert (await client.get(f"/reviews/{review_id}")).status_code == 404
+
+
+async def test_review_photo_upload_link_and_public_list(app, client, db_session, settings):
+    owner = await make_user(db_session, name="김영선")
+    order, item, product = await _sale_order_item(db_session, owner)
+    headers = auth_headers(owner, settings)
+
+    # DryRun에서도 발급은 assets 버킷 대상 서명 URL 계약을 유지한다.
+    issued = await client.post(
+        "/reviews/photo-uploads",
+        json={"filename": "tie.jpg", "content_type": "image/jpeg", "size_bytes": 1234},
+        headers=headers,
+    )
+    assert issued.status_code == 200, issued.text
+    assert issued.json()["upload_required"] is False
+    assert issued.json()["required_headers"]["Content-Type"] == "image/jpeg"
+    upload_id = issued.json()["upload_id"]
+
+    bad_type = await client.post(
+        "/reviews/photo-uploads",
+        json={"filename": "tie.gif", "content_type": "image/gif", "size_bytes": 10},
+        headers=headers,
+    )
+    assert bad_type.status_code == 400
+    assert bad_type.json()["code"] == "invalid_image_type"
+
+    # 완료 전 링크 시도 → 409
+    incomplete = await client.post(
+        "/reviews",
+        json={
+            "order_id": str(order.id),
+            "order_item_id": str(item.id),
+            "rating": 5,
+            "content": "사진 후기",
+            "photo_upload_ids": [upload_id],
+        },
+        headers=headers,
+    )
+    assert incomplete.status_code == 409
+    assert incomplete.json()["code"] == "review_photo_incomplete"
+
+    completed = await client.post(f"/reviews/photo-uploads/{upload_id}/complete", headers=headers)
+    assert completed.status_code == 200
+
+    created = await client.post(
+        "/reviews",
+        json={
+            "order_id": str(order.id),
+            "order_item_id": str(item.id),
+            "rating": 5,
+            "content": "사진 후기",
+            "photo_upload_ids": [upload_id],
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    assert [photo["upload_id"] for photo in created.json()["photos"]] == [upload_id]
+    assert created.json()["photos"][0]["url"].startswith("https://")
+
+    # 공개 목록·단건 조회에 사진 URL 동봉
+    listed = await client.get("/reviews", params={"product_id": product.id})
+    assert listed.json()["items"][0]["photos"] == created.json()["photos"]
+    fetched = await client.get(f"/reviews/{created.json()['id']}")
+    assert fetched.json()["photos"] == created.json()["photos"]
+
+    # 링크된 이미지는 영구 보관으로 전환된다.
+    image = await db_session.get(Image, uuid.UUID(upload_id))
+    assert image is not None
+    assert image.entity_type == "review_photo"
+    assert image.entity_id == created.json()["id"]
+    assert image.expires_at is None
+
+
+async def test_review_photo_validation_guards(client, db_session, settings):
+    owner = await make_user(db_session)
+    other = await make_user(db_session)
+    order, item, _ = await _sale_order_item(db_session, owner)
+    headers = auth_headers(owner, settings)
+
+    def _create_body(photo_ids):
+        return {
+            "order_id": str(order.id),
+            "order_item_id": str(item.id),
+            "rating": 5,
+            "content": "사진 후기",
+            "photo_upload_ids": photo_ids,
+        }
+
+    anonymous = await client.post(
+        "/reviews/photo-uploads",
+        json={"filename": "tie.jpg", "content_type": "image/jpeg", "size_bytes": 10},
+    )
+    assert anonymous.status_code == 401
+
+    # 타인 스테이징 사용 → 소유권 충돌
+    theirs = await _staged_photo(client, auth_headers(other, settings))
+    stolen = await client.post("/reviews", json=_create_body([theirs]), headers=headers)
+    assert stolen.status_code == 409
+    assert stolen.json()["code"] == "ownership_conflict"
+
+    unknown = await client.post("/reviews", json=_create_body([str(uuid.uuid4())]), headers=headers)
+    assert unknown.status_code == 409
+    assert unknown.json()["code"] == "invalid_review_photo"
+
+    mine = await _staged_photo(client, headers)
+    duplicated = await client.post("/reviews", json=_create_body([mine, mine]), headers=headers)
+    assert duplicated.status_code == 422
+    assert duplicated.json()["code"] == "duplicate_review_photo"
+
+    too_many = await client.post(
+        "/reviews",
+        json=_create_body([str(uuid.uuid4()) for _ in range(6)]),
+        headers=headers,
+    )
+    assert too_many.status_code == 422
+
+    created = await client.post("/reviews", json=_create_body([mine]), headers=headers)
+    assert created.status_code == 201
+
+    # 다른 후기에 이미 링크된 사진 재사용 → 409
+    service_order = await make_order(db_session, owner, order_type="repair", status="수선완료")
+    reused = await client.post(
+        "/reviews",
+        json={
+            "order_id": str(service_order.id),
+            "rating": 4,
+            "content": "수선 후기",
+            "photo_upload_ids": [mine],
+        },
+        headers=headers,
+    )
+    assert reused.status_code == 409
+    assert reused.json()["code"] == "invalid_review_photo"
+
+
+async def test_review_photo_replace_and_delete_cleanup(app, client, db_session, settings):
+    owner = await make_user(db_session)
+    order = await make_order(db_session, owner, order_type="repair", status="수선완료")
+    headers = auth_headers(owner, settings)
+
+    first = await _staged_photo(client, headers)
+    created = await client.post(
+        "/reviews",
+        json={
+            "order_id": str(order.id),
+            "rating": 5,
+            "content": "수선 후기",
+            "photo_upload_ids": [first],
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201
+    review_id = created.json()["id"]
+
+    # 사진 교체 — 제외된 기존 사진은 만료돼 cleanup 대상이 된다.
+    second = await _staged_photo(client, headers)
+    replaced = await client.patch(
+        f"/reviews/{review_id}",
+        json={"photo_upload_ids": [second]},
+        headers=headers,
+    )
+    assert replaced.status_code == 200
+    assert [photo["upload_id"] for photo in replaced.json()["photos"]] == [second]
+
+    # photo_upload_ids 미지정 수정은 사진을 건드리지 않는다.
+    untouched = await client.patch(
+        f"/reviews/{review_id}", json={"content": "내용만 수정"}, headers=headers
+    )
+    assert [photo["upload_id"] for photo in untouched.json()["photos"]] == [second]
+
+    first_image = await db_session.get(Image, uuid.UUID(first))
+    second_image = await db_session.get(Image, uuid.UUID(second))
+    assert first_image is not None and second_image is not None
+    assert first_image.expires_at is not None
+    assert second_image.expires_at is None
+
+    # cleanup 배치는 후기 사진을 assets 버킷에서 삭제한다.
+    swept = await client.post("/batch/cleanup-images", headers=BATCH_HEADERS)
+    assert swept.status_code == 200
+    assert ("dry-run-assets", first_image.object_key) in app.state.gcs.deleted_from
+
+    # 후기 삭제 시 남은 사진도 만료된다.
+    deleted = await client.delete(f"/reviews/{review_id}", headers=headers)
+    assert deleted.status_code == 204
+    await db_session.refresh(second_image)
+    assert second_image.expires_at is not None

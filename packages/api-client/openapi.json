@@ -11195,6 +11195,15 @@
             ],
             "title": "Order Item Id"
           },
+          "photo_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Photo Upload Ids",
+            "type": "array"
+          },
           "rating": {
             "maximum": 5.0,
             "minimum": 1.0,
@@ -11276,6 +11285,13 @@
             "title": "Order Type",
             "type": "string"
           },
+          "photos": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewPhotoOut"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
           "product_id": {
             "anyOf": [
               {
@@ -11299,9 +11315,112 @@
           "created_at",
           "order_type",
           "product_id",
-          "author_name"
+          "author_name",
+          "photos"
         ],
         "title": "ReviewOut",
+        "type": "object"
+      },
+      "ReviewPhotoOut": {
+        "properties": {
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "url"
+        ],
+        "title": "ReviewPhotoOut",
+        "type": "object"
+      },
+      "ReviewPhotoUploadCompleteOut": {
+        "properties": {
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "completed_at"
+        ],
+        "title": "ReviewPhotoUploadCompleteOut",
+        "type": "object"
+      },
+      "ReviewPhotoUploadOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Required Headers",
+            "type": "object"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          },
+          "upload_required": {
+            "title": "Upload Required",
+            "type": "boolean"
+          },
+          "upload_url": {
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "upload_url",
+          "required_headers",
+          "expires_at",
+          "upload_required"
+        ],
+        "title": "ReviewPhotoUploadOut",
+        "type": "object"
+      },
+      "ReviewPhotoUploadRequest": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10485760.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "ReviewPhotoUploadRequest",
         "type": "object"
       },
       "ReviewUpdateRequest": {
@@ -11311,6 +11430,15 @@
             "minLength": 1,
             "title": "Content",
             "type": "string"
+          },
+          "photo_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Photo Upload Ids",
+            "type": "array"
           },
           "rating": {
             "maximum": 5.0,
@@ -21846,6 +21974,100 @@
           }
         ],
         "summary": "Create Review",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/reviews/photo-uploads": {
+      "post": {
+        "operationId": "create_review_photo_upload_url",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewPhotoUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPhotoUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Review Photo Upload Url",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/reviews/photo-uploads/{upload_id}/complete": {
+      "post": {
+        "operationId": "complete_review_photo_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewPhotoUploadCompleteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Review Photo Upload",
         "tags": [
           "reviews"
         ]

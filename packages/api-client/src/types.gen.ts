@@ -6057,6 +6057,10 @@ export type ReviewCreateRequest = {
      */
     order_item_id?: string | null;
     /**
+     * Photo Upload Ids
+     */
+    photo_upload_ids?: Array<string>;
+    /**
      * Rating
      */
     rating: number;
@@ -6113,6 +6117,10 @@ export type ReviewOut = {
      */
     order_type: 'sale' | 'repair' | 'custom' | 'sample';
     /**
+     * Photos
+     */
+    photos: Array<ReviewPhotoOut>;
+    /**
      * Product Id
      */
     product_id: number | null;
@@ -6123,6 +6131,80 @@ export type ReviewOut = {
 };
 
 /**
+ * ReviewPhotoOut
+ */
+export type ReviewPhotoOut = {
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+    /**
+     * Url
+     */
+    url: string;
+};
+
+/**
+ * ReviewPhotoUploadCompleteOut
+ */
+export type ReviewPhotoUploadCompleteOut = {
+    /**
+     * Completed At
+     */
+    completed_at: string;
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
+ * ReviewPhotoUploadOut
+ */
+export type ReviewPhotoUploadOut = {
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Required Headers
+     */
+    required_headers: {
+        [key: string]: string;
+    };
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+    /**
+     * Upload Required
+     */
+    upload_required: boolean;
+    /**
+     * Upload Url
+     */
+    upload_url: string;
+};
+
+/**
+ * ReviewPhotoUploadRequest
+ */
+export type ReviewPhotoUploadRequest = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
  * ReviewUpdateRequest
  */
 export type ReviewUpdateRequest = {
@@ -6130,6 +6212,10 @@ export type ReviewUpdateRequest = {
      * Content
      */
     content?: string;
+    /**
+     * Photo Upload Ids
+     */
+    photo_upload_ids?: Array<string>;
     /**
      * Rating
      */
@@ -11554,6 +11640,61 @@ export type CreateReviewResponses = {
 };
 
 export type CreateReviewResponse = CreateReviewResponses[keyof CreateReviewResponses];
+
+export type CreateReviewPhotoUploadUrlData = {
+    body: ReviewPhotoUploadRequest;
+    path?: never;
+    query?: never;
+    url: '/reviews/photo-uploads';
+};
+
+export type CreateReviewPhotoUploadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateReviewPhotoUploadUrlError = CreateReviewPhotoUploadUrlErrors[keyof CreateReviewPhotoUploadUrlErrors];
+
+export type CreateReviewPhotoUploadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReviewPhotoUploadOut;
+};
+
+export type CreateReviewPhotoUploadUrlResponse = CreateReviewPhotoUploadUrlResponses[keyof CreateReviewPhotoUploadUrlResponses];
+
+export type CompleteReviewPhotoUploadData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/reviews/photo-uploads/{upload_id}/complete';
+};
+
+export type CompleteReviewPhotoUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteReviewPhotoUploadError = CompleteReviewPhotoUploadErrors[keyof CompleteReviewPhotoUploadErrors];
+
+export type CompleteReviewPhotoUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: ReviewPhotoUploadCompleteOut;
+};
+
+export type CompleteReviewPhotoUploadResponse = CompleteReviewPhotoUploadResponses[keyof CompleteReviewPhotoUploadResponses];
 
 export type DeleteReviewData = {
     body?: never;

@@ -2389,7 +2389,16 @@ export const zReviewCreateRequest = z.object({
     content: z.string().min(1).max(1000),
     order_id: z.uuid(),
     order_item_id: z.uuid().nullish(),
+    photo_upload_ids: z.array(z.uuid()).max(5).optional(),
     rating: z.int().gte(1).lte(5)
+});
+
+/**
+ * ReviewPhotoOut
+ */
+export const zReviewPhotoOut = z.object({
+    upload_id: z.uuid(),
+    url: z.string()
 });
 
 /**
@@ -2406,6 +2415,7 @@ export const zReviewOut = z.object({
         'custom',
         'sample'
     ]),
+    photos: z.array(zReviewPhotoOut),
     product_id: z.int().nullable(),
     rating: z.int()
 });
@@ -2432,10 +2442,39 @@ export const zReviewListOut = z.object({
 });
 
 /**
+ * ReviewPhotoUploadCompleteOut
+ */
+export const zReviewPhotoUploadCompleteOut = z.object({
+    completed_at: z.iso.datetime(),
+    upload_id: z.uuid()
+});
+
+/**
+ * ReviewPhotoUploadOut
+ */
+export const zReviewPhotoUploadOut = z.object({
+    expires_at: z.iso.datetime(),
+    required_headers: z.record(z.string(), z.string()),
+    upload_id: z.uuid(),
+    upload_required: z.boolean(),
+    upload_url: z.string()
+});
+
+/**
+ * ReviewPhotoUploadRequest
+ */
+export const zReviewPhotoUploadRequest = z.object({
+    content_type: z.string(),
+    filename: z.string(),
+    size_bytes: z.int().gt(0).lte(10485760)
+});
+
+/**
  * ReviewUpdateRequest
  */
 export const zReviewUpdateRequest = z.object({
     content: z.string().min(1).max(1000).optional(),
+    photo_upload_ids: z.array(z.uuid()).max(5).optional(),
     rating: z.int().gte(1).lte(5).optional()
 });
 
@@ -4685,6 +4724,22 @@ export const zCreateReviewBody = zReviewCreateRequest;
  * Successful Response
  */
 export const zCreateReviewResponse = zReviewOut;
+
+export const zCreateReviewPhotoUploadUrlBody = zReviewPhotoUploadRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateReviewPhotoUploadUrlResponse = zReviewPhotoUploadOut;
+
+export const zCompleteReviewPhotoUploadPath = z.object({
+    upload_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCompleteReviewPhotoUploadResponse = zReviewPhotoUploadCompleteOut;
 
 export const zDeleteReviewPath = z.object({
     review_id: z.uuid()

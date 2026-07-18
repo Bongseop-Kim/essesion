@@ -15,6 +15,7 @@ import {
   ContentPlaceholder,
   Field,
   HStack,
+  ImageFrame,
   Rating,
   ResponsiveModal,
   Skeleton,
@@ -27,6 +28,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { dateMedium } from "@/shared/lib/format";
+
+import { ReviewPhotoField, type ReviewPhotoState } from "./review-photo-field";
 
 const OVERLAY_EXIT_MS = 250;
 
@@ -50,6 +53,8 @@ export function ReviewFormModal({
   const queryClient = useQueryClient();
   const [rating, setRating] = useState(5);
   const [content, setContent] = useState("");
+  const [photos, setPhotos] = useState<ReviewPhotoState[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [editing, setEditing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteTimer = useRef<number | undefined>(undefined);
@@ -69,6 +74,7 @@ export function ReviewFormModal({
     if (target.reviewId === undefined) {
       setRating(5);
       setContent("");
+      setPhotos([]);
     }
   }, [open, target]);
 
@@ -78,6 +84,12 @@ export function ReviewFormModal({
     if (reviewQuery.data?.id === target.reviewId) {
       setRating(reviewQuery.data.rating);
       setContent(reviewQuery.data.content);
+      setPhotos(
+        reviewQuery.data.photos.map((photo) => ({
+          uploadId: photo.upload_id,
+          src: photo.url,
+        })),
+      );
     }
   }, [open, target, editing, reviewQuery.data]);
 
@@ -103,12 +115,18 @@ export function ReviewFormModal({
   };
 
   const save = async () => {
-    if (!target || content.trim().length === 0 || saving) return;
+    if (!target || content.trim().length === 0 || saving || uploadingPhotos)
+      return;
+    const photoUploadIds = photos.map((photo) => photo.uploadId);
     try {
       const review = target.reviewId
         ? await updateReview.mutateAsync({
             path: { review_id: target.reviewId },
-            body: { rating, content: content.trim() },
+            body: {
+              rating,
+              content: content.trim(),
+              photo_upload_ids: photoUploadIds,
+            },
           })
         : await createReview.mutateAsync({
             body: {
@@ -116,6 +134,7 @@ export function ReviewFormModal({
               order_item_id: target.orderItemId,
               rating,
               content: content.trim(),
+              photo_upload_ids: photoUploadIds,
             },
           });
       await invalidate(review.id);
@@ -169,7 +188,7 @@ export function ReviewFormModal({
       <ActionButton
         type="button"
         loading={saving}
-        disabled={content.trim().length === 0}
+        disabled={content.trim().length === 0 || uploadingPhotos}
         onClick={() => void save()}
       >
         {existing ? "수정" : "등록"}
@@ -227,6 +246,12 @@ export function ReviewFormModal({
               disabled={saving}
               onChange={(event) => setContent(event.currentTarget.value)}
             />
+            <ReviewPhotoField
+              photos={photos}
+              onChange={setPhotos}
+              onUploadingChange={setUploadingPhotos}
+              disabled={saving}
+            />
           </VStack>
         ) : reviewQuery.data ? (
           <VStack gap="x5" alignItems="stretch">
@@ -241,6 +266,20 @@ export function ReviewFormModal({
                 {reviewQuery.data.content}
               </Text>
             </Box>
+            {reviewQuery.data.photos.length > 0 ? (
+              <HStack gap="x2" wrap>
+                {reviewQuery.data.photos.map((photo, index) => (
+                  <Box key={photo.upload_id} width={80}>
+                    <ImageFrame
+                      ratio={1}
+                      stroke
+                      src={photo.url}
+                      alt={`후기 사진 ${index + 1}`}
+                    />
+                  </Box>
+                ))}
+              </HStack>
+            ) : null}
             <HStack gap="x2" wrap>
               <ActionButton
                 type="button"
