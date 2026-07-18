@@ -45,6 +45,7 @@
 - [x] Auth 골격: JWT(access 단명 + refresh 회전), argon2id — *refresh는 불투명 토큰 sha256 저장, 재사용 감지 시 전체 무효화*
 - [x] id/pw 로그인 — 공개 가입 없음, 계정은 시드/관리자 생성만 — *`apps/api/scripts/seed.py`*
 - [x] 소셜 OAuth(Authlib): Google·Kakao — *provider 검증 이메일만 연결, 공개 Cloudflare callback origin 고정*
+- [x] 로컬 OAuth 세션 쿠키 충돌 방지 — *store refresh 쿠키를 `essesion_store_refresh`로 네임스페이스하고, 다른 localhost 앱의 오래된 `refresh_token`이 공존해도 정상 회전되는 PostgreSQL 회귀 테스트·Aside 새로고침 복원을 확인*
 - [x] 소셜 OAuth(Authlib): Apple·Naver — *Naver는 @naver.com 주소만 검증 취급, Apple은 .p8 ES256 client_secret JWT + form_post POST 콜백(세션 쿠키 SameSite=None). Apple Services ID 등록·운영 E2E는 미완(Services ID 발급 대기)*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*

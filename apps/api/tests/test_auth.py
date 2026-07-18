@@ -11,6 +11,7 @@ from api.domains.auth import phone as phone_service
 from api.domains.auth import service as auth_service
 from api.domains.auth.oauth import fetch_profile
 from api.domains.auth.rate_limit import AuthRateLimiter
+from api.domains.auth.router import REFRESH_COOKIE
 from api.domains.auth.service import ensure_oauth_user
 from api.errors import DomainError, RateLimitedError, UnauthorizedError
 from api.security import decode_access_token, hash_refresh_token, new_refresh_token
@@ -75,7 +76,7 @@ async def test_login_and_me(client, db_session, settings):
     assert res.status_code == 200
     access = res.json()["access_token"]
     assert decode_access_token(access, settings)["session_kind"] == "store"
-    assert "refresh_token" in res.cookies
+    assert REFRESH_COOKIE in res.cookies
 
     me = await client.get("/auth/me", headers={"Authorization": f"Bearer {access}"})
     assert me.status_code == 200
@@ -150,7 +151,7 @@ async def test_store_login_rejects_privileged_accounts(client, db_session, role)
     )
     res = await client.post("/auth/login", json={"email": f"{role}@test.local", "password": "pw"})
     assert res.status_code == 401
-    assert "refresh_token" not in res.cookies
+    assert REFRESH_COOKIE not in res.cookies
 
 
 @pytest.mark.parametrize("role", ["admin", "manager"])
@@ -168,7 +169,7 @@ async def test_admin_login_uses_separate_cookie(client, db_session, settings, ro
     assert res.status_code == 200
     assert decode_access_token(res.json()["access_token"], settings)["session_kind"] == "admin"
     assert "admin_refresh_token" in res.cookies
-    assert "refresh_token" not in res.cookies
+    assert REFRESH_COOKIE not in res.cookies
     assert res.headers["cache-control"] == "no-store"
 
     token = await db_session.scalar(select(RefreshToken).where(RefreshToken.user_id == user.id))
@@ -192,24 +193,24 @@ async def test_me_requires_auth(client):
 async def test_refresh_rotation_and_reuse_detection(client, db_session, settings):
     await make_user(db_session, email="r@test.local", password="pw")
     login = await client.post("/auth/login", json={"email": "r@test.local", "password": "pw"})
-    first_refresh = login.cookies["refresh_token"]
+    first_refresh = login.cookies[REFRESH_COOKIE]
 
     # 회전 — 새 access + 새 refresh
     client.cookies.clear()
-    client.cookies.set("refresh_token", first_refresh, path="/auth")
+    client.cookies.set(REFRESH_COOKIE, first_refresh, path="/auth")
     rotated = await client.post("/auth/refresh")
     assert rotated.status_code == 200
     assert decode_access_token(rotated.json()["access_token"], settings)["session_kind"] == "store"
-    second_refresh = rotated.cookies["refresh_token"]
+    second_refresh = rotated.cookies[REFRESH_COOKIE]
     assert second_refresh != first_refresh
 
     # 구 토큰 재사용 = 탈취 신호 → 401 + 유저 세션 전체 무효화
     client.cookies.clear()
-    client.cookies.set("refresh_token", first_refresh, path="/auth")
+    client.cookies.set(REFRESH_COOKIE, first_refresh, path="/auth")
     assert (await client.post("/auth/refresh")).status_code == 401
 
     client.cookies.clear()
-    client.cookies.set("refresh_token", second_refresh, path="/auth")
+    client.cookies.set(REFRESH_COOKIE, second_refresh, path="/auth")
     assert (await client.post("/auth/refresh")).status_code == 401
 
     active = await db_session.scalar(
@@ -244,7 +245,7 @@ async def test_store_refresh_ignores_stale_generic_localhost_cookie(client, db_s
     refreshed = await client.post("/auth/refresh")
 
     assert refreshed.status_code == 200
-    assert "essesion_store_refresh" in refreshed.cookies
+    assert REFRESH_COOKIE in refreshed.cookies
     active = await db_session.scalar(
         select(func.count())
         .select_from(RefreshToken)
@@ -337,7 +338,7 @@ async def test_store_refresh_rejects_legacy_privileged_session(client, db_sessio
     )
     await db_session.commit()
 
-    client.cookies.set("refresh_token", raw, path="/auth")
+    client.cookies.set(REFRESH_COOKIE, raw, path="/auth")
     assert (await client.post("/auth/refresh")).status_code == 401
 
 
@@ -384,7 +385,7 @@ async def test_store_and_admin_cookies_coexist_and_logout_independently(client, 
     admin_login = await client.post(
         "/auth/admin/login", json={"email": admin.email, "password": "pw"}
     )
-    assert "refresh_token" in store_login.cookies
+    assert REFRESH_COOKIE in store_login.cookies
     assert "admin_refresh_token" in admin_login.cookies
 
     logout = await client.post("/auth/admin/logout")
@@ -395,13 +396,13 @@ async def test_store_and_admin_cookies_coexist_and_logout_independently(client, 
 async def test_logout_revokes_refresh(client, db_session):
     await make_user(db_session, email="o@test.local", password="pw")
     login = await client.post("/auth/login", json={"email": "o@test.local", "password": "pw"})
-    raw = login.cookies["refresh_token"]
+    raw = login.cookies[REFRESH_COOKIE]
 
-    client.cookies.set("refresh_token", raw, path="/auth")
+    client.cookies.set(REFRESH_COOKIE, raw, path="/auth")
     assert (await client.post("/auth/logout")).status_code == 204
 
     client.cookies.clear()
-    client.cookies.set("refresh_token", raw, path="/auth")
+    client.cookies.set(REFRESH_COOKIE, raw, path="/auth")
     assert (await client.post("/auth/refresh")).status_code == 401
 
 
