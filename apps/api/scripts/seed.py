@@ -41,6 +41,7 @@ ADMIN_SETTINGS = {
     "default_courier_company": "롯데택배",
     "design_token_initial_grant": "30",
     "design_token_cost_openai_render_standard": "5",
+    "design_finalize_daily_limit": "10",
 }
 
 PRICING: dict[str, tuple[int, str]] = {

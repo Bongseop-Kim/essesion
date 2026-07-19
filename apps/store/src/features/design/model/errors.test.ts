@@ -7,6 +7,7 @@ describe("parseDesignError", () => {
     "insufficient_tokens",
     "refund_pending",
     "worker_rejected",
+    "finalize_quota_exhausted",
     "conflict",
     "upstream_error",
   ] as const)("%s 코드를 사용자 분기로 변환한다", (code) => {

@@ -1,8 +1,10 @@
 """디자인 세션·잡 — LangGraph checkpoint 대체, api 소유 (ARCHITECTURE §2).
 
 - 세션 상태(턴 이력·선택·게이트)는 api가 일반 테이블로 소유, 워커는 stateless.
-- 생성 예산은 프로세스-로컬 카운터 대신 Postgres 공유 카운터(recraft_used/finalize_used)
+- recraft 예산은 프로세스-로컬 카운터 대신 Postgres 공유 카운터(recraft_used)
   — 인스턴스 수와 무관하게 동작 (ARCHITECTURE §7).
+- finalize 제한은 세션 카운터가 아니라 계정당 24시간 윈도우 쿼터 —
+  generation_jobs 행을 직접 센다 (api/domains/design/quota.py).
 - generation_jobs = finalize/export 비동기 잡(Cloud Tasks) 상태 폴링용.
 """
 
@@ -35,12 +37,10 @@ class DesignSession(TimestampMixin, Base):
     registry_version: Mapped[str | None]  # 커밋 시점 모티프 풀 핑거프린트
     current_intent: Mapped[dict[str, Any] | None]  # 마지막 커밋된 resolved intent
     recraft_used: Mapped[int] = mapped_column(server_default=text("0"))
-    finalize_used: Mapped[int] = mapped_column(server_default=text("0"))
 
     __table_args__ = (
         CheckConstraint("status IN ('active', 'finalized')", name="status"),
         CheckConstraint("recraft_used >= 0", name="recraft_used"),
-        CheckConstraint("finalize_used >= 0", name="finalize_used"),
     )
 
 
@@ -83,4 +83,6 @@ class GenerationJob(TimestampMixin, Base):
             name="status",
         ),
         Index("ix_generation_jobs_status_created", "status", "created_at"),
+        # finalize 계정 쿼터의 24시간 윈도우 카운트용 — POST finalize·GET 세션마다 돈다
+        Index("ix_generation_jobs_user_kind_created", "user_id", "kind", "created_at"),
     )

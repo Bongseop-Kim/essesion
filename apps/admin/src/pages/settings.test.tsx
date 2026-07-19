@@ -54,6 +54,13 @@ const settings: AdminSettingOut[] = [
     updated_at: "2026-07-12T01:00:00Z",
     updated_by: "admin-1",
   },
+  {
+    key: "design_finalize_daily_limit",
+    value: "10",
+    value_type: "non_negative_integer",
+    updated_at: "2026-07-12T01:00:00Z",
+    updated_by: "admin-1",
+  },
 ];
 
 function renderPage() {
@@ -112,6 +119,18 @@ describe("SettingsPage", () => {
     expect(screen.queryAllByRole("button", { name: "수정" })).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "편집 취소" }));
     expect(screen.queryByLabelText("택배사명")).toBeNull();
+  });
+
+  it("실사화 한도 설정을 회 단위로 표시하고 전용 라벨로 편집한다", async () => {
+    const user = userEvent.setup();
+    api.getSettings.mockResolvedValue(settings);
+    renderPage();
+
+    expect(await screen.findByText("실사화 24시간 한도")).toBeTruthy();
+    // 현재 값·시스템 기본값 모두 "10회" — 회 단위 포맷 확인
+    expect(screen.getAllByText("10회").length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: "수정" })[2]!);
+    expect(await screen.findByLabelText("실사화 횟수")).toBeTruthy();
   });
 
   it("편집 중 캐시가 갱신되어도 편집 시작 revision으로 저장한다", async () => {

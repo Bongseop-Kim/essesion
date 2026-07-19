@@ -92,7 +92,7 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
 
 @router.post("/reconcile-stale-generation-jobs", response_model=BatchResult)
 async def reconcile_stale_generation_jobs(session: SessionDep) -> BatchResult:
-    """Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결하고 세션 예산을 복구한다."""
+    """Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결한다 — 쿼터 슬롯 자동 해제."""
     now = datetime.now(UTC)
     jobs = (
         await session.scalars(
@@ -104,7 +104,7 @@ async def reconcile_stale_generation_jobs(session: SessionDep) -> BatchResult:
         )
     ).all()
 
-    await resolve_stale_finalize_jobs(session, jobs)
+    resolve_stale_finalize_jobs(jobs)
     await session.commit()
     return BatchResult(processed=len(jobs))
 

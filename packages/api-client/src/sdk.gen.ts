@@ -920,7 +920,7 @@ export const cleanupImages = <ThrowOnError extends boolean = false>(options?: Op
 /**
  * Reconcile Stale Generation Jobs
  *
- * Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결하고 세션 예산을 복구한다.
+ * Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결한다 — 쿼터 슬롯 자동 해제.
  */
 export const reconcileStaleGenerationJobs = <ThrowOnError extends boolean = false>(options?: Options<ReconcileStaleGenerationJobsData, ThrowOnError>): RequestResult<ReconcileStaleGenerationJobsResponses, unknown, ThrowOnError> => (options?.client ?? client).post<ReconcileStaleGenerationJobsResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1043,10 +1043,11 @@ export const listGenerationJobs = <ThrowOnError extends boolean = false>(options
 /**
  * Delete Generation Job
  *
- * 종결된 잡을 삭제한다 — 진행 중이면 먼저 취소(예산 환불)를 거쳐야 한다.
+ * 종결된 잡을 삭제한다 — 진행 중이면 먼저 취소를 거쳐야 한다.
  *
- * 주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하고, 소비한
- * finalize 예산은 환불하지 않는다(삭제-재생성 무한 루프 방지).
+ * 주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하다. 삭제된 행은
+ * 24시간 쿼터 카운트에서 빠져 슬롯이 풀린다 — 세션당 예산 시절의 "삭제해도
+ * 미환불" 정책을 의도적으로 뒤집은 것(결과물을 버려야 슬롯이 나와 남용 유인 약함).
  */
 export const deleteGenerationJob = <ThrowOnError extends boolean = false>(options: Options<DeleteGenerationJobData, ThrowOnError>): RequestResult<DeleteGenerationJobResponses, DeleteGenerationJobErrors, ThrowOnError> => (options.client ?? client).delete<DeleteGenerationJobResponses, DeleteGenerationJobErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
@@ -1066,9 +1067,10 @@ export const getGenerationJob = <ThrowOnError extends boolean = false>(options: 
 /**
  * Cancel Generation Job
  *
- * 진행 중인 finalize job을 취소하고 소비한 예산을 되돌린다 (멱등).
+ * 진행 중인 finalize job을 취소한다 (멱등).
  *
- * 조건부 UPDATE가 전이·환불의 원자성을 보장한다 — 워커가 먼저 종결하면
+ * canceled job은 24시간 쿼터 카운트에서 빠지므로 슬롯은 자동 해제된다.
+ * 조건부 UPDATE가 전이의 원자성을 보장한다 — 워커가 먼저 종결하면
  * rowcount=0으로 지고, 늦게 도착한 워커 렌더 결과는 _finish_job의
  * processing 가드에 걸려 무효화된다.
  */

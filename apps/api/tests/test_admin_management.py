@@ -448,6 +448,7 @@ async def test_pricing_and_settings_are_allowlisted_atomic_and_admin_only(
     manager = await make_user(db_session, role="manager")
     await _seed_all_pricing(db_session)
     await _ensure_setting(db_session, "default_courier_company", "롯데택배")
+    await _ensure_setting(db_session, "design_finalize_daily_limit", "10")
     await _ensure_setting(db_session, "design_token_initial_grant", "30")
     admin_headers = auth_headers(admin, settings)
 

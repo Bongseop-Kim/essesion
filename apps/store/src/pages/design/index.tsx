@@ -103,7 +103,6 @@ import { useSession } from "@/shared/store/session";
 
 const DESCRIPTION =
   "AI와 함께 반복 가능한 넥타이 패턴을 만들고 실사화까지 확인하세요.";
-const FINALIZE_BUDGET = 10;
 // 모달 위 모달 금지 — 목록 모달이 닫히는 모션이 끝난 뒤 확인 다이얼로그를 연다.
 const OVERLAY_EXIT_MS = 250;
 
@@ -237,10 +236,11 @@ export function DesignPage() {
     : null;
   const previewImageSrc = resultPreview?.src ?? selectedImageSrc;
   const previewAlt = resultPreview ? "완성된 실사화 이미지" : undefined;
-  const remainingFinalize = Math.max(
-    0,
-    FINALIZE_BUDGET - (sessionQuery.data?.finalize_used ?? 0),
-  );
+  // 계정당 24시간 쿼터 — 단건 세션 GET에서만 내려온다. null(미로드·설정 부재)이면
+  // 막지 않는다: 서버 409가 최종 방어선이고 스낵바로 안내된다.
+  const finalizeQuota = sessionQuery.data?.finalize_quota ?? null;
+  const finalizeExhausted =
+    finalizeQuota !== null && finalizeQuota.remaining <= 0;
   const visibleTurns = useMemo(
     () =>
       mergeFinalizeTurns(
@@ -580,7 +580,7 @@ export function DesignPage() {
   const actionProps = {
     selected: !!selection?.intent,
     canExport: !!selection?.candidate?.svg,
-    remainingFinalize,
+    finalizeExhausted,
     loading: generateMutation.isPending,
     onVariation: () => void generateVariation(),
     onExport: openExport,
@@ -625,7 +625,7 @@ export function DesignPage() {
       <MenuItem
         label="실사화하기"
         prefixIcon={<Icon svg={<Squares2X2Icon />} size={18} />}
-        disabled={!selection?.intent || remainingFinalize <= 0}
+        disabled={!selection?.intent || finalizeExhausted}
         onClick={() => openFinalize()}
       />
     </>
@@ -800,7 +800,8 @@ export function DesignPage() {
         }}
         onWeaveChange={setWeave}
         onSubmit={(value) => void submitFinalize(value)}
-        remaining={remainingFinalize}
+        remaining={finalizeQuota?.remaining ?? null}
+        resetAt={finalizeQuota?.reset_at ?? null}
         loading={finalizeMutation.isPending}
         disabled={!selection?.intent}
       />
@@ -824,7 +825,6 @@ export function DesignPage() {
           id: session.id,
           createdAt: session.created_at,
           status: session.status,
-          finalizeUsed: session.finalize_used,
           lastPrompt: session.last_prompt ?? null,
         }))}
         selectedId={activeSessionId}
@@ -891,7 +891,7 @@ export function DesignPage() {
 function DesignActions({
   selected,
   canExport,
-  remainingFinalize,
+  finalizeExhausted,
   loading,
   onVariation,
   onExport,
@@ -899,7 +899,7 @@ function DesignActions({
 }: {
   selected: boolean;
   canExport: boolean;
-  remainingFinalize: number;
+  finalizeExhausted: boolean;
   loading: boolean;
   onVariation: () => void;
   onExport: () => void;
@@ -931,7 +931,7 @@ function DesignActions({
         type="button"
         size="small"
         variant="neutralOutline"
-        disabled={!selected || remainingFinalize <= 0}
+        disabled={!selected || finalizeExhausted}
         onClick={onFinalize}
       >
         <Icon svg={<Squares2X2Icon />} size={18} />

@@ -1,22 +1,19 @@
 """finalize job 수명주기 공유 로직 — 취소·stale 회수의 단일 전이 지점.
 
-canceled 전이는 예산 환불과 항상 짝이다. 사용자 취소(design 라우터)와
-TTL 회수(batch 배치·폴링 시 lazy)가 같은 헬퍼를 쓰므로 환불이 정확히
-한 번만 일어난다 — 전이 조건(조건부 UPDATE 또는 행 잠금)이 중복을 막는다.
+canceled/failed job은 계정 24시간 쿼터 카운트에서 빠진다(quota.py) —
+전이 자체가 슬롯을 해제하므로 별도 환불이 없다. 전이 조건(조건부 UPDATE
+또는 행 잠금)이 중복 전이를 막는다.
 """
 
-import uuid
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 
 from db.models.design import (
     FINALIZE_STALE_MESSAGE,
     FINALIZE_TEMPORARY_FAILURE_MARKER,
-    DesignSession,
     GenerationJob,
 )
-from sqlalchemy import ColumnElement, and_, func, or_, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import ColumnElement, and_, or_
 
 # Cloud Tasks 최대 4회가 각 910초 deadline을 소진한 최악의 장기 실패까지 기다린 뒤 회수한다.
 STALE_GENERATION_JOB_AFTER = timedelta(minutes=75)
@@ -48,21 +45,9 @@ def stale_finalize_clause(now: datetime) -> ColumnElement[bool]:
     )
 
 
-async def refund_finalize_budget(session: AsyncSession, session_id: uuid.UUID) -> None:
-    await session.execute(
-        update(DesignSession)
-        .where(DesignSession.id == session_id)
-        .values(finalize_used=func.greatest(DesignSession.finalize_used - 1, 0))
-    )
-
-
-async def resolve_stale_finalize_jobs(
-    session: AsyncSession, jobs: Iterable[GenerationJob]
-) -> None:
-    """행 잠금을 이미 확보한 stale job들을 canceled로 종결하고 예산을 복구한다."""
+def resolve_stale_finalize_jobs(jobs: Iterable[GenerationJob]) -> None:
+    """행 잠금을 이미 확보한 stale job들을 canceled로 종결한다 — 쿼터 슬롯은 자동 해제."""
     for job in jobs:
         job.status = "canceled"
         job.result = None
         job.error_message = FINALIZE_STALE_MESSAGE
-        if job.session_id is not None:
-            await refund_finalize_budget(session, job.session_id)

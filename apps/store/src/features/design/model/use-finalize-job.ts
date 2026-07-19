@@ -185,7 +185,7 @@ export function useCancelFinalizeJob() {
         queryClient.invalidateQueries({ queryKey: generationJobsQueryKey() }),
       ];
       if (job.session_id) {
-        // 취소는 finalize 예산을 되돌린다 — 세션의 finalize_used 갱신
+        // 취소된 잡은 24시간 쿼터 카운트에서 빠진다 — 세션의 finalize_quota 갱신
         invalidations.push(
           queryClient.invalidateQueries({
             queryKey: designSessionQueryKey(job.session_id),

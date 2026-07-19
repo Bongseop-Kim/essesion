@@ -32,7 +32,7 @@
 | images | **images** (재설계) | url·file_id·folder(ImageKit) → object_key(GCS 업로드 버킷). 2단계 삭제·expires_at·부분 unique 유지. 비회원 수선 업로드를 위해 claim_token_hash/content_type/size_bytes/upload_completed_at 추가, 미귀속·장바구니 제거 이미지는 24시간 후 정리. 견적 종료 시 90일 만료 트리거 → api 로직 |
 | motifs | motifs | 동일. embedding을 vector(1536) 고정(text-embedding-3-small) — 기존 런타임 vector_dims 가드 대체. extensions.vector → public vector. HNSW 인덱스 없음(결정론 위해 seq scan — 규모 커지면 후속 리비전) |
 | seamless_generation_logs | seamless_generation_logs | 동일 — admin 로그 뷰어 + SVG 재-export system of record |
-| seamless_sessions | **design_sessions** (재설계) | thread_id(text PK)→id(uuid). status/seed/colorway/registry_version/current_intent 승계, user_id NOT NULL화. **예산 카운터 recraft_used·finalize_used 추가** — 프로세스-로컬 budget 대체(Postgres 공유 카운터, ARCHITECTURE §7) |
+| seamless_sessions | **design_sessions** (재설계) | thread_id(text PK)→id(uuid). status/seed/colorway/registry_version/current_intent 승계, user_id NOT NULL화. **예산 카운터 recraft_used 추가** — 프로세스-로컬 budget 대체(Postgres 공유 카운터, ARCHITECTURE §7). finalize는 세션 카운터 대신 계정당 24시간 쿼터(generation_jobs 카운트, worker-pipeline.md §5) — finalize_used 컬럼은 도입 후 제거됨 |
 | **checkpoints / checkpoint_blobs / checkpoint_writes / checkpoint_migrations** | — (드롭) | LangGraph 미승계. 턴 이력은 **design_session_turns**(신규, session_id+seq unique)로 api가 소유 |
 | **ai_generation_logs** | — (드롭) | generate-tile 잔재 — seamless 워커가 대체 |
 | **design_chat_sessions / design_chat_messages** | — (드롭) | generate-tile 기반 /design 구현체 — /design은 신규 설계(보존 예외) |

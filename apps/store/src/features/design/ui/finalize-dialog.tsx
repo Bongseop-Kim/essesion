@@ -33,7 +33,10 @@ export type FinalizeDialogProps = FinalizeDialogValue & {
   onProductionMethodChange: (method: ProductionMethod) => void;
   onWeaveChange: (weave: FabricWeave) => void;
   onSubmit: (value: FinalizeDialogValue) => void;
-  remaining: number;
+  /** 계정당 24시간 쿼터 남은 횟수 — null이면 미로드/설정 부재(막지 않음, 서버가 최종 방어) */
+  remaining: number | null;
+  /** 쿼터 소진 시 슬롯이 하나 풀리는 시각(ISO) — 카운트 0이면 null */
+  resetAt: string | null;
   loading?: boolean;
   disabled?: boolean;
 };
@@ -83,6 +86,19 @@ const WEAVES = [
 
 const PRINT_WEAVES: readonly FabricWeave[] = ["twill-0", "twill-45"];
 
+const RESET_AT_FORMAT = new Intl.DateTimeFormat("ko-KR", {
+  month: "long",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function formatResetAt(resetAt: string | null): string | null {
+  if (!resetAt) return null;
+  const parsed = new Date(resetAt);
+  return Number.isNaN(parsed.getTime()) ? null : RESET_AT_FORMAT.format(parsed);
+}
+
 export function FinalizeDialog({
   open,
   onOpenChange,
@@ -92,6 +108,7 @@ export function FinalizeDialog({
   onWeaveChange,
   onSubmit,
   remaining,
+  resetAt,
   loading = false,
   disabled = false,
 }: FinalizeDialogProps) {
@@ -100,15 +117,20 @@ export function FinalizeDialog({
       ? WEAVES.filter((option) => PRINT_WEAVES.includes(option.value))
       : WEAVES;
   const validWeave = availableWeaves.some((option) => option.value === weave);
-  const exhausted = remaining <= 0;
+  const exhausted = remaining !== null && remaining <= 0;
   const submitDisabled = disabled || exhausted || !validWeave;
+  const resetAtLabel = formatResetAt(resetAt);
 
   return (
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
       title="실사화"
-      description={`남은 횟수 ${Math.max(0, remaining)}회`}
+      description={
+        remaining === null
+          ? undefined
+          : `최근 24시간 남은 횟수 ${Math.max(0, remaining)}회`
+      }
       size="medium"
       showCloseButton
       footer={
@@ -141,7 +163,11 @@ export function FinalizeDialog({
           <Callout
             tone="warning"
             title="실사화 횟수를 모두 사용했어요"
-            description="이 세션에서는 실사화를 더 만들 수 없어요."
+            description={
+              resetAtLabel
+                ? `최근 24시간 한도에 도달했어요. ${resetAtLabel} 이후 다시 만들 수 있어요.`
+                : "최근 24시간 한도에 도달했어요. 잠시 후 다시 시도해 주세요."
+            }
           />
         ) : null}
 

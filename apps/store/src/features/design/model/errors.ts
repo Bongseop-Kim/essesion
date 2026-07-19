@@ -2,6 +2,7 @@ export type DesignErrorKind =
   | "insufficient_tokens"
   | "refund_pending"
   | "worker_rejected"
+  | "finalize_quota_exhausted"
   | "conflict"
   | "upstream_error"
   | "unknown";
@@ -11,6 +12,9 @@ export const DESIGN_ERROR_MESSAGES: Record<DesignErrorKind, string> = {
   refund_pending: "환불 심사 중에는 디자인을 생성할 수 없어요.",
   worker_rejected:
     "요청을 이해하지 못했어요. 프롬프트를 수정해 다시 시도해 주세요. 토큰은 자동으로 환불돼요.",
+  // 서버 detail이 리셋까지 남은 시간을 함께 안내한다 — 이 문구는 폴백.
+  finalize_quota_exhausted:
+    "최근 24시간 실사화 한도를 모두 사용했어요. 잠시 후 다시 시도해 주세요.",
   conflict:
     "현재 디자인 상태에서는 요청을 완료할 수 없어요. 세션을 새로고침해 주세요.",
   upstream_error:
@@ -22,6 +26,7 @@ const knownErrorKinds = new Set<DesignErrorKind>([
   "insufficient_tokens",
   "refund_pending",
   "worker_rejected",
+  "finalize_quota_exhausted",
   "conflict",
   "upstream_error",
 ]);

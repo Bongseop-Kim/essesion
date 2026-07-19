@@ -210,7 +210,7 @@ async def _design_session_delete(session: AsyncSession, owner: User) -> tuple[st
 async def _design_job_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.design import DesignSession, GenerationJob
 
-    design_session = DesignSession(user_id=owner.id, finalize_used=1)
+    design_session = DesignSession(user_id=owner.id)
     session.add(design_session)
     await session.flush()
     job = GenerationJob(
@@ -246,7 +246,7 @@ async def _design_job_detail(session: AsyncSession, owner: User) -> tuple[str, d
 async def _design_job_cancel(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.design import DesignSession, GenerationJob
 
-    design_session = DesignSession(user_id=owner.id, finalize_used=1)
+    design_session = DesignSession(user_id=owner.id)
     session.add(design_session)
     await session.flush()
     job = GenerationJob(

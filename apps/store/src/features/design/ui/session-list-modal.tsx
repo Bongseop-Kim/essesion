@@ -17,8 +17,6 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 
-const FINALIZE_LIMIT = 10;
-
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   year: "numeric",
   month: "long",
@@ -31,7 +29,6 @@ export type DesignSessionSummary = {
   id: string;
   createdAt: string;
   status: string;
-  finalizeUsed: number;
   /** 마지막 생성 프롬프트 — 세션 구분용 요약 (프롬프트 턴이 없으면 null) */
   lastPrompt: string | null;
 };
@@ -141,9 +138,6 @@ export function SessionListModal({
                       ) : null}
                       <HStack gap="x2" wrap>
                         <Badge tone={status.tone}>{status.label}</Badge>
-                        <Text textStyle="caption" color="fg.neutral-muted">
-                          실사화 {session.finalizeUsed}/{FINALIZE_LIMIT}
-                        </Text>
                       </HStack>
                     </VStack>
                     <Icon

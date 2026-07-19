@@ -162,7 +162,7 @@ export function FinalizeTurnCard({
         title={
           timedOut ? "실사화가 시간 초과로 취소됐어요" : "실사화를 취소했어요"
         }
-        description="사용한 횟수는 복구됐어요. 언제든 다시 시도할 수 있어요."
+        description="취소한 실사화는 횟수에 포함되지 않아요. 언제든 다시 시도할 수 있어요."
         action={
           <ActionButton
             type="button"
@@ -180,30 +180,24 @@ export function FinalizeTurnCard({
   }
 
   if (job.status === "failed") {
+    // 실패한 실사화는 24시간 쿼터 카운트에서 빠진다 — 별도 경고 없이 재시도만 안내.
     return (
-      <VStack gap="x3" alignItems="stretch">
-        <ContentPlaceholder
-          title="실사화를 만들지 못했어요"
-          description={job.error_message ?? "잠시 후 다시 시도해 주세요."}
-          action={
-            <ActionButton
-              type="button"
-              size="small"
-              variant="neutralOutline"
-              loading={retrying}
-              onClick={() => void handleRetry(job)}
-            >
-              <Icon svg={<ArrowPathIcon />} size={18} />
-              다시 시도
-            </ActionButton>
-          }
-        />
-        <Callout
-          tone="warning"
-          title="재시도하면 횟수를 한 번 더 사용해요"
-          description="실패한 실사화 횟수는 자동으로 복구되지 않아요."
-        />
-      </VStack>
+      <ContentPlaceholder
+        title="실사화를 만들지 못했어요"
+        description={job.error_message ?? "잠시 후 다시 시도해 주세요."}
+        action={
+          <ActionButton
+            type="button"
+            size="small"
+            variant="neutralOutline"
+            loading={retrying}
+            onClick={() => void handleRetry(job)}
+          >
+            <Icon svg={<ArrowPathIcon />} size={18} />
+            다시 시도
+          </ActionButton>
+        }
+      />
     );
   }
 

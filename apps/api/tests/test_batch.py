@@ -150,10 +150,10 @@ async def test_order_batches_process_only_one_bounded_chunk(client, db_session, 
     assert second.json() == {"processed": 1}
 
 
-async def test_reconcile_stale_finalize_jobs_fails_and_restores_budget(client, db_session):
+async def test_reconcile_stale_finalize_jobs_cancels_them(client, db_session):
     user = await make_user(db_session)
     old = datetime.now(UTC) - timedelta(hours=2)
-    design_session = DesignSession(user_id=user.id, status="active", finalize_used=3)
+    design_session = DesignSession(user_id=user.id, status="active")
     db_session.add(design_session)
     await db_session.flush()
     queued = GenerationJob(
@@ -236,17 +236,15 @@ async def test_reconcile_stale_finalize_jobs_fails_and_restores_budget(client, d
     await db_session.refresh(fresh)
     await db_session.refresh(fresh_temporary_failure)
     await db_session.refresh(old_terminal_failure)
-    await db_session.refresh(design_session)
     assert fresh.status == "queued"
     assert fresh_temporary_failure.error_message == FINALIZE_TEMPORARY_FAILURE_MARKER
     assert old_terminal_failure.error_message == "FINALIZE_INVALID_INPUT: finalize input is invalid"
-    assert design_session.finalize_used == 0
 
 
 async def test_reconcile_stale_finalize_jobs_is_idempotent(client, db_session):
     user = await make_user(db_session)
     old = datetime.now(UTC) - timedelta(hours=2)
-    design_session = DesignSession(user_id=user.id, status="active", finalize_used=1)
+    design_session = DesignSession(user_id=user.id, status="active")
     db_session.add(design_session)
     await db_session.flush()
     job = GenerationJob(
@@ -267,8 +265,6 @@ async def test_reconcile_stale_finalize_jobs_is_idempotent(client, db_session):
 
     assert first.json() == {"processed": 1}
     assert second.json() == {"processed": 0}
-    await db_session.refresh(design_session)
-    assert design_session.finalize_used == 0
 
 
 async def test_reconcile_stale_finalize_uses_creation_ttl_and_protects_active_lease(
@@ -277,7 +273,7 @@ async def test_reconcile_stale_finalize_uses_creation_ttl_and_protects_active_le
     user = await make_user(db_session)
     now = datetime.now(UTC)
     old = now - timedelta(hours=2)
-    design_session = DesignSession(user_id=user.id, status="active", finalize_used=3)
+    design_session = DesignSession(user_id=user.id, status="active")
     db_session.add(design_session)
     await db_session.flush()
     active_processing = GenerationJob(
@@ -321,13 +317,11 @@ async def test_reconcile_stale_finalize_uses_creation_ttl_and_protects_active_le
     await db_session.refresh(active_processing)
     await db_session.refresh(expired_processing)
     await db_session.refresh(recently_failed)
-    await db_session.refresh(design_session)
     assert active_processing.status == "processing"
     assert expired_processing.status == "canceled"
     assert expired_processing.error_message == FINALIZE_STALE_MESSAGE
     assert recently_failed.status == "canceled"
     assert recently_failed.error_message == FINALIZE_STALE_MESSAGE
-    assert design_session.finalize_used == 1
 
 
 # ---- OIDC 모드 (배포 환경 — infra/scheduler.tf가 audience·email 주입) ----

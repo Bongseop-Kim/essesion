@@ -1960,7 +1960,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -3201,10 +3201,7 @@ export type DesignSessionOut = {
     current_intent: {
         [key: string]: unknown;
     } | null;
-    /**
-     * Finalize Used
-     */
-    finalize_used: number;
+    finalize_quota?: FinalizeQuotaOut | null;
     /**
      * Id
      */
@@ -3297,6 +3294,30 @@ export type DesignTurnOut = {
      * Seq
      */
     seq: number;
+};
+
+/**
+ * FinalizeQuotaOut
+ *
+ * 계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).
+ */
+export type FinalizeQuotaOut = {
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Remaining
+     */
+    remaining: number;
+    /**
+     * Reset At
+     */
+    reset_at: string | null;
+    /**
+     * Used
+     */
+    used: number;
 };
 
 /**
@@ -6651,7 +6672,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Value
      */
