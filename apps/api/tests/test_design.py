@@ -545,7 +545,7 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
 
 
 def test_public_asset_url_uses_project_bucket_and_quotes_key():
-    settings = Settings(env="test", gcs_assets_bucket="configured-assets")
+    settings = Settings(env="test", gcs_assets_bucket="configured-assets", gcs_emulator_host="")
     assert public_asset_url(settings, "fabric/a b#.png") == (
         "https://storage.googleapis.com/configured-assets/fabric/a%20b%23.png"
     )

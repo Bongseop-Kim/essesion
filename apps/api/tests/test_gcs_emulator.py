@@ -35,9 +35,7 @@ def test_build_gcs_client_selects_real_client_against_emulator():
     assert client.capability_mode == "real"
     # 에뮬레이터 host만 있고 버킷이 없으면 예전처럼 DryRun
     assert isinstance(
-        build_gcs_client(
-            _TestSettings(env="local", gcs_emulator_host="http://localhost:4443")
-        ),
+        build_gcs_client(_TestSettings(env="local", gcs_emulator_host="http://localhost:4443")),
         DryRunGcsClient,
     )
 
