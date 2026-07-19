@@ -43,11 +43,23 @@ import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
 import {
-  importDesignMotif,
   MAX_DESIGN_MOTIFS,
   MAX_DESIGN_PHOTOS,
   uploadDesignPhoto,
 } from "@/features/design/api/attachments";
+import {
+  createDesignIdeas,
+  extractDesignPalette,
+} from "@/features/design/api/context-tools";
+import {
+  AUTO_DESIGN_PALETTE,
+  AUTO_PATTERN_CONSTRAINTS,
+  DEFAULT_CANDIDATE_COUNT,
+  type DesignPalette,
+  type DesignPatternConstraints,
+  patternConstraintLabels,
+  type ReferenceImagePurpose,
+} from "@/features/design/model/draft";
 import { parseDesignError } from "@/features/design/model/errors";
 import {
   type LocalFinalizeTurn,
@@ -92,6 +104,7 @@ import {
   useGenerateDesign,
 } from "@/features/design/model/use-generate";
 import { useDesignSelection } from "@/features/design/model/use-selection";
+import { ColorSettingsModal } from "@/features/design/ui/color-settings-modal";
 import {
   type ComposerAttachment,
   ComposerPanelItem,
@@ -111,8 +124,11 @@ import {
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizeTurnCard } from "@/features/design/ui/finalize-turn-card";
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
+import { IdeasModal } from "@/features/design/ui/ideas-modal";
+import { MotifAddModal } from "@/features/design/ui/motif-add-modal";
 import { MotifLibraryModal } from "@/features/design/ui/motif-library-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
+import { PatternSettingsModal } from "@/features/design/ui/pattern-settings-modal";
 import { PreviewModal } from "@/features/design/ui/preview-modal";
 import { PreviewPanel } from "@/features/design/ui/preview-panel";
 import {
@@ -138,6 +154,7 @@ type PendingPhoto = {
   id: string;
   file: File;
   previewUrl: string;
+  purpose: ReferenceImagePurpose;
   uploadId?: string;
 };
 
@@ -153,12 +170,19 @@ export function DesignPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [newSessionMode, setNewSessionMode] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [candidateCount, setCandidateCount] = useState(4);
+  const [candidateCount, setCandidateCount] = useState(DEFAULT_CANDIDATE_COUNT);
+  const [palette, setPalette] = useState<DesignPalette>(AUTO_DESIGN_PALETTE);
+  const [patternConstraints, setPatternConstraints] =
+    useState<DesignPatternConstraints>(AUTO_PATTERN_CONSTRAINTS);
   const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [finalizedOpen, setFinalizedOpen] = useState(false);
   const [motifsOpen, setMotifsOpen] = useState(false);
+  const [motifAddOpen, setMotifAddOpen] = useState(false);
+  const [colorsOpen, setColorsOpen] = useState(false);
+  const [patternSettingsOpen, setPatternSettingsOpen] = useState(false);
+  const [ideasOpen, setIdeasOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const photosRef = useRef<PendingPhoto[]>([]);
@@ -316,10 +340,11 @@ export function DesignPage() {
         kind: "photo" as const,
         name: photo.file.name,
         previewSrc: photo.previewUrl,
+        purpose: photo.purpose,
       })),
       ...selectedMotifs.map((motif) => ({
         id: motif.id,
-        kind: "svg" as const,
+        kind: "motif" as const,
         name: motif.name,
         previewSrc: svgToDataUri(motif.preview_svg),
       })),
@@ -335,11 +360,35 @@ export function DesignPage() {
     setSelectedMotifs([]);
   };
 
+  const resetComposerDraft = () => {
+    setPrompt("");
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
+    setPalette(AUTO_DESIGN_PALETTE);
+    setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
+    clearComposerAttachments();
+  };
+
+  const resetVariationControls = () => {
+    // A variation rerolls the selected intent. Prompt, photos, and exact motifs are
+    // not part of that request, so keep that separate composer draft intact.
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
+    setPalette(AUTO_DESIGN_PALETTE);
+    setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
+  };
+
   const removeComposerAttachment = (id: string) => {
     const photo = photosRef.current.find((item) => item.id === id);
     if (photo) URL.revokeObjectURL(photo.previewUrl);
     setPhotos((current) => current.filter((item) => item.id !== id));
     setSelectedMotifs((current) => current.filter((item) => item.id !== id));
+  };
+
+  const changePhotoPurpose = (id: string, purpose: ReferenceImagePurpose) => {
+    const photo = photosRef.current.find((item) => item.id === id);
+    if (photo) photo.purpose = purpose;
+    setPhotos((current) =>
+      current.map((item) => (item.id === id ? { ...item, purpose } : item)),
+    );
   };
 
   const addPhotoFiles = (files: File[]) => {
@@ -360,6 +409,7 @@ export function DesignPage() {
           id: globalThis.crypto.randomUUID(),
           file,
           previewUrl: URL.createObjectURL(file),
+          purpose: "auto",
         });
       } catch (error) {
         snackbar(
@@ -369,42 +419,6 @@ export function DesignPage() {
     }
     if (accepted.length > 0) {
       setPhotos((current) => [...current, ...accepted]);
-    }
-  };
-
-  const addSvgFiles = async (files: File[]) => {
-    if (!ensureDesignAuth() || attachmentsBusy) return;
-    const remaining = MAX_DESIGN_MOTIFS - selectedMotifs.length;
-    if (remaining <= 0) {
-      snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
-      return;
-    }
-    if (files.length > remaining) {
-      snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
-    }
-    setAttachmentsBusy(true);
-    try {
-      for (const file of files.slice(0, remaining)) {
-        try {
-          const motif = await importDesignMotif(file);
-          setSelectedMotifs((current) =>
-            current.some((item) => item.id === motif.id)
-              ? current
-              : [...current, motif].slice(0, MAX_DESIGN_MOTIFS),
-          );
-        } catch (error) {
-          snackbar(
-            error instanceof Error
-              ? error.message
-              : `${file.name}을 모티프로 가져오지 못했습니다.`,
-          );
-        }
-      }
-      await queryClient.invalidateQueries({
-        queryKey: listUserMotifsQueryKey(),
-      });
-    } finally {
-      setAttachmentsBusy(false);
     }
   };
 
@@ -421,21 +435,72 @@ export function DesignPage() {
     });
   };
 
-  const ensureUploadedPhotos = async () => {
-    const uploadIds: string[] = [];
-    for (const photo of photosRef.current) {
-      const uploadId = photo.uploadId ?? (await uploadDesignPhoto(photo.file));
-      uploadIds.push(uploadId);
-      if (!photo.uploadId) {
-        setPhotos((current) =>
-          current.map((item) =>
-            item.id === photo.id ? { ...item, uploadId } : item,
-          ),
-        );
-        photo.uploadId = uploadId;
-      }
+  const openMotifAdd = () => {
+    if (!ensureDesignAuth()) return;
+    if (selectedMotifs.length >= MAX_DESIGN_MOTIFS) {
+      snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
+      return;
     }
-    return uploadIds;
+    setMotifAddOpen(true);
+  };
+
+  const selectCreatedMotif = (motif: UserMotifOut) => {
+    setSelectedMotifs((current) =>
+      current.some((item) => item.id === motif.id)
+        ? current
+        : [...current, motif].slice(0, MAX_DESIGN_MOTIFS),
+    );
+    void queryClient.invalidateQueries({
+      queryKey: listUserMotifsQueryKey(),
+    });
+  };
+
+  const ensureUploadedPhoto = async (photo: PendingPhoto) => {
+    if (photo.uploadId) return photo.uploadId;
+    const uploadId = await uploadDesignPhoto(photo.file);
+    photo.uploadId = uploadId;
+    setPhotos((current) =>
+      current.map((item) =>
+        item.id === photo.id ? { ...item, uploadId } : item,
+      ),
+    );
+    return uploadId;
+  };
+
+  const ensurePhotoUploadById = async (photoId: string) => {
+    const photo = photosRef.current.find((item) => item.id === photoId);
+    if (!photo) throw new Error("첨부한 사진을 찾지 못했습니다.");
+    return ensureUploadedPhoto(photo);
+  };
+
+  const ensureUploadedPhotos = async () => {
+    const references: Array<{
+      uploadId: string;
+      purpose: ReferenceImagePurpose;
+    }> = [];
+    for (const photo of photosRef.current) {
+      references.push({
+        uploadId: await ensureUploadedPhoto(photo),
+        purpose: photo.purpose,
+      });
+    }
+    return references;
+  };
+
+  const extractPaletteFromPhoto = async (photoId: string) => {
+    if (!ensureDesignAuth()) throw new Error("로그인이 필요합니다.");
+    return extractDesignPalette(await ensurePhotoUploadById(photoId));
+  };
+
+  const requestIdeas = async () => {
+    if (!ensureDesignAuth()) throw new Error("로그인이 필요합니다.");
+    return createDesignIdeas({
+      prompt: prompt.trim(),
+      referenceImages: await ensureUploadedPhotos(),
+      userMotifIds: selectedMotifs.map((motif) => motif.id),
+      palette,
+      patternConstraints,
+    });
   };
 
   const runGeneration = (input: GenerateDesignInput) => {
@@ -463,14 +528,16 @@ export function DesignPage() {
     let generationStarted = false;
     setAttachmentsBusy(true);
     try {
-      const referenceImageUploadIds = await ensureUploadedPhotos();
+      const referenceImages = await ensureUploadedPhotos();
       const input: GenerateDesignInput = {
         mode: "prompt",
         sessionId: activeSessionId,
         prompt: prompt.trim(),
         candidateCount,
-        referenceImageUploadIds,
+        referenceImages,
         userMotifIds: selectedMotifs.map((motif) => motif.id),
+        palette,
+        patternConstraints,
       };
       generationStarted = true;
       const { operation, promise } = runGeneration(input);
@@ -479,8 +546,7 @@ export function DesignPage() {
       setActiveSessionId(result.sessionId);
       setNewSessionMode(false);
       setSelectionOverride(null);
-      setPrompt("");
-      clearComposerAttachments();
+      resetComposerDraft();
     } catch (error) {
       // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
       if (!generationStarted) {
@@ -513,8 +579,12 @@ export function DesignPage() {
         seed: randomSeed(),
         candidateCount,
         colorway: selection.colorway,
+        palette,
+        patternConstraints,
       };
-      await runGeneration(input).promise;
+      const { operation, promise } = runGeneration(input);
+      await promise;
+      if (generationEpoch.isCurrent(operation)) resetVariationControls();
     } catch {
       // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
     }
@@ -539,8 +609,11 @@ export function DesignPage() {
       setNewSessionMode(false);
       if (retryInput.mode === "prompt") {
         setSelectionOverride(null);
-        setPrompt("");
-        clearComposerAttachments();
+      }
+      if (retryInput.mode === "prompt") {
+        resetComposerDraft();
+      } else {
+        resetVariationControls();
       }
     } catch {
       // 같은 입력으로 다시 실패한 경우 Callout을 유지한다.
@@ -698,7 +771,7 @@ export function DesignPage() {
   const openPendingSession = () => {
     if (!pending || !ensureDesignAuth()) return;
     invalidateSessionOperations();
-    clearComposerAttachments();
+    resetComposerDraft();
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
     setResultPreview(null);
@@ -708,17 +781,16 @@ export function DesignPage() {
 
   const startNewSession = () => {
     invalidateSessionOperations();
-    clearComposerAttachments();
+    resetComposerDraft();
     setActiveSessionId(null);
     setNewSessionMode(true);
     setSelectionOverride(null);
     setResultPreview(null);
-    setPrompt("");
   };
 
   const chooseSession = (sessionId: string) => {
     invalidateSessionOperations();
-    clearComposerAttachments();
+    resetComposerDraft();
     setActiveSessionId(sessionId);
     setNewSessionMode(false);
     setSelectionOverride(null);
@@ -777,6 +849,7 @@ export function DesignPage() {
         if (activeSessionId === target.id) {
           // 삭제된 세션이 열려 있었다면 초기화 — 목록 갱신 후 최신 세션이 자동 선택된다.
           invalidateSessionOperations();
+          resetComposerDraft();
           setActiveSessionId(null);
           setSelectionOverride(null);
           setResultPreview(null);
@@ -968,12 +1041,26 @@ export function DesignPage() {
                 onCandidateCountChange={setCandidateCount}
                 onSubmit={() => void generatePrompt()}
                 onPhotoFilesSelect={addPhotoFiles}
-                onSvgFilesSelect={(files) => void addSvgFiles(files)}
+                onOpenMotifAdd={openMotifAdd}
                 onOpenMotifLibrary={() => {
                   if (ensureDesignAuth()) setMotifsOpen(true);
                 }}
+                onOpenColors={() => setColorsOpen(true)}
+                onOpenPatternSettings={() => setPatternSettingsOpen(true)}
+                onOpenIdeas={() => {
+                  if (ensureDesignAuth()) setIdeasOpen(true);
+                }}
                 attachments={composerAttachments}
                 onRemoveAttachment={removeComposerAttachment}
+                onPhotoPurposeChange={changePhotoPurpose}
+                paletteColors={
+                  palette.mode === "fixed" ? palette.colors : undefined
+                }
+                patternSummary={patternConstraintLabels(patternConstraints)}
+                onResetPalette={() => setPalette(AUTO_DESIGN_PALETTE)}
+                onResetPattern={() =>
+                  setPatternConstraints(AUTO_PATTERN_CONSTRAINTS)
+                }
                 canSubmitWithoutPrompt={selectedMotifs.length > 0}
                 balance={balanceQuery.data?.total ?? null}
                 generateCost={balanceQuery.data?.generate_cost ?? null}
@@ -998,6 +1085,7 @@ export function DesignPage() {
                       icon={<Icon svg={<PlusIcon />} size={24} />}
                       label="새로 만들기"
                       onClick={startNewSession}
+                      className="col-start-2 md:col-start-auto"
                     />
                   </>
                 }
@@ -1006,6 +1094,42 @@ export function DesignPage() {
           </VStack>
         </Grid>
       </LayoutContent>
+
+      <ColorSettingsModal
+        open={colorsOpen}
+        value={palette}
+        photos={photos.map((photo) => ({
+          id: photo.id,
+          name: photo.file.name,
+        }))}
+        onOpenChange={setColorsOpen}
+        onApply={setPalette}
+        onExtract={extractPaletteFromPhoto}
+      />
+      <PatternSettingsModal
+        open={patternSettingsOpen}
+        value={patternConstraints}
+        onOpenChange={setPatternSettingsOpen}
+        onApply={setPatternConstraints}
+      />
+      <MotifAddModal
+        open={motifAddOpen}
+        photos={photos.map((photo) => ({
+          id: photo.id,
+          name: photo.file.name,
+          previewSrc: photo.previewUrl,
+        }))}
+        onOpenChange={setMotifAddOpen}
+        onEnsurePhotoUpload={ensurePhotoUploadById}
+        onCreated={selectCreatedMotif}
+      />
+      <IdeasModal
+        open={ideasOpen}
+        currentPrompt={prompt}
+        onOpenChange={setIdeasOpen}
+        onRequest={requestIdeas}
+        onApply={setPrompt}
+      />
 
       <PreviewModal
         open={previewOpen}

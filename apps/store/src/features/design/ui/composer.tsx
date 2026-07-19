@@ -1,6 +1,7 @@
 import {
   ActionButton,
   Box,
+  Chip,
   Flex,
   Grid,
   HStack,
@@ -15,12 +16,16 @@ import {
   VStack,
 } from "@essesion/shared";
 import {
+  AdjustmentsHorizontalIcon,
   BookmarkSquareIcon,
+  ChevronDownIcon,
   CreditCardIcon,
-  DocumentArrowUpIcon,
+  PaintBrushIcon,
   PaperAirplaneIcon,
   PhotoIcon,
   PlusIcon,
+  PuzzlePieceIcon,
+  SparklesIcon,
   SquaresPlusIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -33,10 +38,12 @@ import {
   useState,
 } from "react";
 
+import { DESIGN_PHOTO_ACCEPT } from "@/features/design/api/attachments";
 import {
-  DESIGN_PHOTO_ACCEPT,
-  DESIGN_SVG_ACCEPT,
-} from "@/features/design/api/attachments";
+  REFERENCE_IMAGE_PURPOSES,
+  type ReferenceImagePurpose,
+  referenceImagePurposeLabel,
+} from "@/features/design/model/draft";
 import { krw } from "@/shared/lib/format";
 
 type ChatInputProps = Omit<
@@ -74,9 +81,10 @@ const CANDIDATE_COUNTS = [1, 2, 3, 4] as const;
 
 export type ComposerAttachment = {
   id: string;
-  kind: "photo" | "svg";
+  kind: "photo" | "motif";
   name: string;
   previewSrc: string;
+  purpose?: ReferenceImagePurpose;
 };
 
 export type ComposerPanelItemProps = Omit<
@@ -133,10 +141,18 @@ export type DesignComposerProps = {
   generateCost?: number | null;
   onPurchaseTokens?: () => void;
   onPhotoFilesSelect: (files: File[]) => void;
-  onSvgFilesSelect: (files: File[]) => void;
+  onOpenMotifAdd: () => void;
   onOpenMotifLibrary: () => void;
+  onOpenColors: () => void;
+  onOpenPatternSettings: () => void;
+  onOpenIdeas: () => void;
   attachments?: readonly ComposerAttachment[];
   onRemoveAttachment?: (id: string) => void;
+  onPhotoPurposeChange?: (id: string, purpose: ReferenceImagePurpose) => void;
+  paletteColors?: readonly string[];
+  patternSummary?: readonly string[];
+  onResetPalette?: () => void;
+  onResetPattern?: () => void;
   canSubmitWithoutPrompt?: boolean;
   loading?: boolean;
   disabled?: boolean;
@@ -154,10 +170,18 @@ export function DesignComposer({
   generateCost,
   onPurchaseTokens,
   onPhotoFilesSelect,
-  onSvgFilesSelect,
+  onOpenMotifAdd,
   onOpenMotifLibrary,
+  onOpenColors,
+  onOpenPatternSettings,
+  onOpenIdeas,
   attachments = [],
   onRemoveAttachment,
+  onPhotoPurposeChange,
+  paletteColors = [],
+  patternSummary = [],
+  onResetPalette,
+  onResetPattern,
   canSubmitWithoutPrompt = false,
   loading = false,
   disabled = false,
@@ -166,7 +190,6 @@ export function DesignComposer({
 }: DesignComposerProps) {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const svgInputRef = useRef<HTMLInputElement>(null);
   const controlsDisabled = disabled || loading;
   const submitDisabled =
     disabled || (prompt.trim().length === 0 && !canSubmitWithoutPrompt);
@@ -215,9 +238,55 @@ export function DesignComposer({
                     <Text textStyle="captionSm" className="truncate">
                       {attachment.name}
                     </Text>
-                    <Text textStyle="captionSm" color="fg.neutral-subtle">
-                      {attachment.kind === "photo" ? "참고 사진" : "모티프"}
-                    </Text>
+                    {attachment.kind === "photo" && onPhotoPurposeChange ? (
+                      <MenuRoot placement="top">
+                        <MenuTrigger>
+                          <ActionButton
+                            type="button"
+                            size="xsmall"
+                            variant="ghost"
+                            className="h-auto min-w-0 justify-start px-0 py-0 font-normal"
+                            aria-label={`${attachment.name} 참고 방식: ${referenceImagePurposeLabel(attachment.purpose ?? "auto")}`}
+                            disabled={loading}
+                          >
+                            <Text
+                              as="span"
+                              textStyle="captionSm"
+                              color="fg.neutral-subtle"
+                              className="truncate"
+                            >
+                              {referenceImagePurposeLabel(
+                                attachment.purpose ?? "auto",
+                              )}
+                            </Text>
+                            <Icon svg={<ChevronDownIcon />} size={12} />
+                          </ActionButton>
+                        </MenuTrigger>
+                        <MenuContent
+                          aria-label={`${attachment.name} 참고 방식`}
+                        >
+                          {REFERENCE_IMAGE_PURPOSES.map((option) => (
+                            <MenuItem
+                              key={option.value}
+                              label={option.label}
+                              checked={
+                                (attachment.purpose ?? "auto") === option.value
+                              }
+                              onClick={() =>
+                                onPhotoPurposeChange(
+                                  attachment.id,
+                                  option.value,
+                                )
+                              }
+                            />
+                          ))}
+                        </MenuContent>
+                      </MenuRoot>
+                    ) : (
+                      <Text textStyle="captionSm" color="fg.neutral-subtle">
+                        모티프
+                      </Text>
+                    )}
                   </VStack>
                   {onRemoveAttachment ? (
                     <ActionButton
@@ -234,6 +303,51 @@ export function DesignComposer({
                   ) : null}
                 </HStack>
               ))}
+            </HStack>
+          </ScrollFog>
+        ) : null}
+
+        {paletteColors.length > 0 || patternSummary.length > 0 ? (
+          <ScrollFog direction="horizontal" aria-label="현재 생성 설정">
+            <HStack gap="x2" className="min-w-max px-x1 py-x1">
+              {paletteColors.length > 0 ? (
+                <Chip
+                  size="small"
+                  variant="outline"
+                  selected
+                  aria-label="적용 색상 전체 초기화"
+                  onClick={onResetPalette}
+                  prefix={
+                    <HStack gap="x0_5" aria-hidden>
+                      {paletteColors.slice(0, 5).map((color) => (
+                        <Box
+                          as="span"
+                          key={color}
+                          width={10}
+                          height={10}
+                          borderRadius="full"
+                          borderWidth={1}
+                          borderColor="stroke.neutral-weak"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </HStack>
+                  }
+                >
+                  색상 {paletteColors.length}개 · 초기화
+                </Chip>
+              ) : null}
+              {patternSummary.length > 0 ? (
+                <Chip
+                  size="small"
+                  variant="outline"
+                  selected
+                  aria-label="패턴 설정 전체 초기화"
+                  onClick={onResetPattern}
+                >
+                  {patternSummary.join(" · ")} · 초기화
+                </Chip>
+              ) : null}
             </HStack>
           </ScrollFog>
         ) : null}
@@ -259,23 +373,37 @@ export function DesignComposer({
             </ActionButton>
           }
           trailing={
-            <ActionButton
-              type="submit"
-              size="small"
-              iconOnly
-              aria-label={submitLabel}
-              loading={loading}
-              disabled={submitDisabled}
-              className="rounded-full"
-            >
-              <Icon svg={<PaperAirplaneIcon />} size={18} />
-            </ActionButton>
+            <HStack gap="x1">
+              <ActionButton
+                type="button"
+                variant="ghost"
+                size="small"
+                iconOnly
+                aria-label="문맥 기반 아이디어"
+                onClick={onOpenIdeas}
+                disabled={controlsDisabled}
+                className="rounded-full"
+              >
+                <Icon svg={<SparklesIcon />} size={18} />
+              </ActionButton>
+              <ActionButton
+                type="submit"
+                size="small"
+                iconOnly
+                aria-label={submitLabel}
+                loading={loading}
+                disabled={submitDisabled}
+                className="rounded-full"
+              >
+                <Icon svg={<PaperAirplaneIcon />} size={18} />
+              </ActionButton>
+            </HStack>
           }
         />
 
         {optionsOpen ? (
           <VStack gap="x3" alignItems="stretch" pt="x1">
-            <Grid columns={{ base: 4, md: 8 }} gap="x3" alignItems="start">
+            <Grid columns={{ base: 4, md: 5 }} gap="x3" alignItems="start">
               <ComposerPanelItem
                 icon={<Icon svg={<PhotoIcon />} size={24} />}
                 label="사진 첨부"
@@ -283,15 +411,27 @@ export function DesignComposer({
                 disabled={controlsDisabled}
               />
               <ComposerPanelItem
-                icon={<Icon svg={<DocumentArrowUpIcon />} size={24} />}
-                label="SVG 첨부"
-                onClick={() => svgInputRef.current?.click()}
+                icon={<Icon svg={<PuzzlePieceIcon />} size={24} />}
+                label="모티프 추가"
+                onClick={onOpenMotifAdd}
                 disabled={controlsDisabled}
               />
               <ComposerPanelItem
                 icon={<Icon svg={<BookmarkSquareIcon />} size={24} />}
                 label="내 모티프"
                 onClick={onOpenMotifLibrary}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<PaintBrushIcon />} size={24} />}
+                label="색상"
+                onClick={onOpenColors}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<AdjustmentsHorizontalIcon />} size={24} />}
+                label="패턴 설정"
+                onClick={onOpenPatternSettings}
                 disabled={controlsDisabled}
               />
               <MenuRoot placement="top">
@@ -341,15 +481,6 @@ export function DesignComposer({
         className="sr-only"
         tabIndex={-1}
         onChange={(event) => handleFiles(event, onPhotoFilesSelect)}
-      />
-      <input
-        ref={svgInputRef}
-        type="file"
-        accept={DESIGN_SVG_ACCEPT}
-        multiple
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(event) => handleFiles(event, onSvgFilesSelect)}
       />
     </Box>
   );

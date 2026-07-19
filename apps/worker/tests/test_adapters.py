@@ -17,6 +17,7 @@ from worker.adapters.recraft import (
     generate_motif,
 )
 from worker.config import Settings
+from worker.engine.constraints import PaletteConstraint, PatternConstraints
 from worker.engine.validate import IntentInvalid
 from worker.render.sanitize import parse_svg_tree
 
@@ -251,7 +252,7 @@ async def test_gemini_sends_reference_images_before_text_prompt():
     route = respx.post(url__regex=r".*generateContent").mock(
         return_value=_gemini_response(_VALID_DESIGNS)
     )
-    image = ReferenceImage(data=b"safe-jpeg", mime_type="image/jpeg")
+    image = ReferenceImage(data=b"safe-jpeg", mime_type="image/jpeg", purpose="composition")
     designs = await GeminiClient("k").author_designs(
         "photo colors",
         reference_images=[image],
@@ -266,7 +267,53 @@ async def test_gemini_sends_reference_images_before_text_prompt():
         "data": base64.b64encode(b"safe-jpeg").decode("ascii"),
     }
     assert "attached photos" in parts[-1]["text"]
+    assert "image 1: purpose=composition" in parts[-1]["text"]
+    assert "ONLY for that role" in parts[-1]["text"]
     assert "upload-a1b2c3d4e5f6" in parts[-1]["text"]
+
+
+@respx.mock
+async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
+    valid = {
+        "ideas": [
+            "동백 모티프를 작은 격자로 반복하고 남색과 크림색을 사용해 보세요.",
+            "동백 모티프를 여백 있게 흩뿌려 차분한 리듬을 만들어 보세요.",
+            "동백 실루엣을 대각선으로 배치해 경쾌한 흐름을 표현해 보세요.",
+        ]
+    }
+    route = respx.post(url__regex=r".*generateContent").mock(
+        side_effect=[_gemini_response({"ideas": ["only one"]}), _gemini_response(valid)]
+    )
+    references = [
+        ReferenceImage(data=b"one", mime_type="image/jpeg", purpose="motif"),
+        ReferenceImage(data=b"two", mime_type="image/jpeg", purpose="composition"),
+    ]
+    ideas = await GeminiClient("k").suggest_ideas(
+        "차분한 넥타이",
+        count=3,
+        reference_images=references,
+        motifs=[{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
+        palette_constraint=PaletteConstraint(mode="fixed", colors=["#10243A", "#EFE6D4"]),
+        pattern_constraints=PatternConstraints(
+            motif_scale="small", arrangement="lattice", direction="diagonal"
+        ),
+    )
+
+    assert ideas == valid["ideas"]
+    assert route.call_count == 2
+    first_payload = json.loads(route.calls[0].request.content)
+    parts = first_payload["contents"][0]["parts"]
+    assert [part["inline_data"]["data"] for part in parts[:-1]] == [
+        base64.b64encode(b"one").decode("ascii"),
+        base64.b64encode(b"two").decode("ascii"),
+    ]
+    context = parts[-1]["text"]
+    assert "image 1: purpose=motif" in context
+    assert "image 2: purpose=composition" in context
+    assert 'exact motif 1: name="동백"' in context
+    assert "upload-a1b2c3d4e5f6" not in context
+    assert "#10243A, #EFE6D4" in context
+    assert "arrangement=lattice" in context
 
 
 @respx.mock

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { DESIGN_ERROR_MESSAGES, parseDesignError } from "./errors";
+import {
+  DESIGN_ERROR_MESSAGES,
+  designErrorMessage,
+  parseDesignError,
+} from "./errors";
 
 describe("parseDesignError", () => {
   it.each([
@@ -41,5 +45,18 @@ describe("parseDesignError", () => {
         detail: "디자인 토큰이 부족합니다",
       }).message,
     ).toBe(DESIGN_ERROR_MESSAGES.refund_pending);
+  });
+
+  it("helper 요청은 API detail과 일반 Error 메시지를 보존한다", () => {
+    expect(
+      designErrorMessage(
+        { code: "user_motif_limit", detail: "내 모티프는 최대 100개입니다." },
+        "폴백",
+      ),
+    ).toBe("내 모티프는 최대 100개입니다.");
+    expect(designErrorMessage(new Error("네트워크 오류"), "폴백")).toBe(
+      "네트워크 오류",
+    );
+    expect(designErrorMessage({ detail: [] }, "폴백")).toBe("폴백");
   });
 });

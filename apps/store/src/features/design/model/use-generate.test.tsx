@@ -65,6 +65,95 @@ describe("useGenerateDesign pending side effects", () => {
     vi.clearAllMocks();
   });
 
+  it("사진 순서·참고 방식과 색상·패턴 제약을 구조화해 보낸다", async () => {
+    api.generate.mockResolvedValue({ data: generated });
+    const queryClient = new QueryClient();
+    const { result } = renderHook(
+      () => useGenerateDesign({ onSessionReady: () => true }),
+      { wrapper: queryWrapper(queryClient) },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        mode: "prompt",
+        sessionId: "session-a",
+        prompt: "기하학 패턴",
+        candidateCount: 3,
+        referenceImages: [
+          { uploadId: "upload-a", purpose: "color_mood" },
+          { uploadId: "upload-b", purpose: "composition" },
+        ],
+        userMotifIds: ["motif-a"],
+        palette: {
+          mode: "fixed",
+          colors: ["#112233", "#AABBCC"],
+        },
+        patternConstraints: {
+          motifScale: "small",
+          density: "dense",
+          arrangement: "staggered",
+          direction: "diagonal",
+        },
+      });
+    });
+
+    expect(api.generate).toHaveBeenCalledWith({
+      body: {
+        session_id: "session-a",
+        prompt: "기하학 패턴",
+        candidate_count: 3,
+        colorway: undefined,
+        palette: {
+          mode: "fixed",
+          colors: ["#112233", "#AABBCC"],
+        },
+        pattern_constraints: {
+          motif_scale: "small",
+          density: "dense",
+          arrangement: "staggered",
+          direction: "diagonal",
+        },
+        reference_images: [
+          { upload_id: "upload-a", purpose: "color_mood" },
+          { upload_id: "upload-b", purpose: "composition" },
+        ],
+        user_motif_ids: ["motif-a"],
+      },
+      throwOnError: true,
+    });
+    queryClient.clear();
+  });
+
+  it("고정 팔레트 variation은 이전 colorway를 함께 보내지 않는다", async () => {
+    api.generate.mockResolvedValue({ data: generated });
+    const queryClient = new QueryClient();
+    const { result } = renderHook(
+      () => useGenerateDesign({ onSessionReady: () => true }),
+      { wrapper: queryWrapper(queryClient) },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        mode: "variation",
+        sessionId: "session-a",
+        intent: { canvas: { tile_mm: 24 } },
+        seed: 42,
+        colorway: "navy",
+        palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
+      });
+    });
+
+    expect(api.generate).toHaveBeenCalledWith({
+      body: expect.objectContaining({
+        session_id: "session-a",
+        colorway: undefined,
+        palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
+      }),
+      throwOnError: true,
+    });
+    queryClient.clear();
+  });
+
   it("늦게 끝난 A가 진행 중인 B marker를 지우지 않는다", async () => {
     const firstResponse = deferred<{ data: DesignGenerateOut }>();
     const secondResponse = deferred<{ data: DesignGenerateOut }>();

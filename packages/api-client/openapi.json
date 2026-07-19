@@ -5813,6 +5813,7 @@
         "type": "object"
       },
       "DesignGenerateRequest": {
+        "additionalProperties": false,
         "properties": {
           "candidate_count": {
             "default": 1,
@@ -5845,6 +5846,12 @@
             ],
             "title": "Intent"
           },
+          "palette": {
+            "$ref": "#/components/schemas/PaletteConstraint"
+          },
+          "pattern_constraints": {
+            "$ref": "#/components/schemas/PatternConstraints"
+          },
           "prompt": {
             "anyOf": [
               {
@@ -5857,13 +5864,12 @@
             ],
             "title": "Prompt"
           },
-          "reference_image_upload_ids": {
+          "reference_images": {
             "items": {
-              "format": "uuid",
-              "type": "string"
+              "$ref": "#/components/schemas/ReferenceImageRequest"
             },
             "maxItems": 5,
-            "title": "Reference Image Upload Ids",
+            "title": "Reference Images",
             "type": "array"
           },
           "seed": {
@@ -5902,6 +5908,70 @@
           }
         },
         "title": "DesignGenerateRequest",
+        "type": "object"
+      },
+      "DesignIdeasOut": {
+        "properties": {
+          "ideas": {
+            "items": {
+              "maxLength": 180,
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 3,
+            "title": "Ideas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ideas"
+        ],
+        "title": "DesignIdeasOut",
+        "type": "object"
+      },
+      "DesignIdeasRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "default": 4,
+            "enum": [
+              3,
+              4
+            ],
+            "title": "Count",
+            "type": "integer"
+          },
+          "palette": {
+            "$ref": "#/components/schemas/PaletteConstraint"
+          },
+          "pattern_constraints": {
+            "$ref": "#/components/schemas/PatternConstraints"
+          },
+          "prompt": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "reference_images": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceImageRequest"
+            },
+            "maxItems": 5,
+            "title": "Reference Images",
+            "type": "array"
+          },
+          "user_motif_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "User Motif Ids",
+            "type": "array"
+          }
+        },
+        "title": "DesignIdeasRequest",
         "type": "object"
       },
       "DesignOrderReferenceOut": {
@@ -6143,6 +6213,23 @@
               }
             ],
             "title": "Preview Url"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "color_mood",
+                  "motif",
+                  "composition"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
           }
         },
         "required": [
@@ -7956,6 +8043,52 @@
         "title": "MotifGenerateRequest",
         "type": "object"
       },
+      "MotifPreviewOut": {
+        "properties": {
+          "background_confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Background Confidence"
+          },
+          "processed_preview_base64": {
+            "anyOf": [
+              {
+                "maxLength": 2666668,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed Preview Base64"
+          },
+          "svg": {
+            "maxLength": 2000000,
+            "title": "Svg",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "svg"
+        ],
+        "title": "MotifPreviewOut",
+        "type": "object"
+      },
       "MotifSpecIn": {
         "properties": {
           "description": {
@@ -9663,6 +9796,121 @@
         "title": "Page[SeamlessSummaryOut]",
         "type": "object"
       },
+      "PaletteConstraint": {
+        "additionalProperties": false,
+        "properties": {
+          "colors": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Colors",
+            "type": "array"
+          },
+          "mode": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "fixed"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "PaletteConstraint",
+        "type": "object"
+      },
+      "PaletteExtractOut": {
+        "properties": {
+          "colors": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 2,
+            "title": "Colors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "colors"
+        ],
+        "title": "PaletteExtractOut",
+        "type": "object"
+      },
+      "PaletteExtractRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "color_count": {
+            "default": 5,
+            "maximum": 5.0,
+            "minimum": 2.0,
+            "title": "Color Count",
+            "type": "integer"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "PaletteExtractRequest",
+        "type": "object"
+      },
+      "PatternConstraints": {
+        "additionalProperties": false,
+        "properties": {
+          "arrangement": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "lattice",
+              "staggered",
+              "scatter"
+            ],
+            "title": "Arrangement",
+            "type": "string"
+          },
+          "density": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "sparse",
+              "medium",
+              "dense"
+            ],
+            "title": "Density",
+            "type": "string"
+          },
+          "direction": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "vertical",
+              "horizontal",
+              "diagonal"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "motif_scale": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "small",
+              "medium",
+              "large"
+            ],
+            "title": "Motif Scale",
+            "type": "string"
+          }
+        },
+        "title": "PatternConstraints",
+        "type": "object"
+      },
       "PaymentConfirmRequest": {
         "properties": {
           "amount": {
@@ -10077,6 +10325,43 @@
           "code"
         ],
         "title": "PhoneVerifyRequest",
+        "type": "object"
+      },
+      "PhotoMotifPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "color_count": {
+            "default": 4,
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Color Count",
+            "type": "integer"
+          },
+          "remove_background": {
+            "default": true,
+            "title": "Remove Background",
+            "type": "boolean"
+          },
+          "simplification": {
+            "default": "medium",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Simplification",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "PhotoMotifPreviewRequest",
         "type": "object"
       },
       "PricingUpdateItem": {
@@ -10786,6 +11071,32 @@
           "object_key"
         ],
         "title": "ReferenceImageIn",
+        "type": "object"
+      },
+      "ReferenceImageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "color_mood",
+              "motif",
+              "composition"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "ReferenceImageRequest",
         "type": "object"
       },
       "ReformDataIn": {
@@ -12699,6 +13010,47 @@
           "revenue"
         ],
         "title": "StatsResponse",
+        "type": "object"
+      },
+      "TextMotifPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "font_id": {
+            "default": "nanum-gothic",
+            "enum": [
+              "nanum-gothic",
+              "nanum-myeongjo"
+            ],
+            "title": "Font Id",
+            "type": "string"
+          },
+          "font_weight": {
+            "default": 400,
+            "enum": [
+              400,
+              700
+            ],
+            "title": "Font Weight",
+            "type": "integer"
+          },
+          "letter_spacing": {
+            "default": 0,
+            "maximum": 1.0,
+            "minimum": -0.2,
+            "title": "Letter Spacing",
+            "type": "number"
+          },
+          "text": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextMotifPreviewRequest",
         "type": "object"
       },
       "TokenBalance": {
@@ -19866,6 +20218,53 @@
         ]
       }
     },
+    "/design/ideas": {
+      "post": {
+        "description": "현재 작성 문맥만 전송하는 무과금 helper. 세션 턴과 토큰 원장에는 기록하지 않는다.",
+        "operationId": "create_design_ideas",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignIdeasRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignIdeasOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Design Ideas",
+        "tags": [
+          "design"
+        ]
+      }
+    },
     "/design/jobs": {
       "get": {
         "operationId": "list_generation_jobs",
@@ -20294,6 +20693,98 @@
         ]
       }
     },
+    "/design/motifs/photo-preview": {
+      "post": {
+        "operationId": "preview_photo_motif",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhotoMotifPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Photo Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/motifs/text-preview": {
+      "post": {
+        "operationId": "preview_text_motif",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextMotifPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Text Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
     "/design/motifs/{user_motif_id}": {
       "delete": {
         "operationId": "delete_user_motif",
@@ -20330,6 +20821,52 @@
           }
         ],
         "summary": "Delete User Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/palette/extract": {
+      "post": {
+        "operationId": "extract_design_palette",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaletteExtractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaletteExtractOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Extract Design Palette",
         "tags": [
           "design"
         ]

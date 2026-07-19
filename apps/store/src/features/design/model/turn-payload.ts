@@ -2,6 +2,21 @@ import { z } from "zod";
 
 const intentSchema = z.record(z.string(), z.unknown());
 
+const paletteSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("auto"), colors: z.array(z.string()).max(0) }),
+  z.object({
+    mode: z.literal("fixed"),
+    colors: z.array(z.string()).min(2).max(5),
+  }),
+]);
+
+const patternConstraintsSchema = z.object({
+  motif_scale: z.enum(["auto", "small", "medium", "large"]),
+  density: z.enum(["auto", "sparse", "medium", "dense"]),
+  arrangement: z.enum(["auto", "lattice", "staggered", "scatter"]),
+  direction: z.enum(["auto", "vertical", "horizontal", "diagonal"]),
+});
+
 const candidateSchema = z
   .object({
     id: z.string().min(1),
@@ -20,6 +35,8 @@ const generateRequestPayloadSchema = z
     seed: z.number().int().nullable(),
     colorway: z.string().nullable(),
     candidate_count: z.number().int().positive(),
+    palette: paletteSchema.optional(),
+    pattern_constraints: patternConstraintsSchema.optional(),
   })
   .passthrough();
 

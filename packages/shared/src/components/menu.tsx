@@ -210,11 +210,15 @@ export function MenuContent({
     } catch {
       // 이미 열려 있으면 무시
     }
-    const frame = requestAnimationFrame(updatePosition);
     const first = content.querySelector<HTMLElement>(
       '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
     );
-    first?.focus();
+    // Native Popover may restore trigger focus at the end of the opening task.
+    // Position and move focus once the menu has entered the top layer.
+    const frame = requestAnimationFrame(() => {
+      updatePosition();
+      first?.focus();
+    });
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
@@ -263,7 +267,16 @@ export function MenuContent({
       onToggle={(event) => {
         onToggle?.(event);
         if (event.defaultPrevented) return;
-        if ((event.nativeEvent as ToggleEvent).newState !== "closed") return;
+        if ((event.nativeEvent as ToggleEvent).newState === "open") {
+          requestAnimationFrame(() => {
+            contentRef.current
+              ?.querySelector<HTMLElement>(
+                '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
+              )
+              ?.focus();
+          });
+          return;
+        }
         const active = document.activeElement;
         const focusWasInside =
           !active ||

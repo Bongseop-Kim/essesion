@@ -12,7 +12,7 @@ export { IMAGE_ACCEPT as DESIGN_PHOTO_ACCEPT } from "@/shared/lib/upload";
 export const DESIGN_SVG_ACCEPT = ".svg,image/svg+xml";
 export const MAX_DESIGN_PHOTOS = 5;
 export const MAX_DESIGN_MOTIFS = 2;
-export const MAX_DESIGN_SVG_BYTES = 2 * 1024 * 1024;
+export const MAX_DESIGN_SVG_BYTES = 2_000_000;
 
 export async function uploadDesignPhoto(file: File): Promise<string> {
   validateImageFile(file, "사진은 장당 10MB 이하로 선택해 주세요.");
@@ -40,7 +40,7 @@ export async function uploadDesignPhoto(file: File): Promise<string> {
   return completed.data.upload_id;
 }
 
-export async function importDesignMotif(file: File): Promise<UserMotifOut> {
+export async function readDesignMotifSvg(file: File): Promise<string> {
   if (file.size <= 0 || file.size > MAX_DESIGN_SVG_BYTES) {
     throw new Error("SVG는 파일당 2MB 이하로 선택해 주세요.");
   }
@@ -50,13 +50,30 @@ export async function importDesignMotif(file: File): Promise<UserMotifOut> {
   ) {
     throw new Error("SVG 파일만 첨부할 수 있습니다.");
   }
-  const svg = await file.text();
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(
+      await file.arrayBuffer(),
+    );
+  } catch {
+    throw new Error("SVG 파일은 올바른 UTF-8 텍스트여야 합니다.");
+  }
+}
+
+export async function importDesignMotifSvg(
+  name: string,
+  svg: string,
+): Promise<UserMotifOut> {
   const response = await importUserMotif({
     body: {
-      name: file.name.replace(/\.svg$/i, "").slice(0, 100),
+      name: name.trim().slice(0, 100),
       svg,
     },
     throwOnError: true,
   });
   return response.data;
+}
+
+export async function importDesignMotif(file: File): Promise<UserMotifOut> {
+  const svg = await readDesignMotifSvg(file);
+  return importDesignMotifSvg(file.name.replace(/\.svg$/i, ""), svg);
 }

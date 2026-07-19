@@ -80,7 +80,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 1. Cloudflare에 `essesion.shop` zone을 추가하고 네임서버를 이전한다.
 2. `infra/cloudflare/api-proxy/wrangler.jsonc`에 고정된 `api.essesion.shop/*` route를 확인한다. Cloud Run URL은 파일에 저장하지 않고 배포 명령으로 주입한다.
 3. A3에서 Secret Manager에 넣은 값을 그대로 `EDGE_SHARED_SECRET`에 주입한다. 값을 화면이나 파일로 남기지 않도록 `gcloud secrets versions access latest --secret=edge-proxy-secret --project=essesion-staging | pnpm -C infra/cloudflare/api-proxy exec wrangler secret put EDGE_SHARED_SECRET`처럼 파이프로 전달한다.
-4. `pnpm -C infra/cloudflare/api-proxy exec wrangler deploy --var "ORIGIN:$(tofu -chdir=infra output -raw api_url)"`로 프록시를 먼저 배포하고, 관리형 WAF와 `/auth/login`·`/auth/phone/verify`·`/payments/webhook`별 IP rate limit을 설정한다.
+4. `pnpm -C infra/cloudflare/api-proxy exec wrangler deploy --var "ORIGIN:$(tofu -chdir=infra output -raw api_url)"`로 프록시를 먼저 배포하고, 관리형 WAF와 `/auth/login`·`/auth/phone/verify`·`/payments/webhook`별 IP rate limit을 설정한다. 무과금 helper인 `POST /design/ideas`에도 별도 IP rate limit을 적용한다(API 인스턴스 내부의 사용자별 6회/60초 제한은 전역 quota가 아니다).
 
 전체 절차와 검증은 [infra/cloudflare/README.md](../infra/cloudflare/README.md)를 따른다. 일반 API 요청은 이 프록시가 덮어쓰는 secret 없이는 거부되므로 이 단계를 건너뛰고 API부터 배포하지 않는다.
 

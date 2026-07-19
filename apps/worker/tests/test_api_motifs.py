@@ -133,7 +133,14 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
 
     class FakeGemini:
         async def author_designs(
-            self, _prompt, *, validate, reference_images=(), motif_ids=()
+            self,
+            _prompt,
+            *,
+            validate,
+            reference_images=(),
+            motif_ids=(),
+            palette_constraint=None,
+            pattern_constraints=None,
         ):
             assert reference_images == []
             assert motif_ids == []

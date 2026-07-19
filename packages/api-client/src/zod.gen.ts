@@ -1160,17 +1160,10 @@ export const zDesignExportRequest = z.object({
 });
 
 /**
- * DesignGenerateRequest
+ * DesignIdeasOut
  */
-export const zDesignGenerateRequest = z.object({
-    candidate_count: z.int().gte(1).lte(8).optional().default(1),
-    colorway: z.string().max(100).nullish(),
-    intent: z.record(z.string(), z.unknown()).nullish(),
-    prompt: z.string().max(4000).nullish(),
-    reference_image_upload_ids: z.array(z.uuid()).max(5).optional(),
-    seed: z.int().gte(-9223372036854776000).lte(9223372036854776000).nullish(),
-    session_id: z.uuid().nullish(),
-    user_motif_ids: z.array(z.uuid()).max(2).optional()
+export const zDesignIdeasOut = z.object({
+    ideas: z.array(z.string().max(180)).min(3).max(4)
 });
 
 /**
@@ -1207,7 +1200,13 @@ export const zDesignTurnAttachmentOut = z.object({
     filename: z.string(),
     kind: z.enum(['photo', 'svg']),
     preview_svg: z.string().nullish(),
-    preview_url: z.string().nullish()
+    preview_url: z.string().nullish(),
+    purpose: z.enum([
+        'auto',
+        'color_mood',
+        'motif',
+        'composition'
+    ]).nullish()
 });
 
 /**
@@ -1552,6 +1551,16 @@ export const zMotifGenerateOut = z.object({
     request_id: z.string(),
     reused: z.boolean(),
     similarity: z.number().nullable()
+});
+
+/**
+ * MotifPreviewOut
+ */
+export const zMotifPreviewOut = z.object({
+    background_confidence: z.number().gte(0).lte(1).nullish(),
+    processed_preview_base64: z.string().max(2666668).nullish(),
+    svg: z.string().max(2000000),
+    warnings: z.array(z.string()).optional()
 });
 
 /**
@@ -1926,6 +1935,59 @@ export const zPageMotifSummaryOut = z.object({
 });
 
 /**
+ * PaletteConstraint
+ */
+export const zPaletteConstraint = z.object({
+    colors: z.array(z.string()).max(5).optional(),
+    mode: z.enum(['auto', 'fixed']).optional().default('auto')
+});
+
+/**
+ * PaletteExtractOut
+ */
+export const zPaletteExtractOut = z.object({
+    colors: z.array(z.string()).min(2).max(5)
+});
+
+/**
+ * PaletteExtractRequest
+ */
+export const zPaletteExtractRequest = z.object({
+    color_count: z.int().gte(2).lte(5).optional().default(5),
+    upload_id: z.uuid()
+});
+
+/**
+ * PatternConstraints
+ */
+export const zPatternConstraints = z.object({
+    arrangement: z.enum([
+        'auto',
+        'lattice',
+        'staggered',
+        'scatter'
+    ]).optional().default('auto'),
+    density: z.enum([
+        'auto',
+        'sparse',
+        'medium',
+        'dense'
+    ]).optional().default('auto'),
+    direction: z.enum([
+        'auto',
+        'vertical',
+        'horizontal',
+        'diagonal'
+    ]).optional().default('auto'),
+    motif_scale: z.enum([
+        'auto',
+        'small',
+        'medium',
+        'large'
+    ]).optional().default('auto')
+});
+
+/**
  * PaymentConfirmRequest
  */
 export const zPaymentConfirmRequest = z.object({
@@ -2011,6 +2073,20 @@ export const zPhoneSendRequest = z.object({
 export const zPhoneVerifyRequest = z.object({
     code: z.string().length(6).regex(/^\d{6}$/),
     phone: z.string().min(1).max(32)
+});
+
+/**
+ * PhotoMotifPreviewRequest
+ */
+export const zPhotoMotifPreviewRequest = z.object({
+    color_count: z.int().gte(1).lte(6).optional().default(4),
+    remove_background: z.boolean().optional().default(true),
+    simplification: z.enum([
+        'low',
+        'medium',
+        'high'
+    ]).optional().default('medium'),
+    upload_id: z.uuid()
 });
 
 /**
@@ -2201,6 +2277,47 @@ export const zQuoteCreateRequest = z.object({
     quantity: z.int().lte(10000),
     reference_images: z.array(zReferenceImageIn).max(5).optional(),
     shipping_address_id: z.uuid()
+});
+
+/**
+ * ReferenceImageRequest
+ */
+export const zReferenceImageRequest = z.object({
+    purpose: z.enum([
+        'auto',
+        'color_mood',
+        'motif',
+        'composition'
+    ]).optional().default('auto'),
+    upload_id: z.uuid()
+});
+
+/**
+ * DesignGenerateRequest
+ */
+export const zDesignGenerateRequest = z.object({
+    candidate_count: z.int().gte(1).lte(8).optional().default(1),
+    colorway: z.string().max(100).nullish(),
+    intent: z.record(z.string(), z.unknown()).nullish(),
+    palette: zPaletteConstraint.optional(),
+    pattern_constraints: zPatternConstraints.optional(),
+    prompt: z.string().max(4000).nullish(),
+    reference_images: z.array(zReferenceImageRequest).max(5).optional(),
+    seed: z.int().gte(-9223372036854776000).lte(9223372036854776000).nullish(),
+    session_id: z.uuid().nullish(),
+    user_motif_ids: z.array(z.uuid()).max(2).optional()
+});
+
+/**
+ * DesignIdeasRequest
+ */
+export const zDesignIdeasRequest = z.object({
+    count: z.union([z.literal(3), z.literal(4)]).optional().default(4),
+    palette: zPaletteConstraint.optional(),
+    pattern_constraints: zPatternConstraints.optional(),
+    prompt: z.string().max(4000).optional().default(''),
+    reference_images: z.array(zReferenceImageRequest).max(5).optional(),
+    user_motif_ids: z.array(z.uuid()).max(2).optional()
 });
 
 /**
@@ -2785,6 +2902,16 @@ export const zSingleOrderCreateResponse = z.object({
 export const zStatsResponse = z.object({
     order_count: z.int(),
     revenue: z.int()
+});
+
+/**
+ * TextMotifPreviewRequest
+ */
+export const zTextMotifPreviewRequest = z.object({
+    font_id: z.enum(['nanum-gothic', 'nanum-myeongjo']).optional().default('nanum-gothic'),
+    font_weight: z.union([z.literal(400), z.literal(700)]).optional().default(400),
+    letter_spacing: z.number().gte(-0.2).lte(1).optional().default(0),
+    text: z.string().min(1).max(20)
 });
 
 /**
@@ -4370,6 +4497,13 @@ export const zGenerateDesignBody = zDesignGenerateRequest;
  */
 export const zGenerateDesignResponse = zDesignGenerateOut;
 
+export const zCreateDesignIdeasBody = zDesignIdeasRequest;
+
+/**
+ * Successful Response
+ */
+export const zCreateDesignIdeasResponse = zDesignIdeasOut;
+
 export const zListGenerationJobsQuery = z.object({
     kind: z.enum(['finalize', 'export']).optional().default('finalize'),
     status: z.enum([
@@ -4450,6 +4584,20 @@ export const zImportUserMotifBody = zUserMotifImportRequest;
  */
 export const zImportUserMotifResponse = zUserMotifOut;
 
+export const zPreviewPhotoMotifBody = zPhotoMotifPreviewRequest;
+
+/**
+ * Successful Response
+ */
+export const zPreviewPhotoMotifResponse = zMotifPreviewOut;
+
+export const zPreviewTextMotifBody = zTextMotifPreviewRequest;
+
+/**
+ * Successful Response
+ */
+export const zPreviewTextMotifResponse = zMotifPreviewOut;
+
 export const zDeleteUserMotifPath = z.object({
     user_motif_id: z.uuid()
 });
@@ -4458,6 +4606,13 @@ export const zDeleteUserMotifPath = z.object({
  * Successful Response
  */
 export const zDeleteUserMotifResponse = z.void();
+
+export const zExtractDesignPaletteBody = zPaletteExtractRequest;
+
+/**
+ * Successful Response
+ */
+export const zExtractDesignPaletteResponse = zPaletteExtractOut;
 
 /**
  * Response List Design Sessions

@@ -18,6 +18,10 @@ import {
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 import type { MouseEvent, ReactNode } from "react";
+import {
+  patternConstraintLabels,
+  referenceImagePurposeLabel,
+} from "../model/draft";
 import { svgToDataUri } from "../model/svg-preview";
 import {
   type DesignTurnPayload,
@@ -175,6 +179,14 @@ function TurnItem({
   }
 
   if (payload.type === "generate_request") {
+    const patternSummary = payload.pattern_constraints
+      ? patternConstraintLabels({
+          motifScale: payload.pattern_constraints.motif_scale,
+          density: payload.pattern_constraints.density,
+          arrangement: payload.pattern_constraints.arrangement,
+          direction: payload.pattern_constraints.direction,
+        })
+      : [];
     return (
       <VStack alignItems="flex-end" gap="x2">
         <Box
@@ -193,6 +205,16 @@ function TurnItem({
         <Text textStyle="captionSm" color="fg.neutral-subtle">
           후보 {payload.candidate_count}개
         </Text>
+        {payload.palette?.mode === "fixed" ? (
+          <Text textStyle="captionSm" color="fg.neutral-subtle">
+            색상 {payload.palette.colors.join(" · ")}
+          </Text>
+        ) : null}
+        {patternSummary.length > 0 ? (
+          <Text textStyle="captionSm" color="fg.neutral-subtle">
+            패턴 {patternSummary.join(" · ")}
+          </Text>
+        ) : null}
         {attachments.length > 0 ? (
           <HStack gap="x2" wrap justify="flex-end" maxWidth="85%">
             {attachments.map((attachment, index) => {
@@ -221,6 +243,11 @@ function TurnItem({
                   >
                     {attachment.filename}
                   </Text>
+                  {attachment.kind === "photo" && attachment.purpose ? (
+                    <Text textStyle="captionSm" color="fg.neutral-subtle">
+                      {referenceImagePurposeLabel(attachment.purpose)}
+                    </Text>
+                  ) : null}
                 </VStack>
               );
             })}

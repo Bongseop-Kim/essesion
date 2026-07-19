@@ -11,6 +11,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { trackEvent } from "@/shared/lib/analytics";
 
+import type {
+  DesignPalette,
+  DesignPatternConstraints,
+  DesignReferenceImage,
+} from "./draft";
+
 import {
   clearPendingDesign,
   type StorageLike,
@@ -21,8 +27,10 @@ import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 type GenerateBase = {
   candidateCount?: number;
   colorway?: string | null;
-  referenceImageUploadIds?: string[];
+  referenceImages?: DesignReferenceImage[];
   userMotifIds?: string[];
+  palette?: DesignPalette;
+  patternConstraints?: DesignPatternConstraints;
 };
 
 export type GenerateDesignInput =
@@ -87,25 +95,44 @@ export function useGenerateDesign(options?: {
         operationId,
       });
       try {
+        const sharedConstraints = {
+          candidate_count: input.candidateCount ?? 4,
+          // A fixed palette deterministically collapses the worker colorway axis to
+          // `default`; carrying a previous session colorway would be contradictory.
+          colorway:
+            input.palette?.mode === "fixed" ? undefined : input.colorway,
+          palette: input.palette,
+          pattern_constraints: input.patternConstraints
+            ? {
+                motif_scale: input.patternConstraints.motifScale,
+                density: input.patternConstraints.density,
+                arrangement: input.patternConstraints.arrangement,
+                direction: input.patternConstraints.direction,
+              }
+            : undefined,
+        };
+        const body =
+          input.mode === "prompt"
+            ? {
+                session_id: sessionId,
+                prompt: input.prompt,
+                ...sharedConstraints,
+                reference_images: (input.referenceImages ?? []).map(
+                  (image) => ({
+                    upload_id: image.uploadId,
+                    purpose: image.purpose,
+                  }),
+                ),
+                user_motif_ids: input.userMotifIds ?? [],
+              }
+            : {
+                session_id: sessionId,
+                intent: input.intent,
+                seed: input.seed,
+                ...sharedConstraints,
+              };
         const { data: response } = await generateDesign({
-          body:
-            input.mode === "prompt"
-              ? {
-                  session_id: sessionId,
-                  prompt: input.prompt,
-                  candidate_count: input.candidateCount ?? 4,
-                  colorway: input.colorway,
-                  reference_image_upload_ids:
-                    input.referenceImageUploadIds ?? [],
-                  user_motif_ids: input.userMotifIds ?? [],
-                }
-              : {
-                  session_id: sessionId,
-                  intent: input.intent,
-                  seed: input.seed,
-                  candidate_count: input.candidateCount ?? 4,
-                  colorway: input.colorway,
-                },
+          body,
           throwOnError: true,
         });
         // prompt 원문·sessionId는 넣지 않는다

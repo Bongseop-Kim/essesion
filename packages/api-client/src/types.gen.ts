@@ -3155,14 +3155,16 @@ export type DesignGenerateRequest = {
     intent?: {
         [key: string]: unknown;
     } | null;
+    palette?: PaletteConstraint;
+    pattern_constraints?: PatternConstraints;
     /**
      * Prompt
      */
     prompt?: string | null;
     /**
-     * Reference Image Upload Ids
+     * Reference Images
      */
-    reference_image_upload_ids?: Array<string>;
+    reference_images?: Array<ReferenceImageRequest>;
     /**
      * Seed
      */
@@ -3171,6 +3173,40 @@ export type DesignGenerateRequest = {
      * Session Id
      */
     session_id?: string | null;
+    /**
+     * User Motif Ids
+     */
+    user_motif_ids?: Array<string>;
+};
+
+/**
+ * DesignIdeasOut
+ */
+export type DesignIdeasOut = {
+    /**
+     * Ideas
+     */
+    ideas: Array<string>;
+};
+
+/**
+ * DesignIdeasRequest
+ */
+export type DesignIdeasRequest = {
+    /**
+     * Count
+     */
+    count?: 3 | 4;
+    palette?: PaletteConstraint;
+    pattern_constraints?: PatternConstraints;
+    /**
+     * Prompt
+     */
+    prompt?: string;
+    /**
+     * Reference Images
+     */
+    reference_images?: Array<ReferenceImageRequest>;
     /**
      * User Motif Ids
      */
@@ -3302,6 +3338,10 @@ export type DesignTurnAttachmentOut = {
      * Preview Url
      */
     preview_url?: string | null;
+    /**
+     * Purpose
+     */
+    purpose?: 'auto' | 'color_mood' | 'motif' | 'composition' | null;
 };
 
 /**
@@ -4296,6 +4336,28 @@ export type MotifGenerateRequest = {
 };
 
 /**
+ * MotifPreviewOut
+ */
+export type MotifPreviewOut = {
+    /**
+     * Background Confidence
+     */
+    background_confidence?: number | null;
+    /**
+     * Processed Preview Base64
+     */
+    processed_preview_base64?: string | null;
+    /**
+     * Svg
+     */
+    svg: string;
+    /**
+     * Warnings
+     */
+    warnings?: Array<string>;
+};
+
+/**
  * MotifSpecIn
  */
 export type MotifSpecIn = {
@@ -5229,6 +5291,66 @@ export type PageSeamlessSummaryOut = {
 };
 
 /**
+ * PaletteConstraint
+ */
+export type PaletteConstraint = {
+    /**
+     * Colors
+     */
+    colors?: Array<string>;
+    /**
+     * Mode
+     */
+    mode?: 'auto' | 'fixed';
+};
+
+/**
+ * PaletteExtractOut
+ */
+export type PaletteExtractOut = {
+    /**
+     * Colors
+     */
+    colors: Array<string>;
+};
+
+/**
+ * PaletteExtractRequest
+ */
+export type PaletteExtractRequest = {
+    /**
+     * Color Count
+     */
+    color_count?: number;
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+};
+
+/**
+ * PatternConstraints
+ */
+export type PatternConstraints = {
+    /**
+     * Arrangement
+     */
+    arrangement?: 'auto' | 'lattice' | 'staggered' | 'scatter';
+    /**
+     * Density
+     */
+    density?: 'auto' | 'sparse' | 'medium' | 'dense';
+    /**
+     * Direction
+     */
+    direction?: 'auto' | 'vertical' | 'horizontal' | 'diagonal';
+    /**
+     * Motif Scale
+     */
+    motif_scale?: 'auto' | 'small' | 'medium' | 'large';
+};
+
+/**
  * PaymentConfirmRequest
  */
 export type PaymentConfirmRequest = {
@@ -5432,6 +5554,28 @@ export type PhoneVerifyRequest = {
      * Phone
      */
     phone: string;
+};
+
+/**
+ * PhotoMotifPreviewRequest
+ */
+export type PhotoMotifPreviewRequest = {
+    /**
+     * Color Count
+     */
+    color_count?: number;
+    /**
+     * Remove Background
+     */
+    remove_background?: boolean;
+    /**
+     * Simplification
+     */
+    simplification?: 'low' | 'medium' | 'high';
+    /**
+     * Upload Id
+     */
+    upload_id: string;
 };
 
 /**
@@ -5858,6 +6002,20 @@ export type ReferenceImageIn = {
      * Object Key
      */
     object_key: string;
+};
+
+/**
+ * ReferenceImageRequest
+ */
+export type ReferenceImageRequest = {
+    /**
+     * Purpose
+     */
+    purpose?: 'auto' | 'color_mood' | 'motif' | 'composition';
+    /**
+     * Upload Id
+     */
+    upload_id: string;
 };
 
 /**
@@ -6885,6 +7043,28 @@ export type StatsResponse = {
      * Revenue
      */
     revenue: number;
+};
+
+/**
+ * TextMotifPreviewRequest
+ */
+export type TextMotifPreviewRequest = {
+    /**
+     * Font Id
+     */
+    font_id?: 'nanum-gothic' | 'nanum-myeongjo';
+    /**
+     * Font Weight
+     */
+    font_weight?: 400 | 700;
+    /**
+     * Letter Spacing
+     */
+    letter_spacing?: number;
+    /**
+     * Text
+     */
+    text: string;
 };
 
 /**
@@ -10502,6 +10682,31 @@ export type GenerateDesignResponses = {
 
 export type GenerateDesignResponse = GenerateDesignResponses[keyof GenerateDesignResponses];
 
+export type CreateDesignIdeasData = {
+    body: DesignIdeasRequest;
+    path?: never;
+    query?: never;
+    url: '/design/ideas';
+};
+
+export type CreateDesignIdeasErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateDesignIdeasError = CreateDesignIdeasErrors[keyof CreateDesignIdeasErrors];
+
+export type CreateDesignIdeasResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignIdeasOut;
+};
+
+export type CreateDesignIdeasResponse = CreateDesignIdeasResponses[keyof CreateDesignIdeasResponses];
+
 export type ListGenerationJobsData = {
     body?: never;
     path?: never;
@@ -10736,6 +10941,56 @@ export type ImportUserMotifResponses = {
 
 export type ImportUserMotifResponse = ImportUserMotifResponses[keyof ImportUserMotifResponses];
 
+export type PreviewPhotoMotifData = {
+    body: PhotoMotifPreviewRequest;
+    path?: never;
+    query?: never;
+    url: '/design/motifs/photo-preview';
+};
+
+export type PreviewPhotoMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewPhotoMotifError = PreviewPhotoMotifErrors[keyof PreviewPhotoMotifErrors];
+
+export type PreviewPhotoMotifResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifPreviewOut;
+};
+
+export type PreviewPhotoMotifResponse = PreviewPhotoMotifResponses[keyof PreviewPhotoMotifResponses];
+
+export type PreviewTextMotifData = {
+    body: TextMotifPreviewRequest;
+    path?: never;
+    query?: never;
+    url: '/design/motifs/text-preview';
+};
+
+export type PreviewTextMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewTextMotifError = PreviewTextMotifErrors[keyof PreviewTextMotifErrors];
+
+export type PreviewTextMotifResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifPreviewOut;
+};
+
+export type PreviewTextMotifResponse = PreviewTextMotifResponses[keyof PreviewTextMotifResponses];
+
 export type DeleteUserMotifData = {
     body?: never;
     path: {
@@ -10765,6 +11020,31 @@ export type DeleteUserMotifResponses = {
 };
 
 export type DeleteUserMotifResponse = DeleteUserMotifResponses[keyof DeleteUserMotifResponses];
+
+export type ExtractDesignPaletteData = {
+    body: PaletteExtractRequest;
+    path?: never;
+    query?: never;
+    url: '/design/palette/extract';
+};
+
+export type ExtractDesignPaletteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ExtractDesignPaletteError = ExtractDesignPaletteErrors[keyof ExtractDesignPaletteErrors];
+
+export type ExtractDesignPaletteResponses = {
+    /**
+     * Successful Response
+     */
+    200: PaletteExtractOut;
+};
+
+export type ExtractDesignPaletteResponse = ExtractDesignPaletteResponses[keyof ExtractDesignPaletteResponses];
 
 export type ListDesignSessionsData = {
     body?: never;

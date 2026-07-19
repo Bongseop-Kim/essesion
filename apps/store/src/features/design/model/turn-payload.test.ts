@@ -16,6 +16,26 @@ describe("parseDesignTurnPayload", () => {
     expect(parseDesignTurnPayload(payload)).toEqual(payload);
   });
 
+  it("generate_request의 색상·패턴 설정을 이력용으로 보존한다", () => {
+    const payload = {
+      type: "generate_request",
+      mode: "prompt",
+      prompt: "푸른 기하학 무늬",
+      seed: null,
+      colorway: null,
+      candidate_count: 4,
+      palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
+      pattern_constraints: {
+        motif_scale: "small",
+        density: "dense",
+        arrangement: "staggered",
+        direction: "diagonal",
+      },
+    };
+
+    expect(parseDesignTurnPayload(payload)).toEqual(payload);
+  });
+
   it("resolved intent가 포함된 generate payload를 파싱한다", () => {
     const payload = {
       type: "generate",

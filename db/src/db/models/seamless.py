@@ -99,8 +99,12 @@ class SeamlessGenerationAttachment(CreatedAtMixin, Base):
     image_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("images.id", ondelete="CASCADE"), index=True
     )
+    purpose: Mapped[str] = mapped_column(server_default="auto")
     ordinal: Mapped[int]
 
     __table_args__ = (
+        CheckConstraint(
+            "purpose IN ('auto', 'color_mood', 'motif', 'composition')", name="purpose"
+        ),
         Index("uq_seamless_generation_attachments_log_ordinal", "log_id", "ordinal", unique=True),
     )

@@ -89,11 +89,18 @@ class DesignTurnAttachment(CreatedAtMixin, Base):
     kind: Mapped[str]
     image_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("images.id", ondelete="SET NULL"))
     motif_id: Mapped[str | None] = mapped_column(ForeignKey("motifs.id"))
+    purpose: Mapped[str | None]
     filename: Mapped[str]
     ordinal: Mapped[int]
 
     __table_args__ = (
         CheckConstraint("kind IN ('photo', 'svg')", name="kind"),
+        CheckConstraint(
+            "(kind = 'photo' AND purpose IS NOT NULL "
+            "AND purpose IN ('auto', 'color_mood', 'motif', 'composition')) "
+            "OR (kind = 'svg' AND purpose IS NULL)",
+            name="purpose",
+        ),
         CheckConstraint(
             "(image_id IS NOT NULL)::int + (motif_id IS NOT NULL)::int = 1",
             name="exactly_one_target",

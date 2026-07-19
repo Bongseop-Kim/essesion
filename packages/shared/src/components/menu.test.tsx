@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -176,14 +182,14 @@ describe("MenuItem", () => {
 });
 
 describe("MenuContent", () => {
-  it("화살표 키로 활성 항목을 순환하고 disabled를 건너뛴다", () => {
+  it("화살표 키로 활성 항목을 순환하고 disabled를 건너뛴다", async () => {
     renderMenu();
     fireEvent.click(screen.getByRole("button", { name: "열기" }));
     const content = screen.getByRole("menu");
     const add = screen.getByRole("menuitem", { name: "추가" });
     const remove = screen.getByRole("menuitem", { name: "삭제" });
 
-    expect(document.activeElement).toBe(add);
+    await waitFor(() => expect(document.activeElement).toBe(add));
     fireEvent.keyDown(content, { key: "ArrowDown" });
     expect(document.activeElement).toBe(remove);
     fireEvent.keyDown(content, { key: "ArrowDown" });

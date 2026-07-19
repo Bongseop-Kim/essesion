@@ -9,6 +9,7 @@ app.state.object_store = DryRunObjectStore(). lifespan은 돌지 않으므로 st
 """
 
 import asyncio
+import base64
 import hashlib
 import io
 import threading
@@ -237,6 +238,14 @@ def test_schema_invalid_request_returns_422(client):
     assert resp.status_code == 422
 
 
+def test_request_schema_rejects_unknown_fields(client):
+    response = client.post(
+        "/generate", json={"intent": mvp_intent(), "pattern_contraints": {"density": "dense"}}
+    )
+    assert response.status_code == 422
+    assert "extra_forbidden" in response.text
+
+
 def test_preview_render_parallelism_is_bounded(monkeypatch):
     app = _configure_app(monkeypatch)
     lock = threading.Lock()
@@ -280,7 +289,11 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
             validate,
             reference_images,
             motif_ids,
+            palette_constraint,
+            pattern_constraints,
         ):
+            assert palette_constraint.mode == "auto"
+            assert pattern_constraints.is_automatic()
             self.calls.append((prompt, reference_images, motif_ids))
             intent = mvp_intent()
             assert validate(intent) is None
@@ -312,6 +325,7 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
                     "url": image_url,
                     "content_type": "image/png",
                     "size_bytes": len(image_bytes),
+                    "purpose": "color_mood",
                 }
             ],
         },
@@ -324,6 +338,7 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
     assert motif_ids == []
     assert len(references) == 1
     assert references[0].mime_type == "image/jpeg"
+    assert references[0].purpose == "color_mood"
     assert references[0].data.startswith(b"\xff\xd8")
 
 
@@ -362,14 +377,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(client):
     assert response.status_code == 422
 
 
-def test_user_svg_import_normalizes_with_private_id_namespace(monkeypatch):
-    stored = []
-
-    async def capture_upsert(session, normalized, **kwargs):
-        stored.append((normalized, kwargs))
-        return normalized.id
-
-    monkeypatch.setattr(routes, "upsert_motif", capture_upsert)
+def test_user_svg_import_is_pure_normalization_response(monkeypatch):
     app = _configure_app(monkeypatch)
     response = TestClient(app).post(
         "/motifs/import",
@@ -381,9 +389,146 @@ def test_user_svg_import_normalizes_with_private_id_namespace(monkeypatch):
         },
     )
     assert response.status_code == 200, response.text
-    assert response.json()["motif_id"].startswith("upload-")
-    assert stored[0][1]["source"] == "user_upload"
-    assert "motif-upload-" in response.json()["preview_svg"]
+    body = response.json()
+    assert body["motif_id"].startswith("upload-")
+    assert body["symbol"].startswith('<symbol id="motif-upload-')
+    assert body["color_slots"] == ["s0"]
+    assert body["bbox"] == [-0.5, -0.5, 0.5, 0.5]
+    assert body["anchor"] == [0.0, 0.0]
+    assert body["preview_svg"].startswith("<svg ")
+
+
+def test_user_svg_import_maps_defensive_recursion_failure_to_422(monkeypatch):
+    monkeypatch.setattr(
+        routes,
+        "normalize_motif_svg",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RecursionError("nested SVG")),
+    )
+    response = TestClient(_configure_app(monkeypatch)).post(
+        "/motifs/import",
+        json={"svg": '<svg viewBox="0 0 1 1"><path d="M0 0L1 1"/></svg>'},
+    )
+    assert response.status_code == 422
+    assert "nested SVG" in response.text
+
+
+def test_text_preview_import_preserves_normalized_identity(monkeypatch):
+    client = TestClient(_configure_app(monkeypatch))
+    preview = client.post(
+        "/motifs/text-preview",
+        json={
+            "text": "가A1",
+            "font_id": "nanum-gothic",
+            "font_weight": 700,
+            "letter_spacing": 0.1,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    imported = client.post("/motifs/import", json={"svg": preview.json()["svg"]})
+    repeated = client.post("/motifs/import", json={"svg": preview.json()["svg"]})
+    assert imported.status_code == 200, imported.text
+    assert imported.json()["motif_id"] == repeated.json()["motif_id"]
+    assert imported.json()["preview_svg"] == preview.json()["svg"]
+
+
+def test_text_motif_preview_returns_importable_path_only_svg(monkeypatch):
+    response = TestClient(_configure_app(monkeypatch)).post(
+        "/motifs/text-preview",
+        json={
+            "text": "가A1",
+            "font_id": "nanum-gothic",
+            "font_weight": 700,
+            "letter_spacing": 0.1,
+        },
+    )
+    assert response.status_code == 200, response.text
+    svg = response.json()["svg"]
+    assert "<path" in svg
+    assert "<text" not in svg
+
+
+@respx.mock
+def test_palette_and_photo_preview_reuse_private_image_fetch(monkeypatch):
+    raw = io.BytesIO()
+    image = Image.new("RGB", (64, 64), "white")
+    for y in range(16, 48):
+        for x in range(16, 48):
+            image.putpixel((x, y), (220, 20, 40))
+    image.save(raw, "PNG")
+    image_bytes = raw.getvalue()
+    image_url = "https://storage.googleapis.example/private/motif-source.png"
+    respx.get(image_url).mock(return_value=httpx.Response(200, content=image_bytes))
+    image_input = {
+        "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
+        "url": image_url,
+        "content_type": "image/png",
+        "size_bytes": len(image_bytes),
+    }
+    client = TestClient(_configure_app(monkeypatch))
+
+    palette = client.post("/palette/extract", json={"image": image_input, "color_count": 5})
+    assert palette.status_code == 200, palette.text
+    assert palette.json()["colors"] == ["#FFFFFF", "#DC1428"]
+
+    preview = client.post(
+        "/motifs/photo-preview",
+        json={
+            "image": image_input,
+            "remove_background": True,
+            "simplification": "medium",
+            "color_count": 2,
+        },
+    )
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body["background_confidence"] >= 0.55
+    assert 'color="#dc1428"' in body["svg"] and "#FFFFFF" not in body["svg"]
+    with Image.open(io.BytesIO(base64.b64decode(body["processed_preview_base64"]))) as processed:
+        assert processed.format == "PNG"
+
+
+def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(monkeypatch):
+    class FakeGemini:
+        def __init__(self):
+            self.calls = []
+
+        async def suggest_ideas(self, prompt, **context):
+            self.calls.append((prompt, context))
+            return ["아이디어 하나", "아이디어 둘", "아이디어 셋"]
+
+    gemini = FakeGemini()
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=gemini)
+    response = TestClient(app).post(
+        "/ideas",
+        json={
+            "prompt": "차분한 패턴",
+            "motif_ids": ["upload-a1b2c3d4e5f6"],
+            "motifs": [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
+            "palette": {"mode": "fixed", "colors": ["#123", "#abcdef"]},
+            "pattern_constraints": {"density": "dense"},
+            "count": 3,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ideas": ["아이디어 하나", "아이디어 둘", "아이디어 셋"]}
+    prompt, context = gemini.calls[0]
+    assert prompt == "차분한 패턴"
+    assert context["motifs"] == [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}]
+    assert context["palette_constraint"].colors == ["#112233", "#ABCDEF"]
+    assert context["pattern_constraints"].density == "dense"
+
+
+def test_ideas_endpoint_rejects_motif_context_order_mismatch(monkeypatch):
+    response = TestClient(_configure_app(monkeypatch)).post(
+        "/ideas",
+        json={
+            "motif_ids": ["upload-a1b2c3d4e5f6"],
+            "motifs": [{"motif_id": "upload-000000000000", "name": "다른 모티프"}],
+        },
+    )
+    assert response.status_code == 422
+    assert "same order" in response.text
 
 
 def test_partial_success_when_count_exceeds_available(client):
