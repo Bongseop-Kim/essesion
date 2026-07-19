@@ -24,7 +24,7 @@ import {
   Squares2X2Icon,
   SwatchIcon,
 } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -49,6 +49,7 @@ import {
   designSessionsQueryOptions,
   designTokenBalanceQueryOptions,
   designTurnsQueryOptions,
+  finalizedJobsInfiniteQueryOptions,
   generationJobsQueryOptions,
 } from "@/features/design/model/queries";
 import {
@@ -187,12 +188,10 @@ export function DesignPage() {
     }),
   );
   const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
-  const finalizedJobsQuery = useQuery(
-    generationJobsQueryOptions({
-      filters: { kind: "finalize", status: "succeeded", limit: 100, offset: 0 },
-      authenticated: authenticated && finalizedOpen,
-    }),
+  const finalizedJobsQuery = useInfiniteQuery(
+    finalizedJobsInfiniteQueryOptions(authenticated && finalizedOpen),
   );
+  const finalizedJobs = finalizedJobsQuery.data?.pages.flat() ?? [];
   const generateMutation = useGenerateDesign({
     onSessionReady: (sessionId, input) => {
       const operation = generationOperations.current.get(input);
@@ -832,10 +831,14 @@ export function DesignPage() {
       <FinalizedListModal
         open={finalizedOpen}
         onOpenChange={setFinalizedOpen}
-        jobs={finalizedJobsQuery.data ?? []}
+        jobs={finalizedJobs}
         loading={finalizedJobsQuery.isPending}
-        error={finalizedJobsQuery.isError}
+        error={finalizedJobsQuery.isError && finalizedJobs.length === 0}
         onRetry={() => void finalizedJobsQuery.refetch()}
+        hasMore={finalizedJobsQuery.hasNextPage}
+        loadingMore={finalizedJobsQuery.isFetchingNextPage}
+        loadMoreError={finalizedJobsQuery.isFetchNextPageError}
+        onLoadMore={() => void finalizedJobsQuery.fetchNextPage()}
         onOrder={(job) =>
           navigate("/custom-order", { state: { designJobs: [job] } })
         }

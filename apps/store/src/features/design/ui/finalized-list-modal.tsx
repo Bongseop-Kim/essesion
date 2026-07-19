@@ -1,6 +1,7 @@
 import type { GenerationJobOut } from "@essesion/api-client";
 import {
   ActionButton,
+  Callout,
   ContentPlaceholder,
   Grid,
   HStack,
@@ -34,6 +35,10 @@ export type FinalizedListModalProps = {
   loading?: boolean;
   error?: boolean;
   onRetry?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  loadMoreError?: boolean;
+  onLoadMore?: () => void;
   /** 완성본을 참조 디자인으로 주문제작 플로우에 넘긴다. */
   onOrder: (job: GenerationJobOut) => void;
   onDelete: (job: GenerationJobOut) => void;
@@ -47,6 +52,10 @@ export function FinalizedListModal({
   loading = false,
   error = false,
   onRetry,
+  hasMore = false,
+  loadingMore = false,
+  loadMoreError = false,
+  onLoadMore,
   onOrder,
   onDelete,
 }: FinalizedListModalProps) {
@@ -145,6 +154,29 @@ export function FinalizedListModal({
               </HStack>
             </VStack>
           ))}
+          {onLoadMore && (loadMoreError || hasMore) ? (
+            <VStack gridColumn="1 / -1" pt="x1" alignItems="stretch">
+              {loadMoreError ? (
+                <Callout
+                  tone="critical"
+                  title="이전 완성본을 불러오지 못했어요"
+                  description="눌러서 다시 시도해 주세요."
+                  onClick={onLoadMore}
+                />
+              ) : (
+                <HStack justify="center">
+                  <ActionButton
+                    type="button"
+                    variant="neutralOutline"
+                    loading={loadingMore}
+                    onClick={onLoadMore}
+                  >
+                    더 보기
+                  </ActionButton>
+                </HStack>
+              )}
+            </VStack>
+          ) : null}
         </Grid>
       )}
     </ResponsiveModal>

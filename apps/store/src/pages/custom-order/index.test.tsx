@@ -8,12 +8,17 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const auth = vi.hoisted(() => ({
+  requireAuth: vi.fn(() => false),
+}));
+
 vi.mock("@/features/auth", () => ({
-  useAuthGuard: () => ({ requireAuth: vi.fn(() => false) }),
+  useAuthGuard: () => ({ requireAuth: auth.requireAuth }),
 }));
 
 vi.mock("@/features/design/ui/design-picker", () => ({
@@ -60,8 +65,10 @@ function user(id: string): MeResponse {
   };
 }
 
-describe("custom order draft account boundary", () => {
+describe("CustomOrderPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    auth.requireAuth.mockReturnValue(false);
     sessionStorage.clear();
     vi.stubGlobal(
       "ResizeObserver",
@@ -131,6 +138,62 @@ describe("custom order draft account boundary", () => {
       "account-a-secret",
     );
     expect(readCustomOrderFormDraft(null)).toBeNull();
+    queryClient.clear();
+  });
+
+  it("같은 메타데이터의 두 번째 첨부를 선택하면 두 번째 파일만 제거한다", async () => {
+    auth.requireAuth.mockReturnValue(true);
+    const first = new File(["same"], "duplicate.png", {
+      type: "image/png",
+      lastModified: 1,
+    });
+    const second = new File(["same"], "duplicate.png", {
+      type: "image/png",
+      lastModified: 1,
+    });
+    const createObjectURL = vi.fn((blob: Blob) =>
+      blob === first ? "blob:first" : "blob:second",
+    );
+    const BrowserURL = URL;
+    class ObjectURL extends BrowserURL {}
+    ObjectURL.createObjectURL = createObjectURL;
+    ObjectURL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", ObjectURL);
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/custom-order"]}>
+        <QueryClientProvider client={queryClient}>
+          <CustomOrderPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(
+      screen.getByLabelText("이미지 추가", { selector: "input" }),
+      { target: { files: [first, second] } },
+    );
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "duplicate.png 삭제" }),
+      ).toHaveLength(2),
+    );
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "duplicate.png 삭제" })[1]!,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("button", { name: "duplicate.png 삭제" }),
+      ).toHaveLength(1),
+    );
+    expect(createObjectURL.mock.calls.at(-1)?.[0]).toBe(first);
     queryClient.clear();
   });
 });

@@ -139,14 +139,10 @@ async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
     gcs = request.app.state.gcs
     processed = 0
     for image in targets:
-        bucket_name = None
-        if image.entity_type.startswith("product_"):
-            # 상품 이미지도 공개 assets 버킷 소속 (admin/products.py의 _assets_bucket과 동일)
-            bucket_name = assets_bucket_name(request.app.state.settings)
-        elif image.entity_type.startswith("review_photo"):
-            # 후기 사진은 공개 assets 버킷 소속 (reviews/router.py의 서명 버킷과 동일)
-            bucket_name = assets_bucket_name(request.app.state.settings)
-        if bucket_name is None and image.entity_type.startswith(("product_", "review_photo")):
+        uses_assets_bucket = image.entity_type.startswith(("product_", "review_photo"))
+        # 상품·후기 사진은 공개 assets 버킷 소속이다.
+        bucket_name = assets_bucket_name(request.app.state.settings) if uses_assets_bucket else None
+        if bucket_name is None and uses_assets_bucket:
             # assets 버킷 미설정이면 기본(비공개) 버킷을 지우게 되므로 건너뛴다.
             # claim은 유지되어 설정 후 재시도된다.
             continue

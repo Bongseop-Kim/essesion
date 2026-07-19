@@ -26,6 +26,14 @@ FINALIZE_UNCOUNTED_STATUSES = ("failed", "canceled")
 FINALIZE_QUOTA_LOCK = "finalize-quota:{user_id}"
 
 
+def parse_finalize_limit(value: str) -> int | None:
+    clean = value.strip()
+    if not clean.isdigit():
+        return None
+    parsed = int(clean)
+    return parsed if 0 <= parsed <= 1000 else None
+
+
 @dataclass(frozen=True)
 class FinalizeQuota:
     limit: int
@@ -44,14 +52,14 @@ async def load_finalize_limit(session: AsyncSession) -> int | None:
     value = await get_admin_setting(session, FINALIZE_QUOTA_SETTING_KEY)
     if value is None:
         return None
-    clean = value.strip()
-    if not clean.isdigit() or not 0 <= int(clean) <= 1000:
+    limit = parse_finalize_limit(value)
+    if limit is None:
         raise DomainError(
             "실사화 24시간 한도 설정이 올바르지 않습니다",
             code="invalid_configuration",
             status=503,
         )
-    return int(clean)
+    return limit
 
 
 async def get_finalize_quota(

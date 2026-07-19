@@ -23,12 +23,14 @@ def upgrade() -> None:
     op.drop_constraint("finalize_used", "design_sessions", type_="check")
     op.drop_column("design_sessions", "finalize_used")
     # 계정 쿼터 카운트 쿼리용 — POST finalize·GET 세션마다 돈다
-    op.create_index(
-        "ix_generation_jobs_user_kind_created",
-        "generation_jobs",
-        ["user_id", "kind", "created_at"],
-        unique=False,
-    )
+    with op.get_context().autocommit_block():
+        op.create_index(
+            "ix_generation_jobs_user_kind_created",
+            "generation_jobs",
+            ["user_id", "kind", "status", "created_at"],
+            unique=False,
+            postgresql_concurrently=True,
+        )
     op.execute(
         """
         INSERT INTO admin_settings (key, value)
@@ -40,7 +42,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DELETE FROM admin_settings WHERE key = 'design_finalize_daily_limit'")
-    op.drop_index("ix_generation_jobs_user_kind_created", table_name="generation_jobs")
+    with op.get_context().autocommit_block():
+        op.drop_index(
+            "ix_generation_jobs_user_kind_created",
+            table_name="generation_jobs",
+            postgresql_concurrently=True,
+        )
     # 세션별 사용량은 복구 불가 — 전 세션 0으로 리셋된다.
     op.add_column(
         "design_sessions",

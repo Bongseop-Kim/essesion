@@ -1,4 +1,7 @@
-import type { ListGenerationJobsData } from "@essesion/api-client";
+import type {
+  GenerationJobOut,
+  ListGenerationJobsData,
+} from "@essesion/api-client";
 import {
   getDesignSessionOptions,
   getDesignSessionQueryKey,
@@ -8,11 +11,13 @@ import {
   listDesignSessionsOptions,
   listDesignTurnsOptions,
   listDesignTurnsQueryKey,
+  listGenerationJobsInfiniteOptions,
   listGenerationJobsOptions,
   listGenerationJobsQueryKey,
 } from "@essesion/api-client/query";
 
 export type GenerationJobFilters = NonNullable<ListGenerationJobsData["query"]>;
+export const FINALIZED_JOBS_PAGE_SIZE = 20;
 
 export function designSessionsQueryOptions(authenticated: boolean) {
   return {
@@ -65,6 +70,27 @@ export function generationJobsQueryOptions({
   return {
     ...listGenerationJobsOptions(filters ? { query: filters } : undefined),
     enabled: authenticated,
+  };
+}
+
+export function finalizedJobsInfiniteQueryOptions(authenticated: boolean) {
+  return {
+    ...listGenerationJobsInfiniteOptions({
+      query: {
+        kind: "finalize",
+        status: "succeeded",
+        limit: FINALIZED_JOBS_PAGE_SIZE,
+      },
+    }),
+    enabled: authenticated,
+    initialPageParam: 0,
+    getNextPageParam: (
+      lastPage: GenerationJobOut[],
+      allPages: GenerationJobOut[][],
+    ) =>
+      lastPage.length === FINALIZED_JOBS_PAGE_SIZE
+        ? allPages.length * FINALIZED_JOBS_PAGE_SIZE
+        : undefined,
   };
 }
 

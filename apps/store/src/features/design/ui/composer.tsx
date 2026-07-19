@@ -221,7 +221,7 @@ export function DesignComposer({
                   icon={<Icon svg={<CreditCardIcon />} size={24} />}
                   label="충전"
                   onClick={onPurchaseTokens}
-                  disabled={loading}
+                  disabled={disabled || loading}
                 />
               ) : null}
             </HStack>

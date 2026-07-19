@@ -82,6 +82,10 @@ const MAX_IMAGES = 5;
 const DESCRIPTION =
   "수량, 원단, 봉제 방식과 마감 사양을 선택하고 맞춤 넥타이 제작 비용을 확인하세요.";
 
+function attachmentFileId(file: File, index: number) {
+  return `${index}-${file.name}-${file.size}-${file.lastModified}`;
+}
+
 export function CustomOrderPage() {
   const status = useSession((state) => state.status);
   const user = useSession((state) => state.user);
@@ -162,8 +166,8 @@ function CustomOrderPageContent({
         src: job.result_url ?? "",
         alt: `AI 완성 디자인 ${index + 1}`,
       })),
-      ...previewUrls.map(({ file, url }) => ({
-        id: `file:${file.name}-${file.size}-${file.lastModified}`,
+      ...previewUrls.map(({ file, url }, index) => ({
+        id: `file:${attachmentFileId(file, index)}`,
         src: url,
         alt: file.name,
       })),
@@ -1009,9 +1013,8 @@ function CustomOrderPageContent({
                   }
                   const fileId = id.slice("file:".length);
                   const index = previewUrls.findIndex(
-                    ({ file }) =>
-                      `${file.name}-${file.size}-${file.lastModified}` ===
-                      fileId,
+                    ({ file }, candidate) =>
+                      attachmentFileId(file, candidate) === fileId,
                   );
                   if (index >= 0)
                     setFiles((current) =>

@@ -84,5 +84,5 @@ class GenerationJob(TimestampMixin, Base):
         ),
         Index("ix_generation_jobs_status_created", "status", "created_at"),
         # finalize 계정 쿼터의 24시간 윈도우 카운트용 — POST finalize·GET 세션마다 돈다
-        Index("ix_generation_jobs_user_kind_created", "user_id", "kind", "created_at"),
+        Index("ix_generation_jobs_user_kind_created", "user_id", "kind", "status", "created_at"),
     )

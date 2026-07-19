@@ -26,7 +26,7 @@ services:
         -public-host localhost:4443 -external-url http://localhost:4443
         -cors-headers content-type,x-goog-if-generation-match,x-goog-content-length-range
     volumes:
-      - gcsdata:/storage
+      - gcsdata:/data
 
 volumes:
   pgdata:

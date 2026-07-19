@@ -9,6 +9,8 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
+from api.domains.design.quota import parse_finalize_limit
 from db.models.design import GenerationJob
 from sqlalchemy import select
 
@@ -16,6 +18,23 @@ from .factories import auth_headers, make_admin, make_user, seed_setting
 
 LIMIT_KEY = "design_finalize_daily_limit"
 INTENT = {"canvas": {"tile_mm": 24}, "layers": []}
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("0", 0),
+        (" 010 ", 10),
+        ("1000", 1000),
+        ("", None),
+        ("-1", None),
+        ("1001", None),
+        ("1.5", None),
+        ("invalid", None),
+    ],
+)
+def test_parse_finalize_limit(value, expected):
+    assert parse_finalize_limit(value) == expected
 
 
 async def _seed_limit(db_session, limit):
@@ -156,9 +175,7 @@ async def test_admin_can_adjust_limit_and_rejects_invalid_values(client, db_sess
         json={
             "operation_id": str(uuid.uuid4()),
             "reason": "실사화 한도 상향",
-            "items": [
-                {"key": LIMIT_KEY, "value": "2", "expected_updated_at": row["updated_at"]}
-            ],
+            "items": [{"key": LIMIT_KEY, "value": "2", "expected_updated_at": row["updated_at"]}],
         },
         headers=admin_headers,
     )
