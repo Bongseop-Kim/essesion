@@ -38,7 +38,6 @@ export type TurnFeedProps = {
   loading?: boolean;
   generating?: boolean;
   error?: boolean;
-  selectionLoading?: boolean;
   onRetry?: () => void;
   onSelectCandidate: (
     candidate: TurnCandidate,
@@ -56,7 +55,6 @@ export function TurnFeed({
   loading = false,
   generating = false,
   error = false,
-  selectionLoading = false,
   onRetry,
   onSelectCandidate,
   renderFinalizeTurn,
@@ -123,7 +121,6 @@ export function TurnFeed({
             <TurnItem
               payload={payload}
               selectedCandidateId={selectedCandidateId}
-              selectionLoading={selectionLoading}
               onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
               candidateMenu={candidateMenu}
@@ -151,14 +148,12 @@ function FeedCenter({ children }: { children: ReactNode }) {
 function TurnItem({
   payload,
   selectedCandidateId,
-  selectionLoading,
   onSelectCandidate,
   renderFinalizeTurn,
   candidateMenu,
 }: {
   payload: DesignTurnPayload | null;
   selectedCandidateId?: string | null;
-  selectionLoading: boolean;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
   candidateMenu?: ReactNode;
@@ -207,7 +202,6 @@ function TurnItem({
         candidates={candidates}
         selectedId={selectedCandidateId}
         warnings={localizeDesignWarnings(payload.response.warnings)}
-        disabled={selectionLoading}
         menu={candidateMenu}
         onSelect={(selected, event) => {
           const candidate = payload.response.candidates.find(

@@ -7,6 +7,10 @@ import {
   Grid,
   HStack,
   Icon,
+  MenuContent,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
   ProgressCircle,
   snackbar,
   Text,
@@ -15,6 +19,7 @@ import {
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
+  EyeIcon,
   ShoppingBagIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
@@ -35,7 +40,12 @@ export type FinalizeTurnCardProps = {
   payload: FinalizeTurnPayload;
   authenticated: boolean;
   previewActive: boolean;
+  /** 모바일: 결과 타일 탭 시 앵커 메뉴로 액션을 노출하고 하단 버튼을 숨긴다. */
+  anchorMenu: boolean;
+  /** 타일 탭 — 결과를 프리뷰 대상으로 스테이징만 한다(시트는 열지 않음). */
   onPreview: (job: GenerationJobOut) => void;
+  /** 앵커 메뉴의 미리보기 — 스테이징 후 미리보기 시트까지 연다. */
+  onOpenPreview: (job: GenerationJobOut) => void;
   onRetry: (job: GenerationJobOut) => Promise<void>;
   onOrder: (job: GenerationJobOut) => void;
 };
@@ -44,7 +54,9 @@ export function FinalizeTurnCard({
   payload,
   authenticated,
   previewActive,
+  anchorMenu,
   onPreview,
+  onOpenPreview,
   onRetry,
   onOrder,
 }: FinalizeTurnCardProps) {
@@ -201,35 +213,65 @@ export function FinalizeTurnCard({
     );
   }
 
+  const tile = (
+    <CandidateTile
+      label="완성된 실사화 미리보기"
+      imageSrc={job.result_url ?? undefined}
+      alt="완성된 실사화 이미지"
+      selected={previewActive}
+      disabled={!job.result_url}
+      onClick={() => onPreview(job)}
+    />
+  );
   return (
     <VStack gap="x3" alignItems="stretch">
       <Text textStyle="label">실사화가 완성됐어요</Text>
       <Grid columns={{ base: 2, md: 4 }} gap="x3">
-        <CandidateTile
-          label="완성된 실사화 미리보기"
-          imageSrc={job.result_url ?? undefined}
-          alt="완성된 실사화 이미지"
-          selected={previewActive}
-          disabled={!job.result_url}
-          onClick={() => onPreview(job)}
-        />
+        {anchorMenu ? (
+          <MenuRoot>
+            <MenuTrigger>{tile}</MenuTrigger>
+            <MenuContent aria-label="완성된 실사화 액션">
+              <MenuItem
+                label="미리보기"
+                prefixIcon={<Icon svg={<EyeIcon />} size={18} />}
+                onClick={() => onOpenPreview(job)}
+              />
+              <MenuItem
+                label="내려받기"
+                prefixIcon={<Icon svg={<ArrowDownTrayIcon />} size={18} />}
+                disabled={downloading}
+                onClick={() => void handleDownload(job)}
+              />
+              <MenuItem
+                label="주문 제작하기"
+                prefixIcon={<Icon svg={<ShoppingBagIcon />} size={18} />}
+                onClick={() => onOrder(job)}
+              />
+            </MenuContent>
+          </MenuRoot>
+        ) : (
+          tile
+        )}
       </Grid>
-      <HStack gap="x2" wrap>
-        <ActionButton
-          type="button"
-          size="small"
-          variant="neutralOutline"
-          disabled={!job.result_url}
-          loading={downloading}
-          onClick={() => void handleDownload(job)}
-        >
-          <Icon svg={<ArrowDownTrayIcon />} size={18} />
-          다운로드
-        </ActionButton>
-        <ActionButton type="button" size="small" onClick={() => onOrder(job)}>
-          <Icon svg={<ShoppingBagIcon />} size={18} />이 디자인으로 주문 제작
-        </ActionButton>
-      </HStack>
+      {anchorMenu ? null : (
+        <HStack gap="x2" wrap>
+          <ActionButton
+            type="button"
+            size="small"
+            variant="neutralOutline"
+            disabled={!job.result_url}
+            loading={downloading}
+            onClick={() => void handleDownload(job)}
+          >
+            <Icon svg={<ArrowDownTrayIcon />} size={18} />
+            내려받기
+          </ActionButton>
+          <ActionButton type="button" size="small" onClick={() => onOrder(job)}>
+            <Icon svg={<ShoppingBagIcon />} size={18} />
+            주문 제작하기
+          </ActionButton>
+        </HStack>
+      )}
     </VStack>
   );
 }

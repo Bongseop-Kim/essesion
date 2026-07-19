@@ -150,7 +150,9 @@ export function CandidateTile({
       >
         {selected ? (
           <Float placement="top-end" offsetX="x2" offsetY="x2">
+            {/* 선택 체크는 PC 프리뷰 패널과의 연동 표시 — 모바일(탭=메뉴)에선 숨긴다. */}
             <Flex
+              display={{ base: "none", lg: "flex" }}
               align="center"
               justify="center"
               width={28}

@@ -362,6 +362,8 @@ export function DesignPage() {
       snackbar("선택한 후보 정보를 복원하지 못했습니다.");
       return;
     }
+    // 이미 선택된 후보 재탭 — 저장할 변화가 없다(메뉴 오픈은 그대로 진행).
+    if (selection?.candidateId === next.candidateId) return;
     const operation = selectionEpoch.begin();
     setSelectionOverride({ sessionId, selection: next });
     setResultPreview(null);
@@ -435,10 +437,17 @@ export function DesignPage() {
     );
   };
 
-  const previewFinalizeResult = (job: GenerationJobOut) => {
+  // 결과 타일 탭: 프리뷰 대상 스테이징만 — 데스크톱은 좌측 패널에 즉시 반영,
+  // 모바일은 앵커 메뉴가 열린다(시트는 메뉴의 미리보기로만).
+  const stageFinalizeResult = (job: GenerationJobOut) => {
     if (!job.result_url) return;
     setResultPreview({ jobId: job.id, src: job.result_url });
-    if (compactPreview) setPreviewOpen(true);
+  };
+
+  const openFinalizeResultPreview = (job: GenerationJobOut) => {
+    if (!job.result_url) return;
+    setResultPreview({ jobId: job.id, src: job.result_url });
+    setPreviewOpen(true);
   };
 
   const retryFinalize = async (job: GenerationJobOut) => {
@@ -587,20 +596,6 @@ export function DesignPage() {
     onFinalize: () => openFinalize(),
   };
   const panelActions = <DesignActions {...actionProps} />;
-  // 미리보기 모달 위에 다른 다이얼로그를 겹치지 않도록 모달을 닫고 연다.
-  const modalActions = (
-    <DesignActions
-      {...actionProps}
-      onExport={() => {
-        setPreviewOpen(false);
-        openExport();
-      }}
-      onFinalize={() => {
-        setPreviewOpen(false);
-        openFinalize();
-      }}
-    />
-  );
   // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 핸들러가 전부 페이지
   // selection 기반이라 모든 타일이 같은 항목을 공유한다.
   const candidateMenu = (
@@ -697,7 +692,6 @@ export function DesignPage() {
                 loading={!!activeSessionId && turnsQuery.isPending}
                 generating={generateMutation.isPending}
                 error={!!activeSessionId && turnsQuery.isError}
-                selectionLoading={selectionMutation.isPending}
                 onRetry={() => void turnsQuery.refetch()}
                 onSelectCandidate={(candidate, intents, event) =>
                   void selectCandidate(candidate, intents, event)
@@ -708,7 +702,9 @@ export function DesignPage() {
                     payload={payload}
                     authenticated={authenticated}
                     previewActive={resultPreview?.jobId === payload.job_id}
-                    onPreview={previewFinalizeResult}
+                    anchorMenu={compactPreview}
+                    onPreview={stageFinalizeResult}
+                    onOpenPreview={openFinalizeResultPreview}
                     onRetry={retryFinalize}
                     onOrder={(job) =>
                       navigate("/custom-order", {
@@ -780,7 +776,6 @@ export function DesignPage() {
         alt={previewAlt}
         mode={previewMode}
         onModeChange={setPreviewMode}
-        actions={modalActions}
       />
       <FinalizeDialog
         open={finalizeOpen}
