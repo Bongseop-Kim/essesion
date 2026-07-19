@@ -39,7 +39,7 @@ export type FinalizedListModalProps = {
   onDelete: (job: GenerationJobOut) => void;
 };
 
-/** 원단 시뮬레이션을 마친 완성본 보관함 — 세션과 독립적으로 유지된다. */
+/** 실사화를 마친 완성본 보관함 — 세션과 독립적으로 유지된다. */
 export function FinalizedListModal({
   open,
   onOpenChange,
@@ -55,7 +55,7 @@ export function FinalizedListModal({
       open={open}
       onOpenChange={onOpenChange}
       title="내 완성본"
-      description="원단 시뮬레이션을 마친 디자인이에요. 주문제작·샘플 제작에서 참조 이미지로 사용할 수 있어요."
+      description="실사화를 마친 디자인이에요. 주문제작·샘플 제작에서 참조 이미지로 사용할 수 있어요."
       size="medium"
       showCloseButton
     >
@@ -83,7 +83,7 @@ export function FinalizedListModal({
         <ContentPlaceholder
           icon={<Icon svg={<SwatchIcon />} size={32} />}
           title="완성한 디자인이 없어요"
-          description="원단 시뮬레이션을 완성하면 여기에 모여요."
+          description="실사화를 완성하면 여기에 모여요."
         />
       ) : (
         <Grid columns={2} gap="x3" aria-label="내 완성본">

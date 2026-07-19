@@ -8,6 +8,7 @@ import {
   HStack,
   Icon,
   LayoutContent,
+  MenuItem,
   PageBanner,
   snackbar,
   Text,
@@ -17,13 +18,14 @@ import {
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
+  EyeIcon,
   FolderOpenIcon,
   PlusIcon,
   Squares2X2Icon,
   SwatchIcon,
 } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
@@ -100,7 +102,7 @@ import { type TurnCandidate, TurnFeed } from "@/features/design/ui/turn-feed";
 import { useSession } from "@/shared/store/session";
 
 const DESCRIPTION =
-  "AI와 함께 반복 가능한 넥타이 패턴을 만들고 원단 시뮬레이션까지 확인하세요.";
+  "AI와 함께 반복 가능한 넥타이 패턴을 만들고 실사화까지 확인하세요.";
 const FINALIZE_BUDGET = 10;
 // 모달 위 모달 금지 — 목록 모달이 닫히는 모션이 끝난 뒤 확인 다이얼로그를 연다.
 const OVERLAY_EXIT_MS = 250;
@@ -234,7 +236,7 @@ export function DesignPage() {
     ? svgToDataUri(selection.candidate.svg)
     : null;
   const previewImageSrc = resultPreview?.src ?? selectedImageSrc;
-  const previewAlt = resultPreview ? "완성된 원단 시뮬레이션" : undefined;
+  const previewAlt = resultPreview ? "완성된 실사화 이미지" : undefined;
   const remainingFinalize = Math.max(
     0,
     FINALIZE_BUDGET - (sessionQuery.data?.finalize_used ?? 0),
@@ -346,18 +348,23 @@ export function DesignPage() {
   const selectCandidate = async (
     candidate: TurnCandidate,
     intents: Record<string, unknown>[],
+    event?: MouseEvent<HTMLButtonElement>,
   ) => {
-    if (!activeSessionId || !ensureDesignAuth()) return;
+    // guard 실패는 전부 첫 await 이전(동기)이라 preventDefault로 타일 메뉴 오픈까지 막는다.
+    if (!activeSessionId || !ensureDesignAuth()) {
+      event?.preventDefault();
+      return;
+    }
     const sessionId = activeSessionId;
     const next = selectionForCandidate(candidate, intents);
     if (!next) {
+      event?.preventDefault();
       snackbar("선택한 후보 정보를 복원하지 못했습니다.");
       return;
     }
     const operation = selectionEpoch.begin();
     setSelectionOverride({ sessionId, selection: next });
     setResultPreview(null);
-    if (compactPreview) setPreviewOpen(true);
     try {
       const result = await selectionMutation.mutateAsync({
         sessionId,
@@ -460,7 +467,7 @@ export function DesignPage() {
         throwOnError: true,
       });
       if (!(response.data instanceof Blob)) {
-        throw new Error("내보내기 응답이 파일 형식이 아닙니다.");
+        throw new Error("내려받기 응답이 파일 형식이 아닙니다.");
       }
       downloadBlob(response.data, `essesion-design.${value.format}`);
       setExportOpen(false);
@@ -573,7 +580,6 @@ export function DesignPage() {
   const actionProps = {
     selected: !!selection?.intent,
     canExport: !!selection?.candidate?.svg,
-    generateCost: balanceQuery.data?.generate_cost ?? null,
     remainingFinalize,
     loading: generateMutation.isPending,
     onVariation: () => void generateVariation(),
@@ -594,6 +600,35 @@ export function DesignPage() {
         openFinalize();
       }}
     />
+  );
+  // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 핸들러가 전부 페이지
+  // selection 기반이라 모든 타일이 같은 항목을 공유한다.
+  const candidateMenu = (
+    <>
+      <MenuItem
+        label="미리보기"
+        prefixIcon={<Icon svg={<EyeIcon />} size={18} />}
+        onClick={() => setPreviewOpen(true)}
+      />
+      <MenuItem
+        label="내려받기"
+        prefixIcon={<Icon svg={<ArrowDownTrayIcon />} size={18} />}
+        disabled={!selection?.candidate?.svg}
+        onClick={openExport}
+      />
+      <MenuItem
+        label="다시만들기"
+        prefixIcon={<Icon svg={<ArrowPathIcon />} size={18} />}
+        disabled={!selection?.intent || generateMutation.isPending}
+        onClick={() => void generateVariation()}
+      />
+      <MenuItem
+        label="실사화하기"
+        prefixIcon={<Icon svg={<Squares2X2Icon />} size={18} />}
+        disabled={!selection?.intent || remainingFinalize <= 0}
+        onClick={() => openFinalize()}
+      />
+    </>
   );
 
   return (
@@ -664,9 +699,10 @@ export function DesignPage() {
                 error={!!activeSessionId && turnsQuery.isError}
                 selectionLoading={selectionMutation.isPending}
                 onRetry={() => void turnsQuery.refetch()}
-                onSelectCandidate={(candidate, intents) =>
-                  void selectCandidate(candidate, intents)
+                onSelectCandidate={(candidate, intents, event) =>
+                  void selectCandidate(candidate, intents, event)
                 }
+                candidateMenu={compactPreview ? candidateMenu : undefined}
                 renderFinalizeTurn={(payload) => (
                   <FinalizeTurnCard
                     payload={payload}
@@ -822,7 +858,7 @@ export function DesignPage() {
         }
         description={
           deleteTarget?.kind === "session"
-            ? "대화 이력이 함께 삭제돼요. 완성한 원단 시뮬레이션 결과는 내 완성본에 남아요."
+            ? "대화 이력이 함께 삭제돼요. 완성한 실사화 결과는 내 완성본에 남아요."
             : "삭제한 완성본은 복구할 수 없어요. 이미 접수한 주문에는 영향이 없어요."
         }
         primaryActionProps={{
@@ -855,7 +891,6 @@ export function DesignPage() {
 function DesignActions({
   selected,
   canExport,
-  generateCost,
   remainingFinalize,
   loading,
   onVariation,
@@ -864,7 +899,6 @@ function DesignActions({
 }: {
   selected: boolean;
   canExport: boolean;
-  generateCost: number | null;
   remainingFinalize: number;
   loading: boolean;
   onVariation: () => void;
@@ -881,7 +915,7 @@ function DesignActions({
         onClick={onVariation}
       >
         <Icon svg={<ArrowPathIcon />} size={18} />
-        배리에이션 {generateCost == null ? "" : `${generateCost}토큰`}
+        다시만들기
       </ActionButton>
       <ActionButton
         type="button"
@@ -891,7 +925,7 @@ function DesignActions({
         onClick={onExport}
       >
         <Icon svg={<ArrowDownTrayIcon />} size={18} />
-        내보내기
+        내려받기
       </ActionButton>
       <ActionButton
         type="button"
@@ -901,7 +935,7 @@ function DesignActions({
         onClick={onFinalize}
       >
         <Icon svg={<Squares2X2Icon />} size={18} />
-        원단 시뮬레이션 {remainingFinalize}회
+        실사화하기
       </ActionButton>
     </HStack>
   );

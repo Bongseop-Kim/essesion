@@ -58,7 +58,7 @@ export function FinalizeTurnCard({
     setDownloading(true);
     try {
       await downloadResult(job);
-      snackbar("원단 시뮬레이션을 다운로드했습니다.");
+      snackbar("실사화를 다운로드했습니다.");
     } catch {
       snackbar("파일을 다운로드하지 못했습니다. 다시 시도해 주세요.");
     } finally {
@@ -80,7 +80,7 @@ export function FinalizeTurnCard({
     if (cancelMutation.isPending) return;
     try {
       await cancelMutation.mutateAsync(job.id);
-      snackbar("원단 시뮬레이션을 취소했어요. 사용한 횟수는 복구됐어요.");
+      snackbar("실사화를 취소했어요. 사용한 횟수는 복구됐어요.");
     } catch {
       snackbar("취소하지 못했어요. 작업이 이미 끝났을 수 있어요.");
       void jobQuery.refetch();
@@ -94,7 +94,7 @@ export function FinalizeTurnCard({
   if (jobQuery.isError) {
     return (
       <ContentPlaceholder
-        title="원단 시뮬레이션 상태를 확인하지 못했어요"
+        title="실사화 상태를 확인하지 못했어요"
         description="작업은 서버에서 계속될 수 있어요. 잠시 후 다시 확인해 주세요."
         action={
           <ActionButton
@@ -129,7 +129,7 @@ export function FinalizeTurnCard({
       <VStack gap="x3" alignItems="stretch">
         <Callout
           tone="neutral"
-          title="원단 시뮬레이션이 지연되고 있어요"
+          title="실사화가 지연되고 있어요"
           description="나중에 이 세션을 다시 열면 완성 결과를 확인할 수 있어요. 너무 오래 걸리면 자동으로 취소되고 횟수가 복구돼요."
         />
         <HStack gap="x2" wrap>
@@ -160,9 +160,7 @@ export function FinalizeTurnCard({
     return (
       <ContentPlaceholder
         title={
-          timedOut
-            ? "원단 시뮬레이션이 시간 초과로 취소됐어요"
-            : "원단 시뮬레이션을 취소했어요"
+          timedOut ? "실사화가 시간 초과로 취소됐어요" : "실사화를 취소했어요"
         }
         description="사용한 횟수는 복구됐어요. 언제든 다시 시도할 수 있어요."
         action={
@@ -185,7 +183,7 @@ export function FinalizeTurnCard({
     return (
       <VStack gap="x3" alignItems="stretch">
         <ContentPlaceholder
-          title="원단 시뮬레이션을 만들지 못했어요"
+          title="실사화를 만들지 못했어요"
           description={job.error_message ?? "잠시 후 다시 시도해 주세요."}
           action={
             <ActionButton
@@ -203,7 +201,7 @@ export function FinalizeTurnCard({
         <Callout
           tone="warning"
           title="재시도하면 횟수를 한 번 더 사용해요"
-          description="실패한 시뮬레이션 횟수는 자동으로 복구되지 않아요."
+          description="실패한 실사화 횟수는 자동으로 복구되지 않아요."
         />
       </VStack>
     );
@@ -211,12 +209,12 @@ export function FinalizeTurnCard({
 
   return (
     <VStack gap="x3" alignItems="stretch">
-      <Text textStyle="label">원단 시뮬레이션이 완성됐어요</Text>
+      <Text textStyle="label">실사화가 완성됐어요</Text>
       <Grid columns={{ base: 2, md: 4 }} gap="x3">
         <CandidateTile
-          label="완성된 원단 시뮬레이션 미리보기"
+          label="완성된 실사화 미리보기"
           imageSrc={job.result_url ?? undefined}
-          alt="완성된 원단 시뮬레이션"
+          alt="완성된 실사화 이미지"
           selected={previewActive}
           disabled={!job.result_url}
           onClick={() => onPreview(job)}
@@ -253,12 +251,10 @@ function FinalizeProgress({ attempts }: { attempts: number }) {
       py="x5"
     >
       <HStack gap="x3" align="flex-start">
-        <ProgressCircle size={24} aria-label="원단 시뮬레이션 생성 중" />
+        <ProgressCircle size={24} aria-label="실사화 생성 중" />
         <VStack gap="x1" alignItems="stretch">
           <Text textStyle="labelSm">
-            {attempts > 1
-              ? "원단 시뮬레이션 재시도 중"
-              : "원단 시뮬레이션 생성 중"}
+            {attempts > 1 ? "실사화 재시도 중" : "실사화 생성 중"}
           </Text>
           <Text textStyle="caption" color="fg.neutral-muted">
             보통 수십 초가 걸려요. 창을 닫아도 작업은 계속돼요.

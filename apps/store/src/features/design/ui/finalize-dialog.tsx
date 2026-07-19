@@ -107,7 +107,7 @@ export function FinalizeDialog({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="원단 시뮬레이션"
+      title="실사화"
       description={`남은 횟수 ${Math.max(0, remaining)}회`}
       size="medium"
       showCloseButton
@@ -131,7 +131,7 @@ export function FinalizeDialog({
             disabled={submitDisabled}
             onClick={() => onSubmit({ productionMethod, weave, dpi: 300 })}
           >
-            시뮬레이션 만들기
+            실사화 만들기
           </Box>
         </HStack>
       }
@@ -140,8 +140,8 @@ export function FinalizeDialog({
         {exhausted ? (
           <Callout
             tone="warning"
-            title="시뮬레이션 횟수를 모두 사용했어요"
-            description="이 세션에서는 원단 시뮬레이션을 더 만들 수 없어요."
+            title="실사화 횟수를 모두 사용했어요"
+            description="이 세션에서는 실사화를 더 만들 수 없어요."
           />
         ) : null}
 
@@ -195,7 +195,7 @@ export function FinalizeDialog({
         <Callout
           tone="neutral"
           title="출력 품질"
-          description="원단 시뮬레이션은 300 DPI로 생성돼요."
+          description="실사화 이미지는 300 DPI로 생성돼요."
         />
       </VStack>
     </ResponsiveModal>

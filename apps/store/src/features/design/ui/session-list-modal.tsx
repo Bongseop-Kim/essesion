@@ -142,8 +142,7 @@ export function SessionListModal({
                       <HStack gap="x2" wrap>
                         <Badge tone={status.tone}>{status.label}</Badge>
                         <Text textStyle="caption" color="fg.neutral-muted">
-                          원단 시뮬레이션 {session.finalizeUsed}/
-                          {FINALIZE_LIMIT}
+                          실사화 {session.finalizeUsed}/{FINALIZE_LIMIT}
                         </Text>
                       </HStack>
                     </VStack>

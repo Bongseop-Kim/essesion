@@ -7,6 +7,9 @@ import {
   Grid,
   Icon,
   ImageFrame,
+  MenuContent,
+  MenuRoot,
+  MenuTrigger,
   Skeleton,
   Text,
   VStack,
@@ -16,6 +19,12 @@ import {
   InformationCircleIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
+import {
+  type ComponentPropsWithRef,
+  Fragment,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 
 export type DesignCandidate = {
   id: string;
@@ -30,7 +39,13 @@ export type CandidateGridProps = {
   warnings?: readonly string[];
   loading?: boolean;
   disabled?: boolean;
-  onSelect: (candidate: DesignCandidate) => void;
+  onSelect: (
+    candidate: DesignCandidate,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => void;
+  /** 있으면 각 타일을 메뉴 트리거로 감싸 탭 시 앵커 메뉴로 항목을 노출한다.
+      모바일 전용 분기는 호출부가 소유(prop 유무로 판단). */
+  menu?: ReactNode;
 };
 
 export function CandidateGrid({
@@ -40,6 +55,7 @@ export function CandidateGrid({
   loading = false,
   disabled = false,
   onSelect,
+  menu,
 }: CandidateGridProps) {
   if (loading) return <CandidateGridSkeleton />;
 
@@ -56,17 +72,27 @@ export function CandidateGrid({
 
       {candidates.length > 0 ? (
         <Grid columns={{ base: 2, md: 4 }} gap="x3" aria-label="디자인 후보">
-          {candidates.map((candidate, index) => (
-            <CandidateTile
-              key={candidate.id}
-              label={`디자인 후보 ${index + 1}`}
-              imageSrc={candidate.imageSrc}
-              alt={candidate.alt ?? `AI 디자인 후보 ${index + 1}`}
-              selected={candidate.id === selectedId}
-              disabled={disabled}
-              onClick={() => onSelect(candidate)}
-            />
-          ))}
+          {candidates.map((candidate, index) => {
+            const label = `디자인 후보 ${index + 1}`;
+            const tile = (
+              <CandidateTile
+                label={label}
+                imageSrc={candidate.imageSrc}
+                alt={candidate.alt ?? `AI 디자인 후보 ${index + 1}`}
+                selected={candidate.id === selectedId}
+                disabled={disabled}
+                onClick={(event) => onSelect(candidate, event)}
+              />
+            );
+            return menu ? (
+              <MenuRoot key={candidate.id}>
+                <MenuTrigger>{tile}</MenuTrigger>
+                <MenuContent aria-label={`${label} 액션`}>{menu}</MenuContent>
+              </MenuRoot>
+            ) : (
+              <Fragment key={candidate.id}>{tile}</Fragment>
+            );
+          })}
         </Grid>
       ) : (
         <ContentPlaceholder
@@ -79,13 +105,15 @@ export function CandidateGrid({
   );
 }
 
-export type CandidateTileProps = {
+export type CandidateTileProps = Omit<
+  ComponentPropsWithRef<"button">,
+  "onClick" | "aria-label" | "aria-pressed" | "children"
+> & {
   label: string;
   imageSrc?: string;
   alt: string;
   selected?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 };
 
 export function CandidateTile({
@@ -95,9 +123,11 @@ export function CandidateTile({
   selected = false,
   disabled = false,
   onClick,
+  ...rest
 }: CandidateTileProps) {
   return (
     <Box
+      {...rest}
       as="button"
       type="button"
       aria-label={label}

@@ -12,7 +12,7 @@ import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { svgToDataUri } from "../model/svg-preview";
 import {
   type DesignTurnPayload,
@@ -43,8 +43,11 @@ export type TurnFeedProps = {
   onSelectCandidate: (
     candidate: TurnCandidate,
     intents: GeneratePayload["response"]["intents"],
+    event: MouseEvent<HTMLButtonElement>,
   ) => void;
   renderFinalizeTurn: (payload: FinalizeTurnPayload) => ReactNode;
+  /** 있으면 후보 타일 탭 시 앵커 메뉴로 노출할 항목들(CandidateGrid의 menu). */
+  candidateMenu?: ReactNode;
 };
 
 export function TurnFeed({
@@ -57,6 +60,7 @@ export function TurnFeed({
   onRetry,
   onSelectCandidate,
   renderFinalizeTurn,
+  candidateMenu,
 }: TurnFeedProps) {
   if (loading) {
     return (
@@ -122,6 +126,7 @@ export function TurnFeed({
               selectionLoading={selectionLoading}
               onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
+              candidateMenu={candidateMenu}
             />
           </Box>
         );
@@ -149,12 +154,14 @@ function TurnItem({
   selectionLoading,
   onSelectCandidate,
   renderFinalizeTurn,
+  candidateMenu,
 }: {
   payload: DesignTurnPayload | null;
   selectedCandidateId?: string | null;
   selectionLoading: boolean;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
+  candidateMenu?: ReactNode;
 }) {
   if (!payload) {
     return (
@@ -176,7 +183,7 @@ function TurnItem({
         >
           <Text textStyle="bodySm">
             {payload.mode === "variation"
-              ? "선택한 디자인의 배리에이션을 만들어 주세요."
+              ? "선택한 디자인과 비슷하게 다시 만들어 주세요."
               : payload.prompt || "새 디자인을 만들어 주세요."}
           </Text>
         </Box>
@@ -201,13 +208,17 @@ function TurnItem({
         selectedId={selectedCandidateId}
         warnings={localizeDesignWarnings(payload.response.warnings)}
         disabled={selectionLoading}
-        onSelect={(selected) => {
+        menu={candidateMenu}
+        onSelect={(selected, event) => {
           const candidate = payload.response.candidates.find(
             (item) => item.id === selected.id,
           );
-          if (!candidate) return;
-          if (payload.response.intents[candidate.design_index])
-            onSelectCandidate(candidate, payload.response.intents);
+          // 후보·intent 복원 실패 시 메뉴 오픈도 함께 막는다.
+          if (!candidate || !payload.response.intents[candidate.design_index]) {
+            event.preventDefault();
+            return;
+          }
+          onSelectCandidate(candidate, payload.response.intents, event);
         }}
       />
     );

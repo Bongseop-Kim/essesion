@@ -68,7 +68,7 @@ export function DesignPicker({
     <>
       <FieldButton
         label="AI 디자인"
-        description="원단 시뮬레이션을 마친 내 디자인을 참고 이미지로 가져올 수 있어요."
+        description="실사화를 마친 내 디자인을 참고 이미지로 가져올 수 있어요."
         placeholder="내 AI 디자인에서 선택"
         value={selected ? formatDate(selected.created_at) : undefined}
         disabled={disabled || status === "loading"}
@@ -122,7 +122,7 @@ export function DesignPicker({
             <ContentPlaceholder
               icon={<Icon svg={<SparklesIcon />} size={32} />}
               title="완성한 AI 디자인이 없어요"
-              description="디자인 페이지에서 원단 시뮬레이션을 먼저 완성해 주세요."
+              description="디자인 페이지에서 실사화를 먼저 완성해 주세요."
             />
           ) : (
             <Grid columns={2} gap="x3" aria-label="완성한 AI 디자인">
