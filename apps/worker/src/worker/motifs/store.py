@@ -27,6 +27,7 @@ VARIANT_GROUP_VERSION = 2
 VARIANT_GROUP_LEN = 16
 
 _EXACT_FACETS = ("subject", "scope", "view", "expression", "style", "description")
+USER_UPLOAD_SOURCE = "user_upload"
 
 
 def normalize_facet(value: str | None) -> str:
@@ -166,7 +167,7 @@ async def find_by_scope(session: AsyncSession, scope: str) -> list[MotifMeta]:
                 Motif.description,
                 Motif.source,
             )
-            .where(Motif.scope == norm)
+            .where(Motif.scope == norm, Motif.source != USER_UPLOAD_SOURCE)
             .order_by(Motif.id)
         )
     ).all()
@@ -182,7 +183,11 @@ async def nearest_by_embedding(
     row = (
         await session.execute(
             select(Motif.id, Motif.variant_group, distance.label("distance"))
-            .where(Motif.scope == norm, Motif.embedding.is_not(None))
+            .where(
+                Motif.scope == norm,
+                Motif.embedding.is_not(None),
+                Motif.source != USER_UPLOAD_SOURCE,
+            )
             .order_by(distance.asc(), Motif.id.asc())
             .limit(1)
         )
@@ -197,7 +202,10 @@ async def find_variant_pool(session: AsyncSession, variant_group: str) -> list[P
     rows = (
         await session.execute(
             select(Motif.id, Motif.embedding)
-            .where(Motif.variant_group == variant_group)
+            .where(
+                Motif.variant_group == variant_group,
+                Motif.source != USER_UPLOAD_SOURCE,
+            )
             .order_by(Motif.id)
         )
     ).all()
@@ -209,7 +217,13 @@ async def find_variant_pool(session: AsyncSession, variant_group: str) -> list[P
 
 async def all_motif_ids(session: AsyncSession) -> list[str]:
     """전체 모티프 id, ORDER BY id — fingerprint용 경량 스캔."""
-    return list((await session.scalars(select(Motif.id).order_by(Motif.id))).all())
+    return list(
+        (
+            await session.scalars(
+                select(Motif.id).where(Motif.source != USER_UPLOAD_SOURCE).order_by(Motif.id)
+            )
+        ).all()
+    )
 
 
 def exact_facet_key(spec_or_meta: dict | MotifMeta) -> tuple[str, ...]:

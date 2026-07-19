@@ -9,7 +9,7 @@ import pytest
 import respx
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import EmbeddingError, OpenAIEmbeddingClient, embed_query
-from worker.adapters.gemini import GeminiClient
+from worker.adapters.gemini import GeminiClient, ReferenceImage
 from worker.adapters.recraft import (
     RecraftError,
     RecraftHTTPClient,
@@ -244,6 +244,29 @@ async def test_gemini_retries_on_503_then_succeeds(monkeypatch):
     assert slept == [0.5, 1.0]  # 백오프 순서
     assert len(designs) == 1
     assert designs[0].motif_specs[0]["subject"] == "dot"
+
+
+@respx.mock
+async def test_gemini_sends_reference_images_before_text_prompt():
+    route = respx.post(url__regex=r".*generateContent").mock(
+        return_value=_gemini_response(_VALID_DESIGNS)
+    )
+    image = ReferenceImage(data=b"safe-jpeg", mime_type="image/jpeg")
+    designs = await GeminiClient("k").author_designs(
+        "photo colors",
+        reference_images=[image],
+        motif_ids=["upload-a1b2c3d4e5f6"],
+    )
+
+    assert len(designs) == 1
+    payload = json.loads(route.calls.last.request.content)
+    parts = payload["contents"][0]["parts"]
+    assert parts[0]["inline_data"] == {
+        "mime_type": "image/jpeg",
+        "data": base64.b64encode(b"safe-jpeg").decode("ascii"),
+    }
+    assert "attached photos" in parts[-1]["text"]
+    assert "upload-a1b2c3d4e5f6" in parts[-1]["text"]
 
 
 @respx.mock

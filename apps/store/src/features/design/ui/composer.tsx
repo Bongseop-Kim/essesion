@@ -1,39 +1,52 @@
 import {
   ActionButton,
   Box,
-  Chip,
   Flex,
+  Grid,
   HStack,
   Icon,
+  ImageFrame,
+  MenuContent,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
+  ScrollFog,
   Text,
   VStack,
 } from "@essesion/shared";
 import {
+  BookmarkSquareIcon,
   CreditCardIcon,
+  DocumentArrowUpIcon,
   PaperAirplaneIcon,
+  PhotoIcon,
   PlusIcon,
+  SquaresPlusIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
+  type ChangeEvent,
   type ComponentPropsWithRef,
   type FormEvent,
   type ReactNode,
+  useRef,
   useState,
 } from "react";
 
+import {
+  DESIGN_PHOTO_ACCEPT,
+  DESIGN_SVG_ACCEPT,
+} from "@/features/design/api/attachments";
 import { krw } from "@/shared/lib/format";
 
 type ChatInputProps = Omit<
   ComponentPropsWithRef<"input">,
   "prefix" | "size"
 > & {
-  /** 필 안 왼쪽에 놓이는 버튼 (예: 옵션 더보기). */
   leading?: ReactNode;
-  /** 필 안 오른쪽에 놓이는 버튼 (예: 전송). */
   trailing?: ReactNode;
 };
 
-/** 채팅창용 한 줄 입력 필. 양옆 버튼이 입력창 내부에 있는 것처럼 보이는
- *  메신저 스타일 — 높이 고정(리사이즈 없음), Enter로 폼 제출. */
 function ChatInput({ leading, trailing, ...inputProps }: ChatInputProps) {
   return (
     <Flex
@@ -59,42 +72,38 @@ function ChatInput({ leading, trailing, ...inputProps }: ChatInputProps) {
 
 const CANDIDATE_COUNTS = [1, 2, 3, 4] as const;
 
-const DEFAULT_HINTS: readonly ComposerHint[] = [
-  { id: "navy", label: "네이비", prompt: "네이비 색상을 중심으로" },
-  { id: "geometric", label: "기하학", prompt: "기하학 패턴으로" },
-  { id: "silk", label: "실크", prompt: "실크 원단에 어울리게" },
-];
-
-export type ComposerHint = {
+export type ComposerAttachment = {
   id: string;
-  label: string;
-  prompt: string;
+  kind: "photo" | "svg";
+  name: string;
+  previewSrc: string;
 };
 
-export type ComposerPanelItemProps = {
+export type ComposerPanelItemProps = Omit<
+  ComponentPropsWithRef<"button">,
+  "children"
+> & {
   icon: ReactNode;
   label: string;
-  onClick: () => void;
-  disabled?: boolean;
 };
 
 /** ＋ 패널의 원형 아이콘 + 아래 라벨 항목 (카카오톡 첨부 패널 스타일). */
 export function ComposerPanelItem({
   icon,
   label,
-  onClick,
-  disabled = false,
+  className,
+  type = "button",
+  ...buttonProps
 }: ComposerPanelItemProps) {
   return (
     <Flex
       as="button"
-      type="button"
+      type={type}
       direction="column"
       align="center"
       gap="x1_5"
-      onClick={onClick}
-      disabled={disabled}
-      className="group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+      className={`group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50 ${className ?? ""}`}
+      {...buttonProps}
     >
       <Flex
         align="center"
@@ -107,7 +116,7 @@ export function ComposerPanelItem({
       >
         {icon}
       </Flex>
-      <Text textStyle="captionSm" color="fg.neutral">
+      <Text textStyle="captionSm" color="fg.neutral" align="center">
         {label}
       </Text>
     </Flex>
@@ -120,15 +129,18 @@ export type DesignComposerProps = {
   onPromptChange: (prompt: string) => void;
   onCandidateCountChange: (count: number) => void;
   onSubmit: () => void;
-  hints?: readonly ComposerHint[];
-  onHintSelect?: (hint: ComposerHint, selected: boolean) => void;
   balance?: number | null;
   generateCost?: number | null;
   onPurchaseTokens?: () => void;
+  onPhotoFilesSelect: (files: File[]) => void;
+  onSvgFilesSelect: (files: File[]) => void;
+  onOpenMotifLibrary: () => void;
+  attachments?: readonly ComposerAttachment[];
+  onRemoveAttachment?: (id: string) => void;
+  canSubmitWithoutPrompt?: boolean;
   loading?: boolean;
   disabled?: boolean;
   submitLabel?: string;
-  /** ＋ 패널 그리드에 붙는 슬롯 — ComposerPanelItem들을 넘긴다 (예: 내 세션·새로 만들기). */
   sessionActions?: ReactNode;
 };
 
@@ -138,51 +150,100 @@ export function DesignComposer({
   onPromptChange,
   onCandidateCountChange,
   onSubmit,
-  hints = DEFAULT_HINTS,
-  onHintSelect,
   balance,
   generateCost,
   onPurchaseTokens,
+  onPhotoFilesSelect,
+  onSvgFilesSelect,
+  onOpenMotifLibrary,
+  attachments = [],
+  onRemoveAttachment,
+  canSubmitWithoutPrompt = false,
   loading = false,
   disabled = false,
   submitLabel = "디자인 생성",
   sessionActions,
 }: DesignComposerProps) {
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const submitDisabled = disabled || prompt.trim().length === 0;
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const svgInputRef = useRef<HTMLInputElement>(null);
+  const controlsDisabled = disabled || loading;
+  const submitDisabled =
+    disabled || (prompt.trim().length === 0 && !canSubmitWithoutPrompt);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!submitDisabled && !loading) onSubmit();
   };
-
-  const handleHintSelect = (hint: ComposerHint, selected: boolean) => {
-    if (onHintSelect) {
-      onHintSelect(hint, !selected);
-      return;
-    }
-    if (selected) {
-      onPromptChange(
-        prompt
-          .replace(hint.prompt, "")
-          .replace(/\s{2,}/g, " ")
-          .trim(),
-      );
-      return;
-    }
-    const current = prompt.trim();
-    onPromptChange(current ? `${hint.prompt} ${current}` : hint.prompt);
+  const handleFiles = (
+    event: ChangeEvent<HTMLInputElement>,
+    onSelect: (files: File[]) => void,
+  ) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (files.length > 0) onSelect(files);
   };
 
   return (
     <Box as="form" onSubmit={handleSubmit} width="full">
       <VStack gap="x3" alignItems="stretch">
+        {attachments.length > 0 ? (
+          <ScrollFog direction="horizontal" aria-label="현재 첨부">
+            <HStack gap="x2" className="min-w-max px-x1 py-x1">
+              {attachments.map((attachment) => (
+                <HStack
+                  key={attachment.id}
+                  gap="x2"
+                  borderWidth={1}
+                  borderColor="stroke.neutral-weak"
+                  borderRadius="r3"
+                  bg="bg.neutral-weak"
+                  p="x1"
+                  pr="x1_5"
+                  className="max-w-48"
+                >
+                  <Box width={36} height={36} className="shrink-0">
+                    <ImageFrame
+                      ratio={1}
+                      src={attachment.previewSrc}
+                      alt=""
+                      fit="contain"
+                      borderRadius="r2"
+                    />
+                  </Box>
+                  <VStack gap="x0_5" alignItems="stretch" minWidth={0}>
+                    <Text textStyle="captionSm" className="truncate">
+                      {attachment.name}
+                    </Text>
+                    <Text textStyle="captionSm" color="fg.neutral-subtle">
+                      {attachment.kind === "photo" ? "참고 사진" : "모티프"}
+                    </Text>
+                  </VStack>
+                  {onRemoveAttachment ? (
+                    <ActionButton
+                      type="button"
+                      size="xsmall"
+                      variant="neutralWeak"
+                      iconOnly
+                      aria-label={`${attachment.name} 첨부 삭제`}
+                      onClick={() => onRemoveAttachment(attachment.id)}
+                      disabled={loading}
+                    >
+                      <Icon svg={<XMarkIcon />} size={14} />
+                    </ActionButton>
+                  ) : null}
+                </HStack>
+              ))}
+            </HStack>
+          </ScrollFog>
+        ) : null}
+
         <ChatInput
           aria-label="어떤 디자인을 만들까요?"
           placeholder="원하는 색상, 무늬, 분위기를 입력하세요"
           value={prompt}
           onChange={(event) => onPromptChange(event.currentTarget.value)}
-          disabled={disabled || loading}
+          disabled={controlsDisabled}
           leading={
             <ActionButton
               type="button"
@@ -213,62 +274,55 @@ export function DesignComposer({
         />
 
         {optionsOpen ? (
-          <VStack gap="x4" alignItems="stretch" pt="x1">
-            <HStack gap="x5" align="flex-start">
+          <VStack gap="x3" alignItems="stretch" pt="x1">
+            <Grid columns={{ base: 4, md: 8 }} gap="x3" alignItems="start">
+              <ComposerPanelItem
+                icon={<Icon svg={<PhotoIcon />} size={24} />}
+                label="사진 첨부"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<DocumentArrowUpIcon />} size={24} />}
+                label="SVG 첨부"
+                onClick={() => svgInputRef.current?.click()}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<BookmarkSquareIcon />} size={24} />}
+                label="내 모티프"
+                onClick={onOpenMotifLibrary}
+                disabled={controlsDisabled}
+              />
+              <MenuRoot placement="top">
+                <MenuTrigger>
+                  <ComposerPanelItem
+                    icon={<Icon svg={<SquaresPlusIcon />} size={24} />}
+                    label={`후보 ${candidateCount}개`}
+                    disabled={controlsDisabled}
+                  />
+                </MenuTrigger>
+                <MenuContent aria-label="한 번에 만들 후보 수">
+                  {CANDIDATE_COUNTS.map((count) => (
+                    <MenuItem
+                      key={count}
+                      label={`${count}개`}
+                      checked={candidateCount === count}
+                      onClick={() => onCandidateCountChange(count)}
+                    />
+                  ))}
+                </MenuContent>
+              </MenuRoot>
               {sessionActions}
               {onPurchaseTokens ? (
                 <ComposerPanelItem
                   icon={<Icon svg={<CreditCardIcon />} size={24} />}
                   label="충전"
                   onClick={onPurchaseTokens}
-                  disabled={disabled || loading}
+                  disabled={controlsDisabled}
                 />
               ) : null}
-            </HStack>
-
-            {hints.length > 0 ? (
-              <VStack gap="x2" alignItems="stretch">
-                <Text textStyle="caption" color="fg.neutral-muted">
-                  프롬프트 힌트
-                </Text>
-                <Flex wrap gap="x2">
-                  {hints.map((hint) => (
-                    <Chip
-                      key={hint.id}
-                      size="small"
-                      variant="outline"
-                      selected={prompt.includes(hint.prompt)}
-                      disabled={disabled || loading}
-                      onClick={() =>
-                        handleHintSelect(hint, prompt.includes(hint.prompt))
-                      }
-                    >
-                      {hint.label}
-                    </Chip>
-                  ))}
-                </Flex>
-              </VStack>
-            ) : null}
-
-            <VStack gap="x2" alignItems="stretch">
-              <Text textStyle="caption" color="fg.neutral-muted">
-                한 번에 만들 후보 수
-              </Text>
-              <HStack gap="x2" role="group" aria-label="후보 수">
-                {CANDIDATE_COUNTS.map((count) => (
-                  <Chip
-                    key={count}
-                    size="small"
-                    selected={candidateCount === count}
-                    disabled={disabled || loading}
-                    onClick={() => onCandidateCountChange(count)}
-                    aria-label={`후보 ${count}개`}
-                  >
-                    {count}개
-                  </Chip>
-                ))}
-              </HStack>
-            </VStack>
+            </Grid>
 
             <Flex justify="flex-end">
               <Text textStyle="captionSm" color="fg.neutral-subtle">
@@ -279,6 +333,24 @@ export function DesignComposer({
           </VStack>
         ) : null}
       </VStack>
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept={DESIGN_PHOTO_ACCEPT}
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => handleFiles(event, onPhotoFilesSelect)}
+      />
+      <input
+        ref={svgInputRef}
+        type="file"
+        accept={DESIGN_SVG_ACCEPT}
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => handleFiles(event, onSvgFilesSelect)}
+      />
     </Box>
   );
 }

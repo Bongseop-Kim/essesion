@@ -85,3 +85,22 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
         CheckConstraint("input_type IN ('intent', 'prompt', 'reference_image')", name="input_type"),
         CheckConstraint("status IN ('success', 'partial', 'error')", name="status"),
     )
+
+
+class SeamlessGenerationAttachment(CreatedAtMixin, Base):
+    """생성 로그에 전달된 참고 사진. 기존 단일 FK는 첫 사진 호환 필드로 유지한다."""
+
+    __tablename__ = "seamless_generation_attachments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    log_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("seamless_generation_logs.id", ondelete="CASCADE"), index=True
+    )
+    image_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("images.id", ondelete="CASCADE"), index=True
+    )
+    ordinal: Mapped[int]
+
+    __table_args__ = (
+        Index("uq_seamless_generation_attachments_log_ordinal", "log_id", "ordinal", unique=True),
+    )

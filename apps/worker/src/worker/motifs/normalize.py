@@ -236,6 +236,7 @@ def _render_gate(motif: NormalizedMotif, *, edge_seam_tol: float) -> None:
 def normalize_motif_svg(
     raw_svg: str,
     *,
+    id_prefix: str = "recraft",
     max_color_slots: int | None = None,
     max_aspect_ratio: float = 20.0,
     edge_seam_tol: float = 2.0,
@@ -279,7 +280,7 @@ def normalize_motif_svg(
     inner = "".join(ET.tostring(child, encoding="unicode") for child in children)
     geometry = f'<g transform="translate({fmt(tx)} {fmt(ty)}) scale({fmt(scale)})">{inner}</g>'
 
-    motif_id = "recraft-" + hashlib.sha256(geometry.encode("utf-8")).hexdigest()[:12]
+    motif_id = id_prefix + "-" + hashlib.sha256(geometry.encode("utf-8")).hexdigest()[:12]
     motif = NormalizedMotif(
         id=motif_id,
         symbol=f'<symbol id="motif-{motif_id}" overflow="visible">{geometry}</symbol>',

@@ -28,8 +28,10 @@ from db.models.design import (
     DesignSession,
     DesignSessionTurn,
     GenerationJob,
+    UserMotif,
 )
 from db.models.images import Image
+from db.models.seamless import Motif
 from db.models.tokens import DesignToken
 from sqlalchemy import func, select, update
 
@@ -59,6 +61,7 @@ class FakeWorker:
         self.generate_payloads = []
         self.finalize_jobs = []
         self.export_payloads = []
+        self.motif_import_payloads = []
 
     async def generate(self, payload):
         self.generate_payloads.append(payload)
@@ -95,6 +98,13 @@ class FakeWorker:
     async def export(self, payload):
         self.export_payloads.append(payload)
         return b"png-bytes", "image/png"
+
+    async def motif_import(self, payload):
+        self.motif_import_payloads.append(payload)
+        return {
+            "motif_id": "upload-a1b2c3d4e5f6",
+            "preview_svg": "<svg/>",
+        }
 
     async def aclose(self):
         pass
@@ -235,6 +245,195 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
 
     fetched = await client.get(f"/design/jobs/{job.json()['id']}", headers=headers)
     assert fetched.json()["kind"] == "finalize"
+
+
+async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachments(
+    client, app, db_session, settings
+):
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    design_session = (await client.post("/design/sessions", headers=headers)).json()
+    now = datetime.now(UTC)
+    photo = Image(
+        object_key="uploads/design_reference/reference.png",
+        entity_type="design_reference_upload",
+        entity_id="uploads/design_reference/reference.png",
+        uploaded_by=user.id,
+        content_type="image/png",
+        size_bytes=123,
+        original_filename="참고.png",
+        upload_completed_at=now,
+        expires_at=now + timedelta(hours=1),
+    )
+    motif = Motif(
+        id="upload-a1b2c3d4e5f6",
+        symbol=(
+            '<symbol id="motif-upload-a1b2c3d4e5f6" viewBox="-0.5 -0.5 1 1">'
+            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+        ),
+        bbox=[-0.5, -0.5, 0.5, 0.5],
+        anchor=[0, 0],
+        source="user_upload",
+    )
+    db_session.add_all([photo, motif])
+    await db_session.flush()
+    user_motif = UserMotif(user_id=user.id, motif_id=motif.id, name="내 원형")
+    db_session.add(user_motif)
+    await db_session.commit()
+    await db_session.refresh(photo)
+    await db_session.refresh(user_motif)
+
+    generated = await client.post(
+        "/design/generate",
+        json={
+            "session_id": design_session["id"],
+            "prompt": "사진의 분위기로 원형 모티프 패턴",
+            "reference_image_upload_ids": [str(photo.id)],
+            "user_motif_ids": [str(user_motif.id)],
+        },
+        headers=headers,
+    )
+    assert generated.status_code == 200, generated.text
+    payload = worker.generate_payloads[-1]
+    assert payload["motif_ids"] == [motif.id]
+    assert payload["reference_images"] == [
+        {
+            "image_id": str(photo.id),
+            "url": "https://storage.googleapis.example/dry-run/"
+            "uploads/design_reference/reference.png",
+            "content_type": "image/png",
+            "size_bytes": 123,
+        }
+    ]
+
+    turns = (
+        await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
+    ).json()
+    request_turn = turns[-2]
+    assert request_turn["attachments"][0]["filename"] == "참고.png"
+    assert request_turn["attachments"][0]["preview_url"].startswith(
+        "https://storage.googleapis.example/"
+    )
+    assert request_turn["attachments"][1]["filename"] == "내 원형"
+    assert "motif-upload-a1b2c3d4e5f6" in request_turn["attachments"][1]["preview_svg"]
+
+    await db_session.refresh(photo)
+    assert photo.entity_type == "design_reference"
+    assert photo.entity_id == design_session["id"]
+    assert photo.expires_at is None
+
+    reused_photo = await client.post(
+        "/design/generate",
+        json={
+            "session_id": design_session["id"],
+            "prompt": "같은 사진 재사용",
+            "reference_image_upload_ids": [str(photo.id)],
+        },
+        headers=headers,
+    )
+    assert reused_photo.status_code == 409
+    assert len(worker.generate_payloads) == 1
+
+    deleted_motif = await client.delete(f"/design/motifs/{user_motif.id}", headers=headers)
+    assert deleted_motif.status_code == 204
+    turns_after_delete = (
+        await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
+    ).json()
+    assert turns_after_delete[-2]["attachments"][1]["preview_svg"]
+
+    deleted_session = await client.delete(
+        f"/design/sessions/{design_session['id']}", headers=headers
+    )
+    assert deleted_session.status_code == 204
+    await db_session.refresh(photo)
+    assert photo.entity_type == "design_reference_deleted"
+    assert photo.expires_at is not None
+
+
+async def test_svg_only_generate_is_allowed_but_photo_only_requires_prompt(
+    client, app, db_session, settings
+):
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    motif = Motif(
+        id="upload-a1b2c3d4e5f6",
+        symbol=(
+            '<symbol id="motif-upload-a1b2c3d4e5f6" viewBox="-0.5 -0.5 1 1">'
+            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+        ),
+        bbox=[-0.5, -0.5, 0.5, 0.5],
+        anchor=[0, 0],
+        source="user_upload",
+    )
+    db_session.add(motif)
+    await db_session.flush()
+    user_motif = UserMotif(user_id=user.id, motif_id=motif.id, name="원형")
+    db_session.add(user_motif)
+    await db_session.commit()
+
+    svg_only = await client.post(
+        "/design/generate",
+        json={"prompt": "  ", "user_motif_ids": [str(user_motif.id)]},
+        headers=headers,
+    )
+    assert svg_only.status_code == 200, svg_only.text
+    assert worker.generate_payloads[-1]["motif_ids"] == [motif.id]
+    assert "prompt" not in worker.generate_payloads[-1]
+
+    photo_only = await client.post(
+        "/design/generate",
+        json={"reference_image_upload_ids": [str(uuid.uuid4())]},
+        headers=headers,
+    )
+    assert photo_only.status_code == 422
+
+
+async def test_user_motif_library_is_idempotent_and_owner_scoped(client, app, db_session, settings):
+    worker = FakeWorker()
+    app.state.worker = worker
+    owner = await make_user(db_session)
+    other = await make_user(db_session)
+    motif = Motif(
+        id="upload-a1b2c3d4e5f6",
+        symbol=(
+            '<symbol id="motif-upload-a1b2c3d4e5f6" viewBox="-0.5 -0.5 1 1">'
+            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+        ),
+        bbox=[-0.5, -0.5, 0.5, 0.5],
+        anchor=[0, 0],
+        source="user_upload",
+    )
+    db_session.add(motif)
+    await db_session.commit()
+    owner_headers = auth_headers(owner, settings)
+
+    imported = await client.post(
+        "/design/motifs",
+        json={"name": "원형", "svg": "<svg/>"},
+        headers=owner_headers,
+    )
+    repeated = await client.post(
+        "/design/motifs",
+        json={"name": "다른 이름", "svg": "<svg/>"},
+        headers=owner_headers,
+    )
+    assert imported.status_code == repeated.status_code == 201
+    assert imported.json()["id"] == repeated.json()["id"]
+    assert imported.json()["name"] == "원형"
+    assert len((await client.get("/design/motifs", headers=owner_headers)).json()) == 1
+    assert (await client.get("/design/motifs", headers=auth_headers(other, settings))).json() == []
+
+    denied = await client.delete(
+        f"/design/motifs/{imported.json()['id']}",
+        headers=auth_headers(other, settings),
+    )
+    assert denied.status_code == 403
 
 
 async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(

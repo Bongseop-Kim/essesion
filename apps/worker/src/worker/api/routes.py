@@ -5,7 +5,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from functools import wraps
 from typing import Any, Literal
+from urllib.parse import urlparse
 
+import httpx
 from db.models.design import (
     FINALIZE_DISPATCH_FAILED_MESSAGE,
     FINALIZE_TEMPORARY_FAILURE_CODE,
@@ -13,16 +15,16 @@ from db.models.design import (
     FINALIZE_TEMPORARY_FAILURE_MESSAGE,
     GenerationJob,
 )
-from db.models.seamless import SeamlessGenerationLog
+from db.models.seamless import SeamlessGenerationAttachment, SeamlessGenerationLog
 from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
-from worker.adapters.gemini import normalize_stripes
+from worker.adapters.gemini import ReferenceImage, normalize_stripes, prepare_reference_image
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -32,9 +34,10 @@ from worker.engine import (
 )
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
+from worker.motifs.normalize import normalize_motif_svg
 from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import present_candidates, resolve_motifs, resolve_spec
-from worker.motifs.store import get_motifs
+from worker.motifs.store import USER_UPLOAD_SOURCE, get_motifs, upsert_motif
 from worker.render.fabric import FabricError, render_fabric
 from worker.render.raster import RasterError, RasterLimitError, rasterize_svg
 from worker.render.sanitize import scrub_svg
@@ -53,6 +56,15 @@ class GenerateRequest(BaseModel):
     colorway: str | None = None
     seed: int | None = None
     candidate_count: int = Field(default=1, ge=1, le=8)
+    reference_images: list["ReferenceImageInput"] = Field(default_factory=list, max_length=5)
+    motif_ids: list[str] = Field(default_factory=list, max_length=2)
+
+
+class ReferenceImageInput(BaseModel):
+    image_id: uuid.UUID
+    url: str = Field(max_length=4_000)
+    content_type: Literal["image/jpeg", "image/png", "image/webp"]
+    size_bytes: int = Field(gt=0, le=10 * 1024 * 1024)
 
 
 class CandidateOut(BaseModel):
@@ -106,6 +118,22 @@ class MotifGenerateRequest(BaseModel):
     seed: int | None = None
 
 
+class MotifImportRequest(BaseModel):
+    svg: str = Field(max_length=2_000_000)
+
+    @field_validator("svg")
+    @classmethod
+    def _bounded_svg_bytes(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > 2_000_000:
+            raise ValueError("SVG exceeds 2000000 bytes")
+        return value
+
+
+class MotifImportResponse(BaseModel):
+    motif_id: str
+    preview_svg: str
+
+
 def _safe_generation_error(exc: Exception) -> tuple[str, str]:
     source = exc.__cause__ if isinstance(exc.__cause__, Exception) else exc
     error_type = source.__class__.__name__
@@ -140,8 +168,23 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                 session.add(
                     SeamlessGenerationLog(
                         request_id=request_id_var.get(),
-                        input_type="intent" if body.intent is not None else "prompt",
+                        input_type=(
+                            "intent"
+                            if body.intent is not None
+                            else "reference_image"
+                            if body.reference_images
+                            else "prompt"
+                        ),
                         prompt=body.prompt,
+                        has_reference_image=bool(body.reference_images),
+                        reference_image_bytes=(
+                            sum(item.size_bytes for item in body.reference_images) or None
+                        ),
+                        reference_image_id=(
+                            body.reference_images[0].image_id
+                            if body.reference_images
+                            else None
+                        ),
                         colorway=body.colorway,
                         seed=body.seed,
                         candidate_count_requested=body.candidate_count,
@@ -221,6 +264,69 @@ async def _render_candidates(
         request.state.generation_render_ms = round((time.perf_counter() - render_started) * 1000, 3)
 
 
+def _reference_url_allowed(url: str, settings) -> bool:  # noqa: ANN001
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").lower()
+    if parsed.scheme == "https" and (
+        hostname == "storage.googleapis.com"
+        or hostname.endswith(".storage.googleapis.com")
+        or hostname == "storage.googleapis.example"
+    ):
+        return True
+    if settings.env in ("local", "test") and settings.gcs_emulator_host:
+        emulator = urlparse(settings.gcs_emulator_host)
+        return parsed.scheme == emulator.scheme and parsed.netloc == emulator.netloc
+    return False
+
+
+async def _load_reference_images(body: GenerateRequest, settings) -> list[ReferenceImage]:
+    prepared: list[ReferenceImage] = []
+    total = 0
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
+        for item in body.reference_images:
+            if not _reference_url_allowed(item.url, settings):
+                raise HTTPException(status_code=422, detail="reference image URL is not allowed")
+            try:
+                async with client.stream("GET", item.url) as response:
+                    response.raise_for_status()
+                    content_length = response.headers.get("content-length")
+                    if content_length is not None:
+                        try:
+                            declared_length = int(content_length)
+                        except ValueError as exc:
+                            raise HTTPException(
+                                status_code=422, detail="reference image size mismatch"
+                            ) from exc
+                        if declared_length != item.size_bytes:
+                            raise HTTPException(
+                                status_code=422, detail="reference image size mismatch"
+                            )
+                    chunks: list[bytes] = []
+                    received = 0
+                    async for chunk in response.aiter_bytes():
+                        received += len(chunk)
+                        if received > item.size_bytes or received > 10 * 1024 * 1024:
+                            raise HTTPException(
+                                status_code=422, detail="reference image size mismatch"
+                            )
+                        chunks.append(chunk)
+            except httpx.HTTPError as exc:
+                raise HTTPException(status_code=502, detail="reference image fetch failed") from exc
+            data = b"".join(chunks)
+            if len(data) != item.size_bytes or len(data) > 10 * 1024 * 1024:
+                raise HTTPException(status_code=422, detail="reference image size mismatch")
+            total += len(data)
+            if total > 50 * 1024 * 1024:
+                raise HTTPException(status_code=422, detail="reference images are too large")
+            try:
+                prepared.append(
+                    await run_in_threadpool(prepare_reference_image, data, item.content_type)
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return prepared
+
+
 @generate_router.post("/generate", response_model=GenerateResponse)
 @_logged_generation
 async def generate(
@@ -251,8 +357,8 @@ async def generate(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         tile_mm = float(body.intent["canvas"]["tile_mm"])
         intent_log: dict[str, Any] = {"designs": resolved_intents}
-    elif body.prompt is not None:
-        input_type = "prompt"
+    elif body.prompt is not None or body.motif_ids:
+        input_type = "reference_image" if body.reference_images else "prompt"
         gemini = adapters.gemini
         if gemini is None:
             raise HTTPException(status_code=503, detail="Gemini 미구성 (intent 직접 전달 가능)")
@@ -263,10 +369,25 @@ async def generate(
                 validate_intent(intent_raw, repair=True)
             except IntentInvalid as exc:
                 return exc.errors
+            used = iter_motif_ids(intent_raw)
+            if len(used) > 2:
+                return ["each design may use at most 2 distinct motifs"]
+            missing = [motif_id for motif_id in body.motif_ids if motif_id not in used]
+            if missing:
+                return [f"design must use supplied motif ids: {', '.join(missing)}"]
             return None
 
+        reference_images = await _load_reference_images(body, settings)
+        author_prompt = body.prompt or (
+            "Create a balanced necktie pattern using the supplied SVG motif."
+        )
         try:
-            designs = await gemini.author_designs(body.prompt, validate=_validate)
+            designs = await gemini.author_designs(
+                author_prompt,
+                validate=_validate,
+                reference_images=reference_images,
+                motif_ids=body.motif_ids,
+            )
         except IntentInvalid as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except AdapterClientError as exc:
@@ -293,6 +414,8 @@ async def generate(
                         warnings=warnings,
                     )
                 )
+                if len(iter_motif_ids(resolved_intents[-1])) > 2:
+                    raise AdapterClientError("resolved design exceeds 2 distinct motifs")
         except AdapterNotConfigured as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except AdapterClientError as exc:
@@ -331,6 +454,9 @@ async def generate(
         request_id=request_id_var.get(),
         input_type=input_type,
         prompt=body.prompt,
+        has_reference_image=bool(body.reference_images),
+        reference_image_bytes=sum(item.size_bytes for item in body.reference_images) or None,
+        reference_image_id=body.reference_images[0].image_id if body.reference_images else None,
         colorway=body.colorway,
         seed=body.seed,
         candidate_count_requested=body.candidate_count,
@@ -347,6 +473,16 @@ async def generate(
         status="partial" if warnings else "success",
     )
     session.add(log)
+    if body.reference_images:
+        await session.flush()
+        for ordinal, item in enumerate(body.reference_images):
+            session.add(
+                SeamlessGenerationAttachment(
+                    log_id=log.id,
+                    image_id=item.image_id,
+                    ordinal=ordinal,
+                )
+            )
     await session.commit()
     return GenerateResponse(
         request_id=request_id_var.get(),
@@ -372,6 +508,40 @@ async def motif_candidates(
         "registry_version": registry_version,
         "candidates": candidates,
     }
+
+
+@generate_router.post("/motifs/import", response_model=MotifImportResponse)
+async def motif_import(
+    body: MotifImportRequest, request: Request, session: SessionDep
+) -> MotifImportResponse:
+    settings = request.app.state.settings
+    try:
+        normalized = await run_in_threadpool(
+            normalize_motif_svg,
+            body.svg,
+            id_prefix="upload",
+            max_color_slots=settings.recraft_max_color_slots,
+            max_aspect_ratio=settings.motif_max_aspect_ratio,
+            edge_seam_tol=settings.motif_edge_seam_tol,
+            render_check=settings.motif_render_check,
+        )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=f"invalid motif SVG: {exc}") from exc
+    await upsert_motif(
+        session,
+        normalized,
+        facets={"scope": "whole", "subject": "user upload"},
+        source=USER_UPLOAD_SOURCE,
+    )
+    await session.commit()
+    preview_svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.6 -0.6 1.2 1.2" '
+        'preserveAspectRatio="xMidYMid meet">'
+        f"<defs>{normalized.symbol}</defs>"
+        f'<use href="#motif-{normalized.id}" color="#111111"/>'
+        "</svg>"
+    )
+    return MotifImportResponse(motif_id=normalized.id, preview_svg=preview_svg)
 
 
 @generate_router.post("/motifs/generate")

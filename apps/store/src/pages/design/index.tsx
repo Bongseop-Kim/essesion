@@ -1,4 +1,13 @@
-import { exportDesign, type GenerationJobOut } from "@essesion/api-client";
+import {
+  deleteUserMotif,
+  exportDesign,
+  type GenerationJobOut,
+  type UserMotifOut,
+} from "@essesion/api-client";
+import {
+  listUserMotifsOptions,
+  listUserMotifsQueryKey,
+} from "@essesion/api-client/query";
 import {
   ActionButton,
   AlertDialog,
@@ -24,11 +33,21 @@ import {
   Squares2X2Icon,
   SwatchIcon,
 } from "@heroicons/react/24/outline";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
+import {
+  importDesignMotif,
+  MAX_DESIGN_MOTIFS,
+  MAX_DESIGN_PHOTOS,
+  uploadDesignPhoto,
+} from "@/features/design/api/attachments";
 import { parseDesignError } from "@/features/design/model/errors";
 import {
   type LocalFinalizeTurn,
@@ -74,6 +93,7 @@ import {
 } from "@/features/design/model/use-generate";
 import { useDesignSelection } from "@/features/design/model/use-selection";
 import {
+  type ComposerAttachment,
   ComposerPanelItem,
   DesignComposer,
 } from "@/features/design/ui/composer";
@@ -91,6 +111,7 @@ import {
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizeTurnCard } from "@/features/design/ui/finalize-turn-card";
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
+import { MotifLibraryModal } from "@/features/design/ui/motif-library-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { PreviewModal } from "@/features/design/ui/preview-modal";
 import { PreviewPanel } from "@/features/design/ui/preview-panel";
@@ -100,6 +121,7 @@ import {
 } from "@/features/design/ui/session-list-modal";
 import type { DesignPreviewMode } from "@/features/design/ui/tie-canvas";
 import { type TurnCandidate, TurnFeed } from "@/features/design/ui/turn-feed";
+import { validateImageFile } from "@/shared/lib/upload";
 import { useSession } from "@/shared/store/session";
 
 const DESCRIPTION =
@@ -109,10 +131,19 @@ const OVERLAY_EXIT_MS = 250;
 
 type DeleteTarget =
   | { kind: "session"; id: string }
-  | { kind: "job"; id: string };
+  | { kind: "job"; id: string }
+  | { kind: "motif"; id: string; name: string };
+
+type PendingPhoto = {
+  id: string;
+  file: File;
+  previewUrl: string;
+  uploadId?: string;
+};
 
 export function DesignPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const breakpoint = useBreakpoint();
   const compactPreview =
     breakpoint === "base" || breakpoint === "sm" || breakpoint === "md";
@@ -127,7 +158,14 @@ export function DesignPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [finalizedOpen, setFinalizedOpen] = useState(false);
+  const [motifsOpen, setMotifsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [photos, setPhotos] = useState<PendingPhoto[]>([]);
+  const photosRef = useRef<PendingPhoto[]>([]);
+  photosRef.current = photos;
+  const [selectedMotifs, setSelectedMotifs] = useState<UserMotifOut[]>([]);
+  const [attachmentsBusy, setAttachmentsBusy] = useState(false);
+  const [motifDeleting, setMotifDeleting] = useState(false);
   const deleteFlowTimer = useRef<number | undefined>(undefined);
   const [onboardingOpen, setOnboardingOpen] = useState(
     () => !isDesignOnboardingComplete(),
@@ -191,6 +229,10 @@ export function DesignPage() {
   const finalizedJobsQuery = useInfiniteQuery(
     finalizedJobsInfiniteQueryOptions(authenticated && finalizedOpen),
   );
+  const motifsQuery = useQuery({
+    ...listUserMotifsOptions({ query: { limit: 100, offset: 0 } }),
+    enabled: authenticated && motifsOpen,
+  });
   const finalizedJobs = finalizedJobsQuery.data?.pages.flat() ?? [];
   const generateMutation = useGenerateDesign({
     onSessionReady: (sessionId, input) => {
@@ -207,9 +249,18 @@ export function DesignPage() {
   const deleteSessionMutation = useDeleteDesignSession();
   const deleteJobMutation = useDeleteFinalizedJob();
   const deleting =
-    deleteSessionMutation.isPending || deleteJobMutation.isPending;
+    deleteSessionMutation.isPending ||
+    deleteJobMutation.isPending ||
+    motifDeleting;
 
-  useEffect(() => () => window.clearTimeout(deleteFlowTimer.current), []);
+  useEffect(
+    () => () => {
+      window.clearTimeout(deleteFlowTimer.current);
+      for (const photo of photosRef.current)
+        URL.revokeObjectURL(photo.previewUrl);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (
@@ -258,6 +309,135 @@ export function DesignPage() {
 
   const ensureDesignAuth = () => requireAuth({ path: "/design" });
 
+  const composerAttachments = useMemo<ComposerAttachment[]>(
+    () => [
+      ...photos.map((photo) => ({
+        id: photo.id,
+        kind: "photo" as const,
+        name: photo.file.name,
+        previewSrc: photo.previewUrl,
+      })),
+      ...selectedMotifs.map((motif) => ({
+        id: motif.id,
+        kind: "svg" as const,
+        name: motif.name,
+        previewSrc: svgToDataUri(motif.preview_svg),
+      })),
+    ],
+    [photos, selectedMotifs],
+  );
+
+  const clearComposerAttachments = () => {
+    for (const photo of photosRef.current)
+      URL.revokeObjectURL(photo.previewUrl);
+    photosRef.current = [];
+    setPhotos([]);
+    setSelectedMotifs([]);
+  };
+
+  const removeComposerAttachment = (id: string) => {
+    const photo = photosRef.current.find((item) => item.id === id);
+    if (photo) URL.revokeObjectURL(photo.previewUrl);
+    setPhotos((current) => current.filter((item) => item.id !== id));
+    setSelectedMotifs((current) => current.filter((item) => item.id !== id));
+  };
+
+  const addPhotoFiles = (files: File[]) => {
+    if (!ensureDesignAuth()) return;
+    const remaining = MAX_DESIGN_PHOTOS - photosRef.current.length;
+    if (remaining <= 0) {
+      snackbar(`참고 사진은 최대 ${MAX_DESIGN_PHOTOS}장까지 첨부할 수 있어요.`);
+      return;
+    }
+    if (files.length > remaining) {
+      snackbar(`참고 사진은 최대 ${MAX_DESIGN_PHOTOS}장까지 첨부할 수 있어요.`);
+    }
+    const accepted: PendingPhoto[] = [];
+    for (const file of files.slice(0, remaining)) {
+      try {
+        validateImageFile(file, "사진은 장당 10MB 이하로 선택해 주세요.");
+        accepted.push({
+          id: globalThis.crypto.randomUUID(),
+          file,
+          previewUrl: URL.createObjectURL(file),
+        });
+      } catch (error) {
+        snackbar(
+          error instanceof Error ? error.message : "사진을 확인해 주세요.",
+        );
+      }
+    }
+    if (accepted.length > 0) {
+      setPhotos((current) => [...current, ...accepted]);
+    }
+  };
+
+  const addSvgFiles = async (files: File[]) => {
+    if (!ensureDesignAuth() || attachmentsBusy) return;
+    const remaining = MAX_DESIGN_MOTIFS - selectedMotifs.length;
+    if (remaining <= 0) {
+      snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
+      return;
+    }
+    if (files.length > remaining) {
+      snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
+    }
+    setAttachmentsBusy(true);
+    try {
+      for (const file of files.slice(0, remaining)) {
+        try {
+          const motif = await importDesignMotif(file);
+          setSelectedMotifs((current) =>
+            current.some((item) => item.id === motif.id)
+              ? current
+              : [...current, motif].slice(0, MAX_DESIGN_MOTIFS),
+          );
+        } catch (error) {
+          snackbar(
+            error instanceof Error
+              ? error.message
+              : `${file.name}을 모티프로 가져오지 못했습니다.`,
+          );
+        }
+      }
+      await queryClient.invalidateQueries({
+        queryKey: listUserMotifsQueryKey(),
+      });
+    } finally {
+      setAttachmentsBusy(false);
+    }
+  };
+
+  const toggleMotif = (motif: UserMotifOut) => {
+    setSelectedMotifs((current) => {
+      if (current.some((item) => item.id === motif.id)) {
+        return current.filter((item) => item.id !== motif.id);
+      }
+      if (current.length >= MAX_DESIGN_MOTIFS) {
+        snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
+        return current;
+      }
+      return [...current, motif];
+    });
+  };
+
+  const ensureUploadedPhotos = async () => {
+    const uploadIds: string[] = [];
+    for (const photo of photosRef.current) {
+      const uploadId = photo.uploadId ?? (await uploadDesignPhoto(photo.file));
+      uploadIds.push(uploadId);
+      if (!photo.uploadId) {
+        setPhotos((current) =>
+          current.map((item) =>
+            item.id === photo.id ? { ...item, uploadId } : item,
+          ),
+        );
+        photo.uploadId = uploadId;
+      }
+    }
+    return uploadIds;
+  };
+
   const runGeneration = (input: GenerateDesignInput) => {
     const operation = generationEpoch.begin();
     generationOperations.current.set(input, operation);
@@ -272,15 +452,27 @@ export function DesignPage() {
   };
 
   const generatePrompt = async () => {
-    if (!prompt.trim() || !ensureDesignAuth()) return;
+    if (
+      (!prompt.trim() && selectedMotifs.length === 0) ||
+      !ensureDesignAuth() ||
+      attachmentsBusy
+    ) {
+      return;
+    }
     generateMutation.reset();
+    let generationStarted = false;
+    setAttachmentsBusy(true);
     try {
+      const referenceImageUploadIds = await ensureUploadedPhotos();
       const input: GenerateDesignInput = {
         mode: "prompt",
         sessionId: activeSessionId,
         prompt: prompt.trim(),
         candidateCount,
+        referenceImageUploadIds,
+        userMotifIds: selectedMotifs.map((motif) => motif.id),
       };
+      generationStarted = true;
       const { operation, promise } = runGeneration(input);
       const result = await promise;
       if (!generationEpoch.isCurrent(operation)) return;
@@ -288,8 +480,18 @@ export function DesignPage() {
       setNewSessionMode(false);
       setSelectionOverride(null);
       setPrompt("");
-    } catch {
+      clearComposerAttachments();
+    } catch (error) {
       // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
+      if (!generationStarted) {
+        snackbar(
+          error instanceof Error
+            ? error.message
+            : "첨부 파일을 업로드하지 못했습니다.",
+        );
+      }
+    } finally {
+      setAttachmentsBusy(false);
     }
   };
 
@@ -338,6 +540,7 @@ export function DesignPage() {
       if (retryInput.mode === "prompt") {
         setSelectionOverride(null);
         setPrompt("");
+        clearComposerAttachments();
       }
     } catch {
       // 같은 입력으로 다시 실패한 경우 Callout을 유지한다.
@@ -495,6 +698,7 @@ export function DesignPage() {
   const openPendingSession = () => {
     if (!pending || !ensureDesignAuth()) return;
     invalidateSessionOperations();
+    clearComposerAttachments();
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
     setResultPreview(null);
@@ -504,14 +708,17 @@ export function DesignPage() {
 
   const startNewSession = () => {
     invalidateSessionOperations();
+    clearComposerAttachments();
     setActiveSessionId(null);
     setNewSessionMode(true);
     setSelectionOverride(null);
     setResultPreview(null);
+    setPrompt("");
   };
 
   const chooseSession = (sessionId: string) => {
     invalidateSessionOperations();
+    clearComposerAttachments();
     setActiveSessionId(sessionId);
     setNewSessionMode(false);
     setSelectionOverride(null);
@@ -544,14 +751,21 @@ export function DesignPage() {
     );
   };
 
+  const requestDeleteMotif = (motif: UserMotifOut) => {
+    setMotifsOpen(false);
+    scheduleAfterOverlayExit(() =>
+      setDeleteTarget({ kind: "motif", id: motif.id, name: motif.name }),
+    );
+  };
+
   // 확인 다이얼로그가 닫히면(취소·성공 공통) 원래의 목록 모달로 돌아간다.
   const closeDeleteConfirm = (target: DeleteTarget) => {
     setDeleteTarget(null);
-    scheduleAfterOverlayExit(() =>
-      target.kind === "session"
-        ? setSessionsOpen(true)
-        : setFinalizedOpen(true),
-    );
+    scheduleAfterOverlayExit(() => {
+      if (target.kind === "session") setSessionsOpen(true);
+      else if (target.kind === "job") setFinalizedOpen(true);
+      else setMotifsOpen(true);
+    });
   };
 
   const confirmDelete = async () => {
@@ -568,20 +782,37 @@ export function DesignPage() {
           setResultPreview(null);
         }
         snackbar("세션을 삭제했습니다.");
-      } else {
+      } else if (target.kind === "job") {
         await deleteJobMutation.mutateAsync(target.id);
         setResultPreview((current) =>
           current?.jobId === target.id ? null : current,
         );
         snackbar("완성본을 삭제했습니다.");
+      } else {
+        setMotifDeleting(true);
+        await deleteUserMotif({
+          path: { user_motif_id: target.id },
+          throwOnError: true,
+        });
+        setSelectedMotifs((current) =>
+          current.filter((motif) => motif.id !== target.id),
+        );
+        await queryClient.invalidateQueries({
+          queryKey: listUserMotifsQueryKey(),
+        });
+        snackbar("모티프를 삭제했습니다.");
       }
       closeDeleteConfirm(target);
     } catch {
       snackbar(
         target.kind === "session"
           ? "세션을 삭제하지 못했습니다. 다시 시도해 주세요."
-          : "완성본을 삭제하지 못했습니다. 다시 시도해 주세요.",
+          : target.kind === "job"
+            ? "완성본을 삭제하지 못했습니다. 다시 시도해 주세요."
+            : "모티프를 삭제하지 못했습니다. 다시 시도해 주세요.",
       );
+    } finally {
+      setMotifDeleting(false);
     }
   };
 
@@ -736,10 +967,18 @@ export function DesignPage() {
                 onPromptChange={setPrompt}
                 onCandidateCountChange={setCandidateCount}
                 onSubmit={() => void generatePrompt()}
+                onPhotoFilesSelect={addPhotoFiles}
+                onSvgFilesSelect={(files) => void addSvgFiles(files)}
+                onOpenMotifLibrary={() => {
+                  if (ensureDesignAuth()) setMotifsOpen(true);
+                }}
+                attachments={composerAttachments}
+                onRemoveAttachment={removeComposerAttachment}
+                canSubmitWithoutPrompt={selectedMotifs.length > 0}
                 balance={balanceQuery.data?.total ?? null}
                 generateCost={balanceQuery.data?.generate_cost ?? null}
                 onPurchaseTokens={() => navigate("/token/purchase")}
-                loading={generateMutation.isPending}
+                loading={generateMutation.isPending || attachmentsBusy}
                 disabled={status === "loading"}
                 sessionActions={
                   <>
@@ -844,6 +1083,18 @@ export function DesignPage() {
         }
         onDelete={requestDeleteJob}
       />
+      <MotifLibraryModal
+        open={motifsOpen}
+        onOpenChange={setMotifsOpen}
+        motifs={motifsQuery.data ?? []}
+        selectedIds={selectedMotifs.map((motif) => motif.id)}
+        max={MAX_DESIGN_MOTIFS}
+        loading={motifsQuery.isPending}
+        error={motifsQuery.isError}
+        onRetry={() => void motifsQuery.refetch()}
+        onToggle={toggleMotif}
+        onDelete={requestDeleteMotif}
+      />
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
@@ -852,12 +1103,16 @@ export function DesignPage() {
         title={
           deleteTarget?.kind === "session"
             ? "세션을 삭제할까요?"
-            : "완성본을 삭제할까요?"
+            : deleteTarget?.kind === "job"
+              ? "완성본을 삭제할까요?"
+              : "모티프를 삭제할까요?"
         }
         description={
           deleteTarget?.kind === "session"
             ? "대화 이력이 함께 삭제돼요. 완성한 실사화 결과는 내 완성본에 남아요."
-            : "삭제한 완성본은 복구할 수 없어요. 이미 접수한 주문에는 영향이 없어요."
+            : deleteTarget?.kind === "job"
+              ? "삭제한 완성본은 복구할 수 없어요. 이미 접수한 주문에는 영향이 없어요."
+              : `‘${deleteTarget?.name ?? "선택한 모티프"}’를 목록에서 삭제해요. 이미 만든 디자인에는 영향이 없어요.`
         }
         primaryActionProps={{
           children: "삭제",

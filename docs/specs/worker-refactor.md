@@ -117,7 +117,7 @@
 | 항목 | 상태 | 비고 |
 |---|---|---|
 | 텍스트-as-모티프(glyph) | 미구현 | worker-motifs.md §5·§7이 요구 — R1이 그전까지의 가드 |
-| 이미지 입력 경로(reference_image·vectorize·업로드 하드닝) | 미구현 | 원본 image.py 계열 전체 |
+| 이미지 입력 경로(reference_image·vectorize·업로드 하드닝) | 부분 구현 | reference_image는 private GCS·소유권/바이트 검증·Gemini 멀티모달까지 완료. raster→SVG vectorize는 이연 |
 | 대화형 편집 도구(swap_motif 등 툴콜) | 미구현 | 세션은 api 소유 — /design 신규 기획 소관 |
 | `/palettes` 명명 프리셋 4종 | 소실 | recolor UI 필요 시 api에 복원 |
 | retrieval eval 하네스·τ 캘리브레이션 로깅 | 소실 | 모티프 코퍼스가 커지면 재도입 |

@@ -26,6 +26,7 @@ class Image(CreatedAtMixin, Base):
     claim_token_hash: Mapped[str | None]
     content_type: Mapped[str | None]
     size_bytes: Mapped[int | None]
+    original_filename: Mapped[str | None]
     upload_completed_at: Mapped[datetime | None]
     expires_at: Mapped[datetime | None]  # null = 영구 보관
     deleted_at: Mapped[datetime | None]

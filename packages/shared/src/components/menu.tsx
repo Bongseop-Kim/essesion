@@ -22,6 +22,7 @@ import {
   type AnchoredPosition,
   positionAnchored,
 } from "./internal/anchored-position";
+import { CheckGlyph } from "./internal/glyphs";
 import { useControllableState } from "./internal/use-controllable-state";
 import { VStack } from "./stack";
 import { Text } from "./text";
@@ -211,7 +212,7 @@ export function MenuContent({
     }
     const frame = requestAnimationFrame(updatePosition);
     const first = content.querySelector<HTMLElement>(
-      '[role="menuitem"]:not([disabled])',
+      '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
     );
     first?.focus();
     window.addEventListener("resize", updatePosition);
@@ -230,7 +231,7 @@ export function MenuContent({
     if (!content) return;
     const items = Array.from(
       content.querySelectorAll<HTMLElement>(
-        '[role="menuitem"]:not([disabled])',
+        '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
       ),
     );
     if (items.length === 0) return;
@@ -300,6 +301,8 @@ export type MenuItemProps = Omit<
   description?: ReactNode;
   prefixIcon?: ReactNode;
   suffixIcon?: ReactNode;
+  /** 선택 메뉴 항목. 지정하면 menuitemradio/aria-checked로 노출한다. */
+  checked?: boolean;
   tone?: "neutral" | "critical";
 };
 
@@ -309,6 +312,7 @@ export function MenuItem({
   description,
   prefixIcon,
   suffixIcon,
+  checked,
   tone = "neutral",
   className,
   type = "button",
@@ -316,11 +320,15 @@ export function MenuItem({
   ...props
 }: MenuItemProps) {
   const { setOpen } = useMenuContext();
+  const selectionProps =
+    checked === undefined
+      ? ({ role: "menuitem" } as const)
+      : ({ role: "menuitemradio", "aria-checked": checked } as const);
 
   return (
     <button
       type={type}
-      role="menuitem"
+      {...selectionProps}
       tabIndex={-1}
       onClick={(event) => {
         onClick?.(event);
@@ -343,7 +351,8 @@ export function MenuItem({
           </Text>
         ) : null}
       </VStack>
-      {suffixIcon}
+      {suffixIcon ??
+        (checked ? <CheckGlyph aria-hidden className="size-4" /> : null)}
     </button>
   );
 }

@@ -21,6 +21,8 @@ import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 type GenerateBase = {
   candidateCount?: number;
   colorway?: string | null;
+  referenceImageUploadIds?: string[];
+  userMotifIds?: string[];
 };
 
 export type GenerateDesignInput =
@@ -93,6 +95,9 @@ export function useGenerateDesign(options?: {
                   prompt: input.prompt,
                   candidate_count: input.candidateCount ?? 4,
                   colorway: input.colorway,
+                  reference_image_upload_ids:
+                    input.referenceImageUploadIds ?? [],
+                  user_motif_ids: input.userMotifIds ?? [],
                 }
               : {
                   session_id: sessionId,

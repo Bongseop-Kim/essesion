@@ -17,9 +17,12 @@ from db.models.design import (
     FINALIZE_DISPATCH_FAILED_MESSAGE,
     DesignSession,
     DesignSessionTurn,
+    DesignTurnAttachment,
     GenerationJob,
+    UserMotif,
 )
 from db.models.images import Image
+from db.models.seamless import Motif
 from fastapi import APIRouter, Query, Request, Response
 from obs import request_id_var
 from pydantic import (
@@ -29,8 +32,11 @@ from pydantic import (
     Field,
     StringConstraints,
     ValidationError,
+    field_validator,
+    model_validator,
 )
 from sqlalchemy import CursorResult, func, select, update
+from svg_safety import SanitizeError, sanitize_svg
 
 from api.db import SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, SettingsDep, ensure_owner
@@ -54,6 +60,10 @@ router = APIRouter(tags=["design"])
 logger = logging.getLogger(__name__)
 MAX_DESIGN_JSON_BYTES = 1_000_000
 MAX_DESIGN_PROMPT_LENGTH = 4_000
+MAX_DESIGN_PHOTOS = 5
+MAX_DESIGN_MOTIFS = 2
+MAX_USER_MOTIFS = 100
+MAX_MOTIF_SVG_BYTES = 2_000_000
 SIGNED_INT64_MIN = -(2**63)
 SIGNED_INT64_MAX = 2**63 - 1
 
@@ -126,6 +136,39 @@ class DesignTurnOut(BaseModel):
     role: str
     payload: dict[str, Any]
     created_at: datetime
+    attachments: list["DesignTurnAttachmentOut"] = Field(default_factory=list)
+
+
+class DesignTurnAttachmentOut(BaseModel):
+    kind: Literal["photo", "svg"]
+    filename: str
+    preview_url: str | None = None
+    preview_svg: str | None = None
+
+
+class UserMotifImportRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    svg: str = Field(max_length=MAX_MOTIF_SVG_BYTES)
+
+    @field_validator("svg")
+    @classmethod
+    def _bounded_svg_bytes(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
+            raise ValueError(f"SVG exceeds {MAX_MOTIF_SVG_BYTES} bytes")
+        return value
+
+
+class WorkerMotifImportOut(BaseModel):
+    motif_id: str = Field(pattern=r"^upload-[0-9a-f]{12}$")
+    preview_svg: str = Field(max_length=MAX_MOTIF_SVG_BYTES)
+
+
+class UserMotifOut(BaseModel):
+    id: uuid.UUID
+    motif_id: str
+    name: str
+    preview_svg: str
+    created_at: datetime
 
 
 class WorkerCandidateOut(BaseModel):
@@ -146,6 +189,22 @@ class DesignGenerateRequest(BaseModel):
     colorway: str | None = Field(default=None, max_length=100)
     seed: SignedInt64 | None = None
     candidate_count: int = Field(1, ge=1, le=8)  # 워커 경계와 동일 — 선검증으로 헛환불 방지
+    reference_image_upload_ids: list[uuid.UUID] = Field(
+        default_factory=list, max_length=MAX_DESIGN_PHOTOS
+    )
+    user_motif_ids: list[uuid.UUID] = Field(default_factory=list, max_length=MAX_DESIGN_MOTIFS)
+
+    @model_validator(mode="after")
+    def _valid_attachment_request(self) -> "DesignGenerateRequest":
+        if len(set(self.reference_image_upload_ids)) != len(self.reference_image_upload_ids):
+            raise ValueError("reference images must be distinct")
+        if len(set(self.user_motif_ids)) != len(self.user_motif_ids):
+            raise ValueError("user motifs must be distinct")
+        if self.prompt is not None and not self.prompt.strip():
+            self.prompt = None
+        if self.prompt is None and self.intent is None and not self.user_motif_ids:
+            raise ValueError("prompt or SVG motif is required")
+        return self
 
 
 class DesignGenerateOut(BaseModel):
@@ -210,6 +269,110 @@ class GenerationJobOut(BaseModel):
 class DesignOrderReferenceOut(BaseModel):
     object_key: str
     upload_id: uuid.UUID | None = None
+
+
+def _motif_preview_svg(motif: Motif) -> str:
+    try:
+        symbol = sanitize_svg(motif.symbol)
+    except SanitizeError as exc:
+        raise DomainError("모티프 SVG가 안전하지 않습니다", code="unsafe_motif_svg") from exc
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.6 -0.6 1.2 1.2" '
+        'preserveAspectRatio="xMidYMid meet">'
+        f"<defs>{symbol}</defs>"
+        f'<use href="#motif-{motif.id}" color="#111111"/>'
+        "</svg>"
+    )
+
+
+def _user_motif_out(link: UserMotif, motif: Motif) -> UserMotifOut:
+    return UserMotifOut(
+        id=link.id,
+        motif_id=motif.id,
+        name=link.name,
+        preview_svg=_motif_preview_svg(motif),
+        created_at=link.created_at,
+    )
+
+
+@router.post("/design/motifs", response_model=UserMotifOut, status_code=201)
+async def import_user_motif(
+    body: UserMotifImportRequest,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+) -> UserMotifOut:
+    name = body.name.strip()
+    if not name:
+        raise DomainError("모티프 이름을 입력해 주세요", code="invalid_motif_name")
+    try:
+        worker_out = WorkerMotifImportOut.model_validate(
+            await request.app.state.worker.motif_import({"svg": body.svg})
+        )
+    except ValidationError as exc:
+        raise UpstreamError("모티프 워커 응답 형식이 올바르지 않습니다") from exc
+    motif = await session.get(Motif, worker_out.motif_id)
+    if motif is None or motif.source != "user_upload":
+        raise UpstreamError("가져온 모티프를 확인하지 못했습니다")
+
+    await advisory_xact_lock(session, f"user-motif:{user.id}")
+    existing = await session.scalar(
+        select(UserMotif).where(
+            UserMotif.user_id == user.id,
+            UserMotif.motif_id == motif.id,
+        )
+    )
+    if existing is not None:
+        return _user_motif_out(existing, motif)
+    count = int(
+        await session.scalar(
+            select(func.count()).select_from(UserMotif).where(UserMotif.user_id == user.id)
+        )
+        or 0
+    )
+    if count >= MAX_USER_MOTIFS:
+        raise ConflictError(
+            "내 모티프는 최대 100개까지 저장할 수 있습니다",
+            code="user_motif_limit",
+        )
+    link = UserMotif(user_id=user.id, motif_id=motif.id, name=name)
+    session.add(link)
+    await session.commit()
+    await session.refresh(link)
+    return _user_motif_out(link, motif)
+
+
+@router.get("/design/motifs", response_model=list[UserMotifOut])
+async def list_user_motifs(
+    session: SessionDep,
+    user: CurrentUser,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[UserMotifOut]:
+    rows = (
+        await session.execute(
+            select(UserMotif, Motif)
+            .join(Motif, Motif.id == UserMotif.motif_id)
+            .where(UserMotif.user_id == user.id, Motif.source == "user_upload")
+            .order_by(UserMotif.created_at.desc(), UserMotif.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    return [_user_motif_out(link, motif) for link, motif in rows]
+
+
+@router.delete("/design/motifs/{user_motif_id}", status_code=204)
+async def delete_user_motif(
+    user_motif_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+) -> None:
+    link = await session.get(UserMotif, user_motif_id)
+    ensure_owner(link, user)
+    assert link is not None
+    await session.delete(link)
+    await session.commit()
 
 
 @router.post("/design/sessions", response_model=DesignSessionOut, status_code=201)
@@ -299,22 +462,87 @@ async def delete_design_session(
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
+    photo_ids = (
+        select(DesignTurnAttachment.image_id)
+        .join(
+            DesignSessionTurn,
+            DesignSessionTurn.id == DesignTurnAttachment.turn_id,
+        )
+        .where(
+            DesignSessionTurn.session_id == session_id,
+            DesignTurnAttachment.image_id.is_not(None),
+        )
+    )
+    await session.execute(
+        update(Image)
+        .where(Image.id.in_(photo_ids))
+        .values(expires_at=datetime.now(UTC), entity_type="design_reference_deleted")
+    )
     await session.delete(design_session)
     await session.commit()
 
 
 @router.get("/design/sessions/{session_id}/turns", response_model=list[DesignTurnOut])
 async def list_design_turns(
-    session_id: uuid.UUID, session: SessionDep, user: CurrentUser
+    session_id: uuid.UUID,
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
 ) -> list[DesignTurnOut]:
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
-    rows = await session.scalars(
-        select(DesignSessionTurn)
-        .where(DesignSessionTurn.session_id == session_id)
-        .order_by(DesignSessionTurn.seq)
+    rows = list(
+        await session.scalars(
+            select(DesignSessionTurn)
+            .where(DesignSessionTurn.session_id == session_id)
+            .order_by(DesignSessionTurn.seq)
+        )
     )
-    return [DesignTurnOut.model_validate(t) for t in rows]
+    return await _design_turn_outs(rows, session=session, request=request)
+
+
+async def _design_turn_outs(
+    turns: list[DesignSessionTurn],
+    *,
+    session: SessionDep,
+    request: Request,
+) -> list[DesignTurnOut]:
+    by_turn: dict[uuid.UUID, list[DesignTurnAttachmentOut]] = {turn.id: [] for turn in turns}
+    if turns:
+        attachment_rows = (
+            await session.execute(
+                select(DesignTurnAttachment, Image, Motif)
+                .outerjoin(Image, Image.id == DesignTurnAttachment.image_id)
+                .outerjoin(Motif, Motif.id == DesignTurnAttachment.motif_id)
+                .where(DesignTurnAttachment.turn_id.in_([turn.id for turn in turns]))
+                .order_by(DesignTurnAttachment.turn_id, DesignTurnAttachment.ordinal)
+            )
+        ).all()
+        now = datetime.now(UTC)
+        for attachment, image, motif in attachment_rows:
+            preview_url = None
+            preview_svg = None
+            if (
+                attachment.kind == "photo"
+                and image is not None
+                and image.deleted_at is None
+                and (image.expires_at is None or image.expires_at > now)
+            ):
+                preview_url = await request.app.state.gcs.signed_read_url(image.object_key)
+            elif attachment.kind == "svg" and motif is not None:
+                preview_svg = _motif_preview_svg(motif)
+            by_turn.setdefault(attachment.turn_id, []).append(
+                DesignTurnAttachmentOut(
+                    kind=attachment.kind,
+                    filename=attachment.filename,
+                    preview_url=preview_url,
+                    preview_svg=preview_svg,
+                )
+            )
+    return [
+        DesignTurnOut.model_validate(turn).model_copy(update={"attachments": by_turn[turn.id]})
+        for turn in turns
+    ]
 
 
 @router.post("/design/sessions/{session_id}/turns", response_model=DesignTurnOut, status_code=201)
@@ -355,12 +583,39 @@ async def generate_design(
     if body.session_id is not None:
         design_session = await session.get(DesignSession, body.session_id)
         ensure_owner(design_session, user)
-    payload = body.model_dump(exclude={"session_id"}, exclude_none=True)
+    photos, user_motifs = await _resolve_generation_attachments(
+        body, session=session, user_id=user.id, request=request
+    )
+    payload = body.model_dump(
+        exclude={"session_id", "reference_image_upload_ids", "user_motif_ids"},
+        exclude_none=True,
+    )
+    if photos:
+        payload["reference_images"] = [
+            {
+                "image_id": str(image.id),
+                "url": await request.app.state.gcs.signed_read_url(image.object_key),
+                "content_type": image.content_type,
+                "size_bytes": image.size_bytes,
+            }
+            for image in photos
+        ]
+    if user_motifs:
+        payload["motif_ids"] = [motif.id for _, motif in user_motifs]
 
     # 클라이언트 연결이 끊겨도 과금 이후 worker→턴 기록/환불을 끝낸다. 취소된
     # 요청의 dependency teardown이 먼저 session을 닫지 않도록 inner task까지 기다린다.
     completion = asyncio.create_task(
-        _complete_generation(body, payload, request, session, user.id, design_session)
+        _complete_generation(
+            body,
+            payload,
+            request,
+            session,
+            user.id,
+            design_session,
+            photos,
+            user_motifs,
+        )
     )
     try:
         return await asyncio.shield(completion)
@@ -379,6 +634,8 @@ async def _complete_generation(
     session: SessionDep,
     user_id: uuid.UUID,
     design_session: DesignSession | None,
+    photos: list[Image],
+    user_motifs: list[tuple[UserMotif, Motif]],
 ) -> DesignGenerateOut:
     """과금부터 최종 기록까지 취소로 분리되지 않는 generate 완료 단위."""
 
@@ -403,7 +660,7 @@ async def _complete_generation(
             design_session.registry_version = out.registry_version
             if body.intent is not None:
                 design_session.current_intent = body.intent
-            await _append_turn(
+            user_turn = await _append_turn(
                 session,
                 design_session.id,
                 "user",
@@ -416,6 +673,31 @@ async def _complete_generation(
                     "candidate_count": body.candidate_count,
                 },
             )
+            for ordinal, image in enumerate(photos):
+                session.add(
+                    DesignTurnAttachment(
+                        turn_id=user_turn.id,
+                        kind="photo",
+                        image_id=image.id,
+                        motif_id=None,
+                        filename=image.original_filename or f"참고 이미지 {ordinal + 1}",
+                        ordinal=ordinal,
+                    )
+                )
+                image.entity_type = "design_reference"
+                image.entity_id = str(design_session.id)
+                image.expires_at = None
+            for index, (link, motif) in enumerate(user_motifs, start=len(photos)):
+                session.add(
+                    DesignTurnAttachment(
+                        turn_id=user_turn.id,
+                        kind="svg",
+                        image_id=None,
+                        motif_id=motif.id,
+                        filename=link.name,
+                        ordinal=index,
+                    )
+                )
             await _append_turn(
                 session,
                 design_session.id,
@@ -436,6 +718,77 @@ async def _complete_generation(
         logger.warning("generation completion failed after charge", exc_info=True)
         raise UpstreamError("디자인 생성을 완료하지 못했습니다") from exc
     return out
+
+
+async def _resolve_generation_attachments(
+    body: DesignGenerateRequest,
+    *,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    request: Request,
+) -> tuple[list[Image], list[tuple[UserMotif, Motif]]]:
+    photos: list[Image] = []
+    now = datetime.now(UTC)
+    images_by_id = {
+        image.id: image
+        for image in await session.scalars(
+            select(Image)
+            .where(Image.id.in_(body.reference_image_upload_ids))
+            .order_by(Image.id)
+            .with_for_update()
+        )
+    }
+    for upload_id in body.reference_image_upload_ids:
+        image = images_by_id.get(upload_id)
+        if (
+            image is None
+            or image.entity_type != "design_reference_upload"
+            or image.uploaded_by != user_id
+            or image.upload_completed_at is None
+            or image.deleted_at is not None
+            or image.deletion_claimed_at is not None
+            or (image.expires_at is not None and image.expires_at <= now)
+        ):
+            raise DomainError(
+                "유효하지 않은 디자인 참고 이미지입니다",
+                code="invalid_design_reference",
+                status=409,
+            )
+        if request.app.state.gcs.upload_required:
+            metadata = await request.app.state.gcs.object_metadata(image.object_key)
+            if (
+                metadata is None
+                or metadata.content_type != image.content_type
+                or metadata.size_bytes != image.size_bytes
+            ):
+                raise DomainError(
+                    "디자인 참고 이미지를 확인하지 못했습니다",
+                    code="invalid_design_reference",
+                    status=409,
+                )
+        photos.append(image)
+
+    motifs: list[tuple[UserMotif, Motif]] = []
+    for user_motif_id in body.user_motif_ids:
+        row = (
+            await session.execute(
+                select(UserMotif, Motif)
+                .join(Motif, Motif.id == UserMotif.motif_id)
+                .where(
+                    UserMotif.id == user_motif_id,
+                    UserMotif.user_id == user_id,
+                    Motif.source == "user_upload",
+                )
+            )
+        ).first()
+        if row is None:
+            raise DomainError(
+                "내 모티프를 찾을 수 없습니다",
+                code="invalid_user_motif",
+                status=409,
+            )
+        motifs.append((row[0], row[1]))
+    return photos, motifs
 
 
 @router.post("/design/export")
@@ -890,7 +1243,7 @@ async def _release_recraft_budget(session: SessionDep, session_id: uuid.UUID) ->
 
 async def _append_turn(
     session: SessionDep, session_id: uuid.UUID, role: str, payload: dict[str, Any]
-) -> None:
+) -> DesignSessionTurn:
     await advisory_xact_lock(session, f"design-session:{session_id}")
     next_seq = (
         await session.scalar(
@@ -900,4 +1253,7 @@ async def _append_turn(
         )
         or 0
     ) + 1
-    session.add(DesignSessionTurn(session_id=session_id, seq=next_seq, role=role, payload=payload))
+    turn = DesignSessionTurn(session_id=session_id, seq=next_seq, role=role, payload=payload)
+    session.add(turn)
+    await session.flush()
+    return turn

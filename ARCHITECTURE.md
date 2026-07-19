@@ -385,7 +385,7 @@ sequenceDiagram
 
 - `db/src/db/models/`의 SQLAlchemy 모델이 스키마 source of truth다.
 - 모든 변경은 Alembic revision으로 만들고 `alembic check`로 모델 drift를 검증한다.
-- 현재 스키마는 35개 모델 테이블과 8개 revision으로 구성되어 있다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
+- 현재 스키마는 40개 모델 테이블과 16개 revision으로 구성되어 있다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
 - PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 사용한다.
 - DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다. updated timestamp와 도메인 규칙은 서비스 계층이 소유한다.
 - motif embedding은 pgvector `vector(1536)`을 사용한다.
@@ -398,7 +398,7 @@ sequenceDiagram
 | Commerce | products, options, cart, coupons, orders, items | row lock + advisory lock + server pricing |
 | Money | payments, incidents, token ledger/purchases | append/compensation + provider reconciliation |
 | Support | claims, inquiries, quotes, repair shipping | owner/admin workflow + snapshots |
-| Design | sessions, turns, generation logs/jobs, motifs | API state ownership + worker lease/attempt |
+| Design | sessions, turns/attachments, generation logs/jobs, motifs/user motifs | API state ownership + worker lease/attempt |
 | Operations | settings, outbox, audit-oriented records | bounded batch + retry cursor |
 
 ### 6.3 GCS 분리
@@ -412,6 +412,7 @@ public assets bucket
 private uploads bucket
 ├── uploads/reform_upload/...
 ├── uploads/repair_shipping_upload/...
+├── uploads/design_reference/...
 ├── uploads/sample_order/...
 ├── uploads/quote_request/...
 └── uploads/custom_order/...
@@ -453,12 +454,15 @@ private uploads bucket
 ```mermaid
 flowchart LR
     Prompt[자연어 prompt] --> Author[Gemini authoring]
+    Photo[참고 사진 최대 5장] -->|검증·축소·메타데이터 제거| Author
+    UserSVG[사용자 SVG 최대 2개] -->|sanitize·normalize·content hash| PrivateMotif[소유자 모티프]
     Author --> Intent[intent + motif specs]
     Intent --> Resolver[Motif resolver]
     Resolver -->|exact / vector / stable fallback| Catalog[(pgvector catalog)]
     Resolver -->|catalog empty or below threshold| Recraft[Recraft vector generation]
     Catalog --> Resolved[resolved intent]
     Recraft --> Resolved
+    PrivateMotif -->|소유권 확인 exact ID| Resolved
     Resolved --> Validate[Validation]
     Validate --> Candidates[Candidate variation]
     Candidates --> Placement[Placement]
@@ -469,7 +473,9 @@ flowchart LR
     Seam --> Fabric[Fabric finalize]
 ```
 
-Gemini는 intent와 motif spec을 작성하는 authoring layer다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
+Gemini는 텍스트와 참고 사진에서 intent와 motif spec을 작성하는 authoring layer다. 사진은 프롬프트 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석한다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. 사용자가 올린 SVG는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
+
+참고 사진은 API가 소유권·완료 상태·MIME·바이트를 확인한 비공개 GCS 객체만 받는다. worker는 API가 발급한 allowlist signed URL만 redirect 없이 읽고, 장당 10MB·총 50MB·20M pixel을 제한한 뒤 방향 보정, 최대 2048px 축소, JPEG 재인코딩으로 메타데이터를 제거해 Gemini에 전달한다. 사용자 SVG는 worker의 기존 SVG 안전 경계와 normalize를 통과하며 계정당 100개까지 보관한다. 한 생성에서 최종 motif는 최대 2개이고, 사용자 SVG는 일반 retrieval·embedding 검색·registry fingerprint에서 제외되어 다른 계정 요청에 노출되지 않는다.
 
 ### 7.2 결정론 계약
 
@@ -527,21 +533,23 @@ sequenceDiagram
     participant W as worker-generate
     participant G as GCS assets
 
-    U->>S: prompt 전송
+    U->>S: prompt + 사진(≤5) + SVG(≤2)
+    S->>A: 사진 signed upload 발급·완료
+    S->>A: SVG normalize·내 모티프 저장
     S->>A: POST /design/generate
-    A->>DB: 사용자 lock, 토큰 선차감, request/turn 기록
-    A->>W: OIDC synchronous generate
+    A->>DB: 첨부 소유권·상태 확인, 토큰 선차감
+    A->>W: OIDC synchronous generate + signed photo refs + exact motif ids
     W->>DB: motif search / catalog upsert
     W->>W: intent validation → candidates → SVG → preview
     W->>G: candidate/content-hash create-only upload
     W-->>A: candidates + warnings
-    A->>DB: assistant turn·로그 commit
+    A->>DB: request/attachment·assistant turn·로그 commit
     A-->>S: 후보 1~4개
 
     Note over A,DB: worker 실패 시 원래 차감 bucket을 멱등 보상
 ```
 
-생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다.
+생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다. 성공한 요청의 첨부는 턴 이력에 남고 다음 요청에서는 자동 해제된다. 사진은 세션 삭제 시 만료 처리하고, 라이브러리에서 SVG 관계를 삭제해도 이미 생성된 intent와 턴의 불변 core motif는 유지한다.
 
 ### 7.6 Finalize·export 흐름
 

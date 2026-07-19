@@ -60,6 +60,48 @@ class DesignSessionTurn(CreatedAtMixin, Base):
     __table_args__ = (UniqueConstraint("session_id", "seq"),)
 
 
+class UserMotif(CreatedAtMixin, Base):
+    """사용자가 가져온 SVG 모티프의 계정별 라이브러리 관계.
+
+    실제 정규화 symbol은 content-hash `motifs` 행에 보관한다. 이 관계를 삭제해도
+    과거 세션 intent가 참조하는 불변 모티프는 유지된다.
+    """
+
+    __tablename__ = "user_motifs"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    motif_id: Mapped[str] = mapped_column(ForeignKey("motifs.id"))
+    name: Mapped[str]
+
+    __table_args__ = (UniqueConstraint("user_id", "motif_id"),)
+
+
+class DesignTurnAttachment(CreatedAtMixin, Base):
+    """생성 요청 턴에 사용한 비공개 사진 또는 정규화 모티프."""
+
+    __tablename__ = "design_turn_attachments"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    turn_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("design_session_turns.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str]
+    image_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("images.id", ondelete="SET NULL"))
+    motif_id: Mapped[str | None] = mapped_column(ForeignKey("motifs.id"))
+    filename: Mapped[str]
+    ordinal: Mapped[int]
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('photo', 'svg')", name="kind"),
+        CheckConstraint(
+            "(image_id IS NOT NULL)::int + (motif_id IS NOT NULL)::int = 1",
+            name="exactly_one_target",
+        ),
+        UniqueConstraint("turn_id", "ordinal"),
+    )
+
+
 class GenerationJob(TimestampMixin, Base):
     __tablename__ = "generation_jobs"
 

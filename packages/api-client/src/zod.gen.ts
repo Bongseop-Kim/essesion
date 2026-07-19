@@ -1167,8 +1167,10 @@ export const zDesignGenerateRequest = z.object({
     colorway: z.string().max(100).nullish(),
     intent: z.record(z.string(), z.unknown()).nullish(),
     prompt: z.string().max(4000).nullish(),
+    reference_image_upload_ids: z.array(z.uuid()).max(5).optional(),
     seed: z.int().gte(-9223372036854776000).lte(9223372036854776000).nullish(),
-    session_id: z.uuid().nullish()
+    session_id: z.uuid().nullish(),
+    user_motif_ids: z.array(z.uuid()).max(2).optional()
 });
 
 /**
@@ -1180,12 +1182,32 @@ export const zDesignOrderReferenceOut = z.object({
 });
 
 /**
+ * DesignReferenceUploadOut
+ */
+export const zDesignReferenceUploadOut = z.object({
+    content_type: z.string(),
+    size_bytes: z.int(),
+    upload_completed_at: z.iso.datetime(),
+    upload_id: z.uuid()
+});
+
+/**
  * DesignSessionUpdateRequest
  */
 export const zDesignSessionUpdateRequest = z.object({
     colorway: z.string().max(100).nullish(),
     current_intent: z.record(z.string(), z.unknown()).nullish(),
     seed: z.int().gte(-9223372036854776000).lte(9223372036854776000).nullish()
+});
+
+/**
+ * DesignTurnAttachmentOut
+ */
+export const zDesignTurnAttachmentOut = z.object({
+    filename: z.string(),
+    kind: z.enum(['photo', 'svg']),
+    preview_svg: z.string().nullish(),
+    preview_url: z.string().nullish()
 });
 
 /**
@@ -1200,6 +1222,7 @@ export const zDesignTurnCreateRequest = z.object({
  * DesignTurnOut
  */
 export const zDesignTurnOut = z.object({
+    attachments: z.array(zDesignTurnAttachmentOut).optional(),
     created_at: z.iso.datetime(),
     id: z.uuid(),
     payload: z.record(z.string(), z.unknown()),
@@ -2877,12 +2900,13 @@ export const zTossWebhookRequest = z.object({
  */
 export const zUploadUrlRequest = z.object({
     content_type: z.string(),
-    filename: z.string(),
+    filename: z.string().min(1).max(255),
     kind: z.enum([
         'repair_shipping_upload',
         'custom_order',
         'sample_order',
-        'quote_request'
+        'quote_request',
+        'design_reference'
     ]),
     size_bytes: z.int().gt(0).lte(10485760)
 });
@@ -2909,6 +2933,25 @@ export const zUserCouponOut = z.object({
     issued_at: z.iso.datetime(),
     status: z.string(),
     used_at: z.iso.datetime().nullable()
+});
+
+/**
+ * UserMotifImportRequest
+ */
+export const zUserMotifImportRequest = z.object({
+    name: z.string().min(1).max(100),
+    svg: z.string().max(2000000)
+});
+
+/**
+ * UserMotifOut
+ */
+export const zUserMotifOut = z.object({
+    created_at: z.iso.datetime(),
+    id: z.uuid(),
+    motif_id: z.string(),
+    name: z.string(),
+    preview_svg: z.string()
 });
 
 /**
@@ -4309,6 +4352,15 @@ export const zListMyCouponsQuery = z.object({
  */
 export const zListMyCouponsResponse = z.array(zUserCouponOut);
 
+export const zCompleteDesignReferenceUploadPath = z.object({
+    upload_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCompleteDesignReferenceUploadResponse = zDesignReferenceUploadOut;
+
 export const zExportDesignBody = zDesignExportRequest;
 
 export const zGenerateDesignBody = zDesignGenerateRequest;
@@ -4378,6 +4430,34 @@ export const zCreateDesignOrderReferenceQuery = z.object({
  * Successful Response
  */
 export const zCreateDesignOrderReferenceResponse = zDesignOrderReferenceOut;
+
+export const zListUserMotifsQuery = z.object({
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Response List User Motifs
+ *
+ * Successful Response
+ */
+export const zListUserMotifsResponse = z.array(zUserMotifOut);
+
+export const zImportUserMotifBody = zUserMotifImportRequest;
+
+/**
+ * Successful Response
+ */
+export const zImportUserMotifResponse = zUserMotifOut;
+
+export const zDeleteUserMotifPath = z.object({
+    user_motif_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteUserMotifResponse = z.void();
 
 /**
  * Response List Design Sessions

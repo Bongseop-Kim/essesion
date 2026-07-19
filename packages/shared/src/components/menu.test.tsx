@@ -100,6 +100,31 @@ describe("MenuTrigger", () => {
 });
 
 describe("MenuItem", () => {
+  it("checked 항목을 라디오 메뉴 항목으로 노출한다", () => {
+    render(
+      <MenuRoot defaultOpen>
+        <MenuTrigger>
+          <button type="button">열기</button>
+        </MenuTrigger>
+        <MenuContent aria-label="후보 수">
+          <MenuItem label="1개" checked={false} />
+          <MenuItem label="2개" checked />
+        </MenuContent>
+      </MenuRoot>,
+    );
+
+    expect(
+      screen
+        .getByRole("menuitemradio", { name: "1개" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(
+      screen
+        .getByRole("menuitemradio", { name: "2개" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
   it("클릭 시 onClick 후 메뉴를 닫고, disabled 항목은 무반응이다", () => {
     const onOpenChange = vi.fn();
     const onAdd = vi.fn();

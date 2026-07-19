@@ -5857,6 +5857,15 @@
             ],
             "title": "Prompt"
           },
+          "reference_image_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Reference Image Upload Ids",
+            "type": "array"
+          },
           "seed": {
             "anyOf": [
               {
@@ -5881,6 +5890,15 @@
               }
             ],
             "title": "Session Id"
+          },
+          "user_motif_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "User Motif Ids",
+            "type": "array"
           }
         },
         "title": "DesignGenerateRequest",
@@ -5909,6 +5927,36 @@
           "object_key"
         ],
         "title": "DesignOrderReferenceOut",
+        "type": "object"
+      },
+      "DesignReferenceUploadOut": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "upload_completed_at": {
+            "format": "date-time",
+            "title": "Upload Completed At",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "content_type",
+          "size_bytes",
+          "upload_completed_at"
+        ],
+        "title": "DesignReferenceUploadOut",
         "type": "object"
       },
       "DesignSessionOut": {
@@ -6060,6 +6108,50 @@
         "title": "DesignSessionUpdateRequest",
         "type": "object"
       },
+      "DesignTurnAttachmentOut": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "photo",
+              "svg"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Svg"
+          },
+          "preview_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Url"
+          }
+        },
+        "required": [
+          "kind",
+          "filename"
+        ],
+        "title": "DesignTurnAttachmentOut",
+        "type": "object"
+      },
       "DesignTurnCreateRequest": {
         "properties": {
           "payload": {
@@ -6085,6 +6177,13 @@
       },
       "DesignTurnOut": {
         "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/DesignTurnAttachmentOut"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -12913,6 +13012,8 @@
             "type": "string"
           },
           "filename": {
+            "maxLength": 255,
+            "minLength": 1,
             "title": "Filename",
             "type": "string"
           },
@@ -12921,7 +13022,8 @@
               "repair_shipping_upload",
               "custom_order",
               "sample_order",
-              "quote_request"
+              "quote_request",
+              "design_reference"
             ],
             "title": "Kind",
             "type": "string"
@@ -13044,6 +13146,62 @@
           "used_at"
         ],
         "title": "UserCouponOut",
+        "type": "object"
+      },
+      "UserMotifImportRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "svg": {
+            "maxLength": 2000000,
+            "title": "Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "svg"
+        ],
+        "title": "UserMotifImportRequest",
+        "type": "object"
+      },
+      "UserMotifOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "motif_id": {
+            "title": "Motif Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "preview_svg": {
+            "title": "Preview Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "motif_id",
+          "name",
+          "preview_svg",
+          "created_at"
+        ],
+        "title": "UserMotifOut",
         "type": "object"
       },
       "ValidationError": {
@@ -19569,6 +19727,54 @@
         ]
       }
     },
+    "/design-uploads/{upload_id}/complete": {
+      "post": {
+        "operationId": "complete_design_reference_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignReferenceUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Design Reference Upload",
+        "tags": [
+          "images"
+        ]
+      }
+    },
     "/design/export": {
       "post": {
         "description": "디자인 SVG를 PNG/TIFF로 변환해 바이너리로 반환 (워커 /export 프록시, 과금 없음).",
@@ -19974,6 +20180,156 @@
           }
         ],
         "summary": "Create Design Order Reference",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/motifs": {
+      "get": {
+        "operationId": "list_user_motifs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserMotifOut"
+                  },
+                  "title": "Response List User Motifs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List User Motifs",
+        "tags": [
+          "design"
+        ]
+      },
+      "post": {
+        "operationId": "import_user_motif",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserMotifImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMotifOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import User Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/motifs/{user_motif_id}": {
+      "delete": {
+        "operationId": "delete_user_motif",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_motif_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Motif Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete User Motif",
         "tags": [
           "design"
         ]

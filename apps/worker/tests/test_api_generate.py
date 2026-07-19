@@ -10,12 +10,17 @@ app.state.object_store = DryRunObjectStore(). lifespan은 돌지 않으므로 st
 
 import asyncio
 import hashlib
+import io
 import threading
 import time
 
 import httpx
 import pytest
+import respx
 from fastapi.testclient import TestClient
+from PIL import Image
+from worker.adapters import Adapters
+from worker.adapters.gemini import AuthoredDesign
 from worker.api import routes
 from worker.db import get_session
 from worker.integrations import DryRunObjectStore
@@ -45,6 +50,12 @@ class _FakeSession:
     async def commit(self) -> None:
         pass
 
+    async def flush(self) -> None:
+        pass
+
+    async def rollback(self) -> None:
+        pass
+
     async def scalars(self, *_args, **_kwargs):
         return _EmptyScalars()
 
@@ -52,8 +63,6 @@ class _FakeSession:
 def _configure_app(monkeypatch, *, raster_ok: bool = True):
     app = create_app()
     app.state.object_store = DryRunObjectStore()  # lifespan 미실행 — 직접 주입
-    from worker.adapters import Adapters
-
     app.state.adapters = Adapters()  # 어댑터 미구성(DryRun)
 
     def _raster(svg, **kwargs):
@@ -256,6 +265,125 @@ def test_prompt_only_without_gemini_returns_503(client):
     # prompt 경로는 구현됐지만 Gemini 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
     resp = client.post("/generate", json={"prompt": "navy paisley tie"})
     assert resp.status_code == 503
+
+
+@respx.mock
+def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
+    class CapturingGemini:
+        def __init__(self):
+            self.calls = []
+
+        async def author_designs(
+            self,
+            prompt,
+            *,
+            validate,
+            reference_images,
+            motif_ids,
+        ):
+            self.calls.append((prompt, reference_images, motif_ids))
+            intent = mvp_intent()
+            assert validate(intent) is None
+            return [AuthoredDesign(intent=intent)]
+
+    raw = io.BytesIO()
+    Image.new("RGBA", (4, 3), (12, 34, 56, 128)).save(raw, format="PNG")
+    image_bytes = raw.getvalue()
+    image_id = "c21585b4-bac6-4071-8903-6aa5dd3c2c79"
+    image_url = "https://storage.googleapis.example/private/reference.png"
+    respx.get(image_url).mock(
+        return_value=httpx.Response(
+            200,
+            content=image_bytes,
+            headers={"Content-Type": "image/png"},
+        )
+    )
+    gemini = CapturingGemini()
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=gemini)
+
+    response = TestClient(app).post(
+        "/generate",
+        json={
+            "prompt": "사진의 색과 분위기를 참고한 패턴",
+            "reference_images": [
+                {
+                    "image_id": image_id,
+                    "url": image_url,
+                    "content_type": "image/png",
+                    "size_bytes": len(image_bytes),
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(gemini.calls) == 1
+    prompt, references, motif_ids = gemini.calls[0]
+    assert prompt == "사진의 색과 분위기를 참고한 패턴"
+    assert motif_ids == []
+    assert len(references) == 1
+    assert references[0].mime_type == "image/jpeg"
+    assert references[0].data.startswith(b"\xff\xd8")
+
+
+def test_reference_photo_rejects_untrusted_url_before_fetch(monkeypatch):
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=object())
+    response = TestClient(app).post(
+        "/generate",
+        json={
+            "prompt": "reference",
+            "reference_images": [
+                {
+                    "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
+                    "url": "https://attacker.invalid/private.png",
+                    "content_type": "image/png",
+                    "size_bytes": 100,
+                }
+            ],
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "reference image URL is not allowed"
+
+
+def test_generate_accepts_at_most_two_explicit_motifs(client):
+    response = client.post(
+        "/generate",
+        json={
+            "motif_ids": [
+                "upload-111111111111",
+                "upload-222222222222",
+                "upload-333333333333",
+            ]
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_user_svg_import_normalizes_with_private_id_namespace(monkeypatch):
+    stored = []
+
+    async def capture_upsert(session, normalized, **kwargs):
+        stored.append((normalized, kwargs))
+        return normalized.id
+
+    monkeypatch.setattr(routes, "upsert_motif", capture_upsert)
+    app = _configure_app(monkeypatch)
+    response = TestClient(app).post(
+        "/motifs/import",
+        json={
+            "svg": (
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+                '<circle cx="50" cy="50" r="30" fill="#123456"/></svg>'
+            )
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["motif_id"].startswith("upload-")
+    assert stored[0][1]["source"] == "user_upload"
+    assert "motif-upload-" in response.json()["preview_svg"]
 
 
 def test_partial_success_when_count_exceeds_available(client):

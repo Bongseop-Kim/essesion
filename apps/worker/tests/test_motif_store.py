@@ -93,3 +93,20 @@ async def test_variant_pool_returns_members_ordered(db_session):
     await db_session.commit()
     pool = await store.find_variant_pool(db_session, vg)
     assert [m.id for m in pool] == ["recraft-vg1", "recraft-vg2"]
+
+
+async def test_user_upload_is_only_available_by_explicit_id(db_session):
+    uploaded = _motif("upload-a1b2c3d4e5f6")
+    await store.upsert_motif(
+        db_session,
+        uploaded,
+        facets={"subject": "private", "scope": "whole"},
+        embedding=_vec(1.0),
+        source=store.USER_UPLOAD_SOURCE,
+    )
+    await db_session.commit()
+
+    assert (await store.get_motifs(db_session, [uploaded.id]))[uploaded.id].id == uploaded.id
+    assert await store.all_motif_ids(db_session) == []
+    assert await store.find_by_scope(db_session, "whole") == []
+    assert await store.nearest_by_embedding(db_session, _vec(1.0), scope="whole") is None

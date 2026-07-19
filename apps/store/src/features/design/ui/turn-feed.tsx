@@ -1,10 +1,15 @@
-import type { DesignTurnOut } from "@essesion/api-client";
+import type {
+  DesignTurnAttachmentOut,
+  DesignTurnOut,
+} from "@essesion/api-client";
 import {
   ActionButton,
   Box,
   ContentPlaceholder,
   Flex,
+  HStack,
   Icon,
+  ImageFrame,
   Text,
   VStack,
 } from "@essesion/shared";
@@ -120,6 +125,7 @@ export function TurnFeed({
           <Box as="li" key={turn.id}>
             <TurnItem
               payload={payload}
+              attachments={turn.attachments ?? []}
               selectedCandidateId={selectedCandidateId}
               onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
@@ -147,12 +153,14 @@ function FeedCenter({ children }: { children: ReactNode }) {
 
 function TurnItem({
   payload,
+  attachments,
   selectedCandidateId,
   onSelectCandidate,
   renderFinalizeTurn,
   candidateMenu,
 }: {
   payload: DesignTurnPayload | null;
+  attachments: readonly DesignTurnAttachmentOut[];
   selectedCandidateId?: string | null;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
@@ -168,7 +176,7 @@ function TurnItem({
 
   if (payload.type === "generate_request") {
     return (
-      <VStack alignItems="flex-end" gap="x1">
+      <VStack alignItems="flex-end" gap="x2">
         <Box
           maxWidth="85%"
           borderRadius="r4"
@@ -185,6 +193,39 @@ function TurnItem({
         <Text textStyle="captionSm" color="fg.neutral-subtle">
           후보 {payload.candidate_count}개
         </Text>
+        {attachments.length > 0 ? (
+          <HStack gap="x2" wrap justify="flex-end" maxWidth="85%">
+            {attachments.map((attachment, index) => {
+              const src =
+                attachment.kind === "svg" && attachment.preview_svg
+                  ? svgToDataUri(attachment.preview_svg)
+                  : attachment.preview_url;
+              return (
+                <VStack
+                  key={`${attachment.kind}-${attachment.filename}-${index}`}
+                  gap="x1"
+                  alignItems="stretch"
+                  width={64}
+                >
+                  <ImageFrame
+                    ratio={1}
+                    src={src ?? undefined}
+                    alt={attachment.filename}
+                    fit="contain"
+                    stroke
+                  />
+                  <Text
+                    textStyle="captionSm"
+                    color="fg.neutral-subtle"
+                    className="truncate"
+                  >
+                    {attachment.filename}
+                  </Text>
+                </VStack>
+              );
+            })}
+          </HStack>
+        ) : null}
       </VStack>
     );
   }

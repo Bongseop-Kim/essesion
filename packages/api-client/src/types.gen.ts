@@ -3160,6 +3160,10 @@ export type DesignGenerateRequest = {
      */
     prompt?: string | null;
     /**
+     * Reference Image Upload Ids
+     */
+    reference_image_upload_ids?: Array<string>;
+    /**
      * Seed
      */
     seed?: number | null;
@@ -3167,6 +3171,10 @@ export type DesignGenerateRequest = {
      * Session Id
      */
     session_id?: string | null;
+    /**
+     * User Motif Ids
+     */
+    user_motif_ids?: Array<string>;
 };
 
 /**
@@ -3181,6 +3189,28 @@ export type DesignOrderReferenceOut = {
      * Upload Id
      */
     upload_id?: string | null;
+};
+
+/**
+ * DesignReferenceUploadOut
+ */
+export type DesignReferenceUploadOut = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+    /**
+     * Upload Completed At
+     */
+    upload_completed_at: string;
+    /**
+     * Upload Id
+     */
+    upload_id: string;
 };
 
 /**
@@ -3253,6 +3283,28 @@ export type DesignSessionUpdateRequest = {
 };
 
 /**
+ * DesignTurnAttachmentOut
+ */
+export type DesignTurnAttachmentOut = {
+    /**
+     * Filename
+     */
+    filename: string;
+    /**
+     * Kind
+     */
+    kind: 'photo' | 'svg';
+    /**
+     * Preview Svg
+     */
+    preview_svg?: string | null;
+    /**
+     * Preview Url
+     */
+    preview_url?: string | null;
+};
+
+/**
  * DesignTurnCreateRequest
  */
 export type DesignTurnCreateRequest = {
@@ -3272,6 +3324,10 @@ export type DesignTurnCreateRequest = {
  * DesignTurnOut
  */
 export type DesignTurnOut = {
+    /**
+     * Attachments
+     */
+    attachments?: Array<DesignTurnAttachmentOut>;
     /**
      * Created At
      */
@@ -7033,7 +7089,7 @@ export type UploadUrlRequest = {
     /**
      * Kind
      */
-    kind: 'repair_shipping_upload' | 'custom_order' | 'sample_order' | 'quote_request';
+    kind: 'repair_shipping_upload' | 'custom_order' | 'sample_order' | 'quote_request' | 'design_reference';
     /**
      * Size Bytes
      */
@@ -7097,6 +7153,46 @@ export type UserCouponOut = {
      * Used At
      */
     used_at: string | null;
+};
+
+/**
+ * UserMotifImportRequest
+ */
+export type UserMotifImportRequest = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Svg
+     */
+    svg: string;
+};
+
+/**
+ * UserMotifOut
+ */
+export type UserMotifOut = {
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Motif Id
+     */
+    motif_id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Preview Svg
+     */
+    preview_svg: string;
 };
 
 /**
@@ -10328,6 +10424,36 @@ export type ListMyCouponsResponses = {
 
 export type ListMyCouponsResponse = ListMyCouponsResponses[keyof ListMyCouponsResponses];
 
+export type CompleteDesignReferenceUploadData = {
+    body?: never;
+    path: {
+        /**
+         * Upload Id
+         */
+        upload_id: string;
+    };
+    query?: never;
+    url: '/design-uploads/{upload_id}/complete';
+};
+
+export type CompleteDesignReferenceUploadErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CompleteDesignReferenceUploadError = CompleteDesignReferenceUploadErrors[keyof CompleteDesignReferenceUploadErrors];
+
+export type CompleteDesignReferenceUploadResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignReferenceUploadOut;
+};
+
+export type CompleteDesignReferenceUploadResponse = CompleteDesignReferenceUploadResponses[keyof CompleteDesignReferenceUploadResponses];
+
 export type ExportDesignData = {
     body: DesignExportRequest;
     path?: never;
@@ -10548,6 +10674,97 @@ export type CreateDesignOrderReferenceResponses = {
 };
 
 export type CreateDesignOrderReferenceResponse = CreateDesignOrderReferenceResponses[keyof CreateDesignOrderReferenceResponses];
+
+export type ListUserMotifsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/design/motifs';
+};
+
+export type ListUserMotifsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListUserMotifsError = ListUserMotifsErrors[keyof ListUserMotifsErrors];
+
+export type ListUserMotifsResponses = {
+    /**
+     * Response List User Motifs
+     *
+     * Successful Response
+     */
+    200: Array<UserMotifOut>;
+};
+
+export type ListUserMotifsResponse = ListUserMotifsResponses[keyof ListUserMotifsResponses];
+
+export type ImportUserMotifData = {
+    body: UserMotifImportRequest;
+    path?: never;
+    query?: never;
+    url: '/design/motifs';
+};
+
+export type ImportUserMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ImportUserMotifError = ImportUserMotifErrors[keyof ImportUserMotifErrors];
+
+export type ImportUserMotifResponses = {
+    /**
+     * Successful Response
+     */
+    201: UserMotifOut;
+};
+
+export type ImportUserMotifResponse = ImportUserMotifResponses[keyof ImportUserMotifResponses];
+
+export type DeleteUserMotifData = {
+    body?: never;
+    path: {
+        /**
+         * User Motif Id
+         */
+        user_motif_id: string;
+    };
+    query?: never;
+    url: '/design/motifs/{user_motif_id}';
+};
+
+export type DeleteUserMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteUserMotifError = DeleteUserMotifErrors[keyof DeleteUserMotifErrors];
+
+export type DeleteUserMotifResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteUserMotifResponse = DeleteUserMotifResponses[keyof DeleteUserMotifResponses];
 
 export type ListDesignSessionsData = {
     body?: never;
