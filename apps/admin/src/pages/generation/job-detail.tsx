@@ -20,19 +20,11 @@ import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
+import { JOB_STATUS_LABELS } from "./job-status";
 
 function kindLabel(kind: "finalize" | "export") {
   return kind === "finalize" ? "원단 최종화" : "파일 내보내기";
 }
-
-const JOB_STATUS_LABELS: Readonly<
-  Record<GenerationJobDetailOut["status"], string>
-> = {
-  queued: "대기",
-  processing: "처리 중",
-  succeeded: "성공",
-  failed: "실패",
-};
 
 const PRODUCTION_METHOD_LABELS: Readonly<Record<string, string>> = {
   print: "날염",

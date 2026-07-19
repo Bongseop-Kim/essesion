@@ -17,3 +17,5 @@ test-results/
 *.tfstate*
 *.tfvars
 !*.tfvars.example
+
+*.tsbuildinfo

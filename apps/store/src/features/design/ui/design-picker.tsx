@@ -3,9 +3,9 @@ import { listGenerationJobsOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Box,
-  Callout,
   ContentPlaceholder,
   FieldButton,
+  Flex,
   Float,
   Grid,
   Icon,
@@ -34,16 +34,14 @@ const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
 });
 
 export type DesignPickerProps = {
-  selected: readonly GenerationJobOut[];
-  onChange: (selected: GenerationJobOut[]) => void;
-  max?: number;
+  selected: GenerationJobOut | null;
+  onChange: (selected: GenerationJobOut | null) => void;
   disabled?: boolean;
 };
 
 export function DesignPicker({
   selected,
   onChange,
-  max = 5,
   disabled = false,
 }: DesignPickerProps) {
   const [open, setOpen] = useState(false);
@@ -55,7 +53,6 @@ export function DesignPicker({
     }),
     enabled: open && status === "authenticated",
   });
-  const selectedIds = new Set(selected.map((job) => job.id));
 
   const handleOpen = () => {
     if (!requireAuth({ path: "/custom-order" })) return;
@@ -63,29 +60,25 @@ export function DesignPicker({
   };
 
   const toggle = (job: GenerationJobOut) => {
-    if (selectedIds.has(job.id)) {
-      onChange(selected.filter((item) => item.id !== job.id));
-      return;
-    }
-    if (selected.length >= max) return;
-    onChange([...selected, job]);
+    onChange(selected?.id === job.id ? null : job);
+    setOpen(false);
   };
 
   return (
     <>
       <FieldButton
         label="AI 디자인"
-        description="원단 시뮬레이션을 마친 내 디자인을 참고 이미지로 가져올 수 있어요."
+        description="실사화를 마친 내 디자인을 참고 이미지로 가져올 수 있어요."
         placeholder="내 AI 디자인에서 선택"
-        value={selected.length > 0 ? `${selected.length}개 선택됨` : undefined}
-        disabled={disabled || status === "loading" || max <= 0}
+        value={selected ? formatDate(selected.created_at) : undefined}
+        disabled={disabled || status === "loading"}
         onClick={handleOpen}
       />
       <ResponsiveModal
         open={open}
         onOpenChange={setOpen}
         title="내 AI 디자인"
-        description={`완성한 디자인을 최대 ${max}개까지 선택할 수 있어요.`}
+        description="완성한 디자인 중 1개를 선택할 수 있어요."
         showCloseButton
         footer={
           <Box
@@ -94,18 +87,11 @@ export function DesignPicker({
             width="full"
             onClick={() => setOpen(false)}
           >
-            {selected.length > 0 ? `${selected.length}개 선택 완료` : "닫기"}
+            닫기
           </Box>
         }
       >
         <VStack gap="x4" alignItems="stretch">
-          {selected.length >= max && max > 0 ? (
-            <Callout
-              tone="neutral"
-              title="선택 가능한 수를 모두 채웠어요"
-              description="다른 디자인을 고르려면 선택한 항목을 먼저 해제해 주세요."
-            />
-          ) : null}
           {jobsQuery.isPending ? (
             <Grid columns={2} gap="x3">
               {Array.from({ length: 4 }, (_, index) => (
@@ -136,19 +122,17 @@ export function DesignPicker({
             <ContentPlaceholder
               icon={<Icon svg={<SparklesIcon />} size={32} />}
               title="완성한 AI 디자인이 없어요"
-              description="디자인 페이지에서 원단 시뮬레이션을 먼저 완성해 주세요."
+              description="디자인 페이지에서 실사화를 먼저 완성해 주세요."
             />
           ) : (
             <Grid columns={2} gap="x3" aria-label="완성한 AI 디자인">
               {jobsQuery.data.map((job, index) => {
-                const checked = selectedIds.has(job.id);
-                const atLimit = !checked && selected.length >= max;
+                const checked = selected?.id === job.id;
                 return (
                   <Box
                     as="button"
                     type="button"
                     key={job.id}
-                    disabled={atLimit}
                     aria-pressed={checked}
                     aria-label={`완성 디자인 ${index + 1}`}
                     onClick={() => toggle(job)}
@@ -159,7 +143,7 @@ export function DesignPicker({
                     borderRadius="r3"
                     bg={checked ? "bg.brand-weak" : "bg.layer-default"}
                     p="x1"
-                    className="text-left transition-colors duration-100 ease-standard hover:border-stroke-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+                    className="text-left transition-colors duration-100 ease-standard hover:border-stroke-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
                   >
                     <ImageFrame
                       ratio={1}
@@ -185,14 +169,17 @@ export function DesignPicker({
                     >
                       {checked ? (
                         <Float placement="top-end" offsetX="x2" offsetY="x2">
-                          <Box
+                          <Flex
+                            align="center"
+                            justify="center"
+                            width={28}
+                            height={28}
                             borderRadius="full"
                             bg="bg.brand-solid"
-                            p="x1"
                             className="text-fg-contrast"
                           >
                             <Icon svg={<CheckIcon />} size={18} />
-                          </Box>
+                          </Flex>
                         </Float>
                       ) : null}
                     </ImageFrame>

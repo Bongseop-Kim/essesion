@@ -1,13 +1,14 @@
 import { exportDesign, type GenerationJobOut } from "@essesion/api-client";
 import {
   ActionButton,
+  AlertDialog,
   Box,
   Callout,
-  Divider,
   Grid,
   HStack,
   Icon,
   LayoutContent,
+  MenuItem,
   PageBanner,
   snackbar,
   Text,
@@ -21,9 +22,10 @@ import {
   FolderOpenIcon,
   PlusIcon,
   Squares2X2Icon,
+  SwatchIcon,
 } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
@@ -47,6 +49,7 @@ import {
   designSessionsQueryOptions,
   designTokenBalanceQueryOptions,
   designTurnsQueryOptions,
+  finalizedJobsInfiniteQueryOptions,
   generationJobsQueryOptions,
 } from "@/features/design/model/queries";
 import {
@@ -55,6 +58,10 @@ import {
   selectionForCandidate,
 } from "@/features/design/model/selection";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
+import {
+  useDeleteDesignSession,
+  useDeleteFinalizedJob,
+} from "@/features/design/model/use-delete";
 import {
   type CreateFinalizeJobInput,
   finalizeRetryInput,
@@ -66,7 +73,10 @@ import {
   useGenerateDesign,
 } from "@/features/design/model/use-generate";
 import { useDesignSelection } from "@/features/design/model/use-selection";
-import { DesignComposer } from "@/features/design/ui/composer";
+import {
+  ComposerPanelItem,
+  DesignComposer,
+} from "@/features/design/ui/composer";
 import {
   ExportDialog,
   type ExportDialogValue,
@@ -80,17 +90,26 @@ import {
   type ProductionMethod,
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizeTurnCard } from "@/features/design/ui/finalize-turn-card";
+import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { PreviewModal } from "@/features/design/ui/preview-modal";
 import { PreviewPanel } from "@/features/design/ui/preview-panel";
-import { SessionListModal } from "@/features/design/ui/session-list-modal";
+import {
+  type DesignSessionSummary,
+  SessionListModal,
+} from "@/features/design/ui/session-list-modal";
 import type { DesignPreviewMode } from "@/features/design/ui/tie-canvas";
 import { type TurnCandidate, TurnFeed } from "@/features/design/ui/turn-feed";
 import { useSession } from "@/shared/store/session";
 
 const DESCRIPTION =
-  "AI와 함께 반복 가능한 넥타이 패턴을 만들고 원단 시뮬레이션까지 확인하세요.";
-const FINALIZE_BUDGET = 10;
+  "AI와 함께 반복 가능한 넥타이 패턴을 만들고 실사화까지 확인하세요.";
+// 모달 위 모달 금지 — 목록 모달이 닫히는 모션이 끝난 뒤 확인 다이얼로그를 연다.
+const OVERLAY_EXIT_MS = 250;
+
+type DeleteTarget =
+  | { kind: "session"; id: string }
+  | { kind: "job"; id: string };
 
 export function DesignPage() {
   const navigate = useNavigate();
@@ -104,9 +123,12 @@ export function DesignPage() {
   const [newSessionMode, setNewSessionMode] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [candidateCount, setCandidateCount] = useState(4);
-  const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("repeat");
+  const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [finalizedOpen, setFinalizedOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const deleteFlowTimer = useRef<number | undefined>(undefined);
   const [onboardingOpen, setOnboardingOpen] = useState(
     () => !isDesignOnboardingComplete(),
   );
@@ -116,6 +138,10 @@ export function DesignPage() {
   const [selectionOverride, setSelectionOverride] = useState<{
     sessionId: string;
     selection: DesignSelection;
+  } | null>(null);
+  const [resultPreview, setResultPreview] = useState<{
+    jobId: string;
+    src: string;
   } | null>(null);
   const [localFinalizeTurns, setLocalFinalizeTurns] = useState<
     LocalFinalizeTurn[]
@@ -162,6 +188,10 @@ export function DesignPage() {
     }),
   );
   const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
+  const finalizedJobsQuery = useInfiniteQuery(
+    finalizedJobsInfiniteQueryOptions(authenticated && finalizedOpen),
+  );
+  const finalizedJobs = finalizedJobsQuery.data?.pages.flat() ?? [];
   const generateMutation = useGenerateDesign({
     onSessionReady: (sessionId, input) => {
       const operation = generationOperations.current.get(input);
@@ -174,6 +204,12 @@ export function DesignPage() {
   });
   const selectionMutation = useDesignSelection();
   const finalizeMutation = useCreateFinalizeJob();
+  const deleteSessionMutation = useDeleteDesignSession();
+  const deleteJobMutation = useDeleteFinalizedJob();
+  const deleting =
+    deleteSessionMutation.isPending || deleteJobMutation.isPending;
+
+  useEffect(() => () => window.clearTimeout(deleteFlowTimer.current), []);
 
   useEffect(() => {
     if (
@@ -197,10 +233,13 @@ export function DesignPage() {
   const selectedImageSrc = selection?.candidate?.svg
     ? svgToDataUri(selection.candidate.svg)
     : null;
-  const remainingFinalize = Math.max(
-    0,
-    FINALIZE_BUDGET - (sessionQuery.data?.finalize_used ?? 0),
-  );
+  const previewImageSrc = resultPreview?.src ?? selectedImageSrc;
+  const previewAlt = resultPreview ? "완성된 실사화 이미지" : undefined;
+  // 계정당 24시간 쿼터 — 단건 세션 GET에서만 내려온다. null(미로드·설정 부재)이면
+  // 막지 않는다: 서버 409가 최종 방어선이고 스낵바로 안내된다.
+  const finalizeQuota = sessionQuery.data?.finalize_quota ?? null;
+  const finalizeExhausted =
+    finalizeQuota !== null && finalizeQuota.remaining <= 0;
   const visibleTurns = useMemo(
     () =>
       mergeFinalizeTurns(
@@ -308,17 +347,25 @@ export function DesignPage() {
   const selectCandidate = async (
     candidate: TurnCandidate,
     intents: Record<string, unknown>[],
+    event?: MouseEvent<HTMLButtonElement>,
   ) => {
-    if (!activeSessionId || !ensureDesignAuth()) return;
+    // guard 실패는 전부 첫 await 이전(동기)이라 preventDefault로 타일 메뉴 오픈까지 막는다.
+    if (!activeSessionId || !ensureDesignAuth()) {
+      event?.preventDefault();
+      return;
+    }
     const sessionId = activeSessionId;
     const next = selectionForCandidate(candidate, intents);
     if (!next) {
+      event?.preventDefault();
       snackbar("선택한 후보 정보를 복원하지 못했습니다.");
       return;
     }
+    // 이미 선택된 후보 재탭 — 저장할 변화가 없다(메뉴 오픈은 그대로 진행).
+    if (selection?.candidateId === next.candidateId) return;
     const operation = selectionEpoch.begin();
     setSelectionOverride({ sessionId, selection: next });
-    if (compactPreview) setPreviewOpen(true);
+    setResultPreview(null);
     try {
       const result = await selectionMutation.mutateAsync({
         sessionId,
@@ -389,6 +436,19 @@ export function DesignPage() {
     );
   };
 
+  // 결과 타일 탭: 프리뷰 대상 스테이징만 — 데스크톱은 좌측 패널에 즉시 반영,
+  // 모바일은 앵커 메뉴가 열린다(시트는 메뉴의 미리보기로만).
+  const stageFinalizeResult = (job: GenerationJobOut) => {
+    if (!job.result_url) return;
+    setResultPreview({ jobId: job.id, src: job.result_url });
+  };
+
+  const openFinalizeResultPreview = (job: GenerationJobOut) => {
+    if (!job.result_url) return;
+    setResultPreview({ jobId: job.id, src: job.result_url });
+    setPreviewOpen(true);
+  };
+
   const retryFinalize = async (job: GenerationJobOut) => {
     if (!ensureDesignAuth()) return;
     const input = finalizeRetryInput(job);
@@ -415,7 +475,7 @@ export function DesignPage() {
         throwOnError: true,
       });
       if (!(response.data instanceof Blob)) {
-        throw new Error("내보내기 응답이 파일 형식이 아닙니다.");
+        throw new Error("내려받기 응답이 파일 형식이 아닙니다.");
       }
       downloadBlob(response.data, `essesion-design.${value.format}`);
       setExportOpen(false);
@@ -437,6 +497,7 @@ export function DesignPage() {
     invalidateSessionOperations();
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
+    setResultPreview(null);
     clearPendingDesign();
     setPending(null);
   };
@@ -446,6 +507,7 @@ export function DesignPage() {
     setActiveSessionId(null);
     setNewSessionMode(true);
     setSelectionOverride(null);
+    setResultPreview(null);
   };
 
   const chooseSession = (sessionId: string) => {
@@ -453,22 +515,114 @@ export function DesignPage() {
     setActiveSessionId(sessionId);
     setNewSessionMode(false);
     setSelectionOverride(null);
+    setResultPreview(null);
     setSessionsOpen(false);
   };
 
-  const actions = (
-    <DesignActions
-      selected={!!selection?.intent}
-      canExport={!!selection?.candidate?.svg}
-      generateCost={balanceQuery.data?.generate_cost ?? null}
-      remainingFinalize={remainingFinalize}
-      loading={generateMutation.isPending}
-      showPreview={compactPreview && !!selectedImageSrc}
-      onPreview={() => setPreviewOpen(true)}
-      onVariation={() => void generateVariation()}
-      onExport={openExport}
-      onFinalize={() => openFinalize()}
-    />
+  const scheduleAfterOverlayExit = (run: () => void) => {
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    window.clearTimeout(deleteFlowTimer.current);
+    deleteFlowTimer.current = window.setTimeout(
+      run,
+      reducedMotion ? 0 : OVERLAY_EXIT_MS,
+    );
+  };
+
+  const requestDeleteSession = (session: DesignSessionSummary) => {
+    setSessionsOpen(false);
+    scheduleAfterOverlayExit(() =>
+      setDeleteTarget({ kind: "session", id: session.id }),
+    );
+  };
+
+  const requestDeleteJob = (job: GenerationJobOut) => {
+    setFinalizedOpen(false);
+    scheduleAfterOverlayExit(() =>
+      setDeleteTarget({ kind: "job", id: job.id }),
+    );
+  };
+
+  // 확인 다이얼로그가 닫히면(취소·성공 공통) 원래의 목록 모달로 돌아간다.
+  const closeDeleteConfirm = (target: DeleteTarget) => {
+    setDeleteTarget(null);
+    scheduleAfterOverlayExit(() =>
+      target.kind === "session"
+        ? setSessionsOpen(true)
+        : setFinalizedOpen(true),
+    );
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    const target = deleteTarget;
+    try {
+      if (target.kind === "session") {
+        await deleteSessionMutation.mutateAsync(target.id);
+        if (activeSessionId === target.id) {
+          // 삭제된 세션이 열려 있었다면 초기화 — 목록 갱신 후 최신 세션이 자동 선택된다.
+          invalidateSessionOperations();
+          setActiveSessionId(null);
+          setSelectionOverride(null);
+          setResultPreview(null);
+        }
+        snackbar("세션을 삭제했습니다.");
+      } else {
+        await deleteJobMutation.mutateAsync(target.id);
+        setResultPreview((current) =>
+          current?.jobId === target.id ? null : current,
+        );
+        snackbar("완성본을 삭제했습니다.");
+      }
+      closeDeleteConfirm(target);
+    } catch {
+      snackbar(
+        target.kind === "session"
+          ? "세션을 삭제하지 못했습니다. 다시 시도해 주세요."
+          : "완성본을 삭제하지 못했습니다. 다시 시도해 주세요.",
+      );
+    }
+  };
+
+  const actionProps = {
+    selected: !!selection?.intent,
+    canExport: !!selection?.candidate?.svg,
+    finalizeExhausted,
+    loading: generateMutation.isPending,
+    onVariation: () => void generateVariation(),
+    onExport: openExport,
+    onFinalize: () => openFinalize(),
+  };
+  const panelActions = <DesignActions {...actionProps} />;
+  // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 핸들러가 전부 페이지
+  // selection 기반이라 모든 타일이 같은 항목을 공유한다.
+  const candidateMenu = (
+    <>
+      <MenuItem
+        label="미리보기"
+        prefixIcon={<Icon svg={<EyeIcon />} size={18} />}
+        onClick={() => setPreviewOpen(true)}
+      />
+      <MenuItem
+        label="내려받기"
+        prefixIcon={<Icon svg={<ArrowDownTrayIcon />} size={18} />}
+        disabled={!selection?.candidate?.svg}
+        onClick={openExport}
+      />
+      <MenuItem
+        label="다시만들기"
+        prefixIcon={<Icon svg={<ArrowPathIcon />} size={18} />}
+        disabled={!selection?.intent || generateMutation.isPending}
+        onClick={() => void generateVariation()}
+      />
+      <MenuItem
+        label="실사화하기"
+        prefixIcon={<Icon svg={<Squares2X2Icon />} size={18} />}
+        disabled={!selection?.intent || finalizeExhausted}
+        onClick={() => openFinalize()}
+      />
+    </>
   );
 
   return (
@@ -503,10 +657,11 @@ export function DesignPage() {
         >
           <Box display={{ base: "none", lg: "block" }} minHeight={0}>
             <PreviewPanel
-              imageSrc={selectedImageSrc}
+              imageSrc={previewImageSrc}
+              alt={previewAlt}
               mode={previewMode}
               onModeChange={setPreviewMode}
-              actions={actions}
+              actions={panelActions}
             />
           </Box>
 
@@ -520,39 +675,9 @@ export function DesignPage() {
             borderRadius={{ base: 0, lg: "r4" }}
             bg="bg.layer-default"
           >
-            <HStack justify="space-between" gap="x3" px="x4" py="x3">
-              <VStack minWidth={0} gap="x0_5" alignItems="stretch">
-                <Text as="h1" textStyle="title3">
-                  AI 패턴 디자인
-                </Text>
-                <Text textStyle="captionSm" color="fg.neutral-subtle">
-                  {activeSessionId
-                    ? "작업 내용은 자동으로 저장돼요"
-                    : "새 디자인 세션"}
-                </Text>
-              </VStack>
-              <HStack gap="x1">
-                <ActionButton
-                  type="button"
-                  variant="ghost"
-                  size="small"
-                  onClick={() => setSessionsOpen(true)}
-                  disabled={!authenticated}
-                >
-                  <Icon svg={<FolderOpenIcon />} size={18} />내 세션
-                </ActionButton>
-                <ActionButton
-                  type="button"
-                  variant="ghost"
-                  size="small"
-                  onClick={startNewSession}
-                >
-                  <Icon svg={<PlusIcon />} size={18} />
-                  새로 만들기
-                </ActionButton>
-              </HStack>
-            </HStack>
-            <Divider />
+            <Text as="h1" className="sr-only">
+              AI 패턴 디자인
+            </Text>
 
             <Box
               minHeight={0}
@@ -566,15 +691,19 @@ export function DesignPage() {
                 loading={!!activeSessionId && turnsQuery.isPending}
                 generating={generateMutation.isPending}
                 error={!!activeSessionId && turnsQuery.isError}
-                selectionLoading={selectionMutation.isPending}
                 onRetry={() => void turnsQuery.refetch()}
-                onSelectCandidate={(candidate, intents) =>
-                  void selectCandidate(candidate, intents)
+                onSelectCandidate={(candidate, intents, event) =>
+                  void selectCandidate(candidate, intents, event)
                 }
+                candidateMenu={compactPreview ? candidateMenu : undefined}
                 renderFinalizeTurn={(payload) => (
                   <FinalizeTurnCard
                     payload={payload}
                     authenticated={authenticated}
+                    previewActive={resultPreview?.jobId === payload.job_id}
+                    anchorMenu={compactPreview}
+                    onPreview={stageFinalizeResult}
+                    onOpenPreview={openFinalizeResultPreview}
                     onRetry={retryFinalize}
                     onOrder={(job) =>
                       navigate("/custom-order", {
@@ -587,17 +716,12 @@ export function DesignPage() {
             </Box>
 
             {generationError ? (
-              <Box px="x4" pt="x3">
+              <Box px="x4" py="x3">
                 <GenerationErrorCallout
                   error={generationError}
                   onRetry={() => void retryGeneration()}
                   onPurchase={() => navigate("/token/purchase")}
                 />
-              </Box>
-            ) : null}
-            {compactPreview && selection?.intent ? (
-              <Box px="x4" pt="x3">
-                {actions}
               </Box>
             ) : null}
             <Box
@@ -617,6 +741,27 @@ export function DesignPage() {
                 onPurchaseTokens={() => navigate("/token/purchase")}
                 loading={generateMutation.isPending}
                 disabled={status === "loading"}
+                sessionActions={
+                  <>
+                    <ComposerPanelItem
+                      icon={<Icon svg={<FolderOpenIcon />} size={24} />}
+                      label="내 세션"
+                      onClick={() => setSessionsOpen(true)}
+                      disabled={!authenticated}
+                    />
+                    <ComposerPanelItem
+                      icon={<Icon svg={<SwatchIcon />} size={24} />}
+                      label="내 완성본"
+                      onClick={() => setFinalizedOpen(true)}
+                      disabled={!authenticated}
+                    />
+                    <ComposerPanelItem
+                      icon={<Icon svg={<PlusIcon />} size={24} />}
+                      label="새로 만들기"
+                      onClick={startNewSession}
+                    />
+                  </>
+                }
               />
             </Box>
           </VStack>
@@ -626,7 +771,8 @@ export function DesignPage() {
       <PreviewModal
         open={previewOpen}
         onOpenChange={setPreviewOpen}
-        imageSrc={selectedImageSrc}
+        imageSrc={previewImageSrc}
+        alt={previewAlt}
         mode={previewMode}
         onModeChange={setPreviewMode}
       />
@@ -648,7 +794,8 @@ export function DesignPage() {
         }}
         onWeaveChange={setWeave}
         onSubmit={(value) => void submitFinalize(value)}
-        remaining={remainingFinalize}
+        remaining={finalizeQuota?.remaining ?? null}
+        resetAt={finalizeQuota?.reset_at ?? null}
         loading={finalizeMutation.isPending}
         disabled={!selection?.intent}
       />
@@ -672,7 +819,6 @@ export function DesignPage() {
           id: session.id,
           createdAt: session.created_at,
           status: session.status,
-          finalizeUsed: session.finalize_used,
           lastPrompt: session.last_prompt ?? null,
         }))}
         selectedId={activeSessionId}
@@ -680,6 +826,53 @@ export function DesignPage() {
         error={sessionsQuery.isError}
         onRetry={() => void sessionsQuery.refetch()}
         onSelect={(session) => chooseSession(session.id)}
+        onDelete={requestDeleteSession}
+      />
+      <FinalizedListModal
+        open={finalizedOpen}
+        onOpenChange={setFinalizedOpen}
+        jobs={finalizedJobs}
+        loading={finalizedJobsQuery.isPending}
+        error={finalizedJobsQuery.isError && finalizedJobs.length === 0}
+        onRetry={() => void finalizedJobsQuery.refetch()}
+        hasMore={finalizedJobsQuery.hasNextPage}
+        loadingMore={finalizedJobsQuery.isFetchingNextPage}
+        loadMoreError={finalizedJobsQuery.isFetchNextPageError}
+        onLoadMore={() => void finalizedJobsQuery.fetchNextPage()}
+        onOrder={(job) =>
+          navigate("/custom-order", { state: { designJobs: [job] } })
+        }
+        onDelete={requestDeleteJob}
+      />
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && deleteTarget) closeDeleteConfirm(deleteTarget);
+        }}
+        title={
+          deleteTarget?.kind === "session"
+            ? "세션을 삭제할까요?"
+            : "완성본을 삭제할까요?"
+        }
+        description={
+          deleteTarget?.kind === "session"
+            ? "대화 이력이 함께 삭제돼요. 완성한 실사화 결과는 내 완성본에 남아요."
+            : "삭제한 완성본은 복구할 수 없어요. 이미 접수한 주문에는 영향이 없어요."
+        }
+        primaryActionProps={{
+          children: "삭제",
+          variant: "criticalSolid",
+          loading: deleting,
+          onClick: (event) => {
+            // 요청 완료 전 닫히지 않도록 기본 닫힘을 막는다 — 성공 시 confirmDelete가 닫는다.
+            event.preventDefault();
+            void confirmDelete();
+          },
+        }}
+        secondaryActionProps={{
+          children: "취소",
+          disabled: deleting,
+        }}
       />
       <OnboardingDialog
         open={onboardingOpen}
@@ -696,39 +889,22 @@ export function DesignPage() {
 function DesignActions({
   selected,
   canExport,
-  generateCost,
-  remainingFinalize,
+  finalizeExhausted,
   loading,
-  showPreview,
-  onPreview,
   onVariation,
   onExport,
   onFinalize,
 }: {
   selected: boolean;
   canExport: boolean;
-  generateCost: number | null;
-  remainingFinalize: number;
+  finalizeExhausted: boolean;
   loading: boolean;
-  showPreview: boolean;
-  onPreview: () => void;
   onVariation: () => void;
   onExport: () => void;
   onFinalize: () => void;
 }) {
   return (
     <HStack gap="x2" wrap>
-      {showPreview ? (
-        <ActionButton
-          type="button"
-          size="small"
-          variant="neutralWeak"
-          onClick={onPreview}
-        >
-          <Icon svg={<EyeIcon />} size={18} />
-          미리보기
-        </ActionButton>
-      ) : null}
       <ActionButton
         type="button"
         size="small"
@@ -737,7 +913,7 @@ function DesignActions({
         onClick={onVariation}
       >
         <Icon svg={<ArrowPathIcon />} size={18} />
-        배리에이션 {generateCost == null ? "" : `${generateCost}토큰`}
+        다시만들기
       </ActionButton>
       <ActionButton
         type="button"
@@ -747,17 +923,17 @@ function DesignActions({
         onClick={onExport}
       >
         <Icon svg={<ArrowDownTrayIcon />} size={18} />
-        내보내기
+        내려받기
       </ActionButton>
       <ActionButton
         type="button"
         size="small"
         variant="neutralOutline"
-        disabled={!selected || remainingFinalize <= 0}
+        disabled={!selected || finalizeExhausted}
         onClick={onFinalize}
       >
         <Icon svg={<Squares2X2Icon />} size={18} />
-        원단 시뮬레이션 {remainingFinalize}회
+        실사화하기
       </ActionButton>
     </HStack>
   );

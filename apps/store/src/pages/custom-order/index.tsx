@@ -82,6 +82,10 @@ const MAX_IMAGES = 5;
 const DESCRIPTION =
   "수량, 원단, 봉제 방식과 마감 사양을 선택하고 맞춤 넥타이 제작 비용을 확인하세요.";
 
+function attachmentFileId(file: File, index: number) {
+  return `${index}-${file.name}-${file.size}-${file.lastModified}`;
+}
+
 export function CustomOrderPage() {
   const status = useSession((state) => state.status);
   const user = useSession((state) => state.user);
@@ -133,8 +137,9 @@ function CustomOrderPageContent({
     restored?.contact ?? DEFAULT_QUOTE_CONTACT,
   );
   const [files, setFiles] = useState<File[]>([]);
-  const [selectedDesigns, setSelectedDesigns] =
-    useState<GenerationJobOut[]>(initialDesigns);
+  const [selectedDesigns, setSelectedDesigns] = useState<GenerationJobOut[]>(
+    () => initialDesigns.slice(0, 1),
+  );
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
@@ -161,8 +166,8 @@ function CustomOrderPageContent({
         src: job.result_url ?? "",
         alt: `AI 완성 디자인 ${index + 1}`,
       })),
-      ...previewUrls.map(({ file, url }) => ({
-        id: `file:${file.name}-${file.size}-${file.lastModified}`,
+      ...previewUrls.map(({ file, url }, index) => ({
+        id: `file:${attachmentFileId(file, index)}`,
         src: url,
         alt: file.name,
       })),
@@ -965,10 +970,13 @@ function CustomOrderPageContent({
                 description="JPG, PNG, WebP · 파일당 10MB 이하"
                 pickerSlot={
                   <DesignPicker
-                    selected={selectedDesigns}
-                    onChange={setSelectedDesigns}
-                    max={MAX_IMAGES - files.length}
-                    disabled={submitting}
+                    selected={selectedDesigns[0] ?? null}
+                    onChange={(job) => setSelectedDesigns(job ? [job] : [])}
+                    disabled={
+                      submitting ||
+                      (selectedDesigns.length === 0 &&
+                        files.length >= MAX_IMAGES)
+                    }
                   />
                 }
                 items={attachmentItems}
@@ -1006,7 +1014,7 @@ function CustomOrderPageContent({
                   const fileId = id.slice("file:".length);
                   const index = previewUrls.findIndex(
                     ({ file }, candidate) =>
-                      `${file.name}-${candidate}` === fileId,
+                      attachmentFileId(file, candidate) === fileId,
                   );
                   if (index >= 0)
                     setFiles((current) =>

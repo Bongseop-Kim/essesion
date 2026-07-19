@@ -27,10 +27,20 @@ class DryRunObjectStore:
 class GcsObjectStore:
     capability_mode = "real"
 
-    def __init__(self, bucket_name: str):
+    def __init__(self, bucket_name: str, emulator_host: str = ""):
         from google.cloud import storage
 
-        self._bucket = storage.Client().bucket(bucket_name)
+        if emulator_host:
+            from google.auth.credentials import AnonymousCredentials
+
+            client = storage.Client(
+                project="local",
+                credentials=AnonymousCredentials(),
+                client_options={"api_endpoint": emulator_host.rstrip("/")},
+            )
+        else:
+            client = storage.Client()
+        self._bucket = client.bucket(bucket_name)
 
     async def upload_bytes(self, object_key: str, data: bytes, content_type: str) -> str:
         def _upload() -> str:
@@ -53,8 +63,11 @@ class GcsObjectStore:
 
 
 def build_object_store(settings: Settings) -> ObjectStore:
+    if settings.gcs_emulator_host and settings.env not in ("local", "test"):
+        # 서명·인가가 없는 에뮬레이터 경로가 배포 환경에 섞이지 않도록 fail-closed
+        raise RuntimeError("GCS_EMULATOR_HOST is local/test only")
     if settings.gcs_bucket:
-        return GcsObjectStore(settings.gcs_bucket)
+        return GcsObjectStore(settings.gcs_bucket, emulator_host=settings.gcs_emulator_host)
     if settings.env not in ("local", "test"):
         raise RuntimeError("GCS_BUCKET is required outside local/test")
     logger.warning("GCS_BUCKET 없음 — DryRun object store로 동작")

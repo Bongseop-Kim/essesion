@@ -30,31 +30,64 @@ function settingsDraft(items: readonly AdminSettingOut[]) {
   return Object.fromEntries(items.map((item) => [item.key, item.value]));
 }
 
-const SETTING_PRESENTATION: Record<
-  string,
-  { title: string; description: string; scope: string; defaultValue: string }
-> = {
+type SettingPresentation = {
+  title: string;
+  description: string;
+  scope: string;
+  defaultValue: string;
+  inputLabel: string;
+  /** 정수형 값 뒤에 붙는 단위 — courier형은 무시 */
+  unit?: string;
+  /** 변경 검토 다이얼로그에 표시하는 적용 영향 */
+  impact: string;
+  /** 편집 화면에 상주로 띄우는 경고 (필요한 설정만) */
+  editWarning?: { title: string; description: string };
+};
+
+const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
   default_courier_company: {
     title: "기본 택배사",
     description: "운영자가 송장을 등록할 때 기본으로 제안하는 택배사입니다.",
     scope: "새 배송·수거 송장 입력",
     defaultValue: "롯데택배",
+    inputLabel: "택배사명",
+    impact: "변경 후 입력하는 새 배송·수거 송장에 기본값으로 제안됩니다.",
+  },
+  design_finalize_daily_limit: {
+    title: "실사화 24시간 한도",
+    description:
+      "계정마다 최근 24시간 동안 만들 수 있는 실사화 횟수 상한입니다.",
+    scope: "이후의 새 실사화 요청",
+    defaultValue: "10회",
+    inputLabel: "실사화 횟수",
+    unit: "회",
+    impact:
+      "이후의 새 실사화 요청부터 즉시 적용됩니다. 실패·취소한 요청은 횟수에 포함되지 않습니다.",
   },
   design_token_initial_grant: {
     title: "신규 사용자 초기 토큰",
     description: "관리자가 새 계정을 만들 때 최초 지급하는 디자인 토큰입니다.",
     scope: "변경 후 생성되는 신규 계정",
     defaultValue: "30개",
+    inputLabel: "토큰 수량",
+    unit: "개",
+    impact: "변경 후 생성되는 신규 계정에만 적용되며 기존 잔액은 유지됩니다.",
+    editWarning: {
+      title: "신규 계정의 토큰 비용 정책에 영향을 줍니다",
+      description: "기존 계정의 토큰 잔액은 변경되지 않습니다.",
+    },
   },
 };
 
-function settingPresentation(item: AdminSettingOut) {
+function settingPresentation(item: AdminSettingOut): SettingPresentation {
   return (
     SETTING_PRESENTATION[item.key] ?? {
       title: "관리자 설정",
       description: "서버에서 허용한 운영 설정입니다.",
       scope: "관련 신규 작업",
       defaultValue: "확인되지 않음",
+      inputLabel: item.value_type === "courier" ? "설정 값" : "설정 수량",
+      impact: "이후의 관련 신규 작업부터 적용됩니다.",
     }
   );
 }
@@ -62,8 +95,9 @@ function settingPresentation(item: AdminSettingOut) {
 function formatSettingValue(item: AdminSettingOut, value = item.value) {
   if (item.value_type !== "non_negative_integer") return value;
   const number = Number(value);
+  const unit = SETTING_PRESENTATION[item.key]?.unit ?? "개";
   return Number.isFinite(number)
-    ? `${number.toLocaleString("ko-KR")}개`
+    ? `${number.toLocaleString("ko-KR")}${unit}`
     : value;
 }
 
@@ -229,13 +263,11 @@ export function SettingsPage() {
                   step={
                     item.value_type === "non_negative_integer" ? 1 : undefined
                   }
-                  label={
-                    item.value_type === "courier" ? "택배사명" : "토큰 수량"
-                  }
+                  label={presentation.inputLabel}
                   description={`현재 ${formatSettingValue(item)}`}
                   suffix={
                     item.value_type === "non_negative_integer"
-                      ? "개"
+                      ? (presentation.unit ?? "개")
                       : undefined
                   }
                   value={draft[item.key] ?? item.value}
@@ -249,11 +281,11 @@ export function SettingsPage() {
                     }));
                   }}
                 />
-                {item.key === "design_token_initial_grant" && (
+                {presentation.editWarning && (
                   <Callout
                     tone="warning"
-                    title="신규 계정의 토큰 비용 정책에 영향을 줍니다"
-                    description="기존 계정의 토큰 잔액은 변경되지 않습니다."
+                    title={presentation.editWarning.title}
+                    description={presentation.editWarning.description}
                   />
                 )}
                 <TextAreaField
@@ -369,9 +401,9 @@ export function SettingsPage() {
         }))}
         reason={reason.trim()}
         impact={
-          changed[0]?.key === "design_token_initial_grant"
-            ? "변경 후 생성되는 신규 계정에만 적용되며 기존 잔액은 유지됩니다."
-            : "변경 후 입력하는 새 배송·수거 송장에 기본값으로 제안됩니다."
+          changed[0]
+            ? settingPresentation(changed[0]).impact
+            : "이후의 관련 신규 작업부터 적용됩니다."
         }
         confirmLabel="설정 변경 적용"
         loading={mutation.isPending}

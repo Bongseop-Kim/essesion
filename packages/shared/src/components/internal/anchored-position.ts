@@ -1,8 +1,8 @@
-export type HelpBubbleSide = "top" | "right" | "bottom" | "left";
-export type HelpBubbleAlignment = "start" | "end";
-export type HelpBubblePlacement =
-  | HelpBubbleSide
-  | `${HelpBubbleSide}-${HelpBubbleAlignment}`;
+export type AnchoredSide = "top" | "right" | "bottom" | "left";
+export type AnchoredAlignment = "start" | "end";
+export type AnchoredPlacement =
+  | AnchoredSide
+  | `${AnchoredSide}-${AnchoredAlignment}`;
 
 export type FloatingRect = {
   top: number;
@@ -15,42 +15,49 @@ export type FloatingRect = {
 
 export type FloatingSize = { width: number; height: number };
 
-export type HelpBubblePosition = {
-  placement: HelpBubblePlacement;
-  side: HelpBubbleSide;
+export type AnchoredPosition = {
+  placement: AnchoredPlacement;
+  side: AnchoredSide;
   top: number;
   left: number;
   arrowX?: number;
   arrowY?: number;
 };
 
-export type HelpBubblePositionOptions = {
-  placement: HelpBubblePlacement;
-  gutter: number;
-  overflowPadding: number;
-  arrowPadding: number;
-  flip: boolean | HelpBubblePlacement[];
-  slide: boolean;
+export type AnchoredArrowOptions = {
+  /** 화살표의 가장자리 방향 길이 — arrowX/arrowY 클램프에 사용. */
+  width: number;
+  /** 화살표가 앵커 쪽으로 튀어나온 높이 — gutter에 더해진다. */
+  height: number;
+  /** 화살표가 플로팅 모서리에 붙지 않도록 하는 최소 여백. */
+  padding: number;
 };
 
-export const HELP_BUBBLE_ARROW_WIDTH = 12;
-export const HELP_BUBBLE_ARROW_HEIGHT = 8;
+export type AnchoredPositionOptions = {
+  placement: AnchoredPlacement;
+  gutter: number;
+  overflowPadding: number;
+  flip: boolean | AnchoredPlacement[];
+  slide: boolean;
+  /** 화살표 있는 오버레이(HelpBubble)만 지정 — 없으면 gap=gutter, arrowX/Y 미계산. */
+  arrow?: AnchoredArrowOptions;
+};
 
-const oppositeSide: Record<HelpBubbleSide, HelpBubbleSide> = {
+const oppositeSide: Record<AnchoredSide, AnchoredSide> = {
   top: "bottom",
   right: "left",
   bottom: "top",
   left: "right",
 };
 
-export function positionHelpBubble(
+export function positionAnchored(
   reference: FloatingRect,
   floating: FloatingSize,
   viewport: FloatingSize,
-  options: HelpBubblePositionOptions,
-): HelpBubblePosition {
+  options: AnchoredPositionOptions,
+): AnchoredPosition {
   const candidates = placementCandidates(options.placement, options.flip);
-  const gap = options.gutter + HELP_BUBBLE_ARROW_HEIGHT;
+  const gap = options.gutter + (options.arrow?.height ?? 0);
   const positioned = candidates.map((placement) => ({
     placement,
     ...basePosition(reference, floating, placement, gap),
@@ -83,41 +90,44 @@ export function positionHelpBubble(
       )
     : selected.top;
   const [side] = splitPlacement(selected.placement);
+  const { arrow } = options;
+
+  if (arrow == null) return { placement: selected.placement, side, top, left };
 
   if (side === "top" || side === "bottom") {
     const arrowX = clamp(
-      reference.left + reference.width / 2 - left - HELP_BUBBLE_ARROW_WIDTH / 2,
-      options.arrowPadding,
-      floating.width - options.arrowPadding - HELP_BUBBLE_ARROW_WIDTH,
+      reference.left + reference.width / 2 - left - arrow.width / 2,
+      arrow.padding,
+      floating.width - arrow.padding - arrow.width,
     );
     return { placement: selected.placement, side, top, left, arrowX };
   }
 
   const arrowY = clamp(
-    reference.top + reference.height / 2 - top - HELP_BUBBLE_ARROW_WIDTH / 2,
-    options.arrowPadding,
-    floating.height - options.arrowPadding - HELP_BUBBLE_ARROW_WIDTH,
+    reference.top + reference.height / 2 - top - arrow.width / 2,
+    arrow.padding,
+    floating.height - arrow.padding - arrow.width,
   );
   return { placement: selected.placement, side, top, left, arrowY };
 }
 
 function placementCandidates(
-  placement: HelpBubblePlacement,
-  flip: boolean | HelpBubblePlacement[],
+  placement: AnchoredPlacement,
+  flip: boolean | AnchoredPlacement[],
 ) {
   if (Array.isArray(flip)) return unique([placement, ...flip]);
   if (!flip) return [placement];
   const [side, alignment] = splitPlacement(placement);
   const opposite = `${oppositeSide[side]}${alignment ? `-${alignment}` : ""}`;
-  return [placement, opposite as HelpBubblePlacement];
+  return [placement, opposite as AnchoredPlacement];
 }
 
 function splitPlacement(
-  placement: HelpBubblePlacement,
-): [HelpBubbleSide, HelpBubbleAlignment | undefined] {
+  placement: AnchoredPlacement,
+): [AnchoredSide, AnchoredAlignment | undefined] {
   const [side, alignment] = placement.split("-") as [
-    HelpBubbleSide,
-    HelpBubbleAlignment | undefined,
+    AnchoredSide,
+    AnchoredAlignment | undefined,
   ];
   return [side, alignment];
 }
@@ -125,7 +135,7 @@ function splitPlacement(
 function basePosition(
   reference: FloatingRect,
   floating: FloatingSize,
-  placement: HelpBubblePlacement,
+  placement: AnchoredPlacement,
   gap: number,
 ) {
   const [side, alignment] = splitPlacement(placement);

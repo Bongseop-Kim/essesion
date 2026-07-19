@@ -3,19 +3,18 @@
 from datetime import UTC, datetime, timedelta
 
 from db.models.commerce import Claim, Order
-from db.models.design import (
-    FINALIZE_STALE_MESSAGE,
-    FINALIZE_TEMPORARY_FAILURE_MARKER,
-    DesignSession,
-    GenerationJob,
-)
+from db.models.design import GenerationJob
 from db.models.images import Image
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
-from sqlalchemy import and_, exists, func, not_, or_, select, update
+from sqlalchemy import and_, exists, func, not_, or_, select
 
 from api.db import SessionDep
 from api.deps import BatchAuth
+from api.domains.design.job_lifecycle import (
+    resolve_stale_finalize_jobs,
+    stale_finalize_clause,
+)
 from api.domains.orders.service import log_status, restore_reserved_order_coupons
 from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
 from api.integrations.gcs import assets_bucket_name
@@ -28,12 +27,6 @@ CLEANUP_BATCH_SIZE = 100
 CLEANUP_RETRY_AFTER = timedelta(minutes=5)
 ORDER_BATCH_SIZE = 500
 GENERATION_JOB_BATCH_SIZE = 100
-# Cloud Tasks 최대 4회가 각 910초 deadline을 소진한 최악의 장기 실패까지 기다린 뒤,
-# 남은 DB 상태를 다음 배치에서 회수한다.
-STALE_GENERATION_JOB_AFTER = timedelta(minutes=75)
-# worker finalize lease(960초)와 동일하게 최근 processing claim은 보호한다.
-# 생성 TTL은 계속 진행되므로 transient 실패가 회수 시계를 리셋하지 않는다.
-ACTIVE_GENERATION_JOB_LEASE = timedelta(seconds=960)
 
 
 class BatchResult(BaseModel):
@@ -99,44 +92,19 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
 
 @router.post("/reconcile-stale-generation-jobs", response_model=BatchResult)
 async def reconcile_stale_generation_jobs(session: SessionDep) -> BatchResult:
-    """Cloud Tasks 재시도 창을 넘긴 finalize job을 종료하고 세션 예산을 복구한다."""
+    """Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결한다 — 쿼터 슬롯 자동 해제."""
     now = datetime.now(UTC)
-    cutoff = now - STALE_GENERATION_JOB_AFTER
-    active_lease_cutoff = now - ACTIVE_GENERATION_JOB_LEASE
     jobs = (
         await session.scalars(
             select(GenerationJob)
-            .where(
-                GenerationJob.kind == "finalize",
-                GenerationJob.created_at < cutoff,
-                or_(
-                    GenerationJob.status == "queued",
-                    and_(
-                        GenerationJob.status == "processing",
-                        GenerationJob.updated_at < active_lease_cutoff,
-                    ),
-                    and_(
-                        GenerationJob.status == "failed",
-                        GenerationJob.error_message == FINALIZE_TEMPORARY_FAILURE_MARKER,
-                    ),
-                ),
-            )
+            .where(stale_finalize_clause(now))
             .order_by(GenerationJob.created_at, GenerationJob.id)
             .limit(GENERATION_JOB_BATCH_SIZE)
             .with_for_update(skip_locked=True)
         )
     ).all()
 
-    for job in jobs:
-        job.status = "failed"
-        job.result = None
-        job.error_message = FINALIZE_STALE_MESSAGE
-        if job.session_id is not None:
-            await session.execute(
-                update(DesignSession)
-                .where(DesignSession.id == job.session_id)
-                .values(finalize_used=func.greatest(DesignSession.finalize_used - 1, 0))
-            )
+    resolve_stale_finalize_jobs(jobs)
     await session.commit()
     return BatchResult(processed=len(jobs))
 
@@ -171,16 +139,10 @@ async def cleanup_images(session: SessionDep, request: Request) -> BatchResult:
     gcs = request.app.state.gcs
     processed = 0
     for image in targets:
-        bucket_name = None
-        if image.entity_type.startswith("product_"):
-            settings = request.app.state.settings
-            bucket_name = settings.gcs_assets_bucket or (
-                "dry-run-product-assets" if settings.env in ("local", "test") else None
-            )
-        elif image.entity_type.startswith("review_photo"):
-            # 후기 사진은 공개 assets 버킷 소속 (reviews/router.py의 서명 버킷과 동일)
-            bucket_name = assets_bucket_name(request.app.state.settings)
-        if bucket_name is None and image.entity_type.startswith(("product_", "review_photo")):
+        uses_assets_bucket = image.entity_type.startswith(("product_", "review_photo"))
+        # 상품·후기 사진은 공개 assets 버킷 소속이다.
+        bucket_name = assets_bucket_name(request.app.state.settings) if uses_assets_bucket else None
+        if bucket_name is None and uses_assets_bucket:
             # assets 버킷 미설정이면 기본(비공개) 버킷을 지우게 되므로 건너뛴다.
             # claim은 유지되어 설정 후 재시도된다.
             continue

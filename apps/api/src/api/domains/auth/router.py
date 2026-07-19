@@ -24,7 +24,7 @@ from api.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-REFRESH_COOKIE = "refresh_token"
+REFRESH_COOKIE = "essesion_store_refresh"
 ADMIN_REFRESH_COOKIE = "admin_refresh_token"
 
 

@@ -14,17 +14,18 @@ import {
 
 import { cn } from "../cn";
 import { Flex } from "./flex";
-import { XGlyph } from "./internal/glyphs";
 import {
-  HELP_BUBBLE_ARROW_HEIGHT,
-  HELP_BUBBLE_ARROW_WIDTH,
-  type HelpBubblePlacement,
-  type HelpBubblePosition,
-  positionHelpBubble,
-} from "./internal/help-bubble-position";
+  type AnchoredPlacement,
+  type AnchoredPosition,
+  positionAnchored,
+} from "./internal/anchored-position";
+import { XGlyph } from "./internal/glyphs";
 import { useControllableState } from "./internal/use-controllable-state";
 import { VStack } from "./stack";
 import { Text } from "./text";
+
+const HELP_BUBBLE_ARROW_WIDTH = 12;
+const HELP_BUBBLE_ARROW_HEIGHT = 8;
 
 type TriggerElementProps = ComponentPropsWithRef<"button">;
 
@@ -43,11 +44,11 @@ export type HelpBubbleTriggerProps = {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   closeOnInteractOutside?: boolean;
-  placement?: HelpBubblePlacement;
+  placement?: AnchoredPlacement;
   gutter?: number;
   overflowPadding?: number;
   arrowPadding?: number;
-  flip?: boolean | HelpBubblePlacement[];
+  flip?: boolean | AnchoredPlacement[];
   slide?: boolean;
   ref?: Ref<HTMLButtonElement>;
 };
@@ -78,7 +79,7 @@ export function HelpBubbleTrigger({
   });
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<HelpBubblePosition | null>(null);
+  const [position, setPosition] = useState<AnchoredPosition | null>(null);
   const generatedId = useId();
   const contentId = `${generatedId}-help-bubble`;
   const titleId = `${generatedId}-help-bubble-title`;
@@ -90,7 +91,7 @@ export function HelpBubbleTrigger({
     if (!trigger || !content) return;
     const rect = trigger.getBoundingClientRect();
     setPosition(
-      positionHelpBubble(
+      positionAnchored(
         {
           top: rect.top,
           right: rect.right,
@@ -105,9 +106,13 @@ export function HelpBubbleTrigger({
           placement,
           gutter,
           overflowPadding,
-          arrowPadding,
           flip,
           slide,
+          arrow: {
+            width: HELP_BUBBLE_ARROW_WIDTH,
+            height: HELP_BUBBLE_ARROW_HEIGHT,
+            padding: arrowPadding,
+          },
         },
       ),
     );
@@ -262,7 +267,7 @@ export function HelpBubbleTrigger({
   );
 }
 
-function HelpBubbleArrow({ position }: { position: HelpBubblePosition }) {
+function HelpBubbleArrow({ position }: { position: AnchoredPosition }) {
   const horizontal = position.side === "top" || position.side === "bottom";
   const width = horizontal ? HELP_BUBBLE_ARROW_WIDTH : HELP_BUBBLE_ARROW_HEIGHT;
   const height = horizontal
@@ -282,14 +287,14 @@ function HelpBubbleArrow({ position }: { position: HelpBubblePosition }) {
   );
 }
 
-function arrowPath(side: HelpBubblePosition["side"]) {
+function arrowPath(side: AnchoredPosition["side"]) {
   if (side === "top") return "M0 0 H12 L6 8 Z";
   if (side === "bottom") return "M6 0 L12 8 H0 Z";
   if (side === "left") return "M0 0 V12 L8 6 Z";
   return "M8 0 V12 L0 6 Z";
 }
 
-function arrowStyle(position: HelpBubblePosition) {
+function arrowStyle(position: AnchoredPosition) {
   if (position.side === "top") {
     return { left: position.arrowX, top: "calc(100% - 1px)" };
   }
@@ -302,7 +307,7 @@ function arrowStyle(position: HelpBubblePosition) {
   return { left: -HELP_BUBBLE_ARROW_HEIGHT + 1, top: position.arrowY };
 }
 
-function transformOrigin(side: HelpBubblePosition["side"] | undefined) {
+function transformOrigin(side: AnchoredPosition["side"] | undefined) {
   if (side === "top") return "bottom";
   if (side === "bottom") return "top";
   if (side === "left") return "right";

@@ -3,8 +3,10 @@
 고객 첨부는 비공개 업로드 버킷에서 signed read를 사용하고, 상품 이미지는 공개
 assets 버킷에 직접 업로드한다. 서명은 IAM signBlob(네트워크), 메타데이터 조회와
 삭제는 blocking IO라 threadpool로 실행한다.
-버킷 미설정 시 local/test에서만 DryRun한다. 그 밖의 환경은 가짜 URL을 반환하지
-않고 capability unavailable(503)로 실패한다.
+로컬은 gcs_emulator_host(docker compose의 fake-gcs-server)를 지정하면 같은
+RealGcsClient 경로를 탄다 — 서명만 생략하고 에뮬레이터가 서명을 검증하지 않는
+URL을 발급한다. 버킷 미설정 시 local/test는 DryRun(no-op), 그 밖의 환경은
+가짜 URL을 반환하지 않고 capability unavailable(503)로 실패한다.
 """
 
 import logging
@@ -51,6 +53,8 @@ def public_asset_url(settings: Settings, object_key: str) -> str | None:
         return None
     if settings.gcs_assets_public_base_url:
         base_url = settings.gcs_assets_public_base_url.rstrip("/")
+    elif settings.gcs_emulator_host and (bucket := assets_bucket_name(settings)):
+        base_url = f"{settings.gcs_emulator_host.rstrip('/')}/{bucket}"
     elif bucket := assets_bucket_name(settings):
         base_url = f"https://storage.googleapis.com/{bucket}"
     elif settings.env in ("local", "test") and not settings.gcs_upload_bucket:
@@ -97,11 +101,30 @@ class RealGcsClient:
     upload_required = True
     capability_mode = "real"
 
-    def __init__(self, bucket_name: str):
+    def __init__(self, bucket_name: str, emulator_host: str = ""):
         from google.cloud import storage
 
-        self._client = storage.Client()
+        self._emulator_host = emulator_host.rstrip("/")
+        if self._emulator_host:
+            from google.auth.credentials import AnonymousCredentials
+
+            self._client = storage.Client(
+                project="local",
+                credentials=AnonymousCredentials(),
+                client_options={"api_endpoint": self._emulator_host},
+            )
+        else:
+            self._client = storage.Client()
+        self._bucket_name = bucket_name
         self._bucket = self._client.bucket(bucket_name)
+
+    def _emulator_url(self, bucket_name: str, object_key: str, *, upload: bool = False) -> str:
+        url = f"{self._emulator_host}/{bucket_name}/{quote(object_key, safe='/')}"
+        if upload:
+            # fake-gcs-server는 서명을 검증하지 않지만, X-Goog-Algorithm 쿼리가
+            # 있어야 PUT을 signed-URL 업로드로 라우팅한다.
+            url += "?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Signature=emulator"
+        return url
 
     async def signed_upload_url(
         self,
@@ -112,6 +135,8 @@ class RealGcsClient:
         bucket_name: str | None = None,
         create_only: bool = False,
     ) -> str:
+        if self._emulator_host:
+            return self._emulator_url(bucket_name or self._bucket_name, object_key, upload=True)
         bucket = self._client.bucket(bucket_name) if bucket_name else self._bucket
         blob = bucket.blob(object_key)
         headers = (
@@ -133,6 +158,8 @@ class RealGcsClient:
         )
 
     async def signed_read_url(self, object_key: str) -> str:
+        if self._emulator_host:
+            return self._emulator_url(self._bucket_name, object_key)
         blob = self._bucket.blob(object_key)
         return await run_in_threadpool(
             blob.generate_signed_url,
@@ -302,8 +329,11 @@ class UnavailableGcsClient:
 
 
 def build_gcs_client(settings: Settings) -> GcsClient:
+    if settings.gcs_emulator_host and settings.env not in ("local", "test"):
+        # 서명·인가가 없는 에뮬레이터 경로가 배포 환경에 섞이지 않도록 fail-closed
+        raise RuntimeError("GCS_EMULATOR_HOST는 local/test 전용입니다")
     if settings.gcs_upload_bucket:
-        return RealGcsClient(settings.gcs_upload_bucket)
+        return RealGcsClient(settings.gcs_upload_bucket, emulator_host=settings.gcs_emulator_host)
     if settings.env in ("local", "test"):
         logger.warning("GCS_UPLOAD_BUCKET 없음 — local/test DryRun GCS 클라이언트로 동작")
         return DryRunGcsClient()

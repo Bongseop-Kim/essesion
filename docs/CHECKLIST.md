@@ -22,7 +22,9 @@
 - [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 4종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
 - [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *프록시 워커와 비로컬 API 전역 exact-secret 경계(`/healthz`·OIDC `/batch/*`만 면제, `/readyz`는 공개 프록시로만 확인), 고정 route·workflow 주입/validation·`PUBLIC_API_ORIGIN` OAuth callback은 구현 완료. **첫 API 배포 전에** `api.essesion.shop` secret·WAF를 선개통하고, 5단계에는 app/admin route만 잇는다 (`infra/cloudflare/README.md`, `docs/OPERATOR-CHECKLIST.md` §A4·C).*
 - [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 검증 — *PR 코드는 외부 credential·런타임 SA 없이 build/test만 수행한다. main 배포는 동일 SHA의 push CI 성공 `workflow_run`으로만 실행하고 환경 단일 큐에서 진행 중 배포를 취소하지 않는다. 프론트 production env 누락과 localhost/example API 혼입도 차단한다.*
+- [x] `ci/py` 포맷·로컬 설정 격리 회귀 수정 — *PR #18의 Ruff 포맷 드리프트를 정리하고, 표준 로컬 `.env`의 GCS 에뮬레이터 설정이 비에뮬레이터 URL 테스트에 유입되지 않도록 조건을 명시했다. Ruff check/format·Pyright·pytest 728건 통과.*
 - [x] 2026-07 전체 리팩터링 감사 — *API/DB·worker·store/admin/shared·CI/IaC의 경합, 입력 상한, 신뢰 경계와 공급망을 교차 검토하고 고위험 항목을 회귀 테스트와 함께 반영했다. 결과와 이연 근거는 `docs/reviews/repo-refactor-2026-07.md`.*
+- [x] 2026-07 인라인 리뷰 후속 — *finalize 한도 검증 단일화·쿼터 인덱스(status 포함/CONCURRENTLY), fake-gcs `/data` 영속화, 배치 assets 버킷 분기 단순화, 디자인 충전 비활성화·중복 첨부 제거·완성본 더 보기·삭제 캐시 테스트를 반영하고 관련 API·마이그레이션·store 검증 완료.*
 - [x] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
 - [x] Renovate 설정(묶음 PR) — *레포에 Renovate GitHub App 설치 필요*
 - [x] Aside 브라우저 확인 하네스 — *프로젝트 MCP(`.mcp.json`) + `.claude/skills/aside-browser/SKILL.md`, CLI 로그인·MCP 등록 확인*
@@ -45,6 +47,7 @@
 - [x] Auth 골격: JWT(access 단명 + refresh 회전), argon2id — *refresh는 불투명 토큰 sha256 저장, 재사용 감지 시 전체 무효화*
 - [x] id/pw 로그인 — 공개 가입 없음, 계정은 시드/관리자 생성만 — *`apps/api/scripts/seed.py`*
 - [x] 소셜 OAuth(Authlib): Google·Kakao — *provider 검증 이메일만 연결, 공개 Cloudflare callback origin 고정*
+- [x] 로컬 OAuth 세션 쿠키 충돌 방지 — *store refresh 쿠키를 `essesion_store_refresh`로 네임스페이스하고, 다른 localhost 앱의 오래된 `refresh_token`이 공존해도 정상 회전되는 PostgreSQL 회귀 테스트·Aside 새로고침 복원을 확인*
 - [x] 소셜 OAuth(Authlib): Apple·Naver — *Naver는 @naver.com 주소만 검증 취급, Apple은 .p8 ES256 client_secret JWT + form_post POST 콜백(세션 쿠키 SameSite=None). Apple Services ID 등록·운영 E2E는 미완(Services ID 발급 대기)*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
@@ -62,7 +65,7 @@
 - [x] **결정론 계약 대조 테스트**: 같은 intent+seed → byte-identical SVG (기존 seamless-tile 테스트 50+개 기준) — *원본 엔진 재실행으로 추출한 intent 골든 25종을 byte-identical 통과하고 대표 seed·candidate 변형을 별도 검증. 대표 compose는 PYTHONHASHSEED 0/1/12345에서 교차 검증. 원본 테스트 계층 이식 완료(래스터 seam 가드·motif_id parity·geometry·엔진 엣지)*
 - [x] 리팩토링(원본 대조 점검 후속): config 검증·defusedxml·resolver 가드·어댑터 수명·stripe 정규화·/export 배선·프리뷰 병렬화·render/weave 분리 — *스펙 `docs/specs/worker-refactor.md`(R1~R15 완료, glyph·이미지 경로 등은 5단계 트랙), 실행 기록 `docs/plans/worker-refactor.md`*
 - [x] 전체 감사 후 worker 실행 경계 하드닝 — *finalize 960초 processing lease+attempt 조건부 terminal update(실 Postgres 통합 테스트), invalid input만 terminal 처리하고 그 밖의 예외는 temporary marker+500으로 다음 delivery에서 재실행, 공개 오류 코드로 raw 예외 노출 차단, motif read savepoint로 앞선 미커밋 upsert 보존, generate/finalize `SERVICE_MODE` 라우터·OIDC audience 분리, Cloud Tasks audience·910초 dispatch deadline 정합화, path/lattice/scatter/stripe 반복량 사전 상한, Poisson 공간 격자, 래스터 20M pixel·120초 timeout, preview/Cloud Run 동시성 제한, Recraft strict base64/바이트 상한(URL 2차 요청 제거).*
-- [x] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *모티프는 요청 스코프 MotifCatalog(DB 조회 → 엔진 명시 인자, 전역 registry는 테스트 폴백만). finalize·recraft 예산 둘 다 세션 행 조건부 UPDATE(+실패/reused 보상). freeze 캐시는 content-hash upsert로 대체*
+- [x] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *모티프는 요청 스코프 MotifCatalog(DB 조회 → 엔진 명시 인자, 전역 registry는 테스트 폴백만). recraft 예산은 세션 행 조건부 UPDATE(+실패/reused 보상), finalize는 이후 계정당 24시간 쿼터로 재설계(generation_jobs 카운트 — failed/canceled 제외, 환불 로직 없음, worker-pipeline.md §5). freeze 캐시는 content-hash upsert로 대체*
 - [x] GCS 연결(content-hash 키 + create-only) — *fabric은 content-hash key, preview는 request/candidate/content-hash key로 `if_generation_match=0` 업로드. 동일 객체 412만 멱등 성공이며 preview 업로드 장애는 key null+경고로 격하*
 - [ ] 두 서비스 배포: worker-generate(동기 OIDC, 1vCPU/1GB) + worker-finalize(Cloud Tasks 푸시, 2vCPU/4GB, 동시성 1~2, dpi 상한 600) — *tofu에 서비스 구성·env/시크릿 결선·deploy.yml까지 완료 — **남은 것은 스테이징 개통 실행뿐**: `infra/README.md` 순서(2단계 apply·시크릿→`api.essesion.shop` 프록시 선개통→GitHub vars→main 푸시)*
 - [x] api 연결: generate 동기 호출 + finalize 잡 등록/상태 조회(폴링), 세션 상태는 api 소유 — *Cloud Tasks는 job id 기반 결정적 task name, 동일 이름/409 성공 수렴, OIDC audience로 ambiguous enqueue를 멱등 재시도한다. worker가 이미 queued job을 claim한 경우 최신 job을 반환하고, 보상이 확정된 failed job에 늦게 도착한 task는 실행하지 않는다. design 수치는 NaN/Infinity를 거부하고 session/generate/motif seed는 signed-int64로 제한한다. generate 과금은 선차감·실패 환불.*
@@ -88,7 +91,7 @@
 - [x] custom-order 자동 타이 돌려묶기 — 자동 타이 전용 선택·수동 전환 시 해제, 무상 사양 저장과 서버 검증·회귀 테스트 적용
 - [x] sample-order 사후 개선 — 가격 계산을 가격 결정 키 기반 TanStack Query 캐시로 전환, 원단·타이·심지 SelectBox 정합화, 유의사항·후속 쿠폰 안내, 첨부 5장 통일, draft 방어 파싱 테스트 보강. 단가 재책정 여부는 운영 근거 부재로 현행 유지(`docs/plans/store-sample-order.md` §5-D)
 - [x] cart 빈 상태 라우팅 회귀 수정 — 빈 선택 상태의 참조를 보존해 무한 재렌더와 URL만 바뀌는 페이지 이동 정지 방지, 선택 동기화 단위 테스트 추가
-- [x] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — 대화형 세션·생성/변형·후보 선택·SVG 미리보기·내보내기·finalize 작업 복구·완성 디자인 주문 첨부, 토큰 과금/실패 환불과 워커 응답 계약, 모바일/데스크톱 UI 및 api-client 동기화 완료 (`docs/plans/store-design.md`). **이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
+- [x] `/design` 신규 기획·설계(seamless 플로우 기준 — 보존 예외) — 대화형 세션·생성/변형·후보 선택·SVG 미리보기·내보내기·finalize 작업 복구·완성 디자인 주문 첨부, 토큰 과금/실패 환불과 워커 응답 계약, 모바일/데스크톱 UI 및 api-client 동기화 완료 (`docs/plans/store-design.md`). 세션 삭제(`DELETE /design/sessions/{id}`, 턴 CASCADE·완성본은 SET NULL로 보존)와 내 완성본 목록·삭제(`DELETE /design/jobs/{id}`, 종결 상태만·GCS 산출물 정리 — 24h 쿼터 재설계 후 삭제 행은 카운트에서 제외)를 디자인 페이지에 추가 — 주문은 복사본 참조라 삭제와 무관. **이연 기능 목록은 `docs/specs/worker-refactor.md` "범위 밖" 표 참조**: glyph(텍스트-as-모티프), 이미지 입력 경로(reference_image·vectorize), 대화형 편집 도구, `/palettes` 프리셋, retrieval eval 하네스, 워커 앱 레벨 예외 핸들러
 - [x] admin 재작성 개발 플랜 — 기존 25개 라우트 inventory, API 선행 계약, 수직 슬라이스·검증 기준과 추가 보안·동시성·운영 복구·접근성 검토 반영 (`docs/plans/admin-rewrite.md`)
 - [x] admin 재작성 — 기존 라우트 기준 (`docs/plans/admin-rewrite.md`) — *A~J 구현 완료. 최신 전체 gate는 OpenAPI 128 paths drift 0, Python 651건(+147 subtests)·shared 49건·store 162건·admin 100건, repo lint/build/typecheck와 실제 PostgreSQL Playwright admin smoke 통과. Aside에서 1440/390/767/768/1024px·200% zoom, 대표 mutation·focus·reduced motion·ScrollFog·탭 간 logout 검증. 실제 GCP·Cloudflare 개통과 capability `real` 확인은 별도 배포 항목으로 인계.*
 - [x] admin 검토 후 개선 — *편집 기준 revision 고정, 범위 밖 page URL 교정, invalid submit 첫 오류 focus, 동일 제목 라우트 focus, terminal/hidden polling 중단, dev port 3001 정합화 및 회귀 테스트.*

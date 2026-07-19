@@ -72,12 +72,15 @@ class Settings(BaseSettings):
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §6)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
     gcs_assets_public_base_url: str = ""  # Cloudflare asset proxy 사용 시 override
+    # 로컬 GCS 에뮬레이터(docker compose의 fake-gcs-server) origin — local/test 전용.
+    # 설정하면 RealGcsClient가 서명 없이 이 호스트로 업로드·서빙 URL을 발급한다.
+    gcs_emulator_host: str = ""
     worker_base_url: str = "http://localhost:8001"
     worker_timeout_seconds: float = 180.0
     worker_finalize_inline: bool = False
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
     worker_finalize_oidc_audience: str = ""
-    design_finalize_budget: int = 10  # 세션당 finalize 상한 (worker-pipeline.md §5)
+    # finalize 상한은 계정당 24시간 쿼터 — admin_settings 'design_finalize_daily_limit'
     design_recraft_budget: int = 3  # 세션당 Recraft 모티프 생성 상한 (worker-motifs.md §5)
     gcp_project_id: str = ""
     gcp_region: str = "asia-northeast3"

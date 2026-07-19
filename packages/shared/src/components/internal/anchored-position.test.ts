@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  type AnchoredPlacement,
   type FloatingRect,
-  type HelpBubblePlacement,
-  positionHelpBubble,
-} from "./help-bubble-position";
+  positionAnchored,
+} from "./anchored-position";
 
 const reference: FloatingRect = {
   top: 200,
@@ -19,13 +19,13 @@ const viewport = { width: 800, height: 600 };
 const defaults = {
   gutter: 4,
   overflowPadding: 16,
-  arrowPadding: 14,
   flip: false as const,
   slide: false,
+  arrow: { width: 12, height: 8, padding: 14 },
 };
 
-describe("positionHelpBubble", () => {
-  it.each<[HelpBubblePlacement, number, number]>([
+describe("positionAnchored", () => {
+  it.each<[AnchoredPlacement, number, number]>([
     ["top", 108, 240],
     ["top-start", 108, 300],
     ["top-end", 108, 180],
@@ -40,7 +40,7 @@ describe("positionHelpBubble", () => {
     ["right-end", 160, 352],
   ])("places %s at the expected coordinates", (placement, top, left) => {
     expect(
-      positionHelpBubble(reference, floating, viewport, {
+      positionAnchored(reference, floating, viewport, {
         ...defaults,
         placement,
       }),
@@ -48,7 +48,7 @@ describe("positionHelpBubble", () => {
   });
 
   it("flips when the preferred side overflows", () => {
-    const result = positionHelpBubble(
+    const result = positionAnchored(
       { ...reference, top: 8, bottom: 48 },
       floating,
       viewport,
@@ -58,7 +58,7 @@ describe("positionHelpBubble", () => {
   });
 
   it("slides inside the viewport and keeps the arrow near its reference", () => {
-    const result = positionHelpBubble(
+    const result = positionAnchored(
       { ...reference, left: 0, right: 40 },
       floating,
       viewport,
@@ -69,7 +69,7 @@ describe("positionHelpBubble", () => {
   });
 
   it("uses explicit fallback placements in order", () => {
-    const result = positionHelpBubble(
+    const result = positionAnchored(
       { ...reference, top: 20, bottom: 60 },
       floating,
       viewport,
@@ -80,5 +80,26 @@ describe("positionHelpBubble", () => {
       },
     );
     expect(result.placement).toBe("right-start");
+  });
+
+  it("uses the bare gutter and skips arrow coordinates without an arrow", () => {
+    const { arrow: _arrow, ...noArrow } = defaults;
+    const result = positionAnchored(reference, floating, viewport, {
+      ...noArrow,
+      placement: "bottom",
+    });
+    expect(result).toMatchObject({ placement: "bottom", top: 244, left: 240 });
+    expect(result.arrowX).toBeUndefined();
+    expect(result.arrowY).toBeUndefined();
+  });
+
+  it("skips arrowY on side placements without an arrow", () => {
+    const { arrow: _arrow, ...noArrow } = defaults;
+    const result = positionAnchored(reference, floating, viewport, {
+      ...noArrow,
+      placement: "right",
+    });
+    expect(result).toMatchObject({ placement: "right", top: 180, left: 344 });
+    expect(result.arrowY).toBeUndefined();
   });
 });

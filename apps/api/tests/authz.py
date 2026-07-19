@@ -203,6 +203,29 @@ async def _design_motif_generate(session: AsyncSession, owner: User) -> tuple[st
     )
 
 
+async def _design_session_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    return await _design_session_detail(session, owner)
+
+
+async def _design_job_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession, GenerationJob
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.flush()
+    job = GenerationJob(
+        user_id=owner.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="succeeded",
+        params={},
+        result={"object_key": "fabric/authz-test.png"},
+    )
+    session.add(job)
+    await session.commit()
+    return f"/design/jobs/{job.id}", None
+
+
 async def _design_job_detail(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.design import DesignSession, GenerationJob
 
@@ -218,6 +241,23 @@ async def _design_job_detail(session: AsyncSession, owner: User) -> tuple[str, d
     session.add(job)
     await session.commit()
     return f"/design/jobs/{job.id}", None
+
+
+async def _design_job_cancel(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession, GenerationJob
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.flush()
+    job = GenerationJob(
+        user_id=owner.id,
+        session_id=design_session.id,
+        kind="finalize",
+        params={},
+    )
+    session.add(job)
+    await session.commit()
+    return f"/design/jobs/{job.id}/cancel", None
 
 
 async def _address_delete(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
@@ -248,7 +288,10 @@ OWNER_CASES: list[OwnerCase] = [
     OwnerCase("reviews_update", "PATCH", _review_update),
     OwnerCase("reviews_delete", "DELETE", _review_delete),
     OwnerCase("design_session_detail", "GET", _design_session_detail),
+    OwnerCase("design_session_delete", "DELETE", _design_session_delete),
     OwnerCase("design_job_detail", "GET", _design_job_detail),
+    OwnerCase("design_job_delete", "DELETE", _design_job_delete),
+    OwnerCase("design_job_cancel", "POST", _design_job_cancel),
     OwnerCase("design_motif_candidates", "POST", _design_motif_candidates),
     OwnerCase("design_motif_generate", "POST", _design_motif_generate),
     OwnerCase("address_delete", "DELETE", _address_delete),

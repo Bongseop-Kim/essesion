@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     service_mode: Literal["all", "generate", "finalize"] = "all"
     database_url: str = "postgresql+asyncpg://essesion:essesion@localhost:5432/essesion"
     gcs_bucket: str = ""
+    # 로컬 GCS 에뮬레이터(docker compose의 fake-gcs-server) origin — local/test 전용.
+    # api의 gcs_emulator_host와 같은 값이어야 api가 산출물 URL을 서빙할 수 있다.
+    gcs_emulator_host: str = ""
     db_pool_size: int = Field(default=2, ge=1, le=20)
     db_max_overflow: int = Field(default=0, ge=0, le=20)
     db_pool_timeout_seconds: float = Field(default=10.0, gt=0, le=60)

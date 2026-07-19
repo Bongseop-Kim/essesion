@@ -14,9 +14,8 @@ import {
   ChevronRightIcon,
   ExclamationTriangleIcon,
   FolderOpenIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
-
-const FINALIZE_LIMIT = 10;
 
 const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
   year: "numeric",
@@ -30,7 +29,6 @@ export type DesignSessionSummary = {
   id: string;
   createdAt: string;
   status: string;
-  finalizeUsed: number;
   /** 마지막 생성 프롬프트 — 세션 구분용 요약 (프롬프트 턴이 없으면 null) */
   lastPrompt: string | null;
 };
@@ -40,6 +38,8 @@ export type SessionListModalProps = {
   onOpenChange: (open: boolean) => void;
   sessions: readonly DesignSessionSummary[];
   onSelect: (session: DesignSessionSummary) => void;
+  /** 삭제 확인 플로우 시작 — 확인 다이얼로그는 호출자가 담당한다. */
+  onDelete?: (session: DesignSessionSummary) => void;
   selectedId?: string | null;
   loading?: boolean;
   error?: boolean | string | null;
@@ -51,6 +51,7 @@ export function SessionListModal({
   onOpenChange,
   sessions,
   onSelect,
+  onDelete,
   selectedId,
   loading = false,
   error = null,
@@ -99,45 +100,65 @@ export function SessionListModal({
             const selected = session.id === selectedId;
             const status = sessionStatus(session.status);
             return (
-              <Box
-                as="button"
-                type="button"
+              <HStack
                 key={session.id}
-                width="full"
-                aria-pressed={selected}
-                onClick={() => onSelect(session)}
+                gap="x1"
                 borderWidth={1}
                 borderColor={selected ? "stroke.brand" : "stroke.neutral-weak"}
                 borderRadius="r3"
                 bg={selected ? "bg.brand-weak" : "bg.layer-default"}
-                px="x4"
-                py="x4"
-                className="text-left transition-colors duration-100 ease-standard hover:border-stroke-brand hover:bg-bg-neutral-weak focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                pr={onDelete ? "x2" : undefined}
+                className="transition-colors duration-100 ease-standard hover:border-stroke-brand"
               >
-                <HStack justify="space-between" gap="x3">
-                  <VStack gap="x2" minWidth={0} alignItems="stretch">
-                    <Text textStyle="labelSm">
-                      {formatDate(session.createdAt)}
-                    </Text>
-                    {session.lastPrompt ? (
-                      <Text textStyle="caption" color="fg.neutral" maxLines={1}>
-                        “{session.lastPrompt}”
+                <Box
+                  as="button"
+                  type="button"
+                  flex={1}
+                  minWidth={0}
+                  aria-pressed={selected}
+                  onClick={() => onSelect(session)}
+                  px="x4"
+                  py="x4"
+                  borderRadius="r3"
+                  className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                >
+                  <HStack justify="space-between" gap="x3">
+                    <VStack gap="x2" minWidth={0} alignItems="stretch">
+                      <Text textStyle="labelSm">
+                        {formatDate(session.createdAt)}
                       </Text>
-                    ) : null}
-                    <HStack gap="x2" wrap>
-                      <Badge tone={status.tone}>{status.label}</Badge>
-                      <Text textStyle="caption" color="fg.neutral-muted">
-                        원단 시뮬레이션 {session.finalizeUsed}/{FINALIZE_LIMIT}
-                      </Text>
-                    </HStack>
-                  </VStack>
-                  <Icon
-                    svg={<ChevronRightIcon />}
-                    size={20}
-                    color="fg.neutral-subtle"
-                  />
-                </HStack>
-              </Box>
+                      {session.lastPrompt ? (
+                        <Text
+                          textStyle="caption"
+                          color="fg.neutral"
+                          maxLines={1}
+                        >
+                          “{session.lastPrompt}”
+                        </Text>
+                      ) : null}
+                      <HStack gap="x2" wrap>
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                      </HStack>
+                    </VStack>
+                    <Icon
+                      svg={<ChevronRightIcon />}
+                      size={20}
+                      color="fg.neutral-subtle"
+                    />
+                  </HStack>
+                </Box>
+                {onDelete ? (
+                  <ActionButton
+                    type="button"
+                    size="small"
+                    variant="ghost"
+                    aria-label={`${formatDate(session.createdAt)} 세션 삭제`}
+                    onClick={() => onDelete(session)}
+                  >
+                    <Icon svg={<TrashIcon />} size={18} />
+                  </ActionButton>
+                ) : null}
+              </HStack>
             );
           })}
         </VStack>

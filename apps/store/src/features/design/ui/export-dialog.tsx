@@ -65,7 +65,7 @@ export function ExportDialog({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="디자인 내보내기"
+      title="디자인 내려받기"
       description="인쇄에 맞는 파일 형식과 해상도를 선택해 주세요."
       size="medium"
       showCloseButton
@@ -163,8 +163,8 @@ export function ExportDialog({
 
           <Callout
             tone="neutral"
-            title="무료 내보내기"
-            description="PNG와 TIFF 내보내기는 토큰을 사용하지 않아요."
+            title="무료 내려받기"
+            description="PNG와 TIFF 내려받기는 토큰을 사용하지 않아요."
           />
         </VStack>
       </Box>

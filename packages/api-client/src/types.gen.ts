@@ -1960,7 +1960,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -3201,10 +3201,7 @@ export type DesignSessionOut = {
     current_intent: {
         [key: string]: unknown;
     } | null;
-    /**
-     * Finalize Used
-     */
-    finalize_used: number;
+    finalize_quota?: FinalizeQuotaOut | null;
     /**
      * Id
      */
@@ -3297,6 +3294,30 @@ export type DesignTurnOut = {
      * Seq
      */
     seq: number;
+};
+
+/**
+ * FinalizeQuotaOut
+ *
+ * 계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).
+ */
+export type FinalizeQuotaOut = {
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Remaining
+     */
+    remaining: number;
+    /**
+     * Reset At
+     */
+    reset_at: string | null;
+    /**
+     * Used
+     */
+    used: number;
 };
 
 /**
@@ -3394,7 +3415,7 @@ export type GenerationJobDetailOut = {
     /**
      * Status
      */
-    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    status: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled';
     /**
      * Updated At
      */
@@ -3472,6 +3493,10 @@ export type GenerationJobStatsOut = {
      */
     average_attempts: number;
     /**
+     * Canceled
+     */
+    canceled: number;
+    /**
      * Failed
      */
     failed: number;
@@ -3528,7 +3553,7 @@ export type GenerationJobSummaryOut = {
     /**
      * Status
      */
-    status: 'queued' | 'processing' | 'succeeded' | 'failed';
+    status: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled';
     /**
      * Updated At
      */
@@ -6647,7 +6672,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Value
      */
@@ -8090,7 +8115,7 @@ export type ListAdminGenerationJobsData = {
         /**
          * Status
          */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
         /**
          * User Id
          */
@@ -8148,7 +8173,7 @@ export type GetAdminGenerationJobStatsData = {
         /**
          * Status
          */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
         /**
          * User Id
          */
@@ -10362,7 +10387,7 @@ export type ListGenerationJobsData = {
         /**
          * Status
          */
-        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | null;
+        status?: 'queued' | 'processing' | 'succeeded' | 'failed' | 'canceled' | null;
         /**
          * Session Id
          */
@@ -10399,6 +10424,36 @@ export type ListGenerationJobsResponses = {
 
 export type ListGenerationJobsResponse = ListGenerationJobsResponses[keyof ListGenerationJobsResponses];
 
+export type DeleteGenerationJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/design/jobs/{job_id}';
+};
+
+export type DeleteGenerationJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteGenerationJobError = DeleteGenerationJobErrors[keyof DeleteGenerationJobErrors];
+
+export type DeleteGenerationJobResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteGenerationJobResponse = DeleteGenerationJobResponses[keyof DeleteGenerationJobResponses];
+
 export type GetGenerationJobData = {
     body?: never;
     path: {
@@ -10428,6 +10483,36 @@ export type GetGenerationJobResponses = {
 };
 
 export type GetGenerationJobResponse = GetGenerationJobResponses[keyof GetGenerationJobResponses];
+
+export type CancelGenerationJobData = {
+    body?: never;
+    path: {
+        /**
+         * Job Id
+         */
+        job_id: string;
+    };
+    query?: never;
+    url: '/design/jobs/{job_id}/cancel';
+};
+
+export type CancelGenerationJobErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelGenerationJobError = CancelGenerationJobErrors[keyof CancelGenerationJobErrors];
+
+export type CancelGenerationJobResponses = {
+    /**
+     * Successful Response
+     */
+    200: GenerationJobOut;
+};
+
+export type CancelGenerationJobResponse = CancelGenerationJobResponses[keyof CancelGenerationJobResponses];
 
 export type CreateDesignOrderReferenceData = {
     body?: never;
@@ -10497,6 +10582,36 @@ export type CreateDesignSessionResponses = {
 };
 
 export type CreateDesignSessionResponse = CreateDesignSessionResponses[keyof CreateDesignSessionResponses];
+
+export type DeleteDesignSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}';
+};
+
+export type DeleteDesignSessionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteDesignSessionError = DeleteDesignSessionErrors[keyof DeleteDesignSessionErrors];
+
+export type DeleteDesignSessionResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteDesignSessionResponse = DeleteDesignSessionResponses[keyof DeleteDesignSessionResponses];
 
 export type GetDesignSessionData = {
     body?: never;

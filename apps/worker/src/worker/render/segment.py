@@ -20,6 +20,7 @@ from PIL import Image
 from worker.engine.composition import compose
 from worker.engine.intent import Intent
 from worker.engine.palette import DEFAULT_COLORWAY_ID, ColorSlot, Colorway, Palette
+from worker.motifs.registry import MotifCatalog
 from worker.render import raster
 
 _ALIAS_PREFIX = "__motif__"
@@ -110,6 +111,7 @@ def segment(
     dpi: int,
     tile_mm: float,
     split_motifs: bool,
+    motifs: MotifCatalog | None = None,
 ) -> Segmentation:
     """라벨 렌더 1회로 슬롯 세그먼트를 얻는다. split_motifs면 별칭 슬롯으로 모티프
     마스크까지 파생한다."""
@@ -136,7 +138,7 @@ def segment(
     label_palette = Palette(slots=label_slots, colorways=(label_cw,))
 
     render_intent = _alias_motif_layers(intent, aliases) if aliases else intent
-    svg = compose(render_intent, label_palette, DEFAULT_COLORWAY_ID)
+    svg = compose(render_intent, label_palette, DEFAULT_COLORWAY_ID, motifs)
     png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi)
     rgb = Image.open(io.BytesIO(png)).convert("RGB")
 

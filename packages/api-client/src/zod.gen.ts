@@ -675,7 +675,11 @@ export const zAdminRepairPhotoOut = z.object({
  * AdminSettingOut
  */
 export const zAdminSettingOut = z.object({
-    key: z.enum(['default_courier_company', 'design_token_initial_grant']),
+    key: z.enum([
+        'default_courier_company',
+        'design_finalize_daily_limit',
+        'design_token_initial_grant'
+    ]),
     updated_at: z.iso.datetime(),
     updated_by: z.uuid().nullable(),
     value: z.string(),
@@ -1176,23 +1180,6 @@ export const zDesignOrderReferenceOut = z.object({
 });
 
 /**
- * DesignSessionOut
- */
-export const zDesignSessionOut = z.object({
-    colorway: z.string().nullable(),
-    created_at: z.iso.datetime(),
-    current_intent: z.record(z.string(), z.unknown()).nullable(),
-    finalize_used: z.int(),
-    id: z.uuid(),
-    last_prompt: z.string().nullish(),
-    recraft_used: z.int(),
-    registry_version: z.string().nullable(),
-    seed: z.int().nullable(),
-    status: z.string(),
-    updated_at: z.iso.datetime()
-});
-
-/**
  * DesignSessionUpdateRequest
  */
 export const zDesignSessionUpdateRequest = z.object({
@@ -1218,6 +1205,35 @@ export const zDesignTurnOut = z.object({
     payload: z.record(z.string(), z.unknown()),
     role: z.string(),
     seq: z.int()
+});
+
+/**
+ * FinalizeQuotaOut
+ *
+ * 계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).
+ */
+export const zFinalizeQuotaOut = z.object({
+    limit: z.int(),
+    remaining: z.int(),
+    reset_at: z.iso.datetime().nullable(),
+    used: z.int()
+});
+
+/**
+ * DesignSessionOut
+ */
+export const zDesignSessionOut = z.object({
+    colorway: z.string().nullable(),
+    created_at: z.iso.datetime(),
+    current_intent: z.record(z.string(), z.unknown()).nullable(),
+    finalize_quota: zFinalizeQuotaOut.nullish(),
+    id: z.uuid(),
+    last_prompt: z.string().nullish(),
+    recraft_used: z.int(),
+    registry_version: z.string().nullable(),
+    seed: z.int().nullable(),
+    status: z.string(),
+    updated_at: z.iso.datetime()
 });
 
 /**
@@ -1253,7 +1269,8 @@ export const zGenerationJobDetailOut = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]),
     updated_at: z.iso.datetime()
 });
@@ -1282,6 +1299,7 @@ export const zGenerationJobOut = z.object({
 export const zGenerationJobStatsOut = z.object({
     as_of: z.iso.datetime(),
     average_attempts: z.number(),
+    canceled: z.int(),
     failed: z.int(),
     processing: z.int(),
     queued: z.int(),
@@ -1304,7 +1322,8 @@ export const zGenerationJobSummaryOut = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]),
     updated_at: z.iso.datetime()
 });
@@ -2672,7 +2691,11 @@ export const zPageSeamlessSummaryOut = z.object({
  */
 export const zSettingUpdateItem = z.object({
     expected_updated_at: z.iso.datetime(),
-    key: z.enum(['default_courier_company', 'design_token_initial_grant']),
+    key: z.enum([
+        'default_courier_company',
+        'design_finalize_daily_limit',
+        'design_token_initial_grant'
+    ]),
     value: z.string().max(100)
 });
 
@@ -2680,7 +2703,7 @@ export const zSettingUpdateItem = z.object({
  * SettingsUpdateRequest
  */
 export const zSettingsUpdateRequest = z.object({
-    items: z.array(zSettingUpdateItem).min(1).max(2),
+    items: z.array(zSettingUpdateItem).min(1).max(3),
     operation_id: z.uuid(),
     reason: z.string().min(3).max(500)
 });
@@ -3469,7 +3492,8 @@ export const zListAdminGenerationJobsQuery = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]).nullish(),
     user_id: z.uuid().nullish(),
     start: z.iso.datetime().nullish(),
@@ -3490,7 +3514,8 @@ export const zGetAdminGenerationJobStatsQuery = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]).nullish(),
     user_id: z.uuid().nullish(),
     start: z.iso.datetime().nullish(),
@@ -4299,7 +4324,8 @@ export const zListGenerationJobsQuery = z.object({
         'queued',
         'processing',
         'succeeded',
-        'failed'
+        'failed',
+        'canceled'
     ]).nullish(),
     session_id: z.uuid().nullish(),
     limit: z.int().gte(1).lte(100).optional().default(20),
@@ -4313,6 +4339,15 @@ export const zListGenerationJobsQuery = z.object({
  */
 export const zListGenerationJobsResponse = z.array(zGenerationJobOut);
 
+export const zDeleteGenerationJobPath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteGenerationJobResponse = z.void();
+
 export const zGetGenerationJobPath = z.object({
     job_id: z.uuid()
 });
@@ -4321,6 +4356,15 @@ export const zGetGenerationJobPath = z.object({
  * Successful Response
  */
 export const zGetGenerationJobResponse = zGenerationJobOut;
+
+export const zCancelGenerationJobPath = z.object({
+    job_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zCancelGenerationJobResponse = zGenerationJobOut;
 
 export const zCreateDesignOrderReferencePath = z.object({
     job_id: z.uuid()
@@ -4346,6 +4390,15 @@ export const zListDesignSessionsResponse = z.array(zDesignSessionOut);
  * Successful Response
  */
 export const zCreateDesignSessionResponse = zDesignSessionOut;
+
+export const zDeleteDesignSessionPath = z.object({
+    session_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDeleteDesignSessionResponse = z.void();
 
 export const zGetDesignSessionPath = z.object({
     session_id: z.uuid()

@@ -14,6 +14,7 @@ from sqlalchemy import select
 from api.db import SessionDep
 from api.deps import AdminOnly, AdminUser
 from api.domains.admin.operations import idempotent_result, record_operation
+from api.domains.design.quota import parse_finalize_limit
 from api.errors import ConflictError, DomainError
 
 router = APIRouter(prefix="/admin", tags=["admin-configuration"])
@@ -60,8 +61,16 @@ PRICE_CATEGORIES: dict[str, str] = {
     "token_plan_pro_price": "token",
     "token_plan_pro_amount": "token",
 }
-SETTING_KEYS = ("default_courier_company", "design_token_initial_grant")
-SettingKey = Literal["default_courier_company", "design_token_initial_grant"]
+SETTING_KEYS = (
+    "default_courier_company",
+    "design_finalize_daily_limit",
+    "design_token_initial_grant",
+)
+SettingKey = Literal[
+    "default_courier_company",
+    "design_finalize_daily_limit",
+    "design_token_initial_grant",
+]
 
 
 class PricingValueOut(BaseModel):
@@ -215,6 +224,15 @@ def _validate_setting(key: str, value: str) -> str:
         if not clean:
             raise DomainError("기본 택배사를 입력해 주세요", code="invalid_setting", status=422)
         return clean
+    if key == "design_finalize_daily_limit":
+        limit = parse_finalize_limit(clean)
+        if limit is None:
+            raise DomainError(
+                "실사화 24시간 한도는 0에서 1000 사이 정수여야 합니다",
+                code="invalid_setting",
+                status=422,
+            )
+        return str(limit)
     if not clean.isdigit() or not 0 <= int(clean) <= 100_000:
         raise DomainError(
             "신규 사용자 초기 토큰은 0에서 100000 사이 정수여야 합니다",

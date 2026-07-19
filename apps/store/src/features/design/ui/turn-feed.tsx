@@ -3,6 +3,7 @@ import {
   ActionButton,
   Box,
   ContentPlaceholder,
+  Flex,
   Icon,
   Text,
   VStack,
@@ -11,7 +12,7 @@ import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { svgToDataUri } from "../model/svg-preview";
 import {
   type DesignTurnPayload,
@@ -37,13 +38,15 @@ export type TurnFeedProps = {
   loading?: boolean;
   generating?: boolean;
   error?: boolean;
-  selectionLoading?: boolean;
   onRetry?: () => void;
   onSelectCandidate: (
     candidate: TurnCandidate,
     intents: GeneratePayload["response"]["intents"],
+    event: MouseEvent<HTMLButtonElement>,
   ) => void;
   renderFinalizeTurn: (payload: FinalizeTurnPayload) => ReactNode;
+  /** 있으면 후보 타일 탭 시 앵커 메뉴로 노출할 항목들(CandidateGrid의 menu). */
+  candidateMenu?: ReactNode;
 };
 
 export function TurnFeed({
@@ -52,10 +55,10 @@ export function TurnFeed({
   loading = false,
   generating = false,
   error = false,
-  selectionLoading = false,
   onRetry,
   onSelectCandidate,
   renderFinalizeTurn,
+  candidateMenu,
 }: TurnFeedProps) {
   if (loading) {
     return (
@@ -67,33 +70,37 @@ export function TurnFeed({
 
   if (error) {
     return (
-      <ContentPlaceholder
-        title="세션 기록을 불러오지 못했어요"
-        description="잠시 후 다시 시도해 주세요."
-        action={
-          onRetry ? (
-            <ActionButton
-              type="button"
-              size="small"
-              variant="neutralOutline"
-              onClick={onRetry}
-            >
-              <Icon svg={<ArrowPathIcon />} size={18} />
-              다시 시도
-            </ActionButton>
-          ) : undefined
-        }
-      />
+      <FeedCenter>
+        <ContentPlaceholder
+          title="세션 기록을 불러오지 못했어요"
+          description="잠시 후 다시 시도해 주세요."
+          action={
+            onRetry ? (
+              <ActionButton
+                type="button"
+                size="small"
+                variant="neutralOutline"
+                onClick={onRetry}
+              >
+                <Icon svg={<ArrowPathIcon />} size={18} />
+                다시 시도
+              </ActionButton>
+            ) : undefined
+          }
+        />
+      </FeedCenter>
     );
   }
 
   if (turns.length === 0 && !generating) {
     return (
-      <ContentPlaceholder
-        icon={<Icon svg={<ChatBubbleLeftRightIcon />} size={32} />}
-        title="첫 디자인을 만들어 보세요"
-        description="색상, 무늬와 분위기를 설명하면 반복 가능한 패턴을 제안해 드려요."
-      />
+      <FeedCenter>
+        <ContentPlaceholder
+          icon={<Icon svg={<ChatBubbleLeftRightIcon />} size={32} />}
+          title="첫 디자인을 만들어 보세요"
+          description="색상, 무늬와 분위기를 설명하면 반복 가능한 패턴을 제안해 드려요."
+        />
+      </FeedCenter>
     );
   }
 
@@ -114,9 +121,9 @@ export function TurnFeed({
             <TurnItem
               payload={payload}
               selectedCandidateId={selectedCandidateId}
-              selectionLoading={selectionLoading}
               onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
+              candidateMenu={candidateMenu}
             />
           </Box>
         );
@@ -130,18 +137,26 @@ export function TurnFeed({
   );
 }
 
+function FeedCenter({ children }: { children: ReactNode }) {
+  return (
+    <Flex direction="column" justify="center" minHeight="full" px="x4">
+      {children}
+    </Flex>
+  );
+}
+
 function TurnItem({
   payload,
   selectedCandidateId,
-  selectionLoading,
   onSelectCandidate,
   renderFinalizeTurn,
+  candidateMenu,
 }: {
   payload: DesignTurnPayload | null;
   selectedCandidateId?: string | null;
-  selectionLoading: boolean;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
+  candidateMenu?: ReactNode;
 }) {
   if (!payload) {
     return (
@@ -163,7 +178,7 @@ function TurnItem({
         >
           <Text textStyle="bodySm">
             {payload.mode === "variation"
-              ? "선택한 디자인의 배리에이션을 만들어 주세요."
+              ? "선택한 디자인과 비슷하게 다시 만들어 주세요."
               : payload.prompt || "새 디자인을 만들어 주세요."}
           </Text>
         </Box>
@@ -187,14 +202,17 @@ function TurnItem({
         candidates={candidates}
         selectedId={selectedCandidateId}
         warnings={localizeDesignWarnings(payload.response.warnings)}
-        disabled={selectionLoading}
-        onSelect={(selected) => {
+        menu={candidateMenu}
+        onSelect={(selected, event) => {
           const candidate = payload.response.candidates.find(
             (item) => item.id === selected.id,
           );
-          if (!candidate) return;
-          if (payload.response.intents[candidate.design_index])
-            onSelectCandidate(candidate, payload.response.intents);
+          // 후보·intent 복원 실패 시 메뉴 오픈도 함께 막는다.
+          if (!candidate || !payload.response.intents[candidate.design_index]) {
+            event.preventDefault();
+            return;
+          }
+          onSelectCandidate(candidate, payload.response.intents, event);
         }}
       />
     );

@@ -3685,6 +3685,7 @@
           "key": {
             "enum": [
               "default_courier_company",
+              "design_finalize_daily_limit",
               "design_token_initial_grant"
             ],
             "title": "Key",
@@ -5940,9 +5941,15 @@
             ],
             "title": "Current Intent"
           },
-          "finalize_used": {
-            "title": "Finalize Used",
-            "type": "integer"
+          "finalize_quota": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinalizeQuotaOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "id": {
             "format": "uuid",
@@ -6004,7 +6011,6 @@
           "registry_version",
           "current_intent",
           "recraft_used",
-          "finalize_used",
           "created_at",
           "updated_at"
         ],
@@ -6111,6 +6117,43 @@
           "created_at"
         ],
         "title": "DesignTurnOut",
+        "type": "object"
+      },
+      "FinalizeQuotaOut": {
+        "description": "계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).",
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "remaining": {
+            "title": "Remaining",
+            "type": "integer"
+          },
+          "reset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reset At"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "limit",
+          "used",
+          "remaining",
+          "reset_at"
+        ],
+        "title": "FinalizeQuotaOut",
         "type": "object"
       },
       "FinalizeRequest": {
@@ -6308,7 +6351,8 @@
               "queued",
               "processing",
               "succeeded",
-              "failed"
+              "failed",
+              "canceled"
             ],
             "title": "Status",
             "type": "string"
@@ -6457,6 +6501,10 @@
             "title": "Average Attempts",
             "type": "number"
           },
+          "canceled": {
+            "title": "Canceled",
+            "type": "integer"
+          },
           "failed": {
             "title": "Failed",
             "type": "integer"
@@ -6484,6 +6532,7 @@
           "processing",
           "succeeded",
           "failed",
+          "canceled",
           "average_attempts",
           "as_of"
         ],
@@ -6545,7 +6594,8 @@
               "queued",
               "processing",
               "succeeded",
-              "failed"
+              "failed",
+              "canceled"
             ],
             "title": "Status",
             "type": "string"
@@ -12281,6 +12331,7 @@
           "key": {
             "enum": [
               "default_courier_company",
+              "design_finalize_daily_limit",
               "design_token_initial_grant"
             ],
             "title": "Key",
@@ -12306,7 +12357,7 @@
             "items": {
               "$ref": "#/components/schemas/SettingUpdateItem"
             },
-            "maxItems": 2,
+            "maxItems": 3,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -15074,7 +15125,8 @@
                     "queued",
                     "processing",
                     "succeeded",
-                    "failed"
+                    "failed",
+                    "canceled"
                   ],
                   "type": "string"
                 },
@@ -15245,7 +15297,8 @@
                     "queued",
                     "processing",
                     "succeeded",
-                    "failed"
+                    "failed",
+                    "canceled"
                   ],
                   "type": "string"
                 },
@@ -19196,7 +19249,7 @@
     },
     "/batch/reconcile-stale-generation-jobs": {
       "post": {
-        "description": "Cloud Tasks 재시도 창을 넘긴 finalize job을 종료하고 세션 예산을 복구한다.",
+        "description": "Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결한다 — 쿼터 슬롯 자동 해제.",
         "operationId": "reconcile_stale_generation_jobs",
         "responses": {
           "200": {
@@ -19636,7 +19689,8 @@
                     "queued",
                     "processing",
                     "succeeded",
-                    "failed"
+                    "failed",
+                    "canceled"
                   ],
                   "type": "string"
                 },
@@ -19726,6 +19780,46 @@
       }
     },
     "/design/jobs/{job_id}": {
+      "delete": {
+        "description": "종결된 잡을 삭제한다 — 진행 중이면 먼저 취소를 거쳐야 한다.\n\n주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하다. 삭제된 행은\n24시간 쿼터 카운트에서 빠져 슬롯이 풀린다 — 세션당 예산 시절의 \"삭제해도\n미환불\" 정책을 의도적으로 뒤집은 것(결과물을 버려야 슬롯이 나와 남용 유인 약함).",
+        "operationId": "delete_generation_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Generation Job",
+        "tags": [
+          "design"
+        ]
+      },
       "get": {
         "operationId": "get_generation_job",
         "parameters": [
@@ -19768,6 +19862,55 @@
           }
         ],
         "summary": "Get Generation Job",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/jobs/{job_id}/cancel": {
+      "post": {
+        "description": "진행 중인 finalize job을 취소한다 (멱등).\n\ncanceled job은 24시간 쿼터 카운트에서 빠지므로 슬롯은 자동 해제된다.\n조건부 UPDATE가 전이의 원자성을 보장한다 — 워커가 먼저 종결하면\nrowcount=0으로 지고, 늦게 도착한 워커 렌더 결과는 _finish_job의\nprocessing 가드에 걸려 무효화된다.",
+        "operationId": "cancel_generation_job",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancel Generation Job",
         "tags": [
           "design"
         ]
@@ -19891,6 +20034,46 @@
       }
     },
     "/design/sessions/{session_id}": {
+      "delete": {
+        "description": "세션과 턴 이력을 삭제한다.\n\nfinalize 결과물(generation_jobs)은 세션과 독립적인 사용자 소유 산출물이라\n남긴다(FK SET NULL) — 완성본 정리는 DELETE /design/jobs/{job_id}로.",
+        "operationId": "delete_design_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Design Session",
+        "tags": [
+          "design"
+        ]
+      },
       "get": {
         "operationId": "get_design_session",
         "parameters": [

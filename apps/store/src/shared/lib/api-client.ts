@@ -71,7 +71,7 @@ channel?.addEventListener("message", (event: MessageEvent<SessionMessage>) => {
 // 생성 client 싱글턴을 한 곳에서 설정 — 모든 SDK 호출이 이 인스턴스를 공유한다.
 client.setConfig({
   baseUrl: API_BASE_URL,
-  // refresh_token 쿠키(path=/auth)를 /auth/refresh·/auth/logout 요청에 실어보낸다.
+  // store refresh 쿠키(path=/auth)를 /auth/refresh·/auth/logout 요청에 실어보낸다.
   credentials: "include",
 });
 

@@ -52,7 +52,7 @@ print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회
 - `POST /api/v1/generate`: 입력 `{prompt?, reference_image?(≤12M chars), images?(≤8, 합 24M), canvas?, palette?, intent?, colorway?, seed?, candidate_count(1..8, 기본 1), session_id?, from_checkpoint?}` — 우선순위 intent > images > reference_image > prompt, 전부 없으면 422. **응답은 슬림**: `{request_id, candidates: [{id, png_url}], warnings}` — svg·repro는 generation_logs에만.
 - `POST /api/v1/finalize`: `{intent, colorway_id?, production_method?, weave="twill-45", material_map?, dpi?, texture_strength?, relief_strength?}` → `{request_id, image_url?, warnings}`. 업로드 키 `fabric/{sha256(png)[:16]}.png`(content-addressed, create-only).
 - `POST /api/v1/export`: `{svg(≤2M), format: png|tiff, dpi=300, width_mm(gt0), height_mm?}` → 바이너리. 클라이언트 SVG는 **scrub**(재직렬화 — 엔진 출력과 달리 신뢰 불가). 400: dpi>1200, mm>2000, px>20000.
-- 세션 라우트(LangGraph): propose→select→commit→finalize, motif_candidates interrupt 게이트, confirm(generate_motif=Recraft 승인/finalize), budget(recraft 3/finalize 10). **재구현에서 세션 계층 전체 미승계** — 세션은 api 소유(design_sessions/turns), 게이트·budget 의미는 api가 재현.
+- 세션 라우트(LangGraph): propose→select→commit→finalize, motif_candidates interrupt 게이트, confirm(generate_motif=Recraft 승인/finalize), budget(recraft 3/finalize 10). **재구현에서 세션 계층 전체 미승계** — 세션은 api 소유(design_sessions/turns), 게이트·recraft budget 의미는 api가 재현. finalize는 세션 예산 대신 계정당 24시간 쿼터로 대체(§5).
 - 미들웨어: X-Request-ID(정규화: 비허용문자→`-`, 128자 캡), 인증 없음, CORS 없음. 에러 body `{detail, request_id}`.
 
 ## 5. 재구현 계약 — 새 아키텍처의 worker (의도적 차이)
@@ -69,10 +69,10 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 
 **worker-finalize** (2vCPU/4Gi, 동시성 1~2, dpi 상한 600 — 엔진 기본 300):
 - `POST /tasks/finalize` — Cloud Tasks 푸시 핸들러. 페이로드 `{job_id}`(+ 검증용 최소 필드). 파라미터는 DB `generation_jobs.params`가 원천(페이로드 비대·중복 방지).
-- enqueue는 `finalize-{job_id}` 결정적 task name을 사용해 응답 유실 시 같은 요청을 한 번 재시도하고 `ALREADY_EXISTS`(409)를 성공으로 수렴시킨다. OIDC audience는 worker 서비스 base URL로 명시하며, `dispatchDeadline=910s`를 960초 processing lease보다 짧게 둔다. API가 최종 전달 실패로 job을 failed 처리하고 finalize 예산을 환불한 경우, 뒤늦게 도착한 동일 task는 worker가 렌더 전에 2xx로 ACK하되 실행하지 않는다. 반대로 enqueue 예외 시 worker가 이미 queued job을 claim했다면 조건부 실패 전이가 0건이므로 예산을 환불하거나 502를 내지 않고 최신 job 상태를 반환한다.
+- enqueue는 `finalize-{job_id}` 결정적 task name을 사용해 응답 유실 시 같은 요청을 한 번 재시도하고 `ALREADY_EXISTS`(409)를 성공으로 수렴시킨다. OIDC audience는 worker 서비스 base URL로 명시하며, `dispatchDeadline=910s`를 960초 processing lease보다 짧게 둔다. API가 최종 전달 실패로 job을 failed 처리한 경우(failed는 쿼터 카운트에서 제외 — 슬롯 자동 해제), 뒤늦게 도착한 동일 task는 worker가 렌더 전에 2xx로 ACK하되 실행하지 않는다. 반대로 enqueue 예외 시 worker가 이미 queued job을 claim했다면 조건부 실패 전이가 0건이므로 502를 내지 않고 최신 job 상태를 반환한다.
 - 처리: job FOR UPDATE(queued, 정확한 `FINALIZE_TEMPORARY_FAILURE` marker의 failed, 또는 lease 960초가 지난 processing→processing, attempts+1) → render_fabric(재설계 파이프라인) → GCS `fabric/{sha256[:16]}.png` create-only 업로드(`if_generation_match=0`, 같은 내용의 기존 객체 412는 멱등 성공) → 현재 attempt만 succeeded+result{object_key}. 입력 오류·알 수 없는 failed는 terminal 2xx ACK로 재렌더하지 않는다. fresh processing은 재시도 가능한 409, late completion은 attempt 조건으로 무시, succeeded는 즉시 200. Cloud Tasks는 실패 전달을 최초 시도 포함 최대 4회(`max_attempts=4`), 10~60초 backoff로 재시도하며 `max_retry_duration`은 두지 않는다. 실패 시 원시 예외는 상세 로그에만 기록하고, HTTP 응답과 `generation_jobs.error_message`에는 안정된 공개 코드·메시지(`FINALIZE_INVALID_INPUT`, `FINALIZE_TEMPORARY_FAILURE`)만 저장한다.
 - `POST /export` — 동기(작고 빠름), generate 서비스에 두는 것도 가능하나 CPU 바운드이므로 finalize 서비스 소속.
-- finalize 예산(design_sessions.finalize_used)·잡 생성·상태 조회는 api 소유(generation_jobs — 3단계에 골격 존재).
+- finalize 제한·잡 생성·상태 조회는 api 소유. 제한은 세션 예산이 아니라 **계정당 24시간 윈도우 쿼터**: 생성 시 계정의 최근 24시간 finalize job 수(failed/canceled 제외)를 세어 admin_settings `design_finalize_daily_limit`(기본 10)와 비교하고, 동시 요청은 계정 단위 advisory lock으로 직렬화한다(api/domains/design/quota.py). 실패·취소·삭제된 job은 카운트에서 빠지므로 **건당 환불이 없다** — canceled 전이(사용자 취소·stale 회수)는 상태 변경만 한다.
 
 **DB 접근**: 워커는 motifs(R/W)·seamless_generation_logs(W)·generation_jobs(W, finalize만). SQLAlchemy async + essesion-db 모델 재사용(원본 psycopg 동기 → 스택 통일, ARCHITECTURE §3). 세션·과금 테이블은 api 전용.
 

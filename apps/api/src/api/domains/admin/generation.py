@@ -29,7 +29,7 @@ from api.integrations.gcs import public_asset_url
 router = APIRouter(prefix="/admin", tags=["admin-generation"])
 
 JobKind = Literal["finalize", "export"]
-JobStatus = Literal["queued", "processing", "succeeded", "failed"]
+JobStatus = Literal["queued", "processing", "succeeded", "failed", "canceled"]
 SeamlessStatus = Literal["success", "partial", "error"]
 SvgStatus = Literal["safe", "unavailable", "unsafe"]
 DEFAULT_LIMIT = 20
@@ -50,6 +50,7 @@ class GenerationJobStatsOut(BaseModel):
     processing: int
     succeeded: int
     failed: int
+    canceled: int
     average_attempts: float
     as_of: datetime
 
@@ -273,6 +274,7 @@ async def get_admin_generation_job_stats(
                 func.count().filter(GenerationJob.status == "processing"),
                 func.count().filter(GenerationJob.status == "succeeded"),
                 func.count().filter(GenerationJob.status == "failed"),
+                func.count().filter(GenerationJob.status == "canceled"),
                 func.coalesce(func.avg(GenerationJob.attempts), 0),
             ).where(*filters)
         )
@@ -283,7 +285,8 @@ async def get_admin_generation_job_stats(
         processing=int(row[2]),
         succeeded=int(row[3]),
         failed=int(row[4]),
-        average_attempts=float(row[5]),
+        canceled=int(row[5]),
+        average_attempts=float(row[6]),
         as_of=datetime.now(UTC),
     )
 

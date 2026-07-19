@@ -1,4 +1,4 @@
-"""디자인 세션 골격 — 턴 seq 직렬화·예산 카운터·generate 과금."""
+"""디자인 세션 골격 — 턴 seq 직렬화·recraft 카운터·finalize 쿼터·generate 과금."""
 
 import asyncio
 import base64
@@ -22,7 +22,13 @@ from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
 from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata, public_asset_url
 from api.integrations.tasks import DryRunTaskQueue
-from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
+from db.models.design import (
+    FINALIZE_CANCELED_MESSAGE,
+    FINALIZE_STALE_MESSAGE,
+    DesignSession,
+    DesignSessionTurn,
+    GenerationJob,
+)
 from db.models.images import Image
 from db.models.tokens import DesignToken
 from sqlalchemy import func, select, update
@@ -32,12 +38,19 @@ from .factories import auth_headers, make_token_refund_claim, make_user, seed_se
 _WORKER_FABRIC_ASSETS = Path(__file__).parents[2] / "worker/src/worker/render/assets/fabric"
 
 TOKEN_COST = ("design_token_cost_openai_render_standard", "5")
+FINALIZE_LIMIT_KEY = "design_finalize_daily_limit"
 
 
 async def _fund(db_session, user, amount=30):
     """generate 과금 전제 — 비용 설정 + 잔액 지급."""
     await seed_setting(db_session, *TOKEN_COST)
     db_session.add(DesignToken(user_id=user.id, amount=amount, type="grant", token_class="free"))
+    await db_session.commit()
+
+
+async def _seed_finalize_limit(db_session, limit=10):
+    """finalize 생성 전제 — 24시간 쿼터 한도 설정 (TRUNCATE로 마이그레이션 시드가 안 남는다)."""
+    await seed_setting(db_session, FINALIZE_LIMIT_KEY, str(limit))
     await db_session.commit()
 
 
@@ -118,7 +131,9 @@ async def test_session_lifecycle_and_turns(client, db_session, settings):
 
     session = (await client.post("/design/sessions", headers=headers)).json()
     assert session["status"] == "active"
-    assert session["recraft_used"] == 0 and session["finalize_used"] == 0
+    assert session["recraft_used"] == 0
+    # 계정 쿼터는 단건 GET 전용 — 생성/목록 응답과 설정 부재 시에는 null
+    assert session["finalize_quota"] is None
 
     sid = session["id"]
     turn1 = await client.post(
@@ -177,6 +192,7 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
     app.state.worker = FakeWorker()
     user = await make_user(db_session)
     await _fund(db_session, user)
+    await _seed_finalize_limit(db_session)
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
     intent_path = Path(__file__).parents[2] / "worker/tests/golden/json/01_background_solid.json"
@@ -221,10 +237,12 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
     assert fetched.json()["kind"] == "finalize"
 
 
-async def test_finalize_dispatch_failure_marks_job_failed_and_refunds_budget(
+async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
     client, app, db_session, settings
 ):
     user = await make_user(db_session)
+    # 한도 1 — 실패 job이 카운트에서 빠져야만 재시도가 성공한다
+    await _seed_finalize_limit(db_session, limit=1)
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
     app.state.tasks = FailingTaskQueue()
@@ -242,11 +260,10 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_refunds_budget(
     job = await db_session.scalar(
         select(GenerationJob).where(GenerationJob.session_id == persisted_session.id)
     )
-    assert persisted_session.finalize_used == 0
     assert job is not None and job.status == "failed"
     assert job.error_message == "finalize 작업 전달에 실패했습니다"
 
-    # 예산이 복구되어 같은 세션에서 다시 finalize할 수 있다.
+    # failed job은 24시간 쿼터 카운트에서 빠지므로 한도 1에서도 재시도가 성공한다.
     app.state.tasks = DryRunTaskQueue()
     retry = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
@@ -254,14 +271,11 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_refunds_budget(
         headers=headers,
     )
     assert retry.status_code == 201
-    await db_session.refresh(persisted_session)
-    assert persisted_session.finalize_used == 1
 
 
-async def test_finalize_ambiguous_enqueue_returns_claimed_job_without_refund(
-    client, app, db_session, settings
-):
+async def test_finalize_ambiguous_enqueue_returns_claimed_job(client, app, db_session, settings):
     user = await make_user(db_session)
+    await _seed_finalize_limit(db_session)
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
     app.state.tasks = ClaimedThenAmbiguousTaskQueue(app.state.sessionmaker)
@@ -274,21 +288,213 @@ async def test_finalize_ambiguous_enqueue_returns_claimed_job_without_refund(
 
     assert response.status_code == 201
     assert response.json()["status"] == "processing"
-    persisted_session = await db_session.get(DesignSession, uuid.UUID(design_session["id"]))
-    assert persisted_session is not None
-    await db_session.refresh(persisted_session)
     job = await db_session.get(GenerationJob, uuid.UUID(response.json()["id"]))
     assert job is not None
     assert job.status == "processing"
     assert job.attempts == 1
     assert job.error_message is None
-    assert persisted_session.finalize_used == 1
+
+
+async def _make_finalize_job(db_session, user, *, status="queued", **extra):
+    design_session = DesignSession(user_id=user.id, status="active")
+    db_session.add(design_session)
+    await db_session.flush()
+    job = GenerationJob(
+        user_id=user.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status=status,
+        params={"intent": {}},
+        **extra,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    return design_session, job
+
+
+async def test_cancel_finalize_job(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    _, job = await _make_finalize_job(db_session, user, status="queued")
+
+    response = await client.post(f"/design/jobs/{job.id}/cancel", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "canceled"
+    assert response.json()["error_message"] == FINALIZE_CANCELED_MESSAGE
+
+
+async def test_cancel_finalize_job_is_idempotent(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    _, job = await _make_finalize_job(db_session, user, status="processing")
+
+    first = await client.post(f"/design/jobs/{job.id}/cancel", headers=headers)
+    second = await client.post(f"/design/jobs/{job.id}/cancel", headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["status"] == "canceled"
+
+
+async def test_cancel_rejects_terminal_jobs_and_other_kinds(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    _, succeeded = await _make_finalize_job(
+        db_session, user, status="succeeded", result={"object_key": "fabric/abc.png"}
+    )
+    _, failed = await _make_finalize_job(db_session, user, status="failed")
+    export_session = DesignSession(user_id=user.id, status="active")
+    db_session.add(export_session)
+    await db_session.flush()
+    export_job = GenerationJob(
+        user_id=user.id,
+        session_id=export_session.id,
+        kind="export",
+        status="queued",
+        params={},
+    )
+    db_session.add(export_job)
+    await db_session.commit()
+
+    assert (
+        await client.post(f"/design/jobs/{succeeded.id}/cancel", headers=headers)
+    ).status_code == 409
+    assert (
+        await client.post(f"/design/jobs/{failed.id}/cancel", headers=headers)
+    ).status_code == 409
+    assert (
+        await client.post(f"/design/jobs/{export_job.id}/cancel", headers=headers)
+    ).status_code == 409
+    # 종결 상태 취소 시도는 결과를 건드리지 않는다
+    await db_session.refresh(succeeded)
+    assert succeeded.status == "succeeded"
+    assert succeeded.result == {"object_key": "fabric/abc.png"}
+    await db_session.refresh(failed)
+    assert failed.status == "failed"
+
+
+async def test_delete_session_removes_turns_but_keeps_finalize_results(
+    client, db_session, settings
+):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session, job = await _make_finalize_job(
+        db_session, user, status="succeeded", result={"object_key": "fabric/keep.png"}
+    )
+    session_id, job_id = design_session.id, job.id
+    db_session.add(
+        DesignSessionTurn(
+            session_id=session_id,
+            seq=1,
+            role="user",
+            payload={"type": "generate_request", "prompt": "체크 패턴"},
+        )
+    )
+    await db_session.commit()
+
+    response = await client.delete(f"/design/sessions/{session_id}", headers=headers)
+
+    assert response.status_code == 204
+    db_session.expire_all()
+    assert await db_session.get(DesignSession, session_id) is None
+    remaining_turns = await db_session.scalar(
+        select(func.count())
+        .select_from(DesignSessionTurn)
+        .where(DesignSessionTurn.session_id == session_id)
+    )
+    assert remaining_turns == 0
+    # finalize 결과물은 SET NULL로 살아남아 완성본 목록에 계속 노출된다
+    surviving = await db_session.get(GenerationJob, job_id)
+    assert surviving is not None
+    assert surviving.session_id is None
+    assert surviving.result == {"object_key": "fabric/keep.png"}
+    listed = await client.get("/design/jobs", headers=headers)
+    assert [row["id"] for row in listed.json()] == [str(job_id)]
+
+
+async def test_delete_job_removes_row_and_result_object(client, app, db_session, settings):
+    settings.gcp_project_id = "test-project"
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    _, job = await _make_finalize_job(
+        db_session, user, status="succeeded", result={"object_key": "fabric/delete-me.png"}
+    )
+    job_id = job.id
+
+    response = await client.delete(f"/design/jobs/{job_id}", headers=headers)
+
+    assert response.status_code == 204
+    db_session.expire_all()
+    # 삭제된 행은 24시간 쿼터 카운트에서 빠진다 — 의도된 정책 (router docstring)
+    assert await db_session.get(GenerationJob, job_id) is None
+    assert app.state.gcs.deleted_from == [("test-project-assets", "fabric/delete-me.png")]
+
+
+async def test_delete_job_rejects_active_and_skips_object_cleanup_without_result(
+    client, app, db_session, settings
+):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    for status in ("queued", "processing"):
+        _, active = await _make_finalize_job(db_session, user, status=status)
+        active_id = active.id
+        response = await client.delete(f"/design/jobs/{active_id}", headers=headers)
+        assert response.status_code == 409
+        remaining = await db_session.scalar(
+            select(func.count()).select_from(GenerationJob).where(GenerationJob.id == active_id)
+        )
+        assert remaining == 1
+
+    _, failed = await _make_finalize_job(db_session, user, status="failed")
+    failed_id = failed.id
+    assert (await client.delete(f"/design/jobs/{failed_id}", headers=headers)).status_code == 204
+    assert app.state.gcs.deleted == []
+
+
+async def test_get_job_lazily_cancels_past_ttl(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    old = datetime.now(UTC) - timedelta(hours=2)
+    _, job = await _make_finalize_job(
+        db_session, user, status="queued", created_at=old, updated_at=old
+    )
+
+    response = await client.get(f"/design/jobs/{job.id}", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "canceled"
+    assert response.json()["error_message"] == FINALIZE_STALE_MESSAGE
+
+    # 반복 조회는 멱등
+    again = await client.get(f"/design/jobs/{job.id}", headers=headers)
+    assert again.json()["status"] == "canceled"
+
+
+async def test_get_job_keeps_active_lease_processing_past_ttl(client, db_session, settings):
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    old = datetime.now(UTC) - timedelta(hours=2)
+    _, job = await _make_finalize_job(
+        db_session,
+        user,
+        status="processing",
+        attempts=1,
+        created_at=old,
+        updated_at=datetime.now(UTC),
+    )
+
+    response = await client.get(f"/design/jobs/{job.id}", headers=headers)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processing"
 
 
 async def test_prompt_generate_select_and_finalize(client, app, db_session, settings):
     app.state.worker = FakeWorker()
     user = await make_user(db_session)
     await _fund(db_session, user)
+    await _seed_finalize_limit(db_session)
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
 
@@ -339,7 +545,7 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
 
 
 def test_public_asset_url_uses_project_bucket_and_quotes_key():
-    settings = Settings(env="test", gcs_assets_bucket="configured-assets")
+    settings = Settings(env="test", gcs_assets_bucket="configured-assets", gcs_emulator_host="")
     assert public_asset_url(settings, "fabric/a b#.png") == (
         "https://storage.googleapis.com/configured-assets/fabric/a%20b%23.png"
     )
@@ -587,6 +793,7 @@ async def test_finalize_forwards_texture_params(client, app, db_session, setting
     """yarn_dyed 텍스처 4필드가 job.params로 전달되고, None 필드는 빠진다."""
     app.state.worker = FakeWorker()
     user = await make_user(db_session)
+    await _seed_finalize_limit(db_session)
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
 
