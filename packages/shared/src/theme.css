@@ -240,6 +240,7 @@
   --size-content-scroll: 384px;
   --size-loading-media: 220px;
   --size-loading-result: 280px;
+  --size-modal-max-height: calc(100dvh - var(--spacing-x8));
   --z-sticky: 10;
 
   --duration-fast: 100ms; /* 마이크로 인터랙션 (hover, pressed) */

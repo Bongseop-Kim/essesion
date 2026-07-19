@@ -120,6 +120,7 @@ export const sizeRoles = [
   "content-scroll",
   "loading-media",
   "loading-result",
+  "modal-max-height",
 ] as const;
 
 export const zLayers = ["sticky"] as const;
