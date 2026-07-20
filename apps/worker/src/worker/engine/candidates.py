@@ -331,9 +331,7 @@ def _layout_variants(
     locked_scale = bool(
         pattern_constraints is not None and pattern_constraints.motif_scale != "auto"
     )
-    locked_density = bool(
-        pattern_constraints is not None and pattern_constraints.density != "auto"
-    )
+    locked_density = bool(pattern_constraints is not None and pattern_constraints.density != "auto")
     locked_arrangement = bool(
         pattern_constraints is not None and pattern_constraints.arrangement != "auto"
     )

@@ -186,9 +186,7 @@ class PhotoMotifPreviewRequest(StrictRequest):
 
 class PhotoMotifPreviewResponse(BaseModel):
     svg: str = Field(max_length=2_000_000)
-    processed_preview_base64: str = Field(
-        max_length=4 * ((MAX_PROCESSED_PREVIEW_BYTES + 2) // 3)
-    )
+    processed_preview_base64: str = Field(max_length=4 * ((MAX_PROCESSED_PREVIEW_BYTES + 2) // 3))
     background_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     warnings: list[str] = Field(default_factory=list, max_length=5)
 
@@ -268,9 +266,7 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                             sum(item.size_bytes for item in body.reference_images) or None
                         ),
                         reference_image_id=(
-                            body.reference_images[0].image_id
-                            if body.reference_images
-                            else None
+                            body.reference_images[0].image_id if body.reference_images else None
                         ),
                         colorway=body.colorway,
                         seed=body.seed,
@@ -739,9 +735,7 @@ async def photo_motif_preview(
 
 
 @generate_router.post("/motifs/import", response_model=MotifImportResponse)
-async def motif_import(
-    body: MotifImportRequest, request: Request
-) -> MotifImportResponse:
+async def motif_import(body: MotifImportRequest, request: Request) -> MotifImportResponse:
     settings = request.app.state.settings
     try:
         normalized = await run_in_threadpool(

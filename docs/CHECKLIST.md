@@ -22,7 +22,7 @@
 - [ ] OpenTofu — **스테이징 별도 GCP 프로젝트**: Cloud Run×3, Cloud Tasks, Cloud SQL(**PITR 활성화**), GCS, Artifact Registry, IAM, WIF — *IaC 작성 완료(+ migrate Cloud Run job, Cloud Scheduler 배치 4종, scheduler SA — 점검 F2·F3 반영. deploy.yml에 마이그레이션 스텝 포함). **4단계(워커 배포) 착수 시 수행**: `infra/README.md` 부트스트랩 후 `tofu apply` — Cloud Tasks·OIDC는 로컬 에뮬레이터가 없어 그전까지는 전부 로컬(compose + `.env`)로 개발*
 - [ ] Cloudflare: 서브도메인(app/admin/api) + api 프록시(WAF·레이트리밋), wrangler 배포 설정 — *프록시 워커와 비로컬 API 전역 exact-secret 경계(`/healthz`·OIDC `/batch/*`만 면제, `/readyz`는 공개 프록시로만 확인), 고정 route·workflow 주입/validation·`PUBLIC_API_ORIGIN` OAuth callback은 구현 완료. **첫 API 배포 전에** `api.essesion.shop` secret·WAF를 선개통하고, 인증 사용자별 6회/60초 process-local 보조선만 있는 `/design/ideas`에 IP 기반 edge rate limit을 추가한다. 5단계에는 app/admin route만 잇는다 (`infra/cloudflare/README.md`, `docs/OPERATOR-CHECKLIST.md` §A4·C).*
 - [x] CI(GitHub Actions): 빌드·린트(Biome / ruff+pyright)·테스트·배포, PR 검증 — *PR 코드는 외부 credential·런타임 SA 없이 build/test만 수행한다. main 배포는 동일 SHA의 push CI 성공 `workflow_run`으로만 실행하고 환경 단일 큐에서 진행 중 배포를 취소하지 않는다. 프론트 production env 누락과 localhost/example API 혼입도 차단한다.*
-- [x] `ci/py` 포맷·로컬 설정 격리 회귀 수정 — *PR #18의 Ruff 포맷 드리프트를 정리하고, 표준 로컬 `.env`의 GCS 에뮬레이터 설정이 비에뮬레이터 URL 테스트에 유입되지 않도록 조건을 명시했다. Ruff check/format·Pyright·pytest 728건 통과.*
+- [x] `ci/py` 포맷·로컬 설정 격리 회귀 수정 — *PR #18의 Ruff 포맷 드리프트를 정리하고, 표준 로컬 `.env`의 GCS 에뮬레이터 설정이 비에뮬레이터 URL 테스트에 유입되지 않도록 조건을 명시했다. 2026-07-20 후속 점검에서 worker 포맷 드리프트 4건과 Python dependency deprecation(Authlib JOSE→joserfc, Starlette TestClient→dev-only httpx2)을 정리했으며 Ruff check/format·Pyright·pytest 792건, 경고 0건 통과.*
 - [x] 2026-07 전체 리팩터링 감사 — *API/DB·worker·store/admin/shared·CI/IaC의 경합, 입력 상한, 신뢰 경계와 공급망을 교차 검토하고 고위험 항목을 회귀 테스트와 함께 반영했다. 결과와 이연 근거는 `docs/reviews/repo-refactor-2026-07.md`.*
 - [x] 2026-07 인라인 리뷰 후속 — *finalize 한도 검증 단일화·쿼터 인덱스(status 포함/CONCURRENTLY), fake-gcs `/data` 영속화, 배치 assets 버킷 분기 단순화, 디자인 충전 비활성화·중복 첨부 제거·완성본 더 보기·삭제 캐시 테스트를 반영하고 관련 API·마이그레이션·store 검증 완료.*
 - [x] GitHub secret scanning + push protection 켜기, osv-scanner CI 스텝
@@ -48,7 +48,7 @@
 - [x] id/pw 로그인 — 공개 가입 없음, 계정은 시드/관리자 생성만 — *`apps/api/scripts/seed.py`*
 - [x] 소셜 OAuth(Authlib): Google·Kakao — *provider 검증 이메일만 연결, 공개 Cloudflare callback origin 고정*
 - [x] 로컬 OAuth 세션 쿠키 충돌 방지 — *store refresh 쿠키를 `essesion_store_refresh`로 네임스페이스하고, 다른 localhost 앱의 오래된 `refresh_token`이 공존해도 정상 회전되는 PostgreSQL 회귀 테스트·Aside 새로고침 복원을 확인*
-- [x] 소셜 OAuth(Authlib): Apple·Naver — *Naver는 @naver.com 주소만 검증 취급, Apple은 .p8 ES256 client_secret JWT + form_post POST 콜백(세션 쿠키 SameSite=None). Apple Services ID 등록·운영 E2E는 미완(Services ID 발급 대기)*
+- [x] 소셜 OAuth(Authlib + joserfc): Apple·Naver — *Naver는 @naver.com 주소만 검증 취급, Apple은 .p8 ES256 client_secret JWT(joserfc 허용 알고리즘 고정 + 임시 P-256 키 서명 회귀) + form_post POST 콜백(세션 쿠키 SameSite=None). Apple Services ID·실키·env가 없어 provider 수락 운영 E2E는 미완(Services ID 발급 대기)*
 - [x] 휴대폰 인증(Solapi) — *재전송 60초/일 5회/만료 5분, 시크릿 없으면 DryRun*
 - [x] 인가 3규칙 구현(공개 조회 = 상품·찜 / 나머지 owner-only / 관리자 별도 역할) + **testcontainers 403 테스트** — *테이블 주도 매트릭스(tests/authz.py), 도메인 추가 시 행 추가*
 - [x] 도메인 모듈 — 돈 경로 우선: 주문 3종(일반/맞춤/샘플) → Toss 결제 → 토큰 과금 → 클레임/배송지/문의/견적/쿠폰/장바구니/찜/마이페이지 — *승인은 successUrl 콜백 confirm + ALREADY_PROCESSED 조회 복구 + `/payments/webhook` 조회 재검증 대사(money.md §9). DONE 재수신도 provider/stored key·총액을 재검증하고, CANCELED는 USER advisory→order row 순서로 토큰 사용과 직렬화해 reserved 쿠폰만 복원한다. 웹훅은 스테이징 프록시 개통 후 처음부터 `api.essesion.shop`만 등록한다.*

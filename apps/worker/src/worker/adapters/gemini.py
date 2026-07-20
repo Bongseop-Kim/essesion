@@ -361,8 +361,7 @@ def _build_ideas_prompt(
             "and do not replace them with invented motifs. Internal content hashes are "
             "deliberately not disclosed to the provider or exposed in the draft.",
             *[
-                f"- exact motif {index}: name="
-                + json.dumps(motif["name"], ensure_ascii=False)
+                f"- exact motif {index}: name=" + json.dumps(motif["name"], ensure_ascii=False)
                 for index, motif in enumerate(motifs, start=1)
             ],
         ]

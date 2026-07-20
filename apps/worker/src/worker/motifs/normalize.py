@@ -117,15 +117,13 @@ def _validate_intake_complexity(root: ET.Element) -> None:
             geometry_tokens += commands + len(_NUMBER_TOKEN.findall(data))
             if path_commands > MAX_MOTIF_PATH_COMMANDS:
                 raise ValueError(
-                    "motif SVG has too many path commands "
-                    f"(max {MAX_MOTIF_PATH_COMMANDS})"
+                    f"motif SVG has too many path commands (max {MAX_MOTIF_PATH_COMMANDS})"
                 )
         elif tag in {"polygon", "polyline"}:
             geometry_tokens += len(_NUMBER_TOKEN.findall(element.get("points", "")))
         if geometry_tokens > MAX_MOTIF_GEOMETRY_TOKENS:
             raise ValueError(
-                "motif SVG geometry is too complex "
-                f"(max {MAX_MOTIF_GEOMETRY_TOKENS} tokens)"
+                f"motif SVG geometry is too complex (max {MAX_MOTIF_GEOMETRY_TOKENS} tokens)"
             )
         stack.extend((child, depth + 1) for child in reversed(list(element)))
 
