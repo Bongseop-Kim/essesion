@@ -116,7 +116,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
-| Callout | 섹션에 상주하는 안내 블록(tone 5종: neutral/informative/positive/warning/critical, `onClick`=actionable·`onDismiss`=dismissible) | warning/critical에 dismissible(경고는 닫기 X). 페이지 전체 공지(→PageBanner), 사라지는 알림(→Snackbar) |
+| Callout | 섹션에 상주하는 안내 블록(tone 5종: neutral/informative/positive/warning/critical, `onClick`=actionable·`onDismiss`=dismissible). **절제해 사용** — 조건 충족 시에만 나타나 조치·주의가 필요한 메시지가 기본, 상주 안내는 결제·환불 제약 같은 필수 고지에 한정 | warning/critical에 dismissible(경고는 닫기 X). 페이지 전체 공지(→PageBanner), 사라지는 알림(→Snackbar), 빈 상태·조회 실패(→ContentPlaceholder), 데이터 콘텐츠 표시(메모·주소 등 → 일반 레이아웃+Text), 폼 도움말·스펙 안내(→Field description·caption Text), 같은 뷰에 상시 2개+ 쌓기(가장 중요한 1개만 남기고 강등) |
 | PageBanner | **페이지당 1개** 전체 폭 공지(top/bottom, variant weak/solid × tone) | 페이지당 2개+, 섹션 국소 안내(→Callout) |
 
 ### 디스플레이

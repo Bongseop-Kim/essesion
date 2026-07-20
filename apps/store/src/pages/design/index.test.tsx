@@ -20,26 +20,30 @@ import type {
 import { DESIGN_ONBOARDING_KEY } from "@/features/design/model/onboarding";
 import type { ColorSettingsModalProps } from "@/features/design/ui/color-settings-modal";
 import type { DesignComposerProps } from "@/features/design/ui/composer";
-import type { MotifAddModalProps } from "@/features/design/ui/motif-add-modal";
 import type { PatternSettingsModalProps } from "@/features/design/ui/pattern-settings-modal";
+import type { PhotoMotifModalProps } from "@/features/design/ui/photo-motif-modal";
+import type { TextMotifModalProps } from "@/features/design/ui/text-motif-modal";
 import { useSession } from "@/shared/store/session";
 
 type PageHarness = {
   composer: DesignComposerProps | null;
   colors: ColorSettingsModalProps | null;
-  motifAdd: MotifAddModalProps | null;
+  textMotif: TextMotifModalProps | null;
+  photoMotif: PhotoMotifModalProps | null;
   pattern: PatternSettingsModalProps | null;
 };
 
 const api = vi.hoisted(() => ({
   createSession: vi.fn(),
   generate: vi.fn(),
+  importMotif: vi.fn(),
   uploadPhoto: vi.fn(),
 }));
 const page = vi.hoisted(() => ({
   composer: null,
   colors: null,
-  motifAdd: null,
+  textMotif: null,
+  photoMotif: null,
   pattern: null,
 })) as PageHarness;
 
@@ -59,7 +63,11 @@ vi.mock("@/features/auth", () => ({
 vi.mock("@/features/design/api/attachments", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/features/design/api/attachments")>();
-  return { ...actual, uploadDesignPhoto: api.uploadPhoto };
+  return {
+    ...actual,
+    importDesignMotif: api.importMotif,
+    uploadDesignPhoto: api.uploadPhoto,
+  };
 });
 
 vi.mock("@/features/design/model/queries", () => ({
@@ -137,9 +145,16 @@ vi.mock("@/features/design/ui/color-settings-modal", () => ({
   },
 }));
 
-vi.mock("@/features/design/ui/motif-add-modal", () => ({
-  MotifAddModal: (props: MotifAddModalProps) => {
-    page.motifAdd = props;
+vi.mock("@/features/design/ui/text-motif-modal", () => ({
+  TextMotifModal: (props: TextMotifModalProps) => {
+    page.textMotif = props;
+    return null;
+  },
+}));
+
+vi.mock("@/features/design/ui/photo-motif-modal", () => ({
+  PhotoMotifModal: (props: PhotoMotifModalProps) => {
+    page.photoMotif = props;
     return null;
   },
 }));
@@ -231,7 +246,8 @@ describe("DesignPage composer lifecycle", () => {
     vi.clearAllMocks();
     page.composer = null;
     page.colors = null;
-    page.motifAdd = null;
+    page.textMotif = null;
+    page.photoMotif = null;
     page.pattern = null;
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
@@ -295,7 +311,8 @@ describe("DesignPage composer lifecycle", () => {
     );
     expect(page.composer).not.toBeNull();
     expect(page.colors).not.toBeNull();
-    expect(page.motifAdd).not.toBeNull();
+    expect(page.textMotif).not.toBeNull();
+    expect(page.photoMotif).not.toBeNull();
     expect(page.pattern).not.toBeNull();
 
     const photo = new File(["photo"], "reference.png", { type: "image/png" });
@@ -305,7 +322,7 @@ describe("DesignPage composer lifecycle", () => {
       page.composer?.onPhotoFilesSelect([photo]);
       page.colors?.onApply(fixedPalette);
       page.pattern?.onApply(fixedPattern);
-      page.motifAdd?.onCreated(motif);
+      page.textMotif?.onCreated(motif);
     });
     await waitFor(() => expect(page.composer?.attachments).toHaveLength(2));
     const photoAttachment = page.composer?.attachments?.find(
@@ -376,6 +393,33 @@ describe("DesignPage composer lifecycle", () => {
       { upload_id: "upload-1", purpose: "composition" },
     ]);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:reference");
+    queryClient.clear();
+  });
+
+  it("SVG 모티프는 파일 선택만으로 저장하고 이번 생성에 바로 선택한다", async () => {
+    api.importMotif.mockResolvedValue(motif);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <MemoryRouter initialEntries={["/design"]}>
+        <QueryClientProvider client={queryClient}>
+          <DesignPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    const file = new File(["<svg/>"], "로고.svg", { type: "image/svg+xml" });
+    fireEvent.change(screen.getByLabelText("SVG 모티프 파일 선택"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => expect(api.importMotif).toHaveBeenCalledWith(file));
+    await waitFor(() =>
+      expect(page.composer?.attachments).toEqual([
+        expect.objectContaining({ kind: "motif", name: "내 모티프" }),
+      ]),
+    );
     queryClient.clear();
   });
 });

@@ -1,7 +1,6 @@
 import {
   ActionButton,
   Box,
-  Callout,
   Chip,
   HStack,
   ResponsiveModal,
@@ -161,11 +160,9 @@ export function ExportDialog({
             disabled={disabled || loading}
           />
 
-          <Callout
-            tone="neutral"
-            title="무료 내려받기"
-            description="PNG와 TIFF 내려받기는 토큰을 사용하지 않아요."
-          />
+          <Text textStyle="caption" color="fg.neutral-muted">
+            PNG와 TIFF 내려받기는 토큰을 사용하지 않아요.
+          </Text>
         </VStack>
       </Box>
     </ResponsiveModal>

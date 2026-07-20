@@ -82,7 +82,7 @@ export function MotifLibraryModal({
         <ContentPlaceholder
           icon={<Icon svg={<BookmarkSquareIcon />} size={32} />}
           title="저장한 모티프가 없어요"
-          description="+ 메뉴의 SVG 첨부로 첫 모티프를 추가해 보세요."
+          description="+ 메뉴의 SVG·텍스트·사진 모티프로 첫 모티프를 추가해 보세요."
         />
       ) : (
         <VStack gap="x2" alignItems="stretch">

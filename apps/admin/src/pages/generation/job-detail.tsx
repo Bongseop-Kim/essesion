@@ -222,14 +222,12 @@ export function GenerationJobDetailPage() {
         description="공개 content-hash 결과만 표시합니다."
       >
         {!job.result_available ? (
-          <Callout
-            tone="neutral"
+          <ContentPlaceholder
             title="결과 객체 없음"
             description="작업이 완료되지 않았거나 결과가 기록되지 않았습니다."
           />
         ) : job.result_url === null ? (
-          <Callout
-            tone="warning"
+          <ContentPlaceholder
             title="결과 미리보기 불가"
             description="결과 기록은 있지만 공개 가능한 content-hash URL이 없습니다."
           />

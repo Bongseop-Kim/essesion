@@ -290,11 +290,12 @@ function AdminOrderContent({
           </TagGroup>
         ) : null}
         {content.memo ? (
-          <Callout
-            tone="informative"
-            title="요청사항"
-            description={content.memo}
-          />
+          <VStack gap="x1">
+            <Text textStyle="labelSm" color="fg.neutral-muted">
+              요청사항
+            </Text>
+            <Text textStyle="bodySm">{content.memo}</Text>
+          </VStack>
         ) : null}
       </VStack>
     </Box>
@@ -962,11 +963,15 @@ export function OrderDetailPage() {
                             ]}
                           />
                           {receipt.memo ? (
-                            <Callout
-                              tone="informative"
-                              title="발송 메모"
-                              description={receipt.memo}
-                            />
+                            <VStack gap="x1">
+                              <Text
+                                textStyle="labelSm"
+                                color="fg.neutral-muted"
+                              >
+                                발송 메모
+                              </Text>
+                              <Text textStyle="bodySm">{receipt.memo}</Text>
+                            </VStack>
                           ) : null}
                           {receipt.photo_count > 0 ? (
                             <RepairReceiptPhotos receipt={receipt} />

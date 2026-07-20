@@ -1,4 +1,10 @@
-import { Callout, ImageFrame, Skeleton, VStack } from "@essesion/shared";
+import {
+  Callout,
+  ContentPlaceholder,
+  ImageFrame,
+  Skeleton,
+  VStack,
+} from "@essesion/shared";
 import { useEffect, useState } from "react";
 
 export type SvgSafetyStatus = "safe" | "unavailable" | "unsafe";
@@ -37,8 +43,7 @@ export function SafeSvgPreview({ svg, status, alt }: SafeSvgPreviewProps) {
 
   if (status === "unavailable" || svg === null || svg === "") {
     return (
-      <Callout
-        tone="neutral"
+      <ContentPlaceholder
         title="SVG 미리보기 없음"
         description="저장된 SVG가 없거나 안전하게 제공할 수 없는 결과입니다."
       />

@@ -11,7 +11,6 @@ import {
   VStack,
 } from "@essesion/shared";
 import {
-  ChevronRightIcon,
   ExclamationTriangleIcon,
   FolderOpenIcon,
   TrashIcon,
@@ -61,7 +60,7 @@ export function SessionListModal({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="내 디자인 세션"
+      title="내 세션"
       description="이어서 작업할 세션을 선택해 주세요."
       size="medium"
       showCloseButton
@@ -122,30 +121,19 @@ export function SessionListModal({
                   borderRadius="r3"
                   className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
                 >
-                  <HStack justify="space-between" gap="x3">
-                    <VStack gap="x2" minWidth={0} alignItems="stretch">
-                      <Text textStyle="labelSm">
-                        {formatDate(session.createdAt)}
+                  <VStack gap="x2" minWidth={0} alignItems="stretch">
+                    <Text textStyle="labelSm">
+                      {formatDate(session.createdAt)}
+                    </Text>
+                    {session.lastPrompt ? (
+                      <Text textStyle="caption" color="fg.neutral" maxLines={1}>
+                        “{session.lastPrompt}”
                       </Text>
-                      {session.lastPrompt ? (
-                        <Text
-                          textStyle="caption"
-                          color="fg.neutral"
-                          maxLines={1}
-                        >
-                          “{session.lastPrompt}”
-                        </Text>
-                      ) : null}
-                      <HStack gap="x2" wrap>
-                        <Badge tone={status.tone}>{status.label}</Badge>
-                      </HStack>
-                    </VStack>
-                    <Icon
-                      svg={<ChevronRightIcon />}
-                      size={20}
-                      color="fg.neutral-subtle"
-                    />
-                  </HStack>
+                    ) : null}
+                    <HStack gap="x2" wrap>
+                      <Badge tone={status.tone}>{status.label}</Badge>
+                    </HStack>
+                  </VStack>
                 </Box>
                 {onDelete ? (
                   <ActionButton

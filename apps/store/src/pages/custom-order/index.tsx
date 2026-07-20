@@ -698,10 +698,10 @@ function CustomOrderPageContent({
             <OrderSection id="fabric" title="2. 원단 조합">
               <VStack gap="x3" alignItems="stretch">
                 {options.reorder ? (
-                  <Callout
-                    title="재주문 원단 선택"
-                    description="기존 주문과 동일한 원단을 선택해 주세요. 선택한 원단 기준으로 비용이 계산됩니다."
-                  />
+                  <Text textStyle="caption" color="fg.neutral-muted">
+                    기존 주문과 동일한 원단을 선택해 주세요. 선택한 원단
+                    기준으로 비용이 계산됩니다.
+                  </Text>
                 ) : null}
                 <SelectBox
                   name="custom-order-fabric"
