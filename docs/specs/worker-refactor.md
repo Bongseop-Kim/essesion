@@ -27,8 +27,8 @@
 ### P0 — 기능·보안
 
 **R1. 미지원 motif spec 오라우팅 방어**
-- 현재: `motifs/resolver.py`에 `text`/`source_image_index` spec 분기가 없어, Gemini가 해당 spec을 방출하면 Recraft 생성 래더로 흘러 `subject: None` 프롬프트로 진입한다(glyph 파이프라인·vectorize 경로 미구현 — 5단계 과제).
-- 목표: resolver 진입 시 `text` 또는 `source_image_index`를 가진 spec은 **명시적으로 거부**(해당 spec만 실패 처리 + 경고, 요청 전체는 계속) — glyph/vectorize 구현 전까지의 가드.
+- 당시 상태(2026-07-07): `motifs/resolver.py`에 `text`/`source_image_index` spec 분기가 없어, Gemini가 해당 spec을 방출하면 Recraft 생성 래더로 흘러 `subject: None` 프롬프트로 진입했다. 이 리팩토링 당시에는 glyph·vectorize가 아직 5단계 과제였다.
+- 당시 목표: resolver 진입 시 `text` 또는 `source_image_index`를 가진 spec은 **명시적으로 거부**(해당 spec만 실패 처리 + 경고, 요청 전체는 계속) — 전용 입력 경계가 생기기 전까지의 가드였다.
 - 수용: 해당 spec 포함 요청 테스트에서 Recraft 호출 0회, warnings에 사유 포함.
 
 **R2. config 검증 복원**
@@ -74,8 +74,8 @@
 - 수용: 원본 대응 단위 테스트 포팅(대각 입력 → 정규화된 intent).
 
 **R10. api 경계 입력 선검증**
-- 현재: api `DesignGenerateRequest.candidate_count`에 ge/le 없음(워커는 le=8) — 큰 값이 워커까지 가서 422→불필요한 환불 사이클.
-- 목표: api 스키마에 워커와 동일한 `Field(ge=1, le=8)`.
+- 당시 상태: api `DesignGenerateRequest.candidate_count`에 ge/le가 없어 큰 값이 워커까지 전달되고 422→불필요한 환불 사이클이 발생할 수 있었다.
+- 적용 결과: API 경계에서 `candidate_count`를 1~8로 검증하고 boundary test와 OpenAPI 생성물로 드리프트를 막는다.
 - 수용: 경계 밖 값이 api에서 422, 워커 호출 0회. codegen 재생성 포함.
 
 ### P2 — 위생·테스트
@@ -110,15 +110,17 @@
 - 목표: **요청 스코프** dict 메모(원칙 위반 없음)로 OpenAI 호출 절감.
 - 수용: 동일 descriptor 2회 등장 요청에서 임베딩 호출 1회 테스트.
 
-## 범위 밖 (별도 트랙 — 이 리팩토링에서 다루지 않음)
+## 후속 `/design` 트랙 상태
 
-기능 신설·복원은 5단계(/design 기획)에서 결정한다. 여기 기록만 남긴다:
+아래 항목은 R1~R15 리팩토링 범위가 아니었고 5단계 `/design` 트랙에서 다시 결정했다.
+현재 상태는 다음과 같다.
 
 | 항목 | 상태 | 비고 |
 |---|---|---|
-| 텍스트-as-모티프(glyph) | 미구현 | worker-motifs.md §5·§7이 요구 — R1이 그전까지의 가드 |
-| 이미지 입력 경로(reference_image·vectorize·업로드 하드닝) | 미구현 | 원본 image.py 계열 전체 |
-| 대화형 편집 도구(swap_motif 등 툴콜) | 미구현 | 세션은 api 소유 — /design 신규 기획 소관 |
-| `/palettes` 명명 프리셋 4종 | 소실 | recolor UI 필요 시 api에 복원 |
+| 텍스트-as-모티프(glyph) | 구현 | 번들 Nanum Gothic/Myeongjo + fontTools의 결정론적 path-only SVG. `/motifs/text-preview` 결과도 공통 sanitize/normalize/import 경계를 통과 |
+| 참고 사진 purpose·업로드 하드닝 | 구현 | ordered purpose 바인딩, private GCS/SSRF·MIME·바이트·pixel 검증과 one-shot 이력 보존 |
+| 사진→SVG 모티프 | 구현 | Pillow의 제한적 border-connected 배경 분리 + CPU threadpool의 로컬 VTracer. low-confidence는 fail-closed이며 이 경로는 외부 provider에 이미지를 전송하지 않음 |
+| 완전한 대화형 SVG 편집 도구(swap_motif·Bezier 등) | 제외 | 현재 `/design` 범위에서 제외한 기능으로, 구현 완료로 표시하지 않음 |
+| 이름 붙인 저장 palette CRUD | 이연 | 작성 draft의 fixed palette는 구현. owner table·수명주기·공유 요구 없이 새 DB 도메인과 임의 저장 제한을 만들지 않음 |
 | retrieval eval 하네스·τ 캘리브레이션 로깅 | 소실 | 모티프 코퍼스가 커지면 재도입 |
 | 앱 레벨 예외 핸들러(RasterError→502 등) | 부분 | 워커 500 경로 정돈 — P2 여력 시 |

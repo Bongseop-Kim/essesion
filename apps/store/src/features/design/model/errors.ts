@@ -59,3 +59,12 @@ export function parseDesignError(error: unknown): DesignErrorFeedback {
     message: DESIGN_ERROR_MESSAGES[kind],
   };
 }
+
+/** Preserve safe API detail messages for helper flows that do not use error-kind UI. */
+export function designErrorMessage(error: unknown, fallback: string): string {
+  const detail = parseDesignError(error).detail;
+  if (detail) return detail;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}

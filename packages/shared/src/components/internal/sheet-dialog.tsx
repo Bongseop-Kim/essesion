@@ -44,9 +44,9 @@ export type SheetDialogProps = {
 
 // 화면 하단에 붙는 모달 <dialog>. 등장·닫힘은 CSS 클래스(starting/data-closing)가,
 // 드래그 추적은 셸이 조건부로 얹는 inline transform이 담당한다.
-// max-w-full: UA의 dialog max-width(calc(100% - 2em - 6px))를 풀어 화면 전폭에 맞춘다
+// UA의 dialog max-size를 풀어 화면 전폭·전고 상한을 명시하고, 내부 콘텐츠가 스크롤을 소유한다.
 const dialogClass = cn(
-  "m-0 mt-auto mx-auto w-full max-w-full border-0 bg-bg-layer-floating p-0 text-fg-neutral shadow-s3 outline-none",
+  "m-0 mt-auto mx-auto max-h-dvh w-full max-w-full overflow-hidden border-0 bg-bg-layer-floating p-0 text-fg-neutral shadow-s3 outline-none",
   "transition duration-300 ease-enter",
   "starting:open:translate-y-full",
   "data-closing:translate-y-full data-closing:duration-200 data-closing:ease-exit",
@@ -94,7 +94,7 @@ export function SheetDialog({
       className={cn(dialogClass, radiusClass)}
       style={style}
     >
-      <Flex direction="column" maxHeight="full">
+      <Flex direction="column" className="max-h-dvh">
         <Flex
           {...handleProps}
           align="center"

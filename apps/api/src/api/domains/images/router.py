@@ -21,11 +21,17 @@ from api.domains.images.service import (
     complete_order_image_upload,
     order_upload_entity_type,
 )
-from api.errors import ConflictError, DomainError
+from api.errors import ConflictError, DomainError, NotFoundError
 
 router = APIRouter(tags=["images"])
 
-UploadKind = Literal["repair_shipping_upload", "custom_order", "sample_order", "quote_request"]
+UploadKind = Literal[
+    "repair_shipping_upload",
+    "custom_order",
+    "sample_order",
+    "quote_request",
+    "design_reference",
+]
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -38,7 +44,7 @@ REPAIR_SHIPPING_UPLOAD_PREFIX = "uploads/repair_shipping_upload/"
 
 class UploadUrlRequest(BaseModel):
     kind: UploadKind
-    filename: str
+    filename: str = Field(min_length=1, max_length=255)
     content_type: str
     size_bytes: int = Field(gt=0, le=MAX_ORDER_IMAGE_BYTES)
 
@@ -107,6 +113,13 @@ class OrderImageUploadOut(BaseModel):
     upload_completed_at: datetime
 
 
+class DesignReferenceUploadOut(BaseModel):
+    upload_id: uuid.UUID
+    content_type: str
+    size_bytes: int
+    upload_completed_at: datetime
+
+
 @router.post("/images/upload-url", response_model=UploadUrlResponse)
 async def create_upload_url(
     body: UploadUrlRequest,
@@ -124,9 +137,13 @@ async def create_upload_url(
         "quote_request_upload"
         if body.kind == "quote_request"
         else (
-            "repair_shipping_upload"
-            if body.kind == "repair_shipping_upload"
-            else order_upload_entity_type(body.kind)
+            "design_reference_upload"
+            if body.kind == "design_reference"
+            else (
+                "repair_shipping_upload"
+                if body.kind == "repair_shipping_upload"
+                else order_upload_entity_type(body.kind)
+            )
         )
     )
     staged_image = Image(
@@ -136,6 +153,7 @@ async def create_upload_url(
         uploaded_by=user.id,
         content_type=body.content_type,
         size_bytes=body.size_bytes,
+        original_filename=PurePosixPath(body.filename).name,
         expires_at=datetime.now(UTC)
         + (QUOTE_UPLOAD_TTL if body.kind == "quote_request" else ORDER_UPLOAD_TTL),
     )
@@ -186,6 +204,55 @@ async def complete_order_image(
         content_type=image.content_type,
         size_bytes=image.size_bytes,
         upload_completed_at=image.upload_completed_at,
+    )
+
+
+@router.post(
+    "/design-uploads/{upload_id}/complete",
+    response_model=DesignReferenceUploadOut,
+)
+async def complete_design_reference_upload(
+    upload_id: uuid.UUID,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> DesignReferenceUploadOut:
+    image = await session.scalar(select(Image).where(Image.id == upload_id).with_for_update())
+    if image is None or image.entity_type != "design_reference_upload":
+        raise NotFoundError("디자인 참고 이미지 업로드를 찾을 수 없습니다")
+    if image.uploaded_by != user.id:
+        raise ConflictError("이미지 소유권이 일치하지 않습니다", code="ownership_conflict")
+    now = datetime.now(UTC)
+    if (
+        image.deleted_at is not None
+        or image.deletion_claimed_at is not None
+        or (image.expires_at is not None and image.expires_at <= now)
+    ):
+        raise DomainError("이미지 업로드가 만료되었습니다", code="design_image_expired", status=409)
+    if (
+        image.content_type not in ALLOWED_CONTENT_TYPES
+        or image.size_bytes is None
+        or not 0 < image.size_bytes <= MAX_ORDER_IMAGE_BYTES
+        or not image.object_key.startswith("uploads/design_reference/")
+    ):
+        raise DomainError(
+            "유효하지 않은 참고 이미지입니다", code="invalid_design_image", status=409
+        )
+    metadata = await request.app.state.gcs.object_metadata(image.object_key)
+    if request.app.state.gcs.upload_required:
+        if metadata is None:
+            raise DomainError("업로드된 이미지를 찾을 수 없습니다", code="upload_not_found")
+        if metadata.content_type != image.content_type:
+            raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+        if metadata.size_bytes != image.size_bytes:
+            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+    image.upload_completed_at = now
+    await session.commit()
+    return DesignReferenceUploadOut(
+        upload_id=image.id,
+        content_type=image.content_type,
+        size_bytes=image.size_bytes,
+        upload_completed_at=now,
     )
 
 

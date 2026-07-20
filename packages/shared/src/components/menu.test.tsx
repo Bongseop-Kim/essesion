@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -100,6 +106,31 @@ describe("MenuTrigger", () => {
 });
 
 describe("MenuItem", () => {
+  it("checked 항목을 라디오 메뉴 항목으로 노출한다", () => {
+    render(
+      <MenuRoot defaultOpen>
+        <MenuTrigger>
+          <button type="button">열기</button>
+        </MenuTrigger>
+        <MenuContent aria-label="후보 수">
+          <MenuItem label="1개" checked={false} />
+          <MenuItem label="2개" checked />
+        </MenuContent>
+      </MenuRoot>,
+    );
+
+    expect(
+      screen
+        .getByRole("menuitemradio", { name: "1개" })
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(
+      screen
+        .getByRole("menuitemradio", { name: "2개" })
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
   it("클릭 시 onClick 후 메뉴를 닫고, disabled 항목은 무반응이다", () => {
     const onOpenChange = vi.fn();
     const onAdd = vi.fn();
@@ -151,14 +182,14 @@ describe("MenuItem", () => {
 });
 
 describe("MenuContent", () => {
-  it("화살표 키로 활성 항목을 순환하고 disabled를 건너뛴다", () => {
+  it("화살표 키로 활성 항목을 순환하고 disabled를 건너뛴다", async () => {
     renderMenu();
     fireEvent.click(screen.getByRole("button", { name: "열기" }));
     const content = screen.getByRole("menu");
     const add = screen.getByRole("menuitem", { name: "추가" });
     const remove = screen.getByRole("menuitem", { name: "삭제" });
 
-    expect(document.activeElement).toBe(add);
+    await waitFor(() => expect(document.activeElement).toBe(add));
     fireEvent.keyDown(content, { key: "ArrowDown" });
     expect(document.activeElement).toBe(remove);
     fireEvent.keyDown(content, { key: "ArrowDown" });

@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
@@ -9,7 +10,7 @@ import pytest
 from api.config import Settings
 from api.domains.auth import phone as phone_service
 from api.domains.auth import service as auth_service
-from api.domains.auth.oauth import fetch_profile
+from api.domains.auth.oauth import _apple_client_secret, fetch_profile
 from api.domains.auth.rate_limit import AuthRateLimiter
 from api.domains.auth.router import REFRESH_COOKIE
 from api.domains.auth.service import ensure_oauth_user
@@ -18,6 +19,8 @@ from api.security import decode_access_token, hash_refresh_token, new_refresh_to
 from db.models.auth import PhoneVerification, RefreshToken, User, UserIdentity
 from db.models.tokens import DesignToken
 from httpx import ASGITransport, AsyncClient
+from joserfc import jwt as jose_jwt
+from joserfc.jwk import ECKey
 from sqlalchemy import func, select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
@@ -68,6 +71,27 @@ async def test_oauth_login_uses_public_origin_behind_cloud_run_proxy_host(
         "request_host": "api-project-hash.a.run.app",
         "redirect_uri": f"https://api.essesion.shop/auth/{provider}/callback",
     }
+
+
+def test_apple_client_secret_is_valid_es256_jwt(settings):
+    private_key = ECKey.generate_key("P-256")
+    settings.apple_client_id = "com.essesion.web"
+    settings.apple_team_id = "TEAM123456"
+    settings.apple_key_id = "KEY1234567"
+    settings.apple_private_key = private_key.as_pem(private=True).decode("ascii")
+    before = int(time.time())
+
+    encoded = _apple_client_secret(settings)
+
+    after = int(time.time())
+    public_key = ECKey.import_key(private_key.as_pem(private=False))
+    token = jose_jwt.decode(encoded, public_key, algorithms=["ES256"])
+    assert token.header == {"typ": "JWT", "alg": "ES256", "kid": "KEY1234567"}
+    assert token.claims["iss"] == "TEAM123456"
+    assert token.claims["aud"] == "https://appleid.apple.com"
+    assert token.claims["sub"] == "com.essesion.web"
+    assert before <= token.claims["iat"] <= after
+    assert token.claims["exp"] - token.claims["iat"] == 180 * 86400
 
 
 async def test_login_and_me(client, db_session, settings):

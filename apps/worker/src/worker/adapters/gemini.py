@@ -4,20 +4,25 @@ google-genai SDK 대신 httpx로 REST 직접 호출(의존성 최소화): genera
 googleapis.com v1beta generateContent, response_mime_type=application/json. temperature
 0.7. {429,503}만 0.5/1/2s 백오프 최대 4회. designs 파싱은 legacy 단일/bare intent도 수용.
 
-이미지 전처리(멀티모달)는 이번 범위 밖 — 5단계에서 파라미터부터 재도입한다.
+참고 이미지는 검증·방향 보정·축소·메타데이터 제거 후 inline_data로 전달한다.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import json
 import math
 import re
 from dataclasses import dataclass, field
+from typing import Literal
 
 import httpx
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from worker.adapters import AdapterClientError
+from worker.engine.constraints import PaletteConstraint, PatternConstraints, pattern_prompt_lines
 from worker.engine.validate import IntentInvalid
 from worker.motifs.store import SCOPE_VOCAB, validate_facets
 
@@ -28,6 +33,8 @@ _MAX_ATTEMPTS = 4
 _BASE_DELAY_S = 0.5
 DEFAULT_TILE_MM = 48.0
 DEFAULT_DPI = 300
+MAX_REFERENCE_IMAGE_PIXELS = 20_000_000
+MAX_REFERENCE_IMAGE_SIDE = 2_048
 
 
 @dataclass(frozen=True)
@@ -36,6 +43,43 @@ class AuthoredDesign:
 
     intent: dict
     motif_specs: list[dict] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ReferenceImage:
+    data: bytes
+    mime_type: str
+    purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto"
+
+
+def prepare_reference_image(
+    data: bytes,
+    declared_type: str,
+    purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto",
+) -> ReferenceImage:
+    """검증된 업로드를 Gemini용으로 방향 보정·축소하고 메타데이터를 제거한다."""
+    if declared_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise ValueError("reference image type is not supported")
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            if source.width * source.height > MAX_REFERENCE_IMAGE_PIXELS:
+                raise ValueError("reference image has too many pixels")
+            expected_format = {
+                "image/jpeg": "JPEG",
+                "image/png": "PNG",
+                "image/webp": "WEBP",
+            }[declared_type]
+            if source.format != expected_format:
+                raise ValueError("reference image content does not match its type")
+            source.load()
+            image = ImageOps.exif_transpose(source).convert("RGB")
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+        raise ValueError("reference image could not be decoded") from exc
+    image.thumbnail((MAX_REFERENCE_IMAGE_SIDE, MAX_REFERENCE_IMAGE_SIDE), Image.Resampling.LANCZOS)
+    output = io.BytesIO()
+    # Gemini 입력을 단일 안전 포맷으로 만들고 EXIF/ICC 등 원본 메타데이터를 버린다.
+    image.save(output, format="JPEG", quality=88, optimize=True)
+    return ReferenceImage(data=output.getvalue(), mime_type="image/jpeg", purpose=purpose)
 
 
 # ---- 파싱 헬퍼 ----
@@ -172,7 +216,15 @@ _EXAMPLE_INTENT = {
 }
 
 
-def _build_prompt(user_prompt: str, *, errors: list[str] | None) -> str:
+def _build_prompt(
+    user_prompt: str,
+    *,
+    errors: list[str] | None,
+    motif_ids: list[str] | None = None,
+    reference_images: list[ReferenceImage] | None = None,
+    palette_constraint: PaletteConstraint | None = None,
+    pattern_constraints: PatternConstraints | None = None,
+) -> str:
     scope_vocab = ", ".join(sorted(SCOPE_VOCAB))
     example = {
         "designs": [
@@ -217,12 +269,110 @@ def _build_prompt(user_prompt: str, *, errors: list[str] | None) -> str:
         "spacing_mm.",
         "- Diagonal stripes default to -45 deg with period_mm = tile_mm/sqrt(2).",
         f"- target canvas: {json.dumps({'tile_mm': DEFAULT_TILE_MM, 'dpi': DEFAULT_DPI})}.",
+        "- Use at most 2 distinct motif ids in each design (the same motif may appear "
+        "in multiple layers).",
         "",
         f"Description: {user_prompt}",
     ]
+    if motif_ids:
+        lines += [
+            "",
+            "User-provided SVG motifs (highest priority):",
+            f"- Use every one of these exact motif ids in every design: {', '.join(motif_ids)}.",
+            "- Do not create motif_specs entries for these exact ids.",
+            "- Only use a generated/photo-derived motif if fewer than 2 SVG motif ids "
+            "were supplied.",
+        ]
+    if palette_constraint is not None and palette_constraint.mode == "fixed":
+        lines += [
+            "",
+            "The fixed palette is binding:",
+            f"- Use exactly these colors: {', '.join(palette_constraint.colors)}.",
+            f"- Declare and reference at least {len(palette_constraint.colors)} distinct palette "
+            "slot ids so every requested color appears in rendered geometry.",
+            "- The engine deterministically replaces authored colorways with one 'default' "
+            "mapping; do not add alternative colorways.",
+        ]
+    if pattern_constraints is not None:
+        constraint_lines = pattern_prompt_lines(pattern_constraints)
+        if constraint_lines:
+            lines += ["", *constraint_lines]
+    if reference_images:
+        lines += [
+            "",
+            f"There are {len(reference_images)} attached photos, in the same order as "
+            "the image parts.",
+            "The numbered role below is binding. For 'auto' only, infer the best role from "
+            "the description. For an explicit role, use that image ONLY for that role and do "
+            "not reinterpret it as another kind of reference.",
+        ]
+        role_instructions = {
+            "auto": "infer color/mood, motif form, or composition from the description",
+            "color_mood": "use only its palette, lighting, texture impression, and mood",
+            "motif": "use only the visible subject's shape as motif inspiration",
+            "composition": "use only its spacing, rhythm, arrangement, and composition",
+        }
+        lines += [
+            f"- image {index}: purpose={image.purpose}; {role_instructions[image.purpose]}"
+            for index, image in enumerate(reference_images, start=1)
+        ]
+        lines.append(
+            "A photo-inspired motif still needs a motif_specs entry describing the visible subject."
+        )
     if errors:
         lines += ["", "Your previous attempt FAILED stage-0 validation. Fix exactly these:"]
         lines += [f"- {e}" for e in errors]
+    return "\n".join(lines)
+
+
+def _build_ideas_prompt(
+    prompt: str,
+    *,
+    count: int,
+    reference_images: list[ReferenceImage],
+    motifs: list[dict[str, str]],
+    palette_constraint: PaletteConstraint,
+    pattern_constraints: PatternConstraints,
+    errors: list[str] | None = None,
+) -> str:
+    lines = [
+        "Suggest editable prompt drafts for a seamless textile pattern design composer.",
+        f'Output ONLY JSON shaped exactly as {{"ideas": [..{count} strings..]}}.',
+        f"Return exactly {count} genuinely different ideas. Each idea must be one short, "
+        "specific sentence, at most 180 characters, and must not claim that generation "
+        "already ran.",
+        "Use the same language as the existing prompt; when it is empty, write Korean.",
+        f"Existing editable prompt (JSON string): {json.dumps(prompt or '', ensure_ascii=False)}",
+    ]
+    if reference_images:
+        lines += [
+            "",
+            "Attached photos are numbered in image-part order. Explicit purposes are binding; "
+            "only purpose=auto may be interpreted from context.",
+            *[
+                f"- image {index}: purpose={image.purpose}"
+                for index, image in enumerate(reference_images, start=1)
+            ],
+        ]
+    if motifs:
+        lines += [
+            "",
+            "Selected private motifs are exact assets. Use their human names as semantic context, "
+            "and do not replace them with invented motifs. Internal content hashes are "
+            "deliberately not disclosed to the provider or exposed in the draft.",
+            *[
+                f"- exact motif {index}: name=" + json.dumps(motif["name"], ensure_ascii=False)
+                for index, motif in enumerate(motifs, start=1)
+            ],
+        ]
+    if palette_constraint.mode == "fixed":
+        lines += ["", f"Fixed colors: {', '.join(palette_constraint.colors)}"]
+    constraint_lines = pattern_prompt_lines(pattern_constraints)
+    if constraint_lines:
+        lines += ["", *constraint_lines]
+    if errors:
+        lines += ["", "The previous response was rejected. Fix these issues:"]
+        lines += [f"- {error}" for error in errors]
     return "\n".join(lines)
 
 
@@ -248,10 +398,22 @@ class GeminiClient:
             self._client = httpx.AsyncClient(timeout=60.0)
         return self._client
 
-    async def complete(self, prompt: str) -> str:
+    async def complete(
+        self, prompt: str, *, reference_images: list[ReferenceImage] | None = None
+    ) -> str:
         url = f"{_BASE_URL}/v1beta/models/{self._model}:generateContent"
+        parts: list[dict[str, object]] = [
+            {
+                "inline_data": {
+                    "mime_type": image.mime_type,
+                    "data": base64.b64encode(image.data).decode("ascii"),
+                }
+            }
+            for image in (reference_images or [])
+        ]
+        parts.append({"text": prompt})
         body = {
-            "contents": [{"parts": [{"text": prompt}]}],
+            "contents": [{"parts": parts}],
             "generationConfig": {
                 "temperature": self._temperature,
                 "response_mime_type": "application/json",
@@ -282,7 +444,16 @@ class GeminiClient:
             raise AdapterClientError("Gemini returned an empty response")
         return text
 
-    async def author_designs(self, prompt: str, *, validate=None) -> list[AuthoredDesign]:
+    async def author_designs(
+        self,
+        prompt: str,
+        *,
+        validate=None,
+        reference_images: list[ReferenceImage] | None = None,
+        motif_ids: list[str] | None = None,
+        palette_constraint: PaletteConstraint | None = None,
+        pattern_constraints: PatternConstraints | None = None,
+    ) -> list[AuthoredDesign]:
         """prompt → 검증 통과 design 목록. facet + (있으면) intent 검증을 통과한 것만 반환.
 
         전 design 무효면 collected errors를 물려 constrained 재프롬프트 1회, 그래도 무효면
@@ -292,7 +463,17 @@ class GeminiClient:
         errors: list[str] | None = None
         last_errors: list[str] = ["LLM produced no valid design"]
         for _ in range(2):  # 최초 + constrained 재프롬프트 1회
-            text = await self.complete(_build_prompt(prompt, errors=errors))
+            text = await self.complete(
+                _build_prompt(
+                    prompt,
+                    errors=errors,
+                    motif_ids=motif_ids,
+                    reference_images=reference_images,
+                    palette_constraint=palette_constraint,
+                    pattern_constraints=pattern_constraints,
+                ),
+                reference_images=reference_images,
+            )
             try:
                 raw = json.loads(_strip_code_fence(text))
             except (json.JSONDecodeError, TypeError) as exc:
@@ -322,6 +503,58 @@ class GeminiClient:
             last_errors = design_errors or ["LLM produced no valid design"]
             errors = last_errors[:6]
         raise IntentInvalid(last_errors)
+
+    async def suggest_ideas(
+        self,
+        prompt: str,
+        *,
+        count: Literal[3, 4],
+        reference_images: list[ReferenceImage] | None = None,
+        motifs: list[dict[str, str]] | None = None,
+        palette_constraint: PaletteConstraint | None = None,
+        pattern_constraints: PatternConstraints | None = None,
+    ) -> list[str]:
+        """Return context-aware drafts only; this path never authors or stores an intent."""
+
+        references = reference_images or []
+        motif_context = motifs or []
+        palette = palette_constraint or PaletteConstraint()
+        pattern = pattern_constraints or PatternConstraints()
+        errors: list[str] | None = None
+        for _ in range(2):
+            text = await self.complete(
+                _build_ideas_prompt(
+                    prompt,
+                    count=count,
+                    reference_images=references,
+                    motifs=motif_context,
+                    palette_constraint=palette,
+                    pattern_constraints=pattern,
+                    errors=errors,
+                ),
+                reference_images=references,
+            )
+            try:
+                raw = json.loads(_strip_code_fence(text))
+            except (json.JSONDecodeError, TypeError) as exc:
+                errors = [f"response was not valid JSON: {exc}"]
+                continue
+            ideas = raw.get("ideas") if isinstance(raw, dict) else None
+            if not isinstance(ideas, list):
+                errors = ["response must contain an ideas array"]
+                continue
+            cleaned = [idea.strip() for idea in ideas if isinstance(idea, str) and idea.strip()]
+            attempt_errors: list[str] = []
+            if len(cleaned) != count:
+                attempt_errors.append(f"ideas must contain exactly {count} non-empty strings")
+            if any(len(idea) > 180 for idea in cleaned):
+                attempt_errors.append("each idea must be at most 180 characters")
+            if len({idea.casefold() for idea in cleaned}) != len(cleaned):
+                attempt_errors.append("ideas must be distinct")
+            if not attempt_errors:
+                return cleaned
+            errors = attempt_errors
+        raise AdapterClientError("Gemini returned invalid idea drafts: " + "; ".join(errors or []))
 
     async def aclose(self) -> None:
         if self._client is not None and not self._client.is_closed:

@@ -91,6 +91,9 @@ class Placement(BaseModel):
     spacing_mm: float | None = Field(default=None, gt=0)
     phase_mm: float = 0.0
     rotation: Literal["follow_path", "fixed"] | None = None
+    # None is deliberately omitted from canonical layout JSON, preserving every legacy
+    # layout id and SVG byte. Structured direction controls set an explicit fixed angle.
+    fixed_rotation_deg: float | None = Field(default=None, ge=-360.0, le=360.0)
     lattice: LatticeSpec | None = None
     scatter: ScatterSpec | None = None
     point_set: PointSetSpec | None = None

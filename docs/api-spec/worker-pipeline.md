@@ -62,9 +62,11 @@ print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회
 api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinity 없는 JSON이어야 한다. 세션 PATCH·generate·motif generate의 seed는 DB `BIGINT`와 같은 signed int64 범위로 제한해 워커/DB 호출 전에 422로 거부한다.
 
 **worker-generate** (1vCPU/1Gi, 동시성 높게, 외부 API 바운드):
-- `POST /generate` — 원본 입력 계약 유지하되 `session_id`/`from_checkpoint` 제거(무세션). **응답은 원본과 달리 풍부하게**: 내부 서비스이므로 후보별 `{id, design_index, layout_id, source_fidelity, colorway_id, seed, svg, png_object_key}` + `{request_id, registry_version, engine_version, warnings}` 반환 — api가 세션 턴/후보 저장의 소유자라서 로그 우회 조회가 필요 없어야 한다.
+- `POST /generate` — 무세션 계약. prompt/intent와 함께 ordered `reference_images[{image_id,url,content_type,size_bytes,purpose}]`(최대 5), exact `motif_ids`(최대 2), `palette`, `pattern_constraints`, `candidate_count`(1..8)를 받는다. 사진 purpose·색·패턴은 프롬프트 문자열로 합치지 않고 worker 엔진까지 구조적으로 전달한다. **응답은 원본과 달리 풍부하게**: 내부 서비스이므로 후보별 `{id, design_index, layout_id, source_fidelity, colorway_id, seed, svg, png_object_key}` + `{request_id, registry_version, engine_version, warnings}` 반환 — api가 세션 턴/후보 저장의 소유자라서 로그 우회 조회가 필요 없어야 한다.
 - 프리뷰 PNG는 GCS `previews/{request_id}/{candidate_id}/{sha256(png)[:16]}.png`에 create-only 업로드(`if_generation_match=0`)한다(공개 assets 버킷, best-effort — 실패 시 key null+경고). 같은 내용의 기존 객체로 인한 412는 멱등 성공이며 덮어쓰지 않는다. 호출자가 `X-Request-ID`를 재사용해도 다른 PNG는 다른 키가 된다.
 - `POST /motifs/candidates`(구 present_candidates) — 게이트 UI용 재사용 후보 나열. `POST /motifs/generate`(구 confirm generate_motif) — Recraft 생성 승인 실행. 예산 검사·차감은 **api가 세션 카운터(design_sessions.recraft_used)로 수행 후 호출**(worker는 검사 안 함).
+- `POST /motifs/import` — 모든 user SVG를 공통 sanitize/normalize/content-hash 경계로 처리하되 worker DB에는 쓰지 않고 `{motif_id,symbol,color_slots,bbox,anchor,preview_svg}`를 반환한다. API가 Motif+사용자 소유 링크를 하나의 transaction으로 저장한다. `POST /motifs/text-preview`와 `/motifs/photo-preview`는 각각 번들 폰트 path 변환, 제한적 로컬 배경 분리+VTracer 결과를 normalized standalone SVG로 만들고 같은 import 경계로 넘긴다. CPU 작업은 thread pool에서 실행한다.
+- `POST /palette/extract` — private image에서 2~5색을 결정적으로 추출. `POST /ideas` — 현재 prompt/ordered photo purposes/exact motifs/palette/pattern을 Gemini에 전달해 3~4개 편집 초안만 반환하며 intent·generation log를 만들지 않는다. helper의 rate limit·무료 정책은 api 소유다.
 - seamless_generation_logs INSERT는 워커가 직접(원 동작 — system of record, SVG 재-export 근거).
 
 **worker-finalize** (2vCPU/4Gi, 동시성 1~2, dpi 상한 600 — 엔진 기본 300):

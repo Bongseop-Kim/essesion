@@ -10,6 +10,8 @@ slotify **후**의 geometry에서 뽑으므로 같은 도형은 colorway 무관 
 from __future__ import annotations
 
 import hashlib
+import html
+import re
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -32,6 +34,15 @@ _GATE_RENDER_MM = 10.0
 _GATE_RENDER_DPI = 300
 _GATE_MARGIN_FRAC = 0.1
 
+MAX_MOTIF_SVG_BYTES = 2_000_000
+MAX_MOTIF_NODES = 2_048
+MAX_MOTIF_DEPTH = 64
+MAX_MOTIF_PATHS = 1_024
+MAX_MOTIF_PATH_COMMANDS = 50_000
+MAX_MOTIF_GEOMETRY_TOKENS = 200_000
+_PATH_COMMAND = re.compile(r"[MmLlHhVvCcSsQqTtAaZz]")
+_NUMBER_TOKEN = re.compile(r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?")
+
 # defs 밖에서 실제로 그려지는 요소.
 _RENDERABLE = frozenset({"path", "polygon", "polyline", "rect", "circle", "ellipse", "line", "use"})
 
@@ -45,6 +56,10 @@ class NormalizedMotif:
     bbox_mm: BBox = _UNIT_BBOX
     anchor: Anchor = _ORIGIN
     color_slots: tuple[str, ...] = ("s0",)
+    # Standalone, importable document showing the exact geometry that produced this identity.
+    # It uses deterministic concrete preview colors because internal s0/s1 slot tokens are not
+    # valid CSS paints. Re-normalizing this document must recover the same id and symbol.
+    preview_svg: str = ""
 
 
 def _tag(el: ET.Element) -> str:
@@ -77,6 +92,40 @@ def _has_drawable(elements: list[ET.Element]) -> bool:
         if _has_drawable(list(el)):
             return True
     return False
+
+
+def _validate_intake_complexity(root: ET.Element) -> None:
+    """Bound attacker-controlled trees before geometry traversal or render checks."""
+
+    nodes = paths = path_commands = geometry_tokens = 0
+    stack = [(root, 1)]
+    while stack:
+        element, depth = stack.pop()
+        if depth > MAX_MOTIF_DEPTH:
+            raise ValueError(f"motif SVG is nested too deeply (max depth {MAX_MOTIF_DEPTH})")
+        nodes += 1
+        if nodes > MAX_MOTIF_NODES:
+            raise ValueError(f"motif SVG has too many nodes (max {MAX_MOTIF_NODES})")
+        tag = _tag(element)
+        if tag == "path":
+            paths += 1
+            if paths > MAX_MOTIF_PATHS:
+                raise ValueError(f"motif SVG has too many paths (max {MAX_MOTIF_PATHS})")
+            data = element.get("d", "")
+            commands = len(_PATH_COMMAND.findall(data))
+            path_commands += commands
+            geometry_tokens += commands + len(_NUMBER_TOKEN.findall(data))
+            if path_commands > MAX_MOTIF_PATH_COMMANDS:
+                raise ValueError(
+                    f"motif SVG has too many path commands (max {MAX_MOTIF_PATH_COMMANDS})"
+                )
+        elif tag in {"polygon", "polyline"}:
+            geometry_tokens += len(_NUMBER_TOKEN.findall(element.get("points", "")))
+        if geometry_tokens > MAX_MOTIF_GEOMETRY_TOKENS:
+            raise ValueError(
+                f"motif SVG geometry is too complex (max {MAX_MOTIF_GEOMETRY_TOKENS} tokens)"
+            )
+        stack.extend((child, depth + 1) for child in reversed(list(element)))
 
 
 def _norm_color(value: str) -> str | None:
@@ -174,6 +223,41 @@ def _slotize_colors(children: list[ET.Element]) -> tuple[str, ...]:
     return tuple(f"s{i}" for i in range(len(order)))
 
 
+def _standalone_preview_svg(
+    inner: str,
+    *,
+    bbox: BBox,
+    color_slots: tuple[str, ...],
+    preview_colors: list[str],
+    inherited_color: str,
+) -> str:
+    """Make normalized input geometry independently previewable and safely re-importable.
+
+    Multi-color normalized geometry contains internal slot tokens (s0, s1, ...), not CSS
+    colors. Deterministic concrete colors preserve slot order on the next normalization pass;
+    slotification then recreates the original content-hash input exactly.
+    """
+
+    visible = inner
+    if len(color_slots) > 1:
+        for index, slot in enumerate(color_slots):
+            # Restore a safe concrete preview paint. Slotification on re-import maps the same
+            # first-occurrence order back to s0/s1, so colors do not enter motif identity.
+            color = html.escape(preview_colors[index], quote=True)
+            visible = visible.replace(f'fill="{slot}"', f'fill="{color}"')
+            visible = visible.replace(f'stroke="{slot}"', f'stroke="{color}"')
+    root_color = preview_colors[0] if len(preview_colors) == 1 else inherited_color
+    if root_color.casefold() == "currentcolor":
+        root_color = inherited_color
+    bx, by, bx2, by2 = bbox
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        f'color="{html.escape(root_color, quote=True)}" '
+        f'viewBox="{fmt(bx)} {fmt(by)} {fmt(bx2 - bx)} {fmt(by2 - by)}">'
+        f"{visible}</svg>"
+    )
+
+
 def _edge_seam(image) -> float:
     """맞물리는 반대편 가장자리 픽셀의 채널별 평균 절대차 최대값 — 0에 가까울수록 seam 없음."""
     width, height = image.size
@@ -236,14 +320,18 @@ def _render_gate(motif: NormalizedMotif, *, edge_seam_tol: float) -> None:
 def normalize_motif_svg(
     raw_svg: str,
     *,
+    id_prefix: str = "recraft",
     max_color_slots: int | None = None,
     max_aspect_ratio: float = 20.0,
     edge_seam_tol: float = 2.0,
     render_check: bool = True,
 ) -> NormalizedMotif:
     """authored/Recraft SVG를 모티프 인테이크 계약으로 정규화 (worker-motifs.md §1)."""
+    if len(raw_svg.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
+        raise ValueError(f"motif SVG exceeds {MAX_MOTIF_SVG_BYTES} bytes")
     root = sanitize.parse_svg_tree(raw_svg)
     sanitize._validate_tree(root)  # allowlist — filter/raster image/외부 href 거부
+    _validate_intake_complexity(root)
 
     _validate_frame(root)  # 작성자 프레임 온전성
 
@@ -275,15 +363,32 @@ def normalize_motif_svg(
 
     if max_color_slots is not None:
         _quantize_colors(children, max_color_slots)
+    preview_colors = _distinct_colors(children)
+    inherited_color = root.get("color", "#111111")
+    if inherited_color.casefold() in {"currentcolor", "inherit"}:
+        inherited_color = "#111111"
     color_slots = _slotize_colors(children)
     inner = "".join(ET.tostring(child, encoding="unicode") for child in children)
     geometry = f'<g transform="translate({fmt(tx)} {fmt(ty)}) scale({fmt(scale)})">{inner}</g>'
 
-    motif_id = "recraft-" + hashlib.sha256(geometry.encode("utf-8")).hexdigest()[:12]
+    motif_id = id_prefix + "-" + hashlib.sha256(geometry.encode("utf-8")).hexdigest()[:12]
+    symbol = f'<symbol id="motif-{motif_id}" overflow="visible">{geometry}</symbol>'
+    preview_svg = _standalone_preview_svg(
+        inner,
+        bbox=bbox,
+        color_slots=color_slots,
+        preview_colors=preview_colors,
+        inherited_color=inherited_color,
+    )
+    if len(symbol.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
+        raise ValueError(f"normalized motif symbol exceeds {MAX_MOTIF_SVG_BYTES} bytes")
+    if len(preview_svg.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
+        raise ValueError(f"normalized motif preview exceeds {MAX_MOTIF_SVG_BYTES} bytes")
     motif = NormalizedMotif(
         id=motif_id,
-        symbol=f'<symbol id="motif-{motif_id}" overflow="visible">{geometry}</symbol>',
+        symbol=symbol,
         color_slots=color_slots,
+        preview_svg=preview_svg,
     )
     if render_check:
         _render_gate(motif, edge_seam_tol=edge_seam_tol)

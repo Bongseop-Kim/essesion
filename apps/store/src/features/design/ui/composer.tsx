@@ -3,37 +3,57 @@ import {
   Box,
   Chip,
   Flex,
+  Grid,
   HStack,
   Icon,
+  ImageFrame,
+  MenuContent,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
+  ScrollFog,
   Text,
   VStack,
 } from "@essesion/shared";
 import {
+  AdjustmentsHorizontalIcon,
+  BookmarkSquareIcon,
+  ChevronDownIcon,
   CreditCardIcon,
+  PaintBrushIcon,
   PaperAirplaneIcon,
+  PhotoIcon,
   PlusIcon,
+  PuzzlePieceIcon,
+  SparklesIcon,
+  SquaresPlusIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
+  type ChangeEvent,
   type ComponentPropsWithRef,
   type FormEvent,
   type ReactNode,
+  useRef,
   useState,
 } from "react";
 
+import { DESIGN_PHOTO_ACCEPT } from "@/features/design/api/attachments";
+import {
+  REFERENCE_IMAGE_PURPOSES,
+  type ReferenceImagePurpose,
+  referenceImagePurposeLabel,
+} from "@/features/design/model/draft";
 import { krw } from "@/shared/lib/format";
 
 type ChatInputProps = Omit<
   ComponentPropsWithRef<"input">,
   "prefix" | "size"
 > & {
-  /** 필 안 왼쪽에 놓이는 버튼 (예: 옵션 더보기). */
   leading?: ReactNode;
-  /** 필 안 오른쪽에 놓이는 버튼 (예: 전송). */
   trailing?: ReactNode;
 };
 
-/** 채팅창용 한 줄 입력 필. 양옆 버튼이 입력창 내부에 있는 것처럼 보이는
- *  메신저 스타일 — 높이 고정(리사이즈 없음), Enter로 폼 제출. */
 function ChatInput({ leading, trailing, ...inputProps }: ChatInputProps) {
   return (
     <Flex
@@ -59,42 +79,39 @@ function ChatInput({ leading, trailing, ...inputProps }: ChatInputProps) {
 
 const CANDIDATE_COUNTS = [1, 2, 3, 4] as const;
 
-const DEFAULT_HINTS: readonly ComposerHint[] = [
-  { id: "navy", label: "네이비", prompt: "네이비 색상을 중심으로" },
-  { id: "geometric", label: "기하학", prompt: "기하학 패턴으로" },
-  { id: "silk", label: "실크", prompt: "실크 원단에 어울리게" },
-];
-
-export type ComposerHint = {
+export type ComposerAttachment = {
   id: string;
-  label: string;
-  prompt: string;
+  kind: "photo" | "motif";
+  name: string;
+  previewSrc: string;
+  purpose?: ReferenceImagePurpose;
 };
 
-export type ComposerPanelItemProps = {
+export type ComposerPanelItemProps = Omit<
+  ComponentPropsWithRef<"button">,
+  "children"
+> & {
   icon: ReactNode;
   label: string;
-  onClick: () => void;
-  disabled?: boolean;
 };
 
 /** ＋ 패널의 원형 아이콘 + 아래 라벨 항목 (카카오톡 첨부 패널 스타일). */
 export function ComposerPanelItem({
   icon,
   label,
-  onClick,
-  disabled = false,
+  className,
+  type = "button",
+  ...buttonProps
 }: ComposerPanelItemProps) {
   return (
     <Flex
       as="button"
-      type="button"
+      type={type}
       direction="column"
       align="center"
       gap="x1_5"
-      onClick={onClick}
-      disabled={disabled}
-      className="group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+      className={`group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50 ${className ?? ""}`}
+      {...buttonProps}
     >
       <Flex
         align="center"
@@ -107,7 +124,7 @@ export function ComposerPanelItem({
       >
         {icon}
       </Flex>
-      <Text textStyle="captionSm" color="fg.neutral">
+      <Text textStyle="captionSm" color="fg.neutral" align="center">
         {label}
       </Text>
     </Flex>
@@ -120,15 +137,26 @@ export type DesignComposerProps = {
   onPromptChange: (prompt: string) => void;
   onCandidateCountChange: (count: number) => void;
   onSubmit: () => void;
-  hints?: readonly ComposerHint[];
-  onHintSelect?: (hint: ComposerHint, selected: boolean) => void;
   balance?: number | null;
   generateCost?: number | null;
   onPurchaseTokens?: () => void;
+  onPhotoFilesSelect: (files: File[]) => void;
+  onOpenMotifAdd: () => void;
+  onOpenMotifLibrary: () => void;
+  onOpenColors: () => void;
+  onOpenPatternSettings: () => void;
+  onOpenIdeas: () => void;
+  attachments?: readonly ComposerAttachment[];
+  onRemoveAttachment?: (id: string) => void;
+  onPhotoPurposeChange?: (id: string, purpose: ReferenceImagePurpose) => void;
+  paletteColors?: readonly string[];
+  patternSummary?: readonly string[];
+  onResetPalette?: () => void;
+  onResetPattern?: () => void;
+  canSubmitWithoutPrompt?: boolean;
   loading?: boolean;
   disabled?: boolean;
   submitLabel?: string;
-  /** ＋ 패널 그리드에 붙는 슬롯 — ComposerPanelItem들을 넘긴다 (예: 내 세션·새로 만들기). */
   sessionActions?: ReactNode;
 };
 
@@ -138,51 +166,198 @@ export function DesignComposer({
   onPromptChange,
   onCandidateCountChange,
   onSubmit,
-  hints = DEFAULT_HINTS,
-  onHintSelect,
   balance,
   generateCost,
   onPurchaseTokens,
+  onPhotoFilesSelect,
+  onOpenMotifAdd,
+  onOpenMotifLibrary,
+  onOpenColors,
+  onOpenPatternSettings,
+  onOpenIdeas,
+  attachments = [],
+  onRemoveAttachment,
+  onPhotoPurposeChange,
+  paletteColors = [],
+  patternSummary = [],
+  onResetPalette,
+  onResetPattern,
+  canSubmitWithoutPrompt = false,
   loading = false,
   disabled = false,
   submitLabel = "디자인 생성",
   sessionActions,
 }: DesignComposerProps) {
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const submitDisabled = disabled || prompt.trim().length === 0;
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const controlsDisabled = disabled || loading;
+  const submitDisabled =
+    disabled || (prompt.trim().length === 0 && !canSubmitWithoutPrompt);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!submitDisabled && !loading) onSubmit();
   };
-
-  const handleHintSelect = (hint: ComposerHint, selected: boolean) => {
-    if (onHintSelect) {
-      onHintSelect(hint, !selected);
-      return;
-    }
-    if (selected) {
-      onPromptChange(
-        prompt
-          .replace(hint.prompt, "")
-          .replace(/\s{2,}/g, " ")
-          .trim(),
-      );
-      return;
-    }
-    const current = prompt.trim();
-    onPromptChange(current ? `${hint.prompt} ${current}` : hint.prompt);
+  const handleFiles = (
+    event: ChangeEvent<HTMLInputElement>,
+    onSelect: (files: File[]) => void,
+  ) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    event.currentTarget.value = "";
+    if (files.length > 0) onSelect(files);
   };
 
   return (
     <Box as="form" onSubmit={handleSubmit} width="full">
       <VStack gap="x3" alignItems="stretch">
+        {attachments.length > 0 ? (
+          <ScrollFog direction="horizontal" aria-label="현재 첨부">
+            <HStack gap="x2" className="min-w-max px-x1 py-x1">
+              {attachments.map((attachment) => (
+                <HStack
+                  key={attachment.id}
+                  gap="x2"
+                  borderWidth={1}
+                  borderColor="stroke.neutral-weak"
+                  borderRadius="r3"
+                  bg="bg.neutral-weak"
+                  p="x1"
+                  pr="x1_5"
+                  className="max-w-48"
+                >
+                  <Box width={36} height={36} className="shrink-0">
+                    <ImageFrame
+                      ratio={1}
+                      src={attachment.previewSrc}
+                      alt=""
+                      fit="contain"
+                      borderRadius="r2"
+                    />
+                  </Box>
+                  <VStack gap="x0_5" alignItems="stretch" minWidth={0}>
+                    <Text textStyle="captionSm" className="truncate">
+                      {attachment.name}
+                    </Text>
+                    {attachment.kind === "photo" && onPhotoPurposeChange ? (
+                      <MenuRoot placement="top">
+                        <MenuTrigger>
+                          <ActionButton
+                            type="button"
+                            size="xsmall"
+                            variant="ghost"
+                            className="h-auto min-w-0 justify-start px-0 py-0 font-normal"
+                            aria-label={`${attachment.name} 참고 방식: ${referenceImagePurposeLabel(attachment.purpose ?? "auto")}`}
+                            disabled={loading}
+                          >
+                            <Text
+                              as="span"
+                              textStyle="captionSm"
+                              color="fg.neutral-subtle"
+                              className="truncate"
+                            >
+                              {referenceImagePurposeLabel(
+                                attachment.purpose ?? "auto",
+                              )}
+                            </Text>
+                            <Icon svg={<ChevronDownIcon />} size={12} />
+                          </ActionButton>
+                        </MenuTrigger>
+                        <MenuContent
+                          aria-label={`${attachment.name} 참고 방식`}
+                        >
+                          {REFERENCE_IMAGE_PURPOSES.map((option) => (
+                            <MenuItem
+                              key={option.value}
+                              label={option.label}
+                              checked={
+                                (attachment.purpose ?? "auto") === option.value
+                              }
+                              onClick={() =>
+                                onPhotoPurposeChange(
+                                  attachment.id,
+                                  option.value,
+                                )
+                              }
+                            />
+                          ))}
+                        </MenuContent>
+                      </MenuRoot>
+                    ) : (
+                      <Text textStyle="captionSm" color="fg.neutral-subtle">
+                        모티프
+                      </Text>
+                    )}
+                  </VStack>
+                  {onRemoveAttachment ? (
+                    <ActionButton
+                      type="button"
+                      size="xsmall"
+                      variant="neutralWeak"
+                      iconOnly
+                      aria-label={`${attachment.name} 첨부 삭제`}
+                      onClick={() => onRemoveAttachment(attachment.id)}
+                      disabled={loading}
+                    >
+                      <Icon svg={<XMarkIcon />} size={14} />
+                    </ActionButton>
+                  ) : null}
+                </HStack>
+              ))}
+            </HStack>
+          </ScrollFog>
+        ) : null}
+
+        {paletteColors.length > 0 || patternSummary.length > 0 ? (
+          <ScrollFog direction="horizontal" aria-label="현재 생성 설정">
+            <HStack gap="x2" className="min-w-max px-x1 py-x1">
+              {paletteColors.length > 0 ? (
+                <Chip
+                  size="small"
+                  variant="outline"
+                  selected
+                  aria-label="적용 색상 전체 초기화"
+                  onClick={onResetPalette}
+                  prefix={
+                    <HStack gap="x0_5" aria-hidden>
+                      {paletteColors.slice(0, 5).map((color) => (
+                        <Box
+                          as="span"
+                          key={color}
+                          width={10}
+                          height={10}
+                          borderRadius="full"
+                          borderWidth={1}
+                          borderColor="stroke.neutral-weak"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </HStack>
+                  }
+                >
+                  색상 {paletteColors.length}개 · 초기화
+                </Chip>
+              ) : null}
+              {patternSummary.length > 0 ? (
+                <Chip
+                  size="small"
+                  variant="outline"
+                  selected
+                  aria-label="패턴 설정 전체 초기화"
+                  onClick={onResetPattern}
+                >
+                  {patternSummary.join(" · ")} · 초기화
+                </Chip>
+              ) : null}
+            </HStack>
+          </ScrollFog>
+        ) : null}
+
         <ChatInput
           aria-label="어떤 디자인을 만들까요?"
           placeholder="원하는 색상, 무늬, 분위기를 입력하세요"
           value={prompt}
           onChange={(event) => onPromptChange(event.currentTarget.value)}
-          disabled={disabled || loading}
+          disabled={controlsDisabled}
           leading={
             <ActionButton
               type="button"
@@ -198,77 +373,96 @@ export function DesignComposer({
             </ActionButton>
           }
           trailing={
-            <ActionButton
-              type="submit"
-              size="small"
-              iconOnly
-              aria-label={submitLabel}
-              loading={loading}
-              disabled={submitDisabled}
-              className="rounded-full"
-            >
-              <Icon svg={<PaperAirplaneIcon />} size={18} />
-            </ActionButton>
+            <HStack gap="x1">
+              <ActionButton
+                type="button"
+                variant="ghost"
+                size="small"
+                iconOnly
+                aria-label="문맥 기반 아이디어"
+                onClick={onOpenIdeas}
+                disabled={controlsDisabled}
+                className="rounded-full"
+              >
+                <Icon svg={<SparklesIcon />} size={18} />
+              </ActionButton>
+              <ActionButton
+                type="submit"
+                size="small"
+                iconOnly
+                aria-label={submitLabel}
+                loading={loading}
+                disabled={submitDisabled}
+                className="rounded-full"
+              >
+                <Icon svg={<PaperAirplaneIcon />} size={18} />
+              </ActionButton>
+            </HStack>
           }
         />
 
         {optionsOpen ? (
-          <VStack gap="x4" alignItems="stretch" pt="x1">
-            <HStack gap="x5" align="flex-start">
+          <VStack gap="x3" alignItems="stretch" pt="x1">
+            <Grid columns={{ base: 4, md: 5 }} gap="x3" alignItems="start">
+              <ComposerPanelItem
+                icon={<Icon svg={<PhotoIcon />} size={24} />}
+                label="사진 첨부"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<PuzzlePieceIcon />} size={24} />}
+                label="모티프 추가"
+                onClick={onOpenMotifAdd}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<BookmarkSquareIcon />} size={24} />}
+                label="내 모티프"
+                onClick={onOpenMotifLibrary}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<PaintBrushIcon />} size={24} />}
+                label="색상"
+                onClick={onOpenColors}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<AdjustmentsHorizontalIcon />} size={24} />}
+                label="패턴 설정"
+                onClick={onOpenPatternSettings}
+                disabled={controlsDisabled}
+              />
+              <MenuRoot placement="top">
+                <MenuTrigger>
+                  <ComposerPanelItem
+                    icon={<Icon svg={<SquaresPlusIcon />} size={24} />}
+                    label={`후보 ${candidateCount}개`}
+                    disabled={controlsDisabled}
+                  />
+                </MenuTrigger>
+                <MenuContent aria-label="한 번에 만들 후보 수">
+                  {CANDIDATE_COUNTS.map((count) => (
+                    <MenuItem
+                      key={count}
+                      label={`${count}개`}
+                      checked={candidateCount === count}
+                      onClick={() => onCandidateCountChange(count)}
+                    />
+                  ))}
+                </MenuContent>
+              </MenuRoot>
               {sessionActions}
               {onPurchaseTokens ? (
                 <ComposerPanelItem
                   icon={<Icon svg={<CreditCardIcon />} size={24} />}
                   label="충전"
                   onClick={onPurchaseTokens}
-                  disabled={disabled || loading}
+                  disabled={controlsDisabled}
                 />
               ) : null}
-            </HStack>
-
-            {hints.length > 0 ? (
-              <VStack gap="x2" alignItems="stretch">
-                <Text textStyle="caption" color="fg.neutral-muted">
-                  프롬프트 힌트
-                </Text>
-                <Flex wrap gap="x2">
-                  {hints.map((hint) => (
-                    <Chip
-                      key={hint.id}
-                      size="small"
-                      variant="outline"
-                      selected={prompt.includes(hint.prompt)}
-                      disabled={disabled || loading}
-                      onClick={() =>
-                        handleHintSelect(hint, prompt.includes(hint.prompt))
-                      }
-                    >
-                      {hint.label}
-                    </Chip>
-                  ))}
-                </Flex>
-              </VStack>
-            ) : null}
-
-            <VStack gap="x2" alignItems="stretch">
-              <Text textStyle="caption" color="fg.neutral-muted">
-                한 번에 만들 후보 수
-              </Text>
-              <HStack gap="x2" role="group" aria-label="후보 수">
-                {CANDIDATE_COUNTS.map((count) => (
-                  <Chip
-                    key={count}
-                    size="small"
-                    selected={candidateCount === count}
-                    disabled={disabled || loading}
-                    onClick={() => onCandidateCountChange(count)}
-                    aria-label={`후보 ${count}개`}
-                  >
-                    {count}개
-                  </Chip>
-                ))}
-              </HStack>
-            </VStack>
+            </Grid>
 
             <Flex justify="flex-end">
               <Text textStyle="captionSm" color="fg.neutral-subtle">
@@ -279,6 +473,15 @@ export function DesignComposer({
           </VStack>
         ) : null}
       </VStack>
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept={DESIGN_PHOTO_ACCEPT}
+        multiple
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => handleFiles(event, onPhotoFilesSelect)}
+      />
     </Box>
   );
 }

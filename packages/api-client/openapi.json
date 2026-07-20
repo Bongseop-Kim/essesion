@@ -5813,6 +5813,7 @@
         "type": "object"
       },
       "DesignGenerateRequest": {
+        "additionalProperties": false,
         "properties": {
           "candidate_count": {
             "default": 1,
@@ -5845,6 +5846,12 @@
             ],
             "title": "Intent"
           },
+          "palette": {
+            "$ref": "#/components/schemas/PaletteConstraint"
+          },
+          "pattern_constraints": {
+            "$ref": "#/components/schemas/PatternConstraints"
+          },
           "prompt": {
             "anyOf": [
               {
@@ -5856,6 +5863,14 @@
               }
             ],
             "title": "Prompt"
+          },
+          "reference_images": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceImageRequest"
+            },
+            "maxItems": 5,
+            "title": "Reference Images",
+            "type": "array"
           },
           "seed": {
             "anyOf": [
@@ -5881,9 +5896,82 @@
               }
             ],
             "title": "Session Id"
+          },
+          "user_motif_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "User Motif Ids",
+            "type": "array"
           }
         },
         "title": "DesignGenerateRequest",
+        "type": "object"
+      },
+      "DesignIdeasOut": {
+        "properties": {
+          "ideas": {
+            "items": {
+              "maxLength": 180,
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 3,
+            "title": "Ideas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ideas"
+        ],
+        "title": "DesignIdeasOut",
+        "type": "object"
+      },
+      "DesignIdeasRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "default": 4,
+            "enum": [
+              3,
+              4
+            ],
+            "title": "Count",
+            "type": "integer"
+          },
+          "palette": {
+            "$ref": "#/components/schemas/PaletteConstraint"
+          },
+          "pattern_constraints": {
+            "$ref": "#/components/schemas/PatternConstraints"
+          },
+          "prompt": {
+            "default": "",
+            "maxLength": 4000,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "reference_images": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceImageRequest"
+            },
+            "maxItems": 5,
+            "title": "Reference Images",
+            "type": "array"
+          },
+          "user_motif_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "User Motif Ids",
+            "type": "array"
+          }
+        },
+        "title": "DesignIdeasRequest",
         "type": "object"
       },
       "DesignOrderReferenceOut": {
@@ -5909,6 +5997,36 @@
           "object_key"
         ],
         "title": "DesignOrderReferenceOut",
+        "type": "object"
+      },
+      "DesignReferenceUploadOut": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "upload_completed_at": {
+            "format": "date-time",
+            "title": "Upload Completed At",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "content_type",
+          "size_bytes",
+          "upload_completed_at"
+        ],
+        "title": "DesignReferenceUploadOut",
         "type": "object"
       },
       "DesignSessionOut": {
@@ -6060,6 +6178,67 @@
         "title": "DesignSessionUpdateRequest",
         "type": "object"
       },
+      "DesignTurnAttachmentOut": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "photo",
+              "svg"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Svg"
+          },
+          "preview_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Url"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "color_mood",
+                  "motif",
+                  "composition"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          }
+        },
+        "required": [
+          "kind",
+          "filename"
+        ],
+        "title": "DesignTurnAttachmentOut",
+        "type": "object"
+      },
       "DesignTurnCreateRequest": {
         "properties": {
           "payload": {
@@ -6085,6 +6264,13 @@
       },
       "DesignTurnOut": {
         "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/DesignTurnAttachmentOut"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -7857,6 +8043,52 @@
         "title": "MotifGenerateRequest",
         "type": "object"
       },
+      "MotifPreviewOut": {
+        "properties": {
+          "background_confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Background Confidence"
+          },
+          "processed_preview_base64": {
+            "anyOf": [
+              {
+                "maxLength": 2666668,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed Preview Base64"
+          },
+          "svg": {
+            "maxLength": 2000000,
+            "title": "Svg",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "svg"
+        ],
+        "title": "MotifPreviewOut",
+        "type": "object"
+      },
       "MotifSpecIn": {
         "properties": {
           "description": {
@@ -9564,6 +9796,121 @@
         "title": "Page[SeamlessSummaryOut]",
         "type": "object"
       },
+      "PaletteConstraint": {
+        "additionalProperties": false,
+        "properties": {
+          "colors": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Colors",
+            "type": "array"
+          },
+          "mode": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "fixed"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "PaletteConstraint",
+        "type": "object"
+      },
+      "PaletteExtractOut": {
+        "properties": {
+          "colors": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 2,
+            "title": "Colors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "colors"
+        ],
+        "title": "PaletteExtractOut",
+        "type": "object"
+      },
+      "PaletteExtractRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "color_count": {
+            "default": 5,
+            "maximum": 5.0,
+            "minimum": 2.0,
+            "title": "Color Count",
+            "type": "integer"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "PaletteExtractRequest",
+        "type": "object"
+      },
+      "PatternConstraints": {
+        "additionalProperties": false,
+        "properties": {
+          "arrangement": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "lattice",
+              "staggered",
+              "scatter"
+            ],
+            "title": "Arrangement",
+            "type": "string"
+          },
+          "density": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "sparse",
+              "medium",
+              "dense"
+            ],
+            "title": "Density",
+            "type": "string"
+          },
+          "direction": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "vertical",
+              "horizontal",
+              "diagonal"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "motif_scale": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "small",
+              "medium",
+              "large"
+            ],
+            "title": "Motif Scale",
+            "type": "string"
+          }
+        },
+        "title": "PatternConstraints",
+        "type": "object"
+      },
       "PaymentConfirmRequest": {
         "properties": {
           "amount": {
@@ -9978,6 +10325,43 @@
           "code"
         ],
         "title": "PhoneVerifyRequest",
+        "type": "object"
+      },
+      "PhotoMotifPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "color_count": {
+            "default": 4,
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Color Count",
+            "type": "integer"
+          },
+          "remove_background": {
+            "default": true,
+            "title": "Remove Background",
+            "type": "boolean"
+          },
+          "simplification": {
+            "default": "medium",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Simplification",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "PhotoMotifPreviewRequest",
         "type": "object"
       },
       "PricingUpdateItem": {
@@ -10687,6 +11071,32 @@
           "object_key"
         ],
         "title": "ReferenceImageIn",
+        "type": "object"
+      },
+      "ReferenceImageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "default": "auto",
+            "enum": [
+              "auto",
+              "color_mood",
+              "motif",
+              "composition"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id"
+        ],
+        "title": "ReferenceImageRequest",
         "type": "object"
       },
       "ReformDataIn": {
@@ -12602,6 +13012,47 @@
         "title": "StatsResponse",
         "type": "object"
       },
+      "TextMotifPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "font_id": {
+            "default": "nanum-gothic",
+            "enum": [
+              "nanum-gothic",
+              "nanum-myeongjo"
+            ],
+            "title": "Font Id",
+            "type": "string"
+          },
+          "font_weight": {
+            "default": 400,
+            "enum": [
+              400,
+              700
+            ],
+            "title": "Font Weight",
+            "type": "integer"
+          },
+          "letter_spacing": {
+            "default": 0,
+            "maximum": 1.0,
+            "minimum": -0.2,
+            "title": "Letter Spacing",
+            "type": "number"
+          },
+          "text": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "TextMotifPreviewRequest",
+        "type": "object"
+      },
       "TokenBalance": {
         "properties": {
           "bonus": {
@@ -12913,6 +13364,8 @@
             "type": "string"
           },
           "filename": {
+            "maxLength": 255,
+            "minLength": 1,
             "title": "Filename",
             "type": "string"
           },
@@ -12921,7 +13374,8 @@
               "repair_shipping_upload",
               "custom_order",
               "sample_order",
-              "quote_request"
+              "quote_request",
+              "design_reference"
             ],
             "title": "Kind",
             "type": "string"
@@ -13044,6 +13498,62 @@
           "used_at"
         ],
         "title": "UserCouponOut",
+        "type": "object"
+      },
+      "UserMotifImportRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "svg": {
+            "maxLength": 2000000,
+            "title": "Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "svg"
+        ],
+        "title": "UserMotifImportRequest",
+        "type": "object"
+      },
+      "UserMotifOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "motif_id": {
+            "title": "Motif Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "preview_svg": {
+            "title": "Preview Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "motif_id",
+          "name",
+          "preview_svg",
+          "created_at"
+        ],
+        "title": "UserMotifOut",
         "type": "object"
       },
       "ValidationError": {
@@ -19569,6 +20079,54 @@
         ]
       }
     },
+    "/design-uploads/{upload_id}/complete": {
+      "post": {
+        "operationId": "complete_design_reference_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Upload Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignReferenceUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete Design Reference Upload",
+        "tags": [
+          "images"
+        ]
+      }
+    },
     "/design/export": {
       "post": {
         "description": "디자인 SVG를 PNG/TIFF로 변환해 바이너리로 반환 (워커 /export 프록시, 과금 없음).",
@@ -19655,6 +20213,53 @@
           }
         ],
         "summary": "Generate Design",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/ideas": {
+      "post": {
+        "description": "현재 작성 문맥만 전송하는 무과금 helper. 세션 턴과 토큰 원장에는 기록하지 않는다.",
+        "operationId": "create_design_ideas",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignIdeasRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignIdeasOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Design Ideas",
         "tags": [
           "design"
         ]
@@ -19974,6 +20579,294 @@
           }
         ],
         "summary": "Create Design Order Reference",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/motifs": {
+      "get": {
+        "operationId": "list_user_motifs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserMotifOut"
+                  },
+                  "title": "Response List User Motifs",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List User Motifs",
+        "tags": [
+          "design"
+        ]
+      },
+      "post": {
+        "operationId": "import_user_motif",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserMotifImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMotifOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import User Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/motifs/photo-preview": {
+      "post": {
+        "operationId": "preview_photo_motif",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhotoMotifPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Photo Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/motifs/text-preview": {
+      "post": {
+        "operationId": "preview_text_motif",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TextMotifPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Text Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/motifs/{user_motif_id}": {
+      "delete": {
+        "operationId": "delete_user_motif",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_motif_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Motif Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete User Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/palette/extract": {
+      "post": {
+        "operationId": "extract_design_palette",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaletteExtractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaletteExtractOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Extract Design Palette",
         "tags": [
           "design"
         ]

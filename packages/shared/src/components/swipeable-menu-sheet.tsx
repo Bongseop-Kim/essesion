@@ -48,7 +48,15 @@ function SwipeableMenuSheetContent({
   const hasHeader = title != null || description != null;
 
   return (
-    <VStack {...contentProps} gap="x2_5" px="x4" pb="x4">
+    <VStack
+      {...contentProps}
+      minHeight={0}
+      overflowY="auto"
+      gap="x2_5"
+      px="x4"
+      pb="x4"
+      className="overscroll-contain"
+    >
       {hasHeader ? (
         <VStack
           {...handleProps}

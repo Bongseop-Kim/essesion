@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     store_auth_rate_limit_window_seconds: int = 60
     phone_verify_rate_limit_attempts: int = 20
     phone_verify_rate_limit_window_seconds: int = 60
+    design_ideas_rate_limit_attempts: int = 6
+    design_ideas_rate_limit_window_seconds: int = 60
     toss_webhook_rate_limit_attempts: int = 300
     toss_webhook_rate_limit_window_seconds: int = 60
     public_rate_limit_max_keys: int = 10_000

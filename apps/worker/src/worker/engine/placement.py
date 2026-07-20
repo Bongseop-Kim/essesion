@@ -1,6 +1,7 @@
 """placement 4종 — 토러스 좌표의 인스턴스 생성 (worker-engine.md §3).
 
-scatter poisson만 RNG를 소비한다(시도당 x, y 정확히 2회 — 회전은 항상 0).
+scatter poisson만 RNG를 소비한다(시도당 x, y 정확히 2회). 명시적 고정 회전은 RNG를
+소비하지 않으며, 필드가 없는 기존 intent는 계속 0°라 byte-identical이다.
 """
 
 import math
@@ -88,6 +89,7 @@ def place_path_following(
             f"path_following would place {count} instances (> max_placement_instances {cap})"
         )
     follow = placement.rotation == "follow_path"
+    fixed_rotation = placement.fixed_rotation_deg or 0.0
 
     start = placement.phase_mm % length
     instances: list[Instance] = []
@@ -97,7 +99,7 @@ def place_path_following(
         if s >= length - _EPS:
             break
         (x, y), tangent = centerline.point_at(s, tile_mm)
-        instances.append(Instance(x, y, tangent if follow else 0.0))
+        instances.append(Instance(x, y, tangent if follow else fixed_rotation))
         k += 1
     return instances
 
@@ -129,7 +131,9 @@ def place_lattice(placement: Placement, tile_mm: float) -> list[Instance]:
         for j in range(ny):
             x = i * b1[0] + j * b2[0]
             y = i * b1[1] + j * b2[1]
-            instances.append(Instance(x % tile_mm, y % tile_mm, 0.0))
+            instances.append(
+                Instance(x % tile_mm, y % tile_mm, placement.fixed_rotation_deg or 0.0)
+            )
     return instances
 
 
@@ -179,7 +183,14 @@ def place_scatter(placement: Placement, tile_mm: float, seed: int) -> list[Insta
         n = spec.sateen_n
         step = spec.sateen_step if spec.sateen_step is not None else 1
         cell = tile_mm / n
-        return [Instance(i * cell, ((i * step) % n) * cell, 0.0) for i in range(n)]
+        return [
+            Instance(
+                i * cell,
+                ((i * step) % n) * cell,
+                placement.fixed_rotation_deg or 0.0,
+            )
+            for i in range(n)
+        ]
 
     if spec.min_dist_mm is None:
         raise ValueError("poisson scatter placement requires `min_dist_mm`")
@@ -217,7 +228,7 @@ def place_scatter(placement: Placement, tile_mm: float, seed: int) -> list[Insta
             grid.setdefault((cx, cy), []).append((x, y))
             if len(pts) >= target:
                 break
-    return [Instance(x, y, 0.0) for x, y in pts]
+    return [Instance(x, y, placement.fixed_rotation_deg or 0.0) for x, y in pts]
 
 
 # ---- point_set ----
@@ -227,4 +238,7 @@ def place_point_set(placement: Placement, tile_mm: float) -> list[Instance]:
     spec = placement.point_set
     if spec is None:
         raise ValueError("point_set placement requires a `point_set` spec")
-    return [Instance(x % tile_mm, y % tile_mm, 0.0) for x, y in spec.points]
+    return [
+        Instance(x % tile_mm, y % tile_mm, placement.fixed_rotation_deg or 0.0)
+        for x, y in spec.points
+    ]

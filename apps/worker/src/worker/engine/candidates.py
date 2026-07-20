@@ -6,6 +6,11 @@ from dataclasses import dataclass, replace
 from typing import cast
 
 from worker.engine.composition import compose
+from worker.engine.constraints import (
+    PaletteConstraint,
+    PatternConstraints,
+    assert_constraints_satisfied,
+)
 from worker.engine.determinism import REGISTRY_VERSION, layout_id_for
 from worker.engine.generate import Candidate
 from worker.engine.intent import (
@@ -90,12 +95,18 @@ def generate_candidates(
     source_fidelity: str = SOURCE_FIDELITY_VECTOR,
     registry_version: str = REGISTRY_VERSION,
     motifs: MotifCatalog | None = None,
+    palette_constraint: PaletteConstraint | None = None,
+    pattern_constraints: PatternConstraints | None = None,
 ) -> CandidateSet:
     count = max(1, min(int(candidate_count), MAX_CANDIDATE_COUNT))
 
     base = validate_intent(base_raw, motifs=motifs)
     base_intent = base.intent
     assert_seamless_invariants(base_intent)
+    if palette_constraint is not None and pattern_constraints is not None:
+        assert_constraints_satisfied(
+            base_intent, palette=palette_constraint, pattern=pattern_constraints
+        )
     warnings = list(base.warnings)
 
     available_cws = [cw.id for cw in base_intent.colorways]
@@ -111,10 +122,14 @@ def generate_candidates(
     # 1. layout 변이 — 각각 validate+불변식 통과, layout_id de-dup
     variants: list[tuple[str, Intent, Palette]] = []
     seen_layouts: set[str] = set()
-    for variant in _layout_variants(base_intent):
+    for variant in _layout_variants(base_intent, pattern_constraints=pattern_constraints):
         try:
             res = validate_intent(variant, motifs=motifs)
             assert_seamless_invariants(res.intent)
+            if palette_constraint is not None and pattern_constraints is not None:
+                assert_constraints_satisfied(
+                    res.intent, palette=palette_constraint, pattern=pattern_constraints
+                )
         except (IntentInvalid, AssertionError, ValueError):
             continue
         lid = layout_id_for(res.intent)
@@ -214,6 +229,8 @@ def generate_candidate_set(
     source_fidelity: str = SOURCE_FIDELITY_VECTOR,
     registry_version: str = REGISTRY_VERSION,
     motifs: MotifCatalog | None = None,
+    palette_constraint: PaletteConstraint | None = None,
+    pattern_constraints: PatternConstraints | None = None,
 ) -> CandidateSet:
     """복수 디자인을 다양화·병합 — 전역 SVG de-dup 후 round-robin 선택."""
     count = max(1, min(int(candidate_count), MAX_CANDIDATE_COUNT))
@@ -233,6 +250,8 @@ def generate_candidate_set(
                 source_fidelity=source_fidelity,
                 registry_version=registry_version,
                 motifs=motifs,
+                palette_constraint=palette_constraint,
+                pattern_constraints=pattern_constraints,
             )
         except (IntentInvalid, AssertionError, ValueError) as exc:
             last_exc = exc
@@ -305,12 +324,22 @@ def _q(value: float) -> float:
     return round(float(value), 6)
 
 
-def _layout_variants(base: Intent) -> Iterator[Intent]:
+def _layout_variants(
+    base: Intent, *, pattern_constraints: PatternConstraints | None = None
+) -> Iterator[Intent]:
     """결정론적 layout 변이 (identity 먼저)."""
+    locked_scale = bool(
+        pattern_constraints is not None and pattern_constraints.motif_scale != "auto"
+    )
+    locked_density = bool(pattern_constraints is not None and pattern_constraints.density != "auto")
+    locked_arrangement = bool(
+        pattern_constraints is not None and pattern_constraints.arrangement != "auto"
+    )
     yield base
     for idx, layer in enumerate(base.layers):
         if layer.type == "stripe":
-            yield from _stripe_variants(base, idx)
+            if not locked_density:
+                yield from _stripe_variants(base, idx)
             continue
         if not _is_lattice_layer(layer):
             placement = getattr(layer, "placement", None)
@@ -319,24 +348,31 @@ def _layout_variants(base: Intent) -> Iterator[Intent]:
                 and placement is not None
                 and placement.type == "path_following"
             ):
-                for spacing in (placement.spacing_mm * 0.75, placement.spacing_mm * 1.5):
-                    updated_layers = list(base.layers)
-                    updated_layers[idx] = layer.model_copy(
-                        update={
-                            "placement": placement.model_copy(update={"spacing_mm": _q(spacing)})
-                        }
-                    )
-                    yield base.model_copy(update={"layers": updated_layers})
-                yield from _motif_size_variants(base, idx)
+                if not locked_density:
+                    for spacing in (placement.spacing_mm * 0.75, placement.spacing_mm * 1.5):
+                        updated_layers = list(base.layers)
+                        updated_layers[idx] = layer.model_copy(
+                            update={
+                                "placement": placement.model_copy(
+                                    update={"spacing_mm": _q(spacing)}
+                                )
+                            }
+                        )
+                        yield base.model_copy(update={"layers": updated_layers})
+                if not locked_scale:
+                    yield from _motif_size_variants(base, idx)
             continue
         _, lattice = _lattice_of(cast("MotifLayer", layer))
         current = lattice.drop_fraction
-        for frac in _DROP_FRACTIONS:
-            if frac == current:
-                continue
-            yield _with_lattice_drop(base, idx, frac)
-        yield from _lattice_cell_variants(base, idx)
-        yield from _motif_size_variants(base, idx)
+        if not locked_arrangement:
+            for frac in _DROP_FRACTIONS:
+                if frac == current:
+                    continue
+                yield _with_lattice_drop(base, idx, frac)
+        if not locked_density:
+            yield from _lattice_cell_variants(base, idx)
+        if not locked_scale:
+            yield from _motif_size_variants(base, idx)
 
 
 def _lattice_of(layer: MotifLayer) -> tuple[Placement, LatticeSpec]:

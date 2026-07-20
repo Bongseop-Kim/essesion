@@ -112,6 +112,51 @@ async def test_upload_url_validates_type(client, db_session, settings):
     assert too_large.status_code == 422
 
 
+async def test_design_reference_completion_verifies_metadata_and_owner(
+    app, client, db_session, settings
+):
+    gcs = _MetadataGcs()
+    app.state.gcs = gcs
+    owner = await make_user(db_session)
+    other = await make_user(db_session)
+    owner_headers = auth_headers(owner, settings)
+    issued = await client.post(
+        "/images/upload-url",
+        json={
+            "kind": "design_reference",
+            "filename": "참고 사진.png",
+            "content_type": "image/png",
+            "size_bytes": 100,
+        },
+        headers=owner_headers,
+    )
+    assert issued.status_code == 200, issued.text
+    upload_id = issued.json()["upload_id"]
+    object_key = issued.json()["object_key"]
+    assert object_key.startswith("uploads/design_reference/")
+
+    missing = await client.post(f"/design-uploads/{upload_id}/complete", headers=owner_headers)
+    assert missing.status_code == 400
+    assert missing.json()["code"] == "upload_not_found"
+
+    gcs.metadata[object_key] = GcsObjectMetadata(size_bytes=100, content_type="image/png")
+    denied = await client.post(
+        f"/design-uploads/{upload_id}/complete",
+        headers=auth_headers(other, settings),
+    )
+    assert denied.status_code == 409
+    assert denied.json()["code"] == "ownership_conflict"
+
+    completed = await client.post(f"/design-uploads/{upload_id}/complete", headers=owner_headers)
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["upload_id"] == upload_id
+    image = await db_session.get(Image, upload_id)
+    assert image is not None
+    await db_session.refresh(image)
+    assert image.original_filename == "참고 사진.png"
+    assert image.upload_completed_at is not None
+
+
 async def test_repair_shipping_completion_verifies_issued_object_metadata(
     app, client, db_session, settings
 ):

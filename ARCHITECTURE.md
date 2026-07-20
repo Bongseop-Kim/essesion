@@ -2,7 +2,7 @@
 
 > YeongSeon 커머스와 seamless-tile 엔진을 통합 재구현한 현재 시스템의 **as-built architecture** 문서다. 구현된 코드, 배포 가능한 구성, 아직 외부 개통이 필요한 항목을 구분한다.
 
-최종 갱신: 2026-07-13
+최종 갱신: 2026-07-19
 
 ## 0. 요약과 불변 원칙
 
@@ -18,7 +18,7 @@ React clients → generated OpenAPI client → FastAPI domain API
 
 | 구분 | 상태 | 의미 |
 |---|---|---|
-| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 | 빌드, 타입 검사, 962개 Python/Vitest 테스트 통과 |
+| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 | 빌드, 타입 검사, 1,301개 Python/Vitest 테스트 통과 |
 | OpenAPI·CI/CD·OpenTofu | 구현 완료 | codegen drift, deploy 순서, IAM·리소스 선언 검증 완료 |
 | GCP·Cloudflare 스테이징 | **미개통** | 실제 `tofu apply`, DNS, WAF, Secret Manager 값 주입 필요 |
 | 외부 provider 리허설 | **미완료** | Toss·Solapi·OAuth redirect·Cloud Tasks OIDC·Sentry 실연동 필요 |
@@ -162,6 +162,7 @@ flowchart TB
 - Toss webhook과 OAuth callback의 외부 등록 주소는 `api.essesion.shop`만 사용하고 `run.app` URL을 노출하지 않는다.
 - Admin mutation은 JWT role뿐 아니라 허용된 exact Origin을 검사하고 응답을 `no-store`로 제한한다.
 - worker는 `roles/run.invoker`와 audience가 맞는 Google OIDC token만 수신한다.
+- `/design/ideas`는 API 인스턴스 내에서 인증 사용자별 60초에 6회를 제한한다. 이 메모리 제한은 수평 확장 전체의 전역 quota가 아니므로, 프로덕션은 Cloudflare에서 같은 경로의 IP 기반 rate limit과 WAF를 추가한다. 두 제한은 defense-in-depth이지 사용자별 정확한 전역 호출량을 보증하는 과금 quota가 아니다.
 
 ### 2.4 Supabase 대체 관계
 
@@ -284,7 +285,7 @@ flowchart LR
 | Claims·quotes·inquiries | API | owner/admin workflow, 알림 outbox |
 | Design sessions/jobs | API | 세션·턴·선택·과금·잡 상태·사용량 budget |
 | Pattern compute | worker | intent validation, candidates, placement, SVG, raster |
-| Motif catalog | worker + PostgreSQL | pgvector 검색, normalize, content identity |
+| Motif catalog | worker + API + PostgreSQL | worker의 검색·normalize·content identity, API의 private user motif 소유권·원자 저장 |
 | UI system | `packages/shared` | token, primitive, component, accessibility contract |
 
 ### 4.4 기존 기능 → 새 소유자 이관
@@ -385,7 +386,7 @@ sequenceDiagram
 
 - `db/src/db/models/`의 SQLAlchemy 모델이 스키마 source of truth다.
 - 모든 변경은 Alembic revision으로 만들고 `alembic check`로 모델 drift를 검증한다.
-- 현재 스키마는 35개 모델 테이블과 8개 revision으로 구성되어 있다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
+- 현재 스키마는 40개 모델 테이블과 18개 revision으로 구성되어 있다. 최종 head는 `e7f9a1b2c3d4`이며 `alembic current`와 `alembic check`를 통과한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
 - PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 사용한다.
 - DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다. updated timestamp와 도메인 규칙은 서비스 계층이 소유한다.
 - motif embedding은 pgvector `vector(1536)`을 사용한다.
@@ -398,7 +399,7 @@ sequenceDiagram
 | Commerce | products, options, cart, coupons, orders, items | row lock + advisory lock + server pricing |
 | Money | payments, incidents, token ledger/purchases | append/compensation + provider reconciliation |
 | Support | claims, inquiries, quotes, repair shipping | owner/admin workflow + snapshots |
-| Design | sessions, turns, generation logs/jobs, motifs | API state ownership + worker lease/attempt |
+| Design | sessions, turns/attachments, generation logs/jobs, motifs/user motifs | API state ownership + worker lease/attempt |
 | Operations | settings, outbox, audit-oriented records | bounded batch + retry cursor |
 
 ### 6.3 GCS 분리
@@ -412,6 +413,7 @@ public assets bucket
 private uploads bucket
 ├── uploads/reform_upload/...
 ├── uploads/repair_shipping_upload/...
+├── uploads/design_reference/...
 ├── uploads/sample_order/...
 ├── uploads/quote_request/...
 └── uploads/custom_order/...
@@ -453,12 +455,16 @@ private uploads bucket
 ```mermaid
 flowchart LR
     Prompt[자연어 prompt] --> Author[Gemini authoring]
+    Photo[참고 사진 최대 5장 + 사진별 purpose] -->|검증·축소·메타데이터 제거| Author
+    Controls[fixed palette + pattern constraints] -->|prompt 지시 + 결정적 보정·재검증| Intent
+    UserInput[SVG / 텍스트 / 사진] -->|path·vectorize + sanitize·normalize·content hash| PrivateMotif[소유자 exact 모티프]
     Author --> Intent[intent + motif specs]
     Intent --> Resolver[Motif resolver]
     Resolver -->|exact / vector / stable fallback| Catalog[(pgvector catalog)]
     Resolver -->|catalog empty or below threshold| Recraft[Recraft vector generation]
     Catalog --> Resolved[resolved intent]
     Recraft --> Resolved
+    PrivateMotif -->|소유권 확인 exact ID| Resolved
     Resolved --> Validate[Validation]
     Validate --> Candidates[Candidate variation]
     Candidates --> Placement[Placement]
@@ -469,7 +475,13 @@ flowchart LR
     Seam --> Fabric[Fabric finalize]
 ```
 
-Gemini는 intent와 motif spec을 작성하는 authoring layer다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
+Gemini는 텍스트와 참고 사진에서 intent와 motif spec을 작성하는 authoring layer다. 사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
+
+참고 사진은 API가 소유권·완료 상태·MIME·바이트를 확인한 비공개 GCS 객체만 받는다. worker는 API가 발급한 allowlist signed URL만 redirect 없이 읽고, 장당 10MB·총 50MB·20M pixel을 제한한 뒤 방향 보정, 최대 2048px 축소, JPEG 재인코딩으로 메타데이터를 제거한다. 디자인 생성과 아이디어 helper는 이 재인코딩 바이트를 Gemini image part로 전송하므로, GCS가 private라는 사실만으로 외부 processor 전송이 없다고 보지 않는다. 반면 사진 모티프의 배경 분리·vectorize는 Gemini를 호출하지 않고 Pillow+VTracer CPU threadpool 내에서만 처리한다. 프로덕션 Gemini 활성화 전에 처리 지역, 학습 사용, 로그·abuse monitoring 보존, 삭제 제어, DPA와 사용자 고지를 privacy owner가 실제 계약·프로젝트 설정 기준으로 승인해야 하며, 승인 전에 provider 보존 기간을 보증하지 않는다. 아이디어 API와 private worker 사이에서는 exact motif ID로 소유권을 확인하지만 Gemini prompt에는 content-hash ID 대신 순번과 사용자 지정 이름만 전달한다.
+
+사진 purpose와 순서는 API request, worker image part, generation/turn attachment까지 보존한다. 사용자 SVG는 worker의 기존 SVG 안전 경계와 normalize를 통과하며 계정당 100개까지 보관한다. 텍스트는 동봉 OFL font와 FontTools로 결정적 path를 만든다. 한 생성에서 최종 motif는 최대 2개이고, 사용자 모티프는 일반 retrieval·embedding 검색·registry fingerprint에서 제외되어 다른 계정 요청에 노출되지 않는다. direct intent의 private motif ID도 현재 사용자의 라이브러리 링크 또는 같은 소유자·같은 세션의 과거 SVG 첨부 이력에 한정해 허용하여, 라이브러리 삭제 뒤 기존 variation/finalize는 유지하면서 교차 사용자·교차 세션 참조를 막는다.
+
+fixed palette는 기존 slot/default colorway 계약 안에서 모든 지정 색이 실제 layer에 쓰이도록 결정적으로 재매핑한다. pattern constraint는 사용자 표현을 lattice/half-drop/Poisson scatter, 물리 크기·간격, 고정 rotation으로 변환한다. Gemini 저작 결과와 candidate variation 뒤에 모두 제약을 재검증하며 만족할 수 없으면 조용히 무시하지 않고 constrained retry 또는 422로 끝낸다. 상세 계약과 상한은 `docs/specs/design-generation-controls.md`가 설명한다.
 
 ### 7.2 결정론 계약
 
@@ -502,6 +514,7 @@ intent version
 | `point_set` | 검증된 좌표를 tile 크기로 wrap |
 
 - 대각선은 tile 경계에서 닫히는 slope로 snap한다.
+- 구조화 방향 설정은 optional `fixed_rotation_deg`로 motif instance에 적용한다. 값이 없는 기존 intent는 canonical layout과 SVG byte가 변하지 않는다.
 - 경계를 넘는 motif는 반대편에 clone해 양쪽 픽셀이 연결되게 한다.
 - `<symbol>`에 geometry를 한 번 정의하고 `<use>`로 인스턴스를 배치한다.
 - raster seam metric은 사후 보정이 아니라 이 구조의 회귀 guard다. blur로 경계를 감추지 않는다.
@@ -527,21 +540,34 @@ sequenceDiagram
     participant W as worker-generate
     participant G as GCS assets
 
-    U->>S: prompt 전송
+    U->>S: prompt + 사진별 purpose + 모티프(≤2) + 색상·패턴
+    S->>A: 사진 signed upload 발급·완료
+    S->>A: SVG/텍스트/사진 모티프 preview·저장 요청
+    A->>W: private sanitize·normalize·content identity
+    W-->>A: 정규화 SVG와 identity
+    A->>DB: owner lock 안에서 Motif + UserMotif 원자 저장
     S->>A: POST /design/generate
-    A->>DB: 사용자 lock, 토큰 선차감, request/turn 기록
-    A->>W: OIDC synchronous generate
+    A->>DB: 첨부 소유권·상태 확인, 토큰 선차감
+    A->>W: OIDC generate + ordered photo roles + exact motif ids + constraints
     W->>DB: motif search / catalog upsert
     W->>W: intent validation → candidates → SVG → preview
     W->>G: candidate/content-hash create-only upload
     W-->>A: candidates + warnings
-    A->>DB: assistant turn·로그 commit
+    A->>DB: request/attachment·assistant turn·로그 commit
     A-->>S: 후보 1~4개
 
     Note over A,DB: worker 실패 시 원래 차감 bucket을 멱등 보상
 ```
 
-생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다.
+생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다. 일반 prompt 생성이 성공하면 사용한 프롬프트·첨부·사진 purpose·모티프·palette·pattern·후보 수 작성 상태를 해제하고 턴 이력에 남긴다. 실패한 요청은 staging upload ID와 작성 상태를 유지해 재업로드 없이 재시도한다.
+
+사용자 모티프 경로에서 worker는 DB 소유권을 만들지 않는다. `/motifs/import`와 텍스트·사진
+preview는 순수 변환 경계로 안전한 SVG와 identity만 반환하고, API가 사용자 advisory lock과
+단일 트랜잭션 안에서 `Motif(source=user_upload)` 및 `UserMotif` 링크를 저장한다. 생성형 공개
+catalog의 검색·upsert는 기존 worker resolver가 계속 소유하므로 private 라이브러리와 섞이지
+않는다.
+
+`다시 만들기` variation은 선택한 기존 resolved intent에 seed를 다시 적용하는 intent reroll이다. 작성창에 대기 중인 prompt·참고 사진·exact 모티프는 variation 요청에 전송하거나 소비하지 않는다. variation에 실제 적용된 후보 수·palette·pattern만 성공 후 기본값으로 돌리고, 실패하면 모든 작성 상태를 유지한다. 사진은 세션 삭제 시 만료 처리하고, 라이브러리에서 사용자 모티프 관계를 삭제해도 이미 생성된 intent와 턴의 불변 core motif는 유지한다. 아이디어 helper는 별도 rate limit을 적용하고 디자인 토큰·turn·intent·generation log를 쓰지 않는다.
 
 ### 7.6 Finalize·export 흐름
 
@@ -749,6 +775,7 @@ resvg 판정 근거는 [렌더 동등성 리뷰](./docs/reviews/resvg-parity.md)
 | Toss·OAuth·Solapi 실연동 미검증 | local DryRun과 adapter 테스트 | provider sandbox E2E |
 | Cloud Tasks OIDC 미검증 | audience/deadline/IAM 코드와 테스트 | 실제 queue→worker 전달·retry 관찰 |
 | Sentry DSN 미주입 | DSN 없으면 no-op | store/api/worker 프로젝트 생성·이벤트 확인 |
+| Gemini 참고 사진 외부 처리·보존 정책 미승인 | private GCS 소유권 검증·메타데이터 제거; 로컬 사진 vectorize는 provider 미전송 | 실제 Gemini 계약·프로젝트 설정의 처리 지역·학습·로그/보존·삭제·DPA·사용자 고지 승인 |
 | Apple·Naver OAuth 미구현 | Google·Kakao만 지원으로 명시 | provider 등록·callback·E2E |
 | 사용자 종속 데이터 이관 정책 미확정 | migration stub과 mapping 문서 | 사용자 매칭·대조 리허설 승인 |
 | 역사성 개인정보 retention 미승인 | production cutover 차단 | 필드별 TTL·purge·backup 정책 승인/검증 |

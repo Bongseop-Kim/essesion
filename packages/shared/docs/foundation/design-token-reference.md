@@ -167,6 +167,7 @@ CSS 변수 `--breakpoint-{key}`(값은 `src/breakpoint.ts`와 동기), Tailwind 
 | `size.content-scroll` | `--size-content-scroll` | 384px | 스크롤 가능한 상세 콘텐츠 |
 | `size.loading-media` | `--size-loading-media` | 220px | 미디어 로딩 영역 |
 | `size.loading-result` | `--size-loading-result` | 280px | 생성 결과 로딩 영역 |
+| `size.modal-max-height` | `--size-modal-max-height` | `calc(100dvh - x8)` | 중앙 모달의 세로 최대 영역 |
 | `z.sticky` | `--z-sticky` | 10 | 콘텐츠 내부 sticky 액션 |
 
 ## 이징·duration

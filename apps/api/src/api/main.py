@@ -265,6 +265,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         max_keys=settings.public_rate_limit_max_keys,
         detail="전화번호 인증 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
     )
+    app.state.design_ideas_rate_limiter = AuthRateLimiter(
+        attempts=settings.design_ideas_rate_limit_attempts,
+        window_seconds=settings.design_ideas_rate_limit_window_seconds,
+        max_keys=settings.public_rate_limit_max_keys,
+        detail="아이디어 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    )
     app.state.toss_webhook_rate_limiter = AuthRateLimiter(
         attempts=settings.toss_webhook_rate_limit_attempts,
         window_seconds=settings.toss_webhook_rate_limit_window_seconds,

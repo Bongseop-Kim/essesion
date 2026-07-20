@@ -132,7 +132,18 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
     intent["seed"] = 37
 
     class FakeGemini:
-        async def author_designs(self, _prompt, *, validate):
+        async def author_designs(
+            self,
+            _prompt,
+            *,
+            validate,
+            reference_images=(),
+            motif_ids=(),
+            palette_constraint=None,
+            pattern_constraints=None,
+        ):
+            assert reference_images == []
+            assert motif_ids == []
             assert validate(intent) is None
             return [SimpleNamespace(intent=intent, motif_specs=[])]
 
