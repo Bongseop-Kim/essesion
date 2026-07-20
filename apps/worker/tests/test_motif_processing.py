@@ -227,10 +227,7 @@ def test_multicolor_standalone_preview_preserves_slots_and_identity():
         (
             "MAX_MOTIF_PATHS",
             1,
-            (
-                '<svg viewBox="0 0 1 1"><path d="M0 0L1 0"/>'
-                '<path d="M0 1L1 1"/></svg>'
-            ),
+            ('<svg viewBox="0 0 1 1"><path d="M0 0L1 0"/><path d="M0 1L1 1"/></svg>'),
             "paths",
         ),
         (
@@ -247,9 +244,7 @@ def test_multicolor_standalone_preview_preserves_slots_and_identity():
         ),
     ],
 )
-def test_shared_svg_intake_caps_fail_before_geometry(
-    monkeypatch, limit_name, limit, svg, message
-):
+def test_shared_svg_intake_caps_fail_before_geometry(monkeypatch, limit_name, limit, svg, message):
     monkeypatch.setattr(f"worker.motifs.normalize.{limit_name}", limit)
     monkeypatch.setattr(
         "worker.motifs.geometry.bbox_of",

@@ -121,6 +121,61 @@ describe("design generation controls", () => {
     });
   });
 
+  it("열린 동안 편집값을 유지하고 다시 열 때 최신 입력을 스냅샷한다", () => {
+    const callbacks = {
+      onOpenChange: vi.fn(),
+      onApply: vi.fn(),
+      onExtract: vi.fn(),
+    };
+    const { rerender } = render(
+      <ColorSettingsModal
+        open
+        value={{ mode: "fixed", colors: ["#111111", "#222222"] }}
+        photos={[]}
+        {...callbacks}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("1번째 HEX"), {
+      target: { value: "#ABCDEF" },
+    });
+
+    const latestValue: DesignPalette = {
+      mode: "fixed",
+      colors: ["#334455", "#667788"],
+    };
+    rerender(
+      <ColorSettingsModal
+        open
+        value={latestValue}
+        photos={[]}
+        {...callbacks}
+      />,
+    );
+    expect((screen.getByLabelText("1번째 HEX") as HTMLInputElement).value).toBe(
+      "#ABCDEF",
+    );
+
+    rerender(
+      <ColorSettingsModal
+        open={false}
+        value={latestValue}
+        photos={[]}
+        {...callbacks}
+      />,
+    );
+    rerender(
+      <ColorSettingsModal
+        open
+        value={latestValue}
+        photos={[]}
+        {...callbacks}
+      />,
+    );
+    expect((screen.getByLabelText("1번째 HEX") as HTMLInputElement).value).toBe(
+      "#334455",
+    );
+  });
+
   it("사진에서 추출한 색상을 적용하고 전체 자동으로 초기화한다", async () => {
     const onExtract = vi.fn().mockResolvedValue(["#112233", "#445566"]);
     const onApply = vi.fn();

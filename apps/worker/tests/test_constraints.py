@@ -74,3 +74,14 @@ def test_pattern_controls_map_to_physical_engine_primitives_and_lock_variants():
         assert_constraints_satisfied(candidate.intent, palette=palette, pattern=pattern)
         assert "rotate(90)" in candidate.candidate.svg
 
+
+def test_direction_constraint_rejects_malformed_layers():
+    raw = mvp_intent()
+    raw["layers"] = {}
+
+    with pytest.raises(ConstraintInvalid, match="selected direction requires intent.layers"):
+        apply_generation_constraints(
+            raw,
+            palette=PaletteConstraint(),
+            pattern=PatternConstraints(direction="vertical"),
+        )

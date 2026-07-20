@@ -84,9 +84,7 @@ class PhotoMotifResult:
 def decode_user_image(data: bytes, declared_type: str) -> Image.Image:
     if declared_type not in {"image/jpeg", "image/png", "image/webp"}:
         raise ValueError("image type is not supported")
-    expected = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}[
-        declared_type
-    ]
+    expected = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}[declared_type]
     try:
         with Image.open(io.BytesIO(data)) as source:
             if source.width * source.height > MAX_PHOTO_PIXELS:
@@ -170,10 +168,7 @@ def _remove_flat_border_background(image: Image.Image) -> tuple[Image.Image, flo
 
     def distance(rgb: tuple[int, int, int]) -> float:
         return math.sqrt(
-            sum(
-                (value - target) ** 2
-                for value, target in zip(rgb, background, strict=True)
-            )
+            sum((value - target) ** 2 for value, target in zip(rgb, background, strict=True))
         )
 
     deviations = sorted(distance(rgb) for rgb in border_rgb)

@@ -227,7 +227,7 @@ function TurnItem({
                   key={`${attachment.kind}-${attachment.filename}-${index}`}
                   gap="x1"
                   alignItems="stretch"
-                  width={64}
+                  className="w-16"
                 >
                   <ImageFrame
                     ratio={1}

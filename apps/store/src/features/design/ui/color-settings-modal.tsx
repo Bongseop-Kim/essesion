@@ -56,9 +56,12 @@ export function ColorSettingsModal({
   const [error, setError] = useState<string | null>(null);
   const extractSequence = useRef(0);
   const openRef = useRef(open);
+  const previousOpenRef = useRef(false);
 
   useEffect(() => {
     openRef.current = open;
+    if (previousOpenRef.current === open) return;
+    previousOpenRef.current = open;
     extractSequence.current += 1;
     setExtracting(false);
     if (!open) return;
@@ -66,7 +69,7 @@ export function ColorSettingsModal({
     setColors(value.mode === "fixed" ? value.colors : []);
     setSourcePhotoId(photos[0]?.id ?? "");
     setError(null);
-  }, [open]);
+  }, [open, value.mode, value.colors, photos]);
 
   const chooseMode = (next: string) => {
     extractSequence.current += 1;

@@ -103,9 +103,7 @@ def _ordered_slot_refs(raw: dict[str, Any]) -> list[str]:
         elif layer_type == "stripe":
             bands = params.get("bands")
             if isinstance(bands, list):
-                candidates.extend(
-                    band.get("color") for band in bands if isinstance(band, dict)
-                )
+                candidates.extend(band.get("color") for band in bands if isinstance(band, dict))
         elif layer_type == "motif":
             colors = params.get("colors")
             if isinstance(colors, dict) and colors:
@@ -190,9 +188,7 @@ def _lattice_placement(
     return {"type": "lattice", "lattice": lattice}
 
 
-def _scatter_placement(
-    *, tile: float, layer: dict[str, Any], density: str
-) -> dict[str, Any]:
+def _scatter_placement(*, tile: float, layer: dict[str, Any], density: str) -> dict[str, Any]:
     axis = _density_axis_count(density, tile, layer)
     count = _SCATTER_COUNT[density] if density != "auto" else max(4, round(axis * axis * 0.5))
     return {
@@ -258,9 +254,7 @@ def _apply_pattern(raw: dict[str, Any], constraint: PatternConstraints) -> None:
                     tile=tile, layer=layer, density=constraint.density
                 )
             elif placement_type == "path_following":
-                placement["spacing_mm"] = round(
-                    tile / _PATH_REPEAT_COUNT[constraint.density], 6
-                )
+                placement["spacing_mm"] = round(tile / _PATH_REPEAT_COUNT[constraint.density], 6)
             else:
                 raise ConstraintInvalid(
                     [f"density is not supported for placement {placement_type!r}"]
@@ -270,7 +264,8 @@ def _apply_pattern(raw: dict[str, Any], constraint: PatternConstraints) -> None:
         angle = _DIRECTION_ANGLE[constraint.direction]
         affected = False
         layers = raw.get("layers")
-        assert isinstance(layers, list)
+        if not isinstance(layers, list):
+            raise ConstraintInvalid(["selected direction requires intent.layers"])
         for layer in layers:
             if not isinstance(layer, dict):
                 continue
@@ -380,9 +375,7 @@ def assert_constraints_satisfied(
                         if not math.isclose(
                             float(lattice.get(key, -1)), expected_cell, abs_tol=1e-6
                         ):
-                            errors.append(
-                                f"motif layer {layer_id!r} does not satisfy density"
-                            )
+                            errors.append(f"motif layer {layer_id!r} does not satisfy density")
                             break
                 elif placement_type == "scatter" and isinstance(scatter, dict):
                     if scatter.get("count") != _SCATTER_COUNT[pattern.density]:

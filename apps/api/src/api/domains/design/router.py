@@ -634,13 +634,10 @@ async def create_design_ideas(
     )
     payload = body.model_dump(exclude={"reference_images", "user_motif_ids"})
     payload["reference_images"] = [
-        await _reference_image_payload(image, purpose, request)
-        for image, purpose in references
+        await _reference_image_payload(image, purpose, request) for image, purpose in references
     ]
     payload["motif_ids"] = [motif.id for _, motif in user_motifs]
-    payload["motifs"] = [
-        {"motif_id": motif.id, "name": link.name} for link, motif in user_motifs
-    ]
+    payload["motifs"] = [{"motif_id": motif.id, "name": link.name} for link, motif in user_motifs]
     try:
         out = DesignIdeasOut.model_validate(await request.app.state.worker.ideas(payload))
     except ValidationError as exc:
@@ -913,17 +910,32 @@ async def _design_turn_outs(
             )
         ).all()
         now = datetime.now(UTC)
-        for attachment, image, motif in attachment_rows:
-            preview_url = None
-            preview_svg = None
+        eligible_photos = [
+            (row_index, image.object_key)
+            for row_index, (attachment, image, _motif) in enumerate(attachment_rows)
             if (
                 attachment.kind == "photo"
                 and image is not None
                 and image.deleted_at is None
                 and (image.expires_at is None or image.expires_at > now)
-            ):
-                preview_url = await request.app.state.gcs.signed_read_url(image.object_key)
-            elif attachment.kind == "svg" and motif is not None:
+            )
+        ]
+        signed_photo_urls = await asyncio.gather(
+            *(
+                request.app.state.gcs.signed_read_url(object_key)
+                for _row_index, object_key in eligible_photos
+            )
+        )
+        preview_urls_by_row = {
+            row_index: preview_url
+            for (row_index, _object_key), preview_url in zip(
+                eligible_photos, signed_photo_urls, strict=True
+            )
+        }
+        for row_index, (attachment, _image, motif) in enumerate(attachment_rows):
+            preview_url = preview_urls_by_row.get(row_index)
+            preview_svg = None
+            if attachment.kind == "svg" and motif is not None:
                 preview_svg = _motif_preview_svg(motif)
             by_turn.setdefault(attachment.turn_id, []).append(
                 DesignTurnAttachmentOut(
@@ -994,8 +1006,7 @@ async def generate_design(
     )
     if photos:
         payload["reference_images"] = [
-            await _reference_image_payload(image, purpose, request)
-            for image, purpose in photos
+            await _reference_image_payload(image, purpose, request) for image, purpose in photos
         ]
     if user_motifs:
         payload["motif_ids"] = [motif.id for _, motif in user_motifs]
@@ -1158,10 +1169,7 @@ async def _resolve_reference_images(
     if lock:
         query = query.with_for_update()
     now = datetime.now(UTC)
-    images_by_id = {
-        image.id: image
-        for image in await session.scalars(query)
-    }
+    images_by_id = {image.id: image for image in await session.scalars(query)}
     resolved: list[tuple[Image, ReferencePurpose]] = []
     for reference in references:
         image = images_by_id.get(reference.upload_id)

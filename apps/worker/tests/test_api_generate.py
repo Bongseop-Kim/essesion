@@ -363,8 +363,22 @@ def test_reference_photo_rejects_untrusted_url_before_fetch(monkeypatch):
     assert response.json()["detail"] == "reference image URL is not allowed"
 
 
-def test_generate_accepts_at_most_two_explicit_motifs(client):
-    response = client.post(
+def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
+    class ExactMotifGemini:
+        async def author_designs(self, _prompt, *, validate, motif_ids, **_kwargs):
+            assert motif_ids == ["circle", "bee"]
+            intent = mvp_intent()
+            assert validate(intent) is None
+            return [AuthoredDesign(intent=intent)]
+
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=ExactMotifGemini())
+    client = TestClient(app)
+
+    accepted = client.post("/generate", json={"motif_ids": ["circle", "bee"]})
+    assert accepted.status_code == 200, accepted.text
+
+    rejected = client.post(
         "/generate",
         json={
             "motif_ids": [
@@ -374,7 +388,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(client):
             ]
         },
     )
-    assert response.status_code == 422
+    assert rejected.status_code == 422
 
 
 def test_user_svg_import_is_pure_normalization_response(monkeypatch):

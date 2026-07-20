@@ -307,7 +307,7 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
 
 
 async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachments(
-    client, app, db_session, settings
+    client, app, db_session, settings, monkeypatch
 ):
     worker = FakeWorker()
     app.state.worker = worker
@@ -395,7 +395,7 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
             "content_type": "image/png",
             "size_bytes": 123,
             "purpose": "motif",
-        }
+        },
     ]
     assert payload["palette"] == {"mode": "fixed", "colors": ["#AABBCC", "#123456"]}
     assert payload["pattern_constraints"] == {
@@ -405,9 +405,25 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         "direction": "diagonal",
     }
 
+    active_signings = 0
+    max_active_signings = 0
+
+    async def tracked_signed_read_url(object_key: str) -> str:
+        nonlocal active_signings, max_active_signings
+        active_signings += 1
+        max_active_signings = max(max_active_signings, active_signings)
+        try:
+            await asyncio.sleep(0)
+            return f"https://storage.googleapis.example/{object_key}"
+        finally:
+            active_signings -= 1
+
+    monkeypatch.setattr(app.state.gcs, "signed_read_url", tracked_signed_read_url)
+
     turns = (
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
+    assert max_active_signings == 2
     request_turn = turns[-2]
     assert request_turn["attachments"][0]["filename"] == "구도.webp"
     assert request_turn["attachments"][0]["purpose"] == "composition"
@@ -817,9 +833,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         "/design/ideas",
         json={
             "prompt": "차분한 넥타이",
-            "reference_images": [
-                {"upload_id": str(photo.id), "purpose": "color_mood"}
-            ],
+            "reference_images": [{"upload_id": str(photo.id), "purpose": "color_mood"}],
             "user_motif_ids": [str(user_motif.id)],
             "palette": {"mode": "fixed", "colors": ["#123", "#456789"]},
             "pattern_constraints": {"density": "sparse", "arrangement": "scatter"},
@@ -862,11 +876,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         ),
         (
             "/design/ideas",
-            {
-                "reference_images": [
-                    {"upload_id": str(photo.id), "purpose": "composition"}
-                ]
-            },
+            {"reference_images": [{"upload_id": str(photo.id), "purpose": "composition"}]},
         ),
     ):
         response = await client.post(path, json=body, headers=auth_headers(other, settings))
@@ -972,6 +982,7 @@ async def test_text_motif_restricts_characters_and_normalizes_nfc(
     assert valid.status_code == 200
     assert worker.text_preview_payloads[-1]["text"] == "가 A1"
     assert invalid.status_code == 422
+
 
 async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
     client, app, db_session, settings
