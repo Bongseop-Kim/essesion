@@ -47,6 +47,7 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
+import { FAILURE_STAGE_LABELS } from "./generation-labels";
 import { JOB_STATUS_LABELS, JOB_STATUSES } from "./job-status";
 
 const TABS = ["jobs", "seamless"] as const;
@@ -834,7 +835,11 @@ function SeamlessPanel({
       visibility: "large",
       render: (log) =>
         log.error_summary
-          ? `${log.error_summary}${log.failure_stage ? ` (${log.failure_stage})` : ""}`
+          ? `${log.error_summary}${
+              log.failure_stage
+                ? ` (${FAILURE_STAGE_LABELS[log.failure_stage] ?? log.failure_stage})`
+                : ""
+            }`
           : "-",
     },
   ];

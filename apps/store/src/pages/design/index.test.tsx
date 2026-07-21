@@ -424,7 +424,7 @@ describe("DesignPage composer lifecycle", () => {
 
     await screen.findByText("요청을 이해하지 못했어요");
     const description = screen.getByText(
-      "요청 내용을 조금 더 구체적으로 작성해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요. 요청 내용을 바꿔 다시 생성해 주세요.",
+      "요청 내용을 조금 더 구체적으로 작성해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
     );
     expect(description.parentElement?.children).toHaveLength(2);
     queryClient.clear();
