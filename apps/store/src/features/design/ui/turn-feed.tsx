@@ -34,6 +34,11 @@ import {
   type DesignCandidate,
 } from "./candidate-grid";
 
+const requestTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 type GeneratePayload = Extract<DesignTurnPayload, { type: "generate" }>;
 export type TurnCandidate = GeneratePayload["response"]["candidates"][number];
 export type FinalizeTurnPayload = Extract<
@@ -129,6 +134,7 @@ export function TurnFeed({
           <Box as="li" key={turn.id}>
             <TurnItem
               payload={payload}
+              createdAt={turn.created_at}
               attachments={turn.attachments ?? []}
               selectedCandidateId={selectedCandidateId}
               onSelectCandidate={onSelectCandidate}
@@ -157,6 +163,7 @@ function FeedCenter({ children }: { children: ReactNode }) {
 
 function TurnItem({
   payload,
+  createdAt,
   attachments,
   selectedCandidateId,
   onSelectCandidate,
@@ -164,6 +171,7 @@ function TurnItem({
   candidateMenu,
 }: {
   payload: DesignTurnPayload | null;
+  createdAt: string;
   attachments: readonly DesignTurnAttachmentOut[];
   selectedCandidateId?: string | null;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
@@ -202,8 +210,13 @@ function TurnItem({
               : payload.prompt || "새 디자인을 만들어 주세요."}
           </Text>
         </Box>
-        <Text textStyle="captionSm" color="fg.neutral-subtle">
-          후보 {payload.candidate_count}개
+        <Text
+          as="time"
+          dateTime={createdAt}
+          textStyle="captionSm"
+          color="fg.neutral-subtle"
+        >
+          {formatRequestTime(createdAt)}
         </Text>
         {payload.palette?.mode === "fixed" ? (
           <Text textStyle="captionSm" color="fg.neutral-subtle">
@@ -288,4 +301,11 @@ function TurnItem({
 
   if (payload.type === "finalize") return renderFinalizeTurn(payload);
   return null;
+}
+
+function formatRequestTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : requestTimeFormatter.format(date);
 }

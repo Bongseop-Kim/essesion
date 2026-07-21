@@ -14,6 +14,7 @@ import {
 import {
   ActionButton,
   Callout,
+  ContentPlaceholder,
   DatePicker,
   Grid,
   HStack,
@@ -362,13 +363,12 @@ export function DashboardPage() {
             />
           )}
           {fallbackCapabilities.length > 0 && (
-            <Callout
-              tone="informative"
-              title="로컬·대체 연동 모드"
-              description={fallbackCapabilities
+            <Text textStyle="caption" color="fg.neutral-muted">
+              로컬·대체 연동 모드 —{" "}
+              {fallbackCapabilities
                 .map(([label, mode]) => `${label}: ${mode}`)
                 .join(" · ")}
-            />
+            </Text>
           )}
           {capabilityEntries.length > 0 && (
             <Grid as="dl" columns={{ base: 1, sm: 2, lg: 4 }} gap="x3">
@@ -387,153 +387,165 @@ export function DashboardPage() {
         </VStack>
       </AdminCard>
 
-      {summary.isError && (
-        <Callout
-          tone="critical"
+      {summary.isError ? (
+        <ContentPlaceholder
           title="운영 지표를 불러오지 못했습니다"
           description="필터를 확인하거나 다시 시도해 주세요."
-          onClick={() => void summary.refetch()}
+          action={
+            <ActionButton
+              variant="neutralOutline"
+              onClick={() => void summary.refetch()}
+            >
+              다시 시도
+            </ActionButton>
+          }
         />
+      ) : (
+        <Grid columns={{ base: 1, sm: 2, lg: 5 }} gap="x3">
+          <MetricCard
+            label="주문 금액"
+            value={formatMoney(data?.order_amount)}
+            loading={summary.isLoading}
+          />
+          <MetricCard
+            label="주문 수"
+            value={`${data?.order_count ?? 0}건`}
+            loading={summary.isLoading}
+          />
+          <MetricCard
+            label="미처리 클레임"
+            value={`${data?.open_claim_count ?? 0}건`}
+            loading={summary.isLoading}
+          />
+          <MetricCard
+            label="미답변 문의"
+            value={`${data?.unanswered_inquiry_count ?? 0}건`}
+            loading={summary.isLoading}
+          />
+          <MetricCard
+            label="미해결 결제 이상"
+            value={`${data?.open_payment_incident_count ?? 0}건`}
+            loading={summary.isLoading}
+          />
+        </Grid>
       )}
-
-      <Grid columns={{ base: 1, sm: 2, lg: 5 }} gap="x3">
-        <MetricCard
-          label="주문 금액"
-          value={formatMoney(data?.order_amount)}
-          loading={summary.isLoading}
-        />
-        <MetricCard
-          label="주문 수"
-          value={`${data?.order_count ?? 0}건`}
-          loading={summary.isLoading}
-        />
-        <MetricCard
-          label="미처리 클레임"
-          value={`${data?.open_claim_count ?? 0}건`}
-          loading={summary.isLoading}
-        />
-        <MetricCard
-          label="미답변 문의"
-          value={`${data?.unanswered_inquiry_count ?? 0}건`}
-          loading={summary.isLoading}
-        />
-        <MetricCard
-          label="미해결 결제 이상"
-          value={`${data?.open_payment_incident_count ?? 0}건`}
-          loading={summary.isLoading}
-        />
-      </Grid>
 
       <Text textStyle="caption" color="fg.neutral-muted" aria-live="polite">
         조회 기간 {startDate} ~ {endDate} · 기준 시각{" "}
         {formatDateTime(data?.as_of)} · 모든 날짜 경계는 Asia/Seoul 기준
       </Text>
 
-      {timeseries.isError && (
-        <Callout
-          tone="critical"
+      {timeseries.isError ? (
+        <ContentPlaceholder
           title="일별 추이를 불러오지 못했습니다"
           description="조회 기간을 확인하거나 다시 시도해 주세요. 최대 92일까지 조회할 수 있습니다."
-          onClick={() => void timeseries.refetch()}
+          action={
+            <ActionButton
+              variant="neutralOutline"
+              onClick={() => void timeseries.refetch()}
+            >
+              다시 시도
+            </ActionButton>
+          }
         />
+      ) : (
+        <Grid columns={{ base: 1, lg: 2 }} gap="x3">
+          <ChartCard title="매출 추이" loading={timeseries.isLoading}>
+            <TrendChart
+              data={points}
+              series={[
+                {
+                  key: "order_amount",
+                  label: "주문 금액",
+                  color: BRAND_COLOR,
+                  kind: "bar",
+                },
+              ]}
+              tooltipRows={(point) => [
+                {
+                  label: "주문 금액",
+                  value: formatMoney(point.order_amount),
+                  color: BRAND_COLOR,
+                },
+                { label: "주문 수", value: `${point.order_count}건` },
+              ]}
+            />
+          </ChartCard>
+          <ChartCard title="신규 가입" loading={timeseries.isLoading}>
+            <TrendChart
+              data={points}
+              series={[
+                {
+                  key: "new_customer_count",
+                  label: "신규 가입",
+                  color: BRAND_COLOR,
+                  kind: "bar",
+                },
+              ]}
+              valueFormatter={(value) => `${value.toLocaleString("ko")}명`}
+            />
+          </ChartCard>
+          <ChartCard title="이미지 생성" loading={timeseries.isLoading}>
+            <TrendChart
+              data={points}
+              series={[
+                {
+                  key: "generation_not_failed",
+                  label: "비실패",
+                  color: POSITIVE_COLOR,
+                  kind: "bar",
+                  stackId: "generation",
+                },
+                {
+                  key: "generation_failed",
+                  label: "실패",
+                  color: CRITICAL_COLOR,
+                  kind: "bar",
+                  stackId: "generation",
+                },
+              ]}
+              tooltipRows={(point) => [
+                {
+                  label: "전체",
+                  value: `${point.generation_total.toLocaleString("ko")}건`,
+                },
+                {
+                  label: "실패",
+                  value: `${point.generation_failed.toLocaleString("ko")}건`,
+                  color: CRITICAL_COLOR,
+                },
+                {
+                  label: "실패율",
+                  value:
+                    point.generation_total > 0
+                      ? `${Math.round((point.generation_failed / point.generation_total) * 100)}%`
+                      : "-",
+                },
+              ]}
+            />
+          </ChartCard>
+          <ChartCard title="토큰 판매·소모" loading={timeseries.isLoading}>
+            <TrendChart
+              data={points}
+              series={[
+                {
+                  key: "token_sold",
+                  label: "판매",
+                  color: POSITIVE_COLOR,
+                  kind: "line",
+                },
+                {
+                  key: "token_consumed",
+                  label: "소모",
+                  color: INFORMATIVE_COLOR,
+                  kind: "line",
+                },
+              ]}
+              valueFormatter={(value) => `${value.toLocaleString("ko")}개`}
+            />
+          </ChartCard>
+        </Grid>
       )}
-
-      <Grid columns={{ base: 1, lg: 2 }} gap="x3">
-        <ChartCard title="매출 추이" loading={timeseries.isLoading}>
-          <TrendChart
-            data={points}
-            series={[
-              {
-                key: "order_amount",
-                label: "주문 금액",
-                color: BRAND_COLOR,
-                kind: "bar",
-              },
-            ]}
-            tooltipRows={(point) => [
-              {
-                label: "주문 금액",
-                value: formatMoney(point.order_amount),
-                color: BRAND_COLOR,
-              },
-              { label: "주문 수", value: `${point.order_count}건` },
-            ]}
-          />
-        </ChartCard>
-        <ChartCard title="신규 가입" loading={timeseries.isLoading}>
-          <TrendChart
-            data={points}
-            series={[
-              {
-                key: "new_customer_count",
-                label: "신규 가입",
-                color: BRAND_COLOR,
-                kind: "bar",
-              },
-            ]}
-            valueFormatter={(value) => `${value.toLocaleString("ko")}명`}
-          />
-        </ChartCard>
-        <ChartCard title="이미지 생성" loading={timeseries.isLoading}>
-          <TrendChart
-            data={points}
-            series={[
-              {
-                key: "generation_not_failed",
-                label: "비실패",
-                color: POSITIVE_COLOR,
-                kind: "bar",
-                stackId: "generation",
-              },
-              {
-                key: "generation_failed",
-                label: "실패",
-                color: CRITICAL_COLOR,
-                kind: "bar",
-                stackId: "generation",
-              },
-            ]}
-            tooltipRows={(point) => [
-              {
-                label: "전체",
-                value: `${point.generation_total.toLocaleString("ko")}건`,
-              },
-              {
-                label: "실패",
-                value: `${point.generation_failed.toLocaleString("ko")}건`,
-                color: CRITICAL_COLOR,
-              },
-              {
-                label: "실패율",
-                value:
-                  point.generation_total > 0
-                    ? `${Math.round((point.generation_failed / point.generation_total) * 100)}%`
-                    : "-",
-              },
-            ]}
-          />
-        </ChartCard>
-        <ChartCard title="토큰 판매·소모" loading={timeseries.isLoading}>
-          <TrendChart
-            data={points}
-            series={[
-              {
-                key: "token_sold",
-                label: "판매",
-                color: POSITIVE_COLOR,
-                kind: "line",
-              },
-              {
-                key: "token_consumed",
-                label: "소모",
-                color: INFORMATIVE_COLOR,
-                kind: "line",
-              },
-            ]}
-            valueFormatter={(value) => `${value.toLocaleString("ko")}개`}
-          />
-        </ChartCard>
-      </Grid>
 
       <AdminCard
         title="인기 상품 TOP 5"

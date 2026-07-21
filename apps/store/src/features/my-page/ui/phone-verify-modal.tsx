@@ -7,10 +7,10 @@ import {
 import {
   ActionButton,
   Box,
-  Callout,
   HStack,
   ResponsiveModal,
   snackbar,
+  Text,
   TextField,
   VStack,
 } from "@essesion/shared";
@@ -152,9 +152,9 @@ export function PhoneVerifyModal({
             }
           />
         ) : null}
-        <Callout tone="neutral">
+        <Text textStyle="caption" color="fg.neutral-muted">
           인증번호는 5분 동안 유효하며, 재전송은 60초 후 가능합니다.
-        </Callout>
+        </Text>
       </VStack>
     </ResponsiveModal>
   );

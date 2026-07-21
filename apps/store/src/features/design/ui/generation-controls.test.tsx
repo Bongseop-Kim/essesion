@@ -15,22 +15,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AUTO_PATTERN_CONSTRAINTS, type DesignPalette } from "../model/draft";
 import { ColorSettingsModal } from "./color-settings-modal";
 import { IdeasModal } from "./ideas-modal";
-import { MotifAddModal } from "./motif-add-modal";
 import { PatternSettingsModal } from "./pattern-settings-modal";
+import { PhotoMotifModal } from "./photo-motif-modal";
+import { TextMotifModal } from "./text-motif-modal";
 
 const motifApi = vi.hoisted(() => ({
   importSvg: vi.fn(),
   previewPhoto: vi.fn(),
   previewText: vi.fn(),
-  readSvg: vi.fn(),
   uploadPhoto: vi.fn(),
 }));
 
 vi.mock("@/features/design/api/attachments", () => ({
   DESIGN_PHOTO_ACCEPT: "image/jpeg,image/png,image/webp",
-  DESIGN_SVG_ACCEPT: ".svg,image/svg+xml",
   importDesignMotifSvg: motifApi.importSvg,
-  readDesignMotifSvg: motifApi.readSvg,
   uploadDesignPhoto: motifApi.uploadPhoto,
 }));
 
@@ -176,13 +174,13 @@ describe("design generation controls", () => {
     );
   });
 
-  it("사진에서 추출한 색상을 적용하고 전체 자동으로 초기화한다", async () => {
+  it("사진에서 추출한 색상을 고정 팔레트로 적용한다", async () => {
     const onExtract = vi.fn().mockResolvedValue(["#112233", "#445566"]);
     const onApply = vi.fn();
     render(
       <ColorSettingsModal
         open
-        value={{ mode: "fixed", colors: ["#AABBCC", "#DDEEFF"] }}
+        value={{ mode: "auto", colors: [] }}
         photos={[{ id: "photo-1", name: "꽃.jpg" }]}
         onOpenChange={vi.fn()}
         onApply={onApply}
@@ -196,11 +194,27 @@ describe("design generation controls", () => {
       "#112233",
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "전체 자동으로 초기화" }),
-    );
     fireEvent.click(screen.getByRole("button", { name: "적용" }));
-    expect(onApply).toHaveBeenCalledWith({ mode: "auto", colors: [] });
+    expect(onApply).toHaveBeenCalledWith({
+      mode: "fixed",
+      colors: ["#112233", "#445566"],
+    });
+  });
+
+  it("참고 사진이 없으면 추출 섹션을 노출하지 않는다", () => {
+    render(
+      <ColorSettingsModal
+        open
+        value={{ mode: "auto", colors: [] }}
+        photos={[]}
+        onOpenChange={vi.fn()}
+        onApply={vi.fn()}
+        onExtract={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("참고 사진에서 추출")).toBeNull();
+    expect(screen.queryByRole("button", { name: "대표 색상 추출" })).toBeNull();
   });
 
   it("색상 추출 API의 검증 상세를 그대로 안내한다", async () => {
@@ -282,7 +296,7 @@ describe("design generation controls", () => {
     fireEvent.click(
       within(screen.getByRole("radiogroup", { name: "배열" })).getByRole(
         "radio",
-        { name: /엇갈림/ },
+        { name: "엇갈림" },
       ),
     );
     fireEvent.click(
@@ -373,7 +387,7 @@ describe("design generation controls", () => {
     expect(screen.getByDisplayValue("새 문맥 1")).toBeTruthy();
   });
 
-  it("한 모달 안에서 텍스트를 path로 미리 보고 저장한다", async () => {
+  it("텍스트 입력만으로 미리보기를 자동 생성하고 저장 CTA 하나로 끝낸다", async () => {
     motifApi.previewText.mockResolvedValue({
       svg: '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>',
       warnings: [],
@@ -383,36 +397,31 @@ describe("design generation controls", () => {
     motifApi.importSvg.mockResolvedValue(motif);
     const onCreated = vi.fn();
     render(
-      <MotifAddModal
-        open
-        photos={[]}
-        onOpenChange={vi.fn()}
-        onEnsurePhotoUpload={vi.fn()}
-        onCreated={onCreated}
-      />,
+      <TextMotifModal open onOpenChange={vi.fn()} onCreated={onCreated} />,
     );
 
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("tab", { name: "텍스트·이니셜" }));
     fireEvent.change(screen.getByLabelText("짧은 글자"), {
       target: { value: "YS" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "path 미리보기 만들기" }),
-    );
-    await screen.findByAltText("저장할 SVG 모티프 미리보기");
-    fireEvent.click(screen.getByRole("button", { name: "내 모티프에 저장" }));
-
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(motif));
+    await screen.findByAltText("저장할 SVG 모티프 미리보기", undefined, {
+      timeout: 3000,
+    });
     expect(motifApi.previewText).toHaveBeenCalledWith({
       text: "YS",
       fontId: "nanum-gothic",
       fontWeight: 400,
       letterSpacing: 0,
     });
+
+    fireEvent.click(screen.getByRole("button", { name: "내 모티프에 저장" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(motif));
+    expect(motifApi.importSvg).toHaveBeenCalledWith(
+      "YS",
+      '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>',
+    );
   });
 
-  it("저장 중에는 닫기·탭 전환을 막고 성공 응답을 자동 선택한다", async () => {
+  it("저장 중에는 닫기·입력을 막고 성공 응답을 자동 선택한다", async () => {
     const stored = deferred<UserMotifOut>();
     motifApi.previewText.mockResolvedValue({
       svg: '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>',
@@ -424,23 +433,15 @@ describe("design generation controls", () => {
     const onCreated = vi.fn();
     const onOpenChange = vi.fn();
     render(
-      <MotifAddModal
-        open
-        photos={[]}
-        onOpenChange={onOpenChange}
-        onEnsurePhotoUpload={vi.fn()}
-        onCreated={onCreated}
-      />,
+      <TextMotifModal open onOpenChange={onOpenChange} onCreated={onCreated} />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "텍스트·이니셜" }));
     fireEvent.change(screen.getByLabelText("짧은 글자"), {
       target: { value: "YS" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "path 미리보기 만들기" }),
-    );
-    await screen.findByAltText("저장할 SVG 모티프 미리보기");
+    await screen.findByAltText("저장할 SVG 모티프 미리보기", undefined, {
+      timeout: 3000,
+    });
     fireEvent.click(screen.getByRole("button", { name: "내 모티프에 저장" }));
     await waitFor(() => expect(motifApi.importSvg).toHaveBeenCalledOnce());
 
@@ -449,8 +450,11 @@ describe("design generation controls", () => {
         .disabled,
     ).toBe(true);
     expect(
-      (screen.getByRole("tab", { name: "SVG 파일" }) as HTMLButtonElement)
-        .disabled,
+      (
+        screen
+          .getByLabelText("짧은 글자")
+          .closest("fieldset") as HTMLFieldSetElement | null
+      )?.disabled,
     ).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "취소" }));
     expect(onOpenChange).not.toHaveBeenCalled();
@@ -470,71 +474,48 @@ describe("design generation controls", () => {
     motifApi.importSvg.mockRejectedValue({
       detail: "내 모티프는 최대 100개까지 저장할 수 있습니다.",
     });
-    render(
-      <MotifAddModal
-        open
-        photos={[]}
-        onOpenChange={vi.fn()}
-        onEnsurePhotoUpload={vi.fn()}
-        onCreated={vi.fn()}
-      />,
-    );
+    render(<TextMotifModal open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "텍스트·이니셜" }));
     fireEvent.change(screen.getByLabelText("짧은 글자"), {
       target: { value: "YS" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "path 미리보기 만들기" }),
-    );
-    await screen.findByAltText("저장할 SVG 모티프 미리보기");
+    await screen.findByAltText("저장할 SVG 모티프 미리보기", undefined, {
+      timeout: 3000,
+    });
     fireEvent.click(screen.getByRole("button", { name: "내 모티프에 저장" }));
 
     await screen.findByText("내 모티프는 최대 100개까지 저장할 수 있습니다.");
   });
 
-  it("닫기·재열기 전 모티프 미리보기가 새 입력을 덮지 않는다", async () => {
-    const first = deferred<{
+  it("닫기·재열기 전 텍스트 미리보기가 새 입력을 덮지 않는다", async () => {
+    type TextPreview = {
       svg: string;
       warnings: string[];
       background_confidence: null;
       processed_preview_base64: null;
-    }>();
-    const second = deferred<{
-      svg: string;
-      warnings: string[];
-      background_confidence: null;
-      processed_preview_base64: null;
-    }>();
+    };
+    const first = deferred<TextPreview>();
+    const second = deferred<TextPreview>();
     motifApi.previewText
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise);
-    const props = {
-      photos: [],
-      onOpenChange: vi.fn(),
-      onEnsurePhotoUpload: vi.fn(),
-      onCreated: vi.fn(),
-    };
-    const { rerender } = render(<MotifAddModal open {...props} />);
-    fireEvent.click(screen.getByRole("tab", { name: "텍스트·이니셜" }));
+    const props = { onOpenChange: vi.fn(), onCreated: vi.fn() };
+    const { rerender } = render(<TextMotifModal open {...props} />);
     fireEvent.change(screen.getByLabelText("짧은 글자"), {
       target: { value: "A" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "path 미리보기 만들기" }),
-    );
-    await waitFor(() => expect(motifApi.previewText).toHaveBeenCalledOnce());
+    await waitFor(() => expect(motifApi.previewText).toHaveBeenCalledOnce(), {
+      timeout: 3000,
+    });
 
-    rerender(<MotifAddModal open={false} {...props} />);
-    rerender(<MotifAddModal open {...props} />);
-    fireEvent.click(screen.getByRole("tab", { name: "텍스트·이니셜" }));
+    rerender(<TextMotifModal open={false} {...props} />);
+    rerender(<TextMotifModal open {...props} />);
     fireEvent.change(screen.getByLabelText("짧은 글자"), {
       target: { value: "B" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "path 미리보기 만들기" }),
-    );
-    await waitFor(() => expect(motifApi.previewText).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(motifApi.previewText).toHaveBeenCalledTimes(2), {
+      timeout: 3000,
+    });
 
     await act(async () => {
       second.resolve({
@@ -562,30 +543,7 @@ describe("design generation controls", () => {
     ).toBe(currentSource);
   });
 
-  it("sanitize 전 SVG 원본은 화면에 열지 않는다", async () => {
-    motifApi.readSvg.mockResolvedValue(
-      '<svg><image href="https://private.example/track"/></svg>',
-    );
-    render(
-      <MotifAddModal
-        open
-        photos={[]}
-        onOpenChange={vi.fn()}
-        onEnsurePhotoUpload={vi.fn()}
-        onCreated={vi.fn()}
-      />,
-    );
-
-    fireEvent.change(screen.getByLabelText("SVG 파일 선택"), {
-      target: {
-        files: [new File(["svg"], "unsafe.svg", { type: "image/svg+xml" })],
-      },
-    });
-    await screen.findByText("저장 후 안전한 미리보기를 표시해요");
-    expect(screen.queryByAltText("저장할 SVG 모티프 미리보기")).toBeNull();
-  });
-
-  it("사진 벡터화 재시도에서 업로드를 재사용하고 처리 결과와 SVG를 구분한다", async () => {
+  it("사진 벡터화 재시도에서 업로드를 재사용하고 단계형 CTA로 저장까지 잇는다", async () => {
     motifApi.uploadPhoto.mockResolvedValue("upload-1");
     motifApi.previewPhoto
       .mockRejectedValueOnce(new Error("윤곽을 찾지 못했습니다."))
@@ -595,17 +553,18 @@ describe("design generation controls", () => {
         background_confidence: 0.9,
         processed_preview_base64: "AA==",
       });
+    motifApi.importSvg.mockResolvedValue(motif);
+    const onCreated = vi.fn();
     render(
-      <MotifAddModal
+      <PhotoMotifModal
         open
         photos={[]}
         onOpenChange={vi.fn()}
         onEnsurePhotoUpload={vi.fn()}
-        onCreated={vi.fn()}
+        onCreated={onCreated}
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "사진에서 만들기" }));
     const photoInput = screen
       .getAllByLabelText("벡터화할 사진 선택")
       .find((element) => element.tagName === "INPUT");
@@ -629,18 +588,72 @@ describe("design generation controls", () => {
       simplification: "medium",
       colorCount: 4,
     });
+
+    expect(
+      screen.queryByRole("button", { name: "자동 분리·벡터화" }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "내 모티프에 저장" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(motif));
+    expect(motifApi.importSvg).toHaveBeenCalledWith(
+      "logo",
+      '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>',
+    );
   });
 
-  it("모티프 모달을 다시 열면 이전 새 사진 미리보기를 정리한다", () => {
+  it("벡터화 옵션을 바꾸면 결과를 무효화하고 CTA를 벡터화로 되돌린다", async () => {
+    motifApi.uploadPhoto.mockResolvedValue("upload-1");
+    motifApi.previewPhoto.mockResolvedValue({
+      svg: '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>',
+      warnings: [],
+      background_confidence: null,
+      processed_preview_base64: null,
+    });
+    render(
+      <PhotoMotifModal
+        open
+        photos={[]}
+        onOpenChange={vi.fn()}
+        onEnsurePhotoUpload={vi.fn()}
+        onCreated={vi.fn()}
+      />,
+    );
+
+    const photoInput = screen
+      .getAllByLabelText("벡터화할 사진 선택")
+      .find((element) => element.tagName === "INPUT");
+    fireEvent.change(photoInput as HTMLInputElement, {
+      target: {
+        files: [new File(["png"], "logo.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "자동 분리·벡터화" }));
+    await screen.findByRole("button", { name: "내 모티프에 저장" });
+
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: "배경 처리" })).getByRole(
+        "radio",
+        { name: "배경 포함" },
+      ),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "내 모티프에 저장" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "자동 분리·벡터화" }),
+    ).toBeTruthy();
+    expect(screen.queryByAltText("저장할 SVG 모티프 미리보기")).toBeNull();
+  });
+
+  it("사진 모달을 다시 열면 이전 새 사진 미리보기를 정리한다", () => {
     const props = {
       photos: [],
       onOpenChange: vi.fn(),
       onEnsurePhotoUpload: vi.fn(),
       onCreated: vi.fn(),
     };
-    const { rerender } = render(<MotifAddModal open {...props} />);
+    const { rerender } = render(<PhotoMotifModal open {...props} />);
 
-    fireEvent.click(screen.getByRole("tab", { name: "사진에서 만들기" }));
     const photoInput = screen
       .getAllByLabelText("벡터화할 사진 선택")
       .find((element) => element.tagName === "INPUT");
@@ -651,9 +664,8 @@ describe("design generation controls", () => {
     });
     expect(screen.getByAltText("벡터화할 원본")).toBeTruthy();
 
-    rerender(<MotifAddModal open={false} {...props} />);
-    rerender(<MotifAddModal open {...props} />);
-    fireEvent.click(screen.getByRole("tab", { name: "사진에서 만들기" }));
+    rerender(<PhotoMotifModal open={false} {...props} />);
+    rerender(<PhotoMotifModal open {...props} />);
 
     expect(screen.queryByAltText("벡터화할 원본")).toBeNull();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview");

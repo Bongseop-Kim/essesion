@@ -254,44 +254,38 @@ export function ColorSettingsModal({
             </VStack>
           ) : null}
 
-          <VStack gap="x3" alignItems="stretch">
-            <Text textStyle="label">참고 사진에서 추출</Text>
-            {photos.length > 0 ? (
-              <>
-                <RadioGroup
-                  value={sourcePhotoId}
-                  onValueChange={(photoId) => {
-                    extractSequence.current += 1;
-                    setExtracting(false);
-                    setSourcePhotoId(photoId);
-                    setError(null);
-                  }}
-                  aria-label="색상을 추출할 사진"
-                >
-                  {photos.map((photo) => (
-                    <RadioGroupItem
-                      key={photo.id}
-                      value={photo.id}
-                      label={photo.name}
-                    />
-                  ))}
-                </RadioGroup>
-                <ActionButton
-                  type="button"
-                  variant="neutralOutline"
-                  loading={extracting}
-                  disabled={!sourcePhotoId}
-                  onClick={() => void extract()}
-                >
-                  대표 색상 추출
-                </ActionButton>
-              </>
-            ) : (
-              <Text textStyle="caption" color="fg.neutral-subtle">
-                먼저 참고 사진을 첨부하면 대표 색상을 가져올 수 있어요.
-              </Text>
-            )}
-          </VStack>
+          {photos.length > 0 ? (
+            <VStack gap="x3" alignItems="stretch">
+              <Text textStyle="label">참고 사진에서 추출</Text>
+              <RadioGroup
+                value={sourcePhotoId}
+                onValueChange={(photoId) => {
+                  extractSequence.current += 1;
+                  setExtracting(false);
+                  setSourcePhotoId(photoId);
+                  setError(null);
+                }}
+                aria-label="색상을 추출할 사진"
+              >
+                {photos.map((photo) => (
+                  <RadioGroupItem
+                    key={photo.id}
+                    value={photo.id}
+                    label={photo.name}
+                  />
+                ))}
+              </RadioGroup>
+              <ActionButton
+                type="button"
+                variant="neutralOutline"
+                loading={extracting}
+                disabled={!sourcePhotoId}
+                onClick={() => void extract()}
+              >
+                대표 색상 추출
+              </ActionButton>
+            </VStack>
+          ) : null}
 
           {error ? (
             <Callout
@@ -300,18 +294,6 @@ export function ColorSettingsModal({
               description={error}
             />
           ) : null}
-
-          <ActionButton
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setMode("auto");
-              setColors([]);
-              setError(null);
-            }}
-          >
-            전체 자동으로 초기화
-          </ActionButton>
         </VStack>
       </Box>
     </ResponsiveModal>

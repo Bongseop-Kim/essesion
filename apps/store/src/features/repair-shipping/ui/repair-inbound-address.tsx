@@ -1,6 +1,6 @@
 import {
   ActionButton,
-  Callout,
+  Box,
   HStack,
   snackbar,
   Text,
@@ -29,8 +29,14 @@ export function RepairInboundAddress({
   };
 
   return (
-    <Callout tone="informative" title="수선품 보내실 곳">
+    <Box
+      borderWidth={1}
+      borderColor="stroke.neutral-weak"
+      borderRadius="r3"
+      p="x4"
+    >
       <VStack gap="x2" alignItems="stretch">
+        <Text textStyle="labelSm">수선품 보내실 곳</Text>
         <Text textStyle="bodySm">
           받는 사람 · {REPAIR_INBOUND_ADDRESS.recipient}
         </Text>
@@ -57,6 +63,6 @@ export function RepairInboundAddress({
           ) : null}
         </HStack>
       </VStack>
-    </Callout>
+    </Box>
   );
 }

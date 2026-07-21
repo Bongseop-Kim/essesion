@@ -105,7 +105,7 @@ async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_sessio
     assert "super-secret" not in failed_detail.text
 
 
-async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
+async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_payloads(
     client, db_session, settings
 ):
     admin = await make_user(db_session, role="admin")
@@ -117,6 +117,69 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
             request_id="seamless-success",
             input_type="prompt",
             prompt="customer-secret@test.local",
+            intent={
+                "designs": [
+                    {
+                        "intent_version": 1,
+                        "canvas": {
+                            "tile_mm": 48,
+                            "dpi": 300,
+                            "private_path": "/private/customer.png",
+                        },
+                        "seed": 7,
+                        "production": {"method": "print", "max_colors": 4},
+                        "palette": {
+                            "slots": [
+                                {
+                                    "id": "ground",
+                                    "hex": "#112233",
+                                    "name": "navy",
+                                    "provider_payload": "raw-provider-secret",
+                                }
+                            ]
+                        },
+                        "colorways": [
+                            {
+                                "id": "default",
+                                "mapping": {"ground": "#112233"},
+                            }
+                        ],
+                        "layers": [
+                            {
+                                "id": "ground",
+                                "type": "background",
+                                "params": {
+                                    "color": "ground",
+                                    "private_path": "/private/customer.png",
+                                },
+                                "z_order": 0,
+                            },
+                            {
+                                "id": "flower",
+                                "type": "motif",
+                                "params": {
+                                    "motif_id": "motif-safe",
+                                    "size_mm": 12,
+                                    "color": "ground",
+                                },
+                                "placement": {
+                                    "type": "lattice",
+                                    "fixed_rotation_deg": 0,
+                                    "lattice": {
+                                        "cell_w_mm": 24,
+                                        "cell_h_mm": 24,
+                                        "drop_fraction": 0.5,
+                                        "drop_axis": "row",
+                                    },
+                                },
+                                "z_order": 1,
+                            },
+                        ],
+                        "provider_payload": {"api_key": "raw-provider-secret"},
+                    }
+                ],
+                "provider_response": "raw-provider-secret",
+            },
             candidate_count_requested=2,
             candidate_count_returned=2,
             distinct_layouts=1,
@@ -137,6 +200,18 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
             generate_ms=Decimal("10.5"),
             render_ms=Decimal("3.5"),
             status="success",
+            diagnostics={
+                "mode": "prompt",
+                "model": "gemini-2.5-flash-lite",
+                "authoring_attempts": 1,
+                "plan_count": 3,
+                "validated_count": 3,
+                "resolved_count": 3,
+                "candidate_count": 2,
+                "fixed_palette": False,
+                "pattern_controls": True,
+                "reference_count": 1,
+            },
         ),
         SeamlessGenerationLog(
             request_id="seamless-partial",
@@ -156,6 +231,12 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
             status="error",
             error_type="AdapterClientError",
             error_message="api_key=secret-value customer-secret@test.local",
+            diagnostics={
+                "mode": "prompt",
+                "failure_code": "authoring_invalid",
+                "failure_stage": "authoring",
+                "model": "customer-secret@test.local",
+            },
         ),
     ]
     safe_motif = Motif(
@@ -186,11 +267,15 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     page = await client.get("/admin/generation/seamless", headers=headers)
     assert page.status_code == 200
     assert page.json()["total"] == 3
+    assert all("prompt" not in item for item in page.json()["items"])
+    assert all("intents" not in item for item in page.json()["items"])
     assert "customer-secret@test.local" not in page.text
     assert "<svg" not in page.text
     assert "private/secret" not in page.text
     error_item = next(item for item in page.json()["items"] if item["status"] == "error")
     assert error_item["error_summary"] == "외부 생성 연동에 실패했습니다"
+    assert error_item["failure_code"] == "authoring_invalid"
+    assert error_item["failure_stage"] == "authoring"
     assert error_item["render_ms"] == 0.0
 
     stats = await client.get("/admin/generation/seamless/stats", headers=headers)
@@ -208,8 +293,61 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     assert detail.json()["candidates"][0]["svg_status"] == "safe"
     assert detail.json()["candidates"][1]["svg"] is None
     assert detail.json()["candidates"][1]["svg_status"] == "unsafe"
+    assert detail.json()["prompt"] == "customer-secret@test.local"
+    assert detail.json()["intents"] == [
+        {
+            "intent_version": 1,
+            "canvas": {"tile_mm": 48, "dpi": 300},
+            "seed": 7,
+            "production": {"method": "print", "max_colors": 4},
+            "palette": {"slots": [{"id": "ground", "hex": "#112233", "name": "navy"}]},
+            "colorways": [{"id": "default", "mapping": {"ground": "#112233"}}],
+            "layers": [
+                {
+                    "id": "ground",
+                    "type": "background",
+                    "params": {"color": "ground"},
+                    "z_order": 0,
+                },
+                {
+                    "id": "flower",
+                    "type": "motif",
+                    "params": {
+                        "motif_id": "motif-safe",
+                        "size_mm": 12,
+                        "color": "ground",
+                    },
+                    "placement": {
+                        "type": "lattice",
+                        "fixed_rotation_deg": 0,
+                        "lattice": {
+                            "cell_w_mm": 24,
+                            "cell_h_mm": 24,
+                            "drop_fraction": 0.5,
+                            "drop_axis": "row",
+                        },
+                    },
+                    "z_order": 1,
+                },
+            ],
+        }
+    ]
+    assert "raw-provider-secret" not in detail.text
     assert "png_object_key" not in detail.text
-    assert "customer-secret@test.local" not in detail.text
+    assert detail.json()["diagnostics"] == {
+        "mode": "prompt",
+        "model": "gemini-2.5-flash-lite",
+        "reference_count": 1,
+        "fixed_palette": False,
+        "pattern_controls": True,
+        "authoring_attempts": 1,
+        "plan_count": 3,
+        "validated_count": 3,
+        "resolved_count": 3,
+        "candidate_count": 2,
+        "failure_code": None,
+        "failure_stage": None,
+    }
 
     motif_page = await client.get("/admin/motifs", headers=headers)
     assert motif_page.json()["total"] == 2

@@ -52,27 +52,38 @@ export function LeavePage() {
           </Text>
         </VStack>
 
-        <VStack gap="x3" alignItems="stretch">
+        <VStack gap="x4" alignItems="stretch">
           <Callout
             tone="critical"
             title="계정은 복구할 수 없습니다"
             description="탈퇴가 완료되면 현재 계정과 개인정보를 다시 되돌릴 수 없습니다."
           />
-          <Callout
-            tone="neutral"
-            title="거래 정보는 법정 기간 동안 보관됩니다"
-            description="주문과 결제 정보는 관련 법령에 따라 계정 정보와 분리해 최대 5년간 보관될 수 있습니다."
-          />
-          <Callout
-            tone="neutral"
-            title="다시 이용할 때 새 계정으로 처리될 수 있습니다"
-            description="동일한 소셜 계정으로 로그인하더라도 이전 주문과 설정은 연결되지 않을 수 있습니다."
-          />
-          <Callout
-            tone="neutral"
-            title="작성 기록 일부는 남을 수 있습니다"
-            description="문의와 견적 등 거래 관련 기록은 작성자 정보가 분리된 상태로 유지될 수 있습니다."
-          />
+          <VStack gap="x4" alignItems="stretch">
+            {[
+              {
+                title: "거래 정보는 법정 기간 동안 보관됩니다",
+                description:
+                  "주문과 결제 정보는 관련 법령에 따라 계정 정보와 분리해 최대 5년간 보관될 수 있습니다.",
+              },
+              {
+                title: "다시 이용할 때 새 계정으로 처리될 수 있습니다",
+                description:
+                  "동일한 소셜 계정으로 로그인하더라도 이전 주문과 설정은 연결되지 않을 수 있습니다.",
+              },
+              {
+                title: "작성 기록 일부는 남을 수 있습니다",
+                description:
+                  "문의와 견적 등 거래 관련 기록은 작성자 정보가 분리된 상태로 유지될 수 있습니다.",
+              },
+            ].map((notice) => (
+              <VStack key={notice.title} gap="x1">
+                <Text textStyle="labelSm">{notice.title}</Text>
+                <Text textStyle="caption" color="fg.neutral-muted">
+                  {notice.description}
+                </Text>
+              </VStack>
+            ))}
+          </VStack>
         </VStack>
 
         <Checkbox

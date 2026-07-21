@@ -10,6 +10,7 @@ import {
   Callout,
   ContentPlaceholder,
   snackbar,
+  Text,
   TextAreaField,
   TextField,
   VStack,
@@ -349,11 +350,10 @@ export function SettingsPage() {
         description="현재 값을 확인한 뒤 필요한 설정 한 개만 편집합니다."
       />
       {!canEdit && (
-        <Callout
-          tone="informative"
-          title="조회 전용 권한"
-          description="전역 설정 변경은 admin 역할만 실행할 수 있습니다."
-        />
+        <Text textStyle="bodySm" color="fg.neutral-muted">
+          조회 전용 권한입니다. 전역 설정 변경은 admin 역할만 실행할 수
+          있습니다.
+        </Text>
       )}
 
       {editingKey === null ? (

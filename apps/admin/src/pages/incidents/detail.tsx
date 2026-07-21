@@ -286,11 +286,10 @@ export function IncidentDetailPage() {
 
       <AdminCard title="운영 액션">
         {!isAdmin ? (
-          <Callout
-            tone="warning"
-            title="최고 관리자 권한이 필요합니다"
-            description="매니저는 결제 이상 근거를 조회할 수 있지만 대사·해결 작업은 실행할 수 없습니다."
-          />
+          <Text textStyle="bodySm" color="fg.neutral-muted">
+            최고 관리자 권한이 필요합니다. 매니저는 결제 이상 근거를 조회할 수
+            있지만 대사·해결 작업은 실행할 수 없습니다.
+          </Text>
         ) : (
           <VStack gap="x4" alignItems="stretch">
             <HStack gap="x2" wrap>

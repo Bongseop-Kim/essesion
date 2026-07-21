@@ -38,6 +38,13 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
     assert row.generate_ms is not None and row.generate_ms >= Decimal(0)
     assert row.render_ms is not None and row.render_ms >= Decimal(0)
     assert row.error_message is None
+    assert row.diagnostics == {
+        "mode": "variation",
+        "reference_count": 0,
+        "fixed_palette": False,
+        "pattern_controls": False,
+        "candidate_count": 1,
+    }
 
 
 async def test_worker_records_partial_with_render_timing_and_sanitized_warning(
@@ -77,11 +84,13 @@ async def test_worker_records_exception_with_sanitized_error_and_zero_render_tim
     row = await _latest_log(db_session)
     assert row.request_id == "log-error"
     assert row.status == "error"
-    assert row.error_type == "IntentInvalid"
-    assert row.error_message == "intent validation failed"
+    assert row.error_type == "intent_invalid"
+    assert row.error_message == "generation rejected at intent stage"
     assert row.generate_ms is not None and row.generate_ms >= Decimal(0)
     assert row.render_ms == Decimal(0)
     assert "customer-secret@test.local" not in row.error_message
+    assert row.diagnostics["failure_code"] == "intent_invalid"
+    assert row.diagnostics["failure_stage"] == "intent"
 
 
 async def test_worker_sanitizes_unexpected_exception_before_persisting(

@@ -334,11 +334,9 @@ export function PricingPage() {
         )}
       </HStack>
       {!canEdit && (
-        <Callout
-          tone="informative"
-          title="조회 전용 권한"
-          description="가격 변경은 admin 역할만 실행할 수 있습니다."
-        />
+        <Text textStyle="bodySm" color="fg.neutral-muted">
+          조회 전용 권한입니다. 가격 변경은 admin 역할만 실행할 수 있습니다.
+        </Text>
       )}
       {editing ? (
         <EditModeShell
@@ -381,11 +379,10 @@ export function PricingPage() {
                   ))}
                 </VStack>
               )}
-              <Callout
-                tone="warning"
-                title="저장 즉시 신규 주문 계산에 적용됩니다"
-                description="이미 생성된 주문과 견적의 저장 금액은 변경되지 않습니다."
-              />
+              <Text textStyle="caption" color="fg.neutral-muted">
+                저장 즉시 신규 주문 계산에 적용됩니다. 이미 생성된 주문과 견적의
+                저장 금액은 변경되지 않습니다.
+              </Text>
               <TextAreaField
                 label="변경 사유"
                 required

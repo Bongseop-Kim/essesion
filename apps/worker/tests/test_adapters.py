@@ -9,7 +9,16 @@ import pytest
 import respx
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import EmbeddingError, OpenAIEmbeddingClient, embed_query
-from worker.adapters.gemini import GeminiClient, ReferenceImage
+from worker.adapters.gemini import (
+    _DESIGN_PLAN_SCHEMA,
+    _DIRECTION_ANGLE_DEG,
+    DesignPlan,
+    DesignPlans,
+    GeminiClient,
+    PlanMotif,
+    ReferenceImage,
+    compile_design_plan,
+)
 from worker.adapters.recraft import (
     RecraftError,
     RecraftHTTPClient,
@@ -17,8 +26,13 @@ from worker.adapters.recraft import (
     generate_motif,
 )
 from worker.config import Settings
-from worker.engine.constraints import PaletteConstraint, PatternConstraints
-from worker.engine.validate import IntentInvalid
+from worker.engine.constraints import (
+    PaletteConstraint,
+    PatternConstraints,
+    apply_generation_constraints,
+    assert_constraints_satisfied,
+)
+from worker.engine.validate import IntentInvalid, validate_intent
 from worker.render.sanitize import parse_svg_tree
 
 _SETTINGS = Settings(motif_render_check=False, recraft_max_color_slots=6)
@@ -206,12 +220,26 @@ async def test_embedding_client_error_raises():
 
 # ---- Gemini ----
 
-_VALID_DESIGNS = {
-    "designs": [
+_VALID_PLANS = {
+    "plans": [
         {
-            "intent": {"intent_version": 1, "canvas": {"tile_mm": 48, "dpi": 300}},
-            "motif_specs": [{"layer_id": "m0", "subject": "dot", "scope": "whole"}],
-        }
+            "motifs": [{"subject": "dot", "scope": "whole", "style": "flat"}],
+            "colors": ["#10243A", "#EF8A7A"],
+            "arrangement": "lattice",
+            "density": "medium",
+            "scale": "small",
+            "direction": "diagonal",
+            "stripes": False,
+        },
+        {
+            "motifs": [{"subject": "circle", "scope": "whole"}],
+            "colors": ["#F4F0E8", "#334455"],
+            "arrangement": "scatter",
+            "density": "sparse",
+            "scale": "medium",
+            "direction": "horizontal",
+            "stripes": True,
+        },
     ]
 }
 
@@ -237,20 +265,22 @@ async def test_gemini_retries_on_503_then_succeeds(monkeypatch):
         side_effect=[
             httpx.Response(503),
             httpx.Response(503),
-            _gemini_response(_VALID_DESIGNS),
+            _gemini_response(_VALID_PLANS),
         ]
     )
     designs = await GeminiClient("k").author_designs("dots")
     assert route.call_count == 3
     assert slept == [0.5, 1.0]  # 백오프 순서
-    assert len(designs) == 1
+    assert len(designs) == 2
     assert designs[0].motif_specs[0]["subject"] == "dot"
+    payload = json.loads(route.calls.last.request.content)
+    assert payload["generationConfig"]["response_schema"]["required"] == ["plans"]
 
 
 @respx.mock
 async def test_gemini_sends_reference_images_before_text_prompt():
     route = respx.post(url__regex=r".*generateContent").mock(
-        return_value=_gemini_response(_VALID_DESIGNS)
+        return_value=_gemini_response(_VALID_PLANS)
     )
     image = ReferenceImage(data=b"safe-jpeg", mime_type="image/jpeg", purpose="composition")
     designs = await GeminiClient("k").author_designs(
@@ -259,7 +289,7 @@ async def test_gemini_sends_reference_images_before_text_prompt():
         motif_ids=["upload-a1b2c3d4e5f6"],
     )
 
-    assert len(designs) == 1
+    assert len(designs) == 2
     payload = json.loads(route.calls.last.request.content)
     parts = payload["contents"][0]["parts"]
     assert parts[0]["inline_data"] == {
@@ -269,7 +299,8 @@ async def test_gemini_sends_reference_images_before_text_prompt():
     assert "attached photos" in parts[-1]["text"]
     assert "image 1: purpose=composition" in parts[-1]["text"]
     assert "ONLY for that role" in parts[-1]["text"]
-    assert "upload-a1b2c3d4e5f6" in parts[-1]["text"]
+    assert "1 exact private motif assets" in parts[-1]["text"]
+    assert "upload-a1b2c3d4e5f6" not in parts[-1]["text"]
 
 
 @respx.mock
@@ -329,25 +360,111 @@ async def _noop() -> None:
 
 
 @respx.mock
-async def test_gemini_parses_legacy_single_wrapper():
-    legacy = {
-        "intent": {"intent_version": 1, "canvas": {"tile_mm": 48, "dpi": 300}},
-        "motif_specs": [{"layer_id": "m0", "subject": "dot", "scope": "whole"}],
+async def test_gemini_reprompts_invalid_plan_shape_and_records_diagnostics():
+    route = respx.post(url__regex=r".*generateContent").mock(
+        side_effect=[_gemini_response({"plans": []}), _gemini_response(_VALID_PLANS)]
+    )
+    diagnostics: dict[str, object] = {}
+    designs = await GeminiClient("k").author_designs("dots", diagnostics=diagnostics)
+
+    assert len(designs) == 2
+    assert route.call_count == 2
+    assert diagnostics == {
+        "model": "gemini-2.5-flash-lite",
+        "authoring_attempts": 2,
+        "plan_count": 2,
+        "validated_count": 2,
     }
-    respx.post(url__regex=r".*generateContent").mock(return_value=_gemini_response(legacy))
-    designs = await GeminiClient("k").author_designs("dots")
-    assert len(designs) == 1
 
 
 @respx.mock
 async def test_gemini_all_invalid_reprompts_then_422(monkeypatch):
     monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
     route = respx.post(url__regex=r".*generateContent").mock(
-        return_value=_gemini_response(_VALID_DESIGNS)
+        return_value=_gemini_response(_VALID_PLANS)
     )
     with pytest.raises(IntentInvalid):
         await GeminiClient("k").author_designs("dots", validate=lambda raw: ["forced invalid"])
     assert route.call_count == 2  # 최초 + constrained 재프롬프트 1회
+
+
+def test_design_plan_schema_matches_pydantic_contract():
+    """_DESIGN_PLAN_SCHEMA(프로바이더 응답 스키마)와 DesignPlan Pydantic 제약의 드리프트 가드."""
+    plans_schema = _DESIGN_PLAN_SCHEMA["properties"]["plans"]
+    plans_model = DesignPlans.model_json_schema()["properties"]["plans"]
+    assert plans_schema["minItems"] == plans_model["minItems"]
+    assert plans_schema["maxItems"] == plans_model["maxItems"]
+
+    plan_schema = plans_schema["items"]["properties"]
+    plan_model = DesignPlan.model_json_schema()["properties"]
+    for field in ("arrangement", "density", "scale", "direction"):
+        assert plan_schema[field]["enum"] == plan_model[field]["enum"]
+    assert plan_schema["direction"]["enum"] == list(_DIRECTION_ANGLE_DEG)
+    assert plan_schema["motifs"]["maxItems"] == plan_model["motifs"]["maxItems"]
+    assert plan_schema["colors"]["minItems"] == plan_model["colors"]["minItems"]
+    assert plan_schema["colors"]["maxItems"] == plan_model["colors"]["maxItems"]
+
+    scope_schema = plan_schema["motifs"]["items"]["properties"]["scope"]
+    scope_model = PlanMotif.model_json_schema()["properties"]["scope"]
+    assert scope_schema["enum"] == scope_model["enum"]
+
+
+def test_design_plan_compiler_is_deterministic_and_uses_exact_motifs():
+    plan = DesignPlan.model_validate(_VALID_PLANS["plans"][0])
+    first = compile_design_plan(plan, plan_index=0, motif_ids=["private-motif"])
+    second = compile_design_plan(plan, plan_index=0, motif_ids=["private-motif"])
+
+    assert first == second
+    motif_layers = [layer for layer in first.intent["layers"] if layer["type"] == "motif"]
+    assert motif_layers[0]["params"]["motif_id"] == "private-motif"
+    assert all(spec["layer_id"] != motif_layers[0]["id"] for spec in first.motif_specs)
+
+
+def test_design_plan_compiler_makes_every_fixed_color_visible():
+    plan = DesignPlan.model_validate(_VALID_PLANS["plans"][0])
+    design = compile_design_plan(
+        plan,
+        plan_index=0,
+        palette_constraint=PaletteConstraint(
+            mode="fixed",
+            colors=["#111111", "#333333", "#555555", "#777777", "#999999"],
+        ),
+    )
+
+    stripe = next(layer for layer in design.intent["layers"] if layer["type"] == "stripe")
+    assert {band["color"] for band in stripe["params"]["bands"]} == {
+        "color_1",
+        "color_2",
+        "color_3",
+        "color_4",
+    }
+    constrained = apply_generation_constraints(
+        design.intent,
+        palette=PaletteConstraint(
+            mode="fixed",
+            colors=["#111111", "#333333", "#555555", "#777777", "#999999"],
+        ),
+        pattern=PatternConstraints(
+            motif_scale="large",
+            density="dense",
+            arrangement="staggered",
+            direction="diagonal",
+        ),
+    )
+    validated = validate_intent(constrained, repair=True)
+    assert_constraints_satisfied(
+        validated.intent,
+        palette=PaletteConstraint(
+            mode="fixed",
+            colors=["#111111", "#333333", "#555555", "#777777", "#999999"],
+        ),
+        pattern=PatternConstraints(
+            motif_scale="large",
+            density="dense",
+            arrangement="staggered",
+            direction="diagonal",
+        ),
+    )
 
 
 async def test_clients_reuse_and_close_http_pool():

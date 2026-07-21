@@ -218,11 +218,9 @@ export function FinalizeDialog({
           ) : null}
         </VStack>
 
-        <Callout
-          tone="neutral"
-          title="출력 품질"
-          description="실사화 이미지는 300 DPI로 생성돼요."
-        />
+        <Text textStyle="caption" color="fg.neutral-muted">
+          실사화 이미지는 300 DPI로 생성돼요.
+        </Text>
       </VStack>
     </ResponsiveModal>
   );

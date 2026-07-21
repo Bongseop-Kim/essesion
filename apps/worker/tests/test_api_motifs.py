@@ -102,11 +102,25 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     mid = await _seed_dot(db_session)
     app.state.adapters.gemini = GeminiClient("test-key")  # DryRun 대신 목 클라이언트 주입
     design = {
-        "designs": [
+        "plans": [
             {
-                "intent": _lattice_intent("m0"),  # placeholder — resolver가 치환
-                "motif_specs": [{"layer_id": "m0", "subject": "dot", "scope": "whole"}],
-            }
+                "motifs": [{"subject": "dot", "scope": "whole"}],
+                "colors": ["#FFFFFF", "#111111"],
+                "arrangement": "lattice",
+                "density": "medium",
+                "scale": "small",
+                "direction": "horizontal",
+                "stripes": False,
+            },
+            {
+                "motifs": [{"subject": "dot", "scope": "whole"}],
+                "colors": ["#F0EBDD", "#223344"],
+                "arrangement": "scatter",
+                "density": "sparse",
+                "scale": "medium",
+                "direction": "diagonal",
+                "stripes": False,
+            },
         ]
     }
     respx.post(url__regex=r".*generateContent").mock(
@@ -118,10 +132,11 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["candidates"]
-    assert len(body["intents"]) == 1
+    assert len(body["intents"]) == 2
     # 시드 모티프로 재사용 해석됐는지 — 로그 intent의 motif_id가 치환됐는지 확인
     assert mid in body["candidates"][0]["svg"]
-    assert body["intents"][0]["layers"][1]["params"]["motif_id"] == mid
+    motif_layer = next(layer for layer in body["intents"][0]["layers"] if layer["type"] == "motif")
+    assert motif_layer["params"]["motif_id"] == mid
 
 
 async def test_prompt_motif_resolution_uses_authored_seed_without_override(
@@ -141,6 +156,7 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
             motif_ids=(),
             palette_constraint=None,
             pattern_constraints=None,
+            **_kwargs,
         ):
             assert reference_images == []
             assert motif_ids == []

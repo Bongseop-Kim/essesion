@@ -4,7 +4,7 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from functools import wraps
-from typing import Any, Literal
+from typing import Any, Literal, Never
 from urllib.parse import urlparse
 
 import httpx
@@ -61,6 +61,14 @@ logger = logging.getLogger(__name__)
 FINALIZE_INVALID_INPUT_CODE = "FINALIZE_INVALID_INPUT"
 FINALIZE_INVALID_INPUT_MESSAGE = "finalize input is invalid"
 
+GENERATION_ERROR_MESSAGES = {
+    "authoring_invalid": "the design plan could not be authored",
+    "constraint_conflict": "the selected design constraints conflict",
+    "reference_invalid": "a reference image could not be used",
+    "intent_invalid": "the design input is invalid",
+    "candidate_invalid": "the design candidates could not be composed",
+}
+
 
 class StrictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -76,6 +84,20 @@ class GenerateRequest(StrictRequest):
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
     palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
     pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
+
+    @model_validator(mode="after")
+    def _valid_generation_mode(self) -> "GenerateRequest":
+        if self.prompt is not None and not self.prompt.strip():
+            self.prompt = None
+        if self.intent is not None and (
+            self.prompt is not None or self.reference_images or self.motif_ids
+        ):
+            raise ValueError(
+                "intent variation cannot include prompt, reference images, or motif ids"
+            )
+        if self.prompt is None and self.intent is None and not self.motif_ids:
+            raise ValueError("prompt or SVG motif is required")
+        return self
 
 
 class ReferenceImageInput(StrictRequest):
@@ -219,7 +241,28 @@ class IdeasResponse(BaseModel):
     ideas: list[str] = Field(min_length=3, max_length=4)
 
 
+def _reject_generation(request: Request, code: str, stage: str) -> Never:
+    diagnostics = request.state.generation_diagnostics
+    diagnostics.update({"failure_code": code, "failure_stage": stage})
+    raise HTTPException(
+        status_code=422,
+        detail={"code": code, "stage": stage, "message": GENERATION_ERROR_MESSAGES[code]},
+    )
+
+
+def _failure_contract(exc: Exception) -> tuple[str, str] | None:
+    if not isinstance(exc, HTTPException) or not isinstance(exc.detail, dict):
+        return None
+    code = exc.detail.get("code")
+    stage = exc.detail.get("stage")
+    if code in GENERATION_ERROR_MESSAGES and isinstance(stage, str):
+        return code, stage
+    return None
+
+
 def _safe_generation_error(exc: Exception) -> tuple[str, str]:
+    if contract := _failure_contract(exc):
+        return contract[0], f"generation rejected at {contract[1]} stage"
     source = exc.__cause__ if isinstance(exc.__cause__, Exception) else exc
     error_type = source.__class__.__name__
     if isinstance(source, IntentInvalid):
@@ -241,9 +284,19 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
         started = time.perf_counter()
         request.state.generation_generate_ms = None
         request.state.generation_render_ms = 0.0
+        request.state.generation_diagnostics = {
+            "mode": "variation" if body.intent is not None else "prompt",
+            "reference_count": len(body.reference_images),
+            "fixed_palette": body.palette.mode == "fixed",
+            "pattern_controls": not body.pattern_constraints.is_automatic(),
+        }
         try:
             return await endpoint(body, request, session)
         except Exception as exc:
+            if contract := _failure_contract(exc):
+                request.state.generation_diagnostics.update(
+                    {"failure_code": contract[0], "failure_stage": contract[1]}
+                )
             error_type, error_message = _safe_generation_error(exc)
             generate_ms = request.state.generation_generate_ms
             if generate_ms is None:
@@ -277,6 +330,7 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                         status="error",
                         error_type=error_type,
                         error_message=error_message,
+                        diagnostics=request.state.generation_diagnostics,
                     )
                 )
                 await session.commit()
@@ -426,6 +480,49 @@ async def _load_single_image(item: ReferenceImageInput, settings) -> bytes:  # n
         return await _fetch_reference_bytes(item, settings, client)
 
 
+def _bind_resolved_motif_colors(intents: list[dict[str, Any]], catalog) -> None:  # noqa: ANN001
+    """Bind every DB motif color slot after semantic resolution.
+
+    Provider-authored placeholders cannot know whether a selected/reused motif is
+    single- or multi-color. This deterministic adapter closes that catalog boundary
+    before final validation and candidate composition.
+    """
+    for intent in intents:
+        palette = intent.get("palette")
+        slots = palette.get("slots") if isinstance(palette, dict) else None
+        slot_ids = [
+            slot["id"]
+            for slot in slots or []
+            if isinstance(slot, dict) and isinstance(slot.get("id"), str)
+        ]
+        color_ids = [slot_id for slot_id in slot_ids if slot_id != "ground"] or slot_ids
+        if not color_ids:
+            continue
+        for layer in intent.get("layers", []):
+            if not isinstance(layer, dict) or layer.get("type") != "motif":
+                continue
+            params = layer.get("params")
+            motif_id = params.get("motif_id") if isinstance(params, dict) else None
+            motif = catalog.get(motif_id) if isinstance(motif_id, str) else None
+            if motif is None or not isinstance(params, dict):
+                continue
+            if len(motif.color_slots) <= 1:
+                if params.get("color") is None:
+                    values = params.get("colors")
+                    params["color"] = (
+                        next(iter(values.values()))
+                        if isinstance(values, dict) and values
+                        else color_ids[0]
+                    )
+                params.pop("colors", None)
+                continue
+            params.pop("color", None)
+            params["colors"] = {
+                slot: color_ids[index % len(color_ids)]
+                for index, slot in enumerate(motif.color_slots)
+            }
+
+
 @generate_router.post("/generate", response_model=GenerateResponse)
 @_logged_generation
 async def generate(
@@ -437,9 +534,7 @@ async def generate(
     registry_version = await registry_version_for(session)
     warnings: list[str] = []
     if body.palette.mode == "fixed" and body.colorway not in (None, "default"):
-        raise HTTPException(
-            status_code=422, detail="fixed palette only supports the deterministic default colorway"
-        )
+        _reject_generation(request, "constraint_conflict", "constraints")
     effective_colorway = "default" if body.palette.mode == "fixed" else body.colorway
 
     if body.intent is not None:
@@ -448,8 +543,8 @@ async def generate(
             constrained_intent = apply_generation_constraints(
                 body.intent, palette=body.palette, pattern=body.pattern_constraints
             )
-        except ConstraintInvalid as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except ConstraintInvalid:
+            _reject_generation(request, "constraint_conflict", "constraints")
         resolved_intents = [constrained_intent]
         catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
         try:
@@ -463,17 +558,15 @@ async def generate(
                 palette_constraint=body.palette,
                 pattern_constraints=body.pattern_constraints,
             )
-        except IntentInvalid as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        except (AssertionError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (IntentInvalid, AssertionError, ValueError):
+            _reject_generation(request, "intent_invalid", "intent")
         tile_mm = float(constrained_intent["canvas"]["tile_mm"])
         intent_log: dict[str, Any] = {
             "designs": resolved_intents,
             "palette": body.palette.model_dump(),
             "pattern_constraints": body.pattern_constraints.model_dump(),
         }
-    elif body.prompt is not None or body.motif_ids:
+    else:
         input_type = "reference_image" if body.reference_images else "prompt"
         gemini = adapters.gemini
         if gemini is None:
@@ -501,7 +594,12 @@ async def generate(
                 return [f"design must use supplied motif ids: {', '.join(missing)}"]
             return None
 
-        reference_images = await _load_reference_images(body, settings)
+        try:
+            reference_images = await _load_reference_images(body, settings)
+        except HTTPException as exc:
+            if exc.status_code == 422:
+                _reject_generation(request, "reference_invalid", "reference")
+            raise
         author_prompt = body.prompt or (
             "Create a balanced necktie pattern using the supplied SVG motif."
         )
@@ -513,9 +611,10 @@ async def generate(
                 motif_ids=body.motif_ids,
                 palette_constraint=body.palette,
                 pattern_constraints=body.pattern_constraints,
+                diagnostics=request.state.generation_diagnostics,
             )
-        except IntentInvalid as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except IntentInvalid:
+            _reject_generation(request, "authoring_invalid", "authoring")
         except AdapterClientError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -551,6 +650,8 @@ async def generate(
         for resolved in resolved_intents:
             ids |= iter_motif_ids(resolved)
         catalog = await get_motifs(session, ids)
+        _bind_resolved_motif_colors(resolved_intents, catalog)
+        request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
         registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
         try:
             candidate_set = generate_candidate_set(
@@ -563,24 +664,20 @@ async def generate(
                 palette_constraint=body.palette,
                 pattern_constraints=body.pattern_constraints,
             )
-        except IntentInvalid as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        except (AssertionError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (IntentInvalid, AssertionError, ValueError):
+            _reject_generation(request, "candidate_invalid", "candidate")
         tile_mm = float(resolved_intents[0]["canvas"]["tile_mm"])
         intent_log = {
             "designs": resolved_intents,
             "palette": body.palette.model_dump(),
             "pattern_constraints": body.pattern_constraints.model_dump(),
         }
-    else:
-        raise HTTPException(status_code=422, detail="either intent or prompt is required")
-
     warnings.extend(candidate_set.warnings)
     warnings = list(dict.fromkeys(warnings))
     generate_ms = round((time.perf_counter() - started) * 1000, 3)
     request.state.generation_generate_ms = generate_ms
     outs = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
+    request.state.generation_diagnostics["candidate_count"] = len(outs)
 
     log = SeamlessGenerationLog(
         request_id=request_id_var.get(),
@@ -603,6 +700,7 @@ async def generate(
         generate_ms=generate_ms,
         render_ms=request.state.generation_render_ms,
         status="partial" if warnings else "success",
+        diagnostics=request.state.generation_diagnostics,
     )
     session.add(log)
     if body.reference_images:

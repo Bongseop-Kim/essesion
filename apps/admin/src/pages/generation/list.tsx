@@ -14,7 +14,7 @@ import {
   ActionButton,
   Badge,
   Box,
-  Callout,
+  ContentPlaceholder,
   Grid,
   HStack,
   Skeleton,
@@ -47,6 +47,7 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
+import { FAILURE_STAGE_LABELS } from "./generation-labels";
 import { JOB_STATUS_LABELS, JOB_STATUSES } from "./job-status";
 
 const TABS = ["jobs", "seamless"] as const;
@@ -654,19 +655,18 @@ function JobsPanel({
     <VStack gap="x5" alignItems="stretch">
       <AdminCard title="작업 통계" description="현재 필터 기준 집계입니다.">
         {statsQuery.isError ? (
-          <VStack gap="x3" alignItems="stretch">
-            <Callout
-              tone="warning"
-              title="작업 통계를 불러오지 못했습니다"
-              description="목록과 별도로 통계 조회를 다시 시도할 수 있습니다."
-            />
-            <ActionButton
-              variant="neutralOutline"
-              onClick={() => void statsQuery.refetch()}
-            >
-              통계 다시 시도
-            </ActionButton>
-          </VStack>
+          <ContentPlaceholder
+            title="작업 통계를 불러오지 못했습니다"
+            description="목록과 별도로 통계 조회를 다시 시도할 수 있습니다."
+            action={
+              <ActionButton
+                variant="neutralOutline"
+                onClick={() => void statsQuery.refetch()}
+              >
+                통계 다시 시도
+              </ActionButton>
+            }
+          />
         ) : (
           <JobStatistics
             data={statsQuery.data}
@@ -833,7 +833,14 @@ function SeamlessPanel({
       key: "error",
       header: "오류",
       visibility: "large",
-      render: (log) => log.error_summary ?? "-",
+      render: (log) =>
+        log.error_summary
+          ? `${log.error_summary}${
+              log.failure_stage
+                ? ` (${FAILURE_STAGE_LABELS[log.failure_stage] ?? log.failure_stage})`
+                : ""
+            }`
+          : "-",
     },
   ];
   const totalPages = Math.max(
@@ -968,19 +975,18 @@ function SeamlessPanel({
     <VStack gap="x5" alignItems="stretch">
       <AdminCard title="Seamless 통계" description="현재 필터 기준 집계입니다.">
         {statsQuery.isError ? (
-          <VStack gap="x3" alignItems="stretch">
-            <Callout
-              tone="warning"
-              title="Seamless 통계를 불러오지 못했습니다"
-              description="목록과 별도로 통계 조회를 다시 시도할 수 있습니다."
-            />
-            <ActionButton
-              variant="neutralOutline"
-              onClick={() => void statsQuery.refetch()}
-            >
-              통계 다시 시도
-            </ActionButton>
-          </VStack>
+          <ContentPlaceholder
+            title="Seamless 통계를 불러오지 못했습니다"
+            description="목록과 별도로 통계 조회를 다시 시도할 수 있습니다."
+            action={
+              <ActionButton
+                variant="neutralOutline"
+                onClick={() => void statsQuery.refetch()}
+              >
+                통계 다시 시도
+              </ActionButton>
+            }
+          />
         ) : (
           <SeamlessStatistics
             data={statsQuery.data}

@@ -335,7 +335,7 @@ describe("CouponDetailPage", () => {
     await user.click(await screen.findByRole("tab", { name: "발급 운영" }));
 
     expect(screen.getByRole("button", { name: "대상 미리보기" })).toBeTruthy();
-    expect(screen.getByText("조회 전용 권한")).toBeTruthy();
+    expect(screen.getByText(/조회 전용 권한/)).toBeTruthy();
     expect(screen.queryByLabelText("발급 사유")).toBeNull();
   });
 });

@@ -10,13 +10,12 @@ import {
 } from "@essesion/shared";
 import { useEffect, useState } from "react";
 
-import {
-  AUTO_PATTERN_CONSTRAINTS,
-  type DesignPatternConstraints,
-  type MotifScale,
-  type PatternArrangement,
-  type PatternDensity,
-  type PatternDirection,
+import type {
+  DesignPatternConstraints,
+  MotifScale,
+  PatternArrangement,
+  PatternDensity,
+  PatternDirection,
 } from "@/features/design/model/draft";
 
 const SCALE_OPTIONS: ReadonlyArray<{ value: MotifScale; label: string }> = [
@@ -37,15 +36,10 @@ const DENSITY_OPTIONS: ReadonlyArray<{
 const ARRANGEMENT_OPTIONS: ReadonlyArray<{
   value: PatternArrangement;
   label: string;
-  description?: string;
 }> = [
   { value: "auto", label: "자동" },
   { value: "lattice", label: "격자" },
-  {
-    value: "staggered",
-    label: "엇갈림",
-    description: "격자 행을 반 칸씩 어긋나게 배치",
-  },
+  { value: "staggered", label: "엇갈림" },
   { value: "scatter", label: "흩뿌림" },
 ];
 const DIRECTION_OPTIONS: ReadonlyArray<{
@@ -87,7 +81,7 @@ export function PatternSettingsModal({
       open={open}
       onOpenChange={onOpenChange}
       title="패턴 설정"
-      description="엔진이 안정적으로 지원하는 크기, 밀도, 배열, 방향을 지정하세요."
+      description="패턴의 크기, 밀도, 배열, 방향을 지정하세요."
       size="medium"
       showCloseButton
       footer={
@@ -140,13 +134,6 @@ export function PatternSettingsModal({
           options={DIRECTION_OPTIONS}
           onChange={(next) => set("direction", next as PatternDirection)}
         />
-        <ActionButton
-          type="button"
-          variant="ghost"
-          onClick={() => setDraft(AUTO_PATTERN_CONSTRAINTS)}
-        >
-          모든 설정 자동으로 초기화
-        </ActionButton>
       </VStack>
     </ResponsiveModal>
   );
@@ -160,11 +147,7 @@ function PatternOptionGroup({
 }: {
   label: string;
   value: string;
-  options: ReadonlyArray<{
-    value: string;
-    label: string;
-    description?: string;
-  }>;
+  options: ReadonlyArray<{ value: string; label: string }>;
   onChange: (value: string) => void;
 }) {
   return (
@@ -181,7 +164,6 @@ function PatternOptionGroup({
             key={option.value}
             value={option.value}
             label={option.label}
-            description={option.description}
           />
         ))}
       </SelectBox>

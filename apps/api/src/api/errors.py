@@ -28,15 +28,24 @@ SECURITY_RESPONSE_HEADERS = {
 class ErrorResponse(BaseModel):
     detail: str
     code: str = "domain_error"
+    stage: str | None = None
 
 
 class DomainError(Exception):
     status = 400
     code = "domain_error"
 
-    def __init__(self, detail: str, *, code: str | None = None, status: int | None = None):
+    def __init__(
+        self,
+        detail: str,
+        *,
+        code: str | None = None,
+        status: int | None = None,
+        stage: str | None = None,
+    ):
         super().__init__(detail)
         self.detail = detail
+        self.stage = stage
         if code is not None:
             self.code = code
         if status is not None:
@@ -95,6 +104,15 @@ class WorkerRequestError(DomainError):
     status = 422
     code = "worker_rejected"
 
+    def __init__(
+        self,
+        detail: str = "이미지 생성 요청을 처리하지 못했습니다",
+        *,
+        code: str | None = None,
+        stage: str | None = None,
+    ):
+        super().__init__(detail, code=code, stage=stage)
+
 
 def _json_safe_validation_detail(value: Any) -> Any:
     """검증 실패 input의 NaN/Infinity가 422 응답 자체를 500으로 만들지 않게 한다."""
@@ -111,8 +129,12 @@ def _json_safe_validation_detail(value: Any) -> Any:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError) -> JSONResponse:
+        content = {"detail": exc.detail, "code": exc.code}
+        if exc.stage is not None:
+            content["stage"] = exc.stage
         return JSONResponse(
-            status_code=exc.status, content={"detail": exc.detail, "code": exc.code}
+            status_code=exc.status,
+            content=content,
         )
 
     @app.exception_handler(IntegrityError)

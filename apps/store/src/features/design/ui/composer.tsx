@@ -18,8 +18,10 @@ import {
 import {
   AdjustmentsHorizontalIcon,
   BookmarkSquareIcon,
+  CameraIcon,
   ChevronDownIcon,
   CreditCardIcon,
+  LanguageIcon,
   PaintBrushIcon,
   PaperAirplaneIcon,
   PhotoIcon,
@@ -78,6 +80,8 @@ function ChatInput({ leading, trailing, ...inputProps }: ChatInputProps) {
 }
 
 const CANDIDATE_COUNTS = [1, 2, 3, 4] as const;
+
+export type MotifAddKind = "svg" | "text" | "photo";
 
 export type ComposerAttachment = {
   id: string;
@@ -141,7 +145,7 @@ export type DesignComposerProps = {
   generateCost?: number | null;
   onPurchaseTokens?: () => void;
   onPhotoFilesSelect: (files: File[]) => void;
-  onOpenMotifAdd: () => void;
+  onAddMotif: (kind: MotifAddKind) => void;
   onOpenMotifLibrary: () => void;
   onOpenColors: () => void;
   onOpenPatternSettings: () => void;
@@ -170,7 +174,7 @@ export function DesignComposer({
   generateCost,
   onPurchaseTokens,
   onPhotoFilesSelect,
-  onOpenMotifAdd,
+  onAddMotif,
   onOpenMotifLibrary,
   onOpenColors,
   onOpenPatternSettings,
@@ -412,8 +416,20 @@ export function DesignComposer({
               />
               <ComposerPanelItem
                 icon={<Icon svg={<PuzzlePieceIcon />} size={24} />}
-                label="모티프 추가"
-                onClick={onOpenMotifAdd}
+                label="SVG 모티프"
+                onClick={() => onAddMotif("svg")}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<LanguageIcon />} size={24} />}
+                label="텍스트 모티프"
+                onClick={() => onAddMotif("text")}
+                disabled={controlsDisabled}
+              />
+              <ComposerPanelItem
+                icon={<Icon svg={<CameraIcon />} size={24} />}
+                label="사진 모티프"
+                onClick={() => onAddMotif("photo")}
                 disabled={controlsDisabled}
               />
               <ComposerPanelItem

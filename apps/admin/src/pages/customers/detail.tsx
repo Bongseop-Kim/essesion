@@ -518,11 +518,10 @@ export function CustomerDetailPage() {
               }
             >
               {!canAdjustTokens ? (
-                <Callout
-                  tone="informative"
-                  title="조회 전용 권한"
-                  description="토큰 지급·회수는 admin 역할만 실행할 수 있습니다."
-                />
+                <Text textStyle="bodySm" color="fg.neutral-muted">
+                  조회 전용 권한입니다. 토큰 지급·회수는 admin 역할만 실행할 수
+                  있습니다.
+                </Text>
               ) : (
                 <Text textStyle="bodySm" color="fg.neutral-muted">
                   조정 내역은 토큰 원장과 관리자 감사 기록에 남습니다.

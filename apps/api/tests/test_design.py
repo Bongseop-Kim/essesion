@@ -1298,6 +1298,26 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
     assert finalized.json()["params"]["intent"] == body["intents"][0]
 
 
+async def test_generate_rejects_mixing_intent_and_prompt(client, app, db_session, settings):
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    base_intent = {"canvas": {"tile_mm": 24}, "layers": [], "palette": {"slots": []}}
+
+    response = await client.post(
+        "/design/generate",
+        json={
+            "intent": base_intent,
+            "prompt": "배경은 유지하고 모티프를 더 작게 바꿔줘",
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert worker.generate_payloads == []
+
+
 def test_public_asset_url_uses_project_bucket_and_quotes_key():
     settings = Settings(env="test", gcs_assets_bucket="configured-assets", gcs_emulator_host="")
     assert public_asset_url(settings, "fabric/a b#.png") == (
@@ -2036,7 +2056,9 @@ async def test_motif_generate_worker_failure_refunds_budget(client, app, db_sess
 class RejectingWorker(FakeWorker):
     async def generate(self, payload):
         raise WorkerRequestError(
-            "이미지 워커가 요청을 거부했습니다: invalid intent: period off-grid"
+            "디자인 구성을 만들지 못했습니다",
+            code="authoring_invalid",
+            stage="authoring",
         )
 
 
@@ -2051,8 +2073,11 @@ async def test_generate_worker_rejection_returns_422_and_refunds(client, app, db
         headers=auth_headers(user, settings),
     )
     assert res.status_code == 422
-    assert res.json()["code"] == "worker_rejected"
-    assert "period off-grid" in res.json()["detail"]  # 워커 detail 보존
+    assert res.json() == {
+        "code": "authoring_invalid",
+        "stage": "authoring",
+        "detail": "디자인 구성을 만들지 못했습니다",
+    }
     assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
 
 
@@ -2127,12 +2152,30 @@ async def test_worker_client_maps_statuses(settings):
     route = respx.post(f"{settings.worker_base_url}/generate")
 
     route.mock(return_value=httpx.Response(422, json={"detail": "invalid intent"}))
-    with pytest.raises(WorkerRequestError, match="invalid intent"):
+    with pytest.raises(WorkerRequestError, match="이미지 생성 요청") as legacy:
         await wc.generate({})
+    assert legacy.value.code == "worker_rejected"
 
     route.mock(return_value=httpx.Response(422, json=["invalid intent list"]))
-    with pytest.raises(WorkerRequestError, match="invalid intent list"):
+    with pytest.raises(WorkerRequestError, match="이미지 생성 요청"):
         await wc.generate({})
+
+    route.mock(
+        return_value=httpx.Response(
+            422,
+            json={
+                "detail": {
+                    "code": "constraint_conflict",
+                    "stage": "constraints",
+                    "message": "internal detail is ignored",
+                }
+            },
+        )
+    )
+    with pytest.raises(WorkerRequestError, match="설정을 함께 적용") as structured:
+        await wc.generate({})
+    assert structured.value.code == "constraint_conflict"
+    assert structured.value.stage == "constraints"
 
     route.mock(return_value=httpx.Response(503, text="unavailable"))
     with pytest.raises(UpstreamError):

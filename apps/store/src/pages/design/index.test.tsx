@@ -20,26 +20,30 @@ import type {
 import { DESIGN_ONBOARDING_KEY } from "@/features/design/model/onboarding";
 import type { ColorSettingsModalProps } from "@/features/design/ui/color-settings-modal";
 import type { DesignComposerProps } from "@/features/design/ui/composer";
-import type { MotifAddModalProps } from "@/features/design/ui/motif-add-modal";
 import type { PatternSettingsModalProps } from "@/features/design/ui/pattern-settings-modal";
+import type { PhotoMotifModalProps } from "@/features/design/ui/photo-motif-modal";
+import type { TextMotifModalProps } from "@/features/design/ui/text-motif-modal";
 import { useSession } from "@/shared/store/session";
 
 type PageHarness = {
   composer: DesignComposerProps | null;
   colors: ColorSettingsModalProps | null;
-  motifAdd: MotifAddModalProps | null;
+  textMotif: TextMotifModalProps | null;
+  photoMotif: PhotoMotifModalProps | null;
   pattern: PatternSettingsModalProps | null;
 };
 
 const api = vi.hoisted(() => ({
   createSession: vi.fn(),
   generate: vi.fn(),
+  importMotif: vi.fn(),
   uploadPhoto: vi.fn(),
 }));
 const page = vi.hoisted(() => ({
   composer: null,
   colors: null,
-  motifAdd: null,
+  textMotif: null,
+  photoMotif: null,
   pattern: null,
 })) as PageHarness;
 
@@ -59,7 +63,11 @@ vi.mock("@/features/auth", () => ({
 vi.mock("@/features/design/api/attachments", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@/features/design/api/attachments")>();
-  return { ...actual, uploadDesignPhoto: api.uploadPhoto };
+  return {
+    ...actual,
+    importDesignMotif: api.importMotif,
+    uploadDesignPhoto: api.uploadPhoto,
+  };
 });
 
 vi.mock("@/features/design/model/queries", () => ({
@@ -137,9 +145,16 @@ vi.mock("@/features/design/ui/color-settings-modal", () => ({
   },
 }));
 
-vi.mock("@/features/design/ui/motif-add-modal", () => ({
-  MotifAddModal: (props: MotifAddModalProps) => {
-    page.motifAdd = props;
+vi.mock("@/features/design/ui/text-motif-modal", () => ({
+  TextMotifModal: (props: TextMotifModalProps) => {
+    page.textMotif = props;
+    return null;
+  },
+}));
+
+vi.mock("@/features/design/ui/photo-motif-modal", () => ({
+  PhotoMotifModal: (props: PhotoMotifModalProps) => {
+    page.photoMotif = props;
     return null;
   },
 }));
@@ -231,7 +246,8 @@ describe("DesignPage composer lifecycle", () => {
     vi.clearAllMocks();
     page.composer = null;
     page.colors = null;
-    page.motifAdd = null;
+    page.textMotif = null;
+    page.photoMotif = null;
     page.pattern = null;
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
@@ -278,7 +294,11 @@ describe("DesignPage composer lifecycle", () => {
 
   it("실패한 작성 상태와 upload ID를 재사용하고 성공한 뒤 일회성 상태를 초기화한다", async () => {
     api.generate
-      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockRejectedValueOnce({
+        code: "authoring_invalid",
+        stage: "authoring",
+        detail: "디자인 구성을 만들지 못했습니다",
+      })
       .mockResolvedValueOnce({ data: generated });
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -295,7 +315,8 @@ describe("DesignPage composer lifecycle", () => {
     );
     expect(page.composer).not.toBeNull();
     expect(page.colors).not.toBeNull();
-    expect(page.motifAdd).not.toBeNull();
+    expect(page.textMotif).not.toBeNull();
+    expect(page.photoMotif).not.toBeNull();
     expect(page.pattern).not.toBeNull();
 
     const photo = new File(["photo"], "reference.png", { type: "image/png" });
@@ -305,7 +326,7 @@ describe("DesignPage composer lifecycle", () => {
       page.composer?.onPhotoFilesSelect([photo]);
       page.colors?.onApply(fixedPalette);
       page.pattern?.onApply(fixedPattern);
-      page.motifAdd?.onCreated(motif);
+      page.textMotif?.onCreated(motif);
     });
     await waitFor(() => expect(page.composer?.attachments).toHaveLength(2));
     const photoAttachment = page.composer?.attachments?.find(
@@ -322,7 +343,7 @@ describe("DesignPage composer lifecycle", () => {
     });
 
     act(() => page.composer?.onSubmit());
-    await screen.findByText("디자인을 생성하지 못했어요");
+    await screen.findByText("디자인 구성을 만들지 못했어요");
 
     expect(api.uploadPhoto).toHaveBeenCalledTimes(1);
     expect(page.composer?.prompt).toBe("차분한 기하학 패턴");
@@ -376,6 +397,63 @@ describe("DesignPage composer lifecycle", () => {
       { upload_id: "upload-1", purpose: "composition" },
     ]);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:reference");
+    queryClient.clear();
+  });
+
+  it("일반 생성 거절의 다음 행동을 별도 content 없이 description에 표시한다", async () => {
+    api.generate.mockRejectedValueOnce({
+      code: "worker_rejected",
+      detail: "이미지 워커가 요청을 거부했습니다",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/design"]}>
+        <QueryClientProvider client={queryClient}>
+          <DesignPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    act(() => page.composer?.onPromptChange("기하학 패턴"));
+    act(() => page.composer?.onSubmit());
+
+    await screen.findByText("요청을 이해하지 못했어요");
+    const description = screen.getByText(
+      "요청 내용을 조금 더 구체적으로 작성해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
+    );
+    expect(description.parentElement?.children).toHaveLength(2);
+    queryClient.clear();
+  });
+
+  it("SVG 모티프는 파일 선택만으로 저장하고 이번 생성에 바로 선택한다", async () => {
+    api.importMotif.mockResolvedValue(motif);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <MemoryRouter initialEntries={["/design"]}>
+        <QueryClientProvider client={queryClient}>
+          <DesignPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    const file = new File(["<svg/>"], "로고.svg", { type: "image/svg+xml" });
+    fireEvent.change(screen.getByLabelText("SVG 모티프 파일 선택"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => expect(api.importMotif).toHaveBeenCalledWith(file));
+    await waitFor(() =>
+      expect(page.composer?.attachments).toEqual([
+        expect.objectContaining({ kind: "motif", name: "내 모티프" }),
+      ]),
+    );
     queryClient.clear();
   });
 });

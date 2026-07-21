@@ -157,11 +157,18 @@ export function TokenHistoryPage() {
   const sidebar = balanceQuery.isPending ? (
     <Skeleton width="100%" height={240} />
   ) : balanceQuery.isError ? (
-    <Callout
-      tone="critical"
+    <ContentPlaceholder
       title="토큰 잔액을 불러오지 못했습니다"
       description="잠시 후 다시 시도해 주세요."
-      onClick={() => void balanceQuery.refetch()}
+      action={
+        <ActionButton
+          type="button"
+          variant="neutralOutline"
+          onClick={() => void balanceQuery.refetch()}
+        >
+          다시 시도
+        </ActionButton>
+      }
     />
   ) : (
     <SummaryCard.Root>

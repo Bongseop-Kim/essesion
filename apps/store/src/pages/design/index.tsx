@@ -43,6 +43,8 @@ import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
 import {
+  DESIGN_SVG_ACCEPT,
+  importDesignMotif,
   MAX_DESIGN_MOTIFS,
   MAX_DESIGN_PHOTOS,
   uploadDesignPhoto,
@@ -60,7 +62,10 @@ import {
   patternConstraintLabels,
   type ReferenceImagePurpose,
 } from "@/features/design/model/draft";
-import { parseDesignError } from "@/features/design/model/errors";
+import {
+  designErrorMessage,
+  parseDesignError,
+} from "@/features/design/model/errors";
 import {
   type LocalFinalizeTurn,
   mergeFinalizeTurns,
@@ -109,6 +114,7 @@ import {
   type ComposerAttachment,
   ComposerPanelItem,
   DesignComposer,
+  type MotifAddKind,
 } from "@/features/design/ui/composer";
 import {
   ExportDialog,
@@ -125,16 +131,17 @@ import {
 import { FinalizeTurnCard } from "@/features/design/ui/finalize-turn-card";
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
 import { IdeasModal } from "@/features/design/ui/ideas-modal";
-import { MotifAddModal } from "@/features/design/ui/motif-add-modal";
 import { MotifLibraryModal } from "@/features/design/ui/motif-library-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { PatternSettingsModal } from "@/features/design/ui/pattern-settings-modal";
+import { PhotoMotifModal } from "@/features/design/ui/photo-motif-modal";
 import { PreviewModal } from "@/features/design/ui/preview-modal";
 import { PreviewPanel } from "@/features/design/ui/preview-panel";
 import {
   type DesignSessionSummary,
   SessionListModal,
 } from "@/features/design/ui/session-list-modal";
+import { TextMotifModal } from "@/features/design/ui/text-motif-modal";
 import type { DesignPreviewMode } from "@/features/design/ui/tie-canvas";
 import { type TurnCandidate, TurnFeed } from "@/features/design/ui/turn-feed";
 import { validateImageFile } from "@/shared/lib/upload";
@@ -179,7 +186,10 @@ export function DesignPage() {
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [finalizedOpen, setFinalizedOpen] = useState(false);
   const [motifsOpen, setMotifsOpen] = useState(false);
-  const [motifAddOpen, setMotifAddOpen] = useState(false);
+  const [textMotifOpen, setTextMotifOpen] = useState(false);
+  const [photoMotifOpen, setPhotoMotifOpen] = useState(false);
+  const svgMotifInputRef = useRef<HTMLInputElement>(null);
+  const [svgMotifImporting, setSvgMotifImporting] = useState(false);
   const [colorsOpen, setColorsOpen] = useState(false);
   const [patternSettingsOpen, setPatternSettingsOpen] = useState(false);
   const [ideasOpen, setIdeasOpen] = useState(false);
@@ -435,13 +445,30 @@ export function DesignPage() {
     });
   };
 
-  const openMotifAdd = () => {
+  const addMotif = (kind: MotifAddKind) => {
     if (!ensureDesignAuth()) return;
     if (selectedMotifs.length >= MAX_DESIGN_MOTIFS) {
       snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
       return;
     }
-    setMotifAddOpen(true);
+    if (kind === "svg") svgMotifInputRef.current?.click();
+    else if (kind === "text") setTextMotifOpen(true);
+    else setPhotoMotifOpen(true);
+  };
+
+  // SVG는 어차피 저장하려고 고른 파일 — 확인 단계 없이 즉시 저장하고 이번 생성에 선택한다.
+  const importSvgMotifFile = async (file: File) => {
+    if (svgMotifImporting) return;
+    setSvgMotifImporting(true);
+    try {
+      const motif = await importDesignMotif(file);
+      selectCreatedMotif(motif);
+      snackbar(`‘${motif.name}’ 모티프를 저장했어요.`);
+    } catch (error) {
+      snackbar(designErrorMessage(error, "SVG 모티프를 저장하지 못했습니다."));
+    } finally {
+      setSvgMotifImporting(false);
+    }
   };
 
   const selectCreatedMotif = (motif: UserMotifOut) => {
@@ -1041,7 +1068,7 @@ export function DesignPage() {
                 onCandidateCountChange={setCandidateCount}
                 onSubmit={() => void generatePrompt()}
                 onPhotoFilesSelect={addPhotoFiles}
-                onOpenMotifAdd={openMotifAdd}
+                onAddMotif={addMotif}
                 onOpenMotifLibrary={() => {
                   if (ensureDesignAuth()) setMotifsOpen(true);
                 }}
@@ -1085,7 +1112,6 @@ export function DesignPage() {
                       icon={<Icon svg={<PlusIcon />} size={24} />}
                       label="새로 만들기"
                       onClick={startNewSession}
-                      className="col-start-2 md:col-start-auto"
                     />
                   </>
                 }
@@ -1112,14 +1138,32 @@ export function DesignPage() {
         onOpenChange={setPatternSettingsOpen}
         onApply={setPatternConstraints}
       />
-      <MotifAddModal
-        open={motifAddOpen}
+      <input
+        ref={svgMotifInputRef}
+        type="file"
+        accept={DESIGN_SVG_ACCEPT}
+        aria-label="SVG 모티프 파일 선택"
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (file) void importSvgMotifFile(file);
+        }}
+      />
+      <TextMotifModal
+        open={textMotifOpen}
+        onOpenChange={setTextMotifOpen}
+        onCreated={selectCreatedMotif}
+      />
+      <PhotoMotifModal
+        open={photoMotifOpen}
         photos={photos.map((photo) => ({
           id: photo.id,
           name: photo.file.name,
           previewSrc: photo.previewUrl,
         }))}
-        onOpenChange={setMotifAddOpen}
+        onOpenChange={setPhotoMotifOpen}
         onEnsurePhotoUpload={ensurePhotoUploadById}
         onCreated={selectCreatedMotif}
       />
@@ -1356,9 +1400,68 @@ function GenerationErrorCallout({
         tone="warning"
         title="요청을 이해하지 못했어요"
         description={error.message}
+      />
+    );
+  }
+  if (error.kind === "authoring_invalid") {
+    return (
+      <Callout
+        tone="warning"
+        title="디자인 구성을 만들지 못했어요"
+        description={error.message}
+        onClick={onRetry}
+      >
+        <Text as="span" textStyle="labelSm">
+          같은 요청 다시 시도
+        </Text>
+      </Callout>
+    );
+  }
+  if (error.kind === "constraint_conflict") {
+    return (
+      <Callout
+        tone="warning"
+        title="설정을 함께 적용할 수 없어요"
+        description={error.message}
       >
         <Text as="span" textStyle="captionSm">
-          요청 내용을 바꿔 다시 생성해 주세요.
+          색상이나 패턴 설정을 바꿔 다시 생성해 주세요.
+        </Text>
+      </Callout>
+    );
+  }
+  if (error.kind === "reference_invalid") {
+    return (
+      <Callout
+        tone="warning"
+        title="참고 이미지를 사용할 수 없어요"
+        description={error.message}
+      >
+        <Text as="span" textStyle="captionSm">
+          해당 이미지를 삭제하거나 다시 첨부해 주세요.
+        </Text>
+      </Callout>
+    );
+  }
+  if (error.kind === "intent_invalid") {
+    return (
+      <Callout
+        tone="warning"
+        title="선택한 디자인을 처리할 수 없어요"
+        description={error.message}
+      />
+    );
+  }
+  if (error.kind === "candidate_invalid") {
+    return (
+      <Callout
+        tone="critical"
+        title="디자인 후보를 완성하지 못했어요"
+        description={error.message}
+        onClick={onRetry}
+      >
+        <Text as="span" textStyle="labelSm">
+          같은 요청 다시 시도
         </Text>
       </Callout>
     );

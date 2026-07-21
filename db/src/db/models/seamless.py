@@ -75,6 +75,7 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     status: Mapped[str] = mapped_column(server_default="success")
     error_type: Mapped[str | None]
     error_message: Mapped[str | None]
+    diagnostics: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
 
     __table_args__ = (
         Index(

@@ -252,7 +252,7 @@ describe("DashboardPage", () => {
       await screen.findByText("필수 연동을 사용할 수 없습니다"),
     ).toBeTruthy();
     expect(screen.getByText(/Toss 결제 관련 작업은 실패 상태/)).toBeTruthy();
-    expect(screen.getByText("로컬·대체 연동 모드")).toBeTruthy();
+    expect(screen.getByText(/로컬·대체 연동 모드/)).toBeTruthy();
     expect(screen.getByText(/Solapi 알림: dry-run/)).toBeTruthy();
   });
 });

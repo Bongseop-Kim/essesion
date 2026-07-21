@@ -20,6 +20,21 @@ _METADATA_IDENTITY_URL = (
 )
 _TOKEN_REFRESH_MARGIN_S = 60
 
+_WORKER_REJECTION_MESSAGES = {
+    "authoring_invalid": "디자인 구성을 만들지 못했습니다",
+    "constraint_conflict": "선택한 디자인 설정을 함께 적용할 수 없습니다",
+    "reference_invalid": "참고 이미지를 디자인에 사용할 수 없습니다",
+    "intent_invalid": "선택한 디자인 정보를 처리할 수 없습니다",
+    "candidate_invalid": "디자인 후보를 완성하지 못했습니다",
+}
+_WORKER_REJECTION_STAGES = {
+    "authoring_invalid": "authoring",
+    "constraint_conflict": "constraints",
+    "reference_invalid": "reference",
+    "intent_invalid": "intent",
+    "candidate_invalid": "candidate",
+}
+
 
 class WorkerClient:
     def __init__(self, settings: Settings):
@@ -125,8 +140,11 @@ class WorkerClient:
         except httpx.HTTPError as exc:
             raise UpstreamError("이미지 워커 호출에 실패했습니다") from exc
         if res.status_code in (400, 422):
-            # 요청 오류(잘못된 intent 등) — 일시 장애(502)와 구분해 detail을 보존 전파.
-            raise WorkerRequestError(f"이미지 워커가 요청을 거부했습니다: {_detail_of(res)}")
+            # 워커의 고정 오류 계약만 보존한다. 모델/검증 원문은 사용자 응답으로
+            # 흘리지 않아 프롬프트·내부 경로·provider 세부정보 노출을 막는다.
+            if path == "/generate":
+                raise _worker_rejection(res)
+            raise WorkerRequestError(f"이미지 워커가 요청을 거부했습니다: {_legacy_detail(res)}")
         if res.status_code >= 400:
             raise UpstreamError("이미지 워커가 요청을 처리하지 못했습니다")
         return res
@@ -144,7 +162,24 @@ class WorkerClient:
         return body
 
 
-def _detail_of(res: httpx.Response) -> str:
+def _worker_rejection(res: httpx.Response) -> WorkerRequestError:
+    try:
+        body = res.json()
+    except ValueError:
+        body = None
+    detail = body.get("detail") if isinstance(body, dict) else None
+    code = detail.get("code") if isinstance(detail, dict) else None
+    if code in _WORKER_REJECTION_MESSAGES:
+        return WorkerRequestError(
+            _WORKER_REJECTION_MESSAGES[code],
+            code=code,
+            stage=_WORKER_REJECTION_STAGES[code],
+        )
+    return WorkerRequestError()
+
+
+def _legacy_detail(res: httpx.Response) -> str:
+    """Non-authoring endpoints retain their existing precise validation contract."""
     try:
         body = res.json()
         detail = body.get("detail") if isinstance(body, dict) else None

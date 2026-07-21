@@ -116,7 +116,7 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 - density: lattice 축당 4/6/8, path repeat 4/8/12, Poisson count 8/16/28로 변환한다.
 - arrangement: lattice는 regular grid, staggered는 `drop_fraction=0.5, drop_axis=column`인 half-drop lattice, scatter는 Poisson이다. 프롬프트 문구만으로 흉내 내지 않는다.
 - direction: horizontal/vertical/diagonal을 0°/90°/-45°로 변환해 stripe angle과 motif `fixed_rotation_deg`에 적용한다.
-- Gemini는 같은 제약을 binding prompt로 받지만 권위 경계는 엔진이다. authored intent에 제약을 결정적으로 적용한 뒤 검증하며, 각 후보도 다시 제약 충족을 검사한다. 고정된 scale/density/arrangement 축은 후보 다양화에서 잠근다. 표현 불가능하거나 후단에서 제약이 유실되면 임의 fallback 없이 422다.
+- Gemini는 같은 제약을 semantic DesignPlan 힌트로 받지만 권위 경계는 결정적 compiler와 엔진이다. compiler가 만든 intent에 제약을 적용한 뒤 검증하며, 각 후보도 다시 제약 충족을 검사한다. 고정된 scale/density/arrangement 축은 후보 다양화에서 잠근다. 표현 불가능하거나 후단에서 제약이 유실되면 임의 fallback 없이 단계별 422다.
 - `seamless_generation_logs.intent`에는 `{designs, palette, pattern_constraints}`가 함께 기록된다. 모든 필드가 auto인 요청은 기존 렌더 경로와 byte-identical이다.
 
 ## 8. 엔진 설정·상수

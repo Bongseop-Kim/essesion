@@ -1,9 +1,11 @@
 """관리자 생성 운영·Motif 읽기 전용 projection.
 
-목록은 raw prompt/SVG/사용자 식별자/object key를 절대 반환하지 않는다. 상세 SVG는
-worker와 공유하는 allowlist sanitizer를 다시 통과한 payload만 노출한다.
+목록은 raw prompt/SVG/사용자 식별자/object key를 절대 반환하지 않는다. 상세 조회는
+저장된 prompt 원문, allowlist로 투영한 intent와 worker 공유 sanitizer를 다시 통과한
+SVG만 노출한다.
 """
 
+import math
 import re
 import uuid
 from datetime import UTC, date, datetime
@@ -42,6 +44,71 @@ _CONTENT_KEY = re.compile(r"^fabric/[0-9a-f]{16}\.png$")
 _EMAIL = re.compile(r"\b[^\s@]+@[^\s@]+\.[^\s@]+\b")
 _PHONE = re.compile(r"(?<!\d)\d[\d -]{7,}\d(?!\d)")
 _URL_OR_PATH = re.compile(r"(?:https?://|gs://|/[A-Za-z0-9_.-]+/)", re.IGNORECASE)
+_HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_INTENT_ALLOWED_KEYS = frozenset(
+    {
+        "intent_version",
+        "canvas",
+        "tile_mm",
+        "dpi",
+        "seed",
+        "production",
+        "method",
+        "max_colors",
+        "palette",
+        "slots",
+        "id",
+        "hex",
+        "spot",
+        "name",
+        "colorways",
+        "mapping",
+        "layers",
+        "type",
+        "params",
+        "z_order",
+        "opacity",
+        "clip",
+        "color",
+        "angle",
+        "period_mm",
+        "bands",
+        "offset_mm",
+        "width_mm",
+        "motif_id",
+        "size_mm",
+        "colors",
+        "placement",
+        "host_layer",
+        "lane",
+        "path",
+        "kind",
+        "wavelength",
+        "amplitude",
+        "spacing_mm",
+        "phase_mm",
+        "rotation",
+        "fixed_rotation_deg",
+        "lattice",
+        "cell_w_mm",
+        "cell_h_mm",
+        "drop_fraction",
+        "drop_axis",
+        "scatter",
+        "mode",
+        "min_dist_mm",
+        "count",
+        "sateen_n",
+        "sateen_step",
+        "point_set",
+        "points",
+    }
+)
+_INTENT_DYNAMIC_MAP_KEYS = frozenset({"mapping", "colors"})
+_INTENT_OMIT = object()
+_MAX_INTENT_DESIGNS = 8
+_MAX_INTENT_SEQUENCE = 10_000
+_MAX_INTENT_DEPTH = 12
 
 
 class GenerationJobStatsOut(BaseModel):
@@ -99,6 +166,8 @@ class SeamlessSummaryOut(BaseModel):
     registry_version: str | None
     error_type: str | None
     error_summary: str | None
+    failure_code: str | None
+    failure_stage: str | None
     created_at: datetime
 
 
@@ -113,8 +182,25 @@ class SafeCandidateOut(BaseModel):
     svg_status: SvgStatus
 
 
+class GenerationDiagnosticsOut(BaseModel):
+    mode: Literal["prompt", "variation"] | None = None
+    model: str | None = None
+    reference_count: int | None = None
+    fixed_palette: bool | None = None
+    pattern_controls: bool | None = None
+    authoring_attempts: int | None = None
+    plan_count: int | None = None
+    validated_count: int | None = None
+    resolved_count: int | None = None
+    candidate_count: int | None = None
+    failure_code: str | None = None
+    failure_stage: str | None = None
+
+
 class SeamlessDetailOut(SeamlessSummaryOut):
     has_prompt: bool
+    prompt: str | None
+    intents: list[dict[str, Any]]
     has_reference_image: bool
     reference_image_bytes: int | None
     reference_image_id: uuid.UUID | None
@@ -122,6 +208,7 @@ class SeamlessDetailOut(SeamlessSummaryOut):
     seed: int | None
     available_strategies: int | None
     warning_codes: list[str]
+    diagnostics: GenerationDiagnosticsOut
     candidates: list[SafeCandidateOut]
 
 
@@ -177,6 +264,67 @@ def _safe_metadata(value: Any, *, limit: int = 160) -> str | None:
     if not clean or _EMAIL.search(clean) or _PHONE.search(clean) or _URL_OR_PATH.search(clean):
         return None
     return clean
+
+
+def _safe_intent_value(value: Any, *, key: str | None = None, depth: int = 0) -> Any:
+    if depth > _MAX_INTENT_DEPTH:
+        return _INTENT_OMIT
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return _INTENT_OMIT
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else _INTENT_OMIT
+    if isinstance(value, str):
+        if key == "hex":
+            return value if _HEX_COLOR.fullmatch(value) else _INTENT_OMIT
+        safe = _safe_metadata(value) if key in {"name", "spot"} else _safe_token(value)
+        return safe if safe is not None else _INTENT_OMIT
+    if isinstance(value, list):
+        if len(value) > _MAX_INTENT_SEQUENCE:
+            return _INTENT_OMIT
+        projected_items: list[Any] = []
+        for item in value:
+            projected = _safe_intent_value(item, key=key, depth=depth + 1)
+            if projected is not _INTENT_OMIT:
+                projected_items.append(projected)
+        return projected_items
+    if not isinstance(value, dict):
+        return _INTENT_OMIT
+
+    projected_fields: dict[str, Any] = {}
+    for raw_key, item in value.items():
+        if not isinstance(raw_key, str):
+            continue
+        if key in _INTENT_DYNAMIC_MAP_KEYS:
+            safe_key = _safe_token(raw_key)
+            if safe_key is None or not isinstance(item, str):
+                continue
+            if key == "mapping":
+                if _HEX_COLOR.fullmatch(item):
+                    projected_fields[safe_key] = item
+            elif (safe_value := _safe_token(item)) is not None:
+                projected_fields[safe_key] = safe_value
+            continue
+        if raw_key not in _INTENT_ALLOWED_KEYS:
+            continue
+        projected = _safe_intent_value(item, key=raw_key, depth=depth + 1)
+        if projected is not _INTENT_OMIT:
+            projected_fields[raw_key] = projected
+    return projected_fields
+
+
+def _safe_intents(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, dict) or not isinstance(value.get("designs"), list):
+        return []
+    intents: list[dict[str, Any]] = []
+    for design in value["designs"][:_MAX_INTENT_DESIGNS]:
+        projected = _safe_intent_value(design)
+        if isinstance(projected, dict) and projected:
+            intents.append(projected)
+    return intents
 
 
 def _number_list(value: Any, *, size: int) -> list[float]:
@@ -377,12 +525,52 @@ def _error_projection(error_type: str | None, status: str) -> tuple[str | None, 
         "AdapterNotConfigured": "생성 연동이 구성되지 않았습니다",
         "AdapterClientError": "외부 생성 연동에 실패했습니다",
         "HTTPException": "생성 요청이 거부되었습니다",
+        "authoring_invalid": "디자인 계획 저작에 실패했습니다",
+        "constraint_conflict": "선택한 생성 조건이 충돌했습니다",
+        "reference_invalid": "참고 이미지를 처리하지 못했습니다",
+        "intent_invalid": "디자인 intent 검증에 실패했습니다",
+        "candidate_invalid": "후보 구성에 실패했습니다",
     }
     return safe_type, summaries.get(safe_type, "생성 처리에 실패했습니다")
 
 
+def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
+    raw = value if isinstance(value, dict) else {}
+    mode = raw.get("mode") if raw.get("mode") in {"prompt", "variation"} else None
+    failure_code = _safe_token(raw.get("failure_code"))
+    failure_stage = _safe_token(raw.get("failure_stage"))
+
+    def count(key: str) -> int | None:
+        item = raw.get(key)
+        return (
+            item
+            if isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 100
+            else None
+        )
+
+    def flag(key: str) -> bool | None:
+        item = raw.get(key)
+        return item if isinstance(item, bool) else None
+
+    return GenerationDiagnosticsOut(
+        mode=cast("Literal['prompt', 'variation'] | None", mode),
+        model=_safe_token(raw.get("model")),
+        reference_count=count("reference_count"),
+        fixed_palette=flag("fixed_palette"),
+        pattern_controls=flag("pattern_controls"),
+        authoring_attempts=count("authoring_attempts"),
+        plan_count=count("plan_count"),
+        validated_count=count("validated_count"),
+        resolved_count=count("resolved_count"),
+        candidate_count=count("candidate_count"),
+        failure_code=failure_code,
+        failure_stage=failure_stage,
+    )
+
+
 def _seamless_summary(row: SeamlessGenerationLog) -> SeamlessSummaryOut:
     error_type, error_summary = _error_projection(row.error_type, row.status)
+    diagnostics = _safe_diagnostics(row.diagnostics)
     return SeamlessSummaryOut(
         id=row.id,
         request_id=_safe_token(row.request_id),
@@ -398,6 +586,8 @@ def _seamless_summary(row: SeamlessGenerationLog) -> SeamlessSummaryOut:
         registry_version=_safe_token(row.registry_version),
         error_type=error_type,
         error_summary=error_summary,
+        failure_code=diagnostics.failure_code,
+        failure_stage=diagnostics.failure_stage,
         created_at=row.created_at,
     )
 
@@ -549,6 +739,8 @@ async def get_admin_seamless_log(
     return SeamlessDetailOut(
         **summary.model_dump(),
         has_prompt=bool(row.prompt),
+        prompt=row.prompt,
+        intents=_safe_intents(row.intent),
         has_reference_image=row.has_reference_image,
         reference_image_bytes=row.reference_image_bytes,
         reference_image_id=row.reference_image_id,
@@ -556,6 +748,7 @@ async def get_admin_seamless_log(
         seed=row.seed,
         available_strategies=row.available_strategies,
         warning_codes=_warning_codes(row.warnings or []),
+        diagnostics=_safe_diagnostics(row.diagnostics),
         candidates=candidates,
     )
 

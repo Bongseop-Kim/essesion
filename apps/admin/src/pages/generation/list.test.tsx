@@ -102,6 +102,8 @@ const seamlessPage: PageSeamlessSummaryOut = {
       registry_version: "v1",
       error_type: null,
       error_summary: null,
+      failure_code: null,
+      failure_stage: null,
       created_at: "2026-07-12T01:00:00Z",
     },
   ],

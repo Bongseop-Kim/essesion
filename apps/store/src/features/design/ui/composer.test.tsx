@@ -71,7 +71,7 @@ const baseProps: DesignComposerProps = {
   onCandidateCountChange: vi.fn(),
   onSubmit: vi.fn(),
   onPhotoFilesSelect: vi.fn(),
-  onOpenMotifAdd: vi.fn(),
+  onAddMotif: vi.fn(),
   onOpenMotifLibrary: vi.fn(),
   onOpenColors: vi.fn(),
   onOpenPatternSettings: vi.fn(),
@@ -119,7 +119,7 @@ describe("DesignComposer token purchase", () => {
     expect(onPurchaseTokens).not.toHaveBeenCalled();
   });
 
-  it("최종 10개 액션을 모바일 4열·데스크톱 5열 순서로 노출한다", () => {
+  it("최종 12개 액션을 모바일 4열·데스크톱 5열 순서로 노출한다", () => {
     render(
       <DesignComposer
         {...baseProps}
@@ -137,7 +137,9 @@ describe("DesignComposer token purchase", () => {
 
     const expected = [
       "사진 첨부",
-      "모티프 추가",
+      "SVG 모티프",
+      "텍스트 모티프",
+      "사진 모티프",
       "내 모티프",
       "색상",
       "패턴 설정",
@@ -161,6 +163,21 @@ describe("DesignComposer token purchase", () => {
       screen.getByRole("button", { name: "문맥 기반 아이디어" }),
     ).toBeTruthy();
     expect(screen.queryByText("프롬프트 힌트")).toBeNull();
+  });
+
+  it("모티프 추가 방식별 버튼이 종류를 전달한다", () => {
+    const onAddMotif = vi.fn();
+    render(<DesignComposer {...baseProps} onAddMotif={onAddMotif} />);
+    fireEvent.click(screen.getByRole("button", { name: "옵션 더보기" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "SVG 모티프" }));
+    fireEvent.click(screen.getByRole("button", { name: "텍스트 모티프" }));
+    fireEvent.click(screen.getByRole("button", { name: "사진 모티프" }));
+    expect(onAddMotif.mock.calls.map(([kind]) => kind)).toEqual([
+      "svg",
+      "text",
+      "photo",
+    ]);
   });
 
   it("사진 참고 방식을 키보드로 바꾸고 삭제 액션과 분리한다", async () => {

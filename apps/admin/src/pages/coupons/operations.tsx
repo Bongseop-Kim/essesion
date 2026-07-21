@@ -278,11 +278,15 @@ export function CouponOperations({
       </AdminCard>
 
       {!canManage ? (
-        <Callout
-          tone="informative"
-          title="조회 전용 권한"
-          description="고객군 일괄 발급은 admin 역할만 실행할 수 있습니다."
-        />
+        <AdminCard
+          title="쿠폰 일괄 발급"
+          description="대상과 발급 조건을 검토한 뒤 한 번에 적용합니다."
+        >
+          <Text textStyle="bodySm" color="fg.neutral-muted">
+            조회 전용 권한입니다. 고객군 일괄 발급은 admin 역할만 실행할 수
+            있습니다.
+          </Text>
+        </AdminCard>
       ) : (
         <AdminCard
           title="쿠폰 일괄 발급"
