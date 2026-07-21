@@ -1273,6 +1273,24 @@ export const zFinalizeRequest = z.object({
 });
 
 /**
+ * GenerationDiagnosticsOut
+ */
+export const zGenerationDiagnosticsOut = z.object({
+    authoring_attempts: z.int().nullish(),
+    candidate_count: z.int().nullish(),
+    failure_code: z.string().nullish(),
+    failure_stage: z.string().nullish(),
+    fixed_palette: z.boolean().nullish(),
+    mode: z.enum(['prompt', 'variation']).nullish(),
+    model: z.string().nullish(),
+    pattern_controls: z.boolean().nullish(),
+    plan_count: z.int().nullish(),
+    reference_count: z.int().nullish(),
+    resolved_count: z.int().nullish(),
+    validated_count: z.int().nullish()
+});
+
+/**
  * GenerationJobDetailOut
  */
 export const zGenerationJobDetailOut = z.object({
@@ -2753,10 +2771,13 @@ export const zSeamlessDetailOut = z.object({
     candidate_count_returned: z.int().nullable(),
     candidates: z.array(zSafeCandidateOut),
     created_at: z.iso.datetime(),
+    diagnostics: zGenerationDiagnosticsOut,
     distinct_layouts: z.int().nullable(),
     engine_version: z.string().nullable(),
     error_summary: z.string().nullable(),
     error_type: z.string().nullable(),
+    failure_code: z.string().nullable(),
+    failure_stage: z.string().nullable(),
     generate_ms: z.number().nullable(),
     has_prompt: z.boolean(),
     has_reference_image: z.boolean(),
@@ -2802,6 +2823,8 @@ export const zSeamlessSummaryOut = z.object({
     engine_version: z.string().nullable(),
     error_summary: z.string().nullable(),
     error_type: z.string().nullable(),
+    failure_code: z.string().nullable(),
+    failure_stage: z.string().nullable(),
     generate_ms: z.number().nullable(),
     id: z.uuid(),
     input_type: z.string(),

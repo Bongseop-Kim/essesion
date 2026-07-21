@@ -39,6 +39,8 @@ const log: SeamlessDetailOut = {
   registry_version: "v1",
   error_type: null,
   error_summary: null,
+  failure_code: null,
+  failure_stage: null,
   created_at: "2026-07-12T01:00:00Z",
   has_prompt: false,
   has_reference_image: true,
@@ -48,6 +50,20 @@ const log: SeamlessDetailOut = {
   seed: 1,
   available_strategies: 0,
   warning_codes: [],
+  diagnostics: {
+    mode: "prompt",
+    model: "gemini-2.5-flash-lite",
+    reference_count: 1,
+    fixed_palette: false,
+    pattern_controls: false,
+    authoring_attempts: 1,
+    plan_count: 3,
+    validated_count: 3,
+    resolved_count: 3,
+    candidate_count: 0,
+    failure_code: null,
+    failure_stage: null,
+  },
   candidates: [],
 };
 
@@ -160,6 +176,9 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("미리보기를 저장하지 못했습니다")).toBeTruthy();
     expect(screen.getByText("후보가 일부만 생성되었습니다")).toBeTruthy();
     expect(screen.getByText("생성 결과를 확인해 주세요")).toBeTruthy();
+    expect(screen.getByText("생성 진단")).toBeTruthy();
+    expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
+    expect(screen.getByText("3 / 3")).toBeTruthy();
     expect(
       screen.getByText(
         "후보 SVG를 확인하고, 이미지 미리보기가 필요하면 생성을 다시 실행해 주세요.",

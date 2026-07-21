@@ -14,6 +14,7 @@ import hashlib
 import io
 import threading
 import time
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -95,6 +96,23 @@ _CANDIDATE_KEYS = {
     "svg",
     "png_object_key",
 }
+
+
+def test_resolved_multicolor_motif_binds_every_catalog_slot():
+    intent = mvp_intent()
+    motif_layer = next(layer for layer in intent["layers"] if layer["type"] == "motif")
+    motif_layer["params"]["motif_id"] = "multi"
+
+    routes._bind_resolved_motif_colors(
+        [intent], {"multi": SimpleNamespace(color_slots=("s0", "s1", "s2"))}
+    )
+
+    assert "color" not in motif_layer["params"]
+    assert motif_layer["params"]["colors"] == {
+        "s0": "accent",
+        "s1": "gold",
+        "s2": "accent",
+    }
 
 
 def test_generate_returns_product_shape(client):
@@ -197,7 +215,11 @@ def test_semantic_invalid_intent_returns_422(client):
     intent["layers"][0]["params"]["color"] = "missing"
     resp = client.post("/generate", json={"intent": intent})
     assert resp.status_code == 422
-    assert "missing" in str(resp.json()["detail"])
+    assert resp.json()["detail"] == {
+        "code": "intent_invalid",
+        "stage": "intent",
+        "message": "the design input is invalid",
+    }
 
 
 def test_error_response_echoes_request_id_header(client):
@@ -291,6 +313,7 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
             motif_ids,
             palette_constraint,
             pattern_constraints,
+            **_kwargs,
         ):
             assert palette_constraint.mode == "auto"
             assert pattern_constraints.is_automatic()
@@ -360,7 +383,8 @@ def test_reference_photo_rejects_untrusted_url_before_fetch(monkeypatch):
         },
     )
     assert response.status_code == 422
-    assert response.json()["detail"] == "reference image URL is not allowed"
+    assert response.json()["detail"]["code"] == "reference_invalid"
+    assert response.json()["detail"]["stage"] == "reference"
 
 
 def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
@@ -556,7 +580,10 @@ def test_partial_success_when_count_exceeds_available(client):
     assert any("partial" in w for w in body["warnings"])
 
 
-def test_intent_and_prompt_together_returns_200(client):
-    # D6: intent+prompt 동시 — 원본은 경고, essesion은 prompt를 로그에만 남기고 200.
-    resp = client.post("/generate", json={"intent": mvp_intent(), "prompt": "ignored for now"})
-    assert resp.status_code == 200
+def test_generate_rejects_mixing_intent_and_prompt(client):
+    resp = client.post(
+        "/generate", json={"intent": mvp_intent(), "prompt": "줄무늬를 더 굵게 바꿔줘"}
+    )
+
+    assert resp.status_code == 422
+    assert "intent variation cannot include prompt" in resp.text

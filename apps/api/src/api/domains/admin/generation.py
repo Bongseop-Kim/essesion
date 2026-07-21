@@ -99,6 +99,8 @@ class SeamlessSummaryOut(BaseModel):
     registry_version: str | None
     error_type: str | None
     error_summary: str | None
+    failure_code: str | None
+    failure_stage: str | None
     created_at: datetime
 
 
@@ -113,6 +115,21 @@ class SafeCandidateOut(BaseModel):
     svg_status: SvgStatus
 
 
+class GenerationDiagnosticsOut(BaseModel):
+    mode: Literal["prompt", "variation"] | None = None
+    model: str | None = None
+    reference_count: int | None = None
+    fixed_palette: bool | None = None
+    pattern_controls: bool | None = None
+    authoring_attempts: int | None = None
+    plan_count: int | None = None
+    validated_count: int | None = None
+    resolved_count: int | None = None
+    candidate_count: int | None = None
+    failure_code: str | None = None
+    failure_stage: str | None = None
+
+
 class SeamlessDetailOut(SeamlessSummaryOut):
     has_prompt: bool
     has_reference_image: bool
@@ -122,6 +139,7 @@ class SeamlessDetailOut(SeamlessSummaryOut):
     seed: int | None
     available_strategies: int | None
     warning_codes: list[str]
+    diagnostics: GenerationDiagnosticsOut
     candidates: list[SafeCandidateOut]
 
 
@@ -377,12 +395,52 @@ def _error_projection(error_type: str | None, status: str) -> tuple[str | None, 
         "AdapterNotConfigured": "생성 연동이 구성되지 않았습니다",
         "AdapterClientError": "외부 생성 연동에 실패했습니다",
         "HTTPException": "생성 요청이 거부되었습니다",
+        "authoring_invalid": "디자인 계획 저작에 실패했습니다",
+        "constraint_conflict": "선택한 생성 조건이 충돌했습니다",
+        "reference_invalid": "참고 이미지를 처리하지 못했습니다",
+        "intent_invalid": "디자인 intent 검증에 실패했습니다",
+        "candidate_invalid": "후보 구성에 실패했습니다",
     }
     return safe_type, summaries.get(safe_type, "생성 처리에 실패했습니다")
 
 
+def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
+    raw = value if isinstance(value, dict) else {}
+    mode = raw.get("mode") if raw.get("mode") in {"prompt", "variation"} else None
+    failure_code = _safe_token(raw.get("failure_code"))
+    failure_stage = _safe_token(raw.get("failure_stage"))
+
+    def count(key: str) -> int | None:
+        item = raw.get(key)
+        return (
+            item
+            if isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 100
+            else None
+        )
+
+    def flag(key: str) -> bool | None:
+        item = raw.get(key)
+        return item if isinstance(item, bool) else None
+
+    return GenerationDiagnosticsOut(
+        mode=cast("Literal['prompt', 'variation'] | None", mode),
+        model=_safe_token(raw.get("model")),
+        reference_count=count("reference_count"),
+        fixed_palette=flag("fixed_palette"),
+        pattern_controls=flag("pattern_controls"),
+        authoring_attempts=count("authoring_attempts"),
+        plan_count=count("plan_count"),
+        validated_count=count("validated_count"),
+        resolved_count=count("resolved_count"),
+        candidate_count=count("candidate_count"),
+        failure_code=failure_code,
+        failure_stage=failure_stage,
+    )
+
+
 def _seamless_summary(row: SeamlessGenerationLog) -> SeamlessSummaryOut:
     error_type, error_summary = _error_projection(row.error_type, row.status)
+    diagnostics = _safe_diagnostics(row.diagnostics)
     return SeamlessSummaryOut(
         id=row.id,
         request_id=_safe_token(row.request_id),
@@ -398,6 +456,8 @@ def _seamless_summary(row: SeamlessGenerationLog) -> SeamlessSummaryOut:
         registry_version=_safe_token(row.registry_version),
         error_type=error_type,
         error_summary=error_summary,
+        failure_code=diagnostics.failure_code,
+        failure_stage=diagnostics.failure_stage,
         created_at=row.created_at,
     )
 
@@ -556,6 +616,7 @@ async def get_admin_seamless_log(
         seed=row.seed,
         available_strategies=row.available_strategies,
         warning_codes=_warning_codes(row.warnings or []),
+        diagnostics=_safe_diagnostics(row.diagnostics),
         candidates=candidates,
     )
 

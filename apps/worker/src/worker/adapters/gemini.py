@@ -1,8 +1,9 @@
-"""Gemini intent 저작 어댑터 (worker-motifs.md §6): prompt → design(intent+motif_specs).
+"""Gemini 디자인 계획 어댑터: prompt → small plan → deterministic intent.
 
 google-genai SDK 대신 httpx로 REST 직접 호출(의존성 최소화): generativelanguage.
-googleapis.com v1beta generateContent, response_mime_type=application/json. temperature
-0.7. {429,503}만 0.5/1/2s 백오프 최대 4회. designs 파싱은 legacy 단일/bare intent도 수용.
+googleapis.com v1beta generateContent structured output. temperature 0.7.
+{429,503}만 0.5/1/2s 백오프 최대 4회. 모델은 엔진 스키마를 직접 저작하지 않고
+작은 DesignPlan만 반환한다. 엔진 intent는 이 모듈이 결정적으로 컴파일한다.
 
 참고 이미지는 검증·방향 보정·축소·메타데이터 제거 후 inline_data로 전달한다.
 """
@@ -20,11 +21,16 @@ from typing import Literal
 
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from worker.adapters import AdapterClientError
-from worker.engine.constraints import PaletteConstraint, PatternConstraints, pattern_prompt_lines
+from worker.engine.constraints import (
+    PaletteConstraint,
+    PatternConstraints,
+    normalize_hex,
+    pattern_prompt_lines,
+)
 from worker.engine.validate import IntentInvalid
-from worker.motifs.store import SCOPE_VOCAB, validate_facets
 
 DEFAULT_MODEL = "gemini-2.5-flash-lite"
 _BASE_URL = "https://generativelanguage.googleapis.com"
@@ -50,6 +56,65 @@ class ReferenceImage:
     data: bytes
     mime_type: str
     purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto"
+
+
+class PlanMotif(BaseModel):
+    """Provider-facing semantic motif; engine IDs and geometry never cross this boundary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    subject: str = Field(min_length=1, max_length=80)
+    scope: Literal["whole", "partial"] = "whole"
+    style: str | None = Field(default=None, max_length=80)
+    description: str | None = Field(default=None, max_length=160)
+
+    @field_validator("subject")
+    @classmethod
+    def _strip_subject(cls, value: str) -> str:
+        clean = value.strip()
+        if not clean:
+            raise ValueError("subject must not be blank")
+        return clean
+
+    @field_validator("style", "description")
+    @classmethod
+    def _strip_optional_text(cls, value: str | None) -> str | None:
+        clean = value.strip() if isinstance(value, str) else value
+        return clean or None
+
+
+class DesignPlan(BaseModel):
+    """Small structured output contract mapped only to supported engine primitives."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    motifs: list[PlanMotif] = Field(default_factory=list, max_length=2)
+    colors: list[str] = Field(min_length=2, max_length=5)
+    arrangement: Literal["lattice", "staggered", "scatter"]
+    density: Literal["sparse", "medium", "dense"]
+    scale: Literal["small", "medium", "large"]
+    direction: Literal["horizontal", "vertical", "diagonal"]
+    stripes: bool = False
+
+    @field_validator("colors", mode="before")
+    @classmethod
+    def _normalize_colors(cls, value: object) -> object:
+        if not isinstance(value, list):
+            return value
+        colors: list[str] = []
+        for raw in value:
+            if not isinstance(raw, str):
+                raise ValueError("each color must be a HEX string")
+            color = normalize_hex(raw)
+            if color not in colors:
+                colors.append(color)
+        return colors
+
+
+class DesignPlans(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plans: list[DesignPlan] = Field(min_length=2, max_length=4)
 
 
 def prepare_reference_image(
@@ -93,60 +158,6 @@ def _strip_code_fence(text: str) -> str:
         r"```[ \t]*(?:[A-Za-z0-9_-]+)?[ \t]*(?:\r?\n)?(?P<body>.*?)```", s, flags=re.DOTALL
     )
     return match.group("body").strip() if match else s
-
-
-def _split_intent_and_specs(raw: dict) -> tuple[dict, list[dict]]:
-    """{"intent":{...},"motif_specs":[...]} 래퍼 또는 bare intent 수용."""
-    if isinstance(raw.get("intent"), dict):
-        intent = raw["intent"]
-        specs = raw.get("motif_specs")
-    else:
-        intent, specs = raw, None
-    if not isinstance(specs, list):
-        specs = []
-    return intent, [s for s in specs if isinstance(s, dict)]
-
-
-def _split_designs(raw: dict) -> list[tuple[dict, list[dict]]]:
-    """{"designs":[...]} 멀티, legacy 단일 래퍼, bare intent 모두 (intent, specs) 목록으로."""
-    designs = raw.get("designs")
-    if isinstance(designs, list) and designs:
-        out = [_split_intent_and_specs(d) for d in designs if isinstance(d, dict)]
-        if out:
-            return out
-    return [_split_intent_and_specs(raw)]
-
-
-def _validate_spec_facets(specs: list[dict]) -> list[str]:
-    """motif-spec facet 검증 — subject 필수(자유텍스트), scope 필수(통제 어휘)."""
-    errors: list[str] = []
-    for i, spec in enumerate(specs):
-        layer_id = spec.get("layer_id")
-        if not isinstance(layer_id, str) or not layer_id:
-            errors.append(f"motif_specs[{i}] missing string 'layer_id'")
-        if "text" in spec:
-            text = spec.get("text")
-            if not isinstance(text, str) or not text.strip():
-                errors.append(f"motif_specs[{i}] 'text' must be a non-empty string")
-            spec.setdefault("subject", "text")
-            spec.setdefault("scope", "whole")
-            continue
-        subject = spec.get("subject")
-        if not isinstance(subject, str) or not subject.strip():
-            errors.append(f"motif_specs[{i}] missing non-empty 'subject'")
-        scope = spec.get("scope")
-        if not isinstance(scope, str) or not scope.strip():
-            errors.append(f"motif_specs[{i}] missing 'scope' (one of {sorted(SCOPE_VOCAB)})")
-            continue
-        for fld in ("view", "expression", "style", "description"):
-            value = spec.get(fld)
-            if value is not None and not isinstance(value, str):
-                errors.append(f"motif_specs[{i}] field '{fld}' must be a string")
-        try:
-            validate_facets(scope)
-        except ValueError as exc:
-            errors.append(f"motif_specs[{i}]: {exc}")
-    return errors
 
 
 _STRIPE_AXIS_TOL_DEG = 8.0
@@ -194,26 +205,168 @@ def normalize_stripes(intent_raw: dict, settings) -> None:
         params["period_mm"] = round(target_period, 6)
 
 
-_EXAMPLE_INTENT = {
-    "intent_version": 1,
-    "canvas": {"tile_mm": 48, "dpi": 300},
-    "seed": 0,
-    "production": {"method": "print", "max_colors": 12},
-    "palette": {"slots": [{"id": "ground", "hex": "#10243a"}, {"id": "accent", "hex": "#ef8a7a"}]},
-    "colorways": [
-        {"id": "default", "name": "default", "mapping": {"ground": "#10243a", "accent": "#ef8a7a"}}
-    ],
-    "layers": [
-        {"id": "ground", "type": "background", "z_order": 0, "params": {"color": "ground"}},
-        {
-            "id": "dots",
-            "type": "motif",
-            "z_order": 1,
-            "params": {"motif_id": "dots", "size_mm": 6.0, "color": "accent"},
-            "placement": {"type": "lattice", "lattice": {"cell_w_mm": 12.0, "cell_h_mm": 12.0}},
-        },
-    ],
+_DESIGN_PLAN_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "plans": {
+            "type": "ARRAY",
+            "minItems": 2,
+            "maxItems": 4,
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "motifs": {
+                        "type": "ARRAY",
+                        "maxItems": 2,
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "subject": {"type": "STRING"},
+                                "scope": {"type": "STRING", "enum": ["whole", "partial"]},
+                                "style": {"type": "STRING"},
+                                "description": {"type": "STRING"},
+                            },
+                            "required": ["subject", "scope"],
+                        },
+                    },
+                    "colors": {
+                        "type": "ARRAY",
+                        "minItems": 2,
+                        "maxItems": 5,
+                        "items": {"type": "STRING"},
+                    },
+                    "arrangement": {"type": "STRING", "enum": ["lattice", "staggered", "scatter"]},
+                    "density": {"type": "STRING", "enum": ["sparse", "medium", "dense"]},
+                    "scale": {"type": "STRING", "enum": ["small", "medium", "large"]},
+                    "direction": {"type": "STRING", "enum": ["horizontal", "vertical", "diagonal"]},
+                    "stripes": {"type": "BOOLEAN"},
+                },
+                "required": [
+                    "motifs",
+                    "colors",
+                    "arrangement",
+                    "density",
+                    "scale",
+                    "direction",
+                    "stripes",
+                ],
+            },
+        }
+    },
+    "required": ["plans"],
 }
+
+
+def _plan_placement(plan: DesignPlan) -> dict[str, object]:
+    axis = {"sparse": 4, "medium": 6, "dense": 8}[plan.density]
+    angle = {"horizontal": 0.0, "vertical": 90.0, "diagonal": -45.0}[plan.direction]
+    if plan.arrangement == "scatter":
+        return {
+            "type": "scatter",
+            "fixed_rotation_deg": angle,
+            "scatter": {
+                "mode": "poisson",
+                "min_dist_mm": round(DEFAULT_TILE_MM / axis, 6),
+                "count": {"sparse": 8, "medium": 16, "dense": 28}[plan.density],
+            },
+        }
+    lattice: dict[str, object] = {
+        "cell_w_mm": round(DEFAULT_TILE_MM / axis, 6),
+        "cell_h_mm": round(DEFAULT_TILE_MM / axis, 6),
+    }
+    if plan.arrangement == "staggered":
+        lattice.update({"drop_fraction": 0.5, "drop_axis": "column"})
+    return {"type": "lattice", "fixed_rotation_deg": angle, "lattice": lattice}
+
+
+def compile_design_plan(
+    plan: DesignPlan,
+    *,
+    plan_index: int,
+    motif_ids: list[str] | None = None,
+    palette_constraint: PaletteConstraint | None = None,
+) -> AuthoredDesign:
+    """Compile a semantic plan to a schema-valid, tile-commensurate engine intent."""
+    exact_ids = list(dict.fromkeys(motif_ids or []))[:2]
+    semantic_motifs = plan.motifs[: max(0, 2 - len(exact_ids))]
+    motif_sources: list[tuple[str, PlanMotif | None]] = [(motif_id, None) for motif_id in exact_ids]
+    motif_sources.extend((f"motif_{index}", motif) for index, motif in enumerate(semantic_motifs))
+    if not motif_sources and not plan.stripes:
+        raise ValueError("a plan without exact motifs must include a semantic motif or stripes")
+
+    palette = palette_constraint or PaletteConstraint()
+    colors = palette.colors if palette.mode == "fixed" else plan.colors
+    slot_ids = ["ground", *[f"color_{index}" for index in range(1, len(colors))]]
+    slots = [{"id": slot_id, "hex": color} for slot_id, color in zip(slot_ids, colors, strict=True)]
+    mapping = dict(zip(slot_ids, colors, strict=True))
+    layers: list[dict[str, object]] = [
+        {"id": "ground", "type": "background", "z_order": 0, "params": {"color": "ground"}}
+    ]
+
+    # A fixed palette is an output contract: add deterministic bands only when the
+    # background + motifs cannot make every requested color visible.
+    needs_palette_bands = palette.mode == "fixed" and len(colors) > 1 + len(motif_sources)
+    if plan.stripes or needs_palette_bands:
+        period = (
+            DEFAULT_TILE_MM / math.sqrt(2.0)
+            if plan.direction == "diagonal"
+            else DEFAULT_TILE_MM / 4
+        )
+        band_slots = slot_ids[1:] or ["ground"]
+        band_width = period / (2 * len(band_slots))
+        layers.append(
+            {
+                "id": "stripes",
+                "type": "stripe",
+                "z_order": 1,
+                "params": {
+                    "angle": {"horizontal": 0.0, "vertical": 90.0, "diagonal": -45.0}[
+                        plan.direction
+                    ],
+                    "period_mm": round(period, 6),
+                    "bands": [
+                        {
+                            "offset_mm": round(index * period / len(band_slots), 6),
+                            "width_mm": round(band_width, 6),
+                            "color": slot_id,
+                        }
+                        for index, slot_id in enumerate(band_slots)
+                    ],
+                },
+            }
+        )
+
+    motif_specs: list[dict] = []
+    size_mm = round(DEFAULT_TILE_MM * {"small": 0.10, "medium": 0.18, "large": 0.28}[plan.scale], 6)
+    for index, (motif_id, semantic) in enumerate(motif_sources):
+        layer_id = f"motif_{index}"
+        color_id = (
+            slot_ids[1 + index] if 1 + index < len(slot_ids) else slot_ids[index % len(slot_ids)]
+        )
+        layers.append(
+            {
+                "id": layer_id,
+                "type": "motif",
+                "z_order": len(layers),
+                "params": {"motif_id": motif_id, "size_mm": size_mm, "color": color_id},
+                "placement": _plan_placement(plan),
+            }
+        )
+        if semantic is not None:
+            motif_specs.append({"layer_id": layer_id, **semantic.model_dump(exclude_none=True)})
+
+    return AuthoredDesign(
+        intent={
+            "intent_version": 1,
+            "canvas": {"tile_mm": DEFAULT_TILE_MM, "dpi": DEFAULT_DPI},
+            "seed": (plan_index + 1) * 104729,
+            "production": {"method": "print", "max_colors": 12},
+            "palette": {"slots": slots},
+            "colorways": [{"id": "default", "name": "default", "mapping": mapping}],
+            "layers": layers,
+        },
+        motif_specs=motif_specs,
+    )
 
 
 def _build_prompt(
@@ -225,73 +378,27 @@ def _build_prompt(
     palette_constraint: PaletteConstraint | None = None,
     pattern_constraints: PatternConstraints | None = None,
 ) -> str:
-    scope_vocab = ", ".join(sorted(SCOPE_VOCAB))
-    example = {
-        "designs": [
-            {
-                "intent": _EXAMPLE_INTENT,
-                "motif_specs": [
-                    {
-                        "layer_id": "dots",
-                        "subject": "circle",
-                        "scope": "whole",
-                        "style": "flat",
-                        "description": "small solid dot",
-                    }
-                ],
-            }
-        ]
-    }
     lines = [
-        "You convert a textile pattern description into intent JSON for a seamless SVG "
-        "engine. The engine handles all geometry, repetition and seamlessness.",
-        'Output ONLY one JSON object with a "designs" array. You MUST return 2 to 4 '
-        "GENUINELY DIFFERENT designs (vary motif, layout and structure — not just color). "
-        'Each entry has two keys "intent" and "motif_specs". No SVG, no coordinates, no '
-        "markdown, no prose.",
-        "",
-        "Valid example (follow the JSON shape; do not copy its pattern):",
-        json.dumps(example, ensure_ascii=False, indent=2),
-        "",
-        "Constraints:",
-        "- intent.intent_version must be 1.",
-        "- For EACH motif layer, set params.motif_id to that layer's id (a placeholder the "
-        "resolver replaces) and add a motif_specs entry whose layer_id equals the layer id. "
-        "Do NOT invent registry ids.",
-        "- Each motif_specs entry needs: subject (free text, required), scope (REQUIRED, one "
-        f"of: {scope_vocab}) — 'whole' for the full subject, 'partial' for a sub-region — "
-        "optional view/expression/style, and a short English description for retrieval.",
-        "- layer params colors reference palette slot ids, never raw hex.",
-        "- a colorway with id 'default' is required; its mapping covers every slot.",
-        "- period_mm must divide tile_mm; motif placement spacing_mm must divide tile_mm.",
-        "- Placement specs are mandatory: 'lattice' needs cell_w_mm/cell_h_mm; 'scatter' "
-        "needs a scatter object; 'path_following' needs host_layer+lane or path plus "
-        "spacing_mm.",
-        "- Diagonal stripes default to -45 deg with period_mm = tile_mm/sqrt(2).",
-        f"- target canvas: {json.dumps({'tile_mm': DEFAULT_TILE_MM, 'dpi': DEFAULT_DPI})}.",
-        "- Use at most 2 distinct motif ids in each design (the same motif may appear "
-        "in multiple layers).",
+        "Create 2 to 4 genuinely different semantic plans for a seamless textile pattern.",
+        "Return only the structured JSON requested by the response schema. Do not write SVG, "
+        "engine JSON, coordinates, internal IDs, markdown, or prose.",
+        "Each plan chooses 2-5 HEX colors, up to 2 simple visual motifs, arrangement, density, "
+        "scale, direction, and whether broad stripes are part of the design.",
+        "Motif scope must be 'whole' for a complete subject or 'partial' for a sub-region. "
+        "Write motif descriptions in short English suitable for visual retrieval.",
         "",
         f"Description: {user_prompt}",
     ]
     if motif_ids:
         lines += [
             "",
-            "User-provided SVG motifs (highest priority):",
-            f"- Use every one of these exact motif ids in every design: {', '.join(motif_ids)}.",
-            "- Do not create motif_specs entries for these exact ids.",
-            "- Only use a generated/photo-derived motif if fewer than 2 SVG motif ids "
-            "were supplied.",
+            f"There are {len(motif_ids)} exact private motif assets. They are inserted by the "
+            "engine and must remain the highest-priority motifs. Do not guess their IDs.",
         ]
     if palette_constraint is not None and palette_constraint.mode == "fixed":
         lines += [
             "",
-            "The fixed palette is binding:",
-            f"- Use exactly these colors: {', '.join(palette_constraint.colors)}.",
-            f"- Declare and reference at least {len(palette_constraint.colors)} distinct palette "
-            "slot ids so every requested color appears in rendered geometry.",
-            "- The engine deterministically replaces authored colorways with one 'default' "
-            "mapping; do not add alternative colorways.",
+            f"The fixed palette is binding: {', '.join(palette_constraint.colors)}.",
         ]
     if pattern_constraints is not None:
         constraint_lines = pattern_prompt_lines(pattern_constraints)
@@ -316,11 +423,9 @@ def _build_prompt(
             f"- image {index}: purpose={image.purpose}; {role_instructions[image.purpose]}"
             for index, image in enumerate(reference_images, start=1)
         ]
-        lines.append(
-            "A photo-inspired motif still needs a motif_specs entry describing the visible subject."
-        )
+        lines.append("Describe a photo-inspired subject as a semantic motif when appropriate.")
     if errors:
-        lines += ["", "Your previous attempt FAILED stage-0 validation. Fix exactly these:"]
+        lines += ["", "The previous plan was rejected. Fix these validation issues:"]
         lines += [f"- {e}" for e in errors]
     return "\n".join(lines)
 
@@ -399,7 +504,11 @@ class GeminiClient:
         return self._client
 
     async def complete(
-        self, prompt: str, *, reference_images: list[ReferenceImage] | None = None
+        self,
+        prompt: str,
+        *,
+        reference_images: list[ReferenceImage] | None = None,
+        response_schema: dict[str, object] | None = None,
     ) -> str:
         url = f"{_BASE_URL}/v1beta/models/{self._model}:generateContent"
         parts: list[dict[str, object]] = [
@@ -412,12 +521,15 @@ class GeminiClient:
             for image in (reference_images or [])
         ]
         parts.append({"text": prompt})
+        generation_config: dict[str, object] = {
+            "temperature": self._temperature,
+            "response_mime_type": "application/json",
+        }
+        if response_schema is not None:
+            generation_config["response_schema"] = response_schema
         body = {
             "contents": [{"parts": parts}],
-            "generationConfig": {
-                "temperature": self._temperature,
-                "response_mime_type": "application/json",
-            },
+            "generationConfig": generation_config,
         }
         client = self._http()
         resp: httpx.Response | None = None
@@ -453,16 +565,19 @@ class GeminiClient:
         motif_ids: list[str] | None = None,
         palette_constraint: PaletteConstraint | None = None,
         pattern_constraints: PatternConstraints | None = None,
+        diagnostics: dict[str, object] | None = None,
     ) -> list[AuthoredDesign]:
-        """prompt → 검증 통과 design 목록. facet + (있으면) intent 검증을 통과한 것만 반환.
+        """prompt → structured plans → deterministic, validated engine intents.
 
-        전 design 무효면 collected errors를 물려 constrained 재프롬프트 1회, 그래도 무효면
-        IntentInvalid(라우트가 422로 매핑). `validate(intent_raw) -> list[str]|None`은
-        라우트가 주입(engine validate_intent + 요청 카탈로그) — 어댑터는 엔진에 결합하지 않는다.
+        모든 plan이 무효면 오류를 물려 재프롬프트 1회한다. `validate(intent_raw)`는
+        라우트가 주입하며, provider는 엔진 스키마나 내부 motif id를 보지 않는다.
         """
+        sink = diagnostics if diagnostics is not None else {}
+        sink["model"] = self._model
         errors: list[str] | None = None
-        last_errors: list[str] = ["LLM produced no valid design"]
-        for _ in range(2):  # 최초 + constrained 재프롬프트 1회
+        last_errors: list[str] = ["model produced no valid design plan"]
+        for attempt in range(2):
+            sink["authoring_attempts"] = attempt + 1
             text = await self.complete(
                 _build_prompt(
                     prompt,
@@ -473,34 +588,39 @@ class GeminiClient:
                     pattern_constraints=pattern_constraints,
                 ),
                 reference_images=reference_images,
+                response_schema=_DESIGN_PLAN_SCHEMA,
             )
             try:
                 raw = json.loads(_strip_code_fence(text))
-            except (json.JSONDecodeError, TypeError) as exc:
-                last_errors = [f"LLM response was not valid JSON: {exc}"]
+                plans = DesignPlans.model_validate(raw).plans
+            except (json.JSONDecodeError, TypeError, ValidationError) as exc:
+                last_errors = [f"model response did not match DesignPlan: {exc}"]
                 errors = last_errors
                 continue
-            if not isinstance(raw, dict):
-                last_errors = ["LLM response JSON was not an object"]
-                errors = last_errors
-                continue
+            sink["plan_count"] = len(plans)
             results: list[AuthoredDesign] = []
             design_errors: list[str] = []
-            for idx, (intent_raw, specs) in enumerate(_split_designs(raw)):
-                intent_raw.setdefault("intent_version", 1)
-                facet_errors = _validate_spec_facets(specs)
-                if facet_errors:
-                    design_errors += [f"design[{idx}]: {e}" for e in facet_errors]
+            for index, plan in enumerate(plans):
+                try:
+                    design = compile_design_plan(
+                        plan,
+                        plan_index=index,
+                        motif_ids=motif_ids,
+                        palette_constraint=palette_constraint,
+                    )
+                except ValueError as exc:
+                    design_errors.append(f"plan[{index}]: {exc}")
                     continue
                 if validate is not None:
-                    verrs = validate(intent_raw)
+                    verrs = validate(design.intent)
                     if verrs:
-                        design_errors += [f"design[{idx}]: {e}" for e in verrs]
+                        design_errors += [f"plan[{index}]: {error}" for error in verrs]
                         continue
-                results.append(AuthoredDesign(intent=intent_raw, motif_specs=specs))
+                results.append(design)
+            sink["validated_count"] = len(results)
             if results:
                 return results
-            last_errors = design_errors or ["LLM produced no valid design"]
+            last_errors = design_errors or ["model produced no valid design plan"]
             errors = last_errors[:6]
         raise IntentInvalid(last_errors)
 

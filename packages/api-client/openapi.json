@@ -6450,6 +6450,148 @@
         "title": "FinalizeRequest",
         "type": "object"
       },
+      "GenerationDiagnosticsOut": {
+        "properties": {
+          "authoring_attempts": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authoring Attempts"
+          },
+          "candidate_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Count"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "failure_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Stage"
+          },
+          "fixed_palette": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Palette"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "prompt",
+                  "variation"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "pattern_controls": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern Controls"
+          },
+          "plan_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Count"
+          },
+          "reference_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Count"
+          },
+          "resolved_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Count"
+          },
+          "validated_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validated Count"
+          }
+        },
+        "title": "GenerationDiagnosticsOut",
+        "type": "object"
+      },
       "GenerationJobDetailOut": {
         "properties": {
           "attempts": {
@@ -12320,6 +12462,9 @@
             "title": "Created At",
             "type": "string"
           },
+          "diagnostics": {
+            "$ref": "#/components/schemas/GenerationDiagnosticsOut"
+          },
           "distinct_layouts": {
             "anyOf": [
               {
@@ -12363,6 +12508,28 @@
               }
             ],
             "title": "Error Type"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "failure_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Stage"
           },
           "generate_ms": {
             "anyOf": [
@@ -12499,6 +12666,8 @@
           "registry_version",
           "error_type",
           "error_summary",
+          "failure_code",
+          "failure_stage",
           "created_at",
           "has_prompt",
           "has_reference_image",
@@ -12508,6 +12677,7 @@
           "seed",
           "available_strategies",
           "warning_codes",
+          "diagnostics",
           "candidates"
         ],
         "title": "SeamlessDetailOut",
@@ -12644,6 +12814,28 @@
             ],
             "title": "Error Type"
           },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "failure_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Stage"
+          },
           "generate_ms": {
             "anyOf": [
               {
@@ -12726,6 +12918,8 @@
           "registry_version",
           "error_type",
           "error_summary",
+          "failure_code",
+          "failure_stage",
           "created_at"
         ],
         "title": "SeamlessSummaryOut",

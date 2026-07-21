@@ -89,8 +89,9 @@ slot과 default colorway를 입력 순서대로 결정적으로 다시 매핑한
 고정 rotation은 optional placement 필드다. 값이 없는 기존 intent의 canonical layout JSON과
 SVG에는 변화가 없어 기존 intent+seed의 byte-identical 계약을 보존한다. 명시한 축은
 candidate layout variation에서 잠그고, 생성된 모든 candidate에 제약을 다시 검증한다.
-조건을 만족하는 intent를 Gemini가 작성하지 못하면 한 번의 constrained retry 뒤 422를
-반환한다.
+Gemini는 이 엔진 intent를 직접 작성하지 않고 의미 `DesignPlan`만 반환한다. worker가
+지원되는 primitive로 결정적으로 컴파일한 뒤 제약을 적용한다. 모든 plan이 검증에 실패하면
+한 번의 constrained retry 뒤 단계가 포함된 `authoring_invalid` 422를 반환한다.
 
 ## 모티프 추가
 

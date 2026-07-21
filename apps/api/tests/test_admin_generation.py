@@ -137,6 +137,18 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
             generate_ms=Decimal("10.5"),
             render_ms=Decimal("3.5"),
             status="success",
+            diagnostics={
+                "mode": "prompt",
+                "model": "gemini-2.5-flash-lite",
+                "authoring_attempts": 1,
+                "plan_count": 3,
+                "validated_count": 3,
+                "resolved_count": 3,
+                "candidate_count": 2,
+                "fixed_palette": False,
+                "pattern_controls": True,
+                "reference_count": 1,
+            },
         ),
         SeamlessGenerationLog(
             request_id="seamless-partial",
@@ -156,6 +168,12 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
             status="error",
             error_type="AdapterClientError",
             error_message="api_key=secret-value customer-secret@test.local",
+            diagnostics={
+                "mode": "prompt",
+                "failure_code": "authoring_invalid",
+                "failure_stage": "authoring",
+                "model": "customer-secret@test.local",
+            },
         ),
     ]
     safe_motif = Motif(
@@ -191,6 +209,8 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     assert "private/secret" not in page.text
     error_item = next(item for item in page.json()["items"] if item["status"] == "error")
     assert error_item["error_summary"] == "외부 생성 연동에 실패했습니다"
+    assert error_item["failure_code"] == "authoring_invalid"
+    assert error_item["failure_stage"] == "authoring"
     assert error_item["render_ms"] == 0.0
 
     stats = await client.get("/admin/generation/seamless/stats", headers=headers)
@@ -210,6 +230,20 @@ async def test_seamless_and_motif_projections_never_expose_unsafe_payloads(
     assert detail.json()["candidates"][1]["svg_status"] == "unsafe"
     assert "png_object_key" not in detail.text
     assert "customer-secret@test.local" not in detail.text
+    assert detail.json()["diagnostics"] == {
+        "mode": "prompt",
+        "model": "gemini-2.5-flash-lite",
+        "reference_count": 1,
+        "fixed_palette": False,
+        "pattern_controls": True,
+        "authoring_attempts": 1,
+        "plan_count": 3,
+        "validated_count": 3,
+        "resolved_count": 3,
+        "candidate_count": 2,
+        "failure_code": None,
+        "failure_stage": None,
+    }
 
     motif_page = await client.get("/admin/motifs", headers=headers)
     assert motif_page.json()["total"] == 2

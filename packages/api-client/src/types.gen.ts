@@ -3459,6 +3459,60 @@ export type FinalizeRequest = {
 };
 
 /**
+ * GenerationDiagnosticsOut
+ */
+export type GenerationDiagnosticsOut = {
+    /**
+     * Authoring Attempts
+     */
+    authoring_attempts?: number | null;
+    /**
+     * Candidate Count
+     */
+    candidate_count?: number | null;
+    /**
+     * Failure Code
+     */
+    failure_code?: string | null;
+    /**
+     * Failure Stage
+     */
+    failure_stage?: string | null;
+    /**
+     * Fixed Palette
+     */
+    fixed_palette?: boolean | null;
+    /**
+     * Mode
+     */
+    mode?: 'prompt' | 'variation' | null;
+    /**
+     * Model
+     */
+    model?: string | null;
+    /**
+     * Pattern Controls
+     */
+    pattern_controls?: boolean | null;
+    /**
+     * Plan Count
+     */
+    plan_count?: number | null;
+    /**
+     * Reference Count
+     */
+    reference_count?: number | null;
+    /**
+     * Resolved Count
+     */
+    resolved_count?: number | null;
+    /**
+     * Validated Count
+     */
+    validated_count?: number | null;
+};
+
+/**
  * GenerationJobDetailOut
  */
 export type GenerationJobDetailOut = {
@@ -6697,6 +6751,7 @@ export type SeamlessDetailOut = {
      * Created At
      */
     created_at: string;
+    diagnostics: GenerationDiagnosticsOut;
     /**
      * Distinct Layouts
      */
@@ -6713,6 +6768,14 @@ export type SeamlessDetailOut = {
      * Error Type
      */
     error_type: string | null;
+    /**
+     * Failure Code
+     */
+    failure_code: string | null;
+    /**
+     * Failure Stage
+     */
+    failure_stage: string | null;
     /**
      * Generate Ms
      */
@@ -6841,6 +6904,14 @@ export type SeamlessSummaryOut = {
      * Error Type
      */
     error_type: string | null;
+    /**
+     * Failure Code
+     */
+    failure_code: string | null;
+    /**
+     * Failure Stage
+     */
+    failure_stage: string | null;
     /**
      * Generate Ms
      */

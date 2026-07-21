@@ -55,6 +55,19 @@ function inputTypeLabel(inputType: string) {
   return INPUT_TYPE_LABELS[inputType] ?? "알 수 없는 입력 방식";
 }
 
+const GENERATION_MODE_LABELS: Readonly<Record<string, string>> = {
+  prompt: "프롬프트 생성",
+  variation: "다시 만들기",
+};
+
+const FAILURE_STAGE_LABELS: Readonly<Record<string, string>> = {
+  reference: "참고 이미지",
+  constraints: "사용자 설정",
+  authoring: "계획 저작",
+  intent: "Intent 검증",
+  candidate: "후보 구성",
+};
+
 function warningPresentation(code: string) {
   if (code === "preview_unavailable") {
     return {
@@ -269,6 +282,41 @@ export function SeamlessLogDetailPage() {
         />
       </AdminCard>
 
+      <AdminCard
+        title="생성 진단"
+        description="프롬프트 원문 없이 단계별 저작·검증 결과만 표시합니다."
+      >
+        <DetailList
+          items={[
+            {
+              label: "생성 방식",
+              value: GENERATION_MODE_LABELS[log.diagnostics.mode ?? ""] ?? "-",
+            },
+            { label: "저작 모델", value: log.diagnostics.model ?? "-" },
+            {
+              label: "저작 시도",
+              value: formatIdentifier(log.diagnostics.authoring_attempts),
+            },
+            {
+              label: "계획 검증",
+              value: `${log.diagnostics.validated_count ?? "-"} / ${log.diagnostics.plan_count ?? "-"}`,
+            },
+            {
+              label: "해석 완료",
+              value: formatIdentifier(log.diagnostics.resolved_count),
+            },
+            {
+              label: "실패 단계",
+              value:
+                FAILURE_STAGE_LABELS[log.failure_stage ?? ""] ??
+                log.failure_stage ??
+                "-",
+            },
+            { label: "실패 코드", value: log.failure_code ?? "-" },
+          ]}
+        />
+      </AdminCard>
+
       {log.warning_codes.length > 0 && (
         <AdminCard
           title="생성 경고"
@@ -326,6 +374,9 @@ export function SeamlessLogDetailPage() {
           input_type: log.input_type,
           warning_codes: log.warning_codes,
           error_type: log.error_type,
+          failure_code: log.failure_code,
+          failure_stage: log.failure_stage,
+          diagnostics: log.diagnostics,
           reference_image_id: log.reference_image_id,
           seed: log.seed,
           engine_version: log.engine_version,

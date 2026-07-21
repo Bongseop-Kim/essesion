@@ -1399,10 +1399,69 @@ function GenerationErrorCallout({
       <Callout
         tone="warning"
         title="요청을 이해하지 못했어요"
+        description={`${error.message} 요청 내용을 바꿔 다시 생성해 주세요.`}
+      />
+    );
+  }
+  if (error.kind === "authoring_invalid") {
+    return (
+      <Callout
+        tone="warning"
+        title="디자인 구성을 만들지 못했어요"
+        description={error.message}
+        onClick={onRetry}
+      >
+        <Text as="span" textStyle="labelSm">
+          같은 요청 다시 시도
+        </Text>
+      </Callout>
+    );
+  }
+  if (error.kind === "constraint_conflict") {
+    return (
+      <Callout
+        tone="warning"
+        title="설정을 함께 적용할 수 없어요"
         description={error.message}
       >
         <Text as="span" textStyle="captionSm">
-          요청 내용을 바꿔 다시 생성해 주세요.
+          색상이나 패턴 설정을 바꿔 다시 생성해 주세요.
+        </Text>
+      </Callout>
+    );
+  }
+  if (error.kind === "reference_invalid") {
+    return (
+      <Callout
+        tone="warning"
+        title="참고 이미지를 사용할 수 없어요"
+        description={error.message}
+      >
+        <Text as="span" textStyle="captionSm">
+          해당 이미지를 삭제하거나 다시 첨부해 주세요.
+        </Text>
+      </Callout>
+    );
+  }
+  if (error.kind === "intent_invalid") {
+    return (
+      <Callout
+        tone="warning"
+        title="선택한 디자인을 처리할 수 없어요"
+        description={error.message}
+      />
+    );
+  }
+  if (error.kind === "candidate_invalid") {
+    return (
+      <Callout
+        tone="critical"
+        title="디자인 후보를 완성하지 못했어요"
+        description={error.message}
+        onClick={onRetry}
+      >
+        <Text as="span" textStyle="labelSm">
+          같은 요청 다시 시도
         </Text>
       </Callout>
     );

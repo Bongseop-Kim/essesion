@@ -832,7 +832,10 @@ function SeamlessPanel({
       key: "error",
       header: "오류",
       visibility: "large",
-      render: (log) => log.error_summary ?? "-",
+      render: (log) =>
+        log.error_summary
+          ? `${log.error_summary}${log.failure_stage ? ` (${log.failure_stage})` : ""}`
+          : "-",
     },
   ];
   const totalPages = Math.max(

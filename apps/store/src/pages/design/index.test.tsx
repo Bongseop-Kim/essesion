@@ -294,7 +294,11 @@ describe("DesignPage composer lifecycle", () => {
 
   it("실패한 작성 상태와 upload ID를 재사용하고 성공한 뒤 일회성 상태를 초기화한다", async () => {
     api.generate
-      .mockRejectedValueOnce(new Error("temporary failure"))
+      .mockRejectedValueOnce({
+        code: "authoring_invalid",
+        stage: "authoring",
+        detail: "디자인 구성을 만들지 못했습니다",
+      })
       .mockResolvedValueOnce({ data: generated });
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -339,7 +343,7 @@ describe("DesignPage composer lifecycle", () => {
     });
 
     act(() => page.composer?.onSubmit());
-    await screen.findByText("디자인을 생성하지 못했어요");
+    await screen.findByText("디자인 구성을 만들지 못했어요");
 
     expect(api.uploadPhoto).toHaveBeenCalledTimes(1);
     expect(page.composer?.prompt).toBe("차분한 기하학 패턴");
@@ -393,6 +397,36 @@ describe("DesignPage composer lifecycle", () => {
       { upload_id: "upload-1", purpose: "composition" },
     ]);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:reference");
+    queryClient.clear();
+  });
+
+  it("일반 생성 거절의 다음 행동을 별도 content 없이 description에 표시한다", async () => {
+    api.generate.mockRejectedValueOnce({
+      code: "worker_rejected",
+      detail: "이미지 워커가 요청을 거부했습니다",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/design"]}>
+        <QueryClientProvider client={queryClient}>
+          <DesignPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    act(() => page.composer?.onPromptChange("기하학 패턴"));
+    act(() => page.composer?.onSubmit());
+
+    await screen.findByText("요청을 이해하지 못했어요");
+    const description = screen.getByText(
+      "요청 내용을 조금 더 구체적으로 작성해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요. 요청 내용을 바꿔 다시 생성해 주세요.",
+    );
+    expect(description.parentElement?.children).toHaveLength(2);
     queryClient.clear();
   });
 
