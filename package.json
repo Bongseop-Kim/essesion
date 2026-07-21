@@ -15,5 +15,10 @@
     "@biomejs/biome": "^2.5.2",
     "@playwright/test": "1.61.1",
     "turbo": "^2.10.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "js-yaml@<4.3.0": "4.3.0"
+    }
   }
 }

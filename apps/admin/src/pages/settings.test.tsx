@@ -99,7 +99,7 @@ describe("SettingsPage", () => {
     api.getSettings.mockResolvedValue(settings);
     renderPage();
 
-    expect(await screen.findByText("조회 전용 권한")).toBeTruthy();
+    expect(await screen.findByText(/조회 전용 권한/)).toBeTruthy();
     expect(screen.queryByLabelText("택배사명")).toBeNull();
     expect(screen.queryByLabelText("토큰 수량")).toBeNull();
     expect(screen.queryByRole("button", { name: "수정" })).toBeNull();
