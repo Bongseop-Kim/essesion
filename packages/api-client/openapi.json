@@ -12559,6 +12559,25 @@
             "title": "Input Type",
             "type": "string"
           },
+          "intents": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Intents",
+            "type": "array"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          },
           "reference_image_available": {
             "title": "Reference Image Available",
             "type": "boolean"
@@ -12670,6 +12689,8 @@
           "failure_stage",
           "created_at",
           "has_prompt",
+          "prompt",
+          "intents",
           "has_reference_image",
           "reference_image_bytes",
           "reference_image_id",

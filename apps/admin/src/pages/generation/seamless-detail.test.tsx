@@ -43,6 +43,8 @@ const log: SeamlessDetailOut = {
   failure_stage: null,
   created_at: "2026-07-12T01:00:00Z",
   has_prompt: false,
+  prompt: null,
+  intents: [],
   has_reference_image: true,
   reference_image_bytes: 2_048,
   reference_image_id: "33333333-3333-4333-8333-333333333333",
@@ -156,6 +158,86 @@ describe("SeamlessLogDetailPage", () => {
     expect(api.createReadUrl).not.toHaveBeenCalled();
   });
 
+  it("저장된 프롬프트 원문을 줄바꿈 그대로 표시한다", async () => {
+    const prompt = "청록색 꽃무늬를 작게 배치해 줘.\n꽃 사이 간격은 넓게.";
+    renderPage({
+      ...log,
+      input_type: "prompt",
+      has_prompt: true,
+      prompt,
+    });
+
+    expect(await screen.findByText("프롬프트 원문")).toBeTruthy();
+    expect(
+      screen.getByText(prompt, { normalizer: (value) => value }),
+    ).toBeTruthy();
+  });
+
+  it("프롬프트에서 확정된 intent를 디자인별 JSON으로 표시한다", async () => {
+    const user = userEvent.setup();
+    const intent = {
+      intent_version: 1,
+      canvas: { tile_mm: 48, dpi: 300 },
+      seed: 7,
+      production: { method: "print", max_colors: 4 },
+      palette: { slots: [{ id: "ground", hex: "#112233" }] },
+      colorways: [{ id: "default", mapping: { ground: "#112233" } }],
+      layers: [
+        {
+          id: "flower",
+          type: "motif",
+          params: { motif_id: "motif-safe", size_mm: 12, color: "ground" },
+          placement: {
+            type: "lattice",
+            lattice: { cell_w_mm: 24, cell_h_mm: 24 },
+          },
+          z_order: 1,
+        },
+      ],
+    };
+    renderPage({
+      ...log,
+      input_type: "prompt",
+      has_prompt: true,
+      prompt: "청록색 꽃무늬를 작게 배치해 줘.",
+      intents: [intent],
+    });
+
+    expect(await screen.findByText("생성 Intent")).toBeTruthy();
+    const trigger = screen.getByRole("button", { name: "Intent 1 JSON" });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+
+    await user.click(trigger);
+
+    const region = screen.getByRole("region", { name: "Intent 1 JSON" });
+    expect(within(region).getByText(/"intent_version": 1/)).toBeTruthy();
+    expect(within(region).getByText(/"motif_id": "motif-safe"/)).toBeTruthy();
+    expect(within(region).getByText(/"type": "lattice"/)).toBeTruthy();
+  });
+
+  it("후보 결과를 store 디자인 페이지와 같은 데스크톱 4열로 표시한다", async () => {
+    renderPage({
+      ...log,
+      candidate_count_returned: 1,
+      candidates: [
+        {
+          id: "candidate-1",
+          design_index: 0,
+          layout_id: "layout-1",
+          source_fidelity: "exact",
+          colorway_id: "default",
+          seed: 7,
+          svg: null,
+          svg_status: "unavailable",
+        },
+      ],
+    });
+
+    const heading = await screen.findByRole("heading", { name: "후보 1" });
+    const grid = heading.closest("section")?.parentElement;
+    expect(grid?.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
+  });
+
   it("상태·입력·경고를 한국어 의미와 해결 방법으로 표시하고 원 코드는 접어 둔다", async () => {
     const user = userEvent.setup();
     renderPage({
@@ -163,6 +245,7 @@ describe("SeamlessLogDetailPage", () => {
       status: "partial",
       input_type: "prompt",
       has_prompt: true,
+      prompt: "청록색 꽃무늬를 작게 배치해 줘.",
       warning_count: 3,
       warning_codes: [
         "preview_unavailable",

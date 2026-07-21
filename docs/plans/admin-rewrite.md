@@ -143,7 +143,7 @@ kind, target_status, label, enabled, blocking_reason, requires_memo, destructive
 - 이미지·SVG: signed read는 임의 `object_key`를 받지 않고 order/claim/quote/job 등 entity 관계와 권한을 검증해 발급한다. product upload는 kind, MIME·크기·소유권을 검증하고 미확정 객체는 cleanup한다. 외부 SVG는 sanitize한 `<img>`/blob URL로만 표시하고 `dangerouslySetInnerHTML`을 금지한다.
 - 쿠폰: 전체·최근 30일 가입·이번 달 생일·구매·미구매·휴면 고객군 계산과 예상 인원/샘플을 서버가 담당한다. active customer와 활성·미만료 coupon만 대상으로 하며 percentage 1..100, 최대 할인액·KST 만료를 검증한다. 발급 시 금전 조건을 `user_coupons`에 snapshot하고 서버 `INSERT … SELECT` batch와 idempotency key로 preview와 authoritative count를 반환한다.
 - 가격·설정: 임의 key 편집기를 만들지 않는다. 서버 allowlist, domain validation, stale revision 검사를 모두 통과한 경우에만 저장한다. fresh DB에 `default_courier_company`를 포함한 모든 allowlist row가 존재해야 한다.
-- 생성 로그: worker는 success/partial뿐 아니라 예외도 sanitized error와 실제 `render_ms`로 기록한다. 목록에서는 사용자 식별자·raw prompt·SVG·비공개 객체 경로를 제외하고 상세만 필요한 값을 마스킹해 제공한다. 확정 결과는 content-hash URL, 비공개 입력·첨부는 관계 검증된 만료 signed URL을 사용한다.
+- 생성 로그: worker는 success/partial뿐 아니라 예외도 sanitized error와 실제 `render_ms`로 기록한다. 목록에서는 사용자 식별자·raw prompt·intent·SVG·비공개 객체 경로를 제외하고, 상세에서는 운영 진단에 필요한 저장 prompt 원문, allowlist로 투영한 확정 intent와 안전화한 SVG만 제공한다. 확정 결과는 content-hash URL, 비공개 입력·첨부는 관계 검증된 만료 signed URL을 사용한다.
 - 외부 capability: local/test가 아닌 환경에서 Toss·GCS·Solapi 필수 설정 누락을 성공 DryRun으로 바꾸지 않는다. readiness 또는 mutation 503으로 fail closed하고, 알림 provider 장애는 outbox를 failed/pending으로 남겨 재처리한다.
 - 관리자 bootstrap: nonlocal seed의 기본 비밀번호를 금지한다. Secret Manager/env를 요구하는 일회성 `bootstrap_admin` 명령과 계정 비활성화·role 변경·비밀번호 재설정 시 admin refresh 폐기, 복구 runbook을 배포 인계에 포함한다. 계정 관리 UI는 만들지 않는다.
 
@@ -312,7 +312,7 @@ apps/admin/src/
 
 구현 근거: `test_admin_generation.py`, `apps/worker/tests/test_generation_logging.py`, `apps/admin/src/pages/generation/*.test.tsx`, `apps/admin/src/pages/motifs/list.test.tsx`. Alembic `20260712_f18a6c2d9b40_seamless_reference_image_relation.py`와 관계 검증형 read endpoint는 v2 이미지 입력 writer를 위한 선행 기반이며, 현재 완료 근거로 세지 않는다.
 
-완료 기준: 구 `ai_generation_logs`를 참조하지 않고 실패한 작업까지 관리자 전체에서 조회한다. 공개 생성물 URL은 content-hash 정책을 따르고 목록 응답이나 HTML에 raw prompt·SVG·private 객체 경로·시크릿·불필요한 PII가 노출되지 않으며 SVG script가 실행되지 않는다.
+완료 기준: 구 `ai_generation_logs`를 참조하지 않고 실패한 작업까지 관리자 전체에서 조회한다. 공개 생성물 URL은 content-hash 정책을 따르고 목록 응답에는 raw prompt·intent·SVG·private 객체 경로·시크릿·불필요한 PII가 노출되지 않는다. 저장 prompt 원문과 allowlist 확정 intent는 관리자 상세에서만 표시하고 SVG는 재검사된 격리 이미지로만 렌더해 script가 실행되지 않는다.
 
 ### J. 회귀 검증과 배포 인계
 

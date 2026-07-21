@@ -5,6 +5,7 @@ import {
 } from "@essesion/api-client/query";
 import {
   ActionButton,
+  Article,
   Box,
   Callout,
   ContentPlaceholder,
@@ -239,7 +240,7 @@ export function SeamlessLogDetailPage() {
             { label: "입력 유형", value: inputTypeLabel(log.input_type) },
             {
               label: "프롬프트",
-              value: log.has_prompt ? "있음 (내용 비공개)" : "없음",
+              value: log.has_prompt ? "있음" : "없음",
             },
             {
               label: "참고 이미지",
@@ -251,6 +252,41 @@ export function SeamlessLogDetailPage() {
           ]}
         />
       </AdminCard>
+
+      {log.prompt !== null && (
+        <AdminCard
+          title="프롬프트 원문"
+          description="사용자가 디자인 생성 시 입력한 내용입니다."
+        >
+          <Article>
+            <Text
+              as="p"
+              textStyle="bodySm"
+              color="fg.neutral"
+              className="whitespace-pre-wrap"
+            >
+              {log.prompt}
+            </Text>
+          </Article>
+        </AdminCard>
+      )}
+
+      {log.intents.length > 0 && (
+        <AdminCard
+          title="생성 Intent"
+          description="프롬프트 해석 후 검증·제약 적용·모티프 해석까지 끝난 엔진 입력입니다."
+        >
+          <VStack gap="x3" alignItems="stretch">
+            {log.intents.map((intent, index) => (
+              <TechnicalDetails
+                key={index}
+                title={`Intent ${index + 1} JSON`}
+                json={intent}
+              />
+            ))}
+          </VStack>
+        </AdminCard>
+      )}
 
       {log.reference_image_id !== null && log.reference_image_available && (
         <SeamlessReferenceImage
@@ -284,7 +320,7 @@ export function SeamlessLogDetailPage() {
 
       <AdminCard
         title="생성 진단"
-        description="프롬프트 원문 없이 단계별 저작·검증 결과만 표시합니다."
+        description="저작·검증 결과를 단계별로 표시합니다."
       >
         <DetailList
           items={[
@@ -348,7 +384,7 @@ export function SeamlessLogDetailPage() {
             description="실패했거나 후보 SVG가 기록되지 않은 생성입니다."
           />
         ) : (
-          <Grid columns={{ base: 1, md: 2 }} gap="x4">
+          <Grid columns={{ base: 2, md: 4 }} gap="x3">
             {log.candidates.map((candidate, index) => (
               <CandidateCard
                 key={candidate.id ?? `${candidate.design_index}-${index}`}
@@ -377,6 +413,7 @@ export function SeamlessLogDetailPage() {
           failure_code: log.failure_code,
           failure_stage: log.failure_stage,
           diagnostics: log.diagnostics,
+          intent_count: log.intents.length,
           reference_image_id: log.reference_image_id,
           seed: log.seed,
           engine_version: log.engine_version,

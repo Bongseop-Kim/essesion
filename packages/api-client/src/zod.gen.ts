@@ -2783,6 +2783,8 @@ export const zSeamlessDetailOut = z.object({
     has_reference_image: z.boolean(),
     id: z.uuid(),
     input_type: z.string(),
+    intents: z.array(z.record(z.string(), z.unknown())),
+    prompt: z.string().nullable(),
     reference_image_available: z.boolean(),
     reference_image_bytes: z.int().nullable(),
     reference_image_id: z.uuid().nullable(),

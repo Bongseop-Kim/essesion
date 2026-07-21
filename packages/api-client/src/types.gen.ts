@@ -6797,6 +6797,16 @@ export type SeamlessDetailOut = {
      */
     input_type: string;
     /**
+     * Intents
+     */
+    intents: Array<{
+        [key: string]: unknown;
+    }>;
+    /**
+     * Prompt
+     */
+    prompt: string | null;
+    /**
      * Reference Image Available
      */
     reference_image_available: boolean;
