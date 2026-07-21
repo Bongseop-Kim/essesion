@@ -54,7 +54,7 @@ describe("TurnFeed generation context", () => {
       ],
     };
 
-    render(
+    const { container } = render(
       <TurnFeed
         turns={[turn]}
         onSelectCandidate={vi.fn()}
@@ -67,5 +67,15 @@ describe("TurnFeed generation context", () => {
       screen.getByText("패턴 작게 · 촘촘하게 · 엇갈림 · 대각선"),
     ).toBeTruthy();
     expect(screen.getByText("배치·구도 참고")).toBeTruthy();
+
+    const requestTime = container.querySelector("time");
+    expect(requestTime?.getAttribute("datetime")).toBe(turn.created_at);
+    expect(requestTime?.textContent).toBe(
+      new Intl.DateTimeFormat("ko-KR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(turn.created_at)),
+    );
+    expect(screen.queryByText("후보 3개")).toBeNull();
   });
 });

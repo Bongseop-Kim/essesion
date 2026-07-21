@@ -40,3 +40,9 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 - 인가: 상품·찜/좋아요는 공개 조회, 그 외 리소스는 소유자 본인만, 관리자는 별도 역할. 인가 테스트는 mock 금지 — testcontainers(실제 Postgres)로.
 - 결제(Toss)·토큰 과금 로직은 api에만 둔다. 워커는 이미지 생성만.
 - id/pw 로그인은 테스트용 — 공개 회원가입 없음, 계정은 시드/관리자로만 생성.
+
+<!-- envide-guard begin -->
+## Environment files — do not read
+
+Never read, print, copy, or transmit the contents of `.env` / `.env.*` files (except `*.example`) — they contain secrets. Refer to `.env.example` for key names.
+<!-- envide-guard end -->
