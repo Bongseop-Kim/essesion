@@ -95,9 +95,26 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def _tokens(value: str) -> set[str]:
-    return set(
+    tokens = set(
         re.findall(r"[^\W_]+", store.normalize_facet(value), flags=re.UNICODE)
     )
+    aliases = {
+        "꽃": "flower",
+        "플라워": "flower",
+        "잎": "leaf",
+        "나뭇잎": "leaf",
+        "체스": "chess",
+        "새": "bird",
+        "나비": "butterfly",
+        "별": "star",
+        "구름": "cloud",
+        "태양": "sun",
+        "달": "moon",
+        "강아지": "dog",
+        "고양이": "cat",
+    }
+    tokens.update(aliases[token] for token in tuple(tokens) if token in aliases)
+    return tokens
 
 
 def _lexical_match(query_tokens: set[str], meta: MotifMeta) -> bool:

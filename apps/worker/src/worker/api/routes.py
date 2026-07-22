@@ -694,9 +694,15 @@ async def generate(
                 pattern_constraints=body.pattern_constraints,
                 diagnostics=request.state.generation_diagnostics,
             )
-        except SemanticMismatch:
+        except SemanticMismatch as exc:
+            request.state.generation_diagnostics["authoring_validation_errors"] = list(
+                exc.errors
+            )
             _reject_generation(request, "semantic_mismatch", "authoring")
-        except IntentInvalid:
+        except IntentInvalid as exc:
+            request.state.generation_diagnostics["authoring_validation_errors"] = list(
+                exc.errors
+            )
             _reject_generation(request, "authoring_invalid", "authoring")
         except AdapterClientError as exc:
             _record_adapter_failure(

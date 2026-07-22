@@ -86,6 +86,14 @@ class PlanMotif(BaseModel):
     description: str | None = Field(default=None, max_length=160)
     reference_image_index: int | None = Field(default=None, ge=1, le=5)
 
+    @field_validator("catalog_ref", mode="before")
+    @classmethod
+    def _normalize_missing_catalog_ref(cls, value: object) -> object:
+        """Gemini가 반환하는 자연어형 null 표기("none"/"null")를 None으로 정규화."""
+        if isinstance(value, str) and value.strip().casefold() in {"", "none", "null", "n/a"}:
+            return None
+        return value
+
     @field_validator("subject")
     @classmethod
     def _strip_subject(cls, value: str | None) -> str | None:
