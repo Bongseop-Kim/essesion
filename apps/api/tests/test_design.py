@@ -96,6 +96,7 @@ class FakeWorker:
             "colorways": [],
         }
         return {
+            "generation_log_id": "11111111-1111-4111-8111-111111111111",
             "request_id": "rid-worker",
             "registry_version": "0.1.0",
             "engine_version": "0.1.0",

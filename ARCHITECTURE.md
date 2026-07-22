@@ -691,6 +691,7 @@ flowchart LR
 | `/healthz` | 프로세스 기동·event loop 생존 | Cloud Run startup/liveness가 재시작 판단 |
 | `/readyz` | API의 DB ping·연동 설정 capability, worker의 DB·GCS 확인 | 공개 uptime/deploy smoke가 503 판단, 프로세스는 재시작하지 않음 |
 | request ID | browser/API/worker 요청 상관관계 | 구조화 로그와 응답 header에 전파 |
+| 생성 provider 진단 | Gemini·OpenAI embedding·Recraft의 stage/provider/operation/reason/status/duration | 원문 prompt·provider 응답·인증 header 없이 worker JSON 로그와 `seamless_generation_logs.diagnostics`에 기록 |
 | Sentry | 예외 추적 | store·api·worker instrumentation 구현, 프로젝트/DSN은 스테이징 전 주입 |
 | Budget alert | 비용 50/90/100% | OpenTofu 선언, 실제 apply 후 활성화 |
 | Uptime check | Cloudflare 경유 `/readyz` | OpenTofu 선언, 실제 apply 후 활성화 |
@@ -698,6 +699,8 @@ flowchart LR
 Admin에는 현재 Sentry client가 없다. “전 프론트 구간 Sentry 통일”을 현재 완료 상태로 보지 않는다.
 
 API readiness는 Toss·Solapi·GCS·worker·Tasks·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. worker readiness도 Gemini·OpenAI·Recraft 상태를 조회하지 않는다.
+
+Seamless admin 상세는 worker가 반환한 `generation_log_id`로 디자인 세션의 generate turn과 연결하고, 과거 응답은 request ID와 근접 시각으로만 보완 연결한다. 선택·후속 재생성·finalize 결과는 기존 turn/job을 읽어 투영하며 별도 이벤트 테이블을 만들지 않는다.
 
 ### 8.4 배치 작업
 

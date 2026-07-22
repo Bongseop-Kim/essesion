@@ -1273,24 +1273,6 @@ export const zFinalizeRequest = z.object({
 });
 
 /**
- * GenerationDiagnosticsOut
- */
-export const zGenerationDiagnosticsOut = z.object({
-    authoring_attempts: z.int().nullish(),
-    candidate_count: z.int().nullish(),
-    failure_code: z.string().nullish(),
-    failure_stage: z.string().nullish(),
-    fixed_palette: z.boolean().nullish(),
-    mode: z.enum(['prompt', 'variation']).nullish(),
-    model: z.string().nullish(),
-    pattern_controls: z.boolean().nullish(),
-    plan_count: z.int().nullish(),
-    reference_count: z.int().nullish(),
-    resolved_count: z.int().nullish(),
-    validated_count: z.int().nullish()
-});
-
-/**
  * GenerationJobDetailOut
  */
 export const zGenerationJobDetailOut = z.object({
@@ -1366,6 +1348,16 @@ export const zGenerationJobSummaryOut = z.object({
         'canceled'
     ]),
     updated_at: z.iso.datetime()
+});
+
+/**
+ * GenerationOutcomeOut
+ */
+export const zGenerationOutcomeOut = z.object({
+    finalized: z.boolean().optional().default(false),
+    regenerated: z.boolean().optional().default(false),
+    selected_candidate_id: z.string().nullish(),
+    session_id: z.uuid().nullish()
 });
 
 /**
@@ -1579,6 +1571,50 @@ export const zMotifPreviewOut = z.object({
     processed_preview_base64: z.string().max(2666668).nullish(),
     svg: z.string().max(2000000),
     warnings: z.array(z.string()).optional()
+});
+
+/**
+ * MotifResolutionOut
+ */
+export const zMotifResolutionOut = z.object({
+    layer_id: z.string().nullish(),
+    motif_id: z.string().nullish(),
+    operation: z.string().nullish(),
+    outcome: z.string().nullish(),
+    provider: z.string().nullish(),
+    reason_code: z.string().nullish(),
+    scope: z.string().nullish(),
+    similarity: z.number().nullish(),
+    status_code: z.int().nullish(),
+    subject: z.string().nullish()
+});
+
+/**
+ * GenerationDiagnosticsOut
+ */
+export const zGenerationDiagnosticsOut = z.object({
+    authoring_attempts: z.int().nullish(),
+    authoring_ms: z.number().nullish(),
+    candidate_count: z.int().nullish(),
+    candidate_ms: z.number().nullish(),
+    failure_code: z.string().nullish(),
+    failure_operation: z.string().nullish(),
+    failure_provider: z.string().nullish(),
+    failure_reason: z.string().nullish(),
+    failure_stage: z.string().nullish(),
+    failure_status_code: z.int().nullish(),
+    fixed_palette: z.boolean().nullish(),
+    mode: z.enum(['prompt', 'variation']).nullish(),
+    model: z.string().nullish(),
+    motif_resolution_ms: z.number().nullish(),
+    motif_resolutions: z.array(zMotifResolutionOut).optional(),
+    pattern_controls: z.boolean().nullish(),
+    plan_count: z.int().nullish(),
+    prompt_revision: z.string().nullish(),
+    reference_count: z.int().nullish(),
+    render_ms: z.number().nullish(),
+    resolved_count: z.int().nullish(),
+    validated_count: z.int().nullish()
 });
 
 /**
@@ -2763,45 +2799,6 @@ export const zSampleOrderCreateRequest = z.object({
 });
 
 /**
- * SeamlessDetailOut
- */
-export const zSeamlessDetailOut = z.object({
-    available_strategies: z.int().nullable(),
-    candidate_count_requested: z.int().nullable(),
-    candidate_count_returned: z.int().nullable(),
-    candidates: z.array(zSafeCandidateOut),
-    created_at: z.iso.datetime(),
-    diagnostics: zGenerationDiagnosticsOut,
-    distinct_layouts: z.int().nullable(),
-    engine_version: z.string().nullable(),
-    error_summary: z.string().nullable(),
-    error_type: z.string().nullable(),
-    failure_code: z.string().nullable(),
-    failure_stage: z.string().nullable(),
-    generate_ms: z.number().nullable(),
-    has_prompt: z.boolean(),
-    has_reference_image: z.boolean(),
-    id: z.uuid(),
-    input_type: z.string(),
-    intents: z.array(z.record(z.string(), z.unknown())),
-    prompt: z.string().nullable(),
-    reference_image_available: z.boolean(),
-    reference_image_bytes: z.int().nullable(),
-    reference_image_id: z.uuid().nullable(),
-    registry_version: z.string().nullable(),
-    render_ms: z.number().nullable(),
-    request_id: z.string().nullable(),
-    seed: z.int().nullable(),
-    status: z.enum([
-        'success',
-        'partial',
-        'error'
-    ]),
-    warning_codes: z.array(z.string()),
-    warning_count: z.int()
-});
-
-/**
  * SeamlessStatsOut
  */
 export const zSeamlessStatsOut = z.object({
@@ -2849,6 +2846,64 @@ export const zPageSeamlessSummaryOut = z.object({
     limit: z.int(),
     offset: z.int(),
     total: z.int()
+});
+
+/**
+ * SeamlessWarningOut
+ */
+export const zSeamlessWarningOut = z.object({
+    code: z.enum([
+        'candidate_variants_dropped',
+        'cmyk_gamut',
+        'design_dropped',
+        'diversity_shortfall',
+        'generation_warning',
+        'motif_layer_dropped',
+        'partial_candidates',
+        'preview_unavailable'
+    ]),
+    count: z.int(),
+    items: z.array(z.string()).optional()
+});
+
+/**
+ * SeamlessDetailOut
+ */
+export const zSeamlessDetailOut = z.object({
+    available_strategies: z.int().nullable(),
+    candidate_count_requested: z.int().nullable(),
+    candidate_count_returned: z.int().nullable(),
+    candidates: z.array(zSafeCandidateOut),
+    created_at: z.iso.datetime(),
+    diagnostics: zGenerationDiagnosticsOut,
+    distinct_layouts: z.int().nullable(),
+    engine_version: z.string().nullable(),
+    error_summary: z.string().nullable(),
+    error_type: z.string().nullable(),
+    failure_code: z.string().nullable(),
+    failure_stage: z.string().nullable(),
+    generate_ms: z.number().nullable(),
+    has_prompt: z.boolean(),
+    has_reference_image: z.boolean(),
+    id: z.uuid(),
+    input_type: z.string(),
+    intents: z.array(z.record(z.string(), z.unknown())),
+    outcome: zGenerationOutcomeOut,
+    prompt: z.string().nullable(),
+    reference_image_available: z.boolean(),
+    reference_image_bytes: z.int().nullable(),
+    reference_image_id: z.uuid().nullable(),
+    registry_version: z.string().nullable(),
+    render_ms: z.number().nullable(),
+    request_id: z.string().nullable(),
+    seed: z.int().nullable(),
+    status: z.enum([
+        'success',
+        'partial',
+        'error'
+    ]),
+    warning_count: z.int(),
+    warning_groups: z.array(zSeamlessWarningOut)
 });
 
 /**
@@ -3329,6 +3384,7 @@ export const zWorkerCandidateOut = z.object({
 export const zDesignGenerateOut = z.object({
     candidates: z.array(zWorkerCandidateOut),
     engine_version: z.string(),
+    generation_log_id: z.uuid().nullish(),
     intents: z.array(z.record(z.string(), z.unknown())),
     registry_version: z.string(),
     request_id: z.string(),

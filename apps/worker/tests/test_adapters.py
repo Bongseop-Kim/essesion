@@ -178,6 +178,23 @@ async def test_recraft_http_rejects_invalid_base64():
 
 
 @respx.mock
+async def test_recraft_http_error_exposes_safe_metadata():
+    respx.post("https://external.api.recraft.ai/v1/images/generations").mock(
+        return_value=httpx.Response(429, text="provider detail")
+    )
+    client = RecraftHTTPClient("k")
+    try:
+        with pytest.raises(RecraftError) as caught:
+            await client.generate("dot")
+        assert caught.value.provider == "recraft"
+        assert caught.value.operation == "generate_motif"
+        assert caught.value.reason_code == "rate_limited"
+        assert caught.value.status_code == 429
+    finally:
+        await client.aclose()
+
+
+@respx.mock
 async def test_recraft_http_rejects_svg_over_byte_ceiling():
     encoded = base64.b64encode(_CLEAN.encode()).decode()
     respx.post("https://external.api.recraft.ai/v1/images/generations").mock(
@@ -210,8 +227,12 @@ async def test_embedding_client_posts_and_parses():
 @respx.mock
 async def test_embedding_client_error_raises():
     respx.post("https://api.openai.com/v1/embeddings").mock(return_value=httpx.Response(500))
-    with pytest.raises(EmbeddingError):
+    with pytest.raises(EmbeddingError) as caught:
         await OpenAIEmbeddingClient("sk-test").embed("dot")
+    assert caught.value.provider == "openai_embedding"
+    assert caught.value.operation == "embed"
+    assert caught.value.reason_code == "provider_5xx"
+    assert caught.value.status_code == 500
 
 
 # ---- Gemini ----
@@ -347,8 +368,12 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
 async def test_gemini_non_retryable_raises(monkeypatch):
     monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
     respx.post(url__regex=r".*generateContent").mock(return_value=httpx.Response(400, text="bad"))
-    with pytest.raises(AdapterClientError):
+    with pytest.raises(AdapterClientError) as caught:
         await GeminiClient("k").author_designs("dots")
+    assert caught.value.provider == "gemini"
+    assert caught.value.operation == "generate_content"
+    assert caught.value.reason_code == "provider_4xx"
+    assert caught.value.status_code == 400
 
 
 async def _noop() -> None:
@@ -367,6 +392,7 @@ async def test_gemini_reprompts_invalid_plan_shape_and_records_diagnostics():
     assert route.call_count == 2
     assert diagnostics == {
         "model": "gemini-2.5-flash-lite",
+        "prompt_revision": "design-plan-v1",
         "authoring_attempts": 2,
         "plan_count": 2,
         "validated_count": 2,

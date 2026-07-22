@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 
 import httpx
 
-from worker.adapters import AdapterClientError, AdapterNotConfigured
+from worker.adapters import AdapterClientError, AdapterNotConfigured, adapter_http_reason
 from worker.motifs import geometry as geom
 from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg
 from worker.render import sanitize
@@ -215,9 +215,19 @@ class RecraftHTTPClient:
         max_svg_bytes: int = 2_000_000,
     ) -> None:
         if not api_key:
-            raise RecraftError("RecraftHTTPClient requires a non-empty api_key")
+            raise RecraftError(
+                "RecraftHTTPClient requires a non-empty api_key",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code="not_configured",
+            )
         if max_svg_bytes < 1:
-            raise RecraftError("RecraftHTTPClient requires max_svg_bytes >= 1")
+            raise RecraftError(
+                "RecraftHTTPClient requires max_svg_bytes >= 1",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code="invalid_configuration",
+            )
         self._api_key = api_key
         self._model = model
         self._style = style
@@ -275,12 +285,40 @@ class RecraftHTTPClient:
             svg = _extract(resp.json())
         except httpx.HTTPStatusError as exc:
             raise RecraftError(
-                f"Recraft API HTTP {exc.response.status_code}: {exc.response.text[:500]}"
+                f"Recraft API HTTP {exc.response.status_code}: {exc.response.text[:500]}",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code=adapter_http_reason(exc.response.status_code),
+                status_code=exc.response.status_code,
             ) from exc
-        except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError) as exc:
-            raise RecraftError(f"Recraft API request failed: {exc}") from exc
+        except httpx.TimeoutException as exc:
+            raise RecraftError(
+                f"Recraft API request failed: {exc}",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code="timeout",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise RecraftError(
+                f"Recraft API request failed: {exc}",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code="transport_error",
+            ) from exc
+        except (KeyError, IndexError, ValueError, TypeError) as exc:
+            raise RecraftError(
+                f"Recraft API request failed: {exc}",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code="invalid_response",
+            ) from exc
         if not svg or "<svg" not in svg.lower():
-            raise RecraftError("Recraft API returned a non-SVG payload")
+            raise RecraftError(
+                "Recraft API returned a non-SVG payload",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code="invalid_response",
+            )
         return svg
 
     async def aclose(self) -> None:
@@ -309,7 +347,12 @@ async def generate_motif(spec: dict, *, client, settings) -> NormalizedMotif:
     또는 클라이언트 미구성이면 RecraftError/AdapterNotConfigured.
     """
     if client is None:
-        raise AdapterNotConfigured("no Recraft client configured (set recraft_api_key)")
+        raise AdapterNotConfigured(
+            "no Recraft client configured (set recraft_api_key)",
+            provider="recraft",
+            operation="generate_motif",
+            reason_code="not_configured",
+        )
 
     errors: list[str] | None = None
     for _ in range(2):  # 최초 시도 + 게이트 재생성 1회
@@ -318,7 +361,12 @@ async def generate_motif(spec: dict, *, client, settings) -> NormalizedMotif:
         except RecraftError:
             raise
         except Exception as exc:  # 생성기 실패는 업스트림(502급)
-            raise RecraftError(f"Recraft generation failed: {exc}") from exc
+            raise RecraftError(
+                f"Recraft generation failed: {exc}",
+                provider="recraft",
+                operation="generate_motif",
+                reason_code="request_failed",
+            ) from exc
         try:
             flat = gate_recraft_svg(raw)
             return normalize_motif_svg(
@@ -331,4 +379,9 @@ async def generate_motif(spec: dict, *, client, settings) -> NormalizedMotif:
         except (sanitize.SanitizeError, ValueError) as exc:
             errors = [str(exc)]
             continue
-    raise RecraftError(f"Recraft motif failed the suitability/sanitize gate after retry: {errors}")
+    raise RecraftError(
+        f"Recraft motif failed the suitability/sanitize gate after retry: {errors}",
+        provider="recraft",
+        operation="sanitize_motif",
+        reason_code="suitability_gate_failed",
+    )

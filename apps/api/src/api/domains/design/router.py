@@ -462,6 +462,8 @@ class DesignGenerateRequest(BaseModel):
 
 
 class DesignGenerateOut(BaseModel):
+    # Additive rolling-deploy bridge: old worker responses fall back to request_id correlation.
+    generation_log_id: uuid.UUID | None = None
     request_id: str
     registry_version: str
     engine_version: str

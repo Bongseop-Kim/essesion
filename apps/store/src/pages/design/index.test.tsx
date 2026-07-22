@@ -199,6 +199,7 @@ vi.mock("@/features/design/ui/onboarding-dialog", () => ({
 import { DesignPage } from "./index";
 
 const generated = {
+  generation_log_id: "11111111-1111-4111-8111-111111111111",
   request_id: "request-1",
   registry_version: "registry-1",
   engine_version: "engine-1",

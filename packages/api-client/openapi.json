@@ -5777,6 +5777,18 @@
             "title": "Engine Version",
             "type": "string"
           },
+          "generation_log_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Log Id"
+          },
           "intents": {
             "items": {
               "additionalProperties": true,
@@ -6463,6 +6475,17 @@
             ],
             "title": "Authoring Attempts"
           },
+          "authoring_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authoring Ms"
+          },
           "candidate_count": {
             "anyOf": [
               {
@@ -6473,6 +6496,17 @@
               }
             ],
             "title": "Candidate Count"
+          },
+          "candidate_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Ms"
           },
           "failure_code": {
             "anyOf": [
@@ -6485,6 +6519,39 @@
             ],
             "title": "Failure Code"
           },
+          "failure_operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Operation"
+          },
+          "failure_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Provider"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
           "failure_stage": {
             "anyOf": [
               {
@@ -6495,6 +6562,17 @@
               }
             ],
             "title": "Failure Stage"
+          },
+          "failure_status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Status Code"
           },
           "fixed_palette": {
             "anyOf": [
@@ -6533,6 +6611,24 @@
             ],
             "title": "Model"
           },
+          "motif_resolution_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motif Resolution Ms"
+          },
+          "motif_resolutions": {
+            "items": {
+              "$ref": "#/components/schemas/MotifResolutionOut"
+            },
+            "title": "Motif Resolutions",
+            "type": "array"
+          },
           "pattern_controls": {
             "anyOf": [
               {
@@ -6555,6 +6651,17 @@
             ],
             "title": "Plan Count"
           },
+          "prompt_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Revision"
+          },
           "reference_count": {
             "anyOf": [
               {
@@ -6565,6 +6672,17 @@
               }
             ],
             "title": "Reference Count"
+          },
+          "render_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Ms"
           },
           "resolved_count": {
             "anyOf": [
@@ -6946,6 +7064,45 @@
           "updated_at"
         ],
         "title": "GenerationJobSummaryOut",
+        "type": "object"
+      },
+      "GenerationOutcomeOut": {
+        "properties": {
+          "finalized": {
+            "default": false,
+            "title": "Finalized",
+            "type": "boolean"
+          },
+          "regenerated": {
+            "default": false,
+            "title": "Regenerated",
+            "type": "boolean"
+          },
+          "selected_candidate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Candidate Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "title": "GenerationOutcomeOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -8229,6 +8386,122 @@
           "svg"
         ],
         "title": "MotifPreviewOut",
+        "type": "object"
+      },
+      "MotifResolutionOut": {
+        "properties": {
+          "layer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer Id"
+          },
+          "motif_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motif Id"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "title": "MotifResolutionOut",
         "type": "object"
       },
       "MotifSpecIn": {
@@ -12567,6 +12840,9 @@
             "title": "Intents",
             "type": "array"
           },
+          "outcome": {
+            "$ref": "#/components/schemas/GenerationOutcomeOut"
+          },
           "prompt": {
             "anyOf": [
               {
@@ -12658,16 +12934,16 @@
             "title": "Status",
             "type": "string"
           },
-          "warning_codes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warning Codes",
-            "type": "array"
-          },
           "warning_count": {
             "title": "Warning Count",
             "type": "integer"
+          },
+          "warning_groups": {
+            "items": {
+              "$ref": "#/components/schemas/SeamlessWarningOut"
+            },
+            "title": "Warning Groups",
+            "type": "array"
           }
         },
         "required": [
@@ -12697,8 +12973,9 @@
           "reference_image_available",
           "seed",
           "available_strategies",
-          "warning_codes",
+          "warning_groups",
           "diagnostics",
+          "outcome",
           "candidates"
         ],
         "title": "SeamlessDetailOut",
@@ -12944,6 +13221,41 @@
           "created_at"
         ],
         "title": "SeamlessSummaryOut",
+        "type": "object"
+      },
+      "SeamlessWarningOut": {
+        "properties": {
+          "code": {
+            "enum": [
+              "candidate_variants_dropped",
+              "cmyk_gamut",
+              "design_dropped",
+              "diversity_shortfall",
+              "generation_warning",
+              "motif_layer_dropped",
+              "partial_candidates",
+              "preview_unavailable"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "count"
+        ],
+        "title": "SeamlessWarningOut",
         "type": "object"
       },
       "SettingUpdateItem": {

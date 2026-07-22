@@ -199,6 +199,7 @@ async def test_unsupported_spec_fields_drop_layer_without_recraft(db_session):
         ]
     }
     warnings: list[str] = []
+    trace: list[dict[str, object]] = []
     resolved = await resolve_motifs(
         db_session,
         intent,
@@ -211,11 +212,29 @@ async def test_unsupported_spec_fields_drop_layer_without_recraft(db_session):
         settings=_SETTINGS,
         seed=0,
         warnings=warnings,
+        trace=trace,
     )
     assert recraft.calls == 0  # 미지원 spec은 생성 래더 진입 금지, m2는 exact 재사용
     ids = [layer["id"] for layer in resolved["layers"]]
     assert ids == ["bg", "m2"]  # m1만 drop, 요청은 계속
     assert any("unsupported spec field(s) text" in w for w in warnings)
+    assert trace == [
+        {
+            "layer_id": "m1",
+            "subject": None,
+            "scope": None,
+            "outcome": "dropped",
+            "reason_code": "unsupported_spec",
+        },
+        {
+            "layer_id": "m2",
+            "subject": "dot",
+            "scope": "whole",
+            "outcome": "exact",
+            "motif_id": "recraft-ok0000000001",
+            "similarity": 1.0,
+        },
+    ]
 
 
 async def test_all_unsupported_specs_raise_without_recraft(db_session):

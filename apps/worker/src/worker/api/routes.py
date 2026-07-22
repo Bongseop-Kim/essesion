@@ -120,6 +120,7 @@ class CandidateOut(BaseModel):
 
 
 class GenerateResponse(BaseModel):
+    generation_log_id: uuid.UUID
     request_id: str
     registry_version: str
     engine_version: str
@@ -278,6 +279,41 @@ def _safe_generation_error(exc: Exception) -> tuple[str, str]:
     return error_type, "generation failed"
 
 
+def _record_adapter_failure(
+    request: Request,
+    exc: AdapterClientError,
+    *,
+    stage: str,
+    duration_ms: float | None = None,
+    emit_log: bool = True,
+) -> None:
+    diagnostics = request.state.generation_diagnostics
+    diagnostics.update(
+        {
+            "failure_code": "provider_request_failed",
+            "failure_stage": stage,
+            "failure_provider": exc.provider,
+            "failure_operation": exc.operation,
+            "failure_reason": exc.reason_code,
+            "failure_status_code": exc.status_code,
+        }
+    )
+    if emit_log:
+        logger.warning(
+            "generation provider call failed",
+            extra={
+                "event": "provider_call_failed",
+                "stage": stage,
+                "provider": exc.provider,
+                "operation": exc.operation,
+                "reason_code": exc.reason_code,
+                "status_code": exc.status_code,
+                "duration_ms": duration_ms,
+                "attempt": diagnostics.get("authoring_attempts"),
+            },
+        )
+
+
 def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserved by wraps
     @wraps(endpoint)
     async def wrapped(body: GenerateRequest, request: Request, session: SessionDep):
@@ -289,6 +325,7 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
             "reference_count": len(body.reference_images),
             "fixed_palette": body.palette.mode == "fixed",
             "pattern_controls": not body.pattern_constraints.is_automatic(),
+            "motif_resolutions": [],
         }
         try:
             return await endpoint(body, request, session)
@@ -547,6 +584,7 @@ async def generate(
             _reject_generation(request, "constraint_conflict", "constraints")
         resolved_intents = [constrained_intent]
         catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
+        candidate_started = time.perf_counter()
         try:
             candidate_set = generate_candidates(
                 constrained_intent,
@@ -560,6 +598,10 @@ async def generate(
             )
         except (IntentInvalid, AssertionError, ValueError):
             _reject_generation(request, "intent_invalid", "intent")
+        finally:
+            request.state.generation_diagnostics["candidate_ms"] = round(
+                (time.perf_counter() - candidate_started) * 1000, 3
+            )
         tile_mm = float(constrained_intent["canvas"]["tile_mm"])
         intent_log: dict[str, Any] = {
             "designs": resolved_intents,
@@ -570,7 +612,14 @@ async def generate(
         input_type = "reference_image" if body.reference_images else "prompt"
         gemini = adapters.gemini
         if gemini is None:
-            raise HTTPException(status_code=503, detail="Gemini 미구성 (intent 직접 전달 가능)")
+            exc = AdapterNotConfigured(
+                "Gemini 미구성 (intent 직접 전달 가능)",
+                provider="gemini",
+                operation="generate_content",
+                reason_code="not_configured",
+            )
+            _record_adapter_failure(request, exc, stage="authoring")
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         def _validate(intent_raw: dict) -> list[str] | None:
             normalize_stripes(intent_raw, settings)  # 대각 stripe 코드 계약 — 검증 전 in-place
@@ -603,6 +652,7 @@ async def generate(
         author_prompt = body.prompt or (
             "Create a balanced necktie pattern using the supplied SVG motif."
         )
+        authoring_started = time.perf_counter()
         try:
             designs = await gemini.author_designs(
                 author_prompt,
@@ -616,10 +666,22 @@ async def generate(
         except IntentInvalid:
             _reject_generation(request, "authoring_invalid", "authoring")
         except AdapterClientError as exc:
+            _record_adapter_failure(
+                request,
+                exc,
+                stage="authoring",
+                duration_ms=round((time.perf_counter() - authoring_started) * 1000, 3),
+            )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+        finally:
+            request.state.generation_diagnostics["authoring_ms"] = round(
+                (time.perf_counter() - authoring_started) * 1000, 3
+            )
 
         embedding = request_scoped(adapters.embedding)  # design 간 같은 descriptor 재임베딩 방지
         resolved_intents: list[dict[str, Any]] = []
+        resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
+        resolution_started = time.perf_counter()
         try:
             for design in designs:
                 # Motif variant selection and candidate composition must share one effective
@@ -637,14 +699,38 @@ async def generate(
                         settings=settings,
                         seed=effective_seed,
                         warnings=warnings,
+                        trace=resolution_trace,
                     )
                 )
                 if len(iter_motif_ids(resolved_intents[-1])) > 2:
-                    raise AdapterClientError("resolved design exceeds 2 distinct motifs")
+                    raise AdapterClientError(
+                        "resolved design exceeds 2 distinct motifs",
+                        provider="worker",
+                        operation="resolve_motif",
+                        reason_code="invalid_result",
+                    )
         except AdapterNotConfigured as exc:
+            _record_adapter_failure(
+                request,
+                exc,
+                stage="motif_resolution",
+                duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
+                emit_log=False,
+            )
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except AdapterClientError as exc:
+            _record_adapter_failure(
+                request,
+                exc,
+                stage="motif_resolution",
+                duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
+                emit_log=False,
+            )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+        finally:
+            request.state.generation_diagnostics["motif_resolution_ms"] = round(
+                (time.perf_counter() - resolution_started) * 1000, 3
+            )
 
         ids: set[str] = set()
         for resolved in resolved_intents:
@@ -653,6 +739,7 @@ async def generate(
         _bind_resolved_motif_colors(resolved_intents, catalog)
         request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
         registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
+        candidate_started = time.perf_counter()
         try:
             candidate_set = generate_candidate_set(
                 resolved_intents,
@@ -666,6 +753,10 @@ async def generate(
             )
         except (IntentInvalid, AssertionError, ValueError):
             _reject_generation(request, "candidate_invalid", "candidate")
+        finally:
+            request.state.generation_diagnostics["candidate_ms"] = round(
+                (time.perf_counter() - candidate_started) * 1000, 3
+            )
         tile_mm = float(resolved_intents[0]["canvas"]["tile_mm"])
         intent_log = {
             "designs": resolved_intents,
@@ -677,9 +768,12 @@ async def generate(
     generate_ms = round((time.perf_counter() - started) * 1000, 3)
     request.state.generation_generate_ms = generate_ms
     outs = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
+    request.state.generation_diagnostics["render_ms"] = request.state.generation_render_ms
     request.state.generation_diagnostics["candidate_count"] = len(outs)
 
+    generation_log_id = uuid.uuid4()
     log = SeamlessGenerationLog(
+        id=generation_log_id,
         request_id=request_id_var.get(),
         input_type=input_type,
         prompt=body.prompt,
@@ -716,6 +810,7 @@ async def generate(
             )
     await session.commit()
     return GenerateResponse(
+        generation_log_id=generation_log_id,
         request_id=request_id_var.get(),
         registry_version=registry_version,
         engine_version=settings.engine_version,

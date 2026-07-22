@@ -23,7 +23,7 @@ import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from worker.adapters import AdapterClientError
+from worker.adapters import AdapterClientError, adapter_http_reason
 from worker.engine.constraints import (
     PaletteConstraint,
     PatternConstraints,
@@ -41,6 +41,7 @@ DEFAULT_TILE_MM = 48.0
 DEFAULT_DPI = 300
 MAX_REFERENCE_IMAGE_PIXELS = 20_000_000
 MAX_REFERENCE_IMAGE_SIDE = 2_048
+AUTHORING_PROMPT_REVISION = "design-plan-v1"
 
 
 @dataclass(frozen=True)
@@ -491,7 +492,12 @@ class GeminiClient:
         self, api_key: str, model: str = DEFAULT_MODEL, *, temperature: float = 0.7
     ) -> None:
         if not api_key:
-            raise AdapterClientError("GeminiClient requires a non-empty api_key")
+            raise AdapterClientError(
+                "GeminiClient requires a non-empty api_key",
+                provider="gemini",
+                operation="generate_content",
+                reason_code="not_configured",
+            )
         self._api_key = api_key
         self._model = model
         self._temperature = temperature
@@ -536,14 +542,30 @@ class GeminiClient:
         for attempt in range(_MAX_ATTEMPTS):
             try:
                 resp = await client.post(url, params={"key": self._api_key}, json=body)
+            except httpx.TimeoutException as exc:
+                raise AdapterClientError(
+                    f"Gemini request failed: {exc}",
+                    provider="gemini",
+                    operation="generate_content",
+                    reason_code="timeout",
+                ) from exc
             except httpx.HTTPError as exc:
-                raise AdapterClientError(f"Gemini request failed: {exc}") from exc
+                raise AdapterClientError(
+                    f"Gemini request failed: {exc}",
+                    provider="gemini",
+                    operation="generate_content",
+                    reason_code="transport_error",
+                ) from exc
             if resp.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
                 await asyncio.sleep(_BASE_DELAY_S * 2**attempt)
                 continue
             if resp.status_code >= 400:
                 raise AdapterClientError(
-                    f"Gemini API error ({resp.status_code}): {resp.text[:500]}"
+                    f"Gemini API error ({resp.status_code}): {resp.text[:500]}",
+                    provider="gemini",
+                    operation="generate_content",
+                    reason_code=adapter_http_reason(resp.status_code),
+                    status_code=resp.status_code,
                 )
             break
         assert resp is not None
@@ -551,9 +573,19 @@ class GeminiClient:
             data = resp.json()
             text = data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise AdapterClientError(f"Gemini returned an unexpected payload: {exc}") from exc
+            raise AdapterClientError(
+                f"Gemini returned an unexpected payload: {exc}",
+                provider="gemini",
+                operation="generate_content",
+                reason_code="invalid_response",
+            ) from exc
         if not text:
-            raise AdapterClientError("Gemini returned an empty response")
+            raise AdapterClientError(
+                "Gemini returned an empty response",
+                provider="gemini",
+                operation="generate_content",
+                reason_code="invalid_response",
+            )
         return text
 
     async def author_designs(
@@ -574,6 +606,7 @@ class GeminiClient:
         """
         sink = diagnostics if diagnostics is not None else {}
         sink["model"] = self._model
+        sink["prompt_revision"] = AUTHORING_PROMPT_REVISION
         errors: list[str] | None = None
         last_errors: list[str] = ["model produced no valid design plan"]
         for attempt in range(2):
@@ -674,7 +707,12 @@ class GeminiClient:
             if not attempt_errors:
                 return cleaned
             errors = attempt_errors
-        raise AdapterClientError("Gemini returned invalid idea drafts: " + "; ".join(errors or []))
+        raise AdapterClientError(
+            "Gemini returned invalid idea drafts: " + "; ".join(errors or []),
+            provider="gemini",
+            operation="suggest_ideas",
+            reason_code="invalid_response",
+        )
 
     async def aclose(self) -> None:
         if self._client is not None and not self._client.is_closed:

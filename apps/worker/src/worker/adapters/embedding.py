@@ -12,7 +12,7 @@ from typing import Protocol
 
 import httpx
 
-from worker.adapters import AdapterClientError
+from worker.adapters import AdapterClientError, adapter_http_reason
 
 DEFAULT_MODEL = "text-embedding-3-small"
 
@@ -32,7 +32,12 @@ class OpenAIEmbeddingClient:
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL) -> None:
         if not api_key:
-            raise EmbeddingError("OpenAIEmbeddingClient requires a non-empty api_key")
+            raise EmbeddingError(
+                "OpenAIEmbeddingClient requires a non-empty api_key",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="not_configured",
+            )
         self.model = model
         self._api_key = api_key
         self._client: httpx.AsyncClient | None = None
@@ -51,12 +56,37 @@ class OpenAIEmbeddingClient:
                 json={"model": self.model, "input": text},
             )
             resp.raise_for_status()
-        except Exception as exc:  # transport / HTTP / API 실패
-            raise EmbeddingError(f"OpenAI embedding request failed: {exc}") from exc
+        except httpx.HTTPStatusError as exc:
+            raise EmbeddingError(
+                f"OpenAI embedding request failed: {exc}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code=adapter_http_reason(exc.response.status_code),
+                status_code=exc.response.status_code,
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise EmbeddingError(
+                f"OpenAI embedding request failed: {exc}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="timeout",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise EmbeddingError(
+                f"OpenAI embedding request failed: {exc}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="transport_error",
+            ) from exc
         try:
             return list(resp.json()["data"][0]["embedding"])
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise EmbeddingError(f"OpenAI returned an unexpected payload: {exc}") from exc
+            raise EmbeddingError(
+                f"OpenAI returned an unexpected payload: {exc}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="invalid_response",
+            ) from exc
 
     async def aclose(self) -> None:
         if self._client is not None and not self._client.is_closed:

@@ -1,4 +1,9 @@
-import type { SafeCandidateOut, SeamlessDetailOut } from "@essesion/api-client";
+import type {
+  MotifResolutionOut,
+  SafeCandidateOut,
+  SeamlessDetailOut,
+  SeamlessWarningOut,
+} from "@essesion/api-client";
 import {
   createAdminSeamlessReferenceImageReadUrlMutation,
   getAdminSeamlessLogOptions,
@@ -32,10 +37,8 @@ import { StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 import { SafeSvgPreview } from "./safe-svg-preview";
 
-function formatMilliseconds(value: number | null) {
-  return value === null
-    ? "-"
-    : `${Math.round(value).toLocaleString("ko-KR")}ms`;
+function formatMilliseconds(value: number | null | undefined) {
+  return value == null ? "-" : `${Math.round(value).toLocaleString("ko-KR")}ms`;
 }
 
 const SEAMLESS_STATUS_LABELS: Readonly<
@@ -69,26 +72,109 @@ const FAILURE_STAGE_LABELS: Readonly<Record<string, string>> = {
   candidate: "후보 구성",
 };
 
-function warningPresentation(code: string) {
-  if (code === "preview_unavailable") {
+function warningPresentation(
+  warning: SeamlessWarningOut,
+  requested: number | null,
+  returned: number | null,
+) {
+  const count = warning.count.toLocaleString("ko-KR");
+  const items = warning.items ?? [];
+  if (warning.code === "preview_unavailable") {
     return {
-      title: "미리보기를 저장하지 못했습니다",
+      title: `미리보기 ${count}개를 저장하지 못했습니다`,
       description:
         "후보 SVG를 확인하고, 이미지 미리보기가 필요하면 생성을 다시 실행해 주세요.",
     };
   }
-  if (code === "partial_candidates") {
+  if (warning.code === "partial_candidates") {
     return {
       title: "후보가 일부만 생성되었습니다",
+      description: `요청 ${requested ?? "-"}개 중 ${returned ?? "-"}개가 반환되었습니다. 선택지가 부족하면 같은 조건으로 다시 생성해 주세요.`,
+    };
+  }
+  if (warning.code === "motif_layer_dropped") {
+    const motifs = items.length > 0 ? items.join(", ") : "일부 모티프";
+    const candidatesComplete =
+      requested !== null && returned === requested
+        ? ` 요청한 후보 ${returned}개는 모두 생성되었습니다.`
+        : "";
+    return {
+      title: `모티프 레이어 ${count}개를 제외했습니다`,
+      description: `${motifs} 모티프를 카탈로그 재사용 또는 외부 생성으로 해석하지 못해 해당 레이어만 제거했습니다.${candidatesComplete}`,
+    };
+  }
+  if (warning.code === "cmyk_gamut") {
+    const colors = items.length > 0 ? ` (${items.join(", ")})` : "";
+    return {
+      title: `CMYK 색역 확인이 필요한 색상 ${count}개`,
+      description: `화면용 RGB 색상${colors}이 인쇄 시 달라질 가능성이 있습니다. 후보 생성 실패가 아니라 인쇄 전 색상 확인이 필요한 안내입니다.`,
+    };
+  }
+  if (warning.code === "diversity_shortfall") {
+    return {
+      title: "후보의 레이아웃 다양성이 부족합니다",
       description:
-        "반환된 후보를 검토하고, 선택지가 부족하면 같은 조건으로 다시 생성해 주세요.",
+        "후보 수는 충족했지만 서로 다른 레이아웃 수가 목표보다 적습니다. 더 다양한 선택지가 필요하면 다시 생성해 주세요.",
+    };
+  }
+  if (warning.code === "candidate_variants_dropped") {
+    return {
+      title: `렌더할 수 없는 후보 변형 ${count}개를 제외했습니다`,
+      description:
+        "유효한 후보만 반환되었습니다. 요청/반환 후보 수가 같다면 별도 재생성은 필요하지 않습니다.",
+    };
+  }
+  if (warning.code === "design_dropped") {
+    return {
+      title: `사용할 수 없는 디자인 계획 ${count}개를 제외했습니다`,
+      description: "검증을 통과한 나머지 디자인 계획으로 후보를 생성했습니다.",
     };
   }
   return {
-    title: "생성 결과를 확인해 주세요",
-    description:
-      "입력 조건과 반환된 후보를 검토하고, 결과가 적합하지 않으면 다시 생성해 주세요.",
+    title: `분류되지 않은 생성 경고 ${count}건`,
+    description: "기술 정보의 request ID로 worker 로그를 확인해 주세요.",
   };
+}
+
+const PROVIDER_LABELS: Readonly<Record<string, string>> = {
+  gemini: "Gemini",
+  openai_embedding: "OpenAI 임베딩",
+  recraft: "Recraft",
+  worker: "Worker",
+};
+
+const RESOLUTION_LABELS: Readonly<Record<string, string>> = {
+  exact: "카탈로그 정확 일치 재사용",
+  embedding_reuse: "임베딩 유사 모티프 재사용",
+  catalog_fallback: "카탈로그 안정 fallback 재사용",
+  recraft: "Recraft 신규 생성",
+  dropped: "레이어 제외",
+};
+
+const REASON_LABELS: Readonly<Record<string, string>> = {
+  authentication_failed: "인증 실패",
+  invalid_configuration: "설정 오류",
+  invalid_response: "응답 형식 오류",
+  not_configured: "연동 설정 누락",
+  provider_4xx: "외부 서비스 요청 거부",
+  provider_5xx: "외부 서비스 장애",
+  rate_limited: "요청 한도 초과",
+  request_failed: "요청 실패",
+  suitability_gate_failed: "SVG 적합성 검사 실패",
+  timeout: "응답 시간 초과",
+  transport_error: "네트워크 오류",
+  unsupported_spec: "지원하지 않는 모티프 사양",
+};
+
+function motifResolutionValue(item: MotifResolutionOut) {
+  const outcome =
+    RESOLUTION_LABELS[item.outcome ?? ""] ?? item.outcome ?? "알 수 없음";
+  const similarity =
+    item.similarity == null ? "" : ` · 유사도 ${item.similarity.toFixed(3)}`;
+  const failure = item.reason_code
+    ? ` · ${PROVIDER_LABELS[item.provider ?? ""] ?? item.provider ?? "Worker"}: ${REASON_LABELS[item.reason_code] ?? item.reason_code}${item.status_code == null ? "" : ` (${item.status_code})`}`
+    : "";
+  return `${outcome}${similarity}${failure}`;
 }
 
 function CandidateCard({
@@ -214,6 +300,10 @@ export function SeamlessLogDetailPage() {
   }
 
   const log = query.data;
+  const motifResolutions = log.diagnostics.motif_resolutions ?? [];
+  const selectedCandidateIndex = log.candidates.findIndex(
+    (candidate) => candidate.id === log.outcome.selected_candidate_id,
+  );
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -330,6 +420,10 @@ export function SeamlessLogDetailPage() {
             },
             { label: "저작 모델", value: log.diagnostics.model ?? "-" },
             {
+              label: "프롬프트 리비전",
+              value: log.diagnostics.prompt_revision ?? "-",
+            },
+            {
               label: "저작 시도",
               value: formatIdentifier(log.diagnostics.authoring_attempts),
             },
@@ -342,6 +436,10 @@ export function SeamlessLogDetailPage() {
               value: formatIdentifier(log.diagnostics.resolved_count),
             },
             {
+              label: "단계별 시간",
+              value: `저작 ${formatMilliseconds(log.diagnostics.authoring_ms)} · 모티프 ${formatMilliseconds(log.diagnostics.motif_resolution_ms)} · 후보 ${formatMilliseconds(log.diagnostics.candidate_ms)} · 렌더 ${formatMilliseconds(log.diagnostics.render_ms)}`,
+            },
+            {
               label: "실패 단계",
               value:
                 FAILURE_STAGE_LABELS[log.failure_stage ?? ""] ??
@@ -349,21 +447,79 @@ export function SeamlessLogDetailPage() {
                 "-",
             },
             { label: "실패 코드", value: log.failure_code ?? "-" },
+            {
+              label: "외부 연동",
+              value: log.diagnostics.failure_provider
+                ? `${PROVIDER_LABELS[log.diagnostics.failure_provider] ?? log.diagnostics.failure_provider} · ${log.diagnostics.failure_operation ?? "-"}`
+                : "-",
+            },
+            {
+              label: "외부 실패 사유",
+              value: log.diagnostics.failure_reason
+                ? `${REASON_LABELS[log.diagnostics.failure_reason] ?? log.diagnostics.failure_reason}${log.diagnostics.failure_status_code == null ? "" : ` (${log.diagnostics.failure_status_code})`}`
+                : "-",
+            },
           ]}
         />
       </AdminCard>
 
-      {log.warning_codes.length > 0 && (
+      {motifResolutions.length > 0 && (
+        <AdminCard
+          title="모티프 해석"
+          description="Gemini가 제안한 모티프가 재사용·신규 생성·제외된 결과입니다."
+        >
+          <DetailList
+            items={motifResolutions.map((item, index) => ({
+              label: item.subject ?? item.layer_id ?? `모티프 ${index + 1}`,
+              value: motifResolutionValue(item),
+            }))}
+          />
+        </AdminCard>
+      )}
+
+      {log.outcome.session_id != null && (
+        <AdminCard
+          title="사용자 결과"
+          description="이 생성 이후 같은 디자인 세션에서 확인된 행동입니다."
+        >
+          <DetailList
+            items={[
+              {
+                label: "후보 선택",
+                value: log.outcome.selected_candidate_id
+                  ? selectedCandidateIndex >= 0
+                    ? `후보 ${selectedCandidateIndex + 1} 선택`
+                    : "선택함"
+                  : "선택 기록 없음",
+              },
+              {
+                label: "후속 재생성",
+                value: log.outcome.regenerated ? "있음" : "없음",
+              },
+              {
+                label: "Finalize 완료",
+                value: log.outcome.finalized ? "완료" : "없음",
+              },
+            ]}
+          />
+        </AdminCard>
+      )}
+
+      {log.warning_groups.length > 0 && (
         <AdminCard
           title="생성 경고"
-          description={`${log.warning_count.toLocaleString("ko-KR")}건의 경고가 기록되었습니다.`}
+          description={`${log.warning_count.toLocaleString("ko-KR")}건의 경고를 ${log.warning_groups.length.toLocaleString("ko-KR")}개 원인으로 묶었습니다.`}
         >
           <VStack gap="x3" alignItems="stretch">
-            {log.warning_codes.map((warning) => {
-              const presentation = warningPresentation(warning);
+            {log.warning_groups.map((warning) => {
+              const presentation = warningPresentation(
+                warning,
+                log.candidate_count_requested,
+                log.candidate_count_returned,
+              );
               return (
                 <Callout
-                  key={warning}
+                  key={warning.code}
                   tone="warning"
                   title={presentation.title}
                   description={presentation.description}
@@ -408,11 +564,12 @@ export function SeamlessLogDetailPage() {
           request_id: log.request_id,
           status: log.status,
           input_type: log.input_type,
-          warning_codes: log.warning_codes,
+          warning_groups: log.warning_groups,
           error_type: log.error_type,
           failure_code: log.failure_code,
           failure_stage: log.failure_stage,
           diagnostics: log.diagnostics,
+          outcome: log.outcome,
           intent_count: log.intents.length,
           reference_image_id: log.reference_image_id,
           seed: log.seed,

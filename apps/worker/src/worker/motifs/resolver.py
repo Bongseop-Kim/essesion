@@ -259,6 +259,7 @@ async def resolve_motifs(
     settings,
     seed: int,
     warnings: list[str] | None = None,
+    trace: list[dict[str, object]] | None = None,
 ) -> dict:
     """intent 사본의 각 모티프 레이어 params.motif_id를 해석해 반환 (§5 오케스트레이션).
 
@@ -275,6 +276,7 @@ async def resolve_motifs(
     attempted: set[str] = set()
     failed: set[str] = set()
     reasons: dict[str, str] = {}
+    last_failure: AdapterClientError | None = None
     for spec in motif_specs:
         layer = layers_by_id.get(spec.get("layer_id"))
         if layer is None or layer.get("type") != "motif":
@@ -285,6 +287,16 @@ async def resolve_motifs(
         if unsupported:
             failed.add(lid)
             reasons[lid] = f"unsupported spec field(s) {', '.join(unsupported)} (not implemented)"
+            if trace is not None:
+                trace.append(
+                    {
+                        "layer_id": lid,
+                        "subject": spec.get("subject"),
+                        "scope": spec.get("scope"),
+                        "outcome": "dropped",
+                        "reason_code": "unsupported_spec",
+                    }
+                )
             continue
         try:
             result = await resolve_spec(
@@ -295,18 +307,67 @@ async def resolve_motifs(
                 settings=settings,
                 seed=seed,
             )
-        except AdapterClientError:
+        except AdapterClientError as exc:
+            last_failure = exc
             failed.add(lid)
             reasons[lid] = (
                 f"Tier-1 gate exhausted ({spec.get('subject', '?')}/{spec.get('scope', '?')})"
             )
+            failure = {
+                "layer_id": lid,
+                "subject": spec.get("subject"),
+                "scope": spec.get("scope"),
+                "outcome": "dropped",
+                "provider": exc.provider,
+                "operation": exc.operation,
+                "reason_code": exc.reason_code,
+                "status_code": exc.status_code,
+            }
+            if trace is not None:
+                trace.append(failure)
+            logger.warning(
+                "motif resolution provider call failed",
+                extra={
+                    "event": "provider_call_failed",
+                    "stage": "motif_resolution",
+                    "provider": exc.provider,
+                    "operation": exc.operation,
+                    "reason_code": exc.reason_code,
+                    "status_code": exc.status_code,
+                },
+            )
             continue
         layer.setdefault("params", {})["motif_id"] = result.motif_id
+        if trace is not None:
+            trace.append(
+                {
+                    "layer_id": lid,
+                    "subject": spec.get("subject"),
+                    "scope": spec.get("scope"),
+                    "outcome": (
+                        "recraft"
+                        if not result.reused
+                        else "exact"
+                        if result.similarity == 1.0
+                        else "catalog_fallback"
+                        if result.similarity is None
+                        else "embedding_reuse"
+                    ),
+                    "motif_id": result.motif_id,
+                    "similarity": result.similarity,
+                }
+            )
 
     if not failed:
         return resolved
     if not (attempted - failed):
-        raise AdapterClientError(f"all {len(attempted)} motif spec(s) failed to resolve")
+        raise AdapterClientError(
+            f"all {len(attempted)} motif spec(s) failed to resolve",
+            provider=last_failure.provider if last_failure else "worker",
+            operation=last_failure.operation if last_failure else "resolve_motif",
+            reason_code=last_failure.reason_code if last_failure else "motif_resolution_failed",
+            status_code=last_failure.status_code if last_failure else None,
+        )
 
     dropped = set(failed)
     while True:
@@ -327,7 +388,13 @@ async def resolve_motifs(
         layer for layer in resolved.get("layers", []) if str(layer.get("id")) not in dropped
     ]
     if not survivors:
-        raise AdapterClientError("motif drop cascade left no composable layers")
+        raise AdapterClientError(
+            "motif drop cascade left no composable layers",
+            provider=last_failure.provider if last_failure else "worker",
+            operation=last_failure.operation if last_failure else "resolve_motif",
+            reason_code=last_failure.reason_code if last_failure else "motif_resolution_failed",
+            status_code=last_failure.status_code if last_failure else None,
+        )
     for layer in resolved.get("layers", []):
         lid = str(layer.get("id"))
         if lid not in dropped:

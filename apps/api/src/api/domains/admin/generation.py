@@ -8,15 +8,15 @@ SVG만 노출한다.
 import math
 import re
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
-from db.models.design import GenerationJob
+from db.models.design import DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationLog
 from fastapi import APIRouter, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, func, select
 from svg_safety import SanitizeError, sanitize_svg
 
@@ -34,6 +34,16 @@ JobKind = Literal["finalize", "export"]
 JobStatus = Literal["queued", "processing", "succeeded", "failed", "canceled"]
 SeamlessStatus = Literal["success", "partial", "error"]
 SvgStatus = Literal["safe", "unavailable", "unsafe"]
+WarningCode = Literal[
+    "candidate_variants_dropped",
+    "cmyk_gamut",
+    "design_dropped",
+    "diversity_shortfall",
+    "generation_warning",
+    "motif_layer_dropped",
+    "partial_candidates",
+    "preview_unavailable",
+]
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE = "seamless_generation"
@@ -45,6 +55,12 @@ _EMAIL = re.compile(r"\b[^\s@]+@[^\s@]+\.[^\s@]+\b")
 _PHONE = re.compile(r"(?<!\d)\d[\d -]{7,}\d(?!\d)")
 _URL_OR_PATH = re.compile(r"(?:https?://|gs://|/[A-Za-z0-9_.-]+/)", re.IGNORECASE)
 _HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_CMYK_WARNING = re.compile(
+    r"^color (#[0-9A-Fa-f]{6}) in colorway '[^']+' likely outside CMYK gamut$"
+)
+_MOTIF_DROP_WARNING = re.compile(
+    r"^motif layer '[^']+' dropped — Tier-1 gate exhausted \((.+)/(whole|partial)\)$"
+)
 _INTENT_ALLOWED_KEYS = frozenset(
     {
         "intent_version",
@@ -182,9 +198,36 @@ class SafeCandidateOut(BaseModel):
     svg_status: SvgStatus
 
 
+class SeamlessWarningOut(BaseModel):
+    code: WarningCode
+    count: int
+    items: list[str] = Field(default_factory=list)
+
+
+class MotifResolutionOut(BaseModel):
+    layer_id: str | None = None
+    subject: str | None = None
+    scope: str | None = None
+    outcome: str | None = None
+    motif_id: str | None = None
+    similarity: float | None = None
+    provider: str | None = None
+    operation: str | None = None
+    reason_code: str | None = None
+    status_code: int | None = None
+
+
+class GenerationOutcomeOut(BaseModel):
+    session_id: uuid.UUID | None = None
+    selected_candidate_id: str | None = None
+    regenerated: bool = False
+    finalized: bool = False
+
+
 class GenerationDiagnosticsOut(BaseModel):
     mode: Literal["prompt", "variation"] | None = None
     model: str | None = None
+    prompt_revision: str | None = None
     reference_count: int | None = None
     fixed_palette: bool | None = None
     pattern_controls: bool | None = None
@@ -193,8 +236,17 @@ class GenerationDiagnosticsOut(BaseModel):
     validated_count: int | None = None
     resolved_count: int | None = None
     candidate_count: int | None = None
+    authoring_ms: float | None = None
+    motif_resolution_ms: float | None = None
+    candidate_ms: float | None = None
+    render_ms: float | None = None
     failure_code: str | None = None
     failure_stage: str | None = None
+    failure_provider: str | None = None
+    failure_operation: str | None = None
+    failure_reason: str | None = None
+    failure_status_code: int | None = None
+    motif_resolutions: list[MotifResolutionOut] = Field(default_factory=list)
 
 
 class SeamlessDetailOut(SeamlessSummaryOut):
@@ -207,8 +259,9 @@ class SeamlessDetailOut(SeamlessSummaryOut):
     reference_image_available: bool
     seed: int | None
     available_strategies: int | None
-    warning_codes: list[str]
+    warning_groups: list[SeamlessWarningOut]
     diagnostics: GenerationDiagnosticsOut
+    outcome: GenerationOutcomeOut
     candidates: list[SafeCandidateOut]
 
 
@@ -516,7 +569,11 @@ def _seamless_filters(
     return filters
 
 
-def _error_projection(error_type: str | None, status: str) -> tuple[str | None, str | None]:
+def _error_projection(
+    error_type: str | None,
+    status: str,
+    diagnostics: GenerationDiagnosticsOut,
+) -> tuple[str | None, str | None]:
     if status != "error":
         return None, None
     safe_type = _safe_token(error_type) or "GenerationError"
@@ -531,6 +588,19 @@ def _error_projection(error_type: str | None, status: str) -> tuple[str | None, 
         "intent_invalid": "디자인 intent 검증에 실패했습니다",
         "candidate_invalid": "후보 구성에 실패했습니다",
     }
+    provider = {
+        "gemini": "Gemini",
+        "openai_embedding": "OpenAI 임베딩",
+        "recraft": "Recraft",
+    }.get(diagnostics.failure_provider or "")
+    if provider and safe_type in {
+        "AdapterClientError",
+        "AdapterNotConfigured",
+        "EmbeddingError",
+        "RecraftError",
+    }:
+        action = "구성되지 않았습니다" if safe_type == "AdapterNotConfigured" else "실패했습니다"
+        return safe_type, f"{provider} 생성 연동에 {action}"
     return safe_type, summaries.get(safe_type, "생성 처리에 실패했습니다")
 
 
@@ -552,9 +622,60 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         item = raw.get(key)
         return item if isinstance(item, bool) else None
 
+    def milliseconds(key: str) -> float | None:
+        item = raw.get(key)
+        return (
+            float(item)
+            if isinstance(item, (int, float))
+            and not isinstance(item, bool)
+            and math.isfinite(item)
+            and 0 <= item <= 900_000
+            else None
+        )
+
+    def resolution(value: Any) -> MotifResolutionOut | None:
+        if not isinstance(value, dict):
+            return None
+        similarity = value.get("similarity")
+        safe_similarity = (
+            float(similarity)
+            if isinstance(similarity, (int, float))
+            and not isinstance(similarity, bool)
+            and math.isfinite(similarity)
+            and -1 <= similarity <= 1
+            else None
+        )
+        status_code = value.get("status_code")
+        return MotifResolutionOut(
+            layer_id=_safe_token(value.get("layer_id")),
+            subject=_safe_metadata(value.get("subject"), limit=80),
+            scope=_safe_token(value.get("scope")),
+            outcome=_safe_token(value.get("outcome")),
+            motif_id=_safe_token(value.get("motif_id")),
+            similarity=safe_similarity,
+            provider=_safe_token(value.get("provider")),
+            operation=_safe_token(value.get("operation")),
+            reason_code=_safe_token(value.get("reason_code")),
+            status_code=(
+                status_code
+                if isinstance(status_code, int)
+                and not isinstance(status_code, bool)
+                and 100 <= status_code <= 599
+                else None
+            ),
+        )
+
+    raw_resolutions = raw.get("motif_resolutions")
+    resolutions = [
+        item
+        for value in (raw_resolutions[:16] if isinstance(raw_resolutions, list) else [])
+        if (item := resolution(value)) is not None
+    ]
+
     return GenerationDiagnosticsOut(
         mode=cast("Literal['prompt', 'variation'] | None", mode),
         model=_safe_token(raw.get("model")),
+        prompt_revision=_safe_token(raw.get("prompt_revision")),
         reference_count=count("reference_count"),
         fixed_palette=flag("fixed_palette"),
         pattern_controls=flag("pattern_controls"),
@@ -563,14 +684,29 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         validated_count=count("validated_count"),
         resolved_count=count("resolved_count"),
         candidate_count=count("candidate_count"),
+        authoring_ms=milliseconds("authoring_ms"),
+        motif_resolution_ms=milliseconds("motif_resolution_ms"),
+        candidate_ms=milliseconds("candidate_ms"),
+        render_ms=milliseconds("render_ms"),
         failure_code=failure_code,
         failure_stage=failure_stage,
+        failure_provider=_safe_token(raw.get("failure_provider")),
+        failure_operation=_safe_token(raw.get("failure_operation")),
+        failure_reason=_safe_token(raw.get("failure_reason")),
+        failure_status_code=(
+            raw["failure_status_code"]
+            if isinstance(raw.get("failure_status_code"), int)
+            and not isinstance(raw.get("failure_status_code"), bool)
+            and 100 <= raw["failure_status_code"] <= 599
+            else None
+        ),
+        motif_resolutions=resolutions,
     )
 
 
 def _seamless_summary(row: SeamlessGenerationLog) -> SeamlessSummaryOut:
-    error_type, error_summary = _error_projection(row.error_type, row.status)
     diagnostics = _safe_diagnostics(row.diagnostics)
+    error_type, error_summary = _error_projection(row.error_type, row.status, diagnostics)
     return SeamlessSummaryOut(
         id=row.id,
         request_id=_safe_token(row.request_id),
@@ -592,19 +728,43 @@ def _seamless_summary(row: SeamlessGenerationLog) -> SeamlessSummaryOut:
     )
 
 
-def _warning_codes(values: list[Any]) -> list[str]:
-    codes: list[str] = []
+def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
+    groups: dict[str, dict[str, Any]] = {}
     for value in values:
-        text = value if isinstance(value, str) else ""
-        if text.startswith("preview upload skipped"):
+        warning = value if isinstance(value, str) else ""
+        items: list[str] = []
+        if warning.startswith("preview upload skipped"):
             code = "preview_unavailable"
-        elif "partial" in text or "shortfall" in text:
+        elif warning.startswith("partial:"):
             code = "partial_candidates"
+        elif warning.startswith("diversity shortfall:"):
+            code = "diversity_shortfall"
+        elif match := _MOTIF_DROP_WARNING.fullmatch(warning):
+            code = "motif_layer_dropped"
+            if subject := _safe_metadata(match.group(1), limit=80):
+                items = [subject]
+        elif match := _CMYK_WARNING.fullmatch(warning):
+            code = "cmyk_gamut"
+            items = [match.group(1).upper()]
+        elif re.fullmatch(r"\d+ candidate variant\(s\) failed to render and were dropped", warning):
+            code = "candidate_variants_dropped"
+        elif warning.startswith("design ") and " dropped:" in warning:
+            code = "design_dropped"
         else:
             code = "generation_warning"
-        if code not in codes:
-            codes.append(code)
-    return codes
+        group = groups.setdefault(code, {"count": 0, "items": []})
+        group["count"] += 1
+        for item in items:
+            if item not in group["items"]:
+                group["items"].append(item)
+    return [
+        SeamlessWarningOut(
+            code=cast("WarningCode", code),
+            count=group["count"],
+            items=group["items"],
+        )
+        for code, group in groups.items()
+    ]
 
 
 def _safe_candidate(value: Any) -> SafeCandidateOut | None:
@@ -655,6 +815,83 @@ def _reference_image_available(image: Image | None) -> bool:
         image is not None
         and image.object_key.startswith(SEAMLESS_REFERENCE_IMAGE_PREFIX)
         and (image.expires_at is None or image.expires_at > datetime.now(UTC))
+    )
+
+
+async def _generation_outcome(
+    session,
+    row: SeamlessGenerationLog,
+    candidate_ids: list[str],
+) -> GenerationOutcomeOut:
+    exact_link = DesignSessionTurn.payload["response"]["generation_log_id"].astext == str(row.id)
+    turn_query = (
+        select(DesignSessionTurn)
+        .where(
+            DesignSessionTurn.role == "assistant",
+            DesignSessionTurn.payload["type"].astext == "generate",
+        )
+        .order_by(DesignSessionTurn.created_at, DesignSessionTurn.seq)
+        .limit(1)
+    )
+    generated_turn = await session.scalar(turn_query.where(exact_link))
+    if generated_turn is None and (request_id := _safe_token(row.request_id)):
+        generated_turn = await session.scalar(
+            turn_query.where(
+                DesignSessionTurn.payload["response"]["request_id"].astext == request_id,
+                DesignSessionTurn.created_at >= row.created_at - timedelta(minutes=15),
+                DesignSessionTurn.created_at <= row.created_at + timedelta(minutes=15),
+            )
+        )
+    if generated_turn is None:
+        return GenerationOutcomeOut()
+
+    next_request = await session.scalar(
+        select(DesignSessionTurn)
+        .where(
+            DesignSessionTurn.session_id == generated_turn.session_id,
+            DesignSessionTurn.seq > generated_turn.seq,
+            DesignSessionTurn.payload["type"].astext == "generate_request",
+        )
+        .order_by(DesignSessionTurn.seq)
+        .limit(1)
+    )
+    selection_filters = [
+        DesignSessionTurn.session_id == generated_turn.session_id,
+        DesignSessionTurn.seq > generated_turn.seq,
+        DesignSessionTurn.payload["type"].astext == "select",
+    ]
+    if next_request is not None:
+        selection_filters.append(DesignSessionTurn.seq < next_request.seq)
+    selected_candidate_id = None
+    if candidate_ids:
+        selected_candidate_id = await session.scalar(
+            select(DesignSessionTurn.payload["candidate_id"].astext)
+            .where(
+                *selection_filters,
+                DesignSessionTurn.payload["candidate_id"].astext.in_(candidate_ids),
+            )
+            .order_by(DesignSessionTurn.seq.desc())
+            .limit(1)
+        )
+
+    finalized_filters = [
+        GenerationJob.session_id == generated_turn.session_id,
+        GenerationJob.kind == "finalize",
+        GenerationJob.status == "succeeded",
+        GenerationJob.created_at >= generated_turn.created_at,
+    ]
+    if next_request is not None:
+        finalized_filters.append(GenerationJob.created_at < next_request.created_at)
+    finalized = bool(
+        await session.scalar(
+            select(func.count()).select_from(GenerationJob).where(*finalized_filters)
+        )
+    )
+    return GenerationOutcomeOut(
+        session_id=generated_turn.session_id,
+        selected_candidate_id=_safe_token(selected_candidate_id),
+        regenerated=next_request is not None,
+        finalized=finalized,
     )
 
 
@@ -736,6 +973,11 @@ async def get_admin_seamless_log(
         candidate for item in (row.candidates or []) if (candidate := _safe_candidate(item))
     ]
     reference_image = await _seamless_reference_image(session, row)
+    outcome = await _generation_outcome(
+        session,
+        row,
+        [candidate.id for candidate in candidates if candidate.id is not None],
+    )
     return SeamlessDetailOut(
         **summary.model_dump(),
         has_prompt=bool(row.prompt),
@@ -747,8 +989,9 @@ async def get_admin_seamless_log(
         reference_image_available=_reference_image_available(reference_image),
         seed=row.seed,
         available_strategies=row.available_strategies,
-        warning_codes=_warning_codes(row.warnings or []),
+        warning_groups=_warning_groups(row.warnings or []),
         diagnostics=_safe_diagnostics(row.diagnostics),
+        outcome=outcome,
         candidates=candidates,
     )
 

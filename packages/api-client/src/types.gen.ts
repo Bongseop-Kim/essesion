@@ -3118,6 +3118,10 @@ export type DesignGenerateOut = {
      */
     engine_version: string;
     /**
+     * Generation Log Id
+     */
+    generation_log_id?: string | null;
+    /**
      * Intents
      */
     intents: Array<{
@@ -3467,17 +3471,41 @@ export type GenerationDiagnosticsOut = {
      */
     authoring_attempts?: number | null;
     /**
+     * Authoring Ms
+     */
+    authoring_ms?: number | null;
+    /**
      * Candidate Count
      */
     candidate_count?: number | null;
+    /**
+     * Candidate Ms
+     */
+    candidate_ms?: number | null;
     /**
      * Failure Code
      */
     failure_code?: string | null;
     /**
+     * Failure Operation
+     */
+    failure_operation?: string | null;
+    /**
+     * Failure Provider
+     */
+    failure_provider?: string | null;
+    /**
+     * Failure Reason
+     */
+    failure_reason?: string | null;
+    /**
      * Failure Stage
      */
     failure_stage?: string | null;
+    /**
+     * Failure Status Code
+     */
+    failure_status_code?: number | null;
     /**
      * Fixed Palette
      */
@@ -3491,6 +3519,14 @@ export type GenerationDiagnosticsOut = {
      */
     model?: string | null;
     /**
+     * Motif Resolution Ms
+     */
+    motif_resolution_ms?: number | null;
+    /**
+     * Motif Resolutions
+     */
+    motif_resolutions?: Array<MotifResolutionOut>;
+    /**
      * Pattern Controls
      */
     pattern_controls?: boolean | null;
@@ -3499,9 +3535,17 @@ export type GenerationDiagnosticsOut = {
      */
     plan_count?: number | null;
     /**
+     * Prompt Revision
+     */
+    prompt_revision?: string | null;
+    /**
      * Reference Count
      */
     reference_count?: number | null;
+    /**
+     * Render Ms
+     */
+    render_ms?: number | null;
     /**
      * Resolved Count
      */
@@ -3708,6 +3752,28 @@ export type GenerationJobSummaryOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * GenerationOutcomeOut
+ */
+export type GenerationOutcomeOut = {
+    /**
+     * Finalized
+     */
+    finalized?: boolean;
+    /**
+     * Regenerated
+     */
+    regenerated?: boolean;
+    /**
+     * Selected Candidate Id
+     */
+    selected_candidate_id?: string | null;
+    /**
+     * Session Id
+     */
+    session_id?: string | null;
 };
 
 /**
@@ -4409,6 +4475,52 @@ export type MotifPreviewOut = {
      * Warnings
      */
     warnings?: Array<string>;
+};
+
+/**
+ * MotifResolutionOut
+ */
+export type MotifResolutionOut = {
+    /**
+     * Layer Id
+     */
+    layer_id?: string | null;
+    /**
+     * Motif Id
+     */
+    motif_id?: string | null;
+    /**
+     * Operation
+     */
+    operation?: string | null;
+    /**
+     * Outcome
+     */
+    outcome?: string | null;
+    /**
+     * Provider
+     */
+    provider?: string | null;
+    /**
+     * Reason Code
+     */
+    reason_code?: string | null;
+    /**
+     * Scope
+     */
+    scope?: string | null;
+    /**
+     * Similarity
+     */
+    similarity?: number | null;
+    /**
+     * Status Code
+     */
+    status_code?: number | null;
+    /**
+     * Subject
+     */
+    subject?: string | null;
 };
 
 /**
@@ -6802,6 +6914,7 @@ export type SeamlessDetailOut = {
     intents: Array<{
         [key: string]: unknown;
     }>;
+    outcome: GenerationOutcomeOut;
     /**
      * Prompt
      */
@@ -6839,13 +6952,13 @@ export type SeamlessDetailOut = {
      */
     status: 'success' | 'partial' | 'error';
     /**
-     * Warning Codes
-     */
-    warning_codes: Array<string>;
-    /**
      * Warning Count
      */
     warning_count: number;
+    /**
+     * Warning Groups
+     */
+    warning_groups: Array<SeamlessWarningOut>;
 };
 
 /**
@@ -6954,6 +7067,24 @@ export type SeamlessSummaryOut = {
      * Warning Count
      */
     warning_count: number;
+};
+
+/**
+ * SeamlessWarningOut
+ */
+export type SeamlessWarningOut = {
+    /**
+     * Code
+     */
+    code: 'candidate_variants_dropped' | 'cmyk_gamut' | 'design_dropped' | 'diversity_shortfall' | 'generation_warning' | 'motif_layer_dropped' | 'partial_candidates' | 'preview_unavailable';
+    /**
+     * Count
+     */
+    count: number;
+    /**
+     * Items
+     */
+    items?: Array<string>;
 };
 
 /**
