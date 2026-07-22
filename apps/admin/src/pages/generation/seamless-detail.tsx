@@ -35,6 +35,10 @@ import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
+import {
+  FAILURE_STAGE_LABELS,
+  GENERATION_MODE_LABELS,
+} from "./generation-labels";
 import { SafeSvgPreview } from "./safe-svg-preview";
 
 function formatMilliseconds(value: number | null | undefined) {
@@ -58,19 +62,6 @@ const INPUT_TYPE_LABELS: Readonly<Record<string, string>> = {
 function inputTypeLabel(inputType: string) {
   return INPUT_TYPE_LABELS[inputType] ?? "알 수 없는 입력 방식";
 }
-
-const GENERATION_MODE_LABELS: Readonly<Record<string, string>> = {
-  prompt: "프롬프트 생성",
-  variation: "다시 만들기",
-};
-
-const FAILURE_STAGE_LABELS: Readonly<Record<string, string>> = {
-  reference: "참고 이미지",
-  constraints: "사용자 설정",
-  authoring: "계획 저작",
-  intent: "Intent 검증",
-  candidate: "후보 구성",
-};
 
 function warningPresentation(
   warning: SeamlessWarningOut,

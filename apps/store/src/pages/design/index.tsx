@@ -1430,7 +1430,7 @@ function GenerationErrorCallout({
       <Callout
         tone="warning"
         title="요청을 이해하지 못했어요"
-        description={`${error.message} 요청 내용을 바꿔 다시 생성해 주세요.`}
+        description={error.message}
       />
     );
   }

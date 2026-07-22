@@ -219,8 +219,8 @@ export function PhotoMotifModal({
       title="사진으로 모티프 만들기"
       description="로고·아이콘처럼 윤곽이 분명한 사진이 가장 잘 맞아요."
       size="medium"
-      showCloseButton={!saving}
-      closeOnEscape={!saving}
+      showCloseButton={!(busy || saving)}
+      closeOnEscape={!(busy || saving)}
       footer={
         <HStack gap="x2">
           <Box

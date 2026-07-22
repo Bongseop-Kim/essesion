@@ -1,9 +1,11 @@
-"""/motifs/* + /generate 모티프 경로 API 테스트 — 실컨테이너 + respx (worker-motifs.md §3~§6)."""
+"""/motifs/* + /generate 모티프 경로 API 테스트 — 실컨테이너 (worker-motifs.md §3~§6)."""
 
 import json
+from types import SimpleNamespace
+from typing import cast
+from unittest.mock import AsyncMock
 
-import httpx
-import respx
+from google import genai
 from worker.adapters.gemini import AuthoredDesign, GeminiClient
 from worker.api import routes
 from worker.motifs import store
@@ -96,10 +98,8 @@ async def test_generate_renders_with_db_motif_catalog(client, db_session):
     assert body["registry_version"].startswith("0.1.0")
 
 
-@respx.mock
 async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     mid = await _seed_dot(db_session)
-    app.state.adapters.gemini = GeminiClient("test-key")  # DryRun 대신 목 클라이언트 주입
     design = {
         "plans": [
             {
@@ -122,11 +122,16 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
             },
         ]
     }
-    respx.post(url__regex=r".*generateContent").mock(
-        return_value=httpx.Response(
-            200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(design)}]}}]}
+    sdk = SimpleNamespace(
+        aio=SimpleNamespace(
+            models=SimpleNamespace(
+                generate_content=AsyncMock(
+                    return_value=SimpleNamespace(text=json.dumps(design), parsed=None)
+                )
+            )
         )
     )
+    app.state.adapters.gemini = GeminiClient("", client=cast(genai.Client, sdk))
     resp = await client.post("/generate", json={"prompt": "dot pattern", "candidate_count": 1})
     assert resp.status_code == 200, resp.text
     body = resp.json()

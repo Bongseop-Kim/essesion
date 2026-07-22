@@ -231,7 +231,7 @@ describe("IncidentDetailPage", () => {
     renderPage();
 
     expect(
-      await screen.findByText("최고 관리자 권한이 필요합니다"),
+      await screen.findByText(/최고 관리자 권한이 필요합니다/),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "외부 상태 대사" })).toBeNull();
     expect(screen.queryByRole("button", { name: "해결 처리" })).toBeNull();

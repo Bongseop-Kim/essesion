@@ -252,6 +252,13 @@ def normalize_stripes(intent_raw: dict, settings) -> None:
         params["period_mm"] = round(target_period, 6)
 
 
+# direction 값 하나의 사전 — 스키마 enum과 배치·stripe 각도가 함께 갈라지지 않게 한다.
+_DIRECTION_ANGLE_DEG: dict[str, float] = {
+    "horizontal": 0.0,
+    "vertical": 90.0,
+    "diagonal": -45.0,
+}
+
 _DESIGN_PLAN_SCHEMA = {
     "type": "OBJECT",
     "properties": {
@@ -286,7 +293,7 @@ _DESIGN_PLAN_SCHEMA = {
                     "arrangement": {"type": "STRING", "enum": ["lattice", "staggered", "scatter"]},
                     "density": {"type": "STRING", "enum": ["sparse", "medium", "dense"]},
                     "scale": {"type": "STRING", "enum": ["small", "medium", "large"]},
-                    "direction": {"type": "STRING", "enum": ["horizontal", "vertical", "diagonal"]},
+                    "direction": {"type": "STRING", "enum": list(_DIRECTION_ANGLE_DEG)},
                     "stripes": {"type": "BOOLEAN"},
                 },
                 "required": [
@@ -307,7 +314,7 @@ _DESIGN_PLAN_SCHEMA = {
 
 def _plan_placement(plan: DesignPlan) -> dict[str, object]:
     axis = {"sparse": 4, "medium": 6, "dense": 8}[plan.density]
-    angle = {"horizontal": 0.0, "vertical": 90.0, "diagonal": -45.0}[plan.direction]
+    angle = _DIRECTION_ANGLE_DEG[plan.direction]
     if plan.arrangement == "scatter":
         return {
             "type": "scatter",
@@ -429,9 +436,7 @@ def compile_design_plan(
                 "type": "stripe",
                 "z_order": 1,
                 "params": {
-                    "angle": {"horizontal": 0.0, "vertical": 90.0, "diagonal": -45.0}[
-                        plan.direction
-                    ],
+                    "angle": _DIRECTION_ANGLE_DEG[plan.direction],
                     "period_mm": round(period, 6),
                     "bands": [
                         {

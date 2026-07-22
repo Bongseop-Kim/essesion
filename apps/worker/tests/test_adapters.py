@@ -13,9 +13,13 @@ from google import genai
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import EmbeddingError, VertexEmbeddingClient, embed_query
 from worker.adapters.gemini import (
+    _DESIGN_PLAN_SCHEMA,
+    _DIRECTION_ANGLE_DEG,
     AUTHORING_V3_SYSTEM_INSTRUCTION,
     DesignPlan,
+    DesignPlans,
     GeminiClient,
+    PlanMotif,
     ReferenceImage,
     SemanticMismatch,
     compile_design_plan,
@@ -496,6 +500,27 @@ async def test_gemini_v3_uses_typed_schema_few_shot_and_retries_palette_only_dup
     assert diagnostics["plan_contract_version"] == 3
     assert diagnostics["authoring_attempts"] == 2
     assert diagnostics["validated_count"] == 2
+
+
+def test_design_plan_schema_matches_pydantic_contract():
+    """_DESIGN_PLAN_SCHEMA(프로바이더 응답 스키마)와 DesignPlan Pydantic 제약의 드리프트 가드."""
+    plans_schema = _DESIGN_PLAN_SCHEMA["properties"]["plans"]
+    plans_model = DesignPlans.model_json_schema()["properties"]["plans"]
+    assert plans_schema["minItems"] == plans_model["minItems"]
+    assert plans_schema["maxItems"] == plans_model["maxItems"]
+
+    plan_schema = plans_schema["items"]["properties"]
+    plan_model = DesignPlan.model_json_schema()["properties"]
+    for field in ("arrangement", "density", "scale", "direction"):
+        assert plan_schema[field]["enum"] == plan_model[field]["enum"]
+    assert plan_schema["direction"]["enum"] == list(_DIRECTION_ANGLE_DEG)
+    assert plan_schema["motifs"]["maxItems"] == plan_model["motifs"]["maxItems"]
+    assert plan_schema["colors"]["minItems"] == plan_model["colors"]["minItems"]
+    assert plan_schema["colors"]["maxItems"] == plan_model["colors"]["maxItems"]
+
+    scope_schema = plan_schema["motifs"]["items"]["properties"]["scope"]
+    scope_model = PlanMotif.model_json_schema()["properties"]["scope"]
+    assert scope_schema["enum"] == scope_model["enum"]
 
 
 def test_design_plan_compiler_is_deterministic_and_uses_exact_motifs():

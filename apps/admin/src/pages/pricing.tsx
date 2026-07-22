@@ -334,7 +334,7 @@ export function PricingPage() {
         )}
       </HStack>
       {!canEdit && (
-        <Text textStyle="caption" color="fg.neutral-muted">
+        <Text textStyle="bodySm" color="fg.neutral-muted">
           조회 전용 권한입니다. 가격 변경은 admin 역할만 실행할 수 있습니다.
         </Text>
       )}
