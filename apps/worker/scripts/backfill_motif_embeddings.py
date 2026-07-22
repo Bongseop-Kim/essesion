@@ -47,7 +47,4 @@ if __name__ == "__main__":
     if not args.confirm_live:
         raise SystemExit("--confirm-live 없이는 외부 API backfill을 실행하지 않습니다.")
     changed, embedded_count, total_count = asyncio.run(_run())
-    print(
-        f"updated {changed} public motif embeddings; "
-        f"embedded={embedded_count}/{total_count}"
-    )
+    print(f"updated {changed} public motif embeddings; embedded={embedded_count}/{total_count}")

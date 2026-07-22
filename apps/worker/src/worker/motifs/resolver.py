@@ -95,9 +95,7 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def _tokens(value: str) -> set[str]:
-    tokens = set(
-        re.findall(r"[^\W_]+", store.normalize_facet(value), flags=re.UNICODE)
-    )
+    tokens = set(re.findall(r"[^\W_]+", store.normalize_facet(value), flags=re.UNICODE))
     aliases = {
         "꽃": "flower",
         "플라워": "flower",
@@ -311,10 +309,7 @@ async def present_candidates(
         tau=tau,
         top_k=top_k,
     )
-    return [
-        _candidate_dict(match.meta, round(match.similarity, 4))
-        for match in retrieval.matches
-    ]
+    return [_candidate_dict(match.meta, round(match.similarity, 4)) for match in retrieval.matches]
 
 
 def _candidate_dict(meta: MotifMeta, similarity: float | None) -> dict:

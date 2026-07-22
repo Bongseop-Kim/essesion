@@ -489,9 +489,7 @@ async def test_generate_rejects_more_than_two_exact_and_motif_photo_slots_before
         json={
             "session_id": design_session["id"],
             "prompt": "모티프 충돌",
-            "reference_images": [
-                {"upload_id": str(uuid.uuid4()), "purpose": "motif"}
-            ],
+            "reference_images": [{"upload_id": str(uuid.uuid4()), "purpose": "motif"}],
             "user_motif_ids": [str(uuid.uuid4()), str(uuid.uuid4())],
         },
         headers=headers,

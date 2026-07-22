@@ -218,9 +218,7 @@ async def test_prompt_catalog_candidates_find_chess_by_exact_token_without_embed
         tau=0.84,
     )
 
-    assert [candidate["motif_id"] for candidate in candidates] == [
-        "recraft-chess0000001"
-    ]
+    assert [candidate["motif_id"] for candidate in candidates] == ["recraft-chess0000001"]
     assert candidates[0]["catalog_ref"] == "catalog_1"
     assert candidates[0]["match_type"] == "exact_token"
 
@@ -373,9 +371,7 @@ async def test_read_failure_does_not_rollback_earlier_uncommitted_motif(db_sessi
     assert set(stored) == {first.motif_id, second.motif_id}
 
 
-async def test_nearest_read_failure_generates_instead_of_catalog_fallback(
-    db_session, monkeypatch
-):
+async def test_nearest_read_failure_generates_instead_of_catalog_fallback(db_session, monkeypatch):
     await _seed(db_session, "recraft-degrade00001", subject="dot", scope="whole")
 
     async def _boom(session, vec, top_k=1):

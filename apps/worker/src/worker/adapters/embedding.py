@@ -58,9 +58,7 @@ class VertexEmbeddingClient:
         except Exception as exc:  # SDK exception classes vary by version.
             status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
             status = (
-                int(status)
-                if isinstance(status, int | str) and str(status).isdigit()
-                else None
+                int(status) if isinstance(status, int | str) and str(status).isdigit() else None
             )
             reason = adapter_http_reason(status) if status is not None else "provider_error"
             raise EmbeddingError(
