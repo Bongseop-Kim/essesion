@@ -16,11 +16,11 @@ import re
 import xml.etree.ElementTree as ET
 
 import httpx
+import svg_safety as sanitize
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured, adapter_http_reason
 from worker.motifs import geometry as geom
 from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg
-from worker.render import sanitize
 
 _GRADIENT_TAGS = {"lineargradient", "radialgradient"}
 _DROP_TAGS = {"filter", "clippath", "mask", "title", "desc", "metadata", "style", "text", "tspan"}

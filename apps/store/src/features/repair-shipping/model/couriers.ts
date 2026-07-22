@@ -1,4 +1,4 @@
-/** 택배사 코드 — YeongSeon 데이터와 동일한 코드 세트 유지 (이관 주문의 courier_company 표시 호환).
+/** 주문·수선 발송에서 선택할 수 있는 택배사 코드.
  *  코드는 백엔드 검증 규칙 `^[a-z0-9_-]{1,30}$`을 따른다. */
 export const COURIER_OPTIONS: readonly { value: string; label: string }[] = [
   { value: "cj", label: "CJ대한통운" },
@@ -36,7 +36,7 @@ const TRACKING_URL_TEMPLATES: Partial<Record<string, string>> = {
     "https://home.ds3211.co.kr/freight/internalFreightSearch.ht?billno={trackingNumber}",
 };
 
-/** 미등록 코드는 코드 그대로 반환 (이관 데이터 등 방어) */
+/** 미등록 코드는 운영자가 값을 확인할 수 있게 그대로 표시한다. */
 export function courierLabel(code: string | null | undefined): string {
   if (!code) return "";
   return COURIER_OPTIONS.find((option) => option.value === code)?.label ?? code;

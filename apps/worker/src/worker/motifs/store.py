@@ -14,7 +14,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from db.models.seamless import EMBEDDING_DIM, LEGACY_EMBEDDING_DIM, Motif
+from db.models.seamless import EMBEDDING_DIM, Motif
 from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy import cast as sql_cast
@@ -49,7 +49,7 @@ def embedding_document(
     expression: str | None = None,
     tags: Iterable[str] = (),
 ) -> str:
-    """검색·backfill이 공유하는 임베딩 문서. scope는 의미 검색에서 제외한다."""
+    """검색·초기 인덱싱이 공유하는 임베딩 문서. scope는 의미 검색에서 제외한다."""
     segments = [subject, description, style, view, expression, *tags]
     return ", ".join(value.strip() for value in segments if value and value.strip())
 
@@ -140,6 +140,9 @@ async def upsert_motif(
     scope는 정규화해 저장(하드 필터가 정규 형태로 비교). commit은 호출자(라우트/시드) 소관.
     """
     scope = normalize_facet(facets.get("scope")) or None
+    if embedding is not None and len(embedding) != EMBEDDING_DIM:
+        raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(embedding)}")
+
     values = {
         "id": normalized.id,
         "symbol": normalized.symbol,
@@ -155,12 +158,7 @@ async def upsert_motif(
         "tags": list(facets.get("tags") or []),
         "source": source,
         "variant_group": variant_group,
-        "embedding_vertex": (
-            embedding if embedding is None or len(embedding) != LEGACY_EMBEDDING_DIM else None
-        ),
-        "embedding": (
-            embedding if embedding is not None and len(embedding) == LEGACY_EMBEDDING_DIM else None
-        ),
+        "embedding_vertex": embedding,
     }
     stmt = pg_insert(Motif).values(**values).on_conflict_do_nothing(index_elements=["id"])
     await session.execute(stmt)
@@ -183,44 +181,6 @@ async def get_motifs(session: AsyncSession, ids: Iterable[str]) -> dict[str, Mot
         )
         for row in rows
     }
-
-
-async def find_by_scope(session: AsyncSession, scope: str) -> list[MotifMeta]:
-    """레거시 scope별 조회. 자동 공개 카탈로그 검색에는 사용하지 않는다."""
-    norm = normalize_facet(scope)
-    rows = (
-        await session.execute(
-            select(
-                Motif.id,
-                Motif.variant_group,
-                Motif.subject,
-                Motif.scope,
-                Motif.view,
-                Motif.expression,
-                Motif.style,
-                Motif.description,
-                Motif.tags,
-                Motif.source,
-            )
-            .where(Motif.scope == norm, Motif.source != USER_UPLOAD_SOURCE)
-            .order_by(Motif.id)
-        )
-    ).all()
-    return [
-        MotifMeta(
-            id=row[0],
-            variant_group=row[1],
-            subject=row[2],
-            scope=row[3],
-            view=row[4],
-            expression=row[5],
-            style=row[6],
-            description=row[7],
-            tags=tuple(row[8] or ()),
-            source=row[9],
-        )
-        for row in rows
-    ]
 
 
 async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
@@ -264,9 +224,10 @@ async def nearest_by_embedding(
     session: AsyncSession, vec: list[float], *, top_k: int = 1
 ) -> list[MotifMatch]:
     """공개 카탈로그 코사인 최근접 top-k. 동점은 lowest ID, NULL은 제외한다."""
-    legacy = len(vec) == LEGACY_EMBEDDING_DIM
-    column = Motif.embedding if legacy else Motif.embedding_vertex
-    distance_column = column if legacy else sql_cast(column, HALFVEC(EMBEDDING_DIM))
+    if len(vec) != EMBEDDING_DIM:
+        raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(vec)}")
+    column = Motif.embedding_vertex
+    distance_column = sql_cast(column, HALFVEC(EMBEDDING_DIM))
     distance = distance_column.cosine_distance(vec)
     rows = (
         await session.execute(
@@ -285,7 +246,7 @@ async def nearest_by_embedding(
 
 
 async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbeddingDocument]:
-    """backfill 대상 공개 모티프를 안정 순서로 읽는다."""
+    """인덱싱되지 않은 공개 모티프를 안정 순서로 읽는다."""
     rows = (
         await session.execute(
             select(
@@ -318,7 +279,7 @@ async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbedd
 async def update_embedding_if_missing(
     session: AsyncSession, motif_id: str, embedding: list[float]
 ) -> bool:
-    """공개 NULL 행만 갱신한다. 재실행과 동시 backfill 모두 멱등이다."""
+    """공개 NULL 행만 갱신한다. 재실행과 동시 인덱싱 모두 멱등이다."""
     result = await session.execute(
         update(Motif)
         .where(

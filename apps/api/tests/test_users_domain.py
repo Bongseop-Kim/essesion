@@ -152,7 +152,7 @@ async def test_delete_account_soft_when_history(client, db_session, settings):
         PhoneVerification(
             user_id=user.id,
             phone="01012345678",
-            code="legacy-plain-code",
+            code="plain-code",
             expires_at=datetime.now(UTC) + timedelta(minutes=5),
         )
     )

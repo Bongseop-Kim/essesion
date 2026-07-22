@@ -6,6 +6,8 @@
 
 from typing import Any
 
+from svg_safety import sanitize_svg
+
 from worker.config import get_settings
 from worker.engine.intent import Intent, Layer, MotifLayer
 from worker.engine.palette import Palette
@@ -14,7 +16,6 @@ from worker.engine.primitives import build_primitive, escape_attr
 from worker.engine.seamless import clone_instances
 from worker.engine.units import fmt
 from worker.motifs.registry import MotifCatalog, MotifDef, resolve_motif, slot_render_symbols
-from worker.render.sanitize import sanitize_svg
 
 
 def render_svg_document(

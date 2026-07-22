@@ -8,7 +8,7 @@ function item(overrides: Partial<OrderItemOut> = {}): OrderItemOut {
     applied_user_coupon_id: null,
     discount_amount: 0,
     id: "item-1",
-    item_data: null,
+    item_data: {},
     item_id: "product:1",
     item_type: "product",
     line_discount_amount: 0,

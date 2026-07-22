@@ -16,7 +16,7 @@ from worker.motifs.resolver import (
     resolve_spec,
 )
 
-DIM = 1536
+DIM = 3072
 _SETTINGS = Settings(motif_render_check=False, motif_similarity_tau=0.84)
 _CLEAN = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
@@ -41,7 +41,8 @@ class _FakeEmbed:
         self._vec = vec
         self.calls = 0
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed(self, text: str, *, task_type: str) -> list[float]:
+        assert task_type == "RETRIEVAL_QUERY"
         self.calls += 1
         return self._vec
 

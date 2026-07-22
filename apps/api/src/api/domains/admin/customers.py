@@ -79,7 +79,7 @@ class AdminCustomerCouponOut(BaseModel):
     issued_at: datetime
     expires_at: datetime | None
     used_at: datetime | None
-    terms_snapshot: dict | None
+    terms_snapshot: dict
     coupon_name: str
     coupon_display_name: str | None
 

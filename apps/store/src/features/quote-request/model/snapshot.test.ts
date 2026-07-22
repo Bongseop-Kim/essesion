@@ -57,7 +57,7 @@ describe("quote request snapshot", () => {
         { object_key: "quote/a.webp" },
         { object_key: " quote/b.webp " },
         { object_key: "quote/a.webp" },
-        { url: "https://example.com/legacy.webp" },
+        { url: "https://example.com/external.webp" },
         null,
       ]),
     ).toEqual(["quote/a.webp", "quote/b.webp"]);

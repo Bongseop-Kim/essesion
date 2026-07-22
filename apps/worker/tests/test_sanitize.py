@@ -6,9 +6,9 @@
 
 import pytest
 from fastapi.testclient import TestClient
+from svg_safety import HEX_RE, SanitizeError, sanitize_svg, scrub_svg
 from worker.engine.generate import generate
 from worker.main import app
-from worker.render.sanitize import HEX_RE, SanitizeError, sanitize_svg, scrub_svg
 
 from .intent_helpers import mvp_intent, register_test_motifs
 

@@ -594,7 +594,7 @@ export type AdminCustomerCouponOut = {
      */
     terms_snapshot: {
         [key: string]: unknown;
-    } | null;
+    };
     /**
      * Used At
      */
@@ -1292,23 +1292,13 @@ export type AdminProductCreateRequest = {
 };
 
 /**
- * AdminProductDetailImageLegacyRef
- */
-export type AdminProductDetailImageLegacyRef = {
-    /**
-     * Legacy Url
-     */
-    legacy_url: string;
-};
-
-/**
  * AdminProductDetailImageOut
  */
 export type AdminProductDetailImageOut = {
     /**
      * Upload Id
      */
-    upload_id: string | null;
+    upload_id: string;
     /**
      * Url
      */
@@ -1360,7 +1350,7 @@ export type AdminProductDetailOut = {
     /**
      * Image Upload Id
      */
-    image_upload_id: string | null;
+    image_upload_id: string;
     /**
      * Info
      */
@@ -1590,7 +1580,7 @@ export type AdminProductUpdateRequest = {
     /**
      * Detail Images
      */
-    detail_images?: Array<AdminProductDetailImageUploadRef | AdminProductDetailImageLegacyRef> | null;
+    detail_images?: Array<AdminProductDetailImageUploadRef> | null;
     /**
      * Expected Updated At
      */
@@ -1960,7 +1950,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'authoring_canary_percent' | 'authoring_pipeline_mode' | 'authoring_shadow_percent' | 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -1976,7 +1966,7 @@ export type AdminSettingOut = {
     /**
      * Value Type
      */
-    value_type: 'courier' | 'non_negative_integer' | 'enum' | 'percentage';
+    value_type: 'courier' | 'non_negative_integer';
 };
 
 /**
@@ -4453,7 +4443,7 @@ export type IssuedCouponOut = {
      */
     terms_snapshot: {
         [key: string]: unknown;
-    } | null;
+    };
     /**
      * Used At
      */
@@ -5330,7 +5320,7 @@ export type OrderItemOut = {
      */
     item_data: {
         [key: string]: unknown;
-    } | null;
+    };
     /**
      * Item Id
      */
@@ -6103,7 +6093,7 @@ export type PaymentIncidentDetailOut = {
     /**
      * Expected Amount
      */
-    expected_amount: number | null;
+    expected_amount: number;
     /**
      * Id
      */
@@ -6173,7 +6163,7 @@ export type PaymentIncidentSummaryOut = {
     /**
      * Expected Amount
      */
-    expected_amount: number | null;
+    expected_amount: number;
     /**
      * Id
      */
@@ -7438,17 +7428,13 @@ export type SeamlessDetailOut = {
      */
     prompt: string | null;
     /**
-     * Reference Image Available
-     */
-    reference_image_available: boolean;
-    /**
      * Reference Image Bytes
      */
     reference_image_bytes: number | null;
     /**
-     * Reference Image Id
+     * Reference Images
      */
-    reference_image_id: string | null;
+    reference_images: Array<SeamlessReferenceImageOut>;
     /**
      * Registry Version
      */
@@ -7477,6 +7463,28 @@ export type SeamlessDetailOut = {
      * Warning Groups
      */
     warning_groups: Array<SeamlessWarningOut>;
+};
+
+/**
+ * SeamlessReferenceImageOut
+ */
+export type SeamlessReferenceImageOut = {
+    /**
+     * Available
+     */
+    available: boolean;
+    /**
+     * Image Id
+     */
+    image_id: string;
+    /**
+     * Ordinal
+     */
+    ordinal: number;
+    /**
+     * Purpose
+     */
+    purpose: 'auto' | 'color_mood' | 'motif' | 'composition';
 };
 
 /**
@@ -7616,7 +7624,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'authoring_canary_percent' | 'authoring_pipeline_mode' | 'authoring_shadow_percent' | 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Value
      */

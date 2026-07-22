@@ -27,7 +27,7 @@ async def test_owner_only_resource(case: OwnerCase, client, db_session, settings
     as_admin = await client.request(
         case.method, url, json=body, headers=auth_headers(admin, settings)
     )
-    assert as_admin.status_code not in (401, 403), f"{case.name}: 관리자는 인가 통과해야 함"
+    assert as_admin.status_code == 401, f"{case.name}: admin 세션은 store 경로와 분리돼야 함"
 
 
 @pytest.mark.parametrize("case", ADMIN_CASES, ids=lambda c: c.name)

@@ -21,13 +21,13 @@ from obs import request_id_var
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
+from svg_safety import scrub_svg
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
 from worker.adapters.gemini import (
     ReferenceImage,
     SemanticMismatch,
-    normalize_stripes,
     prepare_reference_image,
 )
 from worker.authoring.promotion import (
@@ -36,7 +36,6 @@ from worker.authoring.promotion import (
     scan_promotion_candidates,
 )
 from worker.authoring.retrieval import retrieve_examples
-from worker.authoring.rollout import load_authoring_runtime_settings, select_authoring_cohort
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -69,7 +68,6 @@ from worker.motifs.store import get_motifs
 from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH, text_to_svg
 from worker.render.fabric import FabricError, render_fabric
 from worker.render.raster import RasterError, RasterLimitError, rasterize_svg
-from worker.render.sanitize import scrub_svg
 
 generate_router = APIRouter()
 finalize_router = APIRouter()
@@ -381,36 +379,43 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                 generate_ms = round((time.perf_counter() - started) * 1000, 3)
             try:
                 await session.rollback()
-                session.add(
-                    SeamlessGenerationLog(
-                        request_id=request_id_var.get(),
-                        input_type=(
-                            "intent"
-                            if body.intent is not None
-                            else "reference_image"
-                            if body.reference_images
-                            else "prompt"
-                        ),
-                        prompt=body.prompt,
-                        has_reference_image=bool(body.reference_images),
-                        reference_image_bytes=(
-                            sum(item.size_bytes for item in body.reference_images) or None
-                        ),
-                        reference_image_id=(
-                            body.reference_images[0].image_id if body.reference_images else None
-                        ),
-                        colorway=body.colorway,
-                        seed=body.seed,
-                        candidate_count_requested=body.candidate_count,
-                        warnings=[],
-                        generate_ms=generate_ms,
-                        render_ms=request.state.generation_render_ms,
-                        status="error",
-                        error_type=error_type,
-                        error_message=error_message,
-                        diagnostics=request.state.generation_diagnostics,
-                    )
+                log = SeamlessGenerationLog(
+                    request_id=request_id_var.get(),
+                    input_type=(
+                        "intent"
+                        if body.intent is not None
+                        else "reference_image"
+                        if body.reference_images
+                        else "prompt"
+                    ),
+                    prompt=body.prompt,
+                    has_reference_image=bool(body.reference_images),
+                    reference_image_bytes=(
+                        sum(item.size_bytes for item in body.reference_images) or None
+                    ),
+                    colorway=body.colorway,
+                    seed=body.seed,
+                    candidate_count_requested=body.candidate_count,
+                    warnings=[],
+                    generate_ms=generate_ms,
+                    render_ms=request.state.generation_render_ms,
+                    status="error",
+                    error_type=error_type,
+                    error_message=error_message,
+                    diagnostics=request.state.generation_diagnostics,
                 )
+                session.add(log)
+                if body.reference_images:
+                    await session.flush()
+                    for ordinal, item in enumerate(body.reference_images):
+                        session.add(
+                            SeamlessGenerationAttachment(
+                                log_id=log.id,
+                                image_id=item.image_id,
+                                purpose=item.purpose,
+                                ordinal=ordinal,
+                            )
+                        )
                 await session.commit()
             except Exception:
                 logger.exception("generation error log persistence failed")
@@ -673,9 +678,7 @@ async def generate(
             _record_adapter_failure(request, exc, stage="authoring")
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        def _validate(intent_raw: dict, *, normalize_diagonal: bool) -> list[str] | None:
-            if normalize_diagonal:
-                normalize_stripes(intent_raw, settings)  # v2 대각 stripe 호환 계약
+        def _validate(intent_raw: dict) -> list[str] | None:
             try:
                 constrained = apply_generation_constraints(
                     intent_raw, palette=body.palette, pattern=body.pattern_constraints
@@ -720,97 +723,45 @@ async def generate(
                 top_k=5,
             )
         request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
-        authoring_runtime = await load_authoring_runtime_settings(session)
-        cohort = select_authoring_cohort(authoring_runtime, request_id_var.get() or "")
+        retrieval_started = time.perf_counter()
+        reference_capable_count = sum(
+            image.purpose in {"motif", "auto"} for image in body.reference_images
+        )
+        available_motif_count = min(
+            2,
+            len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
+        )
+        async with request.app.state.sessionmaker() as retrieval_session:
+            retrieval = await retrieve_examples(
+                retrieval_session,
+                author_prompt,
+                embedding_client=embedding,
+                embedding_model=getattr(embedding, "model", settings.embedding_model),
+                available_motif_count=available_motif_count,
+                pattern_constraints=body.pattern_constraints,
+            )
         request.state.generation_diagnostics.update(
             {
-                "authoring_pipeline_mode": authoring_runtime.authoring_pipeline_mode,
-                "authoring_cohort": cohort.pipeline,
-                "authoring_settings_status": authoring_runtime.status,
-                "authoring_settings_reason": authoring_runtime.reason,
+                "example_retrieval_status": retrieval.status,
+                "example_retrieval_reason": retrieval.reason,
+                "example_retrieval_ms": round((time.perf_counter() - retrieval_started) * 1000, 3),
+                "selected_examples": retrieval.diagnostics(),
             }
         )
 
-        async def _author_legacy(sink: dict[str, object]):
-            return await gemini.author_designs(
+        authoring_started = time.perf_counter()
+        try:
+            designs = await gemini.author_designs(
                 author_prompt,
-                validate=lambda raw: _validate(raw, normalize_diagonal=True),
-                reference_images=reference_images,
-                motif_ids=body.motif_ids,
-                catalog_candidates=catalog_candidates,
-                palette_constraint=body.palette,
-                pattern_constraints=body.pattern_constraints,
-                diagnostics=sink,
-            )
-
-        async def _author_v3(sink: dict[str, object]):
-            retrieval_started = time.perf_counter()
-            reference_capable_count = sum(
-                image.purpose in {"motif", "auto"} for image in body.reference_images
-            )
-            available_motif_count = min(
-                2,
-                len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
-            )
-            async with request.app.state.sessionmaker() as retrieval_session:
-                retrieval = await retrieve_examples(
-                    retrieval_session,
-                    author_prompt,
-                    embedding_client=embedding,
-                    embedding_model=getattr(embedding, "model", settings.embedding_model),
-                    available_motif_count=available_motif_count,
-                    pattern_constraints=body.pattern_constraints,
-                )
-            sink.update(
-                {
-                    "example_retrieval_status": retrieval.status,
-                    "example_retrieval_reason": retrieval.reason,
-                    "example_retrieval_ms": round(
-                        (time.perf_counter() - retrieval_started) * 1000, 3
-                    ),
-                    "selected_examples": retrieval.diagnostics(),
-                }
-            )
-            return await gemini.author_designs_v3(
-                author_prompt,
-                validate=lambda raw: _validate(raw, normalize_diagonal=False),
+                validate=_validate,
                 reference_images=reference_images,
                 motif_ids=body.motif_ids,
                 catalog_candidates=catalog_candidates,
                 palette_constraint=body.palette,
                 pattern_constraints=body.pattern_constraints,
                 examples=retrieval.prompt_examples(),
-                diagnostics=sink,
+                diagnostics=request.state.generation_diagnostics,
             )
-
-        authoring_started = time.perf_counter()
-        try:
-            if cohort.shadow_v3:
-                shadow_diagnostics: dict[str, object] = {}
-                legacy_result, shadow_result = await asyncio.gather(
-                    _author_legacy(request.state.generation_diagnostics),
-                    asyncio.wait_for(_author_v3(shadow_diagnostics), timeout=30.0),
-                    return_exceptions=True,
-                )
-                if isinstance(shadow_result, BaseException):
-                    shadow_diagnostics.update(
-                        {
-                            "status": "error",
-                            "error_type": shadow_result.__class__.__name__,
-                        }
-                    )
-                    if isinstance(shadow_result, AdapterClientError):
-                        shadow_diagnostics["error_reason"] = shadow_result.reason_code
-                else:
-                    shadow_diagnostics["status"] = "success"
-                request.state.generation_diagnostics["v3_shadow"] = shadow_diagnostics
-                if isinstance(legacy_result, BaseException):
-                    raise legacy_result
-                designs = legacy_result
-            elif cohort.pipeline == "v3":
-                designs = await _author_v3(request.state.generation_diagnostics)
-            else:
-                designs = await _author_legacy(request.state.generation_diagnostics)
         except SemanticMismatch as exc:
             request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
             _reject_generation(request, "semantic_mismatch", "authoring")
@@ -950,7 +901,6 @@ async def generate(
         prompt=body.prompt,
         has_reference_image=bool(body.reference_images),
         reference_image_bytes=sum(item.size_bytes for item in body.reference_images) or None,
-        reference_image_id=body.reference_images[0].image_id if body.reference_images else None,
         colorway=body.colorway,
         seed=body.seed,
         candidate_count_requested=body.candidate_count,
@@ -1260,7 +1210,7 @@ async def finalize_task(
         return {"status": "canceled"}
     if job.status == "failed" and job.error_message != FINALIZE_TEMPORARY_FAILURE_MARKER:
         await session.commit()
-        # 입력 오류와 출처를 알 수 없는 legacy 실패는 재실행해도 안전하다는 근거가 없다.
+        # 입력 오류와 원인이 분류되지 않은 실패는 재실행해도 안전하다는 근거가 없다.
         # 명시적인 일시 실패 marker만 Cloud Tasks 재시도 대상으로 인정하고,
         # terminal 상태는 2xx로 ACK해 재전송을 끝낸다.
         return {"status": "failed"}

@@ -122,11 +122,7 @@ async def verify_code(
     if record.locked_at is not None or record.failed_attempts >= MAX_VERIFY_ATTEMPTS:
         raise RateLimitedError("인증번호 시도 횟수를 초과했습니다. 새 인증번호를 요청해주세요.")
     expected = _code_digest(secret, user.id, normalized, code)
-    # 배포 직전 발급된 5분 수명의 legacy 평문 코드만 짧게 호환한다.
-    legacy_matches = (
-        len(record.code) == 6 and record.code.isdigit() and hmac.compare_digest(record.code, code)
-    )
-    if not hmac.compare_digest(record.code, expected) and not legacy_matches:
+    if not hmac.compare_digest(record.code, expected):
         record.failed_attempts += 1
         locked = record.failed_attempts >= MAX_VERIFY_ATTEMPTS
         if locked:

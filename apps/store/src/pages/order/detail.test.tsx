@@ -84,7 +84,7 @@ const order: OrderDetailOut = {
       item_type: "product",
       product_id: 1,
       selected_option_id: null,
-      item_data: null,
+      item_data: {},
       quantity: 1,
       unit_price: 10_000,
       discount_amount: 0,

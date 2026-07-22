@@ -89,11 +89,7 @@ export type { IconProps } from "./components/icon";
 export { Icon } from "./components/icon";
 export type { ImageFrameProps } from "./components/image-frame";
 export { ImageFrame } from "./components/image-frame";
-export type {
-  AnchoredPlacement,
-  // 기존 소비자 호환 alias — 신규 코드는 AnchoredPlacement를 사용할 것.
-  AnchoredPlacement as HelpBubblePlacement,
-} from "./components/internal/anchored-position";
+export type { AnchoredPlacement } from "./components/internal/anchored-position";
 export type { LayoutContentProps } from "./components/layout";
 export { Layout, LayoutContent } from "./components/layout";
 export type {

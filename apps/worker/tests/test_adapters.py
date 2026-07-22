@@ -10,19 +10,13 @@ import httpx
 import pytest
 import respx
 from google import genai
+from svg_safety import parse_svg_tree
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import EmbeddingError, VertexEmbeddingClient, embed_query
 from worker.adapters.gemini import (
-    _DESIGN_PLAN_SCHEMA,
-    _DIRECTION_ANGLE_DEG,
-    AUTHORING_V3_SYSTEM_INSTRUCTION,
-    DesignPlan,
-    DesignPlans,
+    AUTHORING_SYSTEM_INSTRUCTION,
     GeminiClient,
-    PlanMotif,
     ReferenceImage,
-    SemanticMismatch,
-    compile_design_plan,
 )
 from worker.adapters.recraft import (
     RecraftError,
@@ -36,11 +30,7 @@ from worker.config import Settings
 from worker.engine.constraints import (
     PaletteConstraint,
     PatternConstraints,
-    apply_generation_constraints,
-    assert_constraints_satisfied,
 )
-from worker.engine.validate import IntentInvalid, validate_intent
-from worker.render.sanitize import parse_svg_tree
 
 _SETTINGS = Settings(motif_render_check=False, recraft_max_color_slots=6)
 
@@ -309,67 +299,6 @@ async def test_embedding_client_error_raises():
 
 # ---- Gemini ----
 
-_VALID_PLANS = {
-    "plans": [
-        {
-            "motifs": [{"subject": "dot", "scope": "whole", "style": "flat"}],
-            "colors": ["#10243A", "#EF8A7A"],
-            "arrangement": "lattice",
-            "density": "medium",
-            "scale": "small",
-            "direction": "diagonal",
-            "stripes": False,
-        },
-        {
-            "motifs": [{"subject": "circle", "scope": "whole"}],
-            "colors": ["#F4F0E8", "#334455"],
-            "arrangement": "scatter",
-            "density": "sparse",
-            "scale": "medium",
-            "direction": "horizontal",
-            "stripes": True,
-        },
-    ]
-}
-
-
-async def test_gemini_retries_on_503_then_succeeds(monkeypatch):
-    slept: list[float] = []
-
-    async def _fake_sleep(s: float) -> None:
-        slept.append(s)
-
-    monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", _fake_sleep)
-    client, sdk = _gemini(_SDKError(503), _SDKError(503), _VALID_PLANS)
-    designs = await client.author_designs("dots", motif_ids=["private-dot"])
-    assert len(sdk.models.generate_calls) == 3
-    assert slept == [0.5, 1.0]  # 백오프 순서
-    assert len(designs) == 2
-    motif_layer = next(layer for layer in designs[0].intent["layers"] if layer["type"] == "motif")
-    assert motif_layer["params"]["motif_id"] == "private-dot"
-    config = sdk.models.generate_calls[-1]["config"]
-    assert config.response_schema["required"] == ["plans"]
-
-
-async def test_gemini_sends_reference_images_before_text_prompt():
-    client, sdk = _gemini(_VALID_PLANS)
-    image = ReferenceImage(data=b"safe-jpeg", mime_type="image/jpeg", purpose="composition")
-    designs = await client.author_designs(
-        "photo colors",
-        reference_images=[image],
-        motif_ids=["upload-a1b2c3d4e5f6"],
-    )
-
-    assert len(designs) == 2
-    parts = sdk.models.generate_calls[-1]["contents"][0].parts
-    assert parts[0].inline_data.mime_type == "image/jpeg"
-    assert parts[0].inline_data.data == b"safe-jpeg"
-    assert "attached photos" in parts[-1].text
-    assert "image 1: purpose=composition" in parts[-1].text
-    assert "ONLY for that role" in parts[-1].text
-    assert "1 exact private motif assets" in parts[-1].text
-    assert "upload-a1b2c3d4e5f6" not in parts[-1].text
-
 
 async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
     valid = {
@@ -423,33 +352,7 @@ async def _noop() -> None:
     return None
 
 
-async def test_gemini_reprompts_invalid_plan_shape_and_records_diagnostics():
-    client, sdk = _gemini({"plans": []}, _VALID_PLANS)
-    diagnostics: dict[str, object] = {}
-    designs = await client.author_designs(
-        "dots", motif_ids=["private-dot"], diagnostics=diagnostics
-    )
-
-    assert len(designs) == 2
-    assert len(sdk.models.generate_calls) == 2
-    assert diagnostics == {
-        "model": "gemini-2.5-flash-lite",
-        "prompt_revision": "design-plan-v2-catalog-grounded",
-        "authoring_attempts": 2,
-        "plan_count": 2,
-        "validated_count": 2,
-    }
-
-
-async def test_gemini_all_invalid_reprompts_then_422(monkeypatch):
-    monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
-    client, sdk = _gemini(_VALID_PLANS, _VALID_PLANS)
-    with pytest.raises(IntentInvalid):
-        await client.author_designs("dots", validate=lambda raw: ["forced invalid"])
-    assert len(sdk.models.generate_calls) == 2  # 최초 + constrained 재프롬프트 1회
-
-
-async def test_gemini_v3_uses_typed_schema_few_shot_and_retries_palette_only_duplicates():
+async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplicates():
     examples = load_example_set()
     stripe_a = examples[1]
     stripe_b = examples[2]
@@ -481,7 +384,7 @@ async def test_gemini_v3_uses_typed_schema_few_shot_and_retries_palette_only_dup
     client, sdk = _gemini(duplicate_response, valid_response)
     diagnostics: dict[str, object] = {}
 
-    designs = await client.author_designs_v3(
+    designs = await client.author_designs(
         "굵기가 다른 대각 스트라이프",
         examples=[stripe_a.prompt_example(), stripe_b.prompt_example()],
         diagnostics=diagnostics,
@@ -492,7 +395,7 @@ async def test_gemini_v3_uses_typed_schema_few_shot_and_retries_palette_only_dup
     assert len(sdk.models.generate_calls) == 2
     first_call = sdk.models.generate_calls[0]
     assert first_call["config"].response_schema is DesignPlansV3
-    assert first_call["config"].system_instruction == AUTHORING_V3_SYSTEM_INSTRUCTION
+    assert first_call["config"].system_instruction == AUTHORING_SYSTEM_INSTRUCTION
     prompt = first_call["contents"][0].parts[-1].text
     assert stripe_a.example_id in prompt
     assert "tile_mm" not in prompt
@@ -500,259 +403,6 @@ async def test_gemini_v3_uses_typed_schema_few_shot_and_retries_palette_only_dup
     assert diagnostics["plan_contract_version"] == 3
     assert diagnostics["authoring_attempts"] == 2
     assert diagnostics["validated_count"] == 2
-
-
-def test_design_plan_schema_matches_pydantic_contract():
-    """_DESIGN_PLAN_SCHEMA(프로바이더 응답 스키마)와 DesignPlan Pydantic 제약의 드리프트 가드."""
-    plans_schema = _DESIGN_PLAN_SCHEMA["properties"]["plans"]
-    plans_model = DesignPlans.model_json_schema()["properties"]["plans"]
-    assert plans_schema["minItems"] == plans_model["minItems"]
-    assert plans_schema["maxItems"] == plans_model["maxItems"]
-
-    plan_schema = plans_schema["items"]["properties"]
-    plan_model = DesignPlan.model_json_schema()["properties"]
-    for field in ("arrangement", "density", "scale", "direction"):
-        assert plan_schema[field]["enum"] == plan_model[field]["enum"]
-    assert plan_schema["direction"]["enum"] == list(_DIRECTION_ANGLE_DEG)
-    assert plan_schema["motifs"]["maxItems"] == plan_model["motifs"]["maxItems"]
-    assert plan_schema["colors"]["minItems"] == plan_model["colors"]["minItems"]
-    assert plan_schema["colors"]["maxItems"] == plan_model["colors"]["maxItems"]
-
-    scope_schema = plan_schema["motifs"]["items"]["properties"]["scope"]
-    scope_model = PlanMotif.model_json_schema()["properties"]["scope"]
-    assert scope_schema["enum"] == scope_model["enum"]
-
-
-def test_design_plan_compiler_is_deterministic_and_uses_exact_motifs():
-    plan = DesignPlan.model_validate(_VALID_PLANS["plans"][0])
-    first = compile_design_plan(plan, plan_index=0, motif_ids=["private-motif"])
-    second = compile_design_plan(plan, plan_index=0, motif_ids=["private-motif"])
-
-    assert first == second
-    motif_layers = [layer for layer in first.intent["layers"] if layer["type"] == "motif"]
-    assert motif_layers[0]["params"]["motif_id"] == "private-motif"
-    assert all(spec["layer_id"] != motif_layers[0]["id"] for spec in first.motif_specs)
-
-
-def test_design_plan_compiler_resolves_verified_catalog_ref_without_exposing_it_to_engine():
-    raw = {**_VALID_PLANS["plans"][0], "motifs": [{"catalog_ref": "catalog_1"}]}
-    design = compile_design_plan(
-        DesignPlan.model_validate(raw),
-        plan_index=0,
-        catalog_candidates=[
-            {
-                "catalog_ref": "catalog_1",
-                "motif_id": "recraft-chess123456",
-                "subject": "chess",
-                "description": "chess king outline",
-                "style": "outline",
-                "similarity": 1.0,
-                "match_type": "exact_token",
-            }
-        ],
-    )
-
-    motif_layer = next(layer for layer in design.intent["layers"] if layer["type"] == "motif")
-    assert motif_layer["params"]["motif_id"] == "recraft-chess123456"
-    assert design.motif_specs == []
-    assert design.motif_resolutions == [
-        {
-            "layer_id": "motif_0",
-            "scope": "whole",
-            "outcome": "prompt_catalog",
-            "motif_id": "recraft-chess123456",
-            "subject": "chess",
-            "similarity": 1.0,
-            "match_type": "exact_token",
-        }
-    ]
-
-
-def test_exact_motif_uses_only_explicit_motif_reference_in_remaining_slot():
-    raw = {
-        **_VALID_PLANS["plans"][0],
-        "motifs": [
-            {"subject": "ignored prompt flower", "scope": "whole"},
-            {
-                "subject": "bird from photo",
-                "scope": "partial",
-                "reference_image_index": 1,
-            },
-        ],
-    }
-    design = compile_design_plan(
-        DesignPlan.model_validate(raw),
-        plan_index=0,
-        motif_ids=["upload-exact"],
-        reference_motif_indexes={1},
-    )
-
-    motif_layers = [layer for layer in design.intent["layers"] if layer["type"] == "motif"]
-    assert [layer["params"]["motif_id"] for layer in motif_layers] == [
-        "upload-exact",
-        "semantic_1",
-    ]
-    assert design.motif_specs == [
-        {
-            "layer_id": "motif_1",
-            "subject": "bird from photo",
-            "scope": "whole",
-            "reference_image_index": 1,
-            "required": True,
-        }
-    ]
-
-
-async def test_catalog_grounding_retries_then_raises_semantic_mismatch_without_exposing_id():
-    client, sdk = _gemini(_VALID_PLANS, _VALID_PLANS)
-    with pytest.raises(SemanticMismatch):
-        await client.author_designs(
-            "chess pattern",
-            catalog_candidates=[
-                {
-                    "catalog_ref": "catalog_1",
-                    "motif_id": "recraft-secret-id",
-                    "subject": "chess",
-                    "description": "chess king outline",
-                    "style": "outline",
-                    "similarity": 1.0,
-                    "match_type": "exact_token",
-                }
-            ],
-        )
-
-    assert len(sdk.models.generate_calls) == 2
-    prompt = sdk.models.generate_calls[-1]["contents"][0].parts[-1].text
-    assert "catalog_1" in prompt
-    assert "recraft-secret-id" not in prompt
-
-
-async def test_catalog_candidates_do_not_relabel_unrelated_validation_failure():
-    grounded = {
-        "plans": [
-            {
-                **_VALID_PLANS["plans"][0],
-                "motifs": [{"catalog_ref": "catalog_1"}],
-            },
-            {
-                **_VALID_PLANS["plans"][1],
-                "motifs": [{"catalog_ref": "catalog_1"}],
-            },
-        ]
-    }
-    client, _ = _gemini(grounded, grounded)
-    with pytest.raises(IntentInvalid) as caught:
-        await client.author_designs(
-            "chess pattern",
-            catalog_candidates=[
-                {
-                    "catalog_ref": "catalog_1",
-                    "motif_id": "recraft-chess123456",
-                    "subject": "chess",
-                    "description": "chess king outline",
-                    "style": "outline",
-                    "similarity": 1.0,
-                    "match_type": "exact_token",
-                }
-            ],
-            validate=lambda _intent: ["unrelated fixed constraint failure"],
-        )
-
-    assert type(caught.value) is IntentInvalid
-
-
-async def test_chess_prompt_compiles_all_four_plans_to_verified_chess_catalog_ids():
-    plans = []
-    for index in range(4):
-        plans.append(
-            {
-                **_VALID_PLANS["plans"][index % 2],
-                "motifs": [{"catalog_ref": f"catalog_{(index % 2) + 1}"}],
-            }
-        )
-    client, _ = _gemini({"plans": plans})
-    catalog = [
-        {
-            "catalog_ref": "catalog_1",
-            "motif_id": "seed-chess-king",
-            "subject": "chess",
-            "description": "chess king outline",
-            "style": "outline",
-            "similarity": 1.0,
-            "match_type": "exact_token",
-        },
-        {
-            "catalog_ref": "catalog_2",
-            "motif_id": "seed-chess-knight",
-            "subject": "chess",
-            "description": "chess knight outline",
-            "style": "outline",
-            "similarity": 1.0,
-            "match_type": "exact_token",
-        },
-    ]
-
-    designs = await client.author_designs(
-        "chess 패턴 디자인해주세요",
-        catalog_candidates=catalog,
-    )
-
-    assert len(designs) == 4
-    assert all(design.motif_specs == [] for design in designs)
-    assert {
-        layer["params"]["motif_id"]
-        for design in designs
-        for layer in design.intent["layers"]
-        if layer["type"] == "motif"
-    } == {"seed-chess-king", "seed-chess-knight"}
-
-
-def test_design_plan_compiler_makes_every_fixed_color_visible():
-    plan = DesignPlan.model_validate(_VALID_PLANS["plans"][0])
-    design = compile_design_plan(
-        plan,
-        plan_index=0,
-        motif_ids=["private-dot"],
-        palette_constraint=PaletteConstraint(
-            mode="fixed",
-            colors=["#111111", "#333333", "#555555", "#777777", "#999999"],
-        ),
-    )
-
-    stripe = next(layer for layer in design.intent["layers"] if layer["type"] == "stripe")
-    assert {band["color"] for band in stripe["params"]["bands"]} == {
-        "color_1",
-        "color_2",
-        "color_3",
-        "color_4",
-    }
-    constrained = apply_generation_constraints(
-        design.intent,
-        palette=PaletteConstraint(
-            mode="fixed",
-            colors=["#111111", "#333333", "#555555", "#777777", "#999999"],
-        ),
-        pattern=PatternConstraints(
-            motif_scale="large",
-            density="dense",
-            arrangement="staggered",
-            direction="diagonal",
-        ),
-    )
-    validated = validate_intent(constrained, repair=True)
-    assert_constraints_satisfied(
-        validated.intent,
-        palette=PaletteConstraint(
-            mode="fixed",
-            colors=["#111111", "#333333", "#555555", "#777777", "#999999"],
-        ),
-        pattern=PatternConstraints(
-            motif_scale="large",
-            density="dense",
-            arrangement="staggered",
-            direction="diagonal",
-        ),
-    )
 
 
 async def test_clients_reuse_and_close_http_pool():
@@ -771,63 +421,6 @@ async def test_clients_reuse_and_close_http_pool():
     assert pool.is_closed
     assert gemini_sdk.aio.closed
     assert embedding_sdk.aio.closed
-
-
-def _stripe_intent(angle: float = -36.87) -> dict:
-    from .intent_helpers import mvp_intent
-
-    raw = mvp_intent()
-    stripe = next(layer for layer in raw["layers"] if layer["type"] == "stripe")
-    stripe["params"]["angle"] = angle
-    return raw
-
-
-def _stripe_params(raw: dict) -> dict:
-    return next(layer for layer in raw["layers"] if layer["type"] == "stripe")["params"]
-
-
-def test_normalize_stripes_forces_diagonal_to_minus_45():
-    import math
-
-    from worker.adapters.gemini import normalize_stripes
-
-    raw = _stripe_intent(angle=30.0)
-    before = _stripe_params(raw)
-    old_period = before["period_mm"]
-    old_widths = [b["width_mm"] for b in before["bands"]]
-
-    normalize_stripes(raw, _SETTINGS)
-    st = _stripe_params(raw)
-    tile = raw["canvas"]["tile_mm"]
-    assert st["angle"] == -45.0
-    assert abs(st["period_mm"] - tile / math.sqrt(2)) < 1e-3  # repeats=2 → k=1
-    scale = (tile / math.sqrt(2)) / old_period  # 반올림 전 target으로 스케일 (구현과 동일)
-    for got, old in zip([b["width_mm"] for b in st["bands"]], old_widths, strict=True):
-        assert abs(got - old * scale) < 1e-5  # 밴드 비례 스케일
-
-
-@pytest.mark.parametrize("angle", [0.0, 90.0, -90.0, 5.0, 85.0])
-def test_normalize_stripes_preserves_axis_aligned(angle):
-    from worker.adapters.gemini import normalize_stripes
-
-    raw = _stripe_intent(angle=angle)
-    old_period = _stripe_params(raw)["period_mm"]
-    normalize_stripes(raw, _SETTINGS)
-    st = _stripe_params(raw)
-    assert st["angle"] == angle  # 0/90 ± 8° 존중
-    assert st["period_mm"] == old_period
-
-
-def test_normalize_stripes_repeats_controls_k():
-    import math
-
-    from worker.adapters.gemini import normalize_stripes
-
-    raw = _stripe_intent(angle=30.0)
-    normalize_stripes(raw, Settings(stripe_diagonal_repeats=4))
-    st = _stripe_params(raw)
-    tile = raw["canvas"]["tile_mm"]
-    assert abs(st["period_mm"] - tile / (2 * math.sqrt(2))) < 1e-3  # k=2 → 타일당 4줄
 
 
 async def test_request_scoped_embedding_memoizes():

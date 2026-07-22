@@ -1,8 +1,7 @@
 # Authoring Plan v3 운영·승격 계약
 
 관리자 UI는 prompt와 Plan 본문을 편집하지 않는다. 개발자와 관리자는 생성 결과의 근거를
-추적하고, RAG 예시 후보를 검토하며, 승인된 예시의 활성 상태와 파이프라인 rollout만
-관리한다.
+추적하고, RAG 예시 후보를 검토하며 승인된 예시의 활성 상태를 관리한다.
 
 ## 저작 계약과 런타임 정본
 
@@ -95,17 +94,11 @@ embedding/DB 오류나 빈 active 집합은 상태 코드만 진단에 남기고
 경로를 계속한다. provider에게 golden engine JSON, 내부 motif ID, SVG 또는 embedding을
 보내지 않는다.
 
-## Rollout 설정과 롤백
+## 런타임 경로
 
-`authoring_pipeline_mode`, `authoring_shadow_percent`, `authoring_canary_percent`는
-`admin_settings`와 기존 관리자 설정 화면에서 관리한다. 환경 변수는 사용하지 않는다.
-허용 mode는 `legacy|shadow|canary|v3`, percent 범위는 `0..100`이다. 키가 없거나 값이
-잘못되면 요청을 실패시키지 않고 `legacy`로 닫히며 진단에 원인을 남긴다.
-
-권장 순서는 `legacy → shadow 5% → shadow 100% → canary 5~10% → canary 확대 → v3`다.
-cohort는 request ID SHA-256 bucket이라 같은 ID에서 안정적이다. shadow는 사용자 응답을
-legacy가 결정하고 제한 시간 안의 v3 결과는 진단만 남긴다. canary/v3는 숨은 legacy
-fallback을 두지 않는다. 즉시 롤백은 관리자 설정에서 mode를 `legacy`로 바꾸는 것이다.
+모든 요청은 Plan v3 계약과 compiler를 사용한다. 별도 mode, 비율, cohort, shadow 실행이나
+이전 저작 경로 fallback은 없다. 배포 전 평가에서 기준을 만족하지 못하면 코드를 수정한 뒤
+다시 검증하며, 실행 중 설정으로 이전 구현을 되살리지 않는다.
 
 ## 평가와 추적
 
@@ -113,11 +106,11 @@ fallback을 두지 않는다. 즉시 롤백은 관리자 설정에서 mode를 `l
 
 ```bash
 uv run python apps/worker/scripts/eval_authoring.py \
-  --confirm-live --pipeline legacy --pipeline v3
+  --confirm-live
 ```
 
 평가는 schema/compiler 성공률, 구조 다양성, 유효·고유 구조 수, retrieval family recall,
-재시도, 평균/p95 latency와 안전한 실패 분류를 보고한다. generation diagnostics에는 pipeline
-mode/cohort, model, prompt/contract/compiler revision, retrieval 상태와 선택 example
+재시도, 평균/p95 latency와 안전한 실패 분류를 보고한다. generation diagnostics에는 model,
+prompt/contract/compiler revision, retrieval 상태와 선택 example
 ID/family/similarity, 구조 fingerprint와 오류 유형을 남긴다. prompt나 provider 응답 원문은
 평가 보고서에 복제하지 않는다.

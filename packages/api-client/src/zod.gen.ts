@@ -184,7 +184,7 @@ export const zAdminCustomerCouponOut = z.object({
     id: z.uuid(),
     issued_at: z.iso.datetime(),
     status: z.string(),
-    terms_snapshot: z.record(z.string(), z.unknown()).nullable(),
+    terms_snapshot: z.record(z.string(), z.unknown()),
     used_at: z.iso.datetime().nullable()
 });
 
@@ -390,17 +390,10 @@ export const zAdminOrderStatusLogOut = z.object({
 });
 
 /**
- * AdminProductDetailImageLegacyRef
- */
-export const zAdminProductDetailImageLegacyRef = z.object({
-    legacy_url: z.string().min(1).max(2048)
-});
-
-/**
  * AdminProductDetailImageOut
  */
 export const zAdminProductDetailImageOut = z.object({
-    upload_id: z.uuid().nullable(),
+    upload_id: z.uuid(),
     url: z.string()
 });
 
@@ -539,7 +532,7 @@ export const zAdminProductUpdateRequest = z.object({
         'beige',
         'silver'
     ]).nullish(),
-    detail_images: z.array(z.union([zAdminProductDetailImageUploadRef, zAdminProductDetailImageLegacyRef])).max(20).nullish(),
+    detail_images: z.array(zAdminProductDetailImageUploadRef).max(20).nullish(),
     expected_updated_at: z.iso.datetime(),
     image_upload_id: z.uuid().nullish(),
     info: z.string().nullish(),
@@ -676,9 +669,6 @@ export const zAdminRepairPhotoOut = z.object({
  */
 export const zAdminSettingOut = z.object({
     key: z.enum([
-        'authoring_canary_percent',
-        'authoring_pipeline_mode',
-        'authoring_shadow_percent',
         'default_courier_company',
         'design_finalize_daily_limit',
         'design_token_initial_grant'
@@ -686,12 +676,7 @@ export const zAdminSettingOut = z.object({
     updated_at: z.iso.datetime(),
     updated_by: z.uuid().nullable(),
     value: z.string(),
-    value_type: z.enum([
-        'courier',
-        'non_negative_integer',
-        'enum',
-        'percentage'
-    ])
+    value_type: z.enum(['courier', 'non_negative_integer'])
 });
 
 /**
@@ -1627,7 +1612,7 @@ export const zIssuedCouponOut = z.object({
     id: z.uuid(),
     issued_at: z.iso.datetime(),
     status: z.string(),
-    terms_snapshot: z.record(z.string(), z.unknown()).nullable(),
+    terms_snapshot: z.record(z.string(), z.unknown()),
     used_at: z.iso.datetime().nullable(),
     user_email: z.string().nullable(),
     user_id: z.uuid(),
@@ -1891,7 +1876,7 @@ export const zOrderItemOut = z.object({
     claim: zClaimBadgeOut.nullish(),
     discount_amount: z.int(),
     id: z.uuid(),
-    item_data: z.record(z.string(), z.unknown()).nullable(),
+    item_data: z.record(z.string(), z.unknown()),
     item_id: z.string(),
     item_type: z.string(),
     line_discount_amount: z.int(),
@@ -2268,7 +2253,7 @@ export const zPaymentIncidentDetailOut = z.object({
     claim_number: z.string().nullable(),
     created_at: z.iso.datetime(),
     details: z.record(z.string(), z.unknown()),
-    expected_amount: z.int().nullable(),
+    expected_amount: z.int(),
     id: z.uuid(),
     incident_type: z.string(),
     observed_amount: z.int().nullable(),
@@ -2290,7 +2275,7 @@ export const zPaymentIncidentSummaryOut = z.object({
     actor_id: z.uuid().nullable(),
     claim_id: z.uuid().nullable(),
     created_at: z.iso.datetime(),
-    expected_amount: z.int().nullable(),
+    expected_amount: z.int(),
     id: z.uuid(),
     incident_type: z.string(),
     observed_amount: z.int().nullable(),
@@ -2394,7 +2379,7 @@ export const zAdminProductDetailOut = z.object({
     detail_images: z.array(zAdminProductDetailImageOut).optional(),
     id: z.int(),
     image: z.string(),
-    image_upload_id: z.uuid().nullable(),
+    image_upload_id: z.uuid(),
     info: z.string(),
     material: z.string(),
     name: z.string(),
@@ -2998,6 +2983,21 @@ export const zSampleOrderCreateRequest = z.object({
 });
 
 /**
+ * SeamlessReferenceImageOut
+ */
+export const zSeamlessReferenceImageOut = z.object({
+    available: z.boolean(),
+    image_id: z.uuid(),
+    ordinal: z.int(),
+    purpose: z.enum([
+        'auto',
+        'color_mood',
+        'motif',
+        'composition'
+    ])
+});
+
+/**
  * SeamlessStatsOut
  */
 export const zSeamlessStatsOut = z.object({
@@ -3089,9 +3089,8 @@ export const zSeamlessDetailOut = z.object({
     intents: z.array(z.record(z.string(), z.unknown())),
     outcome: zGenerationOutcomeOut,
     prompt: z.string().nullable(),
-    reference_image_available: z.boolean(),
     reference_image_bytes: z.int().nullable(),
-    reference_image_id: z.uuid().nullable(),
+    reference_images: z.array(zSeamlessReferenceImageOut),
     registry_version: z.string().nullable(),
     render_ms: z.number().nullable(),
     request_id: z.string().nullable(),
@@ -3111,9 +3110,6 @@ export const zSeamlessDetailOut = z.object({
 export const zSettingUpdateItem = z.object({
     expected_updated_at: z.iso.datetime(),
     key: z.enum([
-        'authoring_canary_percent',
-        'authoring_pipeline_mode',
-        'authoring_shadow_percent',
         'default_courier_company',
         'design_finalize_daily_limit',
         'design_token_initial_grant'
@@ -3125,7 +3121,7 @@ export const zSettingUpdateItem = z.object({
  * SettingsUpdateRequest
  */
 export const zSettingsUpdateRequest = z.object({
-    items: z.array(zSettingUpdateItem).min(1).max(6),
+    items: z.array(zSettingUpdateItem).min(1).max(3),
     operation_id: z.uuid(),
     reason: z.string().min(3).max(500)
 });

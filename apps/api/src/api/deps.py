@@ -60,22 +60,6 @@ async def _load_user_with_claims(
     return user, payload
 
 
-async def _load_user(
-    token: str,
-    session,
-    settings: Settings,
-    *,
-    serialize_mutation: bool = False,
-) -> User:
-    user, _ = await _load_user_with_claims(
-        token,
-        session,
-        settings,
-        serialize_mutation=serialize_mutation,
-    )
-    return user
-
-
 async def get_current_user(
     request: Request,
     creds: BearerDep,
@@ -84,12 +68,15 @@ async def get_current_user(
 ) -> User:
     if creds is None:
         raise UnauthorizedError()
-    return await _load_user(
+    user, payload = await _load_user_with_claims(
         creds.credentials,
         session,
         settings,
         serialize_mutation=request.method in MUTATING_METHODS,
     )
+    if payload.get("session_kind") != "store":
+        raise UnauthorizedError()
+    return user
 
 
 async def get_optional_user(
@@ -97,7 +84,10 @@ async def get_optional_user(
 ) -> User | None:
     if creds is None:
         return None
-    return await _load_user(creds.credentials, session, settings)
+    user, payload = await _load_user_with_claims(creds.credentials, session, settings)
+    if payload.get("session_kind") != "store":
+        raise UnauthorizedError()
+    return user
 
 
 async def get_admin_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User:

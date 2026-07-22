@@ -20,7 +20,7 @@ function hasTracking(draft: RepairShipmentDraft): boolean {
   return draft.courierCompany.length > 0 && draft.trackingNumber.length > 0;
 }
 
-/** sessionStorage/location.state에서 읽은 unknown 값 방어 (다른 세션·구버전 스키마) */
+/** sessionStorage/location.state에서 읽은 unknown 값을 검증한다. */
 export function isRepairShipmentDraft(
   value: unknown,
 ): value is RepairShipmentDraft {

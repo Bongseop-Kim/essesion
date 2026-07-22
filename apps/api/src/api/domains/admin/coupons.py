@@ -146,7 +146,7 @@ class IssuedCouponOut(BaseModel):
     issued_at: datetime
     expires_at: datetime | None
     used_at: datetime | None
-    terms_snapshot: dict[str, Any] | None
+    terms_snapshot: dict[str, Any]
 
 
 def _validate_terms(

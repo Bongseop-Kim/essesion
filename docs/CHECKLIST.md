@@ -36,12 +36,12 @@
 ## 2. 스키마 재설계
 
 - [x] 기존 스키마 전수 검토(YeongSeon `supabase/schemas`) — *enum·뷰 19종·DB함수 ~40종·트리거 17종·부분 인덱스까지 대조*
-- [x] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로 — *35테이블, `db/src/db/models/`*
+- [x] 새 스키마 설계 — 도메인·데이터 의미 보존, generate-tile 잔재(ai_generation_logs 등)·LangGraph checkpoint·미사용 뷰 제외, DB함수 로직은 api로 — *42테이블, `db/src/db/models/`*
 - [x] **기존→새 스키마 매핑 표 작성** — `db/MAPPING.md` (테이블·함수/트리거 소유 이동·이관 정책)
 - [x] Alembic 첫 리비전 생성·로컬 적용 — *베이스라인 리비전 생성, 로컬 upgrade와 `alembic check` 드리프트 0*
 - [x] 후기·공개 문의 스키마 확장 — *`reviews` 신규 테이블과 문의 `is_secret`·`샘플제작`·공개 목록 인덱스를 Alembic 리비전 2개로 적용, `alembic check` 드리프트 0 (`docs/plans/store-reviews.md`)*
 - [ ] Alembic 스테이징 적용 — *4단계 첫 배포의 migrate Cloud Run job 성공과 단일 head를 확인한 뒤 체크*
-- [x] 데이터 변환 스크립트 초안(상품·단가·모티프 등 — 유저·이미지 제외) — *`db/scripts/migrate_data.py`, 유저 종속은 3단계 유저 매칭 확정 후 스텁 해제*
+- [x] 미배포 스키마 정리 — *22개 단계적 revision과 데이터 변환 스크립트를 삭제하고 `dadd999bf858` 단일 베이스라인으로 재생성했다. 이전 개발 DB는 데이터 변환 없이 drop/recreate하며, 1536차원 motif 컬럼·단일 참고 이미지 FK와 관련 호환 코드를 제거했다.*
 
 ## 3. api 1차
 
@@ -67,7 +67,7 @@
 - [x] 리팩토링(원본 대조 점검 후속): config 검증·defusedxml·resolver 가드·어댑터 수명·stripe 정규화·/export 배선·프리뷰 병렬화·render/weave 분리 — *스펙 `docs/specs/worker-refactor.md` R1~R15 완료. 당시 별도 5단계 트랙으로 분리한 text·사진 모티프의 현재 상태도 같은 스펙 하단에 갱신, 실행 기록 `docs/plans/worker-refactor.md`*
 - [x] 전체 감사 후 worker 실행 경계 하드닝 — *finalize 960초 processing lease+attempt 조건부 terminal update(실 Postgres 통합 테스트), invalid input만 terminal 처리하고 그 밖의 예외는 temporary marker+500으로 다음 delivery에서 재실행, 공개 오류 코드로 raw 예외 노출 차단, motif read savepoint로 앞선 미커밋 upsert 보존, generate/finalize `SERVICE_MODE` 라우터·OIDC audience 분리, Cloud Tasks audience·910초 dispatch deadline 정합화, path/lattice/scatter/stripe 반복량 사전 상한, Poisson 공간 격자, 래스터 20M pixel·120초 timeout, preview/Cloud Run 동시성 제한, Recraft strict base64/바이트 상한(URL 2차 요청 제거).*
 - [x] Gemini 저작 실패율 개선 — *모델의 전체 intent 직접 저작을 structured `DesignPlan`(모티프·색·배치·밀도·크기·방향·stripe)으로 축소하고 코드가 엔진 intent를 결정적으로 컴파일한다. exact/private ID 비노출, resolved 다중색 slot 자동 결합, 1회 constrained retry와 30 prompt 유료 opt-in A/B 평가 하네스를 추가했다.*
-- [x] Gemini Plan v3 + active RAG few-shot·승격 파이프라인 — *25개 golden bootstrap, strict typed `DesignPlansV3`/Vertex `response_schema`, 결정적 compiler와 구조 다양성 retry를 구현했다. 매일 05:00 KST에 성공·선택·finalize된 생성 Plan을 최대 100건 선별하고 structural fingerprint 및 동일 family·motif count의 cosine 0.95로 active 예시와 pending/hold 후보 중복을 제거한다. 관리자/manager는 후보와 근거를 추적하고 admin은 Hold·Reject·Approve 및 승인 예시 활성화를 관리한다. Approve는 현재 embedding을 확인한 뒤 즉시 active RAG에 반영되고 `active=false`는 즉시 제외된다. RAG는 revision 없이 현재 active 승인 예시만 family 다양성 기준 최대 3개 사용하며 장애 시 few-shot 없이 계속한다. rollout mode와 비율은 env가 아닌 DB 관리자 설정에서 읽고 잘못된 값은 legacy로 닫힌다. API-client, 관리자 화면, 배치/IaC, 파괴적 개발 마이그레이션, 평가·sync 도구와 실제 PostgreSQL 회귀 테스트를 함께 갱신했다 (`docs/specs/authoring-plan-v3.md`).*
+- [x] Gemini Plan v3 + active RAG few-shot·승격 파이프라인 — *25개 golden bootstrap, strict typed `DesignPlansV3`/Vertex `response_schema`, 결정적 compiler와 구조 다양성 retry를 구현했다. 매일 05:00 KST에 성공·선택·finalize된 생성 Plan을 최대 100건 선별하고 structural fingerprint 및 동일 family·motif count의 cosine 0.95로 active 예시와 pending/hold 후보 중복을 제거한다. 관리자/manager는 후보와 근거를 추적하고 admin은 Hold·Reject·Approve 및 승인 예시 활성화를 관리한다. Approve는 현재 embedding을 확인한 뒤 즉시 active RAG에 반영되고 `active=false`는 즉시 제외된다. RAG는 revision 없이 현재 active 승인 예시만 family 다양성 기준 최대 3개 사용하며 장애 시 few-shot 없이 계속한다. 미배포 상태에서 이전 저작 경로와 shadow/canary 설정을 삭제해 Plan v3만 실행한다 (`docs/specs/authoring-plan-v3.md`).*
 - [x] 생성 실패 진단·오류 계약 — *reference/constraints/authoring/intent/candidate 단계별 고정 422 code와 환불을 API·store까지 보존하고, `seamless_generation_logs.diagnostics` JSONB/Alembic·admin safe projection을 추가했다. 프롬프트 원문과 allowlist로 투영한 확정 intent는 관리자 상세에서만 조회하고 목록에는 싣지 않는다. provider 응답·raw 내부 오류는 진단에 저장하거나 사용자에게 노출하지 않는다.*
 - [x] stateless 확인: 프로세스-로컬 캐시·락 없음, 생성 예산 = Postgres 공유 카운터 — *모티프는 요청 스코프 MotifCatalog(DB 조회 → 엔진 명시 인자, 전역 registry는 테스트 폴백만). recraft 예산은 세션 행 조건부 UPDATE(+실패/reused 보상), finalize는 이후 계정당 24시간 쿼터로 재설계(generation_jobs 카운트 — failed/canceled 제외, 환불 로직 없음, worker-pipeline.md §5). freeze 캐시는 content-hash upsert로 대체*
 - [x] GCS 연결(content-hash 키 + create-only) — *fabric은 content-hash key, preview는 request/candidate/content-hash key로 `if_generation_match=0` 업로드. 동일 객체 412만 멱등 성공이며 preview 업로드 장애는 key null+경고로 격하*
@@ -108,10 +108,10 @@
 - [x] admin 검토 후 개선 — *편집 기준 revision 고정, 범위 밖 page URL 교정, invalid submit 첫 오류 focus, 동일 제목 라우트 focus, terminal/hidden polling 중단, dev port 3001 정합화 및 회귀 테스트.*
 - [x] admin UI/UX 감사 후속 — *가격·설정·토큰·문의의 읽기/편집 분리, 고위험 변경 검토·안전한 멱등 재시도, URL 복원 상세 탭·상단 액션·기술 정보 접기, 모든 주요 목록의 가변 폭 검색+필터 버튼·KST 기간 필터 compact 툴바(데스크톱 SidePanel·모바일 BottomSheet)·페이지네이션, 제목 없는 Divider 메뉴 그룹, 생성 갱신 제어를 구현하고 자동 gate와 Aside 1440×900/390×844 화면을 검증 (`docs/reviews/admin-uiux-audit-2026-07.md`).*
 - [x] admin/store 통합 개선 — *store refresh 단일 조정자·탭 간 세션 동기화, 라우트 오류/404/Sentry 골격, skip link·캐러셀 접근성, 홈 이미지 WebP srcset·폰트 subset(정적 자산 약 90% 절감), 수선 업로드 staging 검증, 쿠폰 대상 수 expected_count 동시성 가드, production env fail-fast와 CI 성공 SHA 배포 게이트 적용.*
-- [x] 전체 감사 후 store/admin/shared 안정화 — *장바구니 replace·guest 동기화를 세션별 직렬 큐와 명시적 bearer에 묶어 계정 전환 오염을 차단하고, 토큰 revision별 `getMe` 재검증으로 same-account 회전은 캐시를 보존하되 cross-account 회전은 loading 경계에서 사용자를 교체. 디자인 생성·재시도·선택 operation epoch와 pending marker 소유권, custom quote debounced 유효성, ImageFrame 소스별 실패 상태, ScrollFog 자식 resize 관찰을 회귀 테스트로 고정. admin 상세 이미지는 `{upload_id}`/`{legacy_url}` 명시 ref와 `{url, upload_id}` 응답으로 순서·legacy 보존/삭제를 안전하게 재설계.*
+- [x] 전체 감사 후 store/admin/shared 안정화 — *장바구니 replace·guest 동기화를 세션별 직렬 큐와 명시적 bearer에 묶어 계정 전환 오염을 차단하고, 토큰 revision별 `getMe` 재검증으로 same-account 회전은 캐시를 보존하되 cross-account 회전은 loading 경계에서 사용자를 교체. 디자인 생성·재시도·선택 operation epoch와 pending marker 소유권, custom quote debounced 유효성, ImageFrame 소스별 실패 상태, ScrollFog 자식 resize 관찰을 회귀 테스트로 고정. admin 상품 이미지는 완료된 `{upload_id}` relation만 입력·응답에 사용한다.*
 - [x] 주문·생성 리뷰 후속 — *생성 로그 ID의 키보드 링크, shared DatePicker·claimBadge 단일화, 주문 상세 shared primitive 조합, 영수증별 사진 조회·주문 갤러리 분리, 이미지 만료 목록 필터, 클레임 경합 order advisory lock, store 사진 재시도를 회귀 테스트와 함께 반영.*
 - [x] Seamless 생성 로그 진단 강화 — *`partial` 문자열 오분류를 제거해 후보 4/4와 모티프 drop·CMYK 경고를 분리하고, raw 8건을 원인별 건수로 표시. worker의 안전한 provider 구조 로그, prompt revision·단계별 시간·모티프 해석 diagnostics, `generation_log_id` 기반 세션 선택·재생성·finalize 결과를 admin 상세에 연결하고 api-client를 재생성했다.*
-- [x] `/design` pgvector 모티프 grounding — *공개 motif의 Vertex AI `gemini-embedding-001` 3072차원 임베딩을 `embedding_vertex`에 멱등 backfill하고 ADC 기반 global top-5 검색을 사용한다. 기존 1536 legacy 컬럼은 무중단 전환을 위해 보존한다. prompt 후보는 exact token/0.84 gate 뒤 ID 없는 `catalog_ref`로 Gemini에 제공하며 direct SVG·텍스트·사진·내 모티프와 motif 사진의 2슬롯 우선순위를 API 과금 전 검증한다.*
+- [x] `/design` pgvector 모티프 grounding — *공개 motif의 Vertex AI `gemini-embedding-001` 3072차원 임베딩만 저장하고 ADC 기반 global top-5 검색을 사용한다. 초기 공개 카탈로그는 `index_motif_embeddings.py`로 멱등 인덱싱한다. prompt 후보는 exact token/0.84 gate 뒤 ID 없는 `catalog_ref`로 Gemini에 제공하며 direct SVG·텍스트·사진·내 모티프와 motif 사진의 2슬롯 우선순위를 API 과금 전 검증한다.*
 - [x] `/design` V3 retrieval 트랜잭션 격리 — *fail-soft 예시 검색을 요청 세션과 분리해 검색 DB 오류 뒤에도 모티프 해석·생성 로그 저장이 정상 진행되도록 하고, Gemini 호출의 await·prompt 전달 회귀 검증을 보강했다.*
 - [x] admin 리뷰 지적 후속 — *수선 발송 사유 지역화, 목록 초기화 시 테이블 설정 보존, 고객 필터 shared primitive 재구성, 작업 초안 전환·이동 차단, 견적 옵션 라벨, 저장 직후 캐시 반영, 공통 검색·필터 접근성, 시맨틱 크기·레이어와 Skeleton 프리셋을 회귀 테스트로 고정하고 Aside 1440×900/390×844 화면을 검증.*
 - [ ] Cloudflare Workers 배포(Vite build + Wrangler Static Assets) — *API proxy는 첫 비로컬 API 배포 전에 별도 선개통, app/admin 고정 custom-domain route는 설정 완료. 실제 배포·DNS 확인이 남음. api `min-instances=1`은 프로덕션 OpenTofu 변수로 별도 적용.*
@@ -120,8 +120,7 @@
 
 ## 6. 리허설 (스테이징)
 
-- [ ] 변환 스크립트로 운영 데이터 이관 → 매핑 표 대비 검증
-- [ ] 이미지 수동 재등록
+- [ ] 빈 스테이징 DB에 단일 베이스라인 적용 → 관리자·motif·authoring example 초기 입력과 `embedded=total` 검증
 - [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(generate → finalize 큐 → 결과 수신)
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정
 - [ ] Gemini로 전송되는 재인코딩 참고 사진의 처리 지역·학습 사용·로그/abuse monitoring 보존·삭제 제어·DPA·사용자 고지를 실제 계약·프로젝트 설정 기준으로 privacy owner가 승인
@@ -132,7 +131,7 @@
 
 - [ ] 프로덕션 GCP 프로젝트 프로비저닝(OpenTofu 재사용)
 - [ ] 프로바이더 redirect URI·Toss 웹훅 URL을 프로덕션 `api.<domain>` 값으로 등록(run.app 직통 금지)
-- [ ] 쓰기 동결 공지 → 최종 데이터 이관 → 매핑 표 검증
+- [ ] 빈 프로덕션 DB에 단일 베이스라인 적용 → 환경별 초기 데이터 입력 검증
 - [ ] DNS 전환 + 전원 재로그인 공지
 - [ ] 롤백 절차 문서화(DNS 원복 — 동결 해제 전까지 데이터 무손실)
 - [ ] 역사성 개인정보 보존·익명화 정책과 자동 배치가 승인·검증됐는지 production gate에서 재확인

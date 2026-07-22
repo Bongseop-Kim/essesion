@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Canvas(BaseModel):
@@ -17,11 +17,6 @@ class Production(BaseModel):
 
     method: Literal["yarn_dyed", "print"] = "print"
     max_colors: int = Field(default=12, gt=0)
-
-    @field_validator("method", mode="before")
-    @classmethod
-    def _coerce_legacy_method(cls, value: object) -> object:
-        return "print" if value in ("digital", "screen") else value
 
 
 class ColorSlotSpec(BaseModel):
@@ -91,8 +86,7 @@ class Placement(BaseModel):
     spacing_mm: float | None = Field(default=None, gt=0)
     phase_mm: float = 0.0
     rotation: Literal["follow_path", "fixed"] | None = None
-    # None is deliberately omitted from canonical layout JSON, preserving every legacy
-    # layout id and SVG byte. Structured direction controls set an explicit fixed angle.
+    # None은 canonical layout JSON에서 생략한다. 방향을 지정하면 고정 각도를 기록한다.
     fixed_rotation_deg: float | None = Field(default=None, ge=-360.0, le=360.0)
     lattice: LatticeSpec | None = None
     scatter: ScatterSpec | None = None

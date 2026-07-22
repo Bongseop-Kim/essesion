@@ -137,15 +137,6 @@ def test_color_count_not_enforced_for_print():
     assert validate_intent(intent).intent.production.max_colors == 2
 
 
-def test_legacy_method_digital_screen_coerced_to_print():
-    intent = mvp_intent()
-    # legacy print 하위 method는 "print"로 매핑(하위호환) -> 색 수 미적용
-    intent["production"] = {"method": "digital", "max_colors": 2}
-    assert validate_intent(intent).intent.production.method == "print"
-    intent["production"] = {"method": "screen", "max_colors": 2}
-    assert validate_intent(intent).intent.production.method == "print"
-
-
 def test_duplicate_layer_id_rejected():
     intent = mvp_intent()
     intent["layers"][3]["id"] = "stripe_base"
@@ -262,7 +253,7 @@ def _full_coverage_stripe_intent() -> dict:
         "intent_version": 1,
         "canvas": {"tile_mm": 48, "dpi": 300},
         "seed": 0,
-        "production": {"method": "digital", "max_colors": 12},
+        "production": {"method": "print", "max_colors": 12},
         "palette": {
             "slots": [
                 {"id": "navy", "hex": "#000080"},

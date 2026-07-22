@@ -81,8 +81,8 @@ describe("parseDesignTurnPayload", () => {
     expect(parseDesignTurnPayload(payload)).toEqual(payload);
   });
 
-  it("알 수 없는 type과 intents가 없는 구버전 generate를 무시한다", () => {
-    expect(parseDesignTurnPayload({ type: "legacy", value: 1 })).toBeNull();
+  it("알 수 없는 type과 intents가 없는 불완전한 generate를 무시한다", () => {
+    expect(parseDesignTurnPayload({ type: "unknown", value: 1 })).toBeNull();
     expect(
       parseDesignTurnPayload({
         type: "generate",

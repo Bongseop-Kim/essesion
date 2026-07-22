@@ -30,15 +30,6 @@ class AdminProductDetailImageUploadRef(BaseModel):
     upload_id: uuid.UUID
 
 
-class AdminProductDetailImageLegacyRef(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    legacy_url: str = Field(min_length=1, max_length=2048)
-
-
-AdminProductDetailImageRef = AdminProductDetailImageUploadRef | AdminProductDetailImageLegacyRef
-
-
 class AdminProductCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -64,7 +55,9 @@ class AdminProductUpdateRequest(BaseModel):
     name: str | None = None
     price: int | None = None
     image_upload_id: uuid.UUID | None = None
-    detail_images: list[AdminProductDetailImageRef] | None = Field(default=None, max_length=20)
+    detail_images: list[AdminProductDetailImageUploadRef] | None = Field(
+        default=None, max_length=20
+    )
     category: Category | None = None
     color: Color | None = None
     pattern: Pattern | None = None
@@ -124,11 +117,11 @@ class AdminProductSummaryOut(BaseModel):
 
 class AdminProductDetailImageOut(BaseModel):
     url: str
-    upload_id: uuid.UUID | None
+    upload_id: uuid.UUID
 
 
 class AdminProductDetailOut(AdminProductSummaryOut):
     detail_images: list[AdminProductDetailImageOut] = Field(default_factory=list)
-    image_upload_id: uuid.UUID | None
+    image_upload_id: uuid.UUID
     info: str
     options: list[ProductOptionOut] = Field(default_factory=list)

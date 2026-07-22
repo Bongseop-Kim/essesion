@@ -8,7 +8,6 @@ import type {
 
 const CUSTOM_ORDER_DRAFT_KEY = "custom-order:draft:v3";
 
-const LEGACY_CUSTOM_ORDER_DRAFT_KEY = "custom-order:draft:v2";
 const ANONYMOUS_DRAFT_OWNER = "anonymous";
 
 const optionsSchema = z
@@ -101,9 +100,6 @@ export function readCustomOrderFormDraft(
 ): CustomOrderFormDraft | null {
   const key = customOrderDraftStorageKey(ownerUserId);
   try {
-    // v2에는 owner 정보가 없어 로그인 계정의 연락처인지 익명 draft인지
-    // 안전하게 판별할 수 없다. 다른 사용자에게 이관하지 않고 폐기한다.
-    removeCustomOrderDraftItem(LEGACY_CUSTOM_ORDER_DRAFT_KEY);
     const raw = sessionStorage.getItem(key);
     if (raw) {
       const parsed = storedFormDraftSchema.safeParse(JSON.parse(raw));
@@ -117,7 +113,6 @@ export function readCustomOrderFormDraft(
     return null;
   } catch {
     removeCustomOrderDraftItem(key);
-    removeCustomOrderDraftItem(LEGACY_CUSTOM_ORDER_DRAFT_KEY);
     return null;
   }
 }
@@ -134,7 +129,6 @@ export function saveCustomOrderFormDraft(
 
 export function clearCustomOrderFormDraft(ownerUserId: string | null) {
   removeCustomOrderDraftItem(customOrderDraftStorageKey(ownerUserId));
-  removeCustomOrderDraftItem(LEGACY_CUSTOM_ORDER_DRAFT_KEY);
 }
 
 export function handoffAnonymousCustomOrderFormDraft(

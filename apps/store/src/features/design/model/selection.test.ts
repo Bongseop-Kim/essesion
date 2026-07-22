@@ -235,7 +235,7 @@ describe("design selection", () => {
           seed: 7,
           colorway: "navy",
         },
-        [{ seq: 1, payload: { type: "legacy" } }],
+        [{ seq: 1, payload: { type: "unknown" } }],
       ),
     ).toEqual({
       candidate: null,

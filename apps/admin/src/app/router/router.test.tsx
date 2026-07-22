@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -35,27 +35,6 @@ function renderRoute(path: string, adapter = readySessionAdapter()) {
 }
 
 describe("admin router", () => {
-  it("legacy 상세 주소를 canonical lazy route로 보낸다", async () => {
-    const router = renderRoute("/orders/show/ORDER-1");
-
-    expect(
-      await screen.findByRole("heading", { name: "주문 상세", level: 1 }),
-    ).toBeTruthy();
-    expect(router.state.location.pathname).toBe("/orders/ORDER-1");
-    expect(document.title).toBe("주문 상세 | ESSE SION 관리자");
-
-    const sidebar = screen.getByRole("navigation", { name: "관리자 메뉴" });
-    expect(
-      within(sidebar)
-        .getByRole("link", { name: "주문 관리" })
-        .getAttribute("aria-current"),
-    ).toBe("page");
-    expect(
-      screen.getByRole("link", { name: "본문으로 건너뛰기" }),
-    ).toBeTruthy();
-    expect(screen.getByRole("main")).toBeTruthy();
-  });
-
   it("알 수 없는 주소는 셸 안의 404를 표시한다", async () => {
     renderRoute("/unknown-admin-page");
     expect(

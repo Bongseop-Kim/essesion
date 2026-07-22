@@ -2188,9 +2188,9 @@ async def test_worker_client_maps_statuses(settings):
     route = respx.post(f"{settings.worker_base_url}/generate")
 
     route.mock(return_value=httpx.Response(422, json={"detail": "invalid intent"}))
-    with pytest.raises(WorkerRequestError, match="이미지 생성 요청") as legacy:
+    with pytest.raises(WorkerRequestError, match="이미지 생성 요청") as rejected:
         await wc.generate({})
-    assert legacy.value.code == "worker_rejected"
+    assert rejected.value.code == "worker_rejected"
 
     route.mock(return_value=httpx.Response(422, json=["invalid intent list"]))
     with pytest.raises(WorkerRequestError, match="이미지 생성 요청"):
@@ -2407,6 +2407,7 @@ async def test_worker_client_export_maps_statuses(settings):
     assert await wc.export({"svg": "<svg/>"}) == (b"tif", "image/tiff")
 
     route.mock(return_value=httpx.Response(400, json={"detail": "dpi must be <= 600"}))
-    with pytest.raises(WorkerRequestError, match="dpi must be"):
+    with pytest.raises(WorkerRequestError, match="이미지 워커가 요청을 거부했습니다") as rejected:
         await wc.export({"svg": "<svg/>"})
+    assert rejected.value.code == "worker_rejected"
     await wc.aclose()

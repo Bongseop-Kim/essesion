@@ -1,6 +1,6 @@
 # 기존 → 새 스키마 매핑 표
 
-변환 스크립트(`db/scripts/migrate_data.py`)·동작 검증·"재설계가 기능 개편으로 번지는 것"을 막는 기준 문서 (CHECKLIST 2단계). 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (베이스라인 리비전 `a658f96021f4`).
+기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (단일 베이스라인 리비전 `dadd999bf858`).
 
 ## 1. 테이블 매핑
 
@@ -30,7 +30,7 @@
 | design_tokens | design_tokens | 동일 — 원장 의미(amount±, type, token_class, 만료) 보존. work_id = 생성 작업 멱등 키(구 ai_generation_logs.work_id FK였으나 대상 드롭 → FK 없는 text 유지) |
 | token_purchases | token_purchases | 동일 |
 | images | **images** (재설계) | url·file_id·folder(ImageKit) → object_key(GCS 업로드 버킷). 2단계 삭제·expires_at·부분 unique 유지. 비회원 수선 업로드를 위해 claim_token_hash/content_type/size_bytes/upload_completed_at 추가, 미귀속·장바구니 제거 이미지는 24시간 후 정리. 견적 종료 시 90일 만료 트리거 → api 로직 |
-| motifs | motifs | 동일. embedding을 vector(1536) 고정(text-embedding-3-small) — 기존 런타임 vector_dims 가드 대체. extensions.vector → public vector. HNSW 인덱스 없음(결정론 위해 seq scan — 규모 커지면 후속 리비전) |
+| motifs | motifs | 도메인 의미 유지. Vertex AI `vector(3072)` 한 컬럼과 halfvec HNSW 검색 인덱스를 사용. extensions.vector → public vector |
 | seamless_generation_logs | seamless_generation_logs | 동일 — admin 로그 뷰어 + SVG 재-export system of record |
 | seamless_sessions | **design_sessions** (재설계) | thread_id(text PK)→id(uuid). status/seed/colorway/registry_version/current_intent 승계, user_id NOT NULL화. **예산 카운터 recraft_used 추가** — 프로세스-로컬 budget 대체(Postgres 공유 카운터, ARCHITECTURE §7). finalize는 세션 카운터 대신 계정당 24시간 쿼터(generation_jobs 카운트, worker-pipeline.md §5) — finalize_used 컬럼은 도입 후 제거됨 |
 | **checkpoints / checkpoint_blobs / checkpoint_writes / checkpoint_migrations** | — (드롭) | LangGraph 미승계. 턴 이력은 **design_session_turns**(신규, session_id+seq unique)로 api가 소유 |
@@ -67,11 +67,6 @@
 
 엣지 펑션 13종의 매핑은 ARCHITECTURE §4 표를 따른다 (generate-tile·imagekit-auth = 제거).
 
-## 3. 데이터 이관 정책 (§6)
+## 3. 미배포 초기화 정책 (§6)
 
-| 분류 | 대상 | 처리 |
-|---|---|---|
-| **이관 (구현됨)** | products, product_options, coupons, pricing_constants, admin_settings, motifs | `migrate_data.py` — 유저 무관, updated_by는 NULL로 |
-| **조건부 (스텁)** | shipping_addresses, orders 계열, claims 계열, user_coupons, cart_items, inquiries, quote_requests 계열, design_tokens, token_purchases, images 메타 | 3단계에서 기존 유저 매칭(provider ID/이메일 best-effort) 확정 후 구현. 매칭 포기 시 이관 안 함(사용자 확정 — 주문 이력 연결 포기) |
-| **이관 안 함** | auth.users/profiles(재로그인), Storage 객체(수동 재등록), phone_verifications, checkpoint 4종, ai_generation_logs, design_chat_*, design_generations(+variants), product_like_counts, quote_request_contact_migration_audit, seamless_sessions(활성 세션 이관 무의미) | — |
-| **보류** | seamless_generation_logs | 과거 로그 이관 가치 낮음 — 리허설 단계에서 결정 |
+이 프로젝트는 외부 환경에 배포되지 않았으므로 기존 Supabase 데이터나 중간 개발 스키마를 새 DB로 변환하지 않는다. 이전 개발 DB는 drop/recreate하고 단일 베이스라인부터 시작한다. 스테이징과 프로덕션도 빈 DB에 베이스라인을 적용한 뒤 환경별 관리자, 설정, 공개 motif와 authoring example을 초기 입력한다.

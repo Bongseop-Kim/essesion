@@ -1,7 +1,6 @@
 """로컬 개발 시드 — 빈 로컬 DB 전용. 멱등(upsert/skip) — 여러 번 실행해도 안전.
 
-운영 데이터 이관은 db/scripts/migrate_data.py 소관. 여기 가격 값들은 로컬 개발용
-대표값이며 실값은 이관/관리자 화면이 공급한다.
+가격 값은 로컬 개발용 대표값이며 배포 환경의 실값은 관리자 화면에서 설정한다.
 
 실행: docker compose up -d && uv run alembic -c db/alembic.ini upgrade head
       && uv run python apps/api/scripts/seed.py
@@ -174,10 +173,34 @@ async def _ensure_test_coupon(session) -> None:
             coupon_id=coupon.id,
             status="active",
             expires_at=expires_at,
+            terms_snapshot={
+                "name": coupon.name,
+                "display_name": coupon.display_name,
+                "discount_type": coupon.discount_type,
+                "discount_value": str(coupon.discount_value),
+                "max_discount_amount": None,
+                "description": coupon.description,
+                "expiry_date": coupon.expiry_date.isoformat(),
+                "additional_info": coupon.additional_info,
+            },
         )
         .on_conflict_do_update(
             index_elements=[UserCoupon.user_id, UserCoupon.coupon_id],
-            set_={"status": "active", "expires_at": expires_at, "used_at": None},
+            set_={
+                "status": "active",
+                "expires_at": expires_at,
+                "used_at": None,
+                "terms_snapshot": {
+                    "name": coupon.name,
+                    "display_name": coupon.display_name,
+                    "discount_type": coupon.discount_type,
+                    "discount_value": str(coupon.discount_value),
+                    "max_discount_amount": None,
+                    "description": coupon.description,
+                    "expiry_date": coupon.expiry_date.isoformat(),
+                    "additional_info": coupon.additional_info,
+                },
+            },
         )
     )
 

@@ -479,7 +479,7 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
         order_id=order.id,
         expected_amount=12000,
         details={
-            "paymentKey": "phase-d-reconcile-key",
+            "lookup_payment_key": "phase-d-reconcile-key",
             "authorization": "secret-header",
             "nested": {"phone": "01000000000"},
         },
@@ -534,7 +534,7 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
 
     detail = await client.get(f"/admin/payment-incidents/{incident.id}", headers=manager_headers)
     assert detail.status_code == 200
-    assert detail.json()["details"]["paymentKey"] == "[redacted]"
+    assert detail.json()["details"]["lookup_payment_key"] == "[redacted]"
     assert detail.json()["details"]["authorization"] == "[redacted]"
     assert detail.json()["details"]["nested"]["phone"] == "[redacted]"
     assert all(not action["enabled"] for action in detail.json()["admin_actions"])
@@ -635,6 +635,7 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
         expected_amount=12000,
         observed_amount=12000,
         details={
+            "lookup_payment_key": order.payment_key,
             "reconciliation": {
                 "checked_at": datetime.now(UTC).isoformat(),
                 "provider_ok": True,
@@ -642,7 +643,7 @@ async def test_payment_incident_permissions_reconcile_resolve_and_idempotence(
                 "provider_status_matches": True,
                 "amount_matches": True,
                 "domain_consistent": True,
-            }
+            },
         },
     )
     db_session.add(rollback_incident)
@@ -703,7 +704,11 @@ async def test_manual_payment_incident_can_resolve_after_fresh_provider_evidence
         order_id=order.id,
         expected_amount=order.total_price,
         observed_amount=observed_amount,
-        details={"phase": "webhook_manual_review", "provider_status": provider_status},
+        details={
+            "phase": "webhook_manual_review",
+            "provider_status": provider_status,
+            "lookup_payment_key": order.payment_key,
+        },
     )
     db_session.add(incident)
     await db_session.commit()
@@ -764,7 +769,10 @@ async def test_manual_partial_cancel_rejects_unverified_amount(app, client, db_s
         request_id="req-manual-amount",
         order_id=order.id,
         expected_amount=order.total_price,
-        details={"provider_status": "PARTIAL_CANCELED"},
+        details={
+            "provider_status": "PARTIAL_CANCELED",
+            "lookup_payment_key": order.payment_key,
+        },
     )
     db_session.add(incident)
     await db_session.commit()
@@ -865,7 +873,7 @@ async def test_ambiguous_money_operations_create_incidents_and_block_blind_retry
     )
     assert confirm_incident is not None
     assert confirm_incident.expected_amount == 15000
-    assert "payment_key" not in str(confirm_incident.details).lower()
+    assert confirm_incident.details["lookup_payment_key"] == "phase-d-confirm-failure-key"
     await db_session.refresh(confirm_order)
     assert confirm_order.status == "결제중"
     assert confirm_order.payment_key == "phase-d-confirm-failure-key"
@@ -936,7 +944,7 @@ async def test_ambiguous_money_operations_create_incidents_and_block_blind_retry
         )
     )
     assert refund_incident is not None
-    assert "phase-d-refund-timeout-key" not in str(refund_incident.details)
+    assert refund_incident.details["lookup_payment_key"] == "phase-d-refund-timeout-key"
 
     refund_blind_retry = await client.post(
         f"/admin/token-refunds/{refund_claim.id}/approve",

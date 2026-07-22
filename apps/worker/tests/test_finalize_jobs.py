@@ -226,7 +226,7 @@ async def test_late_task_cannot_run_dispatch_failed_refunded_job(client, db_sess
     "error_message",
     [
         f"{routes.FINALIZE_INVALID_INPUT_CODE}: {routes.FINALIZE_INVALID_INPUT_MESSAGE}",
-        "legacy raw failure",
+        "raw failure",
         None,
     ],
 )

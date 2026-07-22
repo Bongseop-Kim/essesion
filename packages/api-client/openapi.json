@@ -1017,16 +1017,9 @@
             "type": "string"
           },
           "terms_snapshot": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Snapshot"
+            "additionalProperties": true,
+            "title": "Terms Snapshot",
+            "type": "object"
           },
           "used_at": {
             "anyOf": [
@@ -2417,35 +2410,12 @@
         "title": "AdminProductCreateRequest",
         "type": "object"
       },
-      "AdminProductDetailImageLegacyRef": {
-        "additionalProperties": false,
-        "properties": {
-          "legacy_url": {
-            "maxLength": 2048,
-            "minLength": 1,
-            "title": "Legacy Url",
-            "type": "string"
-          }
-        },
-        "required": [
-          "legacy_url"
-        ],
-        "title": "AdminProductDetailImageLegacyRef",
-        "type": "object"
-      },
       "AdminProductDetailImageOut": {
         "properties": {
           "upload_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Upload Id"
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
           },
           "url": {
             "title": "Url",
@@ -2516,16 +2486,9 @@
             "type": "string"
           },
           "image_upload_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image Upload Id"
+            "format": "uuid",
+            "title": "Image Upload Id",
+            "type": "string"
           },
           "info": {
             "title": "Info",
@@ -2939,14 +2902,7 @@
             "anyOf": [
               {
                 "items": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/AdminProductDetailImageUploadRef"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AdminProductDetailImageLegacyRef"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/AdminProductDetailImageUploadRef"
                 },
                 "maxItems": 20,
                 "type": "array"
@@ -3684,9 +3640,6 @@
         "properties": {
           "key": {
             "enum": [
-              "authoring_canary_percent",
-              "authoring_pipeline_mode",
-              "authoring_shadow_percent",
               "default_courier_company",
               "design_finalize_daily_limit",
               "design_token_initial_grant"
@@ -3718,9 +3671,7 @@
           "value_type": {
             "enum": [
               "courier",
-              "non_negative_integer",
-              "enum",
-              "percentage"
+              "non_negative_integer"
             ],
             "title": "Value Type",
             "type": "string"
@@ -8333,16 +8284,9 @@
             "type": "string"
           },
           "terms_snapshot": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Terms Snapshot"
+            "additionalProperties": true,
+            "title": "Terms Snapshot",
+            "type": "object"
           },
           "used_at": {
             "anyOf": [
@@ -10122,16 +10066,9 @@
             "type": "string"
           },
           "item_data": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Item Data"
+            "additionalProperties": true,
+            "title": "Item Data",
+            "type": "object"
           },
           "item_id": {
             "title": "Item Id",
@@ -11406,15 +11343,8 @@
             "type": "object"
           },
           "expected_amount": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Amount"
+            "title": "Expected Amount",
+            "type": "integer"
           },
           "id": {
             "format": "uuid",
@@ -11567,15 +11497,8 @@
             "type": "string"
           },
           "expected_amount": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Amount"
+            "title": "Expected Amount",
+            "type": "integer"
           },
           "id": {
             "format": "uuid",
@@ -13820,10 +13743,6 @@
             ],
             "title": "Prompt"
           },
-          "reference_image_available": {
-            "title": "Reference Image Available",
-            "type": "boolean"
-          },
           "reference_image_bytes": {
             "anyOf": [
               {
@@ -13835,17 +13754,12 @@
             ],
             "title": "Reference Image Bytes"
           },
-          "reference_image_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference Image Id"
+          "reference_images": {
+            "items": {
+              "$ref": "#/components/schemas/SeamlessReferenceImageOut"
+            },
+            "title": "Reference Images",
+            "type": "array"
           },
           "registry_version": {
             "anyOf": [
@@ -13935,8 +13849,7 @@
           "intents",
           "has_reference_image",
           "reference_image_bytes",
-          "reference_image_id",
-          "reference_image_available",
+          "reference_images",
           "seed",
           "available_strategies",
           "warning_groups",
@@ -13945,6 +13858,41 @@
           "candidates"
         ],
         "title": "SeamlessDetailOut",
+        "type": "object"
+      },
+      "SeamlessReferenceImageOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "image_id": {
+            "format": "uuid",
+            "title": "Image Id",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "purpose": {
+            "enum": [
+              "auto",
+              "color_mood",
+              "motif",
+              "composition"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "image_id",
+          "purpose",
+          "ordinal",
+          "available"
+        ],
+        "title": "SeamlessReferenceImageOut",
         "type": "object"
       },
       "SeamlessStatsOut": {
@@ -14233,9 +14181,6 @@
           },
           "key": {
             "enum": [
-              "authoring_canary_percent",
-              "authoring_pipeline_mode",
-              "authoring_shadow_percent",
               "default_courier_company",
               "design_finalize_daily_limit",
               "design_token_initial_grant"
@@ -14263,7 +14208,7 @@
             "items": {
               "$ref": "#/components/schemas/SettingUpdateItem"
             },
-            "maxItems": 6,
+            "maxItems": 3,
             "minItems": 1,
             "title": "Items",
             "type": "array"

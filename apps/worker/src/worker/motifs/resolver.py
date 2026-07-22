@@ -75,7 +75,7 @@ async def _read_or[T](
 
 
 def descriptor_text(spec: dict) -> str:
-    """검색과 backfill이 공유하는 facet 순서. scope는 의도적으로 제외한다."""
+    """검색과 초기 인덱싱이 공유하는 facet 순서. scope는 의도적으로 제외한다."""
     return store.embedding_document(
         subject=spec.get("subject"),
         description=spec.get("description"),

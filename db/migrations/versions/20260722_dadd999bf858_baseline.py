@@ -1,8 +1,8 @@
 """baseline
 
-Revision ID: a658f96021f4
+Revision ID: dadd999bf858
 Revises:
-Create Date: 2026-07-06 14:17:45.157841
+Create Date: 2026-07-22 23:52:40.983417
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "a658f96021f4"
+revision: str = "dadd999bf858"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -53,6 +53,46 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_coupons")),
         sa.UniqueConstraint("name", name=op.f("uq_coupons_name")),
     )
+    op.create_index(
+        "ix_coupons_admin_list", "coupons", ["is_active", "expiry_date", "id"], unique=False
+    )
+    op.create_table(
+        "manual_orders",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("order_date", sa.Date(), nullable=False),
+        sa.Column("customer_name", sa.Text(), nullable=False),
+        sa.Column("phone", sa.Text(), nullable=False),
+        sa.Column("address", sa.Text(), nullable=True),
+        sa.Column("amount", sa.Integer(), nullable=False),
+        sa.Column("shipping_fee", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("is_received", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("is_paid", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("is_confirmed", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "items",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'::jsonb"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint("amount >= 0", name=op.f("ck_manual_orders_amount")),
+        sa.CheckConstraint("shipping_fee >= 0", name=op.f("ck_manual_orders_shipping_fee")),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_manual_orders")),
+    )
+    op.create_index(
+        "ix_manual_orders_admin_list", "manual_orders", ["order_date", "id"], unique=False
+    )
     op.create_table(
         "motifs",
         sa.Column("id", sa.Text(), nullable=False),
@@ -77,7 +117,7 @@ def upgrade() -> None:
             server_default=sa.text("'{}'::text[]"),
             nullable=False,
         ),
-        sa.Column("embedding", pgvector.sqlalchemy.Vector(dim=1536), nullable=True),
+        sa.Column("embedding_vertex", pgvector.sqlalchemy.Vector(dim=3072), nullable=True),
         sa.Column("source", sa.Text(), server_default="recraft", nullable=False),
         sa.Column("quality", sa.REAL(), nullable=True),
         sa.Column("variant_group", sa.Text(), nullable=True),
@@ -91,6 +131,14 @@ def upgrade() -> None:
             "scope IS NULL OR scope IN ('whole', 'partial')", name=op.f("ck_motifs_scope")
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_motifs")),
+    )
+    op.create_index(
+        "ix_motifs_embedding_vertex_halfvec_hnsw",
+        "motifs",
+        [sa.literal_column("(embedding_vertex::halfvec(3072))").label("embedding_vertex_halfvec")],
+        unique=False,
+        postgresql_using="hnsw",
+        postgresql_ops={"embedding_vertex_halfvec": "halfvec_cosine_ops"},
     )
     op.create_table(
         "products",
@@ -139,6 +187,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_products")),
         sa.UniqueConstraint("code", name=op.f("uq_products_code")),
     )
+    op.create_index(
+        "ix_products_admin_list", "products", ["category", "created_at", "id"], unique=False
+    )
     op.create_table(
         "seamless_generation_logs",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
@@ -170,6 +221,12 @@ def upgrade() -> None:
         sa.Column("status", sa.Text(), server_default="success", nullable=False),
         sa.Column("error_type", sa.Text(), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column(
+            "diagnostics",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'{}'::jsonb"),
+            nullable=False,
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -214,6 +271,7 @@ def upgrade() -> None:
             server_default=sa.text("false"),
             nullable=False,
         ),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -236,6 +294,47 @@ def upgrade() -> None:
         postgresql_where=sa.text("email IS NOT NULL"),
     )
     op.create_table(
+        "admin_operation_logs",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("operation_id", sa.Text(), nullable=False),
+        sa.Column("actor_id", sa.Uuid(), nullable=True),
+        sa.Column("action", sa.Text(), nullable=False),
+        sa.Column("target_type", sa.Text(), nullable=False),
+        sa.Column("target_id", sa.Text(), nullable=True),
+        sa.Column("target_count", sa.Integer(), nullable=True),
+        sa.Column("reason", sa.Text(), nullable=False),
+        sa.Column("before", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("after", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("request_id", sa.Text(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "target_count IS NULL OR target_count >= 0",
+            name=op.f("ck_admin_operation_logs_target_count"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["actor_id"],
+            ["users.id"],
+            name=op.f("fk_admin_operation_logs_actor_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_admin_operation_logs")),
+        sa.UniqueConstraint("operation_id", name=op.f("uq_admin_operation_logs_operation_id")),
+    )
+    op.create_index(
+        op.f("ix_admin_operation_logs_actor_id"), "admin_operation_logs", ["actor_id"], unique=False
+    )
+    op.create_index(
+        "ix_admin_operation_logs_created_at",
+        "admin_operation_logs",
+        ["created_at", "id"],
+        unique=False,
+    )
+    op.create_table(
         "admin_settings",
         sa.Column("key", sa.Text(), nullable=False),
         sa.Column("value", sa.Text(), nullable=True),
@@ -255,6 +354,89 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("key", name=op.f("pk_admin_settings")),
     )
     op.create_table(
+        "authoring_examples",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("example_id", sa.Text(), nullable=False),
+        sa.Column("source", sa.Text(), server_default="bootstrap", nullable=False),
+        sa.Column("contract_version", sa.Integer(), nullable=False),
+        sa.Column("family", sa.Text(), nullable=False),
+        sa.Column("motif_count", sa.Integer(), nullable=False),
+        sa.Column("retrieval_text", sa.Text(), nullable=False),
+        sa.Column(
+            "tags",
+            postgresql.ARRAY(sa.Text()),
+            server_default=sa.text("'{}'::text[]"),
+            nullable=False,
+        ),
+        sa.Column("plan", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("structural_fingerprint", sa.Text(), nullable=False),
+        sa.Column("source_digest", sa.Text(), nullable=False),
+        sa.Column("embedding_model", sa.Text(), nullable=False),
+        sa.Column("embedding_vertex", pgvector.sqlalchemy.Vector(dim=3072), nullable=True),
+        sa.Column("active", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("approved_by", sa.Uuid(), nullable=True),
+        sa.Column("active_updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("active_updated_by", sa.Uuid(), nullable=True),
+        sa.Column("active_reason", sa.Text(), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "family IN ('solid', 'stripe', 'lattice', 'scatter', 'path', 'point_set', 'stripe_motif', 'multi_motif')",
+            name=op.f("ck_authoring_examples_family"),
+        ),
+        sa.CheckConstraint(
+            "source IN ('bootstrap', 'promoted')", name=op.f("ck_authoring_examples_source")
+        ),
+        sa.CheckConstraint(
+            "NOT active OR (embedding_vertex IS NOT NULL AND approved_at IS NOT NULL)",
+            name=op.f("ck_authoring_examples_active_ready"),
+        ),
+        sa.CheckConstraint(
+            "contract_version > 0", name=op.f("ck_authoring_examples_contract_version_positive")
+        ),
+        sa.CheckConstraint(
+            "motif_count BETWEEN 0 AND 2", name=op.f("ck_authoring_examples_motif_count")
+        ),
+        sa.ForeignKeyConstraint(
+            ["active_updated_by"],
+            ["users.id"],
+            name=op.f("fk_authoring_examples_active_updated_by_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["approved_by"],
+            ["users.id"],
+            name=op.f("fk_authoring_examples_approved_by_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_authoring_examples")),
+        sa.UniqueConstraint("example_id", name=op.f("uq_authoring_examples_example_id")),
+    )
+    op.create_index(
+        "ix_authoring_examples_active_family",
+        "authoring_examples",
+        ["active", "family"],
+        unique=False,
+    )
+    op.create_index(
+        "uq_authoring_examples_active_fingerprint",
+        "authoring_examples",
+        ["structural_fingerprint"],
+        unique=True,
+        postgresql_where=sa.text("active"),
+    )
+    op.create_table(
         "design_sessions",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
@@ -264,7 +446,6 @@ def upgrade() -> None:
         sa.Column("registry_version", sa.Text(), nullable=True),
         sa.Column("current_intent", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("recraft_used", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("finalize_used", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -280,7 +461,6 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "status IN ('active', 'finalized')", name=op.f("ck_design_sessions_status")
         ),
-        sa.CheckConstraint("finalize_used >= 0", name=op.f("ck_design_sessions_finalize_used")),
         sa.CheckConstraint("recraft_used >= 0", name=op.f("ck_design_sessions_recraft_used")),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name=op.f("fk_design_sessions_user_id_users")
@@ -297,6 +477,11 @@ def upgrade() -> None:
         sa.Column("entity_type", sa.Text(), nullable=False),
         sa.Column("entity_id", sa.Text(), nullable=False),
         sa.Column("uploaded_by", sa.Uuid(), nullable=True),
+        sa.Column("claim_token_hash", sa.Text(), nullable=True),
+        sa.Column("content_type", sa.Text(), nullable=True),
+        sa.Column("size_bytes", sa.Integer(), nullable=True),
+        sa.Column("original_filename", sa.Text(), nullable=True),
+        sa.Column("upload_completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deletion_claimed_at", sa.DateTime(timezone=True), nullable=True),
@@ -351,8 +536,10 @@ def upgrade() -> None:
         sa.Column("title", sa.Text(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), server_default="답변대기", nullable=False),
+        sa.Column("is_secret", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column("answer", sa.Text(), nullable=True),
         sa.Column("answer_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("answered_by", sa.Uuid(), nullable=True),
         sa.Column("product_id", sa.Integer(), nullable=True),
         sa.Column(
             "updated_at",
@@ -367,7 +554,8 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            "category IN ('일반', '상품', '수선', '주문제작')", name=op.f("ck_inquiries_category")
+            "category IN ('일반', '상품', '수선', '주문제작', '샘플제작')",
+            name=op.f("ck_inquiries_category"),
         ),
         sa.CheckConstraint("status IN ('답변대기', '답변완료')", name=op.f("ck_inquiries_status")),
         sa.CheckConstraint(
@@ -375,6 +563,12 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "char_length(title) BETWEEN 1 AND 200", name=op.f("ck_inquiries_title_length")
+        ),
+        sa.ForeignKeyConstraint(
+            ["answered_by"],
+            ["users.id"],
+            name=op.f("fk_inquiries_answered_by_users"),
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["product_id"],
@@ -386,6 +580,13 @@ def upgrade() -> None:
             ["user_id"], ["users.id"], name=op.f("fk_inquiries_user_id_users"), ondelete="SET NULL"
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_inquiries")),
+    )
+    op.create_index(
+        "ix_inquiries_admin_list", "inquiries", ["status", "created_at", "id"], unique=False
+    )
+    op.create_index(op.f("ix_inquiries_product_id"), "inquiries", ["product_id"], unique=False)
+    op.create_index(
+        "ix_inquiries_public_list", "inquiries", ["category", "created_at", "id"], unique=False
     )
     op.create_index(op.f("ix_inquiries_user_id"), "inquiries", ["user_id"], unique=False)
     op.create_table(
@@ -424,11 +625,16 @@ def upgrade() -> None:
         sa.Column("code", sa.Text(), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("verified", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("failed_attempts", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
+        ),
+        sa.CheckConstraint(
+            "failed_attempts >= 0", name=op.f("ck_phone_verifications_failed_attempts_nonnegative")
         ),
         sa.ForeignKeyConstraint(
             ["user_id"],
@@ -505,10 +711,19 @@ def upgrade() -> None:
         sa.Column("additional_price", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("stock", sa.Integer(), nullable=True),
         sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
+        ),
+        sa.CheckConstraint(
+            "additional_price >= 0", name=op.f("ck_product_options_additional_price")
         ),
         sa.CheckConstraint("stock IS NULL OR stock >= 0", name=op.f("ck_product_options_stock")),
         sa.ForeignKeyConstraint(
@@ -518,6 +733,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_product_options")),
+        sa.UniqueConstraint("product_id", "name", name=op.f("uq_product_options_product_id_name")),
     )
     op.create_index(
         op.f("ix_product_options_product_id"), "product_options", ["product_id"], unique=False
@@ -527,6 +743,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("token_hash", sa.Text(), nullable=False),
+        sa.Column("session_kind", sa.Text(), server_default="store", nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
@@ -534,6 +751,9 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
+        ),
+        sa.CheckConstraint(
+            "session_kind IN ('store', 'admin')", name=op.f("ck_refresh_tokens_session_kind")
         ),
         sa.ForeignKeyConstraint(
             ["user_id"],
@@ -545,6 +765,12 @@ def upgrade() -> None:
         sa.UniqueConstraint("token_hash", name=op.f("uq_refresh_tokens_token_hash")),
     )
     op.create_index(op.f("ix_refresh_tokens_user_id"), "refresh_tokens", ["user_id"], unique=False)
+    op.create_index(
+        "ix_refresh_tokens_user_id_session_kind",
+        "refresh_tokens",
+        ["user_id", "session_kind"],
+        unique=False,
+    )
     op.create_table(
         "shipping_addresses",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
@@ -624,6 +850,7 @@ def upgrade() -> None:
         ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("terms_snapshot", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -683,6 +910,156 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_user_identities_user_id"), "user_identities", ["user_id"], unique=False
+    )
+    op.create_table(
+        "user_motifs",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column("motif_id", sa.Text(), nullable=False),
+        sa.Column("name", sa.Text(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["motif_id"], ["motifs.id"], name=op.f("fk_user_motifs_motif_id_motifs")
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name=op.f("fk_user_motifs_user_id_users")
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_user_motifs")),
+        sa.UniqueConstraint("user_id", "motif_id", name=op.f("uq_user_motifs_user_id_motif_id")),
+    )
+    op.create_index(op.f("ix_user_motifs_user_id"), "user_motifs", ["user_id"], unique=False)
+    op.create_table(
+        "authoring_promotion_candidates",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("source_key", sa.Text(), nullable=False),
+        sa.Column("source_generation_log_id", sa.Uuid(), nullable=True),
+        sa.Column("plan_index", sa.Integer(), nullable=False),
+        sa.Column("selected_candidate_id", sa.Text(), nullable=False),
+        sa.Column("contract_version", sa.Integer(), nullable=False),
+        sa.Column("compiler_revision", sa.Text(), nullable=False),
+        sa.Column("prompt_revision", sa.Text(), nullable=False),
+        sa.Column("family", sa.Text(), nullable=False),
+        sa.Column("motif_count", sa.Integer(), nullable=False),
+        sa.Column("retrieval_text", sa.Text(), nullable=False),
+        sa.Column(
+            "tags",
+            postgresql.ARRAY(sa.Text()),
+            server_default=sa.text("'{}'::text[]"),
+            nullable=False,
+        ),
+        sa.Column("plan", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("structural_fingerprint", sa.Text(), nullable=True),
+        sa.Column("source_digest", sa.Text(), nullable=False),
+        sa.Column("embedding_model", sa.Text(), nullable=True),
+        sa.Column("embedding_vertex", pgvector.sqlalchemy.Vector(dim=3072), nullable=True),
+        sa.Column("nearest_kind", sa.Text(), nullable=True),
+        sa.Column("nearest_id", sa.Text(), nullable=True),
+        sa.Column("nearest_similarity", sa.REAL(), nullable=True),
+        sa.Column("status", sa.Text(), server_default="pending", nullable=False),
+        sa.Column(
+            "rule_reasons",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'::jsonb"),
+            nullable=False,
+        ),
+        sa.Column("review_version", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("reviewed_by", sa.Uuid(), nullable=True),
+        sa.Column("review_reason", sa.Text(), nullable=True),
+        sa.Column("approved_example_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "family IN ('solid', 'stripe', 'lattice', 'scatter', 'path', 'point_set', 'stripe_motif', 'multi_motif')",
+            name=op.f("ck_authoring_promotion_candidates_family"),
+        ),
+        sa.CheckConstraint(
+            "status IN ('pending', 'hold', 'rejected', 'approved', 'duplicate', 'invalid')",
+            name=op.f("ck_authoring_promotion_candidates_status"),
+        ),
+        sa.CheckConstraint(
+            "status NOT IN ('pending', 'hold', 'approved') OR (embedding_model IS NOT NULL AND embedding_vertex IS NOT NULL AND structural_fingerprint IS NOT NULL)",
+            name=op.f("ck_authoring_promotion_candidates_reviewable_ready"),
+        ),
+        sa.CheckConstraint(
+            "contract_version > 0",
+            name=op.f("ck_authoring_promotion_candidates_contract_version_positive"),
+        ),
+        sa.CheckConstraint(
+            "motif_count BETWEEN 0 AND 2",
+            name=op.f("ck_authoring_promotion_candidates_motif_count"),
+        ),
+        sa.CheckConstraint(
+            "nearest_similarity IS NULL OR nearest_similarity BETWEEN -1 AND 1",
+            name=op.f("ck_authoring_promotion_candidates_nearest_similarity"),
+        ),
+        sa.CheckConstraint(
+            "plan_index >= 0", name=op.f("ck_authoring_promotion_candidates_plan_index")
+        ),
+        sa.CheckConstraint(
+            "review_version >= 0", name=op.f("ck_authoring_promotion_candidates_review_version")
+        ),
+        sa.ForeignKeyConstraint(
+            ["approved_example_id"],
+            ["authoring_examples.id"],
+            name=op.f("fk_authoring_promotion_candidates_approved_example_id_authoring_examples"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["reviewed_by"],
+            ["users.id"],
+            name=op.f("fk_authoring_promotion_candidates_reviewed_by_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_generation_log_id"],
+            ["seamless_generation_logs.id"],
+            name=op.f(
+                "fk_authoring_promotion_candidates_source_generation_log_id_seamless_generation_logs"
+            ),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_authoring_promotion_candidates")),
+        sa.UniqueConstraint(
+            "approved_example_id",
+            name=op.f("uq_authoring_promotion_candidates_approved_example_id"),
+        ),
+        sa.UniqueConstraint(
+            "source_key", name=op.f("uq_authoring_promotion_candidates_source_key")
+        ),
+    )
+    op.create_index(
+        "ix_authoring_promotion_candidates_fingerprint_status",
+        "authoring_promotion_candidates",
+        ["structural_fingerprint", "status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_authoring_promotion_candidates_source_generation_log_id"),
+        "authoring_promotion_candidates",
+        ["source_generation_log_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_authoring_promotion_candidates_status_created",
+        "authoring_promotion_candidates",
+        ["status", "created_at"],
+        unique=False,
     )
     op.create_table(
         "cart_items",
@@ -776,7 +1153,7 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("kind IN ('finalize', 'export')", name=op.f("ck_generation_jobs_kind")),
         sa.CheckConstraint(
-            "status IN ('queued', 'processing', 'succeeded', 'failed')",
+            "status IN ('queued', 'processing', 'succeeded', 'failed', 'canceled')",
             name=op.f("ck_generation_jobs_status"),
         ),
         sa.ForeignKeyConstraint(
@@ -799,6 +1176,12 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_generation_jobs_user_id"), "generation_jobs", ["user_id"], unique=False
     )
+    op.create_index(
+        "ix_generation_jobs_user_kind_created",
+        "generation_jobs",
+        ["user_id", "kind", "status", "created_at"],
+        unique=False,
+    )
     op.create_table(
         "orders",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
@@ -807,6 +1190,9 @@ def upgrade() -> None:
         sa.Column("order_type", sa.Text(), server_default="sale", nullable=False),
         sa.Column("status", sa.Text(), server_default="대기중", nullable=False),
         sa.Column("shipping_address_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "shipping_address_snapshot", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("total_price", sa.Integer(), nullable=False),
         sa.Column("original_price", sa.Integer(), nullable=False),
         sa.Column("total_discount", sa.Integer(), server_default=sa.text("0"), nullable=False),
@@ -856,6 +1242,9 @@ def upgrade() -> None:
         sa.UniqueConstraint("order_number", name=op.f("uq_orders_order_number")),
     )
     op.create_index(
+        "ix_orders_admin_list", "orders", ["status", "order_type", "created_at", "id"], unique=False
+    )
+    op.create_index(
         op.f("ix_orders_payment_group_id"), "orders", ["payment_group_id"], unique=False
     )
     op.create_index(
@@ -885,7 +1274,10 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("quote_number", sa.Text(), nullable=False),
-        sa.Column("shipping_address_id", sa.Uuid(), nullable=False),
+        sa.Column("shipping_address_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "shipping_address_snapshot", postgresql.JSONB(astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("options", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("quantity", sa.Integer(), nullable=False),
         sa.Column("additional_notes", sa.Text(), server_default="", nullable=False),
@@ -931,6 +1323,7 @@ def upgrade() -> None:
             ["shipping_address_id"],
             ["shipping_addresses.id"],
             name=op.f("fk_quote_requests_shipping_address_id_shipping_addresses"),
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name=op.f("fk_quote_requests_user_id_users")
@@ -938,7 +1331,62 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_quote_requests")),
         sa.UniqueConstraint("quote_number", name=op.f("uq_quote_requests_quote_number")),
     )
+    op.create_index(
+        "ix_quote_requests_admin_list",
+        "quote_requests",
+        ["status", "created_at", "id"],
+        unique=False,
+    )
     op.create_index(op.f("ix_quote_requests_user_id"), "quote_requests", ["user_id"], unique=False)
+    op.create_table(
+        "seamless_generation_attachments",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("log_id", sa.Uuid(), nullable=False),
+        sa.Column("image_id", sa.Uuid(), nullable=False),
+        sa.Column("purpose", sa.Text(), server_default="auto", nullable=False),
+        sa.Column("ordinal", sa.Integer(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "purpose IN ('auto', 'color_mood', 'motif', 'composition')",
+            name=op.f("ck_seamless_generation_attachments_purpose"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["image_id"],
+            ["images.id"],
+            name=op.f("fk_seamless_generation_attachments_image_id_images"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["log_id"],
+            ["seamless_generation_logs.id"],
+            name=op.f("fk_seamless_generation_attachments_log_id_seamless_generation_logs"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_seamless_generation_attachments")),
+    )
+    op.create_index(
+        op.f("ix_seamless_generation_attachments_image_id"),
+        "seamless_generation_attachments",
+        ["image_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_seamless_generation_attachments_log_id"),
+        "seamless_generation_attachments",
+        ["log_id"],
+        unique=False,
+    )
+    op.create_index(
+        "uq_seamless_generation_attachments_log_ordinal",
+        "seamless_generation_attachments",
+        ["log_id", "ordinal"],
+        unique=True,
+    )
     op.create_table(
         "design_tokens",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
@@ -1006,6 +1454,59 @@ def upgrade() -> None:
         postgresql_where=sa.text("work_id IS NOT NULL"),
     )
     op.create_table(
+        "design_turn_attachments",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("turn_id", sa.Uuid(), nullable=False),
+        sa.Column("kind", sa.Text(), nullable=False),
+        sa.Column("image_id", sa.Uuid(), nullable=True),
+        sa.Column("motif_id", sa.Text(), nullable=True),
+        sa.Column("purpose", sa.Text(), nullable=True),
+        sa.Column("filename", sa.Text(), nullable=False),
+        sa.Column("ordinal", sa.Integer(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "(kind = 'photo' AND purpose IS NOT NULL AND purpose IN ('auto', 'color_mood', 'motif', 'composition')) OR (kind = 'svg' AND purpose IS NULL)",
+            name=op.f("ck_design_turn_attachments_purpose"),
+        ),
+        sa.CheckConstraint(
+            "kind IN ('photo', 'svg')", name=op.f("ck_design_turn_attachments_kind")
+        ),
+        sa.CheckConstraint(
+            "(image_id IS NOT NULL)::int + (motif_id IS NOT NULL)::int = 1",
+            name=op.f("ck_design_turn_attachments_exactly_one_target"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["image_id"],
+            ["images.id"],
+            name=op.f("fk_design_turn_attachments_image_id_images"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["motif_id"], ["motifs.id"], name=op.f("fk_design_turn_attachments_motif_id_motifs")
+        ),
+        sa.ForeignKeyConstraint(
+            ["turn_id"],
+            ["design_session_turns.id"],
+            name=op.f("fk_design_turn_attachments_turn_id_design_session_turns"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_design_turn_attachments")),
+        sa.UniqueConstraint(
+            "turn_id", "ordinal", name=op.f("uq_design_turn_attachments_turn_id_ordinal")
+        ),
+    )
+    op.create_index(
+        op.f("ix_design_turn_attachments_turn_id"),
+        "design_turn_attachments",
+        ["turn_id"],
+        unique=False,
+    )
+    op.create_table(
         "order_items",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("order_id", sa.Uuid(), nullable=False),
@@ -1013,7 +1514,12 @@ def upgrade() -> None:
         sa.Column("item_type", sa.Text(), nullable=False),
         sa.Column("product_id", sa.Integer(), nullable=True),
         sa.Column("selected_option_id", sa.Text(), nullable=True),
-        sa.Column("item_data", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "item_data",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'{}'::jsonb"),
+            nullable=False,
+        ),
         sa.Column("quantity", sa.Integer(), nullable=False),
         sa.Column("unit_price", sa.Integer(), nullable=False),
         sa.Column("discount_amount", sa.Integer(), server_default=sa.text("0"), nullable=False),
@@ -1064,6 +1570,7 @@ def upgrade() -> None:
         sa.Column("new_status", sa.Text(), nullable=False),
         sa.Column("memo", sa.Text(), nullable=True),
         sa.Column("is_rollback", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("request_id", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -1095,6 +1602,7 @@ def upgrade() -> None:
         sa.Column("previous_status", sa.Text(), nullable=False),
         sa.Column("new_status", sa.Text(), nullable=False),
         sa.Column("memo", sa.Text(), nullable=True),
+        sa.Column("request_id", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -1233,6 +1741,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_claims")),
         sa.UniqueConstraint("claim_number", name=op.f("uq_claims_claim_number")),
     )
+    op.create_index(
+        "ix_claims_admin_list", "claims", ["status", "type", "created_at", "id"], unique=False
+    )
     op.create_index(op.f("ix_claims_user_id"), "claims", ["user_id"], unique=False)
     op.create_index(
         "uq_claims_active_per_item",
@@ -1251,16 +1762,98 @@ def upgrade() -> None:
         postgresql_where=sa.text("status IN ('접수', '처리중', '수거요청', '수거완료', '재발송')"),
     )
     op.create_table(
-        "claim_notification_logs",
+        "reviews",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column("claim_id", sa.Uuid(), nullable=False),
-        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("order_id", sa.Uuid(), nullable=False),
+        sa.Column("order_item_id", sa.Uuid(), nullable=True),
+        sa.Column("user_id", sa.Uuid(), nullable=True),
+        sa.Column("order_type", sa.Text(), nullable=False),
+        sa.Column("product_id", sa.Integer(), nullable=True),
+        sa.Column("rating", sa.Integer(), nullable=False),
+        sa.Column("content", sa.Text(), nullable=False),
+        sa.Column(
+            "photos",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'::jsonb"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.CheckConstraint(
+            "order_type IN ('sale', 'repair', 'custom', 'sample')",
+            name=op.f("ck_reviews_order_type"),
+        ),
+        sa.CheckConstraint(
+            "char_length(content) BETWEEN 1 AND 1000", name=op.f("ck_reviews_content_length")
+        ),
+        sa.CheckConstraint("rating BETWEEN 1 AND 5", name=op.f("ck_reviews_rating")),
+        sa.ForeignKeyConstraint(
+            ["order_id"], ["orders.id"], name=op.f("fk_reviews_order_id_orders"), ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["order_item_id"],
+            ["order_items.id"],
+            name=op.f("fk_reviews_order_item_id_order_items"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["product_id"],
+            ["products.id"],
+            name=op.f("fk_reviews_product_id_products"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name=op.f("fk_reviews_user_id_users"), ondelete="SET NULL"
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_reviews")),
+        sa.UniqueConstraint(
+            "order_id",
+            "order_item_id",
+            name="uq_reviews_order_item",
+            postgresql_nulls_not_distinct=True,
+        ),
+    )
+    op.create_index(op.f("ix_reviews_product_id"), "reviews", ["product_id"], unique=False)
+    op.create_index(
+        "ix_reviews_public_list", "reviews", ["order_type", "created_at", "id"], unique=False
+    )
+    op.create_index(op.f("ix_reviews_user_id"), "reviews", ["user_id"], unique=False)
+    op.create_table(
+        "claim_notification_logs",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("claim_id", sa.Uuid(), nullable=False),
+        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("delivery_status", sa.Text(), server_default="pending", nullable=False),
+        sa.Column("attempts", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("last_error", sa.Text(), nullable=True),
+        sa.Column("sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "delivery_status IN ('pending', 'sent', 'failed', 'skipped')",
+            name=op.f("ck_claim_notification_logs_delivery_status"),
+        ),
+        sa.CheckConstraint("attempts >= 0", name=op.f("ck_claim_notification_logs_attempts")),
         sa.ForeignKeyConstraint(
             ["claim_id"],
             ["claims.id"],
@@ -1272,6 +1865,12 @@ def upgrade() -> None:
             "claim_id", "status", name=op.f("uq_claim_notification_logs_claim_id_status")
         ),
     )
+    op.create_index(
+        "ix_claim_notification_logs_delivery",
+        "claim_notification_logs",
+        ["delivery_status", "created_at"],
+        unique=False,
+    )
     op.create_table(
         "claim_status_logs",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
@@ -1281,6 +1880,7 @@ def upgrade() -> None:
         sa.Column("new_status", sa.Text(), nullable=False),
         sa.Column("memo", sa.Text(), nullable=True),
         sa.Column("is_rollback", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("request_id", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -1304,14 +1904,109 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_claim_status_logs_claim_id"), "claim_status_logs", ["claim_id"], unique=False
     )
+    op.create_table(
+        "payment_incidents",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("operation_id", sa.Text(), nullable=False),
+        sa.Column("type", sa.Text(), nullable=False),
+        sa.Column("status", sa.Text(), server_default="open", nullable=False),
+        sa.Column("request_id", sa.Text(), nullable=False),
+        sa.Column("actor_id", sa.Uuid(), nullable=True),
+        sa.Column("order_id", sa.Uuid(), nullable=True),
+        sa.Column("claim_id", sa.Uuid(), nullable=True),
+        sa.Column("expected_amount", sa.Integer(), nullable=False),
+        sa.Column("observed_amount", sa.Integer(), nullable=True),
+        sa.Column(
+            "details",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'{}'::jsonb"),
+            nullable=False,
+        ),
+        sa.Column("resolution_memo", sa.Text(), nullable=True),
+        sa.Column("resolved_by", sa.Uuid(), nullable=True),
+        sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "status IN ('open', 'resolved')", name=op.f("ck_payment_incidents_status")
+        ),
+        sa.CheckConstraint(
+            "type IN ('confirm', 'refund', 'partial_cancel', 'mixed_state', 'amount_mismatch')",
+            name=op.f("ck_payment_incidents_type"),
+        ),
+        sa.CheckConstraint(
+            "expected_amount >= 0", name=op.f("ck_payment_incidents_expected_amount")
+        ),
+        sa.CheckConstraint(
+            "observed_amount IS NULL OR observed_amount >= 0",
+            name=op.f("ck_payment_incidents_observed_amount"),
+        ),
+        sa.ForeignKeyConstraint(
+            ["actor_id"],
+            ["users.id"],
+            name=op.f("fk_payment_incidents_actor_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["claim_id"],
+            ["claims.id"],
+            name=op.f("fk_payment_incidents_claim_id_claims"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["order_id"],
+            ["orders.id"],
+            name=op.f("fk_payment_incidents_order_id_orders"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["resolved_by"],
+            ["users.id"],
+            name=op.f("fk_payment_incidents_resolved_by_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_payment_incidents")),
+        sa.UniqueConstraint("operation_id", name=op.f("uq_payment_incidents_operation_id")),
+    )
+    op.create_index(
+        "ix_payment_incidents_claim_id", "payment_incidents", ["claim_id"], unique=False
+    )
+    op.create_index(
+        "ix_payment_incidents_order_id", "payment_incidents", ["order_id"], unique=False
+    )
+    op.create_index(
+        "ix_payment_incidents_queue",
+        "payment_incidents",
+        ["status", "created_at", "id"],
+        unique=False,
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index("ix_payment_incidents_queue", table_name="payment_incidents")
+    op.drop_index("ix_payment_incidents_order_id", table_name="payment_incidents")
+    op.drop_index("ix_payment_incidents_claim_id", table_name="payment_incidents")
+    op.drop_table("payment_incidents")
     op.drop_index(op.f("ix_claim_status_logs_claim_id"), table_name="claim_status_logs")
     op.drop_table("claim_status_logs")
+    op.drop_index("ix_claim_notification_logs_delivery", table_name="claim_notification_logs")
     op.drop_table("claim_notification_logs")
+    op.drop_index(op.f("ix_reviews_user_id"), table_name="reviews")
+    op.drop_index("ix_reviews_public_list", table_name="reviews")
+    op.drop_index(op.f("ix_reviews_product_id"), table_name="reviews")
+    op.drop_table("reviews")
     op.drop_index(
         "uq_claims_single_active_per_order",
         table_name="claims",
@@ -1325,6 +2020,7 @@ def downgrade() -> None:
         ),
     )
     op.drop_index(op.f("ix_claims_user_id"), table_name="claims")
+    op.drop_index("ix_claims_admin_list", table_name="claims")
     op.drop_table("claims")
     op.drop_index(
         op.f("ix_repair_shipping_receipts_order_id"), table_name="repair_shipping_receipts"
@@ -1340,6 +2036,8 @@ def downgrade() -> None:
     op.drop_table("order_status_logs")
     op.drop_index(op.f("ix_order_items_order_id"), table_name="order_items")
     op.drop_table("order_items")
+    op.drop_index(op.f("ix_design_turn_attachments_turn_id"), table_name="design_turn_attachments")
+    op.drop_table("design_turn_attachments")
     op.drop_index(
         "uq_design_tokens_work_id",
         table_name="design_tokens",
@@ -1358,7 +2056,21 @@ def downgrade() -> None:
         postgresql_where=sa.text("source_order_id IS NOT NULL"),
     )
     op.drop_table("design_tokens")
+    op.drop_index(
+        "uq_seamless_generation_attachments_log_ordinal",
+        table_name="seamless_generation_attachments",
+    )
+    op.drop_index(
+        op.f("ix_seamless_generation_attachments_log_id"),
+        table_name="seamless_generation_attachments",
+    )
+    op.drop_index(
+        op.f("ix_seamless_generation_attachments_image_id"),
+        table_name="seamless_generation_attachments",
+    )
+    op.drop_table("seamless_generation_attachments")
     op.drop_index(op.f("ix_quote_requests_user_id"), table_name="quote_requests")
+    op.drop_index("ix_quote_requests_admin_list", table_name="quote_requests")
     op.drop_table("quote_requests")
     op.drop_index(op.f("ix_orders_user_id"), table_name="orders")
     op.drop_index(
@@ -1377,12 +2089,29 @@ def downgrade() -> None:
         postgresql_where=sa.text("status = '배송중'"),
     )
     op.drop_index(op.f("ix_orders_payment_group_id"), table_name="orders")
+    op.drop_index("ix_orders_admin_list", table_name="orders")
     op.drop_table("orders")
+    op.drop_index("ix_generation_jobs_user_kind_created", table_name="generation_jobs")
     op.drop_index(op.f("ix_generation_jobs_user_id"), table_name="generation_jobs")
     op.drop_index("ix_generation_jobs_status_created", table_name="generation_jobs")
     op.drop_table("generation_jobs")
     op.drop_table("design_session_turns")
     op.drop_table("cart_items")
+    op.drop_index(
+        "ix_authoring_promotion_candidates_status_created",
+        table_name="authoring_promotion_candidates",
+    )
+    op.drop_index(
+        op.f("ix_authoring_promotion_candidates_source_generation_log_id"),
+        table_name="authoring_promotion_candidates",
+    )
+    op.drop_index(
+        "ix_authoring_promotion_candidates_fingerprint_status",
+        table_name="authoring_promotion_candidates",
+    )
+    op.drop_table("authoring_promotion_candidates")
+    op.drop_index(op.f("ix_user_motifs_user_id"), table_name="user_motifs")
+    op.drop_table("user_motifs")
     op.drop_index(op.f("ix_user_identities_user_id"), table_name="user_identities")
     op.drop_table("user_identities")
     op.drop_table("user_coupons")
@@ -1390,6 +2119,7 @@ def downgrade() -> None:
     op.drop_table("token_purchases")
     op.drop_index(op.f("ix_shipping_addresses_user_id"), table_name="shipping_addresses")
     op.drop_table("shipping_addresses")
+    op.drop_index("ix_refresh_tokens_user_id_session_kind", table_name="refresh_tokens")
     op.drop_index(op.f("ix_refresh_tokens_user_id"), table_name="refresh_tokens")
     op.drop_table("refresh_tokens")
     op.drop_index(op.f("ix_product_options_product_id"), table_name="product_options")
@@ -1404,6 +2134,9 @@ def downgrade() -> None:
     )
     op.drop_table("notification_preference_logs")
     op.drop_index(op.f("ix_inquiries_user_id"), table_name="inquiries")
+    op.drop_index("ix_inquiries_public_list", table_name="inquiries")
+    op.drop_index(op.f("ix_inquiries_product_id"), table_name="inquiries")
+    op.drop_index("ix_inquiries_admin_list", table_name="inquiries")
     op.drop_table("inquiries")
     op.drop_index(
         "uq_images_repair_shipping_upload",
@@ -1429,14 +2162,35 @@ def downgrade() -> None:
     op.drop_table("images")
     op.drop_index(op.f("ix_design_sessions_user_id"), table_name="design_sessions")
     op.drop_table("design_sessions")
+    op.drop_index(
+        "uq_authoring_examples_active_fingerprint",
+        table_name="authoring_examples",
+        postgresql_where=sa.text("active"),
+    )
+    op.drop_index("ix_authoring_examples_active_family", table_name="authoring_examples")
+    op.drop_table("authoring_examples")
     op.drop_table("admin_settings")
+    op.drop_index("ix_admin_operation_logs_created_at", table_name="admin_operation_logs")
+    op.drop_index(op.f("ix_admin_operation_logs_actor_id"), table_name="admin_operation_logs")
+    op.drop_table("admin_operation_logs")
     op.drop_index(
         "uq_users_email", table_name="users", postgresql_where=sa.text("email IS NOT NULL")
     )
     op.drop_table("users")
     op.drop_table("seamless_generation_logs")
+    op.drop_index("ix_products_admin_list", table_name="products")
     op.drop_table("products")
+    op.drop_index(
+        "ix_motifs_embedding_vertex_halfvec_hnsw",
+        table_name="motifs",
+        postgresql_using="hnsw",
+        postgresql_ops={"embedding_vertex_halfvec": "halfvec_cosine_ops"},
+    )
     op.drop_table("motifs")
+    op.drop_index("ix_manual_orders_admin_list", table_name="manual_orders")
+    op.drop_table("manual_orders")
+    op.drop_index("ix_coupons_admin_list", table_name="coupons")
     op.drop_table("coupons")
-    op.execute("DROP TYPE IF EXISTS user_role")
     # ### end Alembic commands ###
+    op.execute("DROP TYPE IF EXISTS user_role")
+    op.execute("DROP EXTENSION IF EXISTS vector")

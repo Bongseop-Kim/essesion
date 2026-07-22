@@ -13,7 +13,7 @@
 | intent_version | int | 1 | |
 | canvas | Canvas | 필수 | tile_mm(gt=0), dpi=300 |
 | seed | int | 0 | RNG 소스 |
-| production | Production | print | method ∈ {yarn_dyed, print} (legacy digital/screen→print 매핑), max_colors=12(gt 0) |
+| production | Production | print | method ∈ {yarn_dyed, print}, max_colors=12(gt 0) |
 | palette | PaletteSpec | 필수 | slots 1..64 (id, hex, spot?, name?) |
 | colorways | list[ColorwaySpec] | 필수 | 1..32 (id, name?, mapping: slot→색) |
 | layers | list[Layer] | 필수 | 1..64, discriminator=type |

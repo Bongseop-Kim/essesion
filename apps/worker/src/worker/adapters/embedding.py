@@ -133,10 +133,4 @@ async def embed_query(
 ) -> list[float] | None:
     if client is None:
         return None
-    try:
-        return await client.embed(text, task_type=task_type)
-    except TypeError as exc:
-        # Compatibility with lightweight test/dry-run clients implementing the old protocol.
-        if "task_type" not in str(exc):
-            raise
-        return await client.embed(text)
+    return await client.embed(text, task_type=task_type)
