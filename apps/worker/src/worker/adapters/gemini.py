@@ -21,7 +21,14 @@ from typing import Literal
 
 import httpx
 from PIL import Image, ImageOps, UnidentifiedImageError
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from worker.adapters import AdapterClientError, adapter_http_reason
 from worker.engine.constraints import (
@@ -41,7 +48,7 @@ DEFAULT_TILE_MM = 48.0
 DEFAULT_DPI = 300
 MAX_REFERENCE_IMAGE_PIXELS = 20_000_000
 MAX_REFERENCE_IMAGE_SIDE = 2_048
-AUTHORING_PROMPT_REVISION = "design-plan-v1"
+AUTHORING_PROMPT_REVISION = "design-plan-v2-catalog-grounded"
 
 
 @dataclass(frozen=True)
@@ -50,6 +57,15 @@ class AuthoredDesign:
 
     intent: dict
     motif_specs: list[dict] = field(default_factory=list)
+    motif_resolutions: list[dict[str, object]] = field(default_factory=list)
+
+
+class SemanticMismatch(IntentInvalid):
+    """검색 후보가 있는데 model이 grounding 계약을 만족하지 못했다."""
+
+
+class _CatalogGroundingInvalid(ValueError):
+    """검증된 catalog_ref 사용 계약만 위반한 plan."""
 
 
 @dataclass(frozen=True)
@@ -64,24 +80,33 @@ class PlanMotif(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    subject: str = Field(min_length=1, max_length=80)
+    catalog_ref: str | None = Field(default=None, min_length=1, max_length=40)
+    subject: str | None = Field(default=None, min_length=1, max_length=80)
     scope: Literal["whole", "partial"] = "whole"
     style: str | None = Field(default=None, max_length=80)
     description: str | None = Field(default=None, max_length=160)
+    reference_image_index: int | None = Field(default=None, ge=1, le=5)
 
     @field_validator("subject")
     @classmethod
-    def _strip_subject(cls, value: str) -> str:
-        clean = value.strip()
-        if not clean:
-            raise ValueError("subject must not be blank")
-        return clean
+    def _strip_subject(cls, value: str | None) -> str | None:
+        clean = value.strip() if isinstance(value, str) else value
+        return clean or None
 
     @field_validator("style", "description")
     @classmethod
     def _strip_optional_text(cls, value: str | None) -> str | None:
         clean = value.strip() if isinstance(value, str) else value
         return clean or None
+
+    @model_validator(mode="after")
+    def _one_source(self) -> PlanMotif:
+        if self.catalog_ref is not None:
+            if self.subject is not None or self.reference_image_index is not None:
+                raise ValueError("catalog_ref cannot be combined with a semantic motif")
+        elif self.subject is None:
+            raise ValueError("semantic motif requires subject")
+        return self
 
 
 class DesignPlan(BaseModel):
@@ -222,12 +247,13 @@ _DESIGN_PLAN_SCHEMA = {
                         "items": {
                             "type": "OBJECT",
                             "properties": {
+                                "catalog_ref": {"type": "STRING"},
                                 "subject": {"type": "STRING"},
                                 "scope": {"type": "STRING", "enum": ["whole", "partial"]},
                                 "style": {"type": "STRING"},
                                 "description": {"type": "STRING"},
+                                "reference_image_index": {"type": "INTEGER"},
                             },
-                            "required": ["subject", "scope"],
                         },
                     },
                     "colors": {
@@ -285,13 +311,78 @@ def compile_design_plan(
     *,
     plan_index: int,
     motif_ids: list[str] | None = None,
+    catalog_candidates: list[dict[str, object]] | None = None,
+    reference_motif_indexes: set[int] | None = None,
     palette_constraint: PaletteConstraint | None = None,
 ) -> AuthoredDesign:
     """Compile a semantic plan to a schema-valid, tile-commensurate engine intent."""
     exact_ids = list(dict.fromkeys(motif_ids or []))[:2]
-    semantic_motifs = plan.motifs[: max(0, 2 - len(exact_ids))]
-    motif_sources: list[tuple[str, PlanMotif | None]] = [(motif_id, None) for motif_id in exact_ids]
-    motif_sources.extend((f"motif_{index}", motif) for index, motif in enumerate(semantic_motifs))
+    candidate_by_ref = {
+        str(candidate["catalog_ref"]): candidate for candidate in (catalog_candidates or [])
+    }
+    required_references = reference_motif_indexes or set()
+    reference_motifs = sorted(
+        (
+            motif
+            for motif in plan.motifs
+            if motif.reference_image_index in required_references
+        ),
+        key=lambda motif: motif.reference_image_index or 0,
+    )
+    if (
+        {motif.reference_image_index for motif in reference_motifs} != required_references
+        or len(reference_motifs) != len(required_references)
+    ):
+        raise ValueError("every motif reference photo must be represented by reference_image_index")
+
+    remaining = max(0, 2 - len(exact_ids) - len(reference_motifs))
+    prompt_motifs: list[PlanMotif] = []
+    if not exact_ids and remaining > 0:
+        prompt_motifs = [
+            motif for motif in plan.motifs if motif.reference_image_index is None
+        ][:remaining]
+        if candidate_by_ref:
+            if not prompt_motifs or any(motif.catalog_ref is None for motif in prompt_motifs):
+                raise _CatalogGroundingInvalid(
+                    "a verified catalog_ref is required for prompt-derived motifs"
+                )
+        elif any(motif.catalog_ref is not None for motif in prompt_motifs):
+            raise ValueError("catalog_ref is not in the verified candidate set")
+
+    motif_sources: list[tuple[str, PlanMotif | None, dict[str, object] | None]] = [
+        (
+            motif_id,
+            None,
+            {
+                "outcome": "user_exact",
+                "motif_id": motif_id,
+                "similarity": None,
+            },
+        )
+        for motif_id in exact_ids
+    ]
+    for semantic in [*reference_motifs, *prompt_motifs]:
+        if semantic.catalog_ref is not None:
+            candidate = candidate_by_ref.get(semantic.catalog_ref)
+            if candidate is None:
+                raise _CatalogGroundingInvalid(
+                    f"unknown catalog_ref: {semantic.catalog_ref}"
+                )
+            motif_sources.append(
+                (
+                    str(candidate["motif_id"]),
+                    None,
+                    {
+                        "outcome": "prompt_catalog",
+                        "motif_id": str(candidate["motif_id"]),
+                        "subject": candidate.get("subject"),
+                        "similarity": candidate.get("similarity"),
+                        "match_type": candidate.get("match_type"),
+                    },
+                )
+            )
+        else:
+            motif_sources.append((f"semantic_{len(motif_sources)}", semantic, None))
     if not motif_sources and not plan.stripes:
         raise ValueError("a plan without exact motifs must include a semantic motif or stripes")
 
@@ -339,7 +430,8 @@ def compile_design_plan(
 
     motif_specs: list[dict] = []
     size_mm = round(DEFAULT_TILE_MM * {"small": 0.10, "medium": 0.18, "large": 0.28}[plan.scale], 6)
-    for index, (motif_id, semantic) in enumerate(motif_sources):
+    motif_resolutions: list[dict[str, object]] = []
+    for index, (motif_id, semantic, resolution) in enumerate(motif_sources):
         layer_id = f"motif_{index}"
         color_id = (
             slot_ids[1 + index] if 1 + index < len(slot_ids) else slot_ids[index % len(slot_ids)]
@@ -354,7 +446,18 @@ def compile_design_plan(
             }
         )
         if semantic is not None:
-            motif_specs.append({"layer_id": layer_id, **semantic.model_dump(exclude_none=True)})
+            motif_specs.append(
+                {
+                    "layer_id": layer_id,
+                    **semantic.model_dump(exclude_none=True, exclude={"catalog_ref"}),
+                    "scope": "whole",
+                    "required": semantic.reference_image_index is not None,
+                }
+            )
+        if resolution is not None:
+            motif_resolutions.append(
+                {"layer_id": layer_id, "scope": "whole", **resolution}
+            )
 
     return AuthoredDesign(
         intent={
@@ -367,6 +470,7 @@ def compile_design_plan(
             "layers": layers,
         },
         motif_specs=motif_specs,
+        motif_resolutions=motif_resolutions,
     )
 
 
@@ -375,6 +479,7 @@ def _build_prompt(
     *,
     errors: list[str] | None,
     motif_ids: list[str] | None = None,
+    catalog_candidates: list[dict[str, object]] | None = None,
     reference_images: list[ReferenceImage] | None = None,
     palette_constraint: PaletteConstraint | None = None,
     pattern_constraints: PatternConstraints | None = None,
@@ -385,8 +490,8 @@ def _build_prompt(
         "engine JSON, coordinates, internal IDs, markdown, or prose.",
         "Each plan chooses 2-5 HEX colors, up to 2 simple visual motifs, arrangement, density, "
         "scale, direction, and whether broad stripes are part of the design.",
-        "Motif scope must be 'whole' for a complete subject or 'partial' for a sub-region. "
-        "Write motif descriptions in short English suitable for visual retrieval.",
+        "For a new semantic motif, set subject and write a short English description suitable "
+        "for visual retrieval. The engine treats it as one whole isolated object.",
         "",
         f"Description: {user_prompt}",
     ]
@@ -394,7 +499,27 @@ def _build_prompt(
         lines += [
             "",
             f"There are {len(motif_ids)} exact private motif assets. They are inserted by the "
-            "engine and must remain the highest-priority motifs. Do not guess their IDs.",
+            "engine and must remain the highest-priority motifs. Do not guess their IDs and do "
+            "not add prompt-derived motifs. Only an explicitly motif-role reference photo may "
+            "use a remaining motif slot.",
+        ]
+    if catalog_candidates:
+        lines += [
+            "",
+            "Verified public catalog motifs are listed below. Prompt-derived motifs MUST use "
+            "catalog_ref only; do not combine catalog_ref with subject, style, description, or "
+            "reference_image_index. Use at least one catalog_ref while a motif slot remains.",
+            *[
+                "- "
+                + str(candidate["catalog_ref"])
+                + ": subject="
+                + json.dumps(candidate.get("subject"), ensure_ascii=False)
+                + "; description="
+                + json.dumps(candidate.get("description"), ensure_ascii=False)
+                + "; style="
+                + json.dumps(candidate.get("style"), ensure_ascii=False)
+                for candidate in catalog_candidates
+            ],
         ]
     if palette_constraint is not None and palette_constraint.mode == "fixed":
         lines += [
@@ -424,7 +549,11 @@ def _build_prompt(
             f"- image {index}: purpose={image.purpose}; {role_instructions[image.purpose]}"
             for index, image in enumerate(reference_images, start=1)
         ]
-        lines.append("Describe a photo-inspired subject as a semantic motif when appropriate.")
+        lines.append(
+            "For every image whose purpose is 'motif', include exactly one semantic motif with "
+            "subject and the matching 1-based reference_image_index. Do not use catalog_ref for "
+            "that photo-derived motif."
+        )
     if errors:
         lines += ["", "The previous plan was rejected. Fix these validation issues:"]
         lines += [f"- {e}" for e in errors]
@@ -595,6 +724,7 @@ class GeminiClient:
         validate=None,
         reference_images: list[ReferenceImage] | None = None,
         motif_ids: list[str] | None = None,
+        catalog_candidates: list[dict[str, object]] | None = None,
         palette_constraint: PaletteConstraint | None = None,
         pattern_constraints: PatternConstraints | None = None,
         diagnostics: dict[str, object] | None = None,
@@ -609,6 +739,12 @@ class GeminiClient:
         sink["prompt_revision"] = AUTHORING_PROMPT_REVISION
         errors: list[str] | None = None
         last_errors: list[str] = ["model produced no valid design plan"]
+        last_attempt_only_grounding_failures = False
+        reference_motif_indexes = {
+            index
+            for index, image in enumerate(reference_images or [], start=1)
+            if image.purpose == "motif"
+        }
         for attempt in range(2):
             sink["authoring_attempts"] = attempt + 1
             text = await self.complete(
@@ -616,6 +752,7 @@ class GeminiClient:
                     prompt,
                     errors=errors,
                     motif_ids=motif_ids,
+                    catalog_candidates=catalog_candidates,
                     reference_images=reference_images,
                     palette_constraint=palette_constraint,
                     pattern_constraints=pattern_constraints,
@@ -628,19 +765,27 @@ class GeminiClient:
                 plans = DesignPlans.model_validate(raw).plans
             except (json.JSONDecodeError, TypeError, ValidationError) as exc:
                 last_errors = [f"model response did not match DesignPlan: {exc}"]
+                last_attempt_only_grounding_failures = False
                 errors = last_errors
                 continue
             sink["plan_count"] = len(plans)
             results: list[AuthoredDesign] = []
             design_errors: list[str] = []
+            grounding_failure_count = 0
             for index, plan in enumerate(plans):
                 try:
                     design = compile_design_plan(
                         plan,
                         plan_index=index,
                         motif_ids=motif_ids,
+                        catalog_candidates=catalog_candidates,
+                        reference_motif_indexes=reference_motif_indexes,
                         palette_constraint=palette_constraint,
                     )
+                except _CatalogGroundingInvalid as exc:
+                    grounding_failure_count += 1
+                    design_errors.append(f"plan[{index}]: {exc}")
+                    continue
                 except ValueError as exc:
                     design_errors.append(f"plan[{index}]: {exc}")
                     continue
@@ -654,7 +799,12 @@ class GeminiClient:
             if results:
                 return results
             last_errors = design_errors or ["model produced no valid design plan"]
+            last_attempt_only_grounding_failures = (
+                bool(plans) and grounding_failure_count == len(plans)
+            )
             errors = last_errors[:6]
+        if catalog_candidates and last_attempt_only_grounding_failures:
+            raise SemanticMismatch(last_errors)
         raise IntentInvalid(last_errors)
 
     async def suggest_ideas(

@@ -51,7 +51,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 | 8 | main push CI 성공 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
 | 9 | API·두 worker readiness, 프록시·직통 차단, 배치 audience와 수동 트리거 확인 | **사용자** |
 | 10 | Toss 웹훅/콜백 URL·OAuth redirect URI를 `https://api.essesion.shop` 기준으로 등록 | **사용자(각 콘솔)** |
-| 11 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `apps/worker/scripts/seed_motifs.py`로 모티프 카탈로그 입력 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
+| 11 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `backfill_motif_embeddings.py --confirm-live` → 출력 `embedded=total` 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
 
 ## 시크릿 값 주입
 

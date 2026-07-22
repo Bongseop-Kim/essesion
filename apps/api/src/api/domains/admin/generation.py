@@ -211,6 +211,7 @@ class MotifResolutionOut(BaseModel):
     outcome: str | None = None
     motif_id: str | None = None
     similarity: float | None = None
+    match_type: str | None = None
     provider: str | None = None
     operation: str | None = None
     reason_code: str | None = None
@@ -234,6 +235,7 @@ class GenerationDiagnosticsOut(BaseModel):
     authoring_attempts: int | None = None
     plan_count: int | None = None
     validated_count: int | None = None
+    catalog_candidate_count: int | None = None
     resolved_count: int | None = None
     candidate_count: int | None = None
     authoring_ms: float | None = None
@@ -653,6 +655,7 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
             outcome=_safe_token(value.get("outcome")),
             motif_id=_safe_token(value.get("motif_id")),
             similarity=safe_similarity,
+            match_type=_safe_token(value.get("match_type")),
             provider=_safe_token(value.get("provider")),
             operation=_safe_token(value.get("operation")),
             reason_code=_safe_token(value.get("reason_code")),
@@ -682,6 +685,7 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         authoring_attempts=count("authoring_attempts"),
         plan_count=count("plan_count"),
         validated_count=count("validated_count"),
+        catalog_candidate_count=count("catalog_candidate_count"),
         resolved_count=count("resolved_count"),
         candidate_count=count("candidate_count"),
         authoring_ms=milliseconds("authoring_ms"),

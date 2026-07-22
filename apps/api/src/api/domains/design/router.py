@@ -988,6 +988,16 @@ async def generate_design(
     session: SessionDep,
     user: CurrentUser,
 ) -> DesignGenerateOut:
+    motif_reference_count = sum(
+        reference.purpose == "motif" for reference in body.reference_images
+    )
+    if len(body.user_motif_ids) + motif_reference_count > MAX_DESIGN_MOTIFS:
+        raise DomainError(
+            "직접 선택한 모티프와 모티프 형태 참고 사진은 합쳐서 2개까지 사용할 수 있습니다",
+            code="motif_input_conflict",
+            status=422,
+            stage="constraints",
+        )
     design_session = None
     if body.session_id is not None:
         design_session = await session.get(DesignSession, body.session_id)

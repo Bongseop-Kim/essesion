@@ -24,7 +24,12 @@ from starlette.concurrency import run_in_threadpool
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
-from worker.adapters.gemini import ReferenceImage, normalize_stripes, prepare_reference_image
+from worker.adapters.gemini import (
+    ReferenceImage,
+    SemanticMismatch,
+    normalize_stripes,
+    prepare_reference_image,
+)
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -47,7 +52,12 @@ from worker.motifs.photo_svg import (
     photo_to_svg,
 )
 from worker.motifs.registry import iter_motif_ids
-from worker.motifs.resolver import present_candidates, resolve_motifs, resolve_spec
+from worker.motifs.resolver import (
+    present_candidates,
+    prompt_catalog_candidates,
+    resolve_motifs,
+    resolve_spec,
+)
 from worker.motifs.store import get_motifs
 from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH, text_to_svg
 from worker.render.fabric import FabricError, render_fabric
@@ -67,6 +77,7 @@ GENERATION_ERROR_MESSAGES = {
     "reference_invalid": "a reference image could not be used",
     "intent_invalid": "the design input is invalid",
     "candidate_invalid": "the design candidates could not be composed",
+    "semantic_mismatch": "the design plan did not match the requested subject",
 }
 
 
@@ -97,6 +108,9 @@ class GenerateRequest(StrictRequest):
             )
         if self.prompt is None and self.intent is None and not self.motif_ids:
             raise ValueError("prompt or SVG motif is required")
+        motif_references = sum(item.purpose == "motif" for item in self.reference_images)
+        if len(self.motif_ids) + motif_references > 2:
+            raise ValueError("exact motifs and motif reference photos may use at most 2 slots")
         return self
 
 
@@ -652,6 +666,22 @@ async def generate(
         author_prompt = body.prompt or (
             "Create a balanced necktie pattern using the supplied SVG motif."
         )
+        embedding = request_scoped(adapters.embedding)
+        motif_reference_count = sum(
+            image.purpose == "motif" for image in body.reference_images
+        )
+        catalog_candidates: list[dict[str, object]] = []
+        if body.prompt and not body.motif_ids and motif_reference_count < 2:
+            catalog_candidates = await prompt_catalog_candidates(
+                session,
+                body.prompt,
+                embedding_client=embedding,
+                tau=settings.motif_similarity_tau,
+                top_k=5,
+            )
+        request.state.generation_diagnostics["catalog_candidate_count"] = len(
+            catalog_candidates
+        )
         authoring_started = time.perf_counter()
         try:
             designs = await gemini.author_designs(
@@ -659,10 +689,13 @@ async def generate(
                 validate=_validate,
                 reference_images=reference_images,
                 motif_ids=body.motif_ids,
+                catalog_candidates=catalog_candidates,
                 palette_constraint=body.palette,
                 pattern_constraints=body.pattern_constraints,
                 diagnostics=request.state.generation_diagnostics,
             )
+        except SemanticMismatch:
+            _reject_generation(request, "semantic_mismatch", "authoring")
         except IntentInvalid:
             _reject_generation(request, "authoring_invalid", "authoring")
         except AdapterClientError as exc:
@@ -678,12 +711,12 @@ async def generate(
                 (time.perf_counter() - authoring_started) * 1000, 3
             )
 
-        embedding = request_scoped(adapters.embedding)  # design 간 같은 descriptor 재임베딩 방지
         resolved_intents: list[dict[str, Any]] = []
         resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
         resolution_started = time.perf_counter()
         try:
             for design in designs:
+                resolution_trace.extend(design.motif_resolutions)
                 # Motif variant selection and candidate composition must share one effective
                 # seed. With no request override, generate_candidates uses each authored seed.
                 effective_seed = (
@@ -827,7 +860,11 @@ async def motif_candidates(
     adapters = request.app.state.adapters
     registry_version = await registry_version_for(session)
     candidates = await present_candidates(
-        session, body.spec.model_dump(), embedding_client=adapters.embedding, top_k=body.top_k
+        session,
+        body.spec.model_dump(),
+        embedding_client=adapters.embedding,
+        top_k=body.top_k,
+        tau=request.app.state.settings.motif_similarity_tau,
     )
     return {
         "request_id": request_id_var.get(),

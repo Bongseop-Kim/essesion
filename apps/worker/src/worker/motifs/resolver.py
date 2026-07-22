@@ -1,7 +1,8 @@
-"""결정론적 모티프 해석 래더 (worker-motifs.md §5).
+"""정확도 우선 모티프 검색·해석 래더 (worker-motifs.md §5).
 
-흐름: spec → exact facet match → scope 하드 필터 → 임베딩 τ 게이트 → generate-on-miss.
-모든 hit은 variant_group 재사용 풀을 거쳐(쿼리 임베딩으로 τ-스코핑) seed 샘플링된다.
+흐름: 원문/semantic descriptor → 공개 카탈로그 전체 lexical+pgvector top-k →
+신뢰도 게이트 → generate-on-miss. scope는 검색 하드 필터로 사용하지 않는다.
+모든 hit은 variant_group 재사용 풀을 거쳐 seed 샘플링된다.
 프로세스-로컬 캐시는 두지 않는다 — content-hash upsert + 요청 스코프만이 상태.
 """
 
@@ -10,6 +11,7 @@ from __future__ import annotations
 import copy
 import logging
 import math
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -23,9 +25,7 @@ from worker.engine import determinism
 from worker.motifs import store
 from worker.motifs.store import (
     MotifMeta,
-    exact_facet_key,
     facets_from_spec,
-    normalize_facet,
     variant_group_key,
 )
 
@@ -41,6 +41,21 @@ class ResolveResult:
     motif_id: str
     reused: bool
     similarity: float | None
+    subject: str | None = None
+    match_type: str | None = None
+
+
+@dataclass(frozen=True)
+class CatalogMatch:
+    meta: MotifMeta
+    similarity: float
+    match_type: str
+
+
+@dataclass(frozen=True)
+class CatalogRetrieval:
+    matches: list[CatalogMatch]
+    query_vec: list[float] | None
 
 
 async def _read_or[T](
@@ -60,17 +75,15 @@ async def _read_or[T](
 
 
 def descriptor_text(spec: dict) -> str:
-    """임베딩 소스 텍스트 (§4): description 우선, 없으면 facet에서 합성. scope는 의도적 제외."""
-    description = (spec.get("description") or "").strip()
-    if description:
-        return description
-    subject = (spec.get("subject") or "").strip()
-    expression = (spec.get("expression") or "").strip()
-    style = (spec.get("style") or "").strip()
-    view = (spec.get("view") or "").strip()
-    head = " ".join(t for t in (expression, subject) if t)
-    view_clause = f"{view} view" if view else ""
-    return ", ".join(seg for seg in (head, view_clause, style) if seg)
+    """검색과 backfill이 공유하는 facet 순서. scope는 의도적으로 제외한다."""
+    return store.embedding_document(
+        subject=spec.get("subject"),
+        description=spec.get("description"),
+        style=spec.get("style"),
+        view=spec.get("view"),
+        expression=spec.get("expression"),
+        tags=spec.get("tags") or (),
+    )
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
@@ -81,13 +94,96 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=False)) / (na * nb)
 
 
-def _exact_match(spec: dict, candidates: list[MotifMeta]) -> MotifMeta | None:
-    """정규화 디스크립터가 완전히 일치하는 후보(ORDER BY id 이므로 안정), 없으면 None."""
-    want = exact_facet_key(spec)
-    for rec in candidates:
-        if exact_facet_key(rec) == want:
-            return rec
-    return None
+def _tokens(value: str) -> set[str]:
+    return set(
+        re.findall(r"[^\W_]+", store.normalize_facet(value), flags=re.UNICODE)
+    )
+
+
+def _lexical_match(query_tokens: set[str], meta: MotifMeta) -> bool:
+    terms = _tokens(meta.subject or "")
+    for tag in meta.tags:
+        terms |= _tokens(tag)
+    return bool(query_tokens & terms)
+
+
+async def retrieve_catalog(
+    session: AsyncSession,
+    text: str,
+    *,
+    embedding_client,
+    tau: float,
+    top_k: int = 5,
+) -> CatalogRetrieval:
+    """공개 카탈로그에서 exact token 또는 τ 이상 vector 결과만 반환한다."""
+    catalog = await _read_or(lambda: store.find_catalog(session), [], session, "find_catalog")
+    if not catalog or not text.strip():
+        return CatalogRetrieval([], None)
+
+    by_id = {meta.id: meta for meta in catalog}
+    ranked: list[CatalogMatch] = []
+    seen: set[str] = set()
+    query_tokens = _tokens(text)
+    for meta in catalog:
+        if _lexical_match(query_tokens, meta):
+            ranked.append(CatalogMatch(meta, 1.0, "exact_token"))
+            seen.add(meta.id)
+            if len(ranked) >= top_k:
+                return CatalogRetrieval(ranked, None)
+
+    try:
+        query_vec = await embed_query(text, client=embedding_client)
+    except EmbeddingError:
+        logger.warning("motif query embedding failed — exact token matches only", exc_info=True)
+        query_vec = None
+    if query_vec is not None:
+        nearest = await _read_or(
+            lambda: store.nearest_by_embedding(session, query_vec, top_k=top_k),
+            [],
+            session,
+            "nearest_by_embedding",
+        )
+        for match in nearest:
+            if match.id in seen or match.similarity < tau:
+                continue
+            meta = by_id.get(match.id)
+            if meta is None:
+                continue
+            ranked.append(CatalogMatch(meta, match.similarity, "embedding"))
+            seen.add(meta.id)
+            if len(ranked) >= top_k:
+                break
+    return CatalogRetrieval(ranked, query_vec)
+
+
+async def prompt_catalog_candidates(
+    session: AsyncSession,
+    prompt: str,
+    *,
+    embedding_client,
+    tau: float,
+    top_k: int = 5,
+) -> list[dict[str, object]]:
+    """Gemini grounding용 후보. provider에는 실제 motif ID 대신 catalog_ref만 전달한다."""
+    retrieval = await retrieve_catalog(
+        session,
+        prompt,
+        embedding_client=embedding_client,
+        tau=tau,
+        top_k=top_k,
+    )
+    return [
+        {
+            "catalog_ref": f"catalog_{index}",
+            "motif_id": match.meta.id,
+            "subject": match.meta.subject,
+            "description": match.meta.description,
+            "style": match.meta.style,
+            "similarity": match.similarity,
+            "match_type": match.match_type,
+        }
+        for index, match in enumerate(retrieval.matches, start=1)
+    ]
 
 
 async def _select_variant(
@@ -138,52 +234,48 @@ async def resolve_spec(
 ) -> ResolveResult:
     """단일 spec 해석 래더. 래더 히트면 reused=True(Recraft 스킵), miss면 generate 후 upsert."""
     tau = settings.motif_similarity_tau
-    scope = normalize_facet(spec.get("scope"))
-    query_vec: list[float] | None = None
-    best_sim: float | None = None
-    if scope:
-        candidates = await _read_or(
-            lambda: store.find_by_scope(session, scope), [], session, "find_by_scope"
+    authored_spec = {**spec, "scope": "whole"}
+    retrieval = await retrieve_catalog(
+        session,
+        descriptor_text(authored_spec),
+        embedding_client=embedding_client,
+        tau=tau,
+    )
+    if retrieval.matches:
+        match = retrieval.matches[0]
+        selected = await _select_variant(
+            session,
+            match.meta.variant_group,
+            seed,
+            match.meta.id,
+            retrieval.query_vec,
+            tau,
         )
-        if candidates:
-            query_vec = await embed_query(descriptor_text(spec), client=embedding_client)
-            exact = _exact_match(spec, candidates)
-            if exact is not None:
-                selected = await _select_variant(
-                    session, exact.variant_group, seed, exact.id, query_vec, tau
-                )
-                return ResolveResult(selected, reused=True, similarity=1.0)
-            match = None
-            if query_vec is not None:
-                match = await _read_or(
-                    lambda: store.nearest_by_embedding(session, query_vec, scope=scope),
-                    None,
-                    session,
-                    "nearest_by_embedding",
-                )
-            if match is None:
-                fallback = min(candidates, key=lambda c: c.id)
-                selected = await _select_variant(
-                    session, fallback.variant_group, seed, fallback.id, query_vec, tau
-                )
-                return ResolveResult(selected, reused=True, similarity=None)
-            best_sim = match.similarity
-            if best_sim >= tau:
-                selected = await _select_variant(
-                    session, match.variant_group, seed, match.id, query_vec, tau
-                )
-                return ResolveResult(selected, reused=True, similarity=best_sim)
-    # miss (또는 facet 없음) → Recraft 생성 + 쿼리 임베딩과 함께 upsert
-    normalized = await generate_motif(spec, client=recraft_client, settings=settings)
+        return ResolveResult(
+            selected,
+            reused=True,
+            similarity=match.similarity,
+            subject=match.meta.subject,
+            match_type=match.match_type,
+        )
+
+    # 신뢰도 게이트 miss → Recraft 생성. 자동 저작 모티프는 whole로 저장한다.
+    normalized = await generate_motif(authored_spec, client=recraft_client, settings=settings)
     motif_id = await store.upsert_motif(
         session,
         normalized,
-        facets=facets_from_spec(spec),
-        embedding=query_vec,
+        facets=facets_from_spec(authored_spec),
+        embedding=retrieval.query_vec,
         source="recraft",
-        variant_group=variant_group_key(spec.get("subject"), spec.get("scope")),
+        variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
     )
-    return ResolveResult(motif_id, reused=False, similarity=best_sim)
+    return ResolveResult(
+        motif_id,
+        reused=False,
+        similarity=None,
+        subject=authored_spec.get("subject"),
+        match_type="recraft",
+    )
 
 
 async def present_candidates(
@@ -192,48 +284,20 @@ async def present_candidates(
     *,
     embedding_client,
     top_k: int,
+    tau: float = 0.84,
 ) -> list[dict]:
-    """게이트 UI용 무료 재사용 후보 — 래더의 read-only 대응물(Recraft 절대 호출 안 함).
-
-    exact(sim 1.0) → best embedding(round 4) → scope 풀을 id순으로 채움(sim None).
-    """
-    scope = normalize_facet(spec.get("scope"))
-    if not scope:
-        return []
-    candidates = await _read_or(
-        lambda: store.find_by_scope(session, scope), [], session, "find_by_scope"
+    """게이트 UI용 read-only 후보. 같은 정확도 게이트를 쓰며 Recraft는 호출하지 않는다."""
+    retrieval = await retrieve_catalog(
+        session,
+        descriptor_text(spec),
+        embedding_client=embedding_client,
+        tau=tau,
+        top_k=top_k,
     )
-    if not candidates:
-        return []
-    ranked: list[tuple[MotifMeta, float | None]] = []
-    seen: set[str] = set()
-    exact = _exact_match(spec, candidates)
-    if exact is not None:
-        ranked.append((exact, 1.0))
-        seen.add(exact.id)
-    try:
-        query_vec = await embed_query(descriptor_text(spec), client=embedding_client)
-    except EmbeddingError:
-        query_vec = None  # 게이트 UI에서 임베딩 장애는 소프트 실패
-    if query_vec is not None:
-        match = await _read_or(
-            lambda: store.nearest_by_embedding(session, query_vec, scope=scope),
-            None,
-            session,
-            "nearest_by_embedding",
-        )
-        if match is not None and match.id not in seen:
-            meta = next((c for c in candidates if c.id == match.id), None)
-            if meta is not None:
-                ranked.append((meta, round(match.similarity, 4)))
-                seen.add(match.id)
-    for rec in candidates:
-        if len(ranked) >= top_k:
-            break
-        if rec.id not in seen:
-            ranked.append((rec, None))
-            seen.add(rec.id)
-    return [_candidate_dict(meta, sim) for meta, sim in ranked[:top_k]]
+    return [
+        _candidate_dict(match.meta, round(match.similarity, 4))
+        for match in retrieval.matches
+    ]
 
 
 def _candidate_dict(meta: MotifMeta, similarity: float | None) -> dict:
@@ -275,6 +339,7 @@ async def resolve_motifs(
     }
     attempted: set[str] = set()
     failed: set[str] = set()
+    required_failed: set[str] = set()
     reasons: dict[str, str] = {}
     last_failure: AdapterClientError | None = None
     for spec in motif_specs:
@@ -286,6 +351,8 @@ async def resolve_motifs(
         unsupported = [f for f in UNSUPPORTED_SPEC_FIELDS if spec.get(f) is not None]
         if unsupported:
             failed.add(lid)
+            if spec.get("required") is True:
+                required_failed.add(lid)
             reasons[lid] = f"unsupported spec field(s) {', '.join(unsupported)} (not implemented)"
             if trace is not None:
                 trace.append(
@@ -310,6 +377,8 @@ async def resolve_motifs(
         except AdapterClientError as exc:
             last_failure = exc
             failed.add(lid)
+            if spec.get("required") is True:
+                required_failed.add(lid)
             reasons[lid] = (
                 f"Tier-1 gate exhausted ({spec.get('subject', '?')}/{spec.get('scope', '?')})"
             )
@@ -339,25 +408,31 @@ async def resolve_motifs(
             continue
         layer.setdefault("params", {})["motif_id"] = result.motif_id
         if trace is not None:
+            catalog_source = (
+                "reference_catalog"
+                if spec.get("reference_image_index") is not None
+                else "prompt_catalog"
+            )
             trace.append(
                 {
                     "layer_id": lid,
-                    "subject": spec.get("subject"),
-                    "scope": spec.get("scope"),
-                    "outcome": (
-                        "recraft"
-                        if not result.reused
-                        else "exact"
-                        if result.similarity == 1.0
-                        else "catalog_fallback"
-                        if result.similarity is None
-                        else "embedding_reuse"
-                    ),
+                    "subject": result.subject or spec.get("subject"),
+                    "scope": "whole",
+                    "outcome": catalog_source if result.reused else "recraft",
                     "motif_id": result.motif_id,
                     "similarity": result.similarity,
+                    "match_type": result.match_type,
                 }
             )
 
+    if required_failed:
+        raise AdapterClientError(
+            f"required motif spec(s) failed to resolve: {', '.join(sorted(required_failed))}",
+            provider=last_failure.provider if last_failure else "worker",
+            operation=last_failure.operation if last_failure else "resolve_motif",
+            reason_code=last_failure.reason_code if last_failure else "motif_resolution_failed",
+            status_code=last_failure.status_code if last_failure else None,
+        )
     if not failed:
         return resolved
     if not (attempted - failed):

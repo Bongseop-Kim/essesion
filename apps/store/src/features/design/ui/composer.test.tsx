@@ -219,6 +219,38 @@ describe("DesignComposer token purchase", () => {
     expect(onRemoveAttachment).toHaveBeenCalledWith("photo-1");
   });
 
+  it("모티프 슬롯이 가득 차면 사진의 모티프 목적을 비활성화하고 이유를 표시한다", () => {
+    const onPhotoPurposeChange = vi.fn();
+    render(
+      <DesignComposer
+        {...baseProps}
+        motifSlotCount={2}
+        attachments={[
+          {
+            id: "photo-1",
+            kind: "photo",
+            name: "구도.jpg",
+            previewSrc: "data:image/png;base64,AA==",
+            purpose: "composition",
+          },
+        ]}
+        onPhotoPurposeChange={onPhotoPurposeChange}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "구도.jpg 참고 방식: 배치·구도 참고",
+      }),
+    );
+    const motifPurpose = screen.getByRole("menuitemradio", {
+      name: "모티프 형태 참고 (모티프 슬롯이 가득 참)",
+    });
+    expect((motifPurpose as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(motifPurpose);
+    expect(onPhotoPurposeChange).not.toHaveBeenCalled();
+  });
+
   it("후보 수를 앵커 메뉴에서 선택한다", () => {
     const onCandidateCountChange = vi.fn();
     render(

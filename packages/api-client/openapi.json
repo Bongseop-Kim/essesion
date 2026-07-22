@@ -6508,6 +6508,17 @@
             ],
             "title": "Candidate Ms"
           },
+          "catalog_candidate_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Candidate Count"
+          },
           "failure_code": {
             "anyOf": [
               {
@@ -8400,6 +8411,17 @@
               }
             ],
             "title": "Layer Id"
+          },
+          "match_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Type"
           },
           "motif_id": {
             "anyOf": [

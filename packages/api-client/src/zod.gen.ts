@@ -1578,6 +1578,7 @@ export const zMotifPreviewOut = z.object({
  */
 export const zMotifResolutionOut = z.object({
     layer_id: z.string().nullish(),
+    match_type: z.string().nullish(),
     motif_id: z.string().nullish(),
     operation: z.string().nullish(),
     outcome: z.string().nullish(),
@@ -1597,6 +1598,7 @@ export const zGenerationDiagnosticsOut = z.object({
     authoring_ms: z.number().nullish(),
     candidate_count: z.int().nullish(),
     candidate_ms: z.number().nullish(),
+    catalog_candidate_count: z.int().nullish(),
     failure_code: z.string().nullish(),
     failure_operation: z.string().nullish(),
     failure_provider: z.string().nullish(),

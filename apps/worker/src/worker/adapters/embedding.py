@@ -1,8 +1,8 @@
 """임베딩 어댑터 (worker-motifs.md §4): text → vector, 디스크립터 소프트 유사도용.
 
-OpenAI text-embedding-3-small(1536), httpx 직접 POST /v1/embeddings, 30s. 실패는
-EmbeddingError(502급)로 전파(임의 재사용 은폐 금지). 키 미설정은 클라이언트 None →
-embed_query가 graceful None을 반환(이것이 DryRun) → resolver가 소프트 유사도 단계 skip.
+OpenAI text-embedding-3-small(1536), httpx 직접 POST /v1/embeddings, 30s. adapter는
+실패를 EmbeddingError로 전달하고 resolver는 exact token만 남기는 fail-soft로 처리한다.
+키 미설정은 클라이언트 None → embed_query가 graceful None을 반환한다.
 """
 
 from __future__ import annotations

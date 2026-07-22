@@ -3483,6 +3483,10 @@ export type GenerationDiagnosticsOut = {
      */
     candidate_ms?: number | null;
     /**
+     * Catalog Candidate Count
+     */
+    catalog_candidate_count?: number | null;
+    /**
      * Failure Code
      */
     failure_code?: string | null;
@@ -4485,6 +4489,10 @@ export type MotifResolutionOut = {
      * Layer Id
      */
     layer_id?: string | null;
+    /**
+     * Match Type
+     */
+    match_type?: string | null;
     /**
      * Motif Id
      */

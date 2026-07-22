@@ -43,6 +43,17 @@ prompt 생성 요청은 다음 상태를 함께 보낸다.
   조용히 fallback하지 않는다.
 - 정규화된 palette와 pattern 설정은 user `generate_request` turn payload에 기록한다.
 
+### 모티프 슬롯과 자동 검색 우선순위
+
+최종 모티프는 최대 2개이며 exact user motif → `purpose=motif` 사진 → prompt 공개 카탈로그 → Recraft 신규 생성 순서로 슬롯을 쓴다.
+
+- SVG 파일, 텍스트 모티프, 사진 모티프, 내 모티프는 저장 방식만 다르고 생성에서는 모두 소유권 검증된 exact ID다.
+- exact가 하나라도 있으면 prompt 기반 공개 카탈로그·semantic motif는 추가하지 않는다. exact 1개+motif 사진 1개는 둘 다 필수로 사용한다.
+- exact와 motif 사진 합이 2를 넘으면 API가 토큰 차감 전에 `motif_input_conflict` 422로 거부한다. Store는 이미 찬 슬롯에 사진의 `모티프 형태 참고`를 선택하지 못하게 하고 이유를 표시한다.
+- prompt-only 요청은 원문 embedding으로 공개 카탈로그 top-5를 찾는다. subject/tag exact token 또는 cosine similarity 0.84 이상만 자동 적용하며 추천 선택 UI는 두지 않는다.
+- 후보는 ID 없는 `catalog_ref`로 Gemini를 grounding한다. 관련 후보를 무시한 plan은 한 번 재시도 후 `semantic_mismatch` 422다.
+- variation은 기존 resolved intent만 reroll하고 prompt retrieval, Gemini 저작, 새 motif resolve를 다시 실행하지 않는다.
+
 성공한 생성은 참고 사진을 staging에서 one-shot 사용 완료 상태로 옮긴다. 실패한 생성은
 트랜잭션 rollback과 토큰 환불 뒤 같은 staging upload ID로 재시도할 수 있다. 사진을 쓰는
 요청에는 이력과 만료의 소유자가 되는 design session이 반드시 필요하다.
@@ -89,7 +100,7 @@ slot과 default colorway를 입력 순서대로 결정적으로 다시 매핑한
 고정 rotation은 optional placement 필드다. 값이 없는 기존 intent의 canonical layout JSON과
 SVG에는 변화가 없어 기존 intent+seed의 byte-identical 계약을 보존한다. 명시한 축은
 candidate layout variation에서 잠그고, 생성된 모든 candidate에 제약을 다시 검증한다.
-Gemini는 이 엔진 intent를 직접 작성하지 않고 의미 `DesignPlan`만 반환한다. worker가
+Gemini는 이 엔진 intent를 직접 작성하지 않고 grounding된 `DesignPlan`만 반환한다. worker가
 지원되는 primitive로 결정적으로 컴파일한 뒤 제약을 적용한다. 모든 plan이 검증에 실패하면
 한 번의 constrained retry 뒤 단계가 포함된 `authoring_invalid` 422를 반환한다.
 

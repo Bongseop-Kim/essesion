@@ -117,9 +117,10 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
    export BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
    uv run python apps/api/scripts/bootstrap_admin.py create
    unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
-   uv run python apps/worker/scripts/seed_motifs.py # 모티프 시드 카탈로그 5종
+   uv run python apps/worker/scripts/seed_motifs.py
+   uv run python apps/worker/scripts/backfill_motif_embeddings.py --confirm-live
    ```
-   `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
+   backfill 출력이 `embedded=<total>/<total>`인지 확인한다. OpenAI 키나 확인 플래그가 없으면 실행되지 않으며 `user_upload`은 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
 7. 외부 콘솔은 프록시 검증 후 처음부터 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - **Toss** 대시보드: 웹훅 URL → `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로 갱신
    - **Google·Kakao** 콘솔: redirect URI → `https://api.essesion.shop/auth/{provider}/callback`

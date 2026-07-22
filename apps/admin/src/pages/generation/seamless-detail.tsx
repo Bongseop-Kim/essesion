@@ -144,11 +144,20 @@ const PROVIDER_LABELS: Readonly<Record<string, string>> = {
 };
 
 const RESOLUTION_LABELS: Readonly<Record<string, string>> = {
-  exact: "카탈로그 정확 일치 재사용",
-  embedding_reuse: "임베딩 유사 모티프 재사용",
-  catalog_fallback: "카탈로그 안정 fallback 재사용",
+  user_exact: "사용자 직접 선택",
+  prompt_catalog: "프롬프트 카탈로그 재사용",
+  reference_catalog: "참고 사진 카탈로그 재사용",
+  exact: "카탈로그 정확 일치 재사용 (이전 로그)",
+  embedding_reuse: "임베딩 유사 모티프 재사용 (이전 로그)",
+  catalog_fallback: "카탈로그 fallback 재사용 (이전 로그)",
   recraft: "Recraft 신규 생성",
   dropped: "레이어 제외",
+};
+
+const MATCH_TYPE_LABELS: Readonly<Record<string, string>> = {
+  exact_token: "주제·태그 일치",
+  embedding: "벡터 유사도",
+  recraft: "신규 생성",
 };
 
 const REASON_LABELS: Readonly<Record<string, string>> = {
@@ -174,7 +183,11 @@ function motifResolutionValue(item: MotifResolutionOut) {
   const failure = item.reason_code
     ? ` · ${PROVIDER_LABELS[item.provider ?? ""] ?? item.provider ?? "Worker"}: ${REASON_LABELS[item.reason_code] ?? item.reason_code}${item.status_code == null ? "" : ` (${item.status_code})`}`
     : "";
-  return `${outcome}${similarity}${failure}`;
+  const matchType = item.match_type
+    ? ` · ${MATCH_TYPE_LABELS[item.match_type] ?? item.match_type}`
+    : "";
+  const motifId = item.motif_id ? ` · ${item.motif_id}` : "";
+  return `${outcome}${matchType}${similarity}${motifId}${failure}`;
 }
 
 function CandidateCard({
@@ -432,6 +445,10 @@ export function SeamlessLogDetailPage() {
               value: `${log.diagnostics.validated_count ?? "-"} / ${log.diagnostics.plan_count ?? "-"}`,
             },
             {
+              label: "공개 카탈로그 후보",
+              value: formatIdentifier(log.diagnostics.catalog_candidate_count),
+            },
+            {
               label: "해석 완료",
               value: formatIdentifier(log.diagnostics.resolved_count),
             },
@@ -466,7 +483,7 @@ export function SeamlessLogDetailPage() {
       {motifResolutions.length > 0 && (
         <AdminCard
           title="모티프 해석"
-          description="Gemini가 제안한 모티프가 재사용·신규 생성·제외된 결과입니다."
+          description="직접 선택·프롬프트 검색·참고 사진·신규 생성 중 실제 적용된 출처입니다."
         >
           <DetailList
             items={motifResolutions.map((item, index) => ({

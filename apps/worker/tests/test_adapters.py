@@ -13,6 +13,7 @@ from worker.adapters.gemini import (
     DesignPlan,
     GeminiClient,
     ReferenceImage,
+    SemanticMismatch,
     compile_design_plan,
 )
 from worker.adapters.recraft import (
@@ -392,7 +393,7 @@ async def test_gemini_reprompts_invalid_plan_shape_and_records_diagnostics():
     assert route.call_count == 2
     assert diagnostics == {
         "model": "gemini-2.5-flash-lite",
-        "prompt_revision": "design-plan-v1",
+        "prompt_revision": "design-plan-v2-catalog-grounded",
         "authoring_attempts": 2,
         "plan_count": 2,
         "validated_count": 2,
@@ -419,6 +420,188 @@ def test_design_plan_compiler_is_deterministic_and_uses_exact_motifs():
     motif_layers = [layer for layer in first.intent["layers"] if layer["type"] == "motif"]
     assert motif_layers[0]["params"]["motif_id"] == "private-motif"
     assert all(spec["layer_id"] != motif_layers[0]["id"] for spec in first.motif_specs)
+
+
+def test_design_plan_compiler_resolves_verified_catalog_ref_without_exposing_it_to_engine():
+    raw = {**_VALID_PLANS["plans"][0], "motifs": [{"catalog_ref": "catalog_1"}]}
+    design = compile_design_plan(
+        DesignPlan.model_validate(raw),
+        plan_index=0,
+        catalog_candidates=[
+            {
+                "catalog_ref": "catalog_1",
+                "motif_id": "recraft-chess123456",
+                "subject": "chess",
+                "description": "chess king outline",
+                "style": "outline",
+                "similarity": 1.0,
+                "match_type": "exact_token",
+            }
+        ],
+    )
+
+    motif_layer = next(layer for layer in design.intent["layers"] if layer["type"] == "motif")
+    assert motif_layer["params"]["motif_id"] == "recraft-chess123456"
+    assert design.motif_specs == []
+    assert design.motif_resolutions == [
+        {
+            "layer_id": "motif_0",
+            "scope": "whole",
+            "outcome": "prompt_catalog",
+            "motif_id": "recraft-chess123456",
+            "subject": "chess",
+            "similarity": 1.0,
+            "match_type": "exact_token",
+        }
+    ]
+
+
+def test_exact_motif_uses_only_explicit_motif_reference_in_remaining_slot():
+    raw = {
+        **_VALID_PLANS["plans"][0],
+        "motifs": [
+            {"subject": "ignored prompt flower", "scope": "whole"},
+            {
+                "subject": "bird from photo",
+                "scope": "partial",
+                "reference_image_index": 1,
+            },
+        ],
+    }
+    design = compile_design_plan(
+        DesignPlan.model_validate(raw),
+        plan_index=0,
+        motif_ids=["upload-exact"],
+        reference_motif_indexes={1},
+    )
+
+    motif_layers = [layer for layer in design.intent["layers"] if layer["type"] == "motif"]
+    assert [layer["params"]["motif_id"] for layer in motif_layers] == [
+        "upload-exact",
+        "semantic_1",
+    ]
+    assert design.motif_specs == [
+        {
+            "layer_id": "motif_1",
+            "subject": "bird from photo",
+            "scope": "whole",
+            "reference_image_index": 1,
+            "required": True,
+        }
+    ]
+
+
+@respx.mock
+async def test_catalog_grounding_retries_then_raises_semantic_mismatch_without_exposing_id():
+    route = respx.post(url__regex=r".*generateContent").mock(
+        return_value=_gemini_response(_VALID_PLANS)
+    )
+    with pytest.raises(SemanticMismatch):
+        await GeminiClient("k").author_designs(
+            "chess pattern",
+            catalog_candidates=[
+                {
+                    "catalog_ref": "catalog_1",
+                    "motif_id": "recraft-secret-id",
+                    "subject": "chess",
+                    "description": "chess king outline",
+                    "style": "outline",
+                    "similarity": 1.0,
+                    "match_type": "exact_token",
+                }
+            ],
+        )
+
+    assert route.call_count == 2
+    prompt = json.loads(route.calls.last.request.content)["contents"][0]["parts"][-1]["text"]
+    assert "catalog_1" in prompt
+    assert "recraft-secret-id" not in prompt
+
+
+@respx.mock
+async def test_catalog_candidates_do_not_relabel_unrelated_validation_failure():
+    grounded = {
+        "plans": [
+            {
+                **_VALID_PLANS["plans"][0],
+                "motifs": [{"catalog_ref": "catalog_1"}],
+            },
+            {
+                **_VALID_PLANS["plans"][1],
+                "motifs": [{"catalog_ref": "catalog_1"}],
+            },
+        ]
+    }
+    respx.post(url__regex=r".*generateContent").mock(
+        return_value=_gemini_response(grounded)
+    )
+    with pytest.raises(IntentInvalid) as caught:
+        await GeminiClient("k").author_designs(
+            "chess pattern",
+            catalog_candidates=[
+                {
+                    "catalog_ref": "catalog_1",
+                    "motif_id": "recraft-chess123456",
+                    "subject": "chess",
+                    "description": "chess king outline",
+                    "style": "outline",
+                    "similarity": 1.0,
+                    "match_type": "exact_token",
+                }
+            ],
+            validate=lambda _intent: ["unrelated fixed constraint failure"],
+        )
+
+    assert type(caught.value) is IntentInvalid
+
+
+@respx.mock
+async def test_chess_prompt_compiles_all_four_plans_to_verified_chess_catalog_ids():
+    plans = []
+    for index in range(4):
+        plans.append(
+            {
+                **_VALID_PLANS["plans"][index % 2],
+                "motifs": [{"catalog_ref": f"catalog_{(index % 2) + 1}"}],
+            }
+        )
+    respx.post(url__regex=r".*generateContent").mock(
+        return_value=_gemini_response({"plans": plans})
+    )
+    catalog = [
+        {
+            "catalog_ref": "catalog_1",
+            "motif_id": "seed-chess-king",
+            "subject": "chess",
+            "description": "chess king outline",
+            "style": "outline",
+            "similarity": 1.0,
+            "match_type": "exact_token",
+        },
+        {
+            "catalog_ref": "catalog_2",
+            "motif_id": "seed-chess-knight",
+            "subject": "chess",
+            "description": "chess knight outline",
+            "style": "outline",
+            "similarity": 1.0,
+            "match_type": "exact_token",
+        },
+    ]
+
+    designs = await GeminiClient("k").author_designs(
+        "chess 패턴 디자인해주세요",
+        catalog_candidates=catalog,
+    )
+
+    assert len(designs) == 4
+    assert all(design.motif_specs == [] for design in designs)
+    assert {
+        layer["params"]["motif_id"]
+        for design in designs
+        for layer in design.intent["layers"]
+        if layer["type"] == "motif"
+    } == {"seed-chess-king", "seed-chess-knight"}
 
 
 def test_design_plan_compiler_makes_every_fixed_color_visible():

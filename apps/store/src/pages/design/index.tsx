@@ -395,6 +395,19 @@ export function DesignPage() {
 
   const changePhotoPurpose = (id: string, purpose: ReferenceImagePurpose) => {
     const photo = photosRef.current.find((item) => item.id === id);
+    const otherMotifPhotos = photosRef.current.filter(
+      (item) => item.id !== id && item.purpose === "motif",
+    ).length;
+    if (
+      purpose === "motif" &&
+      photo?.purpose !== "motif" &&
+      selectedMotifs.length + otherMotifPhotos >= MAX_DESIGN_MOTIFS
+    ) {
+      snackbar(
+        "직접 선택한 모티프와 모티프 형태 참고 사진은 합쳐서 2개까지 사용할 수 있어요.",
+      );
+      return;
+    }
     if (photo) photo.purpose = purpose;
     setPhotos((current) =>
       current.map((item) => (item.id === id ? { ...item, purpose } : item)),
@@ -437,7 +450,10 @@ export function DesignPage() {
       if (current.some((item) => item.id === motif.id)) {
         return current.filter((item) => item.id !== motif.id);
       }
-      if (current.length >= MAX_DESIGN_MOTIFS) {
+      const motifPhotoCount = photosRef.current.filter(
+        (photo) => photo.purpose === "motif",
+      ).length;
+      if (current.length + motifPhotoCount >= MAX_DESIGN_MOTIFS) {
         snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
         return current;
       }
@@ -447,7 +463,10 @@ export function DesignPage() {
 
   const addMotif = (kind: MotifAddKind) => {
     if (!ensureDesignAuth()) return;
-    if (selectedMotifs.length >= MAX_DESIGN_MOTIFS) {
+    const motifPhotoCount = photosRef.current.filter(
+      (photo) => photo.purpose === "motif",
+    ).length;
+    if (selectedMotifs.length + motifPhotoCount >= MAX_DESIGN_MOTIFS) {
       snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
       return;
     }
@@ -472,11 +491,19 @@ export function DesignPage() {
   };
 
   const selectCreatedMotif = (motif: UserMotifOut) => {
-    setSelectedMotifs((current) =>
-      current.some((item) => item.id === motif.id)
-        ? current
-        : [...current, motif].slice(0, MAX_DESIGN_MOTIFS),
-    );
+    setSelectedMotifs((current) => {
+      if (current.some((item) => item.id === motif.id)) return current;
+      const motifPhotoCount = photosRef.current.filter(
+        (photo) => photo.purpose === "motif",
+      ).length;
+      if (current.length + motifPhotoCount >= MAX_DESIGN_MOTIFS) {
+        snackbar(
+          "모티프 슬롯이 가득 찼어요. 저장한 모티프는 내 모티프에서 다시 선택할 수 있어요.",
+        );
+        return current;
+      }
+      return [...current, motif];
+    });
     void queryClient.invalidateQueries({
       queryKey: listUserMotifsQueryKey(),
     });
@@ -1084,6 +1111,10 @@ export function DesignPage() {
                   palette.mode === "fixed" ? palette.colors : undefined
                 }
                 patternSummary={patternConstraintLabels(patternConstraints)}
+                motifSlotCount={
+                  selectedMotifs.length +
+                  photos.filter((photo) => photo.purpose === "motif").length
+                }
                 onResetPalette={() => setPalette(AUTO_DESIGN_PALETTE)}
                 onResetPattern={() =>
                   setPatternConstraints(AUTO_PATTERN_CONSTRAINTS)
@@ -1415,6 +1446,24 @@ function GenerationErrorCallout({
           같은 요청 다시 시도
         </Text>
       </Callout>
+    );
+  }
+  if (error.kind === "semantic_mismatch") {
+    return (
+      <Callout
+        tone="warning"
+        title="요청한 모티프를 확정하지 못했어요"
+        description={error.message}
+      />
+    );
+  }
+  if (error.kind === "motif_input_conflict") {
+    return (
+      <Callout
+        tone="warning"
+        title="모티프를 2개 이하로 조정해 주세요"
+        description={error.message}
+      />
     );
   }
   if (error.kind === "constraint_conflict") {

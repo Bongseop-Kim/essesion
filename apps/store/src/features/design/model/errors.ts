@@ -7,6 +7,8 @@ export type DesignErrorKind =
   | "reference_invalid"
   | "intent_invalid"
   | "candidate_invalid"
+  | "semantic_mismatch"
+  | "motif_input_conflict"
   | "finalize_quota_exhausted"
   | "conflict"
   | "upstream_error"
@@ -27,6 +29,10 @@ export const DESIGN_ERROR_MESSAGES: Record<DesignErrorKind, string> = {
     "선택한 디자인 정보를 처리할 수 없어요. 다른 디자인을 선택하거나 새로 생성해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
   candidate_invalid:
     "같은 요청을 다시 시도해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
+  semantic_mismatch:
+    "요청한 주제와 맞는 모티프를 확정하지 못했어요. 주제를 더 구체적으로 작성해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
+  motif_input_conflict:
+    "직접 선택한 모티프와 모티프 형태 참고 사진은 합쳐서 2개까지 사용할 수 있어요.",
   // 서버 detail이 리셋까지 남은 시간을 함께 안내한다 — 이 문구는 폴백.
   finalize_quota_exhausted:
     "최근 24시간 실사화 한도를 모두 사용했어요. 잠시 후 다시 시도해 주세요.",
@@ -46,6 +52,8 @@ const knownErrorKinds = new Set<DesignErrorKind>([
   "reference_invalid",
   "intent_invalid",
   "candidate_invalid",
+  "semantic_mismatch",
+  "motif_input_conflict",
   "finalize_quota_exhausted",
   "conflict",
   "upstream_error",

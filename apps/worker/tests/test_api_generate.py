@@ -39,6 +39,19 @@ class _EmptyScalars:
         return []
 
 
+class _EmptyRows:
+    def all(self):
+        return []
+
+
+class _NestedTransaction:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return None
+
+
 class _FakeSession:
     """generate 라우트가 쓰는 최소 세션 — add/commit + 빈 DB 읽기(registry_version·catalog).
 
@@ -60,6 +73,12 @@ class _FakeSession:
 
     async def scalars(self, *_args, **_kwargs):
         return _EmptyScalars()
+
+    async def execute(self, *_args, **_kwargs):
+        return _EmptyRows()
+
+    def begin_nested(self):
+        return _NestedTransaction()
 
 
 def _configure_app(monkeypatch, *, raster_ok: bool = True):
@@ -296,6 +315,48 @@ def test_prompt_only_without_gemini_returns_503(client):
     # prompt 경로는 구현됐지만 Gemini 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
     resp = client.post("/generate", json={"prompt": "navy paisley tie"})
     assert resp.status_code == 503
+
+
+def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatch):
+    captured = {}
+    catalog = [
+        {
+            "catalog_ref": "catalog_1",
+            "motif_id": "seed-chess-king",
+            "subject": "chess",
+            "description": "chess king outline",
+            "style": "outline",
+            "similarity": 1.0,
+            "match_type": "exact_token",
+        }
+    ]
+
+    async def fake_candidates(_session, prompt, *, embedding_client, tau, top_k):
+        captured.update(
+            prompt=prompt,
+            embedding_client=embedding_client,
+            tau=tau,
+            top_k=top_k,
+        )
+        return catalog
+
+    class GroundedGemini:
+        async def author_designs(self, _prompt, *, catalog_candidates, **_kwargs):
+            assert catalog_candidates == catalog
+            return [AuthoredDesign(intent=mvp_intent())]
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=GroundedGemini())
+
+    response = TestClient(app).post(
+        "/generate", json={"prompt": "chess 패턴 디자인해주세요"}
+    )
+
+    assert response.status_code == 200, response.text
+    assert captured["prompt"] == "chess 패턴 디자인해주세요"
+    assert captured["tau"] == app.state.settings.motif_similarity_tau
+    assert captured["top_k"] == 5
 
 
 @respx.mock

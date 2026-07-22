@@ -2,7 +2,7 @@
 
 > YeongSeon 커머스와 seamless-tile 엔진을 통합 재구현한 현재 시스템의 **as-built architecture** 문서다. 구현된 코드, 배포 가능한 구성, 아직 외부 개통이 필요한 항목을 구분한다.
 
-최종 갱신: 2026-07-19
+최종 갱신: 2026-07-22
 
 ## 0. 요약과 불변 원칙
 
@@ -521,11 +521,13 @@ intent version
 
 ### 7.4 Motif resolver
 
-1. scope 후보를 ID 순으로 조회하고 정규화 descriptor가 완전히 같은 SVG를 우선 재사용한다.
-2. OpenAI embedding이 설정되어 있으면 pgvector nearest match를 구하고, 임계치 `τ=0.84` 이상인 SVG를 재사용한다.
-3. embedding이 없거나 nearest 조회 결과가 없으면 같은 scope에서 최소 ID 후보를 안정적인 fallback으로 재사용한다.
-4. scope 후보가 없거나 nearest similarity가 임계치보다 낮을 때 Recraft의 inline `b64_json` vector를 받아 normalize한다.
-5. hit의 variant group은 seed로 안정 선택한다. 새 SVG는 sanitize·content-hash upsert하고 resolved intent에는 concrete ID만 남긴다.
+1. exact private motif와 `purpose=motif` 참고 사진이 모티프 슬롯을 먼저 사용한다. exact가 하나라도 있으면 프롬프트 기반 공개 카탈로그 모티프는 추가하지 않는다.
+2. 남은 슬롯이 있는 prompt 요청은 원문을 먼저 임베딩하고 `user_upload`을 제외한 공개 카탈로그 전체에서 subject/tag 완전 토큰 일치와 pgvector cosine top-5를 합친다. `scope`는 검색 하드 필터가 아니다.
+3. exact token 또는 similarity `τ=0.84` 이상만 Gemini에 ID 없는 `catalog_ref` 후보로 제공한다. Gemini가 검증된 후보를 무시하면 한 번 constrained retry 후 `semantic_mismatch`로 실패한다.
+4. 신뢰도 게이트를 통과한 후보가 없을 때만 Gemini semantic spec을 해석하고, 같은 정확도 우선 검색에서도 miss면 Recraft의 inline `b64_json` vector를 받아 normalize한다. embedding 미설정·실패 시에는 exact token만 허용하며 lowest-ID fallback은 없다.
+5. hit의 variant group은 seed로 안정 선택한다. 새 SVG는 `scope=whole`로 sanitize·content-hash upsert하고 resolved intent에는 concrete ID만 남긴다.
+
+공개 카탈로그의 임베딩 문서는 `subject, description, style, view, expression, tags` 순서로 만들며 scope를 제외한다. `seed_motifs.py` 뒤 `backfill_motif_embeddings.py --confirm-live`를 실행해 기존 NULL 행을 UPDATE하고 `embedded=total`을 확인한다. `user_upload`은 backfill·검색·fingerprint에서 계속 제외한다.
 
 외부 URL을 다시 다운로드하지 않으므로 motif generation 경로에 SSRF 가능한 2차 fetch가 없다. resolver의 선택적 조회 실패는 savepoint 안에서만 롤백해 앞선 정상 write를 보존한다.
 
@@ -547,7 +549,7 @@ sequenceDiagram
     W-->>A: 정규화 SVG와 identity
     A->>DB: owner lock 안에서 Motif + UserMotif 원자 저장
     S->>A: POST /design/generate
-    A->>DB: 첨부 소유권·상태 확인, 토큰 선차감
+    A->>DB: 모티프 슬롯 충돌·첨부 소유권·상태 확인, 토큰 선차감
     A->>W: OIDC generate + ordered photo roles + exact motif ids + constraints
     W->>DB: motif search / catalog upsert
     W->>W: intent validation → candidates → SVG → preview
@@ -560,6 +562,8 @@ sequenceDiagram
 ```
 
 생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다. 일반 prompt 생성이 성공하면 사용한 프롬프트·첨부·사진 purpose·모티프·palette·pattern·후보 수 작성 상태를 해제하고 턴 이력에 남긴다. 실패한 요청은 staging upload ID와 작성 상태를 유지해 재업로드 없이 재시도한다.
+
+최종 모티프는 최대 2개다. exact user motif와 `purpose=motif` 사진의 합이 2를 넘으면 API가 과금 전에 `motif_input_conflict`로 거부한다. exact 1개+motif 사진 1개는 둘 다 필수이며 하나라도 최종 intent에서 빠지면 성공으로 낮추지 않는다. fixed palette와 pattern constraints는 Gemini·검색 결과보다 뒤의 결정론적 constraint 경계가 최종 권위다.
 
 사용자 모티프 경로에서 worker는 DB 소유권을 만들지 않는다. `/motifs/import`와 텍스트·사진
 preview는 순수 변환 경계로 안전한 SVG와 identity만 반환하고, API가 사용자 advisory lock과

@@ -474,6 +474,43 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
     assert photo.expires_at is not None
 
 
+async def test_generate_rejects_more_than_two_exact_and_motif_photo_slots_before_charge(
+    client, app, db_session, settings
+):
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    design_session = (await client.post("/design/sessions", headers=headers)).json()
+
+    response = await client.post(
+        "/design/generate",
+        json={
+            "session_id": design_session["id"],
+            "prompt": "모티프 충돌",
+            "reference_images": [
+                {"upload_id": str(uuid.uuid4()), "purpose": "motif"}
+            ],
+            "user_motif_ids": [str(uuid.uuid4()), str(uuid.uuid4())],
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "직접 선택한 모티프와 모티프 형태 참고 사진은 합쳐서 2개까지 사용할 수 있습니다",
+        "code": "motif_input_conflict",
+        "stage": "constraints",
+    }
+    assert worker.generate_payloads == []
+    assert await ledger.get_balance(db_session, user.id) == {
+        "total": 30,
+        "paid": 0,
+        "bonus": 30,
+    }
+
+
 async def test_private_intent_motif_rejects_cross_user_access_at_all_api_boundaries(
     client, app, db_session, settings
 ):
@@ -2177,6 +2214,23 @@ async def test_worker_client_maps_statuses(settings):
         await wc.generate({})
     assert structured.value.code == "constraint_conflict"
     assert structured.value.stage == "constraints"
+
+    route.mock(
+        return_value=httpx.Response(
+            422,
+            json={
+                "detail": {
+                    "code": "semantic_mismatch",
+                    "stage": "authoring",
+                    "message": "internal detail is ignored",
+                }
+            },
+        )
+    )
+    with pytest.raises(WorkerRequestError, match="요청한 주제") as semantic:
+        await wc.generate({})
+    assert semantic.value.code == "semantic_mismatch"
+    assert semantic.value.stage == "authoring"
 
     route.mock(return_value=httpx.Response(503, text="unavailable"))
     with pytest.raises(UpstreamError):

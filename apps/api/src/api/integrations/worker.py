@@ -26,6 +26,7 @@ _WORKER_REJECTION_MESSAGES = {
     "reference_invalid": "참고 이미지를 디자인에 사용할 수 없습니다",
     "intent_invalid": "선택한 디자인 정보를 처리할 수 없습니다",
     "candidate_invalid": "디자인 후보를 완성하지 못했습니다",
+    "semantic_mismatch": "요청한 주제와 맞는 모티프 구성을 만들지 못했습니다",
 }
 _WORKER_REJECTION_STAGES = {
     "authoring_invalid": "authoring",
@@ -33,6 +34,7 @@ _WORKER_REJECTION_STAGES = {
     "reference_invalid": "reference",
     "intent_invalid": "intent",
     "candidate_invalid": "candidate",
+    "semantic_mismatch": "authoring",
 }
 
 
