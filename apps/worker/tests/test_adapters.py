@@ -46,9 +46,9 @@ _SETTINGS = Settings(motif_render_check=False, recraft_max_color_slots=6)
 
 
 class _SDKError(Exception):
-    def __init__(self, status_code: int) -> None:
-        super().__init__(f"provider status {status_code}")
-        self.status_code = status_code
+    def __init__(self, code: int) -> None:
+        super().__init__(f"provider status {code}")
+        self.code = code
 
 
 class _FakeModels:

@@ -171,6 +171,30 @@ async def test_retrieval_selects_up_to_three_compatible_unique_families(db_sessi
     assert [item["rank"] for item in outcome.diagnostics()] == [1, 2, 3]
 
 
+async def test_retrieval_does_not_backfill_duplicate_families(db_session):
+    await _project(db_session, (1, 2, 5))
+
+    class _Embedding:
+        model = MODEL
+
+        async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
+            assert text
+            assert task_type == "RETRIEVAL_QUERY"
+            return _vec(1.0)
+
+    outcome = await retrieve_examples(
+        db_session,
+        "stripe and lattice",
+        embedding_client=_Embedding(),
+        embedding_model=MODEL,
+        available_motif_count=2,
+        pattern_constraints=PatternConstraints(),
+    )
+
+    assert outcome.status == "ok"
+    assert [example.family for example in outcome.examples] == ["stripe", "lattice"]
+
+
 async def test_retrieval_fails_soft_when_embedding_provider_fails(db_session):
     class _BrokenEmbedding:
         model = MODEL

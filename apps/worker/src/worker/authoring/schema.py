@@ -197,8 +197,9 @@ class DesignPlanV3(_StrictModel):
             if not isinstance(raw, str):
                 raise ValueError("each color must be a HEX string")
             color = normalize_hex(raw)
-            if color not in colors:
-                colors.append(color)
+            if color in colors:
+                raise ValueError(f"duplicate normalized color: {color}")
+            colors.append(color)
         return colors
 
     @model_validator(mode="after")

@@ -142,7 +142,13 @@ def _resolve_motif_sources(
         raise PlanCompileError("every exact motif input must be represented exactly once")
     if any(reference_counts.get(index, 0) != 1 for index in reference_motif_indexes):
         raise PlanCompileError("every motif reference photo must be represented exactly once")
-    if catalog_candidates and not motif_ids and len(reference_counts) < 2 and catalog_count == 0:
+    if (
+        plan.motifs
+        and catalog_candidates
+        and not motif_ids
+        and len(reference_counts) < 2
+        and catalog_count == 0
+    ):
         raise PlanCompileError(
             "a verified catalog_ref is required while a motif slot remains", grounding=True
         )

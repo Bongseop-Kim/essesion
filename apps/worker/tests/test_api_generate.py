@@ -14,6 +14,7 @@ import hashlib
 import io
 import threading
 import time
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import httpx
@@ -412,8 +413,10 @@ def test_prompt_v3_cohort_uses_rag_and_typed_authoring(monkeypatch):
 
 def test_prompt_shadow_keeps_legacy_result_when_v3_fails(monkeypatch):
     calls: list[str] = []
+    shadow_session = _FakeSession()
 
-    async def fake_retrieve(*_args, **_kwargs):
+    async def fake_retrieve(session, *_args, **_kwargs):
+        assert session is shadow_session
         calls.append("retrieve")
         return RetrievalOutcome(status="index_empty")
 
@@ -439,6 +442,12 @@ def test_prompt_shadow_keeps_legacy_result_when_v3_fails(monkeypatch):
 
     monkeypatch.setattr(routes, "load_authoring_runtime_settings", _shadow_runtime)
     app.state.adapters = Adapters(gemini=ShadowGemini())
+
+    @asynccontextmanager
+    async def _shadow_sessionmaker():
+        yield shadow_session
+
+    app.state.sessionmaker = _shadow_sessionmaker
 
     response = TestClient(app).post(
         "/generate",

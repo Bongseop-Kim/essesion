@@ -422,16 +422,16 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         created_at=now,
     )
     provider_failure = SeamlessGenerationLog(
-        request_id="recraft-failure-request",
+        request_id="vertex-failure-request",
         input_type="prompt",
         warnings=[],
         status="error",
-        error_type="RecraftError",
+        error_type="EmbeddingError",
         diagnostics={
             "failure_code": "provider_request_failed",
             "failure_stage": "motif_resolution",
-            "failure_provider": "recraft",
-            "failure_operation": "generate_motif",
+            "failure_provider": "vertex_embedding",
+            "failure_operation": "embed",
             "failure_reason": "rate_limited",
             "failure_status_code": 429,
         },
@@ -524,7 +524,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         headers=auth_headers(admin, settings),
     )
     assert failed_detail.status_code == 200
-    assert failed_detail.json()["error_summary"] == "Recraft 생성 연동에 실패했습니다"
+    assert failed_detail.json()["error_summary"] == "Vertex AI 임베딩 생성 연동에 실패했습니다"
     assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
 
 

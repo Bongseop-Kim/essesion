@@ -8,7 +8,7 @@ import argparse
 import asyncio
 
 from db.models.seamless import EMBEDDING_DIM
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from worker.adapters.embedding import build_embedding_client
 from worker.authoring import store
 from worker.authoring.examples import load_example_set
@@ -31,12 +31,13 @@ async def _run() -> tuple[int, int, int, int]:
     client = build_embedding_client(settings)
     if client is None:
         raise SystemExit("GCP_PROJECT_ID가 없어 예시 임베딩을 생성할 수 없습니다.")
-    examples = load_example_set()
-    engine = build_engine(settings)
-    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+    engine: AsyncEngine | None = None
     inserted = 0
     embedded_now = 0
     try:
+        examples = load_example_set()
+        engine = build_engine(settings)
+        sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
         async with sessionmaker() as session:
             for example in examples:
                 inserted += int(
@@ -78,8 +79,11 @@ async def _run() -> tuple[int, int, int, int]:
             )
             return inserted, embedded_now, embedded, total
     finally:
-        await client.aclose()
-        await engine.dispose()
+        try:
+            await client.aclose()
+        finally:
+            if engine is not None:
+                await engine.dispose()
 
 
 if __name__ == "__main__":

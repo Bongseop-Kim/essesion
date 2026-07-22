@@ -806,19 +806,22 @@ class GeminiClient:
                     )
                     break
                 except Exception as exc:
-                    status = getattr(exc, "status_code", None)
+                    raw_status = getattr(exc, "code", None)
+                    status = (
+                        raw_status
+                        if isinstance(raw_status, int) and not isinstance(raw_status, bool)
+                        else None
+                    )
                     if status in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
                         await asyncio.sleep(_BASE_DELAY_S * 2**attempt)
                         continue
-                    reason = (
-                        adapter_http_reason(status) if isinstance(status, int) else "provider_error"
-                    )
+                    reason = adapter_http_reason(status) if status is not None else "provider_error"
                     raise AdapterClientError(
                         f"Gemini request failed: {exc}",
                         provider="gemini",
                         operation="generate_content",
                         reason_code=reason,
-                        status_code=status if isinstance(status, int) else None,
+                        status_code=status,
                     ) from exc
         except AdapterClientError:
             raise

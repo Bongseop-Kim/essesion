@@ -132,7 +132,4 @@ async def retrieve_examples(
         selected_families.add(match.family)
         if len(selected) == 3:
             break
-    if len(selected) < 3:
-        selected_ids = {match.example_id for match in selected}
-        selected.extend(match for match in compatible if match.example_id not in selected_ids)
-    return RetrievalOutcome(status="ok", examples=tuple(selected[:3]))
+    return RetrievalOutcome(status="ok", examples=tuple(selected))

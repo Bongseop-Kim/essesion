@@ -130,6 +130,7 @@ function warningPresentation(
 const PROVIDER_LABELS: Readonly<Record<string, string>> = {
   gemini: "Gemini",
   openai_embedding: "OpenAI 임베딩",
+  vertex_embedding: "Vertex AI 임베딩",
   recraft: "Recraft",
   worker: "Worker",
 };

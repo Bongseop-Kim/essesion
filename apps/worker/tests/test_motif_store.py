@@ -67,6 +67,27 @@ async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):
     assert matches[0].similarity == 1.0
 
 
+async def test_vertex_nearest_by_embedding_uses_halfvec_distance(db_session):
+    await store.upsert_motif(
+        db_session,
+        _motif("recraft-vertex-near"),
+        facets={"scope": "whole"},
+        embedding=_vertex_vec(1.0),
+    )
+    await store.upsert_motif(
+        db_session,
+        _motif("recraft-vertex-far"),
+        facets={"scope": "whole"},
+        embedding=_vertex_vec(0.0, 1.0),
+    )
+    await db_session.commit()
+
+    matches = await store.nearest_by_embedding(db_session, _vertex_vec(1.0), top_k=1)
+
+    assert matches[0].id == "recraft-vertex-near"
+    assert matches[0].similarity == 1.0
+
+
 async def test_nearest_excludes_null_embedding(db_session):
     await store.upsert_motif(db_session, _motif("recraft-nullembeddin"), facets={"scope": "whole"})
     await store.upsert_motif(

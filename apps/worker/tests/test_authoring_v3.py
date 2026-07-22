@@ -128,6 +128,25 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
     with pytest.raises(ValidationError, match="may not be blank"):
         DesignPlanV3.model_validate(blank_reference)
 
+    duplicate_colors = json.loads(json.dumps(base))
+    duplicate_colors["colors"][1] = duplicate_colors["colors"][0].lower()
+    with pytest.raises(ValidationError, match="duplicate normalized color"):
+        DesignPlanV3.model_validate(duplicate_colors)
+
+
+def test_compiler_accepts_motif_free_plan_with_catalog_candidates_and_one_reference():
+    plan = load_example_set()[0].plan
+
+    compiled = compile_design_plan_v3(
+        plan,
+        plan_index=0,
+        catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
+        reference_image_count=1,
+    )
+
+    assert compiled.plan is not None
+    assert compiled.plan["motifs"] == []
+
 
 def test_compiler_requires_each_exact_input_once():
     raw = load_example_set()[20].plan.model_dump(mode="json")

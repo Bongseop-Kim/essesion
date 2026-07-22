@@ -17,7 +17,16 @@ def upgrade() -> None:
         "motifs",
         sa.Column("embedding_vertex", pgvector.sqlalchemy.Vector(dim=3072), nullable=True),
     )
+    op.create_index(
+        "ix_motifs_embedding_vertex_halfvec_hnsw",
+        "motifs",
+        [sa.literal_column("(embedding_vertex::halfvec(3072))").label("embedding_vertex_halfvec")],
+        unique=False,
+        postgresql_using="hnsw",
+        postgresql_ops={"embedding_vertex_halfvec": "halfvec_cosine_ops"},
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_motifs_embedding_vertex_halfvec_hnsw", table_name="motifs")
     op.drop_column("motifs", "embedding_vertex")

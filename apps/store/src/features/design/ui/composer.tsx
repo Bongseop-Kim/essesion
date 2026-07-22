@@ -40,7 +40,10 @@ import {
   useState,
 } from "react";
 
-import { DESIGN_PHOTO_ACCEPT } from "@/features/design/api/attachments";
+import {
+  DESIGN_PHOTO_ACCEPT,
+  MAX_DESIGN_MOTIFS,
+} from "@/features/design/api/attachments";
 import {
   REFERENCE_IMAGE_PURPOSES,
   type ReferenceImagePurpose,
@@ -277,14 +280,14 @@ export function DesignComposer({
                               label={
                                 option.value === "motif" &&
                                 (attachment.purpose ?? "auto") !== "motif" &&
-                                motifSlotCount >= 2
+                                motifSlotCount >= MAX_DESIGN_MOTIFS
                                   ? "모티프 형태 참고 (모티프 슬롯이 가득 참)"
                                   : option.label
                               }
                               disabled={
                                 option.value === "motif" &&
                                 (attachment.purpose ?? "auto") !== "motif" &&
-                                motifSlotCount >= 2
+                                motifSlotCount >= MAX_DESIGN_MOTIFS
                               }
                               checked={
                                 (attachment.purpose ?? "auto") === option.value

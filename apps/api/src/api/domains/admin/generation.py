@@ -593,6 +593,7 @@ def _error_projection(
     provider = {
         "gemini": "Gemini",
         "openai_embedding": "OpenAI 임베딩",
+        "vertex_embedding": "Vertex AI 임베딩",
         "recraft": "Recraft",
     }.get(diagnostics.failure_provider or "")
     if provider and safe_type in {

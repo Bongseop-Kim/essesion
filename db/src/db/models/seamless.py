@@ -2,8 +2,8 @@
 
 motifs.id는 content-hash(recraft-<sha256 12자>) — ON CONFLICT DO NOTHING이 곧 멱등성.
 기존 embedding은 vector(1536) legacy 컬럼이며, 새 embedding_vertex는 Vertex AI
-gemini-embedding-001의 vector(3072) 컬럼이다. HNSW 인덱스는 두지 않는다(seq scan이
-결정론적이고 현 규모에 충분 — 필요해지면 후속 리비전).
+gemini-embedding-001의 vector(3072) 컬럼이다. 검색은 halfvec(3072) expression HNSW
+인덱스를 사용한다.
 """
 
 import uuid
@@ -12,7 +12,16 @@ from decimal import Decimal
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, Text, text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+    literal_column,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, REAL
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,6 +64,12 @@ class Motif(CreatedAtMixin, Base):
 
     __table_args__ = (
         CheckConstraint("scope IS NULL OR scope IN ('whole', 'partial')", name="scope"),
+        Index(
+            "ix_motifs_embedding_vertex_halfvec_hnsw",
+            literal_column("(embedding_vertex::halfvec(3072))").label("embedding_vertex_halfvec"),
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding_vertex_halfvec": "halfvec_cosine_ops"},
+        ),
     )
 
 

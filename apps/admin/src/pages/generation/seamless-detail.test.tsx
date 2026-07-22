@@ -318,8 +318,8 @@ describe("SeamlessLogDetailPage", () => {
         motif_resolution_ms: 35,
         candidate_ms: 18,
         render_ms: 9,
-        failure_provider: "recraft",
-        failure_operation: "generate_motif",
+        failure_provider: "vertex_embedding",
+        failure_operation: "embed",
         failure_reason: "rate_limited",
         failure_status_code: 429,
         motif_resolutions: [
@@ -331,8 +331,8 @@ describe("SeamlessLogDetailPage", () => {
             motif_id: null,
             similarity: null,
             match_type: null,
-            provider: "recraft",
-            operation: "generate_motif",
+            provider: "openai_embedding",
+            operation: "embed",
             reason_code: "rate_limited",
             status_code: 429,
           },
@@ -362,9 +362,11 @@ describe("SeamlessLogDetailPage", () => {
     expect(
       screen.getByText("저작 121ms · 모티프 35ms · 후보 18ms · 렌더 9ms"),
     ).toBeTruthy();
-    expect(screen.getByText("Recraft · generate_motif")).toBeTruthy();
+    expect(screen.getByText("Vertex AI 임베딩 · embed")).toBeTruthy();
     expect(screen.getByText("요청 한도 초과 (429)")).toBeTruthy();
-    expect(screen.getByText(/Recraft: 요청 한도 초과 \(429\)/)).toBeTruthy();
+    expect(
+      screen.getByText(/OpenAI 임베딩: 요청 한도 초과 \(429\)/),
+    ).toBeTruthy();
 
     const outcome = screen
       .getByRole("heading", { name: "사용자 결과" })

@@ -11,6 +11,8 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MAX_DESIGN_MOTIFS } from "@/features/design/api/attachments";
+
 import {
   ComposerPanelItem,
   DesignComposer,
@@ -224,7 +226,7 @@ describe("DesignComposer token purchase", () => {
     render(
       <DesignComposer
         {...baseProps}
-        motifSlotCount={2}
+        motifSlotCount={MAX_DESIGN_MOTIFS}
         attachments={[
           {
             id: "photo-1",

@@ -14,8 +14,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from db.models.seamless import LEGACY_EMBEDDING_DIM, Motif
+from db.models.seamless import EMBEDDING_DIM, LEGACY_EMBEDDING_DIM, Motif
+from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -262,8 +264,10 @@ async def nearest_by_embedding(
     session: AsyncSession, vec: list[float], *, top_k: int = 1
 ) -> list[MotifMatch]:
     """공개 카탈로그 코사인 최근접 top-k. 동점은 lowest ID, NULL은 제외한다."""
-    column = Motif.embedding if len(vec) == LEGACY_EMBEDDING_DIM else Motif.embedding_vertex
-    distance = column.cosine_distance(vec)
+    legacy = len(vec) == LEGACY_EMBEDDING_DIM
+    column = Motif.embedding if legacy else Motif.embedding_vertex
+    distance_column = column if legacy else sql_cast(column, HALFVEC(EMBEDDING_DIM))
+    distance = distance_column.cosine_distance(vec)
     rows = (
         await session.execute(
             select(Motif.id, Motif.variant_group, distance.label("distance"))
@@ -276,8 +280,7 @@ async def nearest_by_embedding(
         )
     ).all()
     return [
-        MotifMatch(id=row[0], variant_group=row[1], similarity=1.0 - float(row[2]))
-        for row in rows
+        MotifMatch(id=row[0], variant_group=row[1], similarity=1.0 - float(row[2])) for row in rows
     ]
 
 
