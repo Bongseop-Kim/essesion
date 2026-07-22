@@ -1,11 +1,12 @@
-"""/motifs/* + /generate 모티프 경로 API 테스트 — 실컨테이너 + respx (worker-motifs.md §3~§6)."""
+"""/motifs/* + /generate 모티프 경로 API 테스트 — 실컨테이너 (worker-motifs.md §3~§6)."""
 
 import json
 from types import SimpleNamespace
+from typing import cast
+from unittest.mock import AsyncMock
 
-import httpx
-import respx
-from worker.adapters.gemini import GeminiClient
+from google import genai
+from worker.adapters.gemini import AuthoredDesign, GeminiClient
 from worker.api import routes
 from worker.motifs import store
 from worker.motifs.normalize import normalize_motif_svg
@@ -97,14 +98,12 @@ async def test_generate_renders_with_db_motif_catalog(client, db_session):
     assert body["registry_version"].startswith("0.1.0")
 
 
-@respx.mock
 async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     mid = await _seed_dot(db_session)
-    app.state.adapters.gemini = GeminiClient("test-key")  # DryRun 대신 목 클라이언트 주입
     design = {
         "plans": [
             {
-                "motifs": [{"subject": "dot", "scope": "whole"}],
+                "motifs": [{"catalog_ref": "catalog_1"}],
                 "colors": ["#FFFFFF", "#111111"],
                 "arrangement": "lattice",
                 "density": "medium",
@@ -113,7 +112,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
                 "stripes": False,
             },
             {
-                "motifs": [{"subject": "dot", "scope": "whole"}],
+                "motifs": [{"catalog_ref": "catalog_1"}],
                 "colors": ["#F0EBDD", "#223344"],
                 "arrangement": "scatter",
                 "density": "sparse",
@@ -123,12 +122,23 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
             },
         ]
     }
-    respx.post(url__regex=r".*generateContent").mock(
-        return_value=httpx.Response(
-            200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(design)}]}}]}
+    sdk = SimpleNamespace(
+        aio=SimpleNamespace(
+            models=SimpleNamespace(
+                generate_content=AsyncMock(
+                    return_value=SimpleNamespace(text=json.dumps(design), parsed=None)
+                )
+            )
         )
     )
-    resp = await client.post("/generate", json={"prompt": "polka dots", "candidate_count": 1})
+    app.state.adapters.gemini = GeminiClient("", client=cast(genai.Client, sdk))
+    resp = await client.post("/generate", json={"prompt": "dot pattern", "candidate_count": 1})
+    generate_content = sdk.aio.models.generate_content
+    generate_content.assert_awaited_once()
+    awaited_call = generate_content.await_args
+    assert awaited_call is not None
+    contents = awaited_call.kwargs["contents"]
+    assert "Description: dot pattern" in contents[0].parts[-1].text
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["candidates"]
@@ -161,7 +171,7 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
             assert reference_images == []
             assert motif_ids == []
             assert validate(intent) is None
-            return [SimpleNamespace(intent=intent, motif_specs=[])]
+            return [AuthoredDesign(intent=intent)]
 
     seen: list[int] = []
 

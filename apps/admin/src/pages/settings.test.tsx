@@ -61,6 +61,27 @@ const settings: AdminSettingOut[] = [
     updated_at: "2026-07-12T01:00:00Z",
     updated_by: "admin-1",
   },
+  {
+    key: "authoring_pipeline_mode",
+    value: "legacy",
+    value_type: "enum",
+    updated_at: "2026-07-12T01:00:00Z",
+    updated_by: "admin-1",
+  },
+  {
+    key: "authoring_shadow_percent",
+    value: "5",
+    value_type: "percentage",
+    updated_at: "2026-07-12T01:00:00Z",
+    updated_by: "admin-1",
+  },
+  {
+    key: "authoring_canary_percent",
+    value: "10",
+    value_type: "percentage",
+    updated_at: "2026-07-12T01:00:00Z",
+    updated_by: "admin-1",
+  },
 ];
 
 function renderPage() {
@@ -131,6 +152,30 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("10회").length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "수정" })[2]!);
     expect(await screen.findByLabelText("실사화 횟수")).toBeTruthy();
+  });
+
+  it("저작 파이프라인 모드와 비율을 DB 운영 설정으로 편집한다", async () => {
+    const user = userEvent.setup();
+    api.getSettings.mockResolvedValue(settings);
+    renderPage();
+
+    expect(await screen.findByText("저작 파이프라인 모드")).toBeTruthy();
+    expect(screen.getAllByText("5%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("10%").length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole("button", { name: "수정" })[3]!);
+
+    expect(
+      await screen.findByRole("radiogroup", { name: "실행 모드" }),
+    ).toBeTruthy();
+    expect(
+      (screen.getByRole("radio", { name: /Legacy/ }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
+    await user.click(screen.getByRole("radio", { name: /Canary/ }));
+    expect(
+      (screen.getByRole("radio", { name: /Canary/ }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
   });
 
   it("편집 중 캐시가 갱신되어도 편집 시작 revision으로 저장한다", async () => {

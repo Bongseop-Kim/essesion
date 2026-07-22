@@ -262,6 +262,33 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
+    path: "authoring-examples",
+    lazy: async () => {
+      const { AuthoringExamplesPage } = await import(
+        "../../pages/authoring/list"
+      );
+      return { Component: AuthoringExamplesPage };
+    },
+  },
+  {
+    path: "authoring-examples/candidates/:candidateId",
+    lazy: async () => {
+      const { AuthoringCandidateDetailPage } = await import(
+        "../../pages/authoring/candidate-detail"
+      );
+      return { Component: AuthoringCandidateDetailPage };
+    },
+  },
+  {
+    path: "authoring-examples/active/:exampleId",
+    lazy: async () => {
+      const { AuthoringExampleDetailPage } = await import(
+        "../../pages/authoring/example-detail"
+      );
+      return { Component: AuthoringExampleDetailPage };
+    },
+  },
+  {
     path: "motifs",
     lazy: async () => {
       const { MotifsPage } = await import("../../pages/motifs/list");

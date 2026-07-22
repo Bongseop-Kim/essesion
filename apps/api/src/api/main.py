@@ -343,6 +343,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _include_routers(app: FastAPI) -> None:
+    from api.domains.admin.authoring import router as admin_authoring_router
     from api.domains.admin.configuration import router as admin_configuration_router
     from api.domains.admin.coupons import router as admin_coupons_router
     from api.domains.admin.customers import router as admin_customers_router
@@ -388,6 +389,7 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(reform_router)
     app.include_router(design_router)
     app.include_router(admin_router)
+    app.include_router(admin_authoring_router)
     app.include_router(admin_customers_router)
     app.include_router(admin_coupons_router)
     app.include_router(admin_products_router)

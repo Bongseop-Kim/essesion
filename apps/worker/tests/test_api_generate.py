@@ -14,6 +14,7 @@ import hashlib
 import io
 import threading
 import time
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import httpx
@@ -24,6 +25,8 @@ from PIL import Image
 from worker.adapters import Adapters
 from worker.adapters.gemini import AuthoredDesign
 from worker.api import routes
+from worker.authoring.retrieval import RetrievalOutcome
+from worker.authoring.rollout import AuthoringRuntimeSettings
 from worker.db import get_session
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
@@ -37,6 +40,19 @@ register_test_motifs()
 class _EmptyScalars:
     def all(self):
         return []
+
+
+class _EmptyRows:
+    def all(self):
+        return []
+
+
+class _NestedTransaction:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return None
 
 
 class _FakeSession:
@@ -61,6 +77,12 @@ class _FakeSession:
     async def scalars(self, *_args, **_kwargs):
         return _EmptyScalars()
 
+    async def execute(self, *_args, **_kwargs):
+        return _EmptyRows()
+
+    def begin_nested(self):
+        return _NestedTransaction()
+
 
 def _configure_app(monkeypatch, *, raster_ok: bool = True):
     app = create_app()
@@ -73,6 +95,11 @@ def _configure_app(monkeypatch, *, raster_ok: bool = True):
         return (b"fake-png", "image/png")
 
     monkeypatch.setattr(routes, "rasterize_svg", _raster)
+
+    async def _runtime(_session):
+        return AuthoringRuntimeSettings()
+
+    monkeypatch.setattr(routes, "load_authoring_runtime_settings", _runtime)
 
     async def _session():
         yield _FakeSession()
@@ -296,6 +323,150 @@ def test_prompt_only_without_gemini_returns_503(client):
     # prompt 경로는 구현됐지만 Gemini 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
     resp = client.post("/generate", json={"prompt": "navy paisley tie"})
     assert resp.status_code == 503
+
+
+def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatch):
+    captured = {}
+    catalog = [
+        {
+            "catalog_ref": "catalog_1",
+            "motif_id": "seed-chess-king",
+            "subject": "chess",
+            "description": "chess king outline",
+            "style": "outline",
+            "similarity": 1.0,
+            "match_type": "exact_token",
+        }
+    ]
+
+    async def fake_candidates(_session, prompt, *, embedding_client, tau, top_k):
+        captured.update(
+            prompt=prompt,
+            embedding_client=embedding_client,
+            tau=tau,
+            top_k=top_k,
+        )
+        return catalog
+
+    class GroundedGemini:
+        async def author_designs(self, _prompt, *, catalog_candidates, **_kwargs):
+            assert catalog_candidates == catalog
+            return [AuthoredDesign(intent=mvp_intent())]
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=GroundedGemini())
+
+    response = TestClient(app).post("/generate", json={"prompt": "chess 패턴 디자인해주세요"})
+
+    assert response.status_code == 200, response.text
+    assert captured["prompt"] == "chess 패턴 디자인해주세요"
+    assert captured["tau"] == app.state.settings.motif_similarity_tau
+    assert captured["top_k"] == 5
+
+
+def test_prompt_v3_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch):
+    calls: list[str] = []
+    retrieval_session = _FakeSession()
+
+    async def fake_retrieve(session, prompt, **kwargs):
+        assert session is retrieval_session
+        calls.append("retrieve")
+        assert prompt == "대각 스트라이프"
+        assert kwargs["available_motif_count"] == 0
+        return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
+
+    class V3Gemini:
+        async def author_designs(self, *_args, **_kwargs):
+            raise AssertionError("legacy path must not run in a v3 cohort")
+
+        async def author_designs_v3(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
+            calls.append("v3")
+            assert examples == []
+            assert diagnostics["example_retrieval_status"] == "retrieval_error"
+            assert diagnostics["example_retrieval_reason"] == "ProgrammingError"
+            intent = mvp_intent()
+            assert validate(intent) is None
+            diagnostics.update(
+                plan_contract_version=3,
+                compiler_revision="design-plan-v3.0",
+                prompt_revision="design-plan-v3-rag-grounded",
+            )
+            return [
+                AuthoredDesign(
+                    intent=intent,
+                    plan={"colors": ["#000000", "#ffffff"]},
+                    structural_fingerprint="layout-v3",
+                )
+            ]
+
+    monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
+    app = _configure_app(monkeypatch)
+
+    async def _v3_runtime(_session):
+        return AuthoringRuntimeSettings(authoring_pipeline_mode="v3")
+
+    monkeypatch.setattr(routes, "load_authoring_runtime_settings", _v3_runtime)
+    app.state.adapters = Adapters(gemini=V3Gemini())
+
+    @asynccontextmanager
+    async def _retrieval_sessionmaker():
+        yield retrieval_session
+
+    app.state.sessionmaker = _retrieval_sessionmaker
+
+    response = TestClient(app).post("/generate", json={"prompt": "대각 스트라이프"})
+
+    assert response.status_code == 200, response.text
+    assert calls == ["retrieve", "v3"]
+
+
+def test_prompt_shadow_keeps_legacy_result_when_v3_fails(monkeypatch):
+    calls: list[str] = []
+    shadow_session = _FakeSession()
+
+    async def fake_retrieve(session, *_args, **_kwargs):
+        assert session is shadow_session
+        calls.append("retrieve")
+        return RetrievalOutcome(status="index_empty")
+
+    class ShadowGemini:
+        async def author_designs(self, _prompt, *, validate, **_kwargs):
+            calls.append("legacy")
+            intent = mvp_intent()
+            assert validate(intent) is None
+            return [AuthoredDesign(intent=intent)]
+
+        async def author_designs_v3(self, *_args, **_kwargs):
+            calls.append("v3")
+            raise RuntimeError("shadow-only failure")
+
+    monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
+    app = _configure_app(monkeypatch)
+
+    async def _shadow_runtime(_session):
+        return AuthoringRuntimeSettings(
+            authoring_pipeline_mode="shadow",
+            authoring_shadow_percent=100,
+        )
+
+    monkeypatch.setattr(routes, "load_authoring_runtime_settings", _shadow_runtime)
+    app.state.adapters = Adapters(gemini=ShadowGemini())
+
+    @asynccontextmanager
+    async def _shadow_sessionmaker():
+        yield shadow_session
+
+    app.state.sessionmaker = _shadow_sessionmaker
+
+    response = TestClient(app).post(
+        "/generate",
+        headers={"X-Request-ID": "shadow-sample"},
+        json={"prompt": "대각 스트라이프"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert set(calls) == {"legacy", "retrieve", "v3"}
 
 
 @respx.mock

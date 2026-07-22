@@ -9,6 +9,8 @@ import {
   AlertDialog,
   Callout,
   ContentPlaceholder,
+  SelectBox,
+  SelectBoxItem,
   snackbar,
   Text,
   TextAreaField,
@@ -46,6 +48,44 @@ type SettingPresentation = {
 };
 
 const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
+  authoring_pipeline_mode: {
+    title: "저작 파이프라인 모드",
+    description:
+      "신규 생성 요청에서 legacy와 Plan v3를 어떤 방식으로 실행할지 정합니다.",
+    scope: "이후의 신규 디자인 생성 요청",
+    defaultValue: "legacy",
+    inputLabel: "실행 모드",
+    impact: "변경 직후 시작하는 신규 생성 요청부터 적용됩니다.",
+    editWarning: {
+      title: "생성 파이프라인 동작이 즉시 바뀝니다",
+      description:
+        "canary 또는 v3 전환 전 shadow 결과와 승격 예시 상태를 먼저 확인해 주세요.",
+    },
+  },
+  authoring_shadow_percent: {
+    title: "Shadow 실행 비율",
+    description:
+      "legacy 응답을 유지하면서 Plan v3를 함께 실행해 진단만 수집하는 요청 비율입니다.",
+    scope: "파이프라인 모드가 shadow일 때의 신규 생성 요청",
+    defaultValue: "5%",
+    inputLabel: "Shadow 비율",
+    unit: "%",
+    impact: "shadow 모드의 신규 생성 요청 샘플링 비율에 즉시 적용됩니다.",
+  },
+  authoring_canary_percent: {
+    title: "Canary 적용 비율",
+    description:
+      "Plan v3 결과를 실제 응답으로 사용하는 신규 생성 요청 비율입니다.",
+    scope: "파이프라인 모드가 canary일 때의 신규 생성 요청",
+    defaultValue: "10%",
+    inputLabel: "Canary 비율",
+    unit: "%",
+    impact: "canary 모드의 신규 생성 요청 샘플링 비율에 즉시 적용됩니다.",
+    editWarning: {
+      title: "실제 사용자 생성 결과에 영향을 줍니다",
+      description: "비율을 높이기 전에 오류율과 결과 품질을 확인해 주세요.",
+    },
+  },
   default_courier_company: {
     title: "기본 택배사",
     description: "운영자가 송장을 등록할 때 기본으로 제안하는 택배사입니다.",
@@ -94,7 +134,21 @@ function settingPresentation(item: AdminSettingOut): SettingPresentation {
 }
 
 function formatSettingValue(item: AdminSettingOut, value = item.value) {
-  if (item.value_type !== "non_negative_integer") return value;
+  if (item.value_type === "enum") {
+    return (
+      {
+        legacy: "Legacy만 실행",
+        shadow: "Shadow 비교",
+        canary: "Canary 적용",
+        v3: "Plan v3 전면 적용",
+      }[value] ?? value
+    );
+  }
+  if (
+    item.value_type !== "non_negative_integer" &&
+    item.value_type !== "percentage"
+  )
+    return value;
   const number = Number(value);
   const unit = SETTING_PRESENTATION[item.key]?.unit ?? "개";
   return Number.isFinite(number)
@@ -190,6 +244,10 @@ export function SettingsPage() {
     const value = draft[item.key] ?? "";
     if (item.value_type === "courier")
       return value.trim().length === 0 || value.length > 100;
+    if (item.value_type === "enum")
+      return !["legacy", "shadow", "canary", "v3"].includes(value);
+    if (item.value_type === "percentage")
+      return !/^\d+$/.test(value) || Number(value) > 100;
     return !/^\d+$/.test(value) || Number(value) > 1_000_000;
   });
 
@@ -252,36 +310,85 @@ export function SettingsPage() {
           >
             {editing ? (
               <VStack gap="x4" alignItems="stretch">
-                <TextField
-                  type={
-                    item.value_type === "non_negative_integer"
-                      ? "number"
-                      : "text"
-                  }
-                  min={
-                    item.value_type === "non_negative_integer" ? 0 : undefined
-                  }
-                  step={
-                    item.value_type === "non_negative_integer" ? 1 : undefined
-                  }
-                  label={presentation.inputLabel}
-                  description={`현재 ${formatSettingValue(item)}`}
-                  suffix={
-                    item.value_type === "non_negative_integer"
-                      ? (presentation.unit ?? "개")
-                      : undefined
-                  }
-                  value={draft[item.key] ?? item.value}
-                  disabled={mutation.isPending}
-                  onChange={(event) => {
-                    resetFailedOperation();
-                    const value = event.currentTarget.value;
-                    setDraft((current) => ({
-                      ...current,
-                      [item.key]: value,
-                    }));
-                  }}
-                />
+                {item.value_type === "enum" ? (
+                  <SelectBox
+                    aria-label={presentation.inputLabel}
+                    columns={{ base: 1, md: 2 }}
+                    value={draft[item.key] ?? item.value}
+                    onValueChange={(value) => {
+                      resetFailedOperation();
+                      setDraft((current) => ({
+                        ...current,
+                        [item.key]: String(value),
+                      }));
+                    }}
+                  >
+                    <SelectBoxItem
+                      value="legacy"
+                      label="Legacy"
+                      description="기존 파이프라인만 사용"
+                      disabled={mutation.isPending}
+                    />
+                    <SelectBoxItem
+                      value="shadow"
+                      label="Shadow"
+                      description="v3를 함께 실행하되 응답에는 미적용"
+                      disabled={mutation.isPending}
+                    />
+                    <SelectBoxItem
+                      value="canary"
+                      label="Canary"
+                      description="설정 비율만 v3 응답 적용"
+                      disabled={mutation.isPending}
+                    />
+                    <SelectBoxItem
+                      value="v3"
+                      label="Plan v3"
+                      description="모든 요청에 v3 응답 적용"
+                      disabled={mutation.isPending}
+                    />
+                  </SelectBox>
+                ) : (
+                  <TextField
+                    type={
+                      item.value_type === "non_negative_integer" ||
+                      item.value_type === "percentage"
+                        ? "number"
+                        : "text"
+                    }
+                    min={
+                      item.value_type === "non_negative_integer" ||
+                      item.value_type === "percentage"
+                        ? 0
+                        : undefined
+                    }
+                    max={item.value_type === "percentage" ? 100 : undefined}
+                    step={
+                      item.value_type === "non_negative_integer" ||
+                      item.value_type === "percentage"
+                        ? 1
+                        : undefined
+                    }
+                    label={presentation.inputLabel}
+                    description={`현재 ${formatSettingValue(item)}`}
+                    suffix={
+                      item.value_type === "non_negative_integer" ||
+                      item.value_type === "percentage"
+                        ? (presentation.unit ?? "개")
+                        : undefined
+                    }
+                    value={draft[item.key] ?? item.value}
+                    disabled={mutation.isPending}
+                    onChange={(event) => {
+                      resetFailedOperation();
+                      const value = event.currentTarget.value;
+                      setDraft((current) => ({
+                        ...current,
+                        [item.key]: value,
+                      }));
+                    }}
+                  />
+                )}
                 {presentation.editWarning && (
                   <Callout
                     tone="warning"

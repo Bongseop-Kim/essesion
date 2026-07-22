@@ -12,6 +12,17 @@ from datetime import UTC, datetime
 
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
+_STRUCTURED_LOG_FIELDS = (
+    "event",
+    "stage",
+    "provider",
+    "operation",
+    "reason_code",
+    "status_code",
+    "duration_ms",
+    "attempt",
+)
+
 # request_id는 워커에서 GCS object key(previews/{rid}/...)에 들어간다 — 인바운드
 # X-Request-ID를 무정제로 에코하면 `/`·`..` 경로 주입이 가능하므로 정제한다.
 _REQUEST_ID_RE = re.compile(r"[^A-Za-z0-9_-]+")
@@ -35,6 +46,9 @@ class JsonFormatter(logging.Formatter):
         }
         if rid := request_id_var.get():
             entry["request_id"] = rid
+        for key in _STRUCTURED_LOG_FIELDS:
+            if (value := getattr(record, key, None)) is not None:
+                entry[key] = value
         if record.exc_info:
             entry["exception"] = self.formatException(record.exc_info)
         return json.dumps(entry, ensure_ascii=False)

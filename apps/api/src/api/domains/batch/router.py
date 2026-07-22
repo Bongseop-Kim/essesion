@@ -33,6 +33,14 @@ class BatchResult(BaseModel):
     processed: int
 
 
+class AuthoringPromotionBatchResult(BaseModel):
+    scanned: int
+    pending: int
+    duplicate: int
+    invalid: int
+    failed: int
+
+
 def _no_active_claim():
     return not_(exists().where(Claim.order_id == Order.id, Claim.status.in_(ACTIVE_CLAIM_STATUSES)))
 
@@ -107,6 +115,15 @@ async def reconcile_stale_generation_jobs(session: SessionDep) -> BatchResult:
     resolve_stale_finalize_jobs(jobs)
     await session.commit()
     return BatchResult(processed=len(jobs))
+
+
+@router.post(
+    "/authoring-promotion-candidates",
+    response_model=AuthoringPromotionBatchResult,
+)
+async def authoring_promotion_candidates(request: Request) -> AuthoringPromotionBatchResult:
+    result = await request.app.state.worker.scan_authoring_promotions(limit=100)
+    return AuthoringPromotionBatchResult.model_validate(result)
 
 
 @router.post("/cleanup-images", response_model=BatchResult)

@@ -56,6 +56,11 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
         label: "생성 운영",
         href: "/generation-logs",
       },
+      {
+        key: "authoring-examples",
+        label: "RAG 예시",
+        href: "/authoring-examples",
+      },
       { key: "motifs", label: "Motif SVG", href: "/motifs" },
     ],
   },

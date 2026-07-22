@@ -39,8 +39,10 @@ locals {
   }
 
   worker_plain_env = {
-    ENV        = "staging"
-    GCS_BUCKET = google_storage_bucket.assets.name
+    ENV                = "staging"
+    GCS_BUCKET         = google_storage_bucket.assets.name
+    GCP_PROJECT_ID     = var.project_id
+    VERTEX_AI_LOCATION = "global"
   }
 
   # 같은 이미지를 배포하되 HTTP 표면은 역할별로 닫는다. all은 로컬 개발 전용 기본값.
@@ -54,8 +56,6 @@ locals {
 
   # 외부 API 키는 generate만 — finalize는 로컬 Pillow 연산뿐(최소 권한)
   worker_generate_secret_env = merge(local.worker_secret_env, {
-    OPENAI_API_KEY  = google_secret_manager_secret.app["openai-api-key"].secret_id
-    GEMINI_API_KEY  = google_secret_manager_secret.app["gemini-api-key"].secret_id
     RECRAFT_API_KEY = google_secret_manager_secret.app["recraft-api-key"].secret_id
   })
 }

@@ -24,7 +24,19 @@ from starlette.concurrency import run_in_threadpool
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
-from worker.adapters.gemini import ReferenceImage, normalize_stripes, prepare_reference_image
+from worker.adapters.gemini import (
+    ReferenceImage,
+    SemanticMismatch,
+    normalize_stripes,
+    prepare_reference_image,
+)
+from worker.authoring.promotion import (
+    DEFAULT_SCAN_LIMIT,
+    ensure_candidate_embedding,
+    scan_promotion_candidates,
+)
+from worker.authoring.retrieval import retrieve_examples
+from worker.authoring.rollout import load_authoring_runtime_settings, select_authoring_cohort
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -47,7 +59,12 @@ from worker.motifs.photo_svg import (
     photo_to_svg,
 )
 from worker.motifs.registry import iter_motif_ids
-from worker.motifs.resolver import present_candidates, resolve_motifs, resolve_spec
+from worker.motifs.resolver import (
+    present_candidates,
+    prompt_catalog_candidates,
+    resolve_motifs,
+    resolve_spec,
+)
 from worker.motifs.store import get_motifs
 from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH, text_to_svg
 from worker.render.fabric import FabricError, render_fabric
@@ -67,11 +84,32 @@ GENERATION_ERROR_MESSAGES = {
     "reference_invalid": "a reference image could not be used",
     "intent_invalid": "the design input is invalid",
     "candidate_invalid": "the design candidates could not be composed",
+    "semantic_mismatch": "the design plan did not match the requested subject",
 }
 
 
 class StrictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class PromotionScanRequest(StrictRequest):
+    limit: int = Field(default=DEFAULT_SCAN_LIMIT, ge=1, le=DEFAULT_SCAN_LIMIT)
+
+
+class PromotionScanResponse(BaseModel):
+    scanned: int
+    pending: int
+    duplicate: int
+    invalid: int
+    failed: int
+
+
+class PromotionEmbeddingRequest(StrictRequest):
+    candidate_id: uuid.UUID
+
+
+class PromotionEmbeddingResponse(BaseModel):
+    embedding_model: str
 
 
 class GenerateRequest(StrictRequest):
@@ -97,6 +135,9 @@ class GenerateRequest(StrictRequest):
             )
         if self.prompt is None and self.intent is None and not self.motif_ids:
             raise ValueError("prompt or SVG motif is required")
+        motif_references = sum(item.purpose == "motif" for item in self.reference_images)
+        if len(self.motif_ids) + motif_references > 2:
+            raise ValueError("exact motifs and motif reference photos may use at most 2 slots")
         return self
 
 
@@ -120,6 +161,7 @@ class CandidateOut(BaseModel):
 
 
 class GenerateResponse(BaseModel):
+    generation_log_id: uuid.UUID
     request_id: str
     registry_version: str
     engine_version: str
@@ -278,6 +320,41 @@ def _safe_generation_error(exc: Exception) -> tuple[str, str]:
     return error_type, "generation failed"
 
 
+def _record_adapter_failure(
+    request: Request,
+    exc: AdapterClientError,
+    *,
+    stage: str,
+    duration_ms: float | None = None,
+    emit_log: bool = True,
+) -> None:
+    diagnostics = request.state.generation_diagnostics
+    diagnostics.update(
+        {
+            "failure_code": "provider_request_failed",
+            "failure_stage": stage,
+            "failure_provider": exc.provider,
+            "failure_operation": exc.operation,
+            "failure_reason": exc.reason_code,
+            "failure_status_code": exc.status_code,
+        }
+    )
+    if emit_log:
+        logger.warning(
+            "generation provider call failed",
+            extra={
+                "event": "provider_call_failed",
+                "stage": stage,
+                "provider": exc.provider,
+                "operation": exc.operation,
+                "reason_code": exc.reason_code,
+                "status_code": exc.status_code,
+                "duration_ms": duration_ms,
+                "attempt": diagnostics.get("authoring_attempts"),
+            },
+        )
+
+
 def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserved by wraps
     @wraps(endpoint)
     async def wrapped(body: GenerateRequest, request: Request, session: SessionDep):
@@ -289,6 +366,7 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
             "reference_count": len(body.reference_images),
             "fixed_palette": body.palette.mode == "fixed",
             "pattern_controls": not body.pattern_constraints.is_automatic(),
+            "motif_resolutions": [],
         }
         try:
             return await endpoint(body, request, session)
@@ -480,14 +558,20 @@ async def _load_single_image(item: ReferenceImageInput, settings) -> bytes:  # n
         return await _fetch_reference_bytes(item, settings, client)
 
 
-def _bind_resolved_motif_colors(intents: list[dict[str, Any]], catalog) -> None:  # noqa: ANN001
+def _bind_resolved_motif_colors(
+    intents: list[dict[str, Any]],
+    catalog,  # noqa: ANN001
+    motif_color_plans: list[dict[str, list[str]]] | None = None,
+) -> None:
     """Bind every DB motif color slot after semantic resolution.
 
     Provider-authored placeholders cannot know whether a selected/reused motif is
     single- or multi-color. This deterministic adapter closes that catalog boundary
     before final validation and candidate composition.
     """
-    for intent in intents:
+    plans = motif_color_plans or []
+    for intent_index, intent in enumerate(intents):
+        planned_layers = plans[intent_index] if intent_index < len(plans) else {}
         palette = intent.get("palette")
         slots = palette.get("slots") if isinstance(palette, dict) else None
         slot_ids = [
@@ -506,8 +590,13 @@ def _bind_resolved_motif_colors(intents: list[dict[str, Any]], catalog) -> None:
             motif = catalog.get(motif_id) if isinstance(motif_id, str) else None
             if motif is None or not isinstance(params, dict):
                 continue
+            layer_id = layer.get("id")
+            planned_colors = planned_layers.get(layer_id) if isinstance(layer_id, str) else None
+            effective_colors = planned_colors or color_ids
             if len(motif.color_slots) <= 1:
-                if params.get("color") is None:
+                if planned_colors:
+                    params["color"] = planned_colors[0]
+                elif params.get("color") is None:
                     values = params.get("colors")
                     params["color"] = (
                         next(iter(values.values()))
@@ -518,7 +607,7 @@ def _bind_resolved_motif_colors(intents: list[dict[str, Any]], catalog) -> None:
                 continue
             params.pop("color", None)
             params["colors"] = {
-                slot: color_ids[index % len(color_ids)]
+                slot: effective_colors[index % len(effective_colors)]
                 for index, slot in enumerate(motif.color_slots)
             }
 
@@ -547,6 +636,7 @@ async def generate(
             _reject_generation(request, "constraint_conflict", "constraints")
         resolved_intents = [constrained_intent]
         catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
+        candidate_started = time.perf_counter()
         try:
             candidate_set = generate_candidates(
                 constrained_intent,
@@ -560,6 +650,10 @@ async def generate(
             )
         except (IntentInvalid, AssertionError, ValueError):
             _reject_generation(request, "intent_invalid", "intent")
+        finally:
+            request.state.generation_diagnostics["candidate_ms"] = round(
+                (time.perf_counter() - candidate_started) * 1000, 3
+            )
         tile_mm = float(constrained_intent["canvas"]["tile_mm"])
         intent_log: dict[str, Any] = {
             "designs": resolved_intents,
@@ -570,10 +664,18 @@ async def generate(
         input_type = "reference_image" if body.reference_images else "prompt"
         gemini = adapters.gemini
         if gemini is None:
-            raise HTTPException(status_code=503, detail="Gemini 미구성 (intent 직접 전달 가능)")
+            exc = AdapterNotConfigured(
+                "Gemini 미구성 (intent 직접 전달 가능)",
+                provider="gemini",
+                operation="generate_content",
+                reason_code="not_configured",
+            )
+            _record_adapter_failure(request, exc, stage="authoring")
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        def _validate(intent_raw: dict) -> list[str] | None:
-            normalize_stripes(intent_raw, settings)  # 대각 stripe 코드 계약 — 검증 전 in-place
+        def _validate(intent_raw: dict, *, normalize_diagonal: bool) -> list[str] | None:
+            if normalize_diagonal:
+                normalize_stripes(intent_raw, settings)  # v2 대각 stripe 호환 계약
             try:
                 constrained = apply_generation_constraints(
                     intent_raw, palette=body.palette, pattern=body.pattern_constraints
@@ -583,7 +685,10 @@ async def generate(
             intent_raw.clear()
             intent_raw.update(constrained)
             try:
-                validate_intent(intent_raw, repair=True)
+                # Authored motif IDs are provisional until resolver + DB catalog binding.
+                # An explicit empty catalog validates geometry/colors without accidentally
+                # consulting the process-global test registry for unresolved color slots.
+                validate_intent(intent_raw, repair=True, motifs={})
             except IntentInvalid as exc:
                 return exc.errors
             used = iter_motif_ids(intent_raw)
@@ -603,25 +708,134 @@ async def generate(
         author_prompt = body.prompt or (
             "Create a balanced necktie pattern using the supplied SVG motif."
         )
-        try:
-            designs = await gemini.author_designs(
+        embedding = request_scoped(adapters.embedding)
+        motif_reference_count = sum(image.purpose == "motif" for image in body.reference_images)
+        catalog_candidates: list[dict[str, object]] = []
+        if body.prompt and not body.motif_ids and motif_reference_count < 2:
+            catalog_candidates = await prompt_catalog_candidates(
+                session,
+                body.prompt,
+                embedding_client=embedding,
+                tau=settings.motif_similarity_tau,
+                top_k=5,
+            )
+        request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
+        authoring_runtime = await load_authoring_runtime_settings(session)
+        cohort = select_authoring_cohort(authoring_runtime, request_id_var.get() or "")
+        request.state.generation_diagnostics.update(
+            {
+                "authoring_pipeline_mode": authoring_runtime.authoring_pipeline_mode,
+                "authoring_cohort": cohort.pipeline,
+                "authoring_settings_status": authoring_runtime.status,
+                "authoring_settings_reason": authoring_runtime.reason,
+            }
+        )
+
+        async def _author_legacy(sink: dict[str, object]):
+            return await gemini.author_designs(
                 author_prompt,
-                validate=_validate,
+                validate=lambda raw: _validate(raw, normalize_diagonal=True),
                 reference_images=reference_images,
                 motif_ids=body.motif_ids,
+                catalog_candidates=catalog_candidates,
                 palette_constraint=body.palette,
                 pattern_constraints=body.pattern_constraints,
-                diagnostics=request.state.generation_diagnostics,
+                diagnostics=sink,
             )
-        except IntentInvalid:
+
+        async def _author_v3(sink: dict[str, object]):
+            retrieval_started = time.perf_counter()
+            reference_capable_count = sum(
+                image.purpose in {"motif", "auto"} for image in body.reference_images
+            )
+            available_motif_count = min(
+                2,
+                len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
+            )
+            async with request.app.state.sessionmaker() as retrieval_session:
+                retrieval = await retrieve_examples(
+                    retrieval_session,
+                    author_prompt,
+                    embedding_client=embedding,
+                    embedding_model=getattr(embedding, "model", settings.embedding_model),
+                    available_motif_count=available_motif_count,
+                    pattern_constraints=body.pattern_constraints,
+                )
+            sink.update(
+                {
+                    "example_retrieval_status": retrieval.status,
+                    "example_retrieval_reason": retrieval.reason,
+                    "example_retrieval_ms": round(
+                        (time.perf_counter() - retrieval_started) * 1000, 3
+                    ),
+                    "selected_examples": retrieval.diagnostics(),
+                }
+            )
+            return await gemini.author_designs_v3(
+                author_prompt,
+                validate=lambda raw: _validate(raw, normalize_diagonal=False),
+                reference_images=reference_images,
+                motif_ids=body.motif_ids,
+                catalog_candidates=catalog_candidates,
+                palette_constraint=body.palette,
+                pattern_constraints=body.pattern_constraints,
+                examples=retrieval.prompt_examples(),
+                diagnostics=sink,
+            )
+
+        authoring_started = time.perf_counter()
+        try:
+            if cohort.shadow_v3:
+                shadow_diagnostics: dict[str, object] = {}
+                legacy_result, shadow_result = await asyncio.gather(
+                    _author_legacy(request.state.generation_diagnostics),
+                    asyncio.wait_for(_author_v3(shadow_diagnostics), timeout=30.0),
+                    return_exceptions=True,
+                )
+                if isinstance(shadow_result, BaseException):
+                    shadow_diagnostics.update(
+                        {
+                            "status": "error",
+                            "error_type": shadow_result.__class__.__name__,
+                        }
+                    )
+                    if isinstance(shadow_result, AdapterClientError):
+                        shadow_diagnostics["error_reason"] = shadow_result.reason_code
+                else:
+                    shadow_diagnostics["status"] = "success"
+                request.state.generation_diagnostics["v3_shadow"] = shadow_diagnostics
+                if isinstance(legacy_result, BaseException):
+                    raise legacy_result
+                designs = legacy_result
+            elif cohort.pipeline == "v3":
+                designs = await _author_v3(request.state.generation_diagnostics)
+            else:
+                designs = await _author_legacy(request.state.generation_diagnostics)
+        except SemanticMismatch as exc:
+            request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
+            _reject_generation(request, "semantic_mismatch", "authoring")
+        except IntentInvalid as exc:
+            request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
             _reject_generation(request, "authoring_invalid", "authoring")
         except AdapterClientError as exc:
+            _record_adapter_failure(
+                request,
+                exc,
+                stage="authoring",
+                duration_ms=round((time.perf_counter() - authoring_started) * 1000, 3),
+            )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+        finally:
+            request.state.generation_diagnostics["authoring_ms"] = round(
+                (time.perf_counter() - authoring_started) * 1000, 3
+            )
 
-        embedding = request_scoped(adapters.embedding)  # design 간 같은 descriptor 재임베딩 방지
         resolved_intents: list[dict[str, Any]] = []
+        resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
+        resolution_started = time.perf_counter()
         try:
             for design in designs:
+                resolution_trace.extend(design.motif_resolutions)
                 # Motif variant selection and candidate composition must share one effective
                 # seed. With no request override, generate_candidates uses each authored seed.
                 effective_seed = (
@@ -637,22 +851,51 @@ async def generate(
                         settings=settings,
                         seed=effective_seed,
                         warnings=warnings,
+                        trace=resolution_trace,
                     )
                 )
                 if len(iter_motif_ids(resolved_intents[-1])) > 2:
-                    raise AdapterClientError("resolved design exceeds 2 distinct motifs")
+                    raise AdapterClientError(
+                        "resolved design exceeds 2 distinct motifs",
+                        provider="worker",
+                        operation="resolve_motif",
+                        reason_code="invalid_result",
+                    )
         except AdapterNotConfigured as exc:
+            _record_adapter_failure(
+                request,
+                exc,
+                stage="motif_resolution",
+                duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
+                emit_log=False,
+            )
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except AdapterClientError as exc:
+            _record_adapter_failure(
+                request,
+                exc,
+                stage="motif_resolution",
+                duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
+                emit_log=False,
+            )
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+        finally:
+            request.state.generation_diagnostics["motif_resolution_ms"] = round(
+                (time.perf_counter() - resolution_started) * 1000, 3
+            )
 
         ids: set[str] = set()
         for resolved in resolved_intents:
             ids |= iter_motif_ids(resolved)
         catalog = await get_motifs(session, ids)
-        _bind_resolved_motif_colors(resolved_intents, catalog)
+        _bind_resolved_motif_colors(
+            resolved_intents,
+            catalog,
+            [design.motif_color_slots for design in designs],
+        )
         request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
         registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
+        candidate_started = time.perf_counter()
         try:
             candidate_set = generate_candidate_set(
                 resolved_intents,
@@ -666,20 +909,42 @@ async def generate(
             )
         except (IntentInvalid, AssertionError, ValueError):
             _reject_generation(request, "candidate_invalid", "candidate")
+        finally:
+            request.state.generation_diagnostics["candidate_ms"] = round(
+                (time.perf_counter() - candidate_started) * 1000, 3
+            )
         tile_mm = float(resolved_intents[0]["canvas"]["tile_mm"])
         intent_log = {
             "designs": resolved_intents,
             "palette": body.palette.model_dump(),
             "pattern_constraints": body.pattern_constraints.model_dump(),
         }
+        authored_plans = [design.plan for design in designs if design.plan is not None]
+        if authored_plans:
+            diagnostics = request.state.generation_diagnostics
+            intent_log["authoring"] = {
+                "plan_contract_version": diagnostics.get("plan_contract_version"),
+                "compiler_revision": diagnostics.get("compiler_revision"),
+                "prompt_revision": diagnostics.get("prompt_revision"),
+                "selected_example_ids": [
+                    example.get("example_id")
+                    for example in diagnostics.get("selected_examples", [])
+                    if isinstance(example, dict)
+                ],
+                "plans": authored_plans,
+                "structural_fingerprints": [design.structural_fingerprint for design in designs],
+            }
     warnings.extend(candidate_set.warnings)
     warnings = list(dict.fromkeys(warnings))
     generate_ms = round((time.perf_counter() - started) * 1000, 3)
     request.state.generation_generate_ms = generate_ms
     outs = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
+    request.state.generation_diagnostics["render_ms"] = request.state.generation_render_ms
     request.state.generation_diagnostics["candidate_count"] = len(outs)
 
+    generation_log_id = uuid.uuid4()
     log = SeamlessGenerationLog(
+        id=generation_log_id,
         request_id=request_id_var.get(),
         input_type=input_type,
         prompt=body.prompt,
@@ -716,6 +981,7 @@ async def generate(
             )
     await session.commit()
     return GenerateResponse(
+        generation_log_id=generation_log_id,
         request_id=request_id_var.get(),
         registry_version=registry_version,
         engine_version=settings.engine_version,
@@ -725,6 +991,56 @@ async def generate(
     )
 
 
+@generate_router.post(
+    "/authoring/promotions/scan",
+    response_model=PromotionScanResponse,
+)
+async def scan_authoring_promotions(
+    body: PromotionScanRequest,
+    request: Request,
+    session: SessionDep,
+) -> PromotionScanResponse:
+    try:
+        result = await scan_promotion_candidates(
+            session,
+            embedding_client=request.app.state.adapters.embedding,
+            limit=body.limit,
+        )
+    except AdapterNotConfigured as exc:
+        raise HTTPException(status_code=503, detail="authoring embedding is unavailable") from exc
+    except AdapterClientError as exc:
+        raise HTTPException(status_code=502, detail="authoring embedding failed") from exc
+    return PromotionScanResponse(**result.__dict__)
+
+
+@generate_router.post(
+    "/authoring/promotions/embedding",
+    response_model=PromotionEmbeddingResponse,
+)
+async def ensure_authoring_promotion_embedding(
+    body: PromotionEmbeddingRequest,
+    request: Request,
+    session: SessionDep,
+) -> PromotionEmbeddingResponse:
+    try:
+        model = await ensure_candidate_embedding(
+            session,
+            candidate_id=body.candidate_id,
+            embedding_client=request.app.state.adapters.embedding,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="authoring candidate not found") from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409, detail="authoring candidate is not reviewable"
+        ) from exc
+    except AdapterNotConfigured as exc:
+        raise HTTPException(status_code=503, detail="authoring embedding is unavailable") from exc
+    except AdapterClientError as exc:
+        raise HTTPException(status_code=502, detail="authoring embedding failed") from exc
+    return PromotionEmbeddingResponse(embedding_model=model)
+
+
 @generate_router.post("/motifs/candidates")
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
@@ -732,7 +1048,11 @@ async def motif_candidates(
     adapters = request.app.state.adapters
     registry_version = await registry_version_for(session)
     candidates = await present_candidates(
-        session, body.spec.model_dump(), embedding_client=adapters.embedding, top_k=body.top_k
+        session,
+        body.spec.model_dump(),
+        embedding_client=adapters.embedding,
+        top_k=body.top_k,
+        tau=request.app.state.settings.motif_similarity_tau,
     )
     return {
         "request_id": request_id_var.get(),

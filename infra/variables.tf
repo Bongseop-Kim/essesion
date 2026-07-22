@@ -77,8 +77,6 @@ variable "app_secret_ids" {
     "kakao-client-secret",
     "naver-client-secret",
     "apple-private-key",
-    "openai-api-key",
-    "gemini-api-key",
     "recraft-api-key",
     "jwt-secret",
     "session-secret",

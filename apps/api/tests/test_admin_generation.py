@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from db.models.design import GenerationJob
+from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationLog
 
@@ -337,16 +337,27 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert detail.json()["diagnostics"] == {
         "mode": "prompt",
         "model": "gemini-2.5-flash-lite",
+        "prompt_revision": None,
         "reference_count": 1,
         "fixed_palette": False,
         "pattern_controls": True,
         "authoring_attempts": 1,
         "plan_count": 3,
         "validated_count": 3,
+        "catalog_candidate_count": None,
         "resolved_count": 3,
         "candidate_count": 2,
+        "authoring_ms": None,
+        "motif_resolution_ms": None,
+        "candidate_ms": None,
+        "render_ms": None,
         "failure_code": None,
         "failure_stage": None,
+        "failure_provider": None,
+        "failure_operation": None,
+        "failure_reason": None,
+        "failure_status_code": None,
+        "motif_resolutions": [],
     }
 
     motif_page = await client.get("/admin/motifs", headers=headers)
@@ -369,6 +380,152 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     unsafe_detail = await client.get(f"/admin/motifs/{unsafe_motif.id}", headers=headers)
     assert unsafe_detail.json()["svg_status"] == "unsafe"
     assert unsafe_detail.json()["symbol"] is None
+
+
+async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
+    client, db_session, settings
+):
+    admin = await make_user(db_session, role="admin")
+    owner = await make_user(db_session, email="generation-owner@test.local")
+    now = datetime.now(UTC)
+    design_session = DesignSession(user_id=owner.id, status="active")
+    cmyk_colors = ["#0000FF", "#00FF00", "#FF0000", "#FF4500", "#FFA500", "#FFFF00"]
+    log = SeamlessGenerationLog(
+        request_id="warning-groups-request",
+        input_type="prompt",
+        candidate_count_requested=4,
+        candidate_count_returned=4,
+        candidates=[{"id": "candidate-1"}, {"id": "candidate-2"}],
+        warnings=[
+            "motif layer 'motif_1' dropped — Tier-1 gate exhausted (triangle/partial)",
+            "motif layer 'motif_2' dropped — Tier-1 gate exhausted (line/partial)",
+            *[
+                f"color {color} in colorway 'default' likely outside CMYK gamut"
+                for color in cmyk_colors
+            ],
+        ],
+        status="partial",
+        diagnostics={
+            "motif_resolutions": [
+                {
+                    "layer_id": "motif_1",
+                    "subject": "triangle",
+                    "scope": "partial",
+                    "outcome": "dropped",
+                    "provider": "recraft",
+                    "operation": "generate_motif",
+                    "reason_code": "rate_limited",
+                    "status_code": 429,
+                }
+            ]
+        },
+        created_at=now,
+    )
+    provider_failure = SeamlessGenerationLog(
+        request_id="vertex-failure-request",
+        input_type="prompt",
+        warnings=[],
+        status="error",
+        error_type="EmbeddingError",
+        diagnostics={
+            "failure_code": "provider_request_failed",
+            "failure_stage": "motif_resolution",
+            "failure_provider": "vertex_embedding",
+            "failure_operation": "embed",
+            "failure_reason": "rate_limited",
+            "failure_status_code": 429,
+        },
+        created_at=now,
+    )
+    db_session.add_all([design_session, log, provider_failure])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=1,
+                role="assistant",
+                payload={
+                    "type": "generate",
+                    "response": {"generation_log_id": str(log.id)},
+                },
+                created_at=now - timedelta(minutes=5),
+            ),
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=2,
+                role="user",
+                payload={"type": "select", "candidate_id": "candidate-2"},
+                created_at=now + timedelta(seconds=1),
+            ),
+            GenerationJob(
+                user_id=owner.id,
+                session_id=design_session.id,
+                kind="finalize",
+                status="succeeded",
+                params={},
+                result={"object_key": "fabric/0123456789abcdef.png"},
+                created_at=now + timedelta(seconds=2),
+                updated_at=now + timedelta(seconds=2),
+            ),
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=3,
+                role="user",
+                payload={"type": "generate_request"},
+                created_at=now + timedelta(seconds=3),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    detail = await client.get(
+        f"/admin/generation/seamless/{log.id}",
+        headers=auth_headers(admin, settings),
+    )
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["warning_count"] == 8
+    assert body["warning_groups"] == [
+        {
+            "code": "motif_layer_dropped",
+            "count": 2,
+            "items": ["triangle", "line"],
+        },
+        {
+            "code": "cmyk_gamut",
+            "count": 6,
+            "items": cmyk_colors,
+        },
+    ]
+    assert all(group["code"] != "partial_candidates" for group in body["warning_groups"])
+    assert body["diagnostics"]["motif_resolutions"][0] == {
+        "layer_id": "motif_1",
+        "subject": "triangle",
+        "scope": "partial",
+        "outcome": "dropped",
+        "motif_id": None,
+        "similarity": None,
+        "match_type": None,
+        "provider": "recraft",
+        "operation": "generate_motif",
+        "reason_code": "rate_limited",
+        "status_code": 429,
+    }
+    assert body["outcome"] == {
+        "session_id": str(design_session.id),
+        "selected_candidate_id": "candidate-2",
+        "regenerated": True,
+        "finalized": True,
+    }
+
+    failed_detail = await client.get(
+        f"/admin/generation/seamless/{provider_failure.id}",
+        headers=auth_headers(admin, settings),
+    )
+    assert failed_detail.status_code == 200
+    assert failed_detail.json()["error_summary"] == "Vertex AI 임베딩 생성 연동에 실패했습니다"
+    assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(

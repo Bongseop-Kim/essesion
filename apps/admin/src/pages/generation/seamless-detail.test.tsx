@@ -51,20 +51,37 @@ const log: SeamlessDetailOut = {
   reference_image_available: true,
   seed: 1,
   available_strategies: 0,
-  warning_codes: [],
+  warning_groups: [],
   diagnostics: {
     mode: "prompt",
     model: "gemini-2.5-flash-lite",
+    prompt_revision: null,
     reference_count: 1,
     fixed_palette: false,
     pattern_controls: false,
     authoring_attempts: 1,
     plan_count: 3,
     validated_count: 3,
+    catalog_candidate_count: null,
     resolved_count: 3,
     candidate_count: 0,
+    authoring_ms: null,
+    motif_resolution_ms: null,
+    candidate_ms: null,
+    render_ms: null,
     failure_code: null,
     failure_stage: null,
+    failure_provider: null,
+    failure_operation: null,
+    failure_reason: null,
+    failure_status_code: null,
+    motif_resolutions: [],
+  },
+  outcome: {
+    session_id: null,
+    selected_candidate_id: null,
+    regenerated: false,
+    finalized: false,
   },
   candidates: [],
 };
@@ -238,7 +255,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(grid?.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
   });
 
-  it("상태·입력·경고를 한국어 의미와 해결 방법으로 표시하고 원 코드는 접어 둔다", async () => {
+  it("경고를 실제 원인과 건수로 묶고 partial scope를 후보 부족으로 오인하지 않는다", async () => {
     const user = userEvent.setup();
     renderPage({
       ...log,
@@ -246,43 +263,120 @@ describe("SeamlessLogDetailPage", () => {
       input_type: "prompt",
       has_prompt: true,
       prompt: "청록색 꽃무늬를 작게 배치해 줘.",
-      warning_count: 3,
-      warning_codes: [
-        "preview_unavailable",
-        "partial_candidates",
-        "generation_warning",
+      candidate_count_requested: 4,
+      candidate_count_returned: 4,
+      warning_count: 8,
+      warning_groups: [
+        {
+          code: "motif_layer_dropped",
+          count: 2,
+          items: ["triangle", "line"],
+        },
+        {
+          code: "cmyk_gamut",
+          count: 6,
+          items: ["#0000FF", "#00FF00", "#FF0000"],
+        },
       ],
     });
 
     expect(await screen.findAllByText("부분 성공")).toHaveLength(2);
     expect(screen.getByText("텍스트 프롬프트")).toBeTruthy();
-    expect(screen.getByText("미리보기를 저장하지 못했습니다")).toBeTruthy();
-    expect(screen.getByText("후보가 일부만 생성되었습니다")).toBeTruthy();
-    expect(screen.getByText("생성 결과를 확인해 주세요")).toBeTruthy();
+    expect(screen.getByText("모티프 레이어 2개를 제외했습니다")).toBeTruthy();
+    expect(screen.getByText("CMYK 색역 확인이 필요한 색상 6개")).toBeTruthy();
+    expect(screen.queryByText("후보가 일부만 생성되었습니다")).toBeNull();
+    expect(screen.queryByText("생성 결과를 확인해 주세요")).toBeNull();
     expect(screen.getByText("생성 진단")).toBeTruthy();
     expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
     expect(screen.getByText("3 / 3")).toBeTruthy();
     expect(
-      screen.getByText(
-        "후보 SVG를 확인하고, 이미지 미리보기가 필요하면 생성을 다시 실행해 주세요.",
-      ),
+      screen.getByText(/요청한 후보 4개는 모두 생성되었습니다/),
     ).toBeTruthy();
     expect(
-      screen.getByText(
-        "반환된 후보를 검토하고, 선택지가 부족하면 같은 조건으로 다시 생성해 주세요.",
-      ),
+      screen.getByText(/후보 생성 실패가 아니라 인쇄 전 색상 확인/),
     ).toBeTruthy();
     expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
-    expect(screen.queryByText("preview_unavailable")).toBeNull();
-    expect(screen.queryByText("partial_candidates")).toBeNull();
+    expect(screen.queryByText("motif_layer_dropped")).toBeNull();
+    expect(screen.queryByText("cmyk_gamut")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "기술 정보" }));
 
     const region = screen.getByRole("region", { name: "기술 정보" });
     expect(within(region).getByText(/"status": "partial"/)).toBeTruthy();
     expect(within(region).getByText(/"input_type": "prompt"/)).toBeTruthy();
-    expect(within(region).getByText(/"preview_unavailable"/)).toBeTruthy();
-    expect(within(region).getByText(/"partial_candidates"/)).toBeTruthy();
+    expect(within(region).getByText(/"motif_layer_dropped"/)).toBeTruthy();
+    expect(within(region).getByText(/"cmyk_gamut"/)).toBeTruthy();
+  });
+
+  it("외부 연동 단계·모티프 해석·사용자 결과를 함께 표시한다", async () => {
+    renderPage({
+      ...log,
+      diagnostics: {
+        ...log.diagnostics,
+        prompt_revision: "design-plan-v1",
+        authoring_ms: 121,
+        motif_resolution_ms: 35,
+        candidate_ms: 18,
+        render_ms: 9,
+        failure_provider: "vertex_embedding",
+        failure_operation: "embed",
+        failure_reason: "rate_limited",
+        failure_status_code: 429,
+        motif_resolutions: [
+          {
+            layer_id: "motif_1",
+            subject: "triangle",
+            scope: "partial",
+            outcome: "dropped",
+            motif_id: null,
+            similarity: null,
+            match_type: null,
+            provider: "openai_embedding",
+            operation: "embed",
+            reason_code: "rate_limited",
+            status_code: 429,
+          },
+        ],
+      },
+      outcome: {
+        session_id: "44444444-4444-4444-8444-444444444444",
+        selected_candidate_id: "candidate-1",
+        regenerated: true,
+        finalized: true,
+      },
+      candidates: [
+        {
+          id: "candidate-1",
+          design_index: 0,
+          layout_id: "layout-1",
+          source_fidelity: "exact",
+          colorway_id: "default",
+          seed: 7,
+          svg: null,
+          svg_status: "unavailable",
+        },
+      ],
+    });
+
+    expect(await screen.findByText("design-plan-v1")).toBeTruthy();
+    expect(
+      screen.getByText("저작 121ms · 모티프 35ms · 후보 18ms · 렌더 9ms"),
+    ).toBeTruthy();
+    expect(screen.getByText("Vertex AI 임베딩 · embed")).toBeTruthy();
+    expect(screen.getByText("요청 한도 초과 (429)")).toBeTruthy();
+    expect(
+      screen.getByText(/OpenAI 임베딩: 요청 한도 초과 \(429\)/),
+    ).toBeTruthy();
+
+    const outcome = screen
+      .getByRole("heading", { name: "사용자 결과" })
+      .closest("section");
+    expect(outcome).not.toBeNull();
+    expect(
+      within(outcome as HTMLElement).getByText("후보 1 선택"),
+    ).toBeTruthy();
+    expect(within(outcome as HTMLElement).getByText("있음")).toBeTruthy();
+    expect(within(outcome as HTMLElement).getByText("완료")).toBeTruthy();
   });
 
   it("로그와 엔진 식별자를 기본으로 접어 둔다", async () => {

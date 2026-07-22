@@ -15,9 +15,32 @@ from dataclasses import dataclass
 class AdapterClientError(RuntimeError):
     """외부 어댑터 의존성(LLM/임베딩/벡터라이저)이 실패 — API 경계에서 502로 매핑."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider: str = "external",
+        operation: str = "request",
+        reason_code: str = "request_failed",
+        status_code: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.provider = provider
+        self.operation = operation
+        self.reason_code = reason_code
+        self.status_code = status_code
+
 
 class AdapterNotConfigured(AdapterClientError):
     """클라이언트 미주입·미구성 — 라우트에서 503으로 매핑."""
+
+
+def adapter_http_reason(status_code: int) -> str:
+    if status_code in (401, 403):
+        return "authentication_failed"
+    if status_code == 429:
+        return "rate_limited"
+    return "provider_5xx" if status_code >= 500 else "provider_4xx"
 
 
 @dataclass

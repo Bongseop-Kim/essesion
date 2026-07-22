@@ -3684,6 +3684,9 @@
         "properties": {
           "key": {
             "enum": [
+              "authoring_canary_percent",
+              "authoring_pipeline_mode",
+              "authoring_shadow_percent",
               "default_courier_company",
               "design_finalize_daily_limit",
               "design_token_initial_grant"
@@ -3715,7 +3718,9 @@
           "value_type": {
             "enum": [
               "courier",
-              "non_negative_integer"
+              "non_negative_integer",
+              "enum",
+              "percentage"
             ],
             "title": "Value Type",
             "type": "string"
@@ -3971,6 +3976,883 @@
           "operation_id"
         ],
         "title": "AffectedResponse",
+        "type": "object"
+      },
+      "AuthoringCandidateDecisionRequest": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "hold",
+              "reject",
+              "approve"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "expected_review_version": {
+            "minimum": 0.0,
+            "title": "Expected Review Version",
+            "type": "integer"
+          },
+          "operation_id": {
+            "format": "uuid",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "decision",
+          "reason",
+          "expected_review_version"
+        ],
+        "title": "AuthoringCandidateDecisionRequest",
+        "type": "object"
+      },
+      "AuthoringCandidateDetailOut": {
+        "properties": {
+          "approved_example_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Example Id"
+          },
+          "compiler_revision": {
+            "title": "Compiler Revision",
+            "type": "string"
+          },
+          "contract_version": {
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "embedding_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Model"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "motif_count": {
+            "title": "Motif Count",
+            "type": "integer"
+          },
+          "nearest_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Id"
+          },
+          "nearest_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Kind"
+          },
+          "nearest_similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Similarity"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          },
+          "plan_index": {
+            "title": "Plan Index",
+            "type": "integer"
+          },
+          "preview_status": {
+            "enum": [
+              "safe",
+              "unavailable",
+              "unsafe"
+            ],
+            "title": "Preview Status",
+            "type": "string"
+          },
+          "preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Svg"
+          },
+          "prompt_revision": {
+            "title": "Prompt Revision",
+            "type": "string"
+          },
+          "retrieval_text": {
+            "title": "Retrieval Text",
+            "type": "string"
+          },
+          "review_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Reason"
+          },
+          "review_version": {
+            "title": "Review Version",
+            "type": "integer"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "rule_reasons": {
+            "items": {},
+            "title": "Rule Reasons",
+            "type": "array"
+          },
+          "selected_candidate_id": {
+            "title": "Selected Candidate Id",
+            "type": "string"
+          },
+          "source_digest": {
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "source_generation_log_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Generation Log Id"
+          },
+          "source_key": {
+            "title": "Source Key",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "hold",
+              "rejected",
+              "approved",
+              "duplicate",
+              "invalid"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "structural_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Fingerprint"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_generation_log_id",
+          "plan_index",
+          "selected_candidate_id",
+          "contract_version",
+          "compiler_revision",
+          "prompt_revision",
+          "family",
+          "motif_count",
+          "retrieval_text",
+          "tags",
+          "structural_fingerprint",
+          "nearest_kind",
+          "nearest_id",
+          "nearest_similarity",
+          "status",
+          "rule_reasons",
+          "review_version",
+          "reviewed_at",
+          "reviewed_by",
+          "review_reason",
+          "approved_example_id",
+          "created_at",
+          "updated_at",
+          "source_key",
+          "source_digest",
+          "embedding_model",
+          "plan",
+          "preview_svg",
+          "preview_status"
+        ],
+        "title": "AuthoringCandidateDetailOut",
+        "type": "object"
+      },
+      "AuthoringCandidateSummaryOut": {
+        "properties": {
+          "approved_example_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Example Id"
+          },
+          "compiler_revision": {
+            "title": "Compiler Revision",
+            "type": "string"
+          },
+          "contract_version": {
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "motif_count": {
+            "title": "Motif Count",
+            "type": "integer"
+          },
+          "nearest_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Id"
+          },
+          "nearest_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Kind"
+          },
+          "nearest_similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Similarity"
+          },
+          "plan_index": {
+            "title": "Plan Index",
+            "type": "integer"
+          },
+          "prompt_revision": {
+            "title": "Prompt Revision",
+            "type": "string"
+          },
+          "retrieval_text": {
+            "title": "Retrieval Text",
+            "type": "string"
+          },
+          "review_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Reason"
+          },
+          "review_version": {
+            "title": "Review Version",
+            "type": "integer"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "rule_reasons": {
+            "items": {},
+            "title": "Rule Reasons",
+            "type": "array"
+          },
+          "selected_candidate_id": {
+            "title": "Selected Candidate Id",
+            "type": "string"
+          },
+          "source_generation_log_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Generation Log Id"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "hold",
+              "rejected",
+              "approved",
+              "duplicate",
+              "invalid"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "structural_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structural Fingerprint"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_generation_log_id",
+          "plan_index",
+          "selected_candidate_id",
+          "contract_version",
+          "compiler_revision",
+          "prompt_revision",
+          "family",
+          "motif_count",
+          "retrieval_text",
+          "tags",
+          "structural_fingerprint",
+          "nearest_kind",
+          "nearest_id",
+          "nearest_similarity",
+          "status",
+          "rule_reasons",
+          "review_version",
+          "reviewed_at",
+          "reviewed_by",
+          "review_reason",
+          "approved_example_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AuthoringCandidateSummaryOut",
+        "type": "object"
+      },
+      "AuthoringExampleActivationRequest": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "expected_updated_at": {
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
+          "operation_id": {
+            "format": "uuid",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "active",
+          "reason",
+          "expected_updated_at"
+        ],
+        "title": "AuthoringExampleActivationRequest",
+        "type": "object"
+      },
+      "AuthoringExampleDetailOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "active_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Reason"
+          },
+          "active_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Updated At"
+          },
+          "active_updated_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Updated By"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "contract_version": {
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "embedding_model": {
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "example_id": {
+            "title": "Example Id",
+            "type": "string"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "motif_count": {
+            "title": "Motif Count",
+            "type": "integer"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          },
+          "retrieval_text": {
+            "title": "Retrieval Text",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "bootstrap",
+              "promoted"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_digest": {
+            "title": "Source Digest",
+            "type": "string"
+          },
+          "structural_fingerprint": {
+            "title": "Structural Fingerprint",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "example_id",
+          "source",
+          "contract_version",
+          "family",
+          "motif_count",
+          "retrieval_text",
+          "tags",
+          "structural_fingerprint",
+          "embedding_model",
+          "active",
+          "approved_at",
+          "approved_by",
+          "active_updated_at",
+          "active_updated_by",
+          "active_reason",
+          "created_at",
+          "updated_at",
+          "source_digest",
+          "plan"
+        ],
+        "title": "AuthoringExampleDetailOut",
+        "type": "object"
+      },
+      "AuthoringExampleSummaryOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "active_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Reason"
+          },
+          "active_updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Updated At"
+          },
+          "active_updated_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Updated By"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "contract_version": {
+            "title": "Contract Version",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "embedding_model": {
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "example_id": {
+            "title": "Example Id",
+            "type": "string"
+          },
+          "family": {
+            "title": "Family",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "motif_count": {
+            "title": "Motif Count",
+            "type": "integer"
+          },
+          "retrieval_text": {
+            "title": "Retrieval Text",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "bootstrap",
+              "promoted"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "structural_fingerprint": {
+            "title": "Structural Fingerprint",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "example_id",
+          "source",
+          "contract_version",
+          "family",
+          "motif_count",
+          "retrieval_text",
+          "tags",
+          "structural_fingerprint",
+          "embedding_model",
+          "active",
+          "approved_at",
+          "approved_by",
+          "active_updated_at",
+          "active_updated_by",
+          "active_reason",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AuthoringExampleSummaryOut",
+        "type": "object"
+      },
+      "AuthoringPromotionBatchResult": {
+        "properties": {
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "integer"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "invalid": {
+            "title": "Invalid",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "scanned": {
+            "title": "Scanned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scanned",
+          "pending",
+          "duplicate",
+          "invalid",
+          "failed"
+        ],
+        "title": "AuthoringPromotionBatchResult",
         "type": "object"
       },
       "AutomaticReform": {
@@ -5777,6 +6659,18 @@
             "title": "Engine Version",
             "type": "string"
           },
+          "generation_log_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Log Id"
+          },
           "intents": {
             "items": {
               "additionalProperties": true,
@@ -6463,6 +7357,17 @@
             ],
             "title": "Authoring Attempts"
           },
+          "authoring_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authoring Ms"
+          },
           "candidate_count": {
             "anyOf": [
               {
@@ -6473,6 +7378,28 @@
               }
             ],
             "title": "Candidate Count"
+          },
+          "candidate_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Ms"
+          },
+          "catalog_candidate_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Candidate Count"
           },
           "failure_code": {
             "anyOf": [
@@ -6485,6 +7412,39 @@
             ],
             "title": "Failure Code"
           },
+          "failure_operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Operation"
+          },
+          "failure_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Provider"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
           "failure_stage": {
             "anyOf": [
               {
@@ -6495,6 +7455,17 @@
               }
             ],
             "title": "Failure Stage"
+          },
+          "failure_status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Status Code"
           },
           "fixed_palette": {
             "anyOf": [
@@ -6533,6 +7504,24 @@
             ],
             "title": "Model"
           },
+          "motif_resolution_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motif Resolution Ms"
+          },
+          "motif_resolutions": {
+            "items": {
+              "$ref": "#/components/schemas/MotifResolutionOut"
+            },
+            "title": "Motif Resolutions",
+            "type": "array"
+          },
           "pattern_controls": {
             "anyOf": [
               {
@@ -6555,6 +7544,17 @@
             ],
             "title": "Plan Count"
           },
+          "prompt_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Revision"
+          },
           "reference_count": {
             "anyOf": [
               {
@@ -6565,6 +7565,17 @@
               }
             ],
             "title": "Reference Count"
+          },
+          "render_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Render Ms"
           },
           "resolved_count": {
             "anyOf": [
@@ -6946,6 +7957,45 @@
           "updated_at"
         ],
         "title": "GenerationJobSummaryOut",
+        "type": "object"
+      },
+      "GenerationOutcomeOut": {
+        "properties": {
+          "finalized": {
+            "default": false,
+            "title": "Finalized",
+            "type": "boolean"
+          },
+          "regenerated": {
+            "default": false,
+            "title": "Regenerated",
+            "type": "boolean"
+          },
+          "selected_candidate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Candidate Id"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "title": "GenerationOutcomeOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -8229,6 +9279,133 @@
           "svg"
         ],
         "title": "MotifPreviewOut",
+        "type": "object"
+      },
+      "MotifResolutionOut": {
+        "properties": {
+          "layer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layer Id"
+          },
+          "match_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Type"
+          },
+          "motif_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motif Id"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "title": "MotifResolutionOut",
         "type": "object"
       },
       "MotifSpecIn": {
@@ -9688,6 +10865,68 @@
           "offset"
         ],
         "title": "Page[AdminQuoteSummaryOut]",
+        "type": "object"
+      },
+      "Page_AuthoringCandidateSummaryOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuthoringCandidateSummaryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[AuthoringCandidateSummaryOut]",
+        "type": "object"
+      },
+      "Page_AuthoringExampleSummaryOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuthoringExampleSummaryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[AuthoringExampleSummaryOut]",
         "type": "object"
       },
       "Page_CouponAudienceCustomerOut_": {
@@ -12567,6 +13806,9 @@
             "title": "Intents",
             "type": "array"
           },
+          "outcome": {
+            "$ref": "#/components/schemas/GenerationOutcomeOut"
+          },
           "prompt": {
             "anyOf": [
               {
@@ -12658,16 +13900,16 @@
             "title": "Status",
             "type": "string"
           },
-          "warning_codes": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Warning Codes",
-            "type": "array"
-          },
           "warning_count": {
             "title": "Warning Count",
             "type": "integer"
+          },
+          "warning_groups": {
+            "items": {
+              "$ref": "#/components/schemas/SeamlessWarningOut"
+            },
+            "title": "Warning Groups",
+            "type": "array"
           }
         },
         "required": [
@@ -12697,8 +13939,9 @@
           "reference_image_available",
           "seed",
           "available_strategies",
-          "warning_codes",
+          "warning_groups",
           "diagnostics",
+          "outcome",
           "candidates"
         ],
         "title": "SeamlessDetailOut",
@@ -12946,6 +14189,41 @@
         "title": "SeamlessSummaryOut",
         "type": "object"
       },
+      "SeamlessWarningOut": {
+        "properties": {
+          "code": {
+            "enum": [
+              "candidate_variants_dropped",
+              "cmyk_gamut",
+              "design_dropped",
+              "diversity_shortfall",
+              "generation_warning",
+              "motif_layer_dropped",
+              "partial_candidates",
+              "preview_unavailable"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "count"
+        ],
+        "title": "SeamlessWarningOut",
+        "type": "object"
+      },
       "SettingUpdateItem": {
         "properties": {
           "expected_updated_at": {
@@ -12955,6 +14233,9 @@
           },
           "key": {
             "enum": [
+              "authoring_canary_percent",
+              "authoring_pipeline_mode",
+              "authoring_shadow_percent",
               "default_courier_company",
               "design_finalize_daily_limit",
               "design_token_initial_grant"
@@ -12982,7 +14263,7 @@
             "items": {
               "$ref": "#/components/schemas/SettingUpdateItem"
             },
-            "maxItems": 3,
+            "maxItems": 6,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -13941,6 +15222,455 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/authoring/candidates": {
+      "get": {
+        "operationId": "list_authoring_candidates",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "pending",
+              "enum": [
+                "all",
+                "pending",
+                "hold",
+                "rejected",
+                "approved",
+                "duplicate",
+                "invalid"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "family",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Family"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuthoringCandidateSummaryOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Authoring Candidates",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
+    "/admin/authoring/candidates/{candidate_id}": {
+      "get": {
+        "operationId": "get_authoring_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCandidateDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Authoring Candidate",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
+    "/admin/authoring/candidates/{candidate_id}/decision": {
+      "post": {
+        "operationId": "decide_authoring_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringCandidateDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringCandidateDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decide Authoring Candidate",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
+    "/admin/authoring/examples": {
+      "get": {
+        "operationId": "list_authoring_examples",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "active",
+                "inactive"
+              ],
+              "title": "Active",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "enum": [
+                "all",
+                "bootstrap",
+                "promoted"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "family",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Family"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuthoringExampleSummaryOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Authoring Examples",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
+    "/admin/authoring/examples/{example_id}": {
+      "get": {
+        "operationId": "get_authoring_example",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Authoring Example",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
+    "/admin/authoring/examples/{example_id}/activation": {
+      "post": {
+        "operationId": "set_authoring_example_activation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringExampleActivationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Authoring Example Activation",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
     "/admin/capabilities": {
       "get": {
         "operationId": "get_admin_capabilities",
@@ -19888,6 +21618,32 @@
         "summary": "Refresh Tokens",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/batch/authoring-promotion-candidates": {
+      "post": {
+        "operationId": "authoring_promotion_candidates",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringPromotionBatchResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Authoring Promotion Candidates",
+        "tags": [
+          "batch"
         ]
       }
     },

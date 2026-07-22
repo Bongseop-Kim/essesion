@@ -72,18 +72,19 @@ _SEEDS: list[tuple[str, str, str]] = [
 _ASSET_DIR = pathlib.Path(__file__).parent / "motif_assets"
 
 
-def _all_seeds() -> list[tuple[str, str, str, str]]:
-    """(subject, style, description, raw_svg) — 인라인 데모 + 에셋 글리프.
+def _all_seeds() -> list[tuple[str, str, str, list[str], str]]:
+    """(subject, style, description, tags, raw_svg) — 인라인 데모 + 에셋 글리프.
 
     에셋 subject = 파일명 첫 토큰 — `cat-head`·`cat-space`가 `cat`으로 묶여
     variant pool을 이룬다(leaf/flower는 인라인 시드 풀에 합류).
     """
-    seeds = [(subject, "flat", desc, svg) for subject, desc, svg in _SEEDS]
+    seeds = [(subject, "flat", desc, [subject], svg) for subject, desc, svg in _SEEDS]
     seeds += [
         (
             path.stem.split("-")[0],
             "outline",
             f"{path.stem.replace('-', ' ')} outline icon",
+            [path.stem, *path.stem.split("-")],
             path.read_text(),
         )
         for path in sorted(_ASSET_DIR.glob("*.svg"))
@@ -97,7 +98,7 @@ async def seed_motifs() -> int:
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     inserted = 0
     async with sessionmaker() as session:
-        for subject, style, description, svg in _all_seeds():
+        for subject, style, description, tags, svg in _all_seeds():
             normalized = normalize_motif_svg(svg, render_check=False)
             await store.upsert_motif(
                 session,
@@ -107,6 +108,7 @@ async def seed_motifs() -> int:
                     "scope": "whole",
                     "style": style,
                     "description": description,
+                    "tags": tags,
                 },
                 source="seed",
                 variant_group=store.variant_group_key(subject, "whole"),
