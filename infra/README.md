@@ -63,7 +63,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 ```bash
 printf '%s' '<값>' | gcloud secrets versions add toss-secret-key --data-file=- --project=essesion-staging
 # 수집한 기존 값: solapi-api-key solapi-api-secret google-client-secret kakao-client-secret
-#                 naver-client-secret openai-api-key gemini-api-key recraft-api-key
+#                 naver-client-secret recraft-api-key
 #                 sentry-dsn-api sentry-dsn-worker
 # apple-private-key는 .p8 파일을 통째로: gcloud secrets versions add apple-private-key --data-file=<AuthKey.p8 경로>
 

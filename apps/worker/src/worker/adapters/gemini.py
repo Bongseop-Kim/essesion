@@ -11,7 +11,6 @@ googleapis.com v1beta generateContent structured output. temperature 0.7.
 from __future__ import annotations
 
 import asyncio
-import base64
 import io
 import json
 import math
@@ -19,7 +18,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Literal
 
-import httpx
+from google import genai
+from google.genai import types
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import (
     BaseModel,
@@ -40,7 +40,6 @@ from worker.engine.constraints import (
 from worker.engine.validate import IntentInvalid
 
 DEFAULT_MODEL = "gemini-2.5-flash-lite"
-_BASE_URL = "https://generativelanguage.googleapis.com"
 _RETRYABLE = frozenset({429, 503})
 _MAX_ATTEMPTS = 4
 _BASE_DELAY_S = 0.5
@@ -615,28 +614,27 @@ def _build_ideas_prompt(
 
 
 class GeminiClient:
-    """generateContent REST 호출 — JSON mode, {429,503} 백오프 재시도."""
+    """Vertex AI generate_content 호출 — ADC 인증, JSON mode."""
 
     def __init__(
-        self, api_key: str, model: str = DEFAULT_MODEL, *, temperature: float = 0.7
+        self,
+        project: str,
+        model: str = DEFAULT_MODEL,
+        *,
+        location: str = "global",
+        temperature: float = 0.7,
+        client: genai.Client | None = None,
     ) -> None:
-        if not api_key:
+        if not project and client is None:
             raise AdapterClientError(
-                "GeminiClient requires a non-empty api_key",
+                "GeminiClient requires a GCP project",
                 provider="gemini",
                 operation="generate_content",
                 reason_code="not_configured",
             )
-        self._api_key = api_key
         self._model = model
         self._temperature = temperature
-        self._client: httpx.AsyncClient | None = None
-
-    def _http(self) -> httpx.AsyncClient:
-        """지연 생성 공유 커넥션 풀 — 재시도·재호출에 재사용, aclose가 닫는다."""
-        if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=60.0)
-        return self._client
+        self._client = client or genai.Client(vertexai=True, project=project, location=location)
 
     async def complete(
         self,
@@ -645,69 +643,60 @@ class GeminiClient:
         reference_images: list[ReferenceImage] | None = None,
         response_schema: dict[str, object] | None = None,
     ) -> str:
-        url = f"{_BASE_URL}/v1beta/models/{self._model}:generateContent"
-        parts: list[dict[str, object]] = [
-            {
-                "inline_data": {
-                    "mime_type": image.mime_type,
-                    "data": base64.b64encode(image.data).decode("ascii"),
-                }
-            }
+        parts = [
+            types.Part.from_bytes(data=image.data, mime_type=image.mime_type)
             for image in (reference_images or [])
         ]
-        parts.append({"text": prompt})
-        generation_config: dict[str, object] = {
-            "temperature": self._temperature,
-            "response_mime_type": "application/json",
-        }
-        if response_schema is not None:
-            generation_config["response_schema"] = response_schema
-        body = {
-            "contents": [{"parts": parts}],
-            "generationConfig": generation_config,
-        }
-        client = self._http()
-        resp: httpx.Response | None = None
-        for attempt in range(_MAX_ATTEMPTS):
-            try:
-                resp = await client.post(url, params={"key": self._api_key}, json=body)
-            except httpx.TimeoutException as exc:
-                raise AdapterClientError(
-                    f"Gemini request failed: {exc}",
-                    provider="gemini",
-                    operation="generate_content",
-                    reason_code="timeout",
-                ) from exc
-            except httpx.HTTPError as exc:
-                raise AdapterClientError(
-                    f"Gemini request failed: {exc}",
-                    provider="gemini",
-                    operation="generate_content",
-                    reason_code="transport_error",
-                ) from exc
-            if resp.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
-                await asyncio.sleep(_BASE_DELAY_S * 2**attempt)
-                continue
-            if resp.status_code >= 400:
-                raise AdapterClientError(
-                    f"Gemini API error ({resp.status_code}): {resp.text[:500]}",
-                    provider="gemini",
-                    operation="generate_content",
-                    reason_code=adapter_http_reason(resp.status_code),
-                    status_code=resp.status_code,
-                )
-            break
-        assert resp is not None
+        parts.append(types.Part.from_text(text=prompt))
+        config = types.GenerateContentConfig(
+            temperature=self._temperature,
+            response_mime_type="application/json",
+            response_schema=response_schema,
+        )
+        response = None
         try:
-            data = resp.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            for attempt in range(_MAX_ATTEMPTS):
+                try:
+                    response = await self._client.aio.models.generate_content(
+                        model=self._model,
+                        contents=[types.Content(role="user", parts=parts)],
+                        config=config,
+                    )
+                    break
+                except Exception as exc:
+                    status = getattr(exc, "status_code", None)
+                    if status in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
+                        await asyncio.sleep(_BASE_DELAY_S * 2**attempt)
+                        continue
+                    reason = (
+                        adapter_http_reason(status)
+                        if isinstance(status, int)
+                        else "provider_error"
+                    )
+                    raise AdapterClientError(
+                        f"Gemini request failed: {exc}",
+                        provider="gemini",
+                        operation="generate_content",
+                        reason_code=reason,
+                        status_code=status if isinstance(status, int) else None,
+                    ) from exc
+        except AdapterClientError:
+            raise
+        except Exception as exc:
             raise AdapterClientError(
                 f"Gemini returned an unexpected payload: {exc}",
                 provider="gemini",
                 operation="generate_content",
                 reason_code="invalid_response",
             ) from exc
+        if response is None:
+            raise AdapterClientError(
+                "Gemini returned no response",
+                provider="gemini",
+                operation="generate_content",
+                reason_code="invalid_response",
+            )
+        text = response.text
         if not text:
             raise AdapterClientError(
                 "Gemini returned an empty response",
@@ -865,14 +854,20 @@ class GeminiClient:
         )
 
     async def aclose(self) -> None:
-        if self._client is not None and not self._client.is_closed:
-            await self._client.aclose()
+        close = getattr(self._client.aio, "aclose", None)
+        if close is not None:
+            await close()
 
 
 def build_gemini_client(settings) -> GeminiClient | None:
-    api_key = getattr(settings, "gemini_api_key", "")
-    if not api_key:
+    project = getattr(settings, "gcp_project_id", "")
+    if not project:
         return None
     model = getattr(settings, "gemini_model", None) or DEFAULT_MODEL
     temperature = getattr(settings, "gemini_temperature", 0.7)
-    return GeminiClient(api_key, model, temperature=temperature)
+    return GeminiClient(
+        project,
+        model,
+        location=getattr(settings, "vertex_ai_location", "global"),
+        temperature=temperature,
+    )

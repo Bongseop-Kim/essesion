@@ -33,11 +33,12 @@ class Settings(BaseSettings):
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
     stripe_diagonal_repeats: int = Field(default=2, ge=2)
 
-    gemini_api_key: str = ""
+    gcp_project_id: str = ""
+    vertex_ai_location: str = "global"
     gemini_model: str = "gemini-2.5-flash-lite"
     gemini_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    openai_api_key: str = ""
-    embedding_model: str = "text-embedding-3-small"
+    embedding_model: str = "gemini-embedding-001"
+    embedding_output_dimensionality: int = Field(default=3072, ge=1)
     recraft_api_key: str = ""
     recraft_model: str = "recraftv4_1_vector"
     recraft_style: str = ""

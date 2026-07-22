@@ -1,7 +1,7 @@
 """Live Gemini authoring contract evaluation; never run implicitly in tests.
 
 Usage:
-  GEMINI_API_KEY=... uv run python apps/worker/scripts/eval_authoring.py \
+  GCP_PROJECT_ID=... uv run python apps/worker/scripts/eval_authoring.py \
     --confirm-live --model gemini-2.5-flash-lite
 
 The report contains aggregate metrics and corpus indexes only. Prompt text and provider
@@ -43,8 +43,8 @@ def _percentile(values: list[float], percentile: float) -> float | None:
     return round(ordered[index], 1)
 
 
-async def _evaluate_model(model: str, prompts: list[str], api_key: str) -> dict[str, Any]:
-    client = GeminiClient(api_key, model)
+async def _evaluate_model(model: str, prompts: list[str], project: str) -> dict[str, Any]:
+    client = GeminiClient(project, model)
     latencies: list[float] = []
     attempts: list[int] = []
     valid_counts: list[int] = []
@@ -106,9 +106,9 @@ async def _main() -> None:
     args = _arguments()
     if not args.confirm_live:
         raise SystemExit("Refusing live provider calls without --confirm-live")
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise SystemExit("GEMINI_API_KEY is required")
+    project = os.environ.get("GCP_PROJECT_ID", "")
+    if not project:
+        raise SystemExit("GCP_PROJECT_ID is required")
     prompts = json.loads(args.corpus.read_text(encoding="utf-8"))
     if not isinstance(prompts, list) or not all(isinstance(item, str) for item in prompts):
         raise SystemExit("corpus must be a JSON string array")
@@ -117,7 +117,7 @@ async def _main() -> None:
             raise SystemExit("--limit must be positive")
         prompts = prompts[: args.limit]
     models = list(dict.fromkeys(args.models or [DEFAULT_MODEL]))
-    results = [await _evaluate_model(model, prompts, api_key) for model in models]
+    results = [await _evaluate_model(model, prompts, project) for model in models]
     print(json.dumps({"corpus_size": len(prompts), "results": results}, ensure_ascii=False))
 
 

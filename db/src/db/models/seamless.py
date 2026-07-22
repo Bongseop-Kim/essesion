@@ -1,8 +1,8 @@
 """seamless 엔진 데이터 — 워커가 사용 (motifs 검색·생성 로그 기록).
 
 motifs.id는 content-hash(recraft-<sha256 12자>) — ON CONFLICT DO NOTHING이 곧 멱등성.
-embedding은 vector(1536) 고정(OpenAI text-embedding-3-small) — 기존의 런타임
-vector_dims 가드를 스키마 제약으로 대체. HNSW 인덱스는 두지 않는다(seq scan이
+기존 embedding은 vector(1536) legacy 컬럼이며, 새 embedding_vertex는 Vertex AI
+gemini-embedding-001의 vector(3072) 컬럼이다. HNSW 인덱스는 두지 않는다(seq scan이
 결정론적이고 현 규모에 충분 — 필요해지면 후속 리비전).
 """
 
@@ -17,7 +17,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from db.models.base import Base, CreatedAtMixin, uuid_pk
 
-EMBEDDING_DIM = 1536
+LEGACY_EMBEDDING_DIM = 1536
+EMBEDDING_DIM = 3072
 
 
 class Motif(CreatedAtMixin, Base):
@@ -35,7 +36,8 @@ class Motif(CreatedAtMixin, Base):
     style: Mapped[str | None]
     description: Mapped[str | None]
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
-    embedding: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+    embedding: Mapped[Any | None] = mapped_column(Vector(LEGACY_EMBEDDING_DIM))
+    embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     source: Mapped[str] = mapped_column(server_default="recraft")
     quality: Mapped[float | None] = mapped_column(REAL)
     variant_group: Mapped[str | None]

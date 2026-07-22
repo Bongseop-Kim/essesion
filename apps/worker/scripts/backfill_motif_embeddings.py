@@ -1,4 +1,4 @@
-"""공개 motif의 누락 OpenAI embedding을 명시적으로 채운다.
+"""공개 motif의 누락 Vertex AI embedding을 명시적으로 채운다.
 
 실행:
   uv run python apps/worker/scripts/backfill_motif_embeddings.py --confirm-live
@@ -20,7 +20,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--confirm-live",
         action="store_true",
-        help="OpenAI API 과금 호출과 DB 갱신을 명시적으로 승인합니다.",
+        help="Vertex AI 과금 호출과 DB 갱신을 명시적으로 승인합니다.",
     )
     return parser.parse_args()
 
@@ -29,7 +29,7 @@ async def _run() -> tuple[int, int, int]:
     settings = get_settings()
     client = build_embedding_client(settings)
     if client is None:
-        raise SystemExit("OPENAI_API_KEY가 없어 backfill을 실행할 수 없습니다.")
+        raise SystemExit("GCP_PROJECT_ID가 없어 Vertex backfill을 실행할 수 없습니다.")
     engine = build_engine(settings)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     try:

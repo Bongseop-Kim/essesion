@@ -14,7 +14,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from db.models.seamless import Motif
+from db.models.seamless import LEGACY_EMBEDDING_DIM, Motif
 from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -153,7 +153,12 @@ async def upsert_motif(
         "tags": list(facets.get("tags") or []),
         "source": source,
         "variant_group": variant_group,
-        "embedding": embedding,
+        "embedding_vertex": (
+            embedding if embedding is None or len(embedding) != LEGACY_EMBEDDING_DIM else None
+        ),
+        "embedding": (
+            embedding if embedding is not None and len(embedding) == LEGACY_EMBEDDING_DIM else None
+        ),
     }
     stmt = pg_insert(Motif).values(**values).on_conflict_do_nothing(index_elements=["id"])
     await session.execute(stmt)
@@ -257,12 +262,13 @@ async def nearest_by_embedding(
     session: AsyncSession, vec: list[float], *, top_k: int = 1
 ) -> list[MotifMatch]:
     """공개 카탈로그 코사인 최근접 top-k. 동점은 lowest ID, NULL은 제외한다."""
-    distance = Motif.embedding.cosine_distance(vec)
+    column = Motif.embedding if len(vec) == LEGACY_EMBEDDING_DIM else Motif.embedding_vertex
+    distance = column.cosine_distance(vec)
     rows = (
         await session.execute(
             select(Motif.id, Motif.variant_group, distance.label("distance"))
             .where(
-                Motif.embedding.is_not(None),
+                column.is_not(None),
                 Motif.source != USER_UPLOAD_SOURCE,
             )
             .order_by(distance.asc(), Motif.id.asc())
@@ -288,7 +294,7 @@ async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbedd
                 Motif.expression,
                 Motif.tags,
             )
-            .where(Motif.source != USER_UPLOAD_SOURCE, Motif.embedding.is_(None))
+            .where(Motif.source != USER_UPLOAD_SOURCE, Motif.embedding_vertex.is_(None))
             .order_by(Motif.id)
         )
     ).all()
@@ -315,9 +321,9 @@ async def update_embedding_if_missing(
         .where(
             Motif.id == motif_id,
             Motif.source != USER_UPLOAD_SOURCE,
-            Motif.embedding.is_(None),
+            Motif.embedding_vertex.is_(None),
         )
-        .values(embedding=embedding)
+        .values(embedding_vertex=embedding)
     )
     return bool(cast("CursorResult[Any]", result).rowcount)
 
@@ -327,7 +333,7 @@ async def public_embedding_counts(session: AsyncSession) -> tuple[int, int]:
     embedded, total = (
         await session.execute(
             select(
-                func.count().filter(Motif.embedding.is_not(None)),
+                func.count().filter(Motif.embedding_vertex.is_not(None)),
                 func.count(),
             ).where(Motif.source != USER_UPLOAD_SOURCE)
         )
@@ -339,7 +345,7 @@ async def find_variant_pool(session: AsyncSession, variant_group: str) -> list[P
     """variant_group 샘플링 풀(id + embedding), ORDER BY id. 빈 리스트면 풀 없음."""
     rows = (
         await session.execute(
-            select(Motif.id, Motif.embedding)
+            select(Motif.id, Motif.embedding_vertex)
             .where(
                 Motif.variant_group == variant_group,
                 Motif.source != USER_UPLOAD_SOURCE,

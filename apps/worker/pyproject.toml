@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "httpx>=0.28",
     "google-cloud-storage>=2.18",
+    "google-genai>=1.25,<2",
     "pillow>=11",
     "fonttools>=4.59,<5",
     "vtracer>=0.6,<0.7",

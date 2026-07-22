@@ -18,12 +18,17 @@ async def backfill_missing_embeddings(session: AsyncSession, client) -> int:  # 
             expression=motif.expression,
             tags=motif.tags,
         )
-        embedding = await client.embed(text)
+        try:
+            embedding = await client.embed(text, task_type="RETRIEVAL_DOCUMENT")
+        except TypeError as exc:
+            if "task_type" not in str(exc):
+                raise
+            embedding = await client.embed(text)
         if len(embedding) != EMBEDDING_DIM:
             raise ValueError(
                 f"embedding dimension mismatch for {motif.id}: "
                 f"expected {EMBEDDING_DIM}, got {len(embedding)}"
             )
         updated += int(await store.update_embedding_if_missing(session, motif.id, embedding))
-    await session.commit()
+        await session.commit()
     return updated
