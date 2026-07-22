@@ -1,4 +1,4 @@
-"""Immutable authoring example projection and pgvector retrieval queries."""
+"""Bootstrap projection and active authoring-example retrieval queries."""
 
 from __future__ import annotations
 
@@ -6,12 +6,13 @@ from dataclasses import dataclass
 from typing import cast
 
 from db.models.seamless import AuthoringExample
-from sqlalchemy import CursorResult, select, update
+from sqlalchemy import CursorResult, case, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from worker.authoring.compiler import PLAN_CONTRACT_VERSION
 from worker.authoring.examples import AuthoringExampleManifest
+from worker.authoring.schema import structural_fingerprint
 
 
 @dataclass(frozen=True)
@@ -27,43 +28,37 @@ async def project_manifest(
     session: AsyncSession,
     manifest: AuthoringExampleManifest,
     *,
-    example_set_revision: str,
     embedding_model: str,
 ) -> bool:
-    """Insert one immutable projection; content drift requires a new set revision."""
+    """Insert one immutable bootstrap example without overriding admin activation."""
 
     motif_count = len(manifest.plan.motifs)
     plan = manifest.plan.model_dump(mode="json")
     source_digest = manifest.source_digest()
     values = {
-        "example_set_revision": example_set_revision,
         "example_id": manifest.example_id,
+        "source": "bootstrap",
         "contract_version": PLAN_CONTRACT_VERSION,
         "family": manifest.family,
         "motif_count": motif_count,
         "retrieval_text": manifest.retrieval_text,
         "tags": manifest.tags,
         "plan": plan,
+        "structural_fingerprint": structural_fingerprint(manifest.plan),
         "source_digest": source_digest,
         "embedding_model": embedding_model,
     }
     inserted = await session.scalar(
         pg_insert(AuthoringExample)
         .values(**values)
-        .on_conflict_do_nothing(
-            index_elements=[
-                AuthoringExample.example_set_revision,
-                AuthoringExample.example_id,
-            ]
-        )
+        .on_conflict_do_nothing(index_elements=[AuthoringExample.example_id])
         .returning(AuthoringExample.example_id)
     )
     if inserted is not None:
         return True
 
-    existing = await session.get(
-        AuthoringExample,
-        (example_set_revision, manifest.example_id),
+    existing = await session.scalar(
+        select(AuthoringExample).where(AuthoringExample.example_id == manifest.example_id)
     )
     if existing is None or any(
         (
@@ -74,19 +69,18 @@ async def project_manifest(
             existing.retrieval_text != manifest.retrieval_text,
             existing.tags != manifest.tags,
             existing.plan != plan,
+            existing.structural_fingerprint != values["structural_fingerprint"],
             existing.embedding_model != embedding_model,
+            existing.source != "bootstrap",
         )
     ):
-        raise ValueError(
-            f"immutable authoring example changed: {example_set_revision}/{manifest.example_id}"
-        )
+        raise ValueError(f"immutable bootstrap authoring example changed: {manifest.example_id}")
     return False
 
 
 async def update_embedding_if_missing(
     session: AsyncSession,
     *,
-    example_set_revision: str,
     example_id: str,
     embedding_model: str,
     embedding: list[float],
@@ -94,12 +88,23 @@ async def update_embedding_if_missing(
     result = await session.execute(
         update(AuthoringExample)
         .where(
-            AuthoringExample.example_set_revision == example_set_revision,
             AuthoringExample.example_id == example_id,
             AuthoringExample.embedding_model == embedding_model,
             AuthoringExample.embedding_vertex.is_(None),
         )
-        .values(embedding_vertex=embedding)
+        .values(
+            embedding_vertex=embedding,
+            approved_at=func.coalesce(AuthoringExample.approved_at, func.now()),
+            active=case(
+                (AuthoringExample.active_updated_at.is_(None), True),
+                else_=AuthoringExample.active,
+            ),
+            active_updated_at=func.coalesce(AuthoringExample.active_updated_at, func.now()),
+            active_reason=case(
+                (AuthoringExample.active_updated_at.is_(None), "bootstrap sync"),
+                else_=AuthoringExample.active_reason,
+            ),
+        )
     )
     return bool(cast(CursorResult, result).rowcount)
 
@@ -107,12 +112,11 @@ async def update_embedding_if_missing(
 async def missing_embedding_ids(
     session: AsyncSession,
     *,
-    example_set_revision: str,
     embedding_model: str,
 ) -> set[str]:
     rows = await session.scalars(
         select(AuthoringExample.example_id).where(
-            AuthoringExample.example_set_revision == example_set_revision,
+            AuthoringExample.source == "bootstrap",
             AuthoringExample.embedding_model == embedding_model,
             AuthoringExample.embedding_vertex.is_(None),
         )
@@ -123,18 +127,15 @@ async def missing_embedding_ids(
 async def embedding_counts(
     session: AsyncSession,
     *,
-    example_set_revision: str,
     embedding_model: str,
 ) -> tuple[int, int]:
-    from sqlalchemy import func
-
     row = (
         await session.execute(
             select(
                 func.count().filter(AuthoringExample.embedding_vertex.is_not(None)),
                 func.count(),
             ).where(
-                AuthoringExample.example_set_revision == example_set_revision,
+                AuthoringExample.source == "bootstrap",
                 AuthoringExample.embedding_model == embedding_model,
             )
         )
@@ -146,7 +147,6 @@ async def nearest_examples(
     session: AsyncSession,
     embedding: list[float],
     *,
-    example_set_revision: str,
     embedding_model: str,
     limit: int = 25,
 ) -> list[ExampleMatch]:
@@ -161,7 +161,7 @@ async def nearest_examples(
                 distance.label("distance"),
             )
             .where(
-                AuthoringExample.example_set_revision == example_set_revision,
+                AuthoringExample.active.is_(True),
                 AuthoringExample.contract_version == PLAN_CONTRACT_VERSION,
                 AuthoringExample.embedding_model == embedding_model,
                 AuthoringExample.embedding_vertex.is_not(None),

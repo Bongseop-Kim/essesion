@@ -9,6 +9,7 @@ const positive = new Set([
   "active",
   "succeeded",
   "success",
+  "approved",
   "used",
   "safe",
   "DONE",
@@ -22,6 +23,8 @@ const critical = new Set([
   "error",
   "revoked",
   "unsafe",
+  "rejected",
+  "invalid",
   "CANCELED",
 ]);
 const warning = new Set([
@@ -32,6 +35,8 @@ const warning = new Set([
   "open",
   "queued",
   "partial",
+  "hold",
+  "duplicate",
 ]);
 const statusLabels: Readonly<Record<string, string>> = {
   active: "활성",
@@ -57,6 +62,11 @@ const statusLabels: Readonly<Record<string, string>> = {
   token: "토큰",
   safe: "안전",
   unsafe: "차단",
+  approved: "승인",
+  rejected: "거절",
+  hold: "보류",
+  duplicate: "중복 제외",
+  invalid: "검증 제외",
   DONE: "완료",
   CANCELED: "취소",
   견적발송: "견적 발송",

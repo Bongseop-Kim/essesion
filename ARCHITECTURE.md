@@ -455,9 +455,9 @@ private uploads bucket
 ```mermaid
 flowchart LR
     Prompt[자연어 prompt] --> Author[Gemini authoring]
-    Golden[Git gallery-v1<br/>25개 Plan v3] --> Project[(immutable example projection)]
+    Bootstrap[gallery bootstrap<br/>25개 Plan v3] --> Active[(approved active examples)]
     Prompt --> Retrieve[Vertex embedding + pgvector RAG]
-    Project --> Retrieve
+    Active --> Retrieve
     Retrieve -->|호환 후보 중 최대 3개| Author
     Photo[참고 사진 최대 5장 + 사진별 purpose] -->|검증·축소·메타데이터 제거| Author
     Controls[fixed palette + pattern constraints] -->|prompt 지시 + 결정적 보정·재검증| Intent
@@ -482,9 +482,9 @@ flowchart LR
 
 Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-constrained `DesignPlansV3`를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개 motif source와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. Pydantic 모델 자체를 Vertex `response_schema`로 넘기고, 결정적 compiler가 48mm/300dpi intent와 motif sidecar를 만든다. 색만 다른 plan은 structural fingerprint로 중복 처리하며 2개 이상의 유효한 구조가 없으면 검증 오류와 함께 한 번 다시 저작한다.
 
-few-shot 정본은 기존 25개 이상 intent에서 추출해 Git에 고정한 `gallery-v1` Plan v3 manifest다. manifest의 golden SHA와 Plan 계약은 테스트가 검증하고, 운영 DB의 `authoring_examples`는 `(example_set_revision, example_id)` 불변 projection일 뿐 편집 정본이 아니다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 예시를 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 revision은 요청을 실패시키지 않고 예시 없이 typed schema 경로를 계속한다.
+기존 25개 이상 intent에서 만든 `gallery-v1` Plan v3 manifest는 최초 bootstrap 입력이다. 런타임 few-shot 정본은 운영 DB의 `authoring_examples` 중 승인되고 `active=true`인 현재 contract·embedding model 행이다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 예시를 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 예시 없이 typed schema 경로를 계속한다.
 
-기본 배포 모드는 `legacy`다. `shadow`는 request-id hash로 표본화해 v3 결과와 진단만 폐기 저장하고 사용자 응답은 legacy가 결정한다. `canary`는 같은 안정 bucket으로 일부 요청에 v3를 적용하며 hidden legacy fallback은 없다. 계약·compiler·prompt·example-set revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 기존 generation diagnostics/intent log에 남긴다. 프롬프트나 설정을 런타임에서 편집하는 관리자 기능은 이 계약의 일부가 아니며, 개발자는 Git revision·동기화 스크립트·평가 하네스·배포 env로만 업그레이드한다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
+기본 배포 모드는 `legacy`다. `shadow`는 request-id hash로 표본화해 v3 결과와 진단만 폐기 저장하고 사용자 응답은 legacy가 결정한다. `canary`는 같은 안정 bucket으로 일부 요청에 v3를 적용하며 hidden legacy fallback은 없다. mode와 shadow/canary 비율은 `admin_settings`에서 관리하며 누락·오류 시 legacy로 닫힌다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 기존 generation diagnostics/intent log에 남긴다. 매일 성공·선택·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 예시가 되며, 문제 예시는 `active=false`로 즉시 제외한다. prompt와 Plan 본문은 관리자 화면에서 편집하지 않는다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
 
 사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
 

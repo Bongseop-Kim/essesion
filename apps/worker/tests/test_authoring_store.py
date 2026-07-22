@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from db.models.seamless import AuthoringExample
+from sqlalchemy import select
 from worker.adapters import AdapterClientError
 from worker.authoring import store
 from worker.authoring.examples import load_example_set
@@ -12,7 +13,6 @@ from worker.engine.constraints import PatternConstraints
 
 DIM = 3072
 MODEL = "test-embedding-3072"
-REVISION = "gallery-test-v1"
 
 
 def _vec(*head: float) -> list[float]:
@@ -26,12 +26,10 @@ async def _project(db_session, indexes: tuple[int, ...]) -> None:  # noqa: ANN00
         assert await store.project_manifest(
             db_session,
             example,
-            example_set_revision=REVISION,
             embedding_model=MODEL,
         )
         assert await store.update_embedding_if_missing(
             db_session,
-            example_set_revision=REVISION,
             example_id=example.example_id,
             embedding_model=MODEL,
             embedding=_vec(1.0),
@@ -44,24 +42,58 @@ async def test_projection_is_idempotent_and_rejects_content_drift(db_session):
     assert await store.project_manifest(
         db_session,
         example,
-        example_set_revision=REVISION,
         embedding_model=MODEL,
     )
     assert not await store.project_manifest(
         db_session,
         example,
-        example_set_revision=REVISION,
         embedding_model=MODEL,
     )
 
     changed = example.model_copy(update={"retrieval_text": example.retrieval_text + " changed"})
-    with pytest.raises(ValueError, match="immutable authoring example changed"):
+    with pytest.raises(ValueError, match="immutable bootstrap authoring example changed"):
         await store.project_manifest(
             db_session,
             changed,
-            example_set_revision=REVISION,
             embedding_model=MODEL,
         )
+
+
+async def test_first_embedding_activates_bootstrap_without_overriding_later_admin_choice(
+    db_session,
+):
+    example = load_example_set()[0]
+    await store.project_manifest(db_session, example, embedding_model=MODEL)
+    assert await store.update_embedding_if_missing(
+        db_session,
+        example_id=example.example_id,
+        embedding_model=MODEL,
+        embedding=_vec(1.0),
+    )
+    await db_session.commit()
+
+    row = await db_session.scalar(
+        select(AuthoringExample).where(AuthoringExample.example_id == example.example_id)
+    )
+    assert row is not None
+    assert row.active is True
+    assert row.approved_at is not None
+    assert row.active_updated_at is not None
+    assert row.active_reason == "bootstrap sync"
+
+    row.active = False
+    row.embedding_vertex = None
+    row.active_reason = "admin disabled"
+    await db_session.commit()
+    assert await store.update_embedding_if_missing(
+        db_session,
+        example_id=example.example_id,
+        embedding_model=MODEL,
+        embedding=_vec(0.5),
+    )
+    await db_session.refresh(row)
+    assert row.active is False
+    assert row.active_reason == "admin disabled"
 
 
 async def test_projection_rejects_database_drift(db_session):
@@ -69,21 +101,21 @@ async def test_projection_rejects_database_drift(db_session):
     await store.project_manifest(
         db_session,
         example,
-        example_set_revision=REVISION,
         embedding_model=MODEL,
     )
     await db_session.commit()
 
-    existing = await db_session.get(AuthoringExample, (REVISION, example.example_id))
+    existing = await db_session.scalar(
+        select(AuthoringExample).where(AuthoringExample.example_id == example.example_id)
+    )
     assert existing is not None
     existing.retrieval_text = f"{existing.retrieval_text} tampered"
     await db_session.commit()
 
-    with pytest.raises(ValueError, match="immutable authoring example changed"):
+    with pytest.raises(ValueError, match="immutable bootstrap authoring example changed"):
         await store.project_manifest(
             db_session,
             example,
-            example_set_revision=REVISION,
             embedding_model=MODEL,
         )
 
@@ -94,7 +126,6 @@ async def test_nearest_examples_are_stable_and_exclude_missing_embeddings(db_ses
     await store.project_manifest(
         db_session,
         missing,
-        example_set_revision=REVISION,
         embedding_model=MODEL,
     )
     await db_session.commit()
@@ -102,7 +133,6 @@ async def test_nearest_examples_are_stable_and_exclude_missing_embeddings(db_ses
     matches = await store.nearest_examples(
         db_session,
         _vec(1.0),
-        example_set_revision=REVISION,
         embedding_model=MODEL,
     )
     assert [match.example_id for match in matches] == sorted(
@@ -111,7 +141,6 @@ async def test_nearest_examples_are_stable_and_exclude_missing_embeddings(db_ses
     assert all(match.similarity == pytest.approx(1.0) for match in matches)
     assert await store.embedding_counts(
         db_session,
-        example_set_revision=REVISION,
         embedding_model=MODEL,
     ) == (2, 3)
 
@@ -134,7 +163,6 @@ async def test_retrieval_selects_up_to_three_compatible_unique_families(db_sessi
         embedding_model=MODEL,
         available_motif_count=2,
         pattern_constraints=PatternConstraints(),
-        example_set_revision=REVISION,
     )
 
     assert outcome.status == "ok"
@@ -162,7 +190,6 @@ async def test_retrieval_fails_soft_when_embedding_provider_fails(db_session):
         embedding_model=MODEL,
         available_motif_count=0,
         pattern_constraints=PatternConstraints(),
-        example_set_revision=REVISION,
     )
     assert outcome.status == "embedding_error"
     assert outcome.reason == "provider_5xx"

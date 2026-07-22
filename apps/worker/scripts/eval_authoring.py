@@ -28,7 +28,6 @@ from worker.adapters import AdapterClientError
 from worker.adapters.embedding import DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL
 from worker.adapters.embedding import VertexEmbeddingClient
 from worker.adapters.gemini import DEFAULT_MODEL, GeminiClient
-from worker.authoring.examples import EXAMPLE_SET_REVISION
 from worker.authoring.retrieval import retrieve_examples
 from worker.engine.constraints import PatternConstraints
 from worker.engine.validate import IntentInvalid, validate_intent
@@ -107,7 +106,6 @@ async def _evaluate_model(
     session: AsyncSession | None = None,
     embedding: VertexEmbeddingClient | None = None,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
-    example_set_revision: str = EXAMPLE_SET_REVISION,
 ) -> dict[str, Any]:
     client = GeminiClient(project, model)
     latencies: list[float] = []
@@ -133,7 +131,6 @@ async def _evaluate_model(
                     embedding_model=embedding_model,
                     available_motif_count=case.motif_count,
                     pattern_constraints=PatternConstraints(),
-                    example_set_revision=example_set_revision,
                 )
                 retrieval_statuses[retrieval.status] += 1
                 selected_families = {example.family for example in retrieval.examples}
@@ -188,7 +185,6 @@ async def _evaluate_model(
         "model": model,
         "pipeline": pipeline,
         "plan_contract_version": 3 if pipeline == "v3" else 2,
-        "example_set_revision": example_set_revision if pipeline == "v3" else None,
         "total": total,
         "succeeded": succeeded,
         "schema_compile_success_rate": round(succeeded / total, 4) if total else 0,
@@ -228,7 +224,6 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
-    parser.add_argument("--example-set-revision", default=EXAMPLE_SET_REVISION)
     return parser.parse_args()
 
 
@@ -277,7 +272,6 @@ async def _main() -> None:
                                 session=session,
                                 embedding=embedding,
                                 embedding_model=args.embedding_model,
-                                example_set_revision=args.example_set_revision,
                             )
                         )
                 else:

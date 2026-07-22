@@ -100,6 +100,15 @@ class WorkerClient:
     async def ideas(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/ideas", payload)
 
+    async def scan_authoring_promotions(self, *, limit: int = 100) -> dict[str, Any]:
+        return await self._post_json("/authoring/promotions/scan", {"limit": limit})
+
+    async def ensure_authoring_promotion_embedding(self, candidate_id: str) -> dict[str, Any]:
+        return await self._post_json(
+            "/authoring/promotions/embedding",
+            {"candidate_id": candidate_id},
+        )
+
     async def export(self, payload: dict[str, Any]) -> tuple[bytes, str]:
         """SVG → PNG/TIFF 바이너리. (content, media_type) 반환 — 워커가 dpi/치수의 최종 권위."""
         res = await self._post("/export", payload, finalize=True)

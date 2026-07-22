@@ -91,18 +91,11 @@ def test_settings_validates_gemini_temperature() -> None:
         _settings(gemini_temperature=2.01)
 
 
-def test_settings_validates_authoring_rollout() -> None:
-    assert _settings().authoring_pipeline_mode == "legacy"
-    for mode in ("legacy", "shadow", "canary", "v3"):
-        _settings(authoring_pipeline_mode=mode)
-    _settings(authoring_shadow_percent=0, authoring_canary_percent=100)
-
-    with pytest.raises(ValidationError):
-        _settings(authoring_pipeline_mode="other")
-    with pytest.raises(ValidationError):
-        _settings(authoring_shadow_percent=-1)
-    with pytest.raises(ValidationError):
-        _settings(authoring_canary_percent=101)
+def test_settings_does_not_own_authoring_rollout() -> None:
+    settings = _settings()
+    assert not hasattr(settings, "authoring_pipeline_mode")
+    assert not hasattr(settings, "authoring_shadow_percent")
+    assert not hasattr(settings, "authoring_canary_percent")
 
 
 def test_settings_validates_stripe_max_band_coverage() -> None:

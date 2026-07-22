@@ -11,7 +11,7 @@ from db.models.seamless import EMBEDDING_DIM
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.adapters.embedding import build_embedding_client
 from worker.authoring import store
-from worker.authoring.examples import EXAMPLE_SET_REVISION, load_example_set
+from worker.authoring.examples import load_example_set
 from worker.config import get_settings
 from worker.db import build_engine
 
@@ -43,7 +43,6 @@ async def _run() -> tuple[int, int, int, int]:
                     await store.project_manifest(
                         session,
                         example,
-                        example_set_revision=EXAMPLE_SET_REVISION,
                         embedding_model=client.model,
                     )
                 )
@@ -51,7 +50,6 @@ async def _run() -> tuple[int, int, int, int]:
 
             missing = await store.missing_embedding_ids(
                 session,
-                example_set_revision=EXAMPLE_SET_REVISION,
                 embedding_model=client.model,
             )
             for example in examples:
@@ -68,7 +66,6 @@ async def _run() -> tuple[int, int, int, int]:
                 embedded_now += int(
                     await store.update_embedding_if_missing(
                         session,
-                        example_set_revision=EXAMPLE_SET_REVISION,
                         example_id=example.example_id,
                         embedding_model=client.model,
                         embedding=embedding,
@@ -77,7 +74,6 @@ async def _run() -> tuple[int, int, int, int]:
                 await session.commit()
             embedded, total = await store.embedding_counts(
                 session,
-                example_set_revision=EXAMPLE_SET_REVISION,
                 embedding_model=client.model,
             )
             return inserted, embedded_now, embedded, total
@@ -93,5 +89,5 @@ if __name__ == "__main__":
     inserted_count, updated_count, embedded_count, total_count = asyncio.run(_run())
     print(
         f"projected {inserted_count} examples; embedded {updated_count}; "
-        f"embedded={embedded_count}/{total_count} set={EXAMPLE_SET_REVISION}"
+        f"embedded={embedded_count}/{total_count} source=bootstrap"
     )

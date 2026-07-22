@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from worker.adapters import AdapterClientError
 from worker.adapters.embedding import SupportsEmbed, embed_query
 from worker.authoring import store
-from worker.authoring.examples import EXAMPLE_SET_REVISION
 from worker.authoring.schema import DesignPlanV3
 from worker.engine.constraints import PatternConstraints, pattern_prompt_lines
 
@@ -90,7 +89,6 @@ async def retrieve_examples(
     embedding_model: str,
     available_motif_count: int,
     pattern_constraints: PatternConstraints,
-    example_set_revision: str = EXAMPLE_SET_REVISION,
 ) -> RetrievalOutcome:
     if embedding_client is None:
         return RetrievalOutcome(status="embedding_unavailable")
@@ -106,7 +104,6 @@ async def retrieve_examples(
         matches = await store.nearest_examples(
             session,
             embedding,
-            example_set_revision=example_set_revision,
             embedding_model=embedding_model,
         )
     except AdapterClientError as exc:

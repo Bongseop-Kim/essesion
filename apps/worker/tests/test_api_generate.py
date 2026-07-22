@@ -25,6 +25,7 @@ from worker.adapters import Adapters
 from worker.adapters.gemini import AuthoredDesign
 from worker.api import routes
 from worker.authoring.retrieval import RetrievalOutcome
+from worker.authoring.rollout import AuthoringRuntimeSettings
 from worker.db import get_session
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
@@ -93,6 +94,11 @@ def _configure_app(monkeypatch, *, raster_ok: bool = True):
         return (b"fake-png", "image/png")
 
     monkeypatch.setattr(routes, "rasterize_svg", _raster)
+
+    async def _runtime(_session):
+        return AuthoringRuntimeSettings()
+
+    monkeypatch.setattr(routes, "load_authoring_runtime_settings", _runtime)
 
     async def _session():
         yield _FakeSession()
@@ -391,7 +397,11 @@ def test_prompt_v3_cohort_uses_rag_and_typed_authoring(monkeypatch):
 
     monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
     app = _configure_app(monkeypatch)
-    app.state.settings.authoring_pipeline_mode = "v3"
+
+    async def _v3_runtime(_session):
+        return AuthoringRuntimeSettings(authoring_pipeline_mode="v3")
+
+    monkeypatch.setattr(routes, "load_authoring_runtime_settings", _v3_runtime)
     app.state.adapters = Adapters(gemini=V3Gemini())
 
     response = TestClient(app).post("/generate", json={"prompt": "대각 스트라이프"})
@@ -420,8 +430,14 @@ def test_prompt_shadow_keeps_legacy_result_when_v3_fails(monkeypatch):
 
     monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
     app = _configure_app(monkeypatch)
-    app.state.settings.authoring_pipeline_mode = "shadow"
-    app.state.settings.authoring_shadow_percent = 100
+
+    async def _shadow_runtime(_session):
+        return AuthoringRuntimeSettings(
+            authoring_pipeline_mode="shadow",
+            authoring_shadow_percent=100,
+        )
+
+    monkeypatch.setattr(routes, "load_authoring_runtime_settings", _shadow_runtime)
     app.state.adapters = Adapters(gemini=ShadowGemini())
 
     response = TestClient(app).post(

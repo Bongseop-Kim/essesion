@@ -676,6 +676,9 @@ export const zAdminRepairPhotoOut = z.object({
  */
 export const zAdminSettingOut = z.object({
     key: z.enum([
+        'authoring_canary_percent',
+        'authoring_pipeline_mode',
+        'authoring_shadow_percent',
         'default_courier_company',
         'design_finalize_daily_limit',
         'design_token_initial_grant'
@@ -683,7 +686,12 @@ export const zAdminSettingOut = z.object({
     updated_at: z.iso.datetime(),
     updated_by: z.uuid().nullable(),
     value: z.string(),
-    value_type: z.enum(['courier', 'non_negative_integer'])
+    value_type: z.enum([
+        'courier',
+        'non_negative_integer',
+        'enum',
+        'percentage'
+    ])
 });
 
 /**
@@ -759,6 +767,175 @@ export const zAffectedResponse = z.object({
     affected_count: z.int(),
     operation_id: z.uuid(),
     success: z.boolean().optional().default(true)
+});
+
+/**
+ * AuthoringCandidateDecisionRequest
+ */
+export const zAuthoringCandidateDecisionRequest = z.object({
+    decision: z.enum([
+        'hold',
+        'reject',
+        'approve'
+    ]),
+    expected_review_version: z.int().gte(0),
+    operation_id: z.uuid(),
+    reason: z.string().min(3).max(500)
+});
+
+/**
+ * AuthoringCandidateDetailOut
+ */
+export const zAuthoringCandidateDetailOut = z.object({
+    approved_example_id: z.uuid().nullable(),
+    compiler_revision: z.string(),
+    contract_version: z.int(),
+    created_at: z.iso.datetime(),
+    embedding_model: z.string().nullable(),
+    family: z.string(),
+    id: z.uuid(),
+    motif_count: z.int(),
+    nearest_id: z.string().nullable(),
+    nearest_kind: z.string().nullable(),
+    nearest_similarity: z.number().nullable(),
+    plan: z.record(z.string(), z.unknown()),
+    plan_index: z.int(),
+    preview_status: z.enum([
+        'safe',
+        'unavailable',
+        'unsafe'
+    ]),
+    preview_svg: z.string().nullable(),
+    prompt_revision: z.string(),
+    retrieval_text: z.string(),
+    review_reason: z.string().nullable(),
+    review_version: z.int(),
+    reviewed_at: z.iso.datetime().nullable(),
+    reviewed_by: z.uuid().nullable(),
+    rule_reasons: z.array(z.unknown()),
+    selected_candidate_id: z.string(),
+    source_digest: z.string(),
+    source_generation_log_id: z.uuid().nullable(),
+    source_key: z.string(),
+    status: z.enum([
+        'pending',
+        'hold',
+        'rejected',
+        'approved',
+        'duplicate',
+        'invalid'
+    ]),
+    structural_fingerprint: z.string().nullable(),
+    tags: z.array(z.string()),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AuthoringCandidateSummaryOut
+ */
+export const zAuthoringCandidateSummaryOut = z.object({
+    approved_example_id: z.uuid().nullable(),
+    compiler_revision: z.string(),
+    contract_version: z.int(),
+    created_at: z.iso.datetime(),
+    family: z.string(),
+    id: z.uuid(),
+    motif_count: z.int(),
+    nearest_id: z.string().nullable(),
+    nearest_kind: z.string().nullable(),
+    nearest_similarity: z.number().nullable(),
+    plan_index: z.int(),
+    prompt_revision: z.string(),
+    retrieval_text: z.string(),
+    review_reason: z.string().nullable(),
+    review_version: z.int(),
+    reviewed_at: z.iso.datetime().nullable(),
+    reviewed_by: z.uuid().nullable(),
+    rule_reasons: z.array(z.unknown()),
+    selected_candidate_id: z.string(),
+    source_generation_log_id: z.uuid().nullable(),
+    status: z.enum([
+        'pending',
+        'hold',
+        'rejected',
+        'approved',
+        'duplicate',
+        'invalid'
+    ]),
+    structural_fingerprint: z.string().nullable(),
+    tags: z.array(z.string()),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AuthoringExampleActivationRequest
+ */
+export const zAuthoringExampleActivationRequest = z.object({
+    active: z.boolean(),
+    expected_updated_at: z.iso.datetime(),
+    operation_id: z.uuid(),
+    reason: z.string().min(3).max(500)
+});
+
+/**
+ * AuthoringExampleDetailOut
+ */
+export const zAuthoringExampleDetailOut = z.object({
+    active: z.boolean(),
+    active_reason: z.string().nullable(),
+    active_updated_at: z.iso.datetime().nullable(),
+    active_updated_by: z.uuid().nullable(),
+    approved_at: z.iso.datetime().nullable(),
+    approved_by: z.uuid().nullable(),
+    contract_version: z.int(),
+    created_at: z.iso.datetime(),
+    embedding_model: z.string(),
+    example_id: z.string(),
+    family: z.string(),
+    id: z.uuid(),
+    motif_count: z.int(),
+    plan: z.record(z.string(), z.unknown()),
+    retrieval_text: z.string(),
+    source: z.enum(['bootstrap', 'promoted']),
+    source_digest: z.string(),
+    structural_fingerprint: z.string(),
+    tags: z.array(z.string()),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AuthoringExampleSummaryOut
+ */
+export const zAuthoringExampleSummaryOut = z.object({
+    active: z.boolean(),
+    active_reason: z.string().nullable(),
+    active_updated_at: z.iso.datetime().nullable(),
+    active_updated_by: z.uuid().nullable(),
+    approved_at: z.iso.datetime().nullable(),
+    approved_by: z.uuid().nullable(),
+    contract_version: z.int(),
+    created_at: z.iso.datetime(),
+    embedding_model: z.string(),
+    example_id: z.string(),
+    family: z.string(),
+    id: z.uuid(),
+    motif_count: z.int(),
+    retrieval_text: z.string(),
+    source: z.enum(['bootstrap', 'promoted']),
+    structural_fingerprint: z.string(),
+    tags: z.array(z.string()),
+    updated_at: z.iso.datetime()
+});
+
+/**
+ * AuthoringPromotionBatchResult
+ */
+export const zAuthoringPromotionBatchResult = z.object({
+    duplicate: z.int(),
+    failed: z.int(),
+    invalid: z.int(),
+    pending: z.int(),
+    scanned: z.int()
 });
 
 /**
@@ -1951,6 +2128,26 @@ export const zPageAdminQuoteSummaryOut = z.object({
 });
 
 /**
+ * Page[AuthoringCandidateSummaryOut]
+ */
+export const zPageAuthoringCandidateSummaryOut = z.object({
+    items: z.array(zAuthoringCandidateSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
+ * Page[AuthoringExampleSummaryOut]
+ */
+export const zPageAuthoringExampleSummaryOut = z.object({
+    items: z.array(zAuthoringExampleSummaryOut),
+    limit: z.int(),
+    offset: z.int(),
+    total: z.int()
+});
+
+/**
  * Page[CouponAudienceCustomerOut]
  */
 export const zPageCouponAudienceCustomerOut = z.object({
@@ -2914,6 +3111,9 @@ export const zSeamlessDetailOut = z.object({
 export const zSettingUpdateItem = z.object({
     expected_updated_at: z.iso.datetime(),
     key: z.enum([
+        'authoring_canary_percent',
+        'authoring_pipeline_mode',
+        'authoring_shadow_percent',
         'default_courier_company',
         'design_finalize_daily_limit',
         'design_token_initial_grant'
@@ -2925,7 +3125,7 @@ export const zSettingUpdateItem = z.object({
  * SettingsUpdateRequest
  */
 export const zSettingsUpdateRequest = z.object({
-    items: z.array(zSettingUpdateItem).min(1).max(3),
+    items: z.array(zSettingUpdateItem).min(1).max(6),
     operation_id: z.uuid(),
     reason: z.string().min(3).max(500)
 });
@@ -3392,6 +3592,89 @@ export const zDesignGenerateOut = z.object({
     request_id: z.string(),
     warnings: z.array(z.string()).optional().default([])
 });
+
+export const zListAuthoringCandidatesQuery = z.object({
+    status: z.enum([
+        'all',
+        'pending',
+        'hold',
+        'rejected',
+        'approved',
+        'duplicate',
+        'invalid'
+    ]).optional().default('pending'),
+    family: z.string().nullish(),
+    q: z.string().max(200).nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAuthoringCandidatesResponse = zPageAuthoringCandidateSummaryOut;
+
+export const zGetAuthoringCandidatePath = z.object({
+    candidate_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAuthoringCandidateResponse = zAuthoringCandidateDetailOut;
+
+export const zDecideAuthoringCandidateBody = zAuthoringCandidateDecisionRequest;
+
+export const zDecideAuthoringCandidatePath = z.object({
+    candidate_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zDecideAuthoringCandidateResponse = zAuthoringCandidateDetailOut;
+
+export const zListAuthoringExamplesQuery = z.object({
+    active: z.enum([
+        'all',
+        'active',
+        'inactive'
+    ]).optional().default('all'),
+    source: z.enum([
+        'all',
+        'bootstrap',
+        'promoted'
+    ]).optional().default('all'),
+    family: z.string().nullish(),
+    q: z.string().max(200).nullish(),
+    limit: z.int().gte(1).lte(100).optional().default(20),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * Successful Response
+ */
+export const zListAuthoringExamplesResponse = zPageAuthoringExampleSummaryOut;
+
+export const zGetAuthoringExamplePath = z.object({
+    example_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zGetAuthoringExampleResponse = zAuthoringExampleDetailOut;
+
+export const zSetAuthoringExampleActivationBody = zAuthoringExampleActivationRequest;
+
+export const zSetAuthoringExampleActivationPath = z.object({
+    example_id: z.uuid()
+});
+
+/**
+ * Successful Response
+ */
+export const zSetAuthoringExampleActivationResponse = zAuthoringExampleDetailOut;
 
 /**
  * Successful Response
@@ -4482,6 +4765,11 @@ export const zVerifyPhoneResponse = zMessageResponse;
  * Successful Response
  */
 export const zRefreshTokensResponse = zTokenResponse;
+
+/**
+ * Successful Response
+ */
+export const zAuthoringPromotionCandidatesResponse = zAuthoringPromotionBatchResult;
 
 /**
  * Successful Response

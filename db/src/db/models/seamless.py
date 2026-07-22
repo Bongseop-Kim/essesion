@@ -7,6 +7,7 @@ gemini-embedding-001의 vector(3072) 컬럼이다. HNSW 인덱스는 두지 않�
 """
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -15,7 +16,7 @@ from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, 
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, REAL
 from sqlalchemy.orm import Mapped, mapped_column
 
-from db.models.base import Base, CreatedAtMixin, uuid_pk
+from db.models.base import Base, CreatedAtMixin, TimestampMixin, uuid_pk
 
 LEGACY_EMBEDDING_DIM = 1536
 EMBEDDING_DIM = 3072
@@ -57,24 +58,37 @@ class Motif(CreatedAtMixin, Base):
     )
 
 
-class AuthoringExample(CreatedAtMixin, Base):
-    """Immutable Git-authored Plan v3 example projected for pgvector retrieval."""
+class AuthoringExample(TimestampMixin, Base):
+    """Approved Plan v3 example. Only active rows participate in RAG."""
 
     __tablename__ = "authoring_examples"
 
-    example_set_revision: Mapped[str] = mapped_column(primary_key=True)
-    example_id: Mapped[str] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = uuid_pk()
+    example_id: Mapped[str] = mapped_column(unique=True)
+    source: Mapped[str] = mapped_column(server_default="bootstrap")
     contract_version: Mapped[int] = mapped_column(Integer)
     family: Mapped[str]
     motif_count: Mapped[int] = mapped_column(Integer)
     retrieval_text: Mapped[str]
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     plan: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    structural_fingerprint: Mapped[str]
     source_digest: Mapped[str]
     embedding_model: Mapped[str]
     embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+    active: Mapped[bool] = mapped_column(server_default=text("false"))
+    approved_at: Mapped[datetime | None]
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    active_updated_at: Mapped[datetime | None]
+    active_updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    active_reason: Mapped[str | None]
 
     __table_args__ = (
+        CheckConstraint("source IN ('bootstrap', 'promoted')", name="source"),
         CheckConstraint("contract_version > 0", name="contract_version_positive"),
         CheckConstraint("motif_count BETWEEN 0 AND 2", name="motif_count"),
         CheckConstraint(
@@ -82,7 +96,89 @@ class AuthoringExample(CreatedAtMixin, Base):
             "'point_set', 'stripe_motif', 'multi_motif')",
             name="family",
         ),
-        Index("ix_authoring_examples_set_family", "example_set_revision", "family"),
+        CheckConstraint(
+            "NOT active OR (embedding_vertex IS NOT NULL AND approved_at IS NOT NULL)",
+            name="active_ready",
+        ),
+        Index("ix_authoring_examples_active_family", "active", "family"),
+        Index(
+            "uq_authoring_examples_active_fingerprint",
+            "structural_fingerprint",
+            unique=True,
+            postgresql_where=text("active"),
+        ),
+    )
+
+
+class AuthoringPromotionCandidate(TimestampMixin, Base):
+    """Rule-screened generation plan awaiting an administrator decision."""
+
+    __tablename__ = "authoring_promotion_candidates"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    source_key: Mapped[str] = mapped_column(unique=True)
+    source_generation_log_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("seamless_generation_logs.id", ondelete="SET NULL"), index=True
+    )
+    plan_index: Mapped[int] = mapped_column(Integer)
+    selected_candidate_id: Mapped[str]
+    contract_version: Mapped[int] = mapped_column(Integer)
+    compiler_revision: Mapped[str]
+    prompt_revision: Mapped[str]
+    family: Mapped[str]
+    motif_count: Mapped[int] = mapped_column(Integer)
+    retrieval_text: Mapped[str]
+    tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
+    plan: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    structural_fingerprint: Mapped[str | None]
+    source_digest: Mapped[str]
+    embedding_model: Mapped[str | None]
+    embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+    nearest_kind: Mapped[str | None]
+    nearest_id: Mapped[str | None]
+    nearest_similarity: Mapped[float | None] = mapped_column(REAL)
+    status: Mapped[str] = mapped_column(server_default="pending")
+    rule_reasons: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    review_version: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    reviewed_at: Mapped[datetime | None]
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    review_reason: Mapped[str | None]
+    approved_example_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("authoring_examples.id", ondelete="SET NULL"), unique=True
+    )
+
+    __table_args__ = (
+        CheckConstraint("plan_index >= 0", name="plan_index"),
+        CheckConstraint("contract_version > 0", name="contract_version_positive"),
+        CheckConstraint("motif_count BETWEEN 0 AND 2", name="motif_count"),
+        CheckConstraint(
+            "family IN ('solid', 'stripe', 'lattice', 'scatter', 'path', "
+            "'point_set', 'stripe_motif', 'multi_motif')",
+            name="family",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'hold', 'rejected', 'approved', 'duplicate', 'invalid')",
+            name="status",
+        ),
+        CheckConstraint("review_version >= 0", name="review_version"),
+        CheckConstraint(
+            "nearest_similarity IS NULL OR nearest_similarity BETWEEN -1 AND 1",
+            name="nearest_similarity",
+        ),
+        CheckConstraint(
+            "status NOT IN ('pending', 'hold', 'approved') OR "
+            "(embedding_model IS NOT NULL AND embedding_vertex IS NOT NULL "
+            "AND structural_fingerprint IS NOT NULL)",
+            name="reviewable_ready",
+        ),
+        Index("ix_authoring_promotion_candidates_status_created", "status", "created_at"),
+        Index(
+            "ix_authoring_promotion_candidates_fingerprint_status",
+            "structural_fingerprint",
+            "status",
+        ),
     )
 
 

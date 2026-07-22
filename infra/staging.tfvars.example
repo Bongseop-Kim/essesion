@@ -23,10 +23,4 @@ public_api_origin = "https://api.essesion.shop"
 #   SOLAPI_TEMPLATE_QUOTE_RECEIVED = "..."
 # }
 
-# Plan v3는 gallery-v1 projection 동기화와 live eval을 마친 뒤 shadow→canary→v3로 승격한다.
-# worker_generate_extra_env = {
-#   AUTHORING_PIPELINE_MODE        = "shadow"
-#   AUTHORING_SHADOW_PERCENT       = "5"
-#   AUTHORING_CANARY_PERCENT       = "10"
-#   AUTHORING_EXAMPLE_SET_REVISION = "gallery-v1"
-# }
+# Plan v3 rollout은 배포 env가 아니라 관리자 설정 화면과 admin_settings가 소유한다.

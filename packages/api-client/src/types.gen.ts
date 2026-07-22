@@ -1960,7 +1960,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'authoring_canary_percent' | 'authoring_pipeline_mode' | 'authoring_shadow_percent' | 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -1976,7 +1976,7 @@ export type AdminSettingOut = {
     /**
      * Value Type
      */
-    value_type: 'courier' | 'non_negative_integer';
+    value_type: 'courier' | 'non_negative_integer' | 'enum' | 'percentage';
 };
 
 /**
@@ -2125,6 +2125,472 @@ export type AffectedResponse = {
      * Success
      */
     success?: boolean;
+};
+
+/**
+ * AuthoringCandidateDecisionRequest
+ */
+export type AuthoringCandidateDecisionRequest = {
+    /**
+     * Decision
+     */
+    decision: 'hold' | 'reject' | 'approve';
+    /**
+     * Expected Review Version
+     */
+    expected_review_version: number;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
+ * AuthoringCandidateDetailOut
+ */
+export type AuthoringCandidateDetailOut = {
+    /**
+     * Approved Example Id
+     */
+    approved_example_id: string | null;
+    /**
+     * Compiler Revision
+     */
+    compiler_revision: string;
+    /**
+     * Contract Version
+     */
+    contract_version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Embedding Model
+     */
+    embedding_model: string | null;
+    /**
+     * Family
+     */
+    family: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Motif Count
+     */
+    motif_count: number;
+    /**
+     * Nearest Id
+     */
+    nearest_id: string | null;
+    /**
+     * Nearest Kind
+     */
+    nearest_kind: string | null;
+    /**
+     * Nearest Similarity
+     */
+    nearest_similarity: number | null;
+    /**
+     * Plan
+     */
+    plan: {
+        [key: string]: unknown;
+    };
+    /**
+     * Plan Index
+     */
+    plan_index: number;
+    /**
+     * Preview Status
+     */
+    preview_status: 'safe' | 'unavailable' | 'unsafe';
+    /**
+     * Preview Svg
+     */
+    preview_svg: string | null;
+    /**
+     * Prompt Revision
+     */
+    prompt_revision: string;
+    /**
+     * Retrieval Text
+     */
+    retrieval_text: string;
+    /**
+     * Review Reason
+     */
+    review_reason: string | null;
+    /**
+     * Review Version
+     */
+    review_version: number;
+    /**
+     * Reviewed At
+     */
+    reviewed_at: string | null;
+    /**
+     * Reviewed By
+     */
+    reviewed_by: string | null;
+    /**
+     * Rule Reasons
+     */
+    rule_reasons: Array<unknown>;
+    /**
+     * Selected Candidate Id
+     */
+    selected_candidate_id: string;
+    /**
+     * Source Digest
+     */
+    source_digest: string;
+    /**
+     * Source Generation Log Id
+     */
+    source_generation_log_id: string | null;
+    /**
+     * Source Key
+     */
+    source_key: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'hold' | 'rejected' | 'approved' | 'duplicate' | 'invalid';
+    /**
+     * Structural Fingerprint
+     */
+    structural_fingerprint: string | null;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AuthoringCandidateSummaryOut
+ */
+export type AuthoringCandidateSummaryOut = {
+    /**
+     * Approved Example Id
+     */
+    approved_example_id: string | null;
+    /**
+     * Compiler Revision
+     */
+    compiler_revision: string;
+    /**
+     * Contract Version
+     */
+    contract_version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Family
+     */
+    family: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Motif Count
+     */
+    motif_count: number;
+    /**
+     * Nearest Id
+     */
+    nearest_id: string | null;
+    /**
+     * Nearest Kind
+     */
+    nearest_kind: string | null;
+    /**
+     * Nearest Similarity
+     */
+    nearest_similarity: number | null;
+    /**
+     * Plan Index
+     */
+    plan_index: number;
+    /**
+     * Prompt Revision
+     */
+    prompt_revision: string;
+    /**
+     * Retrieval Text
+     */
+    retrieval_text: string;
+    /**
+     * Review Reason
+     */
+    review_reason: string | null;
+    /**
+     * Review Version
+     */
+    review_version: number;
+    /**
+     * Reviewed At
+     */
+    reviewed_at: string | null;
+    /**
+     * Reviewed By
+     */
+    reviewed_by: string | null;
+    /**
+     * Rule Reasons
+     */
+    rule_reasons: Array<unknown>;
+    /**
+     * Selected Candidate Id
+     */
+    selected_candidate_id: string;
+    /**
+     * Source Generation Log Id
+     */
+    source_generation_log_id: string | null;
+    /**
+     * Status
+     */
+    status: 'pending' | 'hold' | 'rejected' | 'approved' | 'duplicate' | 'invalid';
+    /**
+     * Structural Fingerprint
+     */
+    structural_fingerprint: string | null;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AuthoringExampleActivationRequest
+ */
+export type AuthoringExampleActivationRequest = {
+    /**
+     * Active
+     */
+    active: boolean;
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
+ * AuthoringExampleDetailOut
+ */
+export type AuthoringExampleDetailOut = {
+    /**
+     * Active
+     */
+    active: boolean;
+    /**
+     * Active Reason
+     */
+    active_reason: string | null;
+    /**
+     * Active Updated At
+     */
+    active_updated_at: string | null;
+    /**
+     * Active Updated By
+     */
+    active_updated_by: string | null;
+    /**
+     * Approved At
+     */
+    approved_at: string | null;
+    /**
+     * Approved By
+     */
+    approved_by: string | null;
+    /**
+     * Contract Version
+     */
+    contract_version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Embedding Model
+     */
+    embedding_model: string;
+    /**
+     * Example Id
+     */
+    example_id: string;
+    /**
+     * Family
+     */
+    family: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Motif Count
+     */
+    motif_count: number;
+    /**
+     * Plan
+     */
+    plan: {
+        [key: string]: unknown;
+    };
+    /**
+     * Retrieval Text
+     */
+    retrieval_text: string;
+    /**
+     * Source
+     */
+    source: 'bootstrap' | 'promoted';
+    /**
+     * Source Digest
+     */
+    source_digest: string;
+    /**
+     * Structural Fingerprint
+     */
+    structural_fingerprint: string;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AuthoringExampleSummaryOut
+ */
+export type AuthoringExampleSummaryOut = {
+    /**
+     * Active
+     */
+    active: boolean;
+    /**
+     * Active Reason
+     */
+    active_reason: string | null;
+    /**
+     * Active Updated At
+     */
+    active_updated_at: string | null;
+    /**
+     * Active Updated By
+     */
+    active_updated_by: string | null;
+    /**
+     * Approved At
+     */
+    approved_at: string | null;
+    /**
+     * Approved By
+     */
+    approved_by: string | null;
+    /**
+     * Contract Version
+     */
+    contract_version: number;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Embedding Model
+     */
+    embedding_model: string;
+    /**
+     * Example Id
+     */
+    example_id: string;
+    /**
+     * Family
+     */
+    family: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Motif Count
+     */
+    motif_count: number;
+    /**
+     * Retrieval Text
+     */
+    retrieval_text: string;
+    /**
+     * Source
+     */
+    source: 'bootstrap' | 'promoted';
+    /**
+     * Structural Fingerprint
+     */
+    structural_fingerprint: string;
+    /**
+     * Tags
+     */
+    tags: Array<string>;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+};
+
+/**
+ * AuthoringPromotionBatchResult
+ */
+export type AuthoringPromotionBatchResult = {
+    /**
+     * Duplicate
+     */
+    duplicate: number;
+    /**
+     * Failed
+     */
+    failed: number;
+    /**
+     * Invalid
+     */
+    invalid: number;
+    /**
+     * Pending
+     */
+    pending: number;
+    /**
+     * Scanned
+     */
+    scanned: number;
 };
 
 /**
@@ -5289,6 +5755,50 @@ export type PageAdminQuoteSummaryOut = {
 };
 
 /**
+ * Page[AuthoringCandidateSummaryOut]
+ */
+export type PageAuthoringCandidateSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AuthoringCandidateSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
+ * Page[AuthoringExampleSummaryOut]
+ */
+export type PageAuthoringExampleSummaryOut = {
+    /**
+     * Items
+     */
+    items: Array<AuthoringExampleSummaryOut>;
+    /**
+     * Limit
+     */
+    limit: number;
+    /**
+     * Offset
+     */
+    offset: number;
+    /**
+     * Total
+     */
+    total: number;
+};
+
+/**
  * Page[CouponAudienceCustomerOut]
  */
 export type PageCouponAudienceCustomerOut = {
@@ -7106,7 +7616,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'authoring_canary_percent' | 'authoring_pipeline_mode' | 'authoring_shadow_percent' | 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
     /**
      * Value
      */
@@ -7692,6 +8202,222 @@ export type WorkerCandidateOut = {
      */
     svg: string;
 };
+
+export type ListAuthoringCandidatesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Status
+         */
+        status?: 'all' | 'pending' | 'hold' | 'rejected' | 'approved' | 'duplicate' | 'invalid';
+        /**
+         * Family
+         */
+        family?: string | null;
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/authoring/candidates';
+};
+
+export type ListAuthoringCandidatesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAuthoringCandidatesError = ListAuthoringCandidatesErrors[keyof ListAuthoringCandidatesErrors];
+
+export type ListAuthoringCandidatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAuthoringCandidateSummaryOut;
+};
+
+export type ListAuthoringCandidatesResponse = ListAuthoringCandidatesResponses[keyof ListAuthoringCandidatesResponses];
+
+export type GetAuthoringCandidateData = {
+    body?: never;
+    path: {
+        /**
+         * Candidate Id
+         */
+        candidate_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/candidates/{candidate_id}';
+};
+
+export type GetAuthoringCandidateErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAuthoringCandidateError = GetAuthoringCandidateErrors[keyof GetAuthoringCandidateErrors];
+
+export type GetAuthoringCandidateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringCandidateDetailOut;
+};
+
+export type GetAuthoringCandidateResponse = GetAuthoringCandidateResponses[keyof GetAuthoringCandidateResponses];
+
+export type DecideAuthoringCandidateData = {
+    body: AuthoringCandidateDecisionRequest;
+    path: {
+        /**
+         * Candidate Id
+         */
+        candidate_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/candidates/{candidate_id}/decision';
+};
+
+export type DecideAuthoringCandidateErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DecideAuthoringCandidateError = DecideAuthoringCandidateErrors[keyof DecideAuthoringCandidateErrors];
+
+export type DecideAuthoringCandidateResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringCandidateDetailOut;
+};
+
+export type DecideAuthoringCandidateResponse = DecideAuthoringCandidateResponses[keyof DecideAuthoringCandidateResponses];
+
+export type ListAuthoringExamplesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Active
+         */
+        active?: 'all' | 'active' | 'inactive';
+        /**
+         * Source
+         */
+        source?: 'all' | 'bootstrap' | 'promoted';
+        /**
+         * Family
+         */
+        family?: string | null;
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Offset
+         */
+        offset?: number;
+    };
+    url: '/admin/authoring/examples';
+};
+
+export type ListAuthoringExamplesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListAuthoringExamplesError = ListAuthoringExamplesErrors[keyof ListAuthoringExamplesErrors];
+
+export type ListAuthoringExamplesResponses = {
+    /**
+     * Successful Response
+     */
+    200: PageAuthoringExampleSummaryOut;
+};
+
+export type ListAuthoringExamplesResponse = ListAuthoringExamplesResponses[keyof ListAuthoringExamplesResponses];
+
+export type GetAuthoringExampleData = {
+    body?: never;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/examples/{example_id}';
+};
+
+export type GetAuthoringExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAuthoringExampleError = GetAuthoringExampleErrors[keyof GetAuthoringExampleErrors];
+
+export type GetAuthoringExampleResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringExampleDetailOut;
+};
+
+export type GetAuthoringExampleResponse = GetAuthoringExampleResponses[keyof GetAuthoringExampleResponses];
+
+export type SetAuthoringExampleActivationData = {
+    body: AuthoringExampleActivationRequest;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/examples/{example_id}/activation';
+};
+
+export type SetAuthoringExampleActivationErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetAuthoringExampleActivationError = SetAuthoringExampleActivationErrors[keyof SetAuthoringExampleActivationErrors];
+
+export type SetAuthoringExampleActivationResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringExampleDetailOut;
+};
+
+export type SetAuthoringExampleActivationResponse = SetAuthoringExampleActivationResponses[keyof SetAuthoringExampleActivationResponses];
 
 export type GetAdminCapabilitiesData = {
     body?: never;
@@ -10582,6 +11308,22 @@ export type RefreshTokensResponses = {
 };
 
 export type RefreshTokensResponse = RefreshTokensResponses[keyof RefreshTokensResponses];
+
+export type AuthoringPromotionCandidatesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/batch/authoring-promotion-candidates';
+};
+
+export type AuthoringPromotionCandidatesResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringPromotionBatchResult;
+};
+
+export type AuthoringPromotionCandidatesResponse = AuthoringPromotionCandidatesResponses[keyof AuthoringPromotionCandidatesResponses];
 
 export type AutoConfirmOrdersData = {
     body?: never;

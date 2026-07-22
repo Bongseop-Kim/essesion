@@ -152,11 +152,11 @@ curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audienc
 curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences="$FINALIZE_URL")" "$FINALIZE_URL/readyz"
 ```
 
-### Plan v3 예시 projection과 승격
+### Plan v3 예시 bootstrap과 승격
 
-migrate와 공개 motif embedding이 끝난 뒤, DB/ADC가 연결된 운영자 환경에서 Git의
-`gallery-v1` 25개를 불변 projection으로 동기화한다. 출력이 정확히
-`embedded=25/25 set=gallery-v1`이어야 shadow를 시작한다.
+migrate와 공개 motif embedding이 끝난 뒤, DB/ADC가 연결된 운영자 환경에서
+`gallery-v1` 25개 bootstrap 예시와 embedding을 동기화한다. 출력의
+`embedded=<전체>/<전체> source=bootstrap`을 확인한 뒤 shadow를 시작한다.
 
 ```bash
 uv run python apps/worker/scripts/build_authoring_examples.py --check
@@ -165,14 +165,15 @@ uv run python apps/worker/scripts/eval_authoring.py \
   --confirm-live --pipeline legacy --pipeline v3
 ```
 
-평가 뒤 `staging.tfvars`의 `worker_generate_extra_env`를 `legacy → shadow → canary → v3`
-순서로 바꾸고 tofu apply한다. 즉시 롤백은 `AUTHORING_PIPELINE_MODE=legacy`다. DB에서
-prompt/예시를 직접 수정하거나 관리자 화면을 통해 설정하지 않는다. revision 변경과 상세
-관측 필드는 [authoring-plan-v3.md](../docs/specs/authoring-plan-v3.md)를 따른다.
+평가 뒤 관리자 설정의 authoring mode를 `legacy → shadow → canary → v3` 순서로 바꾼다.
+즉시 롤백은 mode를 `legacy`로 되돌리는 것이다. 매일 05:00 KST 배치가 생성 결과에서
+검토 후보를 만들고, 관리자 승인 예시만 즉시 active RAG 집합에 들어간다. prompt와 Plan
+본문은 관리자 화면에서 수정하지 않는다. 상세 계약과 관측 필드는
+[authoring-plan-v3.md](../docs/specs/authoring-plan-v3.md)를 따른다.
 
 ## 배치 (Cloud Scheduler → api /batch/*)
 
-apply 시 `batch-{auto-confirm-orders,cancel-stale-orders,reconcile-stale-generation-jobs,cleanup-images}` 잡 4종이 생성된다(스케줄은 `scheduler.tf`, KST 기준). api의 검증 env(`BATCH_OIDC_AUDIENCE`, `BATCH_INVOKER_EMAIL`)는 tofu가 주입 — 수동 조치 없음. 로컬 개발은 `batch_token` 폴백.
+apply 시 `batch-{auto-confirm-orders,cancel-stale-orders,reconcile-stale-generation-jobs,cleanup-images,authoring-promotion-candidates}` 잡 5종이 생성된다(스케줄은 `scheduler.tf`, KST 기준). api의 검증 env(`BATCH_OIDC_AUDIENCE`, `BATCH_INVOKER_EMAIL`)는 tofu가 주입 — 수동 조치 없음. 로컬 개발은 `batch_token` 폴백.
 
 **apply 후 확인 (audience 불일치 = 배치 전원 401 조용한 실패)**:
 

@@ -5,13 +5,18 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 from worker.authoring.compiler import PlanCompileError, compile_design_plan_v3
-from worker.authoring.examples import EXAMPLE_SET_REVISION, load_example_set
-from worker.authoring.rollout import select_authoring_cohort
+from worker.authoring.examples import load_example_set
+from worker.authoring.rollout import (
+    AuthoringRuntimeSettings,
+    load_authoring_runtime_settings,
+    select_authoring_cohort,
+)
 from worker.authoring.schema import DesignPlanV3, structural_fingerprint
 from worker.engine.constraints import PaletteConstraint
 from worker.engine.validate import validate_intent
@@ -37,7 +42,6 @@ def _motif_ids(intent: dict) -> list[str]:
 def test_gallery_v1_is_complete_reviewable_and_bound_to_goldens():
     examples = load_example_set()
 
-    assert EXAMPLE_SET_REVISION == "gallery-v1"
     assert len(examples) == 25
     assert {example.family for example in examples} == {
         "solid",
@@ -227,19 +231,19 @@ def test_structural_fingerprint_ignores_palette_but_not_geometry():
     )
 
 
-def test_rollout_is_deployment_controlled_and_request_stable():
+def test_rollout_is_database_controlled_and_request_stable():
     request_id = "request-stable-123"
-    legacy = SimpleNamespace(
+    legacy = AuthoringRuntimeSettings(
         authoring_pipeline_mode="legacy",
         authoring_canary_percent=100,
         authoring_shadow_percent=100,
     )
-    canary = SimpleNamespace(
+    canary = AuthoringRuntimeSettings(
         authoring_pipeline_mode="canary",
         authoring_canary_percent=100,
         authoring_shadow_percent=0,
     )
-    shadow = SimpleNamespace(
+    shadow = AuthoringRuntimeSettings(
         authoring_pipeline_mode="shadow",
         authoring_canary_percent=0,
         authoring_shadow_percent=100,
@@ -251,3 +255,42 @@ def test_rollout_is_deployment_controlled_and_request_stable():
     assert select_authoring_cohort(shadow, request_id) == select_authoring_cohort(
         shadow, request_id
     )
+
+
+async def test_rollout_settings_fail_closed_to_legacy():
+    class _Session:
+        def __init__(self, rows):
+            self.rows = rows
+
+        async def execute(self, _query):
+            return self.rows
+
+    missing = await load_authoring_runtime_settings(cast(AsyncSession, _Session([])))
+    invalid = await load_authoring_runtime_settings(
+        cast(
+            AsyncSession,
+            _Session(
+                [
+                    ("authoring_pipeline_mode", "canary"),
+                    ("authoring_shadow_percent", "5"),
+                    ("authoring_canary_percent", "101"),
+                ]
+            ),
+        )
+    )
+    ready = await load_authoring_runtime_settings(
+        cast(
+            AsyncSession,
+            _Session(
+                [
+                    ("authoring_pipeline_mode", "canary"),
+                    ("authoring_shadow_percent", "5"),
+                    ("authoring_canary_percent", "10"),
+                ]
+            ),
+        )
+    )
+
+    assert (missing.authoring_pipeline_mode, missing.status) == ("legacy", "missing")
+    assert (invalid.authoring_pipeline_mode, invalid.status) == ("legacy", "invalid")
+    assert (ready.authoring_pipeline_mode, ready.authoring_canary_percent) == ("canary", 10)

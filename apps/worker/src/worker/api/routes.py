@@ -30,8 +30,13 @@ from worker.adapters.gemini import (
     normalize_stripes,
     prepare_reference_image,
 )
+from worker.authoring.promotion import (
+    DEFAULT_SCAN_LIMIT,
+    ensure_candidate_embedding,
+    scan_promotion_candidates,
+)
 from worker.authoring.retrieval import retrieve_examples
-from worker.authoring.rollout import select_authoring_cohort
+from worker.authoring.rollout import load_authoring_runtime_settings, select_authoring_cohort
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -85,6 +90,26 @@ GENERATION_ERROR_MESSAGES = {
 
 class StrictRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class PromotionScanRequest(StrictRequest):
+    limit: int = Field(default=DEFAULT_SCAN_LIMIT, ge=1, le=DEFAULT_SCAN_LIMIT)
+
+
+class PromotionScanResponse(BaseModel):
+    scanned: int
+    pending: int
+    duplicate: int
+    invalid: int
+    failed: int
+
+
+class PromotionEmbeddingRequest(StrictRequest):
+    candidate_id: uuid.UUID
+
+
+class PromotionEmbeddingResponse(BaseModel):
+    embedding_model: str
 
 
 class GenerateRequest(StrictRequest):
@@ -695,12 +720,14 @@ async def generate(
                 top_k=5,
             )
         request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
-        cohort = select_authoring_cohort(settings, request_id_var.get() or "")
+        authoring_runtime = await load_authoring_runtime_settings(session)
+        cohort = select_authoring_cohort(authoring_runtime, request_id_var.get() or "")
         request.state.generation_diagnostics.update(
             {
-                "authoring_pipeline_mode": settings.authoring_pipeline_mode,
+                "authoring_pipeline_mode": authoring_runtime.authoring_pipeline_mode,
                 "authoring_cohort": cohort.pipeline,
-                "example_set_revision": settings.authoring_example_set_revision,
+                "authoring_settings_status": authoring_runtime.status,
+                "authoring_settings_reason": authoring_runtime.reason,
             }
         )
 
@@ -732,7 +759,6 @@ async def generate(
                 embedding_model=getattr(embedding, "model", settings.embedding_model),
                 available_motif_count=available_motif_count,
                 pattern_constraints=body.pattern_constraints,
-                example_set_revision=settings.authoring_example_set_revision,
             )
             sink.update(
                 {
@@ -899,7 +925,6 @@ async def generate(
                 "plan_contract_version": diagnostics.get("plan_contract_version"),
                 "compiler_revision": diagnostics.get("compiler_revision"),
                 "prompt_revision": diagnostics.get("prompt_revision"),
-                "example_set_revision": diagnostics.get("example_set_revision"),
                 "selected_example_ids": [
                     example.get("example_id")
                     for example in diagnostics.get("selected_examples", [])
@@ -963,6 +988,56 @@ async def generate(
         candidates=outs,
         warnings=warnings,
     )
+
+
+@generate_router.post(
+    "/authoring/promotions/scan",
+    response_model=PromotionScanResponse,
+)
+async def scan_authoring_promotions(
+    body: PromotionScanRequest,
+    request: Request,
+    session: SessionDep,
+) -> PromotionScanResponse:
+    try:
+        result = await scan_promotion_candidates(
+            session,
+            embedding_client=request.app.state.adapters.embedding,
+            limit=body.limit,
+        )
+    except AdapterNotConfigured as exc:
+        raise HTTPException(status_code=503, detail="authoring embedding is unavailable") from exc
+    except AdapterClientError as exc:
+        raise HTTPException(status_code=502, detail="authoring embedding failed") from exc
+    return PromotionScanResponse(**result.__dict__)
+
+
+@generate_router.post(
+    "/authoring/promotions/embedding",
+    response_model=PromotionEmbeddingResponse,
+)
+async def ensure_authoring_promotion_embedding(
+    body: PromotionEmbeddingRequest,
+    request: Request,
+    session: SessionDep,
+) -> PromotionEmbeddingResponse:
+    try:
+        model = await ensure_candidate_embedding(
+            session,
+            candidate_id=body.candidate_id,
+            embedding_client=request.app.state.adapters.embedding,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="authoring candidate not found") from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409, detail="authoring candidate is not reviewable"
+        ) from exc
+    except AdapterNotConfigured as exc:
+        raise HTTPException(status_code=503, detail="authoring embedding is unavailable") from exc
+    except AdapterClientError as exc:
+        raise HTTPException(status_code=502, detail="authoring embedding failed") from exc
+    return PromotionEmbeddingResponse(embedding_model=model)
 
 
 @generate_router.post("/motifs/candidates")

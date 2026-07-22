@@ -14,6 +14,7 @@ locals {
     cancel-stale-orders             = "*/15 * * * *" # 대기중 30분 SLA — 최악 45분 내 정리
     reconcile-stale-generation-jobs = "*/15 * * * *" # Tasks 1h 재시도 종료 후 job·예산 회수
     cleanup-images                  = "40 4 * * *"   # 일 1회 — 만료·클레임 이미지 2단계 삭제(LIMIT 100)
+    authoring-promotion-candidates  = "0 5 * * *"    # 일 1회 — 승인 검토용 RAG 예시 후보 선별
   }
 }
 

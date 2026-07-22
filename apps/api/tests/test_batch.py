@@ -1,6 +1,7 @@
 """배치 — 자동확정 7일 / stale 취소 30분 (money.md §7)."""
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from api.domains.design.job_lifecycle import ACTIVE_GENERATION_JOB_LEASE
@@ -16,6 +17,34 @@ from sqlalchemy import func, select
 from .factories import make_coupon, make_order, make_user, make_user_coupon
 
 BATCH_HEADERS = {"Authorization": "Bearer test-batch-token"}
+
+
+async def test_authoring_promotion_batch_forwards_worker(client, app, monkeypatch):
+    scan = AsyncMock(
+        return_value={
+            "scanned": 4,
+            "pending": 2,
+            "duplicate": 1,
+            "invalid": 0,
+            "failed": 1,
+        }
+    )
+    monkeypatch.setattr(app.state.worker, "scan_authoring_promotions", scan)
+
+    response = await client.post(
+        "/batch/authoring-promotion-candidates",
+        headers=BATCH_HEADERS,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "scanned": 4,
+        "pending": 2,
+        "duplicate": 1,
+        "invalid": 0,
+        "failed": 1,
+    }
+    scan.assert_awaited_once_with(limit=100)
 
 
 async def test_batch_requires_token(client):
