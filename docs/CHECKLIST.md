@@ -111,6 +111,7 @@
 - [x] 주문·생성 리뷰 후속 — *생성 로그 ID의 키보드 링크, shared DatePicker·claimBadge 단일화, 주문 상세 shared primitive 조합, 영수증별 사진 조회·주문 갤러리 분리, 이미지 만료 목록 필터, 클레임 경합 order advisory lock, store 사진 재시도를 회귀 테스트와 함께 반영.*
 - [x] Seamless 생성 로그 진단 강화 — *`partial` 문자열 오분류를 제거해 후보 4/4와 모티프 drop·CMYK 경고를 분리하고, raw 8건을 원인별 건수로 표시. worker의 안전한 provider 구조 로그, prompt revision·단계별 시간·모티프 해석 diagnostics, `generation_log_id` 기반 세션 선택·재생성·finalize 결과를 admin 상세에 연결하고 api-client를 재생성했다.*
 - [x] `/design` pgvector 모티프 grounding — *공개 motif의 Vertex AI `gemini-embedding-001` 3072차원 임베딩을 `embedding_vertex`에 멱등 backfill하고 ADC 기반 global top-5 검색을 사용한다. 기존 1536 legacy 컬럼은 무중단 전환을 위해 보존한다. prompt 후보는 exact token/0.84 gate 뒤 ID 없는 `catalog_ref`로 Gemini에 제공하며 direct SVG·텍스트·사진·내 모티프와 motif 사진의 2슬롯 우선순위를 API 과금 전 검증한다.*
+- [x] `/design` V3 retrieval 트랜잭션 격리 — *fail-soft 예시 검색을 요청 세션과 분리해 검색 DB 오류 뒤에도 모티프 해석·생성 로그 저장이 정상 진행되도록 하고, Gemini 호출의 await·prompt 전달 회귀 검증을 보강했다.*
 - [x] admin 리뷰 지적 후속 — *수선 발송 사유 지역화, 목록 초기화 시 테이블 설정 보존, 고객 필터 shared primitive 재구성, 작업 초안 전환·이동 차단, 견적 옵션 라벨, 저장 직후 캐시 반영, 공통 검색·필터 접근성, 시맨틱 크기·레이어와 Skeleton 프리셋을 회귀 테스트로 고정하고 Aside 1440×900/390×844 화면을 검증.*
 - [ ] Cloudflare Workers 배포(Vite build + Wrangler Static Assets) — *API proxy는 첫 비로컬 API 배포 전에 별도 선개통, app/admin 고정 custom-domain route는 설정 완료. 실제 배포·DNS 확인이 남음. api `min-instances=1`은 프로덕션 OpenTofu 변수로 별도 적용.*
 - [x] Playwright 스모크 1줄기: 로그인 → 장바구니 → 주문 → 결제 — *실제 API + PostgreSQL seed, 브라우저에서는 결정적 Toss 로컬 어댑터, API는 DryRun confirm으로 멱등 재호출과 장바구니 정리까지 검증. 실제 Toss sandbox는 스테이징 자격 증명 주입 후 리허설에서 별도 확인.*

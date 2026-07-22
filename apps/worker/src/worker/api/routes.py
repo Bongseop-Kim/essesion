@@ -20,7 +20,6 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
@@ -744,7 +743,7 @@ async def generate(
                 diagnostics=sink,
             )
 
-        async def _author_v3(sink: dict[str, object], authoring_session: AsyncSession):
+        async def _author_v3(sink: dict[str, object]):
             retrieval_started = time.perf_counter()
             reference_capable_count = sum(
                 image.purpose in {"motif", "auto"} for image in body.reference_images
@@ -753,14 +752,15 @@ async def generate(
                 2,
                 len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
             )
-            retrieval = await retrieve_examples(
-                authoring_session,
-                author_prompt,
-                embedding_client=embedding,
-                embedding_model=getattr(embedding, "model", settings.embedding_model),
-                available_motif_count=available_motif_count,
-                pattern_constraints=body.pattern_constraints,
-            )
+            async with request.app.state.sessionmaker() as retrieval_session:
+                retrieval = await retrieve_examples(
+                    retrieval_session,
+                    author_prompt,
+                    embedding_client=embedding,
+                    embedding_model=getattr(embedding, "model", settings.embedding_model),
+                    available_motif_count=available_motif_count,
+                    pattern_constraints=body.pattern_constraints,
+                )
             sink.update(
                 {
                     "example_retrieval_status": retrieval.status,
@@ -787,14 +787,9 @@ async def generate(
         try:
             if cohort.shadow_v3:
                 shadow_diagnostics: dict[str, object] = {}
-
-                async def _author_shadow_v3():
-                    async with request.app.state.sessionmaker() as shadow_session:
-                        return await _author_v3(shadow_diagnostics, shadow_session)
-
                 legacy_result, shadow_result = await asyncio.gather(
                     _author_legacy(request.state.generation_diagnostics),
-                    asyncio.wait_for(_author_shadow_v3(), timeout=30.0),
+                    asyncio.wait_for(_author_v3(shadow_diagnostics), timeout=30.0),
                     return_exceptions=True,
                 )
                 if isinstance(shadow_result, BaseException):
@@ -813,7 +808,7 @@ async def generate(
                     raise legacy_result
                 designs = legacy_result
             elif cohort.pipeline == "v3":
-                designs = await _author_v3(request.state.generation_diagnostics, session)
+                designs = await _author_v3(request.state.generation_diagnostics)
             else:
                 designs = await _author_legacy(request.state.generation_diagnostics)
         except SemanticMismatch as exc:

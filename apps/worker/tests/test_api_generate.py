@@ -365,14 +365,16 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
     assert captured["top_k"] == 5
 
 
-def test_prompt_v3_cohort_uses_rag_and_typed_authoring(monkeypatch):
+def test_prompt_v3_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch):
     calls: list[str] = []
+    retrieval_session = _FakeSession()
 
-    async def fake_retrieve(_session, prompt, **kwargs):
+    async def fake_retrieve(session, prompt, **kwargs):
+        assert session is retrieval_session
         calls.append("retrieve")
         assert prompt == "대각 스트라이프"
         assert kwargs["available_motif_count"] == 0
-        return RetrievalOutcome(status="embedding_unavailable")
+        return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
 
     class V3Gemini:
         async def author_designs(self, *_args, **_kwargs):
@@ -381,6 +383,8 @@ def test_prompt_v3_cohort_uses_rag_and_typed_authoring(monkeypatch):
         async def author_designs_v3(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
             calls.append("v3")
             assert examples == []
+            assert diagnostics["example_retrieval_status"] == "retrieval_error"
+            assert diagnostics["example_retrieval_reason"] == "ProgrammingError"
             intent = mvp_intent()
             assert validate(intent) is None
             diagnostics.update(
@@ -404,6 +408,12 @@ def test_prompt_v3_cohort_uses_rag_and_typed_authoring(monkeypatch):
 
     monkeypatch.setattr(routes, "load_authoring_runtime_settings", _v3_runtime)
     app.state.adapters = Adapters(gemini=V3Gemini())
+
+    @asynccontextmanager
+    async def _retrieval_sessionmaker():
+        yield retrieval_session
+
+    app.state.sessionmaker = _retrieval_sessionmaker
 
     response = TestClient(app).post("/generate", json={"prompt": "대각 스트라이프"})
 

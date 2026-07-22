@@ -133,6 +133,12 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     )
     app.state.adapters.gemini = GeminiClient("", client=cast(genai.Client, sdk))
     resp = await client.post("/generate", json={"prompt": "dot pattern", "candidate_count": 1})
+    generate_content = sdk.aio.models.generate_content
+    generate_content.assert_awaited_once()
+    awaited_call = generate_content.await_args
+    assert awaited_call is not None
+    contents = awaited_call.kwargs["contents"]
+    assert "Description: dot pattern" in contents[0].parts[-1].text
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["candidates"]
