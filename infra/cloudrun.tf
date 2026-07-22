@@ -46,7 +46,11 @@ locals {
   }
 
   # 같은 이미지를 배포하되 HTTP 표면은 역할별로 닫는다. all은 로컬 개발 전용 기본값.
-  worker_generate_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "generate" })
+  worker_generate_plain_env = merge(
+    local.worker_plain_env,
+    var.worker_generate_extra_env,
+    { SERVICE_MODE = "generate" },
+  )
   worker_finalize_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "finalize" })
 
   worker_secret_env = {

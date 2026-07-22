@@ -24,6 +24,7 @@ from PIL import Image
 from worker.adapters import Adapters
 from worker.adapters.gemini import AuthoredDesign
 from worker.api import routes
+from worker.authoring.retrieval import RetrievalOutcome
 from worker.db import get_session
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
@@ -349,14 +350,88 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
     app = _configure_app(monkeypatch)
     app.state.adapters = Adapters(gemini=GroundedGemini())
 
-    response = TestClient(app).post(
-        "/generate", json={"prompt": "chess 패턴 디자인해주세요"}
-    )
+    response = TestClient(app).post("/generate", json={"prompt": "chess 패턴 디자인해주세요"})
 
     assert response.status_code == 200, response.text
     assert captured["prompt"] == "chess 패턴 디자인해주세요"
     assert captured["tau"] == app.state.settings.motif_similarity_tau
     assert captured["top_k"] == 5
+
+
+def test_prompt_v3_cohort_uses_rag_and_typed_authoring(monkeypatch):
+    calls: list[str] = []
+
+    async def fake_retrieve(_session, prompt, **kwargs):
+        calls.append("retrieve")
+        assert prompt == "대각 스트라이프"
+        assert kwargs["available_motif_count"] == 0
+        return RetrievalOutcome(status="embedding_unavailable")
+
+    class V3Gemini:
+        async def author_designs(self, *_args, **_kwargs):
+            raise AssertionError("legacy path must not run in a v3 cohort")
+
+        async def author_designs_v3(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
+            calls.append("v3")
+            assert examples == []
+            intent = mvp_intent()
+            assert validate(intent) is None
+            diagnostics.update(
+                plan_contract_version=3,
+                compiler_revision="design-plan-v3.0",
+                prompt_revision="design-plan-v3-rag-grounded",
+            )
+            return [
+                AuthoredDesign(
+                    intent=intent,
+                    plan={"colors": ["#000000", "#ffffff"]},
+                    structural_fingerprint="layout-v3",
+                )
+            ]
+
+    monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
+    app = _configure_app(monkeypatch)
+    app.state.settings.authoring_pipeline_mode = "v3"
+    app.state.adapters = Adapters(gemini=V3Gemini())
+
+    response = TestClient(app).post("/generate", json={"prompt": "대각 스트라이프"})
+
+    assert response.status_code == 200, response.text
+    assert calls == ["retrieve", "v3"]
+
+
+def test_prompt_shadow_keeps_legacy_result_when_v3_fails(monkeypatch):
+    calls: list[str] = []
+
+    async def fake_retrieve(*_args, **_kwargs):
+        calls.append("retrieve")
+        return RetrievalOutcome(status="index_empty")
+
+    class ShadowGemini:
+        async def author_designs(self, _prompt, *, validate, **_kwargs):
+            calls.append("legacy")
+            intent = mvp_intent()
+            assert validate(intent) is None
+            return [AuthoredDesign(intent=intent)]
+
+        async def author_designs_v3(self, *_args, **_kwargs):
+            calls.append("v3")
+            raise RuntimeError("shadow-only failure")
+
+    monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
+    app = _configure_app(monkeypatch)
+    app.state.settings.authoring_pipeline_mode = "shadow"
+    app.state.settings.authoring_shadow_percent = 100
+    app.state.adapters = Adapters(gemini=ShadowGemini())
+
+    response = TestClient(app).post(
+        "/generate",
+        headers={"X-Request-ID": "shadow-sample"},
+        json={"prompt": "대각 스트라이프"},
+    )
+
+    assert response.status_code == 200, response.text
+    assert set(calls) == {"legacy", "retrieve", "v3"}
 
 
 @respx.mock

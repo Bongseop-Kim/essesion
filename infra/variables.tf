@@ -94,6 +94,12 @@ variable "api_extra_env" {
   default     = {}
 }
 
+variable "worker_generate_extra_env" {
+  description = "generate worker 추가 env (Plan v3 rollout mode/percent/example revision 등)"
+  type        = map(string)
+  default     = {}
+}
+
 variable "upload_cors_origins" {
   description = "GCS 사용자 업로드를 허용할 store origin"
   type        = list(string)

@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     vertex_ai_location: str = "global"
     gemini_model: str = "gemini-2.5-flash-lite"
     gemini_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    authoring_pipeline_mode: Literal["legacy", "shadow", "canary", "v3"] = "legacy"
+    authoring_shadow_percent: int = Field(default=5, ge=0, le=100)
+    authoring_canary_percent: int = Field(default=10, ge=0, le=100)
+    authoring_example_set_revision: str = Field(default="gallery-v1", min_length=1, max_length=64)
     embedding_model: str = "gemini-embedding-001"
     embedding_output_dimensionality: int = Field(default=3072, ge=1)
     recraft_api_key: str = ""

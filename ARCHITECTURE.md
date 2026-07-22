@@ -386,10 +386,10 @@ sequenceDiagram
 
 - `db/src/db/models/`의 SQLAlchemy 모델이 스키마 source of truth다.
 - 모든 변경은 Alembic revision으로 만들고 `alembic check`로 모델 drift를 검증한다.
-- 현재 스키마는 40개 모델 테이블과 18개 revision으로 구성되어 있다. 최종 head는 `e7f9a1b2c3d4`이며 `alembic current`와 `alembic check`를 통과한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
+- 현재 스키마는 41개 모델 테이블과 21개 revision으로 구성되어 있다. 최종 head는 `c3d4e5f6a7b8`이며 `alembic current`와 `alembic check`를 통과한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
 - PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 사용한다.
 - DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다. updated timestamp와 도메인 규칙은 서비스 계층이 소유한다.
-- motif embedding은 pgvector `vector(1536)`을 사용한다.
+- 공개 motif와 authoring example 검색은 Vertex AI `gemini-embedding-001`의 pgvector `vector(3072)`를 사용한다. motif의 기존 `vector(1536)` 컬럼은 무중단 이행 호환용으로만 보존한다.
 
 ### 6.2 데이터 그룹
 
@@ -455,10 +455,15 @@ private uploads bucket
 ```mermaid
 flowchart LR
     Prompt[자연어 prompt] --> Author[Gemini authoring]
+    Golden[Git gallery-v1<br/>25개 Plan v3] --> Project[(immutable example projection)]
+    Prompt --> Retrieve[Vertex embedding + pgvector RAG]
+    Project --> Retrieve
+    Retrieve -->|호환 후보 중 최대 3개| Author
     Photo[참고 사진 최대 5장 + 사진별 purpose] -->|검증·축소·메타데이터 제거| Author
     Controls[fixed palette + pattern constraints] -->|prompt 지시 + 결정적 보정·재검증| Intent
     UserInput[SVG / 텍스트 / 사진] -->|path·vectorize + sanitize·normalize·content hash| PrivateMotif[소유자 exact 모티프]
-    Author --> Intent[intent + motif specs]
+    Author --> Plan[typed DesignPlansV3]
+    Plan -->|deterministic compiler| Intent[intent + motif specs]
     Intent --> Resolver[Motif resolver]
     Resolver -->|exact / vector / stable fallback| Catalog[(pgvector catalog)]
     Resolver -->|catalog empty or below threshold| Recraft[Recraft vector generation]
@@ -475,7 +480,13 @@ flowchart LR
     Seam --> Fabric[Fabric finalize]
 ```
 
-Gemini는 텍스트와 참고 사진에서 intent와 motif spec을 작성하는 authoring layer다. 사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
+Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-constrained `DesignPlansV3`를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개 motif source와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. Pydantic 모델 자체를 Vertex `response_schema`로 넘기고, 결정적 compiler가 48mm/300dpi intent와 motif sidecar를 만든다. 색만 다른 plan은 structural fingerprint로 중복 처리하며 2개 이상의 유효한 구조가 없으면 검증 오류와 함께 한 번 다시 저작한다.
+
+few-shot 정본은 기존 25개 이상 intent에서 추출해 Git에 고정한 `gallery-v1` Plan v3 manifest다. manifest의 golden SHA와 Plan 계약은 테스트가 검증하고, 운영 DB의 `authoring_examples`는 `(example_set_revision, example_id)` 불변 projection일 뿐 편집 정본이 아니다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 예시를 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 revision은 요청을 실패시키지 않고 예시 없이 typed schema 경로를 계속한다.
+
+기본 배포 모드는 `legacy`다. `shadow`는 request-id hash로 표본화해 v3 결과와 진단만 폐기 저장하고 사용자 응답은 legacy가 결정한다. `canary`는 같은 안정 bucket으로 일부 요청에 v3를 적용하며 hidden legacy fallback은 없다. 계약·compiler·prompt·example-set revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 기존 generation diagnostics/intent log에 남긴다. 프롬프트나 설정을 런타임에서 편집하는 관리자 기능은 이 계약의 일부가 아니며, 개발자는 Git revision·동기화 스크립트·평가 하네스·배포 env로만 업그레이드한다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
+
+사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
 
 참고 사진은 API가 소유권·완료 상태·MIME·바이트를 확인한 비공개 GCS 객체만 받는다. worker는 API가 발급한 allowlist signed URL만 redirect 없이 읽고, 장당 10MB·총 50MB·20M pixel을 제한한 뒤 방향 보정, 최대 2048px 축소, JPEG 재인코딩으로 메타데이터를 제거한다. 디자인 생성과 아이디어 helper는 이 재인코딩 바이트를 Gemini image part로 전송하므로, GCS가 private라는 사실만으로 외부 processor 전송이 없다고 보지 않는다. 반면 사진 모티프의 배경 분리·vectorize는 Gemini를 호출하지 않고 Pillow+VTracer CPU threadpool 내에서만 처리한다. 프로덕션 Gemini 활성화 전에 처리 지역, 학습 사용, 로그·abuse monitoring 보존, 삭제 제어, DPA와 사용자 고지를 privacy owner가 실제 계약·프로젝트 설정 기준으로 승인해야 하며, 승인 전에 provider 보존 기간을 보증하지 않는다. 아이디어 API와 private worker 사이에서는 exact motif ID로 소유권을 확인하지만 Gemini prompt에는 content-hash ID 대신 순번과 사용자 지정 이름만 전달한다.
 
@@ -695,14 +706,14 @@ flowchart LR
 | `/healthz` | 프로세스 기동·event loop 생존 | Cloud Run startup/liveness가 재시작 판단 |
 | `/readyz` | API의 DB ping·연동 설정 capability, worker의 DB·GCS 확인 | 공개 uptime/deploy smoke가 503 판단, 프로세스는 재시작하지 않음 |
 | request ID | browser/API/worker 요청 상관관계 | 구조화 로그와 응답 header에 전파 |
-| 생성 provider 진단 | Gemini·OpenAI embedding·Recraft의 stage/provider/operation/reason/status/duration | 원문 prompt·provider 응답·인증 header 없이 worker JSON 로그와 `seamless_generation_logs.diagnostics`에 기록 |
+| 생성 provider 진단 | Gemini·Vertex embedding·Recraft의 stage/provider/operation/reason/status/duration | 원문 prompt·provider 응답·인증 header 없이 worker JSON 로그와 `seamless_generation_logs.diagnostics`에 기록 |
 | Sentry | 예외 추적 | store·api·worker instrumentation 구현, 프로젝트/DSN은 스테이징 전 주입 |
 | Budget alert | 비용 50/90/100% | OpenTofu 선언, 실제 apply 후 활성화 |
 | Uptime check | Cloudflare 경유 `/readyz` | OpenTofu 선언, 실제 apply 후 활성화 |
 
 Admin에는 현재 Sentry client가 없다. “전 프론트 구간 Sentry 통일”을 현재 완료 상태로 보지 않는다.
 
-API readiness는 Toss·Solapi·GCS·worker·Tasks·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. worker readiness도 Gemini·OpenAI·Recraft 상태를 조회하지 않는다.
+API readiness는 Toss·Solapi·GCS·worker·Tasks·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. worker readiness도 Gemini·Vertex embedding·Recraft 상태를 조회하지 않는다.
 
 Seamless admin 상세는 worker가 반환한 `generation_log_id`로 디자인 세션의 generate turn과 연결하고, 과거 응답은 request ID와 근접 시각으로만 보완 연결한다. 선택·후속 재생성·finalize 결과는 기존 turn/job을 읽어 투영하며 별도 이벤트 테이블을 만들지 않는다.
 

@@ -30,6 +30,8 @@ from worker.adapters.gemini import (
     normalize_stripes,
     prepare_reference_image,
 )
+from worker.authoring.retrieval import retrieve_examples
+from worker.authoring.rollout import select_authoring_cohort
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -531,14 +533,20 @@ async def _load_single_image(item: ReferenceImageInput, settings) -> bytes:  # n
         return await _fetch_reference_bytes(item, settings, client)
 
 
-def _bind_resolved_motif_colors(intents: list[dict[str, Any]], catalog) -> None:  # noqa: ANN001
+def _bind_resolved_motif_colors(
+    intents: list[dict[str, Any]],
+    catalog,  # noqa: ANN001
+    motif_color_plans: list[dict[str, list[str]]] | None = None,
+) -> None:
     """Bind every DB motif color slot after semantic resolution.
 
     Provider-authored placeholders cannot know whether a selected/reused motif is
     single- or multi-color. This deterministic adapter closes that catalog boundary
     before final validation and candidate composition.
     """
-    for intent in intents:
+    plans = motif_color_plans or []
+    for intent_index, intent in enumerate(intents):
+        planned_layers = plans[intent_index] if intent_index < len(plans) else {}
         palette = intent.get("palette")
         slots = palette.get("slots") if isinstance(palette, dict) else None
         slot_ids = [
@@ -557,8 +565,13 @@ def _bind_resolved_motif_colors(intents: list[dict[str, Any]], catalog) -> None:
             motif = catalog.get(motif_id) if isinstance(motif_id, str) else None
             if motif is None or not isinstance(params, dict):
                 continue
+            layer_id = layer.get("id")
+            planned_colors = planned_layers.get(layer_id) if isinstance(layer_id, str) else None
+            effective_colors = planned_colors or color_ids
             if len(motif.color_slots) <= 1:
-                if params.get("color") is None:
+                if planned_colors:
+                    params["color"] = planned_colors[0]
+                elif params.get("color") is None:
                     values = params.get("colors")
                     params["color"] = (
                         next(iter(values.values()))
@@ -569,7 +582,7 @@ def _bind_resolved_motif_colors(intents: list[dict[str, Any]], catalog) -> None:
                 continue
             params.pop("color", None)
             params["colors"] = {
-                slot: color_ids[index % len(color_ids)]
+                slot: effective_colors[index % len(effective_colors)]
                 for index, slot in enumerate(motif.color_slots)
             }
 
@@ -635,8 +648,9 @@ async def generate(
             _record_adapter_failure(request, exc, stage="authoring")
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        def _validate(intent_raw: dict) -> list[str] | None:
-            normalize_stripes(intent_raw, settings)  # 대각 stripe 코드 계약 — 검증 전 in-place
+        def _validate(intent_raw: dict, *, normalize_diagonal: bool) -> list[str] | None:
+            if normalize_diagonal:
+                normalize_stripes(intent_raw, settings)  # v2 대각 stripe 호환 계약
             try:
                 constrained = apply_generation_constraints(
                     intent_raw, palette=body.palette, pattern=body.pattern_constraints
@@ -646,7 +660,10 @@ async def generate(
             intent_raw.clear()
             intent_raw.update(constrained)
             try:
-                validate_intent(intent_raw, repair=True)
+                # Authored motif IDs are provisional until resolver + DB catalog binding.
+                # An explicit empty catalog validates geometry/colors without accidentally
+                # consulting the process-global test registry for unresolved color slots.
+                validate_intent(intent_raw, repair=True, motifs={})
             except IntentInvalid as exc:
                 return exc.errors
             used = iter_motif_ids(intent_raw)
@@ -667,9 +684,7 @@ async def generate(
             "Create a balanced necktie pattern using the supplied SVG motif."
         )
         embedding = request_scoped(adapters.embedding)
-        motif_reference_count = sum(
-            image.purpose == "motif" for image in body.reference_images
-        )
+        motif_reference_count = sum(image.purpose == "motif" for image in body.reference_images)
         catalog_candidates: list[dict[str, object]] = []
         if body.prompt and not body.motif_ids and motif_reference_count < 2:
             catalog_candidates = await prompt_catalog_candidates(
@@ -679,30 +694,101 @@ async def generate(
                 tau=settings.motif_similarity_tau,
                 top_k=5,
             )
-        request.state.generation_diagnostics["catalog_candidate_count"] = len(
-            catalog_candidates
+        request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
+        cohort = select_authoring_cohort(settings, request_id_var.get() or "")
+        request.state.generation_diagnostics.update(
+            {
+                "authoring_pipeline_mode": settings.authoring_pipeline_mode,
+                "authoring_cohort": cohort.pipeline,
+                "example_set_revision": settings.authoring_example_set_revision,
+            }
         )
-        authoring_started = time.perf_counter()
-        try:
-            designs = await gemini.author_designs(
+
+        async def _author_legacy(sink: dict[str, object]):
+            return await gemini.author_designs(
                 author_prompt,
-                validate=_validate,
+                validate=lambda raw: _validate(raw, normalize_diagonal=True),
                 reference_images=reference_images,
                 motif_ids=body.motif_ids,
                 catalog_candidates=catalog_candidates,
                 palette_constraint=body.palette,
                 pattern_constraints=body.pattern_constraints,
-                diagnostics=request.state.generation_diagnostics,
+                diagnostics=sink,
             )
+
+        async def _author_v3(sink: dict[str, object]):
+            retrieval_started = time.perf_counter()
+            reference_capable_count = sum(
+                image.purpose in {"motif", "auto"} for image in body.reference_images
+            )
+            available_motif_count = min(
+                2,
+                len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
+            )
+            retrieval = await retrieve_examples(
+                session,
+                author_prompt,
+                embedding_client=embedding,
+                embedding_model=getattr(embedding, "model", settings.embedding_model),
+                available_motif_count=available_motif_count,
+                pattern_constraints=body.pattern_constraints,
+                example_set_revision=settings.authoring_example_set_revision,
+            )
+            sink.update(
+                {
+                    "example_retrieval_status": retrieval.status,
+                    "example_retrieval_reason": retrieval.reason,
+                    "example_retrieval_ms": round(
+                        (time.perf_counter() - retrieval_started) * 1000, 3
+                    ),
+                    "selected_examples": retrieval.diagnostics(),
+                }
+            )
+            return await gemini.author_designs_v3(
+                author_prompt,
+                validate=lambda raw: _validate(raw, normalize_diagonal=False),
+                reference_images=reference_images,
+                motif_ids=body.motif_ids,
+                catalog_candidates=catalog_candidates,
+                palette_constraint=body.palette,
+                pattern_constraints=body.pattern_constraints,
+                examples=retrieval.prompt_examples(),
+                diagnostics=sink,
+            )
+
+        authoring_started = time.perf_counter()
+        try:
+            if cohort.shadow_v3:
+                shadow_diagnostics: dict[str, object] = {}
+                legacy_result, shadow_result = await asyncio.gather(
+                    _author_legacy(request.state.generation_diagnostics),
+                    asyncio.wait_for(_author_v3(shadow_diagnostics), timeout=30.0),
+                    return_exceptions=True,
+                )
+                if isinstance(shadow_result, BaseException):
+                    shadow_diagnostics.update(
+                        {
+                            "status": "error",
+                            "error_type": shadow_result.__class__.__name__,
+                        }
+                    )
+                    if isinstance(shadow_result, AdapterClientError):
+                        shadow_diagnostics["error_reason"] = shadow_result.reason_code
+                else:
+                    shadow_diagnostics["status"] = "success"
+                request.state.generation_diagnostics["v3_shadow"] = shadow_diagnostics
+                if isinstance(legacy_result, BaseException):
+                    raise legacy_result
+                designs = legacy_result
+            elif cohort.pipeline == "v3":
+                designs = await _author_v3(request.state.generation_diagnostics)
+            else:
+                designs = await _author_legacy(request.state.generation_diagnostics)
         except SemanticMismatch as exc:
-            request.state.generation_diagnostics["authoring_validation_errors"] = list(
-                exc.errors
-            )
+            request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
             _reject_generation(request, "semantic_mismatch", "authoring")
         except IntentInvalid as exc:
-            request.state.generation_diagnostics["authoring_validation_errors"] = list(
-                exc.errors
-            )
+            request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
             _reject_generation(request, "authoring_invalid", "authoring")
         except AdapterClientError as exc:
             _record_adapter_failure(
@@ -775,7 +861,11 @@ async def generate(
         for resolved in resolved_intents:
             ids |= iter_motif_ids(resolved)
         catalog = await get_motifs(session, ids)
-        _bind_resolved_motif_colors(resolved_intents, catalog)
+        _bind_resolved_motif_colors(
+            resolved_intents,
+            catalog,
+            [design.motif_color_slots for design in designs],
+        )
         request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
         registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
         candidate_started = time.perf_counter()
@@ -802,6 +892,22 @@ async def generate(
             "palette": body.palette.model_dump(),
             "pattern_constraints": body.pattern_constraints.model_dump(),
         }
+        authored_plans = [design.plan for design in designs if design.plan is not None]
+        if authored_plans:
+            diagnostics = request.state.generation_diagnostics
+            intent_log["authoring"] = {
+                "plan_contract_version": diagnostics.get("plan_contract_version"),
+                "compiler_revision": diagnostics.get("compiler_revision"),
+                "prompt_revision": diagnostics.get("prompt_revision"),
+                "example_set_revision": diagnostics.get("example_set_revision"),
+                "selected_example_ids": [
+                    example.get("example_id")
+                    for example in diagnostics.get("selected_examples", [])
+                    if isinstance(example, dict)
+                ],
+                "plans": authored_plans,
+                "structural_fingerprints": [design.structural_fingerprint for design in designs],
+            }
     warnings.extend(candidate_set.warnings)
     warnings = list(dict.fromkeys(warnings))
     generate_ms = round((time.perf_counter() - started) * 1000, 3)

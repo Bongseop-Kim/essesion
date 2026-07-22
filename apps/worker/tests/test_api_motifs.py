@@ -1,11 +1,10 @@
 """/motifs/* + /generate 모티프 경로 API 테스트 — 실컨테이너 + respx (worker-motifs.md §3~§6)."""
 
 import json
-from types import SimpleNamespace
 
 import httpx
 import respx
-from worker.adapters.gemini import GeminiClient
+from worker.adapters.gemini import AuthoredDesign, GeminiClient
 from worker.api import routes
 from worker.motifs import store
 from worker.motifs.normalize import normalize_motif_svg
@@ -104,7 +103,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     design = {
         "plans": [
             {
-                "motifs": [{"subject": "dot", "scope": "whole"}],
+                "motifs": [{"catalog_ref": "catalog_1"}],
                 "colors": ["#FFFFFF", "#111111"],
                 "arrangement": "lattice",
                 "density": "medium",
@@ -113,7 +112,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
                 "stripes": False,
             },
             {
-                "motifs": [{"subject": "dot", "scope": "whole"}],
+                "motifs": [{"catalog_ref": "catalog_1"}],
                 "colors": ["#F0EBDD", "#223344"],
                 "arrangement": "scatter",
                 "density": "sparse",
@@ -128,7 +127,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
             200, json={"candidates": [{"content": {"parts": [{"text": json.dumps(design)}]}}]}
         )
     )
-    resp = await client.post("/generate", json={"prompt": "polka dots", "candidate_count": 1})
+    resp = await client.post("/generate", json={"prompt": "dot pattern", "candidate_count": 1})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["candidates"]
@@ -161,7 +160,7 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
             assert reference_images == []
             assert motif_ids == []
             assert validate(intent) is None
-            return [SimpleNamespace(intent=intent, motif_specs=[])]
+            return [AuthoredDesign(intent=intent)]
 
     seen: list[int] = []
 

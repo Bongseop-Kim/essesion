@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Any
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Text, text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, REAL
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +19,16 @@ from db.models.base import Base, CreatedAtMixin, uuid_pk
 
 LEGACY_EMBEDDING_DIM = 1536
 EMBEDDING_DIM = 3072
+AUTHORING_EXAMPLE_FAMILIES = (
+    "solid",
+    "stripe",
+    "lattice",
+    "scatter",
+    "path",
+    "point_set",
+    "stripe_motif",
+    "multi_motif",
+)
 
 
 class Motif(CreatedAtMixin, Base):
@@ -44,6 +54,35 @@ class Motif(CreatedAtMixin, Base):
 
     __table_args__ = (
         CheckConstraint("scope IS NULL OR scope IN ('whole', 'partial')", name="scope"),
+    )
+
+
+class AuthoringExample(CreatedAtMixin, Base):
+    """Immutable Git-authored Plan v3 example projected for pgvector retrieval."""
+
+    __tablename__ = "authoring_examples"
+
+    example_set_revision: Mapped[str] = mapped_column(primary_key=True)
+    example_id: Mapped[str] = mapped_column(primary_key=True)
+    contract_version: Mapped[int] = mapped_column(Integer)
+    family: Mapped[str]
+    motif_count: Mapped[int] = mapped_column(Integer)
+    retrieval_text: Mapped[str]
+    tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
+    plan: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    source_digest: Mapped[str]
+    embedding_model: Mapped[str]
+    embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+
+    __table_args__ = (
+        CheckConstraint("contract_version > 0", name="contract_version_positive"),
+        CheckConstraint("motif_count BETWEEN 0 AND 2", name="motif_count"),
+        CheckConstraint(
+            "family IN ('solid', 'stripe', 'lattice', 'scatter', 'path', "
+            "'point_set', 'stripe_motif', 'multi_motif')",
+            name="family",
+        ),
+        Index("ix_authoring_examples_set_family", "example_set_revision", "family"),
     )
 
 

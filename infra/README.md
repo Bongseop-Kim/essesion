@@ -51,7 +51,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 | 8 | main push CI 성공 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
 | 9 | API·두 worker readiness, 프록시·직통 차단, 배치 audience와 수동 트리거 확인 | **사용자** |
 | 10 | Toss 웹훅/콜백 URL·OAuth redirect URI를 `https://api.essesion.shop` 기준으로 등록 | **사용자(각 콘솔)** |
-| 11 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `backfill_motif_embeddings.py --confirm-live` → 출력 `embedded=total` 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
+| 11 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `backfill_motif_embeddings.py --confirm-live` → `sync_authoring_examples.py --confirm-live` 실행, 두 출력의 `embedded=total` 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
 
 ## 시크릿 값 주입
 
@@ -151,6 +151,24 @@ FINALIZE_URL="$(tofu -chdir=infra output -raw worker_finalize_url)"
 curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences="$GENERATE_URL")" "$GENERATE_URL/readyz"
 curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences="$FINALIZE_URL")" "$FINALIZE_URL/readyz"
 ```
+
+### Plan v3 예시 projection과 승격
+
+migrate와 공개 motif embedding이 끝난 뒤, DB/ADC가 연결된 운영자 환경에서 Git의
+`gallery-v1` 25개를 불변 projection으로 동기화한다. 출력이 정확히
+`embedded=25/25 set=gallery-v1`이어야 shadow를 시작한다.
+
+```bash
+uv run python apps/worker/scripts/build_authoring_examples.py --check
+uv run python apps/worker/scripts/sync_authoring_examples.py --confirm-live
+uv run python apps/worker/scripts/eval_authoring.py \
+  --confirm-live --pipeline legacy --pipeline v3
+```
+
+평가 뒤 `staging.tfvars`의 `worker_generate_extra_env`를 `legacy → shadow → canary → v3`
+순서로 바꾸고 tofu apply한다. 즉시 롤백은 `AUTHORING_PIPELINE_MODE=legacy`다. DB에서
+prompt/예시를 직접 수정하거나 관리자 화면을 통해 설정하지 않는다. revision 변경과 상세
+관측 필드는 [authoring-plan-v3.md](../docs/specs/authoring-plan-v3.md)를 따른다.
 
 ## 배치 (Cloud Scheduler → api /batch/*)
 

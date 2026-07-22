@@ -10,10 +10,15 @@ from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.registry import MotifDef
 
 DIM = 1536
+VERTEX_DIM = 3072
 
 
 def _vec(*head: float) -> list[float]:
     return list(head) + [0.0] * (DIM - len(head))
+
+
+def _vertex_vec(*head: float) -> list[float]:
+    return list(head) + [0.0] * (VERTEX_DIM - len(head))
 
 
 def _motif(mid: str, slots: tuple[str, ...] = ("s0",)) -> NormalizedMotif:
@@ -145,7 +150,7 @@ async def test_embedding_backfill_updates_only_public_null_rows_and_is_idempoten
         db_session,
         _motif("recraft-public-done"),
         facets={"subject": "flower", "scope": "whole"},
-        embedding=_vec(0.0, 1.0),
+        embedding=_vertex_vec(0.0, 1.0),
     )
     await store.upsert_motif(
         db_session,
@@ -161,7 +166,7 @@ async def test_embedding_backfill_updates_only_public_null_rows_and_is_idempoten
 
         async def embed(self, text: str) -> list[float]:
             self.texts.append(text)
-            return _vec(1.0)
+            return _vertex_vec(1.0)
 
     client = _Embed()
     assert await backfill_missing_embeddings(db_session, client) == 1
