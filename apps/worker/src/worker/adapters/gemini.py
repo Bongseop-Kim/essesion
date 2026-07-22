@@ -94,6 +94,14 @@ class PlanMotif(BaseModel):
             return None
         return value
 
+    @field_validator("reference_image_index", mode="before")
+    @classmethod
+    def _normalize_missing_reference_index(cls, value: object) -> object:
+        """참고 이미지가 없을 때 Gemini가 반환하는 0을 None으로 정규화."""
+        if value == 0 or (isinstance(value, str) and value.strip() in {"", "0", "none", "null"}):
+            return None
+        return value
+
     @field_validator("subject")
     @classmethod
     def _strip_subject(cls, value: str | None) -> str | None:
@@ -353,8 +361,11 @@ def compile_design_plan(
                 raise _CatalogGroundingInvalid(
                     "a verified catalog_ref is required for prompt-derived motifs"
                 )
-        elif any(motif.catalog_ref is not None for motif in prompt_motifs):
-            raise ValueError("catalog_ref is not in the verified candidate set")
+        else:
+            # Prompt-only semantic motifs are never sent to Recraft implicitly. A motif
+            # must be explicitly selected, attached as a motif photo, or grounded in the
+            # verified catalog; otherwise keep the pattern geometry and omit the motif.
+            prompt_motifs = []
 
     motif_sources: list[tuple[str, PlanMotif | None, dict[str, object] | None]] = [
         (
@@ -527,6 +538,16 @@ def _build_prompt(
                 + json.dumps(candidate.get("style"), ensure_ascii=False)
                 for candidate in catalog_candidates
             ],
+        ]
+    elif not motif_ids and not any(
+        image.purpose == "motif" for image in (reference_images or [])
+    ):
+        lines += [
+            "",
+            "No verified motif is available for this request. Set motifs to an empty array.",
+            "Do not invent semantic motifs or ask for a new motif. Treat lines, filigree, "
+            "dots, checks, and stripes as pattern geometry and use stripes or the arrangement "
+            "fields instead. A motif is optional, never mandatory.",
         ]
     if palette_constraint is not None and palette_constraint.mode == "fixed":
         lines += [
