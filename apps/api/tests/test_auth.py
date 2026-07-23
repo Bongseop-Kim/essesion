@@ -200,6 +200,30 @@ async def test_admin_login_uses_separate_cookie(client, db_session, settings, ro
     assert token.session_kind == "admin"
 
 
+@pytest.mark.parametrize("role", ["admin", "manager"])
+async def test_admin_login_access_token_can_load_me(client, db_session, role):
+    user = await make_user(
+        db_session,
+        email=f"admin-me-{role}@test.local",
+        password="pw",
+        role=role,
+    )
+    login = await client.post(
+        "/auth/admin/login",
+        json={"email": user.email, "password": "pw"},
+    )
+    assert login.status_code == 200
+
+    me = await client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+
+    assert me.status_code == 200
+    assert me.json()["id"] == str(user.id)
+    assert me.json()["role"] == role
+
+
 async def test_admin_login_rejects_customer(client, db_session):
     user = await make_user(db_session, email="not-admin@test.local", password="pw")
     res = await client.post(

@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse
 
 from api.config import Settings
 from api.db import SessionDep
-from api.deps import CurrentUser, SettingsDep
+from api.deps import CurrentUser, SessionUser, SettingsDep
 from api.domains.auth import phone as phone_service
 from api.domains.auth import service
 from api.domains.auth.oauth import fetch_profile, get_oauth_client
@@ -156,7 +156,7 @@ async def admin_logout(request: Request, response: Response, session: SessionDep
 
 
 @router.get("/me", response_model=MeResponse)
-async def get_me(user: CurrentUser) -> MeResponse:
+async def get_me(user: SessionUser) -> MeResponse:
     return MeResponse.model_validate(user)
 
 

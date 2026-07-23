@@ -90,6 +90,18 @@ async def get_optional_user(
     return user
 
 
+async def get_session_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User:
+    if creds is None:
+        raise UnauthorizedError()
+    user, payload = await _load_user_with_claims(creds.credentials, session, settings)
+    session_kind = payload.get("session_kind")
+    if session_kind == "store" and user.role == "customer":
+        return user
+    if session_kind == "admin" and user.role in ADMIN_ROLES:
+        return user
+    raise UnauthorizedError()
+
+
 async def get_admin_user(creds: BearerDep, session: SessionDep, settings: SettingsDep) -> User:
     if creds is None:
         raise UnauthorizedError()
@@ -107,6 +119,7 @@ async def get_admin_only(user: Annotated[User, Depends(get_admin_user)]) -> User
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
+SessionUser = Annotated[User, Depends(get_session_user)]
 AdminUser = Annotated[User, Depends(get_admin_user)]
 AdminOnly = Annotated[User, Depends(get_admin_only)]
 
