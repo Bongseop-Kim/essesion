@@ -7,11 +7,20 @@ from worker.engine.constraints import (
     PatternConstraints,
     apply_generation_constraints,
     assert_constraints_satisfied,
+    normalize_hex,
 )
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
 register_test_motifs()
+
+
+def test_normalize_hex_tolerates_missing_hash_and_canonicalizes():
+    assert normalize_hex("00008b") == "#00008B"  # bare hex from the authoring model
+    assert normalize_hex("#00008b") == "#00008B"
+    assert normalize_hex("abc") == "#AABBCC"
+    with pytest.raises(ValueError, match="#RGB or #RRGGBB"):
+        normalize_hex("navy")
 
 
 def test_fixed_palette_normalizes_deduplicates_and_rejects_too_few_colors():

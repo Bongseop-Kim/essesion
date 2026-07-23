@@ -14,11 +14,85 @@ render_check는 끈다(librsvg 없는 환경에서도 결정론적으로 시드)
 import asyncio
 import pathlib
 
+from db.models.seamless import Motif
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.config import get_settings
 from worker.db import build_engine
 from worker.motifs import store
 from worker.motifs.normalize import normalize_motif_svg
+
+# 한글 프롬프트 어휘 매칭용 subject→한글어(들). 검색은 exact-token 교집합이라
+# subject가 영어인 시드는 한글 tag 없이는 절대 안 잡힌다(worker-motifs.md §5, tau 벡터 경로는 미달).
+_KO_TAGS: dict[str, list[str]] = {
+    "anchor": ["닻"],
+    "badger": ["오소리"],
+    "bat": ["박쥐"],
+    "bee": ["꿀벌", "벌"],
+    "bicycle": ["자전거"],
+    "bird": ["새"],
+    "butterfly": ["나비"],
+    "cat": ["고양이"],
+    "cherry": ["체리", "버찌"],
+    "chess": ["체스"],
+    "cloud": ["구름"],
+    "clover": ["클로버", "토끼풀"],
+    "cow": ["소", "젖소"],
+    "crab": ["게"],
+    "crow": ["까마귀"],
+    "crown": ["왕관"],
+    "deer": ["사슴"],
+    "dog": ["강아지", "개"],
+    "dolphin": ["돌고래"],
+    "dove": ["비둘기"],
+    "dragon": ["용"],
+    "duck": ["오리"],
+    "elephant": ["코끼리"],
+    "fish": ["물고기", "생선"],
+    "flower": ["꽃", "플라워"],
+    "fox": ["여우"],
+    "frog": ["개구리"],
+    "golf": ["골프"],
+    "grape": ["포도"],
+    "hippo": ["하마"],
+    "horse": ["말"],
+    "key": ["열쇠"],
+    "kiwi": ["키위"],
+    "leaf": ["잎", "나뭇잎"],
+    "lemon": ["레몬"],
+    "lion": ["사자"],
+    "lobster": ["랍스터", "바닷가재"],
+    "monkey": ["원숭이"],
+    "moon": ["달"],
+    "mosquito": ["모기"],
+    "mouse": ["쥐", "생쥐"],
+    "music": ["음악", "음표"],
+    "narwhal": ["일각고래"],
+    "otter": ["수달"],
+    "paw": ["발바닥", "발자국"],
+    "pig": ["돼지"],
+    "plane": ["비행기"],
+    "rabbit": ["토끼"],
+    "raccoon": ["너구리"],
+    "sailboat": ["요트", "돛단배"],
+    "sheep": ["양"],
+    "shield": ["방패"],
+    "ship": ["배", "선박"],
+    "shrimp": ["새우"],
+    "snake": ["뱀"],
+    "snowflake": ["눈송이", "눈꽃"],
+    "spider": ["거미"],
+    "squid": ["오징어"],
+    "squirrel": ["다람쥐"],
+    "star": ["별"],
+    "strawberry": ["딸기"],
+    "sun": ["태양", "해"],
+    "tennis": ["테니스"],
+    "turtle": ["거북이", "거북"],
+    "unicorn": ["유니콘"],
+    "whale": ["고래"],
+    "worm": ["지렁이", "벌레"],
+}
 
 # 단색(single fill) 벡터 도형 — 각기 다른 geometry라 content-hash id가 서로 다르지만
 # (subject, scope)가 같아 variant_group은 공유된다(풀 시연).
@@ -78,13 +152,16 @@ def _all_seeds() -> list[tuple[str, str, str, list[str], str]]:
     에셋 subject = 파일명 첫 토큰 — `cat-head`·`cat-space`가 `cat`으로 묶여
     variant pool을 이룬다(leaf/flower는 인라인 시드 풀에 합류).
     """
-    seeds = [(subject, "flat", desc, [subject], svg) for subject, desc, svg in _SEEDS]
+    seeds = [
+        (subject, "flat", desc, [subject, *_KO_TAGS.get(subject, [])], svg)
+        for subject, desc, svg in _SEEDS
+    ]
     seeds += [
         (
-            path.stem.split("-")[0],
+            subject := path.stem.split("-")[0],
             "outline",
             f"{path.stem.replace('-', ' ')} outline icon",
-            [path.stem, *path.stem.split("-")],
+            list(dict.fromkeys([path.stem, *path.stem.split("-"), *_KO_TAGS.get(subject, [])])),
             path.read_text(),
         )
         for path in sorted(_ASSET_DIR.glob("*.svg"))
@@ -112,6 +189,11 @@ async def seed_motifs() -> int:
                 },
                 source="seed",
                 variant_group=store.variant_group_key(subject, "whole"),
+            )
+            # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags를 갱신하지 않는다.
+            # 한글 tag 백필을 위해 시드 행 tags는 의도값으로 명시 재기록한다(멱등).
+            await session.execute(
+                update(Motif).where(Motif.id == normalized.id).values(tags=tags)
             )
             inserted += 1
         await session.commit()

@@ -37,6 +37,10 @@ DEFAULT_MODEL = "gemini-2.5-flash-lite"
 _RETRYABLE = frozenset({429, 503})
 _MAX_ATTEMPTS = 4
 _BASE_DELAY_S = 0.5
+# Grounded motif authoring often needs several self-correction rounds: both flash-lite and flash
+# frequently produce a near-valid plan first, then fix it once the rejection errors are fed back.
+# 2 rounds left too many prompts failing; extra rounds cost a call only when a prompt is failing.
+_MAX_AUTHORING_ATTEMPTS = 4
 MAX_REFERENCE_IMAGE_PIXELS = 20_000_000
 MAX_REFERENCE_IMAGE_SIDE = 2_048
 AUTHORING_PROMPT_REVISION = "design-plan-v3-rag-grounded"
@@ -138,8 +142,12 @@ def _build_prompt(
     if catalog_candidates:
         lines += [
             "",
-            "Verified public catalog motifs are listed below. A catalog source must use one of "
-            "these catalog_ref values exactly. Use at least one while a motif slot remains.",
+            "Verified public catalog motifs are listed below. To use one, emit the motif as "
+            '{"source": "catalog", "catalog_ref": "<token>"} where <token> is exactly one of the '
+            "catalog_ref tokens listed below (for example catalog_1). Put the token in catalog_ref "
+            'and set source to the literal "catalog"; never place the token in source and never '
+            "replace it with the subject or description text. Use at least one while a motif slot "
+            "remains.",
             *[
                 "- "
                 + str(candidate["catalog_ref"])
@@ -265,10 +273,11 @@ def _build_ideas_prompt(
     return "\n".join(lines)
 
 
-# Vertex 구조화 출력은 서빙측 제약 오토마톤에 상한이 있다. 값·길이·배열 개수 바운드는
-# (특히 anyOf 분기 × 중첩 배열에서) 상태 수를 폭발시켜 "too many states for serving" 400을
-# 낸다. 프로바이더 스키마에서는 이 바운드만 벗기고 구조(anyOf·enum·required·properties)는
-# 남긴다. 진짜 계약은 파싱 후 pydantic이 강제한다.
+# Vertex 구조화 출력은 서빙측 제약 오토마톤에 상한이 있고 지원 키워드도 제한적이다.
+# 프로바이더 스키마에서만 (1) 값·길이·배열 개수 바운드를 벗겨 상태 폭발("too many states
+# for serving" 400)을 막고, (2) 판별 유니온의 oneOf→anyOf 변환 + discriminator 제거(Vertex
+# 미지원)를 한다. 구조(anyOf·enum·required·properties)는 남긴다 — 진짜 계약(바운드·판별
+# 라우팅 포함)은 파싱 후 pydantic이 강제한다.
 _UNSERVABLE_SCHEMA_KEYS = frozenset(
     {
         "minimum",
@@ -281,6 +290,7 @@ _UNSERVABLE_SCHEMA_KEYS = frozenset(
         "minItems",
         "maxItems",
         "format",
+        "discriminator",
     }
 )
 
@@ -288,7 +298,11 @@ _UNSERVABLE_SCHEMA_KEYS = frozenset(
 def _servable_json_schema(model: type[BaseModel]) -> dict:
     def prune(node: object) -> object:
         if isinstance(node, dict):
-            return {k: prune(v) for k, v in node.items() if k not in _UNSERVABLE_SCHEMA_KEYS}
+            return {
+                ("anyOf" if k == "oneOf" else k): prune(v)
+                for k, v in node.items()
+                if k not in _UNSERVABLE_SCHEMA_KEYS
+            }
         if isinstance(node, list):
             return [prune(v) for v in node]
         return node
@@ -465,7 +479,7 @@ class GeminiClient:
         last_errors = ["model produced fewer than 2 valid, structurally distinct plans"]
         last_attempt_only_grounding_failures = False
 
-        for attempt in range(2):
+        for attempt in range(_MAX_AUTHORING_ATTEMPTS):
             sink["authoring_attempts"] = attempt + 1
             try:
                 response = await self.complete_model(

@@ -402,6 +402,10 @@ async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplic
     assert "minimum" not in schema_text
     assert "exclusiveMinimum" not in schema_text
     assert "maxItems" not in schema_text
+    # discriminated unions are converted to anyOf (Vertex serves neither oneOf nor discriminator)
+    assert "oneOf" not in schema_text
+    assert "discriminator" not in schema_text
+    assert "anyOf" in schema_text
     assert first_call["config"].system_instruction == AUTHORING_SYSTEM_INSTRUCTION
     prompt = first_call["contents"][0].parts[-1].text
     assert stripe_a.example_id in prompt

@@ -30,7 +30,9 @@ class ConstraintInvalid(ValueError):
 
 
 def normalize_hex(value: str) -> str:
-    value = value.strip()
+    # Tolerate a missing leading '#': the authoring model routinely emits bare hex ("00008b").
+    # Canonical output stays "#RRGGBB" upper, so the SVG contract is unchanged.
+    value = "#" + value.strip().lstrip("#")
     if not _HEX.fullmatch(value):
         raise ValueError("color must be #RGB or #RRGGBB")
     digits = value[1:]
