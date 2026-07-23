@@ -779,9 +779,7 @@ async def get_design_session(
     if limit is not None:
         quota = await get_finalize_quota(session, user.id, limit)
         out = out.model_copy(
-            update={
-                "finalize_quota": FinalizeQuotaOut.model_validate(quota, from_attributes=True)
-            }
+            update={"finalize_quota": FinalizeQuotaOut.model_validate(quota, from_attributes=True)}
         )
     return out
 
