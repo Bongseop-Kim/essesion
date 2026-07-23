@@ -365,6 +365,56 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
     assert captured["top_k"] == 5
 
 
+def test_auto_references_fill_motif_capacity_without_catalog_lookup(monkeypatch):
+    async def unexpected_candidates(*_args, **_kwargs):
+        raise AssertionError("full reference capacity must skip catalog retrieval")
+
+    async def fake_retrieve(_session, _prompt, **kwargs):
+        assert kwargs["available_motif_count"] == 2
+        return RetrievalOutcome(status="empty", reason="no_examples")
+
+    class Gemini:
+        async def author_designs(self, _prompt, *, validate, catalog_candidates, **_kwargs):
+            assert catalog_candidates == []
+            intent = mvp_intent()
+            assert validate(intent) is None
+            return [AuthoredDesign(intent=intent)]
+
+    async def fake_reference_images(_body, _settings):
+        return []
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", unexpected_candidates)
+    monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
+    monkeypatch.setattr(routes, "_load_reference_images", fake_reference_images)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=Gemini())
+
+    response = TestClient(app).post(
+        "/generate",
+        json={
+            "prompt": "두 참고 이미지로 패턴 만들기",
+            "reference_images": [
+                {
+                    "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
+                    "url": "https://storage.googleapis.example/private/reference-1.png",
+                    "content_type": "image/png",
+                    "size_bytes": 100,
+                    "purpose": "auto",
+                },
+                {
+                    "image_id": "d32696c5-cbd7-4182-9014-7bb6ee4d3d80",
+                    "url": "https://storage.googleapis.example/private/reference-2.png",
+                    "content_type": "image/png",
+                    "size_bytes": 100,
+                    "purpose": "auto",
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200, response.text
+
+
 def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch):
     calls: list[str] = []
     retrieval_session = _FakeSession()

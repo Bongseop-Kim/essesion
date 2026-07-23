@@ -722,9 +722,11 @@ async def generate(
             "Create a balanced necktie pattern using the supplied SVG motif."
         )
         embedding = request_scoped(adapters.embedding)
-        motif_reference_count = sum(image.purpose == "motif" for image in body.reference_images)
+        reference_capable_count = sum(
+            image.purpose in {"motif", "auto"} for image in body.reference_images
+        )
         catalog_candidates: list[dict[str, object]] = []
-        if body.prompt and not body.motif_ids and motif_reference_count < 2:
+        if body.prompt and not body.motif_ids and reference_capable_count < 2:
             catalog_candidates = await prompt_catalog_candidates(
                 session,
                 body.prompt,
@@ -734,9 +736,6 @@ async def generate(
             )
         request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
         retrieval_started = time.perf_counter()
-        reference_capable_count = sum(
-            image.purpose in {"motif", "auto"} for image in body.reference_images
-        )
         available_motif_count = min(
             2,
             len(body.motif_ids) + reference_capable_count + len(catalog_candidates),

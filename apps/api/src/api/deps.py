@@ -74,7 +74,7 @@ async def get_current_user(
         settings,
         serialize_mutation=request.method in MUTATING_METHODS,
     )
-    if payload.get("session_kind") != "store":
+    if payload.get("session_kind") != "store" or user.role != "customer":
         raise UnauthorizedError()
     return user
 
@@ -85,7 +85,7 @@ async def get_optional_user(
     if creds is None:
         return None
     user, payload = await _load_user_with_claims(creds.credentials, session, settings)
-    if payload.get("session_kind") != "store":
+    if payload.get("session_kind") != "store" or user.role != "customer":
         raise UnauthorizedError()
     return user
 
