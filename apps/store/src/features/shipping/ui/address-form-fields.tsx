@@ -1,4 +1,3 @@
-import { zShippingAddressIn } from "@essesion/api-client/zod";
 import {
   ActionButton,
   Box,
@@ -16,7 +15,8 @@ import { z } from "zod";
 
 import { useDaumPostcode } from "../model/use-daum-postcode";
 
-export const addressFormSchema = zShippingAddressIn.extend({
+export const addressFormSchema = z.object({
+  id: z.string().uuid().nullish(),
   recipient_name: z.string().trim().min(1, "받는 분을 입력해 주세요."),
   recipient_phone: z
     .string()
@@ -24,6 +24,10 @@ export const addressFormSchema = zShippingAddressIn.extend({
     .regex(/^01\d{8,9}$/, "휴대폰 번호를 숫자만 입력해 주세요."),
   postal_code: z.string().trim().min(1, "우편번호를 검색해 주세요."),
   address: z.string().trim().min(1, "주소를 검색해 주세요."),
+  address_detail: z.string(),
+  delivery_memo: z.string(),
+  delivery_request: z.string(),
+  is_default: z.boolean(),
 });
 
 export type AddressFormValues = z.input<typeof addressFormSchema>;

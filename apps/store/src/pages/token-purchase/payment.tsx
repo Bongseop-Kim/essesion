@@ -1,8 +1,8 @@
 import { createTokenOrderMutation } from "@essesion/api-client/query";
-import { zTokenPlan } from "@essesion/api-client/zod";
 import { Callout, Divider, Text, VStack } from "@essesion/shared";
 import { useMutation } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router";
+import { z } from "zod";
 
 import {
   CHECKOUT_PENDING_KEY,
@@ -16,6 +16,12 @@ import {
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { SummaryCard } from "@/shared/ui/summary-card";
+
+const tokenPlanSchema = z.object({
+  plan_key: z.string(),
+  price: z.number().int(),
+  token_amount: z.number().int(),
+});
 
 export function TokenPaymentPage() {
   const location = useLocation();
@@ -121,6 +127,6 @@ function readTokenPurchaseDraft(state: unknown): TokenPurchaseDraft | null {
     return null;
   const raw = (state as { tokenPurchase?: unknown }).tokenPurchase;
   if (!raw || typeof raw !== "object" || !("plan" in raw)) return null;
-  const parsed = zTokenPlan.safeParse((raw as { plan?: unknown }).plan);
+  const parsed = tokenPlanSchema.safeParse((raw as { plan?: unknown }).plan);
   return parsed.success ? { plan: parsed.data } : null;
 }

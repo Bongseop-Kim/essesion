@@ -3,7 +3,6 @@ import {
   getMeQueryKey,
   updateProfileMutation,
 } from "@essesion/api-client/query";
-import { zProfileUpdateRequest } from "@essesion/api-client/zod";
 import {
   ActionButton,
   Badge,
@@ -29,7 +28,7 @@ import { useZodForm } from "@/shared/lib/form";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
-const profileSchema = zProfileUpdateRequest.extend({
+const profileSchema = z.object({
   name: z.string().trim().min(1, "이름을 입력해 주세요."),
   birth: z
     .union([z.literal(""), z.iso.date(), z.null()])

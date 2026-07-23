@@ -1,5 +1,4 @@
 import type { InquiryCreateRequest, InquiryOut } from "@essesion/api-client";
-import { zInquiryCreateRequest } from "@essesion/api-client/zod";
 import { z } from "zod";
 
 import {
@@ -8,20 +7,13 @@ import {
   inquiryCategory,
 } from "./config";
 
-export const inquiryFormSchema = zInquiryCreateRequest
-  .extend({
+export const inquiryFormSchema = z
+  .object({
     category: z.enum(INQUIRY_CATEGORY_VALUES),
-    title: z
-      .string()
-      .trim()
-      .min(1, "제목을 입력해 주세요.")
-      .max(200, "제목은 200자까지 입력할 수 있어요."),
-    content: z
-      .string()
-      .trim()
-      .min(1, "문의 내용을 입력해 주세요.")
-      .max(5000, "문의 내용은 5,000자까지 입력할 수 있어요."),
+    title: z.string().trim().min(1, "제목을 입력해 주세요.").max(200),
+    content: z.string().trim().min(1, "문의 내용을 입력해 주세요.").max(5000),
     product_id: z.number().int().positive().nullable(),
+    is_secret: z.boolean(),
   })
   .superRefine((values, context) => {
     if (values.category === "상품" && values.product_id === null) {

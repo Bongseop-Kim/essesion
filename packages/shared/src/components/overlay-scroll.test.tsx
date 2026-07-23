@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BottomSheet } from "./bottom-sheet";
 import { Modal } from "./modal";
-import { SwipeableMenuSheet } from "./swipeable-menu-sheet";
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function showModal() {
@@ -69,19 +68,5 @@ describe("overlay scroll ownership", () => {
     expect(layout.classList.contains("max-h-dvh")).toBe(true);
     expect(body.style.minHeight).toBe("0");
     expect(body.style.overflowY).toBe("auto");
-  });
-
-  it("SwipeableMenuSheet도 긴 액션 목록의 스크롤을 내부에 유지한다", () => {
-    render(
-      <SwipeableMenuSheet open title="메뉴">
-        <span>긴 액션 목록</span>
-      </SwipeableMenuSheet>,
-    );
-
-    const body = screen.getByText("긴 액션 목록").parentElement as HTMLElement;
-
-    expect(body.style.minHeight).toBe("0");
-    expect(body.style.overflowY).toBe("auto");
-    expect(body.classList.contains("overscroll-contain")).toBe(true);
   });
 });

@@ -48,8 +48,6 @@ export type HelpBubbleTriggerProps = {
   gutter?: number;
   overflowPadding?: number;
   arrowPadding?: number;
-  flip?: boolean | AnchoredPlacement[];
-  slide?: boolean;
   ref?: Ref<HTMLButtonElement>;
 };
 
@@ -68,8 +66,6 @@ export function HelpBubbleTrigger({
   gutter = 4,
   overflowPadding = 16,
   arrowPadding = 14,
-  flip = true,
-  slide = true,
   ref,
 }: HelpBubbleTriggerProps) {
   const [isOpen, setOpen] = useControllableState({
@@ -106,8 +102,6 @@ export function HelpBubbleTrigger({
           placement,
           gutter,
           overflowPadding,
-          flip,
-          slide,
           arrow: {
             width: HELP_BUBBLE_ARROW_WIDTH,
             height: HELP_BUBBLE_ARROW_HEIGHT,
@@ -116,7 +110,7 @@ export function HelpBubbleTrigger({
         },
       ),
     );
-  }, [arrowPadding, flip, gutter, overflowPadding, placement, slide]);
+  }, [arrowPadding, gutter, overflowPadding, placement]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -268,17 +262,12 @@ export function HelpBubbleTrigger({
 }
 
 function HelpBubbleArrow({ position }: { position: AnchoredPosition }) {
-  const horizontal = position.side === "top" || position.side === "bottom";
-  const width = horizontal ? HELP_BUBBLE_ARROW_WIDTH : HELP_BUBBLE_ARROW_HEIGHT;
-  const height = horizontal
-    ? HELP_BUBBLE_ARROW_HEIGHT
-    : HELP_BUBBLE_ARROW_WIDTH;
   return (
     <svg
       aria-hidden="true"
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
+      width={HELP_BUBBLE_ARROW_WIDTH}
+      height={HELP_BUBBLE_ARROW_HEIGHT}
+      viewBox={`0 0 ${HELP_BUBBLE_ARROW_WIDTH} ${HELP_BUBBLE_ARROW_HEIGHT}`}
       className="absolute fill-bg-neutral-inverted"
       style={arrowStyle(position)}
     >
@@ -289,29 +278,19 @@ function HelpBubbleArrow({ position }: { position: AnchoredPosition }) {
 
 function arrowPath(side: AnchoredPosition["side"]) {
   if (side === "top") return "M0 0 H12 L6 8 Z";
-  if (side === "bottom") return "M6 0 L12 8 H0 Z";
-  if (side === "left") return "M0 0 V12 L8 6 Z";
-  return "M8 0 V12 L0 6 Z";
+  return "M6 0 L12 8 H0 Z";
 }
 
 function arrowStyle(position: AnchoredPosition) {
   if (position.side === "top") {
     return { left: position.arrowX, top: "calc(100% - 1px)" };
   }
-  if (position.side === "bottom") {
-    return { left: position.arrowX, top: -HELP_BUBBLE_ARROW_HEIGHT + 1 };
-  }
-  if (position.side === "left") {
-    return { left: "calc(100% - 1px)", top: position.arrowY };
-  }
-  return { left: -HELP_BUBBLE_ARROW_HEIGHT + 1, top: position.arrowY };
+  return { left: position.arrowX, top: -HELP_BUBBLE_ARROW_HEIGHT + 1 };
 }
 
 function transformOrigin(side: AnchoredPosition["side"] | undefined) {
   if (side === "top") return "bottom";
   if (side === "bottom") return "top";
-  if (side === "left") return "right";
-  if (side === "right") return "left";
   return "center";
 }
 

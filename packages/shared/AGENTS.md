@@ -63,9 +63,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `kakao`/`naver`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
-| ToggleButton | 눌림/안눌림 2상태 버튼(pressed = 색 반전) | 필터·선택 칩은 Chip |
 | Chip | pill 선택/토글 — 필터·옵션·추천·태그 선택(단일/다중), 탭 대체 | 액션 실행(→ActionButton), 정적 정보(→Badge) |
-| FloatingActionButton | 화면에 떠 있는 **주요 액션 1개**(`extended`로 라벨). 고정 위치(fixed/우하단)는 소비자가 Float로 감싼다 | 화면당 2개+, 보조/부차 액션 |
 
 ### 폼 (컨트롤 라벨·설명·에러는 Field가 배선)
 
@@ -89,7 +87,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Tabs / TabList / TabTrigger / TabContent | 한 화면에서 탭 단위로 콘텐츠 분리/전환(Line 스타일). `triggerLayout` hug(기본)/fill | 같은 화면 콘텐츠 조작·필터(→SegmentedControl) |
-| Menu (Root/Trigger/Anchor/Content/Item/Group/GroupLabel/Separator) | **트리거·앵커 요소에 붙는** 선택지/명령 목록. 앵커 문맥이 중요하면(타일·행 단위 액션) **모바일에서도 사용** — MenuAnchor는 controlled open과 함께 위치 기준점만 제공 | 앵커 없는 화면 수준 액션 목록(→모바일 SwipeableMenuSheet), 긴 목록·폼(→ResponsiveModal) |
+| Menu (Root/Trigger/Content/Item) | **트리거 요소에 붙는** 선택지/명령 목록. 모바일에서도 같은 컴포넌트를 사용 | 긴 목록·폼(→ResponsiveModal) |
 | HelpBubbleTrigger | 버튼을 클릭해 여는 짧은 보조 설명. 여러 문장·모바일 탭·명시적 닫기가 필요한 도움말 | 명령 목록(→Menu), 상주 안내(→Callout), hover 전용 Tooltip |
 | Breadcrumb | 페이지 경로 표시(마지막=현재 페이지). 라우팅은 `renderLink` | 단일 뎁스 페이지 |
 
@@ -98,7 +96,6 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | ScrollFog | 스크롤 여지가 있는 가장자리를 알파 마스크로 페이드. **가로 스크롤은 항상 이걸로**(`direction="horizontal"`, scrollbar 숨김) | `overflowX:auto/scroll`·`overflow-x-*` 직접(`pnpm lint`가 차단) |
-| PullToRefresh | 모바일에서 당겨서 새로고침(터치 전용, async `onRefresh`) | 데스크톱 |
 
 ### 오버레이 (상세 결정 트리: 아래 "오버레이·피드백 선택" 표 — 필독)
 
@@ -108,7 +105,6 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | Modal | 일반 중앙 모달(바깥 클릭으로 닫힘, small/medium) | 모바일 포함이면 ResponsiveModal 기본 |
 | ResponsiveModal | **임시 작업·폼·상세의 기본 패턴** — 모바일 BottomSheet ↔ PC Modal 자동 전환 | — |
 | BottomSheet | 모바일 하단에서 올라오는 시트(현재 맥락 유지). 중요 플로우는 `showCloseButton` | 콘텐츠가 화면 90%↑면 전용 페이지 |
-| SwipeableMenuSheet (Group/Item) | 모바일 하단 **화면 수준 액션 목록** 시트(공유·더보기 — 앵커 문맥 없음). 그룹은 SwipeableMenuSheetGroup | 데스크톱 명령 목록·앵커 기준 액션(→Menu) |
 | SidePanel | 측면에서 슬라이드되는 패널(admin 보조 작업·맥락 유지, Header 모바일 메뉴) | — |
 | Snackbar (`snackbar()` / SnackbarHost) | 수 초 뒤 사라지는 결과 알림. SnackbarHost는 앱 루트에 1회 마운트 | 입력 필요·지속 경고(→AlertDialog / Callout / PageBanner). 동시 2개+ |
 
@@ -150,8 +146,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 |---|---|
 | 진행 차단 + 확인 1–2버튼 | AlertDialog (바깥 클릭으로 안 닫힘) |
 | 임시 작업·폼·상세 (기본 패턴) | **ResponsiveModal** — 모바일 BottomSheet ↔ PC 중앙 Modal 자동 전환 |
-| 액션 목록 — 앵커(트리거 요소) 기준 | Menu — 모바일·데스크톱 공통 |
-| 액션 목록 — 화면 수준(앵커 없음) | SwipeableMenuSheet(모바일) / Menu(데스크톱) |
+| 액션 목록 | Menu — 모바일·데스크톱 공통 |
 | 트리거 기준 짧은 보조 설명 | HelpBubbleTrigger |
 | 측면 맥락 유지 보조 작업(admin) | SidePanel |
 | 수 초 뒤 사라지는 결과 알림 | `snackbar()` — SnackbarHost를 앱 루트에 1회 마운트 |

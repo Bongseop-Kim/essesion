@@ -24,12 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.registry import BBox, MotifDef
 
-# scope는 저장 facet의 통제 어휘다. 공개 검색은 scope로 제한하지 않는다.
-SCOPE_VOCAB: frozenset[str] = frozenset({"whole", "partial"})
 VARIANT_GROUP_VERSION = 2
 VARIANT_GROUP_LEN = 16
 
-_EXACT_FACETS = ("subject", "scope", "view", "expression", "style", "description")
 USER_UPLOAD_SOURCE = "user_upload"
 
 
@@ -52,13 +49,6 @@ def embedding_document(
     """검색·초기 인덱싱이 공유하는 임베딩 문서. scope는 의미 검색에서 제외한다."""
     segments = [subject, description, style, view, expression, *tags]
     return ", ".join(value.strip() for value in segments if value and value.strip())
-
-
-def validate_facets(scope: str | None) -> None:
-    """유일한 통제 facet scope 검증 — 어휘 밖이면 ValueError. None/subject는 통과."""
-    allowed = {normalize_facet(s) for s in SCOPE_VOCAB}
-    if scope is not None and normalize_facet(scope) not in allowed:
-        raise ValueError(f"scope {scope!r} not in controlled vocabulary: {sorted(SCOPE_VOCAB)}")
 
 
 def variant_group_key(subject: str | None, scope: str | None) -> str:
@@ -332,15 +322,6 @@ async def all_motif_ids(session: AsyncSession) -> list[str]:
             )
         ).all()
     )
-
-
-def exact_facet_key(spec_or_meta: dict | MotifMeta) -> tuple[str, ...]:
-    """exact-descriptor 비교 키 — 6개 facet 정규 형태 튜플."""
-    if isinstance(spec_or_meta, MotifMeta):
-        get = lambda k: getattr(spec_or_meta, k)  # noqa: E731
-    else:
-        get = spec_or_meta.get
-    return tuple(normalize_facet(get(k)) for k in _EXACT_FACETS)
 
 
 def facets_from_spec(spec: dict) -> dict:

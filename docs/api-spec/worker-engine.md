@@ -121,7 +121,7 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 
 ## 8. 엔진 설정·상수
 
-Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2000.0, max_dpi=1200, stripe_max_band_coverage=0.75, stripe_diagonal_repeats=2, preview_dpi=192, fabric_dpi=300, generate_cache_size=0(재구현에서 미승계 — stateless), motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True.
+Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2000.0, max_dpi=1200, stripe_max_band_coverage=0.75, preview_dpi=192, fabric_dpi=300, generate_cache_size=0(재구현에서 미승계 — stateless), motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True.
 
 상수: ENGINE_VERSION="0.1.0", REGISTRY_VERSION="0.1.0", ALLOWED_DPI=(150,300,600), DEFAULT_DPI=300, MM_PER_INCH=25.4, MAX_LANE_PERIOD_TILES=16(각도 스냅 분모 캡), mm_to_px=`round(mm/25.4·dpi)`.
 

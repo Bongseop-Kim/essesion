@@ -11,7 +11,7 @@ r-스케일과 용도 매핑. 임의 px 금지 — `borderRadius` prop / `rounde
 | `r1_5` | 6px | 소형 |
 | `r2` | 8px | 버튼·인풋(기본 컨트롤) |
 | `r3` | 12px | 카드 |
-| `r4` | 16px | 시트 내 그룹(SwipeableMenuSheet Group) |
+| `r4` | 16px | 중첩 패널 |
 | `r5` | 20px | 대형 시트 |
 | `r6` | 24px | 대형 컨테이너 |
 | `full` | 9999px | 뱃지·아바타·필 버튼 |
@@ -19,5 +19,5 @@ r-스케일과 용도 매핑. 임의 px 금지 — `borderRadius` prop / `rounde
 ## 규칙
 
 - **중첩 시**: 안쪽 radius ≈ 바깥 radius − padding. 예) `r3`(12px) 카드에 `x2`(8px) 패딩이면 안쪽 요소는 `r1`(4px) 근처. 바깥보다 큰 안쪽 라운드 금지(어색한 겹침).
-- 버튼·인풋은 `r2`, 카드·콜아웃은 `r3`, 다이얼로그·메뉴 패널은 `r5`, 바텀시트 상단은 `r6`(BottomSheet)/`r5`(SwipeableMenuSheet)로 통일한다.
+- 버튼·인풋은 `r2`, 카드·콜아웃은 `r3`, 다이얼로그·메뉴 패널은 `r5`, 바텀시트 상단은 `r6`로 통일한다.
 - 임의 px(`rounded-[10px]`·`borderRadius: 10`) 금지. 스케일에 없으면 가까운 단으로 맞추거나 토큰 추가를 제안한다.

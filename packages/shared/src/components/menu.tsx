@@ -31,7 +31,6 @@ type MenuContextValue = {
   open: boolean;
   setOpen: (open: boolean) => void;
   triggerRef: RefObject<HTMLElement | null>;
-  anchorRef: RefObject<HTMLElement | null>;
   contentId: string;
   placement: AnchoredPlacement;
   gutter: number;
@@ -53,15 +52,14 @@ export type MenuRootProps = {
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** 앵커(MenuAnchor 우선, 없으면 MenuTrigger) 기준 배치. */
+  /** MenuTrigger 기준 배치. */
   placement?: AnchoredPlacement;
   /** 앵커와 메뉴 면 사이 간격(px). */
   gutter?: number;
   children: ReactNode;
 };
 
-/** 앵커드 메뉴 — 의존성 0, 네이티브 Popover API 기반.
-    Trigger·Anchor·Content·Group·GroupLabel·Item·Separator를 컴포지션으로 조합. */
+/** 앵커드 메뉴 — 의존성 0, 네이티브 Popover API 기반. */
 export function MenuRoot({
   open,
   defaultOpen = false,
@@ -76,7 +74,6 @@ export function MenuRoot({
     onChange: onOpenChange,
   });
   const triggerRef = useRef<HTMLElement | null>(null);
-  const anchorRef = useRef<HTMLElement | null>(null);
   const contentId = useId();
 
   return (
@@ -85,7 +82,6 @@ export function MenuRoot({
         open: isOpen,
         setOpen,
         triggerRef,
-        anchorRef,
         contentId,
         placement,
         gutter,
@@ -127,24 +123,6 @@ export function MenuTrigger({ children, ref }: MenuTriggerProps) {
   });
 }
 
-export type MenuAnchorProps = {
-  /** 위치 기준점이 될 단일 엘리먼트 — 열고 닫는 동작은 배선하지 않는다(controlled open과 사용). */
-  children: ReactElement<{ ref?: Ref<HTMLElement> }>;
-};
-
-/** 메뉴의 위치 기준점만 제공 — MenuTrigger와 달리 클릭·aria 배선이 없다. */
-export function MenuAnchor({ children }: MenuAnchorProps) {
-  const { anchorRef } = useMenuContext();
-
-  const childProps = children.props;
-  const mergeRef = (node: HTMLElement | null) => {
-    anchorRef.current = node;
-    setRef(childProps.ref, node);
-  };
-
-  return cloneElement(children, { ref: mergeRef });
-}
-
 export type MenuContentProps = Omit<
   ComponentPropsWithRef<"div">,
   "id" | "popover" | "role"
@@ -160,7 +138,7 @@ export function MenuContent({
   ref,
   ...props
 }: MenuContentProps) {
-  const { open, setOpen, triggerRef, anchorRef, contentId, placement, gutter } =
+  const { open, setOpen, triggerRef, contentId, placement, gutter } =
     useMenuContext();
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<AnchoredPosition | null>(null);
@@ -171,7 +149,7 @@ export function MenuContent({
   };
 
   const updatePosition = useCallback(() => {
-    const reference = anchorRef.current ?? triggerRef.current;
+    const reference = triggerRef.current;
     const content = contentRef.current;
     if (!reference || !content) return;
     const rect = reference.getBoundingClientRect();
@@ -187,10 +165,10 @@ export function MenuContent({
         },
         { width: content.offsetWidth, height: content.offsetHeight },
         { width: window.innerWidth, height: window.innerHeight },
-        { placement, gutter, overflowPadding: 8, flip: true, slide: true },
+        { placement, gutter, overflowPadding: 8 },
       ),
     );
-  }, [anchorRef, triggerRef, placement, gutter]);
+  }, [triggerRef, placement, gutter]);
 
   // showPopover/hidePopover 동기화 + 열릴 때 포지셔닝·첫 항목 포커스·리스너
   useEffect(() => {
@@ -368,69 +346,6 @@ export function MenuItem({
         (checked ? <CheckGlyph aria-hidden className="size-4" /> : null)}
     </button>
   );
-}
-
-type MenuGroupContextValue = {
-  labelId: string;
-  setLabeled: (labeled: boolean) => void;
-};
-
-const MenuGroupContext = createContext<MenuGroupContextValue | null>(null);
-
-export type MenuGroupProps = {
-  children: ReactNode;
-};
-
-/** 항목 묶음 — MenuGroupLabel이 있으면 그 id로 aria-labelledby가 배선된다. */
-export function MenuGroup({ children }: MenuGroupProps) {
-  const labelId = useId();
-  const [labeled, setLabeled] = useState(false);
-
-  return (
-    <MenuGroupContext value={{ labelId, setLabeled }}>
-      <VStack
-        role="group"
-        aria-labelledby={labeled ? labelId : undefined}
-        gap="x0_5"
-        alignItems="stretch"
-      >
-        {children}
-      </VStack>
-    </MenuGroupContext>
-  );
-}
-
-export type MenuGroupLabelProps = {
-  children: ReactNode;
-};
-
-/** 그룹 제목 — MenuGroup 안에서 사용한다. */
-export function MenuGroupLabel({ children }: MenuGroupLabelProps) {
-  const group = use(MenuGroupContext);
-
-  useEffect(() => {
-    if (!group) return;
-    group.setLabeled(true);
-    return () => group.setLabeled(false);
-  }, [group]);
-
-  return (
-    <Text
-      as="div"
-      id={group?.labelId}
-      px="x2"
-      py="x1"
-      textStyle="captionSm"
-      color="fg.neutral-subtle"
-    >
-      {children}
-    </Text>
-  );
-}
-
-/** 항목 구분선 — <hr>의 암묵 role="separator". */
-export function MenuSeparator() {
-  return <hr className="mx-x2 my-x1 h-px border-0 bg-stroke-neutral-weak" />;
 }
 
 function setRef<T>(ref: Ref<T> | undefined, value: T | null) {

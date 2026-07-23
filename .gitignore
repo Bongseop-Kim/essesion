@@ -9,6 +9,7 @@ __pycache__/
 .env.*
 !.env.example
 .DS_Store
+.local-storage/
 .wrangler/
 gha-creds-*.json
 playwright-report/

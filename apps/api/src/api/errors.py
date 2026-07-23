@@ -12,7 +12,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from obs import request_id_var, sanitize_request_id
-from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
@@ -23,12 +22,6 @@ SECURITY_RESPONSE_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
 }
-
-
-class ErrorResponse(BaseModel):
-    detail: str
-    code: str = "domain_error"
-    stage: str | None = None
 
 
 class DomainError(Exception):

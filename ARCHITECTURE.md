@@ -194,7 +194,7 @@ flowchart TB
 | Server | FastAPI + SQLAlchemy 2 async + asyncpg | OpenAPI 생성과 비동기 DB/provider I/O |
 | Schema | Alembic | 모델과 revision의 리뷰 가능한 변경 이력 |
 | DB | PostgreSQL 17 + pgvector | 트랜잭션 커머스와 motif vector search를 한 저장소에서 처리 |
-| API codegen | Hey API | fetch SDK, TanStack Query options, Zod schema를 OpenAPI에서 동시 생성 |
+| API codegen | Hey API | fetch SDK와 TanStack Query options를 OpenAPI에서 동시 생성 |
 | Raster | librsvg subprocess + Pillow | 기존 골든과의 렌더 기준선, fabric 합성 |
 | IaC | OpenTofu | GCP 리소스, IAM, monitoring, scheduler를 코드로 선언 |
 | Delivery | GitHub Actions + WIF | 장기 GCP key 없이 CI 성공 SHA만 배포 |

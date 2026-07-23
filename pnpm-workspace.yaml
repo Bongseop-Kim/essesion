@@ -24,7 +24,6 @@ catalog:
   "@types/react-dom": ^19.2.3
   "@vitejs/plugin-react": ^6.0.3
   clsx: ^2.1.1
-  motion: ^12.42.2
   react-hook-form: ^7.81.0
   react-router: ^8.1.0
   recharts: ^3.9.2

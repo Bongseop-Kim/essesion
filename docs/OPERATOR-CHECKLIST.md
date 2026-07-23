@@ -135,7 +135,7 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
 
 ## D. Admin 스테이징 운영 확인 (로컬 출시 판정 완료 후)
 
-[`plans/admin-rewrite.md`](./plans/admin-rewrite.md)의 A~J와 `CHECKLIST.md`의 `admin 재작성`·`Playwright admin 스모크`는 2026-07-12 로컬 출시 검증으로 완료됐다. 아래 1~3은 완료 증거이며, 4~7은 GCP·Cloudflare 개통 뒤 실제 외부 capability와 운영 절차를 확인하는 스테이징 게이트다. 이 게이트는 admin 구현 완료를 다시 열지 않고 별도 배포·리허설 항목을 닫는다.
+Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐다. 아래 1~3은 완료 증거이며, 4~7은 GCP·Cloudflare 개통 뒤 실제 외부 capability와 운영 절차를 확인하는 스테이징 게이트다. 이 게이트는 admin 구현 완료를 다시 열지 않고 별도 배포·리허설 항목을 닫는다.
 
 1. **완료** — 마지막 API 변경을 포함한 `pnpm codegen` 생성물 drift 0과 전체 Python/JS lint·typecheck·test gate를 통과했다. 최신 수치는 `docs/reviews/repo-refactor-2026-07.md`의 최종 검증 결과를 정본으로 삼는다.
 2. **완료** — 실제 API와 PostgreSQL seed로 `e2e/admin-smoke.spec.ts`를 실행해 관리자 로그인 → 보호 목록/상세 → 대표 상태 변경 → 로그아웃을 확인했다.
