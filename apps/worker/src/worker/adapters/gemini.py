@@ -341,7 +341,7 @@ class GeminiClient:
         prompt: str,
         *,
         reference_images: list[ReferenceImage] | None = None,
-        response_json_schema: dict | None = None,
+        response_schema: dict | None = None,
         system_instruction: str | None = None,
     ):  # noqa: ANN202 — google-genai response type is not a stable public class
         parts = [
@@ -349,12 +349,16 @@ class GeminiClient:
             for image in (reference_images or [])
         ]
         parts.append(types.Part.from_text(text=prompt))
-        # response_json_schema (raw JSON Schema → Vertex), not response_schema: the latter forces
-        # a lossy types.Schema transform that rejects anyOf/exclusiveMinimum from our contract.
+        # response_schema = ENFORCED constrained decoding. response_json_schema was tried first but
+        # Vertex treats it as a hint for deeply nested schemas, so the model invented enum values
+        # (type="grid", mode="random") and every plan failed. The schema handed in here is already
+        # run through _servable_json_schema, so it is types.Schema-compatible (no oneOf/
+        # discriminator/bounds) and the SDK transforms + enforces it; pydantic re-checks the full
+        # contract (bounds, conditional fields) after parsing.
         config = types.GenerateContentConfig(
             temperature=self._temperature,
             response_mime_type="application/json",
-            response_json_schema=response_json_schema,
+            response_schema=response_schema,
             system_instruction=system_instruction,
         )
         response = None
@@ -436,7 +440,7 @@ class GeminiClient:
         response = await self._generate_response(
             prompt,
             reference_images=reference_images,
-            response_json_schema=_servable_json_schema(schema),
+            response_schema=_servable_json_schema(schema),
             system_instruction=system_instruction,
         )
         parsed = getattr(response, "parsed", None)

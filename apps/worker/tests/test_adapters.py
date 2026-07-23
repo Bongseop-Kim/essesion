@@ -17,6 +17,7 @@ from worker.adapters.gemini import (
     AUTHORING_SYSTEM_INSTRUCTION,
     GeminiClient,
     ReferenceImage,
+    _servable_json_schema,
 )
 from worker.adapters.recraft import (
     RecraftError,
@@ -25,6 +26,7 @@ from worker.adapters.recraft import (
     generate_motif,
 )
 from worker.authoring.examples import load_example_set
+from worker.authoring.schema import DesignPlansV3
 from worker.config import Settings
 from worker.engine.constraints import (
     PaletteConstraint,
@@ -394,18 +396,10 @@ async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplic
     assert len(sdk.models.generate_calls) == 2
     first_call = sdk.models.generate_calls[0]
     config = first_call["config"]
-    assert config.response_schema is None
-    # Provider schema carries the contract's structure but drops value/length/array bounds so
-    # Vertex constrained decoding can serve it; pydantic re-enforces the real bounds post-parse.
-    schema_text = json.dumps(config.response_json_schema)
-    assert '"plans"' in schema_text
-    assert "minimum" not in schema_text
-    assert "exclusiveMinimum" not in schema_text
-    assert "maxItems" not in schema_text
-    # discriminated unions are converted to anyOf (Vertex serves neither oneOf nor discriminator)
-    assert "oneOf" not in schema_text
-    assert "discriminator" not in schema_text
-    assert "anyOf" in schema_text
+    # Must use the ENFORCED response_schema path — response_json_schema is only a hint that Vertex
+    # ignores for nested schemas, letting the model invent enum values and fail every plan.
+    assert config.response_json_schema is None
+    assert config.response_schema is not None
     assert first_call["config"].system_instruction == AUTHORING_SYSTEM_INSTRUCTION
     prompt = first_call["contents"][0].parts[-1].text
     assert stripe_a.example_id in prompt
@@ -414,6 +408,18 @@ async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplic
     assert diagnostics["plan_contract_version"] == 3
     assert diagnostics["authoring_attempts"] == 2
     assert diagnostics["validated_count"] == 2
+
+
+def test_servable_schema_is_loosened_for_vertex_enforcement():
+    # The provider schema keeps structure (types, enums, required) so constrained decoding forces
+    # valid tags/fields, but drops what Vertex's types.Schema cannot serve: value/length/array
+    # bounds, and oneOf/discriminator (converted to anyOf). pydantic re-checks bounds post-parse.
+    schema_text = json.dumps(_servable_json_schema(DesignPlansV3))
+    assert '"plans"' in schema_text
+    for banned in ("minimum", "maximum", "exclusiveMinimum", "maxItems", "minItems", "oneOf"):
+        assert banned not in schema_text, banned
+    assert "discriminator" not in schema_text
+    assert "anyOf" in schema_text
 
 
 async def test_clients_reuse_and_close_http_pool():

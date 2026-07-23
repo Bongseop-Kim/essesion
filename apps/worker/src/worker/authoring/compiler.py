@@ -194,8 +194,6 @@ def _compile_placement(
     if placement.type == "scatter":
         scatter: dict[str, object] = {"mode": placement.mode}
         if placement.mode == "poisson":
-            assert placement.min_distance_ratio is not None
-            assert placement.count is not None
             scatter.update(
                 {
                     "min_dist_mm": round(tile_mm * placement.min_distance_ratio, 6),
@@ -203,8 +201,6 @@ def _compile_placement(
                 }
             )
         else:
-            assert placement.order is not None
-            assert placement.step is not None
             scatter.update({"sateen_n": placement.order, "sateen_step": placement.step})
         return {
             "type": "scatter",
@@ -254,23 +250,19 @@ def _compile_path(
     if placement.rotation == "fixed":
         output["fixed_rotation_deg"] = placement.fixed_rotation_deg
 
-    if placement.host_stripe_index is not None:
-        host_index = placement.host_stripe_index
+    # Only StraightPathPlan carries host fields; WavePathPlan has none (wave is never hosted).
+    host_index = getattr(placement, "host_stripe_index", None)
+    if host_index is not None:
         direction = stripes[host_index].direction
         output["host_layer"] = f"stripe_{host_index}"
-        output["lane"] = (
-            "center"
-            if placement.host_band_index is None
-            else f"b{placement.host_band_index}.center"
-        )
+        host_band_index = getattr(placement, "host_band_index", None)
+        output["lane"] = "center" if host_band_index is None else f"b{host_band_index}.center"
     else:
         path: dict[str, object] = {
             "kind": placement.kind,
             "angle": _DIRECTION_ANGLE[placement.direction],
         }
         if placement.kind == "wave":
-            assert placement.wavelength_ratio is not None
-            assert placement.amplitude_ratio is not None
             path.update(
                 {
                     "wavelength": round(tile_mm * placement.wavelength_ratio, 6),
