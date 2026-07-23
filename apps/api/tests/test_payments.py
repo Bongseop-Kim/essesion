@@ -311,9 +311,7 @@ async def test_sample_confirm_issues_followup_coupon(client, db_session, setting
 
     count = await db_session.scalar(select(func.count()).select_from(UserCoupon))
     assert count == 1
-    coupon = await db_session.scalar(
-        select(Coupon).where(Coupon.name == "SAMPLE_DISCOUNT_SEWING")
-    )
+    coupon = await db_session.scalar(select(Coupon).where(Coupon.name == "SAMPLE_DISCOUNT_SEWING"))
     issued = await db_session.scalar(select(UserCoupon))
     assert coupon is not None
     assert issued is not None
