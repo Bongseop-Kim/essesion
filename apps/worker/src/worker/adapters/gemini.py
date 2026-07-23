@@ -265,6 +265,37 @@ def _build_ideas_prompt(
     return "\n".join(lines)
 
 
+# Vertex 구조화 출력은 서빙측 제약 오토마톤에 상한이 있다. 값·길이·배열 개수 바운드는
+# (특히 anyOf 분기 × 중첩 배열에서) 상태 수를 폭발시켜 "too many states for serving" 400을
+# 낸다. 프로바이더 스키마에서는 이 바운드만 벗기고 구조(anyOf·enum·required·properties)는
+# 남긴다. 진짜 계약은 파싱 후 pydantic이 강제한다.
+_UNSERVABLE_SCHEMA_KEYS = frozenset(
+    {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "minItems",
+        "maxItems",
+        "format",
+    }
+)
+
+
+def _servable_json_schema(model: type[BaseModel]) -> dict:
+    def prune(node: object) -> object:
+        if isinstance(node, dict):
+            return {k: prune(v) for k, v in node.items() if k not in _UNSERVABLE_SCHEMA_KEYS}
+        if isinstance(node, list):
+            return [prune(v) for v in node]
+        return node
+
+    return prune(model.model_json_schema())  # type: ignore[return-value]
+
+
 # ---- 클라이언트 ----
 
 
@@ -296,7 +327,7 @@ class GeminiClient:
         prompt: str,
         *,
         reference_images: list[ReferenceImage] | None = None,
-        response_schema: object | None = None,
+        response_json_schema: dict | None = None,
         system_instruction: str | None = None,
     ):  # noqa: ANN202 — google-genai response type is not a stable public class
         parts = [
@@ -304,10 +335,12 @@ class GeminiClient:
             for image in (reference_images or [])
         ]
         parts.append(types.Part.from_text(text=prompt))
+        # response_json_schema (raw JSON Schema → Vertex), not response_schema: the latter forces
+        # a lossy types.Schema transform that rejects anyOf/exclusiveMinimum from our contract.
         config = types.GenerateContentConfig(
             temperature=self._temperature,
             response_mime_type="application/json",
-            response_schema=response_schema,
+            response_json_schema=response_json_schema,
             system_instruction=system_instruction,
         )
         response = None
@@ -361,13 +394,11 @@ class GeminiClient:
         prompt: str,
         *,
         reference_images: list[ReferenceImage] | None = None,
-        response_schema: object | None = None,
         system_instruction: str | None = None,
     ) -> str:
         response = await self._generate_response(
             prompt,
             reference_images=reference_images,
-            response_schema=response_schema,
             system_instruction=system_instruction,
         )
         text = response.text
@@ -391,7 +422,7 @@ class GeminiClient:
         response = await self._generate_response(
             prompt,
             reference_images=reference_images,
-            response_schema=schema,
+            response_json_schema=_servable_json_schema(schema),
             system_instruction=system_instruction,
         )
         parsed = getattr(response, "parsed", None)

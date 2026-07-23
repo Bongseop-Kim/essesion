@@ -25,7 +25,6 @@ from worker.adapters.recraft import (
     generate_motif,
 )
 from worker.authoring.examples import load_example_set
-from worker.authoring.schema import DesignPlansV3
 from worker.config import Settings
 from worker.engine.constraints import (
     PaletteConstraint,
@@ -394,7 +393,15 @@ async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplic
     assert len(set(design.structural_fingerprint for design in designs)) == 2
     assert len(sdk.models.generate_calls) == 2
     first_call = sdk.models.generate_calls[0]
-    assert first_call["config"].response_schema is DesignPlansV3
+    config = first_call["config"]
+    assert config.response_schema is None
+    # Provider schema carries the contract's structure but drops value/length/array bounds so
+    # Vertex constrained decoding can serve it; pydantic re-enforces the real bounds post-parse.
+    schema_text = json.dumps(config.response_json_schema)
+    assert '"plans"' in schema_text
+    assert "minimum" not in schema_text
+    assert "exclusiveMinimum" not in schema_text
+    assert "maxItems" not in schema_text
     assert first_call["config"].system_instruction == AUTHORING_SYSTEM_INSTRUCTION
     prompt = first_call["contents"][0].parts[-1].text
     assert stripe_a.example_id in prompt

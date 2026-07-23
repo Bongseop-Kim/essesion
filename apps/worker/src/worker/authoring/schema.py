@@ -7,7 +7,7 @@ motif color-slot names stay behind the deterministic compiler boundary.
 from __future__ import annotations
 
 import json
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -62,10 +62,11 @@ class ReferenceMotifSource(_StrictModel):
         return clean or None
 
 
-PlanMotifSource = Annotated[
-    InputMotifSource | CatalogMotifSource | ReferenceMotifSource,
-    Field(discriminator="source"),
-]
+# ponytail: plain unions, not Field(discriminator=...) — google-genai's Schema rejects the
+# oneOf+discriminator pydantic emits for tagged unions. Each variant's Literal source/type tag
+# plus extra="forbid" keeps parsing unambiguous. Upgrade path if more provider-facing unions
+# appear: sanitize oneOf→anyOf in the Gemini adapter instead of dropping discriminators here.
+PlanMotifSource = InputMotifSource | CatalogMotifSource | ReferenceMotifSource
 
 
 class StripeBandPlan(_StrictModel):
@@ -154,10 +155,9 @@ class PointTemplatePlacementPlan(_StrictModel):
     fixed_rotation_deg: float = Field(default=0.0, ge=-180.0, le=180.0, allow_inf_nan=False)
 
 
-PlacementPlan = Annotated[
-    LatticePlacementPlan | ScatterPlacementPlan | PathPlacementPlan | PointTemplatePlacementPlan,
-    Field(discriminator="type"),
-]
+PlacementPlan = (
+    LatticePlacementPlan | ScatterPlacementPlan | PathPlacementPlan | PointTemplatePlacementPlan
+)
 
 
 class MotifLayerPlan(_StrictModel):
@@ -175,10 +175,7 @@ class MotifLayerPlan(_StrictModel):
         return values
 
 
-StructureLayerPlan = Annotated[
-    StripeLayerPlan | MotifLayerPlan,
-    Field(discriminator="type"),
-]
+StructureLayerPlan = StripeLayerPlan | MotifLayerPlan
 
 
 class DesignPlanV3(_StrictModel):
