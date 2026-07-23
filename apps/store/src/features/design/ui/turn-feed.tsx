@@ -18,6 +18,7 @@ import {
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 import type { MouseEvent, ReactNode } from "react";
+import { formatDateTime } from "@/shared/lib/format";
 import {
   patternConstraintLabels,
   referenceImagePurposeLabel,
@@ -34,10 +35,8 @@ import {
   type DesignCandidate,
 } from "./candidate-grid";
 
-const requestTimeFormatter = new Intl.DateTimeFormat("ko-KR", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const formatRequestTime = (value: string) =>
+  formatDateTime(value, { hour: "2-digit", minute: "2-digit" }, value);
 
 type GeneratePayload = Extract<DesignTurnPayload, { type: "generate" }>;
 export type TurnCandidate = GeneratePayload["response"]["candidates"][number];
@@ -301,11 +300,4 @@ function TurnItem({
 
   if (payload.type === "finalize") return renderFinalizeTurn(payload);
   return null;
-}
-
-function formatRequestTime(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? value
-    : requestTimeFormatter.format(date);
 }

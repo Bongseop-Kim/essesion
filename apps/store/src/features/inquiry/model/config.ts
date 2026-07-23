@@ -11,11 +11,6 @@ export const INQUIRY_CATEGORY_VALUES = [
   "샘플제작",
 ] as const satisfies readonly InquiryCategory[];
 
-export const INQUIRY_CATEGORIES = INQUIRY_CATEGORY_VALUES.map((value) => ({
-  value,
-  label: value,
-}));
-
 export type InquiryPrefill = {
   category: InquiryCategory;
   productId: number | null;

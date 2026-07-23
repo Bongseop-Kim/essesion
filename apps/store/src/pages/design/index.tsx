@@ -63,6 +63,7 @@ import {
   type ReferenceImagePurpose,
 } from "@/features/design/model/draft";
 import {
+  type DesignErrorKind,
   designErrorMessage,
   parseDesignError,
 } from "@/features/design/model/errors";
@@ -165,6 +166,20 @@ type PendingPhoto = {
   uploadId?: string;
 };
 
+type DesignOverlay =
+  | "sessions"
+  | "finalized"
+  | "motifs"
+  | "textMotif"
+  | "photoMotif"
+  | "colors"
+  | "patternSettings"
+  | "ideas"
+  | "preview"
+  | "finalize"
+  | "export"
+  | "onboarding";
+
 export function DesignPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -182,17 +197,12 @@ export function DesignPage() {
   const [patternConstraints, setPatternConstraints] =
     useState<DesignPatternConstraints>(AUTO_PATTERN_CONSTRAINTS);
   const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [sessionsOpen, setSessionsOpen] = useState(false);
-  const [finalizedOpen, setFinalizedOpen] = useState(false);
-  const [motifsOpen, setMotifsOpen] = useState(false);
-  const [textMotifOpen, setTextMotifOpen] = useState(false);
-  const [photoMotifOpen, setPhotoMotifOpen] = useState(false);
+  // 오버레이는 한 번에 하나만 — 디자인 시스템의 "모달 위 모달 금지"를 상태로 강제한다.
+  const [overlay, setOverlay] = useState<DesignOverlay | null>(() =>
+    isDesignOnboardingComplete() ? null : "onboarding",
+  );
   const svgMotifInputRef = useRef<HTMLInputElement>(null);
   const [svgMotifImporting, setSvgMotifImporting] = useState(false);
-  const [colorsOpen, setColorsOpen] = useState(false);
-  const [patternSettingsOpen, setPatternSettingsOpen] = useState(false);
-  const [ideasOpen, setIdeasOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const photosRef = useRef<PendingPhoto[]>([]);
@@ -201,9 +211,6 @@ export function DesignPage() {
   const [attachmentsBusy, setAttachmentsBusy] = useState(false);
   const [motifDeleting, setMotifDeleting] = useState(false);
   const deleteFlowTimer = useRef<number | undefined>(undefined);
-  const [onboardingOpen, setOnboardingOpen] = useState(
-    () => !isDesignOnboardingComplete(),
-  );
   const [pending, setPending] = useState<DesignPending | null>(() =>
     readPendingDesign(),
   );
@@ -218,11 +225,9 @@ export function DesignPage() {
   const [localFinalizeTurns, setLocalFinalizeTurns] = useState<
     LocalFinalizeTurn[]
   >([]);
-  const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [productionMethod, setProductionMethod] =
     useState<ProductionMethod>("print");
   const [weave, setWeave] = useState<FabricWeave>("twill-45");
-  const [exportOpen, setExportOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
   const [exportDpi, setExportDpi] = useState<ExportDpi>(300);
   const [exportWidthMm, setExportWidthMm] = useState("100");
@@ -261,11 +266,11 @@ export function DesignPage() {
   );
   const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
   const finalizedJobsQuery = useInfiniteQuery(
-    finalizedJobsInfiniteQueryOptions(authenticated && finalizedOpen),
+    finalizedJobsInfiniteQueryOptions(authenticated && overlay === "finalized"),
   );
   const motifsQuery = useQuery({
     ...listUserMotifsOptions({ query: { limit: 100, offset: 0 } }),
-    enabled: authenticated && motifsOpen,
+    enabled: authenticated && overlay === "motifs",
   });
   const finalizedJobs = finalizedJobsQuery.data?.pages.flat() ?? [];
   const generateMutation = useGenerateDesign({
@@ -471,8 +476,8 @@ export function DesignPage() {
       return;
     }
     if (kind === "svg") svgMotifInputRef.current?.click();
-    else if (kind === "text") setTextMotifOpen(true);
-    else setPhotoMotifOpen(true);
+    else if (kind === "text") setOverlay("textMotif");
+    else setOverlay("photoMotif");
   };
 
   // SVG는 어차피 저장하려고 고른 파일 — 확인 단계 없이 즉시 저장하고 이번 생성에 선택한다.
@@ -719,7 +724,7 @@ export function DesignPage() {
 
   const openFinalize = () => {
     if (!selection?.intent || !ensureDesignAuth()) return;
-    setFinalizeOpen(true);
+    setOverlay("finalize");
   };
 
   const createFinalize = async (
@@ -742,7 +747,7 @@ export function DesignPage() {
         ]);
         snackbar("작업은 시작했지만 이력 기록은 남기지 못했습니다.");
       }
-      if (closeDialog) setFinalizeOpen(false);
+      if (closeDialog) setOverlay(null);
     } catch (error) {
       const feedback = parseDesignError(error);
       snackbar(feedback.detail ?? feedback.message);
@@ -776,7 +781,7 @@ export function DesignPage() {
   const openFinalizeResultPreview = (job: GenerationJobOut) => {
     if (!job.result_url) return;
     setResultPreview({ jobId: job.id, src: job.result_url });
-    setPreviewOpen(true);
+    setOverlay("preview");
   };
 
   const retryFinalize = async (job: GenerationJobOut) => {
@@ -808,7 +813,7 @@ export function DesignPage() {
         throw new Error("내려받기 응답이 파일 형식이 아닙니다.");
       }
       downloadBlob(response.data, `essesion-design.${value.format}`);
-      setExportOpen(false);
+      setOverlay(null);
       snackbar("디자인 파일을 만들었습니다.");
     } catch (error) {
       snackbar(parseDesignError(error).message);
@@ -819,7 +824,7 @@ export function DesignPage() {
 
   const openExport = () => {
     if (!selection?.candidate?.svg || !ensureDesignAuth()) return;
-    setExportOpen(true);
+    setOverlay("export");
   };
 
   const openPendingSession = () => {
@@ -849,7 +854,7 @@ export function DesignPage() {
     setNewSessionMode(false);
     setSelectionOverride(null);
     setResultPreview(null);
-    setSessionsOpen(false);
+    setOverlay(null);
   };
 
   const scheduleAfterOverlayExit = (run: () => void) => {
@@ -864,21 +869,21 @@ export function DesignPage() {
   };
 
   const requestDeleteSession = (session: DesignSessionSummary) => {
-    setSessionsOpen(false);
+    setOverlay(null);
     scheduleAfterOverlayExit(() =>
       setDeleteTarget({ kind: "session", id: session.id }),
     );
   };
 
   const requestDeleteJob = (job: GenerationJobOut) => {
-    setFinalizedOpen(false);
+    setOverlay(null);
     scheduleAfterOverlayExit(() =>
       setDeleteTarget({ kind: "job", id: job.id }),
     );
   };
 
   const requestDeleteMotif = (motif: UserMotifOut) => {
-    setMotifsOpen(false);
+    setOverlay(null);
     scheduleAfterOverlayExit(() =>
       setDeleteTarget({ kind: "motif", id: motif.id, name: motif.name }),
     );
@@ -888,9 +893,9 @@ export function DesignPage() {
   const closeDeleteConfirm = (target: DeleteTarget) => {
     setDeleteTarget(null);
     scheduleAfterOverlayExit(() => {
-      if (target.kind === "session") setSessionsOpen(true);
-      else if (target.kind === "job") setFinalizedOpen(true);
-      else setMotifsOpen(true);
+      if (target.kind === "session") setOverlay("sessions");
+      else if (target.kind === "job") setOverlay("finalized");
+      else setOverlay("motifs");
     });
   };
 
@@ -960,7 +965,7 @@ export function DesignPage() {
       <MenuItem
         label="미리보기"
         prefixIcon={<Icon svg={<EyeIcon />} size={18} />}
-        onClick={() => setPreviewOpen(true)}
+        onClick={() => setOverlay("preview")}
       />
       <MenuItem
         label="내려받기"
@@ -1097,12 +1102,12 @@ export function DesignPage() {
                 onPhotoFilesSelect={addPhotoFiles}
                 onAddMotif={addMotif}
                 onOpenMotifLibrary={() => {
-                  if (ensureDesignAuth()) setMotifsOpen(true);
+                  if (ensureDesignAuth()) setOverlay("motifs");
                 }}
-                onOpenColors={() => setColorsOpen(true)}
-                onOpenPatternSettings={() => setPatternSettingsOpen(true)}
+                onOpenColors={() => setOverlay("colors")}
+                onOpenPatternSettings={() => setOverlay("patternSettings")}
                 onOpenIdeas={() => {
-                  if (ensureDesignAuth()) setIdeasOpen(true);
+                  if (ensureDesignAuth()) setOverlay("ideas");
                 }}
                 attachments={composerAttachments}
                 onRemoveAttachment={removeComposerAttachment}
@@ -1130,13 +1135,13 @@ export function DesignPage() {
                     <ComposerPanelItem
                       icon={<Icon svg={<FolderOpenIcon />} size={24} />}
                       label="내 세션"
-                      onClick={() => setSessionsOpen(true)}
+                      onClick={() => setOverlay("sessions")}
                       disabled={!authenticated}
                     />
                     <ComposerPanelItem
                       icon={<Icon svg={<SwatchIcon />} size={24} />}
                       label="내 완성본"
-                      onClick={() => setFinalizedOpen(true)}
+                      onClick={() => setOverlay("finalized")}
                       disabled={!authenticated}
                     />
                     <ComposerPanelItem
@@ -1153,20 +1158,20 @@ export function DesignPage() {
       </LayoutContent>
 
       <ColorSettingsModal
-        open={colorsOpen}
+        open={overlay === "colors"}
         value={palette}
         photos={photos.map((photo) => ({
           id: photo.id,
           name: photo.file.name,
         }))}
-        onOpenChange={setColorsOpen}
+        onOpenChange={(open) => setOverlay(open ? "colors" : null)}
         onApply={setPalette}
         onExtract={extractPaletteFromPhoto}
       />
       <PatternSettingsModal
-        open={patternSettingsOpen}
+        open={overlay === "patternSettings"}
         value={patternConstraints}
-        onOpenChange={setPatternSettingsOpen}
+        onOpenChange={(open) => setOverlay(open ? "patternSettings" : null)}
         onApply={setPatternConstraints}
       />
       <input
@@ -1183,40 +1188,40 @@ export function DesignPage() {
         }}
       />
       <TextMotifModal
-        open={textMotifOpen}
-        onOpenChange={setTextMotifOpen}
+        open={overlay === "textMotif"}
+        onOpenChange={(open) => setOverlay(open ? "textMotif" : null)}
         onCreated={selectCreatedMotif}
       />
       <PhotoMotifModal
-        open={photoMotifOpen}
+        open={overlay === "photoMotif"}
         photos={photos.map((photo) => ({
           id: photo.id,
           name: photo.file.name,
           previewSrc: photo.previewUrl,
         }))}
-        onOpenChange={setPhotoMotifOpen}
+        onOpenChange={(open) => setOverlay(open ? "photoMotif" : null)}
         onEnsurePhotoUpload={ensurePhotoUploadById}
         onCreated={selectCreatedMotif}
       />
       <IdeasModal
-        open={ideasOpen}
+        open={overlay === "ideas"}
         currentPrompt={prompt}
-        onOpenChange={setIdeasOpen}
+        onOpenChange={(open) => setOverlay(open ? "ideas" : null)}
         onRequest={requestIdeas}
         onApply={setPrompt}
       />
 
       <PreviewModal
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        open={overlay === "preview"}
+        onOpenChange={(open) => setOverlay(open ? "preview" : null)}
         imageSrc={previewImageSrc}
         alt={previewAlt}
         mode={previewMode}
         onModeChange={setPreviewMode}
       />
       <FinalizeDialog
-        open={finalizeOpen}
-        onOpenChange={setFinalizeOpen}
+        open={overlay === "finalize"}
+        onOpenChange={(open) => setOverlay(open ? "finalize" : null)}
         productionMethod={productionMethod}
         weave={weave}
         dpi={300}
@@ -1238,8 +1243,8 @@ export function DesignPage() {
         disabled={!selection?.intent}
       />
       <ExportDialog
-        open={exportOpen}
-        onOpenChange={setExportOpen}
+        open={overlay === "export"}
+        onOpenChange={(open) => setOverlay(open ? "export" : null)}
         format={exportFormat}
         dpi={exportDpi}
         widthMm={exportWidthMm}
@@ -1251,8 +1256,8 @@ export function DesignPage() {
         disabled={!selection?.candidate?.svg}
       />
       <SessionListModal
-        open={sessionsOpen}
-        onOpenChange={setSessionsOpen}
+        open={overlay === "sessions"}
+        onOpenChange={(open) => setOverlay(open ? "sessions" : null)}
         sessions={(sessionsQuery.data ?? []).map((session) => ({
           id: session.id,
           createdAt: session.created_at,
@@ -1267,8 +1272,8 @@ export function DesignPage() {
         onDelete={requestDeleteSession}
       />
       <FinalizedListModal
-        open={finalizedOpen}
-        onOpenChange={setFinalizedOpen}
+        open={overlay === "finalized"}
+        onOpenChange={(open) => setOverlay(open ? "finalized" : null)}
         jobs={finalizedJobs}
         loading={finalizedJobsQuery.isPending}
         error={finalizedJobsQuery.isError && finalizedJobs.length === 0}
@@ -1283,8 +1288,8 @@ export function DesignPage() {
         onDelete={requestDeleteJob}
       />
       <MotifLibraryModal
-        open={motifsOpen}
-        onOpenChange={setMotifsOpen}
+        open={overlay === "motifs"}
+        onOpenChange={(open) => setOverlay(open ? "motifs" : null)}
         motifs={motifsQuery.data ?? []}
         selectedIds={selectedMotifs.map((motif) => motif.id)}
         max={MAX_DESIGN_MOTIFS}
@@ -1329,11 +1334,11 @@ export function DesignPage() {
         }}
       />
       <OnboardingDialog
-        open={onboardingOpen}
-        onOpenChange={setOnboardingOpen}
+        open={overlay === "onboarding"}
+        onOpenChange={(open) => setOverlay(open ? "onboarding" : null)}
         onComplete={() => {
           completeDesignOnboarding();
-          setOnboardingOpen(false);
+          setOverlay(null);
         }}
       />
     </>
@@ -1402,132 +1407,101 @@ function GenerationErrorCallout({
   onRetry: () => void;
   onPurchase: () => void;
 }) {
-  if (error.kind === "insufficient_tokens") {
-    return (
-      <Callout
-        tone="warning"
-        title="토큰이 부족해요"
-        description="토큰을 충전한 뒤 다시 생성해 주세요."
-        onClick={onPurchase}
-      >
+  const spec = GENERATION_ERROR_CALLOUTS[error.kind] ?? GENERATION_ERROR_RETRY;
+  const onClick =
+    spec.action === "purchase"
+      ? onPurchase
+      : spec.action === "retry"
+        ? onRetry
+        : undefined;
+  return (
+    <Callout
+      tone={spec.tone}
+      title={spec.title}
+      description={spec.description ?? error.message}
+      onClick={onClick}
+    >
+      {spec.action === "purchase" ? (
         <Text as="span" textStyle="labelSm">
           토큰 충전하기
         </Text>
-      </Callout>
-    );
-  }
-  if (error.kind === "refund_pending") {
-    return (
-      <Callout
-        tone="warning"
-        title="환불 심사 중에는 생성할 수 없어요"
-        description="심사가 끝난 뒤 다시 이용해 주세요."
-      />
-    );
-  }
-  if (error.kind === "worker_rejected") {
-    return (
-      <Callout
-        tone="warning"
-        title="요청을 이해하지 못했어요"
-        description={error.message}
-      />
-    );
-  }
-  if (error.kind === "authoring_invalid") {
-    return (
-      <Callout
-        tone="warning"
-        title="디자인 구성을 만들지 못했어요"
-        description={error.message}
-        onClick={onRetry}
-      >
+      ) : spec.action === "retry" ? (
         <Text as="span" textStyle="labelSm">
           같은 요청 다시 시도
         </Text>
-      </Callout>
-    );
-  }
-  if (error.kind === "semantic_mismatch") {
-    return (
-      <Callout
-        tone="warning"
-        title="요청한 모티프를 확정하지 못했어요"
-        description={error.message}
-      />
-    );
-  }
-  if (error.kind === "motif_input_conflict") {
-    return (
-      <Callout
-        tone="warning"
-        title="모티프를 2개 이하로 조정해 주세요"
-        description={error.message}
-      />
-    );
-  }
-  if (error.kind === "constraint_conflict") {
-    return (
-      <Callout
-        tone="warning"
-        title="설정을 함께 적용할 수 없어요"
-        description={error.message}
-      >
+      ) : spec.note ? (
         <Text as="span" textStyle="captionSm">
-          색상이나 패턴 설정을 바꿔 다시 생성해 주세요.
+          {spec.note}
         </Text>
-      </Callout>
-    );
-  }
-  if (error.kind === "reference_invalid") {
-    return (
-      <Callout
-        tone="warning"
-        title="참고 이미지를 사용할 수 없어요"
-        description={error.message}
-      >
-        <Text as="span" textStyle="captionSm">
-          해당 이미지를 삭제하거나 다시 첨부해 주세요.
-        </Text>
-      </Callout>
-    );
-  }
-  if (error.kind === "intent_invalid") {
-    return (
-      <Callout
-        tone="warning"
-        title="선택한 디자인을 처리할 수 없어요"
-        description={error.message}
-      />
-    );
-  }
-  if (error.kind === "candidate_invalid") {
-    return (
-      <Callout
-        tone="critical"
-        title="디자인 후보를 완성하지 못했어요"
-        description={error.message}
-        onClick={onRetry}
-      >
-        <Text as="span" textStyle="labelSm">
-          같은 요청 다시 시도
-        </Text>
-      </Callout>
-    );
-  }
-  return (
-    <Callout
-      tone="critical"
-      title="디자인을 생성하지 못했어요"
-      description={error.message}
-      onClick={onRetry}
-    >
-      <Text as="span" textStyle="labelSm">
-        같은 요청 다시 시도
-      </Text>
+      ) : null}
     </Callout>
   );
 }
+
+type GenerationErrorCalloutSpec = {
+  tone: "warning" | "critical";
+  title: string;
+  /** 생략 시 error.message를 본문으로 사용. */
+  description?: string;
+  action?: "retry" | "purchase";
+  note?: string;
+};
+
+// 미등록 kind(finalize_quota_exhausted·conflict·upstream_error·unknown)는 재시도 폴백.
+const GENERATION_ERROR_RETRY: GenerationErrorCalloutSpec = {
+  tone: "critical",
+  title: "디자인을 생성하지 못했어요",
+  action: "retry",
+};
+
+const GENERATION_ERROR_CALLOUTS: Partial<
+  Record<DesignErrorKind, GenerationErrorCalloutSpec>
+> = {
+  insufficient_tokens: {
+    tone: "warning",
+    title: "토큰이 부족해요",
+    description: "토큰을 충전한 뒤 다시 생성해 주세요.",
+    action: "purchase",
+  },
+  refund_pending: {
+    tone: "warning",
+    title: "환불 심사 중에는 생성할 수 없어요",
+    description: "심사가 끝난 뒤 다시 이용해 주세요.",
+  },
+  worker_rejected: { tone: "warning", title: "요청을 이해하지 못했어요" },
+  authoring_invalid: {
+    tone: "warning",
+    title: "디자인 구성을 만들지 못했어요",
+    action: "retry",
+  },
+  semantic_mismatch: {
+    tone: "warning",
+    title: "요청한 모티프를 확정하지 못했어요",
+  },
+  motif_input_conflict: {
+    tone: "warning",
+    title: "모티프를 2개 이하로 조정해 주세요",
+  },
+  constraint_conflict: {
+    tone: "warning",
+    title: "설정을 함께 적용할 수 없어요",
+    note: "색상이나 패턴 설정을 바꿔 다시 생성해 주세요.",
+  },
+  reference_invalid: {
+    tone: "warning",
+    title: "참고 이미지를 사용할 수 없어요",
+    note: "해당 이미지를 삭제하거나 다시 첨부해 주세요.",
+  },
+  intent_invalid: {
+    tone: "warning",
+    title: "선택한 디자인을 처리할 수 없어요",
+  },
+  candidate_invalid: {
+    tone: "critical",
+    title: "디자인 후보를 완성하지 못했어요",
+    action: "retry",
+  },
+};
 
 function randomSeed() {
   if (globalThis.crypto?.getRandomValues) {

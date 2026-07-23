@@ -5,7 +5,7 @@ const api = vi.hoisted(() => ({
   createUploadUrl: vi.fn(),
 }));
 const uploads = vi.hoisted(() => ({
-  putToSignedUrl: vi.fn(),
+  putIfRequired: vi.fn(),
   validateImageFile: vi.fn(),
 }));
 
@@ -48,12 +48,15 @@ describe("uploadOrderImage", () => {
     await expect(uploadOrderImage(file, "custom_order")).resolves.toEqual({
       upload_id: "89dc3b35-9ca2-4b18-a0e0-02a099d76a23",
     });
-    expect(uploads.putToSignedUrl).toHaveBeenCalledWith(
-      "https://upload.test/signed",
-      {
-        "Content-Type": "image/png",
-        "x-goog-if-generation-match": "0",
-      },
+    expect(uploads.putIfRequired).toHaveBeenCalledWith(
+      expect.objectContaining({
+        upload_url: "https://upload.test/signed",
+        required_headers: {
+          "Content-Type": "image/png",
+          "x-goog-if-generation-match": "0",
+        },
+        upload_required: true,
+      }),
       file,
     );
     expect(api.completeOrderImage).toHaveBeenCalledWith({

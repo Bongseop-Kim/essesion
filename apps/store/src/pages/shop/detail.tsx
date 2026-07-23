@@ -27,12 +27,7 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
-import {
-  HeartIcon,
-  MinusIcon,
-  PlusIcon,
-  ShoppingBagIcon,
-} from "@heroicons/react/24/outline";
+import { HeartIcon, ShoppingBagIcon } from "@heroicons/react/24/outline";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
@@ -44,12 +39,15 @@ import { trackEvent } from "@/shared/lib/analytics";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { QuantityStepper } from "@/shared/ui/quantity-stepper";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import {
   categoryLabel,
   colorLabel,
   krw,
   materialLabel,
+  optionDescription,
+  optionLabel,
   patternLabel,
 } from "./constants";
 
@@ -425,13 +423,6 @@ function ProductSummary({
 }) {
   const hasOptions = options.length > 0;
   const maxQuantity = selectedStock ?? undefined;
-  const decrease = () => onQuantityChange(Math.max(1, quantity - 1));
-  const increase = () =>
-    onQuantityChange(
-      maxQuantity === undefined
-        ? quantity + 1
-        : Math.min(maxQuantity, quantity + 1),
-    );
 
   return (
     <VStack gap="x5" alignItems="stretch">
@@ -489,35 +480,11 @@ function ProductSummary({
           <Text textStyle="labelSm" color="fg.neutral-muted">
             수량
           </Text>
-          <HStack gap="x2">
-            <ActionButton
-              type="button"
-              variant="neutralOutline"
-              size="xsmall"
-              iconOnly
-              aria-label="수량 줄이기"
-              disabled={quantity <= 1}
-              onClick={decrease}
-            >
-              <Icon svg={<MinusIcon />} size={16} />
-            </ActionButton>
-            <Box minWidth="x12">
-              <Text as="span" textStyle="label" align="center" display="block">
-                {quantity}
-              </Text>
-            </Box>
-            <ActionButton
-              type="button"
-              variant="neutralOutline"
-              size="xsmall"
-              iconOnly
-              aria-label="수량 늘리기"
-              disabled={maxQuantity !== undefined && quantity >= maxQuantity}
-              onClick={increase}
-            >
-              <Icon svg={<PlusIcon />} size={16} />
-            </ActionButton>
-          </HStack>
+          <QuantityStepper
+            quantity={quantity}
+            max={maxQuantity}
+            onChange={onQuantityChange}
+          />
         </HStack>
 
         <VStack gap="x2">
@@ -713,17 +680,4 @@ function shopCrumbs(current?: string) {
     current ? { label: "스토어", href: "/shop" } : { label: "스토어" },
     ...(current ? [{ label: current }] : []),
   ];
-}
-
-function optionLabel(option: ProductOptionOut) {
-  return option.additional_price > 0
-    ? `${option.name} (+₩${krw.format(option.additional_price)})`
-    : option.name;
-}
-
-function optionDescription(option: ProductOptionOut) {
-  if (option.stock === 0) return "품절";
-  if (option.stock != null && option.stock <= 5)
-    return `${option.stock}개 남음`;
-  return undefined;
 }

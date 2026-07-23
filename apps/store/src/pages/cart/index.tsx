@@ -31,12 +31,7 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
-import {
-  MinusIcon,
-  PlusIcon,
-  ShoppingBagIcon,
-  TrashIcon,
-} from "@heroicons/react/24/outline";
+import { ShoppingBagIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -61,9 +56,10 @@ import {
   reformFormFromData,
   reformServiceLabel,
 } from "@/features/reform";
-import { krw } from "@/pages/shop/constants";
+import { krw, optionDescription, optionLabel } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { QuantityStepper } from "@/shared/ui/quantity-stepper";
 import { reconcileCartSelection } from "./selection";
 
 type CartViewItem = {
@@ -876,8 +872,8 @@ function OptionModal({
               <SelectBoxItem
                 key={candidate.id}
                 value={candidate.id}
-                label={candidateLabel(candidate)}
-                description={candidateDescription(candidate)}
+                label={optionLabel(candidate)}
+                description={optionDescription(candidate)}
                 disabled={candidate.stock === 0}
               />
             ))}
@@ -896,52 +892,6 @@ function OptionModal({
         </HStack>
       </VStack>
     </ResponsiveModal>
-  );
-}
-
-function QuantityStepper({
-  quantity,
-  max,
-  disabled,
-  onChange,
-}: {
-  quantity: number;
-  max?: number;
-  disabled?: boolean;
-  onChange: (quantity: number) => void;
-}) {
-  return (
-    <HStack gap="x2">
-      <ActionButton
-        type="button"
-        variant="neutralOutline"
-        size="xsmall"
-        iconOnly
-        aria-label="수량 줄이기"
-        disabled={disabled || quantity <= 1}
-        onClick={() => onChange(Math.max(1, quantity - 1))}
-      >
-        <Icon svg={<MinusIcon />} size={16} />
-      </ActionButton>
-      <Box minWidth="x12">
-        <Text as="span" textStyle="label" align="center" display="block">
-          {quantity}
-        </Text>
-      </Box>
-      <ActionButton
-        type="button"
-        variant="neutralOutline"
-        size="xsmall"
-        iconOnly
-        aria-label="수량 늘리기"
-        disabled={disabled || (max !== undefined && quantity >= max)}
-        onClick={() =>
-          onChange(max ? Math.min(max, quantity + 1) : quantity + 1)
-        }
-      >
-        <Icon svg={<PlusIcon />} size={16} />
-      </ActionButton>
-    </HStack>
   );
 }
 
@@ -1105,12 +1055,6 @@ function reformTitle(item: CartViewItem) {
   return "수선 요청";
 }
 
-function candidateLabel(option: { name: string; additional_price: number }) {
-  return option.additional_price > 0
-    ? `${option.name} (+₩${krw.format(option.additional_price)})`
-    : option.name;
-}
-
 function reformSettingsFromTie(
   tie: ReturnType<typeof reformFormFromData>,
 ): ReformSettingsValues {
@@ -1125,13 +1069,6 @@ function reformSettingsFromTie(
     restorationEnabled: tie.restorationEnabled,
     restorationMemo: tie.restorationMemo,
   };
-}
-
-function candidateDescription(option: { stock: number | null }) {
-  if (option.stock === 0) return "품절";
-  if (option.stock != null && option.stock <= 5)
-    return `${option.stock}개 남음`;
-  return undefined;
 }
 
 function cartCrumbs() {

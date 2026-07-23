@@ -3,7 +3,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
-  handoffAnonymousCustomOrderFormDraft,
+  clearCustomOrderFormDraft,
   parseCustomOrderDraft,
   parseCustomOrderFormDraft,
   readCustomOrderFormDraft,
@@ -91,7 +91,8 @@ describe("custom order draft", () => {
       contact: { ...formDraft.contact, contactName: "logged-in" },
     };
 
-    handoffAnonymousCustomOrderFormDraft("user-a", loginDraft);
+    saveCustomOrderFormDraft("user-a", loginDraft);
+    clearCustomOrderFormDraft(null);
 
     expect(readCustomOrderFormDraft("user-a")).toEqual(loginDraft);
     expect(readCustomOrderFormDraft(null)).toBeNull();

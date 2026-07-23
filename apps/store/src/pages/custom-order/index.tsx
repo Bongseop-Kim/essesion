@@ -53,7 +53,6 @@ import {
   customOrderSummary,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
   DEFAULT_QUOTE_CONTACT,
-  handoffAnonymousCustomOrderFormDraft,
   invalidCustomOrderSection,
   MAX_CUSTOM_ORDER_QUANTITY,
   parseCustomOrderFormDraft,
@@ -70,6 +69,7 @@ import { ReviewListSection } from "@/features/reviews";
 import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { trackEvent } from "@/shared/lib/analytics";
+import { hasStateKey } from "@/shared/lib/guards";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
@@ -201,7 +201,8 @@ function CustomOrderPageContent({
 
   useEffect(() => {
     if (!loginDraft || !draftOwnerId) return;
-    handoffAnonymousCustomOrderFormDraft(draftOwnerId, loginDraft);
+    saveCustomOrderFormDraft(draftOwnerId, loginDraft);
+    clearCustomOrderFormDraft(null);
     navigate(`${location.pathname}${location.search}`, {
       replace: true,
       state: withoutLoginDraft(location.state),
@@ -1106,11 +1107,8 @@ function focusSection(section: CustomOrderSectionId) {
 }
 
 function readLoginDraft(state: unknown): LoginDraft | null {
-  if (!state || typeof state !== "object" || !("customOrderDraft" in state))
-    return null;
-  return parseCustomOrderFormDraft(
-    (state as { customOrderDraft?: unknown }).customOrderDraft,
-  );
+  if (!hasStateKey(state, "customOrderDraft")) return null;
+  return parseCustomOrderFormDraft(state.customOrderDraft);
 }
 
 function withoutLoginDraft(state: unknown): unknown {
@@ -1121,10 +1119,8 @@ function withoutLoginDraft(state: unknown): unknown {
 }
 
 function readDesignJobs(state: unknown): GenerationJobOut[] {
-  if (!state || typeof state !== "object" || !("designJobs" in state)) {
-    return [];
-  }
-  const jobs = (state as { designJobs?: unknown }).designJobs;
+  if (!hasStateKey(state, "designJobs")) return [];
+  const jobs = state.designJobs;
   if (!Array.isArray(jobs)) return [];
   return jobs.filter((job): job is GenerationJobOut => {
     if (!job || typeof job !== "object") return false;

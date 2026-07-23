@@ -11,7 +11,7 @@ import {
 } from "@essesion/shared";
 import { useEffect, useState } from "react";
 
-import { krw } from "@/shared/lib/format";
+import { formatDate, krw } from "@/shared/lib/format";
 import { couponLabel } from "../model/discount";
 
 const NONE_COUPON = "__none__";
@@ -108,7 +108,7 @@ function couponDescription(coupon: UserCouponOut) {
     ? formatDiscount(coupon.coupon.discount_type, coupon.coupon.discount_value)
     : null;
   const expires = coupon.expires_at
-    ? `만료 ${new Intl.DateTimeFormat("ko-KR").format(new Date(coupon.expires_at))}`
+    ? `만료 ${formatDate(coupon.expires_at)}`
     : null;
   return [discount, expires].filter(Boolean).join(" · ") || undefined;
 }

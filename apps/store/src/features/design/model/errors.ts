@@ -1,3 +1,5 @@
+import { isRecord } from "@/shared/lib/guards";
+
 export type DesignErrorKind =
   | "insufficient_tokens"
   | "refund_pending"
@@ -43,22 +45,6 @@ export const DESIGN_ERROR_MESSAGES: Record<DesignErrorKind, string> = {
   unknown: "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
 };
 
-const knownErrorKinds = new Set<DesignErrorKind>([
-  "insufficient_tokens",
-  "refund_pending",
-  "worker_rejected",
-  "authoring_invalid",
-  "constraint_conflict",
-  "reference_invalid",
-  "intent_invalid",
-  "candidate_invalid",
-  "semantic_mismatch",
-  "motif_input_conflict",
-  "finalize_quota_exhausted",
-  "conflict",
-  "upstream_error",
-]);
-
 export type DesignErrorFeedback = {
   kind: DesignErrorKind;
   code: string | null;
@@ -66,17 +52,13 @@ export type DesignErrorFeedback = {
   message: string;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
 export function parseDesignError(error: unknown): DesignErrorFeedback {
   const code =
     isRecord(error) && typeof error.code === "string" ? error.code : null;
   const detail =
     isRecord(error) && typeof error.detail === "string" ? error.detail : null;
   const kind =
-    code && knownErrorKinds.has(code as DesignErrorKind)
+    code && Object.hasOwn(DESIGN_ERROR_MESSAGES, code)
       ? (code as DesignErrorKind)
       : "unknown";
 

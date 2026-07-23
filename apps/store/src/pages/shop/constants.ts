@@ -1,6 +1,8 @@
 import type { ListProductsData } from "@essesion/api-client";
 
-export { krw } from "@/shared/lib/format";
+import { krw } from "@/shared/lib/format";
+
+export { krw };
 
 type ProductQuery = NonNullable<ListProductsData["query"]>;
 
@@ -115,4 +117,21 @@ export function selectedFilter<T extends string>(
   value: FilterValue<T>,
 ): T | undefined {
   return value === "all" ? undefined : value;
+}
+
+export function optionLabel(option: {
+  name: string;
+  additional_price: number;
+}) {
+  return option.additional_price > 0
+    ? `${option.name} (+₩${krw.format(option.additional_price)})`
+    : option.name;
+}
+
+export function optionDescription(option: { stock: number | null }) {
+  if (option.stock === 0) return "품절";
+  if (option.stock != null && option.stock <= 5) {
+    return `${option.stock}개 남음`;
+  }
+  return undefined;
 }

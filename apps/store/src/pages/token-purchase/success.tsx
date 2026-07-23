@@ -15,6 +15,7 @@ import { useNavigate } from "react-router";
 import {
   CHECKOUT_PENDING_KEY,
   clearPendingCheckout,
+  onTerminalPaymentFailure,
   readPendingCheckout,
   usePaymentConfirm,
   waitForSettledPaymentOwner,
@@ -68,19 +69,10 @@ export function TokenPurchaseSuccessPage() {
       return result.token_amount ?? 0;
     },
     {
-      onTerminalFailure: (_error, paymentGroupId) => {
-        const context = confirmationContext.current;
-        void waitForSettledPaymentOwner(context.ownerUserId).then(
-          (ownerState) => {
-            if (
-              ownerState === "current" &&
-              context.pending?.paymentGroupId === paymentGroupId
-            ) {
-              clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
-            }
-          },
-        );
-      },
+      onTerminalFailure: onTerminalPaymentFailure(() => ({
+        ownerUserId: confirmationContext.current.ownerUserId,
+        paymentGroupId: confirmationContext.current.pending?.paymentGroupId,
+      })),
     },
   );
 

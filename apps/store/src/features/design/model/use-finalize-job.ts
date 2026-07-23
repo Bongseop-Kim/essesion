@@ -6,15 +6,19 @@ import {
   type FinalizeRequest,
   type GenerationJobOut,
 } from "@essesion/api-client";
-import { listDesignSessionsQueryKey } from "@essesion/api-client/query";
+import {
+  listDesignSessionsQueryKey,
+  listGenerationJobsQueryKey,
+} from "@essesion/api-client/query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { isRecord } from "@/shared/lib/guards";
 
 import {
   designSessionQueryKey,
   designTurnsQueryKey,
   generationJobQueryKey,
   generationJobQueryOptions,
-  generationJobsQueryKey,
 } from "./queries";
 
 export const FINALIZE_JOB_POLL_INTERVAL_MS = 2_500;
@@ -106,10 +110,6 @@ export function finalizeRetryInput(
   return { sessionId: job.session_id, request };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
 function isStringRecord(value: unknown): value is Record<string, string> {
   return (
     isRecord(value) &&
@@ -162,7 +162,9 @@ export function useCreateFinalizeJob() {
         queryClient.invalidateQueries({
           queryKey: designTurnsQueryKey(input.sessionId),
         }),
-        queryClient.invalidateQueries({ queryKey: generationJobsQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: listGenerationJobsQueryKey(),
+        }),
       ]);
 
       return { job, turn, turnAppendError };
@@ -182,7 +184,9 @@ export function useCancelFinalizeJob() {
       queryClient.setQueryData(generationJobQueryKey(job.id), job);
 
       const invalidations = [
-        queryClient.invalidateQueries({ queryKey: generationJobsQueryKey() }),
+        queryClient.invalidateQueries({
+          queryKey: listGenerationJobsQueryKey(),
+        }),
       ];
       if (job.session_id) {
         // 취소된 잡은 24시간 쿼터 카운트에서 빠진다 — 세션의 finalize_quota 갱신

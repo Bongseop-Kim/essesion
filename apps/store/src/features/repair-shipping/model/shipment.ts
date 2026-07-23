@@ -2,6 +2,7 @@ import type {
   RepairNoTrackingRequest,
   RepairTrackingRequest,
 } from "@essesion/api-client";
+import { z } from "zod";
 
 export const MAX_REPAIR_PHOTOS = 3;
 const MAX_MEMO_LENGTH = 500;
@@ -20,23 +21,21 @@ function hasTracking(draft: RepairShipmentDraft): boolean {
   return draft.courierCompany.length > 0 && draft.trackingNumber.length > 0;
 }
 
+const repairShipmentDraftSchema = z
+  .object({
+    courierCompany: z.string(),
+    trackingNumber: z.string(),
+    memo: z.string(),
+    photoObjectKeys: z.array(z.string()),
+  })
+  // 송장 정보는 쌍으로만 유효 — 반쪽짜리 draft는 거부
+  .refine((d) => (d.courierCompany === "") === (d.trackingNumber === ""));
+
 /** sessionStorage/location.state에서 읽은 unknown 값을 검증한다. */
 export function isRepairShipmentDraft(
   value: unknown,
 ): value is RepairShipmentDraft {
-  if (typeof value !== "object" || value === null) return false;
-  const draft = value as Record<string, unknown>;
-  if (
-    typeof draft.courierCompany !== "string" ||
-    typeof draft.trackingNumber !== "string" ||
-    typeof draft.memo !== "string" ||
-    !Array.isArray(draft.photoObjectKeys) ||
-    !draft.photoObjectKeys.every((key) => typeof key === "string")
-  ) {
-    return false;
-  }
-  // 송장 정보는 쌍으로만 유효 — 반쪽짜리 draft는 거부
-  return (draft.courierCompany === "") === (draft.trackingNumber === "");
+  return repairShipmentDraftSchema.safeParse(value).success;
 }
 
 /** previewUrl은 blob URL이라 직렬화하지 않음 — null이면 read-url로 복원 */

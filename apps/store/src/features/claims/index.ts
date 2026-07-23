@@ -1,8 +1,5 @@
 export {
-  CLAIM_TYPE_CONFIG,
-  CLAIM_TYPES,
   type ClaimListType,
-  type ClaimReason,
   type ClaimType,
   claimItemTitle,
   claimReasonLabel,

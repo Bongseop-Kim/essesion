@@ -19,14 +19,20 @@ import {
   SwatchIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import { formatDateTime } from "@/shared/lib/format";
 
-const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const formatDate = (value: string) =>
+  formatDateTime(
+    value,
+    {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+    value,
+  );
 
 export type FinalizedListModalProps = {
   open: boolean;
@@ -194,9 +200,4 @@ function FinalizedListSkeleton() {
       ))}
     </Grid>
   );
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
 }

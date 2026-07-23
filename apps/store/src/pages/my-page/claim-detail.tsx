@@ -36,6 +36,7 @@ import { courierLabel, courierTrackingUrl } from "@/features/repair-shipping";
 import { krw } from "@/pages/shop/constants";
 import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { InfoRow } from "@/shared/ui/info-row";
 
 export function ClaimDetailPage() {
   const { claimId } = useParams();
@@ -87,11 +88,11 @@ export function ClaimDetailPage() {
           </Text>
           <Badge tone={claimStatusTone(claim.status)}>{claim.status}</Badge>
         </HStack>
-        <SummaryRow label="유형" value={claimTypeLabel(claim.type)} />
-        <SummaryRow label="사유" value={claimReasonLabel(claim.reason)} />
-        <SummaryRow label="접수일" value={formatDate(claim.created_at)} />
-        <SummaryRow label="클레임 번호" value={claim.claim_number} />
-        <SummaryRow label="주문 번호" value={claim.order_number} />
+        <InfoRow label="유형" value={claimTypeLabel(claim.type)} />
+        <InfoRow label="사유" value={claimReasonLabel(claim.reason)} />
+        <InfoRow label="접수일" value={formatDate(claim.created_at)} />
+        <InfoRow label="클레임 번호" value={claim.claim_number} />
+        <InfoRow label="주문 번호" value={claim.order_number} />
       </VStack>
     </Box>
   ) : claimsQuery.isPending ? (
@@ -171,7 +172,7 @@ export function ClaimDetailPage() {
             <Text as="h2" textStyle="title3">
               신청 내용
             </Text>
-            <SummaryRow label="사유" value={claimReasonLabel(claim.reason)} />
+            <InfoRow label="사유" value={claimReasonLabel(claim.reason)} />
             <Divider />
             <Text textStyle="body" color="fg.neutral-muted">
               {claim.description || "상세 내용이 없습니다."}
@@ -195,7 +196,7 @@ export function ClaimDetailPage() {
                 환불 정보
               </Text>
               {Object.entries(claim.refund_data).map(([key, value]) => (
-                <SummaryRow
+                <InfoRow
                   key={key}
                   label={REFUND_DATA_LABELS[key] ?? key}
                   value={displayRefundValue(key, value)}
@@ -248,17 +249,6 @@ export function ClaimDetailPage() {
         </VStack>
       )}
     </ContentLayout>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <HStack justify="space-between" gap="x4" align="flex-start">
-      <Text textStyle="bodySm" color="fg.neutral-muted">
-        {label}
-      </Text>
-      <Text textStyle="bodySm">{value}</Text>
-    </HStack>
   );
 }
 

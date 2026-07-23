@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 
-import { listDesignSessionsQueryKey } from "@essesion/api-client/query";
+import {
+  listDesignSessionsQueryKey,
+  listGenerationJobsQueryKey,
+} from "@essesion/api-client/query";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -20,7 +23,6 @@ import {
   designSessionQueryKey,
   designTurnsQueryKey,
   generationJobQueryKey,
-  generationJobsQueryKey,
 } from "./queries";
 import { useDeleteDesignSession, useDeleteFinalizedJob } from "./use-delete";
 
@@ -69,7 +71,7 @@ describe("design deletion cache updates", () => {
       queryKey: listDesignSessionsQueryKey(),
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: generationJobsQueryKey(),
+      queryKey: listGenerationJobsQueryKey(),
     });
   });
 
@@ -100,7 +102,7 @@ describe("design deletion cache updates", () => {
     });
     expect(invalidateQueries).toHaveBeenCalledOnce();
     expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: generationJobsQueryKey(),
+      queryKey: listGenerationJobsQueryKey(),
     });
     expect(invalidateQueries).not.toHaveBeenCalledWith({
       queryKey: listDesignSessionsQueryKey(),

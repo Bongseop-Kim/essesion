@@ -112,6 +112,26 @@ export function waitForSettledPaymentOwner(
   });
 }
 
+/**
+ * 결제 확인이 끝내 실패했을 때 pending을 정리하는 onTerminalFailure 핸들러 팩토리.
+ * 소유자가 정착한 뒤, 실패한 paymentGroupId가 pending의 것과 같을 때만 제거한다.
+ */
+export function onTerminalPaymentFailure(
+  readContext: () => {
+    ownerUserId: string | null;
+    paymentGroupId: string | undefined;
+  },
+) {
+  return (_error: unknown, paymentGroupId: string) => {
+    const { ownerUserId, paymentGroupId: pendingGroupId } = readContext();
+    void waitForSettledPaymentOwner(ownerUserId).then((ownerState) => {
+      if (ownerState === "current" && pendingGroupId === paymentGroupId) {
+        clearPendingCheckout(CHECKOUT_PENDING_KEY, ownerUserId);
+      }
+    });
+  };
+}
+
 export function useCheckoutPayment<T>({
   createOrder,
   orderName,

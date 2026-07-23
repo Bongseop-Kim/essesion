@@ -30,3 +30,23 @@ export async function putToSignedUrl(
   });
   if (!response.ok) throw new Error(uploadError);
 }
+
+/** 서명 URL 발급 응답이 업로드를 요구할 때만 GCS로 PUT한다(모든 업로드 플로우 공통 단계). */
+export async function putIfRequired(
+  issued: {
+    upload_required: boolean;
+    upload_url: string;
+    required_headers?: HeadersInit;
+  },
+  file: File,
+  uploadError?: string,
+): Promise<void> {
+  if (issued.upload_required) {
+    await putToSignedUrl(
+      issued.upload_url,
+      issued.required_headers,
+      file,
+      uploadError,
+    );
+  }
+}

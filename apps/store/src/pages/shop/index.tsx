@@ -15,9 +15,13 @@ import {
 } from "@essesion/shared";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { ProductCard, ProductCardSkeleton } from "@/entities/product";
+import {
+  offsetPageParam,
+  useInfiniteScrollSentinel,
+} from "@/shared/lib/infinite-scroll";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import {
@@ -65,8 +69,7 @@ export function ShopPage() {
   const productsQuery = useInfiniteQuery({
     ...listProductsInfiniteOptions({ query }),
     initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.length > PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined,
+    getNextPageParam: offsetPageParam(PAGE_SIZE),
   });
   const products =
     productsQuery.data?.pages.flatMap((page) => page.slice(0, PAGE_SIZE)) ?? [];
@@ -77,30 +80,7 @@ export function ShopPage() {
     pattern !== "all" ||
     material !== "all";
 
-  useEffect(() => {
-    if (
-      !isMobile ||
-      !productsQuery.hasNextPage ||
-      productsQuery.isFetchingNextPage
-    ) {
-      return;
-    }
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) void productsQuery.fetchNextPage();
-      },
-      { rootMargin: "240px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [
-    isMobile,
-    productsQuery.fetchNextPage,
-    productsQuery.hasNextPage,
-    productsQuery.isFetchingNextPage,
-  ]);
+  useInfiniteScrollSentinel(sentinelRef, productsQuery, isMobile);
 
   const resetFilters = () => {
     setCategory("all");

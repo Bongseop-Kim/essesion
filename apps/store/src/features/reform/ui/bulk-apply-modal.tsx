@@ -26,44 +26,6 @@ export type ReformSettingsValues = {
   restorationMemo: string;
 };
 
-export type BulkValues = ReformSettingsValues;
-
-const INITIAL_VALUES: ReformSettingsValues = {
-  automaticEnabled: true,
-  mechanism: "zipper",
-  wearerHeightCm: null,
-  dimple: false,
-  turnKnot: false,
-  widthEnabled: false,
-  targetWidthCm: null,
-  restorationEnabled: false,
-  restorationMemo: "",
-};
-
-export function BulkApplyModal({
-  open,
-  selectedCount,
-  onOpenChange,
-  onApply,
-}: {
-  open: boolean;
-  selectedCount: number;
-  onOpenChange: (open: boolean) => void;
-  onApply: (values: BulkValues) => void;
-}) {
-  return (
-    <ReformSettingsModal
-      open={open}
-      onOpenChange={onOpenChange}
-      title="일괄 적용"
-      description={`선택한 ${selectedCount}개 항목의 수선 설정을 교체합니다.`}
-      initialValues={INITIAL_VALUES}
-      submitLabel="적용"
-      onApply={onApply}
-    />
-  );
-}
-
 export function ReformSettingsModal({
   open,
   title,

@@ -9,6 +9,7 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
+import { formatDateTime } from "@/shared/lib/format";
 
 export type ProductionMethod = "print" | "yarn_dyed";
 
@@ -86,18 +87,13 @@ const WEAVES = [
 
 const PRINT_WEAVES: readonly FabricWeave[] = ["twill-0", "twill-45"];
 
-const RESET_AT_FORMAT = new Intl.DateTimeFormat("ko-KR", {
-  month: "long",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function formatResetAt(resetAt: string | null): string | null {
-  if (!resetAt) return null;
-  const parsed = new Date(resetAt);
-  return Number.isNaN(parsed.getTime()) ? null : RESET_AT_FORMAT.format(parsed);
-}
+const formatResetAt = (resetAt: string | null): string | null =>
+  formatDateTime(resetAt, {
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }) || null;
 
 export function FinalizeDialog({
   open,

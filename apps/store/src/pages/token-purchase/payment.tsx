@@ -14,6 +14,7 @@ import {
   tokenPlanLabel,
 } from "@/features/token-purchase";
 import { krw } from "@/pages/shop/constants";
+import { hasStateKey } from "@/shared/lib/guards";
 import { useSession } from "@/shared/store/session";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
@@ -123,9 +124,8 @@ export function TokenPaymentPage() {
 }
 
 function readTokenPurchaseDraft(state: unknown): TokenPurchaseDraft | null {
-  if (!state || typeof state !== "object" || !("tokenPurchase" in state))
-    return null;
-  const raw = (state as { tokenPurchase?: unknown }).tokenPurchase;
+  if (!hasStateKey(state, "tokenPurchase")) return null;
+  const raw = state.tokenPurchase;
   if (!raw || typeof raw !== "object" || !("plan" in raw)) return null;
   const parsed = tokenPlanSchema.safeParse((raw as { plan?: unknown }).plan);
   return parsed.success ? { plan: parsed.data } : null;

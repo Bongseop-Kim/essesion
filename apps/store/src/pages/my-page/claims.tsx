@@ -2,13 +2,10 @@ import { listMyClaimsOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Badge,
-  Chip,
   ContentPlaceholder,
-  HStack,
   List,
   ListHeader,
   ListItem,
-  ScrollFog,
   Skeleton,
   Text,
   VStack,
@@ -25,6 +22,7 @@ import {
   claimTypeLabel,
 } from "@/features/claims";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
+import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 type ClaimFilter = "all" | ClaimListType;
@@ -59,19 +57,11 @@ export function ClaimListPage() {
           취소·반품·교환 내역
         </Text>
 
-        <ScrollFog direction="horizontal">
-          <HStack gap="x2">
-            {CLAIM_FILTERS.map((option) => (
-              <Chip
-                key={option.value}
-                selected={filter === option.value}
-                onClick={() => setFilter(option.value)}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </HStack>
-        </ScrollFog>
+        <ChipFilterBar
+          filters={CLAIM_FILTERS}
+          value={filter}
+          onChange={setFilter}
+        />
 
         {claimsQuery.isPending ? (
           <VStack gap="x3" alignItems="stretch">

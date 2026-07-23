@@ -2,7 +2,7 @@ export type { PendingCheckout } from "./model/use-checkout-payment";
 export {
   CHECKOUT_PENDING_KEY,
   clearPendingCheckout,
-  paymentOwnerState,
+  onTerminalPaymentFailure,
   readPendingCheckout,
   useCheckoutPayment,
   waitForSettledPaymentOwner,
@@ -10,8 +10,3 @@ export {
 export { usePaymentConfirm } from "./model/use-payment-confirm";
 export { CheckoutShell } from "./ui/checkout-shell";
 export { OrderPaymentPage } from "./ui/order-payment-page";
-export type {
-  PaymentRequest,
-  PaymentWidgetHandle,
-} from "./ui/payment-widget";
-export { PaymentWidget } from "./ui/payment-widget";

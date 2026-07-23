@@ -12,7 +12,11 @@ import {
 } from "@essesion/shared";
 import { useFormContext, useWatch } from "react-hook-form";
 import { REFORM_IMAGE_ACCEPT } from "../api/upload";
-import type { ReformFormValues, ReformTieForm } from "../model/reform";
+import {
+  type ReformFormValues,
+  type ReformTieForm,
+  reformServiceParts,
+} from "../model/reform";
 
 export function TieItemForm({
   index,
@@ -157,35 +161,19 @@ export function TieItemForm({
   );
 }
 
-/** 폼 값 기준 수선 옵션 요약 — 표기 형식은 model/reform.ts의 reformServiceLabel과 동일 */
+/** 폼 값 기준 수선 옵션 요약 — 표기 형식은 model/reform.ts의 reformServiceParts가 소유 */
 function serviceLines(tie: ReformTieForm | undefined): string[] {
   if (!tie) return [];
-  const lines: string[] = [];
-  if (tie.automaticEnabled) {
-    const details = [
-      tie.mechanism === "zipper"
-        ? "지퍼"
-        : tie.mechanism === "string"
-          ? "끈"
-          : null,
-      tie.wearerHeightCm != null ? `착용자 ${tie.wearerHeightCm}cm` : null,
-      tie.dimple ? "딤플" : null,
-      tie.turnKnot ? "돌려묶기" : null,
-    ].filter((value): value is string => value != null);
-    lines.push(
-      details.length ? `자동 수선(${details.join(" · ")})` : "자동 수선",
-    );
-  }
-  if (tie.widthEnabled) {
-    lines.push(
-      tie.targetWidthCm != null
-        ? `폭 수선(희망 ${tie.targetWidthCm}cm)`
-        : "폭 수선",
-    );
-  }
-  if (tie.restorationEnabled) {
-    const memo = tie.restorationMemo.trim();
-    lines.push(memo ? `복원 수선(${memo})` : "복원 수선");
-  }
-  return lines;
+  return reformServiceParts({
+    automatic: tie.automaticEnabled
+      ? {
+          mechanism: tie.mechanism,
+          wearerHeightCm: tie.wearerHeightCm,
+          dimple: tie.dimple,
+          turnKnot: tie.turnKnot,
+        }
+      : null,
+    width: tie.widthEnabled ? { targetWidthCm: tie.targetWidthCm } : null,
+    restoration: tie.restorationEnabled ? { memo: tie.restorationMemo } : null,
+  });
 }

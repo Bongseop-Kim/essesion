@@ -61,6 +61,7 @@ import { deliveryRequestLabel } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
 import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { InfoRow } from "@/shared/ui/info-row";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 type ClaimTarget = { type: ClaimType; item: OrderItemOut };
@@ -757,17 +758,6 @@ function ShipmentInfo({
         ) : null}
       </HStack>
     </VStack>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <HStack justify="space-between" gap="x4" align="flex-start">
-      <Text textStyle="bodySm" color="fg.neutral-muted">
-        {label}
-      </Text>
-      <Text textStyle="bodySm">{value}</Text>
-    </HStack>
   );
 }
 

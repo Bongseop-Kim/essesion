@@ -37,29 +37,21 @@ import {
   summarizeInquiries,
 } from "@/features/inquiry";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
+import { formatDateTime } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
-const dateFormat = new Intl.DateTimeFormat("ko-KR", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-const dateTimeFormat = new Intl.DateTimeFormat("ko-KR", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function formatDate(value: string | null, includeTime = false) {
-  if (value === null) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return (includeTime ? dateTimeFormat : dateFormat).format(date);
-}
+const formatDate = (value: string | null, includeTime = false) =>
+  formatDateTime(
+    value,
+    {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      ...(includeTime ? { hour: "2-digit", minute: "2-digit" } : {}),
+    },
+    "-",
+  );
 
 export function InquiryPage() {
   const queryClient = useQueryClient();

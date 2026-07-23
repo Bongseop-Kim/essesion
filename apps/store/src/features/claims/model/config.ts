@@ -74,15 +74,9 @@ const REASON_LABELS: Record<string, string> = {
   token_refund: "토큰 환불", // 서버가 token_refund 클레임의 reason에 기록하는 고정값
 };
 
-const TYPE_LABELS: Record<string, string> = {
-  cancel: "취소",
-  return: "반품",
-  exchange: "교환",
-  token_refund: "토큰 환불",
-};
-
 export function claimTypeLabel(type: string): string {
-  return TYPE_LABELS[type] ?? type;
+  if (type === "token_refund") return "토큰 환불";
+  return CLAIM_TYPE_CONFIG[type as ClaimType]?.label ?? type;
 }
 
 export function claimReasonLabel(reason: string): string {

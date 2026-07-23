@@ -1,6 +1,5 @@
 export type { InquiryPrefill } from "./model/config";
 export {
-  INQUIRY_CATEGORIES,
   inquiryStatusTone,
   isInquiryEditable,
   parseInquiryPrefill,
