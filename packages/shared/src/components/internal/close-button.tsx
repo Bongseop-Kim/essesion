@@ -1,6 +1,7 @@
 import type { ComponentPropsWithRef } from "react";
 
 import { cn } from "../../cn";
+import { focusRing } from "./focus-ring";
 import { XGlyph } from "./glyphs";
 
 export type CloseButtonProps = ComponentPropsWithRef<"button"> & {
@@ -18,9 +19,9 @@ export function CloseButton({
       type="button"
       aria-label={label}
       className={cn(
-        "flex size-7 shrink-0 items-center justify-center rounded-full bg-bg-neutral-weak text-fg-neutral-muted transition-colors duration-100 ease-standard",
+        "flex size-7 shrink-0 items-center justify-center rounded-full bg-bg-neutral-weak text-fg-neutral-muted transition-colors duration-(--duration-fast) ease-standard",
         "hover:bg-bg-neutral-weak-hover active:bg-bg-neutral-weak-pressed",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+        focusRing,
         className,
       )}
       {...props}

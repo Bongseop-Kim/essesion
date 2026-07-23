@@ -47,8 +47,8 @@ from api.domains.admin.schemas import (
     OrderStatusFilter,
     OrderTypeFilter,
     Page,
+    SortDirection,
 )
-from api.domains.admin.types import SortDirection
 from api.domains.images.service import (
     ADMIN_ORDER_IMAGE_TYPES,
     get_linked_order_image,

@@ -9,9 +9,8 @@ import json
 import time
 from dataclasses import dataclass
 
+import jwt
 from authlib.integrations.starlette_client import OAuth, OAuthError
-from joserfc import jwt as jose_jwt
-from joserfc.jwk import ECKey
 from starlette.requests import Request
 
 from api.config import Settings
@@ -35,9 +34,7 @@ class OAuthProfile:
 def _apple_client_secret(settings: Settings) -> str:
     """Apple은 고정 secret 대신 .p8 키로 서명한 ES256 JWT를 client_secret으로 요구한다."""
     now = int(time.time())
-    key = ECKey.import_key(settings.apple_private_key.replace("\\n", "\n"))
-    return jose_jwt.encode(
-        {"alg": "ES256", "kid": settings.apple_key_id},
+    return jwt.encode(
         {
             "iss": settings.apple_team_id,
             "iat": now,
@@ -45,8 +42,9 @@ def _apple_client_secret(settings: Settings) -> str:
             "aud": "https://appleid.apple.com",
             "sub": settings.apple_client_id,
         },
-        key,
-        algorithms=["ES256"],
+        settings.apple_private_key.replace("\\n", "\n"),
+        algorithm="ES256",
+        headers={"kid": settings.apple_key_id},
     )
 
 

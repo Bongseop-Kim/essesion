@@ -13,7 +13,6 @@ import {
   listDesignTurnsQueryKey,
   listGenerationJobsInfiniteOptions,
   listGenerationJobsOptions,
-  listGenerationJobsQueryKey,
 } from "@essesion/api-client/query";
 
 export type GenerationJobFilters = NonNullable<ListGenerationJobsData["query"]>;
@@ -57,8 +56,6 @@ export function designTurnsQueryOptions({
     enabled: authenticated && !!sessionId,
   };
 }
-
-export const generationJobsQueryKey = () => listGenerationJobsQueryKey();
 
 export function generationJobsQueryOptions({
   filters,

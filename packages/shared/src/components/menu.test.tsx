@@ -58,7 +58,7 @@ function renderMenu({
       <MenuContent aria-label="테스트 메뉴">
         <MenuItem label="추가" />
         <MenuItem label="수정" disabled />
-        <MenuItem label="삭제" tone="critical" />
+        <MenuItem label="삭제" />
       </MenuContent>
     </MenuRoot>,
   );
@@ -146,30 +146,6 @@ describe("MenuItem", () => {
       screen.getByRole("menuitem", { name: "수정", hidden: true }),
     );
     expect(onOpenChange).toHaveBeenCalledTimes(1);
-  });
-
-  it("tone=critical이면 critical 텍스트 색을 쓴다", () => {
-    renderMenu();
-    fireEvent.click(screen.getByRole("button", { name: "열기" }));
-    expect(screen.getByRole("menuitem", { name: "삭제" }).className).toContain(
-      "text-fg-critical",
-    );
-  });
-
-  it("description을 라벨 아래에 렌더한다", () => {
-    render(
-      <MenuRoot defaultOpen>
-        <MenuTrigger>
-          <button type="button">열기</button>
-        </MenuTrigger>
-        <MenuContent aria-label="테스트 메뉴">
-          <MenuItem label="수정" description="현재 항목을 수정합니다" />
-        </MenuContent>
-      </MenuRoot>,
-    );
-    expect(
-      screen.getByRole("menuitem", { name: /수정/ }).textContent,
-    ).toContain("현재 항목을 수정합니다");
   });
 });
 

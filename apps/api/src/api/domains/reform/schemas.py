@@ -1,13 +1,11 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, field_validator, model_validator
+from pydantic import Field, PositiveFloat, field_validator, model_validator
+
+from api.schemas import StrictModel
 
 
-class _StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class ReformPricingOut(_StrictModel):
+class ReformPricingOut(StrictModel):
     automatic_cost: int
     width_cost: int
     restoration_cost: int
@@ -17,16 +15,16 @@ class ReformPricingOut(_StrictModel):
     pickup_fee: int
 
 
-class ReformImageIn(_StrictModel):
+class ReformImageIn(StrictModel):
     object_key: str = Field(min_length=1, max_length=1_024)
     claim_token: str | None = Field(default=None, max_length=512)
 
 
-class ReformImageOut(_StrictModel):
+class ReformImageOut(StrictModel):
     object_key: str
 
 
-class AutomaticReform(_StrictModel):
+class AutomaticReform(StrictModel):
     mechanism: Literal["zipper", "string"]
     wearer_height_cm: PositiveFloat
     dimple: bool = False
@@ -39,11 +37,11 @@ class AutomaticReform(_StrictModel):
         return self
 
 
-class WidthReform(_StrictModel):
+class WidthReform(StrictModel):
     target_width_cm: PositiveFloat
 
 
-class RestorationReform(_StrictModel):
+class RestorationReform(StrictModel):
     memo: str = Field(default="", max_length=200)
 
     @field_validator("memo")
@@ -52,7 +50,7 @@ class RestorationReform(_StrictModel):
         return value.strip()
 
 
-class _TieOptions(_StrictModel):
+class _TieOptions(StrictModel):
     automatic: AutomaticReform | None = None
     width: WidthReform | None = None
     restoration: RestorationReform | None = None
@@ -72,10 +70,10 @@ class ReformTieOut(_TieOptions):
     image: ReformImageOut
 
 
-class ReformDataIn(_StrictModel):
+class ReformDataIn(StrictModel):
     tie: ReformTieIn
 
 
-class ReformDataOut(_StrictModel):
+class ReformDataOut(StrictModel):
     tie: ReformTieOut
     cost: int

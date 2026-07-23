@@ -8,16 +8,16 @@ from db.models.auth import User
 from db.models.commerce import Coupon, Order, UserCoupon
 from db.models.tokens import DesignToken
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 
 from api.db import SessionDep
 from api.deps import AdminUser
 from api.domains.admin.helpers import kst_day_bounds
-from api.domains.admin.schemas import Page
-from api.domains.admin.types import SortDirection
+from api.domains.admin.schemas import Page, SortDirection
 from api.domains.tokens import ledger
 from api.errors import DomainError, NotFoundError
+from api.schemas import ORMModel
 
 router = APIRouter(prefix="/admin/customers", tags=["admin-customers"])
 
@@ -61,9 +61,7 @@ class AdminCustomerDetailOut(AdminCustomerSummaryOut):
     bonus_token_balance: int
 
 
-class AdminCustomerOrderOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class AdminCustomerOrderOut(ORMModel):
     id: uuid.UUID
     order_number: str
     order_type: str
@@ -84,9 +82,7 @@ class AdminCustomerCouponOut(BaseModel):
     coupon_display_name: str | None
 
 
-class AdminCustomerTokenOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class AdminCustomerTokenOut(ORMModel):
     id: uuid.UUID
     amount: int
     type: str

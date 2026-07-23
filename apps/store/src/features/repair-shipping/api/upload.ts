@@ -3,12 +3,9 @@ import {
   registerRepairShippingUpload,
 } from "@essesion/api-client";
 
-import { putToSignedUrl, validateImageFile } from "@/shared/lib/upload";
+import { putIfRequired, validateImageFile } from "@/shared/lib/upload";
 
-export {
-  IMAGE_ACCEPT as REPAIR_PHOTO_ACCEPT,
-  MAX_IMAGE_BYTES as MAX_REPAIR_PHOTO_BYTES,
-} from "@/shared/lib/upload";
+export { IMAGE_ACCEPT as REPAIR_PHOTO_ACCEPT } from "@/shared/lib/upload";
 
 /** 서명 PUT URL 3단계: 발급 → GCS PUT → 등록. 반환: object_key */
 export async function uploadRepairShippingPhoto(file: File): Promise<string> {
@@ -24,14 +21,7 @@ export async function uploadRepairShippingPhoto(file: File): Promise<string> {
   });
   if (!issued.data) throw new Error("사진 업로드를 준비하지 못했습니다.");
 
-  if (issued.data.upload_required) {
-    await putToSignedUrl(
-      issued.data.upload_url,
-      issued.data.required_headers,
-      file,
-      "사진을 업로드하지 못했습니다.",
-    );
-  }
+  await putIfRequired(issued.data, file, "사진을 업로드하지 못했습니다.");
 
   const registered = await registerRepairShippingUpload({
     body: { upload_id: issued.data.upload_id },

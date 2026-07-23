@@ -15,14 +15,20 @@ import {
   FolderOpenIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import { formatDateTime } from "@/shared/lib/format";
 
-const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const formatDate = (value: string) =>
+  formatDateTime(
+    value,
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+    value,
+  );
 
 export type DesignSessionSummary = {
   id: string;
@@ -192,9 +198,4 @@ function sessionStatus(status: string): {
   if (status === "active") return { label: "작업 중", tone: "brand" };
   if (status === "finalized") return { label: "완성", tone: "positive" };
   return { label: status, tone: "neutral" };
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
 }

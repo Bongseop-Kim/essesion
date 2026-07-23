@@ -2,17 +2,9 @@ import { Children, type ComponentPropsWithRef, type ReactNode } from "react";
 
 import { cn } from "../cn";
 
-export type TagGroupProps = ComponentPropsWithRef<"span"> & {
-  /** 태그 사이 구분자 */
-  separator?: ReactNode;
-};
+export type TagGroupProps = ComponentPropsWithRef<"span">;
 
-export function TagGroup({
-  separator = "·",
-  className,
-  children,
-  ...props
-}: TagGroupProps) {
+export function TagGroup({ className, children, ...props }: TagGroupProps) {
   const items = Children.toArray(children);
   const rendered: ReactNode[] = [];
   items.forEach((child, i) => {
@@ -23,7 +15,7 @@ export function TagGroup({
           aria-hidden="true"
           className="text-fg-neutral-subtle"
         >
-          {separator}
+          ·
         </span>,
       );
     }
@@ -40,43 +32,17 @@ export function TagGroup({
   );
 }
 
-const tagSizes = {
-  t2: "text-t2",
-  t3: "text-t3",
-  t4: "text-t4",
-};
+export type TagProps = ComponentPropsWithRef<"span">;
 
-const tagTones = {
-  "neutral-subtle": "text-fg-neutral-subtle",
-  neutral: "text-fg-neutral",
-  brand: "text-fg-brand",
-};
-
-export type TagProps = ComponentPropsWithRef<"span"> & {
-  size?: keyof typeof tagSizes;
-  tone?: keyof typeof tagTones;
-  icon?: ReactNode;
-};
-
-export function Tag({
-  size = "t3",
-  tone = "neutral-subtle",
-  icon,
-  className,
-  children,
-  ...props
-}: TagProps) {
+export function Tag({ className, children, ...props }: TagProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-x0_5",
-        tagSizes[size],
-        tagTones[tone],
+        "inline-flex items-center text-t3 text-fg-neutral-subtle",
         className,
       )}
       {...props}
     >
-      {icon}
       {children}
     </span>
   );

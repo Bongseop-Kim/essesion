@@ -2,7 +2,6 @@ import type {
   AdminAction,
   AdminOrderReferenceImageOut,
   AdminRepairPhotoOut,
-  ClaimBadgeOut,
   OrderItemOut,
   RepairShippingReceiptOut,
 } from "@essesion/api-client";
@@ -20,15 +19,11 @@ import {
 import {
   ActionButton,
   AlertDialog,
-  Badge,
   Box,
   Callout,
   ContentPlaceholder,
-  claimBadge,
   decodeOrderItemContent,
-  Grid,
   HStack,
-  ImageFrame,
   Skeleton,
   snackbar,
   TabContent,
@@ -43,7 +38,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import {
@@ -56,7 +51,11 @@ import {
   getErrorMessage,
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
+import { AdminCard } from "../../shared/ui/admin-card";
+import { DetailList } from "../../shared/ui/detail-list";
+import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 import {
   AdminTable,
@@ -68,144 +67,6 @@ function record(value: unknown): Record<string, unknown> | null {
     ? (value as Record<string, unknown>)
     : null;
 }
-
-type DetailItem = {
-  label: ReactNode;
-  value: ReactNode;
-};
-
-function DetailSection({
-  title,
-  description,
-  children,
-}: {
-  title: ReactNode;
-  description?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Box
-      as="section"
-      bg="bg.layer-default"
-      borderRadius="r3"
-      p={{ base: "x4", md: "x5" }}
-      className="border border-stroke-neutral-weak"
-    >
-      <VStack gap="x4" alignItems="stretch">
-        <HStack justify="space-between" align="flex-start" gap="x4">
-          <VStack gap="x1" minWidth={0}>
-            <Text as="h2" textStyle="title3">
-              {title}
-            </Text>
-            {description !== undefined ? (
-              <Text textStyle="bodySm" color="fg.neutral-muted">
-                {description}
-              </Text>
-            ) : null}
-          </VStack>
-        </HStack>
-        {children}
-      </VStack>
-    </Box>
-  );
-}
-
-function DetailGrid({ items }: { items: readonly DetailItem[] }) {
-  return (
-    <Grid as="dl" columns={{ base: 1, md: 2 }} gap="x4">
-      {items.map((item, index) => (
-        <VStack as="div" key={index} gap="x1" minWidth={0}>
-          <Text as="dt" textStyle="caption" color="fg.neutral-muted">
-            {item.label}
-          </Text>
-          <Box as="dd" className="m-0 break-words">
-            <Text as="span" textStyle="bodySm">
-              {item.value}
-            </Text>
-          </Box>
-        </VStack>
-      ))}
-    </Grid>
-  );
-}
-
-function PrivateImagePreview({
-  src,
-  alt,
-  metadata,
-  loading,
-  error,
-  errorDescription,
-  onRequest,
-}: {
-  src?: string;
-  alt: string;
-  metadata: ReactNode;
-  loading: boolean;
-  error: boolean;
-  errorDescription: string;
-  onRequest: () => void;
-}) {
-  return (
-    <VStack gap="x2" alignItems="stretch">
-      {src ? (
-        <ImageFrame src={src} alt={alt} ratio={4 / 3} fit="contain" stroke />
-      ) : (
-        <Box
-          bg="bg.neutral-weak"
-          borderRadius="r2"
-          p="x6"
-          className="grid min-h-32 place-items-center"
-        >
-          <Text color="fg.neutral-muted">미리보기 URL을 요청해 주세요.</Text>
-        </Box>
-      )}
-      <HStack gap="x2" justify="space-between" wrap>
-        <Text textStyle="caption" color="fg.neutral-muted">
-          {metadata}
-        </Text>
-        <ActionButton
-          size="small"
-          variant="neutralOutline"
-          loading={loading}
-          onClick={onRequest}
-        >
-          {src ? "URL 재발급" : "이미지 보기"}
-        </ActionButton>
-      </HStack>
-      {error ? (
-        <Callout
-          role="alert"
-          tone="critical"
-          title="이미지를 불러오지 못했습니다"
-          description={errorDescription}
-        />
-      ) : null}
-    </VStack>
-  );
-}
-
-const positiveStatuses = new Set([
-  "완료",
-  "배송완료",
-  "sent",
-  "resolved",
-  "active",
-]);
-const criticalStatuses = new Set([
-  "실패",
-  "거부",
-  "취소",
-  "failed",
-  "inactive",
-]);
-const warningStatuses = new Set([
-  "대기중",
-  "답변대기",
-  "접수",
-  "pending",
-  "open",
-]);
 
 const ORDER_TABS = [
   "overview",
@@ -224,22 +85,6 @@ function orderTabFrom(
   if (!ORDER_TABS.includes(value as OrderTab)) return "overview";
   if (value === "shipping" && !hasShippingTab) return "overview";
   return value as OrderTab;
-}
-
-function OrderStatusBadge({ status }: { status: string }) {
-  const tone = positiveStatuses.has(status)
-    ? "positive"
-    : criticalStatuses.has(status)
-      ? "critical"
-      : warningStatuses.has(status)
-        ? "warning"
-        : "informative";
-  return <Badge tone={tone}>{status}</Badge>;
-}
-
-function OrderClaimBadge({ claim }: { claim: ClaimBadgeOut }) {
-  const presentation = claimBadge(claim);
-  return <Badge tone={presentation.tone}>{presentation.label}</Badge>;
 }
 
 function snapshotLabel(item: OrderItemOut) {
@@ -281,7 +126,7 @@ function AdminOrderContent({
         <Text as="h3" textStyle="label">
           {snapshotLabel(item)} · {content.typeLabel}
         </Text>
-        {content.rows.length > 0 ? <DetailGrid items={content.rows} /> : null}
+        {content.rows.length > 0 ? <DetailList items={content.rows} /> : null}
         {content.tags.length > 0 ? (
           <TagGroup>
             {content.tags.map((tag) => (
@@ -318,7 +163,7 @@ function OrderReferenceImage({
   });
 
   return (
-    <PrivateImagePreview
+    <PrivateAssetPreview
       src={readUrl}
       alt={`주문 첨부 이미지 ${index + 1}`}
       metadata={
@@ -356,7 +201,7 @@ function RepairReceiptPhoto({
   });
 
   return (
-    <PrivateImagePreview
+    <PrivateAssetPreview
       src={readUrl}
       alt={`수선 발송 사진 ${index + 1}`}
       metadata={
@@ -435,7 +280,7 @@ function itemColumns(): readonly AdminTableColumn<OrderItemOut>[] {
       key: "claim",
       header: "클레임",
       render: (item) =>
-        item.claim ? <OrderClaimBadge claim={item.claim} /> : "-",
+        item.claim ? <ClaimStatusBadge claim={item.claim} /> : "-",
     },
     {
       key: "quantity",
@@ -632,7 +477,7 @@ export function OrderDetailPage() {
   };
   const orderItems = data.items ?? [];
   const actionPanel = (
-    <DetailSection title="운영 액션">
+    <AdminCard title="운영 액션">
       <VStack gap="x4" alignItems="stretch">
         <HStack gap="x2" wrap>
           {(data.admin_actions ?? []).map((action) => (
@@ -743,7 +588,7 @@ export function OrderDetailPage() {
           </VStack>
         )}
       </VStack>
-    </DetailSection>
+    </AdminCard>
   );
 
   return (
@@ -754,9 +599,9 @@ export function OrderDetailPage() {
           description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 변경 ${formatDateTime(data.updated_at)}`}
         />
         <HStack gap="x1" wrap>
-          <OrderStatusBadge status={data.status} />
+          <StatusBadge status={data.status} />
           {data.claim_summary ? (
-            <OrderClaimBadge claim={data.claim_summary} />
+            <ClaimStatusBadge claim={data.claim_summary} />
           ) : null}
         </HStack>
       </HStack>
@@ -793,8 +638,8 @@ export function OrderDetailPage() {
 
         <TabContent value="overview">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <DetailSection title="주문 정보">
-              <DetailGrid
+            <AdminCard title="주문 정보">
+              <DetailList
                 items={[
                   {
                     label: "주문 유형",
@@ -830,15 +675,15 @@ export function OrderDetailPage() {
                   },
                 ]}
               />
-            </DetailSection>
+            </AdminCard>
           </VStack>
         </TabContent>
 
         {hasShippingTab ? (
           <TabContent value="shipping">
             <VStack gap="x5" pt="x5" alignItems="stretch">
-              <DetailSection title="배송 정보">
-                <DetailGrid
+              <AdminCard title="배송 정보">
+                <DetailList
                   items={[
                     {
                       label: "받는 분",
@@ -893,11 +738,11 @@ export function OrderDetailPage() {
                       : []),
                   ]}
                 />
-              </DetailSection>
+              </AdminCard>
 
               {data.repair_pickup ? (
-                <DetailSection title="수선 수거 요청">
-                  <DetailGrid
+                <AdminCard title="수선 수거 요청">
+                  <DetailList
                     items={[
                       {
                         label: "수거 대상",
@@ -918,11 +763,11 @@ export function OrderDetailPage() {
                       },
                     ]}
                   />
-                </DetailSection>
+                </AdminCard>
               ) : null}
 
               {(data.repair_receipts ?? []).length > 0 ? (
-                <DetailSection title="수선 발송 접수">
+                <AdminCard title="수선 발송 접수">
                   <VStack gap="x3" alignItems="stretch">
                     {(data.repair_receipts ?? []).map((receipt) => (
                       <Box
@@ -933,7 +778,7 @@ export function OrderDetailPage() {
                         p="x4"
                       >
                         <VStack gap="x3" alignItems="stretch">
-                          <DetailGrid
+                          <DetailList
                             items={[
                               {
                                 label: "발송 방식",
@@ -980,11 +825,11 @@ export function OrderDetailPage() {
                       </Box>
                     ))}
                   </VStack>
-                </DetailSection>
+                </AdminCard>
               ) : null}
 
               {hasOrderImages && (
-                <DetailSection
+                <AdminCard
                   title="첨부 이미지"
                   description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
                 >
@@ -1018,7 +863,7 @@ export function OrderDetailPage() {
                       ))}
                     </VStack>
                   )}
-                </DetailSection>
+                </AdminCard>
               )}
             </VStack>
           </TabContent>
@@ -1026,7 +871,7 @@ export function OrderDetailPage() {
 
         <TabContent value="items">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <DetailSection
+            <AdminCard
               title="주문 항목"
               description="상품·옵션·쿠폰은 주문 생성 시점 스냅샷을 우선합니다."
             >
@@ -1046,7 +891,7 @@ export function OrderDetailPage() {
                   />
                 ))}
               </VStack>
-            </DetailSection>
+            </AdminCard>
 
             <TechnicalDetails
               json={{
@@ -1065,13 +910,13 @@ export function OrderDetailPage() {
 
         <TabContent value="payment">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <DetailSection title="결제·클레임">
-              <DetailGrid
+            <AdminCard title="결제·클레임">
+              <DetailList
                 items={[
                   {
                     label: "클레임",
                     value: data.claim_summary ? (
-                      <OrderClaimBadge claim={data.claim_summary} />
+                      <ClaimStatusBadge claim={data.claim_summary} />
                     ) : (
                       "-"
                     ),
@@ -1088,22 +933,22 @@ export function OrderDetailPage() {
                   },
                 ]}
               />
-            </DetailSection>
+            </AdminCard>
 
             {data.related_orders !== undefined &&
               data.related_orders.length > 0 && (
-                <DetailSection title="같은 결제 그룹 주문">
+                <AdminCard title="같은 결제 그룹 주문">
                   <VStack gap="x2">
                     {data.related_orders.map((order) => (
                       <HStack key={order.id} justify="space-between" gap="x3">
                         <Link to={`/orders/${order.id}`}>
                           {order.order_number}
                         </Link>
-                        <OrderStatusBadge status={order.status} />
+                        <StatusBadge status={order.status} />
                       </HStack>
                     ))}
                   </VStack>
-                </DetailSection>
+                </AdminCard>
               )}
 
             <TechnicalDetails
@@ -1117,7 +962,7 @@ export function OrderDetailPage() {
 
         <TabContent value="activity">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <DetailSection title="상태 변경 이력">
+            <AdminCard title="상태 변경 이력">
               {timeline.length === 0 ? (
                 <Text color="fg.neutral-muted">
                   기록된 상태 변경이 없습니다.
@@ -1146,7 +991,7 @@ export function OrderDetailPage() {
                   ))}
                 </VStack>
               )}
-            </DetailSection>
+            </AdminCard>
 
             <TechnicalDetails
               json={{

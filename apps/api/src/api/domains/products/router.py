@@ -26,22 +26,14 @@ from api.errors import NotFoundError
 router = APIRouter(tags=["products"])
 
 
-def _escape_like(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
-def _likes_subquery():
-    """상품별 찜 수 (상관 스칼라 서브쿼리) — SELECT 라벨과 popular 정렬에서 재사용."""
-    return (
+def _product_query(user: User | None):
+    # 상품별 찜 수 (상관 스칼라 서브쿼리) — SELECT 라벨과 popular 정렬에서 재사용.
+    likes = (
         select(func.count())
         .where(ProductLike.product_id == Product.id)
         .correlate(Product)
         .scalar_subquery()
     )
-
-
-def _product_query(user: User | None):
-    likes = _likes_subquery()
     if user is not None:
         is_liked = exists().where(
             ProductLike.product_id == Product.id, ProductLike.user_id == user.id
@@ -96,7 +88,7 @@ async def list_products(
     if material:
         query = query.where(Product.material == material)
     if q and (search := q.strip()):
-        query = query.where(Product.name.ilike(f"%{_escape_like(search)}%", escape="\\"))
+        query = query.where(Product.name.icontains(search, autoescape=True))
     order_by = {
         "latest": [Product.id.desc()],
         "price-low": [Product.price.asc(), Product.id.desc()],

@@ -21,12 +21,12 @@ import { Navigate, useNavigate, useParams } from "react-router";
 import { customOrderSummary } from "@/features/custom-order";
 import {
   formatQuoteAmount,
-  formatQuoteDate,
   quoteContactMethodLabel,
   quoteCustomOrderOptions,
   quoteReferenceImageKeys,
   quoteRequestStatusTone,
 } from "@/features/quote-request";
+import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
@@ -183,7 +183,7 @@ export function QuoteRequestDetailPage() {
             <DetailSection title="기본 정보">
               <InfoRows
                 rows={[
-                  { label: "요청일", value: formatQuoteDate(quote.created_at) },
+                  { label: "요청일", value: formatDate(quote.created_at) },
                   {
                     label: "수량",
                     value: `${quote.quantity.toLocaleString("ko-KR")}개`,

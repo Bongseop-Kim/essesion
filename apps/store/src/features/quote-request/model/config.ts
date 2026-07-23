@@ -1,4 +1,4 @@
-import { dateMedium, krw } from "@/shared/lib/format";
+import { krw } from "@/shared/lib/format";
 
 export const QUOTE_REQUEST_STATUSES = [
   "요청",
@@ -60,8 +60,4 @@ export function quoteContactName(
 
 export function formatQuoteAmount(amount: number): string {
   return `${krw.format(amount)}원`;
-}
-
-export function formatQuoteDate(iso: string): string {
-  return dateMedium.format(new Date(iso));
 }

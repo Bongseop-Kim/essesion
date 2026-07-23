@@ -19,14 +19,12 @@ import {
   Badge,
   Box,
   Callout,
-  Chip,
   ContentPlaceholder,
   HStack,
   List,
   ListHeader,
   ListItem,
   ProgressCircle,
-  ScrollFog,
   Skeleton,
   snackbar,
   Text,
@@ -39,11 +37,17 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { krw } from "@/pages/shop/constants";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
+import { formatDateTime } from "@/shared/lib/format";
+import {
+  offsetPageParam,
+  useInfiniteScrollSentinel,
+} from "@/shared/lib/infinite-scroll";
+import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
@@ -86,10 +90,7 @@ export function TokenHistoryPage() {
   const historyQuery = useInfiniteQuery({
     ...listTokenHistoryInfiniteOptions(historyOptions),
     initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.length > HISTORY_PAGE_SIZE
-        ? allPages.length * HISTORY_PAGE_SIZE
-        : undefined,
+    getNextPageParam: offsetPageParam(HISTORY_PAGE_SIZE),
   });
   const history =
     historyQuery.data?.pages.flatMap((page) =>
@@ -127,32 +128,7 @@ export function TokenHistoryPage() {
       snackbar("환불 신청을 취소하지 못했습니다. 다시 시도해 주세요."),
   });
 
-  useEffect(() => {
-    if (
-      !isMobile ||
-      !historyQuery.hasNextPage ||
-      historyQuery.isFetchingNextPage ||
-      historyQuery.isFetchNextPageError
-    ) {
-      return;
-    }
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) void historyQuery.fetchNextPage();
-      },
-      { rootMargin: "240px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [
-    historyQuery.fetchNextPage,
-    historyQuery.hasNextPage,
-    historyQuery.isFetchNextPageError,
-    historyQuery.isFetchingNextPage,
-    isMobile,
-  ]);
+  useInfiniteScrollSentinel(sentinelRef, historyQuery, isMobile);
 
   const sidebar = balanceQuery.isPending ? (
     <Skeleton width="100%" height={240} />
@@ -284,19 +260,11 @@ export function TokenHistoryPage() {
               <Text as="h2" textStyle="title2">
                 변동 내역
               </Text>
-              <ScrollFog direction="horizontal">
-                <HStack gap="x2">
-                  {HISTORY_FILTERS.map((option) => (
-                    <Chip
-                      key={option.value}
-                      selected={historyFilter === option.value}
-                      onClick={() => setHistoryFilter(option.value)}
-                    >
-                      {option.label}
-                    </Chip>
-                  ))}
-                </HStack>
-              </ScrollFog>
+              <ChipFilterBar
+                filters={HISTORY_FILTERS}
+                value={historyFilter}
+                onChange={setHistoryFilter}
+              />
             </VStack>
 
             {historyQuery.isPending ? (
@@ -586,13 +554,9 @@ function historyDescription(entry: TokenHistoryEntry): string {
     : classLabel;
 }
 
-function formatDate(value: string | null): string {
-  if (!value) return "없음";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "없음";
-  return new Intl.DateTimeFormat("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
+const formatDate = (value: string | null) =>
+  formatDateTime(
+    value,
+    { year: "numeric", month: "2-digit", day: "2-digit" },
+    "없음",
+  );

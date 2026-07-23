@@ -1,5 +1,4 @@
 export { AUTH_PROVIDERS, type AuthProviderId } from "./model/providers";
-export { useLogout } from "./model/use-logout";
 export {
   AuthGuardProvider,
   useAuthGuard,

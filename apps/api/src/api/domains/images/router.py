@@ -10,7 +10,7 @@ from typing import Literal
 
 from db.models.images import Image
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from api.db import SessionDep
@@ -22,6 +22,7 @@ from api.domains.images.service import (
     order_upload_entity_type,
 )
 from api.errors import ConflictError, DomainError, NotFoundError
+from api.schemas import ORMModel
 
 router = APIRouter(tags=["images"])
 
@@ -94,9 +95,7 @@ class ReadUrlResponse(BaseModel):
     read_url: str
 
 
-class ImageOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class ImageOut(ORMModel):
     id: uuid.UUID
     object_key: str
     entity_type: str
@@ -133,19 +132,14 @@ async def create_upload_url(
     object_key = f"uploads/{body.kind}/{uuid.uuid4().hex}{extension}"
     # 모든 업로드 종류를 발급 시점에 스테이징해 완료 요청이 임의의 object_key를
     # 등록하지 못하게 한다.
-    entity_type = (
-        "quote_request_upload"
-        if body.kind == "quote_request"
-        else (
-            "design_reference_upload"
-            if body.kind == "design_reference"
-            else (
-                "repair_shipping_upload"
-                if body.kind == "repair_shipping_upload"
-                else order_upload_entity_type(body.kind)
-            )
-        )
-    )
+    if body.kind in ("custom_order", "sample_order"):
+        entity_type = order_upload_entity_type(body.kind)
+    else:
+        entity_type = {
+            "quote_request": "quote_request_upload",
+            "design_reference": "design_reference_upload",
+            "repair_shipping_upload": "repair_shipping_upload",
+        }[body.kind]
     staged_image = Image(
         object_key=object_key,
         entity_type=entity_type,

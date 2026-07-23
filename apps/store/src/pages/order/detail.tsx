@@ -47,7 +47,6 @@ import {
 } from "@/features/claims";
 import {
   canRegisterRepairShipment,
-  formatOrderDate,
   orderStatusTone,
   orderTypeLabel,
 } from "@/features/orders";
@@ -60,7 +59,9 @@ import {
 import { ReviewFormModal, type ReviewTarget } from "@/features/reviews";
 import { deliveryRequestLabel } from "@/features/shipping";
 import { krw } from "@/pages/shop/constants";
+import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
+import { InfoRow } from "@/shared/ui/info-row";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 type ClaimTarget = { type: ClaimType; item: OrderItemOut };
@@ -178,7 +179,7 @@ export function OrderDetailPage() {
             </HStack>
             <Text textStyle="caption" color="fg.neutral-muted">
               {orderTypeLabel(order.order_type)} 주문 ·{" "}
-              {formatOrderDate(order.created_at)}
+              {formatDate(order.created_at)}
             </Text>
           </VStack>
 
@@ -609,10 +610,7 @@ function RepairReceipt({
           {receipt.receipt_type === "tracking" ? "송장 등록" : "송장 없이 발송"}
         </Text>
         {reason ? <InfoRow label="사유" value={reason} /> : null}
-        <InfoRow
-          label="접수 시각"
-          value={formatOrderDate(receipt.created_at)}
-        />
+        <InfoRow label="접수 시각" value={formatDate(receipt.created_at)} />
         {receipt.memo ? (
           <VStack gap="x1">
             <Text textStyle="labelSm" color="fg.neutral-muted">
@@ -742,7 +740,7 @@ function ShipmentInfo({
           </Text>
           {shippedAt ? (
             <Text textStyle="caption" color="fg.neutral-muted">
-              발송 등록일 {formatOrderDate(shippedAt)}
+              발송 등록일 {formatDate(shippedAt)}
             </Text>
           ) : null}
         </VStack>
@@ -760,17 +758,6 @@ function ShipmentInfo({
         ) : null}
       </HStack>
     </VStack>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <HStack justify="space-between" gap="x4" align="flex-start">
-      <Text textStyle="bodySm" color="fg.neutral-muted">
-        {label}
-      </Text>
-      <Text textStyle="bodySm">{value}</Text>
-    </HStack>
   );
 }
 

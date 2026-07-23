@@ -15,7 +15,7 @@ import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function FaqPage() {
-  const { fees, pricingStatus } = useReformPricingTokens();
+  const { applyReformFees, pricingStatus } = useReformPricingTokens();
 
   return (
     <>
@@ -67,15 +67,7 @@ export function FaqPage() {
                         color="fg.neutral-muted"
                         className="whitespace-pre-line"
                       >
-                        {faq.answer
-                          .replaceAll(
-                            "{{REFORM_SHIPPING_COST}}",
-                            fees.REFORM_SHIPPING_COST,
-                          )
-                          .replaceAll(
-                            "{{REFORM_PICKUP_FEE}}",
-                            fees.REFORM_PICKUP_FEE,
-                          )}
+                        {applyReformFees(faq.answer)}
                       </Text>
                     </Article>
                   </AccordionContent>

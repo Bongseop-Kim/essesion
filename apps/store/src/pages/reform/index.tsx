@@ -34,10 +34,8 @@ import { useAuthGuard } from "@/features/auth";
 import { useCartActions, useCartItems } from "@/features/cart";
 import { InquirySection } from "@/features/inquiry";
 import {
-  BulkApplyModal,
   calculateReformCost,
   createReformTie,
-  mapWithConcurrency,
   type ReformFormValues,
   ReformHeightGuide,
   ReformServiceGuide,
@@ -50,12 +48,26 @@ import {
   uploadReformImage,
 } from "@/features/reform";
 import { ReviewListSection } from "@/features/reviews";
+import { mapWithConcurrency } from "@/shared/lib/async";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
 const MAX_TIES = 50;
+
+// 일괄 적용 모달의 초기값 — 안정 참조여야 모달이 열릴 때마다 리셋되지 않는다.
+const BULK_INITIAL_VALUES: ReformSettingsValues = {
+  automaticEnabled: true,
+  mechanism: "zipper",
+  wearerHeightCm: null,
+  dimple: false,
+  turnKnot: false,
+  widthEnabled: false,
+  targetWidthCm: null,
+  restorationEnabled: false,
+  restorationMemo: "",
+};
 
 export function ReformPage() {
   const navigate = useNavigate();
@@ -549,9 +561,12 @@ export function ReformPage() {
           }
         }}
       />
-      <BulkApplyModal
+      <ReformSettingsModal
         open={bulkOpen}
-        selectedCount={selectedIds.size}
+        title="일괄 적용"
+        description={`선택한 ${selectedIds.size}개 항목의 수선 설정을 교체합니다.`}
+        initialValues={BULK_INITIAL_VALUES}
+        submitLabel="적용"
         onOpenChange={setBulkOpen}
         onApply={applyBulk}
       />

@@ -1,8 +1,8 @@
 import { createReadUrl } from "@essesion/api-client";
-import { AttachmentDisplayField, snackbar } from "@essesion/shared";
+import { AttachmentDisplayField } from "@essesion/shared";
 import { useQueries } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { mapWithConcurrency } from "@/features/reform";
+
+import { usePhotoUploadQueue } from "@/shared/lib/use-photo-upload-queue";
 import { REPAIR_PHOTO_ACCEPT, uploadRepairShippingPhoto } from "../api/upload";
 import { MAX_REPAIR_PHOTOS, type RepairPhotoState } from "../model/shipment";
 
@@ -18,15 +18,21 @@ export function RepairPhotoField({
   onUploadingChange?: (uploading: boolean) => void;
   disabled?: boolean;
 }) {
-  const [pendingCount, setPendingCount] = useState(0);
-  // 비동기 업로드 완료 시점의 최신 photos를 참조하기 위한 미러
-  const photosRef = useRef(photos);
-  photosRef.current = photos;
+  const { pendingCount, addFiles, removeItem } =
+    usePhotoUploadQueue<RepairPhotoState>({
+      photos,
+      max: MAX_REPAIR_PHOTOS,
+      upload: async (file) => ({
+        objectKey: await uploadRepairShippingPhoto(file),
+        previewUrl: URL.createObjectURL(file),
+      }),
+      getId: (photo) => photo.objectKey,
+      getPreview: (photo) => photo.previewUrl,
+      onChange,
+      onUploadingChange,
+    });
 
-  useEffect(() => {
-    onUploadingChange?.(pendingCount > 0);
-  }, [onUploadingChange, pendingCount]);
-
+  // 세션 복원 항목(previewUrl === null)은 read-url로 썸네일을 되살린다.
   const restoreTargets = photos.filter((photo) => photo.previewUrl === null);
   const restoreQueries = useQueries({
     queries: restoreTargets.map((photo) => ({
@@ -47,41 +53,6 @@ export function RepairPhotoField({
     if (url) restored.set(photo.objectKey, url);
   });
 
-  const handleAddFiles = async (files: File[]) => {
-    const remaining =
-      MAX_REPAIR_PHOTOS - photosRef.current.length - pendingCount;
-    const accepted = files.slice(0, Math.max(0, remaining));
-    if (accepted.length === 0) return;
-    setPendingCount((count) => count + accepted.length);
-    await mapWithConcurrency(accepted, 2, async (file) => {
-      try {
-        const objectKey = await uploadRepairShippingPhoto(file);
-        const next = [
-          ...photosRef.current,
-          { objectKey, previewUrl: URL.createObjectURL(file) },
-        ];
-        photosRef.current = next;
-        onChange(next);
-      } catch (error) {
-        snackbar(
-          error instanceof Error
-            ? error.message
-            : "사진을 업로드하지 못했습니다.",
-        );
-      } finally {
-        setPendingCount((count) => count - 1);
-      }
-    });
-  };
-
-  const handleRemove = (id: string) => {
-    const target = photosRef.current.find((photo) => photo.objectKey === id);
-    if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-    const next = photosRef.current.filter((photo) => photo.objectKey !== id);
-    photosRef.current = next;
-    onChange(next);
-  };
-
   return (
     <AttachmentDisplayField
       label="발송 사진"
@@ -94,8 +65,8 @@ export function RepairPhotoField({
         src: photo.previewUrl ?? restored.get(photo.objectKey) ?? "",
         alt: `발송 사진 ${index + 1}`,
       }))}
-      onAddFiles={disabled ? undefined : (files) => void handleAddFiles(files)}
-      onRemove={disabled ? undefined : handleRemove}
+      onAddFiles={disabled ? undefined : (files) => void addFiles(files)}
+      onRemove={disabled ? undefined : removeItem}
     />
   );
 }

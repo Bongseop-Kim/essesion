@@ -2,14 +2,12 @@ import { listMyOrdersOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Badge,
-  Chip,
   ContentPlaceholder,
   claimBadge,
   HStack,
   List,
   ListHeader,
   ListItem,
-  ScrollFog,
   Skeleton,
   Text,
   VStack,
@@ -20,6 +18,7 @@ import { useNavigate } from "react-router";
 import { orderStatusTone, orderTypeLabel } from "@/features/orders";
 import { krw } from "@/pages/shop/constants";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
+import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 type OrderTypeFilter =
@@ -64,19 +63,11 @@ export function OrderListPage() {
           주문 내역
         </Text>
 
-        <ScrollFog direction="horizontal">
-          <HStack gap="x2">
-            {ORDER_TYPE_FILTERS.map((option) => (
-              <Chip
-                key={option.value}
-                selected={filter === option.value}
-                onClick={() => setFilter(option.value)}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </HStack>
-        </ScrollFog>
+        <ChipFilterBar
+          filters={ORDER_TYPE_FILTERS}
+          value={filter}
+          onChange={setFilter}
+        />
 
         {ordersQuery.isPending ? (
           <VStack gap="x3" alignItems="stretch">

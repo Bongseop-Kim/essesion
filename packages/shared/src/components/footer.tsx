@@ -2,6 +2,7 @@ import type { AnchorHTMLAttributes, ReactElement, ReactNode } from "react";
 
 import { cn } from "../cn";
 import { Box, type BoxProps } from "./box";
+import { focusRing } from "./internal/focus-ring";
 import { LayoutContent } from "./layout";
 import { VStack } from "./stack";
 import { Text } from "./text";
@@ -46,8 +47,8 @@ export function FooterLink({
 }: FooterLinkProps) {
   const linkProps = {
     className: cn(
-      "text-t4 font-medium text-fg-neutral-muted transition-colors duration-100 ease-standard hover:text-fg-neutral",
-      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+      "text-t4 font-medium text-fg-neutral-muted transition-colors duration-(--duration-fast) ease-standard hover:text-fg-neutral",
+      focusRing,
       className,
     ),
     ...props,

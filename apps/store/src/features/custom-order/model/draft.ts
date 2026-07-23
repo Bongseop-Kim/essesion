@@ -131,14 +131,6 @@ export function clearCustomOrderFormDraft(ownerUserId: string | null) {
   removeCustomOrderDraftItem(customOrderDraftStorageKey(ownerUserId));
 }
 
-export function handoffAnonymousCustomOrderFormDraft(
-  ownerUserId: string,
-  value: CustomOrderFormDraft,
-) {
-  saveCustomOrderFormDraft(ownerUserId, value);
-  clearCustomOrderFormDraft(null);
-}
-
 export function parseCustomOrderDraft(value: unknown): CustomOrderDraft | null {
   const parsed = orderDraftSchema.safeParse(value);
   return parsed.success ? parsed.data : null;

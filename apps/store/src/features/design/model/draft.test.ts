@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   AUTO_PATTERN_CONSTRAINTS,
-  isAutoPattern,
   normalizeHexColor,
   normalizePaletteColors,
   patternConstraintLabels,
@@ -23,7 +22,6 @@ describe("design draft contracts", () => {
   });
 
   it("자동 패턴과 사용자 요약을 구분한다", () => {
-    expect(isAutoPattern(AUTO_PATTERN_CONSTRAINTS)).toBe(true);
     expect(
       patternConstraintLabels({
         ...AUTO_PATTERN_CONSTRAINTS,

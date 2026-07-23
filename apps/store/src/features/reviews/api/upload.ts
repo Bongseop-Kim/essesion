@@ -3,7 +3,7 @@ import {
   createReviewPhotoUploadUrl,
 } from "@essesion/api-client";
 
-import { putToSignedUrl, validateImageFile } from "@/shared/lib/upload";
+import { putIfRequired, validateImageFile } from "@/shared/lib/upload";
 
 export { IMAGE_ACCEPT as REVIEW_PHOTO_ACCEPT } from "@/shared/lib/upload";
 
@@ -22,14 +22,7 @@ export async function uploadReviewPhoto(file: File): Promise<string> {
   });
   if (!issued.data) throw new Error("사진 업로드를 준비하지 못했습니다.");
 
-  if (issued.data.upload_required) {
-    await putToSignedUrl(
-      issued.data.upload_url,
-      issued.data.required_headers,
-      file,
-      "사진을 업로드하지 못했습니다.",
-    );
-  }
+  await putIfRequired(issued.data, file, "사진을 업로드하지 못했습니다.");
 
   const completed = await completeReviewPhotoUpload({
     path: { upload_id: issued.data.upload_id },

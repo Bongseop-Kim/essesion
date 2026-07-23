@@ -1,7 +1,9 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+
+from api.schemas import ORMModel
 
 EMAIL_MAX_LENGTH = 320
 PASSWORD_MAX_LENGTH = 1024
@@ -18,9 +20,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class MeResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class MeResponse(ORMModel):
     id: uuid.UUID
     email: str | None
     name: str

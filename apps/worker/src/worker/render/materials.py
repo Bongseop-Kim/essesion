@@ -3,7 +3,7 @@
 from PIL import Image, ImageChops, ImageOps
 
 from worker.render.segment import Segmentation, mask_for
-from worker.render.weave import apply_weave, tile_to, weave_image
+from worker.render.weave import apply_weave, emboss, tile_to, weave_image
 
 _RELIEF_MM = 0.17  # 경계 rim 폭 ≈ 이 값(물리, DPI 안정)
 _RELIEF_RIM_MIN = 0.25  # weave 휘도가 rim 강도를 [이 값, 1]로 변조 — 균일 라인 방지
@@ -60,7 +60,4 @@ def apply_relief(
     hi = ImageChops.multiply(rim(d, d), mod)  # 좌상단 면 — 하이라이트
     lo = ImageChops.multiply(rim(-d, -d), mod)  # 우하단 면 — 그림자
     k = min(0.6, 0.26 * strength)
-    lit = Image.blend(out, Image.new("RGB", out.size, (255, 255, 255)), k)
-    dark = Image.blend(out, Image.new("RGB", out.size, (0, 0, 0)), k)
-    out = Image.composite(lit, out, hi)
-    return Image.composite(dark, out, lo)
+    return emboss(out, hi, lo, k)

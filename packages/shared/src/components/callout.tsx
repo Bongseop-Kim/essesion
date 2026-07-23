@@ -3,7 +3,8 @@ import type { ComponentPropsWithRef, ReactNode } from "react";
 import { cn } from "../cn";
 import { Box } from "./box";
 import { Flex } from "./flex";
-import { ChevronDownGlyph, XGlyph } from "./internal/glyphs";
+import { focusRing } from "./internal/focus-ring";
+import { ChevronDownGlyph } from "./internal/glyphs";
 import { VStack } from "./stack";
 import { Text } from "./text";
 
@@ -46,45 +47,28 @@ export type CalloutProps = Omit<
   icon?: ReactNode;
   /** actionable — 루트를 button으로 렌더하고 우측에 셰브론을 둔다. */
   onClick?: () => void;
-  /** dismissible — 우측에 X 버튼을 둔다. onClick과 동시 사용 시 onClick 우선. */
-  onDismiss?: () => void;
 };
 
-/** 페이지 내 안내 블록 — tone 5종, actionable(onClick)·dismissible(onDismiss) 지원. */
+/** 페이지 내 안내 블록 — tone 5종, actionable(onClick) 지원. */
 export function Callout({
   tone = "neutral",
   title,
   description,
   icon,
   onClick,
-  onDismiss,
   className,
   children,
   ...rest
 }: CalloutProps) {
   const actionable = onClick !== undefined;
-  const dismissible = onDismiss !== undefined;
-  if (process.env.NODE_ENV !== "production" && actionable && dismissible) {
-    console.warn(
-      "Callout: onClick과 onDismiss를 함께 지정하면 onClick(actionable)이 우선합니다.",
-    );
-  }
-  if (
-    process.env.NODE_ENV !== "production" &&
-    dismissible &&
-    (tone === "warning" || tone === "critical")
-  ) {
-    console.warn(
-      "Callout: warning/critical 메시지는 dismissible로 쓰지 마세요.",
-    );
-  }
 
   const rootClass = cn(
     "text-left",
     toneBg[tone],
     toneBody[tone],
     actionable &&
-      "transition-colors duration-100 ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:opacity-80",
+      "transition-colors duration-(--duration-fast) ease-standard active:opacity-80",
+    actionable && focusRing,
     className,
   );
 
@@ -114,25 +98,9 @@ export function Callout({
         )}
         {children}
       </VStack>
-      {actionable ? (
+      {actionable && (
         <ChevronDownGlyph className="size-4 shrink-0 -rotate-90" />
-      ) : dismissible ? (
-        <Flex
-          as="button"
-          type="button"
-          aria-label="닫기"
-          onClick={onDismiss}
-          align="center"
-          justify="center"
-          width={24}
-          height={24}
-          shrink={0}
-          borderRadius="full"
-          className="transition-colors duration-100 ease-standard focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:opacity-70"
-        >
-          <XGlyph className="size-4" />
-        </Flex>
-      ) : null}
+      )}
     </>
   );
 

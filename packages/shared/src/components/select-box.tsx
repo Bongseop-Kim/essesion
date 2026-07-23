@@ -144,7 +144,7 @@ export function SelectBoxItem({
       gap="x3"
       px="x4"
       py="x4"
-      className="cursor-pointer rounded-r3 border border-stroke-neutral bg-bg-layer-default transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak has-disabled:cursor-not-allowed has-disabled:bg-bg-disabled has-focus-visible:outline has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-stroke-focus-ring"
+      className="cursor-pointer rounded-r3 border border-stroke-neutral bg-bg-layer-default transition-colors duration-(--duration-fast) ease-standard hover:bg-bg-neutral-weak has-disabled:cursor-not-allowed has-disabled:bg-bg-disabled has-focus-visible:outline has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-stroke-focus-ring"
     >
       <input
         type={multiple ? "checkbox" : "radio"}
@@ -158,7 +158,7 @@ export function SelectBoxItem({
       {/* 선택 채움 오버레이 — peer(input) 뒤 형제라야 peer-checked가 작동 */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-r3 outline outline-2 -outline-offset-1 outline-stroke-brand opacity-0 transition-opacity duration-100 ease-standard peer-checked:opacity-100"
+        className="pointer-events-none absolute inset-0 rounded-r3 outline outline-2 -outline-offset-1 outline-stroke-brand opacity-0 transition-opacity duration-(--duration-fast) ease-standard peer-checked:opacity-100"
       />
       <VStack gap="x1" alignItems="stretch" className="min-w-0 flex-1">
         <Text textStyle="label" color={disabled ? "fg.disabled" : "fg.neutral"}>
@@ -173,7 +173,7 @@ export function SelectBoxItem({
           </Text>
         )}
       </VStack>
-      <CheckGlyph className="size-5 shrink-0 text-transparent transition-colors duration-100 ease-standard peer-checked:text-fg-brand" />
+      <CheckGlyph className="size-5 shrink-0 text-transparent transition-colors duration-(--duration-fast) ease-standard peer-checked:text-fg-brand" />
     </Flex>
   );
 }

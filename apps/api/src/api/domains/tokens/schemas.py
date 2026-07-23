@@ -2,7 +2,9 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
+
+from api.schemas import ORMModel
 
 TokenLedgerType = Literal["grant", "use", "refund", "admin", "purchase"]
 TokenHistoryFilter = Literal["credit", "use", "refund"]
@@ -21,9 +23,7 @@ class TokenPlan(BaseModel):
     token_amount: int
 
 
-class TokenHistoryEntry(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class TokenHistoryEntry(ORMModel):
     id: uuid.UUID
     amount: int
     type: TokenLedgerType

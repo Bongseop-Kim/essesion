@@ -1,4 +1,3 @@
-import hashlib
 import logging
 from typing import Protocol
 
@@ -6,6 +5,7 @@ from google.api_core.exceptions import PreconditionFailed
 from starlette.concurrency import run_in_threadpool
 
 from worker.config import Settings
+from worker.engine.determinism import stable_digest
 
 logger = logging.getLogger(__name__)
 
@@ -75,4 +75,4 @@ def build_object_store(settings: Settings) -> ObjectStore:
 
 
 def content_key(prefix: str, data: bytes, suffix: str) -> str:
-    return f"{prefix}/{hashlib.sha256(data).hexdigest()[:16]}.{suffix}"
+    return f"{prefix}/{stable_digest(data, 16)}.{suffix}"

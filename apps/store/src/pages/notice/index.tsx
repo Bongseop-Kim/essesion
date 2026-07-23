@@ -18,7 +18,7 @@ import { ContentLayout } from "@/shared/ui/content-layout";
 const notices = getVisibleNotices();
 
 export function NoticePage() {
-  const { fees, pricingStatus } = useReformPricingTokens();
+  const { applyReformFees, pricingStatus } = useReformPricingTokens();
 
   return (
     <>
@@ -84,15 +84,7 @@ export function NoticePage() {
                         color="fg.neutral-muted"
                         className="whitespace-pre-line"
                       >
-                        {notice.content
-                          .replaceAll(
-                            "{{REFORM_SHIPPING_COST}}",
-                            fees.REFORM_SHIPPING_COST,
-                          )
-                          .replaceAll(
-                            "{{REFORM_PICKUP_FEE}}",
-                            fees.REFORM_PICKUP_FEE,
-                          )}
+                        {applyReformFees(notice.content)}
                       </Text>
                     </Article>
                   </AccordionContent>

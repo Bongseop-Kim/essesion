@@ -1,6 +1,5 @@
 """후보 다양화·랭킹·de-dup — layout×colorway×seed 3축 (worker-engine.md §4)."""
 
-import hashlib
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from typing import cast
@@ -11,7 +10,7 @@ from worker.engine.constraints import (
     PatternConstraints,
     assert_constraints_satisfied,
 )
-from worker.engine.determinism import REGISTRY_VERSION, layout_id_for
+from worker.engine.determinism import REGISTRY_VERSION, layout_id_for, stable_digest
 from worker.engine.generate import Candidate
 from worker.engine.intent import (
     Band,
@@ -66,7 +65,7 @@ class CandidateSet:
 def _candidate_id(layout_id: str, colorway_id: str, seed: int, design_index: int = 0) -> str:
     key = layout_id if design_index == 0 else f"{design_index}:{layout_id}"
     raw = f"{key}:{colorway_id}:{seed}".encode()
-    return hashlib.sha256(raw).hexdigest()[:16]
+    return stable_digest(raw, 16)
 
 
 def _clustering_score(intent: Intent) -> int:

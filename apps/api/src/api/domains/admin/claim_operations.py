@@ -18,13 +18,7 @@ from db.models.commerce import (
 from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.domains.admin.helpers import (
-    kst_day_bounds,
-    resolve_shipping_address,
-)
-from api.domains.admin.operations import idempotent_result, record_operation
-from api.domains.admin.orders import safe_order_item_out
-from api.domains.admin.phase_d_schemas import (
+from api.domains.admin.claims_schemas import (
     AdminClaimAction,
     AdminClaimCustomerOut,
     AdminClaimDetailOut,
@@ -41,8 +35,13 @@ from api.domains.admin.phase_d_schemas import (
     ClaimTypeFilter,
     PaymentIncidentSummaryOut,
 )
-from api.domains.admin.schemas import Page
-from api.domains.admin.types import SortDirection
+from api.domains.admin.helpers import (
+    kst_day_bounds,
+    resolve_shipping_address,
+)
+from api.domains.admin.operations import idempotent_result, record_operation
+from api.domains.admin.orders import safe_order_item_out
+from api.domains.admin.schemas import Page, SortDirection
 from api.domains.claims.service import FORWARD_CLAIM, REJECTABLE_FROM, ROLLBACK_CLAIM
 from api.domains.orders.schemas import RepairPickupOut, RepairShippingReceiptOut
 from api.errors import DomainError, NotFoundError
@@ -322,10 +321,6 @@ async def list_claims(
     )
 
 
-def _incident_summary(incident: PaymentIncident) -> PaymentIncidentSummaryOut:
-    return PaymentIncidentSummaryOut.model_validate(incident, from_attributes=True)
-
-
 def _timeline(
     claim: Claim,
     claim_logs: list[ClaimStatusLog],
@@ -524,7 +519,10 @@ async def get_claim_detail(
         tracking_actions=tracking_actions(claim),
         status_logs=[AdminClaimStatusLogOut.model_validate(log) for log in claim_logs],
         notifications=[ClaimNotificationOut.model_validate(row) for row in notifications],
-        payment_incidents=[_incident_summary(incident) for incident in incidents],
+        payment_incidents=[
+            PaymentIncidentSummaryOut.model_validate(incident, from_attributes=True)
+            for incident in incidents
+        ],
         timeline=_timeline(
             claim,
             claim_logs,

@@ -9,7 +9,7 @@ from obs import request_id_var
 from api.db import SessionDep
 from api.deps import AdminOnly, AdminUser
 from api.domains.admin import claim_operations, payment_incidents
-from api.domains.admin.phase_d_schemas import (
+from api.domains.admin.claims_schemas import (
     AdminClaimDetailOut,
     AdminClaimSummaryOut,
     ClaimNotificationOut,
@@ -24,8 +24,7 @@ from api.domains.admin.phase_d_schemas import (
     PaymentIncidentDetailOut,
     PaymentIncidentSummaryOut,
 )
-from api.domains.admin.schemas import Page
-from api.domains.admin.types import SortDirection
+from api.domains.admin.schemas import Page, SortDirection
 from api.domains.claims.service import deliver_notification
 
 router = APIRouter(prefix="/admin", tags=["admin-operations"])

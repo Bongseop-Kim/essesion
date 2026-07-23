@@ -76,10 +76,6 @@ export function normalizePaletteColors(values: readonly string[]) {
   );
 }
 
-export function isAutoPattern(value: DesignPatternConstraints) {
-  return Object.values(value).every((option) => option === "auto");
-}
-
 const SCALE_LABELS: Record<MotifScale, string> = {
   auto: "크기 자동",
   small: "작게",

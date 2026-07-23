@@ -24,14 +24,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useAuthGuard } from "@/features/auth";
+import { formatDateTime } from "@/shared/lib/format";
 import { useSession } from "@/shared/store/session";
 
-const dateFormatter = new Intl.DateTimeFormat("ko-KR", {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const formatDate = (value: string) =>
+  formatDateTime(
+    value,
+    { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" },
+    "완성 디자인",
+  );
 
 export type DesignPickerProps = {
   selected: GenerationJobOut | null;
@@ -201,11 +202,4 @@ export function DesignPicker({
       </ResponsiveModal>
     </>
   );
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "완성 디자인"
-    : dateFormatter.format(date);
 }

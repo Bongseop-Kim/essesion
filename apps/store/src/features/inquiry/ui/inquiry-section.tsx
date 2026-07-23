@@ -21,7 +21,7 @@ import { useState } from "react";
 import { useLocation } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
-import { dateMedium } from "@/shared/lib/format";
+import { formatDate } from "@/shared/lib/format";
 import type { InquiryCategory } from "../model/config";
 import { inquiryStatusTone } from "../model/config";
 import { InquiryFormModal } from "./inquiry-form-modal";
@@ -134,8 +134,7 @@ export function InquirySection({ category, productId }: InquirySectionProps) {
                         ) : null}
                       </HStack>
                       <Text textStyle="caption" color="fg.neutral-muted">
-                        {inquiry.author_name} ·{" "}
-                        {dateMedium.format(new Date(inquiry.created_at))}
+                        {inquiry.author_name} · {formatDate(inquiry.created_at)}
                       </Text>
                     </VStack>
                   </HStack>

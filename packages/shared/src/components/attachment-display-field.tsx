@@ -1,11 +1,13 @@
 import { type ChangeEvent, type ReactNode, useId } from "react";
 
 import type { ResponsiveValue } from "../breakpoint";
+import { cn } from "../cn";
 import { Box } from "./box";
 import { Field, useFieldContext } from "./field";
 import { Flex } from "./flex";
 import { Float } from "./float";
 import { ImageFrame } from "./image-frame";
+import { focusRing } from "./internal/focus-ring";
 import { PlusGlyph, XGlyph } from "./internal/glyphs";
 import { Text } from "./text";
 
@@ -102,7 +104,10 @@ export function AttachmentDisplayField({
                   borderRadius="full"
                   bg="bg.brand-solid"
                   boxShadow="s1"
-                  className="text-fg-contrast focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                  className={cn(
+                    "text-fg-contrast focus-visible:outline",
+                    focusRing,
+                  )}
                 >
                   <XGlyph className="size-3" />
                 </Flex>
@@ -182,7 +187,7 @@ function AddFileTile({
         width="full"
         height="full"
         borderRadius="r2"
-        className="cursor-pointer border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring"
+        className="cursor-pointer border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-(--duration-fast) ease-standard hover:bg-bg-neutral-weak peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring"
       >
         <PlusGlyph className="size-6" />
       </Flex>

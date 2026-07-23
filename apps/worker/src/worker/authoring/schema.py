@@ -6,13 +6,13 @@ motif color-slot names stay behind the deterministic compiler boundary.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from worker.engine.constraints import normalize_hex
+from worker.engine.determinism import stable_digest
 
 StripeDirection = Literal["horizontal", "vertical", "diagonal_up", "diagonal_down"]
 PathDirection = Literal[
@@ -253,4 +253,4 @@ def structural_fingerprint(plan: DesignPlanV3) -> str:
             layer.pop("color_indices", None)
     payload = {"motif_count": len(plan.motifs), "layers": layers}
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    return stable_digest(canonical, 16)

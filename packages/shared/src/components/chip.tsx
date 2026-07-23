@@ -1,6 +1,7 @@
 import type { ComponentPropsWithRef, ReactNode } from "react";
 
 import { cn } from "../cn";
+import { focusRing } from "./internal/focus-ring";
 import { useControllableState } from "./internal/use-controllable-state";
 
 const sizes = {
@@ -59,7 +60,7 @@ export function Chip({
       }}
       className={cn(
         "inline-flex items-center gap-x1 rounded-full text-t4 font-medium transition-colors duration-(--duration-fast) ease-standard",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+        focusRing,
         "disabled:pointer-events-none disabled:opacity-50",
         sizes[size],
         isSelected ? selectedVariants[variant] : variants[variant],

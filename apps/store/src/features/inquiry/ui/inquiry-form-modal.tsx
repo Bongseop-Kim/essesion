@@ -33,7 +33,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { useZodForm } from "@/shared/lib/form";
-import { INQUIRY_CATEGORIES, type InquiryPrefill } from "../model/config";
+import { INQUIRY_CATEGORY_VALUES, type InquiryPrefill } from "../model/config";
 import {
   inquiryFormSchema,
   inquiryFormValues,
@@ -157,16 +157,16 @@ export function InquiryFormModal({
             <Text textStyle="labelSm">문의 유형</Text>
             <ScrollFog direction="horizontal">
               <HStack gap="x2">
-                {INQUIRY_CATEGORIES.map((option) => (
+                {INQUIRY_CATEGORY_VALUES.map((value) => (
                   <Chip
-                    key={option.value}
-                    selected={category === option.value}
+                    key={value}
+                    selected={category === value}
                     disabled={isSaving}
                     onClick={() => {
-                      form.setValue("category", option.value, {
+                      form.setValue("category", value, {
                         shouldDirty: true,
                       });
-                      if (option.value !== "상품") {
+                      if (value !== "상품") {
                         form.setValue("product_id", null, {
                           shouldDirty: true,
                         });
@@ -174,7 +174,7 @@ export function InquiryFormModal({
                       }
                     }}
                   >
-                    {option.label}
+                    {value}
                   </Chip>
                 ))}
               </HStack>

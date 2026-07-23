@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from api.domains.orders.schemas import OrderItemOut
+from api.schemas import ORMModel
 
 ClaimType = Literal["cancel", "return", "exchange"]
 ClaimReason = Literal[
@@ -21,9 +22,7 @@ class ClaimCreateRequest(BaseModel):
     quantity: int | None = None  # 기본 = 아이템 수량
 
 
-class ClaimOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class ClaimOut(ORMModel):
     id: uuid.UUID
     user_id: uuid.UUID
     order_id: uuid.UUID

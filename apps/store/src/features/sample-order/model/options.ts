@@ -2,6 +2,9 @@ import type {
   OrderReferenceImageIn,
   SampleOrderCreateRequest,
 } from "@essesion/api-client";
+import { z } from "zod";
+
+import { hasStateKey } from "@/shared/lib/guards";
 
 export type SampleOrderOptions = {
   sampleType: "fabric" | "sewing" | "fabric_and_sewing";
@@ -52,49 +55,29 @@ export function sampleFabricLabel(options: SampleOrderOptions) {
   }`;
 }
 
-export function readSampleOrderDraft(state: unknown): SampleOrderDraft | null {
-  if (!state || typeof state !== "object" || !("sampleOrder" in state))
-    return null;
-  const draft = (state as { sampleOrder?: unknown }).sampleOrder;
-  if (!draft || typeof draft !== "object") return null;
-
-  const candidate = draft as Record<string, unknown>;
-  if (!isSampleOrderOptions(candidate.options)) return null;
-  if (
-    !Array.isArray(candidate.imageRefs) ||
-    !candidate.imageRefs.every(
-      (image) =>
-        image != null &&
-        typeof image === "object" &&
-        "upload_id" in image &&
-        typeof image.upload_id === "string" &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          image.upload_id,
+const sampleOrderDraftSchema = z.object({
+  options: z.object({
+    sampleType: z.enum(["fabric", "sewing", "fabric_and_sewing"]),
+    fabricType: z.enum(["POLY", "SILK"]),
+    designType: z.enum(["PRINTING", "YARN_DYED"]),
+    tieType: z.enum(["MANUAL", "AUTO"]),
+    interlining: z.enum(["POLY", "WOOL"]),
+    additionalNotes: z.string(),
+  }),
+  imageRefs: z.array(
+    z.object({
+      upload_id: z
+        .string()
+        .regex(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
         ),
-    )
-  )
-    return null;
-  if (
-    typeof candidate.totalCost !== "number" ||
-    !Number.isFinite(candidate.totalCost) ||
-    candidate.totalCost <= 0
-  )
-    return null;
+    }),
+  ),
+  totalCost: z.number().refine((n) => Number.isFinite(n) && n > 0),
+});
 
-  return candidate as SampleOrderDraft;
-}
-
-function isSampleOrderOptions(value: unknown): value is SampleOrderOptions {
-  if (!value || typeof value !== "object") return false;
-  const options = value as Record<string, unknown>;
-  return (
-    (options.sampleType === "fabric" ||
-      options.sampleType === "sewing" ||
-      options.sampleType === "fabric_and_sewing") &&
-    (options.fabricType === "POLY" || options.fabricType === "SILK") &&
-    (options.designType === "PRINTING" || options.designType === "YARN_DYED") &&
-    (options.tieType === "MANUAL" || options.tieType === "AUTO") &&
-    (options.interlining === "POLY" || options.interlining === "WOOL") &&
-    typeof options.additionalNotes === "string"
-  );
+export function readSampleOrderDraft(state: unknown): SampleOrderDraft | null {
+  if (!hasStateKey(state, "sampleOrder")) return null;
+  const result = sampleOrderDraftSchema.safeParse(state.sampleOrder);
+  return result.success ? result.data : null;
 }

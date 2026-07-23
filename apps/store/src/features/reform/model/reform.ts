@@ -122,26 +122,68 @@ export function calculateReformDataCost(
   );
 }
 
-export function reformServiceLabel(data: ReformDataIn | ReformDataOut) {
-  const services: string[] = [];
-  if (data.tie.automatic) {
-    const automatic = data.tie.automatic;
+type ReformServicePartsInput = {
+  automatic?: {
+    mechanism: string | null;
+    wearerHeightCm: number | null;
+    dimple?: boolean;
+    turnKnot?: boolean;
+  } | null;
+  width?: { targetWidthCm: number | null } | null;
+  restoration?: { memo: string | null } | null;
+};
+
+/** 수선 옵션을 사람이 읽는 요약 조각으로. API 데이터(reformServiceLabel)와 폼 값이 공유. */
+export function reformServiceParts(tie: ReformServicePartsInput): string[] {
+  const parts: string[] = [];
+  if (tie.automatic) {
     const details = [
-      automatic.mechanism === "zipper" ? "지퍼" : "끈",
-      `착용자 ${automatic.wearer_height_cm}cm`,
-      automatic.dimple ? "딤플" : null,
-      automatic.turn_knot ? "돌려묶기" : null,
+      tie.automatic.mechanism === "zipper"
+        ? "지퍼"
+        : tie.automatic.mechanism === "string"
+          ? "끈"
+          : null,
+      tie.automatic.wearerHeightCm != null
+        ? `착용자 ${tie.automatic.wearerHeightCm}cm`
+        : null,
+      tie.automatic.dimple ? "딤플" : null,
+      tie.automatic.turnKnot ? "돌려묶기" : null,
     ].filter((value): value is string => value != null);
-    services.push(`자동 수선(${details.join(" · ")})`);
+    parts.push(
+      details.length ? `자동 수선(${details.join(" · ")})` : "자동 수선",
+    );
   }
-  if (data.tie.width) {
-    services.push(`폭 수선(희망 ${data.tie.width.target_width_cm}cm)`);
+  if (tie.width) {
+    parts.push(
+      tie.width.targetWidthCm != null
+        ? `폭 수선(희망 ${tie.width.targetWidthCm}cm)`
+        : "폭 수선",
+    );
   }
-  if (data.tie.restoration) {
-    const memo = data.tie.restoration.memo?.trim();
-    services.push(memo ? `복원 수선(${memo})` : "복원 수선");
+  if (tie.restoration) {
+    const memo = tie.restoration.memo?.trim();
+    parts.push(memo ? `복원 수선(${memo})` : "복원 수선");
   }
-  return services.join(" · ");
+  return parts;
+}
+
+export function reformServiceLabel(data: ReformDataIn | ReformDataOut) {
+  return reformServiceParts({
+    automatic: data.tie.automatic
+      ? {
+          mechanism: data.tie.automatic.mechanism,
+          wearerHeightCm: data.tie.automatic.wearer_height_cm,
+          dimple: data.tie.automatic.dimple,
+          turnKnot: data.tie.automatic.turn_knot,
+        }
+      : null,
+    width: data.tie.width
+      ? { targetWidthCm: data.tie.width.target_width_cm }
+      : null,
+    restoration: data.tie.restoration
+      ? { memo: data.tie.restoration.memo ?? null }
+      : null,
+  }).join(" · ");
 }
 
 function requirePositive(value: number | null) {

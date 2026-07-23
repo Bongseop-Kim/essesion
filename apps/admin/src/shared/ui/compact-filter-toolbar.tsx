@@ -106,9 +106,7 @@ export function CompactFilterToolbar({
 
       {secondaryFilters != null ? (
         isDesktop ? (
-          <SidePanel {...overlayProps} size="small">
-            {secondaryFilters}
-          </SidePanel>
+          <SidePanel {...overlayProps}>{secondaryFilters}</SidePanel>
         ) : (
           <ResponsiveModal {...overlayProps} showCloseButton>
             {secondaryFilters}

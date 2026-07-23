@@ -32,6 +32,7 @@ import {
   sampleTypeLabel,
 } from "@/features/sample-order";
 import { krw } from "@/pages/shop/constants";
+import { hasStateKey } from "@/shared/lib/guards";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
@@ -401,8 +402,6 @@ function Choice({
 }
 
 function readSampleOptions(state: unknown): SampleOrderOptions | null {
-  if (!state || typeof state !== "object" || !("sampleOrderOptions" in state))
-    return null;
-  return (state as { sampleOrderOptions: SampleOrderOptions })
-    .sampleOrderOptions;
+  if (!hasStateKey(state, "sampleOrderOptions")) return null;
+  return state.sampleOrderOptions as SampleOrderOptions;
 }

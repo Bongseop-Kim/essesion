@@ -23,9 +23,9 @@ import {
   positionAnchored,
 } from "./internal/anchored-position";
 import { CheckGlyph } from "./internal/glyphs";
+import { mergeRefs } from "./internal/merge-refs";
 import { useControllableState } from "./internal/use-controllable-state";
 import { VStack } from "./stack";
-import { Text } from "./text";
 
 type MenuContextValue = {
   open: boolean;
@@ -105,11 +105,11 @@ export function MenuTrigger({ children, ref }: MenuTriggerProps) {
   const { open, setOpen, triggerRef, contentId } = useMenuContext();
 
   const childProps = children.props;
-  const mergeRef = (node: HTMLElement | null) => {
-    triggerRef.current = node;
-    setRef(childProps.ref as Ref<HTMLElement> | undefined, node);
-    setRef(ref, node);
-  };
+  const mergeRef = mergeRefs(
+    triggerRef,
+    childProps.ref as Ref<HTMLElement> | undefined,
+    ref,
+  );
 
   return cloneElement(children, {
     ref: mergeRef as Ref<HTMLButtonElement>,
@@ -143,10 +143,7 @@ export function MenuContent({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<AnchoredPosition | null>(null);
 
-  const mergeRef = (node: HTMLDivElement | null) => {
-    contentRef.current = node;
-    setRef(ref, node);
-  };
+  const mergeRef = mergeRefs(contentRef, ref);
 
   const updatePosition = useCallback(() => {
     const reference = triggerRef.current;
@@ -289,22 +286,16 @@ export type MenuItemProps = Omit<
   "children"
 > & {
   label: ReactNode;
-  description?: ReactNode;
   prefixIcon?: ReactNode;
-  suffixIcon?: ReactNode;
   /** 선택 메뉴 항목. 지정하면 menuitemradio/aria-checked로 노출한다. */
   checked?: boolean;
-  tone?: "neutral" | "critical";
 };
 
 /** 메뉴 항목 — 클릭 시 onClick 후 메뉴를 닫는다(preventDefault로 유지 가능). */
 export function MenuItem({
   label,
-  description,
   prefixIcon,
-  suffixIcon,
   checked,
-  tone = "neutral",
   className,
   type = "button",
   onClick,
@@ -327,8 +318,7 @@ export function MenuItem({
         setOpen(false);
       }}
       className={cn(
-        "flex w-full items-center gap-x2 rounded-r3 px-x2 py-x3 text-left text-t4 outline-none transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak focus:bg-bg-neutral-weak disabled:text-fg-disabled",
-        tone === "critical" && "text-fg-critical",
+        "flex w-full items-center gap-x2 rounded-r3 px-x2 py-x3 text-left text-t4 outline-none transition-colors duration-(--duration-fast) ease-standard hover:bg-bg-neutral-weak focus:bg-bg-neutral-weak disabled:text-fg-disabled",
         className,
       )}
       {...props}
@@ -336,19 +326,8 @@ export function MenuItem({
       {prefixIcon}
       <VStack gap="x0_5" alignItems="stretch" minWidth={0} flex={1}>
         <span className="truncate">{label}</span>
-        {description != null ? (
-          <Text as="span" textStyle="caption" color="fg.neutral-subtle">
-            {description}
-          </Text>
-        ) : null}
       </VStack>
-      {suffixIcon ??
-        (checked ? <CheckGlyph aria-hidden className="size-4" /> : null)}
+      {checked ? <CheckGlyph aria-hidden className="size-4" /> : null}
     </button>
   );
-}
-
-function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (typeof ref === "function") ref(value);
-  else if (ref) ref.current = value;
 }

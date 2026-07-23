@@ -41,10 +41,6 @@ class AuthoringPromotionBatchResult(BaseModel):
     failed: int
 
 
-def _no_active_claim():
-    return not_(exists().where(Claim.order_id == Order.id, Claim.status.in_(ACTIVE_CLAIM_STATUSES)))
-
-
 @router.post("/auto-confirm-orders", response_model=BatchResult)
 async def auto_confirm_orders(session: SessionDep) -> BatchResult:
     """배송완료/배송중 7일 경과 주문 자동 구매확정 (활성 클레임 제외)."""
@@ -61,7 +57,12 @@ async def auto_confirm_orders(session: SessionDep) -> BatchResult:
                     and_(Order.status == "배송완료", Order.delivered_at <= cutoff),
                     and_(Order.status == "배송중", shipped_at_ref),
                 ),
-                _no_active_claim(),
+                not_(
+                    exists().where(
+                        Claim.order_id == Order.id,
+                        Claim.status.in_(ACTIVE_CLAIM_STATUSES),
+                    )
+                ),
             )
             .order_by(Order.created_at, Order.id)
             .limit(ORDER_BATCH_SIZE)

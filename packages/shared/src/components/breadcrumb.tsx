@@ -1,6 +1,7 @@
 import type { MouseEventHandler, ReactNode } from "react";
 
 import { cn } from "../cn";
+import { focusRing } from "./internal/focus-ring";
 import { ChevronRightGlyph } from "./internal/glyphs";
 import { HStack } from "./stack";
 import { Text } from "./text";
@@ -22,8 +23,8 @@ export type BreadcrumbProps = {
 
 const linkClass = cn(
   "rounded-r1 text-t3 text-fg-neutral-muted",
-  "transition-colors duration-100 ease-standard hover:text-fg-neutral",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+  "transition-colors duration-(--duration-fast) ease-standard hover:text-fg-neutral",
+  focusRing,
 );
 
 /** 페이지 경로 표시 — store·admin 공용. 라우팅은 앱이 renderLink로 연결. */

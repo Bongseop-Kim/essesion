@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from api.domains.orders.schemas import (
     MAX_ADDITIONAL_NOTES_LENGTH,
@@ -10,6 +10,7 @@ from api.domains.orders.schemas import (
     OptionsPayload,
     ReferenceImageIn,
 )
+from api.schemas import ORMModel
 
 
 class QuoteCreateRequest(BaseModel):
@@ -24,9 +25,7 @@ class QuoteCreateRequest(BaseModel):
     reference_images: list[ReferenceImageIn] = Field(default_factory=list, max_length=5)
 
 
-class QuoteOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class QuoteOut(ORMModel):
     id: uuid.UUID
     user_id: uuid.UUID
     quote_number: str

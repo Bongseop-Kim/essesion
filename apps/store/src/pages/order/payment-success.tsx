@@ -15,6 +15,7 @@ import { useCartActions } from "@/features/cart";
 import {
   CHECKOUT_PENDING_KEY,
   clearPendingCheckout,
+  onTerminalPaymentFailure,
   type PendingCheckout,
   readPendingCheckout,
   usePaymentConfirm,
@@ -156,19 +157,10 @@ export function PaymentSuccessPage() {
       return view;
     },
     {
-      onTerminalFailure: (_error, paymentGroupId) => {
-        const context = confirmationContext.current;
-        void waitForSettledPaymentOwner(context.ownerUserId).then(
-          (ownerState) => {
-            if (
-              ownerState === "current" &&
-              context.value?.paymentGroupId === paymentGroupId
-            ) {
-              clearPendingCheckout(CHECKOUT_PENDING_KEY, context.ownerUserId);
-            }
-          },
-        );
-      },
+      onTerminalFailure: onTerminalPaymentFailure(() => ({
+        ownerUserId: confirmationContext.current.ownerUserId,
+        paymentGroupId: confirmationContext.current.value?.paymentGroupId,
+      })),
     },
   );
 

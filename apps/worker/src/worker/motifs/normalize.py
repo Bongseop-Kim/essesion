@@ -9,7 +9,6 @@ slotify **후**의 geometry에서 뽑으므로 같은 도형은 colorway 무관 
 
 from __future__ import annotations
 
-import hashlib
 import html
 import re
 import xml.etree.ElementTree as ET
@@ -19,6 +18,7 @@ from typing import cast
 
 import svg_safety as sanitize
 
+from worker.engine.determinism import stable_digest
 from worker.engine.palette import hex_to_rgb, is_hex_color
 from worker.engine.units import fmt
 from worker.motifs.registry import MotifDef, slot_render_symbols
@@ -372,7 +372,7 @@ def normalize_motif_svg(
     inner = "".join(ET.tostring(child, encoding="unicode") for child in children)
     geometry = f'<g transform="translate({fmt(tx)} {fmt(ty)}) scale({fmt(scale)})">{inner}</g>'
 
-    motif_id = id_prefix + "-" + hashlib.sha256(geometry.encode("utf-8")).hexdigest()[:12]
+    motif_id = id_prefix + "-" + stable_digest(geometry, 12)
     symbol = f'<symbol id="motif-{motif_id}" overflow="visible">{geometry}</symbol>'
     preview_svg = _standalone_preview_svg(
         inner,

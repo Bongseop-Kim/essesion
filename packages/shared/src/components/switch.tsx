@@ -56,7 +56,7 @@ export function Switch({
       <span
         aria-hidden
         className={cn(
-          "shrink-0 rounded-full bg-bg-neutral-solid transition-colors duration-200 ease-standard",
+          "shrink-0 rounded-full bg-bg-neutral-solid transition-colors duration-(--duration-normal) ease-standard",
           "peer-checked:bg-bg-brand-solid peer-disabled:bg-bg-disabled",
           "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-stroke-focus-ring",
           trackSizes[size],
@@ -65,7 +65,7 @@ export function Switch({
       <span
         aria-hidden
         className={cn(
-          "absolute top-1/2 left-0.5 -translate-y-1/2 rounded-full bg-white shadow-s1 transition-transform duration-200 ease-standard",
+          "absolute top-1/2 left-0.5 -translate-y-1/2 rounded-full bg-white shadow-s1 transition-transform duration-(--duration-normal) ease-standard",
           thumbSizes[size],
           thumbTravel[size],
         )}

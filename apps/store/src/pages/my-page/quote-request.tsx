@@ -3,13 +3,10 @@ import { listMyQuotesOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Badge,
-  Chip,
   ContentPlaceholder,
-  HStack,
   List,
   ListHeader,
   ListItem,
-  ScrollFog,
   Skeleton,
   Text,
   VStack,
@@ -27,6 +24,7 @@ import {
   quoteRequestStatusTone,
 } from "@/features/quote-request/model/config";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
+import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function QuoteRequestPage() {
@@ -62,19 +60,11 @@ export function QuoteRequestPage() {
             </Text>
           </VStack>
 
-          <ScrollFog direction="horizontal">
-            <HStack gap="x2">
-              {QUOTE_REQUEST_FILTERS.map((option) => (
-                <Chip
-                  key={option.value}
-                  selected={filter === option.value}
-                  onClick={() => setFilter(option.value)}
-                >
-                  {option.label}
-                </Chip>
-              ))}
-            </HStack>
-          </ScrollFog>
+          <ChipFilterBar
+            filters={QUOTE_REQUEST_FILTERS}
+            value={filter}
+            onChange={setFilter}
+          />
 
           {quotesQuery.isPending ? (
             <QuoteRequestListSkeleton />

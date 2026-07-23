@@ -1,4 +1,5 @@
 import { resolveStorage, type StorageLike } from "@/shared/lib/browser-storage";
+import { isRecord } from "@/shared/lib/guards";
 
 export type { StorageLike };
 
@@ -16,10 +17,6 @@ type StorageOptions = {
   now?: number;
   operationId?: string;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
 
 export function parsePendingDesign(
   raw: string | null,

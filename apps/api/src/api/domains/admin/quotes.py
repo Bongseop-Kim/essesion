@@ -27,8 +27,7 @@ from api.domains.admin.quote_schemas import (
     QuoteStatusFilter,
     SignedReadUrlOut,
 )
-from api.domains.admin.schemas import AdminOrderCustomerOut, Page
-from api.domains.admin.types import SortDirection
+from api.domains.admin.schemas import AdminOrderCustomerOut, Page, SortDirection
 from api.domains.quotes import service
 from api.errors import DomainError, NotFoundError
 
@@ -58,7 +57,7 @@ def _actions(status: str) -> list[AdminQuoteAction]:
 
 
 def _customer(user: User) -> AdminOrderCustomerOut:
-    return AdminOrderCustomerOut(id=user.id, email=user.email, name=user.name, phone=user.phone)
+    return AdminOrderCustomerOut.model_validate(user)
 
 
 def _summary(quote: QuoteRequest, user: User) -> AdminQuoteSummaryOut:
@@ -76,25 +75,18 @@ def _summary(quote: QuoteRequest, user: User) -> AdminQuoteSummaryOut:
     )
 
 
-def _date_filters(start_date: date | None, end_date: date | None) -> list[ColumnElement[bool]]:
-    if start_date is not None and end_date is not None and start_date > end_date:
-        raise DomainError("시작일은 종료일보다 늦을 수 없습니다", code="invalid_range")
-    start_at, end_at = kst_day_bounds(start_date, end_date)
-    filters: list[ColumnElement[bool]] = []
-    if start_at is not None:
-        filters.append(QuoteRequest.created_at >= start_at)
-    if end_at is not None:
-        filters.append(QuoteRequest.created_at < end_at)
-    return filters
-
-
 def _filters(
     status: QuoteStatusFilter,
     start_date: date | None,
     end_date: date | None,
     q: str | None,
 ) -> list[ColumnElement[bool]]:
-    filters = _date_filters(start_date, end_date)
+    start_at, end_at = kst_day_bounds(start_date, end_date)
+    filters: list[ColumnElement[bool]] = []
+    if start_at is not None:
+        filters.append(QuoteRequest.created_at >= start_at)
+    if end_at is not None:
+        filters.append(QuoteRequest.created_at < end_at)
     if status != "all":
         filters.append(QuoteRequest.status == status)
     if q is not None:

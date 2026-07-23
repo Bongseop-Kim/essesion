@@ -6,6 +6,7 @@ import type {
 
 import { cn } from "../cn";
 import { Flex } from "./flex";
+import { focusRingInset } from "./internal/focus-ring";
 import { VStack } from "./stack";
 import { Text } from "./text";
 
@@ -17,9 +18,11 @@ export function List({ className, ...props }: ListProps) {
 }
 
 const rowBase =
-  "w-full text-left rounded-r2 transition-colors duration-100 ease-standard";
-const rowInteractive =
-  "hover:bg-bg-neutral-weak active:bg-bg-neutral-weak-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring";
+  "w-full text-left rounded-r2 transition-colors duration-(--duration-fast) ease-standard";
+const rowInteractive = cn(
+  "hover:bg-bg-neutral-weak active:bg-bg-neutral-weak-pressed",
+  focusRingInset,
+);
 
 export type ListItemProps = {
   title: ReactNode;

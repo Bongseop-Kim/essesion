@@ -9,6 +9,7 @@ import {
   customOrderSummary,
   parseCustomOrderDraft,
 } from "@/features/custom-order";
+import { hasStateKey } from "@/shared/lib/guards";
 
 export function CustomPaymentPage() {
   const location = useLocation();
@@ -65,9 +66,6 @@ export function CustomPaymentPage() {
 }
 
 function readCustomOrderDraft(state: unknown): CustomOrderDraft | null {
-  if (!state || typeof state !== "object" || !("customOrder" in state))
-    return null;
-  return parseCustomOrderDraft(
-    (state as { customOrder?: unknown }).customOrder,
-  );
+  if (!hasStateKey(state, "customOrder")) return null;
+  return parseCustomOrderDraft(state.customOrder);
 }

@@ -15,6 +15,7 @@ from google.auth.exceptions import GoogleAuthError
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import Settings
 from api.db import USER_LOCK, SessionDep, advisory_xact_lock
@@ -133,6 +134,16 @@ def ensure_owner(row: Any, user: User) -> None:
         raise NotFoundError()
     if user.role not in ADMIN_ROLES and row.user_id != user.id:
         raise ForbiddenError()
+
+
+async def lock_active_user(session: AsyncSession, user: User) -> None:
+    """유저 advisory lock 획득 후 active 재확인 — 소유 리소스 변경 전 탈퇴 경합을 차단한다."""
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
+    current = await session.scalar(
+        select(User).where(User.id == user.id).execution_options(populate_existing=True)
+    )
+    if current is None or not current.is_active:
+        raise UnauthorizedError()
 
 
 _google_request = google_requests.Request()  # Google 인증서 캐시 재사용

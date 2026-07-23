@@ -115,26 +115,6 @@ async def _has_open_confirm_incident(session: AsyncSession, order_ids: list[uuid
     )
 
 
-async def _record_confirm_incident(
-    session: AsyncSession,
-    *,
-    operation_id: uuid.UUID,
-    phase: str,
-    error_type: str,
-    provider_http_status: int | None = None,
-    provider_status: str | None = None,
-) -> PaymentIncident:
-    """외부 호출 전에 만든 operation을 open incident로 유지한다."""
-    return await persist_payment_operation_outcome(
-        session,
-        operation_id,
-        phase=phase,
-        error_type=error_type,
-        provider_http_status=provider_http_status,
-        provider_status=provider_status,
-    )
-
-
 async def _token_order_amount(session: AsyncSession, order: Order) -> tuple[int, str]:
     item = await session.scalar(select(OrderItem).where(OrderItem.order_id == order.id))
     if item is None:
@@ -266,7 +246,7 @@ async def confirm_payment(
     try:
         result = await toss.confirm(body.payment_key, str(body.payment_group_id), total)
     except Exception as exc:
-        await _record_confirm_incident(
+        await persist_payment_operation_outcome(
             session,
             operation_id=operation_id,
             phase="confirm_outcome_unknown",
@@ -291,7 +271,7 @@ async def confirm_payment(
                     operation_id=operation_id,
                 )
             except Exception as exc:
-                await _record_confirm_incident(
+                await persist_payment_operation_outcome(
                     session,
                     operation_id=operation_id,
                     phase="already_processed_recovery_failed",
@@ -304,7 +284,7 @@ async def confirm_payment(
                 ) from exc
             if recovered is not None:
                 return recovered
-            await _record_confirm_incident(
+            await persist_payment_operation_outcome(
                 session,
                 operation_id=operation_id,
                 phase="already_processed_verification_failed",
@@ -316,7 +296,7 @@ async def confirm_payment(
                 code="payment_reconciliation_required",
             )
         if result.status >= 500:
-            await _record_confirm_incident(
+            await persist_payment_operation_outcome(
                 session,
                 operation_id=operation_id,
                 phase="provider_response_uncertain",
@@ -363,7 +343,7 @@ async def confirm_payment(
             mask_payment_key(body.payment_key),
         )
         provider_status = result.body.get("status")
-        await _record_confirm_incident(
+        await persist_payment_operation_outcome(
             session,
             operation_id=operation_id,
             phase="provider_succeeded_db_failed",

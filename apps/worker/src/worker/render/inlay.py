@@ -11,6 +11,8 @@ from fractions import Fraction
 
 from PIL import Image, ImageChops, ImageDraw
 
+from worker.render.weave import emboss
+
 MOTIF_WEAVE = "twill-45"
 THREAD_PERIOD_MM = 0.70
 THREAD_FILL = 0.82
@@ -124,7 +126,4 @@ def apply_thread_relief(
     hi = ImageChops.subtract(thread, ImageChops.offset(thread, d, d))
     lo = ImageChops.subtract(thread, ImageChops.offset(thread, -d, -d))
     k = min(0.5, THREAD_SHADE_K * strength)
-    lit = Image.blend(out, Image.new("RGB", out.size, (255, 255, 255)), k)
-    dark = Image.blend(out, Image.new("RGB", out.size, (0, 0, 0)), k)
-    out = Image.composite(lit, out, hi)
-    return Image.composite(dark, out, lo)
+    return emboss(out, hi, lo, k)

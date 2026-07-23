@@ -7,13 +7,14 @@ from typing import Annotated, Literal, cast
 from db.models.auth import User
 from db.models.commerce import Inquiry
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from api.db import SessionDep
 from api.deps import CurrentUser, OptionalUser, ensure_owner
 from api.domains.reviews.service import masked_author_name
 from api.errors import DomainError
+from api.schemas import ORMModel
 
 router = APIRouter(tags=["inquiries"])
 
@@ -38,9 +39,7 @@ class InquiryUpdateRequest(BaseModel):
     is_secret: bool = cast(bool, None)
 
 
-class InquiryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class InquiryOut(ORMModel):
     id: uuid.UUID
     category: str
     title: str

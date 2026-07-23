@@ -1,5 +1,3 @@
-import { dateMedium } from "@/shared/lib/format";
-
 const ORDER_TYPE_LABELS: Record<string, string> = {
   sale: "상품",
   repair: "수선",
@@ -42,8 +40,4 @@ export function canRegisterRepairShipment(order: {
   status: string;
 }): boolean {
   return order.order_type === "repair" && order.status === "발송대기";
-}
-
-export function formatOrderDate(iso: string): string {
-  return dateMedium.format(new Date(iso));
 }

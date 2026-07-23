@@ -10,7 +10,6 @@ import base64
 import binascii
 import json
 import logging
-import math
 import re
 import unicodedata
 import uuid
@@ -33,7 +32,6 @@ from obs import request_id_var
 from pydantic import (
     AfterValidator,
     BaseModel,
-    ConfigDict,
     Field,
     StringConstraints,
     ValidationError,
@@ -61,6 +59,7 @@ from api.domains.images.service import MAX_ORDER_IMAGE_BYTES, order_upload_entit
 from api.domains.tokens import ledger
 from api.errors import ConflictError, DomainError, UpstreamError, WorkerRequestError
 from api.integrations.gcs import assets_bucket_name, public_asset_url
+from api.schemas import ORMModel, StrictModel
 
 router = APIRouter(tags=["design"])
 logger = logging.getLogger(__name__)
@@ -112,9 +111,7 @@ class FinalizeQuotaOut(BaseModel):
     reset_at: datetime | None
 
 
-class DesignSessionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class DesignSessionOut(ORMModel):
     id: uuid.UUID
     status: str
     seed: int | None
@@ -141,9 +138,7 @@ class DesignTurnCreateRequest(BaseModel):
     payload: BoundedDesignJson
 
 
-class DesignTurnOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class DesignTurnOut(ORMModel):
     id: uuid.UUID
     seq: int
     role: str
@@ -201,8 +196,6 @@ class WorkerMotifImportOut(BaseModel):
     @field_validator("bbox")
     @classmethod
     def _unit_bbox(cls, value: tuple[float, float, float, float]):
-        if not all(math.isfinite(number) for number in value):
-            raise ValueError("motif bbox must be finite")
         if value != (-0.5, -0.5, 0.5, 0.5):
             raise ValueError("motif bbox must use the normalized unit frame")
         return value
@@ -210,8 +203,6 @@ class WorkerMotifImportOut(BaseModel):
     @field_validator("anchor")
     @classmethod
     def _origin_anchor(cls, value: tuple[float, float]):
-        if not all(math.isfinite(number) for number in value):
-            raise ValueError("motif anchor must be finite")
         if value != (0.0, 0.0):
             raise ValueError("motif anchor must use the normalized origin")
         return value
@@ -235,9 +226,7 @@ class UserMotifOut(BaseModel):
     created_at: datetime
 
 
-class ReferenceImageRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class ReferenceImageRequest(StrictModel):
     upload_id: uuid.UUID
     purpose: ReferencePurpose = "auto"
 
@@ -251,9 +240,7 @@ def _normalize_hex(value: str) -> str:
     return value
 
 
-class PaletteConstraint(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class PaletteConstraint(StrictModel):
     mode: Literal["auto", "fixed"] = "auto"
     colors: list[str] = Field(default_factory=list, max_length=5)
 
@@ -271,18 +258,14 @@ class PaletteConstraint(BaseModel):
         return self
 
 
-class PatternConstraints(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class PatternConstraints(StrictModel):
     motif_scale: Literal["auto", "small", "medium", "large"] = "auto"
     density: Literal["auto", "sparse", "medium", "dense"] = "auto"
     arrangement: Literal["auto", "lattice", "staggered", "scatter"] = "auto"
     direction: Literal["auto", "vertical", "horizontal", "diagonal"] = "auto"
 
 
-class PaletteExtractRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class PaletteExtractRequest(StrictModel):
     upload_id: uuid.UUID
     color_count: int = Field(5, ge=2, le=5)
 
@@ -299,9 +282,7 @@ class PaletteExtractOut(BaseModel):
         return normalized
 
 
-class TextMotifPreviewRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class TextMotifPreviewRequest(StrictModel):
     text: str = Field(min_length=1, max_length=MAX_TEXT_MOTIF_LENGTH)
     font_id: Literal["nanum-gothic", "nanum-myeongjo"] = "nanum-gothic"
     font_weight: Literal[400, 700] = 400
@@ -329,9 +310,7 @@ def _is_supported_text_motif_character(character: str) -> bool:
     )
 
 
-class PhotoMotifPreviewRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class PhotoMotifPreviewRequest(StrictModel):
     upload_id: uuid.UUID
     remove_background: bool = True
     simplification: Literal["low", "medium", "high"] = "medium"
@@ -373,9 +352,7 @@ class MotifPreviewOut(BaseModel):
         return value
 
 
-class DesignIdeasRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class DesignIdeasRequest(StrictModel):
     prompt: str = Field("", max_length=MAX_DESIGN_PROMPT_LENGTH)
     reference_images: list[ReferenceImageRequest] = Field(
         default_factory=list, max_length=MAX_DESIGN_PHOTOS
@@ -423,9 +400,7 @@ class WorkerCandidateOut(BaseModel):
     png_object_key: str | None
 
 
-class DesignGenerateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class DesignGenerateRequest(StrictModel):
     session_id: uuid.UUID | None = None
     prompt: str | None = Field(default=None, max_length=MAX_DESIGN_PROMPT_LENGTH)
     intent: BoundedDesignJson | None = None
@@ -505,9 +480,7 @@ class FinalizeRequest(BaseModel):
     relief_strength: float | None = Field(None, ge=0)
 
 
-class GenerationJobOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class GenerationJobOut(ORMModel):
     id: uuid.UUID
     session_id: uuid.UUID | None
     kind: str
@@ -806,14 +779,7 @@ async def get_design_session(
     if limit is not None:
         quota = await get_finalize_quota(session, user.id, limit)
         out = out.model_copy(
-            update={
-                "finalize_quota": FinalizeQuotaOut(
-                    limit=quota.limit,
-                    used=quota.used,
-                    remaining=quota.remaining,
-                    reset_at=quota.reset_at,
-                )
-            }
+            update={"finalize_quota": FinalizeQuotaOut.model_validate(quota, from_attributes=True)}
         )
     return out
 
@@ -962,19 +928,7 @@ async def append_design_turn(
 ) -> DesignTurnOut:
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
-    await advisory_xact_lock(session, f"design-session:{session_id}")  # seq 직렬화
-    next_seq = (
-        await session.scalar(
-            select(func.coalesce(func.max(DesignSessionTurn.seq), 0)).where(
-                DesignSessionTurn.session_id == session_id
-            )
-        )
-        or 0
-    ) + 1
-    turn = DesignSessionTurn(
-        session_id=session_id, seq=next_seq, role=body.role, payload=body.payload
-    )
-    session.add(turn)
+    turn = await _append_turn(session, session_id, body.role, body.payload)
     await session.commit()
     await session.refresh(turn)
     return DesignTurnOut.model_validate(turn)
@@ -1006,8 +960,17 @@ async def generate_design(
             user_id=user.id,
             design_session_id=design_session.id if design_session is not None else None,
         )
-    photos, user_motifs = await _resolve_generation_attachments(
-        body, session=session, user_id=user.id, request=request
+    photos = await _resolve_reference_images(
+        body.reference_images,
+        session=session,
+        user_id=user.id,
+        request=request,
+        lock=True,
+    )
+    user_motifs = await _resolve_user_motifs(
+        body.user_motif_ids,
+        session=session,
+        user_id=user.id,
     )
     payload = body.model_dump(
         exclude={"session_id", "reference_images", "user_motif_ids"},
@@ -1139,28 +1102,6 @@ async def _complete_generation(
         logger.warning("generation completion failed after charge", exc_info=True)
         raise UpstreamError("디자인 생성을 완료하지 못했습니다") from exc
     return out
-
-
-async def _resolve_generation_attachments(
-    body: DesignGenerateRequest,
-    *,
-    session: SessionDep,
-    user_id: uuid.UUID,
-    request: Request,
-) -> tuple[list[tuple[Image, ReferencePurpose]], list[tuple[UserMotif, Motif]]]:
-    photos = await _resolve_reference_images(
-        body.reference_images,
-        session=session,
-        user_id=user_id,
-        request=request,
-        lock=True,
-    )
-    motifs = await _resolve_user_motifs(
-        body.user_motif_ids,
-        session=session,
-        user_id=user_id,
-    )
-    return photos, motifs
 
 
 async def _resolve_reference_images(
@@ -1567,7 +1508,7 @@ async def delete_generation_job(
     assert job is not None
     if job.status not in ("succeeded", "failed", "canceled"):
         raise ConflictError("진행 중인 작업은 취소한 뒤에 삭제할 수 있습니다")
-    object_key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    object_key = _job_object_key(job)
     await session.delete(job)
     await session.commit()
     # 산출물 정리는 커밋 후 best-effort — 실패해도 사용자 상태는 이미 일관적이고,
@@ -1608,7 +1549,7 @@ async def create_design_order_reference(
     job = await session.get(GenerationJob, job_id)
     ensure_owner(job, user)
     assert job is not None
-    source_key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    source_key = _job_object_key(job)
     if (
         job.kind != "finalize"
         or job.status != "succeeded"
@@ -1682,8 +1623,12 @@ async def create_design_order_reference(
     )
 
 
+def _job_object_key(job: GenerationJob) -> str | None:
+    return job.result.get("object_key") if isinstance(job.result, dict) else None
+
+
 def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # noqa: ANN001
-    object_key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    object_key = _job_object_key(job)
     result_url = public_asset_url(settings, object_key) if isinstance(object_key, str) else None
     return GenerationJobOut(
         id=job.id,

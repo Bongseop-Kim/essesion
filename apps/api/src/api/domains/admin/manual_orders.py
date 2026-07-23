@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from db.models.commerce import ManualOrder
 from fastapi import APIRouter, Query
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 from sqlalchemy import func, or_, select
 
 from api.db import SessionDep
@@ -14,16 +14,15 @@ from api.deps import AdminUser
 from api.domains.admin.schemas import Page
 from api.domains.reform.schemas import RestorationReform, WidthReform
 from api.errors import ConflictError, NotFoundError
+from api.schemas import StrictModel
 
 router = APIRouter(prefix="/admin/manual-orders", tags=["admin-manual-orders"])
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 
 
-class ManualAutomaticSpec(BaseModel):
+class ManualAutomaticSpec(StrictModel):
     """자동수선 — 종이 양식의 총장(cm)을 받는다(reform의 wearer_height_cm와 다름)."""
-
-    model_config = ConfigDict(extra="forbid")
 
     mechanism: Literal["zipper", "string"]
     turn_knot: bool = False  # 마감: False=방, True=돌려묶기
@@ -37,10 +36,8 @@ class ManualAutomaticSpec(BaseModel):
         return self
 
 
-class ManualOrderItem(BaseModel):
+class ManualOrderItem(StrictModel):
     """품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태."""
-
-    model_config = ConfigDict(extra="forbid")
 
     quantity: int = Field(ge=1, le=999)
     automatic: ManualAutomaticSpec | None = None
