@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 from svg_safety import scrub_svg
 
@@ -405,23 +406,32 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                     diagnostics=request.state.generation_diagnostics,
                 )
                 session.add(log)
-                if body.reference_images:
-                    await session.flush()
-                    for ordinal, item in enumerate(body.reference_images):
-                        session.add(
-                            SeamlessGenerationAttachment(
-                                log_id=log.id,
-                                image_id=item.image_id,
-                                purpose=item.purpose,
-                                ordinal=ordinal,
-                            )
-                        )
+                await _persist_reference_attachments(session, log.id, body.reference_images)
                 await session.commit()
             except Exception:
                 logger.exception("generation error log persistence failed")
             raise
 
     return wrapped
+
+
+async def _persist_reference_attachments(
+    session: AsyncSession,
+    log_id: uuid.UUID,
+    reference_images: list[ReferenceImageInput],
+) -> None:
+    if not reference_images:
+        return
+    await session.flush()
+    for ordinal, item in enumerate(reference_images):
+        session.add(
+            SeamlessGenerationAttachment(
+                log_id=log_id,
+                image_id=item.image_id,
+                purpose=item.purpose,
+                ordinal=ordinal,
+            )
+        )
 
 
 async def _render_candidates(
@@ -918,17 +928,7 @@ async def generate(
         diagnostics=request.state.generation_diagnostics,
     )
     session.add(log)
-    if body.reference_images:
-        await session.flush()
-        for ordinal, item in enumerate(body.reference_images):
-            session.add(
-                SeamlessGenerationAttachment(
-                    log_id=log.id,
-                    image_id=item.image_id,
-                    purpose=item.purpose,
-                    ordinal=ordinal,
-                )
-            )
+    await _persist_reference_attachments(session, log.id, body.reference_images)
     await session.commit()
     return GenerateResponse(
         generation_log_id=generation_log_id,

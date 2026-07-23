@@ -2,13 +2,21 @@
 
 import asyncio
 import uuid
+from datetime import date
 
 import respx
 from api.domains.auth.rate_limit import AuthRateLimiter
 from api.domains.payments import service as payment_service
 from api.domains.tokens import ledger as token_ledger
 from api.integrations.toss import RealTossClient, TossResult
-from db.models.commerce import Order, OrderItem, OrderStatusLog, PaymentIncident, UserCoupon
+from db.models.commerce import (
+    Coupon,
+    Order,
+    OrderItem,
+    OrderStatusLog,
+    PaymentIncident,
+    UserCoupon,
+)
 from db.models.tokens import DesignToken
 from httpx import Response
 from sqlalchemy import func, select
@@ -260,6 +268,17 @@ async def test_sample_confirm_issues_followup_coupon(client, db_session, setting
         {"SAMPLE_SEWING_COST": 50000, "sample_discount_sewing": 30000},
         category="sample_discount",
     )
+    db_session.add(
+        Coupon(
+            name="SAMPLE_DISCOUNT_SEWING",
+            discount_type="fixed",
+            discount_value=1,
+            max_discount_amount=1,
+            expiry_date=date(2027, 1, 1),
+            is_active=False,
+        )
+    )
+    await db_session.commit()
     headers = auth_headers(user, settings)
     created = (
         await client.post(
@@ -292,6 +311,13 @@ async def test_sample_confirm_issues_followup_coupon(client, db_session, setting
 
     count = await db_session.scalar(select(func.count()).select_from(UserCoupon))
     assert count == 1
+    coupon = await db_session.scalar(
+        select(Coupon).where(Coupon.name == "SAMPLE_DISCOUNT_SEWING")
+    )
+    issued = await db_session.scalar(select(UserCoupon))
+    assert coupon is not None
+    assert issued is not None
+    assert issued.terms_snapshot["expiry_date"] == coupon.expiry_date.isoformat()
 
 
 @respx.mock  # 라우트 미등록 — Toss 호출이 있으면 즉시 실패해 "승인 전 차단"을 보장

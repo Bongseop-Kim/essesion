@@ -39,6 +39,8 @@ type SettingPresentation = {
   inputLabel: string;
   /** 정수형 값 뒤에 붙는 단위 — courier형은 무시 */
   unit?: string;
+  /** 정수형 설정의 서버측 상한 */
+  max?: number;
   /** 변경 검토 다이얼로그에 표시하는 적용 영향 */
   impact: string;
   /** 편집 화면에 상주로 띄우는 경고 (필요한 설정만) */
@@ -62,6 +64,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     defaultValue: "10회",
     inputLabel: "실사화 횟수",
     unit: "회",
+    max: 1_000,
     impact:
       "이후의 새 실사화 요청부터 즉시 적용됩니다. 실패·취소한 요청은 횟수에 포함되지 않습니다.",
   },
@@ -72,6 +75,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     defaultValue: "30개",
     inputLabel: "토큰 수량",
     unit: "개",
+    max: 100_000,
     impact: "변경 후 생성되는 신규 계정에만 적용되며 기존 잔액은 유지됩니다.",
     editWarning: {
       title: "신규 계정의 토큰 비용 정책에 영향을 줍니다",
@@ -79,6 +83,8 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     },
   },
 };
+
+const GENERIC_NUMERIC_SETTING_MAX = 1_000_000;
 
 function settingPresentation(item: AdminSettingOut): SettingPresentation {
   return (
@@ -190,7 +196,8 @@ export function SettingsPage() {
     const value = draft[item.key] ?? "";
     if (item.value_type === "courier")
       return value.trim().length === 0 || value.length > 100;
-    return !/^\d+$/.test(value) || Number(value) > 1_000_000;
+    const max = settingPresentation(item).max ?? GENERIC_NUMERIC_SETTING_MAX;
+    return !/^\d+$/.test(value) || Number(value) > max;
   });
 
   const save = () => {
@@ -263,6 +270,11 @@ export function SettingsPage() {
                   }
                   step={
                     item.value_type === "non_negative_integer" ? 1 : undefined
+                  }
+                  max={
+                    item.value_type === "non_negative_integer"
+                      ? (presentation.max ?? GENERIC_NUMERIC_SETTING_MAX)
+                      : undefined
                   }
                   label={presentation.inputLabel}
                   description={`현재 ${formatSettingValue(item)}`}

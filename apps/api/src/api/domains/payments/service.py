@@ -688,6 +688,7 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
         raise DomainError("Unsupported sample_type", code="invalid_sample")
     coupon_name, pricing_key = SAMPLE_FOLLOWUP_COUPON[mapping_key]
     amount = (await get_pricing_constants(session, [pricing_key]))[pricing_key]
+    coupon_expiry_date = date_type(2099, 12, 31)
 
     coupon_id = (
         await session.execute(
@@ -697,12 +698,17 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
                 discount_type="fixed",
                 discount_value=amount,
                 max_discount_amount=amount,
-                expiry_date=date_type(2099, 12, 31),
+                expiry_date=coupon_expiry_date,
                 is_active=True,
             )
             .on_conflict_do_update(
                 index_elements=[Coupon.name],
-                set_={"discount_value": amount, "max_discount_amount": amount, "is_active": True},
+                set_={
+                    "discount_value": amount,
+                    "max_discount_amount": amount,
+                    "expiry_date": coupon_expiry_date,
+                    "is_active": True,
+                },
             )
             .returning(Coupon.id)
         )
@@ -719,7 +725,7 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
                 "discount_type": "fixed",
                 "discount_value": str(amount),
                 "max_discount_amount": str(amount),
-                "expiry_date": "2099-12-31",
+                "expiry_date": coupon_expiry_date.isoformat(),
             },
         )
         .on_conflict_do_nothing(index_elements=[UserCoupon.user_id, UserCoupon.coupon_id])

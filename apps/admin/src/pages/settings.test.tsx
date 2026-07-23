@@ -133,6 +133,47 @@ describe("SettingsPage", () => {
     expect(await screen.findByLabelText("실사화 횟수")).toBeTruthy();
   });
 
+  it("숫자 설정별 서버 상한을 입력 힌트와 검증에 동일하게 적용한다", async () => {
+    const user = userEvent.setup();
+    api.getSettings.mockResolvedValue(settings);
+    renderPage();
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "수정" }))[2]!,
+    );
+    const finalizeLimit = (await screen.findByLabelText(
+      "실사화 횟수",
+    )) as HTMLInputElement;
+    expect(finalizeLimit.max).toBe("1000");
+    await user.clear(finalizeLimit);
+    await user.type(finalizeLimit, "1001");
+    expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "설정 변경 검토",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "편집 취소" }));
+    await user.click(screen.getAllByRole("button", { name: "수정" })[1]!);
+    const initialGrant = (await screen.findByLabelText(
+      "토큰 수량",
+    )) as HTMLInputElement;
+    expect(initialGrant.max).toBe("100000");
+    await user.clear(initialGrant);
+    await user.type(initialGrant, "100001");
+    expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "설정 변경 검토",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+  });
+
   it("편집 중 캐시가 갱신되어도 편집 시작 revision으로 저장한다", async () => {
     const user = userEvent.setup();
     api.getSettings.mockResolvedValue(settings);

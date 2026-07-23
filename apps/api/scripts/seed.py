@@ -166,6 +166,16 @@ async def _ensure_test_coupon(session) -> None:
     if customer_id is None:
         return
 
+    terms_snapshot = {
+        "name": coupon.name,
+        "display_name": coupon.display_name,
+        "discount_type": coupon.discount_type,
+        "discount_value": str(coupon.discount_value),
+        "max_discount_amount": None,
+        "description": coupon.description,
+        "expiry_date": coupon.expiry_date.isoformat(),
+        "additional_info": coupon.additional_info,
+    }
     await session.execute(
         pg_insert(UserCoupon)
         .values(
@@ -173,16 +183,7 @@ async def _ensure_test_coupon(session) -> None:
             coupon_id=coupon.id,
             status="active",
             expires_at=expires_at,
-            terms_snapshot={
-                "name": coupon.name,
-                "display_name": coupon.display_name,
-                "discount_type": coupon.discount_type,
-                "discount_value": str(coupon.discount_value),
-                "max_discount_amount": None,
-                "description": coupon.description,
-                "expiry_date": coupon.expiry_date.isoformat(),
-                "additional_info": coupon.additional_info,
-            },
+            terms_snapshot=terms_snapshot,
         )
         .on_conflict_do_update(
             index_elements=[UserCoupon.user_id, UserCoupon.coupon_id],
@@ -190,16 +191,7 @@ async def _ensure_test_coupon(session) -> None:
                 "status": "active",
                 "expires_at": expires_at,
                 "used_at": None,
-                "terms_snapshot": {
-                    "name": coupon.name,
-                    "display_name": coupon.display_name,
-                    "discount_type": coupon.discount_type,
-                    "discount_value": str(coupon.discount_value),
-                    "max_discount_amount": None,
-                    "description": coupon.description,
-                    "expiry_date": coupon.expiry_date.isoformat(),
-                    "additional_info": coupon.additional_info,
-                },
+                "terms_snapshot": terms_snapshot,
             },
         )
     )
