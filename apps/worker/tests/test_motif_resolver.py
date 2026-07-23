@@ -10,6 +10,8 @@ from worker.config import Settings
 from worker.motifs import store
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.resolver import (
+    _strip_korean_particle,
+    _tokens,
     present_candidates,
     prompt_catalog_candidates,
     resolve_motifs,
@@ -194,6 +196,243 @@ async def test_present_candidates_never_calls_recraft(db_session):
     assert cands[0]["motif_id"] == "recraft-cand00000001"  # exact 우선
     assert cands[0]["similarity"] == 1.0
     assert {c["motif_id"] for c in cands} == {"recraft-cand00000001", "recraft-cand00000002"}
+
+
+# --- 한국어 조사(格·補助詞) 정규화: 순수 토큰화 회귀 (DB 불필요) -------------------------
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected_stem"),
+    [
+        ("펠리컨을", "펠리컨"),
+        ("펠리컨이", "펠리컨"),
+        ("펠리컨은", "펠리컨"),
+        ("펠리컨으로", "펠리컨"),
+        ("펠리컨의", "펠리컨"),
+        ("펠리컨에게", "펠리컨"),
+        ("꿀벌을", "꿀벌"),
+        ("벌을", "벌"),
+        ("원을", "원"),
+        ("원이", "원"),
+        ("원과", "원"),
+        ("원으로", "원"),
+        ("펠리컨만을", "펠리컨"),  # 복합 보조사 '만을'
+        ("나비를", "나비"),
+    ],
+)
+def test_tokens_strips_korean_particle_to_reach_seed_tag(prompt, expected_stem):
+    # 조사가 붙어도 어간 토큰이 합류해 seed 태그(펠리컨/꿀벌/원/나비…)와 exact-token 매칭된다.
+    tokens = _tokens(prompt)
+    assert expected_stem in tokens
+    assert prompt in tokens  # 원문 토큰은 항상 보존
+
+
+@pytest.mark.parametrize(
+    ("prompt", "forbidden"),
+    [
+        ("정원을", "원"),  # 정원(garden) ≠ 원(circle)
+        ("병원에서", "원"),  # 병원(hospital)
+        ("공원도", "원"),  # 공원(park)
+        ("화원의", "원"),  # 화원(flower shop)
+        ("사당을", "달"),  # 사당 ≠ 달
+    ],
+)
+def test_tokens_particle_strip_never_overmatches_substring(prompt, forbidden):
+    # 조사는 토큰 '전체'의 끝에서만 떼므로 부분문자열(정원→원) 오매칭이 발생하지 않는다.
+    assert forbidden not in _tokens(prompt)
+
+
+@pytest.mark.parametrize(
+    ("adverb", "subject_form", "tag"),
+    [
+        ("별로 화려하지 않게", "별을", "별"),  # 별로(그다지) ≠ 별(star)
+        ("새로 배치해 주세요", "새를", "새"),  # 새로(새롭게) ≠ 새(bird)
+        ("말로 설명하기 어려운", "말을", "말"),  # 말로(구어) ≠ 말(horse)
+        ("달랑 하나만 넣어", "달을", "달"),  # 달랑(꼴랑) ≠ 달(moon)
+        ("크게 말하고 싶은", "말을", "말"),  # 말하고(용언) ≠ 말(horse)
+    ],
+)
+def test_tokens_homograph_adverbs_do_not_ground_but_subject_forms_do(adverb, subject_form, tag):
+    # 조사 동형 고빈도어는 seed 태그를 못 만들고(denylist), 진짜 조사형 subject는 어간을 낸다.
+    assert tag not in _tokens(adverb)
+    assert tag in _tokens(subject_form)
+
+
+def test_tokens_bare_ro_particle_still_reduces_non_homographs():
+    # denylist가 정상 '로' 절단까지 막으면 안 된다: "격자로"→"격자"는 유지.
+    assert "격자" in _tokens("격자로 반복")
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected_stem"),
+    [
+        ("꿀벌이랑", "꿀벌"),  # 자음 종성 + 이랑
+        ("나비랑", "나비"),  # 모음 종성 + 랑
+        ("펠리컨하고", "펠리컨"),  # 하고
+        ("고래하고", "고래"),
+    ],
+)
+def test_tokens_strips_colloquial_conjunctions(prompt, expected_stem):
+    # 구어 접속조사(이랑/랑/하고)로 나열해도 첫 항이 seed로 붙는다(리콜 회귀 방지).
+    assert expected_stem in _tokens(prompt)
+
+
+def test_tokens_alias_applies_to_stripped_stem():
+    assert "flower" in _tokens("꽃을")
+    assert "moon" in _tokens("달을")
+    assert "butterfly" in _tokens("나비를")
+
+
+def test_tokens_leaves_english_and_bare_particles_untouched():
+    assert _tokens("chess pattern") == {"chess", "pattern"}
+    assert _tokens("pelican lattice") == {"pelican", "lattice"}
+    assert _tokens("을") == {"을"}  # 어간 없는 조사-only 토큰은 그대로
+
+
+def test_strip_korean_particle_guards():
+    assert _strip_korean_particle("펠리컨을") == "펠리컨"
+    assert _strip_korean_particle("원으로") == "원"  # 가장 긴 조사 우선('으로'>'로')
+    assert _strip_korean_particle("정원을") == "정원"  # 어간은 토큰 전체 - 끝 조사
+    assert _strip_korean_particle("을") is None  # 어간이 비면 None
+    assert _strip_korean_particle("a을") is None  # 한글 어간 아니면 None
+    assert _strip_korean_particle("pelican") is None  # 한글 없음
+
+
+# --- 카탈로그 grounding: 실 DB 통합 (embedding 없이 lexical exact-token) --------------------
+
+
+async def test_prompt_catalog_candidates_matches_korean_particle_form_without_embedding(db_session):
+    # seed 모티프(embedding NULL)를 조사형 자연어 프롬프트로 grounding — 벡터 경로 없이 성립해야.
+    await _seed(
+        db_session,
+        "recraft-pelican00001",
+        subject="pelican",
+        scope="whole",
+        description="pelican outline",
+        tags=["pelican", "펠리컨"],
+    )
+    await _seed(
+        db_session,
+        "recraft-flower000001",
+        subject="flower",
+        scope="whole",
+        description="flower outline",
+        tags=["flower", "꽃"],
+    )
+
+    candidates = await prompt_catalog_candidates(
+        db_session,
+        "펠리컨을 격자로 반복해 주세요",
+        embedding_client=None,  # seed는 임베딩이 없음 — lexical 경로만으로 잡혀야 한다
+        tau=0.84,
+    )
+
+    assert [candidate["motif_id"] for candidate in candidates] == ["recraft-pelican00001"]
+    assert candidates[0]["match_type"] == "exact_token"
+
+
+async def test_prompt_catalog_candidates_grounds_two_seeds_with_particles(db_session):
+    await _seed(
+        db_session, "recraft-bee00000001", subject="bee", scope="whole", tags=["bee", "꿀벌", "벌"]
+    )
+    await _seed(
+        db_session,
+        "recraft-circle00001",
+        subject="circle",
+        scope="whole",
+        tags=["circle", "원", "동그라미"],
+    )
+
+    candidates = await prompt_catalog_candidates(
+        db_session,
+        "꿀벌과 원을 함께 흩뿌려 주세요",
+        embedding_client=None,
+        tau=0.84,
+    )
+
+    matched = {candidate["motif_id"] for candidate in candidates}
+    assert matched == {"recraft-bee00000001", "recraft-circle00001"}
+    assert all(candidate["match_type"] == "exact_token" for candidate in candidates)
+
+
+async def test_prompt_catalog_candidates_homograph_adverb_does_not_ground(db_session):
+    # "새로"(새롭게)는 bird seed(태그 '새')를 grounding하면 안 된다 — 동형어 오매칭 회귀 가드.
+    await _seed(
+        db_session, "recraft-bird00000001", subject="bird", scope="whole", tags=["bird", "새"]
+    )
+
+    adverb = await prompt_catalog_candidates(
+        db_session, "무늬를 새로 만들어 주세요", embedding_client=None, tau=0.84
+    )
+    assert adverb == []
+
+    named = await prompt_catalog_candidates(
+        db_session, "새를 대각 경로로 늘어놓아 주세요", embedding_client=None, tau=0.84
+    )
+    assert [c["motif_id"] for c in named] == ["recraft-bird00000001"]
+
+
+async def test_prompt_catalog_candidates_colloquial_conjunction_grounds_both(db_session):
+    # 구어 "꿀벌이랑 원을" — 첫 항(꿀벌)도 seed로 붙어야 한다(리콜 회귀 가드).
+    await _seed(
+        db_session, "recraft-bee00000001", subject="bee", scope="whole", tags=["bee", "꿀벌", "벌"]
+    )
+    await _seed(
+        db_session,
+        "recraft-circle00001",
+        subject="circle",
+        scope="whole",
+        tags=["circle", "원", "동그라미"],
+    )
+
+    candidates = await prompt_catalog_candidates(
+        db_session, "꿀벌이랑 원을 촘촘하게 배치해 주세요", embedding_client=None, tau=0.84
+    )
+    assert {c["motif_id"] for c in candidates} == {"recraft-bee00000001", "recraft-circle00001"}
+
+
+async def test_prompt_catalog_candidates_counter_does_not_ground_dog(db_session):
+    # "N 개"(단위 명사)는 dog을 grounding하면 안 된다 — seed 태그에서 계수어 동형 '개'를 뺐다.
+    # "개의"→"개"로 떼도 태그에 '개'가 없어 미매칭. '강아지'는 여전히 매칭된다.
+    await _seed(
+        db_session, "recraft-dog00000001", subject="dog", scope="whole", tags=["dog", "강아지"]
+    )
+
+    counting = await prompt_catalog_candidates(
+        db_session,
+        "밴드를 두 개의 얇은 줄로 나눠 주세요",
+        embedding_client=None,
+        tau=0.84,
+    )
+    assert counting == []
+
+    named = await prompt_catalog_candidates(
+        db_session,
+        "강아지를 촘촘한 격자로 배치해 주세요",
+        embedding_client=None,
+        tau=0.84,
+    )
+    assert [c["motif_id"] for c in named] == ["recraft-dog00000001"]
+
+
+async def test_prompt_catalog_candidates_particle_strip_does_not_overmatch(db_session):
+    # '정원을'(garden)은 '원'(circle) seed를 절대 grounding하지 않아야 한다 — 오매칭 회귀 가드.
+    await _seed(
+        db_session,
+        "recraft-circle00001",
+        subject="circle",
+        scope="whole",
+        tags=["circle", "원", "동그라미"],
+    )
+
+    candidates = await prompt_catalog_candidates(
+        db_session,
+        "정원을 가꾸는 듯한 무늬로 채워 주세요",
+        embedding_client=None,
+        tau=0.84,
+    )
+
+    assert candidates == []
 
 
 async def test_prompt_catalog_candidates_find_chess_by_exact_token_without_embedding(db_session):

@@ -94,8 +94,86 @@ def _cosine(a: list[float], b: list[float]) -> float:
     return sum(x * y for x, y in zip(a, b, strict=False)) / (na * nb)
 
 
+_HANGUL_RE = re.compile(r"[가-힣]")
+
+# 한국어 명사 뒤 조사(격·보조사). 우리 사용자는 전부 한국인이라 "펠리컨을/꿀벌을/원으로"처럼
+# 조사를 붙여 쓰는데, seed 모티프는 임베딩이 없어(embedding_vertex NULL) 카탈로그 grounding이
+# lexical exact-token만 된다 → 조사가 붙으면 "펠리컨을" ≠ 태그 "펠리컨"으로 조용히 miss한다.
+# 아래 목록으로 토큰 끝의 조사 1개만 떼어 어간 토큰을 추가한다(원문 토큰은 보존).
+# 오매칭 방지 가드: (1) 한글 토큰에만, (2) 목록에 정확히 일치하는 접미사만, 가장 긴 것 우선,
+# (3) 어간이 비지 않고(≥1자) 한글 음절을 포함할 때만. 토큰 "전체"의 끝 조사만 떼므로
+# "정원을"→"정원"(≠"원")처럼 부분문자열 오매칭은 발생하지 않는다(단어 경계는 토큰화가 보장).
+# 남는 한계: "별도(따로)"=별+도, "원만(圓滿)"=원+만처럼 통째로 다른 뜻인 합성어는 어간이 태그와
+# 겹칠 수 있으나, 넥타이 패턴 프롬프트 도메인에서는 극히 드물어 recall 이득이 훨씬 크다.
+_KOREAN_PARTICLES: tuple[str, ...] = tuple(
+    sorted(
+        {
+            # 3음절
+            "으로써",
+            "으로서",
+            "에게서",
+            # 2음절 격·보조사 + 구어 접속/열거조사(이랑/하고/이나)
+            "으로",
+            "에서",
+            "에게",
+            "한테",
+            "에는",
+            "에도",
+            "까지",
+            "부터",
+            "만을",
+            "만이",
+            "만은",
+            "이랑",
+            "하고",
+            # 1음절 고빈도 격·보조사 + 구어 접속조사(랑) — 모음/자음 종성 모두 커버(나비랑/꿀벌이랑)
+            "을",
+            "를",
+            "은",
+            "는",
+            "이",
+            "가",
+            "과",
+            "와",
+            "도",
+            "만",
+            "의",
+            "에",
+            "로",
+            "랑",
+        },
+        key=len,
+        reverse=True,
+    )
+)
+
+# 조사 절단을 금지할 통짜 토큰. 1음절 태그(별/새/말/달)와 동형인 고빈도 부사·의태어·용언이라
+# 조사로 오인해 어간을 떼면 엉뚱한 seed로 grounding된다: "별로"(그다지)→별, "새로"(새롭게)→새,
+# "달랑"(꼴랑)→달, "말랑"(말랑말랑)→말, "말하고"(말하다)→말. 문서화된 별도/원만 잔여 오탐과 같은
+# 부류지만 스타일/패턴 프롬프트에서 빈도가 높아 명시 차단한다(완전 열거는 불가 — 대표 고빈도만).
+# 조사 목록에서 '로'/'랑'을 빼면 "격자로"→"격자", "나비랑"→"나비"가 깨지므로 통짜 차단이 맞다.
+_PARTICLE_STRIP_DENY: frozenset[str] = frozenset(
+    {"별로", "별도", "새로", "말로", "원만", "배로", "달랑", "말랑", "말하고"}
+)
+
+
+def _strip_korean_particle(token: str) -> str | None:
+    """한글 토큰 끝의 조사 1개를 떼어 어간을 돌려준다(없거나 과절단이면 None)."""
+    if token in _PARTICLE_STRIP_DENY or not _HANGUL_RE.search(token):
+        return None
+    for particle in _KOREAN_PARTICLES:  # 가장 긴 조사 우선 (예: "으로" > "로")
+        if len(token) > len(particle) and token.endswith(particle):
+            stem = token[: -len(particle)]
+            return stem if _HANGUL_RE.search(stem) else None
+    return None
+
+
 def _tokens(value: str) -> set[str]:
     tokens = set(re.findall(r"[^\W_]+", store.normalize_facet(value), flags=re.UNICODE))
+    # 조사형 프롬프트 grounding: 끝 조사를 뗀 어간을 토큰에 합류시킨다(원문 토큰은 유지).
+    tokens.update(
+        stem for token in tuple(tokens) if (stem := _strip_korean_particle(token)) is not None
+    )
     aliases = {
         "꽃": "flower",
         "플라워": "flower",
