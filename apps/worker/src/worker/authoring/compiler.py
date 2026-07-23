@@ -14,7 +14,7 @@ from worker.authoring.schema import (
     structural_fingerprint,
 )
 from worker.engine.constraints import PaletteConstraint
-from worker.engine.units import snap_angle
+from worker.engine.units import snap_angle, snap_spacing
 
 DEFAULT_TILE_MM = 48.0
 DEFAULT_DPI = 300
@@ -263,9 +263,15 @@ def _compile_path(
             "angle": _DIRECTION_ANGLE[placement.direction],
         }
         if placement.kind == "wave":
+            # Seamless tiling requires the wavelength to divide the lane closure length
+            # exactly (engine seamless check). The authoring model supplies a target ratio it
+            # cannot land on that measure-zero set; snap it to the nearest closure/N, mirroring
+            # how spacing is snapped downstream. No-op for closure/N ratios (e.g. gallery goldens).
+            closure = _path_length(tile_mm, placement.direction)
+            _, wavelength = snap_spacing(closure, tile_mm * placement.wavelength_ratio)
             path.update(
                 {
-                    "wavelength": round(tile_mm * placement.wavelength_ratio, 6),
+                    "wavelength": round(wavelength, 6),
                     "amplitude": round(tile_mm * placement.amplitude_ratio, 6),
                 }
             )
