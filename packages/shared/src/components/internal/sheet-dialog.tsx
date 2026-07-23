@@ -3,6 +3,7 @@ import { createContext, use } from "react";
 
 import { cn } from "../../cn";
 import { Flex } from "../flex";
+import { overlayBackdrop, overlaySurface } from "./overlay-chrome";
 import { useDialog } from "./use-dialog";
 import { useSheetDrag } from "./use-sheet-drag";
 
@@ -46,12 +47,12 @@ export type SheetDialogProps = {
 // 드래그 추적은 셸이 조건부로 얹는 inline transform이 담당한다.
 // UA의 dialog max-size를 풀어 화면 전폭·전고 상한을 명시하고, 내부 콘텐츠가 스크롤을 소유한다.
 const dialogClass = cn(
-  "m-0 mt-auto mx-auto max-h-dvh w-full max-w-full overflow-hidden border-0 bg-bg-layer-floating p-0 text-fg-neutral shadow-s3 outline-none",
-  "transition duration-300 ease-enter",
+  "m-0 mt-auto mx-auto max-h-dvh w-full max-w-full overflow-hidden",
+  overlaySurface,
+  "transition duration-(--duration-slow) ease-enter",
   "starting:open:translate-y-full",
-  "data-closing:translate-y-full data-closing:duration-200 data-closing:ease-exit",
-  "backdrop:bg-bg-overlay backdrop:transition-opacity backdrop:duration-300",
-  "starting:open:backdrop:opacity-0 data-closing:backdrop:opacity-0",
+  "data-closing:translate-y-full data-closing:duration-(--duration-normal) data-closing:ease-exit",
+  overlayBackdrop,
 );
 
 /* 시트 공용 셸. 네이티브 <dialog>+showModal 기반이며

@@ -23,20 +23,30 @@ locals {
     PUBLIC_API_ORIGIN = trimsuffix(var.public_api_origin, "/")
   })
 
-  api_secret_env = {
-    DATABASE_URL         = google_secret_manager_secret.database_url.secret_id
-    JWT_SECRET           = google_secret_manager_secret.app["jwt-secret"].secret_id
-    SESSION_SECRET       = google_secret_manager_secret.app["session-secret"].secret_id
-    EDGE_PROXY_SECRET    = google_secret_manager_secret.app["edge-proxy-secret"].secret_id
-    TOSS_SECRET_KEY      = google_secret_manager_secret.app["toss-secret-key"].secret_id
-    SOLAPI_API_KEY       = google_secret_manager_secret.app["solapi-api-key"].secret_id
-    SOLAPI_API_SECRET    = google_secret_manager_secret.app["solapi-api-secret"].secret_id
-    GOOGLE_CLIENT_SECRET = google_secret_manager_secret.app["google-client-secret"].secret_id
-    KAKAO_CLIENT_SECRET  = google_secret_manager_secret.app["kakao-client-secret"].secret_id
-    NAVER_CLIENT_SECRET  = google_secret_manager_secret.app["naver-client-secret"].secret_id
-    APPLE_PRIVATE_KEY    = google_secret_manager_secret.app["apple-private-key"].secret_id
-    SENTRY_DSN           = google_secret_manager_secret.app["sentry-dsn-api"].secret_id
+  # ENV 변수명 → app 시크릿 키. api_secret_env(컨테이너 참조)와 iam.tf의 접근 권한 부여가
+  # 이 하나의 맵에서 파생된다 — 손으로 관리하는 두 목록이 어긋나 리비전이 시크릿 해석에
+  # 실패(기동 불가)하는 드리프트를 원천 차단한다.
+  api_app_secret_keys = {
+    JWT_SECRET           = "jwt-secret"
+    SESSION_SECRET       = "session-secret"
+    EDGE_PROXY_SECRET    = "edge-proxy-secret"
+    TOSS_SECRET_KEY      = "toss-secret-key"
+    SOLAPI_API_KEY       = "solapi-api-key"
+    SOLAPI_API_SECRET    = "solapi-api-secret"
+    GOOGLE_CLIENT_SECRET = "google-client-secret"
+    KAKAO_CLIENT_SECRET  = "kakao-client-secret"
+    NAVER_CLIENT_SECRET  = "naver-client-secret"
+    APPLE_PRIVATE_KEY    = "apple-private-key"
+    SENTRY_DSN           = "sentry-dsn-api"
   }
+
+  api_secret_env = merge(
+    { DATABASE_URL = google_secret_manager_secret.database_url.secret_id },
+    {
+      for env_name, key in local.api_app_secret_keys :
+      env_name => google_secret_manager_secret.app[key].secret_id
+    },
+  )
 
   worker_plain_env = {
     ENV                = "staging"

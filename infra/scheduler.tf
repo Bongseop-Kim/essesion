@@ -41,3 +41,13 @@ resource "google_cloud_scheduler_job" "batch" {
 
   depends_on = [google_project_service.apis]
 }
+
+# batch_audience(위 local)는 api.uri와 정확히 일치해야 OIDC audience 검증이 통과한다.
+# 손으로 `tofu output`을 대조하던 절차를 plan/apply 시 자동 경고로 바꾼다 — region·run.app
+# URL 포맷 변화 시 조용히 깨지지 않게. (첫 apply엔 api.uri가 unknown이라 스킵, 이후부터 검증.)
+check "batch_audience_matches_api_uri" {
+  assert {
+    condition     = local.batch_audience == google_cloud_run_v2_service.api.uri
+    error_message = "batch_audience(${local.batch_audience})가 api 서비스 URI와 다릅니다 — scheduler.tf의 batch_audience 구성을 실제 api.uri에 맞추세요."
+  }
+}

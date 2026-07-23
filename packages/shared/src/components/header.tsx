@@ -5,6 +5,7 @@ import { cn } from "../cn";
 import { ActionButton } from "./action-button";
 import { Box } from "./box";
 import { Divider } from "./divider";
+import { focusRing } from "./internal/focus-ring";
 import { LayoutContent, type LayoutContentProps } from "./layout";
 import { ScrollFog } from "./scroll-fog";
 import { SidePanel } from "./side-panel";
@@ -97,8 +98,8 @@ export function Header({
               {renderLink(brandItem, {
                 className: cn(
                   "inline-flex min-h-10 shrink-0 items-center gap-x2 rounded-r2",
-                  "text-fg-neutral transition-colors duration-100 ease-standard",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                  "text-fg-neutral transition-colors duration-(--duration-fast) ease-standard",
+                  focusRing,
                 ),
                 "aria-label": brandLabel,
                 children: (
@@ -131,8 +132,8 @@ export function Header({
                         return renderLink(item, {
                           className: cn(
                             "inline-flex h-10 shrink-0 items-center rounded-r2 px-x2 text-t4 font-medium",
-                            "transition-colors duration-100 ease-standard",
-                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                            "transition-colors duration-(--duration-fast) ease-standard",
+                            focusRing,
                             active
                               ? "bg-bg-neutral-weak text-fg-neutral"
                               : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",
@@ -174,7 +175,6 @@ export function Header({
         open={menuOpen}
         onOpenChange={setMenuOpen}
         title="메뉴"
-        side="right"
         footer={
           typeof mobileMenuFooter === "function"
             ? mobileMenuFooter(() => setMenuOpen(false))
@@ -203,8 +203,8 @@ export function Header({
                         {renderLink(item, {
                           className: cn(
                             "flex min-h-13 w-full items-center rounded-r2 px-x3 text-t5 font-medium",
-                            "transition-colors duration-100 ease-standard",
-                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                            "transition-colors duration-(--duration-fast) ease-standard",
+                            focusRing,
                             active
                               ? "bg-bg-neutral-weak text-fg-neutral"
                               : "text-fg-neutral-muted hover:bg-bg-neutral-weak hover:text-fg-neutral active:bg-bg-neutral-weak-pressed",

@@ -1,6 +1,8 @@
 import type { ComponentPropsWithRef } from "react";
 
 import { cn } from "../cn";
+import { warnDev } from "./internal/dev-warn";
+import { focusRing } from "./internal/focus-ring";
 import { ProgressCircle } from "./progress-circle";
 
 const variants = {
@@ -59,21 +61,18 @@ export function ActionButton({
   children,
   ...props
 }: ActionButtonProps) {
-  if (
-    process.env.NODE_ENV !== "production" &&
-    iconOnly &&
-    !props["aria-label"]
-  ) {
-    console.warn("ActionButton: iconOnly 버튼에는 aria-label이 필요합니다.");
-  }
+  warnDev(
+    iconOnly && !props["aria-label"],
+    "ActionButton: iconOnly 버튼에는 aria-label이 필요합니다.",
+  );
   return (
     <button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        "inline-flex items-center justify-center gap-2 font-bold transition-colors duration-100 ease-standard",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+        "inline-flex items-center justify-center gap-2 font-bold transition-colors duration-(--duration-fast) ease-standard",
+        focusRing,
         "disabled:pointer-events-none disabled:opacity-50",
         variants[variant],
         sizes[size],

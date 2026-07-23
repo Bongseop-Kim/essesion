@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import { cn } from "../cn";
+import { focusRingInset } from "./internal/focus-ring";
 import { useControllableState } from "./internal/use-controllable-state";
 
 type TabsContextValue = {
@@ -121,8 +122,10 @@ export function TabList({
   );
 }
 
-const triggerClass =
-  "h-11 px-x4 text-t5 font-bold -mb-px border-b-2 transition-colors duration-100 ease-standard focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring";
+const triggerClass = cn(
+  "h-11 px-x4 text-t5 font-bold -mb-px border-b-2 transition-colors duration-(--duration-fast) ease-standard",
+  focusRingInset,
+);
 
 const triggerStates = {
   selected: "text-fg-neutral border-stroke-brand",

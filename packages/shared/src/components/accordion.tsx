@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import { cn } from "../cn";
+import { focusRingInset } from "./internal/focus-ring";
 import { ChevronDownGlyph } from "./internal/glyphs";
 import { useControllableState } from "./internal/use-controllable-state";
 
@@ -156,7 +157,8 @@ export function AccordionTrigger({
           toggle(value);
         }}
         className={cn(
-          "flex w-full items-center justify-between gap-x2 px-x4 py-x4 text-left text-t5 font-medium transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring",
+          "flex w-full items-center justify-between gap-x2 px-x4 py-x4 text-left text-t5 font-medium transition-colors duration-(--duration-fast) ease-standard hover:bg-bg-neutral-weak",
+          focusRingInset,
           className,
         )}
         {...props}
@@ -164,7 +166,7 @@ export function AccordionTrigger({
         {children}
         <ChevronDownGlyph
           className={cn(
-            "size-4 shrink-0 text-fg-neutral-muted transition-transform duration-200 ease-standard",
+            "size-4 shrink-0 text-fg-neutral-muted transition-transform duration-(--duration-normal) ease-standard",
             open && "rotate-180",
           )}
         />

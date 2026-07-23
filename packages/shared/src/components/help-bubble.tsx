@@ -19,7 +19,7 @@ import {
   type AnchoredPosition,
   positionAnchored,
 } from "./internal/anchored-position";
-import { XGlyph } from "./internal/glyphs";
+import { mergeRefs } from "./internal/merge-refs";
 import { useControllableState } from "./internal/use-controllable-state";
 import { VStack } from "./stack";
 import { Text } from "./text";
@@ -37,13 +37,11 @@ export type HelpBubbleContentProps = Omit<
 export type HelpBubbleTriggerProps = {
   title: ReactNode;
   description?: ReactNode;
-  showCloseButton?: boolean;
   children: ReactElement<TriggerElementProps>;
   contentProps?: HelpBubbleContentProps;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
-  closeOnInteractOutside?: boolean;
   placement?: AnchoredPlacement;
   gutter?: number;
   overflowPadding?: number;
@@ -55,13 +53,11 @@ export type HelpBubbleTriggerProps = {
 export function HelpBubbleTrigger({
   title,
   description,
-  showCloseButton = false,
   children,
   contentProps,
   open,
   defaultOpen = false,
   onOpenChange,
-  closeOnInteractOutside = true,
   placement = "top",
   gutter = 4,
   overflowPadding = 16,
@@ -140,23 +136,8 @@ export function HelpBubbleTrigger({
     };
   }, [isOpen, updatePosition]);
 
-  useEffect(() => {
-    if (!isOpen || closeOnInteractOutside) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeOnInteractOutside, isOpen, setOpen]);
-
   const childProps = children.props;
-  const mergeTriggerRef = (node: HTMLButtonElement | null) => {
-    triggerRef.current = node;
-    setRef(childProps.ref, node);
-    setRef(ref, node);
-  };
+  const mergeTriggerRef = mergeRefs(triggerRef, childProps.ref, ref);
   const trigger = cloneElement(children, {
     ref: mergeTriggerRef,
     "aria-haspopup": "dialog",
@@ -175,10 +156,7 @@ export function HelpBubbleTrigger({
     onToggle,
     ...otherContentProps
   } = contentProps ?? {};
-  const mergeContentRef = (node: HTMLDivElement | null) => {
-    contentRef.current = node;
-    setRef(contentPropRef, node);
-  };
+  const mergeContentRef = mergeRefs(contentRef, contentPropRef);
 
   return (
     <>
@@ -190,7 +168,7 @@ export function HelpBubbleTrigger({
         role="dialog"
         aria-labelledby={titleId}
         aria-describedby={description == null ? undefined : descriptionId}
-        popover={closeOnInteractOutside ? "auto" : "manual"}
+        popover="auto"
         onToggle={(event) => {
           onToggle?.(event);
           if (event.defaultPrevented) return;
@@ -235,26 +213,6 @@ export function HelpBubbleTrigger({
               </Text>
             ) : null}
           </VStack>
-          {showCloseButton ? (
-            <Flex
-              as="button"
-              type="button"
-              aria-label="닫기"
-              align="center"
-              justify="center"
-              width={38}
-              height={38}
-              flexShrink
-              ml="x1"
-              onClick={() => {
-                setOpen(false);
-                triggerRef.current?.focus();
-              }}
-              className="rounded-r3 text-fg-contrast focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
-            >
-              <XGlyph width={14} height={14} />
-            </Flex>
-          ) : null}
         </Flex>
       </div>
     </>
@@ -292,9 +250,4 @@ function transformOrigin(side: AnchoredPosition["side"] | undefined) {
   if (side === "top") return "bottom";
   if (side === "bottom") return "top";
   return "center";
-}
-
-function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (typeof ref === "function") ref(value);
-  else if (ref) ref.current = value;
 }

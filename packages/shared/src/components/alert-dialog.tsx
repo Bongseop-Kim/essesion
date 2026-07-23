@@ -4,6 +4,7 @@ import { useId } from "react";
 import { cn } from "../cn";
 import { ActionButton, type ActionButtonProps } from "./action-button";
 import { Flex } from "./flex";
+import { overlayBackdrop, overlaySurface } from "./internal/overlay-chrome";
 import { useControllableState } from "./internal/use-controllable-state";
 import { useDialog } from "./internal/use-dialog";
 import { VStack } from "./stack";
@@ -78,7 +79,14 @@ export function AlertDialog({
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
-      className="m-auto max-w-100 rounded-r5 border-0 bg-bg-layer-floating p-0 text-fg-neutral shadow-s3 outline-none transition duration-300 ease-enter starting:open:scale-130 starting:open:opacity-0 data-closing:scale-130 data-closing:opacity-0 data-closing:duration-200 data-closing:ease-exit backdrop:bg-bg-overlay backdrop:transition-opacity backdrop:duration-300 starting:open:backdrop:opacity-0 data-closing:backdrop:opacity-0"
+      className={cn(
+        "m-auto max-w-100 rounded-r5",
+        overlaySurface,
+        "transition duration-(--duration-slow) ease-enter",
+        "starting:open:scale-130 starting:open:opacity-0",
+        "data-closing:scale-130 data-closing:opacity-0 data-closing:duration-(--duration-normal) data-closing:ease-exit",
+        overlayBackdrop,
+      )}
       style={{ width: "calc(100vw - var(--spacing-x8))" }}
     >
       <VStack gap="x1_5" px="x5" pt="x5">

@@ -185,7 +185,7 @@ export function DatePicker({
                 aria-pressed={iso === value}
                 onClick={() => pick(iso)}
                 className={cn(
-                  "flex h-9 items-center justify-center rounded-r2 text-t4 transition-colors duration-100 ease-standard focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-stroke-focus-ring",
+                  "flex h-9 items-center justify-center rounded-r2 text-t4 transition-colors duration-(--duration-fast) ease-standard focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-stroke-focus-ring",
                   iso === value
                     ? "bg-bg-brand-solid text-fg-contrast hover:bg-bg-brand-solid-hover"
                     : cn(

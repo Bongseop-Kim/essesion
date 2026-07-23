@@ -10,6 +10,8 @@ import {
 } from "react";
 
 import { cn } from "../cn";
+import { focusRing } from "./internal/focus-ring";
+import { assignRef } from "./internal/merge-refs";
 import type { SnackbarAction } from "./internal/snackbar-store";
 import {
   advance,
@@ -38,15 +40,6 @@ snackbar.dismiss = dismiss;
 export type SnackbarAvoidOverlapProps = {
   children: ReactElement<{ ref?: Ref<HTMLElement> }>;
 };
-
-function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (!ref) return;
-  if (typeof ref === "function") {
-    ref(value);
-    return;
-  }
-  (ref as { current: T | null }).current = value;
-}
 
 /** 스낵바가 겹치지 않아야 하는 하단 고정 영역을 등록한다. */
 export function SnackbarAvoidOverlap({
@@ -193,9 +186,9 @@ export function SnackbarHost(): ReactNode {
         <div
           data-closing={closing || undefined}
           className={cn(
-            "flex min-h-11 max-w-140 items-center gap-x3 rounded-r2 bg-bg-brand-solid px-x4 py-x2_5 text-t4 text-fg-contrast shadow-s2 transition duration-200 ease-enter",
+            "flex min-h-11 max-w-140 items-center gap-x3 rounded-r2 bg-bg-brand-solid px-x4 py-x2_5 text-t4 text-fg-contrast shadow-s2 transition duration-(--duration-normal) ease-enter",
             closing
-              ? "scale-80 opacity-0 duration-100 ease-exit"
+              ? "scale-80 opacity-0 duration-(--duration-fast) ease-exit"
               : "starting:scale-80 starting:opacity-0",
           )}
         >
@@ -207,7 +200,11 @@ export function SnackbarHost(): ReactNode {
                 current.action?.onClick();
                 dismiss(current.id);
               }}
-              className="shrink-0 font-bold text-fg-contrast text-t4 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring active:opacity-70"
+              className={cn(
+                "shrink-0 font-bold text-fg-contrast text-t4 underline underline-offset-2",
+                focusRing,
+                "active:opacity-70",
+              )}
             >
               {current.action.label}
             </button>

@@ -11,7 +11,7 @@ type FrameSize = "medium" | "large";
 /* TextField의 frame과 동일 치수·테두리 규칙. 포커스는 outline 기법(레이아웃 시프트 방지),
    입력 계열이므로 focus-visible 링은 파란 링이 아니라 stroke.brand. */
 const frameBase =
-  "flex w-full items-center gap-x2 border border-stroke-neutral-weak bg-bg-layer-default text-left transition-colors duration-100 ease-standard focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-stroke-focus-ring";
+  "flex w-full items-center gap-x2 border border-stroke-neutral-weak bg-bg-layer-default text-left transition-colors duration-(--duration-fast) ease-standard focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-stroke-focus-ring";
 
 const sizes: Record<FrameSize, string> = {
   medium: "h-10 rounded-r2 px-x3_5 text-t4",

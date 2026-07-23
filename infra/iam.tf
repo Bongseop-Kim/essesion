@@ -69,18 +69,10 @@ resource "google_secret_manager_secret_iam_member" "database_url" {
   member    = "serviceAccount:${each.value}"
 }
 
+# 부여 대상은 컨테이너가 참조하는 app 시크릿과 동일 출처(cloudrun.tf local.api_app_secret_keys) —
+# "부여"가 "소비"와 어긋날 수 없다(naver/apple 누락 같은 드리프트 방지).
 resource "google_secret_manager_secret_iam_member" "api_secrets" {
-  for_each = toset([
-    "jwt-secret",
-    "session-secret",
-    "edge-proxy-secret",
-    "toss-secret-key",
-    "solapi-api-key",
-    "solapi-api-secret",
-    "google-client-secret",
-    "kakao-client-secret",
-    "sentry-dsn-api",
-  ])
+  for_each  = toset(values(local.api_app_secret_keys))
   project   = var.project_id
   secret_id = google_secret_manager_secret.app[each.value].secret_id
   role      = "roles/secretmanager.secretAccessor"

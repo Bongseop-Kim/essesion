@@ -18,7 +18,7 @@ type FieldOwnProps = {
 /* 컨테이너/컨트롤 스타일은 ActionButton과 같은 size 레코드 + cn() 패턴.
    포커스는 outline 기법으로 처리(테두리 두께 변화로 인한 레이아웃 시프트 방지). */
 const frameBase =
-  "border border-stroke-neutral-weak bg-bg-layer-default transition-colors duration-100 ease-standard focus-within:outline focus-within:outline-2 focus-within:-outline-offset-1 focus-within:outline-stroke-brand";
+  "border border-stroke-neutral-weak bg-bg-layer-default transition-colors duration-(--duration-fast) ease-standard focus-within:outline focus-within:outline-2 focus-within:-outline-offset-1 focus-within:outline-stroke-brand";
 
 const inputSizes: Record<FrameSize, string> = {
   medium: "h-10 rounded-r2 px-x3_5 text-t4",

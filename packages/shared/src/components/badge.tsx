@@ -41,29 +41,21 @@ const toneVariants: Record<
   },
 };
 
-const sizes = {
-  medium: "min-h-5 px-x1_5 rounded-r1 text-t1 font-medium",
-  large: "min-h-6 px-x2 rounded-r1_5 text-t2 font-medium",
-};
-
 export type BadgeProps = ComponentPropsWithRef<"span"> & {
   variant?: keyof typeof toneVariants;
   tone?: Tone;
-  size?: keyof typeof sizes;
 };
 
 export function Badge({
   variant = "weak",
   tone = "neutral",
-  size = "medium",
   className,
   ...props
 }: BadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center",
-        sizes[size],
+        "inline-flex items-center min-h-5 px-x1_5 rounded-r1 text-t1 font-medium",
         toneVariants[variant][tone],
         className,
       )}

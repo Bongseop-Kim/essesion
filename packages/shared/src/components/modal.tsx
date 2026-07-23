@@ -5,6 +5,8 @@ import { cn } from "../cn";
 import { Box } from "./box";
 import { Flex } from "./flex";
 import { CloseButton } from "./internal/close-button";
+import { warnDev } from "./internal/dev-warn";
+import { overlayBackdrop, overlaySurface } from "./internal/overlay-chrome";
 import { useControllableState } from "./internal/use-controllable-state";
 import { useDialog } from "./internal/use-dialog";
 import { VStack } from "./stack";
@@ -59,9 +61,10 @@ export function Modal({
   const titleId = title != null ? `${id}-title` : undefined;
   const descriptionId = description != null ? `${id}-description` : undefined;
 
-  if (process.env.NODE_ENV !== "production" && title == null && !ariaLabel) {
-    console.warn("Modal: title이 없으면 aria-label을 전달하세요.");
-  }
+  warnDev(
+    title == null && !ariaLabel,
+    "Modal: title이 없으면 aria-label을 전달하세요.",
+  );
 
   return (
     <dialog
@@ -70,12 +73,12 @@ export function Modal({
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       className={cn(
-        "m-auto w-full overflow-hidden rounded-r5 border-0 bg-bg-layer-floating p-0 text-fg-neutral shadow-s3 outline-none",
-        "transition duration-300 ease-enter",
+        "m-auto w-full overflow-hidden rounded-r5",
+        overlaySurface,
+        "transition duration-(--duration-slow) ease-enter",
         "starting:open:scale-95 starting:open:opacity-0",
-        "data-closing:scale-95 data-closing:opacity-0 data-closing:duration-200 data-closing:ease-exit",
-        "backdrop:bg-bg-overlay backdrop:transition-opacity backdrop:duration-300",
-        "starting:open:backdrop:opacity-0 data-closing:backdrop:opacity-0",
+        "data-closing:scale-95 data-closing:opacity-0 data-closing:duration-(--duration-normal) data-closing:ease-exit",
+        overlayBackdrop,
         sizes[size],
       )}
       // UA dialog max-height만으로는 자식의 100% 높이가 확정되지 않아 dialog가 스크롤된다.
