@@ -27,7 +27,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { dateMedium } from "@/shared/lib/format";
+import { formatDate } from "@/shared/lib/format";
 
 import { ReviewPhotoField, type ReviewPhotoState } from "./review-photo-field";
 
@@ -258,7 +258,7 @@ export function ReviewFormModal({
             <HStack justify="space-between" gap="x3" wrap>
               <Rating value={reviewQuery.data.rating} />
               <Text textStyle="caption" color="fg.neutral-muted">
-                {dateMedium.format(new Date(reviewQuery.data.created_at))}
+                {formatDate(reviewQuery.data.created_at)}
               </Text>
             </HStack>
             <Box bg="bg.neutral-weak" borderRadius="r2" p="x4">

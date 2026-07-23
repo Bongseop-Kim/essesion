@@ -32,9 +32,9 @@ import {
   claimStatusTone,
   claimTypeLabel,
 } from "@/features/claims";
-import { formatOrderDate } from "@/features/orders";
 import { courierLabel, courierTrackingUrl } from "@/features/repair-shipping";
 import { krw } from "@/pages/shop/constants";
+import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function ClaimDetailPage() {
@@ -89,7 +89,7 @@ export function ClaimDetailPage() {
         </HStack>
         <SummaryRow label="유형" value={claimTypeLabel(claim.type)} />
         <SummaryRow label="사유" value={claimReasonLabel(claim.reason)} />
-        <SummaryRow label="접수일" value={formatOrderDate(claim.created_at)} />
+        <SummaryRow label="접수일" value={formatDate(claim.created_at)} />
         <SummaryRow label="클레임 번호" value={claim.claim_number} />
         <SummaryRow label="주문 번호" value={claim.order_number} />
       </VStack>

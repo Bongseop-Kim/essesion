@@ -1,6 +1,5 @@
 export {
   formatQuoteAmount,
-  formatQuoteDate,
   QUOTE_REQUEST_FILTERS,
   QUOTE_REQUEST_STATUSES,
   type QuoteRequestFilter,

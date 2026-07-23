@@ -13,7 +13,7 @@ import {
 } from "@essesion/shared";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-import { dateMedium } from "@/shared/lib/format";
+import { formatDate } from "@/shared/lib/format";
 
 const PAGE_SIZE = 20;
 
@@ -108,7 +108,7 @@ export function ReviewListSection({
                   />
                 </HStack>
                 <Text textStyle="caption" color="fg.neutral-muted">
-                  {dateMedium.format(new Date(review.created_at))}
+                  {formatDate(review.created_at)}
                 </Text>
               </HStack>
               <Text className="whitespace-pre-wrap break-words">
