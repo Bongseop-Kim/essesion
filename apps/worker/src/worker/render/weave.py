@@ -57,3 +57,13 @@ def apply_weave(design: Image.Image, weave: str, strength: float) -> Image.Image
         lut = [max(0, min(255, round(255 - (255 - v) * strength))) for v in range(256)]
         tex = tex.point(lut * 3)
     return ImageChops.multiply(design, tex)
+
+
+def emboss(base: Image.Image, highlight: Image.Image, shadow: Image.Image, k: float) -> Image.Image:
+    """좌상단 광원 emboss — highlight 마스크는 밝게, shadow 마스크는 어둡게 (k만큼 블렌드).
+
+    슬롯 경계 relief와 모티프 가닥 relief가 공유하는 합성 꼬리 — 마스크 산출만 서로 다르다.
+    """
+    lit = Image.blend(base, Image.new("RGB", base.size, (255, 255, 255)), k)
+    dark = Image.blend(base, Image.new("RGB", base.size, (0, 0, 0)), k)
+    return Image.composite(dark, Image.composite(lit, base, highlight), shadow)

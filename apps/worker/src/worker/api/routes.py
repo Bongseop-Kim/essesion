@@ -2,9 +2,10 @@ import asyncio
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import wraps
-from typing import Any, Literal, Never
+from typing import Any, Never
 from urllib.parse import urlparse
 
 import httpx
@@ -18,7 +19,6 @@ from db.models.design import (
 from db.models.seamless import SeamlessGenerationAttachment, SeamlessGenerationLog
 from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
@@ -31,8 +31,31 @@ from worker.adapters.gemini import (
     SemanticMismatch,
     prepare_reference_image,
 )
+from worker.api.schemas import (
+    CandidateOut,
+    CandidatesRequest,
+    ExportRequest,
+    FinalizeTaskRequest,
+    GenerateRequest,
+    GenerateResponse,
+    IdeasRequest,
+    IdeasResponse,
+    MotifGenerateRequest,
+    MotifImportRequest,
+    MotifImportResponse,
+    PaletteExtractRequest,
+    PaletteExtractResponse,
+    PhotoMotifPreviewRequest,
+    PhotoMotifPreviewResponse,
+    PromotionEmbeddingRequest,
+    PromotionEmbeddingResponse,
+    PromotionScanRequest,
+    PromotionScanResponse,
+    ReferenceImageInput,
+    TextMotifPreviewRequest,
+    TextMotifPreviewResponse,
+)
 from worker.authoring.promotion import (
-    DEFAULT_SCAN_LIMIT,
     ensure_candidate_embedding,
     scan_promotion_candidates,
 )
@@ -44,20 +67,11 @@ from worker.engine import (
     generate_candidates,
     validate_intent,
 )
-from worker.engine.constraints import (
-    ConstraintInvalid,
-    PaletteConstraint,
-    PatternConstraints,
-    apply_generation_constraints,
-)
+from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
 from worker.motifs.normalize import normalize_motif_svg
-from worker.motifs.photo_svg import (
-    MAX_PROCESSED_PREVIEW_BYTES,
-    extract_palette,
-    photo_to_svg,
-)
+from worker.motifs.photo_svg import extract_palette, photo_to_svg
 from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import (
     present_candidates,
@@ -66,7 +80,7 @@ from worker.motifs.resolver import (
     resolve_spec,
 )
 from worker.motifs.store import get_motifs
-from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH, text_to_svg
+from worker.motifs.text_svg import text_to_svg
 from worker.render.fabric import FabricError, render_fabric
 from worker.render.raster import RasterError, RasterLimitError, rasterize_svg
 
@@ -85,201 +99,6 @@ GENERATION_ERROR_MESSAGES = {
     "candidate_invalid": "the design candidates could not be composed",
     "semantic_mismatch": "the design plan did not match the requested subject",
 }
-
-
-class StrictRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class PromotionScanRequest(StrictRequest):
-    limit: int = Field(default=DEFAULT_SCAN_LIMIT, ge=1, le=DEFAULT_SCAN_LIMIT)
-
-
-class PromotionScanResponse(BaseModel):
-    scanned: int
-    pending: int
-    duplicate: int
-    invalid: int
-    failed: int
-
-
-class PromotionEmbeddingRequest(StrictRequest):
-    candidate_id: uuid.UUID
-
-
-class PromotionEmbeddingResponse(BaseModel):
-    embedding_model: str
-
-
-class GenerateRequest(StrictRequest):
-    prompt: str | None = None
-    intent: dict[str, Any] | None = None
-    colorway: str | None = None
-    seed: int | None = None
-    candidate_count: int = Field(default=1, ge=1, le=8)
-    reference_images: list["ReferenceImageInput"] = Field(default_factory=list, max_length=5)
-    motif_ids: list[str] = Field(default_factory=list, max_length=2)
-    palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
-    pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
-
-    @model_validator(mode="after")
-    def _valid_generation_mode(self) -> "GenerateRequest":
-        if self.prompt is not None and not self.prompt.strip():
-            self.prompt = None
-        if self.intent is not None and (
-            self.prompt is not None or self.reference_images or self.motif_ids
-        ):
-            raise ValueError(
-                "intent variation cannot include prompt, reference images, or motif ids"
-            )
-        if self.prompt is None and self.intent is None and not self.motif_ids:
-            raise ValueError("prompt or SVG motif is required")
-        motif_references = sum(item.purpose == "motif" for item in self.reference_images)
-        if len(self.motif_ids) + motif_references > 2:
-            raise ValueError("exact motifs and motif reference photos may use at most 2 slots")
-        return self
-
-
-class ReferenceImageInput(StrictRequest):
-    image_id: uuid.UUID
-    url: str = Field(max_length=4_000)
-    content_type: Literal["image/jpeg", "image/png", "image/webp"]
-    size_bytes: int = Field(gt=0, le=10 * 1024 * 1024)
-    purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto"
-
-
-class CandidateOut(BaseModel):
-    id: str
-    design_index: int
-    layout_id: str
-    source_fidelity: str
-    colorway_id: str
-    seed: int
-    svg: str
-    png_object_key: str | None
-
-
-class GenerateResponse(BaseModel):
-    generation_log_id: uuid.UUID
-    request_id: str
-    registry_version: str
-    engine_version: str
-    intents: list[dict[str, Any]]
-    candidates: list[CandidateOut]
-    warnings: list[str] = []
-
-
-class ExportRequest(StrictRequest):
-    svg: str = Field(max_length=2_000_000)
-    format: Literal["png", "tiff"] = "png"
-    dpi: int = Field(default=300, ge=1)
-    width_mm: float = Field(gt=0)
-    height_mm: float | None = Field(default=None, gt=0)
-
-
-class FinalizeTaskRequest(StrictRequest):
-    job_id: uuid.UUID
-
-
-class MotifSpec(StrictRequest):
-    subject: str
-    scope: str
-    view: str | None = None
-    expression: str | None = None
-    style: str | None = None
-    description: str | None = None
-
-
-class CandidatesRequest(StrictRequest):
-    spec: MotifSpec
-    top_k: int = Field(default=5, ge=1, le=10)
-
-
-class MotifGenerateRequest(StrictRequest):
-    spec: MotifSpec
-    seed: int | None = None
-
-
-class MotifImportRequest(StrictRequest):
-    svg: str = Field(max_length=2_000_000)
-
-    @field_validator("svg")
-    @classmethod
-    def _bounded_svg_bytes(cls, value: str) -> str:
-        if len(value.encode("utf-8")) > 2_000_000:
-            raise ValueError("SVG exceeds 2000000 bytes")
-        return value
-
-
-class MotifImportResponse(BaseModel):
-    motif_id: str
-    symbol: str = Field(max_length=2_000_000)
-    color_slots: list[str] = Field(min_length=1, max_length=6)
-    bbox: tuple[float, float, float, float]
-    anchor: tuple[float, float]
-    preview_svg: str = Field(max_length=2_000_000)
-
-
-class PaletteExtractRequest(StrictRequest):
-    image: ReferenceImageInput
-    color_count: int = Field(default=5, ge=2, le=5)
-
-
-class PaletteExtractResponse(BaseModel):
-    colors: list[str] = Field(min_length=2, max_length=5)
-
-
-class TextMotifPreviewRequest(StrictRequest):
-    text: str = Field(min_length=1, max_length=MAX_TEXT_MOTIF_LENGTH)
-    font_id: Literal["nanum-gothic", "nanum-myeongjo"]
-    font_weight: Literal[400, 700]
-    letter_spacing: float = Field(default=0.0, ge=-0.2, le=1.0, allow_inf_nan=False)
-
-
-class TextMotifPreviewResponse(BaseModel):
-    svg: str = Field(max_length=2_000_000)
-
-
-class PhotoMotifPreviewRequest(StrictRequest):
-    image: ReferenceImageInput
-    remove_background: bool = True
-    simplification: Literal["low", "medium", "high"] = "medium"
-    color_count: int = Field(default=4, ge=1, le=6)
-
-
-class PhotoMotifPreviewResponse(BaseModel):
-    svg: str = Field(max_length=2_000_000)
-    processed_preview_base64: str = Field(max_length=4 * ((MAX_PROCESSED_PREVIEW_BYTES + 2) // 3))
-    background_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-    warnings: list[str] = Field(default_factory=list, max_length=5)
-
-
-class IdeaMotifContext(StrictRequest):
-    motif_id: str = Field(min_length=1, max_length=100)
-    name: str = Field(min_length=1, max_length=100)
-
-
-class IdeasRequest(StrictRequest):
-    prompt: str = Field(default="", max_length=4_000)
-    reference_images: list[ReferenceImageInput] = Field(default_factory=list, max_length=5)
-    motif_ids: list[str] = Field(default_factory=list, max_length=2)
-    motifs: list[IdeaMotifContext] = Field(default_factory=list, max_length=2)
-    palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
-    pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
-    count: Literal[3, 4] = 4
-
-    @model_validator(mode="after")
-    def _motif_context_matches_ids(self) -> "IdeasRequest":
-        contextual_ids = [motif.motif_id for motif in self.motifs]
-        if contextual_ids != self.motif_ids:
-            raise ValueError("motifs must match motif_ids in the same order")
-        if len(contextual_ids) != len(set(contextual_ids)):
-            raise ValueError("idea motif context must be distinct")
-        return self
-
-
-class IdeasResponse(BaseModel):
-    ideas: list[str] = Field(min_length=3, max_length=4)
 
 
 def _reject_generation(request: Request, code: str, stage: str) -> Never:
@@ -542,12 +361,17 @@ async def _fetch_reference_bytes(
     return data
 
 
+def _reference_image_client() -> httpx.AsyncClient:
+    # 외부 URL fetch 전용 — 리다이렉트 금지(SSRF 완화)·60s 상한을 한 곳에서 고정.
+    return httpx.AsyncClient(timeout=60.0, follow_redirects=False)
+
+
 async def _load_reference_image_items(
     items: list[ReferenceImageInput], settings
 ) -> list[ReferenceImage]:
     prepared: list[ReferenceImage] = []
     total = 0
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
+    async with _reference_image_client() as client:
         for item in items:
             data = await _fetch_reference_bytes(item, settings, client)
             total += len(data)
@@ -569,7 +393,7 @@ async def _load_reference_images(body: GenerateRequest, settings) -> list[Refere
 
 
 async def _load_single_image(item: ReferenceImageInput, settings) -> bytes:  # noqa: ANN001
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
+    async with _reference_image_client() as client:
         return await _fetch_reference_bytes(item, settings, client)
 
 
@@ -627,6 +451,303 @@ def _bind_resolved_motif_colors(
             }
 
 
+@dataclass(frozen=True)
+class _GenerateOutcome:
+    input_type: str
+    candidate_set: Any
+    resolved_intents: list[dict[str, Any]]
+    tile_mm: float
+    intent_log: dict[str, Any]
+    registry_version: str
+
+
+async def _generate_from_intent(
+    body: GenerateRequest,
+    request: Request,
+    session: AsyncSession,
+    *,
+    effective_colorway: str | None,
+    registry_version: str,
+) -> _GenerateOutcome:
+    assert body.intent is not None
+    try:
+        constrained_intent = apply_generation_constraints(
+            body.intent, palette=body.palette, pattern=body.pattern_constraints
+        )
+    except ConstraintInvalid:
+        _reject_generation(request, "constraint_conflict", "constraints")
+    resolved_intents = [constrained_intent]
+    catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
+    candidate_started = time.perf_counter()
+    try:
+        candidate_set = generate_candidates(
+            constrained_intent,
+            candidate_count=body.candidate_count,
+            seed=body.seed,
+            colorway=effective_colorway,
+            registry_version=registry_version,
+            motifs=catalog or None,  # DB에 없으면 전역 registry 폴백(테스트/시드 경로)
+            palette_constraint=body.palette,
+            pattern_constraints=body.pattern_constraints,
+        )
+    except (IntentInvalid, AssertionError, ValueError):
+        _reject_generation(request, "intent_invalid", "intent")
+    finally:
+        request.state.generation_diagnostics["candidate_ms"] = round(
+            (time.perf_counter() - candidate_started) * 1000, 3
+        )
+    return _GenerateOutcome(
+        input_type="intent",
+        candidate_set=candidate_set,
+        resolved_intents=resolved_intents,
+        tile_mm=float(constrained_intent["canvas"]["tile_mm"]),
+        intent_log={
+            "designs": resolved_intents,
+            "palette": body.palette.model_dump(),
+            "pattern_constraints": body.pattern_constraints.model_dump(),
+        },
+        registry_version=registry_version,
+    )
+
+
+async def _generate_from_prompt(
+    body: GenerateRequest,
+    request: Request,
+    session: AsyncSession,
+    *,
+    settings,  # noqa: ANN001
+    adapters,  # noqa: ANN001
+    effective_colorway: str | None,
+    registry_version: str,
+    warnings: list[str],
+) -> _GenerateOutcome:
+    input_type = "reference_image" if body.reference_images else "prompt"
+    gemini = adapters.gemini
+    if gemini is None:
+        exc = AdapterNotConfigured(
+            "Gemini 미구성 (intent 직접 전달 가능)",
+            provider="gemini",
+            operation="generate_content",
+            reason_code="not_configured",
+        )
+        _record_adapter_failure(request, exc, stage="authoring")
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    def _validate(intent_raw: dict) -> list[str] | None:
+        try:
+            constrained = apply_generation_constraints(
+                intent_raw, palette=body.palette, pattern=body.pattern_constraints
+            )
+        except ConstraintInvalid as exc:
+            return exc.errors
+        intent_raw.clear()
+        intent_raw.update(constrained)
+        try:
+            # Authored motif IDs are provisional until resolver + DB catalog binding.
+            # An explicit empty catalog validates geometry/colors without accidentally
+            # consulting the process-global test registry for unresolved color slots.
+            validate_intent(intent_raw, repair=True, motifs={})
+        except IntentInvalid as exc:
+            return exc.errors
+        used = iter_motif_ids(intent_raw)
+        if len(used) > 2:
+            return ["each design may use at most 2 distinct motifs"]
+        missing = [motif_id for motif_id in body.motif_ids if motif_id not in used]
+        if missing:
+            return [f"design must use supplied motif ids: {', '.join(missing)}"]
+        return None
+
+    try:
+        reference_images = await _load_reference_images(body, settings)
+    except HTTPException as exc:
+        if exc.status_code == 422:
+            _reject_generation(request, "reference_invalid", "reference")
+        raise
+    author_prompt = body.prompt or (
+        "Create a balanced necktie pattern using the supplied SVG motif."
+    )
+    embedding = request_scoped(adapters.embedding)
+    reference_capable_count = sum(
+        image.purpose in {"motif", "auto"} for image in body.reference_images
+    )
+    catalog_candidates: list[dict[str, object]] = []
+    if body.prompt and not body.motif_ids and reference_capable_count < 2:
+        catalog_candidates = await prompt_catalog_candidates(
+            session,
+            body.prompt,
+            embedding_client=embedding,
+            tau=settings.motif_similarity_tau,
+            top_k=5,
+        )
+    request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
+    retrieval_started = time.perf_counter()
+    available_motif_count = min(
+        2,
+        len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
+    )
+    async with request.app.state.sessionmaker() as retrieval_session:
+        retrieval = await retrieve_examples(
+            retrieval_session,
+            author_prompt,
+            embedding_client=embedding,
+            embedding_model=getattr(embedding, "model", settings.embedding_model),
+            available_motif_count=available_motif_count,
+            pattern_constraints=body.pattern_constraints,
+        )
+    request.state.generation_diagnostics.update(
+        {
+            "example_retrieval_status": retrieval.status,
+            "example_retrieval_reason": retrieval.reason,
+            "example_retrieval_ms": round((time.perf_counter() - retrieval_started) * 1000, 3),
+            "selected_examples": retrieval.diagnostics(),
+        }
+    )
+
+    authoring_started = time.perf_counter()
+    try:
+        designs = await gemini.author_designs(
+            author_prompt,
+            validate=_validate,
+            reference_images=reference_images,
+            motif_ids=body.motif_ids,
+            catalog_candidates=catalog_candidates,
+            palette_constraint=body.palette,
+            pattern_constraints=body.pattern_constraints,
+            examples=retrieval.prompt_examples(),
+            diagnostics=request.state.generation_diagnostics,
+        )
+    except SemanticMismatch as exc:
+        request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
+        _reject_generation(request, "semantic_mismatch", "authoring")
+    except IntentInvalid as exc:
+        request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
+        _reject_generation(request, "authoring_invalid", "authoring")
+    except AdapterClientError as exc:
+        _record_adapter_failure(
+            request,
+            exc,
+            stage="authoring",
+            duration_ms=round((time.perf_counter() - authoring_started) * 1000, 3),
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        request.state.generation_diagnostics["authoring_ms"] = round(
+            (time.perf_counter() - authoring_started) * 1000, 3
+        )
+
+    resolved_intents: list[dict[str, Any]] = []
+    resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
+    resolution_started = time.perf_counter()
+    try:
+        for design in designs:
+            resolution_trace.extend(design.motif_resolutions)
+            # Motif variant selection and candidate composition must share one effective
+            # seed. With no request override, generate_candidates uses each authored seed.
+            effective_seed = (
+                body.seed if body.seed is not None else int(design.intent.get("seed", 0))
+            )
+            resolved_intents.append(
+                await resolve_motifs(
+                    session,
+                    design.intent,
+                    design.motif_specs,
+                    recraft_client=adapters.recraft,
+                    embedding_client=embedding,
+                    settings=settings,
+                    seed=effective_seed,
+                    warnings=warnings,
+                    trace=resolution_trace,
+                )
+            )
+            if len(iter_motif_ids(resolved_intents[-1])) > 2:
+                raise AdapterClientError(
+                    "resolved design exceeds 2 distinct motifs",
+                    provider="worker",
+                    operation="resolve_motif",
+                    reason_code="invalid_result",
+                )
+    except AdapterNotConfigured as exc:
+        _record_adapter_failure(
+            request,
+            exc,
+            stage="motif_resolution",
+            duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
+            emit_log=False,
+        )
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AdapterClientError as exc:
+        _record_adapter_failure(
+            request,
+            exc,
+            stage="motif_resolution",
+            duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
+            emit_log=False,
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        request.state.generation_diagnostics["motif_resolution_ms"] = round(
+            (time.perf_counter() - resolution_started) * 1000, 3
+        )
+
+    ids: set[str] = set()
+    for resolved in resolved_intents:
+        ids |= iter_motif_ids(resolved)
+    catalog = await get_motifs(session, ids)
+    _bind_resolved_motif_colors(
+        resolved_intents,
+        catalog,
+        [design.motif_color_slots for design in designs],
+    )
+    request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
+    registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
+    candidate_started = time.perf_counter()
+    try:
+        candidate_set = generate_candidate_set(
+            resolved_intents,
+            candidate_count=body.candidate_count,
+            seed=body.seed,
+            colorway=effective_colorway,
+            registry_version=registry_version,
+            motifs=catalog or None,
+            palette_constraint=body.palette,
+            pattern_constraints=body.pattern_constraints,
+        )
+    except (IntentInvalid, AssertionError, ValueError):
+        _reject_generation(request, "candidate_invalid", "candidate")
+    finally:
+        request.state.generation_diagnostics["candidate_ms"] = round(
+            (time.perf_counter() - candidate_started) * 1000, 3
+        )
+    intent_log: dict[str, Any] = {
+        "designs": resolved_intents,
+        "palette": body.palette.model_dump(),
+        "pattern_constraints": body.pattern_constraints.model_dump(),
+    }
+    authored_plans = [design.plan for design in designs if design.plan is not None]
+    if authored_plans:
+        diagnostics = request.state.generation_diagnostics
+        intent_log["authoring"] = {
+            "plan_contract_version": diagnostics.get("plan_contract_version"),
+            "compiler_revision": diagnostics.get("compiler_revision"),
+            "prompt_revision": diagnostics.get("prompt_revision"),
+            "selected_example_ids": [
+                example.get("example_id")
+                for example in diagnostics.get("selected_examples", [])
+                if isinstance(example, dict)
+            ],
+            "plans": authored_plans,
+            "structural_fingerprints": [design.structural_fingerprint for design in designs],
+        }
+    return _GenerateOutcome(
+        input_type=input_type,
+        candidate_set=candidate_set,
+        resolved_intents=resolved_intents,
+        tile_mm=float(resolved_intents[0]["canvas"]["tile_mm"]),
+        intent_log=intent_log,
+        registry_version=registry_version,
+    )
+
+
 @generate_router.post("/generate", response_model=GenerateResponse)
 @_logged_generation
 async def generate(
@@ -642,258 +763,31 @@ async def generate(
     effective_colorway = "default" if body.palette.mode == "fixed" else body.colorway
 
     if body.intent is not None:
-        input_type = "intent"
-        try:
-            constrained_intent = apply_generation_constraints(
-                body.intent, palette=body.palette, pattern=body.pattern_constraints
-            )
-        except ConstraintInvalid:
-            _reject_generation(request, "constraint_conflict", "constraints")
-        resolved_intents = [constrained_intent]
-        catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
-        candidate_started = time.perf_counter()
-        try:
-            candidate_set = generate_candidates(
-                constrained_intent,
-                candidate_count=body.candidate_count,
-                seed=body.seed,
-                colorway=effective_colorway,
-                registry_version=registry_version,
-                motifs=catalog or None,  # DB에 없으면 전역 registry 폴백(테스트/시드 경로)
-                palette_constraint=body.palette,
-                pattern_constraints=body.pattern_constraints,
-            )
-        except (IntentInvalid, AssertionError, ValueError):
-            _reject_generation(request, "intent_invalid", "intent")
-        finally:
-            request.state.generation_diagnostics["candidate_ms"] = round(
-                (time.perf_counter() - candidate_started) * 1000, 3
-            )
-        tile_mm = float(constrained_intent["canvas"]["tile_mm"])
-        intent_log: dict[str, Any] = {
-            "designs": resolved_intents,
-            "palette": body.palette.model_dump(),
-            "pattern_constraints": body.pattern_constraints.model_dump(),
-        }
+        outcome = await _generate_from_intent(
+            body,
+            request,
+            session,
+            effective_colorway=effective_colorway,
+            registry_version=registry_version,
+        )
     else:
-        input_type = "reference_image" if body.reference_images else "prompt"
-        gemini = adapters.gemini
-        if gemini is None:
-            exc = AdapterNotConfigured(
-                "Gemini 미구성 (intent 직접 전달 가능)",
-                provider="gemini",
-                operation="generate_content",
-                reason_code="not_configured",
-            )
-            _record_adapter_failure(request, exc, stage="authoring")
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-        def _validate(intent_raw: dict) -> list[str] | None:
-            try:
-                constrained = apply_generation_constraints(
-                    intent_raw, palette=body.palette, pattern=body.pattern_constraints
-                )
-            except ConstraintInvalid as exc:
-                return exc.errors
-            intent_raw.clear()
-            intent_raw.update(constrained)
-            try:
-                # Authored motif IDs are provisional until resolver + DB catalog binding.
-                # An explicit empty catalog validates geometry/colors without accidentally
-                # consulting the process-global test registry for unresolved color slots.
-                validate_intent(intent_raw, repair=True, motifs={})
-            except IntentInvalid as exc:
-                return exc.errors
-            used = iter_motif_ids(intent_raw)
-            if len(used) > 2:
-                return ["each design may use at most 2 distinct motifs"]
-            missing = [motif_id for motif_id in body.motif_ids if motif_id not in used]
-            if missing:
-                return [f"design must use supplied motif ids: {', '.join(missing)}"]
-            return None
-
-        try:
-            reference_images = await _load_reference_images(body, settings)
-        except HTTPException as exc:
-            if exc.status_code == 422:
-                _reject_generation(request, "reference_invalid", "reference")
-            raise
-        author_prompt = body.prompt or (
-            "Create a balanced necktie pattern using the supplied SVG motif."
+        outcome = await _generate_from_prompt(
+            body,
+            request,
+            session,
+            settings=settings,
+            adapters=adapters,
+            effective_colorway=effective_colorway,
+            registry_version=registry_version,
+            warnings=warnings,
         )
-        embedding = request_scoped(adapters.embedding)
-        reference_capable_count = sum(
-            image.purpose in {"motif", "auto"} for image in body.reference_images
-        )
-        catalog_candidates: list[dict[str, object]] = []
-        if body.prompt and not body.motif_ids and reference_capable_count < 2:
-            catalog_candidates = await prompt_catalog_candidates(
-                session,
-                body.prompt,
-                embedding_client=embedding,
-                tau=settings.motif_similarity_tau,
-                top_k=5,
-            )
-        request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
-        retrieval_started = time.perf_counter()
-        available_motif_count = min(
-            2,
-            len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
-        )
-        async with request.app.state.sessionmaker() as retrieval_session:
-            retrieval = await retrieve_examples(
-                retrieval_session,
-                author_prompt,
-                embedding_client=embedding,
-                embedding_model=getattr(embedding, "model", settings.embedding_model),
-                available_motif_count=available_motif_count,
-                pattern_constraints=body.pattern_constraints,
-            )
-        request.state.generation_diagnostics.update(
-            {
-                "example_retrieval_status": retrieval.status,
-                "example_retrieval_reason": retrieval.reason,
-                "example_retrieval_ms": round((time.perf_counter() - retrieval_started) * 1000, 3),
-                "selected_examples": retrieval.diagnostics(),
-            }
-        )
+    input_type = outcome.input_type
+    resolved_intents = outcome.resolved_intents
+    candidate_set = outcome.candidate_set
+    tile_mm = outcome.tile_mm
+    intent_log = outcome.intent_log
+    registry_version = outcome.registry_version
 
-        authoring_started = time.perf_counter()
-        try:
-            designs = await gemini.author_designs(
-                author_prompt,
-                validate=_validate,
-                reference_images=reference_images,
-                motif_ids=body.motif_ids,
-                catalog_candidates=catalog_candidates,
-                palette_constraint=body.palette,
-                pattern_constraints=body.pattern_constraints,
-                examples=retrieval.prompt_examples(),
-                diagnostics=request.state.generation_diagnostics,
-            )
-        except SemanticMismatch as exc:
-            request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
-            _reject_generation(request, "semantic_mismatch", "authoring")
-        except IntentInvalid as exc:
-            request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
-            _reject_generation(request, "authoring_invalid", "authoring")
-        except AdapterClientError as exc:
-            _record_adapter_failure(
-                request,
-                exc,
-                stage="authoring",
-                duration_ms=round((time.perf_counter() - authoring_started) * 1000, 3),
-            )
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        finally:
-            request.state.generation_diagnostics["authoring_ms"] = round(
-                (time.perf_counter() - authoring_started) * 1000, 3
-            )
-
-        resolved_intents: list[dict[str, Any]] = []
-        resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
-        resolution_started = time.perf_counter()
-        try:
-            for design in designs:
-                resolution_trace.extend(design.motif_resolutions)
-                # Motif variant selection and candidate composition must share one effective
-                # seed. With no request override, generate_candidates uses each authored seed.
-                effective_seed = (
-                    body.seed if body.seed is not None else int(design.intent.get("seed", 0))
-                )
-                resolved_intents.append(
-                    await resolve_motifs(
-                        session,
-                        design.intent,
-                        design.motif_specs,
-                        recraft_client=adapters.recraft,
-                        embedding_client=embedding,
-                        settings=settings,
-                        seed=effective_seed,
-                        warnings=warnings,
-                        trace=resolution_trace,
-                    )
-                )
-                if len(iter_motif_ids(resolved_intents[-1])) > 2:
-                    raise AdapterClientError(
-                        "resolved design exceeds 2 distinct motifs",
-                        provider="worker",
-                        operation="resolve_motif",
-                        reason_code="invalid_result",
-                    )
-        except AdapterNotConfigured as exc:
-            _record_adapter_failure(
-                request,
-                exc,
-                stage="motif_resolution",
-                duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
-                emit_log=False,
-            )
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        except AdapterClientError as exc:
-            _record_adapter_failure(
-                request,
-                exc,
-                stage="motif_resolution",
-                duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
-                emit_log=False,
-            )
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        finally:
-            request.state.generation_diagnostics["motif_resolution_ms"] = round(
-                (time.perf_counter() - resolution_started) * 1000, 3
-            )
-
-        ids: set[str] = set()
-        for resolved in resolved_intents:
-            ids |= iter_motif_ids(resolved)
-        catalog = await get_motifs(session, ids)
-        _bind_resolved_motif_colors(
-            resolved_intents,
-            catalog,
-            [design.motif_color_slots for design in designs],
-        )
-        request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
-        registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
-        candidate_started = time.perf_counter()
-        try:
-            candidate_set = generate_candidate_set(
-                resolved_intents,
-                candidate_count=body.candidate_count,
-                seed=body.seed,
-                colorway=effective_colorway,
-                registry_version=registry_version,
-                motifs=catalog or None,
-                palette_constraint=body.palette,
-                pattern_constraints=body.pattern_constraints,
-            )
-        except (IntentInvalid, AssertionError, ValueError):
-            _reject_generation(request, "candidate_invalid", "candidate")
-        finally:
-            request.state.generation_diagnostics["candidate_ms"] = round(
-                (time.perf_counter() - candidate_started) * 1000, 3
-            )
-        tile_mm = float(resolved_intents[0]["canvas"]["tile_mm"])
-        intent_log = {
-            "designs": resolved_intents,
-            "palette": body.palette.model_dump(),
-            "pattern_constraints": body.pattern_constraints.model_dump(),
-        }
-        authored_plans = [design.plan for design in designs if design.plan is not None]
-        if authored_plans:
-            diagnostics = request.state.generation_diagnostics
-            intent_log["authoring"] = {
-                "plan_contract_version": diagnostics.get("plan_contract_version"),
-                "compiler_revision": diagnostics.get("compiler_revision"),
-                "prompt_revision": diagnostics.get("prompt_revision"),
-                "selected_example_ids": [
-                    example.get("example_id")
-                    for example in diagnostics.get("selected_examples", [])
-                    if isinstance(example, dict)
-                ],
-                "plans": authored_plans,
-                "structural_fingerprints": [design.structural_fingerprint for design in designs],
-            }
     warnings.extend(candidate_set.warnings)
     warnings = list(dict.fromkeys(warnings))
     generate_ms = round((time.perf_counter() - started) * 1000, 3)

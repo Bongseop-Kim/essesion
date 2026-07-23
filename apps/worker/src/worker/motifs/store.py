@@ -7,7 +7,6 @@ facet 정규화(NFC+strip+casefold)를 동일하게 적용한다.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import unicodedata
 from collections.abc import Iterable
@@ -21,6 +20,7 @@ from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from worker.engine.determinism import stable_digest
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.registry import BBox, MotifDef
 
@@ -59,7 +59,7 @@ def variant_group_key(subject: str | None, scope: str | None) -> str:
         "scope": normalize_facet(scope),
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:VARIANT_GROUP_LEN]
+    return stable_digest(canonical, VARIANT_GROUP_LEN)
 
 
 @dataclass(frozen=True)

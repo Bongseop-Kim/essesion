@@ -15,13 +15,23 @@ if TYPE_CHECKING:
     from worker.engine.intent import Intent
 
 
+def stable_digest(payload: str | bytes, length: int) -> str:
+    """canonical 입력의 sha256 hex를 length 글자로 자른 안정 id.
+
+    내장 hash() 금지·byte-identical 계약의 단일 출처 — content-hash id·layout_id·
+    variant_group·fingerprint가 전부 이 함수를 거친다.
+    """
+    data = payload.encode("utf-8") if isinstance(payload, str) else payload
+    return hashlib.sha256(data).hexdigest()[:length]
+
+
 def layout_id_for(intent: "Intent") -> str:
     """배치 구성의 안정 id — seed/colorways/palette 제외(같은 레이아웃이면 동일)."""
     payload = intent.model_dump(
         mode="json", exclude={"seed", "colorways", "palette"}, exclude_none=True
     )
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12]
+    return stable_digest(canonical, 12)
 
 
 def stable_hash(text: str) -> int:
