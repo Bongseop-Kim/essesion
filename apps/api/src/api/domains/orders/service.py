@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 from db.models.auth import User
 from db.models.commerce import (
     Claim,
-    Coupon,
     Order,
     OrderItem,
     OrderStatusLog,
@@ -203,21 +202,6 @@ class _CouponApplication:
     terms_snapshot: dict[str, Any] | None = None
 
 
-def _current_coupon_snapshot(coupon: Coupon) -> dict[str, Any]:
-    return {
-        "name": coupon.name,
-        "display_name": coupon.display_name,
-        "discount_type": coupon.discount_type,
-        "discount_value": str(coupon.discount_value),
-        "max_discount_amount": (
-            str(coupon.max_discount_amount) if coupon.max_discount_amount is not None else None
-        ),
-        "description": coupon.description,
-        "expiry_date": coupon.expiry_date.isoformat(),
-        "additional_info": coupon.additional_info,
-    }
-
-
 async def apply_coupon(
     session: AsyncSession,
     user_id: uuid.UUID,
@@ -233,25 +217,20 @@ async def apply_coupon(
 
     row = (
         await session.execute(
-            select(UserCoupon, Coupon)
-            .join(Coupon, Coupon.id == UserCoupon.coupon_id)
+            select(UserCoupon)
             .where(UserCoupon.id == user_coupon_id, UserCoupon.user_id == user_id)
             .with_for_update(of=UserCoupon)
         )
     ).first()
     if row is None:
         raise DomainError("Coupon not found", code="coupon_not_found", status=404)
-    user_coupon, coupon = row
+    user_coupon = row[0]
 
     if user_coupon.status != "active":
         raise DomainError("Coupon is not available", code="coupon_unavailable")
     if user_coupon.expires_at is not None and user_coupon.expires_at <= datetime.now(UTC):
         raise DomainError("Coupon has expired", code="coupon_expired")
-    terms = user_coupon.terms_snapshot or _current_coupon_snapshot(coupon)
-    if user_coupon.terms_snapshot is None and not coupon.is_active:
-        # legacy 발급 row만 template을 fallback 정본으로 사용한다. snapshot이 있으면
-        # 이후 template 변경·비활성화가 이미 발급된 금전 조건을 바꾸지 않는다.
-        raise DomainError("Coupon is not active", code="coupon_inactive")
+    terms = user_coupon.terms_snapshot
     expiry_value = terms.get("expiry_date")
     if (
         user_coupon.expires_at is None
@@ -626,7 +605,7 @@ async def _create_group_order(
                 item_type=line.item.item_type,
                 product_id=line.item.product_id,
                 selected_option_id=line.item.selected_option_id,
-                item_data=line.reform_data,
+                item_data=line.reform_data if line.reform_data is not None else {},
                 quantity=line.item.quantity,
                 unit_price=line.unit_price,
                 discount_amount=line.unit_discount,

@@ -62,17 +62,11 @@ PRICE_CATEGORIES: dict[str, str] = {
     "token_plan_pro_amount": "token",
 }
 SETTING_KEYS = (
-    "authoring_canary_percent",
-    "authoring_pipeline_mode",
-    "authoring_shadow_percent",
     "default_courier_company",
     "design_finalize_daily_limit",
     "design_token_initial_grant",
 )
 SettingKey = Literal[
-    "authoring_canary_percent",
-    "authoring_pipeline_mode",
-    "authoring_shadow_percent",
     "default_courier_company",
     "design_finalize_daily_limit",
     "design_token_initial_grant",
@@ -104,7 +98,7 @@ class PricingUpdateRequest(BaseModel):
 class AdminSettingOut(BaseModel):
     key: SettingKey
     value: str
-    value_type: Literal["courier", "non_negative_integer", "enum", "percentage"]
+    value_type: Literal["courier", "non_negative_integer"]
     updated_at: datetime
     updated_by: uuid.UUID | None
 
@@ -226,22 +220,6 @@ async def update_admin_pricing(
 
 def _validate_setting(key: str, value: str) -> str:
     clean = value.strip()
-    if key == "authoring_pipeline_mode":
-        if clean not in {"legacy", "shadow", "canary", "v3"}:
-            raise DomainError(
-                "저작 파이프라인 모드가 올바르지 않습니다",
-                code="invalid_setting",
-                status=422,
-            )
-        return clean
-    if key in {"authoring_shadow_percent", "authoring_canary_percent"}:
-        if not clean.isdigit() or not 0 <= int(clean) <= 100:
-            raise DomainError(
-                "저작 파이프라인 비율은 0에서 100 사이 정수여야 합니다",
-                code="invalid_setting",
-                status=422,
-            )
-        return str(int(clean))
     if key == "default_courier_company":
         if not clean:
             raise DomainError("기본 택배사를 입력해 주세요", code="invalid_setting", status=422)
@@ -271,13 +249,9 @@ def _setting_out(row: AdminSetting) -> AdminSettingOut:
             code="missing_configuration",
             status=503,
         )
-    value_type: Literal["courier", "non_negative_integer", "enum", "percentage"]
+    value_type: Literal["courier", "non_negative_integer"]
     if row.key == "default_courier_company":
         value_type = "courier"
-    elif row.key == "authoring_pipeline_mode":
-        value_type = "enum"
-    elif row.key in {"authoring_shadow_percent", "authoring_canary_percent"}:
-        value_type = "percentage"
     else:
         value_type = "non_negative_integer"
     return AdminSettingOut(

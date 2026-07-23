@@ -137,7 +137,9 @@ async def _record_confirm_incident(
 
 async def _token_order_amount(session: AsyncSession, order: Order) -> tuple[int, str]:
     item = await session.scalar(select(OrderItem).where(OrderItem.order_id == order.id))
-    data = (item.item_data or {}) if item else {}
+    if item is None:
+        raise DomainError("Token order item not found", code="invalid_token_order")
+    data = item.item_data
     token_amount, plan_key = data.get("token_amount"), data.get("plan_key")
     if not isinstance(token_amount, int) or token_amount <= 0 or not plan_key:
         raise DomainError("Invalid token order", code="invalid_token_order")
@@ -251,7 +253,10 @@ async def confirm_payment(
         actor_id=user.id,
         order_id=representative_order_id,
         expected_amount=total,
-        details={"payment_group_id": str(body.payment_group_id)},
+        details={
+            "payment_group_id": str(body.payment_group_id),
+            "lookup_payment_key": body.payment_key,
+        },
     )
     # 주문의 결제 lock과 operation journal이 외부 호출 전에 함께 durable해진다.
     await session.commit()
@@ -658,7 +663,9 @@ async def _sample_followup_key(
 ) -> tuple[str | None, str | None]:
     """샘플 주문의 후속 쿠폰 매핑 키 — 사전검증(confirm)과 발급이 같은 판정을 공유한다."""
     item = await session.scalar(select(OrderItem).where(OrderItem.order_id == order.id))
-    data = (item.item_data or {}) if item else {}
+    if item is None:
+        raise DomainError("Sample order item not found", code="invalid_sample_order")
+    data = item.item_data
     sample_type = data.get("sample_type")
     design_type = (data.get("options") or {}).get("design_type")
     return (sample_type, None if sample_type == "sewing" else design_type)
@@ -681,6 +688,7 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
         raise DomainError("Unsupported sample_type", code="invalid_sample")
     coupon_name, pricing_key = SAMPLE_FOLLOWUP_COUPON[mapping_key]
     amount = (await get_pricing_constants(session, [pricing_key]))[pricing_key]
+    coupon_expiry_date = date_type(2099, 12, 31)
 
     coupon_id = (
         await session.execute(
@@ -690,12 +698,17 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
                 discount_type="fixed",
                 discount_value=amount,
                 max_discount_amount=amount,
-                expiry_date=date_type(2099, 12, 31),
+                expiry_date=coupon_expiry_date,
                 is_active=True,
             )
             .on_conflict_do_update(
                 index_elements=[Coupon.name],
-                set_={"discount_value": amount, "max_discount_amount": amount, "is_active": True},
+                set_={
+                    "discount_value": amount,
+                    "max_discount_amount": amount,
+                    "expiry_date": coupon_expiry_date,
+                    "is_active": True,
+                },
             )
             .returning(Coupon.id)
         )
@@ -703,7 +716,18 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
 
     result = await session.execute(
         pg_insert(UserCoupon)
-        .values(user_id=order.user_id, coupon_id=coupon_id, status="active")
+        .values(
+            user_id=order.user_id,
+            coupon_id=coupon_id,
+            status="active",
+            terms_snapshot={
+                "name": coupon_name,
+                "discount_type": "fixed",
+                "discount_value": str(amount),
+                "max_discount_amount": str(amount),
+                "expiry_date": coupon_expiry_date.isoformat(),
+            },
+        )
         .on_conflict_do_nothing(index_elements=[UserCoupon.user_id, UserCoupon.coupon_id])
     )
     return bool(cast("CursorResult[Any]", result).rowcount)

@@ -7,7 +7,6 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
-import { useReducedMotion } from "motion/react";
 
 const HEIGHT_GUIDE = [
   { height: "150cm", length: "41cm" },
@@ -270,7 +269,9 @@ function ReformVideo({
   ratio: number;
   label: string;
 }) {
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  ).matches;
   return (
     <AspectRatio ratio={ratio} className="rounded-r3 bg-bg-neutral-weak">
       <video

@@ -89,7 +89,7 @@ const claim: AdminClaimDetailOut = {
     id: "item-1",
     item_id: "sku-1",
     item_type: "product",
-    item_data: null,
+    item_data: {},
     product_id: 1,
     selected_option_id: null,
     applied_user_coupon_id: null,

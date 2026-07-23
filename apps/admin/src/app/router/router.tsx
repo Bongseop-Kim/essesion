@@ -1,12 +1,5 @@
 import { Box, Text } from "@essesion/shared";
-import type { ComponentType } from "react";
-import {
-  createBrowserRouter,
-  Navigate,
-  type Params,
-  type RouteObject,
-  useParams,
-} from "react-router";
+import { createBrowserRouter, type RouteObject } from "react-router";
 
 import { AdminShell } from "../../widgets/admin-shell/admin-shell";
 import { ProtectedRoute } from "./protected-route";
@@ -318,68 +311,6 @@ const pageRoutes: RouteObject[] = [
   },
 ];
 
-function createLegacyRedirect(
-  buildTarget: (params: Readonly<Params<string>>) => string,
-): ComponentType {
-  return function LegacyRedirect() {
-    const params = useParams();
-    return <Navigate to={buildTarget(params)} replace />;
-  };
-}
-
-const legacyRoutes: RouteObject[] = [
-  {
-    path: "/orders/show/:id",
-    Component: createLegacyRedirect(({ id }) => `/orders/${id ?? ""}`),
-  },
-  {
-    path: "/products/create",
-    Component: createLegacyRedirect(() => "/products/new"),
-  },
-  {
-    path: "/products/edit/:id",
-    Component: createLegacyRedirect(({ id }) => `/products/${id ?? ""}/edit`),
-  },
-  {
-    path: "/coupons/create",
-    Component: createLegacyRedirect(() => "/coupons/new"),
-  },
-  {
-    path: "/coupons/edit/:id",
-    Component: createLegacyRedirect(({ id }) => `/coupons/${id ?? ""}`),
-  },
-  {
-    path: "/quote-requests/show/:id",
-    Component: createLegacyRedirect(({ id }) => `/quote-requests/${id ?? ""}`),
-  },
-  {
-    path: "/claims/show/:id",
-    Component: createLegacyRedirect(({ id }) => `/claims/${id ?? ""}`),
-  },
-  {
-    path: "/customers/show/:id",
-    Component: createLegacyRedirect(({ id }) => `/customers/${id ?? ""}`),
-  },
-  {
-    path: "/inquiries/show/:id",
-    Component: createLegacyRedirect(({ id }) => `/inquiries/${id ?? ""}`),
-  },
-  {
-    path: "/seamless-logs",
-    Component: createLegacyRedirect(() => "/generation-logs?tab=seamless"),
-  },
-  {
-    path: "/seamless-logs/:id",
-    Component: createLegacyRedirect(
-      ({ id }) => `/generation-logs/seamless/${id ?? ""}`,
-    ),
-  },
-  {
-    path: "/generation-logs/:legacyId",
-    Component: createLegacyRedirect(() => "/generation-logs"),
-  },
-];
-
 export const adminRouteObjects: RouteObject[] = [
   {
     HydrateFallback: RouteHydrationFallback,
@@ -392,7 +323,6 @@ export const adminRouteObjects: RouteObject[] = [
           return { Component: LoginPage };
         },
       },
-      ...legacyRoutes,
       {
         path: "/",
         element: (

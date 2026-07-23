@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
-from db.models.seamless import Motif, SeamlessGenerationLog
+from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
 
 from .factories import auth_headers, make_user
 
@@ -650,23 +650,31 @@ async def test_seamless_reference_image_is_relation_checked_and_never_exposes_ob
     db_session.add(log)
     await db_session.flush()
     image = Image(
-        object_key=f"uploads/seamless_generation/{log.id}/reference.png",
-        entity_type="seamless_generation",
-        entity_id=str(log.id),
+        object_key=f"uploads/design_reference/{log.id}/reference.png",
+        entity_type="design_reference",
+        entity_id=str(customer.id),
         content_type="image/png",
         size_bytes=1234,
         upload_completed_at=datetime.now(UTC),
     )
     db_session.add(image)
     await db_session.flush()
-    log.reference_image_id = image.id
+    db_session.add(
+        SeamlessGenerationAttachment(log_id=log.id, image_id=image.id, purpose="auto", ordinal=0)
+    )
     await db_session.commit()
 
     headers = auth_headers(admin, settings)
     detail = await client.get(f"/admin/generation/seamless/{log.id}", headers=headers)
     assert detail.status_code == 200
-    assert detail.json()["reference_image_id"] == str(image.id)
-    assert detail.json()["reference_image_available"] is True
+    assert detail.json()["reference_images"] == [
+        {
+            "image_id": str(image.id),
+            "purpose": "auto",
+            "ordinal": 0,
+            "available": True,
+        }
+    ]
     assert image.object_key not in detail.text
     assert "object_key" not in detail.text
 
@@ -679,8 +687,8 @@ async def test_seamless_reference_image_is_relation_checked_and_never_exposes_ob
     assert read_url.json()["read_url"].endswith(image.object_key)
 
     wrong_image = Image(
-        object_key="uploads/seamless_generation/unrelated/reference.png",
-        entity_type="seamless_generation",
+        object_key="uploads/design_reference/unrelated/reference.png",
+        entity_type="design_reference",
         entity_id="unrelated",
         upload_completed_at=datetime.now(UTC),
     )
@@ -694,8 +702,8 @@ async def test_seamless_reference_image_is_relation_checked_and_never_exposes_ob
 
     await db_session.delete(image)
     await db_session.commit()
-    await db_session.refresh(log)
-    assert log.reference_image_id is None
+    after_delete = await client.get(f"/admin/generation/seamless/{log.id}", headers=headers)
+    assert after_delete.json()["reference_images"] == []
 
 
 async def test_seamless_reference_image_requires_completed_matching_private_image(
@@ -726,35 +734,44 @@ async def test_seamless_reference_image_requires_completed_matching_private_imag
     db_session.add_all([incomplete_log, wrong_type_log, expired_log])
     await db_session.flush()
     incomplete = Image(
-        object_key=f"uploads/seamless_generation/{incomplete_log.id}/incomplete.png",
-        entity_type="seamless_generation",
+        object_key=f"uploads/design_reference/{incomplete_log.id}/incomplete.png",
+        entity_type="design_reference",
         entity_id=str(incomplete_log.id),
         upload_completed_at=None,
     )
     wrong_type = Image(
-        object_key=f"uploads/seamless_generation/{wrong_type_log.id}/wrong-type.png",
+        object_key=f"uploads/design_reference/{wrong_type_log.id}/wrong-type.png",
         entity_type="quote_request",
         entity_id=str(wrong_type_log.id),
         upload_completed_at=now,
     )
     expired = Image(
-        object_key=f"uploads/seamless_generation/{expired_log.id}/expired.png",
-        entity_type="seamless_generation",
+        object_key=f"uploads/design_reference/{expired_log.id}/expired.png",
+        entity_type="design_reference",
         entity_id=str(expired_log.id),
         upload_completed_at=now,
         expires_at=now - timedelta(seconds=1),
     )
     db_session.add_all([incomplete, wrong_type, expired])
     await db_session.flush()
-    incomplete_log.reference_image_id = incomplete.id
-    wrong_type_log.reference_image_id = wrong_type.id
-    expired_log.reference_image_id = expired.id
+    db_session.add_all(
+        [
+            SeamlessGenerationAttachment(
+                log_id=incomplete_log.id, image_id=incomplete.id, purpose="auto", ordinal=0
+            ),
+            SeamlessGenerationAttachment(
+                log_id=wrong_type_log.id, image_id=wrong_type.id, purpose="auto", ordinal=0
+            ),
+            SeamlessGenerationAttachment(
+                log_id=expired_log.id, image_id=expired.id, purpose="auto", ordinal=0
+            ),
+        ]
+    )
     await db_session.commit()
 
     for row, image in ((incomplete_log, incomplete), (wrong_type_log, wrong_type)):
         detail = await client.get(f"/admin/generation/seamless/{row.id}", headers=headers)
-        assert detail.json()["reference_image_id"] == str(image.id)
-        assert detail.json()["reference_image_available"] is False
+        assert detail.json()["reference_images"] == []
         read_url = await client.post(
             f"/admin/generation/seamless/{row.id}/reference-image/{image.id}/read-url",
             headers=headers,
@@ -764,7 +781,7 @@ async def test_seamless_reference_image_requires_completed_matching_private_imag
     expired_detail = await client.get(
         f"/admin/generation/seamless/{expired_log.id}", headers=headers
     )
-    assert expired_detail.json()["reference_image_available"] is False
+    assert expired_detail.json()["reference_images"][0]["available"] is False
     expired_url = await client.post(
         f"/admin/generation/seamless/{expired_log.id}/reference-image/{expired.id}/read-url",
         headers=headers,

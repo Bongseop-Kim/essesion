@@ -1,10 +1,6 @@
-import uuid
 from datetime import date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
-
-from db.models.commerce import ShippingAddress
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.domains.orders.schemas import OrderShippingAddressOut
 from api.errors import DomainError
@@ -28,14 +24,5 @@ def kst_day_bounds(
     return start_at, end_at
 
 
-async def resolve_shipping_address(
-    session: AsyncSession,
-    snapshot: dict[str, Any] | None,
-    address_id: uuid.UUID | None,
-) -> OrderShippingAddressOut | None:
-    if snapshot:
-        return OrderShippingAddressOut.model_validate(snapshot)
-    if address_id is None:
-        return None
-    address = await session.get(ShippingAddress, address_id)
-    return OrderShippingAddressOut.model_validate(address) if address is not None else None
+def resolve_shipping_address(snapshot: dict[str, Any] | None) -> OrderShippingAddressOut | None:
+    return OrderShippingAddressOut.model_validate(snapshot) if snapshot is not None else None

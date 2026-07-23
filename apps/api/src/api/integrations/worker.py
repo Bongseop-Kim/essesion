@@ -155,7 +155,7 @@ class WorkerClient:
             # 흘리지 않아 프롬프트·내부 경로·provider 세부정보 노출을 막는다.
             if path == "/generate":
                 raise _worker_rejection(res)
-            raise WorkerRequestError(f"이미지 워커가 요청을 거부했습니다: {_legacy_detail(res)}")
+            raise WorkerRequestError("이미지 워커가 요청을 거부했습니다")
         if res.status_code >= 400:
             raise UpstreamError("이미지 워커가 요청을 처리하지 못했습니다")
         return res
@@ -187,16 +187,6 @@ def _worker_rejection(res: httpx.Response) -> WorkerRequestError:
             stage=_WORKER_REJECTION_STAGES[code],
         )
     return WorkerRequestError()
-
-
-def _legacy_detail(res: httpx.Response) -> str:
-    """Non-authoring endpoints retain their existing precise validation contract."""
-    try:
-        body = res.json()
-        detail = body.get("detail") if isinstance(body, dict) else None
-    except ValueError:
-        detail = None
-    return str(detail) if detail else res.text[:200]
 
 
 def build_worker_client(settings: Settings) -> WorkerClient:

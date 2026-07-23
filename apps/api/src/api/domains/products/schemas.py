@@ -41,38 +41,3 @@ class ProductOut(BaseModel):
     likes: int = 0
     is_liked: bool = False
     options: list[ProductOptionOut] = []
-
-
-class ProductCreate(BaseModel):
-    name: str
-    price: int
-    image: str
-    category: Category
-    color: Color
-    pattern: Pattern
-    material: Material
-    info: str
-    code: str | None = None  # 미지정 시 자동 채번
-    detail_images: list[str] | None = None
-    stock: int | None = None
-    option_label: str | None = None
-
-
-class ProductUpdate(BaseModel):
-    name: str | None = None
-    price: int | None = None
-    image: str | None = None
-    category: Category | None = None
-    color: Color | None = None
-    pattern: Pattern | None = None
-    material: Material | None = None
-    info: str | None = None
-    detail_images: list[str] | None = None
-    stock: int | None = None
-    option_label: str | None = None
-
-
-class ProductOptionIn(BaseModel):
-    name: str
-    additional_price: int = 0
-    stock: int | None = None

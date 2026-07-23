@@ -197,9 +197,7 @@ async def get_quote_detail(session: AsyncSession, quote_id: uuid.UUID) -> AdminQ
     return AdminQuoteDetailOut(
         **summary.model_dump(),
         shipping_address_id=quote.shipping_address_id,
-        shipping_address=await resolve_shipping_address(
-            session, quote.shipping_address_snapshot, quote.shipping_address_id
-        ),
+        shipping_address=resolve_shipping_address(quote.shipping_address_snapshot),
         options=quote.options,
         additional_notes=quote.additional_notes,
         contact_name=quote.contact_name,

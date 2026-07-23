@@ -171,7 +171,7 @@ async def test_retrieval_selects_up_to_three_compatible_unique_families(db_sessi
     assert [item["rank"] for item in outcome.diagnostics()] == [1, 2, 3]
 
 
-async def test_retrieval_does_not_backfill_duplicate_families(db_session):
+async def test_retrieval_does_not_append_duplicate_families(db_session):
     await _project(db_session, (1, 2, 5))
 
     class _Embedding:

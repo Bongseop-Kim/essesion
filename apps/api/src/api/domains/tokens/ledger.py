@@ -222,15 +222,13 @@ async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) ->
         await session.commit()
         return UseResult(False, cost, balance["total"], error="refund_pending")
 
-    # work_id 멱등 — 이미 차감된 작업(신/구 포맷 모두)
+    # work_id 멱등 — 이미 차감된 작업
     already = await session.scalar(
         select(
             exists().where(
                 DesignToken.work_id.in_(
                     [
-                        f"{work_id}_use_paid",
                         f"{work_id}_use_paid_0",
-                        f"{work_id}_use_paid_legacy",
                         f"{work_id}_use_bonus",
                         f"{work_id}_use_bonus_0",
                         f"{work_id}_use_free",
@@ -830,7 +828,10 @@ async def approve_refund(
         order_id=order.id,
         claim_id=claim.id,
         expected_amount=refund_amount,
-        details={"payment_group_id": str(order.payment_group_id)},
+        details={
+            "payment_group_id": str(order.payment_group_id),
+            "lookup_payment_key": payment_key,
+        },
     )
     # 환불 대상 잠금과 operation journal을 Toss 호출 전에 durable하게 만든다.
     await session.commit()

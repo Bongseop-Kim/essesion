@@ -5,18 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import cast
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession
 from worker.authoring.compiler import PlanCompileError, compile_design_plan_v3
 from worker.authoring.examples import load_example_set
-from worker.authoring.rollout import (
-    AuthoringRuntimeSettings,
-    load_authoring_runtime_settings,
-    select_authoring_cohort,
-)
 from worker.authoring.schema import DesignPlanV3, structural_fingerprint
 from worker.engine.constraints import PaletteConstraint
 from worker.engine.validate import validate_intent
@@ -248,68 +241,3 @@ def test_structural_fingerprint_ignores_palette_but_not_geometry():
     assert structural_fingerprint(original) != structural_fingerprint(
         DesignPlanV3.model_validate(reshaped)
     )
-
-
-def test_rollout_is_database_controlled_and_request_stable():
-    request_id = "request-stable-123"
-    legacy = AuthoringRuntimeSettings(
-        authoring_pipeline_mode="legacy",
-        authoring_canary_percent=100,
-        authoring_shadow_percent=100,
-    )
-    canary = AuthoringRuntimeSettings(
-        authoring_pipeline_mode="canary",
-        authoring_canary_percent=100,
-        authoring_shadow_percent=0,
-    )
-    shadow = AuthoringRuntimeSettings(
-        authoring_pipeline_mode="shadow",
-        authoring_canary_percent=0,
-        authoring_shadow_percent=100,
-    )
-
-    assert select_authoring_cohort(legacy, request_id).pipeline == "legacy"
-    assert select_authoring_cohort(canary, request_id).pipeline == "v3"
-    assert select_authoring_cohort(shadow, request_id).shadow_v3 is True
-    assert select_authoring_cohort(shadow, request_id) == select_authoring_cohort(
-        shadow, request_id
-    )
-
-
-async def test_rollout_settings_fail_closed_to_legacy():
-    class _Session:
-        def __init__(self, rows):
-            self.rows = rows
-
-        async def execute(self, _query):
-            return self.rows
-
-    missing = await load_authoring_runtime_settings(cast(AsyncSession, _Session([])))
-    invalid = await load_authoring_runtime_settings(
-        cast(
-            AsyncSession,
-            _Session(
-                [
-                    ("authoring_pipeline_mode", "canary"),
-                    ("authoring_shadow_percent", "5"),
-                    ("authoring_canary_percent", "101"),
-                ]
-            ),
-        )
-    )
-    ready = await load_authoring_runtime_settings(
-        cast(
-            AsyncSession,
-            _Session(
-                [
-                    ("authoring_pipeline_mode", "canary"),
-                    ("authoring_shadow_percent", "5"),
-                    ("authoring_canary_percent", "10"),
-                ]
-            ),
-        )
-    )
-
-    assert (missing.authoring_pipeline_mode, missing.status) == ("legacy", "missing")
-    assert (invalid.authoring_pipeline_mode, invalid.status) == ("legacy", "invalid")
-    assert (ready.authoring_pipeline_mode, ready.authoring_canary_percent) == ("canary", 10)

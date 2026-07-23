@@ -11,14 +11,69 @@
 
 .result-emoji {
   font-family: "Toss Face", sans-serif;
+  animation:
+    result-emoji-enter 500ms var(--ease-enter),
+    result-emoji-idle 4s ease-in-out 1.1s infinite;
   transform: scale(1.75);
   transform-origin: center;
 }
 
 .login-emoji {
   font-family: "Toss Face", sans-serif;
+  animation: login-emoji-enter 800ms var(--ease-enter);
   transform: scale(1.5);
   transform-origin: center;
+}
+
+@keyframes login-emoji-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) rotate(-12deg) scale(1.05);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes result-emoji-enter {
+  from {
+    opacity: 0;
+    transform: rotate(-8deg) scale(1.14);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.75);
+  }
+}
+
+@keyframes result-emoji-idle {
+  0%,
+  19%,
+  100% {
+    transform: scale(1.75);
+  }
+  6% {
+    transform: rotate(-2deg) scale(1.84);
+  }
+  12% {
+    transform: rotate(1deg) scale(1.73);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-emoji,
+  .result-emoji {
+    animation: none;
+  }
+
+  .login-emoji {
+    transform: scale(1.5);
+  }
+
+  .result-emoji {
+    transform: scale(1.75);
+  }
 }
 
 .login-page-content {

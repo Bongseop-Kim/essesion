@@ -14,7 +14,6 @@
     "@essesion/shared": "workspace:*",
     "@heroicons/react": "catalog:",
     "@tanstack/react-query": "catalog:",
-    "motion": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-router": "catalog:",

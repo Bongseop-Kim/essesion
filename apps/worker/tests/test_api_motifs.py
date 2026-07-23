@@ -103,22 +103,42 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     design = {
         "plans": [
             {
-                "motifs": [{"catalog_ref": "catalog_1"}],
                 "colors": ["#FFFFFF", "#111111"],
-                "arrangement": "lattice",
-                "density": "medium",
-                "scale": "small",
-                "direction": "horizontal",
-                "stripes": False,
+                "ground_color_index": 0,
+                "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
+                "layers": [
+                    {
+                        "type": "motif",
+                        "motif_index": 0,
+                        "size_ratio": 0.12,
+                        "color_indices": [1],
+                        "placement": {
+                            "type": "lattice",
+                            "columns": 4,
+                            "rows": 4,
+                            "drop": "none",
+                        },
+                    }
+                ],
             },
             {
-                "motifs": [{"catalog_ref": "catalog_1"}],
                 "colors": ["#F0EBDD", "#223344"],
-                "arrangement": "scatter",
-                "density": "sparse",
-                "scale": "medium",
-                "direction": "diagonal",
-                "stripes": False,
+                "ground_color_index": 0,
+                "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
+                "layers": [
+                    {
+                        "type": "motif",
+                        "motif_index": 0,
+                        "size_ratio": 0.18,
+                        "color_indices": [1],
+                        "placement": {
+                            "type": "scatter",
+                            "mode": "poisson",
+                            "count": 18,
+                            "min_distance_ratio": 0.14,
+                        },
+                    }
+                ],
             },
         ]
     }
@@ -138,7 +158,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     awaited_call = generate_content.await_args
     assert awaited_call is not None
     contents = awaited_call.kwargs["contents"]
-    assert "Description: dot pattern" in contents[0].parts[-1].text
+    assert 'User description (JSON string): "dot pattern"' in contents[0].parts[-1].text
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["candidates"]

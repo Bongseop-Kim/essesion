@@ -1,6 +1,24 @@
 from .factories import auth_headers, make_admin, make_product, make_user
 
 
+async def _primary_upload_id(client, headers) -> str:  # noqa: ANN001
+    issued = await client.post(
+        "/admin/products/images/upload-url",
+        json={
+            "kind": "primary",
+            "filename": "primary.png",
+            "content_type": "image/png",
+            "size_bytes": 100,
+        },
+        headers=headers,
+    )
+    assert issued.status_code == 200, issued.text
+    upload_id = issued.json()["upload_id"]
+    completed = await client.post(f"/admin/products/images/{upload_id}/complete", headers=headers)
+    assert completed.status_code == 200, completed.text
+    return upload_id
+
+
 async def test_public_list_and_detail(client, db_session):
     product = await make_product(db_session, name="네이비 타이")
     res = await client.get("/products")
@@ -83,25 +101,6 @@ async def test_admin_create_product_auto_code(client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
 
-    async def _primary_upload_id() -> str:
-        issued = await client.post(
-            "/admin/products/images/upload-url",
-            json={
-                "kind": "primary",
-                "filename": "primary.png",
-                "content_type": "image/png",
-                "size_bytes": 100,
-            },
-            headers=headers,
-        )
-        assert issued.status_code == 200, issued.text
-        upload_id = issued.json()["upload_id"]
-        completed = await client.post(
-            f"/admin/products/images/{upload_id}/complete", headers=headers
-        )
-        assert completed.status_code == 200, completed.text
-        return upload_id
-
     body = {
         "name": "자동코드",
         "price": 20000,
@@ -113,12 +112,12 @@ async def test_admin_create_product_auto_code(client, db_session, settings):
     }
     first = await client.post(
         "/admin/products",
-        json={**body, "image_upload_id": await _primary_upload_id()},
+        json={**body, "image_upload_id": await _primary_upload_id(client, headers)},
         headers=headers,
     )
     second = await client.post(
         "/admin/products",
-        json={**body, "image_upload_id": await _primary_upload_id()},
+        json={**body, "image_upload_id": await _primary_upload_id(client, headers)},
         headers=headers,
     )
     assert first.status_code == 201 and second.status_code == 201
@@ -129,17 +128,33 @@ async def test_admin_create_product_auto_code(client, db_session, settings):
 
 async def test_admin_product_update_forces_product_stock_null(client, db_session, settings):
     admin = await make_admin(db_session)
-    product = await make_product(db_session, stock=10)
     headers = auth_headers(admin, settings)
-    res = await client.patch(
-        f"/admin/products/{product.id}",
+    created = await client.post(
+        "/admin/products",
         json={
-            "expected_updated_at": product.updated_at.isoformat(),
+            "name": "재고 테스트",
+            "price": 20_000,
+            "stock": 10,
+            "category": "knit",
+            "color": "navy",
+            "pattern": "solid",
+            "material": "silk",
+            "info": "테스트",
+            "image_upload_id": await _primary_upload_id(client, headers),
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    product = created.json()
+    res = await client.patch(
+        f"/admin/products/{product['id']}",
+        json={
+            "expected_updated_at": product["updated_at"],
             "options": [{"name": "L", "additional_price": 1000, "stock": 5}],
         },
         headers=headers,
     )
     assert res.status_code == 200
-    detail = await client.get(f"/products/{product.id}")
+    detail = await client.get(f"/products/{product['id']}")
     assert detail.json()["stock"] is None
     assert detail.json()["options"][0]["name"] == "L"

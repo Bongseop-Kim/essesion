@@ -159,7 +159,7 @@ class PaymentIncidentSummaryOut(BaseModel):
     actor_id: uuid.UUID | None
     order_id: uuid.UUID | None
     claim_id: uuid.UUID | None
-    expected_amount: int | None
+    expected_amount: int
     observed_amount: int | None
     resolved_by: uuid.UUID | None
     resolved_at: datetime | None

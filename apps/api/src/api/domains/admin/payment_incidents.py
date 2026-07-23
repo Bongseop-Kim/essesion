@@ -113,7 +113,7 @@ def _summary(incident: PaymentIncident) -> PaymentIncidentSummaryOut:
 
 
 def _reconciliation_blocker(incident: PaymentIncident) -> str | None:
-    evidence = (incident.details or {}).get("reconciliation")
+    evidence = incident.details.get("reconciliation")
     if not isinstance(evidence, dict):
         return "먼저 Toss 상태를 대사해야 합니다"
     checked_at_raw = evidence.get("checked_at")
@@ -135,7 +135,7 @@ def _reconciliation_blocker(incident: PaymentIncident) -> str | None:
         return "Toss 결제 상태가 예상 상태와 일치하지 않습니다"
     if not evidence.get("amount_matches"):
         return "Toss 금액과 예상 금액이 일치하지 않습니다"
-    details = incident.details or {}
+    details = incident.details
     if (
         details.get("reason") == "payment_key_mismatch"
         and details.get("stored_payment_keys_match_lookup") is False
@@ -250,7 +250,7 @@ async def get_incident_detail(
         )
     return PaymentIncidentDetailOut(
         **_summary(incident).model_dump(),
-        details=_sanitize(incident.details or {}),
+        details=_sanitize(incident.details),
         resolution_memo=incident.resolution_memo,
         order_number=order_number,
         claim_number=claim_number,
@@ -268,33 +268,11 @@ async def _related_order(session: AsyncSession, incident: PaymentIncident) -> Or
     return order
 
 
-def _incident_payment_key(incident: PaymentIncident, order: Order) -> str:
-    """사고를 만든 조회 키를 우선 사용하고 legacy record만 주문 키로 폴백한다."""
-
-    lookup_key = (incident.details or {}).get("lookup_payment_key")
+def _incident_payment_key(incident: PaymentIncident) -> str:
+    lookup_key = incident.details.get("lookup_payment_key")
     if isinstance(lookup_key, str) and lookup_key:
         return lookup_key
-    if not order.payment_key:
-        raise ConflictError("결제 조회 정보가 없습니다", code="missing_payment_key")
-    return order.payment_key
-
-
-async def _expected_amount(session: AsyncSession, incident: PaymentIncident, order: Order) -> int:
-    if incident.expected_amount is not None:
-        return incident.expected_amount
-    if incident.incident_type in ("refund", "partial_cancel") and incident.claim_id is not None:
-        claim = await session.get(Claim, incident.claim_id)
-        refund_amount = (claim.refund_data or {}).get("refund_amount") if claim else None
-        if isinstance(refund_amount, int) and refund_amount >= 0:
-            return refund_amount
-    if order.payment_group_id is not None:
-        grouped_total = await session.scalar(
-            select(func.coalesce(func.sum(Order.total_price), 0)).where(
-                Order.payment_group_id == order.payment_group_id
-            )
-        )
-        return int(grouped_total or 0)
-    return order.total_price
+    raise ConflictError("결제 조회 정보가 없습니다", code="missing_payment_key")
 
 
 def _observed_amount(incident_type: str, payment: dict[str, Any]) -> int | None:
@@ -338,7 +316,7 @@ def _expected_provider_statuses(incident: PaymentIncident) -> set[str]:
         # 내부 주문을 안전하게 취소 상태로 맞출 수 있다.
         return {"CANCELED"}
     if incident.incident_type == "mixed_state":
-        recorded_status = (incident.details or {}).get("provider_status")
+        recorded_status = incident.details.get("provider_status")
         if recorded_status in {"DONE", "CANCELED", "PARTIAL_CANCELED"}:
             return {recorded_status}
     return {"DONE"}
@@ -380,7 +358,7 @@ async def _reconcile_domain_state(
     if incident.incident_type == "mixed_state":
         if order.payment_group_id is None:
             return False, "missing_payment_group"
-        payment_key = _incident_payment_key(incident, order)
+        payment_key = _incident_payment_key(incident)
         if provider_status == "DONE":
             from api.domains.payments.service import confirmed_payment_is_consistent
 
@@ -403,7 +381,7 @@ async def _reconcile_domain_state(
     if incident.incident_type == "amount_mismatch" and provider_status == "CANCELED":
         if order.payment_group_id is None:
             return False, "missing_payment_group"
-        payment_key = _incident_payment_key(incident, order)
+        payment_key = _incident_payment_key(incident)
         from api.domains.payments.service import reconcile_canceled_payment
 
         return await reconcile_canceled_payment(
@@ -415,7 +393,7 @@ async def _reconcile_domain_state(
     if incident.incident_type in ("confirm", "amount_mismatch"):
         if order.payment_group_id is None:
             return False, "missing_payment_group"
-        payment_key = _incident_payment_key(incident, order)
+        payment_key = _incident_payment_key(incident)
         from api.domains.payments.service import reconcile_confirmed_payment
 
         return await reconcile_confirmed_payment(
@@ -450,11 +428,11 @@ async def reconcile_incident(
     if incident.status == "resolved":
         return incident
     order = await _related_order(session, incident)
-    expected_amount = await _expected_amount(session, incident, order)
+    expected_amount = incident.expected_amount
     incident_type = incident.incident_type
     payment_group_id = order.payment_group_id
-    payment_key = _incident_payment_key(incident, order)
-    recorded_group_id = (incident.details or {}).get("payment_group_id")
+    payment_key = _incident_payment_key(incident)
+    recorded_group_id = incident.details.get("payment_group_id")
     incident_payment_group_matches = recorded_group_id is None or (
         payment_group_id is not None and recorded_group_id == str(payment_group_id)
     )
@@ -515,8 +493,8 @@ async def reconcile_incident(
         and provider_status_matches
         and amount_matches
         and not (
-            (incident.details or {}).get("reason") == "payment_key_mismatch"
-            and (incident.details or {}).get("stored_payment_keys_match_lookup") is False
+            incident.details.get("reason") == "payment_key_mismatch"
+            and incident.details.get("stored_payment_keys_match_lookup") is False
         )
     )
     evidence = {
@@ -548,7 +526,7 @@ async def reconcile_incident(
         return incident
     # 내부 원본은 재대사에 필요하므로 그대로 유지한다. 외부 응답만
     # get_incident_detail에서 `_sanitize`한다.
-    internal_details = dict(incident.details or {})
+    internal_details = dict(incident.details)
     internal_details["lookup_payment_key"] = payment_key
     internal_details["reconciliation"] = evidence
     incident.details = internal_details
@@ -567,9 +545,9 @@ async def _current_domain_consistent(
     incident: PaymentIncident,
 ) -> bool:
     order = await _related_order(session, incident)
-    payment_key = _incident_payment_key(incident, order)
+    payment_key = _incident_payment_key(incident)
     if incident.incident_type == "amount_mismatch":
-        reconciliation = (incident.details or {}).get("reconciliation")
+        reconciliation = incident.details.get("reconciliation")
         if isinstance(reconciliation, dict) and reconciliation.get("provider_status") == "CANCELED":
             if order.payment_group_id is None:
                 return False
@@ -591,7 +569,7 @@ async def _current_domain_consistent(
             payment_key=payment_key,
         )
     if incident.incident_type == "mixed_state":
-        reconciliation = (incident.details or {}).get("reconciliation")
+        reconciliation = incident.details.get("reconciliation")
         if order.payment_group_id is None or not isinstance(reconciliation, dict):
             return False
         provider_status = reconciliation.get("provider_status")

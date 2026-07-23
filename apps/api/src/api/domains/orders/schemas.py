@@ -161,7 +161,7 @@ class OrderItemOut(BaseModel):
     item_type: str
     product_id: int | None
     selected_option_id: str | None
-    item_data: dict[str, Any] | None
+    item_data: dict[str, Any]
     quantity: int
     unit_price: int
     discount_amount: int

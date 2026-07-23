@@ -371,7 +371,7 @@
     {
       "reference_route": "/generation-logs/:id",
       "canonical_route": "/generation-logs",
-      "display_fields": ["legacy source retired notice"],
+      "display_fields": ["retired source notice"],
       "actions": ["open generation operations hub"]
     },
     {

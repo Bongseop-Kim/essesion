@@ -51,7 +51,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 | 8 | main push CI 성공 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
 | 9 | API·두 worker readiness, 프록시·직통 차단, 배치 audience와 수동 트리거 확인 | **사용자** |
 | 10 | Toss 웹훅/콜백 URL·OAuth redirect URI를 `https://api.essesion.shop` 기준으로 등록 | **사용자(각 콘솔)** |
-| 11 | 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `backfill_motif_embeddings.py --confirm-live` → `sync_authoring_examples.py --confirm-live` 실행, 두 출력의 `embedded=total` 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
+| 11 | 빈 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `index_motif_embeddings.py --confirm-live` → `sync_authoring_examples.py --confirm-live` 실행, 두 출력의 `embedded=total` 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
 
 ## 시크릿 값 주입
 
@@ -156,19 +156,17 @@ curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audienc
 
 migrate와 공개 motif embedding이 끝난 뒤, DB/ADC가 연결된 운영자 환경에서
 `gallery-v1` 25개 bootstrap 예시와 embedding을 동기화한다. 출력의
-`embedded=<전체>/<전체> source=bootstrap`을 확인한 뒤 shadow를 시작한다.
+`embedded=<전체>/<전체> source=bootstrap`을 확인한 뒤 live 평가를 실행한다.
 
 ```bash
 uv run python apps/worker/scripts/build_authoring_examples.py --check
 uv run python apps/worker/scripts/sync_authoring_examples.py --confirm-live
-uv run python apps/worker/scripts/eval_authoring.py \
-  --confirm-live --pipeline legacy --pipeline v3
+uv run python apps/worker/scripts/eval_authoring.py --confirm-live
 ```
 
-평가 뒤 관리자 설정의 authoring mode를 `legacy → shadow → canary → v3` 순서로 바꾼다.
-즉시 롤백은 mode를 `legacy`로 되돌리는 것이다. 매일 05:00 KST 배치가 생성 결과에서
-검토 후보를 만들고, 관리자 승인 예시만 즉시 active RAG 집합에 들어간다. prompt와 Plan
-본문은 관리자 화면에서 수정하지 않는다. 상세 계약과 관측 필드는
+모든 요청은 Plan v3 경로를 사용한다. 매일 05:00 KST 배치가 생성 결과에서 검토 후보를
+만들고, 관리자 승인 예시만 즉시 active RAG 집합에 들어간다. prompt와 Plan 본문은 관리자
+화면에서 수정하지 않는다. 상세 계약과 관측 필드는
 [authoring-plan-v3.md](../docs/specs/authoring-plan-v3.md)를 따른다.
 
 ## 배치 (Cloud Scheduler → api /batch/*)

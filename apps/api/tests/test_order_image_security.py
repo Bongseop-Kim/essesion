@@ -233,7 +233,7 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
     item.item_data = {
         **(item.item_data or {}),
         "reference_images": [{"object_key": object_key, "image_id": upload_id}],
-        "legacy": {
+        "unrecognized_private_fields": {
             "private_object_key": object_key,
             "asset": object_key,
         },

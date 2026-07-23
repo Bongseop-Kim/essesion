@@ -96,21 +96,4 @@ describe("custom order draft", () => {
     expect(readCustomOrderFormDraft("user-a")).toEqual(loginDraft);
     expect(readCustomOrderFormDraft(null)).toBeNull();
   });
-
-  it("owner를 알 수 없는 v2 draft는 익명 사용자에게 이관하지 않는다", () => {
-    sessionStorage.setItem(
-      "custom-order:draft:v2",
-      JSON.stringify({
-        ...formDraft,
-        contact: {
-          ...formDraft.contact,
-          contactName: "previous-account",
-          contactValue: "previous@example.com",
-        },
-      }),
-    );
-
-    expect(readCustomOrderFormDraft(null)).toBeNull();
-    expect(sessionStorage.getItem("custom-order:draft:v2")).toBeNull();
-  });
 });

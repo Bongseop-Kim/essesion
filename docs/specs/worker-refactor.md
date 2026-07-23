@@ -1,8 +1,7 @@
 # worker 리팩토링 명세 — seamless-tile 대조 점검 후속
 
 - 근거: 2026-07-07 apps/worker ↔ seamless-tile 서브시스템 전수 대조(엔진·모티프·어댑터·렌더·API 표면 5개 축)
-- 기준 문서: [phase4-worker.md](../plans/phase4-worker.md) · [worker-engine.md](../api-spec/worker-engine.md) · [worker-motifs.md](../api-spec/worker-motifs.md) · [worker-pipeline.md](../api-spec/worker-pipeline.md) · ARCHITECTURE §2·§7
-- 실행 계획: [plans/worker-refactor.md](../plans/worker-refactor.md)
+- 기준 문서: [worker-engine.md](../api-spec/worker-engine.md) · [worker-motifs.md](../api-spec/worker-motifs.md) · [worker-pipeline.md](../api-spec/worker-pipeline.md) · ARCHITECTURE §2·§7
 
 ## 대조 결과 요약 (변경 없음 확정 항목)
 

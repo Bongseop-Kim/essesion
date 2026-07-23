@@ -59,6 +59,6 @@ def test_finalize_mode_only_exposes_finalize_task_routes():
     assert not ({"/generate", "/motifs/candidates", "/motifs/generate"} & paths)
 
 
-def test_all_mode_keeps_local_compatibility():
+def test_all_mode_exposes_both_local_route_sets():
     paths = _paths("all")
     assert {"/generate", "/export", "/tasks/finalize"} <= paths

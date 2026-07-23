@@ -71,11 +71,9 @@ function updateBody(value: ProductFormValue, revision: string) {
     ...(value.detailImages === undefined
       ? {}
       : {
-          detail_images: value.detailImages.map((image) =>
-            "uploadId" in image
-              ? { upload_id: image.uploadId }
-              : { legacy_url: image.legacyUrl },
-          ),
+          detail_images: value.detailImages.map((image) => ({
+            upload_id: image.uploadId,
+          })),
         }),
   };
 }

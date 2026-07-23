@@ -45,46 +45,6 @@ describe("product form model", () => {
     ).toMatchObject({ detailImages: [{ uploadId: "upload-detail" }] });
   });
 
-  it("legacy와 업로드 상세 이미지를 명시적 ref로 순서대로 보존한다", () => {
-    const baseDraft: ProductDraft = {
-      ...validDraft,
-      detailImages: [
-        {
-          clientId: "legacy-detail-0",
-          uploadId: null,
-          src: "https://legacy.example/detail.webp",
-          staged: false,
-        },
-        {
-          clientId: "upload-retained",
-          uploadId: "upload-retained",
-          src: "https://assets.example/retained.webp",
-          staged: false,
-        },
-      ],
-    };
-    const nextDraft: ProductDraft = {
-      ...baseDraft,
-      detailImages: [
-        ...baseDraft.detailImages,
-        {
-          clientId: "upload-added",
-          uploadId: "upload-added",
-          src: "https://assets.example/added.webp",
-          staged: true,
-        },
-      ],
-    };
-
-    expect(productFormValue(nextDraft, baseDraft, "edit").detailImages).toEqual(
-      [
-        { legacyUrl: "https://legacy.example/detail.webp" },
-        { uploadId: "upload-retained" },
-        { uploadId: "upload-added" },
-      ],
-    );
-  });
-
   it("옵션 이름 중복과 재고 오류를 함께 반환한다", () => {
     const errors = validateProductDraft(
       {

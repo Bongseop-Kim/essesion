@@ -47,7 +47,7 @@ def mvp_intent() -> dict:
         "intent_version": 1,
         "canvas": {"tile_mm": 48, "dpi": 300},
         "seed": 184231,
-        "production": {"method": "digital", "max_colors": 12},
+        "production": {"method": "print", "max_colors": 12},
         "palette": {
             "slots": [
                 {"id": "ground", "hex": "#10243a", "spot": "19-4024 TCX", "name": "navy"},

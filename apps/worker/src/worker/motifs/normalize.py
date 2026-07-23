@@ -17,10 +17,11 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import cast
 
+import svg_safety as sanitize
+
 from worker.engine.palette import hex_to_rgb, is_hex_color
 from worker.engine.units import fmt
 from worker.motifs.registry import MotifDef, slot_render_symbols
-from worker.render import sanitize
 
 BBox = tuple[float, float, float, float]
 Anchor = tuple[float, float]

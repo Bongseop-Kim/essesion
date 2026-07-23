@@ -144,10 +144,10 @@ describe("isRepairShipmentDraft", () => {
     ).toBe(true);
   });
 
-  it("오염·구버전 값 거부", () => {
+  it("오염·불완전한 값 거부", () => {
     expect(isRepairShipmentDraft(null)).toBe(false);
     expect(isRepairShipmentDraft("draft")).toBe(false);
-    // 구버전(kind 분기) draft — memo 없음
+    // 필수 필드가 누락된 draft
     expect(
       isRepairShipmentDraft({
         kind: "has-tracking",

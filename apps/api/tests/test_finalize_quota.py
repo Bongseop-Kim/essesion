@@ -160,9 +160,6 @@ async def test_admin_can_adjust_limit_and_rejects_invalid_values(client, db_sess
     # GET /admin/settings는 allowlist 전 키의 행 존재를 요구한다
     await seed_setting(db_session, "default_courier_company", "롯데택배")
     await seed_setting(db_session, "design_token_initial_grant", "30")
-    await seed_setting(db_session, "authoring_pipeline_mode", "legacy")
-    await seed_setting(db_session, "authoring_shadow_percent", "5")
-    await seed_setting(db_session, "authoring_canary_percent", "10")
     await _seed_limit(db_session, 0)
     admin_headers = auth_headers(admin, settings)
     user_headers = auth_headers(user, settings)

@@ -499,9 +499,7 @@ async def get_claim_detail(
         ),
         item=safe_order_item_out(item),
         shipping=AdminClaimShippingOut(
-            shipping_address=await resolve_shipping_address(
-                session, order.shipping_address_snapshot, order.shipping_address_id
-            ),
+            shipping_address=resolve_shipping_address(order.shipping_address_snapshot),
             order_courier_company=order.courier_company,
             order_tracking_number=order.tracking_number,
             company_courier_company=order.company_courier_company,

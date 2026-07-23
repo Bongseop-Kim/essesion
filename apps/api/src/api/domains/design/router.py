@@ -704,7 +704,6 @@ async def import_user_motif(
             style=None,
             description=None,
             tags=[],
-            embedding=None,
             source="user_upload",
             quality=None,
             variant_group=None,

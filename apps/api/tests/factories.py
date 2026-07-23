@@ -170,7 +170,23 @@ async def make_coupon(
 async def make_user_coupon(
     session: AsyncSession, user: User, coupon: Coupon, status: str = "active"
 ) -> UserCoupon:
-    user_coupon = UserCoupon(user_id=user.id, coupon_id=coupon.id, status=status)
+    user_coupon = UserCoupon(
+        user_id=user.id,
+        coupon_id=coupon.id,
+        status=status,
+        terms_snapshot={
+            "name": coupon.name,
+            "display_name": coupon.display_name,
+            "discount_type": coupon.discount_type,
+            "discount_value": str(coupon.discount_value),
+            "max_discount_amount": (
+                str(coupon.max_discount_amount) if coupon.max_discount_amount is not None else None
+            ),
+            "description": coupon.description,
+            "expiry_date": coupon.expiry_date.isoformat(),
+            "additional_info": coupon.additional_info,
+        },
+    )
     session.add(user_coupon)
     await session.commit()
     await session.refresh(user_coupon)

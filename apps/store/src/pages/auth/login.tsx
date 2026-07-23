@@ -1,5 +1,4 @@
 import { loginMutation } from "@essesion/api-client/query";
-import { zLoginRequest } from "@essesion/api-client/zod";
 import {
   ActionButton,
   Box,
@@ -12,10 +11,9 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { domAnimation, LazyMotion, useReducedMotion } from "motion/react";
-import * as m from "motion/react-m";
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
+import { z } from "zod";
 
 import { AUTH_PROVIDERS, type AuthProviderId } from "@/features/auth";
 import {
@@ -36,12 +34,15 @@ import { useSession } from "@/shared/store/session";
 // 이스터에그: 제목을 5번 누르면 id/pw(테스트·운영 점검용) 로그인이 나타난다.
 // 고객은 소셜 로그인만 쓰고 공개 회원가입도 없으므로 평소엔 숨겨둔다.
 const STAFF_REVEAL_CLICKS = 5;
+const loginSchema = z.object({
+  email: z.string().min(1).max(320),
+  password: z.string().min(1).max(1024),
+});
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const reducedMotion = useReducedMotion();
   const status = useSession((s) => s.status);
   const [titleClicks, setTitleClicks] = useState(0);
   const staffLoginVisible = titleClicks >= STAFF_REVEAL_CLICKS;
@@ -50,7 +51,7 @@ export function LoginPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useZodForm(zLoginRequest);
+  } = useZodForm(loginSchema);
 
   const login = useMutation({
     ...loginMutation(),
@@ -116,31 +117,9 @@ export function LoginPage() {
             justifyContent="center"
             aria-hidden
           >
-            <LazyMotion features={domAnimation} strict>
-              <m.span
-                style={{ display: "inline-flex" }}
-                initial={
-                  reducedMotion
-                    ? false
-                    : { opacity: 0, scale: 0.7, y: 8, rotate: -12 }
-                }
-                animate={
-                  reducedMotion
-                    ? undefined
-                    : {
-                        opacity: 1,
-                        scale: 1,
-                        y: 0,
-                        rotate: [-12, 16, -8, 12, -4, 0],
-                      }
-                }
-                transition={{ duration: 0.8, ease: "easeOut" }}
-              >
-                <Text textStyle="display1" className="login-emoji">
-                  👋
-                </Text>
-              </m.span>
-            </LazyMotion>
+            <Text textStyle="display1" className="login-emoji">
+              👋
+            </Text>
           </Box>
           <VStack gap="x2" align="center">
             <Text

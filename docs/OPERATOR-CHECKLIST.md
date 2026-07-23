@@ -118,9 +118,9 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
    uv run python apps/api/scripts/bootstrap_admin.py create
    unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
    uv run python apps/worker/scripts/seed_motifs.py
-   uv run python apps/worker/scripts/backfill_motif_embeddings.py --confirm-live
+   uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
    ```
-   backfill 출력이 `embedded=<total>/<total>`인지 확인한다. `GCP_PROJECT_ID`/ADC 또는 확인 플래그가 없으면 실행되지 않으며 `user_upload`은 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
+   인덱싱 출력이 `embedded=<total>/<total>`인지 확인한다. `GCP_PROJECT_ID`/ADC 또는 확인 플래그가 없으면 실행되지 않으며 `user_upload`은 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
 7. 외부 콘솔은 프록시 검증 후 처음부터 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - **Toss** 대시보드: 웹훅 URL → `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로 갱신
    - **Google·Kakao** 콘솔: redirect URI → `https://api.essesion.shop/auth/{provider}/callback`
@@ -135,7 +135,7 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
 
 ## D. Admin 스테이징 운영 확인 (로컬 출시 판정 완료 후)
 
-[`plans/admin-rewrite.md`](./plans/admin-rewrite.md)의 A~J와 `CHECKLIST.md`의 `admin 재작성`·`Playwright admin 스모크`는 2026-07-12 로컬 출시 검증으로 완료됐다. 아래 1~3은 완료 증거이며, 4~7은 GCP·Cloudflare 개통 뒤 실제 외부 capability와 운영 절차를 확인하는 스테이징 게이트다. 이 게이트는 admin 구현 완료를 다시 열지 않고 별도 배포·리허설 항목을 닫는다.
+Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐다. 아래 1~3은 완료 증거이며, 4~7은 GCP·Cloudflare 개통 뒤 실제 외부 capability와 운영 절차를 확인하는 스테이징 게이트다. 이 게이트는 admin 구현 완료를 다시 열지 않고 별도 배포·리허설 항목을 닫는다.
 
 1. **완료** — 마지막 API 변경을 포함한 `pnpm codegen` 생성물 drift 0과 전체 Python/JS lint·typecheck·test gate를 통과했다. 최신 수치는 `docs/reviews/repo-refactor-2026-07.md`의 최종 검증 결과를 정본으로 삼는다.
 2. **완료** — 실제 API와 PostgreSQL seed로 `e2e/admin-smoke.spec.ts`를 실행해 관리자 로그인 → 보호 목록/상세 → 대표 상태 변경 → 로그아웃을 확인했다.
@@ -147,11 +147,11 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
 
 ## E. 스테이징 리허설
 
-1. Alembic migrate job이 단일 head를 스테이징에 적용했는지 확인하고, 변환 스크립트
-   결과를 `db/MAPPING.md`의 건수·키 매핑과 대조한다.
+1. 빈 스테이징 DB에 Alembic migrate job이 `dadd999bf858` 단일 베이스라인을 적용했는지
+   확인한다. 이전 개발 revision이 발견되면 데이터 변환을 시도하지 말고 DB를 재생성한다.
 2. 실제 Toss sandbox, Google/Kakao OAuth, Solapi, generate → finalize Cloud Tasks 흐름과
    주문·클레임 E2E를 실행한다. Apple/Naver는 구현·등록 전까지 완료로 판정하지 않는다.
-3. legacy 이미지 재등록과 finalize 메모리·지연을 실측해 dpi·인스턴스 상한을 확정한다.
+3. 상품 이미지 업로드와 finalize 메모리·지연을 실측해 dpi·인스턴스 상한을 확정한다.
 4. **production 차단 게이트**: 회원 탈퇴 뒤에도 주문 snapshot, 주문 item/claim/refund JSON,
    견적·문의·수선 배송 정보, 이미지·디자인 prompt/job payload, 관리자 로그에 역사성
    개인정보가 남는다. 사용자 FK가 없는 seamless 생성 로그·전역 motif·공개 preview는

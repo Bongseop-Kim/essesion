@@ -107,9 +107,7 @@ def _sanitize_private_item_value(value: Any) -> Any:
 
 def safe_order_item_out(item: OrderItem, claim: Claim | None = None) -> OrderItemOut:
     out = OrderItemOut.model_validate(item)
-    out.item_data = (
-        _sanitize_private_item_value(item.item_data) if item.item_data is not None else None
-    )
+    out.item_data = _sanitize_private_item_value(item.item_data)
     if claim is not None:
         out.claim = ClaimBadgeOut.model_validate(claim)
     return out
@@ -676,9 +674,7 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
         total_discount=order.total_discount,
         shipping_cost=order.shipping_cost,
         shipping_address_id=order.shipping_address_id,
-        shipping_address=await resolve_shipping_address(
-            session, order.shipping_address_snapshot, order.shipping_address_id
-        ),
+        shipping_address=resolve_shipping_address(order.shipping_address_snapshot),
         courier_company=order.courier_company,
         tracking_number=order.tracking_number,
         shipped_at=order.shipped_at,

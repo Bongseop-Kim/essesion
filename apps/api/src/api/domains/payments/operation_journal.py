@@ -65,7 +65,7 @@ async def set_payment_operation_outcome(
     operation.status = status
     operation.observed_amount = observed_amount
     operation.details = {
-        **(operation.details or {}),
+        **operation.details,
         "phase": phase,
         "error_type": error_type,
         "provider_http_status": provider_http_status,

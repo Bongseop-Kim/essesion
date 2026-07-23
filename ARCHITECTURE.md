@@ -194,7 +194,7 @@ flowchart TB
 | Server | FastAPI + SQLAlchemy 2 async + asyncpg | OpenAPI 생성과 비동기 DB/provider I/O |
 | Schema | Alembic | 모델과 revision의 리뷰 가능한 변경 이력 |
 | DB | PostgreSQL 17 + pgvector | 트랜잭션 커머스와 motif vector search를 한 저장소에서 처리 |
-| API codegen | Hey API | fetch SDK, TanStack Query options, Zod schema를 OpenAPI에서 동시 생성 |
+| API codegen | Hey API | fetch SDK와 TanStack Query options를 OpenAPI에서 동시 생성 |
 | Raster | librsvg subprocess + Pillow | 기존 골든과의 렌더 기준선, fabric 합성 |
 | IaC | OpenTofu | GCP 리소스, IAM, monitoring, scheduler를 코드로 선언 |
 | Delivery | GitHub Actions + WIF | 장기 GCP key 없이 CI 성공 SHA만 배포 |
@@ -386,10 +386,10 @@ sequenceDiagram
 
 - `db/src/db/models/`의 SQLAlchemy 모델이 스키마 source of truth다.
 - 모든 변경은 Alembic revision으로 만들고 `alembic check`로 모델 drift를 검증한다.
-- 현재 스키마는 41개 모델 테이블과 21개 revision으로 구성되어 있다. 최종 head는 `c3d4e5f6a7b8`이며 `alembic current`와 `alembic check`를 통과한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
+- 현재 스키마는 42개 모델 테이블과 단일 베이스라인 revision으로 구성되어 있다. head는 `dadd999bf858`이며 빈 PostgreSQL에서 upgrade, `alembic check`, downgrade를 검증한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
 - PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 사용한다.
 - DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다. updated timestamp와 도메인 규칙은 서비스 계층이 소유한다.
-- 공개 motif와 authoring example 검색은 Vertex AI `gemini-embedding-001`의 pgvector `vector(3072)`를 사용한다. motif의 기존 `vector(1536)` 컬럼은 무중단 이행 호환용으로만 보존한다.
+- 공개 motif와 authoring example 검색은 Vertex AI `gemini-embedding-001`의 pgvector `vector(3072)`만 사용한다.
 
 ### 6.2 데이터 그룹
 
@@ -425,19 +425,11 @@ private uploads bucket
 - finalize 결과를 주문/견적 첨부로 사용할 때 API가 public assets에서 private uploads로 create-only 복사한다.
 - 현재 공개 asset URL은 GCS 직접 주소다. 별도 Cloudflare image cache proxy는 향후 선택지이며 구현 완료로 간주하지 않는다.
 
-### 6.4 이관 정책
+### 6.4 미배포 스키마 초기화 정책
 
-| 대상 | 현재 정책 |
-|---|---|
-| 상품·가격·모티프 등 사용자 독립 데이터 | `db/scripts/migrate_data.py` 변환 경로 구현 |
-| 사용자·소셜 identity | 재로그인 때 provider ID/검증 이메일 기반 best-effort 연결, 최종 정책 리허설 필요 |
-| 사용자 종속 주문·클레임·문의 등 | 매칭 정책 확정 전 migration stub 유지 |
-| 기존 이미지 | 양이 적어 운영자 수동 재등록 |
-| generate-tile/LangGraph 잔재 | 새 스키마에 만들지 않음 |
-| provider credential | Secret Manager로 이전 |
-| JWT/session/edge secret | 환경별로 새로 생성, 기존 값 재사용 금지 |
+아직 외부 환경에 배포하지 않았으므로 이전 revision, 데이터 변환 스크립트와 단계적 호환 경로를 유지하지 않는다. 이전 개발 스키마나 Alembic revision이 남은 환경은 애플리케이션을 중지한 뒤 해당 데이터베이스를 drop/recreate하고 단일 베이스라인을 적용한다. 테이블·컬럼별 변환이나 과거 데이터 보존은 시도하지 않는다.
 
-`db/MAPPING.md`가 기존 테이블·함수·트리거와 새 소유자의 정본 매핑이다. 실제 컷오버 전에는 변환 행 수, 금액 합계, FK orphan, 샘플 도메인 동작을 함께 대조한다.
+스테이징과 프로덕션은 빈 Cloud SQL에 베이스라인을 적용하고 관리자·공개 motif·authoring example을 초기 입력한다. provider credential은 Secret Manager에 넣고 JWT/session/edge secret은 환경별로 새로 생성한다. `db/MAPPING.md`는 기존 도메인 의미를 검토한 설계 기록이며 실행 가능한 이관 계약이 아니다.
 
 ### 6.5 백업·보존
 
@@ -484,7 +476,7 @@ Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-con
 
 기존 25개 이상 intent에서 만든 `gallery-v1` Plan v3 manifest는 최초 bootstrap 입력이다. 런타임 few-shot 정본은 운영 DB의 `authoring_examples` 중 승인되고 `active=true`인 현재 contract·embedding model 행이다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 예시를 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 예시 없이 typed schema 경로를 계속한다.
 
-기본 배포 모드는 `legacy`다. `shadow`는 request-id hash로 표본화해 v3 결과와 진단만 폐기 저장하고 사용자 응답은 legacy가 결정한다. `canary`는 같은 안정 bucket으로 일부 요청에 v3를 적용하며 hidden legacy fallback은 없다. mode와 shadow/canary 비율은 `admin_settings`에서 관리하며 누락·오류 시 legacy로 닫힌다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 기존 generation diagnostics/intent log에 남긴다. 매일 성공·선택·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 예시가 되며, 문제 예시는 `active=false`로 즉시 제외한다. prompt와 Plan 본문은 관리자 화면에서 편집하지 않는다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
+모든 생성 요청은 Plan v3 경로만 사용한다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 generation diagnostics/intent log에 남긴다. 매일 성공·선택·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 예시가 되며, 문제 예시는 `active=false`로 즉시 제외한다. prompt와 Plan 본문은 관리자 화면에서 편집하지 않는다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
 
 사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
 
@@ -525,7 +517,7 @@ intent version
 | `point_set` | 검증된 좌표를 tile 크기로 wrap |
 
 - 대각선은 tile 경계에서 닫히는 slope로 snap한다.
-- 구조화 방향 설정은 optional `fixed_rotation_deg`로 motif instance에 적용한다. 값이 없는 기존 intent는 canonical layout과 SVG byte가 변하지 않는다.
+- 구조화 방향 설정은 optional `fixed_rotation_deg`로 motif instance에 적용한다. 값이 없으면 canonical layout을 사용한다.
 - 경계를 넘는 motif는 반대편에 clone해 양쪽 픽셀이 연결되게 한다.
 - `<symbol>`에 geometry를 한 번 정의하고 `<use>`로 인스턴스를 배치한다.
 - raster seam metric은 사후 보정이 아니라 이 구조의 회귀 guard다. blur로 경계를 감추지 않는다.
@@ -538,7 +530,7 @@ intent version
 4. 신뢰도 게이트를 통과한 후보가 없을 때만 Gemini semantic spec을 해석하고, 같은 정확도 우선 검색에서도 miss면 Recraft의 inline `b64_json` vector를 받아 normalize한다. embedding 미설정·실패 시에는 exact token만 허용하며 lowest-ID fallback은 없다.
 5. hit의 variant group은 seed로 안정 선택한다. 새 SVG는 `scope=whole`로 sanitize·content-hash upsert하고 resolved intent에는 concrete ID만 남긴다.
 
-공개 카탈로그의 임베딩 문서는 `subject, description, style, view, expression, tags` 순서로 만들며 scope를 제외한다. `seed_motifs.py` 뒤 `backfill_motif_embeddings.py --confirm-live`를 실행해 기존 NULL 행을 UPDATE하고 `embedded=total`을 확인한다. `user_upload`은 backfill·검색·fingerprint에서 계속 제외한다.
+공개 카탈로그의 임베딩 문서는 `subject, description, style, view, expression, tags` 순서로 만들며 scope를 제외한다. `seed_motifs.py` 뒤 `index_motif_embeddings.py --confirm-live`를 실행해 공개 행을 초기 인덱싱하고 `embedded=total`을 확인한다. `user_upload`은 인덱싱·검색·fingerprint에서 제외한다.
 
 외부 URL을 다시 다운로드하지 않으므로 motif generation 경로에 SSRF 가능한 2차 fetch가 없다. resolver의 선택적 조회 실패는 savepoint 안에서만 롤백해 앞선 정상 write를 보존한다.
 

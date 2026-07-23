@@ -5,8 +5,8 @@ render_check=False로 librsvg 유무와 무관하게 결정론적.
 """
 
 import pytest
+from svg_safety import SanitizeError
 from worker.motifs.normalize import normalize_motif_svg
-from worker.render.sanitize import SanitizeError
 
 
 def _svg(inner: str, viewbox: str = "0 0 100 100") -> str:

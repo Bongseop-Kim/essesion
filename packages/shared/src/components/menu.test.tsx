@@ -8,15 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  MenuAnchor,
-  MenuContent,
-  MenuGroup,
-  MenuGroupLabel,
-  MenuItem,
-  MenuRoot,
-  MenuTrigger,
-} from "./menu";
+import { MenuContent, MenuItem, MenuRoot, MenuTrigger } from "./menu";
 
 // jsdom은 Popover API를 구현하지 않는다 — 열림/닫힘 상태는 컴포넌트가
 // 자체 관리하므로 no-op 스텁으로 충분하다.
@@ -213,56 +205,5 @@ describe("MenuContent", () => {
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(trigger);
-  });
-});
-
-describe("MenuAnchor", () => {
-  it("controlled open과 함께 위치 기준점만 제공하고 클릭 배선이 없다", () => {
-    const onOpenChange = vi.fn();
-    render(
-      <MenuRoot open onOpenChange={onOpenChange}>
-        <MenuAnchor>
-          <span data-testid="anchor">기준점</span>
-        </MenuAnchor>
-        <MenuContent aria-label="테스트 메뉴">
-          <MenuItem label="추가" />
-        </MenuContent>
-      </MenuRoot>,
-    );
-
-    expect(screen.getByRole("menu")).toBeTruthy();
-    const anchor = screen.getByTestId("anchor");
-    expect(anchor.getAttribute("aria-haspopup")).toBeNull();
-    fireEvent.click(anchor);
-    expect(onOpenChange).not.toHaveBeenCalled();
-  });
-});
-
-describe("MenuGroup", () => {
-  it("MenuGroupLabel이 있을 때만 aria-labelledby를 배선한다", () => {
-    render(
-      <MenuRoot defaultOpen>
-        <MenuTrigger>
-          <button type="button">열기</button>
-        </MenuTrigger>
-        <MenuContent aria-label="테스트 메뉴">
-          <MenuGroup>
-            <MenuGroupLabel>작업</MenuGroupLabel>
-            <MenuItem label="추가" />
-          </MenuGroup>
-          <MenuGroup>
-            <MenuItem label="삭제" />
-          </MenuGroup>
-        </MenuContent>
-      </MenuRoot>,
-    );
-
-    const [labeled, unlabeled] = screen.getAllByRole("group");
-    expect(labeled?.getAttribute("aria-labelledby")).toBeTruthy();
-    expect(
-      document.getElementById(labeled?.getAttribute("aria-labelledby") ?? "")
-        ?.textContent,
-    ).toBe("작업");
-    expect(unlabeled?.getAttribute("aria-labelledby")).toBeNull();
   });
 });

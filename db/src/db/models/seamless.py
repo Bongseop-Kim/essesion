@@ -1,9 +1,8 @@
 """seamless 엔진 데이터 — 워커가 사용 (motifs 검색·생성 로그 기록).
 
 motifs.id는 content-hash(recraft-<sha256 12자>) — ON CONFLICT DO NOTHING이 곧 멱등성.
-기존 embedding은 vector(1536) legacy 컬럼이며, 새 embedding_vertex는 Vertex AI
-gemini-embedding-001의 vector(3072) 컬럼이다. 검색은 halfvec(3072) expression HNSW
-인덱스를 사용한다.
+임베딩은 Vertex AI gemini-embedding-001의 vector(3072)에 저장하며, 검색은
+halfvec(3072) expression HNSW 인덱스를 사용한다.
 """
 
 import uuid
@@ -27,7 +26,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from db.models.base import Base, CreatedAtMixin, TimestampMixin, uuid_pk
 
-LEGACY_EMBEDDING_DIM = 1536
 EMBEDDING_DIM = 3072
 AUTHORING_EXAMPLE_FAMILIES = (
     "solid",
@@ -56,7 +54,6 @@ class Motif(CreatedAtMixin, Base):
     style: Mapped[str | None]
     description: Mapped[str | None]
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
-    embedding: Mapped[Any | None] = mapped_column(Vector(LEGACY_EMBEDDING_DIM))
     embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     source: Mapped[str] = mapped_column(server_default="recraft")
     quality: Mapped[float | None] = mapped_column(REAL)
@@ -208,9 +205,6 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     prompt: Mapped[str | None]
     has_reference_image: Mapped[bool] = mapped_column(server_default=text("false"))
     reference_image_bytes: Mapped[int | None]
-    reference_image_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("images.id", ondelete="SET NULL")
-    )
     colorway: Mapped[str | None]
     seed: Mapped[int | None] = mapped_column(BigInteger)
     candidate_count_requested: Mapped[int | None]
@@ -230,18 +224,13 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     diagnostics: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
 
     __table_args__ = (
-        Index(
-            "ix_seamless_generation_logs_reference_image_id",
-            "reference_image_id",
-            postgresql_where=text("reference_image_id IS NOT NULL"),
-        ),
         CheckConstraint("input_type IN ('intent', 'prompt', 'reference_image')", name="input_type"),
         CheckConstraint("status IN ('success', 'partial', 'error')", name="status"),
     )
 
 
 class SeamlessGenerationAttachment(CreatedAtMixin, Base):
-    """생성 로그에 전달된 참고 사진. 기존 단일 FK는 첫 사진 호환 필드로 유지한다."""
+    """생성 로그에 전달된 참고 사진."""
 
     __tablename__ = "seamless_generation_attachments"
 

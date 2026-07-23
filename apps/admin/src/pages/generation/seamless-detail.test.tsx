@@ -47,8 +47,14 @@ const log: SeamlessDetailOut = {
   intents: [],
   has_reference_image: true,
   reference_image_bytes: 2_048,
-  reference_image_id: "33333333-3333-4333-8333-333333333333",
-  reference_image_available: true,
+  reference_images: [
+    {
+      image_id: "33333333-3333-4333-8333-333333333333",
+      purpose: "auto",
+      ordinal: 0,
+      available: true,
+    },
+  ],
   seed: 1,
   available_strategies: 0,
   warning_groups: [],
@@ -133,7 +139,7 @@ describe("SeamlessLogDetailPage", () => {
       {
         path: {
           log_id: log.id,
-          image_id: log.reference_image_id,
+          image_id: log.reference_images[0]?.image_id,
         },
       },
       expect.anything(),
@@ -152,11 +158,14 @@ describe("SeamlessLogDetailPage", () => {
   it.each([
     {
       name: "관계 ID 없음",
-      value: { ...log, reference_image_id: null },
+      value: { ...log, reference_images: [] },
     },
     {
       name: "조회 불가 관계",
-      value: { ...log, reference_image_available: false },
+      value: {
+        ...log,
+        reference_images: [{ ...log.reference_images[0]!, available: false }],
+      },
     },
   ])("$name 상태에서는 입력 이미지 작업을 노출하지 않는다", async ({
     value,

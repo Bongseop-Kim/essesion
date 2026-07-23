@@ -33,7 +33,7 @@ export type SheetDialogProps = {
   open: boolean;
   onClose: () => void;
   closeOnEscape?: boolean;
-  /** 상단 모서리 라운드 — BottomSheet "rounded-t-r6" · SwipeableMenuSheet "rounded-t-r5" */
+  /** 상단 모서리 라운드. */
   radiusClass: string;
   labelledBy?: string;
   describedBy?: string;
@@ -54,7 +54,7 @@ const dialogClass = cn(
   "starting:open:backdrop:opacity-0 data-closing:backdrop:opacity-0",
 );
 
-/* BottomSheet·SwipeableMenuSheet 공용 셸. 네이티브 <dialog>+showModal 기반이며
+/* 시트 공용 셸. 네이티브 <dialog>+showModal 기반이며
    백드롭 클릭(lightDismiss)과 아래로 스와이프로 닫힌다. display 클래스는 dialog가
    아니라 내부 래퍼에 둔다 — dialog:not([open])의 display:none을 덮으면 항상 보이게 됨. */
 export function SheetDialog({

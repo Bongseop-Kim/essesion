@@ -383,13 +383,15 @@ export function SeamlessLogDetailPage() {
         </AdminCard>
       )}
 
-      {log.reference_image_id !== null && log.reference_image_available && (
-        <SeamlessReferenceImage
-          key={`${log.id}:${log.reference_image_id}`}
-          logId={log.id}
-          imageId={log.reference_image_id}
-        />
-      )}
+      {log.reference_images
+        .filter((image) => image.available)
+        .map((image) => (
+          <SeamlessReferenceImage
+            key={`${log.id}:${image.image_id}`}
+            logId={log.id}
+            imageId={image.image_id}
+          />
+        ))}
 
       <AdminCard title="성능·후보 집계">
         <DetailList
@@ -580,7 +582,7 @@ export function SeamlessLogDetailPage() {
           diagnostics: log.diagnostics,
           outcome: log.outcome,
           intent_count: log.intents.length,
-          reference_image_id: log.reference_image_id,
+          reference_images: log.reference_images,
           seed: log.seed,
           engine_version: log.engine_version,
           registry_version: log.registry_version,

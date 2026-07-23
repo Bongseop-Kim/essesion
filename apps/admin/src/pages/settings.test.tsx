@@ -61,27 +61,6 @@ const settings: AdminSettingOut[] = [
     updated_at: "2026-07-12T01:00:00Z",
     updated_by: "admin-1",
   },
-  {
-    key: "authoring_pipeline_mode",
-    value: "legacy",
-    value_type: "enum",
-    updated_at: "2026-07-12T01:00:00Z",
-    updated_by: "admin-1",
-  },
-  {
-    key: "authoring_shadow_percent",
-    value: "5",
-    value_type: "percentage",
-    updated_at: "2026-07-12T01:00:00Z",
-    updated_by: "admin-1",
-  },
-  {
-    key: "authoring_canary_percent",
-    value: "10",
-    value_type: "percentage",
-    updated_at: "2026-07-12T01:00:00Z",
-    updated_by: "admin-1",
-  },
 ];
 
 function renderPage() {
@@ -154,27 +133,44 @@ describe("SettingsPage", () => {
     expect(await screen.findByLabelText("실사화 횟수")).toBeTruthy();
   });
 
-  it("저작 파이프라인 모드와 비율을 DB 운영 설정으로 편집한다", async () => {
+  it("숫자 설정별 서버 상한을 입력 힌트와 검증에 동일하게 적용한다", async () => {
     const user = userEvent.setup();
     api.getSettings.mockResolvedValue(settings);
     renderPage();
 
-    expect(await screen.findByText("저작 파이프라인 모드")).toBeTruthy();
-    expect(screen.getAllByText("5%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("10%").length).toBeGreaterThan(0);
-    await user.click(screen.getAllByRole("button", { name: "수정" })[3]!);
-
+    await user.click(
+      (await screen.findAllByRole("button", { name: "수정" }))[2]!,
+    );
+    const finalizeLimit = (await screen.findByLabelText(
+      "실사화 횟수",
+    )) as HTMLInputElement;
+    expect(finalizeLimit.max).toBe("1000");
+    await user.clear(finalizeLimit);
+    await user.type(finalizeLimit, "1001");
+    expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
     expect(
-      await screen.findByRole("radiogroup", { name: "실행 모드" }),
-    ).toBeTruthy();
-    expect(
-      (screen.getByRole("radio", { name: /Legacy/ }) as HTMLInputElement)
-        .checked,
+      (
+        screen.getByRole("button", {
+          name: "설정 변경 검토",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
-    await user.click(screen.getByRole("radio", { name: /Canary/ }));
+
+    await user.click(screen.getByRole("button", { name: "편집 취소" }));
+    await user.click(screen.getAllByRole("button", { name: "수정" })[1]!);
+    const initialGrant = (await screen.findByLabelText(
+      "토큰 수량",
+    )) as HTMLInputElement;
+    expect(initialGrant.max).toBe("100000");
+    await user.clear(initialGrant);
+    await user.type(initialGrant, "100001");
+    expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
     expect(
-      (screen.getByRole("radio", { name: /Canary/ }) as HTMLInputElement)
-        .checked,
+      (
+        screen.getByRole("button", {
+          name: "설정 변경 검토",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
   });
 

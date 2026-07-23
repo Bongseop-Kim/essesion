@@ -15,7 +15,13 @@ from api.domains.auth.rate_limit import AuthRateLimiter
 from api.domains.auth.router import REFRESH_COOKIE
 from api.domains.auth.service import ensure_oauth_user
 from api.errors import DomainError, RateLimitedError, UnauthorizedError
-from api.security import decode_access_token, hash_refresh_token, new_refresh_token
+from api.security import (
+    SessionKind,
+    create_access_token,
+    decode_access_token,
+    hash_refresh_token,
+    new_refresh_token,
+)
 from db.models.auth import PhoneVerification, RefreshToken, User, UserIdentity
 from db.models.tokens import DesignToken
 from httpx import ASGITransport, AsyncClient
@@ -25,10 +31,10 @@ from sqlalchemy import func, select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
-from .factories import auth_headers, make_order, make_user, seed_setting
+from .factories import auth_headers, make_order, make_product, make_user, seed_setting
 
 
-def _legacy_access_token(user_id: uuid.UUID, role: str, settings: Settings) -> str:
+def _access_token_without_session_kind(user_id: uuid.UUID, role: str, settings: Settings) -> str:
     now = datetime.now(UTC)
     return jwt.encode(
         {
@@ -105,6 +111,42 @@ async def test_login_and_me(client, db_session, settings):
     me = await client.get("/auth/me", headers={"Authorization": f"Bearer {access}"})
     assert me.status_code == 200
     assert me.json()["name"] == "김테스트"
+
+
+async def test_store_customer_token_allows_store_dependencies(client, db_session, settings):
+    user = await make_user(db_session)
+    product = await make_product(db_session)
+    headers = auth_headers(user, settings)
+
+    assert (await client.get("/auth/me", headers=headers)).status_code == 200
+    assert (await client.get("/products", headers=headers)).status_code == 200
+    assert (await client.put(f"/products/{product.id}/like", headers=headers)).status_code == 204
+
+
+@pytest.mark.parametrize(
+    ("session_kind", "role"),
+    [
+        ("store", "admin"),
+        ("store", "manager"),
+        ("admin", "customer"),
+        ("other", "customer"),
+    ],
+)
+async def test_store_dependencies_reject_session_role_mismatch(
+    client, db_session, settings, session_kind, role
+):
+    user = await make_user(db_session, role=role)
+    token = create_access_token(
+        user.id,
+        user.role,
+        settings,
+        session_kind=cast(SessionKind, session_kind),
+    )
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert (await client.get("/auth/me", headers=headers)).status_code == 401
+    assert (await client.get("/products", headers=headers)).status_code == 401
+    assert (await client.put("/products/0/like", headers=headers)).status_code == 401
 
 
 async def test_login_wrong_password(client, db_session):
@@ -198,6 +240,30 @@ async def test_admin_login_uses_separate_cookie(client, db_session, settings, ro
 
     token = await db_session.scalar(select(RefreshToken).where(RefreshToken.user_id == user.id))
     assert token.session_kind == "admin"
+
+
+@pytest.mark.parametrize("role", ["admin", "manager"])
+async def test_admin_login_access_token_can_load_me(client, db_session, role):
+    user = await make_user(
+        db_session,
+        email=f"admin-me-{role}@test.local",
+        password="pw",
+        role=role,
+    )
+    login = await client.post(
+        "/auth/admin/login",
+        json={"email": user.email, "password": "pw"},
+    )
+    assert login.status_code == 200
+
+    me = await client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+
+    assert me.status_code == 200
+    assert me.json()["id"] == str(user.id)
+    assert me.json()["role"] == role
 
 
 async def test_admin_login_rejects_customer(client, db_session):
@@ -349,7 +415,7 @@ async def test_admin_refresh_replay_revokes_only_admin_sessions(client, db_sessi
     assert remaining_store == 1
 
 
-async def test_store_refresh_rejects_legacy_privileged_session(client, db_session):
+async def test_store_refresh_rejects_privileged_store_session(client, db_session):
     admin = await make_user(db_session, role="admin")
     raw, token_hash = new_refresh_token()
     db_session.add(
@@ -1078,20 +1144,18 @@ async def test_admin_access_token_allows_admin_endpoint(client, db_session):
     assert allowed.status_code == 200
 
 
-async def test_legacy_access_token_is_store_compatible_but_cannot_access_admin(
-    client, db_session, settings
-):
+async def test_access_token_without_session_kind_is_rejected(client, db_session, settings):
     customer = await make_user(db_session)
-    customer_token = _legacy_access_token(customer.id, customer.role, settings)
+    customer_token = _access_token_without_session_kind(customer.id, customer.role, settings)
     assert (
         await client.get(
             "/auth/me",
             headers={"Authorization": f"Bearer {customer_token}"},
         )
-    ).status_code == 200
+    ).status_code == 401
 
     admin = await make_user(db_session, role="admin")
-    admin_token = _legacy_access_token(admin.id, admin.role, settings)
+    admin_token = _access_token_without_session_kind(admin.id, admin.role, settings)
     denied = await client.get(
         "/admin/capabilities",
         headers={"Authorization": f"Bearer {admin_token}"},

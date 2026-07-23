@@ -16,9 +16,7 @@ from api.deps import AdminUser
 from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.product_schemas import (
     AdminProductCreateRequest,
-    AdminProductDetailImageLegacyRef,
     AdminProductDetailImageOut,
-    AdminProductDetailImageUploadRef,
     AdminProductDetailOut,
     AdminProductImageCompleteOut,
     AdminProductImageUploadOut,
@@ -169,7 +167,7 @@ async def _load_options(
 
 async def _linked_product_image_ids(
     session: AsyncSession, product: Product
-) -> tuple[uuid.UUID | None, list[uuid.UUID | None]]:
+) -> tuple[uuid.UUID, list[uuid.UUID]]:
     images = list(
         await session.scalars(
             select(Image)
@@ -193,7 +191,13 @@ async def _linked_product_image_ids(
         ),
         None,
     )
-    detail_ids: list[uuid.UUID | None] = []
+    if primary_id is None:
+        raise DomainError(
+            "상품 대표 이미지 연결이 없습니다",
+            code="invalid_product_image_state",
+            status=409,
+        )
+    detail_ids: list[uuid.UUID] = []
     for url in product.detail_images or []:
         image_id = next(
             (
@@ -203,6 +207,12 @@ async def _linked_product_image_ids(
             ),
             None,
         )
+        if image_id is None:
+            raise DomainError(
+                "상품 상세 이미지 연결이 없습니다",
+                code="invalid_product_image_state",
+                status=409,
+            )
         detail_ids.append(image_id)
     return primary_id, detail_ids
 
@@ -763,15 +773,7 @@ async def admin_update_product(
 
         details_requested = "detail_images" in body.model_fields_set
         detail_refs = body.detail_images if details_requested else None
-        detail_ids = (
-            [
-                ref.upload_id
-                for ref in detail_refs
-                if isinstance(ref, AdminProductDetailImageUploadRef)
-            ]
-            if detail_refs is not None
-            else None
-        )
+        detail_ids = [ref.upload_id for ref in detail_refs] if detail_refs is not None else None
         primary, details = await _resolve_product_images(
             session,
             admin.id,
@@ -812,39 +814,8 @@ async def admin_update_product(
         if primary is not None:
             product.image = _public_asset_url(request.app.state.settings, primary.object_key)
         if detail_refs is not None and details is not None:
-            _, current_detail_ids = await _linked_product_image_ids(session, product)
-            legacy_urls = {
-                url
-                for url, image_id in zip(
-                    product.detail_images or [], current_detail_ids, strict=True
-                )
-                if image_id is None
-            }
-            requested_legacy_urls = [
-                ref.legacy_url
-                for ref in detail_refs
-                if isinstance(ref, AdminProductDetailImageLegacyRef)
-            ]
-            if len(requested_legacy_urls) != len(set(requested_legacy_urls)):
-                raise DomainError(
-                    "같은 상품 이미지를 두 번 사용할 수 없습니다",
-                    code="duplicate_product_image",
-                    status=422,
-                )
-            if any(url not in legacy_urls for url in requested_legacy_urls):
-                raise DomainError(
-                    "현재 상품에 없는 레거시 이미지입니다",
-                    code="invalid_legacy_product_image",
-                    status=409,
-                )
-            resolved_details = iter(details)
             product.detail_images = [
-                ref.legacy_url
-                if isinstance(ref, AdminProductDetailImageLegacyRef)
-                else _public_asset_url(
-                    request.app.state.settings, next(resolved_details).object_key
-                )
-                for ref in detail_refs
+                _public_asset_url(request.app.state.settings, image.object_key) for image in details
             ] or None
         await _link_product_images(session, product, primary=primary, details=details)
 

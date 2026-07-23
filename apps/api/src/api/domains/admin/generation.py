@@ -14,7 +14,7 @@ from typing import Annotated, Any, Literal, cast
 
 from db.models.design import DesignSessionTurn, GenerationJob
 from db.models.images import Image
-from db.models.seamless import Motif, SeamlessGenerationLog
+from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, func, select
@@ -46,8 +46,8 @@ WarningCode = Literal[
 ]
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
-SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE = "seamless_generation"
-SEAMLESS_REFERENCE_IMAGE_PREFIX = "uploads/seamless_generation/"
+SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE = "design_reference"
+SEAMLESS_REFERENCE_IMAGE_PREFIX = "uploads/design_reference/"
 
 _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _CONTENT_KEY = re.compile(r"^fabric/[0-9a-f]{16}\.png$")
@@ -251,14 +251,20 @@ class GenerationDiagnosticsOut(BaseModel):
     motif_resolutions: list[MotifResolutionOut] = Field(default_factory=list)
 
 
+class SeamlessReferenceImageOut(BaseModel):
+    image_id: uuid.UUID
+    purpose: Literal["auto", "color_mood", "motif", "composition"]
+    ordinal: int
+    available: bool
+
+
 class SeamlessDetailOut(SeamlessSummaryOut):
     has_prompt: bool
     prompt: str | None
     intents: list[dict[str, Any]]
     has_reference_image: bool
     reference_image_bytes: int | None
-    reference_image_id: uuid.UUID | None
-    reference_image_available: bool
+    reference_images: list[SeamlessReferenceImageOut]
     seed: int | None
     available_strategies: int | None
     warning_groups: list[SeamlessWarningOut]
@@ -798,21 +804,22 @@ def _safe_candidate(value: Any) -> SafeCandidateOut | None:
     )
 
 
-async def _seamless_reference_image(
+async def _seamless_reference_images(
     session,
     row: SeamlessGenerationLog,  # noqa: ANN001 — SessionDep 전달
-) -> Image | None:
-    if row.reference_image_id is None:
-        return None
-    return await session.scalar(
-        select(Image).where(
-            Image.id == row.reference_image_id,
+) -> list[tuple[SeamlessGenerationAttachment, Image]]:
+    rows = await session.execute(
+        select(SeamlessGenerationAttachment, Image)
+        .join(Image, Image.id == SeamlessGenerationAttachment.image_id)
+        .where(
+            SeamlessGenerationAttachment.log_id == row.id,
             Image.entity_type == SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE,
-            Image.entity_id == str(row.id),
             Image.upload_completed_at.is_not(None),
             Image.deleted_at.is_(None),
         )
+        .order_by(SeamlessGenerationAttachment.ordinal)
     )
+    return list(rows.tuples())
 
 
 def _reference_image_available(image: Image | None) -> bool:
@@ -977,7 +984,7 @@ async def get_admin_seamless_log(
     candidates = [
         candidate for item in (row.candidates or []) if (candidate := _safe_candidate(item))
     ]
-    reference_image = await _seamless_reference_image(session, row)
+    reference_images = await _seamless_reference_images(session, row)
     outcome = await _generation_outcome(
         session,
         row,
@@ -990,8 +997,18 @@ async def get_admin_seamless_log(
         intents=_safe_intents(row.intent),
         has_reference_image=row.has_reference_image,
         reference_image_bytes=row.reference_image_bytes,
-        reference_image_id=row.reference_image_id,
-        reference_image_available=_reference_image_available(reference_image),
+        reference_images=[
+            SeamlessReferenceImageOut(
+                image_id=image.id,
+                purpose=cast(
+                    "Literal['auto', 'color_mood', 'motif', 'composition']",
+                    attachment.purpose,
+                ),
+                ordinal=attachment.ordinal,
+                available=_reference_image_available(image),
+            )
+            for attachment, image in reference_images
+        ],
         seed=row.seed,
         available_strategies=row.available_strategies,
         warning_groups=_warning_groups(row.warnings or []),
@@ -1015,10 +1032,20 @@ async def create_admin_seamless_reference_image_read_url(
     row = await session.get(SeamlessGenerationLog, log_id)
     if row is None:
         raise NotFoundError("Seamless 생성 로그를 찾을 수 없습니다")
-    if row.reference_image_id != image_id:
-        raise NotFoundError("Seamless 참고 이미지를 찾을 수 없습니다")
-
-    image = await _seamless_reference_image(session, row)
+    image = await session.scalar(
+        select(Image)
+        .join(
+            SeamlessGenerationAttachment,
+            SeamlessGenerationAttachment.image_id == Image.id,
+        )
+        .where(
+            SeamlessGenerationAttachment.log_id == row.id,
+            SeamlessGenerationAttachment.image_id == image_id,
+            Image.entity_type == SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE,
+            Image.upload_completed_at.is_not(None),
+            Image.deleted_at.is_(None),
+        )
+    )
     if image is None or not image.object_key.startswith(SEAMLESS_REFERENCE_IMAGE_PREFIX):
         raise NotFoundError("Seamless 참고 이미지를 찾을 수 없습니다")
     if image.expires_at is not None and image.expires_at <= datetime.now(UTC):

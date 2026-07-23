@@ -31,7 +31,6 @@ class Settings(BaseSettings):
     # retry cannot execute the same job concurrently; Cloud Tasks retries span this value.
     finalize_lease_seconds: int = Field(default=960, ge=1)
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
-    stripe_diagonal_repeats: int = Field(default=2, ge=2)
 
     gcp_project_id: str = ""
     vertex_ai_location: str = "global"

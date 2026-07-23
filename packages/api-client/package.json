@@ -6,22 +6,19 @@
   "exports": {
     ".": "./src/index.ts",
     "./client": "./src/client.gen.ts",
-    "./query": "./src/@tanstack/react-query.gen.ts",
-    "./zod": "./src/zod.gen.ts"
+    "./query": "./src/@tanstack/react-query.gen.ts"
   },
   "scripts": {
     "generate": "openapi-ts",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@tanstack/react-query": ">=5",
-    "zod": ">=4"
+    "@tanstack/react-query": ">=5"
   },
   "devDependencies": {
     "@essesion/tsconfig": "workspace:*",
     "@hey-api/openapi-ts": "0.99.0",
     "@tanstack/react-query": "catalog:",
-    "typescript": "catalog:",
-    "zod": "catalog:"
+    "typescript": "catalog:"
   }
 }

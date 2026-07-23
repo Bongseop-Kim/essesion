@@ -141,8 +141,8 @@ class UserCoupon(TimestampMixin, Base):
     issued_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     expires_at: Mapped[datetime | None]
     used_at: Mapped[datetime | None]
-    # 발급 시점의 표시명·할인 조건. 기존 row는 migration에서 best-effort backfill한다.
-    terms_snapshot: Mapped[dict[str, Any] | None]
+    # 발급 시점의 표시명·할인 조건.
+    terms_snapshot: Mapped[dict[str, Any]]
 
     __table_args__ = (
         UniqueConstraint("user_id", "coupon_id"),
@@ -247,7 +247,9 @@ class OrderItem(CreatedAtMixin, Base):
     item_type: Mapped[str]
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))
     selected_option_id: Mapped[str | None]
-    item_data: Mapped[dict[str, Any] | None]  # 주문 시점 스냅샷 — product/option 포함 전 타입
+    item_data: Mapped[dict[str, Any]] = mapped_column(
+        server_default=text("'{}'::jsonb")
+    )  # 주문 시점 스냅샷 — product/option 포함 전 타입
     quantity: Mapped[int]
     unit_price: Mapped[int]
     discount_amount: Mapped[int] = mapped_column(server_default=text("0"))
@@ -558,7 +560,7 @@ class PaymentIncident(TimestampMixin, Base):
     actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("orders.id", ondelete="SET NULL"))
     claim_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("claims.id", ondelete="SET NULL"))
-    expected_amount: Mapped[int | None]
+    expected_amount: Mapped[int]
     observed_amount: Mapped[int | None]
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     resolution_memo: Mapped[str | None]
@@ -573,10 +575,7 @@ class PaymentIncident(TimestampMixin, Base):
             name="type",
         ),
         CheckConstraint("status IN ('open', 'resolved')", name="status"),
-        CheckConstraint(
-            "expected_amount IS NULL OR expected_amount >= 0",
-            name="expected_amount",
-        ),
+        CheckConstraint("expected_amount >= 0", name="expected_amount"),
         CheckConstraint(
             "observed_amount IS NULL OR observed_amount >= 0",
             name="observed_amount",

@@ -9,7 +9,7 @@ import type {
 
 export type ProductImageDraft = {
   clientId: string;
-  uploadId: string | null;
+  uploadId: string;
   src: string;
   staged: boolean;
 };
@@ -80,25 +80,16 @@ export function productDraftFromDetail(
       stock: option.stock === null ? "" : String(option.stock),
       unlimitedStock: option.stock === null,
     })),
-    primaryImage:
-      product.image_upload_id === null
-        ? {
-            clientId: "legacy-primary",
-            uploadId: null,
-            src: product.image,
-            staged: false,
-          }
-        : {
-            clientId: product.image_upload_id,
-            uploadId: product.image_upload_id,
-            src: product.image,
-            staged: false,
-          },
-    detailImages: (product.detail_images ?? []).map((image, index) => {
-      const uploadId = image.upload_id;
+    primaryImage: {
+      clientId: product.image_upload_id,
+      uploadId: product.image_upload_id,
+      src: product.image,
+      staged: false,
+    },
+    detailImages: (product.detail_images ?? []).map((image) => {
       return {
-        clientId: uploadId ?? `legacy-detail-${index}`,
-        uploadId,
+        clientId: image.upload_id,
+        uploadId: image.upload_id,
         src: image.url,
         staged: false,
       };
@@ -124,7 +115,7 @@ export type ProductFormValue = {
     stock: number | null;
   }>;
   imageUploadId?: string;
-  detailImages?: Array<{ uploadId: string } | { legacyUrl: string }>;
+  detailImages?: Array<{ uploadId: string }>;
 };
 
 export type ProductDraftErrors = {
@@ -168,7 +159,7 @@ export function validateProductDraft(
   }
   if (
     draft.primaryImage === null ||
-    (mode === "create" && draft.primaryImage.uploadId === null)
+    (mode === "create" && draft.primaryImage.uploadId === "")
   ) {
     errors.primaryImage = "대표 이미지를 업로드해 주세요.";
   }
@@ -259,11 +250,9 @@ export function productFormValue(
       : {}),
     ...(includeDetails
       ? {
-          detailImages: draft.detailImages.map((image) =>
-            image.uploadId === null
-              ? { legacyUrl: image.src }
-              : { uploadId: image.uploadId },
-          ),
+          detailImages: draft.detailImages.map((image) => ({
+            uploadId: image.uploadId,
+          })),
         }
       : {}),
   };

@@ -9,7 +9,7 @@
 ## 세로 스크롤
 
 - 세로 scrollbar는 상황별로 판단한다. 긴 문서·테이블·관리 화면처럼 위치 파악이 중요한 PC UI는 표시해도 된다.
-- 모바일 시트·모달·짧은 목록은 공간이 좁으므로 edge fog, sticky action, PullToRefresh 같은 맥락 신호를 우선한다.
+- 모바일 시트·모달·짧은 목록은 공간이 좁으므로 edge fog와 sticky action 같은 맥락 신호를 우선한다.
 - 세로 스크롤 컨테이너는 기존처럼 `overflowY="auto"`를 쓸 수 있다. 단, 스크롤 가능 여부가 불명확한 짧은 영역이면 `ScrollFog` vertical을 우선 검토한다.
 
 ## 구현
