@@ -11,8 +11,8 @@ from db.models.auth import PhoneVerification, User
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.db import USER_LOCK, advisory_xact_lock
-from api.errors import DomainError, RateLimitedError, UnauthorizedError, UpstreamError
+from api.deps import lock_active_user
+from api.errors import DomainError, RateLimitedError, UpstreamError
 from api.integrations.solapi import SolapiClient
 
 PHONE_PATTERN = re.compile(r"^01[0-9]{8,9}$")
@@ -35,15 +35,6 @@ def _code_digest(secret: str, user_id, phone: str, code: str) -> str:  # noqa: A
     return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
-async def _lock_active_user(session: AsyncSession, user: User) -> None:
-    await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
-    current = await session.scalar(
-        select(User).where(User.id == user.id).execution_options(populate_existing=True)
-    )
-    if current is None or not current.is_active:
-        raise UnauthorizedError()
-
-
 async def send_verification(
     session: AsyncSession,
     user: User,
@@ -53,7 +44,7 @@ async def send_verification(
     secret: str,
 ) -> None:
     normalized = normalize_phone(phone)
-    await _lock_active_user(session, user)
+    await lock_active_user(session, user)
 
     last_created = await session.scalar(
         select(func.max(PhoneVerification.created_at)).where(PhoneVerification.user_id == user.id)
@@ -102,7 +93,7 @@ async def verify_code(
     secret: str,
 ) -> None:
     normalized = normalize_phone(phone)
-    await _lock_active_user(session, user)
+    await lock_active_user(session, user)
     record = await session.scalar(
         select(PhoneVerification)
         .where(

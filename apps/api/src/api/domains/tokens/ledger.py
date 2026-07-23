@@ -598,25 +598,6 @@ def _refund_values(claim: Claim) -> tuple[int, int, int]:
     return paid, bonus, refund_amount
 
 
-async def _record_refund_incident(
-    session: AsyncSession,
-    *,
-    operation_id: uuid.UUID,
-    phase: str,
-    error_type: str,
-    provider_http_status: int | None = None,
-    provider_status: str | None = None,
-) -> PaymentIncident:
-    return await persist_payment_operation_outcome(
-        session,
-        operation_id,
-        phase=phase,
-        error_type=error_type,
-        provider_http_status=provider_http_status,
-        provider_status=provider_status,
-    )
-
-
 async def _apply_token_refund(
     session: AsyncSession,
     *,
@@ -839,7 +820,7 @@ async def approve_refund(
     try:
         result = await toss.cancel(payment_key, "고객 토큰 환불 요청", cancel_amount)
     except Exception as exc:
-        await _record_refund_incident(
+        await persist_payment_operation_outcome(
             session,
             operation_id=operation_id,
             phase="cancel_outcome_unknown",
@@ -851,7 +832,7 @@ async def approve_refund(
         ) from exc
     if not result.ok:
         if result.status >= 500:
-            await _record_refund_incident(
+            await persist_payment_operation_outcome(
                 session,
                 operation_id=operation_id,
                 phase="provider_response_uncertain",
@@ -921,7 +902,7 @@ async def approve_refund(
             refund_order_id,
         )
         provider_status = result.body.get("status")
-        await _record_refund_incident(
+        await persist_payment_operation_outcome(
             session,
             operation_id=operation_id,
             phase="provider_succeeded_db_failed",

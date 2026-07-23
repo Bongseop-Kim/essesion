@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from db.models.auth import PhoneVerification, RefreshToken, User, UserIdentity
+from db.models.auth import PhoneVerification, RefreshToken, UserIdentity
 from db.models.commerce import (
     Claim,
     Inquiry,
@@ -15,14 +15,14 @@ from db.models.commerce import (
 from db.models.design import DesignSession, GenerationJob
 from db.models.tokens import DesignToken, TokenPurchase
 from fastapi import APIRouter
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import USER_LOCK, SessionDep, advisory_xact_lock
-from api.deps import CurrentUser, ensure_owner
+from api.deps import CurrentUser, ensure_owner, lock_active_user
 from api.domains.auth.schemas import MeResponse
-from api.errors import UnauthorizedError
+from api.schemas import ORMModel
 
 router = APIRouter(tags=["users"])
 
@@ -52,9 +52,7 @@ class ShippingAddressIn(BaseModel):
     delivery_request: str | None = None
 
 
-class ShippingAddressOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class ShippingAddressOut(ORMModel):
     id: uuid.UUID
     recipient_name: str
     recipient_phone: str
@@ -67,20 +65,11 @@ class ShippingAddressOut(BaseModel):
     created_at: datetime
 
 
-async def _lock_active_user(session: AsyncSession, user: User) -> None:
-    await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
-    current = await session.scalar(
-        select(User).where(User.id == user.id).execution_options(populate_existing=True)
-    )
-    if current is None or not current.is_active:
-        raise UnauthorizedError()
-
-
 @router.patch("/users/me", response_model=MeResponse)
 async def update_profile(
     body: ProfileUpdateRequest, session: SessionDep, user: CurrentUser
 ) -> MeResponse:
-    await _lock_active_user(session, user)
+    await lock_active_user(session, user)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(user, field, value)
     await session.commit()
@@ -92,7 +81,7 @@ async def update_profile(
 async def set_notification_preferences(
     body: NotificationPreferencesRequest, session: SessionDep, user: CurrentUser
 ) -> MeResponse:
-    await _lock_active_user(session, user)
+    await lock_active_user(session, user)
     next_consent = (
         body.notification_consent
         if body.notification_consent is not None
@@ -208,7 +197,7 @@ async def list_addresses(session: SessionDep, user: CurrentUser) -> list[Shippin
 async def upsert_address(
     body: ShippingAddressIn, session: SessionDep, user: CurrentUser
 ) -> ShippingAddressOut:
-    await _lock_active_user(session, user)
+    await lock_active_user(session, user)
 
     if body.id is not None:
         address = await session.get(ShippingAddress, body.id)
@@ -234,7 +223,7 @@ async def upsert_address(
 
 @router.delete("/users/me/addresses/{address_id}", status_code=204)
 async def delete_address(address_id: uuid.UUID, session: SessionDep, user: CurrentUser) -> None:
-    await _lock_active_user(session, user)
+    await lock_active_user(session, user)
     address = await session.get(ShippingAddress, address_id)
     ensure_owner(address, user)
     await session.delete(address)

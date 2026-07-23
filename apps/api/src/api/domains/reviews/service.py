@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import Settings
 from api.deps import ensure_owner
+from api.domains.orders.status_machine import REVIEWABLE_STATUSES
 from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.gcs import public_asset_url
 
@@ -24,7 +25,6 @@ from .schemas import (
     ReviewUpdateRequest,
 )
 
-REVIEWABLE_STATUSES = {"완료", "배송완료", "제작완료", "수선완료"}
 REVIEWABLE_ORDER_TYPES = {"sale", "repair", "custom", "sample"}
 
 # 사진은 공개 콘텐츠라 상품 이미지처럼 공개 assets 버킷에 둔다 (서명 read URL 아님).

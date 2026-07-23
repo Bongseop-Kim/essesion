@@ -166,6 +166,13 @@ def _operation_id(route: APIRoute) -> str:
     return route.name
 
 
+def _capability(env: str, ready: bool, *, local: str = "optional") -> str:
+    """local/test는 우회값(local), 그 외는 필수 설정 충족 여부로 ready/unavailable."""
+    if env in ("local", "test"):
+        return local
+    return "ready" if ready else "unavailable"
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
 
@@ -187,53 +194,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "worker": app.state.worker.capability_mode,
             "finalize_tasks": app.state.tasks.capability_mode,
             "batch_auth": batch_auth_capability_mode(settings),
-            "oauth_google": (
-                "optional"
-                if settings.env in ("local", "test")
-                else "ready"
-                if settings.google_client_id and settings.google_client_secret
-                else "unavailable"
+            "oauth_google": _capability(
+                settings.env, bool(settings.google_client_id and settings.google_client_secret)
             ),
-            "oauth_kakao": (
-                "optional"
-                if settings.env in ("local", "test")
-                else "ready"
-                if settings.kakao_client_id and settings.kakao_client_secret
-                else "unavailable"
+            "oauth_kakao": _capability(
+                settings.env, bool(settings.kakao_client_id and settings.kakao_client_secret)
             ),
-            "oauth_naver": (
-                "optional"
-                if settings.env in ("local", "test")
-                else "ready"
-                if settings.naver_client_id and settings.naver_client_secret
-                else "unavailable"
+            "oauth_naver": _capability(
+                settings.env, bool(settings.naver_client_id and settings.naver_client_secret)
             ),
-            "oauth_apple": (
-                "optional"
-                if settings.env in ("local", "test")
-                else "ready"
-                if settings.apple_client_id
-                and settings.apple_team_id
-                and settings.apple_key_id
-                and settings.apple_private_key
-                else "unavailable"
+            "oauth_apple": _capability(
+                settings.env,
+                bool(
+                    settings.apple_client_id
+                    and settings.apple_team_id
+                    and settings.apple_key_id
+                    and settings.apple_private_key
+                ),
             ),
-            "auth_secrets": (
-                "bypassed"
-                if settings.env in ("local", "test")
-                else "ready"
-                if len(settings.jwt_secret) >= 32
+            "auth_secrets": _capability(
+                settings.env,
+                len(settings.jwt_secret) >= 32
                 and settings.jwt_secret != "dev-jwt-secret-only-for-local-32b!"
                 and len(settings.session_secret) >= 32
-                and settings.session_secret != "dev-session-secret"
-                else "unavailable"
+                and settings.session_secret != "dev-session-secret",
+                local="bypassed",
             ),
-            "edge_proxy": (
-                "bypassed"
-                if settings.env in ("local", "test")
-                else "ready"
-                if settings.edge_proxy_secret
-                else "unavailable"
+            "edge_proxy": _capability(
+                settings.env, bool(settings.edge_proxy_secret), local="bypassed"
             ),
         }
         yield
@@ -344,6 +332,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 def _include_routers(app: FastAPI) -> None:
     from api.domains.admin.authoring import router as admin_authoring_router
+    from api.domains.admin.claims_router import router as admin_claims_router
     from api.domains.admin.configuration import router as admin_configuration_router
     from api.domains.admin.coupons import router as admin_coupons_router
     from api.domains.admin.customers import router as admin_customers_router
@@ -351,7 +340,6 @@ def _include_routers(app: FastAPI) -> None:
     from api.domains.admin.generation import router as admin_generation_router
     from api.domains.admin.inquiries import router as admin_inquiries_router
     from api.domains.admin.manual_orders import router as admin_manual_orders_router
-    from api.domains.admin.phase_d_router import router as admin_phase_d_router
     from api.domains.admin.products import router as admin_products_router
     from api.domains.admin.quotes import router as admin_quotes_router
     from api.domains.admin.reviews import router as admin_reviews_router
@@ -399,7 +387,7 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(admin_reviews_router)
     app.include_router(admin_manual_orders_router)
     app.include_router(admin_configuration_router)
-    app.include_router(admin_phase_d_router)
+    app.include_router(admin_claims_router)
     app.include_router(admin_generation_router)
     app.include_router(batch_router)
 

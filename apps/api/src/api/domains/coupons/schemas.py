@@ -2,12 +2,10 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from api.schemas import ORMModel
 
 
-class CouponOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class CouponOut(ORMModel):
     id: uuid.UUID
     name: str
     display_name: str | None
@@ -20,9 +18,7 @@ class CouponOut(BaseModel):
     is_active: bool
 
 
-class UserCouponOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class UserCouponOut(ORMModel):
     id: uuid.UUID
     coupon_id: uuid.UUID
     status: str

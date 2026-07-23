@@ -3,9 +3,10 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator
 
 from api.domains.reform.schemas import ReformDataIn
+from api.schemas import ORMModel
 
 MAX_ORDER_ITEMS = 50
 MAX_ORDER_QUANTITY = 10_000
@@ -145,17 +146,13 @@ class SingleOrderCreateResponse(BaseModel):
     total_amount: int
 
 
-class ClaimBadgeOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class ClaimBadgeOut(ORMModel):
     claim_number: str
     type: str
     status: str
 
 
-class OrderItemOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class OrderItemOut(ORMModel):
     id: uuid.UUID
     item_id: str
     item_type: str
@@ -171,9 +168,7 @@ class OrderItemOut(BaseModel):
     review_id: uuid.UUID | None = None
 
 
-class OrderOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class OrderOut(ORMModel):
     id: uuid.UUID
     order_number: str
     order_type: str
@@ -200,9 +195,7 @@ class OrderOut(BaseModel):
     review_id: uuid.UUID | None = None
 
 
-class OrderShippingAddressOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class OrderShippingAddressOut(ORMModel):
     id: uuid.UUID
     recipient_name: str
     recipient_phone: str
@@ -213,9 +206,7 @@ class OrderShippingAddressOut(BaseModel):
     delivery_request: str | None
 
 
-class RepairPickupOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class RepairPickupOut(ORMModel):
     id: uuid.UUID
     recipient_name: str
     recipient_phone: str

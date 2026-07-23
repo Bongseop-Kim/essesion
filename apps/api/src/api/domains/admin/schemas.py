@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from api.domains.orders.schemas import (
     ClaimBadgeOut,
@@ -11,6 +11,7 @@ from api.domains.orders.schemas import (
     RepairPickupOut,
     RepairShippingReceiptOut,
 )
+from api.schemas import ORMModel
 
 OrderTypeFilter = Literal["all", "sale", "custom", "repair", "token", "sample"]
 OrderStatusFilter = Literal[
@@ -34,6 +35,7 @@ OrderStatusFilter = Literal[
     "수거예정",
 ]
 OrderSort = Literal["created_at", "updated_at", "order_number", "order_amount", "status"]
+SortDirection = Literal["asc", "desc"]
 T = TypeVar("T")
 
 
@@ -54,9 +56,7 @@ class AdminAction(BaseModel):
     destructive: bool = False
 
 
-class AdminOrderCustomerOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class AdminOrderCustomerOut(ORMModel):
     id: uuid.UUID
     email: str | None
     name: str
@@ -140,9 +140,7 @@ class DashboardRecentQuotesPage(Page[DashboardRecentQuoteOut]):
     as_of: datetime
 
 
-class AdminOrderStatusLogOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class AdminOrderStatusLogOut(ORMModel):
     id: uuid.UUID
     changed_by: uuid.UUID | None
     previous_status: str
@@ -152,9 +150,7 @@ class AdminOrderStatusLogOut(BaseModel):
     created_at: datetime
 
 
-class AdminActiveClaimOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class AdminActiveClaimOut(ORMModel):
     id: uuid.UUID
     claim_number: str
     type: str

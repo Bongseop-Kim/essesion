@@ -18,7 +18,7 @@ from api.domains.cart.schemas import (
     CartReplaceRequest,
 )
 from api.domains.coupons.schemas import CouponOut, UserCouponOut
-from api.domains.products.router import _load_options, _product_query
+from api.domains.products.router import _load_options, _product_query, _to_out
 from api.domains.products.schemas import ProductOptionOut, ProductOut
 from api.domains.reform.schemas import ReformDataOut
 from api.domains.reform.service import claim_reform_image, get_reform_pricing, reform_snapshot
@@ -82,9 +82,7 @@ async def _load_cart(session: AsyncSession, user: User) -> list[CartItemOut]:
         rows = (await session.execute(product_query.where(Product.id.in_(product_ids)))).all()
         options = await _load_options(session, product_ids)
         for product, likes, liked in rows:
-            out = ProductOut.model_validate(product)
-            out.likes, out.is_liked, out.options = likes, liked, options[product.id]
-            products[product.id] = out
+            products[product.id] = _to_out(product, likes, liked, options[product.id])
 
     coupon_ids = [i.applied_user_coupon_id for i in items if i.applied_user_coupon_id]
     coupons: dict = {}

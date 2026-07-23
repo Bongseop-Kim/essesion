@@ -10,6 +10,7 @@ from api.domains.orders.schemas import (
     RepairPickupOut,
     RepairShippingReceiptOut,
 )
+from api.schemas import ORMModel
 
 ClaimTypeFilter = Literal["all", "cancel", "return", "exchange", "token_refund"]
 ClaimStatusFilter = Literal[
@@ -61,9 +62,7 @@ class ClaimTrackingUpdateRequest(BaseModel):
     memo: str = Field(min_length=3, max_length=500)
 
 
-class AdminClaimCustomerOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class AdminClaimCustomerOut(ORMModel):
     id: uuid.UUID
     name: str
     email: str | None
@@ -94,9 +93,7 @@ class AdminClaimOrderOut(BaseModel):
     payment_group_id: uuid.UUID | None
 
 
-class AdminClaimStatusLogOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class AdminClaimStatusLogOut(ORMModel):
     id: uuid.UUID
     changed_by: uuid.UUID | None
     previous_status: str
@@ -107,9 +104,7 @@ class AdminClaimStatusLogOut(BaseModel):
     created_at: datetime
 
 
-class ClaimNotificationOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class ClaimNotificationOut(ORMModel):
     id: uuid.UUID
     status: str
     delivery_status: Literal["pending", "sent", "failed", "skipped"]

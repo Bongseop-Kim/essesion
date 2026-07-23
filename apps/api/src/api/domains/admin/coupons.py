@@ -20,8 +20,7 @@ from api.db import SessionDep
 from api.deps import AdminOnly, AdminUser
 from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.operations import idempotent_result, record_operation
-from api.domains.admin.schemas import Page
-from api.domains.admin.types import SortDirection
+from api.domains.admin.schemas import Page, SortDirection
 from api.errors import ConflictError, DomainError, NotFoundError
 
 router = APIRouter(prefix="/admin/coupons", tags=["admin-coupons"])
