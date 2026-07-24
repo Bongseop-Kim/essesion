@@ -19,6 +19,8 @@ from worker.adapters.gemini import (
     ReferenceImage,
     _build_prompt,
     _merge_layer_categories,
+    _preserve_refine_plan,
+    _refine_permissions,
     _servable_json_schema,
 )
 from worker.adapters.recraft import (
@@ -579,6 +581,103 @@ def test_refine_layer_merge_caps_allowed_layers_and_preserves_base_layers():
         "motif-1",
         "motif-2",
     ]
+
+
+def test_refine_preserve_word_only_applies_to_direct_category():
+    permissions = _refine_permissions(
+        "모티프는 그대로 두고 색을 바꿔줘",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert permissions.colors is True
+    assert permissions.motifs is False
+    assert permissions.stripes is False
+    assert permissions.motif_geometry is False
+
+
+def test_refine_geometry_permission_is_scoped_to_motif_request():
+    stripe_permissions = [
+        _refine_permissions(
+            prompt,
+            palette_constraint=None,
+            pattern_constraints=None,
+        )
+        for prompt in ("스트라이프 간격을 바꿔줘", "줄무늬 간격을 바꿔줘")
+    ]
+    preserved_motif_permissions = _refine_permissions(
+        "모티프 배치는 그대로 두고 색을 바꿔줘",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert all(item.stripes is True for item in stripe_permissions)
+    assert all(item.motif_geometry is False for item in stripe_permissions)
+    assert preserved_motif_permissions.colors is True
+    assert preserved_motif_permissions.motif_geometry is False
+
+
+def test_refine_motif_replacement_restores_unrequested_geometry_and_colors():
+    current = load_example_set()[5].plan
+    proposed_raw = current.model_dump(mode="json")
+    proposed_raw["motifs"] = [{"source": "catalog", "catalog_ref": "catalog_1"}]
+    motif_layer = next(layer for layer in proposed_raw["layers"] if layer["type"] == "motif")
+    motif_layer["size_ratio"] = 0.1
+    motif_layer["color_indices"] = [0]
+    motif_layer["placement"] = {
+        "type": "lattice",
+        "columns": 7,
+        "rows": 7,
+        "drop": "half_row",
+        "fixed_rotation_deg": 45,
+    }
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        proposed,
+        "나비로 바꿔",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    current_motif = next(layer for layer in current.layers if layer.type == "motif")
+    evolved_motif = next(layer for layer in evolved.layers if layer.type == "motif")
+    assert evolved.motifs == proposed.motifs
+    assert evolved_motif.motif_index == current_motif.motif_index
+    assert evolved_motif.size_ratio == current_motif.size_ratio
+    assert evolved_motif.placement == current_motif.placement
+    assert evolved_motif.color_indices == current_motif.color_indices
+
+
+def test_refine_stripe_change_restores_unrequested_band_colors():
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if any(layer.type == "stripe" for layer in example.plan.layers)
+    )
+    proposed_raw = current.model_dump(mode="json")
+    proposed_stripe = next(
+        layer for layer in proposed_raw["layers"] if layer["type"] == "stripe"
+    )
+    proposed_stripe["period_ratio"] = 0.75
+    proposed_stripe["bands"][0]["color_index"] = (
+        proposed_stripe["bands"][0]["color_index"] + 1
+    ) % len(proposed_raw["colors"])
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        proposed,
+        "스트라이프 간격을 바꿔줘",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    current_stripe = next(layer for layer in current.layers if layer.type == "stripe")
+    evolved_stripe = next(layer for layer in evolved.layers if layer.type == "stripe")
+    assert evolved_stripe.period_ratio == 0.75
+    assert evolved_stripe.bands[0].color_index == current_stripe.bands[0].color_index
 
 
 def test_servable_schema_is_loosened_for_vertex_enforcement():

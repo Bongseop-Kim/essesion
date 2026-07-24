@@ -5,7 +5,7 @@
 
 ## 결과
 
-- `DesignSession`에 `current_plan`, `context_version`, active generation ID·시각을 Alembic revision `6fd0b0217a44`로 추가했다. 턴 role과 active pair/context version도 DB check constraint로 고정했다.
+- `DesignSession`의 `current_plan`, `context_version`, active generation ID·시각과 턴 role/active pair/context version DB check constraint를 미배포 단일 베이스라인 `dadd999bf858`에 포함했다.
 - 생성 시작은 세션 lock 안에서 active run 확인, run-scoped 토큰 차감, 사용자 턴·첨부 저장을 원자 커밋한 뒤 worker를 호출한다. 성공·실패는 같은 run ID로 assistant 턴을 남기고 active 상태를 해제하며, 실패는 실제 차감 bucket을 멱등 환불한다.
 - stale generation은 기존 finalize stale window를 재사용해 만료 뒤에만 회수한다. 회수 시 환불·오류 턴을 기록하고, 동시 요청과 context version race는 외부 호출 전에 거부한다.
 - 일반 생성에서 client 제공 intent를 제거했다. `session_id` 소유권을 확인해 마지막 선택의 `current_plan`/`current_intent`와 선택된 성공 턴 최대 6쌍만 `ConversationContext`로 구성한다. 실패·미선택 결과, SVG, 후보 응답, provider 오류, 과거 사진 binary는 제외한다.
@@ -18,6 +18,7 @@
 - Store는 새 select/reroll API와 run ID를 사용하고 provider 실패 턴을 대화 피드에 계속 표시한다. OpenAPI와 `packages/api-client`를 함께 재생성했다.
 - 선행 motif-generation 작업의 generate-on-miss 공유 budget과 이번 canonical source-set guard가 결합되어 T-M3도 추가 작업 없이 충족했다.
 - Ponytail 정리(2026-07-25): 미사용 세션 PATCH, turn payload 재검증 registry, 공개 `generation_log_id`·`intents`, Store의 레거시 후보 추론을 제거했다. worker `run_id`는 필수로 고정했고, 최신 성공 턴은 JSONB 조건으로 한 행만 조회하며 refine layer 병합은 한 번만 순회한다.
+- Ponytail 후속 리뷰(2026-07-25): 보존어를 직접 연결된 범주에만 적용하고 motif 정체성·기하·색상 권한을 레이어 필드별로 분리했다. Store는 최신 성공 run만 선택 가능하게 했고 worker의 `refine` 진단 모드를 API client와 Admin까지 노출했다. 대화 상태와 motif 메타데이터 migration은 미배포 정책에 맞춰 단일 베이스라인으로 다시 합쳤다.
 
 ## 결정한 열린 질문
 
@@ -27,7 +28,7 @@
 
 ## 검증
 
-- Alembic `head → a7c41e2b9d60 → head` 왕복 — 통과
+- Alembic 단일 베이스라인 `head → base → head` 왕복과 model drift 검사 — 통과
 - `uv run pytest` — 915 passed, 188 subtests passed
 - worker 전체 테스트 — 446 passed
 - worker authoring/motif resolver/API 집중 테스트 — 109 passed
@@ -41,6 +42,8 @@
 Ponytail 정리 후 `pnpm codegen`, 관련 Python 통합 테스트 90개, worker generate·adapter 계약 테스트 65개, `pnpm turbo typecheck test`(9 tasks, Vitest 509개), `uv run ruff check .`, `uv run pyright`를 다시 통과했다.
 
 `pnpm lint`의 원형 명령은 Git에서 무시되는 개인 파일 `.claude/settings.local.json`의 기존 포맷 차이로 중단됐다. 해당 파일은 수정하지 않았고, 같은 Biome 검사를 Git 추적 파일 전체에 적용한 뒤 harness를 별도로 통과시켰다.
+
+후속 리뷰 반영 뒤 `uv run pytest` 920개, `pnpm turbo build typecheck test --concurrency=1` 11 tasks, Git 추적 파일 Biome 523개, harness, Ruff, Pyright, codegen과 Alembic 단일 베이스라인 왕복·drift 검사를 통과했다.
 
 ## 남은 운영 작업
 

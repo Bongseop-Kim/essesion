@@ -106,16 +106,30 @@ _GEOMETRY_WORDS = re.compile(
     re.IGNORECASE,
 )
 _ADD_WORDS = re.compile(r"(추가|더|넣어|add|another|extra)", re.IGNORECASE)
+_CATEGORY_TO_PRESERVE_GAP = re.compile(
+    r"(?:상)?\s*(?:은|는|이|가|을|를|도|만)?\s*"
+    r"(?:(?:기존|현재)(?:처럼|대로)?|그냥)?\s*",
+    re.IGNORECASE,
+)
+_PRESERVE_TO_CATEGORY_GAP = re.compile(
+    r"\s*(?:(?:the|this|these|current|existing|기존|현재)\s+)?",
+    re.IGNORECASE,
+)
 
 
 def _category_is_preserved(prompt: str, category: re.Pattern[str]) -> bool:
     """Recognize short forms such as ``색은 유지`` or ``keep the stripes``."""
 
-    for match in category.finditer(prompt):
-        start = max(0, match.start() - 20)
-        end = min(len(prompt), match.end() + 20)
-        if _PRESERVE_WORDS.search(prompt[start:end]):
-            return True
+    for category_match in category.finditer(prompt):
+        for preserve_match in _PRESERVE_WORDS.finditer(prompt):
+            if preserve_match.start() >= category_match.end():
+                gap = prompt[category_match.end() : preserve_match.start()]
+                if len(gap) <= 20 and _CATEGORY_TO_PRESERVE_GAP.fullmatch(gap):
+                    return True
+            elif category_match.start() >= preserve_match.end():
+                gap = prompt[preserve_match.end() : category_match.start()]
+                if len(gap) <= 20 and _PRESERVE_TO_CATEGORY_GAP.fullmatch(gap):
+                    return True
     return False
 
 
@@ -126,10 +140,24 @@ def _refine_permissions(
     pattern_constraints: PatternConstraints | None,
 ) -> _RefinePermissions:
     change_requested = bool(_CHANGE_WORDS.search(prompt))
+    stripe_matches = list(_STRIPE_WORDS.finditer(prompt))
+    stripe_mentioned = bool(stripe_matches)
+    motif_mentioned = any(
+        not any(
+            stripe.start() <= motif.start() and motif.end() <= stripe.end()
+            for stripe in stripe_matches
+        )
+        for motif in _MOTIF_WORDS.finditer(prompt)
+    )
+    geometry_mentioned = bool(_GEOMETRY_WORDS.search(prompt))
     colors = bool(_COLOR_WORDS.search(prompt) and change_requested)
-    stripes = bool(_STRIPE_WORDS.search(prompt) and change_requested)
-    motif_geometry = bool(_GEOMETRY_WORDS.search(prompt) and change_requested)
-    motifs = bool(_MOTIF_WORDS.search(prompt) and change_requested)
+    stripes = stripe_mentioned and change_requested
+    motif_geometry = bool(
+        geometry_mentioned
+        and change_requested
+        and (motif_mentioned or not stripe_mentioned)
+    )
+    motifs = motif_mentioned and change_requested
 
     # "나비로 바꿔" has no literal "motif" word. A bare replacement request that is not
     # clearly about color/stripe/layout is treated as a subject replacement.
@@ -143,6 +171,8 @@ def _refine_permissions(
         stripes = False
     if _category_is_preserved(prompt, _MOTIF_WORDS):
         motifs = False
+    if _category_is_preserved(prompt, _GEOMETRY_WORDS):
+        motif_geometry = False
 
     if palette_constraint is not None and palette_constraint.mode == "fixed":
         colors = True
@@ -198,6 +228,29 @@ def _copy_color_references(
                 and all(isinstance(index, int) for index in color_indices)
             ):
                 layer["color_indices"] = copy.deepcopy(color_indices)
+    return output
+
+
+def _copy_motif_fields(
+    base_layers: list[dict[str, object]],
+    source_layers: list[dict[str, object]],
+    fields: tuple[str, ...],
+) -> list[dict[str, object]]:
+    """Copy selected motif fields by stable motif-layer order."""
+
+    output = copy.deepcopy(base_layers)
+    sources = [layer for layer in source_layers if layer.get("type") == "motif"]
+    offset = 0
+    for layer in output:
+        if layer.get("type") != "motif":
+            continue
+        if offset >= len(sources):
+            break
+        source = sources[offset]
+        offset += 1
+        for field in fields:
+            if field in source:
+                layer[field] = copy.deepcopy(source[field])
     return output
 
 
@@ -293,8 +346,22 @@ def _preserve_refine_plan(
         allow_motifs=allow_motif_layers,
         add_stripes=permissions.add_stripes,
     )
+    if not permissions.motif_geometry:
+        merged_layers = _copy_motif_fields(
+            merged_layers,
+            base_layers,
+            ("size_ratio", "placement"),
+        )
+    if not permissions.motifs:
+        merged_layers = _copy_motif_fields(
+            merged_layers,
+            base_layers,
+            ("motif_index",),
+        )
     if permissions.colors:
         merged_layers = _copy_color_references(merged_layers, proposed_layers)
+    else:
+        merged_layers = _copy_color_references(merged_layers, base_layers)
     if merged_layers != proposed_layers:
         restored.append("layers")
     evolved["layers"] = merged_layers

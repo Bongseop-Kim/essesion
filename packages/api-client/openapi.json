@@ -7509,6 +7509,7 @@
               {
                 "enum": [
                   "prompt",
+                  "refine",
                   "variation"
                 ],
                 "type": "string"

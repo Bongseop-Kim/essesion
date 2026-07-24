@@ -1,5 +1,6 @@
 export const GENERATION_MODE_LABELS: Readonly<Record<string, string>> = {
   prompt: "프롬프트 생성",
+  refine: "대화 수정",
   variation: "다시 만들기",
 };
 

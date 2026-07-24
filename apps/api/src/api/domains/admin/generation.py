@@ -226,7 +226,7 @@ class GenerationOutcomeOut(BaseModel):
 
 
 class GenerationDiagnosticsOut(BaseModel):
-    mode: Literal["prompt", "variation"] | None = None
+    mode: Literal["prompt", "refine", "variation"] | None = None
     model: str | None = None
     prompt_revision: str | None = None
     reference_count: int | None = None
@@ -618,7 +618,7 @@ def _error_projection(
 
 def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
     raw = value if isinstance(value, dict) else {}
-    mode = raw.get("mode") if raw.get("mode") in {"prompt", "variation"} else None
+    mode = raw.get("mode") if raw.get("mode") in {"prompt", "refine", "variation"} else None
     failure_code = _safe_token(raw.get("failure_code"))
     failure_stage = _safe_token(raw.get("failure_stage"))
 

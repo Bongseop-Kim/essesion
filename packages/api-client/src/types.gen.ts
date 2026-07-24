@@ -4023,7 +4023,7 @@ export type GenerationDiagnosticsOut = {
     /**
      * Mode
      */
-    mode?: 'prompt' | 'variation' | null;
+    mode?: 'prompt' | 'refine' | 'variation' | null;
     /**
      * Model
      */

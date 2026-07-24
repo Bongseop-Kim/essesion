@@ -52,7 +52,8 @@ def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
     for key in _SCREENED_FACETS:
         value = screened.get(key)
         if isinstance(value, str):
-            if is_suspicious_facet_text(value):
+            clean_value = sanitize_facet_text(value)
+            if is_suspicious_facet_text(clean_value):
                 logger.warning("motif facet %r tripped prompt-injection heuristic on ingress", key)
                 if reject_suspicious:
                     raise AdapterClientError(
@@ -61,14 +62,15 @@ def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
                         operation="screen_motif",
                         reason_code="unsafe_motif_facet",
                     )
-            screened[key] = sanitize_facet_text(value)
+            screened[key] = clean_value
     tags = screened.get("tags")
     if isinstance(tags, (list, tuple)):
         clean_tags: list[str] = []
         for tag in tags:
             if not isinstance(tag, str):
                 continue
-            if is_suspicious_facet_text(tag):
+            clean_tag = sanitize_facet_text(tag)
+            if is_suspicious_facet_text(clean_tag):
                 logger.warning("motif tag tripped prompt-injection heuristic on ingress")
                 if reject_suspicious:
                     raise AdapterClientError(
@@ -77,7 +79,7 @@ def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
                         operation="screen_motif",
                         reason_code="unsafe_motif_facet",
                     )
-            clean_tags.append(sanitize_facet_text(tag))
+            clean_tags.append(clean_tag)
         screened["tags"] = clean_tags
     return screened
 
@@ -444,7 +446,7 @@ async def resolve_spec(
 
     # 신뢰도 게이트 miss → Recraft 생성. 자동 저작 모티프는 whole로 저장한다.
     effective_recraft = recraft_client
-    if generate_origin and recraft_client is not None and generation_budget is not None:
+    if recraft_client is not None and generation_budget is not None:
         effective_recraft = _BudgetedRecraftClient(recraft_client, generation_budget)
     normalized = await generate_motif(authored_spec, client=effective_recraft, settings=settings)
     upserted = await store.upsert_motif(
