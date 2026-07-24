@@ -39,9 +39,7 @@ class CatalogMotifSource(_StrictModel):
     catalog_ref: str = Field(min_length=1, max_length=40)
 
 
-class ReferenceMotifSource(_StrictModel):
-    source: Literal["reference"]
-    reference_image_index: int = Field(ge=1, le=5)
+class _DescribedMotifSource(_StrictModel):
     subject: str = Field(min_length=1, max_length=80)
     scope: Literal["whole", "partial"] = "whole"
     style: str | None = Field(default=None, max_length=80)
@@ -52,7 +50,7 @@ class ReferenceMotifSource(_StrictModel):
     def _strip_subject(cls, value: str) -> str:
         clean = value.strip()
         if not clean:
-            raise ValueError("reference subject may not be blank")
+            raise ValueError("motif subject may not be blank")
         return clean
 
     @field_validator("style", "description")
@@ -62,12 +60,21 @@ class ReferenceMotifSource(_StrictModel):
         return clean or None
 
 
+class ReferenceMotifSource(_DescribedMotifSource):
+    source: Literal["reference"]
+    reference_image_index: int = Field(ge=1, le=5)
+
+
+class GenerateMotifSource(_DescribedMotifSource):
+    source: Literal["generate"]
+
+
 # Discriminated so a rejected plan yields a clean per-variant error (e.g. "poisson scatter does
 # not accept order or step") the authoring retry loop can act on — a plain union buries the real
 # cause under every sibling variant's errors. The provider schema strips oneOf/discriminator
 # separately (Vertex can't serve them); see _servable_json_schema in adapters/gemini.py.
 PlanMotifSource = Annotated[
-    InputMotifSource | CatalogMotifSource | ReferenceMotifSource,
+    InputMotifSource | CatalogMotifSource | ReferenceMotifSource | GenerateMotifSource,
     Field(discriminator="source"),
 ]
 
@@ -186,12 +193,14 @@ class MotifLayerPlan(_StrictModel):
     type: Literal["motif"]
     motif_index: int = Field(ge=0, le=1)
     size_ratio: float = Field(gt=0.0, le=0.4, allow_inf_nan=False)
-    color_indices: list[int] = Field(min_length=1, max_length=8)
+    color_indices: list[int] | None = Field(default=None, min_length=1, max_length=8)
     placement: PlacementPlan
 
     @field_validator("color_indices")
     @classmethod
-    def _color_indexes_are_bounded(cls, values: list[int]) -> list[int]:
+    def _color_indexes_are_bounded(cls, values: list[int] | None) -> list[int] | None:
+        if values is None:
+            return None
         if any(value < 0 or value > 7 for value in values):
             raise ValueError("motif color indexes must be between 0 and 7")
         return values
@@ -235,7 +244,9 @@ class DesignPlanV3(_StrictModel):
             if layer.type == "stripe":
                 if any(band.color_index >= color_count for band in layer.bands):
                     raise ValueError("stripe color_index is outside colors")
-            elif any(index >= color_count for index in layer.color_indices):
+            elif layer.color_indices is not None and any(
+                index >= color_count for index in layer.color_indices
+            ):
                 raise ValueError("motif color_index is outside colors")
 
         used_motifs = {layer.motif_index for layer in motif_layers}

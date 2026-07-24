@@ -17,6 +17,7 @@ from worker.adapters.gemini import (
     AUTHORING_SYSTEM_INSTRUCTION,
     GeminiClient,
     ReferenceImage,
+    _build_prompt,
     _servable_json_schema,
 )
 from worker.adapters.recraft import (
@@ -346,6 +347,28 @@ async def test_author_designs_rejects_invalid_json_without_prose_fallback():
     with pytest.raises(IntentInvalid):
         await client.author_designs("dots")
     assert len(sdk.models.generate_calls) == 4  # 모든 시도가 재시도됐고 salvage 경로가 없다
+
+
+def test_authoring_prompt_allows_generate_only_on_ungrounded_concrete_text_path():
+    ungrounded = _build_prompt("펠리컨 넥타이", errors=None)
+    mood_only = _build_prompt("차분한 파스텔", errors=None)
+    grounded = _build_prompt(
+        "펠리컨 넥타이",
+        errors=None,
+        catalog_candidates=[
+            {
+                "catalog_ref": "catalog_1",
+                "motif_id": "server-only",
+                "subject": "pelican",
+            }
+        ],
+    )
+
+    assert '"source":"generate"' in ungrounded
+    assert "<verbatim words from the user>" in ungrounded
+    assert "Mood, palette, texture, or style language alone is not a motif subject" in mood_only
+    assert '"source":"generate"' not in grounded
+    assert "untrusted, user-generated catalog metadata" in grounded
 
 
 async def test_gemini_non_retryable_raises(monkeypatch):

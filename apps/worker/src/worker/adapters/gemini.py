@@ -46,7 +46,7 @@ MAX_REFERENCE_IMAGE_SIDE = 2_048
 # Per-request output ceiling (DoW guard). Generous for 2-4 structured plans; ideas are far smaller.
 # ponytail: single flat cap; split per call-site only if plans start truncating.
 MAX_OUTPUT_TOKENS = 8192
-AUTHORING_PROMPT_REVISION = "design-plan-v3-rag-grounded"
+AUTHORING_PROMPT_REVISION = "design-plan-v3-rag-generated-motif-colors"
 AUTHORING_SYSTEM_INSTRUCTION = (
     "You author normalized, production-safe plans for a deterministic seamless textile "
     "compiler. Follow the response schema exactly. Never output engine JSON, SVG, millimetres, "
@@ -128,6 +128,9 @@ def _build_prompt(
         "A stripe host index refers to the zero-based order among stripe layers. A motif index "
         "refers to the zero-based order in the motifs array.",
         "Every declared motif must be used. Plans that differ only by colors are duplicates.",
+        "For each motif layer, omit color_indices to preserve the motif's original colors. "
+        "Include color_indices only when the user explicitly asks to recolor the motif. A fixed "
+        "palette is the exception: every motif layer must include color_indices.",
         "Return only the DesignPlansV3 response required by the schema.",
         "",
         "User description (JSON string): " + json.dumps(user_prompt, ensure_ascii=False),
@@ -171,8 +174,12 @@ def _build_prompt(
     ):
         lines += [
             "",
-            "No verified motif source is available. Set motifs to [] and use only solid or "
-            "stripe structure; do not invent a semantic motif.",
+            "No verified motif source is available. Only when the user explicitly names a "
+            "concrete, individual shape subject to repeat as the tile motif may you declare "
+            'exactly one {"source":"generate","subject":"<verbatim words from the user>"} source. '
+            "The subject must come only from the user's original description. Mood, palette, "
+            "texture, or style language alone is not a motif subject: in that case set motifs "
+            "to [] and use only solid or stripe structure.",
         ]
 
     if palette_constraint is not None and palette_constraint.mode == "fixed":
@@ -181,7 +188,8 @@ def _build_prompt(
             "Every plan must use this exact ordered colors array: "
             + json.dumps(palette_constraint.colors),
             "Every fixed color index must be guaranteed visible in every plan: use it as the "
-            "ground color, a stripe band color, or the first color_index of a motif layer. "
+            "ground color, a stripe band color, or the first color_indices entry of a motif "
+            "layer. Every fixed-palette motif layer must include color_indices. "
             "Additional motif color indexes do not count because the resolved motif may have "
             "only one paint slot.",
         ]

@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from worker.config import get_settings
 from worker.engine.intent import Intent
-from worker.engine.palette import ColorSlot, Colorway, Palette, out_of_gamut
+from worker.engine.palette import ColorSlot, Colorway, Palette, is_hex_color, out_of_gamut
 from worker.engine.placement import lattice_axis_count, scatter_target_count
 from worker.engine.primitives import stripe_line_count
 from worker.engine.units import (
@@ -65,9 +65,11 @@ def _layer_slot_refs(layer) -> list[str]:
         return [b.color for b in layer.params.bands]
     if layer.type == "motif":
         if layer.params.colors:
-            return list(layer.params.colors.values())
+            return [
+                color for color in layer.params.colors.values() if not is_hex_color(color)
+            ]
         if layer.params.color is not None:
-            return [layer.params.color]
+            return [] if is_hex_color(layer.params.color) else [layer.params.color]
     return []
 
 

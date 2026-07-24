@@ -35,6 +35,11 @@ class PromotionEmbeddingResponse(BaseModel):
     embedding_model: str
 
 
+class MotifIngressProvenance(StrictRequest):
+    user_id: uuid.UUID
+    session_id: uuid.UUID | None = None
+
+
 class GenerateRequest(StrictRequest):
     prompt: str | None = None
     intent: dict[str, Any] | None = None
@@ -43,6 +48,7 @@ class GenerateRequest(StrictRequest):
     candidate_count: int = Field(default=1, ge=1, le=8)
     reference_images: list["ReferenceImageInput"] = Field(default_factory=list, max_length=5)
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
+    motif_provenance: MotifIngressProvenance | None = None
     palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
     pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
 
@@ -123,6 +129,7 @@ class CandidatesRequest(StrictRequest):
 class MotifGenerateRequest(StrictRequest):
     spec: MotifSpec
     seed: int | None = None
+    motif_provenance: MotifIngressProvenance | None = None
 
 
 class MotifImportRequest(StrictRequest):

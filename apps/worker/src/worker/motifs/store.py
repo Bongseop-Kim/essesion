@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import unicodedata
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, cast
@@ -106,6 +107,19 @@ class PoolMember:
     embedding: list[float] | None
 
 
+@dataclass(frozen=True)
+class MotifUpsertResult:
+    id: str
+    inserted: bool
+
+
+@dataclass(frozen=True)
+class SlotLabelBackfillRow:
+    id: str
+    symbol: str
+    slot_colors: tuple[str, ...]
+
+
 def _bbox_tuple(value: object) -> BBox:
     seq = list(value) if isinstance(value, (list, tuple)) else [-0.5, -0.5, 0.5, 0.5]
     return (float(seq[0]), float(seq[1]), float(seq[2]), float(seq[3]))
@@ -124,20 +138,30 @@ async def upsert_motif(
     embedding: list[float] | None = None,
     source: str = "recraft",
     variant_group: str | None = None,
-) -> str:
-    """정규화 모티프를 content-hash id로 멱등 저장 (ON CONFLICT DO NOTHING) → id 반환.
+    slot_labels: tuple[str, ...] | None = None,
+    ingested_user_id: uuid.UUID | None = None,
+    ingested_session_id: uuid.UUID | None = None,
+) -> MotifUpsertResult:
+    """정규화 모티프를 content-hash id로 멱등 저장하고 실제 신규 insert 여부를 반환.
 
     scope는 정규화해 저장(하드 필터가 정규 형태로 비교). commit은 호출자(라우트/시드) 소관.
+    기존 geometry/facet/provenance는 절대 덮지 않는다. 라벨만 NULL 행에 한해 후속 ingress
+    라벨링 결과로 채울 수 있다.
     """
     scope = normalize_facet(facets.get("scope")) or None
     if embedding is not None and len(embedding) != EMBEDDING_DIM:
         raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(embedding)}")
+    if slot_labels is not None and len(slot_labels) != len(normalized.color_slots):
+        raise ValueError("slot_labels must be index-aligned with color_slots")
 
     values = {
         "id": normalized.id,
         "symbol": normalized.symbol,
         "color_slots": list(normalized.color_slots),
         "slot_colors": list(normalized.slot_colors) if normalized.slot_colors else None,
+        "slot_labels": list(slot_labels) if slot_labels else None,
+        "ingested_user_id": ingested_user_id,
+        "ingested_session_id": ingested_session_id,
         "bbox": list(normalized.bbox_mm),
         "anchor": list(normalized.anchor),
         "subject": facets.get("subject"),
@@ -151,9 +175,20 @@ async def upsert_motif(
         "variant_group": variant_group,
         "embedding_vertex": embedding,
     }
-    stmt = pg_insert(Motif).values(**values).on_conflict_do_nothing(index_elements=["id"])
-    await session.execute(stmt)
-    return normalized.id
+    stmt = (
+        pg_insert(Motif)
+        .values(**values)
+        .on_conflict_do_nothing(index_elements=["id"])
+        .returning(Motif.id)
+    )
+    inserted_id = (await session.execute(stmt)).scalar_one_or_none()
+    if inserted_id is None and slot_labels is not None:
+        await session.execute(
+            update(Motif)
+            .where(Motif.id == normalized.id, Motif.slot_labels.is_(None))
+            .values(slot_labels=list(slot_labels))
+        )
+    return MotifUpsertResult(id=normalized.id, inserted=inserted_id is not None)
 
 
 async def get_motifs(session: AsyncSession, ids: Iterable[str]) -> dict[str, MotifDef]:
@@ -169,9 +204,56 @@ async def get_motifs(session: AsyncSession, ids: Iterable[str]) -> dict[str, Mot
             bbox_mm=_bbox_tuple(row.bbox),
             anchor=_anchor_tuple(row.anchor),
             color_slots=tuple(row.color_slots or ("s0",)),
+            slot_colors=tuple(row.slot_colors) if row.slot_colors else None,
+            slot_labels=tuple(row.slot_labels) if row.slot_labels else None,
         )
         for row in rows
     }
+
+
+async def missing_slot_label_rows(session: AsyncSession) -> list[SlotLabelBackfillRow]:
+    """라벨링 가능한 공개 멀티슬롯 NULL 행을 content-hash 순서로 읽는다."""
+
+    rows = (
+        await session.execute(
+            select(Motif.id, Motif.symbol, Motif.slot_colors)
+            .where(
+                Motif.source != USER_UPLOAD_SOURCE,
+                Motif.slot_labels.is_(None),
+                Motif.slot_colors.is_not(None),
+                func.jsonb_array_length(Motif.color_slots) > 1,
+            )
+            .order_by(Motif.id)
+        )
+    ).all()
+    return [
+        SlotLabelBackfillRow(
+            id=row[0],
+            symbol=row[1],
+            slot_colors=tuple(row[2]),
+        )
+        for row in rows
+    ]
+
+
+async def update_slot_labels_if_missing(
+    session: AsyncSession,
+    motif_id: str,
+    slot_labels: tuple[str, ...],
+) -> bool:
+    """NULL 라벨만 채운다. 재실행과 동시 백필 모두 멱등이다."""
+
+    result = await session.execute(
+        update(Motif)
+        .where(
+            Motif.id == motif_id,
+            Motif.source != USER_UPLOAD_SOURCE,
+            Motif.slot_labels.is_(None),
+            func.jsonb_array_length(Motif.color_slots) == len(slot_labels),
+        )
+        .values(slot_labels=list(slot_labels))
+    )
+    return bool(cast("CursorResult[Any]", result).rowcount)
 
 
 async def find_catalog(session: AsyncSession) -> list[MotifMeta]:

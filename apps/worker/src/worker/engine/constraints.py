@@ -15,6 +15,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from worker.engine.palette import is_hex_color
+
 _HEX = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _SCALE_FRACTION = {"small": 0.10, "medium": 0.18, "large": 0.28}
 _LATTICE_AXIS_COUNT = {"sparse": 4, "medium": 6, "dense": 8}
@@ -114,7 +116,12 @@ def _ordered_slot_refs(raw: dict[str, Any]) -> list[str]:
             else:
                 candidates.append(params.get("color"))
         for candidate in candidates:
-            if isinstance(candidate, str) and candidate and candidate not in refs:
+            if (
+                isinstance(candidate, str)
+                and candidate
+                and not (layer_type == "motif" and is_hex_color(candidate))
+                and candidate not in refs
+            ):
                 refs.append(candidate)
     return refs
 

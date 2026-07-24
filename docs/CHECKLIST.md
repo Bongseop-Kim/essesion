@@ -25,7 +25,7 @@
 
 ## 6. 리허설 (스테이징)
 
-- [ ] 빈 스테이징 DB에 단일 베이스라인 적용 → 관리자·motif·authoring example 초기 입력과 `embedded=total` 검증
+- [ ] 빈 스테이징 DB에 단일 베이스라인 적용 → 관리자·motif·authoring example 초기 입력, motif/example `embedded=total`, 공개 멀티슬롯 `slot_labels` 백필의 `eligible/updated` 결과 검증
 - [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(generate → finalize 큐 → 결과 수신)
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정
 - [ ] Gemini 참고 사진 처리 지역·학습 사용·로그/abuse monitoring 보존·삭제 제어·DPA·사용자 고지를 실제 계약·프로젝트 설정 기준으로 승인

@@ -105,6 +105,8 @@ class Palette:
         raise ValueError(f"unknown colorway: {colorway_id!r}")
 
     def resolve_color(self, slot_id: str, colorway_id: str | None = None) -> str:
+        if is_hex_color(slot_id):
+            return slot_id
         if slot_id not in self.slot_ids():
             raise ValueError(f"unknown color slot: {slot_id!r}")
         return self.colorway(colorway_id).color_for(slot_id)

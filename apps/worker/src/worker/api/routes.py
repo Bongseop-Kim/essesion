@@ -70,10 +70,12 @@ from worker.engine import (
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
+from worker.motifs.labeler import SLOT_LABEL_RANK
 from worker.motifs.normalize import normalize_motif_svg
 from worker.motifs.photo_svg import extract_palette, photo_to_svg
 from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import (
+    MotifGenerationBudget,
     present_candidates,
     prompt_catalog_candidates,
     resolve_motifs,
@@ -397,17 +399,44 @@ async def _load_single_image(item: ReferenceImageInput, settings) -> bytes:  # n
         return await _fetch_reference_bytes(item, settings, client)
 
 
+def _palette_slot_avoiding_ground(
+    chosen: str,
+    *,
+    ordered_slot_ids: list[str],
+    hex_by_id: dict[str, str],
+    ground_hex: str | None,
+) -> str:
+    """Return the next distinct palette slot, or preserve ``chosen`` for a degenerate palette."""
+
+    if (
+        ground_hex is None
+        or hex_by_id.get(chosen, "").casefold() != ground_hex.casefold()
+    ):
+        return chosen
+    if chosen in ordered_slot_ids:
+        start = ordered_slot_ids.index(chosen) + 1
+        candidates = ordered_slot_ids[start:] + ordered_slot_ids[:start]
+    else:
+        candidates = ordered_slot_ids
+    return next(
+        (
+            candidate
+            for candidate in candidates
+            if hex_by_id.get(candidate, "").casefold() != ground_hex.casefold()
+        ),
+        chosen,
+    )
+
+
 def _bind_resolved_motif_colors(
     intents: list[dict[str, Any]],
     catalog,  # noqa: ANN001
     motif_color_plans: list[dict[str, list[str]]] | None = None,
+    *,
+    palette_mode: str = "auto",
 ) -> None:
-    """Bind every DB motif color slot after semantic resolution.
+    """Purely bind resolved motif slots from plan, palette, and ingress metadata."""
 
-    Provider-authored placeholders cannot know whether a selected/reused motif is
-    single- or multi-color. This deterministic adapter closes that catalog boundary
-    before final validation and candidate composition.
-    """
     plans = motif_color_plans or []
     for intent_index, intent in enumerate(intents):
         planned_layers = plans[intent_index] if intent_index < len(plans) else {}
@@ -418,7 +447,28 @@ def _bind_resolved_motif_colors(
             for slot in slots or []
             if isinstance(slot, dict) and isinstance(slot.get("id"), str)
         ]
-        color_ids = [slot_id for slot_id in slot_ids if slot_id != "ground"] or slot_ids
+        hex_by_id = {
+            slot["id"]: slot["hex"]
+            for slot in slots or []
+            if isinstance(slot, dict)
+            and isinstance(slot.get("id"), str)
+            and isinstance(slot.get("hex"), str)
+        }
+        background_slot = next(
+            (
+                layer.get("params", {}).get("color")
+                for layer in intent.get("layers", [])
+                if isinstance(layer, dict)
+                and layer.get("type") == "background"
+                and isinstance(layer.get("params"), dict)
+                and isinstance(layer["params"].get("color"), str)
+            ),
+            None,
+        )
+        ground_hex = hex_by_id.get(background_slot) if background_slot is not None else None
+        color_ids = (
+            [slot_id for slot_id in slot_ids if slot_id != background_slot] or slot_ids
+        )
         if not color_ids:
             continue
         for layer in intent.get("layers", []):
@@ -433,21 +483,55 @@ def _bind_resolved_motif_colors(
             planned_colors = planned_layers.get(layer_id) if isinstance(layer_id, str) else None
             effective_colors = planned_colors or color_ids
             if len(motif.color_slots) <= 1:
-                if planned_colors:
-                    params["color"] = planned_colors[0]
-                elif params.get("color") is None:
-                    values = params.get("colors")
-                    params["color"] = (
-                        next(iter(values.values()))
-                        if isinstance(values, dict) and values
-                        else color_ids[0]
-                    )
+                chosen = planned_colors[0] if planned_colors else color_ids[0]
+                chosen = _palette_slot_avoiding_ground(
+                    chosen,
+                    ordered_slot_ids=slot_ids,
+                    hex_by_id=hex_by_id,
+                    ground_hex=ground_hex,
+                )
+                params["color"] = chosen
                 params.pop("colors", None)
                 continue
+
+            if (
+                planned_colors is None
+                and palette_mode != "fixed"
+                and motif.slot_colors is not None
+                and len(motif.slot_colors) == len(motif.color_slots)
+            ):
+                params.pop("color", None)
+                params["colors"] = dict(
+                    zip(motif.color_slots, motif.slot_colors, strict=True)
+                )
+                continue
+
+            ordered_slots = list(motif.color_slots)
+            if (
+                motif.slot_labels is not None
+                and len(motif.slot_labels) == len(motif.color_slots)
+                and all(label in SLOT_LABEL_RANK for label in motif.slot_labels)
+            ):
+                ordered_slots = [
+                    slot
+                    for _rank, _index, slot in sorted(
+                        (
+                            SLOT_LABEL_RANK[label],
+                            index,
+                            slot,
+                        )
+                        for index, (slot, label) in enumerate(
+                            zip(motif.color_slots, motif.slot_labels, strict=True)
+                        )
+                    )
+                ]
+            assignments = {
+                slot: effective_colors[index % len(effective_colors)]
+                for index, slot in enumerate(ordered_slots)
+            }
             params.pop("color", None)
             params["colors"] = {
-                slot: effective_colors[index % len(effective_colors)]
-                for index, slot in enumerate(motif.color_slots)
+                slot: assignments[slot] for slot in motif.color_slots
             }
 
 
@@ -581,9 +665,12 @@ async def _generate_from_prompt(
         )
     request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
     retrieval_started = time.perf_counter()
-    available_motif_count = min(
-        2,
-        len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
+    available_motif_count = max(
+        1 if body.prompt else 0,
+        min(
+            2,
+            len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
+        ),
     )
     async with request.app.state.sessionmaker() as retrieval_session:
         retrieval = await retrieve_examples(
@@ -638,6 +725,12 @@ async def _generate_from_prompt(
     resolved_intents: list[dict[str, Any]] = []
     resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
     resolution_started = time.perf_counter()
+    generation_budget = MotifGenerationBudget(settings.motif_generate_per_request_limit)
+    provenance = (
+        body.motif_provenance.model_dump()
+        if body.motif_provenance is not None
+        else None
+    )
     try:
         for design in designs:
             resolution_trace.extend(design.motif_resolutions)
@@ -655,6 +748,9 @@ async def _generate_from_prompt(
                     embedding_client=embedding,
                     settings=settings,
                     seed=effective_seed,
+                    gemini_client=gemini,
+                    provenance=provenance,
+                    generation_budget=generation_budget,
                     warnings=warnings,
                     trace=resolution_trace,
                 )
@@ -697,6 +793,7 @@ async def _generate_from_prompt(
         resolved_intents,
         catalog,
         [design.motif_color_slots for design in designs],
+        palette_mode=body.palette.mode,
     )
     request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
     registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
@@ -1037,10 +1134,21 @@ async def motif_generate(
             embedding_client=adapters.embedding,
             settings=settings,
             seed=seed,
+            gemini_client=adapters.gemini,
+            provenance=(
+                body.motif_provenance.model_dump()
+                if body.motif_provenance is not None
+                else None
+            ),
+            generation_budget=MotifGenerationBudget(
+                settings.motif_generate_per_request_limit
+            ),
         )
     except AdapterNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except AdapterClientError as exc:
+        if exc.reason_code == "unsafe_motif_facet":
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     await session.commit()
     return {

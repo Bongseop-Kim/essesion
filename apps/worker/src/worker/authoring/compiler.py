@@ -19,7 +19,7 @@ from worker.engine.units import snap_angle, snap_spacing
 DEFAULT_TILE_MM = 48.0
 DEFAULT_DPI = 300
 PLAN_CONTRACT_VERSION = 3
-COMPILER_REVISION = "design-plan-v3.0"
+COMPILER_REVISION = "design-plan-v3.1"
 
 _DIRECTION_ANGLE: dict[PathDirection, float] = {
     "horizontal": 0.0,
@@ -117,7 +117,7 @@ def _resolve_motif_sources(
                     },
                 )
             )
-        else:
+        elif source.source == "reference":
             if source.reference_image_index > reference_image_count:
                 raise PlanCompileError(f"unknown reference image: {source.reference_image_index}")
             reference_counts[source.reference_image_index] = (
@@ -133,6 +133,24 @@ def _resolve_motif_sources(
                         "description": source.description,
                         "reference_image_index": source.reference_image_index,
                         "required": source.reference_image_index in reference_motif_indexes,
+                    },
+                )
+            )
+        else:
+            if catalog_candidates:
+                raise PlanCompileError(
+                    "generated motifs are allowed only when the verified catalog is empty",
+                    grounding=True,
+                )
+            sources.append(
+                _ResolvedMotifSource(
+                    motif_id=f"semantic_{len(sources)}",
+                    spec={
+                        "subject": source.subject,
+                        "scope": source.scope,
+                        "style": source.style,
+                        "description": source.description,
+                        "required": False,
                     },
                 )
             )
@@ -321,7 +339,11 @@ def compile_design_plan_v3(
         for structure in plan.layers:
             if structure.type == "stripe":
                 guaranteed_visible.update(band.color_index for band in structure.bands)
-            elif structure.color_indices:
+            elif structure.color_indices is None:
+                raise PlanCompileError(
+                    "fixed palette motif layers must declare color_indices"
+                )
+            else:
                 # Every motif has at least one paint slot. Additional indexes are used only
                 # when the resolved motif exposes more slots, so they cannot satisfy a fixed
                 # palette visibility guarantee by themselves.
@@ -383,7 +405,20 @@ def compile_design_plan_v3(
         source = sources[structure.motif_index]
         layer_id = f"motif_{motif_layer_index}"
         motif_layer_index += 1
-        colors = [slots_by_index[index] for index in structure.color_indices]
+        colors = (
+            [slots_by_index[index] for index in structure.color_indices]
+            if structure.color_indices is not None
+            else [
+                next(
+                    (
+                        slot_id
+                        for index, slot_id in enumerate(slots_by_index)
+                        if index != plan.ground_color_index
+                    ),
+                    slots_by_index[plan.ground_color_index],
+                )
+            ]
+        )
         layers.append(
             {
                 "id": layer_id,
@@ -401,7 +436,8 @@ def compile_design_plan_v3(
                 ),
             }
         )
-        motif_color_slots[layer_id] = colors
+        if structure.color_indices is not None:
+            motif_color_slots[layer_id] = colors
         if source.spec is not None:
             motif_specs.append({"layer_id": layer_id, **source.spec})
         if source.resolution is not None:

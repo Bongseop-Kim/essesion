@@ -12,6 +12,7 @@ import copy
 import logging
 import math
 import re
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -21,9 +22,10 @@ from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
 from worker.adapters import AdapterClientError
 from worker.adapters.embedding import EmbeddingError, embed_query
-from worker.adapters.recraft import generate_motif
+from worker.adapters.recraft import RecraftError, generate_motif
 from worker.engine import determinism
 from worker.motifs import store
+from worker.motifs.labeler import label_slots
 from worker.motifs.store import (
     MotifMeta,
     facets_from_spec,
@@ -40,11 +42,11 @@ UNSUPPORTED_SPEC_FIELDS = ("text", "source_image_index")
 _SCREENED_FACETS = ("subject", "description", "style", "view", "expression")
 
 
-def _screen_facets(spec: dict) -> dict:
+def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
     """관리자 게이트 없는 recraft 카탈로그 유입의 유일 자동 방어선 (C-10).
 
-    비가시·제어 문자를 제거하고 명령형 인젝션 패턴은 로그로 플래그한다(거부는 하지 않음 —
-    사용자 콘텐츠라 오탐이 정상 모티프를 막는다).
+    비가시·제어 문자를 제거한다. 이미지가 의도를 앵커하는 reference 경로는 명령형
+    인젝션 패턴을 로그로만 플래그하고, text generate 경로는 해당 레이어를 거부한다.
     """
     screened = dict(spec)
     for key in _SCREENED_FACETS:
@@ -52,10 +54,31 @@ def _screen_facets(spec: dict) -> dict:
         if isinstance(value, str):
             if is_suspicious_facet_text(value):
                 logger.warning("motif facet %r tripped prompt-injection heuristic on ingress", key)
+                if reject_suspicious:
+                    raise AdapterClientError(
+                        "generated motif facet failed the ingress safety screen",
+                        provider="worker",
+                        operation="screen_motif",
+                        reason_code="unsafe_motif_facet",
+                    )
             screened[key] = sanitize_facet_text(value)
     tags = screened.get("tags")
     if isinstance(tags, (list, tuple)):
-        screened["tags"] = [sanitize_facet_text(tag) for tag in tags if isinstance(tag, str)]
+        clean_tags: list[str] = []
+        for tag in tags:
+            if not isinstance(tag, str):
+                continue
+            if is_suspicious_facet_text(tag):
+                logger.warning("motif tag tripped prompt-injection heuristic on ingress")
+                if reject_suspicious:
+                    raise AdapterClientError(
+                        "generated motif facet failed the ingress safety screen",
+                        provider="worker",
+                        operation="screen_motif",
+                        reason_code="unsafe_motif_facet",
+                    )
+            clean_tags.append(sanitize_facet_text(tag))
+        screened["tags"] = clean_tags
     return screened
 
 
@@ -79,6 +102,43 @@ class CatalogMatch:
 class CatalogRetrieval:
     matches: list[CatalogMatch]
     query_vec: list[float] | None
+
+
+@dataclass
+class MotifGenerationBudget:
+    """Request-scoped cap over actual Recraft calls, including suitability retries."""
+
+    limit: int
+    used: int = 0
+
+    def reserve(self) -> bool:
+        if self.used >= self.limit:
+            return False
+        self.used += 1
+        return True
+
+
+@dataclass(frozen=True)
+class _BudgetedRecraftClient:
+    client: object
+    budget: MotifGenerationBudget
+
+    async def generate(self, prompt: str) -> str:
+        if not self.budget.reserve():
+            raise RecraftError(
+                "request motif generation budget exhausted",
+                provider="worker",
+                operation="resolve_motif",
+                reason_code="motif_generation_budget_exhausted",
+            )
+        return await self.client.generate(prompt)  # type: ignore[attr-defined]
+
+
+def _provenance_uuid(provenance: dict | None, key: str) -> uuid.UUID | None:
+    value = provenance.get(key) if provenance else None
+    if value is None:
+        return None
+    return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
 
 
 async def _read_or[T](
@@ -347,10 +407,17 @@ async def resolve_spec(
     embedding_client,
     settings,
     seed: int,
+    gemini_client=None,
+    provenance: dict | None = None,
+    generation_budget: MotifGenerationBudget | None = None,
 ) -> ResolveResult:
     """단일 spec 해석 래더. 래더 히트면 reused=True(Recraft 스킵), miss면 generate 후 upsert."""
     tau = settings.motif_similarity_tau
-    authored_spec = _screen_facets({**spec, "scope": "whole"})
+    generate_origin = spec.get("reference_image_index") is None
+    authored_spec = _screen_facets(
+        {**spec, "scope": "whole"},
+        reject_suspicious=generate_origin,
+    )
     retrieval = await retrieve_catalog(
         session,
         descriptor_text(authored_spec),
@@ -376,17 +443,41 @@ async def resolve_spec(
         )
 
     # 신뢰도 게이트 miss → Recraft 생성. 자동 저작 모티프는 whole로 저장한다.
-    normalized = await generate_motif(authored_spec, client=recraft_client, settings=settings)
-    motif_id = await store.upsert_motif(
+    effective_recraft = recraft_client
+    if generate_origin and recraft_client is not None and generation_budget is not None:
+        effective_recraft = _BudgetedRecraftClient(recraft_client, generation_budget)
+    normalized = await generate_motif(authored_spec, client=effective_recraft, settings=settings)
+    upserted = await store.upsert_motif(
         session,
         normalized,
         facets=facets_from_spec(authored_spec),
         embedding=retrieval.query_vec,
         source="recraft",
         variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
+        ingested_user_id=_provenance_uuid(provenance, "user_id"),
+        ingested_session_id=_provenance_uuid(provenance, "session_id"),
     )
+    if upserted.inserted and len(normalized.color_slots) > 1 and normalized.slot_colors:
+        labels = await label_slots(
+            normalized.preview_svg,
+            normalized.slot_colors,
+            gemini_client=gemini_client,
+            settings=settings,
+        )
+        if labels is not None:
+            await store.upsert_motif(
+                session,
+                normalized,
+                facets=facets_from_spec(authored_spec),
+                embedding=retrieval.query_vec,
+                source="recraft",
+                variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
+                slot_labels=labels,
+                ingested_user_id=_provenance_uuid(provenance, "user_id"),
+                ingested_session_id=_provenance_uuid(provenance, "session_id"),
+            )
     return ResolveResult(
-        motif_id,
+        upserted.id,
         reused=False,
         similarity=None,
         subject=authored_spec.get("subject"),
@@ -435,6 +526,9 @@ async def resolve_motifs(
     embedding_client,
     settings,
     seed: int,
+    gemini_client=None,
+    provenance: dict | None = None,
+    generation_budget: MotifGenerationBudget | None = None,
     warnings: list[str] | None = None,
     trace: list[dict[str, object]] | None = None,
 ) -> dict:
@@ -453,8 +547,12 @@ async def resolve_motifs(
     attempted: set[str] = set()
     failed: set[str] = set()
     required_failed: set[str] = set()
+    soft_failed: set[str] = set()
     reasons: dict[str, str] = {}
     last_failure: AdapterClientError | None = None
+    request_budget = generation_budget or MotifGenerationBudget(
+        settings.motif_generate_per_request_limit
+    )
     for spec in motif_specs:
         layer = layers_by_id.get(spec.get("layer_id"))
         if layer is None or layer.get("type") != "motif":
@@ -486,15 +584,25 @@ async def resolve_motifs(
                 embedding_client=embedding_client,
                 settings=settings,
                 seed=seed,
+                gemini_client=gemini_client,
+                provenance=provenance,
+                generation_budget=request_budget,
             )
         except AdapterClientError as exc:
             last_failure = exc
             failed.add(lid)
             if spec.get("required") is True:
                 required_failed.add(lid)
-            reasons[lid] = (
-                f"Tier-1 gate exhausted ({spec.get('subject', '?')}/{spec.get('scope', '?')})"
-            )
+            if exc.reason_code == "motif_generation_budget_exhausted":
+                soft_failed.add(lid)
+                reasons[lid] = "request motif generation budget exhausted"
+            elif exc.reason_code == "unsafe_motif_facet":
+                soft_failed.add(lid)
+                reasons[lid] = "generated motif facet failed the safety screen"
+            else:
+                reasons[lid] = (
+                    f"Tier-1 gate exhausted ({spec.get('subject', '?')}/{spec.get('scope', '?')})"
+                )
             failure = {
                 "layer_id": lid,
                 "subject": spec.get("subject"),
@@ -548,7 +656,7 @@ async def resolve_motifs(
         )
     if not failed:
         return resolved
-    if not (attempted - failed):
+    if not (attempted - failed) and not (failed and failed <= soft_failed):
         raise AdapterClientError(
             f"all {len(attempted)} motif spec(s) failed to resolve",
             provider=last_failure.provider if last_failure else "worker",

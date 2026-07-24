@@ -125,13 +125,24 @@ _CANDIDATE_KEYS = {
 }
 
 
-def test_resolved_multicolor_motif_binds_every_catalog_slot():
+def _motif_layer(intent: dict) -> dict:
+    return next(layer for layer in intent["layers"] if layer["type"] == "motif")
+
+
+def test_unlabeled_legacy_multicolor_motif_uses_positional_modulo():
     intent = mvp_intent()
-    motif_layer = next(layer for layer in intent["layers"] if layer["type"] == "motif")
+    motif_layer = _motif_layer(intent)
     motif_layer["params"]["motif_id"] = "multi"
 
     routes._bind_resolved_motif_colors(
-        [intent], {"multi": SimpleNamespace(color_slots=("s0", "s1", "s2"))}
+        [intent],
+        {
+            "multi": SimpleNamespace(
+                color_slots=("s0", "s1", "s2"),
+                slot_colors=None,
+                slot_labels=None,
+            )
+        },
     )
 
     assert "color" not in motif_layer["params"]
@@ -140,6 +151,98 @@ def test_resolved_multicolor_motif_binds_every_catalog_slot():
         "s1": "gold",
         "s2": "accent",
     }
+
+
+def test_multicolor_motif_preserves_original_colors_when_recolor_is_omitted():
+    intent = mvp_intent()
+    motif_layer = _motif_layer(intent)
+    motif_layer["params"]["motif_id"] = "multi"
+
+    routes._bind_resolved_motif_colors(
+        [intent],
+        {
+            "multi": SimpleNamespace(
+                color_slots=("s0", "s1", "s2"),
+                slot_colors=("#112233", "#445566", "#778899"),
+                slot_labels=("detail", "primary", "outline"),
+            )
+        },
+    )
+
+    assert motif_layer["params"]["colors"] == {
+        "s0": "#112233",
+        "s1": "#445566",
+        "s2": "#778899",
+    }
+
+
+def test_explicit_recolor_assigns_palette_by_semantic_label_rank():
+    intent = mvp_intent()
+    motif_layer = _motif_layer(intent)
+    motif_layer["id"] = "ranked"
+    motif_layer["params"]["motif_id"] = "multi"
+
+    routes._bind_resolved_motif_colors(
+        [intent],
+        {
+            "multi": SimpleNamespace(
+                color_slots=("s0", "s1", "s2"),
+                slot_colors=("#112233", "#445566", "#778899"),
+                slot_labels=("detail", "primary", "outline"),
+            )
+        },
+        [{"ranked": ["gold", "accent"]}],
+    )
+
+    # Ranked slot order is s1(primary), s2(outline), s0(detail), with modulo wrap.
+    assert motif_layer["params"]["colors"] == {
+        "s0": "gold",
+        "s1": "gold",
+        "s2": "accent",
+    }
+
+
+def test_fixed_palette_recolors_even_when_color_indices_were_omitted():
+    intent = mvp_intent()
+    motif_layer = _motif_layer(intent)
+    motif_layer["params"]["motif_id"] = "multi"
+
+    routes._bind_resolved_motif_colors(
+        [intent],
+        {
+            "multi": SimpleNamespace(
+                color_slots=("s0", "s1"),
+                slot_colors=("#112233", "#445566"),
+                slot_labels=("secondary", "primary"),
+            )
+        },
+        palette_mode="fixed",
+    )
+
+    assert motif_layer["params"]["colors"] == {"s0": "gold", "s1": "accent"}
+
+
+def test_single_slot_avoids_ground_equivalent_hex_and_degenerate_palette_is_stable():
+    intent = mvp_intent()
+    motif_layer = _motif_layer(intent)
+    motif_layer["id"] = "single"
+    motif_layer["params"]["motif_id"] = "one"
+    intent["palette"]["slots"][1]["hex"] = intent["palette"]["slots"][0]["hex"]
+
+    routes._bind_resolved_motif_colors(
+        [intent],
+        {"one": SimpleNamespace(color_slots=("s0",), slot_colors=None, slot_labels=None)},
+        [{"single": ["accent"]}],
+    )
+    assert motif_layer["params"]["color"] == "gold"
+
+    intent["palette"]["slots"][2]["hex"] = intent["palette"]["slots"][0]["hex"]
+    routes._bind_resolved_motif_colors(
+        [intent],
+        {"one": SimpleNamespace(color_slots=("s0",), slot_colors=None, slot_labels=None)},
+        [{"single": ["accent"]}],
+    )
+    assert motif_layer["params"]["color"] == "accent"
 
 
 def test_generate_returns_product_shape(client):
@@ -423,7 +526,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
         assert session is retrieval_session
         calls.append("retrieve")
         assert prompt == "대각 스트라이프"
-        assert kwargs["available_motif_count"] == 0
+        assert kwargs["available_motif_count"] == 1
         return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
 
     class Gemini:
@@ -436,8 +539,8 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
             assert validate(intent) is None
             diagnostics.update(
                 plan_contract_version=3,
-                compiler_revision="design-plan-v3.0",
-                prompt_revision="design-plan-v3-rag-grounded",
+                compiler_revision="design-plan-v3.1",
+                prompt_revision="design-plan-v3-rag-generated-motif-colors",
             )
             return [
                 AuthoredDesign(

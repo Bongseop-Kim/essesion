@@ -51,7 +51,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 | 8 | main push CI 성공 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
 | 9 | API·두 worker readiness, 프록시·직통 차단, 배치 audience와 수동 트리거 확인 | **사용자** |
 | 10 | Toss 웹훅/콜백 URL·OAuth redirect URI를 `https://api.essesion.shop` 기준으로 등록 | **사용자(각 콘솔)** |
-| 11 | 빈 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `index_motif_embeddings.py --confirm-live` → `sync_authoring_examples.py --confirm-live` 실행, 두 출력의 `embedded=total` 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
+| 11 | 빈 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `index_motif_embeddings.py --confirm-live` → `backfill_slot_labels.py --confirm-live` → `sync_authoring_examples.py --confirm-live` 실행, motif/example의 `embedded=total`과 라벨 백필 `eligible/updated` 기록 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
 
 ## 시크릿 값 주입
 
@@ -151,6 +151,22 @@ FINALIZE_URL="$(tofu -chdir=infra output -raw worker_finalize_url)"
 curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences="$GENERATE_URL")" "$GENERATE_URL/readyz"
 curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences="$FINALIZE_URL")" "$FINALIZE_URL/readyz"
 ```
+
+### 공개 motif bootstrap과 슬롯 라벨
+
+migrate 뒤 공개 motif를 시드·임베딩하고, DB/ADC가 연결된 운영자 환경에서 멀티슬롯
+NULL 의미 라벨을 한 번 백필한다.
+
+```bash
+uv run python apps/worker/scripts/seed_motifs.py
+uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
+uv run python apps/worker/scripts/backfill_slot_labels.py --confirm-live
+```
+
+인덱싱 출력의 `embedded=<전체>/<전체>`와 백필 출력의
+`eligible=<대상>; updated=<갱신>`을 배포 기록에 남긴다. 백필은 공개 멀티슬롯 NULL
+행만 조건부 갱신해 재실행이 안전하고 `user_upload`은 제외한다. GCP project/ADC 또는
+`--confirm-live`가 없으면 유료 비전 호출과 DB 갱신을 시작하지 않는다.
 
 ### Plan v3 예시 bootstrap과 승격
 

@@ -379,6 +379,10 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
     )
     assert generated.status_code == 200, generated.text
     payload = worker.generate_payloads[-1]
+    assert payload["motif_provenance"] == {
+        "user_id": str(user.id),
+        "session_id": design_session["id"],
+    }
     assert payload["motif_ids"] == [motif.id]
     assert payload["reference_images"] == [
         {
@@ -2068,6 +2072,10 @@ async def test_motif_generate_reused_refunds_budget(client, app, db_session, set
         headers=headers,
     )
     assert res.status_code == 200 and res.json()["reused"] is True
+    assert app.state.worker.motif_calls[-1][1]["motif_provenance"] == {
+        "user_id": str(user.id),
+        "session_id": sid,
+    }
     assert await _session_recraft_used(client, headers, sid) == 0
 
 

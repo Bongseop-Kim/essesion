@@ -19,11 +19,11 @@ _CIRCLE = (
 
 async def _seed_dot(session) -> str:
     motif = normalize_motif_svg(_CIRCLE, render_check=False)
-    mid = await store.upsert_motif(
+    upserted = await store.upsert_motif(
         session, motif, facets={"subject": "dot", "scope": "whole"}, source="seed"
     )
     await session.commit()
-    return mid
+    return upserted.id
 
 
 async def test_motifs_candidates_returns_seeded(client, db_session):

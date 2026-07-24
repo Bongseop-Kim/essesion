@@ -976,6 +976,11 @@ async def generate_design(
         exclude={"session_id", "reference_images", "user_motif_ids"},
         exclude_none=True,
     )
+    if body.intent is None:
+        payload["motif_provenance"] = {
+            "user_id": str(user.id),
+            "session_id": str(design_session.id) if design_session is not None else None,
+        }
     if photos:
         payload["reference_images"] = [
             await _reference_image_payload(image, purpose, request) for image, purpose in photos
@@ -1736,7 +1741,12 @@ async def motif_generate(
     await session.commit()
 
     try:
-        response = await request.app.state.worker.motif_generate(body.model_dump(exclude_none=True))
+        payload = body.model_dump(exclude_none=True)
+        payload["motif_provenance"] = {
+            "user_id": str(user.id),
+            "session_id": str(session_id),
+        }
+        response = await request.app.state.worker.motif_generate(payload)
         out = MotifGenerateOut.model_validate(response)
     except Exception:
         await _release_recraft_budget(session, session_id)
