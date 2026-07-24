@@ -60,6 +60,7 @@ from worker.authoring.promotion import (
     scan_promotion_candidates,
 )
 from worker.authoring.retrieval import retrieve_examples
+from worker.authoring.schema import DesignPlanV3, snapshot_resolved_plan, structural_fingerprint
 from worker.db import SessionDep
 from worker.engine import (
     IntentInvalid,
@@ -182,7 +183,13 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
         request.state.generation_generate_ms = None
         request.state.generation_render_ms = 0.0
         request.state.generation_diagnostics = {
-            "mode": "variation" if body.intent is not None else "prompt",
+            "mode": (
+                "variation"
+                if body.intent is not None
+                else "refine"
+                if body.conversation_context is not None
+                else "prompt"
+            ),
             "reference_count": len(body.reference_images),
             "fixed_palette": body.palette.mode == "fixed",
             "pattern_controls": not body.pattern_constraints.is_automatic(),
@@ -202,6 +209,7 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
             try:
                 await session.rollback()
                 log = SeamlessGenerationLog(
+                    id=body.run_id,
                     request_id=request_id_var.get(),
                     input_type=(
                         "intent"
@@ -255,9 +263,15 @@ async def _persist_reference_attachments(
         )
 
 
+@dataclass(frozen=True)
+class _RenderedCandidate:
+    output: CandidateOut
+    intent: dict[str, Any]
+
+
 async def _render_candidates(
     candidate_set, tile_mm: float, request: Request, settings, warnings: list[str]
-) -> list[CandidateOut]:
+) -> list["_RenderedCandidate"]:
     """후보 SVG를 프리뷰 래스터화·업로드하고 CandidateOut 목록으로 — 실패는 경고로 격하.
 
     후보별 렌더+업로드는 병렬(gather), 응답의 후보·경고 순서는 입력 순서 그대로.
@@ -265,7 +279,7 @@ async def _render_candidates(
 
     semaphore = asyncio.Semaphore(settings.preview_render_concurrency)
 
-    async def _one(ranked) -> tuple[CandidateOut, str | None]:
+    async def _one(ranked) -> tuple["_RenderedCandidate", str | None]:
         png_key = None
         warning = None
         async with semaphore:
@@ -290,22 +304,25 @@ async def _render_candidates(
                     logger.warning("preview upload failed: %s", png_key, exc_info=True)
                     png_key = None
                     warning = "preview upload skipped"
-        out = CandidateOut(
-            id=ranked.id,
-            design_index=ranked.design_index,
-            layout_id=ranked.candidate.layout_id or "",
-            source_fidelity=ranked.source_fidelity,
-            colorway_id=ranked.colorway_id,
-            seed=ranked.seed,
-            svg=ranked.candidate.svg,
-            png_object_key=png_key,
+        out = _RenderedCandidate(
+            output=CandidateOut(
+                id=ranked.id,
+                design_index=ranked.design_index,
+                layout_id=ranked.candidate.layout_id or "",
+                source_fidelity=ranked.source_fidelity,
+                colorway_id=ranked.colorway_id,
+                seed=ranked.seed,
+                svg=ranked.candidate.svg,
+                png_object_key=png_key,
+            ),
+            intent=ranked.intent.model_dump(mode="json"),
         )
         return out, warning
 
     render_started = time.perf_counter()
     try:
         rendered = await asyncio.gather(*(_one(r) for r in candidate_set.candidates))
-        outs: list[CandidateOut] = []
+        outs: list[_RenderedCandidate] = []
         for out, warning in rendered:
             if warning is not None:
                 warnings.append(warning)
@@ -543,6 +560,60 @@ class _GenerateOutcome:
     tile_mm: float
     intent_log: dict[str, Any]
     registry_version: str
+    plans: list[dict[str, Any]]
+    structural_fingerprints: list[str]
+
+
+@dataclass(frozen=True)
+class _RefineAuthoringContext:
+    plan: DesignPlanV3
+    current_candidates: list[dict[str, object]]
+    concrete_motif_ids: list[str]
+    history: list[dict[str, object]]
+
+
+def _refine_authoring_context(
+    body: GenerateRequest,
+    request: Request,
+) -> _RefineAuthoringContext | None:
+    context = body.conversation_context
+    if context is None or body.intent is not None:
+        return None
+
+    raw = context.current_plan.model_dump(mode="json")
+    concrete_ids: list[str] = []
+    safe_sources: list[dict[str, str]] = []
+    current_candidates: list[dict[str, object]] = []
+    for index, source in enumerate(context.current_plan.motifs, start=1):
+        if source.source != "catalog":
+            _reject_generation(request, "intent_invalid", "intent")
+        motif_id = source.catalog_ref
+        alias = f"current_motif_{index}"
+        concrete_ids.append(motif_id)
+        safe_sources.append({"source": "catalog", "catalog_ref": alias})
+        current_candidates.append(
+            {
+                "catalog_ref": alias,
+                "motif_id": motif_id,
+                "subject": f"committed motif {index}",
+                "description": None,
+                "style": None,
+                "current": True,
+            }
+        )
+    if set(concrete_ids) != iter_motif_ids(context.current_intent):
+        _reject_generation(request, "intent_invalid", "intent")
+    raw["motifs"] = safe_sources
+    try:
+        provider_plan = DesignPlanV3.model_validate(raw)
+    except ValueError:
+        _reject_generation(request, "intent_invalid", "intent")
+    return _RefineAuthoringContext(
+        plan=provider_plan,
+        current_candidates=current_candidates,
+        concrete_motif_ids=concrete_ids,
+        history=[item.model_dump(mode="json") for item in context.history],
+    )
 
 
 async def _generate_from_intent(
@@ -589,8 +660,23 @@ async def _generate_from_intent(
             "designs": resolved_intents,
             "palette": body.palette.model_dump(),
             "pattern_constraints": body.pattern_constraints.model_dump(),
+            "resolved_plans": (
+                [body.conversation_context.current_plan.model_dump(mode="json")]
+                if body.conversation_context is not None
+                else []
+            ),
         },
         registry_version=registry_version,
+        plans=(
+            [body.conversation_context.current_plan.model_dump(mode="json")]
+            if body.conversation_context is not None
+            else []
+        ),
+        structural_fingerprints=(
+            [structural_fingerprint(body.conversation_context.current_plan)]
+            if body.conversation_context is not None
+            else []
+        ),
     )
 
 
@@ -650,43 +736,89 @@ async def _generate_from_prompt(
     author_prompt = body.prompt or (
         "Create a balanced necktie pattern using the supplied SVG motif."
     )
+    refine_context = _refine_authoring_context(body, request)
     embedding = request_scoped(adapters.embedding)
     reference_capable_count = sum(
         image.purpose in {"motif", "auto"} for image in body.reference_images
     )
-    catalog_candidates: list[dict[str, object]] = []
+    public_catalog_candidates: list[dict[str, object]] = []
     if body.prompt and not body.motif_ids and reference_capable_count < 2:
-        catalog_candidates = await prompt_catalog_candidates(
+        public_catalog_candidates = await prompt_catalog_candidates(
             session,
             body.prompt,
             embedding_client=embedding,
             tau=settings.motif_similarity_tau,
             top_k=5,
         )
-    request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
+    if refine_context is not None:
+        current_ids = set(refine_context.concrete_motif_ids)
+        public_catalog_candidates = [
+            {**candidate, "optional": True}
+            for candidate in public_catalog_candidates
+            if candidate.get("motif_id") not in current_ids
+        ]
+    refine_exact_candidates = (
+        [
+            {
+                "catalog_ref": f"new_input_{index}",
+                "motif_id": motif_id,
+                "subject": f"new exact motif {index}",
+                "description": None,
+                "style": None,
+                "optional": True,
+            }
+            for index, motif_id in enumerate(body.motif_ids, start=1)
+        ]
+        if refine_context is not None
+        else []
+    )
+    catalog_candidates = [
+        *(refine_context.current_candidates if refine_context is not None else []),
+        *refine_exact_candidates,
+        *public_catalog_candidates,
+    ]
+    request.state.generation_diagnostics["catalog_candidate_count"] = len(
+        public_catalog_candidates
+    )
     retrieval_started = time.perf_counter()
     available_motif_count = max(
         1 if body.prompt else 0,
         min(
             2,
-            len(body.motif_ids) + reference_capable_count + len(catalog_candidates),
+            len(body.motif_ids)
+            + reference_capable_count
+            + len(public_catalog_candidates)
+            + len(refine_context.concrete_motif_ids if refine_context is not None else []),
         ),
     )
-    async with request.app.state.sessionmaker() as retrieval_session:
-        retrieval = await retrieve_examples(
-            retrieval_session,
-            author_prompt,
-            embedding_client=embedding,
-            embedding_model=getattr(embedding, "model", settings.embedding_model),
-            available_motif_count=available_motif_count,
-            pattern_constraints=body.pattern_constraints,
-        )
+    prompt_examples: list[dict[str, object]] = []
+    if refine_context is None:
+        async with request.app.state.sessionmaker() as retrieval_session:
+            retrieval = await retrieve_examples(
+                retrieval_session,
+                author_prompt,
+                embedding_client=embedding,
+                embedding_model=getattr(embedding, "model", settings.embedding_model),
+                available_motif_count=available_motif_count,
+                pattern_constraints=body.pattern_constraints,
+            )
+        prompt_examples = retrieval.prompt_examples()
+        retrieval_status = retrieval.status
+        retrieval_reason = retrieval.reason
+        selected_examples = retrieval.diagnostics()
+    else:
+        retrieval_status = "skipped"
+        retrieval_reason = "refine_uses_committed_plan"
+        selected_examples = []
     request.state.generation_diagnostics.update(
         {
-            "example_retrieval_status": retrieval.status,
-            "example_retrieval_reason": retrieval.reason,
-            "example_retrieval_ms": round((time.perf_counter() - retrieval_started) * 1000, 3),
-            "selected_examples": retrieval.diagnostics(),
+            "example_retrieval_status": retrieval_status,
+            "example_retrieval_reason": retrieval_reason,
+            "example_retrieval_ms": round(
+                (time.perf_counter() - retrieval_started) * 1000,
+                3,
+            ),
+            "selected_examples": selected_examples,
         }
     )
 
@@ -696,12 +828,16 @@ async def _generate_from_prompt(
             author_prompt,
             validate=_validate,
             reference_images=reference_images,
-            motif_ids=body.motif_ids,
+            motif_ids=[] if refine_context is not None else body.motif_ids,
             catalog_candidates=catalog_candidates,
             palette_constraint=body.palette,
             pattern_constraints=body.pattern_constraints,
-            examples=retrieval.prompt_examples(),
+            examples=prompt_examples,
             diagnostics=request.state.generation_diagnostics,
+            current_plan=refine_context.plan if refine_context is not None else None,
+            conversation_history=(
+                refine_context.history if refine_context is not None else None
+            ),
         )
     except SemanticMismatch as exc:
         request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
@@ -785,6 +921,17 @@ async def _generate_from_prompt(
             (time.perf_counter() - resolution_started) * 1000, 3
         )
 
+    resolved_plans: list[DesignPlanV3] = []
+    try:
+        for design, resolved in zip(designs, resolved_intents, strict=True):
+            if design.plan is None:
+                continue
+            resolved_plans.append(
+                snapshot_resolved_plan(DesignPlanV3.model_validate(design.plan), resolved)
+            )
+    except (TypeError, ValueError):
+        _reject_generation(request, "intent_invalid", "intent")
+
     ids: set[str] = set()
     for resolved in resolved_intents:
         ids |= iter_motif_ids(resolved)
@@ -799,16 +946,28 @@ async def _generate_from_prompt(
     registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
     candidate_started = time.perf_counter()
     try:
-        candidate_set = generate_candidate_set(
-            resolved_intents,
-            candidate_count=body.candidate_count,
-            seed=body.seed,
-            colorway=effective_colorway,
-            registry_version=registry_version,
-            motifs=catalog or None,
-            palette_constraint=body.palette,
-            pattern_constraints=body.pattern_constraints,
-        )
+        if refine_context is not None:
+            candidate_set = generate_candidates(
+                resolved_intents[0],
+                candidate_count=min(body.candidate_count, 4),
+                seed=body.seed,
+                colorway=effective_colorway,
+                registry_version=registry_version,
+                motifs=catalog or None,
+                palette_constraint=body.palette,
+                pattern_constraints=body.pattern_constraints,
+            )
+        else:
+            candidate_set = generate_candidate_set(
+                resolved_intents,
+                candidate_count=body.candidate_count,
+                seed=body.seed,
+                colorway=effective_colorway,
+                registry_version=registry_version,
+                motifs=catalog or None,
+                palette_constraint=body.palette,
+                pattern_constraints=body.pattern_constraints,
+            )
     except (IntentInvalid, AssertionError, ValueError):
         _reject_generation(request, "candidate_invalid", "candidate")
     finally:
@@ -819,6 +978,7 @@ async def _generate_from_prompt(
         "designs": resolved_intents,
         "palette": body.palette.model_dump(),
         "pattern_constraints": body.pattern_constraints.model_dump(),
+        "resolved_plans": [plan.model_dump(mode="json") for plan in resolved_plans],
     }
     authored_plans = [design.plan for design in designs if design.plan is not None]
     if authored_plans:
@@ -842,6 +1002,10 @@ async def _generate_from_prompt(
         tile_mm=float(resolved_intents[0]["canvas"]["tile_mm"]),
         intent_log=intent_log,
         registry_version=registry_version,
+        plans=[plan.model_dump(mode="json") for plan in resolved_plans],
+        structural_fingerprints=[
+            structural_fingerprint(plan) for plan in resolved_plans
+        ],
     )
 
 
@@ -884,16 +1048,19 @@ async def generate(
     tile_mm = outcome.tile_mm
     intent_log = outcome.intent_log
     registry_version = outcome.registry_version
+    resolved_plans = outcome.plans
+    structural_fingerprints = outcome.structural_fingerprints
 
     warnings.extend(candidate_set.warnings)
     warnings = list(dict.fromkeys(warnings))
     generate_ms = round((time.perf_counter() - started) * 1000, 3)
     request.state.generation_generate_ms = generate_ms
-    outs = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
+    rendered = await _render_candidates(candidate_set, tile_mm, request, settings, warnings)
+    outs = [candidate.output for candidate in rendered]
     request.state.generation_diagnostics["render_ms"] = request.state.generation_render_ms
     request.state.generation_diagnostics["candidate_count"] = len(outs)
 
-    generation_log_id = uuid.uuid4()
+    generation_log_id = body.run_id
     log = SeamlessGenerationLog(
         id=generation_log_id,
         request_id=request_id_var.get(),
@@ -910,7 +1077,10 @@ async def generate(
         engine_version=settings.engine_version,
         registry_version=registry_version,
         intent=intent_log,
-        candidates=[c.model_dump() for c in outs],
+        candidates=[
+            {**candidate.output.model_dump(), "intent": candidate.intent}
+            for candidate in rendered
+        ],
         warnings=warnings,
         generate_ms=generate_ms,
         render_ms=request.state.generation_render_ms,
@@ -926,6 +1096,8 @@ async def generate(
         registry_version=registry_version,
         engine_version=settings.engine_version,
         intents=resolved_intents,
+        plans=resolved_plans,
+        structural_fingerprints=structural_fingerprints,
         candidates=outs,
         warnings=warnings,
     )

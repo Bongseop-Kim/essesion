@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from worker.authoring.promotion import DEFAULT_SCAN_LIMIT
+from worker.authoring.schema import DesignPlanV3
 from worker.engine.constraints import PaletteConstraint, PatternConstraints
 from worker.motifs.photo_svg import MAX_PROCESSED_PREVIEW_BYTES
 from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH
@@ -40,7 +41,26 @@ class MotifIngressProvenance(StrictRequest):
     session_id: uuid.UUID | None = None
 
 
+class ConversationAttachmentRef(StrictRequest):
+    kind: Literal["photo", "svg"]
+    filename: str = Field(min_length=1, max_length=255)
+    purpose: Literal["auto", "color_mood", "motif", "composition"] | None = None
+
+
+class ConversationHistoryItem(StrictRequest):
+    user_prompt: str = Field(min_length=1, max_length=4_000)
+    assistant_summary: str = Field(min_length=1, max_length=500)
+    attachments: list[ConversationAttachmentRef] = Field(default_factory=list, max_length=7)
+
+
+class ConversationContext(StrictRequest):
+    current_plan: DesignPlanV3
+    current_intent: dict[str, Any]
+    history: list[ConversationHistoryItem] = Field(default_factory=list, max_length=6)
+
+
 class GenerateRequest(StrictRequest):
+    run_id: uuid.UUID
     prompt: str | None = None
     intent: dict[str, Any] | None = None
     colorway: str | None = None
@@ -51,6 +71,7 @@ class GenerateRequest(StrictRequest):
     motif_provenance: MotifIngressProvenance | None = None
     palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
     pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
+    conversation_context: ConversationContext | None = None
 
     @model_validator(mode="after")
     def _valid_generation_mode(self) -> "GenerateRequest":
@@ -64,6 +85,11 @@ class GenerateRequest(StrictRequest):
             )
         if self.prompt is None and self.intent is None and not self.motif_ids:
             raise ValueError("prompt or SVG motif is required")
+        if self.intent is not None and self.conversation_context is not None:
+            if self.intent != self.conversation_context.current_intent:
+                raise ValueError("intent reroll must use the committed conversation intent")
+        if self.conversation_context is not None and self.intent is None and self.prompt is None:
+            raise ValueError("conversation refinement requires a prompt")
         motif_references = sum(item.purpose == "motif" for item in self.reference_images)
         if len(self.motif_ids) + motif_references > 2:
             raise ValueError("exact motifs and motif reference photos may use at most 2 slots")
@@ -95,6 +121,8 @@ class GenerateResponse(BaseModel):
     registry_version: str
     engine_version: str
     intents: list[dict[str, Any]]
+    plans: list[dict[str, Any]] = Field(default_factory=list)
+    structural_fingerprints: list[str] = Field(default_factory=list)
     candidates: list[CandidateOut]
     warnings: list[str] = []
 

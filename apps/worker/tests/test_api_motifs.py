@@ -15,6 +15,7 @@ _CIRCLE = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
     '<circle cx="50" cy="50" r="30" fill="#ff0000"/></svg>'
 )
+_RUN_ID = "11111111-1111-4111-8111-111111111111"
 
 
 async def _seed_dot(session) -> str:
@@ -90,7 +91,12 @@ def _lattice_intent(motif_id: str) -> dict:
 async def test_generate_renders_with_db_motif_catalog(client, db_session):
     mid = await _seed_dot(db_session)
     resp = await client.post(
-        "/generate", json={"intent": _lattice_intent(mid), "candidate_count": 1}
+        "/generate",
+        json={
+            "run_id": _RUN_ID,
+            "intent": _lattice_intent(mid),
+            "candidate_count": 1,
+        },
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -152,7 +158,10 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
         )
     )
     app.state.adapters.gemini = GeminiClient("", client=cast(genai.Client, sdk))
-    resp = await client.post("/generate", json={"prompt": "dot pattern", "candidate_count": 1})
+    resp = await client.post(
+        "/generate",
+        json={"run_id": _RUN_ID, "prompt": "dot pattern", "candidate_count": 1},
+    )
     generate_content = sdk.aio.models.generate_content
     generate_content.assert_awaited_once()
     awaited_call = generate_content.await_args
@@ -202,7 +211,10 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
     app.state.adapters.gemini = FakeGemini()
     monkeypatch.setattr(routes, "resolve_motifs", capture_seed)
 
-    response = await client.post("/generate", json={"prompt": "seeded dots", "candidate_count": 1})
+    response = await client.post(
+        "/generate",
+        json={"run_id": _RUN_ID, "prompt": "seeded dots", "candidate_count": 1},
+    )
 
     assert response.status_code == 200, response.text
     assert seen == [37]

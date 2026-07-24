@@ -67,12 +67,20 @@ def _resolve_motif_sources(
     candidate_by_ref = {
         str(candidate["catalog_ref"]): candidate for candidate in catalog_candidates
     }
+    verified_catalog_candidates = [
+        candidate for candidate in catalog_candidates if candidate.get("current") is not True
+    ]
+    required_catalog_candidates = [
+        candidate
+        for candidate in verified_catalog_candidates
+        if candidate.get("optional") is not True
+    ]
     sources: list[_ResolvedMotifSource] = []
     input_indexes: set[int] = set()
     input_count = 0
     reference_counts: dict[int, int] = {}
     catalog_refs: set[str] = set()
-    catalog_count = 0
+    verified_catalog_count = 0
 
     for source in plan.motifs:
         if source.source == "input":
@@ -92,7 +100,6 @@ def _resolve_motif_sources(
                 )
             )
         elif source.source == "catalog":
-            catalog_count += 1
             if motif_ids:
                 raise PlanCompileError("catalog motifs cannot be combined with exact motifs")
             if source.catalog_ref in catalog_refs:
@@ -104,6 +111,8 @@ def _resolve_motif_sources(
             candidate = candidate_by_ref.get(source.catalog_ref)
             if candidate is None:
                 raise PlanCompileError(f"unknown catalog_ref: {source.catalog_ref}", grounding=True)
+            if candidate in required_catalog_candidates:
+                verified_catalog_count += 1
             motif_id = str(candidate["motif_id"])
             sources.append(
                 _ResolvedMotifSource(
@@ -137,7 +146,7 @@ def _resolve_motif_sources(
                 )
             )
         else:
-            if catalog_candidates:
+            if verified_catalog_candidates:
                 raise PlanCompileError(
                     "generated motifs are allowed only when the verified catalog is empty",
                     grounding=True,
@@ -162,10 +171,10 @@ def _resolve_motif_sources(
         raise PlanCompileError("every motif reference photo must be represented exactly once")
     if (
         plan.motifs
-        and catalog_candidates
+        and required_catalog_candidates
         and not motif_ids
         and len(reference_counts) < 2
-        and catalog_count == 0
+        and verified_catalog_count == 0
     ):
         raise PlanCompileError(
             "a verified catalog_ref is required while a motif slot remains", grounding=True

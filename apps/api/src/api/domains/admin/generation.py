@@ -838,7 +838,7 @@ async def _generation_outcome(
     row: SeamlessGenerationLog,
     candidate_ids: list[str],
 ) -> GenerationOutcomeOut:
-    exact_link = DesignSessionTurn.payload["response"]["generation_log_id"].astext == str(row.id)
+    exact_link = DesignSessionTurn.payload["run_id"].astext == str(row.id)
     turn_query = (
         select(DesignSessionTurn)
         .where(

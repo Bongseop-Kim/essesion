@@ -447,7 +447,8 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
                 role="assistant",
                 payload={
                     "type": "generate",
-                    "response": {"generation_log_id": str(log.id)},
+                    "run_id": str(log.id),
+                    "status": "succeeded",
                 },
                 created_at=now - timedelta(minutes=5),
             ),

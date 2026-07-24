@@ -25,7 +25,10 @@ from PIL import Image
 from worker.adapters import Adapters
 from worker.adapters.gemini import AuthoredDesign
 from worker.api import routes
+from worker.authoring.compiler import compile_design_plan_v3
+from worker.authoring.examples import load_example_set
 from worker.authoring.retrieval import RetrievalOutcome
+from worker.authoring.schema import DesignPlanV3
 from worker.db import get_session
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
@@ -34,6 +37,8 @@ from worker.render.raster import RasterError
 from .intent_helpers import mvp_intent, register_test_motifs
 
 register_test_motifs()
+
+_RUN_ID = "11111111-1111-4111-8111-111111111111"
 
 
 class _EmptyScalars:
@@ -247,7 +252,9 @@ def test_single_slot_avoids_ground_equivalent_hex_and_degenerate_palette_is_stab
 
 def test_generate_returns_product_shape(client):
     intent = mvp_intent()
-    resp = client.post("/generate", json={"intent": intent, "candidate_count": 4})
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 4}
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert body["request_id"]
@@ -261,7 +268,10 @@ def test_generate_returns_product_shape(client):
 
 
 def test_candidates_are_diverse_and_deduped(client):
-    resp = client.post("/generate", json={"intent": mvp_intent(), "candidate_count": 4})
+    resp = client.post(
+        "/generate",
+        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 4},
+    )
     body = resp.json()
     cands = body["candidates"]
     ids = [c["id"] for c in cands]
@@ -276,7 +286,9 @@ def test_intent_level_warnings_are_deduped(client):
     intent = mvp_intent()
     intent["palette"]["slots"][2]["hex"] = "#ffd700"
     intent["colorways"][0]["mapping"]["gold"] = "#ffd700"
-    resp = client.post("/generate", json={"intent": intent, "candidate_count": 4})
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 4}
+    )
     assert resp.status_code == 200
     w = resp.json()["warnings"]
     assert len(w) == len(set(w))  # 정확한 중복 없음
@@ -285,7 +297,10 @@ def test_intent_level_warnings_are_deduped(client):
 
 def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
     client = TestClient(_configure_app(monkeypatch, raster_ok=False))
-    resp = client.post("/generate", json={"intent": mvp_intent(), "candidate_count": 2})
+    resp = client.post(
+        "/generate",
+        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 2},
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert all(c["png_object_key"] is None for c in body["candidates"])
@@ -302,7 +317,10 @@ def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeyp
     app = _configure_app(monkeypatch)
     app.state.object_store = FailingObjectStore()
 
-    resp = TestClient(app).post("/generate", json={"intent": mvp_intent(), "candidate_count": 2})
+    resp = TestClient(app).post(
+        "/generate",
+        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 2},
+    )
 
     assert resp.status_code == 200
     body = resp.json()
@@ -311,13 +329,15 @@ def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeyp
 
 
 def test_request_id_propagates_to_body_and_header(client):
-    resp = client.post("/generate", json={"intent": mvp_intent()})
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": mvp_intent()})
     assert resp.json()["request_id"] == resp.headers["X-Request-ID"]
 
 
 def test_request_id_echoed_from_header(client):
     resp = client.post(
-        "/generate", headers={"X-Request-ID": "trace-xyz"}, json={"intent": mvp_intent()}
+        "/generate",
+        headers={"X-Request-ID": "trace-xyz"},
+        json={"run_id": _RUN_ID, "intent": mvp_intent()},
     )
     assert resp.json()["request_id"] == "trace-xyz"
     assert resp.headers["X-Request-ID"] == "trace-xyz"
@@ -326,14 +346,21 @@ def test_request_id_echoed_from_header(client):
 def test_request_id_header_is_sanitized(client):
     # B3: 인바운드 X-Request-ID는 정제된다 — 무정제 값은 GCS object key에 경로 주입 가능.
     resp = client.post(
-        "/generate", headers={"X-Request-ID": "bad id.with spaces"}, json={"intent": mvp_intent()}
+        "/generate",
+        headers={"X-Request-ID": "bad id.with spaces"},
+        json={"run_id": _RUN_ID, "intent": mvp_intent()},
     )
     assert resp.json()["request_id"] == "bad-id-with-spaces"
     assert resp.headers["X-Request-ID"] == "bad-id-with-spaces"
 
 
 def test_determinism_same_request_same_candidates(client):
-    payload = {"intent": mvp_intent(), "candidate_count": 4, "seed": 999}
+    payload = {
+        "run_id": _RUN_ID,
+        "intent": mvp_intent(),
+        "candidate_count": 4,
+        "seed": 999,
+    }
     a = client.post("/generate", json=payload).json()
     b = client.post("/generate", json=payload).json()
     # request_id를 제외하면 후보 id 집합은 byte-identical (엔진 결정론)
@@ -343,7 +370,7 @@ def test_determinism_same_request_same_candidates(client):
 def test_semantic_invalid_intent_returns_422(client):
     intent = mvp_intent()
     intent["layers"][0]["params"]["color"] = "missing"
-    resp = client.post("/generate", json={"intent": intent})
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 422
     assert resp.json()["detail"] == {
         "code": "intent_invalid",
@@ -356,7 +383,11 @@ def test_error_response_echoes_request_id_header(client):
     # 의미 오류(422)여도 미들웨어는 X-Request-ID를 응답 헤더로 에코한다.
     intent = mvp_intent()
     intent["layers"][0]["params"]["color"] = "missing"
-    resp = client.post("/generate", headers={"X-Request-ID": "err-1"}, json={"intent": intent})
+    resp = client.post(
+        "/generate",
+        headers={"X-Request-ID": "err-1"},
+        json={"run_id": _RUN_ID, "intent": intent},
+    )
     assert resp.status_code == 422
     assert resp.headers["X-Request-ID"] == "err-1"
 
@@ -374,7 +405,11 @@ def test_concurrent_requests_keep_distinct_request_ids(monkeypatch):
                 r = await ac.post(
                     "/generate",
                     headers={"X-Request-ID": rid},
-                    json={"intent": mvp_intent(), "candidate_count": 2},
+                    json={
+                        "run_id": _RUN_ID,
+                        "intent": mvp_intent(),
+                        "candidate_count": 2,
+                    },
                 )
                 return rid, r.json()["request_id"], r.headers["X-Request-ID"]
 
@@ -386,13 +421,21 @@ def test_concurrent_requests_keep_distinct_request_ids(monkeypatch):
 
 def test_schema_invalid_request_returns_422(client):
     # candidate_count가 스키마 범위(1..8) 밖 — 요청 스키마 실패(422), 의미 오류 아님.
-    resp = client.post("/generate", json={"intent": mvp_intent(), "candidate_count": 99})
+    resp = client.post(
+        "/generate",
+        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 99},
+    )
     assert resp.status_code == 422
 
 
 def test_request_schema_rejects_unknown_fields(client):
     response = client.post(
-        "/generate", json={"intent": mvp_intent(), "pattern_contraints": {"density": "dense"}}
+        "/generate",
+        json={
+            "run_id": _RUN_ID,
+            "intent": mvp_intent(),
+            "pattern_contraints": {"density": "dense"},
+        },
     )
     assert response.status_code == 422
     assert "extra_forbidden" in response.text
@@ -416,7 +459,8 @@ def test_preview_render_parallelism_is_bounded(monkeypatch):
 
     monkeypatch.setattr(routes, "rasterize_svg", slow_raster)
     response = TestClient(app).post(
-        "/generate", json={"intent": mvp_intent(), "candidate_count": 8}
+        "/generate",
+        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 8},
     )
     assert response.status_code == 200
     assert maximum <= app.state.settings.preview_render_concurrency
@@ -424,7 +468,9 @@ def test_preview_render_parallelism_is_bounded(monkeypatch):
 
 def test_prompt_only_without_gemini_returns_503(client):
     # prompt 경로는 구현됐지만 Gemini 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
-    resp = client.post("/generate", json={"prompt": "navy paisley tie"})
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "prompt": "navy paisley tie"}
+    )
     assert resp.status_code == 503
 
 
@@ -460,7 +506,10 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
     app = _configure_app(monkeypatch)
     app.state.adapters = Adapters(gemini=GroundedGemini())
 
-    response = TestClient(app).post("/generate", json={"prompt": "chess 패턴 디자인해주세요"})
+    response = TestClient(app).post(
+        "/generate",
+        json={"run_id": _RUN_ID, "prompt": "chess 패턴 디자인해주세요"},
+    )
 
     assert response.status_code == 200, response.text
     assert captured["prompt"] == "chess 패턴 디자인해주세요"
@@ -495,6 +544,7 @@ def test_auto_references_fill_motif_capacity_without_catalog_lookup(monkeypatch)
     response = TestClient(app).post(
         "/generate",
         json={
+            "run_id": _RUN_ID,
             "prompt": "두 참고 이미지로 패턴 만들기",
             "reference_images": [
                 {
@@ -545,7 +595,6 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
             return [
                 AuthoredDesign(
                     intent=intent,
-                    plan={"colors": ["#000000", "#ffffff"]},
                     structural_fingerprint="layout-v3",
                 )
             ]
@@ -561,10 +610,107 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
 
     app.state.sessionmaker = _retrieval_sessionmaker
 
-    response = TestClient(app).post("/generate", json={"prompt": "대각 스트라이프"})
+    response = TestClient(app).post(
+        "/generate", json={"run_id": _RUN_ID, "prompt": "대각 스트라이프"}
+    )
 
     assert response.status_code == 200, response.text
     assert calls == ["retrieve", "author"]
+
+
+def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monkeypatch):
+    concrete_raw = load_example_set()[5].plan.model_dump(mode="json")
+    concrete_raw["motifs"] = [{"source": "catalog", "catalog_ref": "circle"}]
+    concrete_plan = DesignPlanV3.model_validate(concrete_raw)
+    current = compile_design_plan_v3(
+        concrete_plan,
+        plan_index=0,
+        catalog_candidates=[
+            {
+                "catalog_ref": "circle",
+                "motif_id": "circle",
+                "current": True,
+            }
+        ],
+    )
+    calls = 0
+
+    async def no_public_candidates(*_args, **_kwargs):
+        return []
+
+    class RefineGemini:
+        async def author_designs(
+            self,
+            _prompt,
+            *,
+            validate,
+            catalog_candidates,
+            current_plan,
+            conversation_history,
+            **_kwargs,
+        ):
+            nonlocal calls
+            calls += 1
+            assert current_plan.motifs[0].catalog_ref == "current_motif_1"
+            assert conversation_history == [
+                {
+                    "user_prompt": "원형 패턴으로 만들어줘",
+                    "assistant_summary": "3×3 격자 후보를 선택함",
+                    "attachments": [],
+                }
+            ]
+            assert catalog_candidates == [
+                {
+                    "catalog_ref": "current_motif_1",
+                    "motif_id": "circle",
+                    "subject": "committed motif 1",
+                    "description": None,
+                    "style": None,
+                    "current": True,
+                }
+            ]
+            authored = compile_design_plan_v3(
+                current_plan,
+                plan_index=0,
+                catalog_candidates=catalog_candidates,
+            )
+            assert validate(authored.intent) is None
+            return [authored]
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", no_public_candidates)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=RefineGemini())
+
+    response = TestClient(app).post(
+        "/generate",
+        json={
+            "run_id": _RUN_ID,
+            "prompt": "간격을 조금 더 촘촘하게 해줘",
+            "candidate_count": 8,
+            "conversation_context": {
+                "current_plan": concrete_plan.model_dump(mode="json"),
+                "current_intent": current.intent,
+                "history": [
+                    {
+                        "user_prompt": "원형 패턴으로 만들어줘",
+                        "assistant_summary": "3×3 격자 후보를 선택함",
+                        "attachments": [],
+                    }
+                ],
+            },
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert calls == 1
+    assert 1 <= len(payload["candidates"]) <= 4
+    assert {candidate["design_index"] for candidate in payload["candidates"]} == {0}
+    assert len(payload["plans"]) == 1
+    assert payload["plans"][0]["motifs"] == [
+        {"source": "catalog", "catalog_ref": "circle"}
+    ]
+    assert "current_motif_1" not in response.text
 
 
 @respx.mock
@@ -610,6 +756,7 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
     response = TestClient(app).post(
         "/generate",
         json={
+            "run_id": _RUN_ID,
             "prompt": "사진의 색과 분위기를 참고한 패턴",
             "reference_images": [
                 {
@@ -640,6 +787,7 @@ def test_reference_photo_rejects_untrusted_url_before_fetch(monkeypatch):
     response = TestClient(app).post(
         "/generate",
         json={
+            "run_id": _RUN_ID,
             "prompt": "reference",
             "reference_images": [
                 {
@@ -668,12 +816,15 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
     app.state.adapters = Adapters(gemini=ExactMotifGemini())
     client = TestClient(app)
 
-    accepted = client.post("/generate", json={"motif_ids": ["circle", "bee"]})
+    accepted = client.post(
+        "/generate", json={"run_id": _RUN_ID, "motif_ids": ["circle", "bee"]}
+    )
     assert accepted.status_code == 200, accepted.text
 
     rejected = client.post(
         "/generate",
         json={
+            "run_id": _RUN_ID,
             "motif_ids": [
                 "upload-111111111111",
                 "upload-222222222222",
@@ -842,7 +993,9 @@ def test_partial_success_when_count_exceeds_available(client):
     # distinct 결정론 변이보다 많은 후보를 요청하면 partial.
     intent = mvp_intent()
     intent["layers"] = [intent["layers"][0]]  # 배경 단일 레이어
-    resp = client.post("/generate", json={"intent": intent, "candidate_count": 8})
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 8}
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["candidates"]) < 8
@@ -851,7 +1004,12 @@ def test_partial_success_when_count_exceeds_available(client):
 
 def test_generate_rejects_mixing_intent_and_prompt(client):
     resp = client.post(
-        "/generate", json={"intent": mvp_intent(), "prompt": "줄무늬를 더 굵게 바꿔줘"}
+        "/generate",
+        json={
+            "run_id": _RUN_ID,
+            "intent": mvp_intent(),
+            "prompt": "줄무늬를 더 굵게 바꿔줘",
+        },
     )
 
     assert resp.status_code == 422

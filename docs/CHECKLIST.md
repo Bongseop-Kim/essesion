@@ -20,7 +20,6 @@
 
 ## 5. 프론트
 
-- [ ] `/design` 세션 대화 문맥 — *현재 세션의 선택된 semantic plan, intent와 최근 턴을 다음 생성 문맥으로 구성 (`docs/plans/design-conversation-memory.md`).*
 - [ ] Cloudflare Workers 배포(Vite build + Wrangler Static Assets) 및 DNS 확인
 
 ## 6. 리허설 (스테이징)

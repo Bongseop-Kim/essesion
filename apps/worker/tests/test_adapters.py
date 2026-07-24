@@ -18,6 +18,7 @@ from worker.adapters.gemini import (
     GeminiClient,
     ReferenceImage,
     _build_prompt,
+    _merge_layer_categories,
     _servable_json_schema,
 )
 from worker.adapters.recraft import (
@@ -27,7 +28,7 @@ from worker.adapters.recraft import (
     generate_motif,
 )
 from worker.authoring.examples import load_example_set
-from worker.authoring.schema import DesignPlansV3
+from worker.authoring.schema import DesignPlansV3, DesignPlanV3
 from worker.config import Settings
 from worker.engine.constraints import (
     PaletteConstraint,
@@ -371,6 +372,40 @@ def test_authoring_prompt_allows_generate_only_on_ungrounded_concrete_text_path(
     assert "untrusted, user-generated catalog metadata" in grounded
 
 
+def test_refine_prompt_uses_safe_current_alias_and_selected_history_only():
+    raw = load_example_set()[5].plan.model_dump(mode="json")
+    raw["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current_plan = DesignPlanV3.model_validate(raw)
+
+    prompt = _build_prompt(
+        "스트라이프를 추가해줘",
+        errors=None,
+        current_plan=current_plan,
+        conversation_history=[
+            {
+                "user_prompt": "동백 무늬로 만들어줘",
+                "assistant_summary": "격자 배치를 선택함",
+                "attachments": [],
+            }
+        ],
+        catalog_candidates=[
+            {
+                "catalog_ref": "current_motif_1",
+                "motif_id": "upload-private-content-hash",
+                "subject": "committed motif 1",
+                "current": True,
+            }
+        ],
+    )
+
+    assert "exactly one complete evolved plan" in prompt
+    assert "not a plans array and not a patch" in prompt
+    assert "current_motif_1" in prompt
+    assert "upload-private-content-hash" not in prompt
+    assert "격자 배치를 선택함" in prompt
+    assert "No verified motif source is available" not in prompt
+
+
 async def test_gemini_non_retryable_raises(monkeypatch):
     monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
     client, _ = _gemini(_SDKError(400))
@@ -441,6 +476,109 @@ async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplic
     assert diagnostics["plan_contract_version"] == 3
     assert diagnostics["authoring_attempts"] == 2
     assert diagnostics["validated_count"] == 2
+
+
+async def test_author_designs_rejects_mixed_motif_sets_across_initial_plans():
+    examples = load_example_set()
+    mismatched = {
+        "plans": [
+            examples[5].plan.model_dump(mode="json"),
+            examples[20].plan.model_dump(mode="json"),
+        ]
+    }
+    client, sdk = _gemini(*([mismatched] * 4))
+    diagnostics: dict[str, object] = {}
+
+    with pytest.raises(IntentInvalid, match="same motif source set"):
+        await client.author_designs("벌과 원을 활용한 패턴", diagnostics=diagnostics)
+
+    assert len(sdk.models.generate_calls) == 4
+    assert diagnostics["motif_source_set_mismatch"] is True
+    first_prompt = sdk.models.generate_calls[0]["contents"][0].parts[-1].text
+    assert "Every plan must use exactly the same motif source set" in first_prompt
+
+
+async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
+    examples = load_example_set()
+    raw_current = examples[5].plan.model_dump(mode="json")
+    raw_current["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current = DesignPlanV3.model_validate(raw_current)
+
+    proposed = current.model_dump(mode="json")
+    proposed["colors"] = [
+        "#111111",
+        "#222222",
+        "#333333",
+        "#444444",
+        "#555555",
+        "#666666",
+        "#777777",
+        "#888888",
+    ]
+    proposed["motifs"] = [{"source": "catalog", "catalog_ref": "invented_private_id"}]
+    proposed["layers"][0]["size_ratio"] = 0.1
+    proposed["layers"][0]["placement"]["columns"] = 7
+    proposed["layers"].append(examples[1].plan.model_dump(mode="json")["layers"][0])
+
+    client, sdk = _gemini(proposed)
+    diagnostics: dict[str, object] = {}
+    designs = await client.author_designs(
+        "스트라이프를 추가해줘",
+        current_plan=current,
+        catalog_candidates=[
+            {
+                "catalog_ref": "current_motif_1",
+                "motif_id": "circle",
+                "subject": "committed motif 1",
+                "current": True,
+            }
+        ],
+        diagnostics=diagnostics,
+    )
+
+    assert len(designs) == 1
+    evolved = DesignPlanV3.model_validate(designs[0].plan)
+    assert evolved.colors == current.colors
+    assert evolved.ground_color_index == current.ground_color_index
+    assert evolved.motifs == current.motifs
+    assert [layer for layer in evolved.layers if layer.type == "motif"] == list(
+        layer for layer in current.layers if layer.type == "motif"
+    )
+    assert len([layer for layer in evolved.layers if layer.type == "stripe"]) == 1
+    assert diagnostics["authoring_mode"] == "refine"
+    assert set(cast(list[str], diagnostics["preserve_restored_sections"])) == {
+        "palette",
+        "motifs",
+        "layers",
+    }
+    response_schema = sdk.models.generate_calls[0]["config"].response_schema
+    assert '"plans"' not in json.dumps(response_schema)
+
+
+def test_refine_layer_merge_caps_allowed_layers_and_preserves_base_layers():
+    base: list[dict[str, object]] = [
+        {"id": "motif-1", "type": "motif"},
+        {"id": "motif-2", "type": "motif"},
+    ]
+    proposed: list[dict[str, object]] = [
+        *({"id": f"stripe-{index}", "type": "stripe"} for index in range(5)),
+        {"id": "invented-motif", "type": "motif"},
+    ]
+
+    merged = _merge_layer_categories(
+        base,
+        proposed,
+        allow_stripes=True,
+        allow_motifs=False,
+        add_stripes=False,
+    )
+
+    assert [layer["id"] for layer in merged] == [
+        "stripe-0",
+        "stripe-1",
+        "motif-1",
+        "motif-2",
+    ]
 
 
 def test_servable_schema_is_loosened_for_vertex_enforcement():

@@ -104,7 +104,7 @@ async def _selected_finalized_candidate(
     session: AsyncSession,
     log: SeamlessGenerationLog,
 ) -> str | None:
-    exact_link = DesignSessionTurn.payload["response"]["generation_log_id"].astext == str(log.id)
+    exact_link = DesignSessionTurn.payload["run_id"].astext == str(log.id)
     generated_turn = await session.scalar(
         select(DesignSessionTurn)
         .where(

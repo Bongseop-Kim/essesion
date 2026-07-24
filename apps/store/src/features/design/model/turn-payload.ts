@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-const intentSchema = z.record(z.string(), z.unknown());
-
 const paletteSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("auto"), colors: z.array(z.string()).max(0) }),
   z.object({
@@ -45,11 +43,23 @@ const generatePayloadSchema = z
     type: z.literal("generate"),
     response: z
       .object({
+        run_id: z.string().uuid(),
         candidates: z.array(candidateSchema),
-        intents: z.array(intentSchema),
         warnings: z.array(z.string()).optional(),
       })
       .passthrough(),
+  })
+  .passthrough();
+
+const generateErrorPayloadSchema = z
+  .object({
+    type: z.literal("generate_error"),
+    run_id: z.string().uuid(),
+    status: z.literal("error"),
+    error: z.object({
+      stage: z.string().min(1),
+      code: z.string().min(1),
+    }),
   })
   .passthrough();
 
@@ -75,6 +85,7 @@ const finalizePayloadSchema = z
 const designTurnPayloadSchema = z.discriminatedUnion("type", [
   generateRequestPayloadSchema,
   generatePayloadSchema,
+  generateErrorPayloadSchema,
   selectPayloadSchema,
   finalizePayloadSchema,
 ]);

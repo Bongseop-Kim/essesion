@@ -36,10 +36,11 @@ describe("parseDesignTurnPayload", () => {
     expect(parseDesignTurnPayload(payload)).toEqual(payload);
   });
 
-  it("resolved intent가 포함된 generate payload를 파싱한다", () => {
+  it("generate payload를 파싱한다", () => {
     const payload = {
       type: "generate",
       response: {
+        run_id: "550e8400-e29b-41d4-a716-446655440000",
         request_id: "request-1",
         candidates: [
           {
@@ -50,9 +51,19 @@ describe("parseDesignTurnPayload", () => {
             svg: '<svg viewBox="0 0 10 10"></svg>',
           },
         ],
-        intents: [{ motif: "geometric" }],
         warnings: ["diversity shortfall"],
       },
+    };
+
+    expect(parseDesignTurnPayload(payload)).toEqual(payload);
+  });
+
+  it("실패한 generate payload를 파싱한다", () => {
+    const payload = {
+      type: "generate_error",
+      run_id: "550e8400-e29b-41d4-a716-446655440000",
+      status: "error",
+      error: { stage: "authoring", code: "provider_request_failed" },
     };
 
     expect(parseDesignTurnPayload(payload)).toEqual(payload);
@@ -81,7 +92,7 @@ describe("parseDesignTurnPayload", () => {
     expect(parseDesignTurnPayload(payload)).toEqual(payload);
   });
 
-  it("알 수 없는 type과 intents가 없는 불완전한 generate를 무시한다", () => {
+  it("알 수 없는 type과 run_id가 없는 generate를 무시한다", () => {
     expect(parseDesignTurnPayload({ type: "unknown", value: 1 })).toBeNull();
     expect(
       parseDesignTurnPayload({

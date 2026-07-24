@@ -92,7 +92,6 @@ import {
 import {
   type DesignSelection,
   restoreDesignSelection,
-  selectionForCandidate,
 } from "@/features/design/model/selection";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
 import {
@@ -634,7 +633,6 @@ export function DesignPage() {
       const input: GenerateDesignInput = {
         mode: "variation",
         sessionId: activeSessionId,
-        intent: selection.intent,
         seed: randomSeed(),
         candidateCount,
         colorway: selection.colorway,
@@ -680,8 +678,8 @@ export function DesignPage() {
   };
 
   const selectCandidate = async (
+    runId: string,
     candidate: TurnCandidate,
-    intents: Record<string, unknown>[],
     event?: MouseEvent<HTMLButtonElement>,
   ) => {
     // guard 실패는 전부 첫 await 이전(동기)이라 preventDefault로 타일 메뉴 오픈까지 막는다.
@@ -690,25 +688,39 @@ export function DesignPage() {
       return;
     }
     const sessionId = activeSessionId;
-    const next = selectionForCandidate(candidate, intents);
-    if (!next) {
-      event?.preventDefault();
-      snackbar("선택한 후보 정보를 복원하지 못했습니다.");
-      return;
-    }
     // 이미 선택된 후보 재탭 — 저장할 변화가 없다(메뉴 오픈은 그대로 진행).
-    if (selection?.candidateId === next.candidateId) return;
+    if (selection?.candidateId === candidate.id) return;
     const operation = selectionEpoch.begin();
+    const next: DesignSelection = {
+      candidate,
+      candidateId: candidate.id,
+      designIndex: candidate.design_index,
+      intent: null,
+      seed: candidate.seed,
+      colorway: candidate.colorway_id,
+      source: "candidate",
+    };
     setSelectionOverride({ sessionId, selection: next });
     setResultPreview(null);
     try {
       const result = await selectionMutation.mutateAsync({
         sessionId,
+        runId,
         candidate,
-        intents,
       });
-      if (selectionEpoch.isCurrent(operation) && result.turnAppendError) {
-        snackbar("선택은 저장했지만 이력 기록은 남기지 못했습니다.");
+      if (
+        selectionEpoch.isCurrent(operation) &&
+        result.session.current_intent
+      ) {
+        setSelectionOverride({
+          sessionId,
+          selection: {
+            ...next,
+            intent: result.session.current_intent,
+            seed: result.session.seed,
+            colorway: result.session.colorway,
+          },
+        });
       }
     } catch {
       if (!selectionEpoch.isCurrent(operation)) return;
@@ -1055,8 +1067,8 @@ export function DesignPage() {
                 generating={generateMutation.isPending}
                 error={!!activeSessionId && turnsQuery.isError}
                 onRetry={() => void turnsQuery.refetch()}
-                onSelectCandidate={(candidate, intents, event) =>
-                  void selectCandidate(candidate, intents, event)
+                onSelectCandidate={(runId, candidate, event) =>
+                  void selectCandidate(runId, candidate, event)
                 }
                 candidateMenu={compactPreview ? candidateMenu : undefined}
                 renderFinalizeTurn={(payload) => (

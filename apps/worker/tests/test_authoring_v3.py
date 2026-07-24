@@ -14,6 +14,8 @@ from worker.authoring.schema import (
     DesignPlanV3,
     GenerateMotifSource,
     MotifLayerPlan,
+    motif_source_signature,
+    snapshot_resolved_plan,
     structural_fingerprint,
 )
 from worker.engine.constraints import PaletteConstraint
@@ -328,3 +330,60 @@ def test_structural_fingerprint_ignores_palette_but_not_geometry():
     assert structural_fingerprint(original) != structural_fingerprint(
         DesignPlanV3.model_validate(reshaped)
     )
+
+
+def test_structural_fingerprint_includes_motif_identity():
+    source = load_example_set()[5].plan.model_dump(mode="json")
+    source["motifs"] = [{"source": "catalog", "catalog_ref": "motif-a"}]
+    changed = json.loads(json.dumps(source))
+    changed["motifs"] = [{"source": "catalog", "catalog_ref": "motif-b"}]
+
+    first = DesignPlanV3.model_validate(source)
+    second = DesignPlanV3.model_validate(changed)
+    assert motif_source_signature(first) != motif_source_signature(second)
+    assert structural_fingerprint(first) != structural_fingerprint(second)
+
+
+def test_snapshot_resolved_plan_freezes_concrete_motif_identity():
+    plan = load_example_set()[5].plan
+    compiled = compile_design_plan_v3(
+        plan,
+        plan_index=0,
+        motif_ids=["circle"],
+    )
+
+    snapshot = snapshot_resolved_plan(plan, compiled.intent)
+
+    assert snapshot.motifs[0].source == "catalog"
+    assert snapshot.motifs[0].catalog_ref == "circle"
+    assert snapshot.layers == plan.layers
+    recompiled = compile_design_plan_v3(
+        snapshot,
+        plan_index=0,
+        catalog_candidates=[
+            {
+                "catalog_ref": "circle",
+                "motif_id": "circle",
+                "current": True,
+            }
+        ],
+    )
+    assert _motif_ids(recompiled.intent) == ["circle"]
+
+
+def test_snapshot_resolved_plan_prunes_soft_dropped_optional_motif():
+    plan = load_example_set()[14].plan
+    compiled = compile_design_plan_v3(
+        plan,
+        plan_index=0,
+        motif_ids=["circle"],
+    )
+    resolved = json.loads(json.dumps(compiled.intent))
+    resolved["layers"] = [
+        layer for layer in resolved["layers"] if layer["type"] != "motif"
+    ]
+
+    snapshot = snapshot_resolved_plan(plan, resolved)
+
+    assert snapshot.motifs == []
+    assert [layer.type for layer in snapshot.layers] == ["stripe"]

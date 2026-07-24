@@ -11,11 +11,13 @@ import { readPendingDesign, type StorageLike } from "./pending";
 const api = vi.hoisted(() => ({
   createSession: vi.fn(),
   generate: vi.fn(),
+  reroll: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client", () => ({
   createDesignSession: api.createSession,
   generateDesign: api.generate,
+  rerollDesign: api.reroll,
 }));
 
 vi.mock("@essesion/api-client/query", () => ({
@@ -58,7 +60,7 @@ function queryWrapper(queryClient: QueryClient) {
   );
 }
 
-const generated = { designs: [], intents: [] } as unknown as DesignGenerateOut;
+const generated = {} as DesignGenerateOut;
 
 describe("useGenerateDesign pending side effects", () => {
   beforeEach(() => {
@@ -125,7 +127,7 @@ describe("useGenerateDesign pending side effects", () => {
   });
 
   it("고정 팔레트 variation은 이전 colorway를 함께 보내지 않는다", async () => {
-    api.generate.mockResolvedValue({ data: generated });
+    api.reroll.mockResolvedValue({ data: generated });
     const queryClient = new QueryClient();
     const { result } = renderHook(
       () => useGenerateDesign({ onSessionReady: () => true }),
@@ -136,16 +138,16 @@ describe("useGenerateDesign pending side effects", () => {
       await result.current.mutateAsync({
         mode: "variation",
         sessionId: "session-a",
-        intent: { canvas: { tile_mm: 24 } },
         seed: 42,
         colorway: "navy",
         palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
       });
     });
 
-    expect(api.generate).toHaveBeenCalledWith({
+    expect(api.reroll).toHaveBeenCalledWith({
+      path: { session_id: "session-a" },
       body: expect.objectContaining({
-        session_id: "session-a",
+        seed: 42,
         colorway: undefined,
         palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
       }),

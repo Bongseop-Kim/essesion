@@ -6,6 +6,7 @@ motif color-slot names stay behind the deterministic compiler boundary.
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Annotated, Literal
 
@@ -275,8 +276,39 @@ class DesignPlansV3(_StrictModel):
     plans: list[DesignPlanV3] = Field(min_length=2, max_length=4)
 
 
+def _canonical_motif_source(source: PlanMotifSource) -> dict[str, object]:
+    """Return the semantic identity of a provider-facing motif source.
+
+    Palette and placement are intentionally absent.  The result is used both by the
+    single-source-set authoring guard and by structural de-duplication, so two plans
+    cannot look structurally distinct merely because the model silently switched the
+    subject being repeated.
+    """
+
+    raw = source.model_dump(mode="json", exclude_none=True)
+    for key, value in tuple(raw.items()):
+        if isinstance(value, str):
+            raw[key] = " ".join(value.split()).casefold()
+    return raw
+
+
+def motif_source_signature(plan: DesignPlanV3) -> tuple[str, ...]:
+    """Canonical multiset signature for M4's one-authoring-call motif invariant."""
+
+    identities = [
+        json.dumps(
+            _canonical_motif_source(source),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        for source in plan.motifs
+    ]
+    return tuple(sorted(identities))
+
+
 def structural_fingerprint(plan: DesignPlanV3) -> str:
-    """Hash geometry/topology while deliberately ignoring palette-only variation."""
+    """Hash motif identity plus geometry/topology, ignoring palette-only variation."""
 
     layers = plan.model_dump(mode="json")["layers"]
     for layer in layers:
@@ -285,6 +317,85 @@ def structural_fingerprint(plan: DesignPlanV3) -> str:
                 band.pop("color_index", None)
         else:
             layer.pop("color_indices", None)
-    payload = {"motif_count": len(plan.motifs), "layers": layers}
+    payload = {
+        "motifs": [_canonical_motif_source(source) for source in plan.motifs],
+        "layers": layers,
+    }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return stable_digest(canonical, 16)
+
+
+def snapshot_resolved_plan(
+    plan: DesignPlanV3,
+    resolved_intent: dict[str, object],
+) -> DesignPlanV3:
+    """Freeze surviving authored motif sources to the concrete IDs used by the engine.
+
+    The stored value remains a valid ``DesignPlanV3`` by using ``catalog_ref`` as the
+    internal carrier.  Before it reaches Gemini, the adapter replaces these values
+    with request-local ``current_motif_N`` aliases, so private/content-hash IDs never
+    enter provider context.  Optional motif layers that the resolver soft-dropped are
+    pruned together with now-unused motif sources.
+    """
+
+    raw = copy.deepcopy(plan.model_dump(mode="json"))
+    plan_motif_layers = [layer for layer in plan.layers if layer.type == "motif"]
+    raw_layers = resolved_intent.get("layers")
+    if not isinstance(raw_layers, list):
+        raise ValueError("resolved intent must contain layers")
+
+    resolved_by_ordinal: dict[int, str] = {}
+    for intent_layer in raw_layers:
+        if not isinstance(intent_layer, dict) or intent_layer.get("type") != "motif":
+            continue
+        layer_id = intent_layer.get("id")
+        if not isinstance(layer_id, str) or not layer_id.startswith("motif_"):
+            raise ValueError("resolved motif layer has an unexpected ID")
+        suffix = layer_id.removeprefix("motif_")
+        if (
+            not suffix.isdigit()
+            or f"motif_{int(suffix)}" != layer_id
+            or int(suffix) >= len(plan_motif_layers)
+        ):
+            raise ValueError("resolved motif layer does not match the authored plan")
+        ordinal = int(suffix)
+        if ordinal in resolved_by_ordinal:
+            raise ValueError("resolved intent contains a duplicate motif layer")
+        params = intent_layer.get("params")
+        motif_id = params.get("motif_id") if isinstance(params, dict) else None
+        if not isinstance(motif_id, str) or not motif_id:
+            raise ValueError("resolved motif layer is missing a concrete motif_id")
+        resolved_by_ordinal[ordinal] = motif_id
+
+    kept_layers: list[dict[str, object]] = []
+    ids_by_index: dict[int, set[str]] = {}
+    motif_ordinal = 0
+    for plan_layer, raw_layer in zip(plan.layers, raw["layers"], strict=True):
+        if plan_layer.type != "motif":
+            kept_layers.append(raw_layer)
+            continue
+        motif_id = resolved_by_ordinal.get(motif_ordinal)
+        motif_ordinal += 1
+        if motif_id is None:
+            continue
+        kept_layers.append(raw_layer)
+        ids_by_index.setdefault(plan_layer.motif_index, set()).add(motif_id)
+
+    used_indexes = sorted(ids_by_index)
+    dense_index = {old: new for new, old in enumerate(used_indexes)}
+    for layer in kept_layers:
+        if layer["type"] == "motif":
+            old_index = layer.get("motif_index")
+            if not isinstance(old_index, int):
+                raise ValueError("authored motif layer is missing motif_index")
+            layer["motif_index"] = dense_index[old_index]
+
+    frozen: list[dict[str, object]] = []
+    for index in used_indexes:
+        motif_ids = ids_by_index[index]
+        if len(motif_ids) != 1:
+            raise ValueError("one authored motif resolved to multiple concrete motif IDs")
+        frozen.append({"source": "catalog", "catalog_ref": next(iter(motif_ids))})
+    raw["layers"] = kept_layers
+    raw["motifs"] = frozen
+    return DesignPlanV3.model_validate(raw)
