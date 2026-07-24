@@ -1581,10 +1581,7 @@ async def test_unselected_generation_does_not_become_conversation_context(
     )
 
     assert first.status_code == second.status_code == 200
-    assert all(
-        "conversation_context" not in payload
-        for payload in worker.generate_payloads
-    )
+    assert all("conversation_context" not in payload for payload in worker.generate_payloads)
 
 
 async def test_generate_rejects_client_supplied_intent(client, app, db_session, settings):
@@ -1951,9 +1948,7 @@ class BlockingWorker(FakeWorker):
         return response
 
 
-async def test_concurrent_generation_starts_only_one_run(
-    client, app, db_session, settings
-):
+async def test_concurrent_generation_starts_only_one_run(client, app, db_session, settings):
     worker = BlockingWorker()
     app.state.worker = worker
     user = await make_user(db_session)
@@ -1989,9 +1984,7 @@ async def test_concurrent_generation_starts_only_one_run(
     assert first.status_code == 200
 
 
-async def test_stale_active_generation_is_refunded_and_recovered(
-    client, app, db_session, settings
-):
+async def test_stale_active_generation_is_refunded_and_recovered(client, app, db_session, settings):
     worker = FakeWorker()
     app.state.worker = worker
     user = await make_user(db_session)
@@ -2039,9 +2032,7 @@ async def test_stale_active_generation_is_refunded_and_recovered(
         "paid": 0,
         "bonus": 25,
     }
-    turns = (
-        await client.get(f"/design/sessions/{session_id}/turns", headers=headers)
-    ).json()
+    turns = (await client.get(f"/design/sessions/{session_id}/turns", headers=headers)).json()
     assert [turn["payload"]["type"] for turn in turns] == [
         "generate_request",
         "generate_error",
@@ -2557,9 +2548,7 @@ async def test_design_input_size_bounds_reject_before_worker_or_persistence(
     non_finite_responses = [
         await client.post(
             "/design/generate",
-            content=(
-                f'{{"session_id":"{session_id}","prompt":"x","seed":{literal}}}'
-            ),
+            content=(f'{{"session_id":"{session_id}","prompt":"x","seed":{literal}}}'),
             headers={**headers, "Content-Type": "application/json"},
         )
         for literal in ("NaN", "Infinity", "-Infinity")

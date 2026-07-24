@@ -191,9 +191,7 @@ def test_generate_source_compiles_best_effort_only_without_catalog_grounding():
         compile_design_plan_v3(
             _generate_plan(),
             plan_index=0,
-            catalog_candidates=[
-                {"catalog_ref": "catalog_1", "motif_id": "recraft-grounded"}
-            ],
+            catalog_candidates=[{"catalog_ref": "catalog_1", "motif_id": "recraft-grounded"}],
         )
     assert caught.value.grounding is True
 
@@ -379,9 +377,7 @@ def test_snapshot_resolved_plan_prunes_soft_dropped_optional_motif():
         motif_ids=["circle"],
     )
     resolved = json.loads(json.dumps(compiled.intent))
-    resolved["layers"] = [
-        layer for layer in resolved["layers"] if layer["type"] != "motif"
-    ]
+    resolved["layers"] = [layer for layer in resolved["layers"] if layer["type"] != "motif"]
 
     snapshot = snapshot_resolved_plan(plan, resolved)
 

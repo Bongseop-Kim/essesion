@@ -55,8 +55,8 @@ catalogs:
       specifier: ^7.81.0
       version: 7.81.0
     react-router:
-      specifier: ^8.1.0
-      version: 8.1.0
+      specifier: ^8.3.0
+      version: 8.3.0
     recharts:
       specifier: ^3.9.2
       version: 3.9.2
@@ -87,6 +87,7 @@ catalogs:
 
 overrides:
   js-yaml@<4.3.0: 4.3.0
+  postcss@<8.5.18: 8.5.18
   sharp@<0.35.0: 0.35.0
 
 importers:
@@ -125,7 +126,7 @@ importers:
         version: 19.2.7(react@19.2.7)
       react-router:
         specifier: 'catalog:'
-        version: 8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 8.3.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       recharts:
         specifier: 'catalog:'
         version: 3.9.2(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react-is@17.0.2)(react@19.2.7)(redux@5.0.1)
@@ -204,7 +205,7 @@ importers:
         version: 7.81.0(react@19.2.7)
       react-router:
         specifier: 'catalog:'
-        version: 8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 8.3.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -1767,8 +1768,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  postcss@8.5.16:
-    resolution: {integrity: sha512-vuwillviilfKZsg0VGj5R/YwwcHx4SLsIOI/7K6mQkWx+l5cUHTjj5g0AasTBcyXsbfTgrwsUNmVUb5xVwyPwg==}
+  postcss@8.5.18:
+    resolution: {integrity: sha512-xdB1oSLHbz1vRWgCDalrCqEFTWzFlhqFC5tIHLMOSUIjhm3XXQ1qrFy8S/ESr1JYRRXqM3c1QFiMZUJdUTqyMQ==}
     engines: {node: ^10 || ^12 || >=14}
 
   powershell-utils@0.1.0:
@@ -1812,8 +1813,8 @@ packages:
       redux:
         optional: true
 
-  react-router@8.1.0:
-    resolution: {integrity: sha512-Mdfi61uObuvWNN9OhChOC0HV6YWOIfKRzEWOvCHRSuQg8IM+Nv10edaM/2HE8ZixBpUTdQbruyWqC3sDkkh9vw==}
+  react-router@8.3.0:
+    resolution: {integrity: sha512-qyPMvW83jGIct3yiieisxdk9M745anqhpIMKN5m1t6yBMfgVPpt77aHOqs5fUlEJRMCGffg9BaQLH9oPVOL7xQ==}
     engines: {node: '>=22.22.0'}
     peerDependencies:
       react: '>=19.2.7'
@@ -3331,7 +3332,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  postcss@8.5.16:
+  postcss@8.5.18:
     dependencies:
       nanoid: 3.3.15
       picocolors: 1.1.1
@@ -3372,7 +3373,7 @@ snapshots:
       '@types/react': 19.2.17
       redux: 5.0.1
 
-  react-router@8.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-router@8.3.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       cookie-es: 3.1.1
       react: 19.2.7
@@ -3580,7 +3581,7 @@ snapshots:
     dependencies:
       lightningcss: 1.32.0
       picomatch: 4.0.5
-      postcss: 8.5.16
+      postcss: 8.5.18
       rolldown: 1.1.4
       tinyglobby: 0.2.17
     optionalDependencies:

@@ -161,9 +161,7 @@ async def test_login_unknown_email(client):
     assert res.status_code == 401
 
 
-async def test_login_rejects_oversized_credentials_before_password_verification(
-    client, monkeypatch
-):
+async def test_login_rejects_invalid_credentials_before_password_verification(client, monkeypatch):
     login_called = False
 
     async def unexpected_login(*_args, **_kwargs):
@@ -174,6 +172,7 @@ async def test_login_rejects_oversized_credentials_before_password_verification(
     monkeypatch.setattr(auth_service, "login_with_password", unexpected_login)
     invalid_bodies = (
         {"email": f"{'e' * 311}@test.local", "password": "pw"},
+        {"email": "nul\x00@test.local", "password": "pw"},
         {"email": "bounded@test.local", "password": "p" * 1025},
     )
 

@@ -65,9 +65,7 @@ def _layer_slot_refs(layer) -> list[str]:
         return [b.color for b in layer.params.bands]
     if layer.type == "motif":
         if layer.params.colors:
-            return [
-                color for color in layer.params.colors.values() if not is_hex_color(color)
-            ]
+            return [color for color in layer.params.colors.values() if not is_hex_color(color)]
         if layer.params.color is not None:
             return [] if is_hex_color(layer.params.color) else [layer.params.color]
     return []

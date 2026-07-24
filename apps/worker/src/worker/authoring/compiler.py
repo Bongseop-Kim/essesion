@@ -349,9 +349,7 @@ def compile_design_plan_v3(
             if structure.type == "stripe":
                 guaranteed_visible.update(band.color_index for band in structure.bands)
             elif structure.color_indices is None:
-                raise PlanCompileError(
-                    "fixed palette motif layers must declare color_indices"
-                )
+                raise PlanCompileError("fixed palette motif layers must declare color_indices")
             else:
                 # Every motif has at least one paint slot. Additional indexes are used only
                 # when the resolved motif exposes more slots, so they cannot satisfy a fixed

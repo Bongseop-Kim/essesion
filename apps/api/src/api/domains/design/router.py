@@ -950,9 +950,7 @@ async def _design_turn_outs(
         logs_by_id = {
             log.id: log
             for log in await session.scalars(
-                select(SeamlessGenerationLog).where(
-                    SeamlessGenerationLog.id.in_(run_ids)
-                )
+                select(SeamlessGenerationLog).where(SeamlessGenerationLog.id.in_(run_ids))
             )
         }
     if turns:
@@ -1235,9 +1233,7 @@ async def select_design_candidate(
 ) -> DesignSessionOut:
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     design_session = await session.scalar(
-        select(DesignSession)
-        .where(DesignSession.id == session_id)
-        .with_for_update()
+        select(DesignSession).where(DesignSession.id == session_id).with_for_update()
     )
     ensure_owner(design_session, user)
     assert design_session is not None
@@ -1439,9 +1435,7 @@ async def _build_conversation_context(
             {
                 "user_prompt": prompt,
                 "assistant_summary": selected_summary["short_desc"],
-                "attachments": (
-                    attachment_refs if isinstance(attachment_refs, list) else []
-                ),
+                "attachments": (attachment_refs if isinstance(attachment_refs, list) else []),
             }
         )
     return {
@@ -1467,9 +1461,7 @@ def _short_design_description(plan: dict[str, Any] | None, design_index: int) ->
                 descriptions.append(f"스트라이프({direction})")
             elif layer.get("type") == "motif":
                 placement = layer.get("placement")
-                placement_type = (
-                    placement.get("type") if isinstance(placement, dict) else "motif"
-                )
+                placement_type = placement.get("type") if isinstance(placement, dict) else "motif"
                 descriptions.append(f"모티프({placement_type})")
     structure = ", ".join(descriptions) if descriptions else "단색 구조"
     return f"{color_count}색 · {structure}"
@@ -1504,11 +1496,7 @@ async def _recover_stale_active_generation(
 ) -> None:
     run_id = design_session.active_generation_id
     started_at = design_session.active_generation_started_at
-    if (
-        run_id is None
-        or started_at is None
-        or started_at >= now - STALE_GENERATION_JOB_AFTER
-    ):
+    if run_id is None or started_at is None or started_at >= now - STALE_GENERATION_JOB_AFTER:
         return
     await ledger.refund_failed_generation(
         session,
@@ -1518,9 +1506,7 @@ async def _recover_stale_active_generation(
         commit=False,
     )
     has_terminal_turn = await session.scalar(
-        select(
-            func.count()
-        ).where(
+        select(func.count()).where(
             DesignSessionTurn.session_id == design_session.id,
             DesignSessionTurn.role == "assistant",
             DesignSessionTurn.payload["run_id"].astext == str(run_id),
@@ -1703,8 +1689,7 @@ async def _finish_generation_success(
             )
         }
         if set(locked_images) != set(photo_ids) or any(
-            image.entity_type != "design_reference_upload"
-            or image.uploaded_by != user_id
+            image.entity_type != "design_reference_upload" or image.uploaded_by != user_id
             for image in locked_images.values()
         ):
             raise ConflictError(

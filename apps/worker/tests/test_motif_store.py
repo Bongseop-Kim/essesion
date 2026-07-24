@@ -29,12 +29,8 @@ def _motif(mid: str, slots: tuple[str, ...] = ("s0",)) -> NormalizedMotif:
 
 async def test_upsert_is_idempotent(db_session):
     m = _motif("recraft-aaaaaaaaaaaa")
-    first = await store.upsert_motif(
-        db_session, m, facets={"subject": "dot", "scope": "whole"}
-    )
-    second = await store.upsert_motif(
-        db_session, m, facets={"subject": "dot", "scope": "whole"}
-    )
+    first = await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
+    second = await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
     await db_session.commit()
     assert first == store.MotifUpsertResult(id=m.id, inserted=True)
     assert second == store.MotifUpsertResult(id=m.id, inserted=False)
@@ -116,8 +112,7 @@ async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempot
     public = NormalizedMotif(
         id="recraft-labelbackfill",
         symbol=(
-            '<symbol id="motif-recraft-labelbackfill">'
-            '<path fill="s0"/><path fill="s1"/></symbol>'
+            '<symbol id="motif-recraft-labelbackfill"><path fill="s0"/><path fill="s1"/></symbol>'
         ),
         color_slots=("s0", "s1"),
         slot_colors=("#111111", "#222222"),
@@ -125,8 +120,7 @@ async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempot
     private = NormalizedMotif(
         id="upload-labelbackfill0",
         symbol=(
-            '<symbol id="motif-upload-labelbackfill0">'
-            '<path fill="s0"/><path fill="s1"/></symbol>'
+            '<symbol id="motif-upload-labelbackfill0"><path fill="s0"/><path fill="s1"/></symbol>'
         ),
         color_slots=("s0", "s1"),
         slot_colors=("#333333", "#444444"),
@@ -143,9 +137,7 @@ async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempot
     rows = await store.missing_slot_label_rows(db_session)
     assert [row.id for row in rows] == [public.id]
     assert rows[0].slot_colors == ("#111111", "#222222")
-    assert await store.update_slot_labels_if_missing(
-        db_session, public.id, ("primary", "detail")
-    )
+    assert await store.update_slot_labels_if_missing(db_session, public.id, ("primary", "detail"))
     assert not await store.update_slot_labels_if_missing(
         db_session, public.id, ("detail", "primary")
     )

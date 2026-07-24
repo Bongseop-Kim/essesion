@@ -482,9 +482,7 @@ def upgrade() -> None:
             "(active_generation_id IS NULL) = (active_generation_started_at IS NULL)",
             name=op.f("ck_design_sessions_active_generation_pair"),
         ),
-        sa.CheckConstraint(
-            "context_version >= 0", name=op.f("ck_design_sessions_context_version")
-        ),
+        sa.CheckConstraint("context_version >= 0", name=op.f("ck_design_sessions_context_version")),
         sa.CheckConstraint("recraft_used >= 0", name=op.f("ck_design_sessions_recraft_used")),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name=op.f("fk_design_sessions_user_id_users")

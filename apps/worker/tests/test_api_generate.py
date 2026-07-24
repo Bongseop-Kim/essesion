@@ -468,9 +468,7 @@ def test_preview_render_parallelism_is_bounded(monkeypatch):
 
 def test_prompt_only_without_gemini_returns_503(client):
     # prompt 경로는 구현됐지만 Gemini 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "prompt": "navy paisley tie"}
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "prompt": "navy paisley tie"})
     assert resp.status_code == 503
 
 
@@ -707,9 +705,7 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
     assert 1 <= len(payload["candidates"]) <= 4
     assert {candidate["design_index"] for candidate in payload["candidates"]} == {0}
     assert len(payload["plans"]) == 1
-    assert payload["plans"][0]["motifs"] == [
-        {"source": "catalog", "catalog_ref": "circle"}
-    ]
+    assert payload["plans"][0]["motifs"] == [{"source": "catalog", "catalog_ref": "circle"}]
     assert "current_motif_1" not in response.text
 
 
@@ -816,9 +812,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
     app.state.adapters = Adapters(gemini=ExactMotifGemini())
     client = TestClient(app)
 
-    accepted = client.post(
-        "/generate", json={"run_id": _RUN_ID, "motif_ids": ["circle", "bee"]}
-    )
+    accepted = client.post("/generate", json={"run_id": _RUN_ID, "motif_ids": ["circle", "bee"]})
     assert accepted.status_code == 200, accepted.text
 
     rejected = client.post(
@@ -829,7 +823,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
                 "upload-111111111111",
                 "upload-222222222222",
                 "upload-333333333333",
-            ]
+            ],
         },
     )
     assert rejected.status_code == 422

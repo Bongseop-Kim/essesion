@@ -425,10 +425,7 @@ def _palette_slot_avoiding_ground(
 ) -> str:
     """Return the next distinct palette slot, or preserve ``chosen`` for a degenerate palette."""
 
-    if (
-        ground_hex is None
-        or hex_by_id.get(chosen, "").casefold() != ground_hex.casefold()
-    ):
+    if ground_hex is None or hex_by_id.get(chosen, "").casefold() != ground_hex.casefold():
         return chosen
     if chosen in ordered_slot_ids:
         start = ordered_slot_ids.index(chosen) + 1
@@ -483,9 +480,7 @@ def _bind_resolved_motif_colors(
             None,
         )
         ground_hex = hex_by_id.get(background_slot) if background_slot is not None else None
-        color_ids = (
-            [slot_id for slot_id in slot_ids if slot_id != background_slot] or slot_ids
-        )
+        color_ids = [slot_id for slot_id in slot_ids if slot_id != background_slot] or slot_ids
         if not color_ids:
             continue
         for layer in intent.get("layers", []):
@@ -518,9 +513,7 @@ def _bind_resolved_motif_colors(
                 and len(motif.slot_colors) == len(motif.color_slots)
             ):
                 params.pop("color", None)
-                params["colors"] = dict(
-                    zip(motif.color_slots, motif.slot_colors, strict=True)
-                )
+                params["colors"] = dict(zip(motif.color_slots, motif.slot_colors, strict=True))
                 continue
 
             ordered_slots = list(motif.color_slots)
@@ -547,9 +540,7 @@ def _bind_resolved_motif_colors(
                 for index, slot in enumerate(ordered_slots)
             }
             params.pop("color", None)
-            params["colors"] = {
-                slot: assignments[slot] for slot in motif.color_slots
-            }
+            params["colors"] = {slot: assignments[slot] for slot in motif.color_slots}
 
 
 @dataclass(frozen=True)
@@ -777,9 +768,7 @@ async def _generate_from_prompt(
         *refine_exact_candidates,
         *public_catalog_candidates,
     ]
-    request.state.generation_diagnostics["catalog_candidate_count"] = len(
-        public_catalog_candidates
-    )
+    request.state.generation_diagnostics["catalog_candidate_count"] = len(public_catalog_candidates)
     retrieval_started = time.perf_counter()
     available_motif_count = max(
         1 if body.prompt else 0,
@@ -835,9 +824,7 @@ async def _generate_from_prompt(
             examples=prompt_examples,
             diagnostics=request.state.generation_diagnostics,
             current_plan=refine_context.plan if refine_context is not None else None,
-            conversation_history=(
-                refine_context.history if refine_context is not None else None
-            ),
+            conversation_history=(refine_context.history if refine_context is not None else None),
         )
     except SemanticMismatch as exc:
         request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
@@ -862,11 +849,7 @@ async def _generate_from_prompt(
     resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
     resolution_started = time.perf_counter()
     generation_budget = MotifGenerationBudget(settings.motif_generate_per_request_limit)
-    provenance = (
-        body.motif_provenance.model_dump()
-        if body.motif_provenance is not None
-        else None
-    )
+    provenance = body.motif_provenance.model_dump() if body.motif_provenance is not None else None
     try:
         for design in designs:
             resolution_trace.extend(design.motif_resolutions)
@@ -1003,9 +986,7 @@ async def _generate_from_prompt(
         intent_log=intent_log,
         registry_version=registry_version,
         plans=[plan.model_dump(mode="json") for plan in resolved_plans],
-        structural_fingerprints=[
-            structural_fingerprint(plan) for plan in resolved_plans
-        ],
+        structural_fingerprints=[structural_fingerprint(plan) for plan in resolved_plans],
     )
 
 
@@ -1078,8 +1059,7 @@ async def generate(
         registry_version=registry_version,
         intent=intent_log,
         candidates=[
-            {**candidate.output.model_dump(), "intent": candidate.intent}
-            for candidate in rendered
+            {**candidate.output.model_dump(), "intent": candidate.intent} for candidate in rendered
         ],
         warnings=warnings,
         generate_ms=generate_ms,
@@ -1308,13 +1288,9 @@ async def motif_generate(
             seed=seed,
             gemini_client=adapters.gemini,
             provenance=(
-                body.motif_provenance.model_dump()
-                if body.motif_provenance is not None
-                else None
+                body.motif_provenance.model_dump() if body.motif_provenance is not None else None
             ),
-            generation_budget=MotifGenerationBudget(
-                settings.motif_generate_per_request_limit
-            ),
+            generation_budget=MotifGenerationBudget(settings.motif_generate_per_request_limit),
         )
     except AdapterNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
