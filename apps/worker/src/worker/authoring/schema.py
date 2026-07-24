@@ -62,6 +62,10 @@ class ReferenceMotifSource(_StrictModel):
         return clean or None
 
 
+# Discriminated so a rejected plan yields a clean per-variant error (e.g. "poisson scatter does
+# not accept order or step") the authoring retry loop can act on — a plain union buries the real
+# cause under every sibling variant's errors. The provider schema strips oneOf/discriminator
+# separately (Vertex can't serve them); see _servable_json_schema in adapters/gemini.py.
 PlanMotifSource = Annotated[
     InputMotifSource | CatalogMotifSource | ReferenceMotifSource,
     Field(discriminator="source"),
@@ -95,57 +99,75 @@ class LatticePlacementPlan(_StrictModel):
     fixed_rotation_deg: float = Field(default=0.0, ge=-180.0, le=180.0, allow_inf_nan=False)
 
 
-class ScatterPlacementPlan(_StrictModel):
+# Scatter/path split by mode/kind so each variant's required fields are STRUCTURAL — enforced by
+# the JSON schema's `required` (and honored by Vertex constrained decoding), not by a post-parse
+# model_validator the provider schema cannot express. The authoring model was reliably omitting
+# count/order/wavelength on the combined all-optional shapes; disjoint variants make that
+# impossible. The remaining numeric relation (sateen step<order) is the only leftover validator.
+class PoissonScatterPlan(_StrictModel):
     type: Literal["scatter"]
-    mode: Literal["poisson", "sateen"]
-    count: int | None = Field(default=None, ge=1, le=256)
-    min_distance_ratio: float | None = Field(default=None, gt=0.0, le=0.5, allow_inf_nan=False)
-    order: int | None = Field(default=None, ge=2, le=32)
-    step: int | None = Field(default=None, ge=1, le=31)
+    mode: Literal["poisson"]
+    count: int = Field(ge=1, le=256)
+    min_distance_ratio: float = Field(gt=0.0, le=0.5, allow_inf_nan=False)
+    fixed_rotation_deg: float = Field(default=0.0, ge=-180.0, le=180.0, allow_inf_nan=False)
+
+
+class SateenScatterPlan(_StrictModel):
+    type: Literal["scatter"]
+    mode: Literal["sateen"]
+    order: int = Field(ge=2, le=32)
+    step: int = Field(ge=1, le=31)
     fixed_rotation_deg: float = Field(default=0.0, ge=-180.0, le=180.0, allow_inf_nan=False)
 
     @model_validator(mode="after")
-    def _mode_fields_match(self) -> ScatterPlacementPlan:
-        if self.mode == "poisson":
-            if self.count is None or self.min_distance_ratio is None:
-                raise ValueError("poisson scatter requires count and min_distance_ratio")
-            if self.order is not None or self.step is not None:
-                raise ValueError("poisson scatter does not accept order or step")
-        else:
-            if self.order is None or self.step is None:
-                raise ValueError("sateen scatter requires order and step")
-            if self.step >= self.order:
-                raise ValueError("sateen step must be smaller than order")
-            if self.count is not None or self.min_distance_ratio is not None:
-                raise ValueError("sateen scatter does not accept count or min_distance_ratio")
+    def _step_below_order(self) -> SateenScatterPlan:
+        if self.step >= self.order:
+            raise ValueError("sateen step must be smaller than order")
         return self
 
 
-class PathPlacementPlan(_StrictModel):
+ScatterPlacementPlan = Annotated[
+    PoissonScatterPlan | SateenScatterPlan,
+    Field(discriminator="mode"),
+]
+
+
+class StraightPathPlan(_StrictModel):
     type: Literal["path"]
-    kind: Literal["straight", "wave"]
+    kind: Literal["straight"]
     direction: PathDirection
     spacing_ratio: float = Field(gt=0.0, le=1.0, allow_inf_nan=False)
     phase_ratio: float = Field(default=0.0, ge=0.0, lt=1.0, allow_inf_nan=False)
-    wavelength_ratio: float | None = Field(default=None, gt=0.0, le=2.0, allow_inf_nan=False)
-    amplitude_ratio: float | None = Field(default=None, ge=0.0, le=0.5, allow_inf_nan=False)
     host_stripe_index: int | None = Field(default=None, ge=0, le=3)
     host_band_index: int | None = Field(default=None, ge=0, le=3)
     rotation: Literal["follow_path", "fixed"] = "follow_path"
     fixed_rotation_deg: float = Field(default=0.0, ge=-180.0, le=180.0, allow_inf_nan=False)
 
     @model_validator(mode="after")
-    def _path_fields_match(self) -> PathPlacementPlan:
-        if self.kind == "wave":
-            if self.wavelength_ratio is None or self.amplitude_ratio is None:
-                raise ValueError("wave path requires wavelength_ratio and amplitude_ratio")
-            if self.host_stripe_index is not None:
-                raise ValueError("hosted stripe paths must be straight")
-        elif self.wavelength_ratio is not None or self.amplitude_ratio is not None:
-            raise ValueError("straight path does not accept wave ratios")
+    def _host_band_requires_stripe(self) -> StraightPathPlan:
         if self.host_band_index is not None and self.host_stripe_index is None:
             raise ValueError("host_band_index requires host_stripe_index")
         return self
+
+
+class WavePathPlan(_StrictModel):
+    # Wave paths carry their required ratios and have no host fields — only straight paths may be
+    # stripe-hosted, so "hosted paths must be straight" is structural rather than a validator.
+    type: Literal["path"]
+    kind: Literal["wave"]
+    direction: PathDirection
+    spacing_ratio: float = Field(gt=0.0, le=1.0, allow_inf_nan=False)
+    phase_ratio: float = Field(default=0.0, ge=0.0, lt=1.0, allow_inf_nan=False)
+    wavelength_ratio: float = Field(gt=0.0, le=2.0, allow_inf_nan=False)
+    amplitude_ratio: float = Field(ge=0.0, le=0.5, allow_inf_nan=False)
+    rotation: Literal["follow_path", "fixed"] = "follow_path"
+    fixed_rotation_deg: float = Field(default=0.0, ge=-180.0, le=180.0, allow_inf_nan=False)
+
+
+PathPlacementPlan = Annotated[
+    StraightPathPlan | WavePathPlan,
+    Field(discriminator="kind"),
+]
 
 
 class PointTemplatePlacementPlan(_StrictModel):
@@ -223,7 +245,8 @@ class DesignPlanV3(_StrictModel):
         stripes = [layer for layer in self.layers if layer.type == "stripe"]
         for layer in motif_layers:
             placement = layer.placement
-            if placement.type != "path" or placement.host_stripe_index is None:
+            # Only StraightPathPlan can be stripe-hosted (wave/lattice/scatter/point never are).
+            if not isinstance(placement, StraightPathPlan) or placement.host_stripe_index is None:
                 continue
             if placement.host_stripe_index >= len(stripes):
                 raise ValueError("host_stripe_index is outside stripe layers")

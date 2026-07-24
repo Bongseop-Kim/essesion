@@ -14,7 +14,7 @@ from worker.authoring.schema import (
     structural_fingerprint,
 )
 from worker.engine.constraints import PaletteConstraint
-from worker.engine.units import snap_angle
+from worker.engine.units import snap_angle, snap_spacing
 
 DEFAULT_TILE_MM = 48.0
 DEFAULT_DPI = 300
@@ -194,8 +194,6 @@ def _compile_placement(
     if placement.type == "scatter":
         scatter: dict[str, object] = {"mode": placement.mode}
         if placement.mode == "poisson":
-            assert placement.min_distance_ratio is not None
-            assert placement.count is not None
             scatter.update(
                 {
                     "min_dist_mm": round(tile_mm * placement.min_distance_ratio, 6),
@@ -203,8 +201,6 @@ def _compile_placement(
                 }
             )
         else:
-            assert placement.order is not None
-            assert placement.step is not None
             scatter.update({"sateen_n": placement.order, "sateen_step": placement.step})
         return {
             "type": "scatter",
@@ -254,26 +250,28 @@ def _compile_path(
     if placement.rotation == "fixed":
         output["fixed_rotation_deg"] = placement.fixed_rotation_deg
 
-    if placement.host_stripe_index is not None:
-        host_index = placement.host_stripe_index
+    # Only StraightPathPlan carries host fields; WavePathPlan has none (wave is never hosted).
+    host_index = getattr(placement, "host_stripe_index", None)
+    if host_index is not None:
         direction = stripes[host_index].direction
         output["host_layer"] = f"stripe_{host_index}"
-        output["lane"] = (
-            "center"
-            if placement.host_band_index is None
-            else f"b{placement.host_band_index}.center"
-        )
+        host_band_index = getattr(placement, "host_band_index", None)
+        output["lane"] = "center" if host_band_index is None else f"b{host_band_index}.center"
     else:
         path: dict[str, object] = {
             "kind": placement.kind,
             "angle": _DIRECTION_ANGLE[placement.direction],
         }
         if placement.kind == "wave":
-            assert placement.wavelength_ratio is not None
-            assert placement.amplitude_ratio is not None
+            # Seamless tiling requires the wavelength to divide the lane closure length
+            # exactly (engine seamless check). The authoring model supplies a target ratio it
+            # cannot land on that measure-zero set; snap it to the nearest closure/N, mirroring
+            # how spacing is snapped downstream. No-op for closure/N ratios (e.g. gallery goldens).
+            closure = _path_length(tile_mm, placement.direction)
+            _, wavelength = snap_spacing(closure, tile_mm * placement.wavelength_ratio)
             path.update(
                 {
-                    "wavelength": round(tile_mm * placement.wavelength_ratio, 6),
+                    "wavelength": round(wavelength, 6),
                     "amplitude": round(tile_mm * placement.amplitude_ratio, 6),
                 }
             )

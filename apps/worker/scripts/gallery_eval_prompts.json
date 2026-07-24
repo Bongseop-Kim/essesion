@@ -1,0 +1,180 @@
+{
+  "_comment": "갤러리 few-shot 캡스톤 입력. 한국인 사용자의 자연스러운 조사형 프롬프트 25개(gallery-v1 golden 1:1). 이 프롬프트는 고치지 말 것 — grounding(resolver._tokens 조사 정규화) 쪽을 고쳐 seed에 붙게 한다. example_id로 golden 구조와 대조하고, expected_motif_subjects로 seed grounding(=Recraft 미진입)을 검증한다.",
+  "cases": [
+    {
+      "example_id": "gallery_01_background_solid",
+      "family": "solid",
+      "prompt": "잔잔한 단색 배경만으로 채운 미니멀한 솔리드 패턴을 만들어 주세요",
+      "expected_motif_subjects": [],
+      "particles": []
+    },
+    {
+      "example_id": "gallery_02_stripe_diagonal_narrow_band",
+      "family": "stripe",
+      "prompt": "좁은 한 줄짜리 대각선 스트라이프로 깔끔하게 만들어 주세요",
+      "expected_motif_subjects": [],
+      "particles": []
+    },
+    {
+      "example_id": "gallery_03_stripe_diagonal_uneven_bands",
+      "family": "stripe",
+      "prompt": "폭이 서로 다른 두 줄의 대각선 스트라이프로 구성해 주세요",
+      "expected_motif_subjects": [],
+      "particles": []
+    },
+    {
+      "example_id": "gallery_04_stripe_diagonal_wide_band",
+      "family": "stripe",
+      "prompt": "넓은 한 줄 대각선 스트라이프를 시원하게 넣어 주세요",
+      "expected_motif_subjects": [],
+      "particles": []
+    },
+    {
+      "example_id": "gallery_05_stripe_diagonal_three_band_rhythm",
+      "family": "stripe",
+      "prompt": "세 줄 리듬감의 대각선 스트라이프로 리드미컬하게 구성해 주세요",
+      "expected_motif_subjects": [],
+      "particles": []
+    },
+    {
+      "example_id": "gallery_06_motif_lattice_block",
+      "family": "lattice",
+      "prompt": "펠리컨을 큰 크기로 정규 격자에 규칙적으로 반복해 주세요",
+      "expected_motif_subjects": ["pelican"],
+      "particles": ["을"]
+    },
+    {
+      "example_id": "gallery_07_motif_lattice_half_drop_column",
+      "family": "lattice",
+      "prompt": "나비를 열 방향 하프드롭 격자로 엇갈리게 배치해 주세요",
+      "expected_motif_subjects": ["butterfly"],
+      "particles": ["를"]
+    },
+    {
+      "example_id": "gallery_08_motif_lattice_brick_row",
+      "family": "lattice",
+      "prompt": "물고기가 행 방향으로 브릭처럼 어긋나는 격자를 이루게 해주세요",
+      "expected_motif_subjects": ["fish"],
+      "particles": ["가"]
+    },
+    {
+      "example_id": "gallery_09_motif_scatter_poisson",
+      "family": "scatter",
+      "prompt": "별이 여백을 두고 포아송 방식으로 성기게 흩뿌려지게 해주세요",
+      "expected_motif_subjects": ["star"],
+      "particles": ["이"]
+    },
+    {
+      "example_id": "gallery_10_motif_scatter_sateen",
+      "family": "scatter",
+      "prompt": "꽃은 사틴 순열처럼 고르게 분산 배치해 주세요",
+      "expected_motif_subjects": ["flower"],
+      "particles": ["은"]
+    },
+    {
+      "example_id": "gallery_11_motif_path_diagonal_straight",
+      "family": "path",
+      "prompt": "고래가 대각 직선 경로를 따라 나란히 늘어서도록 배치해 주세요",
+      "expected_motif_subjects": ["whale"],
+      "particles": ["가"]
+    },
+    {
+      "example_id": "gallery_12_motif_path_diagonal_wave",
+      "family": "path",
+      "prompt": "토끼가 대각 물결 경로를 따라 흐르듯 이어지게 해주세요",
+      "expected_motif_subjects": ["rabbit"],
+      "particles": ["가"]
+    },
+    {
+      "example_id": "gallery_13_motif_point_set_five_anchors",
+      "family": "point_set",
+      "prompt": "왕관으로 안쪽 네 모서리와 중앙까지 다섯 지점을 앵커처럼 채워 주세요",
+      "expected_motif_subjects": ["crown"],
+      "particles": ["으로", "까지"]
+    },
+    {
+      "example_id": "gallery_14_motif_lattice_small_size",
+      "family": "lattice",
+      "prompt": "눈송이를 작은 크기로 촘촘한 정규 격자에 반복해 주세요",
+      "expected_motif_subjects": ["snowflake"],
+      "particles": ["를"]
+    },
+    {
+      "example_id": "gallery_15_stripe_motif_center_lane",
+      "family": "stripe_motif",
+      "prompt": "넓은 스트라이프 중앙 레인 위에 닻의 실루엣을 얹어 주세요",
+      "expected_motif_subjects": ["anchor"],
+      "particles": ["의", "을"]
+    },
+    {
+      "example_id": "gallery_16_stripe_motif_three_thin_bands",
+      "family": "stripe_motif",
+      "prompt": "세 개의 얇은 밴드와 함께 요트를 직선 경로로 얹어 주세요",
+      "expected_motif_subjects": ["sailboat"],
+      "particles": ["를"]
+    },
+    {
+      "example_id": "gallery_17_stripe_motif_guard_bands",
+      "family": "stripe_motif",
+      "prompt": "가드 밴드 사이 중심 레인에는 클로버를 가지런히 배치해 주세요",
+      "expected_motif_subjects": ["clover"],
+      "particles": ["에는", "를"]
+    },
+    {
+      "example_id": "gallery_18_two_band_motif_point_set",
+      "family": "stripe_motif",
+      "prompt": "두 개의 밴드와 함께 고양이를 대각선 두 지점에 찍어 주세요",
+      "expected_motif_subjects": ["cat"],
+      "particles": ["를"]
+    },
+    {
+      "example_id": "gallery_19_thin_bands_motif_diagonal_wave",
+      "family": "stripe_motif",
+      "prompt": "얇은 밴드 위로 강아지가 대각 물결을 그리며 흐르게 해주세요",
+      "expected_motif_subjects": ["dog"],
+      "particles": ["가"]
+    },
+    {
+      "example_id": "gallery_20_rhythm_stripe_motif_centered_navy_lane",
+      "family": "stripe_motif",
+      "prompt": "리듬 스트라이프의 가운데 밴드도 잎으로 골라 채워 주세요",
+      "expected_motif_subjects": ["leaf"],
+      "particles": ["도", "으로"]
+    },
+    {
+      "example_id": "gallery_21_motif_lattice_bee_circle",
+      "family": "multi_motif",
+      "prompt": "작은 원을 포인트 그리드로 깔고 그 위에 큰 꿀벌을 격자로 얹어 주세요",
+      "expected_motif_subjects": ["circle", "bee"],
+      "particles": ["을"]
+    },
+    {
+      "example_id": "gallery_22_motif_path_alternating_bee_circle",
+      "family": "multi_motif",
+      "prompt": "꿀벌과 원을 위상이 엇갈린 두 직선 경로에 번갈아 배치해 주세요",
+      "expected_motif_subjects": ["bee", "circle"],
+      "particles": ["과", "을"]
+    },
+    {
+      "example_id": "gallery_23_motif_scatter_bee_circle_fill",
+      "family": "multi_motif",
+      "prompt": "원을 격자 필러로 촘촘히 깔고 꿀벌을 포아송으로 흩뿌려 주세요",
+      "expected_motif_subjects": ["circle", "bee"],
+      "particles": ["을"]
+    },
+    {
+      "example_id": "gallery_24_motif_wave_duet_bee_circle",
+      "family": "multi_motif",
+      "prompt": "꿀벌과 원이 위상이 엇갈린 두 물결 경로를 그리게 해주세요",
+      "expected_motif_subjects": ["bee", "circle"],
+      "particles": ["과", "이"]
+    },
+    {
+      "example_id": "gallery_25_stripe_two_motif_opposed_lanes",
+      "family": "multi_motif",
+      "prompt": "서로 다른 두 스트라이프 밴드를 따라 꿀벌과 원을 각각 배치해 주세요",
+      "expected_motif_subjects": ["bee", "circle"],
+      "particles": ["과", "을"]
+    }
+  ]
+}
