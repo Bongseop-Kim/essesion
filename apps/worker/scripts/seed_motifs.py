@@ -196,9 +196,7 @@ async def seed_motifs() -> int:
             )
             # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags를 갱신하지 않는다.
             # 한글 tag 백필을 위해 시드 행 tags는 의도값으로 명시 재기록한다(멱등).
-            await session.execute(
-                update(Motif).where(Motif.id == normalized.id).values(tags=tags)
-            )
+            await session.execute(update(Motif).where(Motif.id == normalized.id).values(tags=tags))
             inserted += 1
         await session.commit()
     await engine.dispose()
