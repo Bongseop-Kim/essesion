@@ -38,12 +38,13 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
     assert response.status_code == 200
 
     row = await _latest_log(db_session)
+    assert str(row.id) == _RUN_ID
+    assert response.json()["generation_log_id"] == _RUN_ID
     assert row.request_id == "log-success"
     assert row.status == "success"
     assert row.generate_ms is not None and row.generate_ms >= Decimal(0)
     assert row.render_ms is not None and row.render_ms >= Decimal(0)
     assert row.error_message is None
-    assert response.json()["generation_log_id"] == str(row.id)
     assert {
         key: row.diagnostics[key]
         for key in (

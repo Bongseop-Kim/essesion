@@ -280,4 +280,17 @@ describe("MotifDetailPage", () => {
 
     expect(preview).toContain('fill="s0"');
   });
+
+  it("유효하지 않은 slot_colors는 SVG 속성에 삽입하지 않는다", () => {
+    const preview = motifPreviewDocument(
+      '<symbol id="motif-m"><path fill="s0"/><path fill="s1"/><path fill="s2"/></symbol>',
+      [0, 0, 1, 1],
+      ['#ff0000" onload="alert(1)', "red", "#A1b2C3"],
+    );
+
+    expect(preview).toContain('fill="s0"');
+    expect(preview).toContain('fill="s1"');
+    expect(preview).toContain('fill="#A1b2C3"');
+    expect(preview).not.toContain("onload");
+  });
 });

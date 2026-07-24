@@ -357,6 +357,10 @@ async def prompt_catalog_candidates(
             "subject": match.meta.subject,
             "description": match.meta.description,
             "style": match.meta.style,
+            "view": match.meta.view,
+            "expression": match.meta.expression,
+            "scope": match.meta.scope,
+            "tags": list(match.meta.tags),
             "similarity": match.similarity,
             "match_type": match.match_type,
         }

@@ -68,10 +68,7 @@ async def test_label_slots_renderer_or_vision_failure_is_fail_soft(monkeypatch):
 
 
 def test_stored_preview_restores_slot_colors_without_changing_symbol():
-    symbol = (
-        '<symbol id="motif-recraft-a"><path fill="s0"/>'
-        '<path stroke="s1"/></symbol>'
-    )
+    symbol = '<symbol id="motif-recraft-a"><path fill="s0"/><path stroke="s1"/></symbol>'
 
     preview = labeler.stored_motif_preview_svg(
         "recraft-a",

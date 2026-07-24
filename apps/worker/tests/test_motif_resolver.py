@@ -242,6 +242,37 @@ async def test_request_generate_budget_drops_excess_layer_without_raising(db_ses
     assert trace[-1]["reason_code"] == "motif_generation_budget_exhausted"
 
 
+async def test_all_budget_exhausted_motifs_leave_non_motif_layer(db_session):
+    recraft = _FakeRecraft()
+    warnings: list[str] = []
+
+    resolved = await resolve_motifs(
+        db_session,
+        {
+            "layers": [
+                {"id": "bg", "type": "background", "params": {}},
+                {"id": "m1", "type": "motif", "params": {}},
+                {"id": "m2", "type": "motif", "params": {}},
+            ]
+        },
+        [
+            {"layer_id": "m1", "subject": "budget-zero-alpha"},
+            {"layer_id": "m2", "subject": "budget-zero-beta"},
+        ],
+        recraft_client=recraft,
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+        generation_budget=MotifGenerationBudget(0),
+        warnings=warnings,
+    )
+
+    assert recraft.calls == 0
+    assert [layer["id"] for layer in resolved["layers"]] == ["bg"]
+    assert warnings
+    assert all("generation budget exhausted" in warning for warning in warnings)
+
+
 async def test_reference_origin_shares_request_generate_budget(db_session):
     recraft = _FakeRecraft()
     intent = {

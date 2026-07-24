@@ -23,6 +23,8 @@ import { SafeSvgPreview } from "../generation/safe-svg-preview";
 // currentColor. When the API supplies the original per-slot colors, restore them so the preview
 // renders the true colorway instead of a black silhouette. No literal hex fallback (harness
 // raw-hex rule) — an unmapped slot keeps its token.
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
 function paintSlotTokens(
   svg: string,
   slotColors?: readonly (string | null)[] | null,
@@ -30,7 +32,9 @@ function paintSlotTokens(
   if (!slotColors || slotColors.length === 0) return svg;
   return svg.replace(/fill="s(\d+)"/g, (match, index) => {
     const color = slotColors[Number(index)];
-    return color ? `fill="${color}"` : match;
+    return typeof color === "string" && HEX_COLOR_PATTERN.test(color)
+      ? `fill="${color}"`
+      : match;
   });
 }
 
