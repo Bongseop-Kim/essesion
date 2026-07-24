@@ -14,6 +14,19 @@ import xml.etree.ElementTree as ET
 from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
 
+from svg_safety.text_safety import is_suspicious_facet_text, sanitize_facet_text
+
+__all__ = [
+    "HEX_RE",
+    "SanitizeError",
+    "is_internal_href",
+    "is_suspicious_facet_text",
+    "parse_svg_tree",
+    "sanitize_facet_text",
+    "sanitize_svg",
+    "scrub_svg",
+]
+
 ALLOWED_TAGS = {
     "svg",
     "defs",

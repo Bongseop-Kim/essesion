@@ -106,12 +106,13 @@ class FinalizeTaskRequest(StrictRequest):
 
 
 class MotifSpec(StrictRequest):
-    subject: str
-    scope: str
-    view: str | None = None
-    expression: str | None = None
-    style: str | None = None
-    description: str | None = None
+    # 길이 상한은 api MotifSpecIn과 동일하게 유지 (C-10 — 무제한 자유텍스트 유입 차단).
+    subject: str = Field(min_length=1, max_length=100)
+    scope: str = Field(min_length=1, max_length=100)
+    view: str | None = Field(default=None, max_length=100)
+    expression: str | None = Field(default=None, max_length=100)
+    style: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=1_000)
 
 
 class CandidatesRequest(StrictRequest):

@@ -4013,6 +4013,10 @@
             "title": "Id",
             "type": "string"
           },
+          "injection_suspected": {
+            "title": "Injection Suspected",
+            "type": "boolean"
+          },
           "motif_count": {
             "title": "Motif Count",
             "type": "integer"
@@ -4203,6 +4207,7 @@
           "motif_count",
           "retrieval_text",
           "tags",
+          "injection_suspected",
           "structural_fingerprint",
           "nearest_kind",
           "nearest_id",
@@ -4261,6 +4266,10 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "injection_suspected": {
+            "title": "Injection Suspected",
+            "type": "boolean"
           },
           "motif_count": {
             "title": "Motif Count",
@@ -4419,6 +4428,7 @@
           "motif_count",
           "retrieval_text",
           "tags",
+          "injection_suspected",
           "structural_fingerprint",
           "nearest_kind",
           "nearest_id",

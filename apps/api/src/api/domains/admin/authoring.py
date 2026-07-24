@@ -15,7 +15,7 @@ from fastapi import APIRouter, Query, Request
 from obs import request_id_var
 from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy import func, or_, select
-from svg_safety import SanitizeError, sanitize_svg
+from svg_safety import SanitizeError, is_suspicious_facet_text, sanitize_svg
 
 from api.db import SessionDep, advisory_xact_lock
 from api.deps import AdminOnly, AdminUser
@@ -65,6 +65,8 @@ class AuthoringCandidateSummaryOut(BaseModel):
     motif_count: int
     retrieval_text: str
     tags: list[str]
+    # 승인 후보 텍스트가 인젝션 휴리스틱에 걸리면 관리자에게 플래그 (C-10, 최종 승인은 사람).
+    injection_suspected: bool
     structural_fingerprint: str | None
     nearest_kind: str | None
     nearest_id: str | None
@@ -142,6 +144,7 @@ def _candidate_summary(row: AuthoringPromotionCandidate) -> AuthoringCandidateSu
         motif_count=row.motif_count,
         retrieval_text=row.retrieval_text,
         tags=row.tags,
+        injection_suspected=is_suspicious_facet_text(row.retrieval_text or ""),
         structural_fingerprint=row.structural_fingerprint,
         nearest_kind=row.nearest_kind,
         nearest_id=row.nearest_id,

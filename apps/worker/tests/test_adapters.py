@@ -32,6 +32,7 @@ from worker.engine.constraints import (
     PaletteConstraint,
     PatternConstraints,
 )
+from worker.engine.validate import IntentInvalid
 
 _SETTINGS = Settings(motif_render_check=False, recraft_max_color_slots=6)
 
@@ -336,6 +337,15 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
     assert "upload-a1b2c3d4e5f6" not in context
     assert "#10243A, #EFE6D4" in context
     assert "arrangement=lattice" in context
+
+
+async def test_author_designs_rejects_invalid_json_without_prose_fallback():
+    # 불변식: 재검(pydantic) 실패 시 프로즈 파싱 fallback 금지 — 재시도 후 거부만.
+    responses = [{"not_plans": "wrong shape"}] * 4  # _MAX_AUTHORING_ATTEMPTS
+    client, sdk = _gemini(*responses)
+    with pytest.raises(IntentInvalid):
+        await client.author_designs("dots")
+    assert len(sdk.models.generate_calls) == 4  # 모든 시도가 재시도됐고 salvage 경로가 없다
 
 
 async def test_gemini_non_retryable_raises(monkeypatch):

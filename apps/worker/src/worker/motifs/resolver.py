@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
 from worker.adapters import AdapterClientError
 from worker.adapters.embedding import EmbeddingError, embed_query
@@ -34,6 +35,28 @@ logger = logging.getLogger(__name__)
 # glyph(텍스트-as-모티프)·vectorize(이미지) 파이프라인 미구현 — 해당 spec이 Recraft 생성
 # 래더로 흘러 subject 없는 프롬프트가 되지 않게 명시 거부한다 (spec §5·§7, 5단계에서 구현).
 UNSUPPORTED_SPEC_FIELDS = ("text", "source_image_index")
+
+# recraft 유입 facet 자유텍스트 — 임베딩·저장 전 살균할 필드 (scope는 whole/partial로 제약됨).
+_SCREENED_FACETS = ("subject", "description", "style", "view", "expression")
+
+
+def _screen_facets(spec: dict) -> dict:
+    """관리자 게이트 없는 recraft 카탈로그 유입의 유일 자동 방어선 (C-10).
+
+    비가시·제어 문자를 제거하고 명령형 인젝션 패턴은 로그로 플래그한다(거부는 하지 않음 —
+    사용자 콘텐츠라 오탐이 정상 모티프를 막는다).
+    """
+    screened = dict(spec)
+    for key in _SCREENED_FACETS:
+        value = screened.get(key)
+        if isinstance(value, str):
+            if is_suspicious_facet_text(value):
+                logger.warning("motif facet %r tripped prompt-injection heuristic on ingress", key)
+            screened[key] = sanitize_facet_text(value)
+    tags = screened.get("tags")
+    if isinstance(tags, (list, tuple)):
+        screened["tags"] = [sanitize_facet_text(tag) for tag in tags if isinstance(tag, str)]
+    return screened
 
 
 @dataclass(frozen=True)
@@ -327,7 +350,7 @@ async def resolve_spec(
 ) -> ResolveResult:
     """단일 spec 해석 래더. 래더 히트면 reused=True(Recraft 스킵), miss면 generate 후 upsert."""
     tau = settings.motif_similarity_tau
-    authored_spec = {**spec, "scope": "whole"}
+    authored_spec = _screen_facets({**spec, "scope": "whole"})
     retrieval = await retrieve_catalog(
         session,
         descriptor_text(authored_spec),

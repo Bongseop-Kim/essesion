@@ -2172,6 +2172,10 @@ export type AuthoringCandidateDetailOut = {
      */
     id: string;
     /**
+     * Injection Suspected
+     */
+    injection_suspected: boolean;
+    /**
      * Motif Count
      */
     motif_count: number;
@@ -2295,6 +2299,10 @@ export type AuthoringCandidateSummaryOut = {
      * Id
      */
     id: string;
+    /**
+     * Injection Suspected
+     */
+    injection_suspected: boolean;
     /**
      * Motif Count
      */

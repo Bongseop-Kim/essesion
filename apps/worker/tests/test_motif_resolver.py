@@ -641,3 +641,26 @@ async def test_registry_version_fingerprint_moves_with_pool(db_session):
     await _seed(db_session, "recraft-fp0000000001", subject="dot", scope="whole")
     stamped = await registry_version_for(db_session)
     assert stamped.startswith(f"{REGISTRY_VERSION}+pool.")
+
+
+async def test_ingress_sanitizes_facets_before_store(db_session):
+    # C-10: 관리자 게이트 없는 recraft 유입의 유일 방어선 — 비가시/제어 문자는 저장 전 제거.
+    recraft = _FakeRecraft()
+    result = await resolve_spec(
+        db_session,
+        {
+            "subject": "do\u200bt",  # zero-width space
+            "scope": "whole",
+            "description": "clean\x00 mark",  # NUL control char
+            "style": "fl\u202eat",  # bidi override
+        },
+        recraft_client=recraft,
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+    )
+    assert result.reused is False
+    stored = {m.id: m for m in await store.find_catalog(db_session)}[result.motif_id]
+    assert stored.subject == "dot"
+    assert stored.description == "clean mark"
+    assert stored.style == "flat"
