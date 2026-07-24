@@ -51,9 +51,16 @@ export function motifPreviewDocument(
     bbox.every(Number.isFinite) &&
     maxX > minX &&
     maxY > minY;
-  const viewBox = hasUsableBbox
-    ? `${minX} ${minY} ${maxX - minX} ${maxY - minY}`
-    : "0 0 100 100";
+  const [bx, by, bw, bh] = hasUsableBbox
+    ? [minX, minY, maxX - minX, maxY - minY]
+    : [0, 0, 100, 100];
+  // Pad the viewBox so geometry that slightly overflows its declared bbox (Bézier extrema the
+  // motif bbox undercounts) isn't clipped at the edges. Display-only — motif identity is unchanged.
+  const pad = 0.06;
+  const round = (n: number) => Math.round(n * 1000) / 1000;
+  const vw = round(bw * (1 + pad * 2));
+  const vh = round(bh * (1 + pad * 2));
+  const viewBox = `${round(bx - bw * pad)} ${round(by - bh * pad)} ${vw} ${vh}`;
   const svg = trimmed
     .replace(
       /^<symbol\b/,

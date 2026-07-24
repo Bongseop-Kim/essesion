@@ -255,7 +255,7 @@ describe("MotifDetailPage", () => {
     expect(preview?.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(
       true,
     );
-    expect(preview).toContain('viewBox="1 2 2 2"');
+    expect(preview).toContain('viewBox="0.88 1.88 2.24 2.24"');
     expect(preview?.endsWith("</svg>")).toBe(true);
   });
 
