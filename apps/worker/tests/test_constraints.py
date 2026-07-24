@@ -21,6 +21,8 @@ def test_normalize_hex_tolerates_missing_hash_and_canonicalizes():
     assert normalize_hex("abc") == "#AABBCC"
     with pytest.raises(ValueError, match="#RGB or #RRGGBB"):
         normalize_hex("navy")
+    with pytest.raises(ValueError, match="#RGB or #RRGGBB"):
+        normalize_hex("##00008b")  # a doubled prefix is malformed, not bare hex
 
 
 def test_fixed_palette_normalizes_deduplicates_and_rejects_too_few_colors():

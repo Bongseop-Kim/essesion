@@ -30,9 +30,10 @@ class ConstraintInvalid(ValueError):
 
 
 def normalize_hex(value: str) -> str:
-    # Tolerate a missing leading '#': the authoring model routinely emits bare hex ("00008b").
+    # Tolerate one missing leading '#': the authoring model routinely emits bare hex ("00008b").
+    # removeprefix (not lstrip) so a doubled "##..." stays malformed and is rejected below.
     # Canonical output stays "#RRGGBB" upper, so the SVG contract is unchanged.
-    value = "#" + value.strip().lstrip("#")
+    value = "#" + value.strip().removeprefix("#")
     if not _HEX.fullmatch(value):
         raise ValueError("color must be #RGB or #RRGGBB")
     digits = value[1:]
