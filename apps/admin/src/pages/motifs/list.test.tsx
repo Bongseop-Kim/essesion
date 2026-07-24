@@ -258,4 +258,26 @@ describe("MotifDetailPage", () => {
     expect(preview).toContain('viewBox="1 2 2 2"');
     expect(preview?.endsWith("</svg>")).toBe(true);
   });
+
+  it("멀티슬롯 fill 토큰을 slot_colors로 치환한다", () => {
+    const preview = motifPreviewDocument(
+      '<symbol id="motif-m"><path fill="s0"/><path fill="s1"/></symbol>',
+      [0, 0, 1, 1],
+      ["#ff0000", "#00ff00"],
+    );
+
+    expect(preview).toContain('fill="#ff0000"');
+    expect(preview).toContain('fill="#00ff00"');
+    expect(preview).not.toContain('fill="s0"');
+    expect(preview).not.toContain('fill="s1"');
+  });
+
+  it("slot_colors가 없으면 fill 토큰을 그대로 둔다", () => {
+    const preview = motifPreviewDocument(
+      '<symbol id="motif-m"><path fill="s0"/></symbol>',
+      [0, 0, 1, 1],
+    );
+
+    expect(preview).toContain('fill="s0"');
+  });
 });

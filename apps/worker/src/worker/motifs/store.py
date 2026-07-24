@@ -137,6 +137,7 @@ async def upsert_motif(
         "id": normalized.id,
         "symbol": normalized.symbol,
         "color_slots": list(normalized.color_slots),
+        "slot_colors": list(normalized.slot_colors) if normalized.slot_colors else None,
         "bbox": list(normalized.bbox_mm),
         "anchor": list(normalized.anchor),
         "subject": facets.get("subject"),

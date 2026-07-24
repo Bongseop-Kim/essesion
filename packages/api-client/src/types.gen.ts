@@ -4849,6 +4849,10 @@ export type MotifDetailOut = {
      */
     scope: string | null;
     /**
+     * Slot Colors
+     */
+    slot_colors?: Array<string> | null;
+    /**
      * Source
      */
     source: string;
@@ -5049,6 +5053,10 @@ export type MotifSummaryOut = {
      * Scope
      */
     scope: string | null;
+    /**
+     * Slot Colors
+     */
+    slot_colors?: Array<string> | null;
     /**
      * Source
      */

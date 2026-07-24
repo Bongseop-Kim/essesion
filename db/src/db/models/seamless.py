@@ -45,6 +45,10 @@ class Motif(CreatedAtMixin, Base):
     id: Mapped[str] = mapped_column(primary_key=True)  # content-hash
     symbol: Mapped[str]
     color_slots: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[\"s0\"]'::jsonb"))
+    # Original per-slot colors (index-aligned with color_slots), preserved for multi-slot motifs as
+    # the default colorway; NULL for single-slot (currentColor) and legacy rows. Never part of the
+    # content-hash id — colors stay out of motif identity.
+    slot_colors: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
     bbox: Mapped[dict[str, Any]]
     anchor: Mapped[dict[str, Any]]
     subject: Mapped[str | None]

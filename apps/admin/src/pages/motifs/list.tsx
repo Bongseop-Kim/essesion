@@ -31,7 +31,7 @@ function isScope(value: string | undefined): value is MotifScope {
 function MotifPreviewCell({ motif }: { motif: MotifSummaryOut }) {
   const doc =
     motif.svg_status === "safe"
-      ? motifPreviewDocument(motif.symbol, motif.bbox)
+      ? motifPreviewDocument(motif.symbol, motif.bbox, motif.slot_colors)
       : null;
   return (
     <Box width={44}>

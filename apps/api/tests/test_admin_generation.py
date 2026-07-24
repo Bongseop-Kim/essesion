@@ -528,6 +528,45 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
 
 
+async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session, settings):
+    admin = await make_user(db_session, role="admin")
+    headers = auth_headers(admin, settings)
+    db_session.add_all(
+        [
+            Motif(
+                id="motif-multislot",
+                symbol='<symbol id="motif-multislot"><path fill="s0"/><path fill="s1"/></symbol>',
+                color_slots=["s0", "s1"],
+                slot_colors=["#010000", "#0685b1"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="pelican",
+                scope="whole",
+                source="seed",
+            ),
+            Motif(
+                id="motif-singleslot",
+                symbol='<symbol id="motif-singleslot"><path fill="currentColor"/></symbol>',
+                color_slots=["s0"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="bee",
+                scope="whole",
+                source="seed",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    multi = await client.get("/admin/motifs/motif-multislot", headers=headers)
+    assert multi.status_code == 200
+    assert multi.json()["slot_colors"] == ["#010000", "#0685b1"]
+
+    single = await client.get("/admin/motifs/motif-singleslot", headers=headers)
+    assert single.status_code == 200
+    assert single.json()["slot_colors"] is None
+
+
 async def test_motif_list_searches_fields_and_filters_kst_created_date(
     client, db_session, settings
 ):

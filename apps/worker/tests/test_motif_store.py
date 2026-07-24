@@ -4,6 +4,8 @@ upsert 멱등 · get_motifs JSONB→tuple 변환 · global nearest 안정 정렬
 공개 embedding 초기 인덱싱.
 """
 
+from db.models.seamless import Motif
+from sqlalchemy import select
 from worker.motifs import store
 from worker.motifs.embeddings import index_missing_embeddings
 from worker.motifs.normalize import NormalizedMotif
@@ -47,6 +49,22 @@ async def test_get_motifs_converts_jsonb_to_tuples(db_session):
 
 async def test_get_motifs_empty_ids_returns_empty(db_session):
     assert await store.get_motifs(db_session, []) == {}
+
+
+async def test_upsert_persists_slot_colors_and_nulls_single_slot(db_session):
+    multi = NormalizedMotif(
+        id="recraft-slotcolors0",
+        symbol='<symbol id="motif-recraft-slotcolors0"><path fill="s0"/><path fill="s1"/></symbol>',
+        color_slots=("s0", "s1"),
+        slot_colors=("#010000", "#0685b1"),
+    )
+    await store.upsert_motif(db_session, multi, facets={"scope": "whole"})
+    await store.upsert_motif(db_session, _motif("recraft-singleslot0"), facets={"scope": "whole"})
+    await db_session.commit()
+    rows = {row.id: row.slot_colors for row in (await db_session.scalars(select(Motif))).all()}
+    assert rows["recraft-slotcolors0"] == ["#010000", "#0685b1"]
+    # Single-slot → SQL NULL (none_as_null), not JSON null.
+    assert rows["recraft-singleslot0"] is None
 
 
 async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):

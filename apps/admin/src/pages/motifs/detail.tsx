@@ -19,15 +19,31 @@ import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { SafeSvgPreview } from "../generation/safe-svg-preview";
 
+// Multi-slot motifs carry fill="s0..sN" tokens (not CSS paints); single-slot ones use
+// currentColor. When the API supplies the original per-slot colors, restore them so the preview
+// renders the true colorway instead of a black silhouette. No literal hex fallback (harness
+// raw-hex rule) — an unmapped slot keeps its token.
+function paintSlotTokens(
+  svg: string,
+  slotColors?: readonly (string | null)[] | null,
+): string {
+  if (!slotColors || slotColors.length === 0) return svg;
+  return svg.replace(/fill="s(\d+)"/g, (match, index) => {
+    const color = slotColors[Number(index)];
+    return color ? `fill="${color}"` : match;
+  });
+}
+
 export function motifPreviewDocument(
   symbol: string | null,
   bbox: readonly number[],
+  slotColors?: readonly (string | null)[] | null,
 ) {
   if (symbol === null) return null;
   const trimmed = symbol.trim();
-  if (trimmed.startsWith("<svg")) return trimmed;
+  if (trimmed.startsWith("<svg")) return paintSlotTokens(trimmed, slotColors);
   if (!/^<symbol(?:\s|>)/.test(trimmed) || !trimmed.endsWith("</symbol>")) {
-    return trimmed;
+    return paintSlotTokens(trimmed, slotColors);
   }
   const [minX = 0, minY = 0, maxX = 100, maxY = 100] = bbox;
   const hasUsableBbox =
@@ -38,12 +54,13 @@ export function motifPreviewDocument(
   const viewBox = hasUsableBbox
     ? `${minX} ${minY} ${maxX - minX} ${maxY - minY}`
     : "0 0 100 100";
-  return trimmed
+  const svg = trimmed
     .replace(
       /^<symbol\b/,
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"`,
     )
     .replace(/<\/symbol>$/, "</svg>");
+  return paintSlotTokens(svg, slotColors);
 }
 
 function MotifDetailLoading() {
@@ -100,7 +117,7 @@ export function MotifDetailPage() {
   const motif = query.data;
   const preview =
     motif.svg_status === "safe"
-      ? motifPreviewDocument(motif.symbol, motif.bbox)
+      ? motifPreviewDocument(motif.symbol, motif.bbox, motif.slot_colors)
       : motif.symbol;
 
   return (

@@ -9020,6 +9020,20 @@
             ],
             "title": "Scope"
           },
+          "slot_colors": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Colors"
+          },
           "source": {
             "title": "Source",
             "type": "string"
@@ -9476,6 +9490,20 @@
               }
             ],
             "title": "Scope"
+          },
+          "slot_colors": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Colors"
           },
           "source": {
             "title": "Source",

@@ -288,6 +288,9 @@ class MotifSummaryOut(BaseModel):
     bbox: list[float]
     symbol: str | None
     svg_status: SvgStatus
+    # Original per-slot colors (index-aligned with the symbol's s0..sN tokens) for multi-slot
+    # motifs; None for single-slot/legacy rows. Lets the admin preview render true colors.
+    slot_colors: list[str] | None = None
 
 
 class MotifDetailOut(MotifSummaryOut):
@@ -1077,6 +1080,14 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
         bbox=_number_list(row.bbox, size=4),
         symbol=symbol,
         svg_status=svg_status,
+        # All-or-nothing: only surface a fully-valid hex list so slot indexes stay aligned with the
+        # symbol's fill="sN" tokens. _safe_token would strip '#', so use _HEX_COLOR here.
+        slot_colors=(
+            list(row.slot_colors)
+            if row.slot_colors
+            and all(isinstance(c, str) and _HEX_COLOR.fullmatch(c) for c in row.slot_colors)
+            else None
+        ),
     )
 
 
