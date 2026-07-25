@@ -8,6 +8,7 @@
   "files": {
     "includes": [
       "**",
+      "!.claude",
       "!packages/api-client/src",
       "!packages/api-client/openapi.json",
       "!apps/worker/scripts/motif_assets",
