@@ -62,9 +62,14 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
         href: "/generation-jobs",
       },
       {
-        key: "authoring-examples",
-        label: "RAG 시범",
-        href: "/authoring-examples",
+        key: "few-shot-candidates",
+        label: "few-shot 후보",
+        href: "/few-shot-candidates",
+      },
+      {
+        key: "few-shot-examples",
+        label: "선별된 few-shot",
+        href: "/few-shot-examples",
       },
       { key: "motifs", label: "Motif SVG", href: "/motifs" },
     ],

@@ -63,8 +63,8 @@ function ActivationAction({
     onSuccess: async (value) => {
       snackbar(
         value.active
-          ? "RAG 시범을 활성화했습니다."
-          : "RAG 시범을 즉시 제외했습니다.",
+          ? "few-shot 시범을 활성화했습니다."
+          : "few-shot 시범을 즉시 제외했습니다.",
       );
       onUpdated(value);
       setEditing(false);
@@ -78,7 +78,7 @@ function ActivationAction({
 
   if (!canEdit) {
     return (
-      <AdminCard title="RAG 활성 상태">
+      <AdminCard title="few-shot 주입 상태">
         <Text textStyle="bodySm" color="fg.neutral-muted">
           manager 역할은 상태와 이력을 조회할 수 있지만 활성 상태는 변경할 수
           없습니다.
@@ -102,7 +102,7 @@ function ActivationAction({
 
   return (
     <AdminCard
-      title="RAG 활성 상태"
+      title="few-shot 주입 상태"
       description={
         example.active
           ? "비활성화하면 다음 검색부터 즉시 제외됩니다."
@@ -193,8 +193,8 @@ function ActivationAction({
         }
         description={
           targetActive
-            ? "검증을 통과하면 다음 검색부터 즉시 RAG 대상이 됩니다."
-            : "다음 RAG 검색부터 즉시 제외되며 기록은 유지됩니다."
+            ? "검증을 통과하면 다음 검색부터 즉시 few-shot 대상이 됩니다."
+            : "다음 few-shot 검색부터 즉시 제외되며 기록은 유지됩니다."
         }
         primaryActionProps={{
           children: targetActive ? activationLabel : "비활성화",
@@ -228,7 +228,7 @@ function AuthoredExampleActions({
   const updateMutation = useMutation({
     ...updateAuthoringExampleMutation(),
     onSuccess: async (value) => {
-      snackbar("RAG 시범과 임베딩을 갱신했습니다.");
+      snackbar("few-shot 시범과 임베딩을 갱신했습니다.");
       onUpdated(value);
       setUpdateReason("");
       setUpdateOperationId(crypto.randomUUID());
@@ -240,11 +240,11 @@ function AuthoredExampleActions({
   const deleteMutation = useMutation({
     ...deleteAuthoringExampleMutation(),
     onSuccess: async () => {
-      snackbar("직접 작성한 RAG 시범을 삭제했습니다.");
+      snackbar("직접 작성한 few-shot 시범을 삭제했습니다.");
       await queryClient.invalidateQueries({
         queryKey: listAuthoringExamplesQueryKey(),
       });
-      navigate("/authoring-examples?tab=examples");
+      navigate("/few-shot-examples");
     },
   });
   const update = (value: AuthoringExampleFormValue) => {
@@ -393,19 +393,19 @@ export function AuthoringExampleDetailPage() {
     return (
       <VStack gap="x6" alignItems="stretch" aria-busy="true">
         <RouteHeading
-          title="RAG 시범 상세"
-          description="RAG 시범의 계약과 활성 상태를 불러오고 있습니다."
+          title="few-shot 시범 상세"
+          description="few-shot 시범의 계약과 활성 상태를 불러오고 있습니다."
         />
-        <ContentPlaceholder title="RAG 시범을 불러오고 있습니다" />
+        <ContentPlaceholder title="few-shot 시범을 불러오고 있습니다" />
       </VStack>
     );
   }
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="RAG 시범 상세" />
+        <RouteHeading title="few-shot 시범 상세" />
         <ContentPlaceholder
-          title="RAG 시범을 불러오지 못했습니다"
+          title="few-shot 시범을 불러오지 못했습니다"
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -428,13 +428,13 @@ export function AuthoringExampleDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title={example.example_id}
-          description={`RAG 시범 ID: ${example.id}`}
+          description={`few-shot 시범 ID: ${example.id}`}
         />
         <HStack gap="x2">
           <StatusBadge status={example.active ? "active" : "inactive"} />
           <ActionButton
             variant="ghost"
-            onClick={() => navigate("/authoring-examples?tab=examples")}
+            onClick={() => navigate("/few-shot-examples")}
           >
             목록으로
           </ActionButton>
@@ -508,7 +508,7 @@ export function AuthoringExampleDetailPage() {
       </AdminCard>
 
       <TechnicalDetails
-        title="Plan·RAG 기술 정보"
+        title="Plan·few-shot 기술 정보"
         json={{
           plan: example.plan,
           structural_fingerprint: example.structural_fingerprint,

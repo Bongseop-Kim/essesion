@@ -1,6 +1,6 @@
 # Authoring Plan v3 저작·운영·승격 계약
 
-관리자 UI는 생성 결과의 근거와 승격 후보를 검토하고, RAG 시범의 활성 상태를 관리한다.
+관리자 UI는 생성 결과의 근거와 few-shot 후보를 검토하고, 선별된 few-shot 시범의 활성 상태를 관리한다.
 admin은 별도로 intent와 Plan v3를 직접 작성하고 실제 타일을 확인한 뒤 운영 DB에 저장할
 수 있다. manager는 모든 시범과 이력을 읽기만 한다.
 
@@ -66,7 +66,7 @@ resolved motif와 engine intent는 예시에 복제하지 않는다. 잘못된 �
 
 ## 관리자 직접 저작
 
-`/authoring-examples`의 활성 시범 탭에서 admin은 다음 흐름으로 `authored` 시범을 만든다.
+`/few-shot-examples`에서 admin은 다음 흐름으로 `authored` 시범을 만든다.
 
 1. 검색 intent와 `DesignPlanV3` JSON을 입력한다.
 2. 필요하면 기존 관리자 motif API에서 카탈로그 motif를 최대 2개 골라 `input_index`
@@ -85,7 +85,7 @@ bootstrap/promoted 시범은 본문 편집과 삭제를 거부하고 활성 토�
 
 ## 관리자 승격 검토와 즉시 반영
 
-관리자 화면의 `/authoring-examples`에서 승격 후보와 활성 시범을 함께 조회한다.
+관리자 화면은 `/few-shot-candidates`(후보 검토)와 `/few-shot-examples`(선별된 few-shot)로 분리되어 있다.
 
 - `pending → hold|reject|approve`
 - `hold → reject|approve`

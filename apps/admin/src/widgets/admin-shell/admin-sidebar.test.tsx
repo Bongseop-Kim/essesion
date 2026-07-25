@@ -39,7 +39,13 @@ describe("AdminSidebar", () => {
       within(within(sidebar).getByRole("region", { name: "생성·에셋" }))
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Seamless 로그", "생성 작업", "RAG 시범", "Motif SVG"]);
+    ).toEqual([
+      "Seamless 로그",
+      "생성 작업",
+      "few-shot 후보",
+      "선별된 few-shot",
+      "Motif SVG",
+    ]);
     expect(
       within(sidebar)
         .getByRole("link", { name: "주문 관리" })

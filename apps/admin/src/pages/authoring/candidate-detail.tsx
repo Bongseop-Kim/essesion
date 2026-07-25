@@ -64,7 +64,7 @@ function CandidateActions({
     ...decideAuthoringCandidateMutation(),
     onSuccess: async (value) => {
       snackbar(
-        `승격 후보를 ${DECISION_LABELS[decision ?? "hold"]} 처리했습니다.`,
+        `few-shot 후보를 ${DECISION_LABELS[decision ?? "hold"]} 처리했습니다.`,
       );
       onUpdated(value);
       setDecision(undefined);
@@ -122,7 +122,7 @@ function CandidateActions({
   return (
     <AdminCard
       title="검토 결정"
-      description="승인하면 임베딩과 중복을 다시 검증한 뒤 활성 시범으로 즉시 반영합니다."
+      description="승인하면 임베딩과 중복을 다시 검증한 뒤 선별된 few-shot으로 즉시 반영합니다."
     >
       <VStack gap="x4" alignItems="stretch">
         <HStack gap="x2" wrap>
@@ -203,10 +203,10 @@ function CandidateActions({
       <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`이 승격 후보를 ${decision ? DECISION_LABELS[decision] : "처리"}할까요?`}
+        title={`이 few-shot 후보를 ${decision ? DECISION_LABELS[decision] : "처리"}할까요?`}
         description={
           decision === "approve"
-            ? "승인 직후 이 시범은 RAG 검색 대상이 됩니다."
+            ? "승인 직후 이 시범은 few-shot 검색 대상이 됩니다."
             : `입력한 사유와 함께 ${decision ? DECISION_LABELS[decision] : "검토"} 상태가 기록됩니다.`
         }
         primaryActionProps={{
@@ -234,19 +234,19 @@ export function AuthoringCandidateDetailPage() {
     return (
       <VStack gap="x6" alignItems="stretch" aria-busy="true">
         <RouteHeading
-          title="승격 후보 상세"
+          title="few-shot 후보 상세"
           description="검토 데이터와 생성 미리보기를 불러오고 있습니다."
         />
-        <ContentPlaceholder title="승격 후보를 불러오고 있습니다" />
+        <ContentPlaceholder title="few-shot 후보를 불러오고 있습니다" />
       </VStack>
     );
   }
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="승격 후보 상세" />
+        <RouteHeading title="few-shot 후보 상세" />
         <ContentPlaceholder
-          title="승격 후보를 불러오지 못했습니다"
+          title="few-shot 후보를 불러오지 못했습니다"
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -268,14 +268,14 @@ export function AuthoringCandidateDetailPage() {
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
-          title="승격 후보 상세"
+          title="few-shot 후보 상세"
           description={`후보 ID: ${candidate.id}`}
         />
         <HStack gap="x2">
           <StatusBadge status={candidate.status} />
           <ActionButton
             variant="ghost"
-            onClick={() => navigate("/authoring-examples")}
+            onClick={() => navigate("/few-shot-candidates")}
           >
             목록으로
           </ActionButton>
@@ -289,7 +289,7 @@ export function AuthoringCandidateDetailPage() {
           <SafeSvgPreview
             svg={candidate.preview_svg}
             status={candidate.preview_status}
-            alt="승격 후보 SVG 안전 미리보기"
+            alt="few-shot 후보 SVG 안전 미리보기"
           />
           <VStack gap="x4" alignItems="stretch">
             <VStack gap="x1" alignItems="stretch">

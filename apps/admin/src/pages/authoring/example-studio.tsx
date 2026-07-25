@@ -245,7 +245,7 @@ export function AuthoringExampleForm({
           <VStack gap="x4" alignItems="stretch">
             <TextAreaField
               label="검색 intent"
-              description="검색(RAG)에 주입할 사용자 intent를 10자 이상 입력합니다."
+              description="few-shot 검색에 주입할 사용자 intent를 10자 이상 입력합니다."
               required
               rows={4}
               maxLength={500}
@@ -378,7 +378,7 @@ export function CreateAuthoringExampleModal({
   const mutation = useMutation({
     ...createAuthoringExampleMutation(),
     onSuccess: async (value) => {
-      snackbar("새 RAG 시범을 비활성 상태로 저장했습니다.");
+      snackbar("새 few-shot 시범을 비활성 상태로 저장했습니다.");
       await queryClient.invalidateQueries({
         queryKey: listAuthoringExamplesQueryKey(),
       });

@@ -264,16 +264,16 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
-    path: "authoring-examples",
+    path: "few-shot-candidates",
     lazy: async () => {
-      const { AuthoringExamplesPage } = await import(
-        "../../pages/authoring/list"
+      const { FewShotCandidatesPage } = await import(
+        "../../pages/authoring/candidates-list"
       );
-      return { Component: AuthoringExamplesPage };
+      return { Component: FewShotCandidatesPage };
     },
   },
   {
-    path: "authoring-examples/candidates/:candidateId",
+    path: "few-shot-candidates/:candidateId",
     lazy: async () => {
       const { AuthoringCandidateDetailPage } = await import(
         "../../pages/authoring/candidate-detail"
@@ -282,7 +282,16 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
-    path: "authoring-examples/active/:exampleId",
+    path: "few-shot-examples",
+    lazy: async () => {
+      const { FewShotExamplesPage } = await import(
+        "../../pages/authoring/examples-list"
+      );
+      return { Component: FewShotExamplesPage };
+    },
+  },
+  {
+    path: "few-shot-examples/:exampleId",
     lazy: async () => {
       const { AuthoringExampleDetailPage } = await import(
         "../../pages/authoring/example-detail"
