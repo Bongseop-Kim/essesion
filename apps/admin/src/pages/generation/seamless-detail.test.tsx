@@ -96,12 +96,9 @@ function renderPage(value: SeamlessDetailOut & Record<string, unknown> = log) {
   api.get.mockResolvedValue(value);
   return renderAdminPage(
     <Routes>
-      <Route
-        path="/generation-logs/seamless/:logId"
-        element={<SeamlessLogDetailPage />}
-      />
+      <Route path="/seamless-logs/:logId" element={<SeamlessLogDetailPage />} />
     </Routes>,
-    { entry: `/generation-logs/seamless/${value.id}` },
+    { entry: `/seamless-logs/${value.id}` },
   );
 }
 

@@ -20,11 +20,7 @@ import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
-import { JOB_STATUS_LABELS } from "./job-status";
-
-function kindLabel(kind: "finalize" | "export") {
-  return kind === "finalize" ? "원단 최종화" : "파일 내보내기";
-}
+import { JOB_STATUS_LABELS, jobKindLabel } from "./job-status";
 
 const PRODUCTION_METHOD_LABELS: Readonly<Record<string, string>> = {
   print: "날염",
@@ -194,7 +190,7 @@ export function GenerationJobDetailPage() {
         <DetailList
           items={[
             { label: "상태", value: JOB_STATUS_LABELS[job.status] },
-            { label: "단계", value: kindLabel(job.kind) },
+            { label: "단계", value: jobKindLabel(job.kind) },
             { label: "시도 횟수", value: `${job.attempts}회` },
             {
               label: "결과 객체",
@@ -252,7 +248,7 @@ export function GenerationJobDetailPage() {
       </AdminCard>
 
       <Text textStyle="bodySm">
-        <Link to="/generation-logs?tab=jobs">생성 작업 목록으로 돌아가기</Link>
+        <Link to="/generation-jobs">생성 작업 목록으로 돌아가기</Link>
       </Text>
 
       <TechnicalDetails

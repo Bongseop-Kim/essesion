@@ -564,9 +564,7 @@ export function SeamlessLogDetailPage() {
       </VStack>
 
       <Text textStyle="bodySm">
-        <Link to="/generation-logs?tab=seamless">
-          Seamless 로그 목록으로 돌아가기
-        </Link>
+        <Link to="/seamless-logs">Seamless 로그 목록으로 돌아가기</Link>
       </Text>
 
       <TechnicalDetails

@@ -228,30 +228,39 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
-    path: "generation-logs",
+    path: "seamless-logs",
     lazy: async () => {
-      const { GenerationOperationsPage } = await import(
-        "../../pages/generation/list"
+      const { SeamlessLogsPage } = await import(
+        "../../pages/generation/seamless-list"
       );
-      return { Component: GenerationOperationsPage };
+      return { Component: SeamlessLogsPage };
     },
   },
   {
-    path: "generation-logs/jobs/:jobId",
-    lazy: async () => {
-      const { GenerationJobDetailPage } = await import(
-        "../../pages/generation/job-detail"
-      );
-      return { Component: GenerationJobDetailPage };
-    },
-  },
-  {
-    path: "generation-logs/seamless/:logId",
+    path: "seamless-logs/:logId",
     lazy: async () => {
       const { SeamlessLogDetailPage } = await import(
         "../../pages/generation/seamless-detail"
       );
       return { Component: SeamlessLogDetailPage };
+    },
+  },
+  {
+    path: "generation-jobs",
+    lazy: async () => {
+      const { GenerationJobsPage } = await import(
+        "../../pages/generation/jobs-list"
+      );
+      return { Component: GenerationJobsPage };
+    },
+  },
+  {
+    path: "generation-jobs/:jobId",
+    lazy: async () => {
+      const { GenerationJobDetailPage } = await import(
+        "../../pages/generation/job-detail"
+      );
+      return { Component: GenerationJobDetailPage };
     },
   },
   {

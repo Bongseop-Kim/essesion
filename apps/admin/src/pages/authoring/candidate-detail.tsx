@@ -301,9 +301,7 @@ export function AuthoringCandidateDetailPage() {
               </Text>
             </VStack>
             {candidate.source_generation_log_id !== null && (
-              <Link
-                to={`/generation-logs/seamless/${candidate.source_generation_log_id}`}
-              >
+              <Link to={`/seamless-logs/${candidate.source_generation_log_id}`}>
                 원본 생성 로그 보기
               </Link>
             )}

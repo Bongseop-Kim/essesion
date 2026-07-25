@@ -47,11 +47,11 @@ describe("GenerationJobDetailPage", () => {
     renderAdminPage(
       <Routes>
         <Route
-          path="/generation-logs/jobs/:jobId"
+          path="/generation-jobs/:jobId"
           element={<GenerationJobDetailPage />}
         />
       </Routes>,
-      { entry: "/generation-logs/jobs/job-1" },
+      { entry: "/generation-jobs/job-1" },
     );
 
     const trigger = await screen.findByRole("button", { name: "기술 정보" });
