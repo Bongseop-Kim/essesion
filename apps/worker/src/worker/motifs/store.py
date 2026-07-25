@@ -14,9 +14,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, cast
 
+from db.models.design import DesignTurnAttachment, UserMotif
 from db.models.seamless import EMBEDDING_DIM, Motif
 from pgvector.sqlalchemy import HALFVEC
-from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import CursorResult, delete, exists, func, select, update
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -405,6 +406,27 @@ async def all_motif_ids(session: AsyncSession) -> list[str]:
             )
         ).all()
     )
+
+
+async def prune_stale_seeds(session: AsyncSession, seeded_ids: Iterable[str]) -> int:
+    """현재 시드 집합에 없는 `source="seed"` 고아 행을 지운다 — 삭제된 행 수 반환.
+
+    에셋 SVG를 고치면 content-hash id가 바뀌고 upsert는 ON CONFLICT DO NOTHING이라
+    옛 행이 남는다. 방치하면 admin 카탈로그에 옛 geometry·낡은 slot_colors로 계속 노출된다.
+    참조된 행은 남긴다 — 과거 세션 intent가 가리키는 모티프는 불변이어야 한다.
+    """
+    result = cast(
+        CursorResult,
+        await session.execute(
+            delete(Motif).where(
+                Motif.source == "seed",
+                Motif.id.notin_(list(seeded_ids)),
+                ~exists().where(UserMotif.motif_id == Motif.id),
+                ~exists().where(DesignTurnAttachment.motif_id == Motif.id),
+            )
+        ),
+    )
+    return result.rowcount
 
 
 def facets_from_spec(spec: dict) -> dict:

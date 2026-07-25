@@ -173,11 +173,12 @@ def _all_seeds() -> list[tuple[str, str, str, list[str], str]]:
     return seeds
 
 
-async def seed_motifs() -> int:
+async def seed_motifs() -> tuple[int, int]:
     settings = get_settings()
     engine = build_engine(settings)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     inserted = 0
+    seeded_ids: list[str] = []
     async with sessionmaker() as session:
         for subject, style, description, tags, svg in _all_seeds():
             normalized = normalize_motif_svg(svg, render_check=False)
@@ -204,12 +205,14 @@ async def seed_motifs() -> int:
                     slot_colors=list(normalized.slot_colors) if normalized.slot_colors else None,
                 )
             )
+            seeded_ids.append(normalized.id)
             inserted += 1
+        pruned = await store.prune_stale_seeds(session, seeded_ids)
         await session.commit()
     await engine.dispose()
-    return inserted
+    return inserted, pruned
 
 
 if __name__ == "__main__":
-    count = asyncio.run(seed_motifs())
-    print(f"seeded {count} motifs (idempotent)")
+    count, pruned = asyncio.run(seed_motifs())
+    print(f"seeded {count} motifs, pruned {pruned} stale (idempotent)")

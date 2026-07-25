@@ -5,8 +5,9 @@ upsert 멱등 · get_motifs JSONB→tuple 변환 · global nearest 안정 정렬
 """
 
 import pytest
+from db.models.design import UserMotif
 from db.models.seamless import Motif
-from sqlalchemy import select
+from sqlalchemy import select, text
 from worker.motifs import store
 from worker.motifs.embeddings import index_missing_embeddings
 from worker.motifs.normalize import NormalizedMotif
@@ -278,3 +279,24 @@ async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(d
     assert await store.public_embedding_counts(db_session) == (2, 2)
     assert await index_missing_embeddings(db_session, client) == 0
     assert client.texts == ["chess, chess king outline, king"]
+
+
+async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):
+    """에셋 수정으로 생긴 시드 고아만 지우고, 현재 시드·user_upload·참조 행은 남긴다."""
+    for mid, source in [
+        ("recraft-seedcurrent0", "seed"),
+        ("recraft-seedstale000", "seed"),
+        ("recraft-seedfaved00", "seed"),
+        ("upload-keepme00000", store.USER_UPLOAD_SOURCE),
+    ]:
+        await store.upsert_motif(db_session, _motif(mid), facets={"scope": "whole"}, source=source)
+    user_id = await db_session.scalar(text("insert into users (name) values ('t') returning id"))
+    db_session.add(UserMotif(user_id=user_id, motif_id="recraft-seedfaved00", name="fav"))
+    await db_session.commit()
+
+    assert await store.prune_stale_seeds(db_session, ["recraft-seedcurrent0"]) == 1
+    await db_session.commit()
+    assert await store.all_motif_ids(db_session) == [
+        "recraft-seedcurrent0",
+        "recraft-seedfaved00",
+    ]
