@@ -1,5 +1,5 @@
 {
-  "_comment": "갤러리 few-shot 캡스톤 입력. 한국인 사용자의 자연스러운 조사형 프롬프트 25개(gallery-v1 golden 1:1). 이 프롬프트는 고치지 말 것 — grounding(resolver._tokens 조사 정규화) 쪽을 고쳐 seed에 붙게 한다. example_id로 golden 구조와 대조하고, expected_motif_subjects로 seed grounding(=Recraft 미진입)을 검증한다.",
+  "_comment": "컴파일러 골든 25건에 대응하는 독립 캡스톤 입력이며 gallery-v1 starter의 현재 개수와 무관하다. 이 프롬프트는 고치지 말 것 — grounding(resolver._tokens 조사 정규화) 쪽을 고쳐 catalog seed에 붙게 한다. example_id로 golden 구조와 대조하고, expected_motif_subjects로 catalog grounding(=Recraft 미진입)을 검증한다.",
   "cases": [
     {
       "example_id": "gallery_01_background_solid",

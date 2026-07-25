@@ -1,8 +1,10 @@
 """관리자 저작 예시 승격과 active RAG 집합 계약."""
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
+from db.models.commerce import AdminOperationLog
 from db.models.seamless import AuthoringExample, AuthoringPromotionCandidate
 from sqlalchemy import select
 
@@ -78,6 +80,11 @@ async def test_candidate_review_activation_and_active_only_duplicate_policy(
         app.state.worker,
         "ensure_authoring_promotion_embedding",
         ensure_embedding,
+    )
+    monkeypatch.setattr(
+        app.state.worker,
+        "current_authoring_embedding_model",
+        AsyncMock(return_value={"model": MODEL}),
     )
 
     manager_list = await client.get(
@@ -235,3 +242,339 @@ async def test_rejected_candidate_is_terminal(client, db_session, settings):
     )
     assert retry.status_code == 409
     assert retry.json()["code"] == "invalid_candidate_transition"
+
+
+async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
+    client,
+    app,
+    db_session,
+    settings,
+    monkeypatch,
+):
+    admin = await make_admin(db_session)
+    admin_id = admin.id
+    manager = await make_user(db_session, role="manager")
+    admin_headers = auth_headers(admin, settings)
+    manager_headers = auth_headers(manager, settings)
+    plan = {
+        "colors": ["#F4EFE6", "#213547"],
+        "ground_color_index": 0,
+        "motifs": [{"source": "input", "input_index": 1}],
+        "layers": [
+            {
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": 0.18,
+                "color_indices": [1],
+                "placement": {
+                    "type": "lattice",
+                    "columns": 4,
+                    "rows": 4,
+                    "drop": "none",
+                    "fixed_rotation_deg": 0,
+                },
+            }
+        ],
+    }
+
+    async def _prepare(payload):
+        return {
+            "contract_version": 3,
+            "family": "lattice",
+            "motif_count": 1,
+            "retrieval_text": payload["retrieval_text"].strip(),
+            "tags": ["lattice", "input"],
+            "plan": payload["plan"],
+            "structural_fingerprint": "authored-solid-fingerprint",
+            "source_digest": f"digest:{payload['retrieval_text'].strip()}",
+            "embedding_model": MODEL,
+            "embedding": _vec(),
+        }
+
+    preview = AsyncMock(
+        return_value={
+            "svg": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+            "warnings": [],
+        }
+    )
+    prepare = AsyncMock(side_effect=_prepare)
+    monkeypatch.setattr(app.state.worker, "preview_authoring_example", preview)
+    monkeypatch.setattr(app.state.worker, "prepare_authoring_example", prepare)
+    monkeypatch.setattr(
+        app.state.worker,
+        "current_authoring_embedding_model",
+        AsyncMock(return_value={"model": MODEL}),
+    )
+
+    denied_preview = await client.post(
+        "/admin/authoring/preview",
+        headers=manager_headers,
+        json={"plan": plan},
+    )
+    assert denied_preview.status_code == 403
+    previewed = await client.post(
+        "/admin/authoring/preview",
+        headers=admin_headers,
+        json={"plan": plan},
+    )
+    assert previewed.status_code == 200, previewed.text
+    assert previewed.json()["svg"].startswith("<svg")
+
+    denied_create = await client.post(
+        "/admin/authoring/examples",
+        headers=manager_headers,
+        json={"retrieval_text": "매니저는 작성할 수 없는 시범", "plan": plan},
+    )
+    assert denied_create.status_code == 403
+    created = await client.post(
+        "/admin/authoring/examples",
+        headers=admin_headers,
+        json={
+            "retrieval_text": "차분한 격자 넥타이 시범 패턴",
+            "plan": plan,
+            "motif_ids": ["studio-flower"],
+        },
+    )
+    assert created.status_code == 201, created.text
+    authored = created.json()
+    assert authored["source"] == "authored"
+    assert authored["active"] is False
+    assert authored["embedding_model"] == MODEL
+    assert authored["approved_by"] == str(admin.id)
+    assert authored["motif_ids"] == ["studio-flower"]
+
+    listed = await client.get(
+        "/admin/authoring/examples?source=authored",
+        headers=manager_headers,
+    )
+    assert listed.status_code == 200
+    assert [item["id"] for item in listed.json()["items"]] == [authored["id"]]
+
+    denied_update = await client.patch(
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=manager_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "reason": "권한 없는 변경 시도",
+            "expected_updated_at": authored["updated_at"],
+            "retrieval_text": "매니저가 바꾸려는 시범 패턴",
+        },
+    )
+    assert denied_update.status_code == 403
+    stale = await client.patch(
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "reason": "오래된 화면 변경 시도",
+            "expected_updated_at": "2000-01-01T00:00:00Z",
+            "retrieval_text": "오래된 화면에서 바꾸려는 시범 패턴",
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "stale_resource"
+
+    update_operation = uuid.uuid4()
+    update_payload = {
+        "operation_id": str(update_operation),
+        "reason": "검색 intent 문구 개선",
+        "expected_updated_at": authored["updated_at"],
+        "retrieval_text": "수정된 차분한 격자 넥타이 시범",
+        "plan": plan,
+    }
+    updated = await client.patch(
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=admin_headers,
+        json=update_payload,
+    )
+    assert updated.status_code == 200, updated.text
+    authored = updated.json()
+    assert authored["retrieval_text"] == "수정된 차분한 격자 넥타이 시범"
+    assert authored["motif_ids"] == ["studio-flower"]
+    assert prepare.await_count == 2
+    replayed_update = await client.patch(
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=admin_headers,
+        json=update_payload,
+    )
+    assert replayed_update.status_code == 200
+    assert prepare.await_count == 2
+    db_session.expire_all()
+    update_log = await db_session.scalar(
+        select(AdminOperationLog).where(AdminOperationLog.operation_id == str(update_operation))
+    )
+    assert update_log is not None
+    assert update_log.actor_id == admin_id
+    assert update_log.reason == "검색 intent 문구 개선"
+    assert update_log.before_data["state"]["plan"] == plan
+    assert update_log.before_data["state"]["structural_fingerprint"] == (
+        "authored-solid-fingerprint"
+    )
+    assert update_log.before_data["state"]["embedding_vertex"][0] == 1.0
+    assert update_log.after_data["plan"] == plan
+    assert update_log.after_data["structural_fingerprint"] == "authored-solid-fingerprint"
+    assert update_log.after_data["embedding_vertex"][0] == 1.0
+
+    activated = await client.post(
+        f"/admin/authoring/examples/{authored['id']}/activation",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "active": True,
+            "reason": "프리뷰와 구조 확인 완료",
+            "expected_updated_at": authored["updated_at"],
+        },
+    )
+    assert activated.status_code == 200, activated.text
+
+    active_update_operation = uuid.uuid4()
+    active_updated = await client.patch(
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=admin_headers,
+        json={
+            "operation_id": str(active_update_operation),
+            "reason": "활성 시범 검색 문구 보정",
+            "expected_updated_at": activated.json()["updated_at"],
+            "retrieval_text": "활성 상태에서 보정한 격자 넥타이 시범",
+        },
+    )
+    assert active_updated.status_code == 200, active_updated.text
+    assert active_updated.json()["active"] is True
+    assert active_updated.json()["motif_ids"] == ["studio-flower"]
+    db_session.expire_all()
+    active_update_log = await db_session.scalar(
+        select(AdminOperationLog).where(
+            AdminOperationLog.operation_id == str(active_update_operation)
+        )
+    )
+    assert active_update_log is not None
+    assert active_update_log.before_data["state"]["active"] is True
+    assert active_update_log.after_data["active"] is True
+
+    duplicate = await client.post(
+        "/admin/authoring/examples",
+        headers=admin_headers,
+        json={"retrieval_text": "또 다른 단색 넥타이 시범 패턴", "plan": plan},
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "authoring_example_duplicate"
+
+    active_delete = await client.request(
+        "DELETE",
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "reason": "활성 행 삭제 거부 확인",
+        },
+    )
+    assert active_delete.status_code == 409
+    assert active_delete.json()["code"] == "authoring_example_active"
+
+    bootstrap = AuthoringExample(
+        example_id="bootstrap-delete-guard",
+        source="bootstrap",
+        contract_version=3,
+        family="solid",
+        motif_count=0,
+        retrieval_text="삭제할 수 없는 초기 시범 패턴",
+        tags=["solid"],
+        plan=plan,
+        structural_fingerprint="bootstrap-delete-guard",
+        source_digest="bootstrap-delete-guard",
+        embedding_model=MODEL,
+        embedding_vertex=_vec(0.5),
+        active=False,
+        approved_at=datetime.now(UTC),
+    )
+    db_session.add(bootstrap)
+    await db_session.commit()
+    await db_session.refresh(bootstrap)
+    denied_bootstrap_edit = await client.patch(
+        f"/admin/authoring/examples/{bootstrap.id}",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "reason": "초기 시범 편집 거부 확인",
+            "expected_updated_at": bootstrap.updated_at.isoformat(),
+            "retrieval_text": "초기 시범을 직접 수정하려는 내용",
+        },
+    )
+    assert denied_bootstrap_edit.status_code == 403
+    denied_bootstrap_delete = await client.request(
+        "DELETE",
+        f"/admin/authoring/examples/{bootstrap.id}",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "reason": "초기 시범 삭제 거부 확인",
+        },
+    )
+    assert denied_bootstrap_delete.status_code == 409
+    assert denied_bootstrap_delete.json()["code"] == "authoring_example_delete_forbidden"
+
+    bootstrap.embedding_model = "retired-embedding-model"
+    await db_session.commit()
+    await db_session.refresh(bootstrap)
+    denied_stale_embedding_activation = await client.post(
+        f"/admin/authoring/examples/{bootstrap.id}/activation",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "active": True,
+            "reason": "오래된 임베딩 모델 활성화 거부 확인",
+            "expected_updated_at": bootstrap.updated_at.isoformat(),
+        },
+    )
+    assert denied_stale_embedding_activation.status_code == 409
+    assert denied_stale_embedding_activation.json()["code"] == "example_not_ready"
+
+    deactivated = await client.post(
+        f"/admin/authoring/examples/{authored['id']}/activation",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "active": False,
+            "reason": "영구 삭제 전 검색 풀 제외",
+            "expected_updated_at": active_updated.json()["updated_at"],
+        },
+    )
+    assert deactivated.status_code == 200, deactivated.text
+
+    delete_operation = uuid.uuid4()
+    delete_payload = {
+        "operation_id": str(delete_operation),
+        "reason": "잘못 작성한 시범 영구 삭제",
+    }
+    deleted = await client.request(
+        "DELETE",
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=admin_headers,
+        json=delete_payload,
+    )
+    assert deleted.status_code == 204
+    replayed_delete = await client.request(
+        "DELETE",
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=admin_headers,
+        json=delete_payload,
+    )
+    assert replayed_delete.status_code == 204
+    db_session.expire_all()
+    delete_log = await db_session.scalar(
+        select(AdminOperationLog).where(AdminOperationLog.operation_id == str(delete_operation))
+    )
+    assert delete_log is not None
+    assert delete_log.actor_id == admin_id
+    assert delete_log.reason == "잘못 작성한 시범 영구 삭제"
+    assert delete_log.before_data["state"]["plan"] == plan
+    assert delete_log.before_data["state"]["structural_fingerprint"] == (
+        "authored-solid-fingerprint"
+    )
+    assert delete_log.before_data["state"]["embedding_vertex"][0] == 1.0
+    assert delete_log.after_data == {"deleted": True}
+    missing = await client.get(
+        f"/admin/authoring/examples/{authored['id']}",
+        headers=manager_headers,
+    )
+    assert missing.status_code == 404

@@ -122,7 +122,7 @@ function CandidateActions({
   return (
     <AdminCard
       title="검토 결정"
-      description="승인하면 임베딩과 중복을 다시 검증한 뒤 active 예시로 즉시 반영합니다."
+      description="승인하면 임베딩과 중복을 다시 검증한 뒤 활성 시범으로 즉시 반영합니다."
     >
       <VStack gap="x4" alignItems="stretch">
         <HStack gap="x2" wrap>
@@ -206,7 +206,7 @@ function CandidateActions({
         title={`이 승격 후보를 ${decision ? DECISION_LABELS[decision] : "처리"}할까요?`}
         description={
           decision === "approve"
-            ? "승인 직후 이 예시는 active RAG 검색 대상이 됩니다."
+            ? "승인 직후 이 시범은 RAG 검색 대상이 됩니다."
             : `입력한 사유와 함께 ${decision ? DECISION_LABELS[decision] : "검토"} 상태가 기록됩니다.`
         }
         primaryActionProps={{

@@ -58,7 +58,7 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
       },
       {
         key: "authoring-examples",
-        label: "RAG 예시",
+        label: "RAG 시범",
         href: "/authoring-examples",
       },
       { key: "motifs", label: "Motif SVG", href: "/motifs" },

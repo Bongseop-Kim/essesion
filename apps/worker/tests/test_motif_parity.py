@@ -26,9 +26,3 @@ def test_normalize_produces_original_motif_id(stem, expected_id, expected_slots)
     motif = normalize_motif_svg(svg, render_check=False)
     assert motif.id == expected_id
     assert motif.color_slots == expected_slots
-
-
-@pytest.mark.parametrize("stem,expected_id,expected_slots", _EXPECTED)
-def test_normalize_is_idempotent_on_id(stem, expected_id, expected_slots):
-    svg = (_FIXTURES / f"{stem}.svg").read_text()
-    assert normalize_motif_svg(svg, render_check=False).id == expected_id  # 재실행 동일

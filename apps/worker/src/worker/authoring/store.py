@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from db.models.seamless import AuthoringExample
-from sqlalchemy import CursorResult, case, func, select, update
+from sqlalchemy import CursorResult, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +30,7 @@ async def project_manifest(
     *,
     embedding_model: str,
 ) -> bool:
-    """Insert one immutable bootstrap example without overriding admin activation."""
+    """Insert a starter example once without ever rewriting an existing database row."""
 
     motif_count = len(manifest.plan.motifs)
     plan = manifest.plan.model_dump(mode="json")
@@ -54,28 +54,7 @@ async def project_manifest(
         .on_conflict_do_nothing(index_elements=[AuthoringExample.example_id])
         .returning(AuthoringExample.example_id)
     )
-    if inserted is not None:
-        return True
-
-    existing = await session.scalar(
-        select(AuthoringExample).where(AuthoringExample.example_id == manifest.example_id)
-    )
-    if existing is None or any(
-        (
-            existing.source_digest != source_digest,
-            existing.contract_version != PLAN_CONTRACT_VERSION,
-            existing.family != manifest.family,
-            existing.motif_count != motif_count,
-            existing.retrieval_text != manifest.retrieval_text,
-            existing.tags != manifest.tags,
-            existing.plan != plan,
-            existing.structural_fingerprint != values["structural_fingerprint"],
-            existing.embedding_model != embedding_model,
-            existing.source != "bootstrap",
-        )
-    ):
-        raise ValueError(f"immutable bootstrap authoring example changed: {manifest.example_id}")
-    return False
+    return inserted is not None
 
 
 async def update_embedding_if_missing(
@@ -89,19 +68,23 @@ async def update_embedding_if_missing(
         update(AuthoringExample)
         .where(
             AuthoringExample.example_id == example_id,
-            AuthoringExample.embedding_model == embedding_model,
-            AuthoringExample.embedding_vertex.is_(None),
+            AuthoringExample.source == "bootstrap",
+            or_(
+                AuthoringExample.embedding_model != embedding_model,
+                AuthoringExample.embedding_vertex.is_(None),
+            ),
         )
         .values(
+            embedding_model=embedding_model,
             embedding_vertex=embedding,
-            approved_at=func.coalesce(AuthoringExample.approved_at, func.now()),
+            approved_at=func.now(),
             active=case(
                 (AuthoringExample.active_updated_at.is_(None), True),
                 else_=AuthoringExample.active,
             ),
             active_updated_at=func.coalesce(AuthoringExample.active_updated_at, func.now()),
             active_reason=case(
-                (AuthoringExample.active_updated_at.is_(None), "bootstrap sync"),
+                (AuthoringExample.active_updated_at.is_(None), "bootstrap seed"),
                 else_=AuthoringExample.active_reason,
             ),
         )
@@ -117,8 +100,10 @@ async def missing_embedding_ids(
     rows = await session.scalars(
         select(AuthoringExample.example_id).where(
             AuthoringExample.source == "bootstrap",
-            AuthoringExample.embedding_model == embedding_model,
-            AuthoringExample.embedding_vertex.is_(None),
+            or_(
+                AuthoringExample.embedding_model != embedding_model,
+                AuthoringExample.embedding_vertex.is_(None),
+            ),
         )
     )
     return set(rows)

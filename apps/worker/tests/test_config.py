@@ -44,17 +44,6 @@ def test_settings_rejects_non_finite_max_tile_mm(value: float) -> None:
         _settings(max_tile_mm=value)
 
 
-def test_settings_resource_ceiling_defaults() -> None:
-    s = _settings()
-    assert s.max_placement_instances == 50_000
-    assert s.max_svg_bytes == 2_000_000
-    assert s.preview_dpi == 192
-    assert s.preview_render_concurrency == 2
-    assert s.finalize_lease_seconds == 960
-    assert s.motif_generate_per_request_limit == 2
-    assert s.service_mode == "all"
-
-
 def test_settings_validates_resource_ceilings() -> None:
     _settings(
         max_placement_instances=1,

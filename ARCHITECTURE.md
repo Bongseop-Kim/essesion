@@ -447,7 +447,9 @@ private uploads bucket
 ```mermaid
 flowchart LR
     Prompt[자연어 prompt] --> Author[Gemini authoring]
-    Bootstrap[gallery bootstrap<br/>25개 Plan v3] --> Active[(approved active examples)]
+    Starter[gallery starter<br/>소량 Plan v3] --> Active[(DB active RAG examples)]
+    Studio[관리자 저작·프리뷰] --> Active
+    Promote[생성 결과 승격] --> Active
     Prompt --> Retrieve[Vertex embedding + pgvector RAG]
     Active --> Retrieve
     Retrieve -->|호환 후보 중 최대 3개| Author
@@ -474,9 +476,9 @@ flowchart LR
 
 Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-constrained `DesignPlansV3`를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개 motif source와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. 검증된 후보가 없는 텍스트 경로에서는 사용자가 반복 모티프로 명시한 구체적 개별 도형만 원문 그대로 `generate` source 한 건으로 표현할 수 있고, 색·무드·질감만 말한 요청에는 모티프를 발명하지 않는다. Pydantic 모델 자체를 Vertex `response_schema`로 넘기고, 결정적 compiler가 48mm/300dpi intent와 motif sidecar를 만든다. 멀티슬롯 모티프는 `color_indices`를 생략하면 원색 보존 의도를 전달하고, 명시하면 재색 의도를 전달한다. fixed palette에서는 compiler가 `color_indices`를 강제한다. 색만 다른 plan은 structural fingerprint로 중복 처리하며 2개 이상의 유효한 구조가 없으면 검증 오류와 함께 한 번 다시 저작한다.
 
-기존 25개 이상 intent에서 만든 `gallery-v1` Plan v3 manifest는 최초 bootstrap 입력이다. 런타임 few-shot 정본은 운영 DB의 `authoring_examples` 중 승인되고 `active=true`인 현재 contract·embedding model 행이다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 예시를 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 예시 없이 typed schema 경로를 계속한다.
+`gallery-v1` Plan v3 manifest는 빈 DB를 위한 소량 starter 입력일 뿐 운영 셋의 정본이나 골든 목록이 아니다. 시드는 같은 ID가 이미 있으면 건너뛰어 DB에서 큐레이션한 행을 덮어쓰지 않으며, 운영 셋 전체의 정본은 bootstrap·관리자 직접 저작(`authored`)·생성 승격(`promoted`)을 함께 보관하는 `authoring_examples`다. 런타임은 그중 `active=true`인 현재 contract·embedding model 행만 읽는다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 시범을 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 시범 없이 typed schema 경로를 계속한다.
 
-모든 생성 요청은 Plan v3 경로만 사용한다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 generation diagnostics/intent log에 남긴다. 매일 성공·선택·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 예시가 되며, 문제 예시는 `active=false`로 즉시 제외한다. prompt와 Plan 본문은 관리자 화면에서 편집하지 않는다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
+모든 생성 요청은 Plan v3 경로만 사용한다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 generation diagnostics/intent log에 남긴다. 매일 성공·선택·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 시범이 되며, 문제 시범은 `active=false`로 즉시 제외한다. 관리자는 별도로 intent와 Plan v3를 작성하고 카탈로그 motif만 사용하는 무-LLM 타일 프리뷰를 확인한 뒤 `authored` 시범을 비활성 상태로 저장·편집·삭제할 수 있다. bootstrap/promoted 행의 Plan 본문은 읽기 전용이다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
 
 사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 구체적 텍스트 모티프가 정확도 게이트를 통과한 공개 카탈로그에도 없을 때만 Recraft로 SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 색 배정, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
 

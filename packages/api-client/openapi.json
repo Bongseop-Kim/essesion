@@ -4478,6 +4478,56 @@
         "title": "AuthoringExampleActivationRequest",
         "type": "object"
       },
+      "AuthoringExampleCreateRequest": {
+        "properties": {
+          "motif_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "Motif Ids",
+            "type": "array"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          },
+          "retrieval_text": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Retrieval Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "retrieval_text",
+          "plan"
+        ],
+        "title": "AuthoringExampleCreateRequest",
+        "type": "object"
+      },
+      "AuthoringExampleDeleteRequest": {
+        "properties": {
+          "operation_id": {
+            "format": "uuid",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
+        ],
+        "title": "AuthoringExampleDeleteRequest",
+        "type": "object"
+      },
       "AuthoringExampleDetailOut": {
         "properties": {
           "active": {
@@ -4573,6 +4623,13 @@
             "title": "Motif Count",
             "type": "integer"
           },
+          "motif_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Motif Ids",
+            "type": "array"
+          },
           "plan": {
             "additionalProperties": true,
             "title": "Plan",
@@ -4585,7 +4642,8 @@
           "source": {
             "enum": [
               "bootstrap",
-              "promoted"
+              "promoted",
+              "authored"
             ],
             "title": "Source",
             "type": "string"
@@ -4631,9 +4689,86 @@
           "created_at",
           "updated_at",
           "source_digest",
-          "plan"
+          "plan",
+          "motif_ids"
         ],
         "title": "AuthoringExampleDetailOut",
+        "type": "object"
+      },
+      "AuthoringExamplePreviewOut": {
+        "properties": {
+          "svg": {
+            "title": "Svg",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "svg",
+          "warnings"
+        ],
+        "title": "AuthoringExamplePreviewOut",
+        "type": "object"
+      },
+      "AuthoringExamplePreviewRequest": {
+        "properties": {
+          "colorway": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colorway"
+          },
+          "motif_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2,
+            "title": "Motif Ids",
+            "type": "array"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "maximum": 9.223372036854776e+18,
+                "minimum": -9.223372036854776e+18,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "tile_mm": {
+            "default": 48.0,
+            "exclusiveMinimum": 0.0,
+            "maximum": 500.0,
+            "title": "Tile Mm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "title": "AuthoringExamplePreviewRequest",
         "type": "object"
       },
       "AuthoringExampleSummaryOut": {
@@ -4738,7 +4873,8 @@
           "source": {
             "enum": [
               "bootstrap",
-              "promoted"
+              "promoted",
+              "authored"
             ],
             "title": "Source",
             "type": "string"
@@ -4781,6 +4917,73 @@
           "updated_at"
         ],
         "title": "AuthoringExampleSummaryOut",
+        "type": "object"
+      },
+      "AuthoringExampleUpdateRequest": {
+        "properties": {
+          "expected_updated_at": {
+            "format": "date-time",
+            "title": "Expected Updated At",
+            "type": "string"
+          },
+          "motif_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 2,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motif Ids"
+          },
+          "operation_id": {
+            "format": "uuid",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "retrieval_text": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Text"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason",
+          "expected_updated_at"
+        ],
+        "title": "AuthoringExampleUpdateRequest",
         "type": "object"
       },
       "AuthoringPromotionBatchResult": {
@@ -15519,7 +15722,8 @@
               "enum": [
                 "all",
                 "bootstrap",
-                "promoted"
+                "promoted",
+                "authored"
               ],
               "title": "Source",
               "type": "string"
@@ -15613,9 +15817,102 @@
         "tags": [
           "admin-authoring"
         ]
+      },
+      "post": {
+        "operationId": "create_authoring_example",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringExampleCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Authoring Example",
+        "tags": [
+          "admin-authoring"
+        ]
       }
     },
     "/admin/authoring/examples/{example_id}": {
+      "delete": {
+        "operationId": "delete_authoring_example",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringExampleDeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Authoring Example",
+        "tags": [
+          "admin-authoring"
+        ]
+      },
       "get": {
         "operationId": "get_authoring_example",
         "parameters": [
@@ -15658,6 +15955,62 @@
           }
         ],
         "summary": "Get Authoring Example",
+        "tags": [
+          "admin-authoring"
+        ]
+      },
+      "patch": {
+        "operationId": "update_authoring_example",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringExampleUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringExampleDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Authoring Example",
         "tags": [
           "admin-authoring"
         ]
@@ -15716,6 +16069,52 @@
           }
         ],
         "summary": "Set Authoring Example Activation",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
+    "/admin/authoring/preview": {
+      "post": {
+        "operationId": "preview_authoring_example",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringExamplePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringExamplePreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Preview Authoring Example",
         "tags": [
           "admin-authoring"
         ]

@@ -109,6 +109,15 @@ class WorkerClient:
             {"candidate_id": candidate_id},
         )
 
+    async def preview_authoring_example(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._post_json("/authoring/compile-preview", payload)
+
+    async def prepare_authoring_example(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._post_json("/authoring/examples/prepare", payload)
+
+    async def current_authoring_embedding_model(self) -> dict[str, Any]:
+        return await self._post_json("/authoring/examples/embedding-model", {})
+
     async def export(self, payload: dict[str, Any]) -> tuple[bytes, str]:
         """SVG → PNG/TIFF 바이너리. (content, media_type) 반환 — 워커가 dpi/치수의 최종 권위."""
         res = await self._post("/export", payload, finalize=True)

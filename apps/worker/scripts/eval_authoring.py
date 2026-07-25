@@ -4,8 +4,8 @@ Usage:
   GCP_PROJECT_ID=... DATABASE_URL=... uv run python \
     apps/worker/scripts/eval_authoring.py --confirm-live
 
-V3 reads the deployed immutable example projection and exercises the same Vertex embedding +
-pgvector RAG path as the worker. The report contains aggregates and case IDs only; prompt text
+V3 reads the active database example set and exercises the same Vertex embedding + pgvector RAG
+path as the worker. The report contains aggregates and case IDs only; prompt text
 and provider responses are never printed or persisted.
 """
 

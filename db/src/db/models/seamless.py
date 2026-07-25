@@ -87,7 +87,7 @@ class Motif(CreatedAtMixin, Base):
 
 
 class AuthoringExample(TimestampMixin, Base):
-    """Approved Plan v3 example. Only active rows participate in RAG."""
+    """Validated Plan v3 RAG example; only active rows participate in retrieval."""
 
     __tablename__ = "authoring_examples"
 
@@ -100,6 +100,7 @@ class AuthoringExample(TimestampMixin, Base):
     retrieval_text: Mapped[str]
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     plan: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    motif_ids: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     structural_fingerprint: Mapped[str]
     source_digest: Mapped[str]
     embedding_model: Mapped[str]
@@ -116,9 +117,12 @@ class AuthoringExample(TimestampMixin, Base):
     active_reason: Mapped[str | None]
 
     __table_args__ = (
-        CheckConstraint("source IN ('bootstrap', 'promoted')", name="source"),
         CheckConstraint("contract_version > 0", name="contract_version_positive"),
         CheckConstraint("motif_count BETWEEN 0 AND 2", name="motif_count"),
+        CheckConstraint(
+            "source IN ('bootstrap', 'promoted', 'authored')",
+            name="source",
+        ),
         CheckConstraint(
             "family IN ('solid', 'stripe', 'lattice', 'scatter', 'path', "
             "'point_set', 'stripe_motif', 'multi_motif')",
