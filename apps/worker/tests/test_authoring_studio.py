@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from db.models.seamless import EMBEDDING_DIM, Motif
+from worker.adapters import AdapterClientError
 
 
 def _solid_plan() -> dict:
@@ -150,6 +151,58 @@ async def test_prepare_derives_metadata_and_embedding_once_at_authoring(app, cli
     assert current_model.status_code == 200
     assert current_model.json() == {"model": embedding.model}
     assert len(embedding.calls) == 1
+
+
+async def test_prepare_rejects_retrieval_text_that_is_too_short_after_stripping(client):
+    response = await client.post(
+        "/authoring/examples/prepare",
+        json={
+            "retrieval_text": "          짧음          ",
+            "plan": _solid_plan(),
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_prepare_maps_embedding_adapter_errors_to_bad_gateway(app, client):
+    class _Embedding:
+        model = "studio-embedding"
+
+        async def embed(self, text: str, *, task_type: str) -> list[float]:
+            raise AdapterClientError(
+                "unavailable",
+                provider="vertex_embedding",
+                operation="embed",
+                reason_code="provider_5xx",
+            )
+
+    app.state.adapters.embedding = _Embedding()
+    response = await client.post(
+        "/authoring/examples/prepare",
+        json={
+            "retrieval_text": "임베딩 공급자 오류를 확인하는 단색 패턴",
+            "plan": _solid_plan(),
+        },
+    )
+    assert response.status_code == 502
+
+
+async def test_prepare_maps_wrong_embedding_dimension_to_bad_gateway(app, client):
+    class _Embedding:
+        model = "studio-embedding"
+
+        async def embed(self, text: str, *, task_type: str) -> list[float]:
+            return [1.0]
+
+    app.state.adapters.embedding = _Embedding()
+    response = await client.post(
+        "/authoring/examples/prepare",
+        json={
+            "retrieval_text": "잘못된 임베딩 차원을 확인하는 단색 패턴",
+            "plan": _solid_plan(),
+        },
+    )
+    assert response.status_code == 502
 
 
 async def test_embedding_is_unavailable_without_provider(client):

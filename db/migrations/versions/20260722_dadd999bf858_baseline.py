@@ -373,6 +373,12 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("plan", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "motif_ids",
+            postgresql.ARRAY(sa.Text()),
+            server_default=sa.text("'{}'::text[]"),
+            nullable=False,
+        ),
         sa.Column("structural_fingerprint", sa.Text(), nullable=False),
         sa.Column("source_digest", sa.Text(), nullable=False),
         sa.Column("embedding_model", sa.Text(), nullable=False),
@@ -394,6 +400,10 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
+        ),
+        sa.CheckConstraint(
+            "source IN ('bootstrap', 'promoted', 'authored')",
+            name=op.f("ck_authoring_examples_source"),
         ),
         sa.CheckConstraint(
             "family IN ('solid', 'stripe', 'lattice', 'scatter', 'path', 'point_set', 'stripe_motif', 'multi_motif')",

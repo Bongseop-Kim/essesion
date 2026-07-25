@@ -189,15 +189,19 @@ export type AuthoringExampleFormValue = {
 export function AuthoringExampleForm({
   initialRetrievalText = "",
   initialPlan = DEFAULT_AUTHORING_PLAN,
+  initialMotifIds = [],
   submitLabel,
   submitting,
+  submitDisabled = false,
   submitError,
   onSubmit,
 }: {
   initialRetrievalText?: string;
   initialPlan?: Record<string, unknown>;
+  initialMotifIds?: string[];
   submitLabel: string;
   submitting: boolean;
+  submitDisabled?: boolean;
   submitError?: unknown;
   onSubmit: (value: AuthoringExampleFormValue) => void;
 }) {
@@ -205,11 +209,23 @@ export function AuthoringExampleForm({
   const [planText, setPlanText] = useState(() =>
     JSON.stringify(initialPlan, null, 2),
   );
-  const [motifIds, setMotifIds] = useState<string[]>([]);
+  const [motifIds, setMotifIds] = useState(() => [...initialMotifIds]);
+  const [previewedSignature, setPreviewedSignature] = useState<string>();
   const parsedPlan = useMemo(() => parsePlan(planText), [planText]);
-  const preview = useMutation(previewAuthoringExampleMutation());
+  const previewInput = parsedPlan.ok
+    ? { plan: parsedPlan.value, motif_ids: motifIds, tile_mm: 48 }
+    : undefined;
+  const previewSignature =
+    previewInput === undefined ? undefined : JSON.stringify(previewInput);
+  const preview = useMutation({
+    ...previewAuthoringExampleMutation(),
+    onSuccess: (_value, variables) => {
+      setPreviewedSignature(JSON.stringify(variables.body));
+    },
+  });
   const retrievalValid = retrievalText.trim().length >= 10;
-  const previewCurrent = preview.isSuccess;
+  const previewCurrent =
+    preview.isSuccess && previewedSignature === previewSignature;
 
   return (
     <Box
@@ -250,18 +266,12 @@ export function AuthoringExampleForm({
               value={planText}
               disabled={submitting}
               errorMessage={parsedPlan.ok ? undefined : parsedPlan.message}
-              onChange={(event) => {
-                setPlanText(event.currentTarget.value);
-                preview.reset();
-              }}
+              onChange={(event) => setPlanText(event.currentTarget.value)}
             />
             <MotifPicker
               value={motifIds}
               disabled={submitting}
-              onChange={(next) => {
-                setMotifIds(next);
-                preview.reset();
-              }}
+              onChange={setMotifIds}
             />
             <HStack gap="x2" wrap>
               <ActionButton
@@ -270,13 +280,9 @@ export function AuthoringExampleForm({
                 loading={preview.isPending}
                 disabled={!parsedPlan.ok || submitting}
                 onClick={() => {
-                  if (!parsedPlan.ok) return;
+                  if (previewInput === undefined) return;
                   preview.mutate({
-                    body: {
-                      plan: parsedPlan.value,
-                      motif_ids: motifIds,
-                      tile_mm: 48,
-                    },
+                    body: previewInput,
                   });
                 }}
               >
@@ -290,7 +296,8 @@ export function AuthoringExampleForm({
                   !parsedPlan.ok ||
                   !retrievalValid ||
                   !previewCurrent ||
-                  preview.isPending
+                  preview.isPending ||
+                  submitDisabled
                 }
               >
                 {submitLabel}

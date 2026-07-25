@@ -42,6 +42,11 @@ class AuthoringExamplePrepareRequest(StrictRequest):
     retrieval_text: str = Field(min_length=10, max_length=500)
     plan: DesignPlanV3
 
+    @field_validator("retrieval_text", mode="before")
+    @classmethod
+    def _normalize_retrieval_text(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
 
 class AuthoringExamplePrepareResponse(BaseModel):
     contract_version: int

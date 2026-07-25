@@ -2420,6 +2420,20 @@ export type AuthoringExampleCreateRequest = {
 };
 
 /**
+ * AuthoringExampleDeleteRequest
+ */
+export type AuthoringExampleDeleteRequest = {
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Reason
+     */
+    reason: string;
+};
+
+/**
  * AuthoringExampleDetailOut
  */
 export type AuthoringExampleDetailOut = {
@@ -2475,6 +2489,10 @@ export type AuthoringExampleDetailOut = {
      * Motif Count
      */
     motif_count: number;
+    /**
+     * Motif Ids
+     */
+    motif_ids: Array<string>;
     /**
      * Plan
      */
@@ -2640,11 +2658,19 @@ export type AuthoringExampleUpdateRequest = {
      */
     motif_ids?: Array<string> | null;
     /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
      * Plan
      */
     plan?: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Reason
+     */
+    reason: string;
     /**
      * Retrieval Text
      */
@@ -8537,7 +8563,7 @@ export type CreateAuthoringExampleResponses = {
 export type CreateAuthoringExampleResponse = CreateAuthoringExampleResponses[keyof CreateAuthoringExampleResponses];
 
 export type DeleteAuthoringExampleData = {
-    body?: never;
+    body: AuthoringExampleDeleteRequest;
     path: {
         /**
          * Example Id

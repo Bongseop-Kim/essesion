@@ -100,6 +100,7 @@ class AuthoringExample(TimestampMixin, Base):
     retrieval_text: Mapped[str]
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     plan: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    motif_ids: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     structural_fingerprint: Mapped[str]
     source_digest: Mapped[str]
     embedding_model: Mapped[str]
@@ -118,6 +119,10 @@ class AuthoringExample(TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint("contract_version > 0", name="contract_version_positive"),
         CheckConstraint("motif_count BETWEEN 0 AND 2", name="motif_count"),
+        CheckConstraint(
+            "source IN ('bootstrap', 'promoted', 'authored')",
+            name="source",
+        ),
         CheckConstraint(
             "family IN ('solid', 'stripe', 'lattice', 'scatter', 'path', "
             "'point_set', 'stripe_motif', 'multi_motif')",

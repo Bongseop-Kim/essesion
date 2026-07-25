@@ -109,7 +109,42 @@ describe("AuthoringExampleForm", () => {
     });
     expect((save as HTMLButtonElement).disabled).toBe(true);
     expect(
-      screen.queryByRole("img", { name: "저작 시범 타일 프리뷰" }),
-    ).toBeNull();
+      screen.getByRole("img", { name: "저작 시범 타일 프리뷰" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Plan 또는 모티프가 바뀌었습니다. 다시 프리뷰해 주세요.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("기존 모티프 ID를 편집 프리뷰와 저장에 보존한다", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    renderAdminPage(
+      <AuthoringExampleForm
+        initialRetrievalText="기존 모티프를 사용하는 격자 시범"
+        initialMotifIds={["studio-flower"]}
+        submitLabel="시범 저장"
+        submitting={false}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "타일 프리뷰" }));
+    await waitFor(() =>
+      expect(api.preview).toHaveBeenCalledWith(
+        {
+          body: expect.objectContaining({
+            motif_ids: ["studio-flower"],
+          }),
+        },
+        expect.anything(),
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "시범 저장" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ motifIds: ["studio-flower"] }),
+    );
   });
 });

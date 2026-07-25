@@ -54,6 +54,22 @@ DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 
 
+def _normalize_retrieval_text(value: str) -> str:
+    normalized = value.strip()
+    if len(normalized) < 10:
+        raise ValueError("retrieval_text must contain at least 10 non-blank characters")
+    return normalized
+
+
+def _normalize_motif_ids(values: list[str]) -> list[str]:
+    normalized = [value.strip() for value in values]
+    if any(not value for value in normalized):
+        raise ValueError("motif IDs may not be blank")
+    if len(normalized) != len(set(normalized)):
+        raise ValueError("motif IDs must be distinct")
+    return normalized
+
+
 class AuthoringCandidateSummaryOut(BaseModel):
     id: uuid.UUID
     source_generation_log_id: uuid.UUID | None
@@ -123,6 +139,7 @@ class AuthoringExampleSummaryOut(BaseModel):
 class AuthoringExampleDetailOut(AuthoringExampleSummaryOut):
     source_digest: str
     plan: dict[str, Any]
+    motif_ids: list[str]
 
 
 class AuthoringExampleActivationRequest(BaseModel):
@@ -142,12 +159,7 @@ class AuthoringExamplePreviewRequest(BaseModel):
     @field_validator("motif_ids")
     @classmethod
     def _distinct_motif_ids(cls, values: list[str]) -> list[str]:
-        normalized = [value.strip() for value in values]
-        if any(not value for value in normalized):
-            raise ValueError("motif IDs may not be blank")
-        if len(normalized) != len(set(normalized)):
-            raise ValueError("motif IDs must be distinct")
-        return normalized
+        return _normalize_motif_ids(values)
 
 
 class AuthoringExamplePreviewOut(BaseModel):
@@ -163,15 +175,12 @@ class _AuthoringExampleWriteFields(BaseModel):
     @field_validator("retrieval_text")
     @classmethod
     def _normalize_retrieval_text(cls, value: str) -> str:
-        normalized = value.strip()
-        if len(normalized) < 10:
-            raise ValueError("retrieval_text must contain at least 10 non-blank characters")
-        return normalized
+        return _normalize_retrieval_text(value)
 
     @field_validator("motif_ids")
     @classmethod
     def _normalize_motif_ids(cls, values: list[str]) -> list[str]:
-        return AuthoringExamplePreviewRequest._distinct_motif_ids(values)
+        return _normalize_motif_ids(values)
 
 
 class AuthoringExampleCreateRequest(_AuthoringExampleWriteFields):
@@ -179,6 +188,8 @@ class AuthoringExampleCreateRequest(_AuthoringExampleWriteFields):
 
 
 class AuthoringExampleUpdateRequest(BaseModel):
+    operation_id: uuid.UUID
+    reason: str = Field(min_length=3, max_length=500)
     expected_updated_at: AwareDatetime
     retrieval_text: str | None = Field(default=None, min_length=10, max_length=500)
     plan: dict[str, Any] | None = None
@@ -189,20 +200,25 @@ class AuthoringExampleUpdateRequest(BaseModel):
     def _normalize_retrieval_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        return _AuthoringExampleWriteFields._normalize_retrieval_text(value)
+        return _normalize_retrieval_text(value)
 
     @field_validator("motif_ids")
     @classmethod
     def _normalize_motif_ids(cls, values: list[str] | None) -> list[str] | None:
         if values is None:
             return None
-        return AuthoringExamplePreviewRequest._distinct_motif_ids(values)
+        return _normalize_motif_ids(values)
 
     @model_validator(mode="after")
     def _has_persisted_change(self) -> AuthoringExampleUpdateRequest:
-        if self.retrieval_text is None and self.plan is None:
-            raise ValueError("retrieval_text or plan is required")
+        if self.retrieval_text is None and self.plan is None and self.motif_ids is None:
+            raise ValueError("retrieval_text, plan, or motif_ids is required")
         return self
+
+
+class AuthoringExampleDeleteRequest(BaseModel):
+    operation_id: uuid.UUID
+    reason: str = Field(min_length=3, max_length=500)
 
 
 class _WorkerPreparedAuthoringExample(BaseModel):
@@ -280,7 +296,29 @@ def _example_detail(row: AuthoringExample) -> AuthoringExampleDetailOut:
         **_example_summary(row).model_dump(),
         source_digest=row.source_digest,
         plan=row.plan,
+        motif_ids=row.motif_ids,
     )
+
+
+def _example_audit_state(row: AuthoringExample) -> dict[str, Any]:
+    return {
+        "active": row.active,
+        "contract_version": row.contract_version,
+        "family": row.family,
+        "motif_count": row.motif_count,
+        "retrieval_text": row.retrieval_text,
+        "tags": list(row.tags),
+        "plan": row.plan,
+        "motif_ids": list(row.motif_ids),
+        "structural_fingerprint": row.structural_fingerprint,
+        "source_digest": row.source_digest,
+        "embedding_model": row.embedding_model,
+        "embedding_vertex": (
+            [float(value) for value in row.embedding_vertex]
+            if row.embedding_vertex is not None
+            else None
+        ),
+    }
 
 
 async def _prepare_authored_example(
@@ -707,6 +745,7 @@ async def create_authoring_example(
         retrieval_text=prepared.retrieval_text,
         tags=prepared.tags,
         plan=prepared.plan,
+        motif_ids=body.motif_ids,
         structural_fingerprint=prepared.structural_fingerprint,
         source_digest=prepared.source_digest,
         embedding_model=prepared.embedding_model,
@@ -778,6 +817,18 @@ async def update_authoring_example(
     session: SessionDep,
     admin: AdminOnly,
 ) -> AuthoringExampleDetailOut:
+    payload = body.model_dump(mode="json", exclude={"operation_id"})
+    previous = await idempotent_result(
+        session,
+        operation_id=body.operation_id,
+        action="authoring_example_update",
+        target_type="authoring_example",
+        target_id=str(example_id),
+        payload=payload,
+    )
+    if previous is not None:
+        return _example_detail(await _example_or_404(session, example_id))
+
     current = await _example_or_404(session, example_id)
     if current.source != "authored":
         raise ForbiddenError("직접 작성한 시범만 편집할 수 있습니다")
@@ -792,7 +843,7 @@ async def update_authoring_example(
             body.retrieval_text if body.retrieval_text is not None else current.retrieval_text
         ),
         plan=body.plan if body.plan is not None else current.plan,
-        motif_ids=body.motif_ids,
+        motif_ids=body.motif_ids if body.motif_ids is not None else current.motif_ids,
     )
     row = await _example_or_404(session, example_id, lock=True)
     if row.source != "authored":
@@ -814,18 +865,35 @@ async def update_authoring_example(
             exclude_example_id=row.id,
         )
     )
+    before = _example_audit_state(row)
     row.contract_version = prepared.contract_version
     row.family = prepared.family
     row.motif_count = prepared.motif_count
     row.retrieval_text = prepared.retrieval_text
     row.tags = prepared.tags
     row.plan = prepared.plan
+    if body.motif_ids is not None:
+        row.motif_ids = body.motif_ids
     row.structural_fingerprint = prepared.structural_fingerprint
     row.source_digest = prepared.source_digest
     row.embedding_model = prepared.embedding_model
     row.embedding_vertex = prepared.embedding
     row.approved_at = datetime.now(UTC)
     row.approved_by = admin.id
+    record_operation(
+        session,
+        operation_id=body.operation_id,
+        actor_id=admin.id,
+        action="authoring_example_update",
+        target_type="authoring_example",
+        target_id=str(example_id),
+        target_count=1,
+        reason=body.reason,
+        payload=payload,
+        before=before,
+        after=_example_audit_state(row),
+        request_id=request_id_var.get(),
+    )
     await session.commit()
     return _example_detail(await _example_or_404(session, example_id))
 
@@ -833,16 +901,50 @@ async def update_authoring_example(
 @router.delete("/examples/{example_id}", status_code=204)
 async def delete_authoring_example(
     example_id: uuid.UUID,
+    body: AuthoringExampleDeleteRequest,
+    request: Request,
     session: SessionDep,
     admin: AdminOnly,
 ) -> None:
+    payload = body.model_dump(mode="json", exclude={"operation_id"})
+    previous = await idempotent_result(
+        session,
+        operation_id=body.operation_id,
+        action="authoring_example_delete",
+        target_type="authoring_example",
+        target_id=str(example_id),
+        payload=payload,
+    )
+    if previous is not None:
+        return
+
     row = await _example_or_404(session, example_id, lock=True)
     if row.source != "authored":
         raise ConflictError(
             "초기·승격 시범은 삭제할 수 없습니다. 비활성 상태로 전환해 주세요.",
             code="authoring_example_delete_forbidden",
         )
+    if row.active:
+        raise ConflictError(
+            "활성 시범은 비활성화한 뒤 삭제해 주세요.",
+            code="authoring_example_active",
+        )
+    before = _example_audit_state(row)
     await session.delete(row)
+    record_operation(
+        session,
+        operation_id=body.operation_id,
+        actor_id=admin.id,
+        action="authoring_example_delete",
+        target_type="authoring_example",
+        target_id=str(example_id),
+        target_count=1,
+        reason=body.reason,
+        payload=payload,
+        before=before,
+        after={"deleted": True},
+        request_id=request_id_var.get(),
+    )
     await session.commit()
 
 

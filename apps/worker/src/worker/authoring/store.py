@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from db.models.seamless import AuthoringExample
-from sqlalchemy import CursorResult, case, func, select, update
+from sqlalchemy import CursorResult, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -68,12 +68,16 @@ async def update_embedding_if_missing(
         update(AuthoringExample)
         .where(
             AuthoringExample.example_id == example_id,
-            AuthoringExample.embedding_model == embedding_model,
-            AuthoringExample.embedding_vertex.is_(None),
+            AuthoringExample.source == "bootstrap",
+            or_(
+                AuthoringExample.embedding_model != embedding_model,
+                AuthoringExample.embedding_vertex.is_(None),
+            ),
         )
         .values(
+            embedding_model=embedding_model,
             embedding_vertex=embedding,
-            approved_at=func.coalesce(AuthoringExample.approved_at, func.now()),
+            approved_at=func.now(),
             active=case(
                 (AuthoringExample.active_updated_at.is_(None), True),
                 else_=AuthoringExample.active,
@@ -96,8 +100,10 @@ async def missing_embedding_ids(
     rows = await session.scalars(
         select(AuthoringExample.example_id).where(
             AuthoringExample.source == "bootstrap",
-            AuthoringExample.embedding_model == embedding_model,
-            AuthoringExample.embedding_vertex.is_(None),
+            or_(
+                AuthoringExample.embedding_model != embedding_model,
+                AuthoringExample.embedding_vertex.is_(None),
+            ),
         )
     )
     return set(rows)

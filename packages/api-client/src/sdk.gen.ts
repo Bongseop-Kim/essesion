@@ -77,7 +77,11 @@ export const createAuthoringExample = <ThrowOnError extends boolean = false>(opt
 export const deleteAuthoringExample = <ThrowOnError extends boolean = false>(options: Options<DeleteAuthoringExampleData, ThrowOnError>): RequestResult<DeleteAuthoringExampleResponses, DeleteAuthoringExampleErrors, ThrowOnError> => (options.client ?? client).delete<DeleteAuthoringExampleResponses, DeleteAuthoringExampleErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/admin/authoring/examples/{example_id}',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**

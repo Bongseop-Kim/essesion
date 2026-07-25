@@ -4507,6 +4507,27 @@
         "title": "AuthoringExampleCreateRequest",
         "type": "object"
       },
+      "AuthoringExampleDeleteRequest": {
+        "properties": {
+          "operation_id": {
+            "format": "uuid",
+            "title": "Operation Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation_id",
+          "reason"
+        ],
+        "title": "AuthoringExampleDeleteRequest",
+        "type": "object"
+      },
       "AuthoringExampleDetailOut": {
         "properties": {
           "active": {
@@ -4602,6 +4623,13 @@
             "title": "Motif Count",
             "type": "integer"
           },
+          "motif_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Motif Ids",
+            "type": "array"
+          },
           "plan": {
             "additionalProperties": true,
             "title": "Plan",
@@ -4661,7 +4689,8 @@
           "created_at",
           "updated_at",
           "source_digest",
-          "plan"
+          "plan",
+          "motif_ids"
         ],
         "title": "AuthoringExampleDetailOut",
         "type": "object"
@@ -4912,6 +4941,11 @@
             ],
             "title": "Motif Ids"
           },
+          "operation_id": {
+            "format": "uuid",
+            "title": "Operation Id",
+            "type": "string"
+          },
           "plan": {
             "anyOf": [
               {
@@ -4923,6 +4957,12 @@
               }
             ],
             "title": "Plan"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
           },
           "retrieval_text": {
             "anyOf": [
@@ -4939,6 +4979,8 @@
           }
         },
         "required": [
+          "operation_id",
+          "reason",
           "expected_updated_at"
         ],
         "title": "AuthoringExampleUpdateRequest",
@@ -15836,6 +15878,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthoringExampleDeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "Successful Response"

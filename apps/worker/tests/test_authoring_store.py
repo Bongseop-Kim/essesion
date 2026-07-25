@@ -126,6 +126,50 @@ async def test_projection_preserves_database_curated_content(db_session):
     assert existing.retrieval_text.endswith("tampered")
 
 
+async def test_projection_rolls_curated_bootstrap_row_to_current_embedding_model(
+    db_session,
+):
+    example = load_example_set()[0]
+    old_model = "retired-embedding-3072"
+    await store.project_manifest(db_session, example, embedding_model=old_model)
+    await store.update_embedding_if_missing(
+        db_session,
+        example_id=example.example_id,
+        embedding_model=old_model,
+        embedding=_vec(0.5),
+    )
+    row = await db_session.scalar(
+        select(AuthoringExample).where(AuthoringExample.example_id == example.example_id)
+    )
+    assert row is not None
+    row.retrieval_text = f"{row.retrieval_text} curated"
+    await db_session.commit()
+
+    assert not await store.project_manifest(db_session, example, embedding_model=MODEL)
+    assert await store.missing_embedding_ids(
+        db_session,
+        embedding_model=MODEL,
+    ) == {example.example_id}
+    assert await store.update_embedding_if_missing(
+        db_session,
+        example_id=example.example_id,
+        embedding_model=MODEL,
+        embedding=_vec(1.0),
+    )
+    await db_session.commit()
+    await db_session.refresh(row)
+
+    assert row.embedding_model == MODEL
+    assert row.retrieval_text.endswith("curated")
+    assert row.active is True
+    matches = await store.nearest_examples(
+        db_session,
+        _vec(1.0),
+        embedding_model=MODEL,
+    )
+    assert [match.example_id for match in matches] == [example.example_id]
+
+
 async def test_nearest_examples_are_stable_and_exclude_missing_embeddings(db_session):
     await _project(db_session, (0, 1))
     missing = load_example_set()[5]
