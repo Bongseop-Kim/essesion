@@ -7,13 +7,14 @@ from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from db.models.seamless import (
+    EMBEDDING_DIM,
     AuthoringExample,
     AuthoringPromotionCandidate,
     SeamlessGenerationLog,
 )
 from fastapi import APIRouter, Query, Request
 from obs import request_id_var
-from pydantic import AwareDatetime, BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, or_, select
 from svg_safety import SanitizeError, is_suspicious_facet_text, sanitize_svg
 
@@ -21,7 +22,7 @@ from api.db import SessionDep, advisory_xact_lock
 from api.deps import AdminOnly, AdminUser
 from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.schemas import Page
-from api.errors import ConflictError, NotFoundError
+from api.errors import ConflictError, ForbiddenError, NotFoundError, UpstreamError
 
 router = APIRouter(prefix="/admin/authoring", tags=["admin-authoring"])
 
@@ -43,7 +44,7 @@ CandidateStatusFilter = Literal[
     "invalid",
 ]
 CandidateDecision = Literal["hold", "reject", "approve"]
-ExampleSourceFilter = Literal["all", "bootstrap", "promoted"]
+ExampleSourceFilter = Literal["all", "bootstrap", "promoted", "authored"]
 ActiveFilter = Literal["all", "active", "inactive"]
 PreviewStatus = Literal["safe", "unavailable", "unsafe"]
 
@@ -101,7 +102,7 @@ class AuthoringCandidateDecisionRequest(BaseModel):
 class AuthoringExampleSummaryOut(BaseModel):
     id: uuid.UUID
     example_id: str
-    source: Literal["bootstrap", "promoted"]
+    source: Literal["bootstrap", "promoted", "authored"]
     contract_version: int
     family: str
     motif_count: int
@@ -129,6 +130,96 @@ class AuthoringExampleActivationRequest(BaseModel):
     active: bool
     reason: str = Field(min_length=3, max_length=500)
     expected_updated_at: AwareDatetime
+
+
+class AuthoringExamplePreviewRequest(BaseModel):
+    plan: dict[str, Any]
+    motif_ids: list[str] = Field(default_factory=list, max_length=2)
+    colorway: str | None = Field(default=None, min_length=1, max_length=100)
+    seed: int | None = Field(default=None, ge=-(2**63), le=2**63 - 1)
+    tile_mm: float = Field(default=48.0, gt=0.0, le=500.0, allow_inf_nan=False)
+
+    @field_validator("motif_ids")
+    @classmethod
+    def _distinct_motif_ids(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        if any(not value for value in normalized):
+            raise ValueError("motif IDs may not be blank")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("motif IDs must be distinct")
+        return normalized
+
+
+class AuthoringExamplePreviewOut(BaseModel):
+    svg: str
+    warnings: list[str]
+
+
+class _AuthoringExampleWriteFields(BaseModel):
+    retrieval_text: str = Field(min_length=10, max_length=500)
+    plan: dict[str, Any]
+    motif_ids: list[str] = Field(default_factory=list, max_length=2)
+
+    @field_validator("retrieval_text")
+    @classmethod
+    def _normalize_retrieval_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 10:
+            raise ValueError("retrieval_text must contain at least 10 non-blank characters")
+        return normalized
+
+    @field_validator("motif_ids")
+    @classmethod
+    def _normalize_motif_ids(cls, values: list[str]) -> list[str]:
+        return AuthoringExamplePreviewRequest._distinct_motif_ids(values)
+
+
+class AuthoringExampleCreateRequest(_AuthoringExampleWriteFields):
+    pass
+
+
+class AuthoringExampleUpdateRequest(BaseModel):
+    expected_updated_at: AwareDatetime
+    retrieval_text: str | None = Field(default=None, min_length=10, max_length=500)
+    plan: dict[str, Any] | None = None
+    motif_ids: list[str] | None = Field(default=None, max_length=2)
+
+    @field_validator("retrieval_text")
+    @classmethod
+    def _normalize_retrieval_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _AuthoringExampleWriteFields._normalize_retrieval_text(value)
+
+    @field_validator("motif_ids")
+    @classmethod
+    def _normalize_motif_ids(cls, values: list[str] | None) -> list[str] | None:
+        if values is None:
+            return None
+        return AuthoringExamplePreviewRequest._distinct_motif_ids(values)
+
+    @model_validator(mode="after")
+    def _has_persisted_change(self) -> AuthoringExampleUpdateRequest:
+        if self.retrieval_text is None and self.plan is None:
+            raise ValueError("retrieval_text or plan is required")
+        return self
+
+
+class _WorkerPreparedAuthoringExample(BaseModel):
+    contract_version: int
+    family: str
+    motif_count: int
+    retrieval_text: str
+    tags: list[str]
+    plan: dict[str, Any]
+    structural_fingerprint: str
+    source_digest: str
+    embedding_model: str
+    embedding: list[float] = Field(min_length=EMBEDDING_DIM, max_length=EMBEDDING_DIM)
+
+
+class _WorkerAuthoringEmbeddingModel(BaseModel):
+    model: str
 
 
 def _candidate_summary(row: AuthoringPromotionCandidate) -> AuthoringCandidateSummaryOut:
@@ -182,6 +273,45 @@ def _example_summary(row: AuthoringExample) -> AuthoringExampleSummaryOut:
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
+
+
+def _example_detail(row: AuthoringExample) -> AuthoringExampleDetailOut:
+    return AuthoringExampleDetailOut(
+        **_example_summary(row).model_dump(),
+        source_digest=row.source_digest,
+        plan=row.plan,
+    )
+
+
+async def _prepare_authored_example(
+    request: Request,
+    *,
+    retrieval_text: str,
+    plan: dict[str, Any],
+    motif_ids: list[str] | None = None,
+) -> _WorkerPreparedAuthoringExample:
+    if motif_ids:
+        await request.app.state.worker.preview_authoring_example(
+            {
+                "plan": plan,
+                "motif_ids": motif_ids,
+                "tile_mm": 48.0,
+            }
+        )
+    prepared = _WorkerPreparedAuthoringExample.model_validate(
+        await request.app.state.worker.prepare_authoring_example(
+            {
+                "retrieval_text": retrieval_text,
+                "plan": plan,
+            }
+        )
+    )
+    if prepared.contract_version != PLAN_CONTRACT_VERSION:
+        raise ConflictError(
+            "저작 예시의 Plan 계약이 현재 버전과 맞지 않습니다",
+            code="authoring_contract_mismatch",
+        )
+    return prepared
 
 
 async def _candidate_or_404(
@@ -362,6 +492,16 @@ async def _approval_duplicate(
     return None
 
 
+def _raise_example_duplicate(duplicate: tuple[str, float] | None) -> None:
+    if duplicate is None:
+        return
+    example_id, similarity = duplicate
+    raise ConflictError(
+        f"활성 시범 {example_id}와 중복됩니다 (유사도 {similarity:.3f})",
+        code="authoring_example_duplicate",
+    )
+
+
 async def _approve_candidate(
     session,
     candidate: AuthoringPromotionCandidate,
@@ -388,12 +528,7 @@ async def _approve_candidate(
         family=candidate.family,
         motif_count=candidate.motif_count,
     )
-    if duplicate is not None:
-        example_id, similarity = duplicate
-        raise ConflictError(
-            f"활성 예시 {example_id}와 중복됩니다 (유사도 {similarity:.3f})",
-            code="authoring_example_duplicate",
-        )
+    _raise_example_duplicate(duplicate)
     now = datetime.now(UTC)
     example = AuthoringExample(
         example_id=f"promoted_{candidate.id.hex}",
@@ -514,6 +649,77 @@ async def decide_authoring_candidate(
     )
 
 
+@router.post("/preview", response_model=AuthoringExamplePreviewOut)
+async def preview_authoring_example(
+    body: AuthoringExamplePreviewRequest,
+    request: Request,
+    admin: AdminOnly,
+) -> AuthoringExamplePreviewOut:
+    result = AuthoringExamplePreviewOut.model_validate(
+        await request.app.state.worker.preview_authoring_example(
+            body.model_dump(mode="json", exclude_none=True)
+        )
+    )
+    try:
+        safe_svg = sanitize_svg(result.svg)
+    except SanitizeError as exc:
+        raise UpstreamError("저작 프리뷰 SVG 안전성 검증에 실패했습니다") from exc
+    return result.model_copy(update={"svg": safe_svg})
+
+
+@router.post(
+    "/examples",
+    response_model=AuthoringExampleDetailOut,
+    status_code=201,
+)
+async def create_authoring_example(
+    body: AuthoringExampleCreateRequest,
+    request: Request,
+    session: SessionDep,
+    admin: AdminOnly,
+) -> AuthoringExampleDetailOut:
+    prepared = await _prepare_authored_example(
+        request,
+        retrieval_text=body.retrieval_text,
+        plan=body.plan,
+        motif_ids=body.motif_ids,
+    )
+    await advisory_xact_lock(session, "authoring-active-examples")
+    _raise_example_duplicate(
+        await _approval_duplicate(
+            session,
+            structural_fingerprint=prepared.structural_fingerprint,
+            embedding_vertex=prepared.embedding,
+            embedding_model=prepared.embedding_model,
+            family=prepared.family,
+            motif_count=prepared.motif_count,
+        )
+    )
+    now = datetime.now(UTC)
+    row_id = uuid.uuid4()
+    row = AuthoringExample(
+        id=row_id,
+        example_id=f"authored_{row_id.hex}",
+        source="authored",
+        contract_version=prepared.contract_version,
+        family=prepared.family,
+        motif_count=prepared.motif_count,
+        retrieval_text=prepared.retrieval_text,
+        tags=prepared.tags,
+        plan=prepared.plan,
+        structural_fingerprint=prepared.structural_fingerprint,
+        source_digest=prepared.source_digest,
+        embedding_model=prepared.embedding_model,
+        embedding_vertex=prepared.embedding,
+        active=False,
+        approved_at=now,
+        approved_by=admin.id,
+    )
+    session.add(row)
+    await session.commit()
+    return _example_detail(await _example_or_404(session, row_id))
+
+
 @router.get("/examples", response_model=Page[AuthoringExampleSummaryOut])
 async def list_authoring_examples(
     session: SessionDep,
@@ -561,12 +767,83 @@ async def get_authoring_example(
     session: SessionDep,
     admin: AdminUser,
 ) -> AuthoringExampleDetailOut:
-    row = await _example_or_404(session, example_id)
-    return AuthoringExampleDetailOut(
-        **_example_summary(row).model_dump(),
-        source_digest=row.source_digest,
-        plan=row.plan,
+    return _example_detail(await _example_or_404(session, example_id))
+
+
+@router.patch("/examples/{example_id}", response_model=AuthoringExampleDetailOut)
+async def update_authoring_example(
+    example_id: uuid.UUID,
+    body: AuthoringExampleUpdateRequest,
+    request: Request,
+    session: SessionDep,
+    admin: AdminOnly,
+) -> AuthoringExampleDetailOut:
+    current = await _example_or_404(session, example_id)
+    if current.source != "authored":
+        raise ForbiddenError("직접 작성한 시범만 편집할 수 있습니다")
+    if current.updated_at.astimezone(UTC) != body.expected_updated_at.astimezone(UTC):
+        raise ConflictError(
+            "저작 시범이 다른 관리자에 의해 변경되었습니다",
+            code="stale_resource",
+        )
+    prepared = await _prepare_authored_example(
+        request,
+        retrieval_text=(
+            body.retrieval_text if body.retrieval_text is not None else current.retrieval_text
+        ),
+        plan=body.plan if body.plan is not None else current.plan,
+        motif_ids=body.motif_ids,
     )
+    row = await _example_or_404(session, example_id, lock=True)
+    if row.source != "authored":
+        raise ForbiddenError("직접 작성한 시범만 편집할 수 있습니다")
+    if row.updated_at.astimezone(UTC) != body.expected_updated_at.astimezone(UTC):
+        raise ConflictError(
+            "저작 시범이 다른 관리자에 의해 변경되었습니다",
+            code="stale_resource",
+        )
+    await advisory_xact_lock(session, "authoring-active-examples")
+    _raise_example_duplicate(
+        await _approval_duplicate(
+            session,
+            structural_fingerprint=prepared.structural_fingerprint,
+            embedding_vertex=prepared.embedding,
+            embedding_model=prepared.embedding_model,
+            family=prepared.family,
+            motif_count=prepared.motif_count,
+            exclude_example_id=row.id,
+        )
+    )
+    row.contract_version = prepared.contract_version
+    row.family = prepared.family
+    row.motif_count = prepared.motif_count
+    row.retrieval_text = prepared.retrieval_text
+    row.tags = prepared.tags
+    row.plan = prepared.plan
+    row.structural_fingerprint = prepared.structural_fingerprint
+    row.source_digest = prepared.source_digest
+    row.embedding_model = prepared.embedding_model
+    row.embedding_vertex = prepared.embedding
+    row.approved_at = datetime.now(UTC)
+    row.approved_by = admin.id
+    await session.commit()
+    return _example_detail(await _example_or_404(session, example_id))
+
+
+@router.delete("/examples/{example_id}", status_code=204)
+async def delete_authoring_example(
+    example_id: uuid.UUID,
+    session: SessionDep,
+    admin: AdminOnly,
+) -> None:
+    row = await _example_or_404(session, example_id, lock=True)
+    if row.source != "authored":
+        raise ConflictError(
+            "초기·승격 시범은 삭제할 수 없습니다. 비활성 상태로 전환해 주세요.",
+            code="authoring_example_delete_forbidden",
+        )
+    await session.delete(row)
+    await session.commit()
 
 
 @router.post(
@@ -576,6 +853,7 @@ async def get_authoring_example(
 async def set_authoring_example_activation(
     example_id: uuid.UUID,
     body: AuthoringExampleActivationRequest,
+    request: Request,
     session: SessionDep,
     admin: AdminOnly,
 ) -> AuthoringExampleDetailOut:
@@ -589,32 +867,45 @@ async def set_authoring_example_activation(
         payload=payload,
     )
     if previous is not None:
-        row = await _example_or_404(session, example_id)
-        return AuthoringExampleDetailOut(
-            **_example_summary(row).model_dump(),
-            source_digest=row.source_digest,
-            plan=row.plan,
+        return _example_detail(await _example_or_404(session, example_id))
+
+    current = await _example_or_404(session, example_id)
+    if current.updated_at.astimezone(UTC) != body.expected_updated_at.astimezone(UTC):
+        raise ConflictError(
+            "저작 시범이 다른 관리자에 의해 변경되었습니다",
+            code="stale_resource",
         )
+    if current.active == body.active:
+        raise ConflictError(
+            "저작 시범이 이미 요청한 활성 상태입니다",
+            code="activation_unchanged",
+        )
+    current_embedding_model: str | None = None
+    if body.active:
+        current_embedding_model = _WorkerAuthoringEmbeddingModel.model_validate(
+            await request.app.state.worker.current_authoring_embedding_model()
+        ).model
 
     row = await _example_or_404(session, example_id, lock=True)
     if row.updated_at.astimezone(UTC) != body.expected_updated_at.astimezone(UTC):
         raise ConflictError(
-            "저작 예시가 다른 관리자에 의해 변경되었습니다",
+            "저작 시범이 다른 관리자에 의해 변경되었습니다",
             code="stale_resource",
         )
     if row.active == body.active:
         raise ConflictError(
-            "저작 예시가 이미 요청한 활성 상태입니다",
+            "저작 시범이 이미 요청한 활성 상태입니다",
             code="activation_unchanged",
         )
     if body.active:
         if (
             row.contract_version != PLAN_CONTRACT_VERSION
             or row.embedding_vertex is None
+            or row.embedding_model != current_embedding_model
             or row.approved_at is None
         ):
             raise ConflictError(
-                "현재 계약과 임베딩이 준비된 승인 예시만 활성화할 수 있습니다",
+                "현재 계약과 임베딩 모델이 준비된 검증 시범만 활성화할 수 있습니다",
                 code="example_not_ready",
             )
         await advisory_xact_lock(session, "authoring-active-examples")
@@ -627,12 +918,7 @@ async def set_authoring_example_activation(
             motif_count=row.motif_count,
             exclude_example_id=row.id,
         )
-        if duplicate is not None:
-            duplicate_id, similarity = duplicate
-            raise ConflictError(
-                f"활성 예시 {duplicate_id}와 중복됩니다 (유사도 {similarity:.3f})",
-                code="authoring_example_duplicate",
-            )
+        _raise_example_duplicate(duplicate)
     before = {"active": row.active, "updated_at": row.updated_at.isoformat()}
     now = datetime.now(UTC)
     row.active = body.active
@@ -655,9 +941,4 @@ async def set_authoring_example_activation(
         request_id=request_id_var.get(),
     )
     await session.commit()
-    row = await _example_or_404(session, example_id)
-    return AuthoringExampleDetailOut(
-        **_example_summary(row).model_dump(),
-        source_digest=row.source_digest,
-        plan=row.plan,
-    )
+    return _example_detail(await _example_or_404(session, example_id))

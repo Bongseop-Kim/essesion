@@ -7,6 +7,7 @@ import {
   listAuthoringExamplesOptions,
 } from "@essesion/api-client/query";
 import {
+  ActionButton,
   Badge,
   HStack,
   TabContent,
@@ -21,12 +22,14 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
+import { useAdminSession } from "../../shared/session/admin-session";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
+import { CreateAuthoringExampleModal } from "./example-studio";
 
 type CandidateStatus =
   | "all"
@@ -104,7 +107,7 @@ function exampleColumns(): readonly AdminTableColumn<AuthoringExampleSummaryOut>
   return [
     {
       key: "example_id",
-      header: "예시",
+      header: "시범",
       render: (row) => (
         <VStack gap="x0_5" alignItems="stretch">
           <Text textStyle="bodySm" className="line-clamp-2">
@@ -120,8 +123,20 @@ function exampleColumns(): readonly AdminTableColumn<AuthoringExampleSummaryOut>
       key: "source",
       header: "출처",
       render: (row) => (
-        <Badge tone={row.source === "promoted" ? "informative" : "neutral"}>
-          {row.source === "promoted" ? "승격" : "초기 예시"}
+        <Badge
+          tone={
+            row.source === "authored"
+              ? "positive"
+              : row.source === "promoted"
+                ? "informative"
+                : "neutral"
+          }
+        >
+          {row.source === "authored"
+            ? "직접 작성"
+            : row.source === "promoted"
+              ? "승격"
+              : "초기 시범"}
         </Badge>
       ),
     },
@@ -184,7 +199,7 @@ function CandidateList({ page }: { page: number }) {
     <PaginatedAdminTableCard
       title="승격 검토 대상"
       description="선택 후 성공적으로 실사화된 Plan v3 결과만 등록됩니다."
-      label="저작 예시 승격 후보"
+      label="RAG 시범 승격 후보"
       columns={candidateColumns()}
       rows={query.data?.items}
       getRowKey={(row) => row.id}
@@ -204,7 +219,7 @@ function CandidateList({ page }: { page: number }) {
       page={Math.min(page, totalPages)}
       totalPages={totalPages}
       onPageChange={(nextPage) => update({ page: String(nextPage) })}
-      paginationLabel="저작 예시 승격 후보 페이지"
+      paginationLabel="RAG 시범 승격 후보 페이지"
       toolbar={
         <HStack gap="x3" align="flex-end" wrap>
           <FilterSelect
@@ -240,6 +255,10 @@ function CandidateList({ page }: { page: number }) {
 
 function ExampleList({ page }: { page: number }) {
   const navigate = useNavigate();
+  const { state } = useAdminSession();
+  const canEdit =
+    state.status === "authenticated" && state.session.role === "admin";
+  const [createOpen, setCreateOpen] = useState(false);
   const [params, setParams] = useSearchParams();
   const rawActive = params.get("active") as ActiveFilter | null;
   const active =
@@ -270,56 +289,76 @@ function ExampleList({ page }: { page: number }) {
   };
 
   return (
-    <PaginatedAdminTableCard
-      title="승인 예시"
-      description="active 예시만 다음 RAG 검색에 즉시 사용됩니다."
-      label="승인된 저작 예시"
-      columns={exampleColumns()}
-      rows={query.data?.items}
-      getRowKey={(row) => row.id}
-      onRowClick={(row) => navigate(`/authoring-examples/active/${row.id}`)}
-      status={
-        query.isLoading || query.isPlaceholderData
-          ? "loading"
-          : query.isError
-            ? "error"
-            : "success"
-      }
-      total={query.data?.total}
-      limit={PAGE_SIZE}
-      refreshing={query.isFetching}
-      onRefresh={() => void query.refetch()}
-      emptyTitle="조건에 맞는 승인 예시가 없습니다"
-      page={Math.min(page, totalPages)}
-      totalPages={totalPages}
-      onPageChange={(nextPage) => update({ page: String(nextPage) })}
-      paginationLabel="승인된 저작 예시 페이지"
-      toolbar={
-        <HStack gap="x3" align="flex-end" wrap>
-          <FilterSelect
-            label="RAG 상태"
-            value={active}
-            options={[
-              { value: "all", label: "전체" },
-              { value: "active", label: "활성" },
-              { value: "inactive", label: "비활성" },
-            ]}
-            onValueChange={(value) =>
-              update({ active: value, page: undefined })
-            }
-          />
-          <SubmittedMemorySearch
-            label="요청 또는 예시 ID 검색"
-            placeholder="2자 이상 입력"
-            maxLength={200}
-            onSubmit={(value) => {
-              setSearch(value);
-              update({ page: undefined });
-            }}
-          />
-        </HStack>
-      }
-    />
+    <>
+      <PaginatedAdminTableCard
+        title="활성 시범"
+        description="검색(RAG)에 주입되는 intent 시범을 직접 저작하고 활성 상태를 관리합니다."
+        label="RAG 시범 셋"
+        columns={exampleColumns()}
+        rows={query.data?.items}
+        getRowKey={(row) => row.id}
+        onRowClick={(row) => navigate(`/authoring-examples/active/${row.id}`)}
+        status={
+          query.isLoading || query.isPlaceholderData
+            ? "loading"
+            : query.isError
+              ? "error"
+              : "success"
+        }
+        total={query.data?.total}
+        limit={PAGE_SIZE}
+        refreshing={query.isFetching}
+        onRefresh={() => void query.refetch()}
+        emptyTitle="조건에 맞는 RAG 시범이 없습니다"
+        page={Math.min(page, totalPages)}
+        totalPages={totalPages}
+        onPageChange={(nextPage) => update({ page: String(nextPage) })}
+        paginationLabel="RAG 시범 셋 페이지"
+        toolbar={
+          <HStack gap="x3" align="flex-end" wrap>
+            {canEdit && (
+              <ActionButton
+                variant="brandSolid"
+                onClick={() => setCreateOpen(true)}
+              >
+                새 시범 작성
+              </ActionButton>
+            )}
+            <FilterSelect
+              label="RAG 상태"
+              value={active}
+              options={[
+                { value: "all", label: "전체" },
+                { value: "active", label: "활성" },
+                { value: "inactive", label: "비활성" },
+              ]}
+              onValueChange={(value) =>
+                update({ active: value, page: undefined })
+              }
+            />
+            <SubmittedMemorySearch
+              label="intent 또는 시범 ID 검색"
+              placeholder="2자 이상 입력"
+              maxLength={200}
+              onSubmit={(value) => {
+                setSearch(value);
+                update({ page: undefined });
+              }}
+            />
+          </HStack>
+        }
+      />
+      {canEdit && createOpen && (
+        <CreateAuthoringExampleModal
+          open
+          onOpenChange={setCreateOpen}
+          onCreated={(value) => {
+            setCreateOpen(false);
+            navigate(`/authoring-examples/active/${value.id}`);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -337,13 +376,13 @@ export function AuthoringExamplesPage() {
   return (
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
-        title="RAG 예시"
-        description="생성 결과의 승격 검토 이력과 현재 검색에 참여하는 승인 예시를 추적합니다."
+        title="RAG 시범"
+        description="검색(RAG)에 주입되는 intent 시범을 저작·관리하고 생성 결과의 승격 이력을 검토합니다."
       />
       <Tabs value={tab} onValueChange={setTab}>
-        <TabList aria-label="RAG 예시 관리 메뉴" triggerLayout="fill">
+        <TabList aria-label="RAG 시범 관리 메뉴" triggerLayout="fill">
           <TabTrigger value="candidates">승격 후보</TabTrigger>
-          <TabTrigger value="examples">승인 예시</TabTrigger>
+          <TabTrigger value="examples">활성 시범</TabTrigger>
         </TabList>
         <TabContent value="candidates">
           <VStack pt="x5" alignItems="stretch">

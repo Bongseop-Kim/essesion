@@ -1,31 +1,37 @@
-# Authoring Plan v3 운영·승격 계약
+# Authoring Plan v3 저작·운영·승격 계약
 
-관리자 UI는 prompt와 Plan 본문을 편집하지 않는다. 개발자와 관리자는 생성 결과의 근거를
-추적하고, RAG 예시 후보를 검토하며 승인된 예시의 활성 상태를 관리한다.
+관리자 UI는 생성 결과의 근거와 승격 후보를 검토하고, RAG 시범의 활성 상태를 관리한다.
+admin은 별도로 intent와 Plan v3를 직접 작성하고 실제 타일을 확인한 뒤 운영 DB에 저장할
+수 있다. manager는 모든 시범과 이력을 읽기만 한다.
 
 ## 저작 계약과 런타임 정본
 
 - provider 계약: `worker.authoring.schema.DesignPlansV3` (`plan_contract_version=3`)
 - compiler: `worker.authoring.compiler` (`compiler_revision=design-plan-v3.0`)
 - prompt: `design-plan-v3-rag-grounded`; Pydantic 모델을 Vertex `response_schema`로 전달
-- bootstrap 입력: `apps/worker/src/worker/authoring/data/gallery-v1.json`
-- 원본 대조 자료: `apps/worker/tests/golden/json/*.json`
+- starter 입력: `apps/worker/src/worker/authoring/data/gallery-v1.json`
+- compiler 회귀 픽스처: `apps/worker/tests/golden/json/*.json`
 - 런타임 정본: `authoring_examples`에서 `active=true`이고 현재 contract·embedding model과
   일치하는 행
 
-bootstrap 파일은 최초의 승인 예시를 만드는 입력일 뿐 revision이나 런타임 검색 조건이
-아니다. 새 스키마 적용 시 기존 revision 기반 로컬 테이블은 보존하지 않고 다시 만든다.
-아래 명령은 bootstrap 예시를 멱등 투영하고 누락 embedding을 생성한다. 처음 embedding이
-완성된 예시는 승인·활성 상태가 되지만, 관리자가 한 번 활성 상태를 바꾼 뒤에는 sync가 그
-결정을 덮어쓰지 않는다.
+운영 셋 전체의 원천은 DB다. `source`는 빈 DB에 넣은 `bootstrap`, 관리자 UI에서 만든
+`authored`, 생성 결과를 승인한 `promoted`를 구분한다. git의 `gallery-v1`은 소량 starter일
+뿐 운영 셋의 revision이나 골든 목록이 아니며 embedding도 보관하지 않는다. compiler
+byte-identical 회귀는 시드 manifest 필드가 아니라 테스트 픽스처의 ID-파일명 규약으로
+독립 검증한다.
+
+아래 명령은 starter 중 없는 ID만 insert하고 현재 모델 행의 누락 embedding만 채운다.
+같은 `example_id`가 이미 있으면 Plan, intent, 기존 embedding과 관리자의 활성 결정을
+덮어쓰지 않는다. 활성 변경 이력이 없는 bootstrap 행은 첫 embedding이 완성될 때
+활성화하지만, 관리자가 활성 상태를 한 번 바꾼 행은 재실행해도 그 결정을 보존한다.
 
 ```bash
-uv run python apps/worker/scripts/build_authoring_examples.py --check
-uv run python apps/worker/scripts/sync_authoring_examples.py --confirm-live
+uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 ```
 
-정상 출력은 `embedded=<전체>/<전체> source=bootstrap`이다. 같은 `example_id`의 Plan,
-retrieval text, fingerprint 등 불변 내용이 달라졌다면 sync는 실패한다.
+정상 출력은 `seeded <신규> examples`와
+`embedded=<전체>/<전체> source=bootstrap`을 함께 보여 준다. starter 항목 수는 계약이
+아니며 ID만 유일하면 된다.
 
 Plan에는 normalized ratio와 제한된 enum/template만 둔다. engine layer ID, motif
 content-hash ID, mm, SVG와 임의 좌표는 compiler 뒤에만 존재한다. fixed palette,
@@ -58,23 +64,42 @@ resolved motif와 engine intent는 예시에 복제하지 않는다. 잘못된 �
 같은 배치에서 먼저 저장된 후보도 뒤 후보의 중복 비교 대상이다. `inactive`, `rejected`,
 `duplicate`, `invalid` 행은 새 후보를 막지 않는다.
 
-## 관리자 검토와 즉시 반영
+## 관리자 직접 저작
 
-관리자 화면의 `/authoring-examples`에서 후보와 승인 예시를 조회한다. manager는 읽기만
-가능하고 admin만 상태를 바꿀 수 있다.
+`/authoring-examples`의 활성 시범 탭에서 admin은 다음 흐름으로 `authored` 시범을 만든다.
+
+1. 검색 intent와 `DesignPlanV3` JSON을 입력한다.
+2. 필요하면 기존 관리자 motif API에서 카탈로그 motif를 최대 2개 골라 `input_index`
+   순서에 연결한다.
+3. worker의 `POST /authoring/compile-preview`가 Plan을 compile하고 기존 renderer로 SVG를
+   만든다. 이 경로는 Gemini, Recraft, embedding을 호출하지 않는다. 카탈로그에 없는
+   motif나 생성이 필요한 source의 layer는 경고와 함께 제외한다.
+4. 현재 입력으로 성공한 프리뷰가 있어야 저장할 수 있다.
+5. 저장 시 worker가 Plan을 `DesignPlanV3`로 검증하고 family, tags, fingerprint와 digest를
+   공용 helper로 산출한 뒤 현재 모델의 document embedding을 한 번 만든다. 새 행은
+   `source=authored`, `active=false`다.
+
+authored 시범만 optimistic timestamp와 함께 intent/Plan을 편집하거나 hard delete할 수
+있다. 편집할 때 구조 메타데이터와 embedding을 현재 모델로 다시 만든다.
+bootstrap/promoted 시범은 본문 편집과 삭제를 거부하고 활성 토글만 허용한다.
+
+## 관리자 승격 검토와 즉시 반영
+
+관리자 화면의 `/authoring-examples`에서 승격 후보와 활성 시범을 함께 조회한다.
 
 - `pending → hold|reject|approve`
 - `hold → reject|approve`
 - `reject`는 terminal 상태
 - 모든 결정은 사유, 관리자, 시각과 optimistic version을 기록하며 operation ID로 멱등 처리
 
-승인 직전 worker가 현재 embedding model을 확인하고 누락되거나 오래된 embedding을 다시
-만든다. API는 transaction lock 안에서 active 예시와 exact/semantic 중복을 다시 확인한 뒤
-승인 예시를 `active=true`로 생성한다. 별도 revision 생성이나 후속 sync를 기다리지 않으며
-commit 직후 다음 RAG 검색부터 대상이 된다.
+승인 직전 worker가 현재 embedding model을 확인하고 누락되거나 오래된 candidate embedding을
+다시 만든다. API는 transaction lock 안에서 active 시범과 exact/semantic 중복을 다시 확인한
+뒤 promoted 시범을 `active=true`로 생성한다. 별도 revision 생성이나 후속 seed를 기다리지
+않으며 commit 직후 다음 RAG 검색부터 대상이 된다.
 
-문제가 있는 승인 예시는 상세 화면에서 사유와 함께 `active=false`로 즉시 제외한다.
-재활성화할 때는 현재 contract·embedding 준비 상태와 active 집합 중복을 다시 검사한다.
+문제가 있는 활성 시범은 상세 화면에서 사유와 함께 `active=false`로 즉시 제외한다.
+재활성화할 때는 네트워크 embedding 호출 없이 worker의 현재 모델명을 확인하고
+contract·vector·embedding model·검증 시각과 active 집합 중복을 다시 검사한다.
 후보 상세는 원 generation 링크, 안전하게 sanitize된 선택 SVG preview, 원래 prompt,
 Plan/fingerprint/compiler/prompt revision을 제공한다. embedding vector 원문은 API로 내보내지
 않는다.
@@ -83,7 +108,7 @@ Plan/fingerprint/compiler/prompt revision을 제공한다. embedding vector 원�
 
 query document는 사용자 prompt, 사용 가능한 motif slot 수와 pattern constraint를 순서대로
 합친다. Vertex `RETRIEVAL_QUERY` embedding으로 현재 contract·embedding model의 active
-예시만 cosine top-25로 읽고 다음 순서로 줄인다.
+시범만 cosine top-25로 읽고 다음 순서로 줄인다.
 
 1. motif 수와 명시 arrangement에 맞지 않거나 Plan v3로 재검증되지 않는 행 제외
 2. 상위 8개만 후보로 유지

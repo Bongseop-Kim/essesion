@@ -1,15 +1,14 @@
-"""Plan v3 contract, compiler, and immutable gallery example tests."""
+"""Plan v3 contract, compiler golden, and starter-manifest tests."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 from worker.authoring.compiler import PlanCompileError, compile_design_plan_v3
-from worker.authoring.examples import load_example_set
+from worker.authoring.examples import _validate_example_set, load_example_set
 from worker.authoring.schema import (
     DesignPlanV3,
     GenerateMotifSource,
@@ -25,7 +24,8 @@ GOLDEN_DIR = Path(__file__).parent / "golden/json"
 
 
 def _golden(example) -> dict:  # noqa: ANN001
-    return json.loads((GOLDEN_DIR / example.golden_file).read_text(encoding="utf-8"))
+    filename = f"{example.example_id.removeprefix('gallery_')}.json"
+    return json.loads((GOLDEN_DIR / filename).read_text(encoding="utf-8"))
 
 
 def _motif_ids(intent: dict) -> list[str]:
@@ -58,10 +58,10 @@ def _generate_plan(*, color_indices: list[int] | None = None) -> DesignPlanV3:
     )
 
 
-def test_gallery_v1_is_complete_reviewable_and_bound_to_goldens():
+def test_gallery_v1_is_reviewable_and_golden_filenames_follow_the_id_convention():
     examples = load_example_set()
 
-    assert len(examples) == 25
+    assert examples
     assert {example.family for example in examples} == {
         "solid",
         "stripe",
@@ -73,9 +73,17 @@ def test_gallery_v1_is_complete_reviewable_and_bound_to_goldens():
         "multi_motif",
     }
     for example in examples:
-        golden_path = GOLDEN_DIR / example.golden_file
-        assert hashlib.sha256(golden_path.read_bytes()).hexdigest() == example.golden_sha256
+        golden_path = GOLDEN_DIR / f"{example.example_id.removeprefix('gallery_')}.json"
+        assert golden_path.is_file()
         assert example.prompt_example()["plan"] == example.plan.model_dump(mode="json")
+
+
+def test_starter_loader_accepts_a_smaller_curated_set():
+    raw = [example.model_dump(mode="json") for example in load_example_set()[:2]]
+
+    assert [example.example_id for example in _validate_example_set(raw)] == [
+        item["example_id"] for item in raw
+    ]
 
 
 def test_all_gallery_plans_compile_deterministically_to_valid_engine_intents():

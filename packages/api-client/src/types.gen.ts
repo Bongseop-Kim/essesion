@@ -2400,6 +2400,26 @@ export type AuthoringExampleActivationRequest = {
 };
 
 /**
+ * AuthoringExampleCreateRequest
+ */
+export type AuthoringExampleCreateRequest = {
+    /**
+     * Motif Ids
+     */
+    motif_ids?: Array<string>;
+    /**
+     * Plan
+     */
+    plan: {
+        [key: string]: unknown;
+    };
+    /**
+     * Retrieval Text
+     */
+    retrieval_text: string;
+};
+
+/**
  * AuthoringExampleDetailOut
  */
 export type AuthoringExampleDetailOut = {
@@ -2468,7 +2488,7 @@ export type AuthoringExampleDetailOut = {
     /**
      * Source
      */
-    source: 'bootstrap' | 'promoted';
+    source: 'bootstrap' | 'promoted' | 'authored';
     /**
      * Source Digest
      */
@@ -2485,6 +2505,48 @@ export type AuthoringExampleDetailOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * AuthoringExamplePreviewOut
+ */
+export type AuthoringExamplePreviewOut = {
+    /**
+     * Svg
+     */
+    svg: string;
+    /**
+     * Warnings
+     */
+    warnings: Array<string>;
+};
+
+/**
+ * AuthoringExamplePreviewRequest
+ */
+export type AuthoringExamplePreviewRequest = {
+    /**
+     * Colorway
+     */
+    colorway?: string | null;
+    /**
+     * Motif Ids
+     */
+    motif_ids?: Array<string>;
+    /**
+     * Plan
+     */
+    plan: {
+        [key: string]: unknown;
+    };
+    /**
+     * Seed
+     */
+    seed?: number | null;
+    /**
+     * Tile Mm
+     */
+    tile_mm?: number;
 };
 
 /**
@@ -2550,7 +2612,7 @@ export type AuthoringExampleSummaryOut = {
     /**
      * Source
      */
-    source: 'bootstrap' | 'promoted';
+    source: 'bootstrap' | 'promoted' | 'authored';
     /**
      * Structural Fingerprint
      */
@@ -2563,6 +2625,30 @@ export type AuthoringExampleSummaryOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * AuthoringExampleUpdateRequest
+ */
+export type AuthoringExampleUpdateRequest = {
+    /**
+     * Expected Updated At
+     */
+    expected_updated_at: string;
+    /**
+     * Motif Ids
+     */
+    motif_ids?: Array<string> | null;
+    /**
+     * Plan
+     */
+    plan?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Retrieval Text
+     */
+    retrieval_text?: string | null;
 };
 
 /**
@@ -8386,7 +8472,7 @@ export type ListAuthoringExamplesData = {
         /**
          * Source
          */
-        source?: 'all' | 'bootstrap' | 'promoted';
+        source?: 'all' | 'bootstrap' | 'promoted' | 'authored';
         /**
          * Family
          */
@@ -8425,6 +8511,61 @@ export type ListAuthoringExamplesResponses = {
 
 export type ListAuthoringExamplesResponse = ListAuthoringExamplesResponses[keyof ListAuthoringExamplesResponses];
 
+export type CreateAuthoringExampleData = {
+    body: AuthoringExampleCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/authoring/examples';
+};
+
+export type CreateAuthoringExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAuthoringExampleError = CreateAuthoringExampleErrors[keyof CreateAuthoringExampleErrors];
+
+export type CreateAuthoringExampleResponses = {
+    /**
+     * Successful Response
+     */
+    201: AuthoringExampleDetailOut;
+};
+
+export type CreateAuthoringExampleResponse = CreateAuthoringExampleResponses[keyof CreateAuthoringExampleResponses];
+
+export type DeleteAuthoringExampleData = {
+    body?: never;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/examples/{example_id}';
+};
+
+export type DeleteAuthoringExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteAuthoringExampleError = DeleteAuthoringExampleErrors[keyof DeleteAuthoringExampleErrors];
+
+export type DeleteAuthoringExampleResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteAuthoringExampleResponse = DeleteAuthoringExampleResponses[keyof DeleteAuthoringExampleResponses];
+
 export type GetAuthoringExampleData = {
     body?: never;
     path: {
@@ -8455,6 +8596,36 @@ export type GetAuthoringExampleResponses = {
 
 export type GetAuthoringExampleResponse = GetAuthoringExampleResponses[keyof GetAuthoringExampleResponses];
 
+export type UpdateAuthoringExampleData = {
+    body: AuthoringExampleUpdateRequest;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/examples/{example_id}';
+};
+
+export type UpdateAuthoringExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAuthoringExampleError = UpdateAuthoringExampleErrors[keyof UpdateAuthoringExampleErrors];
+
+export type UpdateAuthoringExampleResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringExampleDetailOut;
+};
+
+export type UpdateAuthoringExampleResponse = UpdateAuthoringExampleResponses[keyof UpdateAuthoringExampleResponses];
+
 export type SetAuthoringExampleActivationData = {
     body: AuthoringExampleActivationRequest;
     path: {
@@ -8484,6 +8655,31 @@ export type SetAuthoringExampleActivationResponses = {
 };
 
 export type SetAuthoringExampleActivationResponse = SetAuthoringExampleActivationResponses[keyof SetAuthoringExampleActivationResponses];
+
+export type PreviewAuthoringExampleData = {
+    body: AuthoringExamplePreviewRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/authoring/preview';
+};
+
+export type PreviewAuthoringExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PreviewAuthoringExampleError = PreviewAuthoringExampleErrors[keyof PreviewAuthoringExampleErrors];
+
+export type PreviewAuthoringExampleResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringExamplePreviewOut;
+};
+
+export type PreviewAuthoringExampleResponse = PreviewAuthoringExampleResponses[keyof PreviewAuthoringExampleResponses];
 
 export type GetAdminCapabilitiesData = {
     body?: never;

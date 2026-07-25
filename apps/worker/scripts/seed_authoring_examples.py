@@ -1,7 +1,7 @@
-"""Project gallery-v1 Plan v3 examples and create their Vertex embeddings.
+"""Seed missing gallery-v1 starter examples and create their Vertex embeddings.
 
 Usage:
-  uv run python apps/worker/scripts/sync_authoring_examples.py --confirm-live
+  uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 """
 
 import argparse
@@ -92,6 +92,6 @@ if __name__ == "__main__":
         raise SystemExit("--confirm-live 없이는 외부 API 호출과 DB 갱신을 실행하지 않습니다.")
     inserted_count, updated_count, embedded_count, total_count = asyncio.run(_run())
     print(
-        f"projected {inserted_count} examples; embedded {updated_count}; "
+        f"seeded {inserted_count} examples; embedded {updated_count}; "
         f"embedded={embedded_count}/{total_count} source=bootstrap"
     )

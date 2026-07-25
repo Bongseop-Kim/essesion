@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import wraps
-from typing import Any, Never
+from typing import Any, Never, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -16,7 +16,7 @@ from db.models.design import (
     FINALIZE_TEMPORARY_FAILURE_MESSAGE,
     GenerationJob,
 )
-from db.models.seamless import SeamlessGenerationAttachment, SeamlessGenerationLog
+from db.models.seamless import EMBEDDING_DIM, SeamlessGenerationAttachment, SeamlessGenerationLog
 from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
 from sqlalchemy import select
@@ -32,6 +32,11 @@ from worker.adapters.gemini import (
     prepare_reference_image,
 )
 from worker.api.schemas import (
+    AuthoringCompilePreviewRequest,
+    AuthoringCompilePreviewResponse,
+    AuthoringExampleEmbeddingModelResponse,
+    AuthoringExamplePrepareRequest,
+    AuthoringExamplePrepareResponse,
     CandidateOut,
     CandidatesRequest,
     ExportRequest,
@@ -55,6 +60,15 @@ from worker.api.schemas import (
     TextMotifPreviewRequest,
     TextMotifPreviewResponse,
 )
+from worker.authoring.compiler import PLAN_CONTRACT_VERSION, PlanCompileError
+from worker.authoring.examples import (
+    AuthoringFamily,
+    analyze_authoring_example,
+)
+from worker.authoring.examples import (
+    embedding_document as authoring_embedding_document,
+)
+from worker.authoring.preview import prepare_authoring_preview
 from worker.authoring.promotion import (
     ensure_candidate_embedding,
     scan_promotion_candidates,
@@ -1081,6 +1095,95 @@ async def generate(
         candidates=outs,
         warnings=warnings,
     )
+
+
+@generate_router.post(
+    "/authoring/compile-preview",
+    response_model=AuthoringCompilePreviewResponse,
+)
+async def compile_authoring_preview(
+    body: AuthoringCompilePreviewRequest,
+    session: SessionDep,
+) -> AuthoringCompilePreviewResponse:
+    try:
+        prepared = await prepare_authoring_preview(
+            session,
+            body.plan,
+            motif_ids=body.motif_ids,
+            tile_mm=body.tile_mm,
+            seed=body.seed,
+        )
+        _bind_resolved_motif_colors(
+            [prepared.design.intent],
+            prepared.motifs,
+            [prepared.design.motif_color_slots],
+        )
+        candidate_set = generate_candidates(
+            prepared.design.intent,
+            candidate_count=1,
+            seed=body.seed,
+            colorway=body.colorway,
+            registry_version=await registry_version_for(session),
+            motifs=prepared.motifs,
+        )
+    except (PlanCompileError, IntentInvalid, AssertionError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    warnings = [*prepared.warnings, *candidate_set.warnings]
+    if not candidate_set.candidates:
+        raise HTTPException(status_code=422, detail="preview did not produce an SVG")
+    return AuthoringCompilePreviewResponse(
+        svg=candidate_set.candidates[0].candidate.svg,
+        warnings=list(dict.fromkeys(warnings)),
+    )
+
+
+@generate_router.post(
+    "/authoring/examples/prepare",
+    response_model=AuthoringExamplePrepareResponse,
+)
+async def prepare_authoring_example(
+    body: AuthoringExamplePrepareRequest,
+    request: Request,
+) -> AuthoringExamplePrepareResponse:
+    analysis = analyze_authoring_example(body.retrieval_text, body.plan)
+    embedding_client = request.app.state.adapters.embedding
+    if embedding_client is None:
+        raise HTTPException(status_code=503, detail="authoring embedding is unavailable")
+    try:
+        embedding = await embedding_client.embed(
+            authoring_embedding_document(
+                cast(str, analysis["retrieval_text"]),
+                cast(AuthoringFamily, analysis["family"]),
+                cast(list[str], analysis["tags"]),
+            ),
+            task_type="RETRIEVAL_DOCUMENT",
+        )
+    except AdapterClientError as exc:
+        raise HTTPException(status_code=502, detail="authoring embedding failed") from exc
+    if len(embedding) != EMBEDDING_DIM:
+        raise HTTPException(status_code=502, detail="authoring embedding dimension mismatch")
+    return AuthoringExamplePrepareResponse.model_validate(
+        {
+            "contract_version": PLAN_CONTRACT_VERSION,
+            **analysis,
+            "embedding_model": embedding_client.model,
+            "embedding": embedding,
+        }
+    )
+
+
+@generate_router.post(
+    "/authoring/examples/embedding-model",
+    response_model=AuthoringExampleEmbeddingModelResponse,
+)
+async def get_authoring_example_embedding_model(
+    request: Request,
+) -> AuthoringExampleEmbeddingModelResponse:
+    embedding_client = request.app.state.adapters.embedding
+    if embedding_client is None:
+        raise HTTPException(status_code=503, detail="authoring embedding is unavailable")
+    return AuthoringExampleEmbeddingModelResponse(model=embedding_client.model)
 
 
 @generate_router.post(

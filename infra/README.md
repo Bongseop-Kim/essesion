@@ -51,7 +51,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 | 8 | main push CI 성공 → deploy 워크플로우 (이미지 빌드 → migrate job → 3서비스 배포) | 자동 |
 | 9 | API·두 worker readiness, 프록시·직통 차단, 배치 audience와 수동 트리거 확인 | **사용자** |
 | 10 | Toss 웹훅/콜백 URL·OAuth redirect URI를 `https://api.essesion.shop` 기준으로 등록 | **사용자(각 콘솔)** |
-| 11 | 빈 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `index_motif_embeddings.py --confirm-live` → `backfill_slot_labels.py --confirm-live` → `sync_authoring_examples.py --confirm-live` 실행, motif/example의 `embedded=total`과 라벨 백필 `eligible/updated` 기록 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
+| 11 | 빈 스테이징 DB에 일회성 `bootstrap_admin.py create`로 관리자 생성 + `seed_motifs.py` → `index_motif_embeddings.py --confirm-live` → `backfill_slot_labels.py --confirm-live` → `seed_authoring_examples.py --confirm-live` 실행, motif/example의 `embedded=total`과 라벨 백필 `eligible/updated` 기록 확인 (`apps/api/scripts/seed.py`는 local/test 전용) | **사용자** |
 
 ## 시크릿 값 주입
 
@@ -168,21 +168,22 @@ uv run python apps/worker/scripts/backfill_slot_labels.py --confirm-live
 행만 조건부 갱신해 재실행이 안전하고 `user_upload`은 제외한다. GCP project/ADC 또는
 `--confirm-live`가 없으면 유료 비전 호출과 DB 갱신을 시작하지 않는다.
 
-### Plan v3 예시 bootstrap과 승격
+### Plan v3 starter 시드·직접 저작·승격
 
 migrate와 공개 motif embedding이 끝난 뒤, DB/ADC가 연결된 운영자 환경에서
-`gallery-v1` 25개 bootstrap 예시와 embedding을 동기화한다. 출력의
-`embedded=<전체>/<전체> source=bootstrap`을 확인한 뒤 live 평가를 실행한다.
+`gallery-v1` starter 중 DB에 없는 시범만 넣고 누락 embedding을 만든다. 출력의
+`embedded=<전체>/<전체> source=bootstrap`을 확인한 뒤 live 평가를 실행한다. 같은 ID가
+이미 있으면 DB에서 큐레이션한 내용과 활성 상태를 그대로 보존한다.
 
 ```bash
-uv run python apps/worker/scripts/build_authoring_examples.py --check
-uv run python apps/worker/scripts/sync_authoring_examples.py --confirm-live
+uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 uv run python apps/worker/scripts/eval_authoring.py --confirm-live
 ```
 
 모든 요청은 Plan v3 경로를 사용한다. 매일 05:00 KST 배치가 생성 결과에서 검토 후보를
-만들고, 관리자 승인 예시만 즉시 active RAG 집합에 들어간다. prompt와 Plan 본문은 관리자
-화면에서 수정하지 않는다. 상세 계약과 관측 필드는
+만들고, 관리자가 승인하면 즉시 active RAG 집합에 들어간다. 관리자는 관리자 화면에서
+카탈로그 motif 타일을 무-LLM으로 프리뷰하고 `authored` 시범을 직접 작성·편집·삭제할 수
+있으며, bootstrap/promoted 시범은 활성 상태만 관리한다. 상세 계약과 관측 필드는
 [authoring-plan-v3.md](../docs/specs/authoring-plan-v3.md)를 따른다.
 
 ## 배치 (Cloud Scheduler → api /batch/*)

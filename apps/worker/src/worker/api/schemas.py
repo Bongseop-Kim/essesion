@@ -3,8 +3,10 @@
 import uuid
 from typing import Any, Literal
 
+from db.models.seamless import EMBEDDING_DIM
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from worker.authoring.examples import AuthoringFamily
 from worker.authoring.promotion import DEFAULT_SCAN_LIMIT
 from worker.authoring.schema import DesignPlanV3
 from worker.engine.constraints import PaletteConstraint, PatternConstraints
@@ -34,6 +36,51 @@ class PromotionEmbeddingRequest(StrictRequest):
 
 class PromotionEmbeddingResponse(BaseModel):
     embedding_model: str
+
+
+class AuthoringExamplePrepareRequest(StrictRequest):
+    retrieval_text: str = Field(min_length=10, max_length=500)
+    plan: DesignPlanV3
+
+
+class AuthoringExamplePrepareResponse(BaseModel):
+    contract_version: int
+    family: AuthoringFamily
+    motif_count: int
+    retrieval_text: str
+    tags: list[str]
+    plan: dict[str, Any]
+    structural_fingerprint: str
+    source_digest: str
+    embedding_model: str
+    embedding: list[float] = Field(min_length=EMBEDDING_DIM, max_length=EMBEDDING_DIM)
+
+
+class AuthoringExampleEmbeddingModelResponse(BaseModel):
+    model: str
+
+
+class AuthoringCompilePreviewRequest(StrictRequest):
+    plan: DesignPlanV3
+    motif_ids: list[str] = Field(default_factory=list, max_length=2)
+    colorway: str | None = Field(default=None, min_length=1, max_length=100)
+    seed: int | None = Field(default=None, ge=-(2**63), le=2**63 - 1)
+    tile_mm: float = Field(default=48.0, gt=0.0, le=500.0, allow_inf_nan=False)
+
+    @field_validator("motif_ids")
+    @classmethod
+    def _distinct_motif_ids(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        if any(not value for value in normalized):
+            raise ValueError("motif IDs may not be blank")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("motif IDs must be distinct")
+        return normalized
+
+
+class AuthoringCompilePreviewResponse(BaseModel):
+    svg: str
+    warnings: list[str] = Field(default_factory=list)
 
 
 class MotifIngressProvenance(StrictRequest):

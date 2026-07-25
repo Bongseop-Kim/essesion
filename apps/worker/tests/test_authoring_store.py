@@ -1,4 +1,4 @@
-"""Immutable authoring example projection and RAG selection tests."""
+"""Starter authoring example seeding and RAG selection tests."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ async def _project(db_session, indexes: tuple[int, ...]) -> None:  # noqa: ANN00
     await db_session.commit()
 
 
-async def test_projection_is_idempotent_and_rejects_content_drift(db_session):
+async def test_projection_is_insert_only_when_starter_content_changes(db_session):
     example = load_example_set()[0]
     assert await store.project_manifest(
         db_session,
@@ -51,12 +51,17 @@ async def test_projection_is_idempotent_and_rejects_content_drift(db_session):
     )
 
     changed = example.model_copy(update={"retrieval_text": example.retrieval_text + " changed"})
-    with pytest.raises(ValueError, match="immutable bootstrap authoring example changed"):
-        await store.project_manifest(
-            db_session,
-            changed,
-            embedding_model=MODEL,
-        )
+    assert not await store.project_manifest(
+        db_session,
+        changed,
+        embedding_model=MODEL,
+    )
+    await db_session.commit()
+    existing = await db_session.scalar(
+        select(AuthoringExample).where(AuthoringExample.example_id == example.example_id)
+    )
+    assert existing is not None
+    assert existing.retrieval_text == example.retrieval_text
 
 
 async def test_first_embedding_activates_bootstrap_without_overriding_later_admin_choice(
@@ -79,7 +84,7 @@ async def test_first_embedding_activates_bootstrap_without_overriding_later_admi
     assert row.active is True
     assert row.approved_at is not None
     assert row.active_updated_at is not None
-    assert row.active_reason == "bootstrap sync"
+    assert row.active_reason == "bootstrap seed"
 
     row.active = False
     row.embedding_vertex = None
@@ -96,7 +101,7 @@ async def test_first_embedding_activates_bootstrap_without_overriding_later_admi
     assert row.active_reason == "admin disabled"
 
 
-async def test_projection_rejects_database_drift(db_session):
+async def test_projection_preserves_database_curated_content(db_session):
     example = load_example_set()[0]
     await store.project_manifest(
         db_session,
@@ -112,12 +117,13 @@ async def test_projection_rejects_database_drift(db_session):
     existing.retrieval_text = f"{existing.retrieval_text} tampered"
     await db_session.commit()
 
-    with pytest.raises(ValueError, match="immutable bootstrap authoring example changed"):
-        await store.project_manifest(
-            db_session,
-            example,
-            embedding_model=MODEL,
-        )
+    assert not await store.project_manifest(
+        db_session,
+        example,
+        embedding_model=MODEL,
+    )
+    await db_session.refresh(existing)
+    assert existing.retrieval_text.endswith("tampered")
 
 
 async def test_nearest_examples_are_stable_and_exclude_missing_embeddings(db_session):

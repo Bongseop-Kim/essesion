@@ -400,9 +400,6 @@ def upgrade() -> None:
             name=op.f("ck_authoring_examples_family"),
         ),
         sa.CheckConstraint(
-            "source IN ('bootstrap', 'promoted')", name=op.f("ck_authoring_examples_source")
-        ),
-        sa.CheckConstraint(
             "NOT active OR (embedding_vertex IS NOT NULL AND approved_at IS NOT NULL)",
             name=op.f("ck_authoring_examples_active_ready"),
         ),
