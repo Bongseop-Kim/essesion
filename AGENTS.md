@@ -31,6 +31,7 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 - store 로컬 실행: `pnpm --filter store dev`
 - admin 로컬 실행: `pnpm --filter admin dev`
 - 로컬 DB·스토리지: `docker compose up -d` (Postgres 17 + pgvector localhost:5432, fake-gcs-server localhost:4443) → `uv run alembic -c db/alembic.ini upgrade head` → `uv run python apps/api/scripts/seed.py` → Vertex ADC/GCP project가 준비된 환경에서 `uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live`
+- 시드는 멱등 — 로그인·가격·설정이 `missing_configuration`(503)으로 실패하면 시드 미실행을 의심하고 `uv run python apps/api/scripts/seed.py`를 다시 돌릴 것. 확인: `docker compose exec -T db psql -U essesion -d essesion -c "select key, value from admin_settings"`
 - api 로컬 실행: `uv run uvicorn api.main:app --reload` (시크릿 없으면 Toss/Solapi는 DryRun, GCS는 `.env`의 `GCS_EMULATOR_HOST`로 fake-gcs-server 사용)
 - worker 로컬 실행: `uv run uvicorn worker.main:app --port 8001` (api의 `worker_base_url` 기본값과 일치, 로컬은 OIDC 없이 호출)
 - **api 스펙 변경 시**: `pnpm codegen` 후 생성물(packages/api-client)을 같은 커밋에 — CI codegen-drift가 검사
