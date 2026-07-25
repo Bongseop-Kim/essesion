@@ -85,6 +85,8 @@ const log: SeamlessDetailOut = {
   },
   outcome: {
     session_id: null,
+    user_id: null,
+    user_name: null,
     selected_candidate_id: null,
     regenerated: false,
     finalized: false,
@@ -347,6 +349,8 @@ describe("SeamlessLogDetailPage", () => {
       },
       outcome: {
         session_id: "44444444-4444-4444-8444-444444444444",
+        user_id: "55555555-5555-4555-8555-555555555555",
+        user_name: "김고객",
         selected_candidate_id: "candidate-1",
         regenerated: true,
         finalized: true,
@@ -385,6 +389,9 @@ describe("SeamlessLogDetailPage", () => {
     ).toBeTruthy();
     expect(within(outcome as HTMLElement).getByText("있음")).toBeTruthy();
     expect(within(outcome as HTMLElement).getByText("완료")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "김고객" }).getAttribute("href"),
+    ).toBe("/customers/55555555-5555-4555-8555-555555555555");
   });
 
   it("로그와 엔진 식별자를 기본으로 접어 둔다", async () => {

@@ -4396,6 +4396,14 @@ export type GenerationOutcomeOut = {
      * Session Id
      */
     session_id?: string | null;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * User Name
+     */
+    user_name?: string | null;
 };
 
 /**

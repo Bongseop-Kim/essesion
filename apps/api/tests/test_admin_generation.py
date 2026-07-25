@@ -515,6 +515,8 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     }
     assert body["outcome"] == {
         "session_id": str(design_session.id),
+        "user_id": str(owner.id),
+        "user_name": owner.name,
         "selected_candidate_id": "candidate-2",
         "regenerated": True,
         "finalized": True,

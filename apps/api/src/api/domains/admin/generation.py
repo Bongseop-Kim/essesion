@@ -12,7 +12,8 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
-from db.models.design import DesignSessionTurn, GenerationJob
+from db.models.auth import User
+from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
 from fastapi import APIRouter, Query, Request
@@ -220,6 +221,8 @@ class MotifResolutionOut(BaseModel):
 
 class GenerationOutcomeOut(BaseModel):
     session_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
+    user_name: str | None = None
     selected_candidate_id: str | None = None
     regenerated: bool = False
     finalized: bool = False
@@ -902,8 +905,17 @@ async def _generation_outcome(
             select(func.count()).select_from(GenerationJob).where(*finalized_filters)
         )
     )
+    requester = (
+        await session.execute(
+            select(User.id, User.name)
+            .join(DesignSession, DesignSession.user_id == User.id)
+            .where(DesignSession.id == generated_turn.session_id)
+        )
+    ).first()
     return GenerationOutcomeOut(
         session_id=generated_turn.session_id,
+        user_id=requester[0] if requester else None,
+        user_name=requester[1] if requester else None,
         selected_candidate_id=_safe_token(selected_candidate_id),
         regenerated=next_request is not None,
         finalized=finalized,

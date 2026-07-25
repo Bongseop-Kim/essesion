@@ -343,6 +343,16 @@ export function SeamlessLogDetailPage() {
                 ? `있음 (${formatFileSize(log.reference_image_bytes)})`
                 : "없음",
             },
+            {
+              label: "요청자",
+              value: log.outcome.user_id ? (
+                <Link to={`/customers/${log.outcome.user_id}`}>
+                  {log.outcome.user_name ?? "고객 관리로 이동"}
+                </Link>
+              ) : (
+                "확인 불가"
+              ),
+            },
             { label: "생성 시각", value: formatDateTime(log.created_at) },
           ]}
         />
