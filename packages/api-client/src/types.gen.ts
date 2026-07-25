@@ -2172,6 +2172,10 @@ export type AuthoringCandidateDetailOut = {
      */
     id: string;
     /**
+     * Injection Suspected
+     */
+    injection_suspected: boolean;
+    /**
      * Motif Count
      */
     motif_count: number;
@@ -2295,6 +2299,10 @@ export type AuthoringCandidateSummaryOut = {
      * Id
      */
     id: string;
+    /**
+     * Injection Suspected
+     */
+    injection_suspected: boolean;
     /**
      * Motif Count
      */
@@ -3562,6 +3570,28 @@ export type DesignExportRequest = {
 };
 
 /**
+ * DesignFinalizeTurnPayload
+ */
+export type DesignFinalizeTurnPayload = {
+    /**
+     * Job Id
+     */
+    job_id: string;
+    /**
+     * Production Method
+     */
+    production_method: string;
+    /**
+     * Type
+     */
+    type?: 'finalize';
+    /**
+     * Weave
+     */
+    weave: string;
+};
+
+/**
  * DesignGenerateOut
  */
 export type DesignGenerateOut = {
@@ -3574,16 +3604,6 @@ export type DesignGenerateOut = {
      */
     engine_version: string;
     /**
-     * Generation Log Id
-     */
-    generation_log_id?: string | null;
-    /**
-     * Intents
-     */
-    intents: Array<{
-        [key: string]: unknown;
-    }>;
-    /**
      * Registry Version
      */
     registry_version: string;
@@ -3591,6 +3611,10 @@ export type DesignGenerateOut = {
      * Request Id
      */
     request_id: string;
+    /**
+     * Run Id
+     */
+    run_id: string;
     /**
      * Warnings
      */
@@ -3609,12 +3633,6 @@ export type DesignGenerateRequest = {
      * Colorway
      */
     colorway?: string | null;
-    /**
-     * Intent
-     */
-    intent?: {
-        [key: string]: unknown;
-    } | null;
     palette?: PaletteConstraint;
     pattern_constraints?: PatternConstraints;
     /**
@@ -3632,7 +3650,7 @@ export type DesignGenerateRequest = {
     /**
      * Session Id
      */
-    session_id?: string | null;
+    session_id: string;
     /**
      * User Motif Ids
      */
@@ -3710,13 +3728,59 @@ export type DesignReferenceUploadOut = {
 };
 
 /**
+ * DesignRerollRequest
+ */
+export type DesignRerollRequest = {
+    /**
+     * Candidate Count
+     */
+    candidate_count?: number;
+    /**
+     * Colorway
+     */
+    colorway?: string | null;
+    palette?: PaletteConstraint;
+    pattern_constraints?: PatternConstraints;
+    /**
+     * Seed
+     */
+    seed: number;
+};
+
+/**
+ * DesignSelectionRequest
+ */
+export type DesignSelectionRequest = {
+    /**
+     * Candidate Id
+     */
+    candidate_id: string;
+    /**
+     * Run Id
+     */
+    run_id: string;
+};
+
+/**
  * DesignSessionOut
  */
 export type DesignSessionOut = {
     /**
+     * Active Generation Id
+     */
+    active_generation_id: string | null;
+    /**
+     * Active Generation Started At
+     */
+    active_generation_started_at: string | null;
+    /**
      * Colorway
      */
     colorway: string | null;
+    /**
+     * Context Version
+     */
+    context_version: number;
     /**
      * Created At
      */
@@ -3725,6 +3789,12 @@ export type DesignSessionOut = {
      * Current Intent
      */
     current_intent: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Current Plan
+     */
+    current_plan: {
         [key: string]: unknown;
     } | null;
     finalize_quota?: FinalizeQuotaOut | null;
@@ -3759,26 +3829,6 @@ export type DesignSessionOut = {
 };
 
 /**
- * DesignSessionUpdateRequest
- */
-export type DesignSessionUpdateRequest = {
-    /**
-     * Colorway
-     */
-    colorway?: string | null;
-    /**
-     * Current Intent
-     */
-    current_intent?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Seed
-     */
-    seed?: number | null;
-};
-
-/**
  * DesignTurnAttachmentOut
  */
 export type DesignTurnAttachmentOut = {
@@ -3806,18 +3856,18 @@ export type DesignTurnAttachmentOut = {
 
 /**
  * DesignTurnCreateRequest
+ *
+ * Only UI-only finalize annotations remain client-authored.
+ *
+ * Generation results and candidate selections mutate session memory, so their
+ * turns are emitted exclusively by the corresponding server actions.
  */
 export type DesignTurnCreateRequest = {
-    /**
-     * Payload
-     */
-    payload: {
-        [key: string]: unknown;
-    };
+    payload: DesignFinalizeTurnPayload;
     /**
      * Role
      */
-    role: 'user' | 'assistant';
+    role: 'user';
 };
 
 /**
@@ -3973,7 +4023,7 @@ export type GenerationDiagnosticsOut = {
     /**
      * Mode
      */
-    mode?: 'prompt' | 'variation' | null;
+    mode?: 'prompt' | 'refine' | 'variation' | null;
     /**
      * Model
      */
@@ -4849,6 +4899,10 @@ export type MotifDetailOut = {
      */
     scope: string | null;
     /**
+     * Slot Colors
+     */
+    slot_colors?: Array<string> | null;
+    /**
      * Source
      */
     source: string;
@@ -5049,6 +5103,10 @@ export type MotifSummaryOut = {
      * Scope
      */
     scope: string | null;
+    /**
+     * Slot Colors
+     */
+    slot_colors?: Array<string> | null;
     /**
      * Source
      */
@@ -12110,36 +12168,6 @@ export type GetDesignSessionResponses = {
 
 export type GetDesignSessionResponse = GetDesignSessionResponses[keyof GetDesignSessionResponses];
 
-export type UpdateDesignSessionData = {
-    body: DesignSessionUpdateRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}';
-};
-
-export type UpdateDesignSessionErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateDesignSessionError = UpdateDesignSessionErrors[keyof UpdateDesignSessionErrors];
-
-export type UpdateDesignSessionResponses = {
-    /**
-     * Successful Response
-     */
-    200: DesignSessionOut;
-};
-
-export type UpdateDesignSessionResponse = UpdateDesignSessionResponses[keyof UpdateDesignSessionResponses];
-
 export type CreateFinalizeJobData = {
     body: FinalizeRequest;
     path: {
@@ -12229,6 +12257,66 @@ export type MotifGenerateResponses = {
 };
 
 export type MotifGenerateResponse = MotifGenerateResponses[keyof MotifGenerateResponses];
+
+export type RerollDesignData = {
+    body: DesignRerollRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/reroll';
+};
+
+export type RerollDesignErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RerollDesignError = RerollDesignErrors[keyof RerollDesignErrors];
+
+export type RerollDesignResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignGenerateOut;
+};
+
+export type RerollDesignResponse = RerollDesignResponses[keyof RerollDesignResponses];
+
+export type SelectDesignCandidateData = {
+    body: DesignSelectionRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/select';
+};
+
+export type SelectDesignCandidateErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SelectDesignCandidateError = SelectDesignCandidateErrors[keyof SelectDesignCandidateErrors];
+
+export type SelectDesignCandidateResponses = {
+    /**
+     * Successful Response
+     */
+    200: DesignSessionOut;
+};
+
+export type SelectDesignCandidateResponse = SelectDesignCandidateResponses[keyof SelectDesignCandidateResponses];
 
 export type ListDesignTurnsData = {
     body?: never;

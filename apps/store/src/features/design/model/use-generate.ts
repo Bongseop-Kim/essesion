@@ -2,6 +2,7 @@ import {
   createDesignSession,
   type DesignGenerateOut,
   generateDesign,
+  rerollDesign,
 } from "@essesion/api-client";
 import {
   getTokenBalanceQueryKey,
@@ -42,7 +43,6 @@ export type GenerateDesignInput =
   | (GenerateBase & {
       mode: "variation";
       sessionId: string;
-      intent: Record<string, unknown>;
       seed: number;
     });
 
@@ -111,30 +111,31 @@ export function useGenerateDesign(options?: {
               }
             : undefined,
         };
-        const body =
+        const { data: response } =
           input.mode === "prompt"
-            ? {
-                session_id: sessionId,
-                prompt: input.prompt,
-                ...sharedConstraints,
-                reference_images: (input.referenceImages ?? []).map(
-                  (image) => ({
-                    upload_id: image.uploadId,
-                    purpose: image.purpose,
-                  }),
-                ),
-                user_motif_ids: input.userMotifIds ?? [],
-              }
-            : {
-                session_id: sessionId,
-                intent: input.intent,
-                seed: input.seed,
-                ...sharedConstraints,
-              };
-        const { data: response } = await generateDesign({
-          body,
-          throwOnError: true,
-        });
+            ? await generateDesign({
+                body: {
+                  session_id: sessionId,
+                  prompt: input.prompt,
+                  ...sharedConstraints,
+                  reference_images: (input.referenceImages ?? []).map(
+                    (image) => ({
+                      upload_id: image.uploadId,
+                      purpose: image.purpose,
+                    }),
+                  ),
+                  user_motif_ids: input.userMotifIds ?? [],
+                },
+                throwOnError: true,
+              })
+            : await rerollDesign({
+                path: { session_id: sessionId },
+                body: {
+                  seed: input.seed,
+                  ...sharedConstraints,
+                },
+                throwOnError: true,
+              });
         // prompt 원문·sessionId는 넣지 않는다
         trackEvent("generate_design", { mode: input.mode });
         return { sessionId, response };

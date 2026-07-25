@@ -119,8 +119,9 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
    unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
    uv run python apps/worker/scripts/seed_motifs.py
    uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
+   uv run python apps/worker/scripts/backfill_slot_labels.py --confirm-live
    ```
-   인덱싱 출력이 `embedded=<total>/<total>`인지 확인한다. `GCP_PROJECT_ID`/ADC 또는 확인 플래그가 없으면 실행되지 않으며 `user_upload`은 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
+   인덱싱 출력이 `embedded=<total>/<total>`인지, 라벨 백필 출력이 `eligible=<대상>; updated=<갱신>`인지 배포 기록에 남긴다. 백필은 공개 멀티슬롯의 NULL 라벨만 조건부 갱신하므로 재실행이 안전하다. `GCP_PROJECT_ID`/ADC 또는 확인 플래그가 없으면 실행되지 않으며 `user_upload`은 두 작업 모두 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
 7. 외부 콘솔은 프록시 검증 후 처음부터 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - **Toss** 대시보드: 웹훅 URL → `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로 갱신
    - **Google·Kakao** 콘솔: redirect URI → `https://api.essesion.shop/auth/{provider}/callback`
@@ -154,8 +155,10 @@ Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐
 3. 상품 이미지 업로드와 finalize 메모리·지연을 실측해 dpi·인스턴스 상한을 확정한다.
 4. **production 차단 게이트**: 회원 탈퇴 뒤에도 주문 snapshot, 주문 item/claim/refund JSON,
    견적·문의·수선 배송 정보, 이미지·디자인 prompt/job payload, 관리자 로그에 역사성
-   개인정보가 남는다. 사용자 FK가 없는 seamless 생성 로그·전역 motif·공개 preview는
-   현재 사용자별 회수도 불가능하다. 필드별 보존 목적·기간·접근 통제·분리 저장·만료 시 익명화/삭제
+   개인정보가 남는다. seamless 생성 로그에는 사용자 FK가 없고, 공개 Recraft motif의
+   최초 유입 사용자·세션 provenance는 nullable이며 회원·세션 삭제 시 `SET NULL`되므로
+   소유권이나 영구 사용자별 회수 수단이 아니다. 공개 preview도 같은 한계가 있다.
+   필드별 보존 목적·기간·접근 통제·분리 저장·만료 시 익명화/삭제
    배치를 privacy owner와 법률 검토자가 승인하고, 샘플 데이터로 purge/anonymization과
    복구 불가성을 검증하기 전에는 컷오버하지 않는다.
 

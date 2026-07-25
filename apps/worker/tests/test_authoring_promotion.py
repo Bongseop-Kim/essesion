@@ -71,7 +71,8 @@ async def _source(
             role="assistant",
             payload={
                 "type": "generate",
-                "response": {"generation_log_id": str(log.id)},
+                "run_id": str(log.id),
+                "status": "succeeded",
             },
             created_at=base,
         ),

@@ -5,6 +5,7 @@ import type {
 import {
   ActionButton,
   Box,
+  Callout,
   ContentPlaceholder,
   Flex,
   HStack,
@@ -53,8 +54,8 @@ export type TurnFeedProps = {
   error?: boolean;
   onRetry?: () => void;
   onSelectCandidate: (
+    runId: string,
     candidate: TurnCandidate,
-    intents: GeneratePayload["response"]["intents"],
     event: MouseEvent<HTMLButtonElement>,
   ) => void;
   renderFinalizeTurn: (payload: FinalizeTurnPayload) => ReactNode;
@@ -117,6 +118,20 @@ export function TurnFeed({
     );
   }
 
+  const latestSelectableRunId = turns.reduce<{
+    seq: number;
+    runId: string;
+  } | null>((latest, turn) => {
+    const payload = parseDesignTurnPayload(turn.payload);
+    if (
+      payload?.type !== "generate" ||
+      (latest !== null && latest.seq >= turn.seq)
+    ) {
+      return latest;
+    }
+    return { seq: turn.seq, runId: payload.response.run_id };
+  }, null)?.runId;
+
   return (
     <VStack
       as="ol"
@@ -136,6 +151,10 @@ export function TurnFeed({
               createdAt={turn.created_at}
               attachments={turn.attachments ?? []}
               selectedCandidateId={selectedCandidateId}
+              candidateSelectionEnabled={
+                payload?.type !== "generate" ||
+                payload.response.run_id === latestSelectableRunId
+              }
               onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
               candidateMenu={candidateMenu}
@@ -165,6 +184,7 @@ function TurnItem({
   createdAt,
   attachments,
   selectedCandidateId,
+  candidateSelectionEnabled,
   onSelectCandidate,
   renderFinalizeTurn,
   candidateMenu,
@@ -173,6 +193,7 @@ function TurnItem({
   createdAt: string;
   attachments: readonly DesignTurnAttachmentOut[];
   selectedCandidateId?: string | null;
+  candidateSelectionEnabled: boolean;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
   candidateMenu?: ReactNode;
@@ -282,18 +303,32 @@ function TurnItem({
         candidates={candidates}
         selectedId={selectedCandidateId}
         warnings={localizeDesignWarnings(payload.response.warnings)}
-        menu={candidateMenu}
+        disabled={!candidateSelectionEnabled}
+        menu={candidateSelectionEnabled ? candidateMenu : undefined}
         onSelect={(selected, event) => {
-          const candidate = payload.response.candidates.find(
-            (item) => item.id === selected.id,
-          );
-          // 후보·intent 복원 실패 시 메뉴 오픈도 함께 막는다.
-          if (!candidate || !payload.response.intents[candidate.design_index]) {
+          if (!candidateSelectionEnabled) {
             event.preventDefault();
             return;
           }
-          onSelectCandidate(candidate, payload.response.intents, event);
+          const candidate = payload.response.candidates.find(
+            (item) => item.id === selected.id,
+          );
+          if (!candidate) {
+            event.preventDefault();
+            return;
+          }
+          onSelectCandidate(payload.response.run_id, candidate, event);
         }}
+      />
+    );
+  }
+
+  if (payload.type === "generate_error") {
+    return (
+      <Callout
+        tone="critical"
+        title="디자인을 만들지 못했어요"
+        description="요청 내용은 기록했어요. 잠시 후 다시 시도해 주세요."
       />
     );
   }

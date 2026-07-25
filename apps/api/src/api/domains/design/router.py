@@ -1,8 +1,8 @@
-"""디자인 세션 골격 — 세션 상태는 api 소유(LangGraph 대체), 워커 연동은 4단계.
+"""디자인 세션·선택 문맥 — 상태는 api 소유(LangGraph 대체), worker는 stateless.
 
 recraft 예산은 Postgres 공유 카운터(recraft_used) — 인스턴스 수와 무관하게 동작
 (ARCHITECTURE §7). finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션
-카운터·건당 환불 없음. 턴 payload 스키마는 /design 신규 기획(5단계)에서 구체화.
+카운터·건당 환불 없음. 선택한 intent+plan만 선형 문맥으로 커밋한다.
 """
 
 import asyncio
@@ -26,7 +26,7 @@ from db.models.design import (
     UserMotif,
 )
 from db.models.images import Image
-from db.models.seamless import Motif
+from db.models.seamless import Motif, SeamlessGenerationLog
 from fastapi import APIRouter, Query, Request, Response
 from obs import request_id_var
 from pydantic import (
@@ -42,7 +42,7 @@ from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from svg_safety import SanitizeError, sanitize_svg
 
-from api.db import SessionDep, advisory_xact_lock
+from api.db import USER_LOCK, SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, SettingsDep, ensure_owner
 from api.domains.design.job_lifecycle import (
     CANCELABLE_STATUSES,
@@ -118,6 +118,10 @@ class DesignSessionOut(ORMModel):
     colorway: str | None
     registry_version: str | None
     current_intent: dict[str, Any] | None
+    current_plan: dict[str, Any] | None
+    context_version: int
+    active_generation_id: uuid.UUID | None
+    active_generation_started_at: datetime | None
     recraft_used: int
     created_at: datetime
     updated_at: datetime
@@ -125,17 +129,6 @@ class DesignSessionOut(ORMModel):
     last_prompt: str | None = None
     # 단건 GET 전용 — 계정 쿼터 (목록은 null, 설정 부재 시에도 null)
     finalize_quota: FinalizeQuotaOut | None = None
-
-
-class DesignSessionUpdateRequest(BaseModel):
-    seed: SignedInt64 | None = None
-    colorway: str | None = Field(default=None, max_length=100)
-    current_intent: BoundedDesignJson | None = None
-
-
-class DesignTurnCreateRequest(BaseModel):
-    role: Literal["user", "assistant"]
-    payload: BoundedDesignJson
 
 
 class DesignTurnOut(ORMModel):
@@ -401,12 +394,11 @@ class WorkerCandidateOut(BaseModel):
 
 
 class DesignGenerateRequest(StrictModel):
-    session_id: uuid.UUID | None = None
+    session_id: uuid.UUID
     prompt: str | None = Field(default=None, max_length=MAX_DESIGN_PROMPT_LENGTH)
-    intent: BoundedDesignJson | None = None
     colorway: str | None = Field(default=None, max_length=100)
     seed: SignedInt64 | None = None
-    candidate_count: int = Field(1, ge=1, le=8)  # 워커 경계와 동일 — 선검증으로 헛환불 방지
+    candidate_count: int = Field(1, ge=1, le=4)
     reference_images: list[ReferenceImageRequest] = Field(
         default_factory=list, max_length=MAX_DESIGN_PHOTOS
     )
@@ -423,28 +415,126 @@ class DesignGenerateRequest(StrictModel):
             raise ValueError("user motifs must be distinct")
         if self.prompt is not None and not self.prompt.strip():
             self.prompt = None
-        if self.intent is not None and (
-            self.prompt is not None or self.reference_images or self.user_motif_ids
-        ):
-            raise ValueError(
-                "intent variation cannot include prompt, reference images, or user motifs"
-            )
-        if self.prompt is None and self.intent is None and not self.user_motif_ids:
+        if self.prompt is None and not self.user_motif_ids:
             raise ValueError("prompt or SVG motif is required")
-        if self.reference_images and self.session_id is None:
-            raise ValueError("session_id is required when reference images are used")
         return self
 
 
 class DesignGenerateOut(BaseModel):
-    # Additive rolling-deploy bridge: old worker responses fall back to request_id correlation.
-    generation_log_id: uuid.UUID | None = None
+    run_id: uuid.UUID
+    request_id: str
+    registry_version: str
+    engine_version: str
+    candidates: list[WorkerCandidateOut]
+    warnings: list[str] = []
+
+
+class WorkerCandidateInternalOut(WorkerCandidateOut):
+    intent: dict[str, Any] | None = None
+
+
+class WorkerDesignGenerateOut(BaseModel):
+    generation_log_id: uuid.UUID
     request_id: str
     registry_version: str
     engine_version: str
     intents: list[dict[str, Any]]
-    candidates: list[WorkerCandidateOut]
-    warnings: list[str] = []
+    plans: list[dict[str, Any]] = Field(default_factory=list)
+    structural_fingerprints: list[str] = Field(default_factory=list)
+    candidates: list[WorkerCandidateInternalOut]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DesignSelectionRequest(StrictModel):
+    run_id: uuid.UUID
+    candidate_id: str = Field(min_length=1, max_length=100)
+
+
+class DesignRerollRequest(StrictModel):
+    colorway: str | None = Field(default=None, max_length=100)
+    seed: SignedInt64
+    candidate_count: int = Field(4, ge=1, le=4)
+    palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
+    pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
+
+
+class DesignTurnAttachmentRefPayload(StrictModel):
+    kind: Literal["photo", "svg"]
+    filename: str = Field(min_length=1, max_length=255)
+    purpose: ReferencePurpose | None = None
+
+
+class DesignCandidateSummaryPayload(StrictModel):
+    design_index: int = Field(ge=0, le=3)
+    short_desc: str = Field(min_length=1, max_length=500)
+    structural_fingerprint: str | None = Field(default=None, max_length=100)
+
+
+class DesignUserGenerationPayload(StrictModel):
+    type: Literal["generate_request"] = "generate_request"
+    run_id: uuid.UUID
+    mode: Literal["prompt", "variation"]
+    prompt: str | None = Field(default=None, max_length=MAX_DESIGN_PROMPT_LENGTH)
+    seed: SignedInt64 | None = None
+    colorway: str | None = Field(default=None, max_length=100)
+    candidate_count: int = Field(ge=1, le=4)
+    palette: PaletteConstraint
+    pattern_constraints: PatternConstraints
+    attachment_refs: list[DesignTurnAttachmentRefPayload] = Field(
+        default_factory=list,
+        max_length=MAX_DESIGN_PHOTOS + MAX_DESIGN_MOTIFS,
+    )
+
+
+class DesignAssistantErrorPayload(StrictModel):
+    stage: str = Field(min_length=1, max_length=100)
+    code: str = Field(min_length=1, max_length=100)
+
+
+class DesignAssistantGenerationPayload(StrictModel):
+    type: Literal["generate"] = "generate"
+    run_id: uuid.UUID
+    status: Literal["succeeded", "error"]
+    candidate_summaries: list[DesignCandidateSummaryPayload] = Field(
+        default_factory=list,
+        max_length=4,
+    )
+    error: DesignAssistantErrorPayload | None = None
+
+    @model_validator(mode="after")
+    def _status_shape(self) -> "DesignAssistantGenerationPayload":
+        if self.status == "succeeded" and self.error is not None:
+            raise ValueError("successful assistant turns cannot contain an error")
+        if self.status == "error" and self.error is None:
+            raise ValueError("error assistant turns require a stage and code")
+        return self
+
+
+class DesignSelectionTurnPayload(StrictModel):
+    type: Literal["select"] = "select"
+    run_id: uuid.UUID
+    candidate_id: str = Field(min_length=1, max_length=100)
+    design_index: int = Field(ge=0, le=3)
+    seed: SignedInt64
+    colorway_id: str = Field(min_length=1, max_length=100)
+
+
+class DesignFinalizeTurnPayload(StrictModel):
+    type: Literal["finalize"] = "finalize"
+    job_id: uuid.UUID
+    production_method: str = Field(min_length=1, max_length=100)
+    weave: str = Field(min_length=1, max_length=100)
+
+
+class DesignTurnCreateRequest(StrictModel):
+    """Only UI-only finalize annotations remain client-authored.
+
+    Generation results and candidate selections mutate session memory, so their
+    turns are emitted exclusively by the corresponding server actions.
+    """
+
+    role: Literal["user"]
+    payload: DesignFinalizeTurnPayload
 
 
 class DesignExportRequest(BaseModel):
@@ -784,30 +874,6 @@ async def get_design_session(
     return out
 
 
-@router.patch("/design/sessions/{session_id}", response_model=DesignSessionOut)
-async def update_design_session(
-    session_id: uuid.UUID,
-    body: DesignSessionUpdateRequest,
-    session: SessionDep,
-    user: CurrentUser,
-) -> DesignSessionOut:
-    design_session = await session.get(DesignSession, session_id)
-    ensure_owner(design_session, user)
-    assert design_session is not None
-    if body.current_intent is not None:
-        await _ensure_intent_motif_access(
-            body.current_intent,
-            session=session,
-            user_id=user.id,
-            design_session_id=design_session.id,
-        )
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(design_session, field, value)
-    await session.commit()
-    await session.refresh(design_session)
-    return DesignSessionOut.model_validate(design_session)
-
-
 @router.delete("/design/sessions/{session_id}", status_code=204)
 async def delete_design_session(
     session_id: uuid.UUID, session: SessionDep, user: CurrentUser
@@ -866,6 +932,27 @@ async def _design_turn_outs(
     request: Request,
 ) -> list[DesignTurnOut]:
     by_turn: dict[uuid.UUID, list[DesignTurnAttachmentOut]] = {turn.id: [] for turn in turns}
+    run_ids: list[uuid.UUID] = []
+    for turn in turns:
+        raw_run_id = turn.payload.get("run_id")
+        if (
+            turn.role == "assistant"
+            and turn.payload.get("type") == "generate"
+            and turn.payload.get("status") == "succeeded"
+            and isinstance(raw_run_id, str)
+        ):
+            try:
+                run_ids.append(uuid.UUID(raw_run_id))
+            except ValueError:
+                continue
+    logs_by_id: dict[uuid.UUID, SeamlessGenerationLog] = {}
+    if run_ids:
+        logs_by_id = {
+            log.id: log
+            for log in await session.scalars(
+                select(SeamlessGenerationLog).where(SeamlessGenerationLog.id.in_(run_ids))
+            )
+        }
     if turns:
         attachment_rows = (
             await session.execute(
@@ -913,10 +1000,47 @@ async def _design_turn_outs(
                     preview_svg=preview_svg,
                 )
             )
-    return [
-        DesignTurnOut.model_validate(turn).model_copy(update={"attachments": by_turn[turn.id]})
-        for turn in turns
-    ]
+    outputs: list[DesignTurnOut] = []
+    for turn in turns:
+        payload = dict(turn.payload)
+        if turn.role == "assistant" and payload.get("type") == "generate":
+            if payload.get("status") == "error":
+                payload = {
+                    "type": "generate_error",
+                    "run_id": payload.get("run_id"),
+                    "status": "error",
+                    "error": payload.get("error"),
+                }
+            else:
+                try:
+                    run_id = uuid.UUID(str(payload.get("run_id")))
+                except ValueError:
+                    run_id = None
+                log = logs_by_id.get(run_id) if run_id is not None else None
+                if log is not None:
+                    candidates = log.candidates if isinstance(log.candidates, list) else []
+                    public_candidates = [
+                        WorkerCandidateOut.model_validate(candidate).model_dump(mode="json")
+                        for candidate in candidates
+                        if isinstance(candidate, dict)
+                    ]
+                    payload["response"] = {
+                        "run_id": str(log.id),
+                        "request_id": log.request_id or "",
+                        "registry_version": log.registry_version or "",
+                        "engine_version": log.engine_version or "",
+                        "candidates": public_candidates,
+                        "warnings": log.warnings,
+                    }
+        outputs.append(
+            DesignTurnOut.model_validate(turn).model_copy(
+                update={
+                    "payload": payload,
+                    "attachments": by_turn[turn.id],
+                }
+            )
+        )
+    return outputs
 
 
 @router.post("/design/sessions/{session_id}/turns", response_model=DesignTurnOut, status_code=201)
@@ -928,7 +1052,12 @@ async def append_design_turn(
 ) -> DesignTurnOut:
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
-    turn = await _append_turn(session, session_id, body.role, body.payload)
+    turn = await _append_turn(
+        session,
+        session_id,
+        body.role,
+        body.payload,
+    )
     await session.commit()
     await session.refresh(turn)
     return DesignTurnOut.model_validate(turn)
@@ -949,33 +1078,35 @@ async def generate_design(
             status=422,
             stage="constraints",
         )
-    design_session = None
-    if body.session_id is not None:
-        design_session = await session.get(DesignSession, body.session_id)
-        ensure_owner(design_session, user)
-    if body.intent is not None:
-        await _ensure_intent_motif_access(
-            body.intent,
-            session=session,
-            user_id=user.id,
-            design_session_id=design_session.id if design_session is not None else None,
-        )
+    design_session = await session.get(DesignSession, body.session_id)
+    ensure_owner(design_session, user)
+    assert design_session is not None
     photos = await _resolve_reference_images(
         body.reference_images,
         session=session,
         user_id=user.id,
         request=request,
-        lock=True,
+        lock=False,
     )
     user_motifs = await _resolve_user_motifs(
         body.user_motif_ids,
         session=session,
         user_id=user.id,
     )
+    conversation_context = await _build_conversation_context(session, design_session)
+    expected_context_version = design_session.context_version
+    run_id = uuid.uuid4()
     payload = body.model_dump(
         exclude={"session_id", "reference_images", "user_motif_ids"},
         exclude_none=True,
     )
+    payload["run_id"] = str(run_id)
+    payload["motif_provenance"] = {
+        "user_id": str(user.id),
+        "session_id": str(design_session.id),
+    }
+    if conversation_context is not None:
+        payload["conversation_context"] = conversation_context
     if photos:
         payload["reference_images"] = [
             await _reference_image_payload(image, purpose, request) for image, purpose in photos
@@ -983,18 +1114,28 @@ async def generate_design(
     if user_motifs:
         payload["motif_ids"] = [motif.id for _, motif in user_motifs]
 
-    # 클라이언트 연결이 끊겨도 과금 이후 worker→턴 기록/환불을 끝낸다. 취소된
-    # 요청의 dependency teardown이 먼저 session을 닫지 않도록 inner task까지 기다린다.
     completion = asyncio.create_task(
-        _complete_generation(
-            body,
-            payload,
-            request,
-            session,
-            user.id,
-            design_session,
-            photos,
-            user_motifs,
+        _dispatch_generation(
+            payload=payload,
+            request=request,
+            session=session,
+            user_id=user.id,
+            design_session_id=design_session.id,
+            expected_context_version=expected_context_version,
+            run_id=run_id,
+            user_turn=DesignUserGenerationPayload(
+                run_id=run_id,
+                mode="prompt",
+                prompt=body.prompt,
+                seed=body.seed,
+                colorway=body.colorway,
+                candidate_count=body.candidate_count,
+                palette=body.palette,
+                pattern_constraints=body.pattern_constraints,
+                attachment_refs=_generation_attachment_refs(photos, user_motifs),
+            ),
+            photos=photos,
+            user_motifs=user_motifs,
         )
     )
     try:
@@ -1007,101 +1148,698 @@ async def generate_design(
         raise
 
 
-async def _complete_generation(
-    body: DesignGenerateRequest,
-    payload: dict[str, Any],
+@router.post(
+    "/design/sessions/{session_id}/reroll",
+    response_model=DesignGenerateOut,
+)
+async def reroll_design(
+    session_id: uuid.UUID,
+    body: DesignRerollRequest,
     request: Request,
     session: SessionDep,
-    user_id: uuid.UUID,
-    design_session: DesignSession | None,
+    user: CurrentUser,
+) -> DesignGenerateOut:
+    design_session = await session.get(DesignSession, session_id)
+    ensure_owner(design_session, user)
+    assert design_session is not None
+    if design_session.current_intent is None or design_session.current_plan is None:
+        raise ConflictError(
+            "다시 만들 기준 디자인이 없습니다",
+            code="design_not_selected",
+        )
+    await _ensure_intent_motif_access(
+        design_session.current_intent,
+        session=session,
+        user_id=user.id,
+        design_session_id=design_session.id,
+    )
+    conversation_context = await _build_conversation_context(session, design_session)
+    assert conversation_context is not None
+    expected_context_version = design_session.context_version
+    run_id = uuid.uuid4()
+    payload = {
+        "run_id": str(run_id),
+        "intent": design_session.current_intent,
+        "conversation_context": conversation_context,
+        "seed": body.seed,
+        "candidate_count": body.candidate_count,
+        "palette": body.palette.model_dump(mode="json"),
+        "pattern_constraints": body.pattern_constraints.model_dump(mode="json"),
+    }
+    if body.colorway is not None:
+        payload["colorway"] = body.colorway
+    completion = asyncio.create_task(
+        _dispatch_generation(
+            payload=payload,
+            request=request,
+            session=session,
+            user_id=user.id,
+            design_session_id=design_session.id,
+            expected_context_version=expected_context_version,
+            run_id=run_id,
+            user_turn=DesignUserGenerationPayload(
+                run_id=run_id,
+                mode="variation",
+                prompt=None,
+                seed=body.seed,
+                colorway=body.colorway,
+                candidate_count=body.candidate_count,
+                palette=body.palette,
+                pattern_constraints=body.pattern_constraints,
+            ),
+            photos=[],
+            user_motifs=[],
+        )
+    )
+    try:
+        return await asyncio.shield(completion)
+    except asyncio.CancelledError:
+        try:
+            await completion
+        except Exception:
+            logger.warning("reroll completion failed after client cancellation", exc_info=True)
+        raise
+
+
+@router.post(
+    "/design/sessions/{session_id}/select",
+    response_model=DesignSessionOut,
+)
+async def select_design_candidate(
+    session_id: uuid.UUID,
+    body: DesignSelectionRequest,
+    session: SessionDep,
+    user: CurrentUser,
+) -> DesignSessionOut:
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
+    design_session = await session.scalar(
+        select(DesignSession).where(DesignSession.id == session_id).with_for_update()
+    )
+    ensure_owner(design_session, user)
+    assert design_session is not None
+    if design_session.active_generation_id is not None:
+        raise ConflictError(
+            "디자인 생성이 진행 중입니다",
+            code="generation_in_progress",
+        )
+
+    latest_success = await session.scalar(
+        select(DesignSessionTurn)
+        .where(
+            DesignSessionTurn.session_id == session_id,
+            DesignSessionTurn.role == "assistant",
+            DesignSessionTurn.payload["type"].astext == "generate",
+            DesignSessionTurn.payload["status"].astext == "succeeded",
+        )
+        .order_by(DesignSessionTurn.seq.desc())
+        .limit(1)
+    )
+    if latest_success is None or latest_success.payload.get("run_id") != str(body.run_id):
+        raise ConflictError(
+            "가장 최근 생성 결과만 선택할 수 있습니다",
+            code="stale_design_selection",
+        )
+
+    log = await session.get(SeamlessGenerationLog, body.run_id)
+    if log is None or log.status not in {"success", "partial"}:
+        raise ConflictError(
+            "선택할 생성 결과를 찾을 수 없습니다",
+            code="design_result_unavailable",
+        )
+    raw_candidates = log.candidates if isinstance(log.candidates, list) else []
+    candidate = next(
+        (
+            item
+            for item in raw_candidates
+            if isinstance(item, dict) and item.get("id") == body.candidate_id
+        ),
+        None,
+    )
+    if candidate is None:
+        raise DomainError(
+            "선택한 후보를 찾을 수 없습니다",
+            code="design_candidate_not_found",
+            status=404,
+        )
+    design_index = candidate.get("design_index")
+    if not isinstance(design_index, int) or not 0 <= design_index <= 3:
+        raise ConflictError(
+            "후보의 디자인 정보가 올바르지 않습니다",
+            code="design_result_invalid",
+        )
+    intent_log = log.intent if isinstance(log.intent, dict) else {}
+    raw_plans = intent_log.get("resolved_plans")
+    plans = raw_plans if isinstance(raw_plans, list) else []
+    if design_index >= len(plans) or not isinstance(plans[design_index], dict):
+        raise ConflictError(
+            "후보의 대화 계획을 복원할 수 없습니다",
+            code="design_plan_unavailable",
+        )
+    candidate_intent = candidate.get("intent")
+    if not isinstance(candidate_intent, dict):
+        designs = intent_log.get("designs")
+        if (
+            not isinstance(designs, list)
+            or design_index >= len(designs)
+            or not isinstance(designs[design_index], dict)
+        ):
+            raise ConflictError(
+                "후보의 렌더 정보를 복원할 수 없습니다",
+                code="design_intent_unavailable",
+            )
+        candidate_intent = designs[design_index]
+    current_intent = _bounded_design_json(candidate_intent)
+    current_plan = _bounded_design_json(plans[design_index])
+    await _ensure_intent_motif_access(
+        current_intent,
+        session=session,
+        user_id=user.id,
+        design_session_id=design_session.id,
+    )
+    seed = candidate.get("seed")
+    colorway_id = candidate.get("colorway_id")
+    if not isinstance(seed, int) or not isinstance(colorway_id, str) or not colorway_id:
+        raise ConflictError(
+            "후보의 재현 정보가 올바르지 않습니다",
+            code="design_result_invalid",
+        )
+
+    design_session.current_intent = current_intent
+    design_session.current_plan = current_plan
+    design_session.seed = seed
+    design_session.colorway = colorway_id
+    design_session.registry_version = log.registry_version
+    design_session.context_version += 1
+    await _append_turn(
+        session,
+        design_session.id,
+        "user",
+        DesignSelectionTurnPayload(
+            run_id=body.run_id,
+            candidate_id=body.candidate_id,
+            design_index=design_index,
+            seed=seed,
+            colorway_id=colorway_id,
+        ),
+    )
+    await session.commit()
+    await session.refresh(design_session)
+    return DesignSessionOut.model_validate(design_session)
+
+
+def _generation_attachment_refs(
     photos: list[tuple[Image, ReferencePurpose]],
     user_motifs: list[tuple[UserMotif, Motif]],
-) -> DesignGenerateOut:
-    """과금부터 최종 기록까지 취소로 분리되지 않는 generate 완료 단위."""
+) -> list[DesignTurnAttachmentRefPayload]:
+    return [
+        *[
+            DesignTurnAttachmentRefPayload(
+                kind="photo",
+                filename=image.original_filename or f"참고 이미지 {index + 1}",
+                purpose=purpose,
+            )
+            for index, (image, purpose) in enumerate(photos)
+        ],
+        *[
+            DesignTurnAttachmentRefPayload(kind="svg", filename=link.name)
+            for link, _motif in user_motifs
+        ],
+    ]
 
-    # 과금 — work_id는 서버 생성 (X-Request-ID는 클라이언트 제어 값이라 멱등 히트 악용 가능).
-    # 선차감 후 워커 실패 시 환불 — 워커 422(잘못된 intent)도 환불되는 관대한 기본값.
-    work_id = f"design_generate_{uuid.uuid4().hex}"
-    charge = await ledger.use_tokens(session, user_id, work_id)
+
+async def _build_conversation_context(
+    session: SessionDep,
+    design_session: DesignSession,
+) -> dict[str, Any] | None:
+    if design_session.current_plan is None or design_session.current_intent is None:
+        return None
+    turns = list(
+        await session.scalars(
+            select(DesignSessionTurn)
+            .where(DesignSessionTurn.session_id == design_session.id)
+            .order_by(DesignSessionTurn.seq)
+        )
+    )
+    user_by_run: dict[str, dict[str, Any]] = {}
+    assistant_by_run: dict[str, dict[str, Any]] = {}
+    selection_by_run: dict[str, dict[str, Any]] = {}
+    run_order: list[str] = []
+    for turn in turns:
+        payload = turn.payload
+        run_id = payload.get("run_id")
+        if not isinstance(run_id, str):
+            continue
+        payload_type = payload.get("type")
+        if (
+            turn.role == "user"
+            and payload_type == "generate_request"
+            and payload.get("mode") == "prompt"
+        ):
+            user_by_run[run_id] = payload
+            run_order.append(run_id)
+        elif (
+            turn.role == "assistant"
+            and payload_type == "generate"
+            and payload.get("status") == "succeeded"
+        ):
+            assistant_by_run[run_id] = payload
+        elif turn.role == "user" and payload_type == "select":
+            selection_by_run[run_id] = payload
+
+    history: list[dict[str, Any]] = []
+    for run_id in run_order:
+        user_payload = user_by_run.get(run_id)
+        assistant_payload = assistant_by_run.get(run_id)
+        selection_payload = selection_by_run.get(run_id)
+        if user_payload is None or assistant_payload is None or selection_payload is None:
+            continue
+        prompt = user_payload.get("prompt")
+        selected_index = selection_payload.get("design_index")
+        summaries = assistant_payload.get("candidate_summaries")
+        if not isinstance(prompt, str) or not prompt or not isinstance(summaries, list):
+            continue
+        selected_summary = next(
+            (
+                summary
+                for summary in summaries
+                if isinstance(summary, dict)
+                and summary.get("design_index") == selected_index
+                and isinstance(summary.get("short_desc"), str)
+            ),
+            None,
+        )
+        if selected_summary is None:
+            continue
+        attachment_refs = user_payload.get("attachment_refs")
+        history.append(
+            {
+                "user_prompt": prompt,
+                "assistant_summary": selected_summary["short_desc"],
+                "attachments": (attachment_refs if isinstance(attachment_refs, list) else []),
+            }
+        )
+    return {
+        "current_plan": design_session.current_plan,
+        "current_intent": design_session.current_intent,
+        "history": history[-6:],
+    }
+
+
+def _short_design_description(plan: dict[str, Any] | None, design_index: int) -> str:
+    if not isinstance(plan, dict):
+        return f"디자인 {design_index + 1}"
+    colors = plan.get("colors")
+    layers = plan.get("layers")
+    color_count = len(colors) if isinstance(colors, list) else 0
+    descriptions: list[str] = []
+    if isinstance(layers, list):
+        for layer in layers:
+            if not isinstance(layer, dict):
+                continue
+            if layer.get("type") == "stripe":
+                direction = layer.get("direction")
+                descriptions.append(f"스트라이프({direction})")
+            elif layer.get("type") == "motif":
+                placement = layer.get("placement")
+                placement_type = placement.get("type") if isinstance(placement, dict) else "motif"
+                descriptions.append(f"모티프({placement_type})")
+    structure = ", ".join(descriptions) if descriptions else "단색 구조"
+    return f"{color_count}색 · {structure}"
+
+
+def _candidate_summaries(
+    out: WorkerDesignGenerateOut,
+) -> list[DesignCandidateSummaryPayload]:
+    indexes = sorted({candidate.design_index for candidate in out.candidates})
+    return [
+        DesignCandidateSummaryPayload(
+            design_index=index,
+            short_desc=_short_design_description(
+                out.plans[index] if index < len(out.plans) else None,
+                index,
+            ),
+            structural_fingerprint=(
+                out.structural_fingerprints[index]
+                if index < len(out.structural_fingerprints)
+                else None
+            ),
+        )
+        for index in indexes
+    ]
+
+
+async def _recover_stale_active_generation(
+    session: SessionDep,
+    design_session: DesignSession,
+    user_id: uuid.UUID,
+    now: datetime,
+) -> None:
+    run_id = design_session.active_generation_id
+    started_at = design_session.active_generation_started_at
+    if run_id is None or started_at is None or started_at >= now - STALE_GENERATION_JOB_AFTER:
+        return
+    await ledger.refund_failed_generation(
+        session,
+        user_id,
+        None,
+        f"design_generate_{run_id.hex}",
+        commit=False,
+    )
+    has_terminal_turn = await session.scalar(
+        select(func.count()).where(
+            DesignSessionTurn.session_id == design_session.id,
+            DesignSessionTurn.role == "assistant",
+            DesignSessionTurn.payload["run_id"].astext == str(run_id),
+        )
+    )
+    if not has_terminal_turn:
+        await _append_turn(
+            session,
+            design_session.id,
+            "assistant",
+            DesignAssistantGenerationPayload(
+                run_id=run_id,
+                status="error",
+                error=DesignAssistantErrorPayload(
+                    stage="generation",
+                    code="generation_stale",
+                ),
+            ),
+        )
+    design_session.active_generation_id = None
+    design_session.active_generation_started_at = None
+    design_session.context_version += 1
+
+
+async def _start_generation(
+    *,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    design_session_id: uuid.UUID,
+    expected_context_version: int,
+    run_id: uuid.UUID,
+    user_turn: DesignUserGenerationPayload,
+    photos: list[tuple[Image, ReferencePurpose]],
+    user_motifs: list[tuple[UserMotif, Motif]],
+) -> int:
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
+    design_session = await session.scalar(
+        select(DesignSession)
+        .where(
+            DesignSession.id == design_session_id,
+            DesignSession.user_id == user_id,
+        )
+        .with_for_update()
+    )
+    if design_session is None:
+        raise ConflictError("디자인 세션을 찾을 수 없습니다")
+    now = datetime.now(UTC)
+    if design_session.context_version != expected_context_version:
+        await session.rollback()
+        raise ConflictError(
+            "디자인 대화 상태가 변경되었습니다",
+            code="stale_design_context",
+        )
+    await _recover_stale_active_generation(session, design_session, user_id, now)
+    if design_session.active_generation_id is not None:
+        await session.rollback()
+        raise ConflictError(
+            "디자인 생성이 진행 중입니다",
+            code="generation_in_progress",
+        )
+
+    work_id = f"design_generate_{run_id.hex}"
+    charge = await ledger.use_tokens(
+        session,
+        user_id,
+        work_id,
+        commit=False,
+    )
     if not charge.success:
+        await session.commit()
         detail = (
             "환불 심사 중에는 생성할 수 없습니다"
             if charge.error == "refund_pending"
             else "디자인 토큰이 부족합니다"
         )
         raise DomainError(detail, code=charge.error or "insufficient_tokens")
-    try:
-        response = await request.app.state.worker.generate(payload)
-        try:
-            out = DesignGenerateOut.model_validate(response)
-        except ValidationError as exc:
-            raise UpstreamError("이미지 워커 응답 형식이 올바르지 않습니다") from exc
-        if design_session is not None:
-            design_session.registry_version = out.registry_version
-            if body.intent is not None:
-                design_session.current_intent = body.intent
-            user_turn = await _append_turn(
-                session,
-                design_session.id,
-                "user",
-                {
-                    "type": "generate_request",
-                    "mode": "variation" if body.intent is not None else "prompt",
-                    "prompt": body.prompt if body.intent is None else None,
-                    "seed": body.seed,
-                    "colorway": body.colorway,
-                    "candidate_count": body.candidate_count,
-                    "palette": body.palette.model_dump(),
-                    "pattern_constraints": body.pattern_constraints.model_dump(),
-                },
+
+    user_turn_row = await _append_turn(
+        session,
+        design_session.id,
+        "user",
+        user_turn,
+    )
+    locked_images: dict[uuid.UUID, Image] = {}
+    if photos:
+        photo_ids = [image.id for image, _purpose in photos]
+        locked_images = {
+            image.id: image
+            for image in await session.scalars(
+                select(Image).where(Image.id.in_(photo_ids)).with_for_update()
             )
-            for ordinal, (image, purpose) in enumerate(photos):
-                session.add(
-                    DesignTurnAttachment(
-                        turn_id=user_turn.id,
-                        kind="photo",
-                        image_id=image.id,
-                        motif_id=None,
-                        purpose=purpose,
-                        filename=image.original_filename or f"참고 이미지 {ordinal + 1}",
-                        ordinal=ordinal,
-                    )
-                )
-                image.entity_type = "design_reference"
-                image.entity_id = str(design_session.id)
-                image.expires_at = None
-            for index, (link, motif) in enumerate(user_motifs, start=len(photos)):
-                session.add(
-                    DesignTurnAttachment(
-                        turn_id=user_turn.id,
-                        kind="svg",
-                        image_id=None,
-                        motif_id=motif.id,
-                        purpose=None,
-                        filename=link.name,
-                        ordinal=index,
-                    )
-                )
+        }
+        if set(locked_images) != set(photo_ids):
+            raise ConflictError(
+                "디자인 참고 이미지 상태가 변경되었습니다",
+                code="invalid_design_reference",
+            )
+    for ordinal, (image, purpose) in enumerate(photos):
+        locked = locked_images[image.id]
+        if locked.entity_type != "design_reference_upload":
+            raise ConflictError(
+                "디자인 참고 이미지 상태가 변경되었습니다",
+                code="invalid_design_reference",
+            )
+        session.add(
+            DesignTurnAttachment(
+                turn_id=user_turn_row.id,
+                kind="photo",
+                image_id=locked.id,
+                motif_id=None,
+                purpose=purpose,
+                filename=locked.original_filename or f"참고 이미지 {ordinal + 1}",
+                ordinal=ordinal,
+            )
+        )
+    for index, (link, motif) in enumerate(user_motifs, start=len(photos)):
+        session.add(
+            DesignTurnAttachment(
+                turn_id=user_turn_row.id,
+                kind="svg",
+                image_id=None,
+                motif_id=motif.id,
+                purpose=None,
+                filename=link.name,
+                ordinal=index,
+            )
+        )
+    design_session.active_generation_id = run_id
+    design_session.active_generation_started_at = now
+    design_session.context_version += 1
+    await session.commit()
+    return charge.cost
+
+
+async def _finish_generation_success(
+    *,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    design_session_id: uuid.UUID,
+    run_id: uuid.UUID,
+    out: WorkerDesignGenerateOut,
+    photos: list[tuple[Image, ReferencePurpose]],
+) -> DesignGenerateOut:
+    if out.generation_log_id != run_id:
+        raise UpstreamError("이미지 워커 실행 식별자가 올바르지 않습니다")
+    public_out = DesignGenerateOut(
+        run_id=run_id,
+        request_id=out.request_id,
+        registry_version=out.registry_version,
+        engine_version=out.engine_version,
+        candidates=[
+            WorkerCandidateOut.model_validate(candidate.model_dump())
+            for candidate in out.candidates
+        ],
+        warnings=out.warnings,
+    )
+    summaries = _candidate_summaries(out)
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
+    design_session = await session.scalar(
+        select(DesignSession)
+        .where(
+            DesignSession.id == design_session_id,
+            DesignSession.user_id == user_id,
+        )
+        .with_for_update()
+    )
+    if design_session is None:
+        raise ConflictError("디자인 세션을 찾을 수 없습니다")
+    if design_session.active_generation_id != run_id:
+        raise ConflictError(
+            "만료된 생성 결과는 현재 세션을 변경할 수 없습니다",
+            code="stale_generation_result",
+        )
+    if photos:
+        photo_ids = [image.id for image, _purpose in photos]
+        locked_images = {
+            image.id: image
+            for image in await session.scalars(
+                select(Image).where(Image.id.in_(photo_ids)).with_for_update()
+            )
+        }
+        if set(locked_images) != set(photo_ids) or any(
+            image.entity_type != "design_reference_upload" or image.uploaded_by != user_id
+            for image in locked_images.values()
+        ):
+            raise ConflictError(
+                "디자인 참고 이미지 상태가 변경되었습니다",
+                code="invalid_design_reference",
+            )
+        for image in locked_images.values():
+            image.entity_type = "design_reference"
+            image.entity_id = str(design_session.id)
+            image.expires_at = None
+    design_session.registry_version = out.registry_version
+    design_session.active_generation_id = None
+    design_session.active_generation_started_at = None
+    design_session.context_version += 1
+    await _append_turn(
+        session,
+        design_session.id,
+        "assistant",
+        DesignAssistantGenerationPayload(
+            run_id=run_id,
+            status="succeeded",
+            candidate_summaries=summaries,
+        ),
+    )
+    await session.commit()
+    return public_out
+
+
+async def _finish_generation_failure(
+    *,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    design_session_id: uuid.UUID,
+    run_id: uuid.UUID,
+    charge_cost: int,
+    stage: str,
+    code: str,
+) -> None:
+    await session.rollback()
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
+    design_session = await session.scalar(
+        select(DesignSession)
+        .where(
+            DesignSession.id == design_session_id,
+            DesignSession.user_id == user_id,
+        )
+        .with_for_update()
+    )
+    await ledger.refund_failed_generation(
+        session,
+        user_id,
+        charge_cost,
+        f"design_generate_{run_id.hex}",
+        commit=False,
+    )
+    if design_session is not None:
+        has_terminal_turn = await session.scalar(
+            select(func.count()).where(
+                DesignSessionTurn.session_id == design_session.id,
+                DesignSessionTurn.role == "assistant",
+                DesignSessionTurn.payload["run_id"].astext == str(run_id),
+            )
+        )
+        if not has_terminal_turn:
             await _append_turn(
                 session,
                 design_session.id,
                 "assistant",
-                {"type": "generate", "response": out.model_dump(mode="json")},
+                DesignAssistantGenerationPayload(
+                    run_id=run_id,
+                    status="error",
+                    error=DesignAssistantErrorPayload(stage=stage, code=code),
+                ),
             )
-        await session.commit()
-    except (UpstreamError, WorkerRequestError):
-        # 둘 다 환불하되 응답은 구분 — 요청 오류는 422(detail 보존), 일시 장애는 502.
+        if design_session.active_generation_id == run_id:
+            design_session.active_generation_id = None
+            design_session.active_generation_started_at = None
+            design_session.context_version += 1
+    await session.commit()
+
+
+async def _dispatch_generation(
+    *,
+    payload: dict[str, Any],
+    request: Request,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    design_session_id: uuid.UUID,
+    expected_context_version: int,
+    run_id: uuid.UUID,
+    user_turn: DesignUserGenerationPayload,
+    photos: list[tuple[Image, ReferencePurpose]],
+    user_motifs: list[tuple[UserMotif, Motif]],
+) -> DesignGenerateOut:
+    try:
+        charge_cost = await _start_generation(
+            session=session,
+            user_id=user_id,
+            design_session_id=design_session_id,
+            expected_context_version=expected_context_version,
+            run_id=run_id,
+            user_turn=user_turn,
+            photos=photos,
+            user_motifs=user_motifs,
+        )
+    except DomainError:
         await session.rollback()
-        await ledger.refund_failed_generation(session, user_id, charge.cost, work_id)
         raise
     except Exception as exc:
-        # CancelledError(BaseException)는 여기서 삼키지 않는다. 일반 예외는 실패한
-        # turn 트랜잭션을 정리한 뒤 환불해, 워커 프로토콜/DB 오류가 과금 누수로 번지지 않는다.
         await session.rollback()
-        await ledger.refund_failed_generation(session, user_id, charge.cost, work_id)
+        logger.warning("generation start transaction failed", exc_info=True)
+        raise UpstreamError("디자인 생성을 시작하지 못했습니다") from exc
+
+    try:
+        response = await request.app.state.worker.generate(payload)
+        try:
+            out = WorkerDesignGenerateOut.model_validate(response)
+        except ValidationError as exc:
+            raise UpstreamError("이미지 워커 응답 형식이 올바르지 않습니다") from exc
+        return await _finish_generation_success(
+            session=session,
+            user_id=user_id,
+            design_session_id=design_session_id,
+            run_id=run_id,
+            out=out,
+            photos=photos,
+        )
+    except (UpstreamError, WorkerRequestError, ConflictError) as exc:
+        await _finish_generation_failure(
+            session=session,
+            user_id=user_id,
+            design_session_id=design_session_id,
+            run_id=run_id,
+            charge_cost=charge_cost,
+            stage=exc.stage or "generation",
+            code=exc.code,
+        )
+        raise
+    except Exception as exc:
+        await _finish_generation_failure(
+            session=session,
+            user_id=user_id,
+            design_session_id=design_session_id,
+            run_id=run_id,
+            charge_cost=charge_cost,
+            stage="generation",
+            code="generation_failed",
+        )
         logger.warning("generation completion failed after charge", exc_info=True)
         raise UpstreamError("디자인 생성을 완료하지 못했습니다") from exc
-    return out
 
 
 async def _resolve_reference_images(
@@ -1736,7 +2474,12 @@ async def motif_generate(
     await session.commit()
 
     try:
-        response = await request.app.state.worker.motif_generate(body.model_dump(exclude_none=True))
+        payload = body.model_dump(exclude_none=True)
+        payload["motif_provenance"] = {
+            "user_id": str(user.id),
+            "session_id": str(session_id),
+        }
+        response = await request.app.state.worker.motif_generate(payload)
         out = MotifGenerateOut.model_validate(response)
     except Exception:
         await _release_recraft_budget(session, session_id)
@@ -1757,7 +2500,7 @@ async def _release_recraft_budget(session: SessionDep, session_id: uuid.UUID) ->
 
 
 async def _append_turn(
-    session: SessionDep, session_id: uuid.UUID, role: str, payload: dict[str, Any]
+    session: SessionDep, session_id: uuid.UUID, role: str, payload: BaseModel
 ) -> DesignSessionTurn:
     await advisory_xact_lock(session, f"design-session:{session_id}")
     next_seq = (
@@ -1768,7 +2511,12 @@ async def _append_turn(
         )
         or 0
     ) + 1
-    turn = DesignSessionTurn(session_id=session_id, seq=next_seq, role=role, payload=payload)
+    turn = DesignSessionTurn(
+        session_id=session_id,
+        seq=next_seq,
+        role=role,
+        payload=payload.model_dump(mode="json"),
+    )
     session.add(turn)
     await session.flush()
     return turn

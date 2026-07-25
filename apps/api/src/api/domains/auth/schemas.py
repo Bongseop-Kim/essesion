@@ -11,7 +11,11 @@ PHONE_MAX_LENGTH = 32
 
 
 class LoginRequest(BaseModel):
-    email: str = Field(min_length=1, max_length=EMAIL_MAX_LENGTH)
+    email: str = Field(
+        min_length=1,
+        max_length=EMAIL_MAX_LENGTH,
+        pattern=r"^[^\x00]+$",
+    )
     password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
 
 

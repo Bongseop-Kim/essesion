@@ -201,7 +201,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
             render_ms=Decimal("3.5"),
             status="success",
             diagnostics={
-                "mode": "prompt",
+                "mode": "refine",
                 "model": "gemini-2.5-flash-lite",
                 "authoring_attempts": 1,
                 "plan_count": 3,
@@ -335,7 +335,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert "raw-provider-secret" not in detail.text
     assert "png_object_key" not in detail.text
     assert detail.json()["diagnostics"] == {
-        "mode": "prompt",
+        "mode": "refine",
         "model": "gemini-2.5-flash-lite",
         "prompt_revision": None,
         "reference_count": 1,
@@ -447,7 +447,8 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
                 role="assistant",
                 payload={
                     "type": "generate",
-                    "response": {"generation_log_id": str(log.id)},
+                    "run_id": str(log.id),
+                    "status": "succeeded",
                 },
                 created_at=now - timedelta(minutes=5),
             ),
@@ -526,6 +527,45 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     assert failed_detail.status_code == 200
     assert failed_detail.json()["error_summary"] == "Vertex AI 임베딩 생성 연동에 실패했습니다"
     assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
+
+
+async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session, settings):
+    admin = await make_user(db_session, role="admin")
+    headers = auth_headers(admin, settings)
+    db_session.add_all(
+        [
+            Motif(
+                id="motif-multislot",
+                symbol='<symbol id="motif-multislot"><path fill="s0"/><path fill="s1"/></symbol>',
+                color_slots=["s0", "s1"],
+                slot_colors=["#010000", "#0685b1"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="pelican",
+                scope="whole",
+                source="seed",
+            ),
+            Motif(
+                id="motif-singleslot",
+                symbol='<symbol id="motif-singleslot"><path fill="currentColor"/></symbol>',
+                color_slots=["s0"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="bee",
+                scope="whole",
+                source="seed",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    multi = await client.get("/admin/motifs/motif-multislot", headers=headers)
+    assert multi.status_code == 200
+    assert multi.json()["slot_colors"] == ["#010000", "#0685b1"]
+
+    single = await client.get("/admin/motifs/motif-singleslot", headers=headers)
+    assert single.status_code == 200
+    assert single.json()["slot_colors"] is None
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(

@@ -13,6 +13,8 @@ from .intent_helpers import mvp_intent, register_test_motifs
 
 register_test_motifs()
 
+_RUN_ID = "11111111-1111-4111-8111-111111111111"
+
 
 async def _latest_log(db_session) -> SeamlessGenerationLog:
     row = await db_session.scalar(
@@ -31,17 +33,18 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-success"},
-        json={"intent": mvp_intent(), "candidate_count": 1},
+        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 1},
     )
     assert response.status_code == 200
 
     row = await _latest_log(db_session)
+    assert str(row.id) == _RUN_ID
+    assert response.json()["generation_log_id"] == _RUN_ID
     assert row.request_id == "log-success"
     assert row.status == "success"
     assert row.generate_ms is not None and row.generate_ms >= Decimal(0)
     assert row.render_ms is not None and row.render_ms >= Decimal(0)
     assert row.error_message is None
-    assert response.json()["generation_log_id"] == str(row.id)
     assert {
         key: row.diagnostics[key]
         for key in (
@@ -74,7 +77,7 @@ async def test_worker_records_partial_with_render_timing_and_sanitized_warning(
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-partial"},
-        json={"intent": mvp_intent(), "candidate_count": 1},
+        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 1},
     )
     assert response.status_code == 200
 
@@ -94,7 +97,7 @@ async def test_worker_records_exception_with_sanitized_error_and_zero_render_tim
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-error"},
-        json={"intent": intent},
+        json={"run_id": _RUN_ID, "intent": intent},
     )
     assert response.status_code == 422
 
@@ -121,7 +124,7 @@ async def test_worker_sanitizes_unexpected_exception_before_persisting(
         await client.post(
             "/generate",
             headers={"X-Request-ID": "log-unexpected"},
-            json={"intent": mvp_intent()},
+            json={"run_id": _RUN_ID, "intent": mvp_intent()},
         )
 
     row = await _latest_log(db_session)
@@ -136,7 +139,7 @@ async def test_worker_records_safe_provider_failure_diagnostics(client, db_sessi
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-provider-failure"},
-        json={"prompt": "navy paisley tie"},
+        json={"run_id": _RUN_ID, "prompt": "navy paisley tie"},
     )
     assert response.status_code == 503
 

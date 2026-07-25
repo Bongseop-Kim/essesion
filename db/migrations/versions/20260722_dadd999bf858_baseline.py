@@ -103,6 +103,10 @@ def upgrade() -> None:
             server_default=sa.text("'[\"s0\"]'::jsonb"),
             nullable=False,
         ),
+        sa.Column("slot_colors", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("slot_labels", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("ingested_user_id", sa.Uuid(), nullable=True),
+        sa.Column("ingested_session_id", sa.Uuid(), nullable=True),
         sa.Column("bbox", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("anchor", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("subject", sa.Text(), nullable=True),
@@ -445,6 +449,19 @@ def upgrade() -> None:
         sa.Column("colorway", sa.Text(), nullable=True),
         sa.Column("registry_version", sa.Text(), nullable=True),
         sa.Column("current_intent", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("current_plan", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "context_version",
+            sa.BigInteger(),
+            server_default=sa.text("0"),
+            nullable=False,
+        ),
+        sa.Column("active_generation_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "active_generation_started_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
+        ),
         sa.Column("recraft_used", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column(
             "updated_at",
@@ -461,6 +478,11 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "status IN ('active', 'finalized')", name=op.f("ck_design_sessions_status")
         ),
+        sa.CheckConstraint(
+            "(active_generation_id IS NULL) = (active_generation_started_at IS NULL)",
+            name=op.f("ck_design_sessions_active_generation_pair"),
+        ),
+        sa.CheckConstraint("context_version >= 0", name=op.f("ck_design_sessions_context_version")),
         sa.CheckConstraint("recraft_used >= 0", name=op.f("ck_design_sessions_recraft_used")),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name=op.f("fk_design_sessions_user_id_users")
@@ -469,6 +491,22 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_design_sessions_user_id"), "design_sessions", ["user_id"], unique=False
+    )
+    op.create_foreign_key(
+        op.f("fk_motifs_ingested_user_id_users"),
+        "motifs",
+        "users",
+        ["ingested_user_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_foreign_key(
+        op.f("fk_motifs_ingested_session_id_design_sessions"),
+        "motifs",
+        "design_sessions",
+        ["ingested_session_id"],
+        ["id"],
+        ondelete="SET NULL",
     )
     op.create_table(
         "images",
@@ -1115,6 +1153,10 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
+        ),
+        sa.CheckConstraint(
+            "role IN ('user', 'assistant')",
+            name=op.f("ck_design_session_turns_role"),
         ),
         sa.ForeignKeyConstraint(
             ["session_id"],
@@ -2160,6 +2202,16 @@ def downgrade() -> None:
         postgresql_where=sa.text("deletion_claimed_at IS NOT NULL AND deleted_at IS NULL"),
     )
     op.drop_table("images")
+    op.drop_constraint(
+        op.f("fk_motifs_ingested_session_id_design_sessions"),
+        "motifs",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        op.f("fk_motifs_ingested_user_id_users"),
+        "motifs",
+        type_="foreignkey",
+    )
     op.drop_index(op.f("ix_design_sessions_user_id"), table_name="design_sessions")
     op.drop_table("design_sessions")
     op.drop_index(

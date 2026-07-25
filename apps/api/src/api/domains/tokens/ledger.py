@@ -202,7 +202,13 @@ class UseResult:
     error: str | None = None
 
 
-async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) -> UseResult:
+async def use_tokens(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    work_id: str,
+    *,
+    commit: bool = True,
+) -> UseResult:
     """생성 1회 과금 — 4단계에서 워커 generate 경로가 호출한다."""
     cost = await get_generate_cost(session)
 
@@ -219,7 +225,8 @@ async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) ->
         )
     )
     if pending_refund:
-        await session.commit()
+        if commit:
+            await session.commit()
         return UseResult(False, cost, balance["total"], error="refund_pending")
 
     # work_id 멱등 — 이미 차감된 작업
@@ -239,13 +246,15 @@ async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) ->
         )
     )
     if already:
-        await session.commit()
+        if commit:
+            await session.commit()
         return UseResult(True, cost, balance["total"])
 
     batches = await _get_spendable_batches(session, user_id)
     balance = _summarize_batches(batches)
     if balance["total"] < cost:
-        await session.commit()
+        if commit:
+            await session.commit()
         return UseResult(False, cost, balance["total"], error="insufficient_tokens")
 
     def use_work_id(token_class: str, batch_index: int) -> str:
@@ -262,15 +271,21 @@ async def use_tokens(session: AsyncSession, user_id: uuid.UUID, work_id: str) ->
         work_id_for=use_work_id,
     )
 
-    await session.commit()
+    if commit:
+        await session.commit()
     return UseResult(True, cost, balance["total"] - cost)
 
 
 async def refund_failed_generation(
-    session: AsyncSession, user_id: uuid.UUID, amount: int, charge_work_id: str
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    amount: int | None,
+    charge_work_id: str,
+    *,
+    commit: bool = True,
 ) -> None:
     """생성 실패 환불 — 실제 차감 배치를 그대로 반전하고 work_id로 멱등 처리한다."""
-    if amount <= 0:
+    if amount is not None and amount <= 0:
         return
 
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
@@ -285,8 +300,11 @@ async def refund_failed_generation(
             .order_by(DesignToken.work_id)
         )
     )
-    if sum(-debit.amount for debit in debits) != amount:
+    debited_amount = sum(-debit.amount for debit in debits)
+    if amount is not None and debited_amount != amount:
         raise _balance_invariant_error()
+    if debited_amount <= 0:
+        return
 
     for debit in debits:
         assert debit.work_id is not None
@@ -304,7 +322,8 @@ async def refund_failed_generation(
                 )
             )
         )
-    await session.commit()
+    if commit:
+        await session.commit()
 
 
 # ---- 플랜·구매 주문 ----

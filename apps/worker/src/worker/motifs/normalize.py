@@ -57,6 +57,9 @@ class NormalizedMotif:
     bbox_mm: BBox = _UNIT_BBOX
     anchor: Anchor = _ORIGIN
     color_slots: tuple[str, ...] = ("s0",)
+    # Original per-slot colors (index-aligned with color_slots), the default colorway. Set only for
+    # multi-slot motifs; None for single-slot (currentColor). Excluded from the content-hash id.
+    slot_colors: tuple[str, ...] | None = None
     # Standalone, importable document showing the exact geometry that produced this identity.
     # It uses deterministic concrete preview colors because internal s0/s1 slot tokens are not
     # valid CSS paints. Re-normalizing this document must recover the same id and symbol.
@@ -369,6 +372,9 @@ def normalize_motif_svg(
     if inherited_color.casefold() in {"currentcolor", "inherit"}:
         inherited_color = "#111111"
     color_slots = _slotize_colors(children)
+    # Preserve the original colors as the default colorway for multi-slot motifs. Single-slot motifs
+    # slotify to currentColor, so their concrete color is intentionally not retained.
+    slot_colors = tuple(preview_colors) if len(color_slots) > 1 else None
     inner = "".join(ET.tostring(child, encoding="unicode") for child in children)
     geometry = f'<g transform="translate({fmt(tx)} {fmt(ty)}) scale({fmt(scale)})">{inner}</g>'
 
@@ -389,6 +395,7 @@ def normalize_motif_svg(
         id=motif_id,
         symbol=symbol,
         color_slots=color_slots,
+        slot_colors=slot_colors,
         preview_svg=preview_svg,
     )
     if render_check:

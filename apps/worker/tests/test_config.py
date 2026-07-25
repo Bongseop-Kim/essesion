@@ -51,6 +51,7 @@ def test_settings_resource_ceiling_defaults() -> None:
     assert s.preview_dpi == 192
     assert s.preview_render_concurrency == 2
     assert s.finalize_lease_seconds == 960
+    assert s.motif_generate_per_request_limit == 2
     assert s.service_mode == "all"
 
 
@@ -61,6 +62,7 @@ def test_settings_validates_resource_ceilings() -> None:
         preview_dpi=1200,
         preview_render_concurrency=8,
         finalize_lease_seconds=1,
+        motif_generate_per_request_limit=8,
     )
 
     with pytest.raises(ValidationError):
@@ -73,6 +75,10 @@ def test_settings_validates_resource_ceilings() -> None:
         _settings(preview_render_concurrency=9)
     with pytest.raises(ValidationError):
         _settings(finalize_lease_seconds=0)
+    with pytest.raises(ValidationError):
+        _settings(motif_generate_per_request_limit=0)
+    with pytest.raises(ValidationError):
+        _settings(motif_generate_per_request_limit=9)
 
 
 def test_settings_validates_service_mode() -> None:

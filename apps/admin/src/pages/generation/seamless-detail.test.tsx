@@ -322,6 +322,7 @@ describe("SeamlessLogDetailPage", () => {
       ...log,
       diagnostics: {
         ...log.diagnostics,
+        mode: "refine",
         prompt_revision: "design-plan-v1",
         authoring_ms: 121,
         motif_resolution_ms: 35,
@@ -371,6 +372,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(
       screen.getByText("저작 121ms · 모티프 35ms · 후보 18ms · 렌더 9ms"),
     ).toBeTruthy();
+    expect(screen.getByText("대화 수정")).toBeTruthy();
     expect(screen.getByText("Vertex AI 임베딩 · embed")).toBeTruthy();
     expect(screen.getByText("요청 한도 초과 (429)")).toBeTruthy();
     expect(

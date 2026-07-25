@@ -2,7 +2,7 @@
 
 > YeongSeon 커머스와 seamless-tile 엔진을 통합 재구현한 현재 시스템의 **as-built architecture** 문서다. 구현된 코드, 배포 가능한 구성, 아직 외부 개통이 필요한 항목을 구분한다.
 
-최종 갱신: 2026-07-22
+최종 갱신: 2026-07-24
 
 ## 0. 요약과 불변 원칙
 
@@ -18,7 +18,7 @@ React clients → generated OpenAPI client → FastAPI domain API
 
 | 구분 | 상태 | 의미 |
 |---|---|---|
-| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 | 빌드, 타입 검사, 1,301개 Python/Vitest 테스트 통과 |
+| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 | 빌드, 타입 검사, 1,415개 Python/Vitest 테스트 통과 |
 | OpenAPI·CI/CD·OpenTofu | 구현 완료 | codegen drift, deploy 순서, IAM·리소스 선언 검증 완료 |
 | GCP·Cloudflare 스테이징 | **미개통** | 실제 `tofu apply`, DNS, WAF, Secret Manager 값 주입 필요 |
 | 외부 provider 리허설 | **미완료** | Toss·Solapi·OAuth redirect·Cloud Tasks OIDC·Sentry 실연동 필요 |
@@ -472,17 +472,17 @@ flowchart LR
     Seam --> Fabric[Fabric finalize]
 ```
 
-Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-constrained `DesignPlansV3`를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개 motif source와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. Pydantic 모델 자체를 Vertex `response_schema`로 넘기고, 결정적 compiler가 48mm/300dpi intent와 motif sidecar를 만든다. 색만 다른 plan은 structural fingerprint로 중복 처리하며 2개 이상의 유효한 구조가 없으면 검증 오류와 함께 한 번 다시 저작한다.
+Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-constrained `DesignPlansV3`를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개 motif source와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. 검증된 후보가 없는 텍스트 경로에서는 사용자가 반복 모티프로 명시한 구체적 개별 도형만 원문 그대로 `generate` source 한 건으로 표현할 수 있고, 색·무드·질감만 말한 요청에는 모티프를 발명하지 않는다. Pydantic 모델 자체를 Vertex `response_schema`로 넘기고, 결정적 compiler가 48mm/300dpi intent와 motif sidecar를 만든다. 멀티슬롯 모티프는 `color_indices`를 생략하면 원색 보존 의도를 전달하고, 명시하면 재색 의도를 전달한다. fixed palette에서는 compiler가 `color_indices`를 강제한다. 색만 다른 plan은 structural fingerprint로 중복 처리하며 2개 이상의 유효한 구조가 없으면 검증 오류와 함께 한 번 다시 저작한다.
 
 기존 25개 이상 intent에서 만든 `gallery-v1` Plan v3 manifest는 최초 bootstrap 입력이다. 런타임 few-shot 정본은 운영 DB의 `authoring_examples` 중 승인되고 `active=true`인 현재 contract·embedding model 행이다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 예시를 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 예시 없이 typed schema 경로를 계속한다.
 
 모든 생성 요청은 Plan v3 경로만 사용한다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 generation diagnostics/intent log에 남긴다. 매일 성공·선택·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 예시가 되며, 문제 예시는 `active=false`로 즉시 제외한다. prompt와 Plan 본문은 관리자 화면에서 편집하지 않는다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
 
-사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 필요한 경우 Recraft가 누락된 motif SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
+사진의 `purpose`가 `auto`일 때만 prompt 문맥에 따라 색·분위기·레이아웃 참고 또는 모티프 영감으로 해석하고, 명시한 역할은 다른 목적으로 재해석하지 않는다. resolver는 catalog 재사용 여부를 결정하며, 구체적 텍스트 모티프가 정확도 게이트를 통과한 공개 카탈로그에도 없을 때만 Recraft로 SVG를 생성·정규화한다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 가장 높은 우선순위의 exact motif로 모든 후보에 사용한다. concrete motif ID가 확정된 뒤의 validation, 색 배정, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
 
 참고 사진은 API가 소유권·완료 상태·MIME·바이트를 확인한 비공개 GCS 객체만 받는다. worker는 API가 발급한 allowlist signed URL만 redirect 없이 읽고, 장당 10MB·총 50MB·20M pixel을 제한한 뒤 방향 보정, 최대 2048px 축소, JPEG 재인코딩으로 메타데이터를 제거한다. 디자인 생성과 아이디어 helper는 이 재인코딩 바이트를 Gemini image part로 전송하므로, GCS가 private라는 사실만으로 외부 processor 전송이 없다고 보지 않는다. 반면 사진 모티프의 배경 분리·vectorize는 Gemini를 호출하지 않고 Pillow+VTracer CPU threadpool 내에서만 처리한다. 프로덕션 Gemini 활성화 전에 처리 지역, 학습 사용, 로그·abuse monitoring 보존, 삭제 제어, DPA와 사용자 고지를 privacy owner가 실제 계약·프로젝트 설정 기준으로 승인해야 하며, 승인 전에 provider 보존 기간을 보증하지 않는다. 아이디어 API와 private worker 사이에서는 exact motif ID로 소유권을 확인하지만 Gemini prompt에는 content-hash ID 대신 순번과 사용자 지정 이름만 전달한다.
 
-사진 purpose와 순서는 API request, worker image part, generation/turn attachment까지 보존한다. 사용자 SVG는 worker의 기존 SVG 안전 경계와 normalize를 통과하며 계정당 100개까지 보관한다. 텍스트는 동봉 OFL font와 FontTools로 결정적 path를 만든다. 한 생성에서 최종 motif는 최대 2개이고, 사용자 모티프는 일반 retrieval·embedding 검색·registry fingerprint에서 제외되어 다른 계정 요청에 노출되지 않는다. direct intent의 private motif ID도 현재 사용자의 라이브러리 링크 또는 같은 소유자·같은 세션의 과거 SVG 첨부 이력에 한정해 허용하여, 라이브러리 삭제 뒤 기존 variation/finalize는 유지하면서 교차 사용자·교차 세션 참조를 막는다.
+사진 purpose와 순서는 API request, worker image part, generation/turn attachment까지 보존한다. 사용자 SVG는 worker의 기존 SVG 안전 경계와 normalize를 통과하며 계정당 100개까지 보관한다. 텍스트는 동봉 OFL font와 FontTools로 결정적 path를 만든다. 한 생성에서 최종 motif는 최대 2개이고, 사용자 모티프는 일반 retrieval·embedding 검색·registry fingerprint에서 제외되어 다른 계정 요청에 노출되지 않는다. 서버가 선택 상태에서 만든 reroll intent의 private motif ID도 현재 사용자의 라이브러리 링크 또는 같은 소유자·같은 세션의 과거 SVG 첨부 이력에 한정해 허용하여, 라이브러리 삭제 뒤 기존 variation/finalize는 유지하면서 교차 사용자·교차 세션 참조를 막는다.
 
 fixed palette는 기존 slot/default colorway 계약 안에서 모든 지정 색이 실제 layer에 쓰이도록 결정적으로 재매핑한다. pattern constraint는 사용자 표현을 lattice/half-drop/Poisson scatter, 물리 크기·간격, 고정 rotation으로 변환한다. Gemini 저작 결과와 candidate variation 뒤에 모두 제약을 재검증하며 만족할 수 없으면 조용히 무시하지 않고 constrained retry 또는 422로 끝낸다. 상세 계약과 상한은 `docs/specs/design-generation-controls.md`가 설명한다.
 
@@ -527,12 +527,16 @@ intent version
 1. exact private motif와 `purpose=motif` 참고 사진이 모티프 슬롯을 먼저 사용한다. exact가 하나라도 있으면 프롬프트 기반 공개 카탈로그 모티프는 추가하지 않는다.
 2. 남은 슬롯이 있는 prompt 요청은 원문을 먼저 임베딩하고 `user_upload`을 제외한 공개 카탈로그 전체에서 subject/tag 완전 토큰 일치와 pgvector cosine top-5를 합친다. `scope`는 검색 하드 필터가 아니다.
 3. exact token 또는 similarity `τ=0.84` 이상만 Gemini에 ID 없는 `catalog_ref` 후보로 제공한다. Gemini가 검증된 후보를 무시하면 한 번 constrained retry 후 `semantic_mismatch`로 실패한다.
-4. 신뢰도 게이트를 통과한 후보가 없을 때만 Gemini semantic spec을 해석하고, 같은 정확도 우선 검색에서도 miss면 Recraft의 inline `b64_json` vector를 받아 normalize한다. embedding 미설정·실패 시에는 exact token만 허용하며 lowest-ID fallback은 없다.
-5. hit의 variant group은 seed로 안정 선택한다. 새 SVG는 `scope=whole`로 sanitize·content-hash upsert하고 resolved intent에는 concrete ID만 남긴다.
+4. 신뢰도 게이트를 통과한 후보가 없을 때만 Gemini가 사용자 원문에 명시된 구체적 개별 도형을 `generate` spec으로 낼 수 있다. 무드·색·재질뿐인 요청은 모티프 없이 계속하며, 같은 정확도 우선 검색에서도 miss일 때만 Recraft의 inline `b64_json` vector를 받아 normalize한다. embedding 미설정·실패 시에는 exact token만 허용하며 lowest-ID fallback은 없다.
+5. 이미지가 의도를 고정하지 않는 `generate` spec은 facet injection 의심 문자열을 로그만 남기지 않고 거부한다. 한 `/generate` 요청의 모든 plan과 적합성 재시도가 공유하는 실제 Recraft 호출 상한은 기본 2회다. 상한을 넘긴 best-effort layer는 경고와 함께 drop하므로 나머지 비모티프 구조는 성공할 수 있다.
+6. hit의 variant group은 seed로 안정 선택한다. 새 SVG는 `scope=whole`로 sanitize·content-hash upsert하고 resolved intent에는 concrete ID만 남긴다. content-hash 충돌 시 기존 facet·유입 출처를 덮지 않는다.
+7. 새 Recraft 행에만 최초 유입 사용자·디자인 세션을 nullable provenance로 기록한다. 사용자 또는 세션 삭제 시 FK는 `SET NULL`이며 카탈로그 재사용은 provenance를 갱신하지 않는다.
 
-공개 카탈로그의 임베딩 문서는 `subject, description, style, view, expression, tags` 순서로 만들며 scope를 제외한다. `seed_motifs.py` 뒤 `index_motif_embeddings.py --confirm-live`를 실행해 공개 행을 초기 인덱싱하고 `embedded=total`을 확인한다. `user_upload`은 인덱싱·검색·fingerprint에서 제외한다.
+공개 카탈로그의 임베딩 문서는 `subject, description, style, view, expression, tags` 순서로 만들며 scope를 제외한다. `seed_motifs.py` 뒤 `index_motif_embeddings.py --confirm-live`를 실행해 공개 행을 초기 인덱싱하고 `embedded=total`을 확인한다. 공개 멀티슬롯의 NULL 의미 라벨은 `backfill_slot_labels.py --confirm-live`로 한 번 채운다. 스크립트는 NULL 행만 조건부 갱신하므로 재실행과 동시 실행이 안전하며, `user_upload`은 라벨 백필·인덱싱·검색·fingerprint에서 제외한다.
 
 외부 URL을 다시 다운로드하지 않으므로 motif generation 경로에 SSRF 가능한 2차 fetch가 없다. resolver의 선택적 조회 실패는 savepoint 안에서만 롤백해 앞선 정상 write를 보존한다.
+
+모티프 색 배정은 resolver 이후의 순수 연산이다. 단일 슬롯은 배경색과 다른 팔레트 색을 전순서로 찾고 팔레트가 축퇴했으면 원래 선택을 유지한다. 멀티슬롯은 non-fixed palette에서 색 지시를 생략하고 원색이 있으면 원색 HEX를 보존한다. 명시 재색·fixed palette·원색 없는 레거시 행은 `primary → secondary → accent → outline → detail → background` 라벨 rank로 배정하며, 라벨이 없거나 잘못되면 기존 DFS 위치+모듈로 규칙을 유지한다. 의미 라벨은 신규 멀티슬롯 유입 시 한 번만 비전 분류하며 실패해도 모티프 저장은 성공한다. `slot_colors`와 `slot_labels`는 content-hash identity에 포함되지 않는다.
 
 ### 7.5 Generate 흐름
 
@@ -551,20 +555,31 @@ sequenceDiagram
     A->>W: private sanitize·normalize·content identity
     W-->>A: 정규화 SVG와 identity
     A->>DB: owner lock 안에서 Motif + UserMotif 원자 저장
-    S->>A: POST /design/generate
-    A->>DB: 모티프 슬롯 충돌·첨부 소유권·상태 확인, 토큰 선차감
-    A->>W: OIDC generate + ordered photo roles + exact motif ids + constraints
+    S->>A: POST /design/generate (session_id 필수)
+    A->>DB: 세션 lock·active run guard, user turn + 토큰 차감 commit
+    A->>W: OIDC generate + 선택 문맥 + ordered photo roles + exact motif ids + constraints
     W->>DB: motif search / catalog upsert
-    W->>W: intent validation → candidates → SVG → preview
+    W->>W: plan authoring/refine → intent validation → candidates → SVG → preview
     W->>G: candidate/content-hash create-only upload
-    W-->>A: candidates + warnings
-    A->>DB: request/attachment·assistant turn·로그 commit
+    W-->>A: candidates + resolved plans + warnings
+    A->>DB: assistant turn·active run 해제 commit
     A-->>S: 후보 1~4개
+    U->>S: 후보 선택
+    S->>A: POST /design/sessions/{id}/select
+    A->>DB: selected intent + resolved plan 원자 commit
 
     Note over A,DB: worker 실패 시 원래 차감 bucket을 멱등 보상
 ```
 
 생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다. 일반 prompt 생성이 성공하면 사용한 프롬프트·첨부·사진 purpose·모티프·palette·pattern·후보 수 작성 상태를 해제하고 턴 이력에 남긴다. 실패한 요청은 staging upload ID와 작성 상태를 유지해 재업로드 없이 재시도한다.
+
+세션 문맥은 명시적으로 선택한 후보만 전진시킨다. `current_intent`는 byte-identical 재현을 위한 렌더 정본이고 `current_plan`은 대화 의미 정본인 `DesignPlanV3`다. 선택 API는 generation log의 후보별 intent와 해석 완료 plan을 함께 원자 커밋하고 `context_version`을 증가시킨다. 선택하지 않은 성공 결과와 실패 턴은 다음 모델 문맥에 들어가지 않으며, 과거 후보에서 갈라지는 분기 편집은 지원하지 않는다. 일반 `/design/generate`는 클라이언트 intent를 받지 않고 소유 세션의 정본과 최근 선택된 성공 턴 최대 6쌍을 서버에서 구성한다.
+
+초기 저작은 구조적으로 다른 `DesignPlansV3` 2~4개를 만들되 모든 plan의 motif source 집합이 같아야 한다. 이 규칙은 prompt뿐 아니라 canonical motif signature 하드 가드로 강제되며 motif 정체성은 structural fingerprint에도 포함된다. refine은 현재 plan을 권위 블록으로 넣어 `DesignPlanV3` 하나를 전체 재저작하고, 요청에서 언급하지 않은 palette·motif·stripe·motif geometry를 결정론적 preserve 가드가 원복한다. 이 단일 intent를 엔진 `generate_candidates`가 최대 4개로 팬아웃하므로 비싼 모델 호출을 후보 수만큼 반복하지 않는다.
+
+선택 시 plan의 motif source는 실제 렌더에 사용한 concrete motif ID로 동결한다. API→worker 문맥에는 이 정본을 보내지만 Gemini 직전에는 `current_motif_N` 요청 로컬 alias로 치환하며 SVG, private motif ID, 과거 후보 응답, provider 오류 원문은 모델 문맥에 넣지 않는다. 과거 assistant 문맥은 선택된 semantic plan에서 만든 짧은 구조 설명과 첨부 이름·역할뿐이고, 과거 사진 binary는 재전송하지 않는다.
+
+세션은 외부 worker 호출 전에 `active_generation_id`와 시작 시각, 사용자 턴, 토큰 차감을 한 트랜잭션으로 커밋한다. active run이 있으면 동시 요청을 거부하고 DB lock을 외부 호출 동안 유지하지 않는다. finalize job과 같은 명시적 stale window가 지난 run만 회수해 멱등 환불·assistant error turn을 남긴다. 성공·실패의 늦은 응답은 run ID와 세션 상태가 일치할 때만 active 상태를 끝낼 수 있다.
 
 최종 모티프는 최대 2개다. exact user motif와 `purpose=motif` 사진의 합이 2를 넘으면 API가 과금 전에 `motif_input_conflict`로 거부한다. exact 1개+motif 사진 1개는 둘 다 필수이며 하나라도 최종 intent에서 빠지면 성공으로 낮추지 않는다. fixed palette와 pattern constraints는 Gemini·검색 결과보다 뒤의 결정론적 constraint 경계가 최종 권위다.
 
@@ -574,7 +589,7 @@ preview는 순수 변환 경계로 안전한 SVG와 identity만 반환하고, AP
 catalog의 검색·upsert는 기존 worker resolver가 계속 소유하므로 private 라이브러리와 섞이지
 않는다.
 
-`다시 만들기` variation은 선택한 기존 resolved intent에 seed를 다시 적용하는 intent reroll이다. 작성창에 대기 중인 prompt·참고 사진·exact 모티프는 variation 요청에 전송하거나 소비하지 않는다. variation에 실제 적용된 후보 수·palette·pattern만 성공 후 기본값으로 돌리고, 실패하면 모든 작성 상태를 유지한다. 사진은 세션 삭제 시 만료 처리하고, 라이브러리에서 사용자 모티프 관계를 삭제해도 이미 생성된 intent와 턴의 불변 core motif는 유지한다. 아이디어 helper는 별도 rate limit을 적용하고 디자인 토큰·turn·intent·generation log를 쓰지 않는다.
+`다시 만들기` variation은 `/design/sessions/{id}/reroll`이 서버의 선택된 resolved intent에 seed를 다시 적용하는 intent reroll이다. 클라이언트가 intent를 다시 제출하지 않으며, 작성창에 대기 중인 prompt·참고 사진·exact 모티프는 variation 요청에 전송하거나 소비하지 않는다. variation에 실제 적용된 후보 수·palette·pattern만 성공 후 기본값으로 돌리고, 실패하면 모든 작성 상태를 유지한다. 사진은 세션 삭제 시 만료 처리하고, 라이브러리에서 사용자 모티프 관계를 삭제해도 이미 생성된 intent와 턴의 불변 core motif는 유지한다. 아이디어 helper는 별도 rate limit을 적용하고 디자인 토큰·turn·intent·generation log를 쓰지 않는다.
 
 ### 7.6 Finalize·export 흐름
 
@@ -707,7 +722,7 @@ Admin에는 현재 Sentry client가 없다. “전 프론트 구간 Sentry 통�
 
 API readiness는 Toss·Solapi·GCS·worker·Tasks·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. worker readiness도 Gemini·Vertex embedding·Recraft 상태를 조회하지 않는다.
 
-Seamless admin 상세는 worker가 반환한 `generation_log_id`로 디자인 세션의 generate turn과 연결하고, 과거 응답은 request ID와 근접 시각으로만 보완 연결한다. 선택·후속 재생성·finalize 결과는 기존 turn/job을 읽어 투영하며 별도 이벤트 테이블을 만들지 않는다.
+Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 generate turn과 연결하고, 과거 응답은 request ID와 근접 시각으로만 보완 연결한다. 선택·후속 재생성·finalize 결과는 기존 turn/job을 읽어 투영하며 별도 이벤트 테이블을 만들지 않는다.
 
 ### 8.4 배치 작업
 

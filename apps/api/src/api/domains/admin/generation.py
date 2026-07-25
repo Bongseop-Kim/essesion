@@ -226,7 +226,7 @@ class GenerationOutcomeOut(BaseModel):
 
 
 class GenerationDiagnosticsOut(BaseModel):
-    mode: Literal["prompt", "variation"] | None = None
+    mode: Literal["prompt", "refine", "variation"] | None = None
     model: str | None = None
     prompt_revision: str | None = None
     reference_count: int | None = None
@@ -288,6 +288,9 @@ class MotifSummaryOut(BaseModel):
     bbox: list[float]
     symbol: str | None
     svg_status: SvgStatus
+    # Original per-slot colors (index-aligned with the symbol's s0..sN tokens) for multi-slot
+    # motifs; None for single-slot/legacy rows. Lets the admin preview render true colors.
+    slot_colors: list[str] | None = None
 
 
 class MotifDetailOut(MotifSummaryOut):
@@ -615,7 +618,7 @@ def _error_projection(
 
 def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
     raw = value if isinstance(value, dict) else {}
-    mode = raw.get("mode") if raw.get("mode") in {"prompt", "variation"} else None
+    mode = raw.get("mode") if raw.get("mode") in {"prompt", "refine", "variation"} else None
     failure_code = _safe_token(raw.get("failure_code"))
     failure_stage = _safe_token(raw.get("failure_stage"))
 
@@ -835,7 +838,7 @@ async def _generation_outcome(
     row: SeamlessGenerationLog,
     candidate_ids: list[str],
 ) -> GenerationOutcomeOut:
-    exact_link = DesignSessionTurn.payload["response"]["generation_log_id"].astext == str(row.id)
+    exact_link = DesignSessionTurn.payload["run_id"].astext == str(row.id)
     turn_query = (
         select(DesignSessionTurn)
         .where(
@@ -1077,6 +1080,14 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
         bbox=_number_list(row.bbox, size=4),
         symbol=symbol,
         svg_status=svg_status,
+        # All-or-nothing: only surface a fully-valid hex list so slot indexes stay aligned with the
+        # symbol's fill="sN" tokens. _safe_token would strip '#', so use _HEX_COLOR here.
+        slot_colors=(
+            list(row.slot_colors)
+            if row.slot_colors
+            and all(isinstance(c, str) and _HEX_COLOR.fullmatch(c) for c in row.slot_colors)
+            else None
+        ),
     )
 
 

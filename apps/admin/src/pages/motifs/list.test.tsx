@@ -255,7 +255,42 @@ describe("MotifDetailPage", () => {
     expect(preview?.startsWith('<svg xmlns="http://www.w3.org/2000/svg"')).toBe(
       true,
     );
-    expect(preview).toContain('viewBox="1 2 2 2"');
+    expect(preview).toContain('viewBox="0.88 1.88 2.24 2.24"');
     expect(preview?.endsWith("</svg>")).toBe(true);
+  });
+
+  it("멀티슬롯 fill 토큰을 slot_colors로 치환한다", () => {
+    const preview = motifPreviewDocument(
+      '<symbol id="motif-m"><path fill="s0"/><path fill="s1"/></symbol>',
+      [0, 0, 1, 1],
+      ["#ff0000", "#00ff00"],
+    );
+
+    expect(preview).toContain('fill="#ff0000"');
+    expect(preview).toContain('fill="#00ff00"');
+    expect(preview).not.toContain('fill="s0"');
+    expect(preview).not.toContain('fill="s1"');
+  });
+
+  it("slot_colors가 없으면 fill 토큰을 그대로 둔다", () => {
+    const preview = motifPreviewDocument(
+      '<symbol id="motif-m"><path fill="s0"/></symbol>',
+      [0, 0, 1, 1],
+    );
+
+    expect(preview).toContain('fill="s0"');
+  });
+
+  it("유효하지 않은 slot_colors는 SVG 속성에 삽입하지 않는다", () => {
+    const preview = motifPreviewDocument(
+      '<symbol id="motif-m"><path fill="s0"/><path fill="s1"/><path fill="s2"/></symbol>',
+      [0, 0, 1, 1],
+      ['#ff0000" onload="alert(1)', "red", "#A1b2C3"],
+    );
+
+    expect(preview).toContain('fill="s0"');
+    expect(preview).toContain('fill="s1"');
+    expect(preview).toContain('fill="#A1b2C3"');
+    expect(preview).not.toContain("onload");
   });
 });

@@ -4013,6 +4013,10 @@
             "title": "Id",
             "type": "string"
           },
+          "injection_suspected": {
+            "title": "Injection Suspected",
+            "type": "boolean"
+          },
           "motif_count": {
             "title": "Motif Count",
             "type": "integer"
@@ -4203,6 +4207,7 @@
           "motif_count",
           "retrieval_text",
           "tags",
+          "injection_suspected",
           "structural_fingerprint",
           "nearest_kind",
           "nearest_id",
@@ -4261,6 +4266,10 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "injection_suspected": {
+            "title": "Injection Suspected",
+            "type": "boolean"
           },
           "motif_count": {
             "title": "Motif Count",
@@ -4419,6 +4428,7 @@
           "motif_count",
           "retrieval_text",
           "tags",
+          "injection_suspected",
           "structural_fingerprint",
           "nearest_kind",
           "nearest_id",
@@ -6597,6 +6607,41 @@
         "title": "DesignExportRequest",
         "type": "object"
       },
+      "DesignFinalizeTurnPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "format": "uuid",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "production_method": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Production Method",
+            "type": "string"
+          },
+          "type": {
+            "const": "finalize",
+            "default": "finalize",
+            "title": "Type",
+            "type": "string"
+          },
+          "weave": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Weave",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "production_method",
+          "weave"
+        ],
+        "title": "DesignFinalizeTurnPayload",
+        "type": "object"
+      },
       "DesignGenerateOut": {
         "properties": {
           "candidates": {
@@ -6610,32 +6655,17 @@
             "title": "Engine Version",
             "type": "string"
           },
-          "generation_log_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generation Log Id"
-          },
-          "intents": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Intents",
-            "type": "array"
-          },
           "registry_version": {
             "title": "Registry Version",
             "type": "string"
           },
           "request_id": {
             "title": "Request Id",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
             "type": "string"
           },
           "warnings": {
@@ -6648,10 +6678,10 @@
           }
         },
         "required": [
+          "run_id",
           "request_id",
           "registry_version",
           "engine_version",
-          "intents",
           "candidates"
         ],
         "title": "DesignGenerateOut",
@@ -6662,7 +6692,7 @@
         "properties": {
           "candidate_count": {
             "default": 1,
-            "maximum": 8.0,
+            "maximum": 4.0,
             "minimum": 1.0,
             "title": "Candidate Count",
             "type": "integer"
@@ -6678,18 +6708,6 @@
               }
             ],
             "title": "Colorway"
-          },
-          "intent": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Intent"
           },
           "palette": {
             "$ref": "#/components/schemas/PaletteConstraint"
@@ -6731,16 +6749,9 @@
             "title": "Seed"
           },
           "session_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
           },
           "user_motif_ids": {
             "items": {
@@ -6752,6 +6763,9 @@
             "type": "array"
           }
         },
+        "required": [
+          "session_id"
+        ],
         "title": "DesignGenerateRequest",
         "type": "object"
       },
@@ -6874,8 +6888,95 @@
         "title": "DesignReferenceUploadOut",
         "type": "object"
       },
+      "DesignRerollRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_count": {
+            "default": 4,
+            "maximum": 4.0,
+            "minimum": 1.0,
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "colorway": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Colorway"
+          },
+          "palette": {
+            "$ref": "#/components/schemas/PaletteConstraint"
+          },
+          "pattern_constraints": {
+            "$ref": "#/components/schemas/PatternConstraints"
+          },
+          "seed": {
+            "maximum": 9.223372036854776e+18,
+            "minimum": -9.223372036854776e+18,
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seed"
+        ],
+        "title": "DesignRerollRequest",
+        "type": "object"
+      },
+      "DesignSelectionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Candidate Id",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "candidate_id"
+        ],
+        "title": "DesignSelectionRequest",
+        "type": "object"
+      },
       "DesignSessionOut": {
         "properties": {
+          "active_generation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Generation Id"
+          },
+          "active_generation_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Generation Started At"
+          },
           "colorway": {
             "anyOf": [
               {
@@ -6886,6 +6987,10 @@
               }
             ],
             "title": "Colorway"
+          },
+          "context_version": {
+            "title": "Context Version",
+            "type": "integer"
           },
           "created_at": {
             "format": "date-time",
@@ -6903,6 +7008,18 @@
               }
             ],
             "title": "Current Intent"
+          },
+          "current_plan": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Plan"
           },
           "finalize_quota": {
             "anyOf": [
@@ -6973,54 +7090,15 @@
           "colorway",
           "registry_version",
           "current_intent",
+          "current_plan",
+          "context_version",
+          "active_generation_id",
+          "active_generation_started_at",
           "recraft_used",
           "created_at",
           "updated_at"
         ],
         "title": "DesignSessionOut",
-        "type": "object"
-      },
-      "DesignSessionUpdateRequest": {
-        "properties": {
-          "colorway": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Colorway"
-          },
-          "current_intent": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Current Intent"
-          },
-          "seed": {
-            "anyOf": [
-              {
-                "maximum": 9.223372036854776e+18,
-                "minimum": -9.223372036854776e+18,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed"
-          }
-        },
-        "title": "DesignSessionUpdateRequest",
         "type": "object"
       },
       "DesignTurnAttachmentOut": {
@@ -7085,17 +7163,14 @@
         "type": "object"
       },
       "DesignTurnCreateRequest": {
+        "additionalProperties": false,
+        "description": "Only UI-only finalize annotations remain client-authored.\n\nGeneration results and candidate selections mutate session memory, so their\nturns are emitted exclusively by the corresponding server actions.",
         "properties": {
           "payload": {
-            "additionalProperties": true,
-            "title": "Payload",
-            "type": "object"
+            "$ref": "#/components/schemas/DesignFinalizeTurnPayload"
           },
           "role": {
-            "enum": [
-              "user",
-              "assistant"
-            ],
+            "const": "user",
             "title": "Role",
             "type": "string"
           }
@@ -7434,6 +7509,7 @@
               {
                 "enum": [
                   "prompt",
+                  "refine",
                   "variation"
                 ],
                 "type": "string"
@@ -8352,6 +8428,7 @@
           "email": {
             "maxLength": 320,
             "minLength": 1,
+            "pattern": "^[^\\x00]+$",
             "title": "Email",
             "type": "string"
           },
@@ -9020,6 +9097,20 @@
             ],
             "title": "Scope"
           },
+          "slot_colors": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Colors"
+          },
           "source": {
             "title": "Source",
             "type": "string"
@@ -9476,6 +9567,20 @@
               }
             ],
             "title": "Scope"
+          },
+          "slot_colors": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Colors"
           },
           "source": {
             "title": "Source",
@@ -22928,62 +23033,6 @@
         "tags": [
           "design"
         ]
-      },
-      "patch": {
-        "operationId": "update_design_session",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignSessionUpdateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignSessionOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Update Design Session",
-        "tags": [
-          "design"
-        ]
       }
     },
     "/design/sessions/{session_id}/finalize": {
@@ -23156,6 +23205,122 @@
           }
         ],
         "summary": "Motif Generate",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/sessions/{session_id}/reroll": {
+      "post": {
+        "operationId": "reroll_design",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignRerollRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignGenerateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reroll Design",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/sessions/{session_id}/select": {
+      "post": {
+        "operationId": "select_design_candidate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignSelectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Select Design Candidate",
         "tags": [
           "design"
         ]

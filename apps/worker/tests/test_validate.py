@@ -8,9 +8,11 @@ import copy
 
 import pytest
 from pydantic import ValidationError
+from worker.engine import generate
 from worker.engine.intent import ScatterSpec, StripeLayer, StripeParams
 from worker.engine.seamless import assert_seamless_invariants
 from worker.engine.validate import IntentInvalid, ValidationResult, validate_intent
+from worker.motifs.registry import MotifDef
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
@@ -244,6 +246,47 @@ def test_color_resolution_is_repeatable_and_colorway_aware():
     palette = result.palette
     assert palette.resolve_color("accent", "default") == "#ef8a7a"
     assert palette.resolve_color("accent", None) == palette.resolve_color("accent", "default")
+    assert palette.resolve_color("#A1B2C3", None) == "#A1B2C3"
+
+
+def test_multicolor_literal_originals_validate_render_and_remain_byte_identical():
+    intent = mvp_intent()
+    intent["layers"] = [
+        intent["layers"][0],
+        {
+            "id": "original_color_motif",
+            "type": "motif",
+            "z_order": 1,
+            "params": {
+                "motif_id": "multi-original",
+                "size_mm": 6,
+                "colors": {"s0": "#112233", "s1": "#AABBCC"},
+            },
+            "placement": {
+                "type": "lattice",
+                "lattice": {"cell_w_mm": 12, "cell_h_mm": 12},
+            },
+        },
+    ]
+    motif = MotifDef(
+        id="multi-original",
+        symbol=(
+            '<symbol id="motif-multi-original">'
+            '<circle r="0.5" fill="s0"/><circle r="0.2" fill="s1"/>'
+            "</symbol>"
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#112233", "#AABBCC"),
+    )
+    catalog = {motif.id: motif}
+
+    validate_intent(intent, motifs=catalog)
+    first = generate(intent, motifs=catalog).svg
+    second = generate(intent, motifs=catalog).svg
+
+    assert first == second
+    assert "#112233" in first
+    assert "#AABBCC" in first
 
 
 def _full_coverage_stripe_intent() -> dict:

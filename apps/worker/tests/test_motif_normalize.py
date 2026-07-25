@@ -35,6 +35,8 @@ def test_single_color_uses_currentcolor_and_is_colorway_agnostic():
     assert red.id == green.id
     assert "currentColor" in red.symbol
     assert red.id.startswith("recraft-")
+    # Single-slot motifs slotify to currentColor, so no original colorway is retained.
+    assert red.slot_colors is None
 
 
 def test_multicolor_slotify_first_appearance_order():
@@ -48,6 +50,8 @@ def test_multicolor_slotify_first_appearance_order():
     assert motif.color_slots == ("s0", "s1")
     assert 'fill="s0"' in motif.symbol
     assert 'fill="s1"' in motif.symbol
+    # Original colors preserved as the default colorway, index-aligned with the slots.
+    assert motif.slot_colors == ("#ff0000", "#0000ff")
 
 
 def test_determinism_repeated_normalization_is_identical():

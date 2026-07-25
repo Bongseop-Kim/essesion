@@ -6,9 +6,12 @@
 - finalize 제한은 세션 카운터가 아니라 계정당 24시간 윈도우 쿼터 —
   generation_jobs 행을 직접 센다 (api/domains/design/quota.py).
 - generation_jobs = finalize/export 비동기 잡(Cloud Tasks) 상태 폴링용.
+- current_intent/current_plan = 마지막 선택의 렌더/대화 정본.
+- active_generation_id = 외부 호출 동안 세션당 생성 1개를 보장하는 짧은 lease.
 """
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, UniqueConstraint, text
@@ -36,16 +39,27 @@ class DesignSession(TimestampMixin, Base):
     colorway: Mapped[str | None]
     registry_version: Mapped[str | None]  # 커밋 시점 모티프 풀 핑거프린트
     current_intent: Mapped[dict[str, Any] | None]  # 마지막 커밋된 resolved intent
+    # 대화 의미 정본. motifs는 선택 시 concrete motif_id로 freeze되며 worker가
+    # provider 전송 직전에 request-local alias로 치환한다.
+    current_plan: Mapped[dict[str, Any] | None]
+    context_version: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    active_generation_id: Mapped[uuid.UUID | None]
+    active_generation_started_at: Mapped[datetime | None]
     recraft_used: Mapped[int] = mapped_column(server_default=text("0"))
 
     __table_args__ = (
         CheckConstraint("status IN ('active', 'finalized')", name="status"),
         CheckConstraint("recraft_used >= 0", name="recraft_used"),
+        CheckConstraint("context_version >= 0", name="context_version"),
+        CheckConstraint(
+            "(active_generation_id IS NULL) = (active_generation_started_at IS NULL)",
+            name="active_generation_pair",
+        ),
     )
 
 
 class DesignSessionTurn(CreatedAtMixin, Base):
-    """턴 이력 최소 골격 — /design 신규 기획(5단계)에서 payload 스키마 구체화."""
+    """검증된 생성 요청·결과·선택·finalize 이벤트의 선형 턴 이력."""
 
     __tablename__ = "design_session_turns"
 
@@ -57,7 +71,10 @@ class DesignSessionTurn(CreatedAtMixin, Base):
     role: Mapped[str]
     payload: Mapped[dict[str, Any]]
 
-    __table_args__ = (UniqueConstraint("session_id", "seq"),)
+    __table_args__ = (
+        CheckConstraint("role IN ('user', 'assistant')", name="role"),
+        UniqueConstraint("session_id", "seq"),
+    )
 
 
 class UserMotif(CreatedAtMixin, Base):

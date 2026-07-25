@@ -4,6 +4,9 @@ upsert 멱등 · get_motifs JSONB→tuple 변환 · global nearest 안정 정렬
 공개 embedding 초기 인덱싱.
 """
 
+import pytest
+from db.models.seamless import Motif
+from sqlalchemy import select
 from worker.motifs import store
 from worker.motifs.embeddings import index_missing_embeddings
 from worker.motifs.normalize import NormalizedMotif
@@ -26,9 +29,11 @@ def _motif(mid: str, slots: tuple[str, ...] = ("s0",)) -> NormalizedMotif:
 
 async def test_upsert_is_idempotent(db_session):
     m = _motif("recraft-aaaaaaaaaaaa")
-    await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
-    await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
+    first = await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
+    second = await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
     await db_session.commit()
+    assert first == store.MotifUpsertResult(id=m.id, inserted=True)
+    assert second == store.MotifUpsertResult(id=m.id, inserted=False)
     assert await store.all_motif_ids(db_session) == ["recraft-aaaaaaaaaaaa"]
 
 
@@ -47,6 +52,98 @@ async def test_get_motifs_converts_jsonb_to_tuples(db_session):
 
 async def test_get_motifs_empty_ids_returns_empty(db_session):
     assert await store.get_motifs(db_session, []) == {}
+
+
+async def test_upsert_persists_slot_colors_and_nulls_single_slot(db_session):
+    multi = NormalizedMotif(
+        id="recraft-slotcolors0",
+        symbol='<symbol id="motif-recraft-slotcolors0"><path fill="s0"/><path fill="s1"/></symbol>',
+        color_slots=("s0", "s1"),
+        slot_colors=("#010000", "#0685b1"),
+    )
+    await store.upsert_motif(db_session, multi, facets={"scope": "whole"})
+    await store.upsert_motif(db_session, _motif("recraft-singleslot0"), facets={"scope": "whole"})
+    await db_session.commit()
+    rows = {row.id: row.slot_colors for row in (await db_session.scalars(select(Motif))).all()}
+    assert rows["recraft-slotcolors0"] == ["#010000", "#0685b1"]
+    # Single-slot → SQL NULL (none_as_null), not JSON null.
+    assert rows["recraft-singleslot0"] is None
+
+
+async def test_slot_labels_are_optional_index_aligned_metadata_not_identity(db_session):
+    multi = NormalizedMotif(
+        id="recraft-slotlabels0",
+        symbol='<symbol id="motif-recraft-slotlabels0"><path fill="s0"/><path fill="s1"/></symbol>',
+        color_slots=("s0", "s1"),
+        slot_colors=("#010000", "#0685B1"),
+    )
+    first = await store.upsert_motif(
+        db_session,
+        multi,
+        facets={"scope": "whole"},
+    )
+    labeled = await store.upsert_motif(
+        db_session,
+        multi,
+        facets={"scope": "whole"},
+        slot_labels=("outline", "primary"),
+    )
+    await db_session.commit()
+
+    got = (await store.get_motifs(db_session, [multi.id]))[multi.id]
+    assert first.id == labeled.id == multi.id
+    assert first.inserted is True
+    assert labeled.inserted is False
+    assert got.slot_colors == ("#010000", "#0685B1")
+    assert got.slot_labels == ("outline", "primary")
+
+    with pytest.raises(ValueError, match="index-aligned"):
+        await store.upsert_motif(
+            db_session,
+            multi,
+            facets={"scope": "whole"},
+            slot_labels=("primary",),
+        )
+
+
+async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempotent(
+    db_session,
+):
+    public = NormalizedMotif(
+        id="recraft-labelbackfill",
+        symbol=(
+            '<symbol id="motif-recraft-labelbackfill"><path fill="s0"/><path fill="s1"/></symbol>'
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#111111", "#222222"),
+    )
+    private = NormalizedMotif(
+        id="upload-labelbackfill0",
+        symbol=(
+            '<symbol id="motif-upload-labelbackfill0"><path fill="s0"/><path fill="s1"/></symbol>'
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#333333", "#444444"),
+    )
+    await store.upsert_motif(db_session, public, facets={"scope": "whole"}, source="seed")
+    await store.upsert_motif(
+        db_session,
+        private,
+        facets={"scope": "whole"},
+        source=store.USER_UPLOAD_SOURCE,
+    )
+    await db_session.commit()
+
+    rows = await store.missing_slot_label_rows(db_session)
+    assert [row.id for row in rows] == [public.id]
+    assert rows[0].slot_colors == ("#111111", "#222222")
+    assert await store.update_slot_labels_if_missing(db_session, public.id, ("primary", "detail"))
+    assert not await store.update_slot_labels_if_missing(
+        db_session, public.id, ("detail", "primary")
+    )
+    await db_session.commit()
+
+    assert await store.missing_slot_label_rows(db_session) == []
 
 
 async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):
