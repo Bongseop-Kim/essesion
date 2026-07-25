@@ -39,7 +39,20 @@ jobs:
       - run: uv sync --all-packages
       - run: uv run ruff check . && uv run ruff format --check .
       - run: uv run pyright
-      - run: uv run pytest
+      # 계약 퍼징은 contract 잡에서 병렬로 — 여기 남겨두면 이 잡이 CI 크리티컬 패스가 된다
+      - run: uv run pytest --ignore=apps/api/tests/test_contract.py
+
+  # schemathesis 계약 퍼징(오퍼레이션 191개) — 직렬로 ~6분이라 py에서 떼어내 xdist로 돌린다.
+  # api만 필요하므로 librsvg 설치는 생략. CPU 경합에 민감한 api/worker 테스트는 py에 직렬로 남는다.
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages
+      - run: uv run pytest apps/api/tests/test_contract.py -n 4
 
   # api 스펙만 바뀌고 api-client 생성물이 안 바뀐 채 머지되는 것을 차단 (AGENTS.md 대원칙)
   codegen-drift:
