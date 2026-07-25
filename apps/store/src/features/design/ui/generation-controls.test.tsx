@@ -189,10 +189,10 @@ describe("design generation controls", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "대표 색상 추출" }));
-    await waitFor(() => expect(onExtract).toHaveBeenCalledWith("photo-1"));
-    expect((screen.getByLabelText("1번째 HEX") as HTMLInputElement).value).toBe(
-      "#112233",
-    );
+    expect(onExtract).toHaveBeenCalledWith("photo-1");
+    expect(
+      ((await screen.findByLabelText("1번째 HEX")) as HTMLInputElement).value,
+    ).toBe("#112233");
 
     fireEvent.click(screen.getByRole("button", { name: "적용" }));
     expect(onApply).toHaveBeenCalledWith({
