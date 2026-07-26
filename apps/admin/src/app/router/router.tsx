@@ -291,6 +291,15 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
+    path: "few-shot-examples/new",
+    lazy: async () => {
+      const { FewShotExampleNewPage } = await import(
+        "../../pages/authoring/example-new"
+      );
+      return { Component: FewShotExampleNewPage };
+    },
+  },
+  {
     path: "few-shot-examples/:exampleId",
     lazy: async () => {
       const { AuthoringExampleDetailPage } = await import(

@@ -19,7 +19,6 @@ import { StatusBadge } from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
-import { CreateAuthoringExampleModal } from "./example-studio";
 
 const ACTIVE_FILTERS = ["active", "inactive"] as const;
 const ACTIVE_LABELS = {
@@ -93,7 +92,6 @@ export function FewShotExamplesPage() {
   const { state } = useAdminSession();
   const canEdit =
     state.status === "authenticated" && state.session.role === "admin";
-  const [createOpen, setCreateOpen] = useState(false);
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedStatuses: ACTIVE_FILTERS,
   });
@@ -133,7 +131,7 @@ export function FewShotExamplesPage() {
           description="생성 프롬프트의 few-shot 검색에 주입되는 intent 시범을 저작하고 활성 상태를 관리합니다."
         />
         {canEdit && (
-          <ActionButton onClick={() => setCreateOpen(true)}>
+          <ActionButton onClick={() => navigate("/few-shot-examples/new")}>
             새 시범 작성
           </ActionButton>
         )}
@@ -240,16 +238,6 @@ export function FewShotExamplesPage() {
           </VStack>
         }
       />
-      {canEdit && createOpen && (
-        <CreateAuthoringExampleModal
-          open
-          onOpenChange={setCreateOpen}
-          onCreated={(value) => {
-            setCreateOpen(false);
-            navigate(`/few-shot-examples/${value.id}`);
-          }}
-        />
-      )}
     </VStack>
   );
 }
