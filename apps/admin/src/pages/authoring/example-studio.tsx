@@ -32,6 +32,8 @@ import {
 
 const PREVIEW_DEBOUNCE_MS = 400;
 const MIN_RETRIEVAL_LENGTH = 10;
+/* 정사각 프리뷰가 컬럼 폭을 다 먹으면 저장 버튼이 화면 밖으로 밀린다 */
+const PREVIEW_SIZE = 280;
 
 export type AuthoringExampleFormValue = {
   retrievalText: string;
@@ -180,7 +182,11 @@ export function AuthoringExampleForm({
           />
         </VStack>
 
-        <Box position={{ base: "static", lg: "sticky" }} top="x4">
+        {/* 스티키 기준선은 sticky Header(md+ 64px = x16) 아래 — 안 그러면 헤더에 가린다 */}
+        <Box
+          position={{ base: "static", lg: "sticky" }}
+          top="calc(var(--spacing-x16) + var(--spacing-x4))"
+        >
           <AdminCard
             title="타일 프리뷰"
             description="바꾸면 바로 다시 그립니다. LLM·Recraft 없이 Plan과 카탈로그 모티프만으로 렌더합니다."
@@ -196,7 +202,7 @@ export function AuthoringExampleForm({
                   }
                 />
               ) : preview.isPending && preview.data === undefined ? (
-                <Skeleton width="100%" height={320} />
+                <Skeleton width={PREVIEW_SIZE} height={PREVIEW_SIZE} />
               ) : preview.isError ? (
                 <Callout
                   role="alert"
@@ -208,14 +214,16 @@ export function AuthoringExampleForm({
                   )}
                 />
               ) : preview.data === undefined ? (
-                <Skeleton width="100%" height={320} />
+                <Skeleton width={PREVIEW_SIZE} height={PREVIEW_SIZE} />
               ) : (
                 <>
-                  <SafeSvgPreview
-                    svg={preview.data.svg}
-                    status="safe"
-                    alt="저작 시범 타일 프리뷰"
-                  />
+                  <Box maxWidth={PREVIEW_SIZE} width="full">
+                    <SafeSvgPreview
+                      svg={preview.data.svg}
+                      status="safe"
+                      alt="저작 시범 타일 프리뷰"
+                    />
+                  </Box>
                   {preview.data.warnings.length > 0 && (
                     <Callout
                       tone="warning"
