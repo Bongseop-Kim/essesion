@@ -20,9 +20,26 @@ vi.mock("@essesion/api-client/query", () => ({
 import { AuthoringExampleForm } from "./example-studio";
 
 const VALID_INTENT = "차분한 세로 스트라이프 넥타이 시범";
+const MOTIF_PLAN = {
+  colors: ["#F4EFE6", "#213547"], // harness-ignore -- DesignPlanV3 데이터, UI 스타일이 아님
+  ground_color_index: 0,
+  motifs: [{ source: "input", input_index: 1 }],
+  layers: [
+    {
+      type: "motif",
+      motif_index: 0,
+      size_ratio: 0.18,
+      placement: { type: "point_template", template: "quincunx_inset" },
+    },
+  ],
+};
 
 function previewBodies() {
   return api.preview.mock.calls.map(([variables]) => variables.body);
+}
+
+function planInput() {
+  return screen.getByLabelText(/Plan \(DesignPlanV3\)/);
 }
 
 describe("AuthoringExampleForm", () => {
@@ -48,7 +65,8 @@ describe("AuthoringExampleForm", () => {
     });
   });
 
-  it("버튼 없이 프리뷰를 그리고, Plan이 바뀌면 새 프리뷰가 올 때까지 저장을 잠근다", async () => {
+  it("붙여 넣은 Plan JSON을 그대로 프리뷰·저장에 보내고, 바뀌면 새 프리뷰까지 저장을 잠근다", async () => {
+    const user = userEvent.setup();
     const onSubmit = vi.fn();
     renderAdminPage(
       <AuthoringExampleForm
@@ -59,7 +77,6 @@ describe("AuthoringExampleForm", () => {
       />,
     );
 
-    expect(screen.queryByRole("button", { name: "타일 프리뷰" })).toBeNull();
     const save = screen.getByRole("button", { name: "시범 저장" });
     expect(
       await screen.findByRole("img", { name: /저작 시범 프리뷰/ }),
@@ -73,26 +90,55 @@ describe("AuthoringExampleForm", () => {
       plan: { ground_color_index: 0, motifs: [] },
     });
 
-    fireEvent.change(screen.getByLabelText(/반복 주기 비율/), {
-      target: { value: "0.25" },
+    fireEvent.change(planInput(), {
+      target: { value: JSON.stringify(MOTIF_PLAN) },
     });
     expect((save as HTMLButtonElement).disabled).toBe(true);
 
     await waitFor(() =>
-      expect(previewBodies().at(-1)).toMatchObject({
-        plan: { layers: [{ type: "stripe", period_ratio: 0.25 }] },
-      }),
+      expect(previewBodies().at(-1)).toMatchObject({ plan: MOTIF_PLAN }),
     );
     await waitFor(() =>
       expect((save as HTMLButtonElement).disabled).toBe(false),
     );
+
+    await user.click(save);
+    expect(onSubmit).toHaveBeenCalledWith({
+      retrievalText: VALID_INTENT,
+      plan: MOTIF_PLAN,
+      motifIds: [],
+    });
   });
 
-  it("모티프를 고르면 슬롯과 모티프 레이어를 붙여 바로 프리뷰에 반영한다", async () => {
+  it("JSON이 깨지면 사유를 보여주고 프리뷰도 저장도 막는다", async () => {
+    renderAdminPage(
+      <AuthoringExampleForm
+        initialRetrievalText={VALID_INTENT}
+        submitLabel="시범 저장"
+        submitting={false}
+        onSubmit={vi.fn()}
+      />,
+    );
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
+    const calls = api.preview.mock.calls.length;
+
+    fireEvent.change(planInput(), { target: { value: '{"colors": [' } });
+
+    expect(screen.getByText("Plan JSON이 아직 유효하지 않습니다")).toBeTruthy();
+    expect(
+      (screen.getByRole("button", { name: "시범 저장" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(api.preview.mock.calls.length).toBe(calls);
+  });
+
+  it("고른 모티프 ID를 Plan과 함께 프리뷰에 보낸다", async () => {
     const user = userEvent.setup();
     renderAdminPage(
       <AuthoringExampleForm
         initialRetrievalText={VALID_INTENT}
+        initialPlan={MOTIF_PLAN}
         submitLabel="시범 저장"
         submitting={false}
         onSubmit={vi.fn()}
@@ -112,94 +158,8 @@ describe("AuthoringExampleForm", () => {
     await waitFor(() =>
       expect(previewBodies().at(-1)).toMatchObject({
         motif_ids: ["studio-bee"],
-        plan: {
-          motifs: [{ source: "input", input_index: 1 }],
-          layers: [{ type: "stripe" }, { type: "motif", motif_index: 0 }],
-        },
+        plan: MOTIF_PLAN,
       }),
     );
-  });
-
-  it("팔레트 HEX가 잘못되면 프리뷰를 쏘지 않고 저장도 잠근다", async () => {
-    renderAdminPage(
-      <AuthoringExampleForm
-        initialRetrievalText={VALID_INTENT}
-        submitLabel="시범 저장"
-        submitting={false}
-        onSubmit={vi.fn()}
-      />,
-    );
-    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
-    const calls = api.preview.mock.calls.length;
-
-    fireEvent.change(screen.getByLabelText(/1번 HEX/), {
-      target: { value: "#12" },
-    });
-
-    expect(screen.getByText("입력을 먼저 정리해 주세요")).toBeTruthy();
-    expect(
-      (screen.getByRole("button", { name: "시범 저장" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    expect(api.preview.mock.calls.length).toBe(calls);
-  });
-
-  it("모티프 레이어를 지우면 프리뷰를 막고 사유를 알려준다", async () => {
-    const user = userEvent.setup();
-    renderAdminPage(
-      <AuthoringExampleForm
-        initialRetrievalText={VALID_INTENT}
-        submitLabel="시범 저장"
-        submitting={false}
-        onSubmit={vi.fn()}
-      />,
-    );
-    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
-
-    await user.click(screen.getByRole("button", { name: /모티프 \(0\/2\)/ }));
-    await user.click(
-      await screen.findByRole("checkbox", { name: /studio-flower/ }),
-    );
-    await user.click(screen.getByRole("button", { name: "선택 완료" }));
-    await user.click(screen.getByRole("button", { name: "2번 레이어 삭제" }));
-
-    expect(
-      screen.getByText("1번 모티프를 쓰는 레이어가 없습니다"),
-    ).toBeTruthy();
-    expect(screen.getByText("입력을 먼저 정리해 주세요")).toBeTruthy();
-    expect(
-      (screen.getByRole("button", { name: "시범 저장" }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true);
-  });
-
-  it("프리뷰가 현재 입력과 일치할 때 정규화한 intent와 Plan을 저장한다", async () => {
-    const user = userEvent.setup();
-    const onSubmit = vi.fn();
-    renderAdminPage(
-      <AuthoringExampleForm
-        submitLabel="시범 저장"
-        submitting={false}
-        onSubmit={onSubmit}
-      />,
-    );
-
-    await user.type(
-      screen.getByLabelText(/예시 사용자 요청문/),
-      `  ${VALID_INTENT}  `,
-    );
-    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
-    const save = screen.getByRole("button", { name: "시범 저장" });
-    await waitFor(() =>
-      expect((save as HTMLButtonElement).disabled).toBe(false),
-    );
-
-    await user.click(save);
-    expect(onSubmit).toHaveBeenCalledWith({
-      retrievalText: VALID_INTENT,
-      plan: expect.objectContaining({ ground_color_index: 0, motifs: [] }),
-      motifIds: [],
-    });
   });
 });

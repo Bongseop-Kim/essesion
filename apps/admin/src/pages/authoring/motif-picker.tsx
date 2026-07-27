@@ -16,7 +16,8 @@ import {
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { MAX_MOTIFS } from "./plan-model";
+/** 서버 계약(DesignPlanV3)의 모티프 슬롯 상한 */
+const MAX_MOTIFS = 2;
 
 export function motifLabel(motif: MotifSummaryOut) {
   return motif.subject?.trim() || motif.id;
@@ -53,7 +54,7 @@ export function MotifPicker({
     <>
       <FieldButton
         label={`모티프 (${value.length}/${MAX_MOTIFS})`}
-        description="고른 모티프가 Plan의 모티프 슬롯이 됩니다. 카탈로그 모티프만 사용하며 생성형 호출은 하지 않습니다."
+        description="고른 순서가 Plan JSON의 motifs[].input_index(1부터)입니다. 카탈로그 모티프만 사용하며 생성형 호출은 하지 않습니다."
         placeholder="모티프 선택"
         value={
           value.length === 0

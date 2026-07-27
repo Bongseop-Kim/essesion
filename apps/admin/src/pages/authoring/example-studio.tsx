@@ -23,17 +23,6 @@ import { getErrorMessage } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { SafeSvgPreview } from "../generation/safe-svg-preview";
 import { MotifPicker } from "./motif-picker";
-import { PlanEditor } from "./plan-editor";
-import {
-  type DesignPlan,
-  EMPTY_PLAN,
-  MAX_COLORS,
-  MIN_COLORS,
-  motifSources,
-  normalizeHex,
-  syncMotifLayers,
-  unusedMotifSlots,
-} from "./plan-model";
 
 const PREVIEW_DEBOUNCE_MS = 400;
 const MIN_RETRIEVAL_LENGTH = 10;
@@ -44,6 +33,40 @@ const PREVIEW_SIZE = "min(100%, calc(100dvh - 27rem))";
 /* TieCanvas는 SVG를 background-image로 반복시켜서 data URI가 필요하다 */
 const svgToDataUri = (svg: string) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+
+/* 빈 화면에서 시작하지 않게 두는 최소 유효 Plan — 값의 정본은 서버 스키마(DesignPlanV3)다 */
+const STARTER_PLAN = {
+  colors: ["#F4EFE6", "#213547"], // harness-ignore -- DesignPlanV3 데이터, UI 스타일이 아님
+  ground_color_index: 0,
+  motifs: [],
+  layers: [
+    {
+      type: "stripe",
+      direction: "vertical",
+      period_ratio: 0.5,
+      bands: [{ offset_ratio: 0, width_ratio: 0.25, color_index: 1 }],
+    },
+  ],
+};
+
+/* ponytail: Plan 검증은 서버(DesignPlanV3)에 맡기고 여기서는 JSON 파싱만 본다.
+   피커로 스키마를 미러링하면 enum·범위가 늘 때마다 화면이 뒤처진다 */
+function parsePlan(
+  text: string,
+): { plan: Record<string, unknown> } | { error: string } {
+  try {
+    const value: unknown = JSON.parse(text);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return { error: "Plan은 JSON 객체여야 합니다." };
+    }
+    return { plan: value as Record<string, unknown> };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error ? error.message : "JSON을 해석할 수 없습니다.",
+    };
+  }
+}
 
 export type AuthoringExampleFormValue = {
   retrievalText: string;
@@ -72,37 +95,27 @@ export function AuthoringExampleForm({
   onSubmit: (value: AuthoringExampleFormValue) => void;
 }) {
   const [retrievalText, setRetrievalText] = useState(initialRetrievalText);
-  const [plan, setPlan] = useState<DesignPlan>(
-    () => (initialPlan as DesignPlan | undefined) ?? EMPTY_PLAN,
+  const [planText, setPlanText] = useState(() =>
+    JSON.stringify(initialPlan ?? STARTER_PLAN, null, 2),
   );
   const [motifIds, setMotifIds] = useState(() => [...initialMotifIds]);
   const [motifLabels, setMotifLabels] = useState<Record<string, string>>({});
   const [previewedSignature, setPreviewedSignature] = useState<string>();
   const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
 
-  const motifNames = motifIds.map((id) => motifLabels[id] ?? id);
+  const parsed = useMemo(() => parsePlan(planText), [planText]);
+  const plan = "plan" in parsed ? parsed.plan : undefined;
   const previewBody = useMemo(
-    () => ({
-      plan: { ...plan, motifs: motifSources(motifIds.length) },
-      motif_ids: motifIds,
-      tile_mm: 48,
-    }),
+    () =>
+      plan === undefined
+        ? undefined
+        : { plan, motif_ids: motifIds, tile_mm: 48 },
     [plan, motifIds],
   );
   const previewSignature = useMemo(
     () => JSON.stringify(previewBody),
     [previewBody],
   );
-
-  const normalizedColors = plan.colors.map(normalizeHex);
-  const colorsReady =
-    plan.colors.length >= MIN_COLORS &&
-    plan.colors.length <= MAX_COLORS &&
-    normalizedColors.every((color) => color !== null) &&
-    new Set(normalizedColors).size === normalizedColors.length;
-  const unusedMotifs = unusedMotifSlots(plan.layers, motifIds.length);
-  /* 서버 422가 확실한 입력으로는 프리뷰를 쏘지 않는다 — 편집기가 이미 사유를 보여준다 */
-  const previewReady = colorsReady && unusedMotifs.length === 0;
   const retrievalValid = retrievalText.trim().length >= MIN_RETRIEVAL_LENGTH;
 
   const preview = useMutation({
@@ -116,7 +129,7 @@ export function AuthoringExampleForm({
     preview.isSuccess && previewedSignature === previewSignature;
 
   useEffect(() => {
-    if (!previewReady || submitting) return;
+    if (previewBody === undefined || submitting) return;
     if (previewedSignature === previewSignature) return;
     const timer = setTimeout(
       () => previewMutate({ body: previewBody }),
@@ -127,7 +140,6 @@ export function AuthoringExampleForm({
     previewBody,
     previewSignature,
     previewedSignature,
-    previewReady,
     submitting,
     previewMutate,
   ]);
@@ -137,12 +149,8 @@ export function AuthoringExampleForm({
       as="form"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!retrievalValid || !previewCurrent) return;
-        onSubmit({
-          retrievalText: retrievalText.trim(),
-          plan: previewBody.plan,
-          motifIds,
-        });
+        if (!retrievalValid || !previewCurrent || plan === undefined) return;
+        onSubmit({ retrievalText: retrievalText.trim(), plan, motifIds });
       }}
     >
       <Grid columns={{ base: 1, lg: 2 }} gap="x5" alignItems="start">
@@ -176,21 +184,27 @@ export function AuthoringExampleForm({
                 onChange={(ids, labels) => {
                   setMotifIds(ids);
                   setMotifLabels(labels);
-                  setPlan((current) => ({
-                    ...current,
-                    layers: syncMotifLayers(current.layers, ids.length),
-                  }));
                 }}
               />
             </VStack>
           </AdminCard>
 
-          <PlanEditor
-            value={plan}
-            motifNames={motifNames}
-            disabled={submitting}
-            onChange={setPlan}
-          />
+          <AdminCard
+            title="Plan JSON"
+            description="DesignPlanV3 원문을 그대로 붙여 넣습니다. 범위·enum 검증은 프리뷰 응답(서버)이 합니다."
+          >
+            <TextAreaField
+              label="Plan (DesignPlanV3)"
+              description="고른 모티프는 motifs의 input_index 1..N으로 순서대로 참조해야 합니다. 모티프를 고르지 않으면 catalog source도 쓸 수 있습니다."
+              required
+              rows={24}
+              spellCheck={false}
+              value={planText}
+              disabled={submitting}
+              errorMessage={"error" in parsed ? parsed.error : undefined}
+              onChange={(event) => setPlanText(event.currentTarget.value)}
+            />
+          </AdminCard>
         </VStack>
 
         {/* 스티키 기준선은 sticky Header(md+ 64px = x16) 아래 — 안 그러면 헤더에 가린다 */}
@@ -215,21 +229,10 @@ export function AuthoringExampleForm({
             }
           >
             <VStack gap="x4" alignItems="stretch">
-              {!previewReady ? (
+              {plan === undefined ? (
                 <ContentPlaceholder
-                  title="입력을 먼저 정리해 주세요"
-                  description={
-                    colorsReady
-                      ? "고른 모티프를 레이어에서 모두 써야 프리뷰를 그릴 수 있습니다."
-                      : "팔레트의 HEX 값이 서로 다른 올바른 색이어야 합니다."
-                  }
-                />
-              ) : preview.isPending && preview.data === undefined ? (
-                <Skeleton
-                  width={PREVIEW_SIZE}
-                  radius="r4"
-                  className="self-center"
-                  style={{ aspectRatio: 1 }}
+                  title="Plan JSON이 아직 유효하지 않습니다"
+                  description="JSON 문법을 고치면 바로 프리뷰를 다시 그립니다."
                 />
               ) : preview.isError ? (
                 <Callout
@@ -298,7 +301,7 @@ export function AuthoringExampleForm({
                   color="fg.neutral-muted"
                   aria-live="polite"
                 >
-                  {previewReady && preview.isPending ? (
+                  {plan !== undefined && preview.isPending ? (
                     <>
                       <ProgressCircle size={16} /> 프리뷰를 다시 그리는
                       중입니다.
