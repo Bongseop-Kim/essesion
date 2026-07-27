@@ -268,7 +268,9 @@ export function AuthoringExampleForm({
                   {preview.data.warnings.length > 0 && (
                     <Callout
                       tone="warning"
-                      title="일부 모티프 레이어가 제외되었습니다"
+                      /* 경고 원문은 모티프 제외·스트라이프 주기 스냅 등 여러 종류라
+                         제목은 중립으로 두고 사유는 원문으로 보여준다 */
+                      title="프리뷰를 그리며 일부 값을 보정했습니다"
                       description={preview.data.warnings.join(" · ")}
                     />
                   )}
