@@ -9316,6 +9316,20 @@
             ],
             "title": "Slot Colors"
           },
+          "slot_parts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Parts"
+          },
           "source": {
             "title": "Source",
             "type": "string"

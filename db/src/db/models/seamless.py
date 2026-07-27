@@ -53,6 +53,9 @@ class Motif(CreatedAtMixin, Base):
     # ingress metadata only, NULL for unlabeled/single-slot/legacy rows, and never participate in
     # the content-hash id.
     slot_labels: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
+    # Short visible part names are index-aligned with color_slots. Invalid/incomplete vision
+    # metadata is stored as SQL NULL, independently of otherwise-valid slot_labels.
+    slot_parts: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
     # First Recraft ingress provenance. Catalog reuse never rewrites these values; account/session
     # deletion nulls them instead of blocking privacy cleanup.
     ingested_user_id: Mapped[uuid.UUID | None] = mapped_column(

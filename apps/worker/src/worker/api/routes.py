@@ -511,6 +511,11 @@ def _bind_resolved_motif_colors(
                 continue
             layer_id = layer.get("id")
             planned_colors = planned_layers.get(layer_id) if isinstance(layer_id, str) else None
+            if planned_colors is not None and len(planned_colors) != len(motif.color_slots):
+                raise ValueError(
+                    "motif recolor count must match resolved slot count "
+                    f"({len(planned_colors)} != {len(motif.color_slots)})"
+                )
             effective_colors = planned_colors or color_ids
             if len(motif.color_slots) <= 1:
                 chosen = planned_colors[0] if planned_colors else color_ids[0]
@@ -535,8 +540,15 @@ def _bind_resolved_motif_colors(
                 continue
 
             ordered_slots = list(motif.color_slots)
+            slot_parts = getattr(motif, "slot_parts", None)
+            has_valid_parts = (
+                slot_parts is not None
+                and len(slot_parts) == len(motif.color_slots)
+                and all(isinstance(part, str) and bool(part.strip()) for part in slot_parts)
+            )
             if (
-                motif.slot_labels is not None
+                not has_valid_parts
+                and motif.slot_labels is not None
                 and len(motif.slot_labels) == len(motif.color_slots)
                 and all(label in SLOT_LABEL_RANK for label in motif.slot_labels)
             ):
@@ -579,6 +591,16 @@ class _RefineAuthoringContext:
     current_candidates: list[dict[str, object]]
     concrete_motif_ids: list[str]
     history: list[dict[str, object]]
+
+
+def _motif_prompt_slot_metadata(motif) -> dict[str, object]:  # noqa: ANN001
+    if motif is None:
+        return {}
+    metadata: dict[str, object] = {"slot_count": len(motif.color_slots)}
+    parts = getattr(motif, "slot_parts", None)
+    if parts is not None and len(parts) == len(motif.color_slots):
+        metadata["parts"] = list(parts)
+    return metadata
 
 
 def _refine_authoring_context(
@@ -746,6 +768,18 @@ async def _generate_from_prompt(
         "Create a balanced necktie pattern using the supplied SVG motif."
     )
     refine_context = _refine_authoring_context(body, request)
+    prompt_motif_ids = [
+        *body.motif_ids,
+        *(refine_context.concrete_motif_ids if refine_context is not None else []),
+    ]
+    prompt_motifs = await get_motifs(session, prompt_motif_ids)
+    exact_motif_metadata = [
+        {
+            "catalog_ref": f"input_{index}",
+            **_motif_prompt_slot_metadata(prompt_motifs.get(motif_id)),
+        }
+        for index, motif_id in enumerate(body.motif_ids, start=1)
+    ]
     embedding = request_scoped(adapters.embedding)
     reference_capable_count = sum(
         image.purpose in {"motif", "auto"} for image in body.reference_images
@@ -766,6 +800,17 @@ async def _generate_from_prompt(
             for candidate in public_catalog_candidates
             if candidate.get("motif_id") not in current_ids
         ]
+    current_candidates = (
+        [
+            {
+                **candidate,
+                **_motif_prompt_slot_metadata(prompt_motifs.get(str(candidate["motif_id"]))),
+            }
+            for candidate in refine_context.current_candidates
+        ]
+        if refine_context is not None
+        else []
+    )
     refine_exact_candidates = (
         [
             {
@@ -775,6 +820,7 @@ async def _generate_from_prompt(
                 "description": None,
                 "style": None,
                 "optional": True,
+                **_motif_prompt_slot_metadata(prompt_motifs.get(motif_id)),
             }
             for index, motif_id in enumerate(body.motif_ids, start=1)
         ]
@@ -782,7 +828,7 @@ async def _generate_from_prompt(
         else []
     )
     catalog_candidates = [
-        *(refine_context.current_candidates if refine_context is not None else []),
+        *current_candidates,
         *refine_exact_candidates,
         *public_catalog_candidates,
     ]
@@ -836,6 +882,7 @@ async def _generate_from_prompt(
             validate=_validate,
             reference_images=reference_images,
             motif_ids=[] if refine_context is not None else body.motif_ids,
+            exact_motif_metadata=(None if refine_context is not None else exact_motif_metadata),
             catalog_candidates=catalog_candidates,
             palette_constraint=body.palette,
             pattern_constraints=body.pattern_constraints,
@@ -937,12 +984,16 @@ async def _generate_from_prompt(
     for resolved in resolved_intents:
         ids |= iter_motif_ids(resolved)
     catalog = await get_motifs(session, ids)
-    _bind_resolved_motif_colors(
-        resolved_intents,
-        catalog,
-        [design.motif_color_slots for design in designs],
-        palette_mode=body.palette.mode,
-    )
+    try:
+        _bind_resolved_motif_colors(
+            resolved_intents,
+            catalog,
+            [design.motif_color_slots for design in designs],
+            palette_mode=body.palette.mode,
+        )
+    except ValueError as exc:
+        request.state.generation_diagnostics["color_binding_error"] = str(exc)
+        _reject_generation(request, "intent_invalid", "intent")
     request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
     registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
     candidate_started = time.perf_counter()

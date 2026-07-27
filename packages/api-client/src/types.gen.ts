@@ -5011,6 +5011,10 @@ export type MotifDetailOut = {
      */
     slot_colors?: Array<string> | null;
     /**
+     * Slot Parts
+     */
+    slot_parts?: Array<string> | null;
+    /**
      * Source
      */
     source: string;

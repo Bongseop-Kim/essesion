@@ -71,7 +71,7 @@ async def test_upsert_persists_slot_colors_and_nulls_single_slot(db_session):
     assert rows["recraft-singleslot0"] is None
 
 
-async def test_slot_labels_are_optional_index_aligned_metadata_not_identity(db_session):
+async def test_slot_metadata_is_optional_index_aligned_and_not_identity(db_session):
     multi = NormalizedMotif(
         id="recraft-slotlabels0",
         symbol='<symbol id="motif-recraft-slotlabels0"><path fill="s0"/><path fill="s1"/></symbol>',
@@ -89,14 +89,29 @@ async def test_slot_labels_are_optional_index_aligned_metadata_not_identity(db_s
         facets={"scope": "whole"},
         slot_labels=("outline", "primary"),
     )
+    parted = await store.upsert_motif(
+        db_session,
+        multi,
+        facets={"scope": "whole"},
+        slot_parts=("outline", "body"),
+    )
+    await store.upsert_motif(
+        db_session,
+        multi,
+        facets={"scope": "whole"},
+        slot_labels=("detail", "secondary"),
+        slot_parts=("changed", "parts"),
+    )
     await db_session.commit()
 
     got = (await store.get_motifs(db_session, [multi.id]))[multi.id]
-    assert first.id == labeled.id == multi.id
+    assert first.id == labeled.id == parted.id == multi.id
     assert first.inserted is True
     assert labeled.inserted is False
+    assert parted.inserted is False
     assert got.slot_colors == ("#010000", "#0685B1")
     assert got.slot_labels == ("outline", "primary")
+    assert got.slot_parts == ("outline", "body")
 
     with pytest.raises(ValueError, match="index-aligned"):
         await store.upsert_motif(
@@ -105,28 +120,65 @@ async def test_slot_labels_are_optional_index_aligned_metadata_not_identity(db_s
             facets={"scope": "whole"},
             slot_labels=("primary",),
         )
+    with pytest.raises(ValueError, match="index-aligned"):
+        await store.upsert_motif(
+            db_session,
+            multi,
+            facets={"scope": "whole"},
+            slot_parts=("body",),
+        )
 
 
-async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempotent(
+async def test_slot_metadata_backfill_selects_missing_public_multislot_and_is_idempotent(
     db_session,
 ):
-    public = NormalizedMotif(
-        id="recraft-labelbackfill",
+    missing_both = NormalizedMotif(
+        id="recraft-metadata-both",
         symbol=(
-            '<symbol id="motif-recraft-labelbackfill"><path fill="s0"/><path fill="s1"/></symbol>'
+            '<symbol id="motif-recraft-metadata-both"><path fill="s0"/><path fill="s1"/></symbol>'
         ),
         color_slots=("s0", "s1"),
         slot_colors=("#111111", "#222222"),
     )
-    private = NormalizedMotif(
-        id="upload-labelbackfill0",
+    missing_parts = NormalizedMotif(
+        id="recraft-metadata-parts",
         symbol=(
-            '<symbol id="motif-upload-labelbackfill0"><path fill="s0"/><path fill="s1"/></symbol>'
+            '<symbol id="motif-recraft-metadata-parts"><path fill="s0"/><path fill="s1"/></symbol>'
         ),
         color_slots=("s0", "s1"),
         slot_colors=("#333333", "#444444"),
     )
-    await store.upsert_motif(db_session, public, facets={"scope": "whole"}, source="seed")
+    missing_labels = NormalizedMotif(
+        id="recraft-metadata-labels",
+        symbol=(
+            '<symbol id="motif-recraft-metadata-labels"><path fill="s0"/><path fill="s1"/></symbol>'
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#555555", "#666666"),
+    )
+    private = NormalizedMotif(
+        id="upload-metadata-private",
+        symbol=(
+            '<symbol id="motif-upload-metadata-private"><path fill="s0"/><path fill="s1"/></symbol>'
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#777777", "#888888"),
+    )
+    await store.upsert_motif(db_session, missing_both, facets={"scope": "whole"}, source="seed")
+    await store.upsert_motif(
+        db_session,
+        missing_parts,
+        facets={"scope": "whole"},
+        source="seed",
+        slot_labels=("secondary", "accent"),
+    )
+    await store.upsert_motif(
+        db_session,
+        missing_labels,
+        facets={"scope": "whole"},
+        source="seed",
+        slot_parts=("wing", "tail"),
+    )
     await store.upsert_motif(
         db_session,
         private,
@@ -135,16 +187,47 @@ async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempot
     )
     await db_session.commit()
 
-    rows = await store.missing_slot_label_rows(db_session)
-    assert [row.id for row in rows] == [public.id]
+    rows = await store.missing_slot_metadata_rows(db_session)
+    assert [row.id for row in rows] == [
+        missing_both.id,
+        missing_labels.id,
+        missing_parts.id,
+    ]
     assert rows[0].slot_colors == ("#111111", "#222222")
-    assert await store.update_slot_labels_if_missing(db_session, public.id, ("primary", "detail"))
-    assert not await store.update_slot_labels_if_missing(
-        db_session, public.id, ("detail", "primary")
+    assert await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_both.id,
+        slot_labels=("primary", "detail"),
+        slot_parts=("body", "outline"),
+    )
+    assert not await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_both.id,
+        slot_labels=("detail", "primary"),
+        slot_parts=("changed", "parts"),
+    )
+    assert await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_parts.id,
+        slot_labels=("primary", "detail"),
+        slot_parts=("body", "outline"),
+    )
+    assert await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_labels.id,
+        slot_labels=("outline", "primary"),
+        slot_parts=("changed", "parts"),
     )
     await db_session.commit()
 
-    assert await store.missing_slot_label_rows(db_session) == []
+    assert await store.missing_slot_metadata_rows(db_session) == []
+    stored = {row.id: row for row in (await db_session.scalars(select(Motif))).all()}
+    assert stored[missing_both.id].slot_labels == ["primary", "detail"]
+    assert stored[missing_both.id].slot_parts == ["body", "outline"]
+    assert stored[missing_parts.id].slot_labels == ["secondary", "accent"]
+    assert stored[missing_parts.id].slot_parts == ["body", "outline"]
+    assert stored[missing_labels.id].slot_labels == ["outline", "primary"]
+    assert stored[missing_labels.id].slot_parts == ["wing", "tail"]
 
 
 async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):

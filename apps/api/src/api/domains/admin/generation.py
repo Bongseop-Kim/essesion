@@ -126,6 +126,7 @@ _INTENT_OMIT = object()
 _MAX_INTENT_DESIGNS = 8
 _MAX_INTENT_SEQUENCE = 10_000
 _MAX_INTENT_DEPTH = 12
+_MAX_SLOT_PART_LENGTH = 40
 
 
 class GenerationJobStatsOut(BaseModel):
@@ -301,6 +302,7 @@ class MotifDetailOut(MotifSummaryOut):
     tags: list[str]
     anchor: list[float]
     color_slots: list[str]
+    slot_parts: list[str] | None = None
 
 
 def _validate_range(start: datetime | None, end: datetime | None) -> None:
@@ -331,6 +333,29 @@ def _safe_metadata(value: Any, *, limit: int = 160) -> str | None:
     if not clean or _EMAIL.search(clean) or _PHONE.search(clean) or _URL_OR_PATH.search(clean):
         return None
     return clean
+
+
+def _safe_slot_parts(value: Any, color_slots: Any) -> list[str] | None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or not isinstance(color_slots, list)
+        or len(value) != len(color_slots)
+        or any(_safe_token(slot) is None for slot in color_slots)
+    ):
+        return None
+    safe_parts: list[str] = []
+    for part in value:
+        if not isinstance(part, str):
+            return None
+        clean = " ".join(part.split())
+        if len(clean) > _MAX_SLOT_PART_LENGTH:
+            return None
+        safe = _safe_metadata(clean, limit=_MAX_SLOT_PART_LENGTH)
+        if safe is None:
+            return None
+        safe_parts.append(safe)
+    return safe_parts
 
 
 def _safe_intent_value(value: Any, *, key: str | None = None, depth: int = 0) -> Any:
@@ -1196,4 +1221,5 @@ async def get_admin_motif(motif_id: str, session: SessionDep, admin: AdminUser) 
         tags=[safe for tag in row.tags if (safe := _safe_metadata(tag, limit=80))],
         anchor=_number_list(row.anchor, size=2),
         color_slots=[safe for slot in row.color_slots if (safe := _safe_token(slot))],
+        slot_parts=_safe_slot_parts(row.slot_parts, row.color_slots),
     )

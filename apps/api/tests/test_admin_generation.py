@@ -549,7 +549,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     }
 
 
-async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session, settings):
+async def test_motif_detail_returns_index_aligned_slot_metadata(client, db_session, settings):
     admin = await make_user(db_session, role="admin")
     headers = auth_headers(admin, settings)
     db_session.add_all(
@@ -559,6 +559,7 @@ async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session
                 symbol='<symbol id="motif-multislot"><path fill="s0"/><path fill="s1"/></symbol>',
                 color_slots=["s0", "s1"],
                 slot_colors=["#010000", "#0685b1"],
+                slot_parts=["  몸통  ", "파란\n자전거"],
                 bbox=[0, 0, 1, 1],
                 anchor=[0.5, 0.5],
                 subject="pelican",
@@ -575,6 +576,47 @@ async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session
                 scope="whole",
                 source="seed",
             ),
+            Motif(
+                id="motif-misaligned-parts",
+                symbol=(
+                    '<symbol id="motif-misaligned-parts">'
+                    '<path fill="s0"/><path fill="s1"/>'
+                    "</symbol>"
+                ),
+                color_slots=["s0", "s1"],
+                slot_parts=["몸통"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="misaligned",
+                scope="whole",
+                source="seed",
+            ),
+            Motif(
+                id="motif-unsafe-parts",
+                symbol=(
+                    '<symbol id="motif-unsafe-parts"><path fill="s0"/><path fill="s1"/></symbol>'
+                ),
+                color_slots=["s0", "s1"],
+                slot_parts=["몸통", "https://private.example.test/part"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="unsafe",
+                scope="whole",
+                source="seed",
+            ),
+            Motif(
+                id="motif-overlong-parts",
+                symbol=(
+                    '<symbol id="motif-overlong-parts"><path fill="s0"/><path fill="s1"/></symbol>'
+                ),
+                color_slots=["s0", "s1"],
+                slot_parts=["몸통", "가" * 41],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="overlong",
+                scope="whole",
+                source="seed",
+            ),
         ]
     )
     await db_session.commit()
@@ -582,10 +624,21 @@ async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session
     multi = await client.get("/admin/motifs/motif-multislot", headers=headers)
     assert multi.status_code == 200
     assert multi.json()["slot_colors"] == ["#010000", "#0685b1"]
+    assert multi.json()["slot_parts"] == ["몸통", "파란 자전거"]
 
     single = await client.get("/admin/motifs/motif-singleslot", headers=headers)
     assert single.status_code == 200
     assert single.json()["slot_colors"] is None
+    assert single.json()["slot_parts"] is None
+
+    for motif_id in (
+        "motif-misaligned-parts",
+        "motif-unsafe-parts",
+        "motif-overlong-parts",
+    ):
+        invalid = await client.get(f"/admin/motifs/{motif_id}", headers=headers)
+        assert invalid.status_code == 200
+        assert invalid.json()["slot_parts"] is None
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(

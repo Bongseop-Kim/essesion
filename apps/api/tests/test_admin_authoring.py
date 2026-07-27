@@ -354,6 +354,7 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     )
     assert stored_preview.status_code == 200, stored_preview.text
     assert stored_preview.json()["svg"].startswith("<svg")
+    assert preview.await_args is not None
     assert preview.await_args.args[0]["motif_ids"] == ["studio-flower"]
 
     denied_update = await client.patch(

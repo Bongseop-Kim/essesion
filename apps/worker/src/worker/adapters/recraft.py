@@ -19,6 +19,7 @@ import httpx
 import svg_safety as sanitize
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured, adapter_http_reason
+from worker.engine.palette import hex_to_rgb
 from worker.motifs import geometry as geom
 from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg
 
@@ -179,9 +180,10 @@ def _build_recraft_prompt(spec: dict, *, errors: list[str] | None = None) -> str
         "pattern, NOT repeated, NOT scattered or tiled, NOT a scene, collage or grid.",
         "NO background: do not draw any background rectangle, border or backdrop — the "
         "object sits on a transparent canvas.",
-        "The root <svg> MUST have a viewBox. Multiple solid colors are allowed; use flat "
-        "vector <path>/<g> shapes with solid fills. Do NOT use raster <image>, <text>, "
-        "gradients or filters.",
+        "The root <svg> MUST have a viewBox. Use a distinct flat solid color for each distinct "
+        "visual part, and do not reuse one color for unrelated parts. Use flat vector "
+        "<path>/<g> shapes only. Do NOT use raster <image>, <text>, gradients, textures, "
+        "photorealistic shading or filters.",
         f"subject: {spec.get('subject')}",
         f"scope: {spec.get('scope')}",
     ]
@@ -243,7 +245,13 @@ class RecraftHTTPClient:
             self._client = httpx.AsyncClient(timeout=self._timeout)
         return self._client
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(
+        self,
+        prompt: str,
+        *,
+        colors: tuple[str, ...] = (),
+        seed: int | None = None,
+    ) -> str:
         payload: dict = {
             "prompt": prompt,
             "model": self._model,
@@ -254,6 +262,10 @@ class RecraftHTTPClient:
             payload["style"] = self._style
         if self._size:
             payload["size"] = self._size
+        if colors:
+            payload["controls"] = {"colors": [{"rgb": list(hex_to_rgb(color))} for color in colors]}
+        if seed is not None:
+            payload["random_seed"] = seed
 
         def _extract(data: dict) -> str:
             encoded = data["data"][0]["b64_json"]
@@ -340,7 +352,14 @@ def build_recraft_client(settings) -> RecraftHTTPClient | None:
     )
 
 
-async def generate_motif(spec: dict, *, client, settings) -> NormalizedMotif:
+async def generate_motif(
+    spec: dict,
+    *,
+    client,
+    settings,
+    colors: tuple[str, ...] = (),
+    seed: int | None = None,
+) -> NormalizedMotif:
     """miss spec에 대해 Recraft로 모티프 생성 → 정규화 모티프 반환(등록은 호출자/store 소관).
 
     게이트 순수 함수 + 정규화를 매 시도 실행. 게이트/정규화 실패 시 1회 재프롬프트, 2회 실패
@@ -357,7 +376,11 @@ async def generate_motif(spec: dict, *, client, settings) -> NormalizedMotif:
     errors: list[str] | None = None
     for _ in range(2):  # 최초 시도 + 게이트 재생성 1회
         try:
-            raw = await client.generate(_build_recraft_prompt(spec, errors=errors))
+            raw = await client.generate(
+                _build_recraft_prompt(spec, errors=errors),
+                colors=colors,
+                seed=seed,
+            )
         except RecraftError:
             raise
         except Exception as exc:  # 생성기 실패는 업스트림(502급)

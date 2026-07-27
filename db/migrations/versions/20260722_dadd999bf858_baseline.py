@@ -105,6 +105,7 @@ def upgrade() -> None:
         ),
         sa.Column("slot_colors", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("slot_labels", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("slot_parts", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("ingested_user_id", sa.Uuid(), nullable=True),
         sa.Column("ingested_session_id", sa.Uuid(), nullable=True),
         sa.Column("bbox", postgresql.JSONB(astext_type=sa.Text()), nullable=False),

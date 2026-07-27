@@ -24,6 +24,7 @@ from worker.adapters import AdapterClientError
 from worker.adapters.embedding import EmbeddingError, embed_query
 from worker.adapters.recraft import RecraftError, generate_motif
 from worker.engine import determinism
+from worker.engine.palette import is_hex_color
 from worker.motifs import store
 from worker.motifs.labeler import label_slots
 from worker.motifs.store import (
@@ -125,7 +126,13 @@ class _BudgetedRecraftClient:
     client: object
     budget: MotifGenerationBudget
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(
+        self,
+        prompt: str,
+        *,
+        colors: tuple[str, ...] = (),
+        seed: int | None = None,
+    ) -> str:
         if not self.budget.reserve():
             raise RecraftError(
                 "request motif generation budget exhausted",
@@ -133,7 +140,11 @@ class _BudgetedRecraftClient:
                 operation="resolve_motif",
                 reason_code="motif_generation_budget_exhausted",
             )
-        return await self.client.generate(prompt)  # type: ignore[attr-defined]
+        return await self.client.generate(  # type: ignore[attr-defined]
+            prompt,
+            colors=colors,
+            seed=seed,
+        )
 
 
 def _provenance_uuid(provenance: dict | None, key: str) -> uuid.UUID | None:
@@ -363,6 +374,13 @@ async def prompt_catalog_candidates(
             "tags": list(match.meta.tags),
             "similarity": match.similarity,
             "match_type": match.match_type,
+            "slot_count": len(match.meta.color_slots),
+            **(
+                {"parts": list(match.meta.slot_parts)}
+                if match.meta.slot_parts is not None
+                and len(match.meta.slot_parts) == len(match.meta.color_slots)
+                else {}
+            ),
         }
         for index, match in enumerate(retrieval.matches, start=1)
     ]
@@ -413,6 +431,7 @@ async def resolve_spec(
     embedding_client,
     settings,
     seed: int,
+    colors: tuple[str, ...] = (),
     gemini_client=None,
     provenance: dict | None = None,
     generation_budget: MotifGenerationBudget | None = None,
@@ -452,7 +471,13 @@ async def resolve_spec(
     effective_recraft = recraft_client
     if recraft_client is not None and generation_budget is not None:
         effective_recraft = _BudgetedRecraftClient(recraft_client, generation_budget)
-    normalized = await generate_motif(authored_spec, client=effective_recraft, settings=settings)
+    normalized = await generate_motif(
+        authored_spec,
+        client=effective_recraft,
+        settings=settings,
+        colors=colors,
+        seed=seed,
+    )
     upserted = await store.upsert_motif(
         session,
         normalized,
@@ -464,13 +489,13 @@ async def resolve_spec(
         ingested_session_id=_provenance_uuid(provenance, "session_id"),
     )
     if upserted.inserted and len(normalized.color_slots) > 1 and normalized.slot_colors:
-        labels = await label_slots(
+        metadata = await label_slots(
             normalized.preview_svg,
             normalized.slot_colors,
             gemini_client=gemini_client,
             settings=settings,
         )
-        if labels is not None:
+        if metadata is not None:
             await store.upsert_motif(
                 session,
                 normalized,
@@ -478,7 +503,8 @@ async def resolve_spec(
                 embedding=retrieval.query_vec,
                 source="recraft",
                 variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
-                slot_labels=labels,
+                slot_labels=metadata.labels,
+                slot_parts=metadata.parts,
                 ingested_user_id=_provenance_uuid(provenance, "user_id"),
                 ingested_session_id=_provenance_uuid(provenance, "session_id"),
             )
@@ -559,6 +585,13 @@ async def resolve_motifs(
     request_budget = generation_budget or MotifGenerationBudget(
         settings.motif_generate_per_request_limit
     )
+    palette = intent.get("palette")
+    palette_slots = palette.get("slots") if isinstance(palette, dict) else None
+    colors = tuple(
+        slot["hex"]
+        for slot in palette_slots or ()
+        if isinstance(slot, dict) and isinstance(slot.get("hex"), str) and is_hex_color(slot["hex"])
+    )
     for spec in motif_specs:
         layer = layers_by_id.get(spec.get("layer_id"))
         if layer is None or layer.get("type") != "motif":
@@ -590,6 +623,7 @@ async def resolve_motifs(
                 embedding_client=embedding_client,
                 settings=settings,
                 seed=seed,
+                colors=colors,
                 gemini_client=gemini_client,
                 provenance=provenance,
                 generation_budget=request_budget,
