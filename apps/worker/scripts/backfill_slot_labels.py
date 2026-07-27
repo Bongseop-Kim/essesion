@@ -1,4 +1,4 @@
-"""공개 멀티슬롯 motif의 NULL semantic slot labels를 1회 백필한다.
+"""공개 멀티슬롯 motif의 NULL slot labels/parts를 백필한다.
 
 실행:
   uv run python apps/worker/scripts/backfill_slot_labels.py --confirm-live
@@ -28,19 +28,26 @@ def _parse_args() -> argparse.Namespace:
 async def backfill_slot_labels(session, client, settings) -> tuple[int, int]:  # noqa: ANN001
     """Return ``(eligible, updated)``; concurrent/repeated runs update NULL rows only."""
 
-    rows = await store.missing_slot_label_rows(session)
+    rows = await store.missing_slot_metadata_rows(session)
     updated = 0
     for row in rows:
         preview = stored_motif_preview_svg(row.id, row.symbol, row.slot_colors)
-        labels = await label_slots(
+        metadata = await label_slots(
             preview,
             row.slot_colors,
             gemini_client=client,
             settings=settings,
         )
-        if labels is None:
+        if metadata is None:
             continue
-        updated += int(await store.update_slot_labels_if_missing(session, row.id, labels))
+        updated += int(
+            await store.update_slot_metadata_if_missing(
+                session,
+                row.id,
+                slot_labels=metadata.labels,
+                slot_parts=metadata.parts,
+            )
+        )
         await session.commit()
     return len(rows), updated
 
@@ -65,4 +72,4 @@ if __name__ == "__main__":
     if not args.confirm_live:
         raise SystemExit("--confirm-live 없이는 외부 API 라벨 백필을 실행하지 않습니다.")
     eligible_count, updated_count = asyncio.run(_run())
-    print(f"eligible={eligible_count}; updated={updated_count} public motif slot labels")
+    print(f"eligible={eligible_count}; updated={updated_count} public motif slot metadata rows")

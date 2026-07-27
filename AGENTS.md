@@ -25,14 +25,126 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 
 ## 명령어
 
-- 서버 실행 전 반드시 이미 떠 있는지 확인할 것 — 사용자가 보통 store(3000)·api(8000)·worker(8001)·DB를 미리 띄워두고 작업한다. `lsof -i :<port>` 또는 curl로 확인 후, 없을 때만 실행.
-- JS: `pnpm lint`(Biome, 레포 전체) · `pnpm turbo build typecheck test` (pnpm workspace + catalogs)
-- Python: `uv sync --all-packages` 후 `uv run pytest` · `uv run ruff check .` · `uv run pyright`
-- store 로컬 실행: `pnpm --filter store dev`
-- admin 로컬 실행: `pnpm --filter admin dev`
-- 로컬 DB·스토리지: `docker compose up -d` (Postgres 17 + pgvector localhost:5432, fake-gcs-server localhost:4443) → `uv run alembic -c db/alembic.ini upgrade head` → `uv run python apps/api/scripts/seed.py` → Vertex ADC/GCP project가 준비된 환경에서 `uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live`
-- api 로컬 실행: `uv run uvicorn api.main:app --reload` (시크릿 없으면 Toss/Solapi는 DryRun, GCS는 `.env`의 `GCS_EMULATOR_HOST`로 fake-gcs-server 사용)
-- worker 로컬 실행: `uv run uvicorn worker.main:app --port 8001` (api의 `worker_base_url` 기본값과 일치, 로컬은 OIDC 없이 호출)
+> 서버 실행 전 반드시 이미 떠 있는지 확인할 것 — 사용자가 보통 store(3000)·api(8000)·worker(8001)·DB를 미리 띄워두고 작업한다. `lsof -i :<port>` 또는 curl로 확인 후, 없을 때만 실행.
+
+### 로컬 부트스트랩 (순서대로)
+
+Postgres 17+pgvector :5432, fake-gcs-server :4443
+
+```bash
+docker compose up -d
+```
+
+의존성 설치
+
+```bash
+uv sync --all-packages
+```
+
+마이그레이션 — 스키마 변경은 Alembic 경유만
+
+```bash
+uv run alembic -c db/alembic.ini upgrade head
+```
+
+계정·가격·admin_settings 시드
+
+```bash
+uv run python apps/api/scripts/seed.py
+```
+
+모티프 카탈로그 시드 — `seed.py`에 포함돼 있지 않으니 반드시 별도 실행
+
+```bash
+uv run python apps/worker/scripts/seed_motifs.py
+```
+
+오소링 예시 시드 — Vertex ADC/GCP project 필요
+
+```bash
+uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
+```
+
+모티프 벡터 검색 인덱스 — Vertex ADC/GCP project 필요
+
+```bash
+uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
+```
+
+시드는 전부 멱등. 로그인·가격·설정이 `missing_configuration`(503)이면 시드 미실행을 의심하고 다시 돌릴 것.
+
+설정 시드 확인
+
+```bash
+docker compose exec -T db psql -U essesion -d essesion -c "select key, value from admin_settings"
+```
+
+모티프 시드 확인
+
+```bash
+docker compose exec -T db psql -U essesion -d essesion -c "select source, count(*) from motifs group by source"
+```
+
+### 서버 실행
+
+store :3000
+
+```bash
+pnpm --filter store dev
+```
+
+admin
+
+```bash
+pnpm --filter admin dev
+```
+
+api :8000 — 시크릿 없으면 Toss/Solapi는 DryRun, GCS는 `.env`의 `GCS_EMULATOR_HOST`로 fake-gcs-server 사용
+
+```bash
+uv run uvicorn api.main:app --reload
+```
+
+worker :8001 — api의 `worker_base_url` 기본값과 일치, 로컬은 OIDC 없이 호출
+
+```bash
+uv run uvicorn worker.main:app --port 8001
+```
+
+### 검사·빌드
+
+JS 린트 (Biome, 레포 전체)
+
+```bash
+pnpm lint
+```
+
+JS 빌드·타입체크·테스트
+
+```bash
+pnpm turbo build typecheck test
+```
+
+Python 테스트
+
+```bash
+uv run pytest
+```
+
+Python 린트
+
+```bash
+uv run ruff check .
+```
+
+Python 타입체크
+
+```bash
+uv run pyright
+```
+
+### 그 외
+
 - **api 스펙 변경 시**: `pnpm codegen` 후 생성물(packages/api-client)을 같은 커밋에 — CI codegen-drift가 검사
 - 배포: main 푸시 → `.github/workflows/deploy.yml`이 wrangler(프론트)·Cloud Run(api·worker) 배포. 선행 조건과 인프라 부트스트랩은 `infra/README.md`
 

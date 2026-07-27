@@ -10,8 +10,10 @@ import {
 import {
   ActionButton,
   AlertDialog,
+  Box,
   Callout,
   ContentPlaceholder,
+  Grid,
   HStack,
   snackbar,
   Tag,
@@ -24,11 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import {
-  formatDateTime,
-  formatIdentifier,
-  getErrorMessage,
-} from "../../shared/lib/format";
+import { formatDateTime, getErrorMessage } from "../../shared/lib/format";
 import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
@@ -38,7 +36,22 @@ import { TechnicalDetails } from "../../shared/ui/technical-details";
 import {
   AuthoringExampleForm,
   type AuthoringExampleFormValue,
+  planJsonText,
 } from "./example-studio";
+import { MotifPicker } from "./motif-picker";
+import { PlanPreviewCard } from "./plan-preview";
+
+/** 플랜이 참조하는 input 모티프 수 — 시드 예시는 motif_ids 없이 이 자리만 갖는다 */
+function planInputMotifCount(plan: Record<string, unknown>): number {
+  const motifs = plan.motifs;
+  if (!Array.isArray(motifs)) return 0;
+  return motifs.filter(
+    (motif) =>
+      typeof motif === "object" &&
+      motif !== null &&
+      (motif as { source?: unknown }).source === "input",
+  ).length;
+}
 
 function ActivationAction({
   example,
@@ -47,6 +60,7 @@ function ActivationAction({
   example: AuthoringExampleDetailOut;
   onUpdated: (value: AuthoringExampleDetailOut) => void;
 }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { state } = useAdminSession();
   const canEdit =
@@ -54,31 +68,36 @@ function ActivationAction({
   const targetActive = !example.active;
   const activationLabel =
     example.active_updated_at === null ? "활성화" : "재활성화";
-  const [editing, setEditing] = useState(false);
-  const [reason, setReason] = useState("");
-  const [operationId, setOperationId] = useState(() => crypto.randomUUID());
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const mutation = useMutation({
     ...setAuthoringExampleActivationMutation(),
     onSuccess: async (value) => {
       snackbar(
         value.active
-          ? "RAG 시범을 활성화했습니다."
-          : "RAG 시범을 즉시 제외했습니다.",
+          ? "few-shot 시범을 활성화했습니다."
+          : "few-shot 시범을 즉시 제외했습니다.",
       );
       onUpdated(value);
-      setEditing(false);
-      setReason("");
-      setOperationId(crypto.randomUUID());
       await queryClient.invalidateQueries({
         queryKey: listAuthoringExamplesQueryKey(),
       });
     },
   });
+  const deleteMutation = useMutation({
+    ...deleteAuthoringExampleMutation(),
+    onSuccess: async () => {
+      snackbar("few-shot 시범을 삭제했습니다.");
+      await queryClient.invalidateQueries({
+        queryKey: listAuthoringExamplesQueryKey(),
+      });
+      navigate("/few-shot-examples");
+    },
+  });
 
   if (!canEdit) {
     return (
-      <AdminCard title="RAG 활성 상태">
+      <AdminCard title="few-shot 주입 상태">
         <Text textStyle="bodySm" color="fg.neutral-muted">
           manager 역할은 상태와 이력을 조회할 수 있지만 활성 상태는 변경할 수
           없습니다.
@@ -87,22 +106,9 @@ function ActivationAction({
     );
   }
 
-  const submit = () => {
-    if (reason.trim().length < 3) return;
-    mutation.mutate({
-      path: { example_id: example.id },
-      body: {
-        operation_id: operationId,
-        active: targetActive,
-        reason: reason.trim(),
-        expected_updated_at: example.updated_at,
-      },
-    });
-  };
-
   return (
     <AdminCard
-      title="RAG 활성 상태"
+      title="few-shot 주입 상태"
       description={
         example.active
           ? "비활성화하면 다음 검색부터 즉시 제외됩니다."
@@ -117,60 +123,26 @@ function ActivationAction({
             description="새 생성 요청의 few-shot 검색에서 이 시범이 바로 제외됩니다."
           />
         )}
-        {!editing ? (
-          <HStack>
+        <HStack gap="x2">
+          <ActionButton
+            variant={example.active ? "criticalSolid" : "brandSolid"}
+            loading={mutation.isPending}
+            disabled={deleteMutation.isPending}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {targetActive ? `시범 ${activationLabel}` : "시범 비활성화"}
+          </ActionButton>
+          {!example.active && (
             <ActionButton
-              variant={example.active ? "criticalSolid" : "brandSolid"}
-              onClick={() => {
-                mutation.reset();
-                setEditing(true);
-                setReason("");
-                setOperationId(crypto.randomUUID());
-              }}
-            >
-              {targetActive ? `시범 ${activationLabel}` : "시범 비활성화"}
-            </ActionButton>
-          </HStack>
-        ) : (
-          <VStack gap="x3" alignItems="stretch">
-            <TextAreaField
-              label={targetActive ? `${activationLabel} 사유` : "비활성화 사유"}
-              required
-              maxLength={500}
-              value={reason}
+              variant="criticalSolid"
+              loading={deleteMutation.isPending}
               disabled={mutation.isPending}
-              errorMessage={
-                reason !== "" && reason.trim().length < 3
-                  ? "3자 이상 입력해 주세요."
-                  : undefined
-              }
-              onChange={(event) => {
-                if (mutation.isError) {
-                  mutation.reset();
-                  setOperationId(crypto.randomUUID());
-                }
-                setReason(event.currentTarget.value);
-              }}
-            />
-            <HStack gap="x2">
-              <ActionButton
-                variant={targetActive ? "brandSolid" : "criticalSolid"}
-                disabled={reason.trim().length < 3}
-                loading={mutation.isPending}
-                onClick={() => setConfirmOpen(true)}
-              >
-                변경 검토
-              </ActionButton>
-              <ActionButton
-                variant="ghost"
-                disabled={mutation.isPending}
-                onClick={() => setEditing(false)}
-              >
-                취소
-              </ActionButton>
-            </HStack>
-          </VStack>
-        )}
+              onClick={() => setDeleteOpen(true)}
+            >
+              시범 영구 삭제
+            </ActionButton>
+          )}
+        </HStack>
         {mutation.isError && (
           <Callout
             role="alert"
@@ -179,6 +151,17 @@ function ActivationAction({
             description={getErrorMessage(
               mutation.error,
               "최신 상태와 중복 검사 결과를 확인한 뒤 다시 시도해 주세요.",
+            )}
+          />
+        )}
+        {deleteMutation.isError && (
+          <Callout
+            role="alert"
+            tone="critical"
+            title="시범을 삭제하지 못했습니다"
+            description={getErrorMessage(
+              deleteMutation.error,
+              "최신 상태를 확인한 뒤 다시 시도해 주세요.",
             )}
           />
         )}
@@ -193,13 +176,37 @@ function ActivationAction({
         }
         description={
           targetActive
-            ? "검증을 통과하면 다음 검색부터 즉시 RAG 대상이 됩니다."
-            : "다음 RAG 검색부터 즉시 제외되며 기록은 유지됩니다."
+            ? "검증을 통과하면 다음 검색부터 즉시 few-shot 대상이 됩니다."
+            : "다음 few-shot 검색부터 즉시 제외되며 기록은 유지됩니다."
         }
         primaryActionProps={{
           children: targetActive ? activationLabel : "비활성화",
           variant: targetActive ? "brandSolid" : "criticalSolid",
-          onClick: submit,
+          onClick: () =>
+            mutation.mutate({
+              path: { example_id: example.id },
+              body: {
+                operation_id: crypto.randomUUID(),
+                active: targetActive,
+                expected_updated_at: example.updated_at,
+              },
+            }),
+        }}
+        secondaryActionProps={{ children: "취소" }}
+      />
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="이 시범을 영구 삭제할까요?"
+        description="영구 삭제되며 되돌릴 수 없습니다."
+        primaryActionProps={{
+          children: "영구 삭제",
+          variant: "criticalSolid",
+          onClick: () =>
+            deleteMutation.mutate({
+              path: { example_id: example.id },
+              body: { operation_id: crypto.randomUUID() },
+            }),
         }}
         secondaryActionProps={{ children: "취소" }}
       />
@@ -207,174 +214,139 @@ function ActivationAction({
   );
 }
 
-function AuthoredExampleActions({
+/** 저장된 Plan JSON과 프리뷰를 나란히 보여주고, admin은 같은 자리에서 편집한다. */
+function PlanSection({
   example,
+  canEdit,
   onUpdated,
 }: {
   example: AuthoringExampleDetailOut;
+  /** admin 역할일 때만 편집 가능 */
+  canEdit: boolean;
   onUpdated: (value: AuthoringExampleDetailOut) => void;
 }) {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [updateReason, setUpdateReason] = useState("");
-  const [updateOperationId, setUpdateOperationId] = useState(() =>
-    crypto.randomUUID(),
-  );
-  const [deleteReason, setDeleteReason] = useState("");
-  const [deleteOperationId, setDeleteOperationId] = useState(() =>
-    crypto.randomUUID(),
-  );
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const updateMutation = useMutation({
+  const [editing, setEditing] = useState(false);
+  /* input 모티프 자리만 있는 시범(시드 등)은 프리뷰 전용으로 모티프를 골라 볼 수 있다.
+     저장하지 않는다 — 실제 생성에서는 사용자가 고른 모티프가 이 자리에 들어간다. */
+  const [previewMotifIds, setPreviewMotifIds] = useState<string[]>([]);
+  const [previewMotifLabels, setPreviewMotifLabels] = useState<
+    Record<string, string>
+  >({});
+  const inputCount = planInputMotifCount(example.plan);
+  const previewPickerVisible = example.motif_ids.length === 0 && inputCount > 0;
+  /* 서버는 motif_ids를 주면 모든 input_index를 정확히 커버하길 요구한다 —
+     선택이 미완이면 보내지 않고 placeholder 폴백으로 그린다 */
+  const effectiveMotifIds =
+    previewPickerVisible && previewMotifIds.length === inputCount
+      ? previewMotifIds
+      : example.motif_ids;
+  const mutation = useMutation({
     ...updateAuthoringExampleMutation(),
     onSuccess: async (value) => {
-      snackbar("RAG 시범과 임베딩을 갱신했습니다.");
+      snackbar("few-shot 시범과 임베딩을 갱신했습니다.");
       onUpdated(value);
-      setUpdateReason("");
-      setUpdateOperationId(crypto.randomUUID());
+      setEditing(false);
       await queryClient.invalidateQueries({
         queryKey: listAuthoringExamplesQueryKey(),
       });
     },
   });
-  const deleteMutation = useMutation({
-    ...deleteAuthoringExampleMutation(),
-    onSuccess: async () => {
-      snackbar("직접 작성한 RAG 시범을 삭제했습니다.");
-      await queryClient.invalidateQueries({
-        queryKey: listAuthoringExamplesQueryKey(),
-      });
-      navigate("/authoring-examples?tab=examples");
-    },
-  });
-  const update = (value: AuthoringExampleFormValue) => {
-    if (updateReason.trim().length < 3) return;
-    updateMutation.mutate({
-      path: { example_id: example.id },
-      body: {
-        operation_id: updateOperationId,
-        reason: updateReason.trim(),
-        expected_updated_at: example.updated_at,
-        retrieval_text: value.retrievalText,
-        plan: value.plan,
-        motif_ids: value.motifIds,
-      },
-    });
-  };
+
+  if (!editing) {
+    return (
+      <Grid columns={{ base: 1, lg: 2 }} gap="x5" alignItems="start">
+        <AdminCard
+          title="Plan JSON"
+          description="저장된 DesignPlanV3 원문입니다."
+          action={
+            canEdit && (
+              <ActionButton
+                variant="neutralWeak"
+                onClick={() => {
+                  mutation.reset();
+                  setEditing(true);
+                }}
+              >
+                수정
+              </ActionButton>
+            )
+          }
+        >
+          <TextAreaField
+            label="Plan (DesignPlanV3)"
+            readOnly
+            rows={24}
+            spellCheck={false}
+            value={planJsonText(example.plan)}
+          />
+        </AdminCard>
+        {/* 스티키 기준선은 sticky Header(md+ 64px = x16) 아래 — 안 그러면 헤더에 가린다 */}
+        <Box
+          position={{ base: "static", lg: "sticky" }}
+          top="calc(var(--spacing-x16) + var(--spacing-x4))"
+        >
+          <PlanPreviewCard
+            plan={example.plan}
+            motifIds={effectiveMotifIds}
+            footer={
+              previewPickerVisible
+                ? () => (
+                    <VStack gap="x2" alignItems="stretch">
+                      <MotifPicker
+                        value={previewMotifIds}
+                        labels={previewMotifLabels}
+                        max={inputCount}
+                        label="프리뷰 모티프"
+                        description="실제 생성에서는 사용자가 고른 모티프가 이 자리에 들어갑니다. 여기서 고른 모티프는 프리뷰에만 적용되고 저장되지 않습니다."
+                        onChange={(ids, labels) => {
+                          setPreviewMotifIds(ids);
+                          setPreviewMotifLabels(labels);
+                        }}
+                      />
+                      {previewMotifIds.length > 0 &&
+                        previewMotifIds.length < inputCount && (
+                          <Text textStyle="caption" color="fg.neutral-muted">
+                            모티프 {inputCount}개를 모두 고르면 프리뷰에
+                            적용됩니다.
+                          </Text>
+                        )}
+                    </VStack>
+                  )
+                : undefined
+            }
+          />
+        </Box>
+      </Grid>
+    );
+  }
 
   return (
-    <VStack gap="x5" alignItems="stretch">
-      <AdminCard
-        title="직접 작성 시범 편집"
-        description="Plan이나 intent가 바뀌면 현재 모델로 임베딩과 구조 메타데이터를 다시 계산합니다."
-      >
-        <VStack gap="x4" alignItems="stretch">
-          <TextAreaField
-            label="변경 사유"
-            required
-            maxLength={500}
-            value={updateReason}
-            disabled={updateMutation.isPending}
-            errorMessage={
-              updateReason !== "" && updateReason.trim().length < 3
-                ? "3자 이상 입력해 주세요."
-                : undefined
-            }
-            onChange={(event) => {
-              if (updateMutation.isError) {
-                updateMutation.reset();
-                setUpdateOperationId(crypto.randomUUID());
-              }
-              setUpdateReason(event.currentTarget.value);
-            }}
-          />
-          <AuthoringExampleForm
-            key={example.updated_at}
-            initialRetrievalText={example.retrieval_text}
-            initialPlan={example.plan}
-            initialMotifIds={example.motif_ids}
-            submitLabel="시범 변경 저장"
-            submitting={updateMutation.isPending}
-            submitDisabled={updateReason.trim().length < 3}
-            submitError={
-              updateMutation.isError ? updateMutation.error : undefined
-            }
-            onSubmit={update}
-          />
-        </VStack>
-      </AdminCard>
-      <AdminCard
-        title="직접 작성 시범 삭제"
-        description="authored 시범만 영구 삭제할 수 있으며, 활성 시범은 먼저 비활성화해야 합니다."
-      >
-        <VStack gap="x3" alignItems="stretch">
-          {example.active && (
-            <Callout
-              tone="warning"
-              title="활성 시범은 삭제할 수 없습니다"
-              description="위에서 비활성화한 뒤 영구 삭제해 주세요."
-            />
-          )}
-          <TextAreaField
-            label="삭제 사유"
-            required
-            maxLength={500}
-            value={deleteReason}
-            disabled={deleteMutation.isPending || example.active}
-            errorMessage={
-              deleteReason !== "" && deleteReason.trim().length < 3
-                ? "3자 이상 입력해 주세요."
-                : undefined
-            }
-            onChange={(event) => {
-              if (deleteMutation.isError) {
-                deleteMutation.reset();
-                setDeleteOperationId(crypto.randomUUID());
-              }
-              setDeleteReason(event.currentTarget.value);
-            }}
-          />
-          <ActionButton
-            variant="criticalSolid"
-            loading={deleteMutation.isPending}
-            disabled={example.active || deleteReason.trim().length < 3}
-            onClick={() => setDeleteOpen(true)}
-          >
-            시범 영구 삭제
-          </ActionButton>
-        </VStack>
-        {deleteMutation.isError && (
-          <Callout
-            role="alert"
-            tone="critical"
-            title="시범을 삭제하지 못했습니다"
-            description={getErrorMessage(
-              deleteMutation.error,
-              "최신 상태를 확인한 뒤 다시 시도해 주세요.",
-            )}
-          />
-        )}
-      </AdminCard>
-      <AlertDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        title="이 직접 작성 시범을 영구 삭제할까요?"
-        description="비활성 시범과 감사 사유를 남기고 삭제하며 되돌릴 수 없습니다."
-        primaryActionProps={{
-          children: "영구 삭제",
-          variant: "criticalSolid",
-          onClick: () =>
-            deleteMutation.mutate({
-              path: { example_id: example.id },
-              body: {
-                operation_id: deleteOperationId,
-                reason: deleteReason.trim(),
-              },
-            }),
-        }}
-        secondaryActionProps={{ children: "취소" }}
-      />
-    </VStack>
+    <AuthoringExampleForm
+      key={example.updated_at}
+      initialRetrievalText={example.retrieval_text}
+      initialPlan={example.plan}
+      initialMotifIds={example.motif_ids}
+      submitLabel="시범 변경 저장"
+      submitting={mutation.isPending}
+      submitError={mutation.isError ? mutation.error : undefined}
+      onSubmit={(value: AuthoringExampleFormValue) => {
+        mutation.mutate({
+          path: { example_id: example.id },
+          body: {
+            operation_id: crypto.randomUUID(),
+            expected_updated_at: example.updated_at,
+            retrieval_text: value.retrievalText,
+            plan: value.plan,
+            motif_ids: value.motifIds,
+          },
+        });
+      }}
+      onCancel={() => {
+        mutation.reset();
+        setEditing(false);
+      }}
+    />
   );
 }
 
@@ -393,19 +365,19 @@ export function AuthoringExampleDetailPage() {
     return (
       <VStack gap="x6" alignItems="stretch" aria-busy="true">
         <RouteHeading
-          title="RAG 시범 상세"
-          description="RAG 시범의 계약과 활성 상태를 불러오고 있습니다."
+          title="few-shot 시범 상세"
+          description="few-shot 시범의 계약과 활성 상태를 불러오고 있습니다."
         />
-        <ContentPlaceholder title="RAG 시범을 불러오고 있습니다" />
+        <ContentPlaceholder title="few-shot 시범을 불러오고 있습니다" />
       </VStack>
     );
   }
   if (query.isError || query.data === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
-        <RouteHeading title="RAG 시범 상세" />
+        <RouteHeading title="few-shot 시범 상세" />
         <ContentPlaceholder
-          title="RAG 시범을 불러오지 못했습니다"
+          title="few-shot 시범을 불러오지 못했습니다"
           action={
             <ActionButton onClick={() => void query.refetch()}>
               다시 시도
@@ -417,6 +389,8 @@ export function AuthoringExampleDetailPage() {
   }
 
   const example = query.data;
+  const canEdit =
+    state.status === "authenticated" && state.session.role === "admin";
   const updateExample = (value: AuthoringExampleDetailOut) => {
     queryClient.setQueryData(
       getAuthoringExampleQueryKey(requestOptions),
@@ -428,13 +402,13 @@ export function AuthoringExampleDetailPage() {
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
           title={example.example_id}
-          description={`RAG 시범 ID: ${example.id}`}
+          description={`few-shot 시범 ID: ${example.id}`}
         />
         <HStack gap="x2">
           <StatusBadge status={example.active ? "active" : "inactive"} />
           <ActionButton
             variant="ghost"
-            onClick={() => navigate("/authoring-examples?tab=examples")}
+            onClick={() => navigate("/few-shot-examples")}
           >
             목록으로
           </ActionButton>
@@ -442,12 +416,6 @@ export function AuthoringExampleDetailPage() {
       </HStack>
 
       <ActivationAction example={example} onUpdated={updateExample} />
-
-      {example.source === "authored" &&
-        state.status === "authenticated" &&
-        state.session.role === "admin" && (
-          <AuthoredExampleActions example={example} onUpdated={updateExample} />
-        )}
 
       <AdminCard title="검색 intent">
         <VStack gap="x4" alignItems="stretch">
@@ -468,6 +436,12 @@ export function AuthoringExampleDetailPage() {
           )}
         </VStack>
       </AdminCard>
+
+      <PlanSection
+        example={example}
+        canEdit={canEdit}
+        onUpdated={updateExample}
+      />
 
       <AdminCard title="검증·활성 정보">
         <DetailList
@@ -497,10 +471,6 @@ export function AuthoringExampleDetailPage() {
                 ? formatDateTime(example.active_updated_at)
                 : "-",
             },
-            {
-              label: "활성 변경 사유",
-              value: formatIdentifier(example.active_reason),
-            },
             { label: "등록 시각", value: formatDateTime(example.created_at) },
             { label: "수정 시각", value: formatDateTime(example.updated_at) },
           ]}
@@ -508,11 +478,11 @@ export function AuthoringExampleDetailPage() {
       </AdminCard>
 
       <TechnicalDetails
-        title="Plan·RAG 기술 정보"
+        title="few-shot 기술 정보"
         json={{
-          plan: example.plan,
           structural_fingerprint: example.structural_fingerprint,
           source_digest: example.source_digest,
+          motif_ids: example.motif_ids,
         }}
       />
     </VStack>

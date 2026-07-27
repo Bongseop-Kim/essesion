@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from worker.authoring.compiler import AuthoredDesign, PlanCompileError, compile_design_plan_v3
 from worker.authoring.schema import DesignPlanV3
 from worker.motifs.registry import MotifCatalog
-from worker.motifs.store import get_motifs
+from worker.motifs.store import all_motif_ids, get_motifs
 
 
 @dataclass(frozen=True)
@@ -38,12 +38,27 @@ async def prepare_authoring_preview(
     if motif_ids and any(source.source != "input" for source in plan.motifs):
         raise PlanCompileError("selected motif IDs cannot be combined with other motif sources")
 
+    # 시드 예시처럼 motif_ids 없이 input 모티프를 참조하는 플랜은 카탈로그
+    # 자리 표시 모티프로 치환해 레이아웃이 보이게 한다 (ORDER BY id — 결정적).
+    needs_placeholder = any(
+        source.source == "input" and source.input_index > len(motif_ids) for source in plan.motifs
+    )
+    placeholder_ids = await all_motif_ids(session) if needs_placeholder else []
+    placeholder_cursor = 0
+
     requested_ids: dict[int, str] = {}
     warnings: list[str] = []
     for index, source in enumerate(plan.motifs):
         if source.source == "input":
             if source.input_index <= len(motif_ids):
                 requested_ids[index] = motif_ids[source.input_index - 1]
+            elif placeholder_ids:
+                requested_ids[index] = placeholder_ids[placeholder_cursor % len(placeholder_ids)]
+                placeholder_cursor += 1
+                warnings.append(
+                    f"motif input {source.input_index} was not selected;"
+                    " a placeholder catalog motif is shown"
+                )
             else:
                 warnings.append(
                     f"motif input {source.input_index} was not selected and its layers were omitted"

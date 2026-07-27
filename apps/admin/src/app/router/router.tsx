@@ -228,25 +228,16 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
-    path: "generation-logs",
+    path: "seamless-logs",
     lazy: async () => {
-      const { GenerationOperationsPage } = await import(
-        "../../pages/generation/list"
+      const { SeamlessLogsPage } = await import(
+        "../../pages/generation/seamless-list"
       );
-      return { Component: GenerationOperationsPage };
+      return { Component: SeamlessLogsPage };
     },
   },
   {
-    path: "generation-logs/jobs/:jobId",
-    lazy: async () => {
-      const { GenerationJobDetailPage } = await import(
-        "../../pages/generation/job-detail"
-      );
-      return { Component: GenerationJobDetailPage };
-    },
-  },
-  {
-    path: "generation-logs/seamless/:logId",
+    path: "seamless-logs/:logId",
     lazy: async () => {
       const { SeamlessLogDetailPage } = await import(
         "../../pages/generation/seamless-detail"
@@ -255,16 +246,34 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
-    path: "authoring-examples",
+    path: "generation-jobs",
     lazy: async () => {
-      const { AuthoringExamplesPage } = await import(
-        "../../pages/authoring/list"
+      const { GenerationJobsPage } = await import(
+        "../../pages/generation/jobs-list"
       );
-      return { Component: AuthoringExamplesPage };
+      return { Component: GenerationJobsPage };
     },
   },
   {
-    path: "authoring-examples/candidates/:candidateId",
+    path: "generation-jobs/:jobId",
+    lazy: async () => {
+      const { GenerationJobDetailPage } = await import(
+        "../../pages/generation/job-detail"
+      );
+      return { Component: GenerationJobDetailPage };
+    },
+  },
+  {
+    path: "few-shot-candidates",
+    lazy: async () => {
+      const { FewShotCandidatesPage } = await import(
+        "../../pages/authoring/candidates-list"
+      );
+      return { Component: FewShotCandidatesPage };
+    },
+  },
+  {
+    path: "few-shot-candidates/:candidateId",
     lazy: async () => {
       const { AuthoringCandidateDetailPage } = await import(
         "../../pages/authoring/candidate-detail"
@@ -273,7 +282,25 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
-    path: "authoring-examples/active/:exampleId",
+    path: "few-shot-examples",
+    lazy: async () => {
+      const { FewShotExamplesPage } = await import(
+        "../../pages/authoring/examples-list"
+      );
+      return { Component: FewShotExamplesPage };
+    },
+  },
+  {
+    path: "few-shot-examples/new",
+    lazy: async () => {
+      const { FewShotExampleNewPage } = await import(
+        "../../pages/authoring/example-new"
+      );
+      return { Component: FewShotExampleNewPage };
+    },
+  },
+  {
+    path: "few-shot-examples/:exampleId",
     lazy: async () => {
       const { AuthoringExampleDetailPage } = await import(
         "../../pages/authoring/example-detail"

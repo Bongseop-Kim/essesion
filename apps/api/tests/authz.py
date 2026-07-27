@@ -326,7 +326,6 @@ ADMIN_CASES: list[AdminCase] = [
     ),
     AdminCase("admin_claims_list", "GET", "/admin/claims"),
     AdminCase("admin_quotes_list", "GET", "/admin/quotes"),
-    AdminCase("admin_stats_today", "GET", "/admin/stats/today?stat_date=2026-01-01"),
     AdminCase("admin_capabilities", "GET", "/admin/capabilities"),
     AdminCase("admin_inquiries_list", "GET", "/admin/inquiries"),
     AdminCase("admin_reviews_list", "GET", "/admin/reviews"),

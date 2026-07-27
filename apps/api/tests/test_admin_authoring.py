@@ -171,7 +171,6 @@ async def test_candidate_review_activation_and_active_only_duplicate_policy(
         json={
             "operation_id": str(uuid.uuid4()),
             "active": False,
-            "reason": "품질 이슈로 즉시 제외",
             "expected_updated_at": example_detail.json()["updated_at"],
         },
     )
@@ -197,7 +196,6 @@ async def test_candidate_review_activation_and_active_only_duplicate_policy(
         json={
             "operation_id": str(uuid.uuid4()),
             "active": True,
-            "reason": "다시 검색에 사용",
             "expected_updated_at": deactivated.json()["updated_at"],
         },
     )
@@ -350,12 +348,20 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     assert listed.status_code == 200
     assert [item["id"] for item in listed.json()["items"]] == [authored["id"]]
 
+    stored_preview = await client.get(
+        f"/admin/authoring/examples/{authored['id']}/preview",
+        headers=manager_headers,
+    )
+    assert stored_preview.status_code == 200, stored_preview.text
+    assert stored_preview.json()["svg"].startswith("<svg")
+    assert preview.await_args is not None
+    assert preview.await_args.args[0]["motif_ids"] == ["studio-flower"]
+
     denied_update = await client.patch(
         f"/admin/authoring/examples/{authored['id']}",
         headers=manager_headers,
         json={
             "operation_id": str(uuid.uuid4()),
-            "reason": "권한 없는 변경 시도",
             "expected_updated_at": authored["updated_at"],
             "retrieval_text": "매니저가 바꾸려는 시범 패턴",
         },
@@ -366,7 +372,6 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         headers=admin_headers,
         json={
             "operation_id": str(uuid.uuid4()),
-            "reason": "오래된 화면 변경 시도",
             "expected_updated_at": "2000-01-01T00:00:00Z",
             "retrieval_text": "오래된 화면에서 바꾸려는 시범 패턴",
         },
@@ -377,7 +382,6 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     update_operation = uuid.uuid4()
     update_payload = {
         "operation_id": str(update_operation),
-        "reason": "검색 intent 문구 개선",
         "expected_updated_at": authored["updated_at"],
         "retrieval_text": "수정된 차분한 격자 넥타이 시범",
         "plan": plan,
@@ -405,7 +409,7 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     )
     assert update_log is not None
     assert update_log.actor_id == admin_id
-    assert update_log.reason == "검색 intent 문구 개선"
+    assert update_log.reason == ""
     assert update_log.before_data["state"]["plan"] == plan
     assert update_log.before_data["state"]["structural_fingerprint"] == (
         "authored-solid-fingerprint"
@@ -421,7 +425,6 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         json={
             "operation_id": str(uuid.uuid4()),
             "active": True,
-            "reason": "프리뷰와 구조 확인 완료",
             "expected_updated_at": authored["updated_at"],
         },
     )
@@ -433,7 +436,6 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         headers=admin_headers,
         json={
             "operation_id": str(active_update_operation),
-            "reason": "활성 시범 검색 문구 보정",
             "expected_updated_at": activated.json()["updated_at"],
             "retrieval_text": "활성 상태에서 보정한 격자 넥타이 시범",
         },
@@ -463,10 +465,7 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         "DELETE",
         f"/admin/authoring/examples/{authored['id']}",
         headers=admin_headers,
-        json={
-            "operation_id": str(uuid.uuid4()),
-            "reason": "활성 행 삭제 거부 확인",
-        },
+        json={"operation_id": str(uuid.uuid4())},
     )
     assert active_delete.status_code == 409
     assert active_delete.json()["code"] == "authoring_example_active"
@@ -490,28 +489,6 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     db_session.add(bootstrap)
     await db_session.commit()
     await db_session.refresh(bootstrap)
-    denied_bootstrap_edit = await client.patch(
-        f"/admin/authoring/examples/{bootstrap.id}",
-        headers=admin_headers,
-        json={
-            "operation_id": str(uuid.uuid4()),
-            "reason": "초기 시범 편집 거부 확인",
-            "expected_updated_at": bootstrap.updated_at.isoformat(),
-            "retrieval_text": "초기 시범을 직접 수정하려는 내용",
-        },
-    )
-    assert denied_bootstrap_edit.status_code == 403
-    denied_bootstrap_delete = await client.request(
-        "DELETE",
-        f"/admin/authoring/examples/{bootstrap.id}",
-        headers=admin_headers,
-        json={
-            "operation_id": str(uuid.uuid4()),
-            "reason": "초기 시범 삭제 거부 확인",
-        },
-    )
-    assert denied_bootstrap_delete.status_code == 409
-    assert denied_bootstrap_delete.json()["code"] == "authoring_example_delete_forbidden"
 
     bootstrap.embedding_model = "retired-embedding-model"
     await db_session.commit()
@@ -522,7 +499,6 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         json={
             "operation_id": str(uuid.uuid4()),
             "active": True,
-            "reason": "오래된 임베딩 모델 활성화 거부 확인",
             "expected_updated_at": bootstrap.updated_at.isoformat(),
         },
     )
@@ -535,17 +511,14 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         json={
             "operation_id": str(uuid.uuid4()),
             "active": False,
-            "reason": "영구 삭제 전 검색 풀 제외",
             "expected_updated_at": active_updated.json()["updated_at"],
         },
     )
     assert deactivated.status_code == 200, deactivated.text
+    assert deactivated.json()["active_reason"] is None
 
     delete_operation = uuid.uuid4()
-    delete_payload = {
-        "operation_id": str(delete_operation),
-        "reason": "잘못 작성한 시범 영구 삭제",
-    }
+    delete_payload = {"operation_id": str(delete_operation)}
     deleted = await client.request(
         "DELETE",
         f"/admin/authoring/examples/{authored['id']}",
@@ -566,7 +539,7 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     )
     assert delete_log is not None
     assert delete_log.actor_id == admin_id
-    assert delete_log.reason == "잘못 작성한 시범 영구 삭제"
+    assert delete_log.reason == ""
     assert delete_log.before_data["state"]["plan"] == plan
     assert delete_log.before_data["state"]["structural_fingerprint"] == (
         "authored-solid-fingerprint"
@@ -578,3 +551,27 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         headers=manager_headers,
     )
     assert missing.status_code == 404
+
+    # bootstrap 시범도 수정·삭제 가능 (활성 중복이 없는 상태에서)
+    await db_session.refresh(bootstrap)
+    bootstrap_updated = await client.patch(
+        f"/admin/authoring/examples/{bootstrap.id}",
+        headers=admin_headers,
+        json={
+            "operation_id": str(uuid.uuid4()),
+            "expected_updated_at": bootstrap.updated_at.isoformat(),
+            "retrieval_text": "초기 시범을 직접 수정한 내용",
+        },
+    )
+    assert bootstrap_updated.status_code == 200, bootstrap_updated.text
+    assert bootstrap_updated.json()["source"] == "bootstrap"
+    assert bootstrap_updated.json()["retrieval_text"] == "초기 시범을 직접 수정한 내용"
+    assert bootstrap_updated.json()["embedding_model"] == MODEL
+
+    bootstrap_deleted = await client.request(
+        "DELETE",
+        f"/admin/authoring/examples/{bootstrap.id}",
+        headers=admin_headers,
+        json={"operation_id": str(uuid.uuid4())},
+    )
+    assert bootstrap_deleted.status_code == 204

@@ -5,8 +5,9 @@ upsert 멱등 · get_motifs JSONB→tuple 변환 · global nearest 안정 정렬
 """
 
 import pytest
+from db.models.design import UserMotif
 from db.models.seamless import Motif
-from sqlalchemy import select
+from sqlalchemy import select, text
 from worker.motifs import store
 from worker.motifs.embeddings import index_missing_embeddings
 from worker.motifs.normalize import NormalizedMotif
@@ -70,7 +71,7 @@ async def test_upsert_persists_slot_colors_and_nulls_single_slot(db_session):
     assert rows["recraft-singleslot0"] is None
 
 
-async def test_slot_labels_are_optional_index_aligned_metadata_not_identity(db_session):
+async def test_slot_metadata_is_optional_index_aligned_and_not_identity(db_session):
     multi = NormalizedMotif(
         id="recraft-slotlabels0",
         symbol='<symbol id="motif-recraft-slotlabels0"><path fill="s0"/><path fill="s1"/></symbol>',
@@ -88,14 +89,29 @@ async def test_slot_labels_are_optional_index_aligned_metadata_not_identity(db_s
         facets={"scope": "whole"},
         slot_labels=("outline", "primary"),
     )
+    parted = await store.upsert_motif(
+        db_session,
+        multi,
+        facets={"scope": "whole"},
+        slot_parts=("outline", "body"),
+    )
+    await store.upsert_motif(
+        db_session,
+        multi,
+        facets={"scope": "whole"},
+        slot_labels=("detail", "secondary"),
+        slot_parts=("changed", "parts"),
+    )
     await db_session.commit()
 
     got = (await store.get_motifs(db_session, [multi.id]))[multi.id]
-    assert first.id == labeled.id == multi.id
+    assert first.id == labeled.id == parted.id == multi.id
     assert first.inserted is True
     assert labeled.inserted is False
+    assert parted.inserted is False
     assert got.slot_colors == ("#010000", "#0685B1")
     assert got.slot_labels == ("outline", "primary")
+    assert got.slot_parts == ("outline", "body")
 
     with pytest.raises(ValueError, match="index-aligned"):
         await store.upsert_motif(
@@ -104,28 +120,65 @@ async def test_slot_labels_are_optional_index_aligned_metadata_not_identity(db_s
             facets={"scope": "whole"},
             slot_labels=("primary",),
         )
+    with pytest.raises(ValueError, match="index-aligned"):
+        await store.upsert_motif(
+            db_session,
+            multi,
+            facets={"scope": "whole"},
+            slot_parts=("body",),
+        )
 
 
-async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempotent(
+async def test_slot_metadata_backfill_selects_missing_public_multislot_and_is_idempotent(
     db_session,
 ):
-    public = NormalizedMotif(
-        id="recraft-labelbackfill",
+    missing_both = NormalizedMotif(
+        id="recraft-metadata-both",
         symbol=(
-            '<symbol id="motif-recraft-labelbackfill"><path fill="s0"/><path fill="s1"/></symbol>'
+            '<symbol id="motif-recraft-metadata-both"><path fill="s0"/><path fill="s1"/></symbol>'
         ),
         color_slots=("s0", "s1"),
         slot_colors=("#111111", "#222222"),
     )
-    private = NormalizedMotif(
-        id="upload-labelbackfill0",
+    missing_parts = NormalizedMotif(
+        id="recraft-metadata-parts",
         symbol=(
-            '<symbol id="motif-upload-labelbackfill0"><path fill="s0"/><path fill="s1"/></symbol>'
+            '<symbol id="motif-recraft-metadata-parts"><path fill="s0"/><path fill="s1"/></symbol>'
         ),
         color_slots=("s0", "s1"),
         slot_colors=("#333333", "#444444"),
     )
-    await store.upsert_motif(db_session, public, facets={"scope": "whole"}, source="seed")
+    missing_labels = NormalizedMotif(
+        id="recraft-metadata-labels",
+        symbol=(
+            '<symbol id="motif-recraft-metadata-labels"><path fill="s0"/><path fill="s1"/></symbol>'
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#555555", "#666666"),
+    )
+    private = NormalizedMotif(
+        id="upload-metadata-private",
+        symbol=(
+            '<symbol id="motif-upload-metadata-private"><path fill="s0"/><path fill="s1"/></symbol>'
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#777777", "#888888"),
+    )
+    await store.upsert_motif(db_session, missing_both, facets={"scope": "whole"}, source="seed")
+    await store.upsert_motif(
+        db_session,
+        missing_parts,
+        facets={"scope": "whole"},
+        source="seed",
+        slot_labels=("secondary", "accent"),
+    )
+    await store.upsert_motif(
+        db_session,
+        missing_labels,
+        facets={"scope": "whole"},
+        source="seed",
+        slot_parts=("wing", "tail"),
+    )
     await store.upsert_motif(
         db_session,
         private,
@@ -134,16 +187,47 @@ async def test_slot_label_backfill_selects_public_multislot_nulls_and_is_idempot
     )
     await db_session.commit()
 
-    rows = await store.missing_slot_label_rows(db_session)
-    assert [row.id for row in rows] == [public.id]
+    rows = await store.missing_slot_metadata_rows(db_session)
+    assert [row.id for row in rows] == [
+        missing_both.id,
+        missing_labels.id,
+        missing_parts.id,
+    ]
     assert rows[0].slot_colors == ("#111111", "#222222")
-    assert await store.update_slot_labels_if_missing(db_session, public.id, ("primary", "detail"))
-    assert not await store.update_slot_labels_if_missing(
-        db_session, public.id, ("detail", "primary")
+    assert await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_both.id,
+        slot_labels=("primary", "detail"),
+        slot_parts=("body", "outline"),
+    )
+    assert not await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_both.id,
+        slot_labels=("detail", "primary"),
+        slot_parts=("changed", "parts"),
+    )
+    assert await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_parts.id,
+        slot_labels=("primary", "detail"),
+        slot_parts=("body", "outline"),
+    )
+    assert await store.update_slot_metadata_if_missing(
+        db_session,
+        missing_labels.id,
+        slot_labels=("outline", "primary"),
+        slot_parts=("changed", "parts"),
     )
     await db_session.commit()
 
-    assert await store.missing_slot_label_rows(db_session) == []
+    assert await store.missing_slot_metadata_rows(db_session) == []
+    stored = {row.id: row for row in (await db_session.scalars(select(Motif))).all()}
+    assert stored[missing_both.id].slot_labels == ["primary", "detail"]
+    assert stored[missing_both.id].slot_parts == ["body", "outline"]
+    assert stored[missing_parts.id].slot_labels == ["secondary", "accent"]
+    assert stored[missing_parts.id].slot_parts == ["body", "outline"]
+    assert stored[missing_labels.id].slot_labels == ["outline", "primary"]
+    assert stored[missing_labels.id].slot_parts == ["wing", "tail"]
 
 
 async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):
@@ -278,3 +362,36 @@ async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(d
     assert await store.public_embedding_counts(db_session) == (2, 2)
     assert await index_missing_embeddings(db_session, client) == 0
     assert client.texts == ["chess, chess king outline, king"]
+
+
+async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):
+    """에셋 수정으로 생긴 시드 고아만 지우고, 현재 시드·user_upload·참조 행은 남긴다."""
+    for mid, source in [
+        ("recraft-seedcurrent0", "seed"),
+        ("recraft-seedstale000", "seed"),
+        ("recraft-seedfaved00", "seed"),
+        ("upload-keepme00000", store.USER_UPLOAD_SOURCE),
+    ]:
+        await store.upsert_motif(db_session, _motif(mid), facets={"scope": "whole"}, source=source)
+    user_id = await db_session.scalar(text("insert into users (name) values ('t') returning id"))
+    db_session.add(UserMotif(user_id=user_id, motif_id="recraft-seedfaved00", name="fav"))
+    await db_session.commit()
+
+    assert await store.prune_stale_seeds(db_session, ["recraft-seedcurrent0"]) == 1
+    await db_session.commit()
+    assert await store.all_motif_ids(db_session) == [
+        "recraft-seedcurrent0",
+        "recraft-seedfaved00",
+    ]
+
+
+async def test_prune_stale_seeds_empty_set_deletes_nothing(db_session):
+    """빈 시드 집합은 no-op — 빈 notin_이 참으로 평가돼 전체 삭제되는 사고 방지."""
+    await store.upsert_motif(
+        db_session, _motif("recraft-seedonly0000"), facets={"scope": "whole"}, source="seed"
+    )
+    await db_session.commit()
+
+    assert await store.prune_stale_seeds(db_session, []) == 0
+    await db_session.commit()
+    assert await store.all_motif_ids(db_session) == ["recraft-seedonly0000"]

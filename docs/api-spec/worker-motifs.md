@@ -4,11 +4,11 @@
 
 ## 1. 모티프 데이터 모델·정규화
 
-`MotifDef{id, symbol, bbox_mm, anchor, color_slots=("s0",), slot_colors=None, slot_labels=None}`:
+`MotifDef{id, symbol, bbox_mm, anchor, color_slots=("s0",), slot_colors=None, slot_labels=None, slot_parts=None}`:
 - symbol = `<symbol id="motif-{id}" overflow="visible">{geometry}</symbol>` — **viewBox 없음**(use transform이 mm 1:1). geometry는 `<g transform="translate(tx ty) scale(s)">…</g>` 래핑 1개.
 - 정규화된 모티프는 항상 bbox `(-0.5,-0.5,0.5,0.5)`, anchor `(0,0)` — tight bbox의 중심을 원점, 긴 변을 1.0으로: `scale=1/extent, tx=-(bx+bw/2)·scale, ty=-(by+bh/2)·scale`.
 - 거부: extent≤0, 0폭 축, `extent/min_side > 20.0`(aspect 상한), viewBox/치수 없음, drawable 없음(defs 밖 path/polygon/…), filter/raster image/외부 href(화이트리스트 밖).
-- `slot_colors`는 멀티슬롯 원색을 `color_slots`와 인덱스 정렬한 기본 colorway다. `slot_labels`는 같은 순서의 내부 의미 역할(`primary|secondary|accent|outline|detail|background`)이며 재색 정렬에만 쓴다. 단일슬롯·레거시·라벨링 실패는 NULL이다. 둘 다 geometry/content-hash와 무관하다.
+- `slot_colors`는 멀티슬롯 원색을 `color_slots`와 인덱스 정렬한 기본 colorway다. `slot_labels`는 같은 순서의 내부 의미 역할(`primary|secondary|accent|outline|detail|background`)이며 부위명이 없는 재색 정렬에 쓴다. `slot_parts`는 같은 순서의 40자 이하 짧은 부위명이며 Gemini 재색 안내와 admin 표시에 쓴다. parts는 전부 유효하고 슬롯 수와 일치할 때만 배열로 취급하며, 단일슬롯·레거시·라벨링 실패는 NULL이다. 세 필드는 geometry/content-hash와 무관하다.
 - `ingested_user_id`·`ingested_session_id`는 Recraft 행의 최초 유입 감사 provenance다. content-hash conflict와 카탈로그 hit는 이를 덮지 않고, 사용자·세션 삭제 시 `ON DELETE SET NULL`이다. 공개 모티프의 소유권 필드는 아니다.
 
 **정규화 파이프라인** `normalize_motif_svg`: sanitize 파싱·검증 → 프레임 검증 → tight bbox 프레이밍 → (선택) 색 양자화 → slotify → `<g>` 래핑+content-hash id → (선택) render gate.
@@ -24,19 +24,19 @@
 geometry = f'<g transform="translate({fmt(tx)} {fmt(ty)}) scale({fmt(scale)})">{inner}</g>'
 motif_id = id_prefix + "-" + sha256(geometry.encode()).hexdigest()[:12]
 ```
-- 해시 입력 = slotify **후**의 geometry(심볼 래퍼 제외) → colorway-agnostic: 같은 도형은 색·`slot_colors`·`slot_labels`·provenance와 무관하게 같은 id다(캐시 히트·upsert 멱등의 근거). provider/seed 경로는 `recraft-`, private user import는 `upload-` prefix를 쓴다.
+- 해시 입력 = slotify **후**의 geometry(심볼 래퍼 제외) → colorway-agnostic: 같은 도형은 색·`slot_colors`·`slot_labels`·`slot_parts`·provenance와 무관하게 같은 id다(캐시 히트·upsert 멱등의 근거). provider/seed 경로는 `recraft-`, private user import는 `upload-` prefix를 쓴다.
 
 ## 3. Recraft 연동
 
 - base `https://external.api.recraft.ai/v1`; generate `POST /images/generations`, vectorize `POST /images/vectorize`(multipart png). 헤더 `Authorization: Bearer {key}`. 타임아웃 **120s**. HTTP 재시도 없음.
-- generate payload: `{prompt, model: "recraftv4_1_vector", response_format: "b64_json", n: 1, size: "1024x1024"}` — style은 빈 문자열이면 **생략**(substyle 파라미터 없음). 응답 URL을 따라가는 2차 요청은 허용하지 않는다(SSRF 경로 제거).
+- generate payload: `{prompt, model: "recraftv4_1_vector", response_format: "b64_json", n: 1, size: "1024x1024", controls?: {colors: [{rgb: [r,g,b]}, ...]}, random_seed?: seed}` — style은 빈 문자열이면 **생략**(substyle 파라미터 없음). `controls.colors`에는 디자인 팔레트 순서를 유지하고 `random_seed=0`도 생략하지 않는다. V4.1 vector에서 지원되지 않는 `negative_prompt`는 보내지 않고 금지 조건을 주 prompt에 둔다. 응답 URL을 따라가는 2차 요청은 허용하지 않는다(SSRF 경로 제거).
 - 응답: `b64_json`만 수용하며 strict base64로 디코딩한다. 디코딩 전 인코딩 길이와 디코딩 후 SVG 바이트를 모두 `max_svg_bytes`로 제한하고, `<svg` 미포함이면 오류.
 - **프롬프트**(spec dict → 개행 join — 재구현 결정 반영, 아래 gradient 항 참조):
 ```
 Draw ONE single, isolated object as one inline SVG. Output ONLY the SVG markup — no markdown, no prose, no <?xml?> prolog.
 CRITICAL: exactly ONE centered subject that FILLS the frame. It must NOT be a pattern, NOT repeated, NOT scattered or tiled, NOT a scene, collage or grid.
 NO background: do not draw any background rectangle, border or backdrop — the object sits on a transparent canvas.
-The root <svg> MUST have a viewBox. Multiple solid colors are allowed; use flat vector <path>/<g> shapes with solid fills. Do NOT use raster <image>, <text>, gradients or filters.
+The root <svg> MUST have a viewBox. Multiple solid colors are allowed; use flat vector <path>/<g> shapes with solid fills. Use a distinct flat color for each distinct visual part, and do not reuse one color for unrelated parts. Do NOT use raster <image>, <text>, gradients, textures, photorealistic shading or filters.
 subject: {subject}
 scope: {scope}
 ```
@@ -71,14 +71,14 @@ upsert한 미커밋 motif까지 전체 rollback하지 않으며, 쓰기 오류�
 
 상위 오케스트레이션은 Gemini의 일반 `motif_specs`를 motif layer에 매칭한다. 사용자 텍스트·사진 모티프는 이 생성 경로에 암묵적으로 섞지 않고 §7의 명시적 preview→import 경로에서 먼저 exact private motif로 만든다. 개별 일반 모티프의 generate 예산 소진·generate-origin facet 거부는 그 layer만 drop(+host cascade drop, fixpoint)하고 생존자와 함께 partial 200 + 경고로 반환한다. 그 밖의 resolver 실패가 모든 plan을 없애면 502다.
 
-Recraft miss가 신규 content-hash 행을 insert했을 때만 최초 유입 사용자·세션 provenance를 저장한다. 신규 멀티슬롯이면 원색 standalone preview를 20mm PNG로 threadpool rasterize하고 Gemini에 고정 길이 enum schema로 한 번 전달해 `slot_labels`를 만든다. 렌더러·비전·schema·안전 검사 실패는 NULL로 fail-soft하며 모티프 저장은 되돌리지 않는다. 단일슬롯과 catalog/content-hash hit의 라벨링 호출은 0회다.
+Recraft miss가 신규 content-hash 행을 insert했을 때만 최초 유입 사용자·세션 provenance를 저장한다. 신규 멀티슬롯이면 원색 standalone preview를 20mm PNG로 threadpool rasterize하고 Gemini에 고정 길이 schema로 한 번 전달해 `slot_labels`와 슬롯 순서의 짧은 `slot_parts`를 함께 만든다. 같은 색을 공유하는 부위는 `부리·안장`처럼 하나의 part로 묶는다. labels가 유효하면 parts만 실패해도 labels는 보존하지만 parts는 부분 배열을 저장하지 않고 NULL로 fail-soft한다. 렌더러·비전·schema·안전 검사 실패는 모티프 저장을 되돌리지 않는다. 단일슬롯과 catalog/content-hash hit의 라벨링 호출은 0회다.
 
 ## 6. Gemini DesignPlan v3 저작
 
 - 모델 `gemini-2.5-flash-lite`, ADC + Google Gen AI SDK, temperature 0.7, `response_mime_type="application/json"`을 사용한다. v3는 Pydantic `DesignPlansV3` 타입 자체를 `response_schema`로 전달하고 SDK parsed 결과를 우선 사용한다. 429/503은 0.5/1/2s 지수 백오프로 최대 4회 재시도하고 그 외 provider 오류는 502급이다.
 - Gemini는 전체 엔진 intent를 직접 만들지 않는다. v3 structured output은 2~4 plan, 2~8 HEX palette, 최대 2개 discriminated motif source(`input`/verified `catalog`/`reference`/catalog-empty text `generate`), 최대 4개 stripe/motif layer와 normalized placement(lattice, Poisson/sateen scatter, closed straight/wave path, 고정 point template)만 가진다. engine ID·mm·SVG·임의 point 좌표는 schema 밖이다.
 - worker compiler가 plan을 48mm/300dpi intent로 결정적으로 변환한다. palette/colorway/layer ID, tile-commensurate geometry, motif placeholder/spec/color-slot sidecar를 코드가 만들고 엔진 경계가 다시 검증한다. palette를 제외한 geometry/topology fingerprint가 같은 plan은 중복이며 유효하고 서로 다른 plan이 2개 미만이면 오류를 붙여 1회 재요청한다.
-- exact private motif의 실제 ID는 Gemini에 전달하지 않고 1-based input 순번만 요구한다. 모든 exact 및 `purpose=motif` reference는 각 plan에 정확히 한 번 있어야 하고 verified catalog는 `catalog_ref`만 노출한다. `generate`는 catalog candidate가 없는 분기에서만 허용하고 compiler가 best-effort semantic spec으로 바꾼다. compiler만 ref→ID를 변환한다. 멀티슬롯의 `color_indices` 생략은 원색 보존, 명시는 재색 신호이며 fixed palette에서는 생략을 거부한다.
+- exact private motif의 실제 ID는 Gemini에 전달하지 않고 1-based input 순번만 요구한다. verified catalog, exact input, `current_motif_N`에는 authoritative `slot_count`와, 전부 유효할 때만 슬롯 원 순서의 `slot_parts`를 동일한 untrusted metadata 블록으로 노출한다. 모든 exact 및 `purpose=motif` reference는 각 plan에 정확히 한 번 있어야 하고 verified catalog는 `catalog_ref`만 노출한다. `generate`는 catalog candidate가 없는 분기에서만 허용하고 compiler가 best-effort semantic spec으로 바꾼다. compiler만 ref→ID를 변환한다. 멀티슬롯의 `color_indices` 생략은 원색 보존, 명시는 재색 신호이며 fixed palette에서는 생략을 거부한다. 재색할 때 배열 길이는 정확히 `slot_count`이고 i번째 인덱스는 i번째 슬롯·부위에 대응한다.
 - `gallery-v1`은 빈 DB용 소량 starter Plan v3 시드이며 골든 파일과 독립적이다. 컴파일러 회귀는 테스트 픽스처의 ID-파일명 규약으로 검증한다. 실제 RAG는 `authoring_examples`의 현재 contract·embedding model에 맞는 active 시범만 검색한다. query top-25를 motif 수/배치 제약으로 거른 상위 8개에서 family 다양성을 우선해 최대 3개를 prompt에 넣는다. retrieval 장애·빈 active 집합은 시범 없이 계속하는 fail-soft다.
 - 모든 요청은 Plan v3 저작 경로만 사용한다. contract/compiler/prompt/example revision, retrieval 상태·선택 ID/유사도, fingerprint는 generation diagnostics와 intent log에 남긴다.
 - live 평가는 `eval_authoring.py --confirm-live`의 label 30-case corpus로 schema/compiler 성공률, 구조 다양성, retrieval expected-family recall, 시도 수와 latency를 측정한다. prompt/provider 원문은 출력·저장하지 않고 CI는 유료 호출을 실행하지 않는다. 정본·동기화·승격 절차는 `docs/specs/authoring-plan-v3.md`다.
@@ -92,7 +92,7 @@ resolver가 concrete ID와 metadata를 확정한 뒤 네트워크 없이 다음 
 
 1. 단일슬롯은 plan 첫 색 또는 배경을 제외한 첫 팔레트 색을 쓴다. 선택색 HEX가 실제 ground HEX와 같으면 선언된 팔레트 전순서에서 다음 구분색을 찾고, 전부 같은 축퇴 팔레트면 원 선택을 유지한다.
 2. 멀티슬롯에서 `color_indices`가 생략됐고 `slot_colors`가 있으며 palette가 non-fixed면 `{color_slot: original HEX}`를 그대로 보존한다.
-3. 그 밖에는 plan 색 또는 배경 제외 팔레트 색을 모듈로 배정한다. 유효한 `slot_labels`가 있으면 `primary → secondary → accent → outline → detail → background` rank로 슬롯을 먼저 정렬하고, NULL·길이 불일치·잘못된 라벨이면 기존 DFS 위치 순서를 쓴다.
+3. 그 밖에는 plan 색 또는 배경 제외 팔레트 색을 모듈로 배정한다. 명시한 색 배열 길이가 실제 슬롯 수와 다르면 조용히 반복하지 않고 요청을 거부한다. 유효한 `slot_parts`가 있으면 Gemini에 노출한 슬롯 원 순서를 유지한다. parts가 없고 유효한 `slot_labels`가 있으면 `primary → secondary → accent → outline → detail → background` rank로 슬롯을 먼저 정렬하며, 둘 다 NULL·길이 불일치·잘못된 값이면 기존 DFS 위치 순서를 쓴다.
 
 리터럴 HEX는 motif layer의 `params.colors`에서만 허용하고 palette slot처럼 안전하게 resolve한다. 따라서 같은 resolved intent+seed의 SVG 바이트 결정론은 원색 보존·라벨 재색·레거시 fallback 모두에서 유지된다. 요청 핫패스 색 배정은 LLM·DB write·provider 호출을 하지 않는다.
 
@@ -134,7 +134,7 @@ resolver가 concrete ID와 metadata를 확정한 뒤 네트워크 없이 다음 
 
 `scripts/seed_head_catalog.py`: 모티프 5개(flower/whole ×3, leaf/whole ×2, 전부 style=flat, source="seed", 단색 → s0) — variant pool ≥ 2 데모용. 멱등(content-hash id + ON CONFLICT DO NOTHING). 재구현 시 새 모노레포 시드로 이식.
 
-재구현 확장(원본 외): `apps/worker/scripts/seed_motifs.py`가 위 5개에 더해 `motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 글리프 90개 — 동물·마린·하늘·문장·과일·취미·식물, subject=파일명 첫 토큰, style=outline)를 기본 모티프로 시드한다. 파일명 stem/token은 tags에도 넣는다. 시드 뒤 `index_motif_embeddings.py --confirm-live`를 실행하고 출력의 `embedded=total`을 배포 gate로 확인한다. 이어 `backfill_slot_labels.py --confirm-live`로 공개 멀티슬롯 NULL 라벨을 채우고 `eligible=<n>; updated=<n>`을 기록한다. 백필은 `WHERE slot_labels IS NULL` 조건부 update라 멱등이며 `user_upload`을 제외한다.
+재구현 확장(원본 외): `apps/worker/scripts/seed_motifs.py`가 위 5개에 더해 `motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 글리프 90개 — 동물·마린·하늘·문장·과일·취미·식물, subject=파일명 첫 토큰, style=outline)를 기본 모티프로 시드한다. 파일명 stem/token은 tags에도 넣는다. 시드 뒤 `index_motif_embeddings.py --confirm-live`를 실행하고 출력의 `embedded=total`을 배포 gate로 확인한다. 이어 `backfill_slot_labels.py --confirm-live`로 공개 멀티슬롯의 NULL `slot_labels` 또는 `slot_parts`를 채우고 `eligible=<n>; updated=<n>`을 기록한다. 두 컬럼은 각각 NULL일 때만 조건부 update하므로 멱등이며 `user_upload`을 제외한다.
 
 ## 10. 설정값
 

@@ -22,6 +22,7 @@ class MotifDef:
     color_slots: tuple[str, ...] = ("s0",)
     slot_colors: tuple[str, ...] | None = None
     slot_labels: tuple[str, ...] | None = None
+    slot_parts: tuple[str, ...] | None = None
 
 
 _REGISTRY: dict[str, MotifDef] = {}

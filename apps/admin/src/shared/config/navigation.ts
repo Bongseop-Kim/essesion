@@ -52,14 +52,24 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
     label: "생성·에셋",
     items: [
       {
-        key: "generation-logs",
-        label: "생성 운영",
-        href: "/generation-logs",
+        key: "seamless-logs",
+        label: "Seamless 로그",
+        href: "/seamless-logs",
       },
       {
-        key: "authoring-examples",
-        label: "RAG 시범",
-        href: "/authoring-examples",
+        key: "generation-jobs",
+        label: "생성 작업",
+        href: "/generation-jobs",
+      },
+      {
+        key: "few-shot-candidates",
+        label: "few-shot 후보",
+        href: "/few-shot-candidates",
+      },
+      {
+        key: "few-shot-examples",
+        label: "선별된 few-shot",
+        href: "/few-shot-examples",
       },
       { key: "motifs", label: "Motif SVG", href: "/motifs" },
     ],

@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from sqlalchemy import text
 
@@ -118,3 +119,90 @@ async def test_representative_product_filter_uses_admin_list_index(db_session) -
     assert "ix_products_admin_list" in _index_names(root)
     assert "Seq Scan" not in _node_types(root)
     assert root["Actual Rows"] <= 20
+
+
+async def test_revenue_window_uses_paid_at_index(db_session) -> None:
+    """매출 집계의 paid_at 윈도우는 인덱스로 처리된다 — 미결제(NULL) 대부분을 건너뛴다."""
+    customer = await make_user(db_session)
+    await db_session.execute(
+        text(
+            """
+            INSERT INTO orders (
+                id, user_id, order_number, order_type, status,
+                total_price, original_price, created_at, updated_at, paid_at
+            )
+            SELECT
+                gen_random_uuid(),
+                :user_id,
+                'PAID-' || value,
+                'sale',
+                '완료',
+                10000,
+                10000,
+                now() - make_interval(days => value),
+                now(),
+                CASE WHEN value <= 25 THEN now() - make_interval(days => value) END
+            FROM generate_series(1, 10000) AS value
+            """
+        ),
+        {"user_id": customer.id},
+    )
+    await db_session.commit()
+    await db_session.execute(text("ANALYZE orders"))
+
+    raw_plan = await db_session.scalar(
+        text(
+            """
+            EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+            SELECT count(*), coalesce(sum(total_price), 0)
+            FROM orders
+            WHERE paid_at >= now() - interval '10 days' AND paid_at < now()
+            """
+        )
+    )
+    plan = json.loads(raw_plan) if isinstance(raw_plan, str) else raw_plan
+    assert isinstance(plan, list)
+    root = plan[0]["Plan"]
+    assert "ix_orders_paid_at" in _index_names(root)
+    assert "Seq Scan" not in _node_types(root)
+
+
+async def test_seamless_log_session_lookup_uses_session_index(db_session) -> None:
+    """세션 스코프 턴 상관의 진입점 — JSONB 스캔 대신 FK 인덱스로 로그를 좁힌다."""
+    owner = await make_user(db_session)
+    await db_session.execute(
+        text("INSERT INTO design_sessions (id, user_id) VALUES (:id, :user_id)"),
+        {"id": (session_id := uuid.uuid4()), "user_id": owner.id},
+    )
+    await db_session.execute(
+        text(
+            """
+            INSERT INTO seamless_generation_logs (id, input_type, status, session_id, user_id)
+            SELECT
+                gen_random_uuid(),
+                'prompt',
+                'success',
+                CASE WHEN value <= 25 THEN CAST(:session_id AS uuid) END,
+                CASE WHEN value <= 25 THEN CAST(:user_id AS uuid) END
+            FROM generate_series(1, 10000) AS value
+            """
+        ),
+        {"session_id": session_id, "user_id": owner.id},
+    )
+    await db_session.commit()
+    await db_session.execute(text("ANALYZE seamless_generation_logs"))
+
+    raw_plan = await db_session.scalar(
+        text(
+            """
+            EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+            SELECT id FROM seamless_generation_logs WHERE session_id = :session_id
+            """
+        ),
+        {"session_id": session_id},
+    )
+    plan = json.loads(raw_plan) if isinstance(raw_plan, str) else raw_plan
+    assert isinstance(plan, list)
+    root = plan[0]["Plan"]
+    assert "ix_seamless_generation_logs_session_id" in _index_names(root)
+    assert "Seq Scan" not in _node_types(root)

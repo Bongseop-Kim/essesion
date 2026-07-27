@@ -1,7 +1,11 @@
-import { Box, Flex } from "@essesion/shared";
 import type { CSSProperties } from "react";
 
+import { Box } from "./box";
+import { Flex } from "./flex";
+
 export type DesignPreviewMode = "repeat" | "tie";
+
+// 소비하는 앱의 public/images에 tie.svg·tie-shadow.png가 있어야 한다(store·admin 모두 보유).
 
 export type TieCanvasProps = {
   /** Sanitized SVG encoded as a data URI. */
@@ -11,11 +15,16 @@ export type TieCanvasProps = {
   className?: string;
 };
 
-// 넥타이 실루엣·그림자 기하의 기준 프레임. 그림자 PNG(원본 397×864)는 프레임
-// 폭에 맞춰 축소해 top -58px, left 0에 얹으면 마스크 실루엣과 정렬된다
+// 넥타이 실루엣(마스크)과 그림자 PNG(원본 397×864)의 기하. 그림자를 프레임 폭에
+// 맞춰 축소해 top -58px, left 0에 얹으면 마스크 실루엣과 정렬된다
 // (아트워크 중심 198/397 ≈ 프레임 중심 158/316).
 const TIE_FRAME = { width: 316, height: 600 };
 const TIE_SHADOW = { width: 397, height: 864, top: -58 };
+// 레이아웃 단위는 마스크가 아니라 그림자까지 포함한 아트워크 박스 — 마스크 기준으로
+// 잡으면 칼라가 위로 삐져나가 잘리고 무게중심도 위로 치우친다.
+const TIE_ART_HEIGHT = (TIE_FRAME.width * TIE_SHADOW.height) / TIE_SHADOW.width;
+const TIE_MASK_TOP = -TIE_SHADOW.top / TIE_ART_HEIGHT;
+const TIE_MASK_HEIGHT = TIE_FRAME.height / TIE_ART_HEIGHT;
 
 const tieMaskStyle: CSSProperties = {
   maskImage: "url(/images/tie.svg)",
@@ -29,10 +38,7 @@ const tieMaskStyle: CSSProperties = {
 };
 
 const tieShadowStyle: CSSProperties = {
-  top: `${(TIE_SHADOW.top / TIE_FRAME.height) * 100}%`,
-  left: 0,
-  width: "100%",
-  aspectRatio: `${TIE_SHADOW.width} / ${TIE_SHADOW.height}`,
+  inset: 0,
   backgroundImage: "url(/images/tie-shadow.png)",
   backgroundSize: "100% 100%",
   backgroundRepeat: "no-repeat",
@@ -85,9 +91,18 @@ export function TieCanvas({
           <Box
             position="relative"
             height="full"
-            style={{ aspectRatio: `${TIE_FRAME.width} / ${TIE_FRAME.height}` }}
+            style={{ aspectRatio: `${TIE_FRAME.width} / ${TIE_ART_HEIGHT}` }}
           >
-            <Box position="absolute" inset={0} style={tieMaskStyle}>
+            <Box
+              position="absolute"
+              left={0}
+              right={0}
+              style={{
+                top: `${TIE_MASK_TOP * 100}%`,
+                height: `${TIE_MASK_HEIGHT * 100}%`,
+                ...tieMaskStyle,
+              }}
+            >
               <Box
                 position="absolute"
                 inset={0}

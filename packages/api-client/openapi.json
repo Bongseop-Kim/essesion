@@ -4461,18 +4461,11 @@
             "format": "uuid",
             "title": "Operation Id",
             "type": "string"
-          },
-          "reason": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Reason",
-            "type": "string"
           }
         },
         "required": [
           "operation_id",
           "active",
-          "reason",
           "expected_updated_at"
         ],
         "title": "AuthoringExampleActivationRequest",
@@ -4513,17 +4506,10 @@
             "format": "uuid",
             "title": "Operation Id",
             "type": "string"
-          },
-          "reason": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Reason",
-            "type": "string"
           }
         },
         "required": [
-          "operation_id",
-          "reason"
+          "operation_id"
         ],
         "title": "AuthoringExampleDeleteRequest",
         "type": "object"
@@ -4958,12 +4944,6 @@
             ],
             "title": "Plan"
           },
-          "reason": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Reason",
-            "type": "string"
-          },
           "retrieval_text": {
             "anyOf": [
               {
@@ -4980,7 +4960,6 @@
         },
         "required": [
           "operation_id",
-          "reason",
           "expected_updated_at"
         ],
         "title": "AuthoringExampleUpdateRequest",
@@ -8223,6 +8202,29 @@
               }
             ],
             "title": "Session Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "user_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Name"
           }
         },
         "title": "GenerationOutcomeOut",
@@ -9313,6 +9315,20 @@
               }
             ],
             "title": "Slot Colors"
+          },
+          "slot_parts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Parts"
           },
           "source": {
             "title": "Source",
@@ -14743,24 +14759,6 @@
         "title": "SingleOrderCreateResponse",
         "type": "object"
       },
-      "StatsResponse": {
-        "properties": {
-          "order_count": {
-            "title": "Order Count",
-            "type": "integer"
-          },
-          "revenue": {
-            "title": "Revenue",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "order_count",
-          "revenue"
-        ],
-        "title": "StatsResponse",
-        "type": "object"
-      },
       "TextMotifPreviewRequest": {
         "additionalProperties": false,
         "properties": {
@@ -16069,6 +16067,55 @@
           }
         ],
         "summary": "Set Authoring Example Activation",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
+    "/admin/authoring/examples/{example_id}/preview": {
+      "get": {
+        "description": "저장된 plan·모티프로 타일 프리뷰를 렌더한다 — 목록 썸네일용.",
+        "operationId": "get_authoring_example_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringExamplePreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Authoring Example Preview",
         "tags": [
           "admin-authoring"
         ]
@@ -21558,148 +21605,6 @@
         "summary": "Update Admin Settings",
         "tags": [
           "admin-configuration"
-        ]
-      }
-    },
-    "/admin/stats/period": {
-      "get": {
-        "operationId": "period_stats",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "start_date",
-            "required": true,
-            "schema": {
-              "format": "date",
-              "title": "Start Date",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "end_date",
-            "required": true,
-            "schema": {
-              "format": "date",
-              "title": "End Date",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "order_type",
-            "required": false,
-            "schema": {
-              "default": "all",
-              "enum": [
-                "all",
-                "sale",
-                "custom",
-                "repair",
-                "token",
-                "sample"
-              ],
-              "title": "Order Type",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StatsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Period Stats",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/admin/stats/today": {
-      "get": {
-        "operationId": "today_stats",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "stat_date",
-            "required": true,
-            "schema": {
-              "format": "date",
-              "title": "Stat Date",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "order_type",
-            "required": false,
-            "schema": {
-              "default": "all",
-              "enum": [
-                "all",
-                "sale",
-                "custom",
-                "repair",
-                "token",
-                "sample"
-              ],
-              "title": "Order Type",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StatsResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Today Stats",
-        "tags": [
-          "admin"
         ]
       }
     },

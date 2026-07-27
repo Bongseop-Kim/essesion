@@ -312,6 +312,7 @@ async def _ensure_content_visibility_orders(session) -> None:
             total_price=50000,
             original_price=50000,
             payment_group_id=uuid.uuid4(),
+            paid_at=now,  # 매출 지표의 시간 기준 — 없으면 로컬 대시보드가 0으로 보인다
         )
         session.add(order)
         item_data["reference_images"] = [{"image_id": str(image_id)}]
@@ -355,6 +356,7 @@ async def _ensure_content_visibility_orders(session) -> None:
         original_price=46000,
         shipping_cost=5000,
         payment_group_id=uuid.uuid4(),
+        paid_at=now,
     )
     original_key = "uploads/reform_upload/content-fixture.png"
     receipt_key = "uploads/repair_shipping_upload/content-fixture.png"

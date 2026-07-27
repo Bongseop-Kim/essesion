@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+from api.domains.admin.generation import finalize_duration_seconds
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
@@ -389,9 +391,13 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     owner = await make_user(db_session, email="generation-owner@test.local")
     now = datetime.now(UTC)
     design_session = DesignSession(user_id=owner.id, status="active")
+    db_session.add(design_session)
+    await db_session.flush()
     cmyk_colors = ["#0000FF", "#00FF00", "#FF0000", "#FF4500", "#FFA500", "#FFFF00"]
     log = SeamlessGenerationLog(
         request_id="warning-groups-request",
+        session_id=design_session.id,
+        user_id=owner.id,
         input_type="prompt",
         candidate_count_requested=4,
         candidate_count_returned=4,
@@ -421,8 +427,11 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         },
         created_at=now,
     )
+    # 실패 로그도 워커가 FK를 채운다 — 상관 턴이 없어도 요청자는 드러난다
     provider_failure = SeamlessGenerationLog(
         request_id="vertex-failure-request",
+        session_id=design_session.id,
+        user_id=owner.id,
         input_type="prompt",
         warnings=[],
         status="error",
@@ -437,7 +446,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         },
         created_at=now,
     )
-    db_session.add_all([design_session, log, provider_failure])
+    db_session.add_all([log, provider_failure])
     await db_session.flush()
     db_session.add_all(
         [
@@ -515,6 +524,8 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     }
     assert body["outcome"] == {
         "session_id": str(design_session.id),
+        "user_id": str(owner.id),
+        "user_name": owner.name,
         "selected_candidate_id": "candidate-2",
         "regenerated": True,
         "finalized": True,
@@ -527,9 +538,18 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     assert failed_detail.status_code == 200
     assert failed_detail.json()["error_summary"] == "Vertex AI 임베딩 생성 연동에 실패했습니다"
     assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
+    # 상관 턴이 없으므로 선택·재생성 판정은 비어 있지만 요청자는 FK에서 그대로 온다
+    assert failed_detail.json()["outcome"] == {
+        "session_id": str(design_session.id),
+        "user_id": str(owner.id),
+        "user_name": owner.name,
+        "selected_candidate_id": None,
+        "regenerated": False,
+        "finalized": False,
+    }
 
 
-async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session, settings):
+async def test_motif_detail_returns_index_aligned_slot_metadata(client, db_session, settings):
     admin = await make_user(db_session, role="admin")
     headers = auth_headers(admin, settings)
     db_session.add_all(
@@ -539,6 +559,7 @@ async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session
                 symbol='<symbol id="motif-multislot"><path fill="s0"/><path fill="s1"/></symbol>',
                 color_slots=["s0", "s1"],
                 slot_colors=["#010000", "#0685b1"],
+                slot_parts=["  몸통  ", "파란\n자전거"],
                 bbox=[0, 0, 1, 1],
                 anchor=[0.5, 0.5],
                 subject="pelican",
@@ -555,6 +576,47 @@ async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session
                 scope="whole",
                 source="seed",
             ),
+            Motif(
+                id="motif-misaligned-parts",
+                symbol=(
+                    '<symbol id="motif-misaligned-parts">'
+                    '<path fill="s0"/><path fill="s1"/>'
+                    "</symbol>"
+                ),
+                color_slots=["s0", "s1"],
+                slot_parts=["몸통"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="misaligned",
+                scope="whole",
+                source="seed",
+            ),
+            Motif(
+                id="motif-unsafe-parts",
+                symbol=(
+                    '<symbol id="motif-unsafe-parts"><path fill="s0"/><path fill="s1"/></symbol>'
+                ),
+                color_slots=["s0", "s1"],
+                slot_parts=["몸통", "https://private.example.test/part"],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="unsafe",
+                scope="whole",
+                source="seed",
+            ),
+            Motif(
+                id="motif-overlong-parts",
+                symbol=(
+                    '<symbol id="motif-overlong-parts"><path fill="s0"/><path fill="s1"/></symbol>'
+                ),
+                color_slots=["s0", "s1"],
+                slot_parts=["몸통", "가" * 41],
+                bbox=[0, 0, 1, 1],
+                anchor=[0.5, 0.5],
+                subject="overlong",
+                scope="whole",
+                source="seed",
+            ),
         ]
     )
     await db_session.commit()
@@ -562,10 +624,21 @@ async def test_motif_detail_returns_slot_colors_for_multislot(client, db_session
     multi = await client.get("/admin/motifs/motif-multislot", headers=headers)
     assert multi.status_code == 200
     assert multi.json()["slot_colors"] == ["#010000", "#0685b1"]
+    assert multi.json()["slot_parts"] == ["몸통", "파란 자전거"]
 
     single = await client.get("/admin/motifs/motif-singleslot", headers=headers)
     assert single.status_code == 200
     assert single.json()["slot_colors"] is None
+    assert single.json()["slot_parts"] is None
+
+    for motif_id in (
+        "motif-misaligned-parts",
+        "motif-unsafe-parts",
+        "motif-overlong-parts",
+    ):
+        invalid = await client.get(f"/admin/motifs/{motif_id}", headers=headers)
+        assert invalid.status_code == 200
+        assert invalid.json()["slot_parts"] is None
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(
@@ -828,3 +901,40 @@ async def test_seamless_reference_image_requires_completed_matching_private_imag
     )
     assert expired_url.status_code == 400
     assert expired_url.json()["code"] == "image_expired"
+
+
+async def test_finalize_duration_uses_started_finished_timestamps(db_session):
+    """감사 이연 항목(p50/p95)의 산출 조건 — 성공 finalize만, updated_at 근사 없음."""
+    owner = await make_user(db_session)
+    now = datetime.now(UTC)
+    db_session.add_all(
+        [
+            GenerationJob(
+                user_id=owner.id,
+                kind="finalize",
+                status="succeeded",
+                params={},
+                started_at=now,
+                finished_at=now + timedelta(seconds=seconds),
+            )
+            for seconds in (10, 20, 120)
+        ]
+        + [
+            # 실패 job과 타임스탬프 없는 job은 분포에 들어가지 않는다
+            GenerationJob(
+                user_id=owner.id,
+                kind="finalize",
+                status="failed",
+                params={},
+                started_at=now,
+                finished_at=now + timedelta(seconds=9999),
+            ),
+            GenerationJob(user_id=owner.id, kind="finalize", status="succeeded", params={}),
+        ]
+    )
+    await db_session.commit()
+
+    duration = await finalize_duration_seconds(db_session)
+    assert duration.average == 50.0
+    assert duration.p50 == 20.0
+    assert duration.p95 == pytest.approx(110.0)

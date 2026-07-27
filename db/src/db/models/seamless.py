@@ -53,6 +53,9 @@ class Motif(CreatedAtMixin, Base):
     # ingress metadata only, NULL for unlabeled/single-slot/legacy rows, and never participate in
     # the content-hash id.
     slot_labels: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
+    # Short visible part names are index-aligned with color_slots. Invalid/incomplete vision
+    # metadata is stored as SQL NULL, independently of otherwise-valid slot_labels.
+    slot_parts: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
     # First Recraft ingress provenance. Catalog reuse never rewrites these values; account/session
     # deletion nulls them instead of blocking privacy cleanup.
     ingested_user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -221,6 +224,14 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     request_id: Mapped[str | None]
+    # 요청자 링크 — 워커가 motif_provenance로 채운다. 탈퇴·세션 삭제는 SET NULL로
+    # 프라이버시 정리를 막지 않는다(motifs.ingested_user_id와 같은 근거).
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("design_sessions.id", ondelete="SET NULL"), index=True
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
     input_type: Mapped[str]
     prompt: Mapped[str | None]
     has_reference_image: Mapped[bool] = mapped_column(server_default=text("false"))

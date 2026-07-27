@@ -64,6 +64,7 @@ const detail: MotifDetailOut = {
   tags: ["flower", "camellia"],
   anchor: [12, 12],
   color_slots: ["primary", "secondary"],
+  slot_parts: ["꽃잎", "잎"],
 };
 
 const createObjectURL = vi.fn(() => "blob:motif-preview");
@@ -244,6 +245,19 @@ describe("MotifDetailPage", () => {
     await waitFor(() =>
       expect(screen.getByText("정면 동백꽃 모티프")).toBeTruthy(),
     );
+  });
+
+  it("색상 슬롯과 부위 이름을 같은 인덱스로 표시한다", async () => {
+    renderAdminPage(
+      <Routes>
+        <Route path="/motifs/:motifId" element={<MotifDetailPage />} />
+      </Routes>,
+      { entry: "/motifs/motif-1" },
+    );
+
+    expect(await screen.findByText("색상 슬롯 · 부위")).toBeTruthy();
+    expect(screen.getByText("1. primary → 꽃잎")).toBeTruthy();
+    expect(screen.getByText("2. secondary → 잎")).toBeTruthy();
   });
 
   it("symbol fragment를 innerHTML 없이 독립 SVG 문서로 감싼다", () => {

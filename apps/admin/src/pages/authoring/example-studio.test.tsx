@@ -6,43 +6,71 @@ import { renderAdminPage } from "../../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   preview: vi.fn(),
-  create: vi.fn(),
   listMotifs: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client/query", () => ({
-  createAuthoringExampleMutation: () => ({ mutationFn: api.create }),
   listAdminMotifsOptions: () => ({
     queryKey: ["authoring-studio-motifs"],
     queryFn: api.listMotifs,
   }),
-  listAuthoringExamplesQueryKey: () => ["authoring-examples"],
   previewAuthoringExampleMutation: () => ({ mutationFn: api.preview }),
 }));
 
 import { AuthoringExampleForm } from "./example-studio";
 
-const createObjectURL = vi.fn(() => "blob:authoring-preview");
-const revokeObjectURL = vi.fn();
+const VALID_INTENT = "차분한 세로 스트라이프 넥타이 시범";
+const MOTIF_PLAN = {
+  colors: ["#F4EFE6", "#213547"], // harness-ignore -- DesignPlanV3 데이터, UI 스타일이 아님
+  ground_color_index: 0,
+  motifs: [{ source: "input", input_index: 1 }],
+  layers: [
+    {
+      type: "motif",
+      motif_index: 0,
+      size_ratio: 0.18,
+      placement: { type: "point_template", template: "quincunx_inset" },
+    },
+  ],
+};
+
+function previewBodies() {
+  return api.preview.mock.calls.map(([variables]) => variables.body);
+}
+
+function planInput() {
+  return screen.getByLabelText(/Plan \(DesignPlanV3\)/);
+}
 
 describe("AuthoringExampleForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperties(URL, {
-      createObjectURL: { configurable: true, value: createObjectURL },
-      revokeObjectURL: { configurable: true, value: revokeObjectURL },
+      createObjectURL: {
+        configurable: true,
+        value: vi.fn(() => "blob:authoring-preview"),
+      },
+      revokeObjectURL: { configurable: true, value: vi.fn() },
     });
     api.preview.mockResolvedValue({
       svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"/>',
       warnings: [],
     });
+    api.listMotifs.mockResolvedValue({
+      items: [
+        { id: "studio-flower", subject: "flower", color_slot_count: 1 },
+        { id: "studio-bee", subject: "bee", color_slot_count: 1 },
+      ],
+      total: 2,
+    });
   });
 
-  it("현재 Plan 프리뷰가 성공해야 정규화한 intent와 Plan을 저장한다", async () => {
+  it("붙여 넣은 Plan JSON을 그대로 프리뷰·저장에 보내고, 바뀌면 새 프리뷰까지 저장을 잠근다", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     renderAdminPage(
       <AuthoringExampleForm
+        initialRetrievalText={VALID_INTENT}
         submitLabel="시범 저장"
         submitting={false}
         onSubmit={onSubmit}
@@ -50,101 +78,88 @@ describe("AuthoringExampleForm", () => {
     );
 
     const save = screen.getByRole("button", { name: "시범 저장" });
-    expect((save as HTMLButtonElement).disabled).toBe(true);
-    await user.type(
-      screen.getByLabelText(/검색 intent/),
-      "  차분한 격자무늬 넥타이 시범  ",
+    expect(
+      await screen.findByRole("img", { name: /저작 시범 프리뷰/ }),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect((save as HTMLButtonElement).disabled).toBe(false),
     );
-    await user.click(screen.getByRole("button", { name: "타일 프리뷰" }));
+    expect(previewBodies()[0]).toMatchObject({
+      motif_ids: [],
+      tile_mm: 48,
+      plan: { ground_color_index: 0, motifs: [] },
+    });
+
+    fireEvent.change(planInput(), {
+      target: { value: JSON.stringify(MOTIF_PLAN) },
+    });
+    expect((save as HTMLButtonElement).disabled).toBe(true);
 
     await waitFor(() =>
-      expect(api.preview).toHaveBeenCalledWith(
-        {
-          body: {
-            plan: expect.objectContaining({
-              ground_color_index: 0,
-              motifs: [{ source: "input", input_index: 1 }],
-            }),
-            motif_ids: [],
-            tile_mm: 48,
-          },
-        },
-        expect.anything(),
-      ),
+      expect(previewBodies().at(-1)).toMatchObject({ plan: MOTIF_PLAN }),
     );
-    expect(
-      await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" }),
-    ).toBeTruthy();
-    expect((save as HTMLButtonElement).disabled).toBe(false);
+    await waitFor(() =>
+      expect((save as HTMLButtonElement).disabled).toBe(false),
+    );
 
     await user.click(save);
     expect(onSubmit).toHaveBeenCalledWith({
-      retrievalText: "차분한 격자무늬 넥타이 시범",
-      plan: expect.objectContaining({
-        ground_color_index: 0,
-        motifs: [{ source: "input", input_index: 1 }],
-      }),
+      retrievalText: VALID_INTENT,
+      plan: MOTIF_PLAN,
       motifIds: [],
     });
   });
 
-  it("프리뷰 뒤 Plan이 바뀌면 저장을 다시 잠근다", async () => {
-    const user = userEvent.setup();
+  it("JSON이 깨지면 사유를 보여주고 프리뷰도 저장도 막는다", async () => {
     renderAdminPage(
       <AuthoringExampleForm
-        initialRetrievalText="차분한 격자무늬 넥타이 시범"
+        initialRetrievalText={VALID_INTENT}
         submitLabel="시범 저장"
         submitting={false}
         onSubmit={vi.fn()}
       />,
     );
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
+    const calls = api.preview.mock.calls.length;
 
-    await user.click(screen.getByRole("button", { name: "타일 프리뷰" }));
-    await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" });
-    const save = screen.getByRole("button", { name: "시범 저장" });
-    expect((save as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.change(planInput(), { target: { value: '{"colors": [' } });
 
-    fireEvent.change(screen.getByLabelText(/DesignPlanV3 JSON/), {
-      target: { value: "{}" },
-    });
-    expect((save as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Plan JSON이 아직 유효하지 않습니다")).toBeTruthy();
     expect(
-      screen.getByRole("img", { name: "저작 시범 타일 프리뷰" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Plan 또는 모티프가 바뀌었습니다. 다시 프리뷰해 주세요.",
-      ),
-    ).toBeTruthy();
+      (screen.getByRole("button", { name: "시범 저장" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(api.preview.mock.calls.length).toBe(calls);
   });
 
-  it("기존 모티프 ID를 편집 프리뷰와 저장에 보존한다", async () => {
+  it("고른 모티프 ID를 Plan과 함께 프리뷰에 보낸다", async () => {
     const user = userEvent.setup();
-    const onSubmit = vi.fn();
     renderAdminPage(
       <AuthoringExampleForm
-        initialRetrievalText="기존 모티프를 사용하는 격자 시범"
-        initialMotifIds={["studio-flower"]}
+        initialRetrievalText={VALID_INTENT}
+        initialPlan={MOTIF_PLAN}
         submitLabel="시범 저장"
         submitting={false}
-        onSubmit={onSubmit}
+        onSubmit={vi.fn()}
       />,
     );
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
 
-    await user.click(screen.getByRole("button", { name: "타일 프리뷰" }));
-    await waitFor(() =>
-      expect(api.preview).toHaveBeenCalledWith(
-        {
-          body: expect.objectContaining({
-            motif_ids: ["studio-flower"],
-          }),
-        },
-        expect.anything(),
-      ),
+    await user.click(screen.getByRole("button", { name: /모티프 \(0\/2\)/ }));
+    await user.click(
+      await screen.findByRole("checkbox", { name: /studio-bee/ }),
     );
-    await user.click(screen.getByRole("button", { name: "시범 저장" }));
-    expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ motifIds: ["studio-flower"] }),
+    await user.click(screen.getByRole("button", { name: "선택 완료" }));
+
+    expect(
+      screen.getByRole("button", { name: /모티프 \(1\/2\)/ }),
+    ).toBeTruthy();
+    await waitFor(() =>
+      expect(previewBodies().at(-1)).toMatchObject({
+        motif_ids: ["studio-bee"],
+        plan: MOTIF_PLAN,
+      }),
     );
   });
 });

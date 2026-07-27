@@ -20,11 +20,8 @@ import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
-import { JOB_STATUS_LABELS } from "./job-status";
-
-function kindLabel(kind: "finalize" | "export") {
-  return kind === "finalize" ? "원단 최종화" : "파일 내보내기";
-}
+import { JOB_STATUS_LABELS, jobKindLabel } from "./job-status";
+import { formatDuration } from "./shared";
 
 const PRODUCTION_METHOD_LABELS: Readonly<Record<string, string>> = {
   print: "날염",
@@ -103,14 +100,6 @@ function parameterSummaryItems(
     });
   }
   return items;
-}
-
-function duration(start: string, end: string) {
-  const elapsed = new Date(end).valueOf() - new Date(start).valueOf();
-  if (!Number.isFinite(elapsed) || elapsed < 0) return "-";
-  if (elapsed < 1_000) return `${elapsed}ms`;
-  if (elapsed < 60_000) return `${(elapsed / 1_000).toFixed(1)}초`;
-  return `${(elapsed / 60_000).toFixed(1)}분`;
 }
 
 function JobDetailLoading() {
@@ -194,7 +183,7 @@ export function GenerationJobDetailPage() {
         <DetailList
           items={[
             { label: "상태", value: JOB_STATUS_LABELS[job.status] },
-            { label: "단계", value: kindLabel(job.kind) },
+            { label: "단계", value: jobKindLabel(job.kind) },
             { label: "시도 횟수", value: `${job.attempts}회` },
             {
               label: "결과 객체",
@@ -204,7 +193,7 @@ export function GenerationJobDetailPage() {
             { label: "수정 시각", value: formatDateTime(job.updated_at) },
             {
               label: "처리 시간",
-              value: duration(job.created_at, job.updated_at),
+              value: formatDuration(job.created_at, job.updated_at),
             },
           ]}
         />
@@ -252,7 +241,7 @@ export function GenerationJobDetailPage() {
       </AdminCard>
 
       <Text textStyle="bodySm">
-        <Link to="/generation-logs?tab=jobs">생성 작업 목록으로 돌아가기</Link>
+        <Link to="/generation-jobs">생성 작업 목록으로 돌아가기</Link>
       </Text>
 
       <TechnicalDetails

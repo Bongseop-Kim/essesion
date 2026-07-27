@@ -14,9 +14,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, cast
 
+from db.models.design import DesignTurnAttachment, UserMotif
 from db.models.seamless import EMBEDDING_DIM, Motif
 from pgvector.sqlalchemy import HALFVEC
-from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import CursorResult, delete, exists, func, select, update
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,6 +78,8 @@ class MotifMeta:
     description: str | None
     tags: tuple[str, ...] = ()
     source: str | None = None
+    color_slots: tuple[str, ...] = ("s0",)
+    slot_parts: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -114,7 +117,7 @@ class MotifUpsertResult:
 
 
 @dataclass(frozen=True)
-class SlotLabelBackfillRow:
+class SlotMetadataBackfillRow:
     id: str
     symbol: str
     slot_colors: tuple[str, ...]
@@ -139,27 +142,31 @@ async def upsert_motif(
     source: str = "recraft",
     variant_group: str | None = None,
     slot_labels: tuple[str, ...] | None = None,
+    slot_parts: tuple[str, ...] | None = None,
     ingested_user_id: uuid.UUID | None = None,
     ingested_session_id: uuid.UUID | None = None,
 ) -> MotifUpsertResult:
     """정규화 모티프를 content-hash id로 멱등 저장하고 실제 신규 insert 여부를 반환.
 
     scope는 정규화해 저장(하드 필터가 정규 형태로 비교). commit은 호출자(라우트/시드) 소관.
-    기존 geometry/facet/provenance는 절대 덮지 않는다. 라벨만 NULL 행에 한해 후속 ingress
-    라벨링 결과로 채울 수 있다.
+    기존 geometry/facet/provenance는 절대 덮지 않는다. 슬롯 메타데이터만 각 NULL 행에
+    한해 후속 ingress 라벨링 결과로 채울 수 있다.
     """
     scope = normalize_facet(facets.get("scope")) or None
     if embedding is not None and len(embedding) != EMBEDDING_DIM:
         raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(embedding)}")
     if slot_labels is not None and len(slot_labels) != len(normalized.color_slots):
         raise ValueError("slot_labels must be index-aligned with color_slots")
+    if slot_parts is not None and len(slot_parts) != len(normalized.color_slots):
+        raise ValueError("slot_parts must be index-aligned with color_slots")
 
     values = {
         "id": normalized.id,
         "symbol": normalized.symbol,
         "color_slots": list(normalized.color_slots),
         "slot_colors": list(normalized.slot_colors) if normalized.slot_colors else None,
-        "slot_labels": list(slot_labels) if slot_labels else None,
+        "slot_labels": list(slot_labels) if slot_labels is not None else None,
+        "slot_parts": list(slot_parts) if slot_parts is not None else None,
         "ingested_user_id": ingested_user_id,
         "ingested_session_id": ingested_session_id,
         "bbox": list(normalized.bbox_mm),
@@ -182,12 +189,17 @@ async def upsert_motif(
         .returning(Motif.id)
     )
     inserted_id = (await session.execute(stmt)).scalar_one_or_none()
-    if inserted_id is None and slot_labels is not None:
-        await session.execute(
-            update(Motif)
-            .where(Motif.id == normalized.id, Motif.slot_labels.is_(None))
-            .values(slot_labels=list(slot_labels))
-        )
+    if inserted_id is None:
+        for column, field, value in (
+            (Motif.slot_labels, "slot_labels", slot_labels),
+            (Motif.slot_parts, "slot_parts", slot_parts),
+        ):
+            if value is not None:
+                await session.execute(
+                    update(Motif)
+                    .where(Motif.id == normalized.id, column.is_(None))
+                    .values({field: list(value)})
+                )
     return MotifUpsertResult(id=normalized.id, inserted=inserted_id is not None)
 
 
@@ -206,28 +218,29 @@ async def get_motifs(session: AsyncSession, ids: Iterable[str]) -> dict[str, Mot
             color_slots=tuple(row.color_slots or ("s0",)),
             slot_colors=tuple(row.slot_colors) if row.slot_colors else None,
             slot_labels=tuple(row.slot_labels) if row.slot_labels else None,
+            slot_parts=tuple(row.slot_parts) if row.slot_parts else None,
         )
         for row in rows
     }
 
 
-async def missing_slot_label_rows(session: AsyncSession) -> list[SlotLabelBackfillRow]:
-    """라벨링 가능한 공개 멀티슬롯 NULL 행을 content-hash 순서로 읽는다."""
+async def missing_slot_metadata_rows(session: AsyncSession) -> list[SlotMetadataBackfillRow]:
+    """라벨링 가능한 공개 멀티슬롯 메타데이터 NULL 행을 content-hash 순서로 읽는다."""
 
     rows = (
         await session.execute(
             select(Motif.id, Motif.symbol, Motif.slot_colors)
             .where(
                 Motif.source != USER_UPLOAD_SOURCE,
-                Motif.slot_labels.is_(None),
                 Motif.slot_colors.is_not(None),
                 func.jsonb_array_length(Motif.color_slots) > 1,
+                (Motif.slot_labels.is_(None) | Motif.slot_parts.is_(None)),
             )
             .order_by(Motif.id)
         )
     ).all()
     return [
-        SlotLabelBackfillRow(
+        SlotMetadataBackfillRow(
             id=row[0],
             symbol=row[1],
             slot_colors=tuple(row[2]),
@@ -236,24 +249,34 @@ async def missing_slot_label_rows(session: AsyncSession) -> list[SlotLabelBackfi
     ]
 
 
-async def update_slot_labels_if_missing(
+async def update_slot_metadata_if_missing(
     session: AsyncSession,
     motif_id: str,
-    slot_labels: tuple[str, ...],
+    *,
+    slot_labels: tuple[str, ...] | None = None,
+    slot_parts: tuple[str, ...] | None = None,
 ) -> bool:
-    """NULL 라벨만 채운다. 재실행과 동시 백필 모두 멱등이다."""
+    """제공된 메타데이터의 NULL 필드만 독립적으로 채운다."""
 
-    result = await session.execute(
-        update(Motif)
-        .where(
-            Motif.id == motif_id,
-            Motif.source != USER_UPLOAD_SOURCE,
-            Motif.slot_labels.is_(None),
-            func.jsonb_array_length(Motif.color_slots) == len(slot_labels),
+    updated = False
+    for column, field, value in (
+        (Motif.slot_labels, "slot_labels", slot_labels),
+        (Motif.slot_parts, "slot_parts", slot_parts),
+    ):
+        if value is None:
+            continue
+        result = await session.execute(
+            update(Motif)
+            .where(
+                Motif.id == motif_id,
+                Motif.source != USER_UPLOAD_SOURCE,
+                column.is_(None),
+                func.jsonb_array_length(Motif.color_slots) == len(value),
+            )
+            .values({field: list(value)})
         )
-        .values(slot_labels=list(slot_labels))
-    )
-    return bool(cast("CursorResult[Any]", result).rowcount)
+        updated = bool(cast("CursorResult[Any]", result).rowcount) or updated
+    return updated
 
 
 async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
@@ -271,6 +294,8 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
                 Motif.description,
                 Motif.tags,
                 Motif.source,
+                Motif.color_slots,
+                Motif.slot_parts,
             )
             .where(Motif.source != USER_UPLOAD_SOURCE)
             .order_by(Motif.id)
@@ -288,6 +313,8 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
             description=row[7],
             tags=tuple(row[8] or ()),
             source=row[9],
+            color_slots=tuple(row[10] or ("s0",)),
+            slot_parts=tuple(row[11]) if row[11] else None,
         )
         for row in rows
     ]
@@ -405,6 +432,31 @@ async def all_motif_ids(session: AsyncSession) -> list[str]:
             )
         ).all()
     )
+
+
+async def prune_stale_seeds(session: AsyncSession, seeded_ids: Iterable[str]) -> int:
+    """현재 시드 집합에 없는 `source="seed"` 고아 행을 지운다 — 삭제된 행 수 반환.
+
+    에셋 SVG를 고치면 content-hash id가 바뀌고 upsert는 ON CONFLICT DO NOTHING이라
+    옛 행이 남는다. 방치하면 admin 카탈로그에 옛 geometry·낡은 slot_colors로 계속 노출된다.
+    참조된 행은 남긴다 — 과거 세션 intent가 가리키는 모티프는 불변이어야 한다.
+    """
+    ids = list(seeded_ids)
+    # 빈 집합이면 아무것도 지우지 않는다 — 빈 notin_은 항상 참이라 시드 전체를 지워버린다.
+    if not ids:
+        return 0
+    result = cast(
+        CursorResult,
+        await session.execute(
+            delete(Motif).where(
+                Motif.source == "seed",
+                Motif.id.notin_(ids),
+                ~exists().where(UserMotif.motif_id == Motif.id),
+                ~exists().where(DesignTurnAttachment.motif_id == Motif.id),
+            )
+        ),
+    )
+    return result.rowcount
 
 
 def facets_from_spec(spec: dict) -> dict:

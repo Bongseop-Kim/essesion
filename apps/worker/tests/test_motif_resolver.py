@@ -11,6 +11,7 @@ from db.models.seamless import Motif
 from sqlalchemy.exc import OperationalError
 from worker.config import Settings
 from worker.motifs import store
+from worker.motifs.labeler import SlotMetadata
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.resolver import (
     MotifGenerationBudget,
@@ -62,9 +63,17 @@ class _FakeRecraft:
     def __init__(self, svg: str = _CLEAN) -> None:
         self._svg = svg
         self.calls = 0
+        self.requests: list[tuple[tuple[str, ...], int | None]] = []
 
-    async def generate(self, prompt: str) -> str:
+    async def generate(
+        self,
+        prompt: str,
+        *,
+        colors: tuple[str, ...] = (),
+        seed: int | None = None,
+    ) -> str:
         self.calls += 1
+        self.requests.append((colors, seed))
         return self._svg
 
 
@@ -173,7 +182,10 @@ async def test_new_multislot_ingress_labels_once_and_catalog_hit_never_labels(
 
     async def _label(_preview, colors, **_kwargs):
         calls.append(colors)
-        return ("primary", "detail")
+        return SlotMetadata(
+            labels=("primary", "detail"),
+            parts=("몸통", "윤곽"),
+        )
 
     monkeypatch.setattr("worker.motifs.resolver.label_slots", _label)
     recraft = _FakeRecraft(_MULTI)
@@ -204,17 +216,24 @@ async def test_new_multislot_ingress_labels_once_and_catalog_hit_never_labels(
     assert calls == [("#112233", "#aabbcc")]
     stored = (await store.get_motifs(db_session, [first.motif_id]))[first.motif_id]
     assert stored.slot_labels == ("primary", "detail")
+    assert stored.slot_parts == ("몸통", "윤곽")
 
 
 async def test_request_generate_budget_drops_excess_layer_without_raising(db_session):
     recraft = _FakeRecraft()
     intent = {
+        "palette": {
+            "slots": [
+                {"id": "ground", "hex": "#10243A"},
+                {"id": "accent", "hex": "#EFE6D4"},
+            ]
+        },
         "layers": [
             {"id": "bg", "type": "background", "params": {}},
             {"id": "m1", "type": "motif", "params": {}},
             {"id": "m2", "type": "motif", "params": {}},
             {"id": "m3", "type": "motif", "params": {}},
-        ]
+        ],
     }
     warnings: list[str] = []
     trace: list[dict[str, object]] = []
@@ -230,13 +249,17 @@ async def test_request_generate_budget_drops_excess_layer_without_raising(db_ses
         recraft_client=recraft,
         embedding_client=None,
         settings=_SETTINGS,
-        seed=0,
+        seed=17,
         generation_budget=MotifGenerationBudget(2),
         warnings=warnings,
         trace=trace,
     )
 
     assert recraft.calls == 2
+    assert recraft.requests == [
+        (("#10243A", "#EFE6D4"), 17),
+        (("#10243A", "#EFE6D4"), 17),
+    ]
     assert [layer["id"] for layer in resolved["layers"]] == ["bg", "m1", "m2"]
     assert any("generation budget exhausted" in warning for warning in warnings)
     assert trace[-1]["reason_code"] == "motif_generation_budget_exhausted"
@@ -587,6 +610,36 @@ async def test_prompt_catalog_candidates_matches_korean_particle_form_without_em
 
     assert [candidate["motif_id"] for candidate in candidates] == ["recraft-pelican00001"]
     assert candidates[0]["match_type"] == "exact_token"
+
+
+async def test_prompt_catalog_candidates_exposes_ordered_slot_parts(db_session):
+    motif = NormalizedMotif(
+        id="recraft-pelicanparts",
+        symbol=(
+            '<symbol id="motif-recraft-pelicanparts"><path fill="s0"/><path fill="s1"/></symbol>'
+        ),
+        color_slots=("s0", "s1"),
+        slot_colors=("#FFFFFF", "#0066CC"),
+    )
+    await store.upsert_motif(
+        db_session,
+        motif,
+        facets={"subject": "pelican bicycle", "scope": "whole", "tags": ["펠리컨"]},
+        source="seed",
+        slot_labels=("primary", "secondary"),
+        slot_parts=("몸통", "자전거"),
+    )
+    await db_session.commit()
+
+    candidates = await prompt_catalog_candidates(
+        db_session,
+        "펠리컨을 반복해 주세요",
+        embedding_client=None,
+        tau=0.84,
+    )
+
+    assert candidates[0]["slot_count"] == 2
+    assert candidates[0]["parts"] == ["몸통", "자전거"]
 
 
 async def test_prompt_catalog_candidates_grounds_two_seeds_with_particles(db_session):

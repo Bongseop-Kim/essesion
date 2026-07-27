@@ -75,12 +75,8 @@ MAX_TIMESERIES_DAYS = 92
 DEFAULT_TOP_PRODUCT_LIMIT = 5
 MAX_TOP_PRODUCT_LIMIT = 20
 
-# 매출 지표에서 제외하는 상태 — 미결제(대기중·결제중)와 취소는 매출이 아니다.
-NON_REVENUE_ORDER_STATUSES = ("대기중", "결제중", "취소")
-
-
-def _revenue_order_filter() -> ColumnElement[bool]:
-    return Order.status.not_in(NON_REVENUE_ORDER_STATUSES)
+# 매출 지표는 Order.paid_at 하나로 정의한다 — 윈도우 조건이 미결제(NULL)를 자동 배제하므로
+# 상태 기반 제외 목록이 없다. 결제 후 취소는 차감하지 않고 클레임 지표에서 본다.
 
 
 def _sanitize_private_item_value(value: Any) -> Any:
@@ -385,9 +381,8 @@ async def dashboard_summary(
     start_at, end_at = kst_day_bounds(start, end)
     assert start_at is not None and end_at is not None
     filters: list[ColumnElement[bool]] = [
-        Order.created_at >= start_at,
-        Order.created_at < end_at,
-        _revenue_order_filter(),
+        Order.paid_at >= start_at,
+        Order.paid_at < end_at,
     ]
     if order_type != "all":
         filters.append(Order.order_type == order_type)
@@ -429,7 +424,7 @@ async def dashboard_summary(
     )
 
 
-def _kst_day(column: InstrumentedAttribute[datetime]) -> ColumnElement[date]:
+def _kst_day(column: InstrumentedAttribute[datetime | None]) -> ColumnElement[date]:
     """timestamptz 컬럼을 KST 기준 날짜로 버킷팅한다."""
     return func.date(func.timezone("Asia/Seoul", column))
 
@@ -452,7 +447,9 @@ async def dashboard_timeseries(
     assert start_at is not None and end_at is not None
 
     async def by_day(
-        column: InstrumentedAttribute[datetime], *exprs: ColumnElement[Any], filters: list[Any]
+        column: InstrumentedAttribute[datetime | None],
+        *exprs: ColumnElement[Any],
+        filters: list[Any],
     ) -> dict[date, tuple[Any, ...]]:
         day = _kst_day(column)
         rows = await session.execute(
@@ -460,11 +457,11 @@ async def dashboard_timeseries(
         )
         return {row[0]: tuple(row[1:]) for row in rows.all()}
 
-    order_filters: list[Any] = [_revenue_order_filter()]
+    order_filters: list[Any] = []
     if order_type != "all":
         order_filters.append(Order.order_type == order_type)
     orders = await by_day(
-        Order.created_at,
+        Order.paid_at,
         func.count(),
         func.coalesce(func.sum(Order.total_price), 0),
         filters=order_filters,
@@ -537,11 +534,7 @@ async def dashboard_top_products(
             select(OrderItem.product_id, Product.name, quantity, amount)
             .join(Order, Order.id == OrderItem.order_id)
             .join(Product, Product.id == OrderItem.product_id)
-            .where(
-                Order.created_at >= start_at,
-                Order.created_at < end_at,
-                _revenue_order_filter(),
-            )
+            .where(Order.paid_at >= start_at, Order.paid_at < end_at)
             .group_by(OrderItem.product_id, Product.name)
             .order_by(quantity.desc(), OrderItem.product_id.asc())
             .limit(limit)

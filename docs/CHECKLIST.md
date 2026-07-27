@@ -24,7 +24,8 @@
 
 ## 6. 리허설 (스테이징)
 
-- [ ] 빈 스테이징 DB에 단일 베이스라인 적용 → 관리자·motif 초기 입력과 `seed_authoring_examples.py --confirm-live` 실행, motif/example `embedded=total`, 공개 멀티슬롯 `slot_labels` 백필의 `eligible/updated` 결과 검증
+- [ ] 빈 스테이징 DB에 단일 베이스라인 적용 → 관리자·motif 초기 입력과 `seed_authoring_examples.py --confirm-live` 실행, motif/example `embedded=total`, 공개 멀티슬롯 `slot_labels`·`slot_parts` 백필의 `eligible/updated` 및 admin 표본 결과 검증
+- [ ] Recraft V4.1 vector 스테이징 스모크 → `controls.colors`·`random_seed` 수용, 팔레트 겹침률·gradient 게이트 거부율 기록, 부위 지정 채팅 리컬러의 `color_indices` 길이·슬롯 매핑 표본 검증
 - [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(generate → finalize 큐 → 결과 수신)
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정
 - [ ] Gemini 참고 사진 처리 지역·학습 사용·로그/abuse monitoring 보존·삭제 제어·DPA·사용자 고지를 실제 계약·프로젝트 설정 기준으로 승인

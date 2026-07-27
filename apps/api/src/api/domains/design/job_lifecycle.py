@@ -6,7 +6,7 @@ canceled/failed job은 계정 24시간 쿼터 카운트에서 빠진다(quota.py
 """
 
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from db.models.design import (
     FINALIZE_STALE_MESSAGE,
@@ -47,7 +47,9 @@ def stale_finalize_clause(now: datetime) -> ColumnElement[bool]:
 
 def resolve_stale_finalize_jobs(jobs: Iterable[GenerationJob]) -> None:
     """행 잠금을 이미 확보한 stale job들을 canceled로 종결한다 — 쿼터 슬롯은 자동 해제."""
+    finished_at = datetime.now(UTC)
     for job in jobs:
         job.status = "canceled"
         job.result = None
         job.error_message = FINALIZE_STALE_MESSAGE
+        job.finished_at = finished_at

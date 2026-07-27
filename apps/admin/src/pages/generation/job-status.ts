@@ -1,3 +1,9 @@
+export const JOB_KINDS = ["finalize", "export"] as const;
+
+export function jobKindLabel(kind: (typeof JOB_KINDS)[number]) {
+  return kind === "finalize" ? "원단 최종화" : "파일 내보내기";
+}
+
 export const JOB_STATUSES = [
   "queued",
   "processing",

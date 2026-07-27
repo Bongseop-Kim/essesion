@@ -204,11 +204,17 @@ export function MotifDetailPage() {
             {motif.color_slots.length > 0 && (
               <VStack gap="x1">
                 <Text textStyle="caption" color="fg.neutral-muted">
-                  색상 슬롯 키
+                  {motif.slot_parts === null || motif.slot_parts === undefined
+                    ? "색상 슬롯 키"
+                    : "색상 슬롯 · 부위"}
                 </Text>
                 <TagGroup>
-                  {motif.color_slots.map((slot) => (
-                    <Tag key={slot}>{slot}</Tag>
+                  {motif.color_slots.map((slot, index) => (
+                    <Tag key={`${index}-${slot}`}>
+                      {motif.slot_parts?.[index] === undefined
+                        ? slot
+                        : `${index + 1}. ${slot} → ${motif.slot_parts[index]}`}
+                    </Tag>
                   ))}
                 </TagGroup>
               </VStack>

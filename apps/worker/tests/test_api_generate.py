@@ -15,6 +15,7 @@ import io
 import threading
 import time
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from types import SimpleNamespace
 
 import httpx
@@ -32,6 +33,7 @@ from worker.authoring.schema import DesignPlanV3
 from worker.db import get_session
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
+from worker.motifs.registry import get_motif
 from worker.render.raster import RasterError
 
 from .intent_helpers import mvp_intent, register_test_motifs
@@ -196,14 +198,119 @@ def test_explicit_recolor_assigns_palette_by_semantic_label_rank():
                 slot_labels=("detail", "primary", "outline"),
             )
         },
-        [{"ranked": ["gold", "accent"]}],
+        [{"ranked": ["gold", "accent", "gold"]}],
     )
 
-    # Ranked slot order is s1(primary), s2(outline), s0(detail), with modulo wrap.
+    # Ranked slot order is s1(primary), s2(outline), s0(detail).
     assert motif_layer["params"]["colors"] == {
         "s0": "gold",
         "s1": "gold",
         "s2": "accent",
+    }
+
+
+def test_part_aware_recolor_assigns_palette_in_exposed_slot_order():
+    intent = mvp_intent()
+    motif_layer = _motif_layer(intent)
+    motif_layer["id"] = "part-aware"
+    motif_layer["params"]["motif_id"] = "multi"
+
+    routes._bind_resolved_motif_colors(
+        [intent],
+        {
+            "multi": SimpleNamespace(
+                color_slots=("s0", "s1", "s2"),
+                slot_colors=("#112233", "#445566", "#778899"),
+                slot_labels=("detail", "primary", "outline"),
+                slot_parts=("몸통", "자전거", "부리·안장"),
+            )
+        },
+        [{"part-aware": ["gold", "accent", "gold"]}],
+    )
+
+    assert motif_layer["params"]["colors"] == {
+        "s0": "gold",
+        "s1": "accent",
+        "s2": "gold",
+    }
+
+
+@pytest.mark.parametrize("planned_colors", [["gold"], ["gold", "accent", "gold", "accent"]])
+def test_explicit_recolor_rejects_color_count_that_differs_from_slot_count(planned_colors):
+    intent = mvp_intent()
+    motif_layer = _motif_layer(intent)
+    motif_layer["id"] = "part-aware"
+    motif_layer["params"]["motif_id"] = "multi"
+
+    with pytest.raises(ValueError, match="recolor count must match resolved slot count"):
+        routes._bind_resolved_motif_colors(
+            [intent],
+            {
+                "multi": SimpleNamespace(
+                    color_slots=("s0", "s1", "s2"),
+                    slot_colors=("#112233", "#445566", "#778899"),
+                    slot_labels=("detail", "primary", "outline"),
+                    slot_parts=("몸통", "자전거", "부리·안장"),
+                )
+            },
+            [{"part-aware": planned_colors}],
+        )
+
+
+@pytest.mark.parametrize("planned_colors", [["gold"], ["gold", "accent", "gold", "accent"]])
+def test_generate_returns_422_when_explicit_recolor_count_differs_from_resolved_slots(
+    monkeypatch, planned_colors
+):
+    async def no_public_candidates(*_args, **_kwargs):
+        return []
+
+    async def no_examples(*_args, **_kwargs):
+        return RetrievalOutcome(status="empty", reason="no_examples")
+
+    async def resolved_catalog(_session, ids):
+        return (
+            {
+                "multi": SimpleNamespace(
+                    color_slots=("s0", "s1", "s2"),
+                    slot_colors=("#112233", "#445566", "#778899"),
+                    slot_labels=("detail", "primary", "outline"),
+                    slot_parts=("몸통", "자전거", "부리·안장"),
+                )
+            }
+            if "multi" in ids
+            else {}
+        )
+
+    class Gemini:
+        async def author_designs(self, _prompt, *, validate, **_kwargs):
+            intent = mvp_intent()
+            motif_layer = _motif_layer(intent)
+            motif_layer["id"] = "part-aware"
+            motif_layer["params"]["motif_id"] = "multi"
+            assert validate(intent) is None
+            return [
+                AuthoredDesign(
+                    intent=intent,
+                    motif_color_slots={"part-aware": planned_colors},
+                )
+            ]
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", no_public_candidates)
+    monkeypatch.setattr(routes, "retrieve_examples", no_examples)
+    monkeypatch.setattr(routes, "get_motifs", resolved_catalog)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=Gemini())
+
+    response = TestClient(app).post(
+        "/generate",
+        json={"run_id": _RUN_ID, "prompt": "자전거 모티프를 다시 칠해줘"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "code": "intent_invalid",
+        "stage": "intent",
+        "message": "the design input is invalid",
     }
 
 
@@ -219,12 +326,13 @@ def test_fixed_palette_recolors_even_when_color_indices_were_omitted():
                 color_slots=("s0", "s1"),
                 slot_colors=("#112233", "#445566"),
                 slot_labels=("secondary", "primary"),
+                slot_parts=("몸통", "윤곽"),
             )
         },
         palette_mode="fixed",
     )
 
-    assert motif_layer["params"]["colors"] == {"s0": "gold", "s1": "accent"}
+    assert motif_layer["params"]["colors"] == {"s0": "accent", "s1": "gold"}
 
 
 def test_single_slot_avoids_ground_equivalent_hex_and_degenerate_palette_is_stable():
@@ -619,6 +727,10 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
 def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monkeypatch):
     concrete_raw = load_example_set()[5].plan.model_dump(mode="json")
     concrete_raw["motifs"] = [{"source": "catalog", "catalog_ref": "circle"}]
+    next(layer for layer in concrete_raw["layers"] if layer["type"] == "motif")["color_indices"] = [
+        1,
+        1,
+    ]
     concrete_plan = DesignPlanV3.model_validate(concrete_raw)
     current = compile_design_plan_v3(
         concrete_plan,
@@ -632,9 +744,28 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
         ],
     )
     calls = 0
+    catalog_reads = 0
 
     async def no_public_candidates(*_args, **_kwargs):
         return []
+
+    async def prompt_then_render_catalog(_session, _ids):
+        nonlocal catalog_reads
+        catalog_reads += 1
+        if catalog_reads == 1:
+            return {
+                "circle": SimpleNamespace(
+                    color_slots=("s0", "s1"),
+                    slot_parts=("몸통", "윤곽"),
+                )
+            }
+        return {
+            "circle": replace(
+                get_motif("circle"),
+                color_slots=("s0", "s1"),
+                slot_parts=("몸통", "윤곽"),
+            )
+        }
 
     class RefineGemini:
         async def author_designs(
@@ -665,6 +796,8 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
                     "description": None,
                     "style": None,
                     "current": True,
+                    "slot_count": 2,
+                    "parts": ["몸통", "윤곽"],
                 }
             ]
             authored = compile_design_plan_v3(
@@ -676,6 +809,7 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
             return [authored]
 
     monkeypatch.setattr(routes, "prompt_catalog_candidates", no_public_candidates)
+    monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
     app = _configure_app(monkeypatch)
     app.state.adapters = Adapters(gemini=RefineGemini())
 
@@ -801,13 +935,45 @@ def test_reference_photo_rejects_untrusted_url_before_fetch(monkeypatch):
 
 
 def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
+    catalog_reads = 0
+
+    async def prompt_then_render_catalog(_session, _ids):
+        nonlocal catalog_reads
+        catalog_reads += 1
+        if catalog_reads == 1:
+            return {
+                "circle": SimpleNamespace(color_slots=("s0",), slot_parts=None),
+                "bee": SimpleNamespace(
+                    color_slots=("s0", "s1"),
+                    slot_parts=("몸통", "날개"),
+                ),
+            }
+        return {"circle": get_motif("circle"), "bee": get_motif("bee")}
+
     class ExactMotifGemini:
-        async def author_designs(self, _prompt, *, validate, motif_ids, **_kwargs):
+        async def author_designs(
+            self,
+            _prompt,
+            *,
+            validate,
+            motif_ids,
+            exact_motif_metadata,
+            **_kwargs,
+        ):
             assert motif_ids == ["circle", "bee"]
+            assert exact_motif_metadata == [
+                {"catalog_ref": "input_1", "slot_count": 1},
+                {
+                    "catalog_ref": "input_2",
+                    "slot_count": 2,
+                    "parts": ["몸통", "날개"],
+                },
+            ]
             intent = mvp_intent()
             assert validate(intent) is None
             return [AuthoredDesign(intent=intent)]
 
+    monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
     app = _configure_app(monkeypatch)
     app.state.adapters = Adapters(gemini=ExactMotifGemini())
     client = TestClient(app)

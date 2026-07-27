@@ -1,16 +1,16 @@
 import {
   Box,
   ContentPlaceholder,
+  type DesignPreviewMode,
   Icon,
   ResponsiveModal,
   SegmentedControl,
   SegmentedControlItem,
+  TieCanvas,
   VStack,
 } from "@essesion/shared";
 import { PhotoIcon } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
-
-import { type DesignPreviewMode, TieCanvas } from "./tie-canvas";
 
 export type PreviewModalProps = {
   open: boolean;

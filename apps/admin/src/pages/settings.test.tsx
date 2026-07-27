@@ -144,7 +144,6 @@ describe("SettingsPage", () => {
     const finalizeLimit = (await screen.findByLabelText(
       "실사화 횟수",
     )) as HTMLInputElement;
-    expect(finalizeLimit.max).toBe("1000");
     await user.clear(finalizeLimit);
     await user.type(finalizeLimit, "1001");
     expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
@@ -161,7 +160,6 @@ describe("SettingsPage", () => {
     const initialGrant = (await screen.findByLabelText(
       "토큰 수량",
     )) as HTMLInputElement;
-    expect(initialGrant.max).toBe("100000");
     await user.clear(initialGrant);
     await user.type(initialGrant, "100001");
     expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();

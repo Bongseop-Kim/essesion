@@ -32,6 +32,7 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { NumberField } from "../../shared/ui/number-field";
 
 type ItemDraft = {
   quantity: string;
@@ -367,32 +368,22 @@ export function ManualOrderForm({
                   update("address", event.currentTarget.value)
                 }
               />
-              <TextField
-                type="number"
-                min={0}
-                step={1}
+              <NumberField
                 label="금액"
                 suffix="원"
                 required
                 value={draft.amount}
                 errorMessage={attempted ? errors.amount : undefined}
                 disabled={pending}
-                onChange={(event) =>
-                  update("amount", event.currentTarget.value)
-                }
+                onValueChange={(value) => update("amount", value)}
               />
-              <TextField
-                type="number"
-                min={0}
-                step={1}
+              <NumberField
                 label="택배비"
                 suffix="원"
                 value={draft.shippingFee}
                 errorMessage={attempted ? errors.shippingFee : undefined}
                 disabled={pending}
-                onChange={(event) =>
-                  update("shippingFee", event.currentTarget.value)
-                }
+                onValueChange={(value) => update("shippingFee", value)}
               />
             </Grid>
 
@@ -473,20 +464,15 @@ export function ManualOrderForm({
                     </HStack>
 
                     <Grid columns={{ base: 1, md: 2 }} gap="x4">
-                      <TextField
-                        type="number"
-                        min={1}
-                        step={1}
+                      <NumberField
                         label="수량"
                         suffix="개"
                         required
                         value={item.quantity}
                         errorMessage={itemErrors.quantity}
                         disabled={pending}
-                        onChange={(event) =>
-                          updateItem(index, {
-                            quantity: event.currentTarget.value,
-                          })
+                        onValueChange={(quantity) =>
+                          updateItem(index, { quantity })
                         }
                       />
                       <VStack gap="x2" alignItems="stretch">

@@ -8,11 +8,12 @@ SVG만 노출한다.
 import math
 import re
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal, NamedTuple, cast
 
-from db.models.design import DesignSessionTurn, GenerationJob
+from db.models.auth import User
+from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
 from fastapi import APIRouter, Query, Request
@@ -125,6 +126,7 @@ _INTENT_OMIT = object()
 _MAX_INTENT_DESIGNS = 8
 _MAX_INTENT_SEQUENCE = 10_000
 _MAX_INTENT_DEPTH = 12
+_MAX_SLOT_PART_LENGTH = 40
 
 
 class GenerationJobStatsOut(BaseModel):
@@ -220,6 +222,8 @@ class MotifResolutionOut(BaseModel):
 
 class GenerationOutcomeOut(BaseModel):
     session_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
+    user_name: str | None = None
     selected_candidate_id: str | None = None
     regenerated: bool = False
     finalized: bool = False
@@ -298,6 +302,7 @@ class MotifDetailOut(MotifSummaryOut):
     tags: list[str]
     anchor: list[float]
     color_slots: list[str]
+    slot_parts: list[str] | None = None
 
 
 def _validate_range(start: datetime | None, end: datetime | None) -> None:
@@ -328,6 +333,29 @@ def _safe_metadata(value: Any, *, limit: int = 160) -> str | None:
     if not clean or _EMAIL.search(clean) or _PHONE.search(clean) or _URL_OR_PATH.search(clean):
         return None
     return clean
+
+
+def _safe_slot_parts(value: Any, color_slots: Any) -> list[str] | None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or not isinstance(color_slots, list)
+        or len(value) != len(color_slots)
+        or any(_safe_token(slot) is None for slot in color_slots)
+    ):
+        return None
+    safe_parts: list[str] = []
+    for part in value:
+        if not isinstance(part, str):
+            return None
+        clean = " ".join(part.split())
+        if len(clean) > _MAX_SLOT_PART_LENGTH:
+            return None
+        safe = _safe_metadata(clean, limit=_MAX_SLOT_PART_LENGTH)
+        if safe is None:
+            return None
+        safe_parts.append(safe)
+    return safe_parts
 
 
 def _safe_intent_value(value: Any, *, key: str | None = None, depth: int = 0) -> Any:
@@ -422,6 +450,38 @@ def _job_filters(
     if user_id is not None:
         filters.append(GenerationJob.user_id == user_id)
     return filters
+
+
+class FinalizeDuration(NamedTuple):
+    average: float | None
+    p50: float | None
+    p95: float | None
+
+
+async def finalize_duration_seconds(
+    session,  # noqa: ANN001 — SessionDep 전달
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> FinalizeDuration:
+    """성공한 finalize job의 실제 소요 시간(초) 분포. 화면 노출은 별도 작업."""
+    elapsed = func.extract("epoch", GenerationJob.finished_at - GenerationJob.started_at)
+    row = (
+        await session.execute(
+            select(
+                func.avg(elapsed),
+                func.percentile_cont(0.5).within_group(elapsed),
+                func.percentile_cont(0.95).within_group(elapsed),
+            ).where(
+                *_period_filters(GenerationJob.created_at, start, end),
+                GenerationJob.kind == "finalize",
+                GenerationJob.status == "succeeded",
+                GenerationJob.started_at.is_not(None),
+                GenerationJob.finished_at.is_not(None),
+            )
+        )
+    ).one()
+    return FinalizeDuration(*(float(value) if value is not None else None for value in row))
 
 
 def _job_summary(job: GenerationJob) -> GenerationJobSummaryOut:
@@ -838,27 +898,34 @@ async def _generation_outcome(
     row: SeamlessGenerationLog,
     candidate_ids: list[str],
 ) -> GenerationOutcomeOut:
-    exact_link = DesignSessionTurn.payload["run_id"].astext == str(row.id)
-    turn_query = (
+    if row.session_id is None:
+        return GenerationOutcomeOut(user_id=row.user_id)
+    requester = (
+        await session.execute(
+            select(User.id, User.name)
+            .join(DesignSession, DesignSession.user_id == User.id)
+            .where(DesignSession.id == row.session_id)
+        )
+    ).first()
+    base = GenerationOutcomeOut(
+        session_id=row.session_id,
+        user_id=requester[0] if requester else row.user_id,
+        user_name=requester[1] if requester else None,
+    )
+    # 턴 상관은 세션 스코프 안의 run_id 등가 매칭만 — 시간창 휴리스틱은 쓰지 않는다.
+    generated_turn = await session.scalar(
         select(DesignSessionTurn)
         .where(
+            DesignSessionTurn.session_id == row.session_id,
             DesignSessionTurn.role == "assistant",
             DesignSessionTurn.payload["type"].astext == "generate",
+            DesignSessionTurn.payload["run_id"].astext == str(row.id),
         )
-        .order_by(DesignSessionTurn.created_at, DesignSessionTurn.seq)
+        .order_by(DesignSessionTurn.seq)
         .limit(1)
     )
-    generated_turn = await session.scalar(turn_query.where(exact_link))
-    if generated_turn is None and (request_id := _safe_token(row.request_id)):
-        generated_turn = await session.scalar(
-            turn_query.where(
-                DesignSessionTurn.payload["response"]["request_id"].astext == request_id,
-                DesignSessionTurn.created_at >= row.created_at - timedelta(minutes=15),
-                DesignSessionTurn.created_at <= row.created_at + timedelta(minutes=15),
-            )
-        )
     if generated_turn is None:
-        return GenerationOutcomeOut()
+        return base
 
     next_request = await session.scalar(
         select(DesignSessionTurn)
@@ -902,11 +969,12 @@ async def _generation_outcome(
             select(func.count()).select_from(GenerationJob).where(*finalized_filters)
         )
     )
-    return GenerationOutcomeOut(
-        session_id=generated_turn.session_id,
-        selected_candidate_id=_safe_token(selected_candidate_id),
-        regenerated=next_request is not None,
-        finalized=finalized,
+    return base.model_copy(
+        update={
+            "selected_candidate_id": _safe_token(selected_candidate_id),
+            "regenerated": next_request is not None,
+            "finalized": finalized,
+        }
     )
 
 
@@ -1153,4 +1221,5 @@ async def get_admin_motif(motif_id: str, session: SessionDep, admin: AdminUser) 
         tags=[safe for tag in row.tags if (safe := _safe_metadata(tag, limit=80))],
         anchor=_number_list(row.anchor, size=2),
         color_slots=[safe for slot in row.color_slots if (safe := _safe_token(slot))],
+        slot_parts=_safe_slot_parts(row.slot_parts, row.color_slots),
     )

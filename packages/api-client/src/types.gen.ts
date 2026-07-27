@@ -2393,10 +2393,6 @@ export type AuthoringExampleActivationRequest = {
      * Operation Id
      */
     operation_id: string;
-    /**
-     * Reason
-     */
-    reason: string;
 };
 
 /**
@@ -2427,10 +2423,6 @@ export type AuthoringExampleDeleteRequest = {
      * Operation Id
      */
     operation_id: string;
-    /**
-     * Reason
-     */
-    reason: string;
 };
 
 /**
@@ -2667,10 +2659,6 @@ export type AuthoringExampleUpdateRequest = {
     plan?: {
         [key: string]: unknown;
     } | null;
-    /**
-     * Reason
-     */
-    reason: string;
     /**
      * Retrieval Text
      */
@@ -4396,6 +4384,14 @@ export type GenerationOutcomeOut = {
      * Session Id
      */
     session_id?: string | null;
+    /**
+     * User Id
+     */
+    user_id?: string | null;
+    /**
+     * User Name
+     */
+    user_name?: string | null;
 };
 
 /**
@@ -5014,6 +5010,10 @@ export type MotifDetailOut = {
      * Slot Colors
      */
     slot_colors?: Array<string> | null;
+    /**
+     * Slot Parts
+     */
+    slot_parts?: Array<string> | null;
     /**
      * Source
      */
@@ -7940,20 +7940,6 @@ export type SingleOrderCreateResponse = {
 };
 
 /**
- * StatsResponse
- */
-export type StatsResponse = {
-    /**
-     * Order Count
-     */
-    order_count: number;
-    /**
-     * Revenue
-     */
-    revenue: number;
-};
-
-/**
  * TextMotifPreviewRequest
  */
 export type TextMotifPreviewRequest = {
@@ -8681,6 +8667,36 @@ export type SetAuthoringExampleActivationResponses = {
 };
 
 export type SetAuthoringExampleActivationResponse = SetAuthoringExampleActivationResponses[keyof SetAuthoringExampleActivationResponses];
+
+export type GetAuthoringExamplePreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/examples/{example_id}/preview';
+};
+
+export type GetAuthoringExamplePreviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAuthoringExamplePreviewError = GetAuthoringExamplePreviewErrors[keyof GetAuthoringExamplePreviewErrors];
+
+export type GetAuthoringExamplePreviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringExamplePreviewOut;
+};
+
+export type GetAuthoringExamplePreviewResponse = GetAuthoringExamplePreviewResponses[keyof GetAuthoringExamplePreviewResponses];
 
 export type PreviewAuthoringExampleData = {
     body: AuthoringExamplePreviewRequest;
@@ -11285,78 +11301,6 @@ export type UpdateAdminSettingsResponses = {
 };
 
 export type UpdateAdminSettingsResponse = UpdateAdminSettingsResponses[keyof UpdateAdminSettingsResponses];
-
-export type PeriodStatsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Start Date
-         */
-        start_date: string;
-        /**
-         * End Date
-         */
-        end_date: string;
-        /**
-         * Order Type
-         */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
-    };
-    url: '/admin/stats/period';
-};
-
-export type PeriodStatsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type PeriodStatsError = PeriodStatsErrors[keyof PeriodStatsErrors];
-
-export type PeriodStatsResponses = {
-    /**
-     * Successful Response
-     */
-    200: StatsResponse;
-};
-
-export type PeriodStatsResponse = PeriodStatsResponses[keyof PeriodStatsResponses];
-
-export type TodayStatsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Stat Date
-         */
-        stat_date: string;
-        /**
-         * Order Type
-         */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
-    };
-    url: '/admin/stats/today';
-};
-
-export type TodayStatsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type TodayStatsError = TodayStatsErrors[keyof TodayStatsErrors];
-
-export type TodayStatsResponses = {
-    /**
-     * Successful Response
-     */
-    200: StatsResponse;
-};
-
-export type TodayStatsResponse = TodayStatsResponses[keyof TodayStatsResponses];
 
 export type AdminApproveTokenRefundData = {
     body?: never;
