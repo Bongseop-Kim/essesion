@@ -41,8 +41,7 @@ async def prepare_authoring_preview(
     # 시드 예시처럼 motif_ids 없이 input 모티프를 참조하는 플랜은 카탈로그
     # 자리 표시 모티프로 치환해 레이아웃이 보이게 한다 (ORDER BY id — 결정적).
     needs_placeholder = any(
-        source.source == "input" and source.input_index > len(motif_ids)
-        for source in plan.motifs
+        source.source == "input" and source.input_index > len(motif_ids) for source in plan.motifs
     )
     placeholder_ids = await all_motif_ids(session) if needs_placeholder else []
     placeholder_cursor = 0
@@ -54,9 +53,7 @@ async def prepare_authoring_preview(
             if source.input_index <= len(motif_ids):
                 requested_ids[index] = motif_ids[source.input_index - 1]
             elif placeholder_ids:
-                requested_ids[index] = placeholder_ids[
-                    placeholder_cursor % len(placeholder_ids)
-                ]
+                requested_ids[index] = placeholder_ids[placeholder_cursor % len(placeholder_ids)]
                 placeholder_cursor += 1
                 warnings.append(
                     f"motif input {source.input_index} was not selected;"

@@ -441,12 +441,16 @@ async def prune_stale_seeds(session: AsyncSession, seeded_ids: Iterable[str]) ->
     옛 행이 남는다. 방치하면 admin 카탈로그에 옛 geometry·낡은 slot_colors로 계속 노출된다.
     참조된 행은 남긴다 — 과거 세션 intent가 가리키는 모티프는 불변이어야 한다.
     """
+    ids = list(seeded_ids)
+    # 빈 집합이면 아무것도 지우지 않는다 — 빈 notin_은 항상 참이라 시드 전체를 지워버린다.
+    if not ids:
+        return 0
     result = cast(
         CursorResult,
         await session.execute(
             delete(Motif).where(
                 Motif.source == "seed",
-                Motif.id.notin_(list(seeded_ids)),
+                Motif.id.notin_(ids),
                 ~exists().where(UserMotif.motif_id == Motif.id),
                 ~exists().where(DesignTurnAttachment.motif_id == Motif.id),
             )

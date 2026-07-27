@@ -56,7 +56,8 @@ export function NumberField({
     <TextField
       {...props}
       ref={inputRef}
-      inputMode="numeric"
+      // 모바일 numeric 키패드에는 `-`가 없다 — 음수 허용 필드만 전체 키보드로.
+      inputMode={allowNegative ? "text" : "numeric"}
       value={toDisplay(value)}
       onChange={(event) => {
         const input = event.currentTarget;

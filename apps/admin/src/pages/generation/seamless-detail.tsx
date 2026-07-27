@@ -40,10 +40,7 @@ import {
   GENERATION_MODE_LABELS,
 } from "./generation-labels";
 import { SafeSvgPreview } from "./safe-svg-preview";
-
-function formatMilliseconds(value: number | null | undefined) {
-  return value == null ? "-" : `${Math.round(value).toLocaleString("ko-KR")}ms`;
-}
+import { formatMilliseconds } from "./shared";
 
 const SEAMLESS_STATUS_LABELS: Readonly<
   Record<SeamlessDetailOut["status"], string>

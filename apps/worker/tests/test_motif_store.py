@@ -383,3 +383,15 @@ async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):
         "recraft-seedcurrent0",
         "recraft-seedfaved00",
     ]
+
+
+async def test_prune_stale_seeds_empty_set_deletes_nothing(db_session):
+    """빈 시드 집합은 no-op — 빈 notin_이 참으로 평가돼 전체 삭제되는 사고 방지."""
+    await store.upsert_motif(
+        db_session, _motif("recraft-seedonly0000"), facets={"scope": "whole"}, source="seed"
+    )
+    await db_session.commit()
+
+    assert await store.prune_stale_seeds(db_session, []) == 0
+    await db_session.commit()
+    assert await store.all_motif_ids(db_session) == ["recraft-seedonly0000"]

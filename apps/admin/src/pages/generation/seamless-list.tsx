@@ -233,9 +233,10 @@ export function SeamlessLogsPage() {
               value={draftStatus ?? "all"}
               options={[
                 { value: "all", label: "전체" },
-                { value: "success", label: "성공" },
-                { value: "partial", label: "부분 성공" },
-                { value: "error", label: "오류" },
+                ...SEAMLESS_STATUSES.map((value) => ({
+                  value,
+                  label: operationalStatusLabel(value),
+                })),
               ]}
               onValueChange={(value) =>
                 setDraftStatus(

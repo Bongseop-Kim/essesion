@@ -899,7 +899,7 @@ async def _generation_outcome(
     candidate_ids: list[str],
 ) -> GenerationOutcomeOut:
     if row.session_id is None:
-        return GenerationOutcomeOut()
+        return GenerationOutcomeOut(user_id=row.user_id)
     requester = (
         await session.execute(
             select(User.id, User.name)

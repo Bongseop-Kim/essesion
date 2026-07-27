@@ -21,6 +21,7 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 import { JOB_STATUS_LABELS, jobKindLabel } from "./job-status";
+import { formatDuration } from "./shared";
 
 const PRODUCTION_METHOD_LABELS: Readonly<Record<string, string>> = {
   print: "날염",
@@ -99,14 +100,6 @@ function parameterSummaryItems(
     });
   }
   return items;
-}
-
-function duration(start: string, end: string) {
-  const elapsed = new Date(end).valueOf() - new Date(start).valueOf();
-  if (!Number.isFinite(elapsed) || elapsed < 0) return "-";
-  if (elapsed < 1_000) return `${elapsed}ms`;
-  if (elapsed < 60_000) return `${(elapsed / 1_000).toFixed(1)}초`;
-  return `${(elapsed / 60_000).toFixed(1)}분`;
 }
 
 function JobDetailLoading() {
@@ -200,7 +193,7 @@ export function GenerationJobDetailPage() {
             { label: "수정 시각", value: formatDateTime(job.updated_at) },
             {
               label: "처리 시간",
-              value: duration(job.created_at, job.updated_at),
+              value: formatDuration(job.created_at, job.updated_at),
             },
           ]}
         />

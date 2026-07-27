@@ -14,7 +14,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 /** 서버 계약(DesignPlanV3)의 모티프 슬롯 상한 */
 const MAX_MOTIFS = 2;
@@ -46,10 +46,12 @@ export function MotifPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // 타이핑마다 요청하지 않도록 검색어만 지연시킨다 — 입력 표시는 즉시.
+  const deferredSearch = useDeferredValue(search);
   const [draft, setDraft] = useState(value);
   const query = useQuery({
     ...listAdminMotifsOptions({
-      query: { q: search.trim() || undefined, limit: 100, offset: 0 },
+      query: { q: deferredSearch.trim() || undefined, limit: 100, offset: 0 },
     }),
     placeholderData: keepPreviousData,
     enabled: open,

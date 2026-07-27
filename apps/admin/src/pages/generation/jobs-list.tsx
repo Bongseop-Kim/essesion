@@ -38,6 +38,7 @@ import {
   jobKindLabel,
 } from "./job-status";
 import {
+  formatDuration,
   IdentifierLink,
   isOneOf,
   MetricGrid,
@@ -51,14 +52,6 @@ import {
 
 type JobStatus = (typeof JOB_STATUSES)[number];
 type JobKind = (typeof JOB_KINDS)[number];
-
-function formatDuration(start: string, end: string) {
-  const elapsed = new Date(end).valueOf() - new Date(start).valueOf();
-  if (!Number.isFinite(elapsed) || elapsed < 0) return "-";
-  if (elapsed < 1_000) return `${elapsed}ms`;
-  if (elapsed < 60_000) return `${(elapsed / 1_000).toFixed(1)}초`;
-  return `${(elapsed / 60_000).toFixed(1)}분`;
-}
 
 function JobStatistics({
   data,
@@ -291,8 +284,10 @@ export function GenerationJobsPage() {
               value={draftKind ?? "all"}
               options={[
                 { value: "all", label: "전체" },
-                { value: "finalize", label: "원단 최종화" },
-                { value: "export", label: "파일 내보내기" },
+                ...JOB_KINDS.map((kind) => ({
+                  value: kind,
+                  label: jobKindLabel(kind),
+                })),
               ]}
               onValueChange={(value) =>
                 setDraftKind(value === "all" ? undefined : (value as JobKind))

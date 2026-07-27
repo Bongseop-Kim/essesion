@@ -44,6 +44,14 @@ export function formatMilliseconds(value: number | null | undefined) {
   return `${Math.round(value).toLocaleString("ko-KR")}ms`;
 }
 
+export function formatDuration(start: string, end: string) {
+  const elapsed = new Date(end).valueOf() - new Date(start).valueOf();
+  if (!Number.isFinite(elapsed) || elapsed < 0) return "-";
+  if (elapsed < 1_000) return `${elapsed}ms`;
+  if (elapsed < 60_000) return `${(elapsed / 1_000).toFixed(1)}초`;
+  return `${(elapsed / 60_000).toFixed(1)}분`;
+}
+
 export function operationalStatusLabel(status: string) {
   return OPERATIONAL_STATUS_LABELS[status] ?? status;
 }

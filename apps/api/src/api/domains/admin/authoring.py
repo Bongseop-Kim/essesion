@@ -703,9 +703,7 @@ async def preview_authoring_example(
     request: Request,
     admin: AdminOnly,
 ) -> AuthoringExamplePreviewOut:
-    return await _compiled_preview(
-        request, body.model_dump(mode="json", exclude_none=True)
-    )
+    return await _compiled_preview(request, body.model_dump(mode="json", exclude_none=True))
 
 
 @router.post(
