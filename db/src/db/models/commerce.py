@@ -193,6 +193,8 @@ class Order(TimestampMixin, Base):
     shipping_cost: Mapped[int] = mapped_column(server_default=text("0"))
     payment_group_id: Mapped[uuid.UUID | None] = mapped_column(index=True)  # 묶음 결제 단위
     payment_key: Mapped[str | None]  # Toss paymentKey
+    # 결제 승인 확정 시각 — 매출 지표의 유일한 시간 기준. NULL = 미결제, 그 이상의 의미 없음.
+    paid_at: Mapped[datetime | None] = mapped_column(index=True)
     courier_company: Mapped[str | None]
     tracking_number: Mapped[str | None]
     shipped_at: Mapped[datetime | None]

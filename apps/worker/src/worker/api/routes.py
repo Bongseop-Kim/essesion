@@ -225,6 +225,10 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                 log = SeamlessGenerationLog(
                     id=body.run_id,
                     request_id=request_id_var.get(),
+                    session_id=(
+                        body.motif_provenance.session_id if body.motif_provenance else None
+                    ),
+                    user_id=body.motif_provenance.user_id if body.motif_provenance else None,
                     input_type=(
                         "intent"
                         if body.intent is not None
@@ -1059,6 +1063,8 @@ async def generate(
     log = SeamlessGenerationLog(
         id=generation_log_id,
         request_id=request_id_var.get(),
+        session_id=body.motif_provenance.session_id if body.motif_provenance else None,
+        user_id=body.motif_provenance.user_id if body.motif_provenance else None,
         input_type=input_type,
         prompt=body.prompt,
         has_reference_image=bool(body.reference_images),
@@ -1491,6 +1497,8 @@ async def finalize_task(
     job.attempts += 1
     job.result = None
     job.error_message = None
+    job.started_at = datetime.now(UTC)  # 재시도는 현재 attempt 기준으로 덮어쓴다
+    job.finished_at = None
     attempt = job.attempts
     params = dict(job.params)
     await session.commit()
@@ -1588,6 +1596,7 @@ async def _finish_job(
     job.status = status
     job.result = result
     job.error_message = error
+    job.finished_at = datetime.now(UTC)
     await session.commit()
     return True
 

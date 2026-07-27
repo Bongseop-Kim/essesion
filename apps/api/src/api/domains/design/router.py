@@ -2135,7 +2135,11 @@ async def _fail_finalize_dispatch(session: SessionDep, job_id: uuid.UUID) -> boo
     failed = await session.execute(
         update(GenerationJob)
         .where(GenerationJob.id == job_id, GenerationJob.status == "queued")
-        .values(status="failed", error_message=FINALIZE_DISPATCH_FAILED_MESSAGE)
+        .values(
+            status="failed",
+            error_message=FINALIZE_DISPATCH_FAILED_MESSAGE,
+            finished_at=datetime.now(UTC),
+        )
     )
     dispatch_failed = cast("CursorResult[Any]", failed).rowcount > 0
     await session.commit()
@@ -2217,7 +2221,12 @@ async def cancel_generation_job(
     canceled = await session.execute(
         update(GenerationJob)
         .where(GenerationJob.id == job_id, GenerationJob.status.in_(CANCELABLE_STATUSES))
-        .values(status="canceled", result=None, error_message=FINALIZE_CANCELED_MESSAGE)
+        .values(
+            status="canceled",
+            result=None,
+            error_message=FINALIZE_CANCELED_MESSAGE,
+            finished_at=datetime.now(UTC),
+        )
     )
     if cast("CursorResult[Any]", canceled).rowcount > 0:
         await session.commit()

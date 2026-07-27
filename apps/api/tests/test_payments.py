@@ -85,6 +85,16 @@ async def test_confirm_success_and_idempotency(client, db_session, settings):
     )
     assert status == "used"
 
+    # paid_at — 매출 지표의 시간 기준. 누락되면 대시보드 매출이 0으로 보인다.
+    paid_at = (
+        await db_session.scalars(
+            select(Order.paid_at).where(
+                Order.payment_group_id == uuid.UUID(created["payment_group_id"])
+            )
+        )
+    ).all()
+    assert paid_at and all(value is not None for value in paid_at)
+
     # 로그: lock + confirmed (payment_key 마스킹)
     memos = (await db_session.scalars(select(OrderStatusLog.memo))).all()
     assert "payment lock" in memos

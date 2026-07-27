@@ -8,9 +8,9 @@ SVG만 노출한다.
 import math
 import re
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal, NamedTuple, cast
 
 from db.models.auth import User
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
@@ -427,6 +427,38 @@ def _job_filters(
     return filters
 
 
+class FinalizeDuration(NamedTuple):
+    average: float | None
+    p50: float | None
+    p95: float | None
+
+
+async def finalize_duration_seconds(
+    session,  # noqa: ANN001 — SessionDep 전달
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> FinalizeDuration:
+    """성공한 finalize job의 실제 소요 시간(초) 분포. 화면 노출은 별도 작업."""
+    elapsed = func.extract("epoch", GenerationJob.finished_at - GenerationJob.started_at)
+    row = (
+        await session.execute(
+            select(
+                func.avg(elapsed),
+                func.percentile_cont(0.5).within_group(elapsed),
+                func.percentile_cont(0.95).within_group(elapsed),
+            ).where(
+                *_period_filters(GenerationJob.created_at, start, end),
+                GenerationJob.kind == "finalize",
+                GenerationJob.status == "succeeded",
+                GenerationJob.started_at.is_not(None),
+                GenerationJob.finished_at.is_not(None),
+            )
+        )
+    ).one()
+    return FinalizeDuration(*(float(value) if value is not None else None for value in row))
+
+
 def _job_summary(job: GenerationJob) -> GenerationJobSummaryOut:
     return GenerationJobSummaryOut(
         id=job.id,
@@ -841,27 +873,34 @@ async def _generation_outcome(
     row: SeamlessGenerationLog,
     candidate_ids: list[str],
 ) -> GenerationOutcomeOut:
-    exact_link = DesignSessionTurn.payload["run_id"].astext == str(row.id)
-    turn_query = (
+    if row.session_id is None:
+        return GenerationOutcomeOut()
+    requester = (
+        await session.execute(
+            select(User.id, User.name)
+            .join(DesignSession, DesignSession.user_id == User.id)
+            .where(DesignSession.id == row.session_id)
+        )
+    ).first()
+    base = GenerationOutcomeOut(
+        session_id=row.session_id,
+        user_id=requester[0] if requester else row.user_id,
+        user_name=requester[1] if requester else None,
+    )
+    # 턴 상관은 세션 스코프 안의 run_id 등가 매칭만 — 시간창 휴리스틱은 쓰지 않는다.
+    generated_turn = await session.scalar(
         select(DesignSessionTurn)
         .where(
+            DesignSessionTurn.session_id == row.session_id,
             DesignSessionTurn.role == "assistant",
             DesignSessionTurn.payload["type"].astext == "generate",
+            DesignSessionTurn.payload["run_id"].astext == str(row.id),
         )
-        .order_by(DesignSessionTurn.created_at, DesignSessionTurn.seq)
+        .order_by(DesignSessionTurn.seq)
         .limit(1)
     )
-    generated_turn = await session.scalar(turn_query.where(exact_link))
-    if generated_turn is None and (request_id := _safe_token(row.request_id)):
-        generated_turn = await session.scalar(
-            turn_query.where(
-                DesignSessionTurn.payload["response"]["request_id"].astext == request_id,
-                DesignSessionTurn.created_at >= row.created_at - timedelta(minutes=15),
-                DesignSessionTurn.created_at <= row.created_at + timedelta(minutes=15),
-            )
-        )
     if generated_turn is None:
-        return GenerationOutcomeOut()
+        return base
 
     next_request = await session.scalar(
         select(DesignSessionTurn)
@@ -905,20 +944,12 @@ async def _generation_outcome(
             select(func.count()).select_from(GenerationJob).where(*finalized_filters)
         )
     )
-    requester = (
-        await session.execute(
-            select(User.id, User.name)
-            .join(DesignSession, DesignSession.user_id == User.id)
-            .where(DesignSession.id == generated_turn.session_id)
-        )
-    ).first()
-    return GenerationOutcomeOut(
-        session_id=generated_turn.session_id,
-        user_id=requester[0] if requester else None,
-        user_name=requester[1] if requester else None,
-        selected_candidate_id=_safe_token(selected_candidate_id),
-        regenerated=next_request is not None,
-        finalized=finalized,
+    return base.model_copy(
+        update={
+            "selected_candidate_id": _safe_token(selected_candidate_id),
+            "regenerated": next_request is not None,
+            "finalized": finalized,
+        }
     )
 
 

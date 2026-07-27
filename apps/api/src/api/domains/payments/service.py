@@ -546,6 +546,7 @@ async def _apply_confirmation(
     confirmed: list[ConfirmedOrder] = []
     total_tokens: int | None = None
     masked = mask_payment_key(payment_key)
+    paid_at = datetime.now(UTC)
 
     for order in orders:
         if order.status != "결제중":
@@ -553,6 +554,7 @@ async def _apply_confirmation(
         post = post_map[order.id]
         log_status(session, order, post, changed_by=actor_id, memo=f"payment confirmed: {masked}")
         order.payment_key = payment_key
+        order.paid_at = paid_at  # 매출 지표의 시간 기준 — 결제중 가드가 1회성을 보장한다
 
         token_amount = None
         coupon_issued = False

@@ -238,12 +238,14 @@ async def test_order_list_page_filters_search_and_stable_sort(client, db_session
 async def test_dashboard_summary_and_recent_orders(client, db_session, settings):
     admin = await make_admin(db_session)
     user = await make_user(db_session)
+    # 매출 기준은 paid_at — 주문서 생성 시각(created_at)이 기간 밖이어도 결제가 안이면 집계된다
     sale = await make_order(
         db_session,
         user,
         status="진행중",
         total_price=10000,
-        created_at=datetime(2026, 6, 1, 0, 0, tzinfo=UTC),
+        created_at=datetime(2026, 5, 30, 0, 0, tzinfo=UTC),
+        paid_at=datetime(2026, 6, 1, 0, 0, tzinfo=UTC),
     )
     token = await make_order(
         db_session,
@@ -252,8 +254,9 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
         status="완료",
         total_price=2500,
         created_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
+        paid_at=datetime(2026, 6, 1, 1, 0, tzinfo=UTC),
     )
-    # 미결제(대기중)·취소 주문은 매출 지표에서 제외
+    # 미결제(paid_at IS NULL)는 상태와 무관하게 매출에서 빠진다
     await make_order(
         db_session,
         user,
@@ -261,12 +264,23 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
         total_price=99999,
         created_at=datetime(2026, 6, 1, 2, 0, tzinfo=UTC),
     )
+    # 결제 후 취소는 매출에서 차감하지 않는다 — 환불은 클레임 지표에서 본다
     await make_order(
         db_session,
         user,
         status="취소",
-        total_price=88888,
+        total_price=500,
         created_at=datetime(2026, 6, 1, 3, 0, tzinfo=UTC),
+        paid_at=datetime(2026, 6, 1, 3, 0, tzinfo=UTC),
+    )
+    # 기간 안에 생성됐지만 결제는 기간 밖 → 제외
+    await make_order(
+        db_session,
+        user,
+        status="진행중",
+        total_price=77777,
+        created_at=datetime(2026, 6, 1, 4, 0, tzinfo=UTC),
+        paid_at=datetime(2026, 6, 3, 0, 0, tzinfo=UTC),
     )
     item = OrderItem(
         order_id=sale.id, item_id="summary-item", item_type="product", quantity=1, unit_price=10000
@@ -310,8 +324,8 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
         headers=headers,
     )
     assert summary.status_code == 200
-    assert summary.json()["order_count"] == 2
-    assert summary.json()["order_amount"] == 12500
+    assert summary.json()["order_count"] == 3
+    assert summary.json()["order_amount"] == 13000
     assert "revenue" not in summary.json()
     assert summary.json()["open_claim_count"] == 1
     assert summary.json()["unanswered_inquiry_count"] == 1
@@ -435,22 +449,26 @@ async def test_admin_order_reads_reject_customer(client, db_session, settings):
 async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session, settings):
     admin = await make_admin(db_session)
     user = await make_user(db_session)
+    # 주문 버킷은 paid_at 기준 — created_at은 전부 6/9로 두어 시간 기준 전환을 방어한다.
     # 2026-06-10 14:59Z = 6/10 23:59 KST, 15:00Z = 6/11 00:00 KST — 서로 다른 일 버킷
+    created = datetime(2026, 6, 9, 3, 0, tzinfo=UTC)
     await make_order(
         db_session,
         user,
         status="진행중",
         total_price=10000,
-        created_at=datetime(2026, 6, 10, 14, 59, tzinfo=UTC),
+        created_at=created,
+        paid_at=datetime(2026, 6, 10, 14, 59, tzinfo=UTC),
     )
     await make_order(
         db_session,
         user,
         status="완료",
         total_price=3000,
-        created_at=datetime(2026, 6, 10, 15, 0, tzinfo=UTC),
+        created_at=created,
+        paid_at=datetime(2026, 6, 10, 15, 0, tzinfo=UTC),
     )
-    # 미결제 주문은 매출 시계열에서 제외
+    # 미결제(paid_at IS NULL) 주문은 매출 시계열에서 제외
     await make_order(
         db_session,
         user,
@@ -553,7 +571,13 @@ async def test_dashboard_timeseries_order_type_filter_scopes_order_series_only(
     user = await make_user(db_session)
     day = datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
     await make_order(
-        db_session, user, order_type="token", status="완료", total_price=2500, created_at=day
+        db_session,
+        user,
+        order_type="token",
+        status="완료",
+        total_price=2500,
+        created_at=day,
+        paid_at=day,
     )
     user.created_at = day
     await db_session.commit()
@@ -586,13 +610,14 @@ async def test_dashboard_top_products(client, db_session, settings):
     tie = await make_product(db_session, name="많이 팔린 타이", price=30000)
     scarf = await make_product(db_session, name="덜 팔린 스카프", price=20000)
     in_range = await make_order(
-        db_session, user, status="완료", created_at=datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
+        db_session, user, status="완료", paid_at=datetime(2026, 6, 10, 3, 0, tzinfo=UTC)
     )
     out_of_range = await make_order(
-        db_session, user, status="완료", created_at=datetime(2026, 7, 1, 3, 0, tzinfo=UTC)
+        db_session, user, status="완료", paid_at=datetime(2026, 7, 1, 3, 0, tzinfo=UTC)
     )
-    canceled = await make_order(
-        db_session, user, status="취소", created_at=datetime(2026, 6, 10, 4, 0, tzinfo=UTC)
+    # 미결제 주문 — paid_at 윈도우가 자동 배제한다
+    unpaid = await make_order(
+        db_session, user, status="대기중", created_at=datetime(2026, 6, 10, 4, 0, tzinfo=UTC)
     )
     db_session.add_all(
         [
@@ -620,7 +645,7 @@ async def test_dashboard_top_products(client, db_session, settings):
                 quantity=10,
                 unit_price=50000,
             ),
-            # 기간 밖 주문은 제외
+            # 기간 밖 결제는 제외
             OrderItem(
                 order_id=out_of_range.id,
                 item_id="top-4",
@@ -629,9 +654,9 @@ async def test_dashboard_top_products(client, db_session, settings):
                 quantity=5,
                 unit_price=20000,
             ),
-            # 취소 주문은 매출 랭킹에서 제외
+            # 미결제 주문은 매출 랭킹에서 제외
             OrderItem(
-                order_id=canceled.id,
+                order_id=unpaid.id,
                 item_id="top-5",
                 item_type="product",
                 product_id=scarf.id,

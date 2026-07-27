@@ -198,6 +198,8 @@ def upgrade() -> None:
         "seamless_generation_logs",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("request_id", sa.Text(), nullable=True),
+        sa.Column("session_id", sa.Uuid(), nullable=True),
+        sa.Column("user_id", sa.Uuid(), nullable=True),
         sa.Column("input_type", sa.Text(), nullable=False),
         sa.Column("prompt", sa.Text(), nullable=True),
         sa.Column(
@@ -246,6 +248,18 @@ def upgrade() -> None:
             name=op.f("ck_seamless_generation_logs_status"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_seamless_generation_logs")),
+    )
+    op.create_index(
+        op.f("ix_seamless_generation_logs_session_id"),
+        "seamless_generation_logs",
+        ["session_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_seamless_generation_logs_user_id"),
+        "seamless_generation_logs",
+        ["user_id"],
+        unique=False,
     )
     op.create_table(
         "users",
@@ -512,6 +526,22 @@ def upgrade() -> None:
         "motifs",
         "design_sessions",
         ["ingested_session_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_foreign_key(
+        op.f("fk_seamless_generation_logs_user_id_users"),
+        "seamless_generation_logs",
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_foreign_key(
+        op.f("fk_seamless_generation_logs_session_id_design_sessions"),
+        "seamless_generation_logs",
+        "design_sessions",
+        ["session_id"],
         ["id"],
         ondelete="SET NULL",
     )
@@ -1188,6 +1218,8 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("request_id", sa.Text(), nullable=True),
         sa.Column("attempts", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -1248,6 +1280,7 @@ def upgrade() -> None:
         sa.Column("shipping_cost", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("payment_group_id", sa.Uuid(), nullable=True),
         sa.Column("payment_key", sa.Text(), nullable=True),
+        sa.Column("paid_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("courier_company", sa.Text(), nullable=True),
         sa.Column("tracking_number", sa.Text(), nullable=True),
         sa.Column("shipped_at", sa.DateTime(timezone=True), nullable=True),
@@ -1293,6 +1326,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_orders_admin_list", "orders", ["status", "order_type", "created_at", "id"], unique=False
     )
+    op.create_index(op.f("ix_orders_paid_at"), "orders", ["paid_at"], unique=False)
     op.create_index(
         op.f("ix_orders_payment_group_id"), "orders", ["payment_group_id"], unique=False
     )
@@ -2138,6 +2172,7 @@ def downgrade() -> None:
         postgresql_where=sa.text("status = '배송중'"),
     )
     op.drop_index(op.f("ix_orders_payment_group_id"), table_name="orders")
+    op.drop_index(op.f("ix_orders_paid_at"), table_name="orders")
     op.drop_index("ix_orders_admin_list", table_name="orders")
     op.drop_table("orders")
     op.drop_index("ix_generation_jobs_user_kind_created", table_name="generation_jobs")
@@ -2210,6 +2245,16 @@ def downgrade() -> None:
     )
     op.drop_table("images")
     op.drop_constraint(
+        op.f("fk_seamless_generation_logs_session_id_design_sessions"),
+        "seamless_generation_logs",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        op.f("fk_seamless_generation_logs_user_id_users"),
+        "seamless_generation_logs",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
         op.f("fk_motifs_ingested_session_id_design_sessions"),
         "motifs",
         type_="foreignkey",
@@ -2236,6 +2281,12 @@ def downgrade() -> None:
         "uq_users_email", table_name="users", postgresql_where=sa.text("email IS NOT NULL")
     )
     op.drop_table("users")
+    op.drop_index(
+        op.f("ix_seamless_generation_logs_user_id"), table_name="seamless_generation_logs"
+    )
+    op.drop_index(
+        op.f("ix_seamless_generation_logs_session_id"), table_name="seamless_generation_logs"
+    )
     op.drop_table("seamless_generation_logs")
     op.drop_index("ix_products_admin_list", table_name="products")
     op.drop_table("products")

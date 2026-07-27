@@ -1,14 +1,11 @@
 """관리자 — 쿠폰 관리·통계·고객/주문 목록 (domains.md §10)."""
 
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
-from db.models.commerce import Order
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
-from sqlalchemy import func, select
 
 from api.db import SessionDep
 from api.deps import AdminUser
@@ -29,16 +26,8 @@ from api.domains.admin.schemas import (
     Page,
     SortDirection,
 )
-from api.errors import DomainError
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-KST = ZoneInfo("Asia/Seoul")
-
-
-class StatsResponse(BaseModel):
-    order_count: int
-    revenue: int
 
 
 class AdminCapabilitiesOut(BaseModel):
@@ -55,46 +44,6 @@ class AdminCapabilitiesOut(BaseModel):
     oauth_apple: str
     auth_secrets: str
     edge_proxy: str
-
-
-def _apply_type_filter(query, order_type: OrderTypeFilter):
-    if order_type != "all":
-        query = query.where(Order.order_type == order_type)
-    return query
-
-
-@router.get("/stats/today", response_model=StatsResponse)
-async def today_stats(
-    session: SessionDep,
-    admin: AdminUser,
-    stat_date: date,
-    order_type: OrderTypeFilter = "all",
-) -> StatsResponse:
-    start = datetime.combine(stat_date, datetime.min.time(), tzinfo=KST)
-    query = select(func.count(), func.coalesce(func.sum(Order.total_price), 0)).where(
-        Order.created_at >= start, Order.created_at < start + timedelta(days=1)
-    )
-    count, revenue = (await session.execute(_apply_type_filter(query, order_type))).one()
-    return StatsResponse(order_count=count, revenue=revenue)
-
-
-@router.get("/stats/period", response_model=StatsResponse)
-async def period_stats(
-    session: SessionDep,
-    admin: AdminUser,
-    start_date: date,
-    end_date: date,
-    order_type: OrderTypeFilter = "all",
-) -> StatsResponse:
-    if start_date > end_date:
-        raise DomainError("start_date must be before end_date", code="invalid_range")
-    start = datetime.combine(start_date, datetime.min.time(), tzinfo=KST)
-    end = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=KST)
-    query = select(func.count(), func.coalesce(func.sum(Order.total_price), 0)).where(
-        Order.created_at >= start, Order.created_at < end
-    )
-    count, revenue = (await session.execute(_apply_type_filter(query, order_type))).one()
-    return StatsResponse(order_count=count, revenue=revenue)
 
 
 @router.get("/capabilities", response_model=AdminCapabilitiesOut)

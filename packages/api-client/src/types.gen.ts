@@ -7948,20 +7948,6 @@ export type SingleOrderCreateResponse = {
 };
 
 /**
- * StatsResponse
- */
-export type StatsResponse = {
-    /**
-     * Order Count
-     */
-    order_count: number;
-    /**
-     * Revenue
-     */
-    revenue: number;
-};
-
-/**
  * TextMotifPreviewRequest
  */
 export type TextMotifPreviewRequest = {
@@ -11293,78 +11279,6 @@ export type UpdateAdminSettingsResponses = {
 };
 
 export type UpdateAdminSettingsResponse = UpdateAdminSettingsResponses[keyof UpdateAdminSettingsResponses];
-
-export type PeriodStatsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Start Date
-         */
-        start_date: string;
-        /**
-         * End Date
-         */
-        end_date: string;
-        /**
-         * Order Type
-         */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
-    };
-    url: '/admin/stats/period';
-};
-
-export type PeriodStatsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type PeriodStatsError = PeriodStatsErrors[keyof PeriodStatsErrors];
-
-export type PeriodStatsResponses = {
-    /**
-     * Successful Response
-     */
-    200: StatsResponse;
-};
-
-export type PeriodStatsResponse = PeriodStatsResponses[keyof PeriodStatsResponses];
-
-export type TodayStatsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Stat Date
-         */
-        stat_date: string;
-        /**
-         * Order Type
-         */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
-    };
-    url: '/admin/stats/today';
-};
-
-export type TodayStatsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type TodayStatsError = TodayStatsErrors[keyof TodayStatsErrors];
-
-export type TodayStatsResponses = {
-    /**
-     * Successful Response
-     */
-    200: StatsResponse;
-};
-
-export type TodayStatsResponse = TodayStatsResponses[keyof TodayStatsResponses];
 
 export type AdminApproveTokenRefundData = {
     body?: never;

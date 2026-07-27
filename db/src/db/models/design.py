@@ -141,6 +141,10 @@ class GenerationJob(TimestampMixin, Base):
     error_message: Mapped[str | None]
     request_id: Mapped[str | None]  # obs request_id — 전 구간 추적
     attempts: Mapped[int] = mapped_column(server_default=text("0"))
+    # 소요 시간 측정용 — 각 상태 전이가 직접 기록한다(updated_at 근사 대입 금지).
+    # NULL = 아직 그 단계에 도달하지 않음. 재시도는 started_at을 현재 attempt로 덮어쓴다.
+    started_at: Mapped[datetime | None]
+    finished_at: Mapped[datetime | None]
 
     __table_args__ = (
         CheckConstraint("kind IN ('finalize', 'export')", name="kind"),
