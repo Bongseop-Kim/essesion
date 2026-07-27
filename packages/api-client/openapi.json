@@ -16058,6 +16058,55 @@
         ]
       }
     },
+    "/admin/authoring/examples/{example_id}/preview": {
+      "get": {
+        "description": "저장된 plan·모티프로 타일 프리뷰를 렌더한다 — 목록 썸네일용.",
+        "operationId": "get_authoring_example_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthoringExamplePreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Authoring Example Preview",
+        "tags": [
+          "admin-authoring"
+        ]
+      }
+    },
     "/admin/authoring/preview": {
       "post": {
         "operationId": "preview_authoring_example",

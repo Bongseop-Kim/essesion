@@ -8664,6 +8664,36 @@ export type SetAuthoringExampleActivationResponses = {
 
 export type SetAuthoringExampleActivationResponse = SetAuthoringExampleActivationResponses[keyof SetAuthoringExampleActivationResponses];
 
+export type GetAuthoringExamplePreviewData = {
+    body?: never;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/authoring/examples/{example_id}/preview';
+};
+
+export type GetAuthoringExamplePreviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetAuthoringExamplePreviewError = GetAuthoringExamplePreviewErrors[keyof GetAuthoringExamplePreviewErrors];
+
+export type GetAuthoringExamplePreviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringExamplePreviewOut;
+};
+
+export type GetAuthoringExamplePreviewResponse = GetAuthoringExamplePreviewResponses[keyof GetAuthoringExamplePreviewResponses];
+
 export type PreviewAuthoringExampleData = {
     body: AuthoringExamplePreviewRequest;
     path?: never;

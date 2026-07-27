@@ -1,6 +1,18 @@
 import type { AuthoringExampleSummaryOut } from "@essesion/api-client";
-import { listAuthoringExamplesOptions } from "@essesion/api-client/query";
-import { ActionButton, Badge, HStack, Text, VStack } from "@essesion/shared";
+import {
+  getAuthoringExamplePreviewOptions,
+  listAuthoringExamplesOptions,
+} from "@essesion/api-client/query";
+import {
+  ActionButton,
+  Badge,
+  Box,
+  HStack,
+  ImageFrame,
+  Skeleton,
+  Text,
+  VStack,
+} from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -34,7 +46,46 @@ const SOURCE_LABELS = {
 
 type ActiveFilter = keyof typeof ACTIVE_LABELS;
 
+function ExamplePreviewCell({ row }: { row: AuthoringExampleSummaryOut }) {
+  const options = getAuthoringExamplePreviewOptions({
+    path: { example_id: row.id },
+  });
+  const query = useQuery({
+    ...options,
+    /* plan 수정은 updated_at을 바꾼다 — 키에 넣어 편집 후 캐시를 무효화 */
+    queryKey: [
+      { ...options.queryKey[0], updated_at: row.updated_at },
+    ] as unknown as typeof options.queryKey,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+  return (
+    <Box width={44}>
+      {query.isPending ? (
+        <Skeleton width={44} height={44} radius="r2" />
+      ) : (
+        <ImageFrame
+          ratio={1}
+          fit="contain"
+          stroke
+          src={
+            query.data === undefined
+              ? undefined
+              : `data:image/svg+xml;utf8,${encodeURIComponent(query.data.svg)}`
+          }
+          alt="타일 프리뷰"
+        />
+      )}
+    </Box>
+  );
+}
+
 const columns: readonly AdminTableColumn<AuthoringExampleSummaryOut>[] = [
+  {
+    key: "preview",
+    header: "프리뷰",
+    render: (row) => <ExamplePreviewCell row={row} />,
+  },
   {
     key: "example_id",
     header: "시범",

@@ -684,22 +684,28 @@ async def decide_authoring_candidate(
     )
 
 
-@router.post("/preview", response_model=AuthoringExamplePreviewOut)
-async def preview_authoring_example(
-    body: AuthoringExamplePreviewRequest,
-    request: Request,
-    admin: AdminOnly,
+async def _compiled_preview(
+    request: Request, payload: dict[str, Any]
 ) -> AuthoringExamplePreviewOut:
     result = AuthoringExamplePreviewOut.model_validate(
-        await request.app.state.worker.preview_authoring_example(
-            body.model_dump(mode="json", exclude_none=True)
-        )
+        await request.app.state.worker.preview_authoring_example(payload)
     )
     try:
         safe_svg = sanitize_svg(result.svg)
     except SanitizeError as exc:
         raise UpstreamError("저작 프리뷰 SVG 안전성 검증에 실패했습니다") from exc
     return result.model_copy(update={"svg": safe_svg})
+
+
+@router.post("/preview", response_model=AuthoringExamplePreviewOut)
+async def preview_authoring_example(
+    body: AuthoringExamplePreviewRequest,
+    request: Request,
+    admin: AdminOnly,
+) -> AuthoringExamplePreviewOut:
+    return await _compiled_preview(
+        request, body.model_dump(mode="json", exclude_none=True)
+    )
 
 
 @router.post(
@@ -804,6 +810,24 @@ async def get_authoring_example(
     admin: AdminUser,
 ) -> AuthoringExampleDetailOut:
     return _example_detail(await _example_or_404(session, example_id))
+
+
+@router.get(
+    "/examples/{example_id}/preview",
+    response_model=AuthoringExamplePreviewOut,
+)
+async def get_authoring_example_preview(
+    example_id: uuid.UUID,
+    request: Request,
+    session: SessionDep,
+    admin: AdminUser,
+) -> AuthoringExamplePreviewOut:
+    """저장된 plan·모티프로 타일 프리뷰를 렌더한다 — 목록 썸네일용."""
+    row = await _example_or_404(session, example_id)
+    return await _compiled_preview(
+        request,
+        {"plan": row.plan, "motif_ids": row.motif_ids, "tile_mm": 48.0},
+    )
 
 
 @router.patch("/examples/{example_id}", response_model=AuthoringExampleDetailOut)
