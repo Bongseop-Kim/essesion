@@ -82,6 +82,46 @@ async def test_compile_preview_drops_missing_catalog_motif_with_warning(client):
     ]
 
 
+async def test_compile_preview_substitutes_placeholder_for_unselected_input(app, client):
+    async with app.state.sessionmaker() as session:
+        session.add(
+            Motif(
+                id="studio-placeholder",
+                symbol=(
+                    '<symbol id="motif-studio-placeholder" overflow="visible">'
+                    '<circle cx="0" cy="0" r="0.45" fill="currentColor"/>'
+                    "</symbol>"
+                ),
+                bbox=[-0.5, -0.5, 0.5, 0.5],
+                anchor=[0.0, 0.0],
+                subject="placeholder",
+            )
+        )
+        await session.commit()
+    response = await client.post(
+        "/authoring/compile-preview",
+        json={"plan": _motif_plan(), "motif_ids": [], "seed": 17},
+    )
+
+    assert response.status_code == 200, response.text
+    assert "motif-studio-placeholder" in response.json()["svg"]
+    assert response.json()["warnings"] == [
+        "motif input 1 was not selected; a placeholder catalog motif is shown"
+    ]
+
+
+async def test_compile_preview_omits_input_layers_when_catalog_is_empty(client):
+    response = await client.post(
+        "/authoring/compile-preview",
+        json={"plan": _motif_plan(), "motif_ids": []},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["warnings"] == [
+        "motif input 1 was not selected and its layers were omitted"
+    ]
+
+
 async def test_compile_preview_rejects_invalid_plan_and_input_mapping(client):
     invalid = await client.post(
         "/authoring/compile-preview",

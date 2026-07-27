@@ -42,7 +42,20 @@ import {
   type AuthoringExampleFormValue,
   planJsonText,
 } from "./example-studio";
+import { MotifPicker } from "./motif-picker";
 import { PlanPreviewCard } from "./plan-preview";
+
+/** 플랜이 참조하는 input 모티프 수 — 시드 예시는 motif_ids 없이 이 자리만 갖는다 */
+function planInputMotifCount(plan: Record<string, unknown>): number {
+  const motifs = plan.motifs;
+  if (!Array.isArray(motifs)) return 0;
+  return motifs.filter(
+    (motif) =>
+      typeof motif === "object" &&
+      motif !== null &&
+      (motif as { source?: unknown }).source === "input",
+  ).length;
+}
 
 function ActivationAction({
   example,
@@ -226,6 +239,20 @@ function PlanSection({
   const [editing, setEditing] = useState(false);
   const [reason, setReason] = useState("");
   const [operationId, setOperationId] = useState(() => crypto.randomUUID());
+  /* input 모티프 자리만 있는 시범(시드 등)은 프리뷰 전용으로 모티프를 골라 볼 수 있다.
+     저장하지 않는다 — 실제 생성에서는 사용자가 고른 모티프가 이 자리에 들어간다. */
+  const [previewMotifIds, setPreviewMotifIds] = useState<string[]>([]);
+  const [previewMotifLabels, setPreviewMotifLabels] = useState<
+    Record<string, string>
+  >({});
+  const inputCount = planInputMotifCount(example.plan);
+  const previewPickerVisible = example.motif_ids.length === 0 && inputCount > 0;
+  /* 서버는 motif_ids를 주면 모든 input_index를 정확히 커버하길 요구한다 —
+     선택이 미완이면 보내지 않고 placeholder 폴백으로 그린다 */
+  const effectiveMotifIds =
+    previewPickerVisible && previewMotifIds.length === inputCount
+      ? previewMotifIds
+      : example.motif_ids;
   const mutation = useMutation({
     ...updateAuthoringExampleMutation(),
     onSuccess: async (value) => {
@@ -273,7 +300,36 @@ function PlanSection({
           position={{ base: "static", lg: "sticky" }}
           top="calc(var(--spacing-x16) + var(--spacing-x4))"
         >
-          <PlanPreviewCard plan={example.plan} motifIds={example.motif_ids} />
+          <PlanPreviewCard
+            plan={example.plan}
+            motifIds={effectiveMotifIds}
+            footer={
+              previewPickerVisible
+                ? () => (
+                    <VStack gap="x2" alignItems="stretch">
+                      <MotifPicker
+                        value={previewMotifIds}
+                        labels={previewMotifLabels}
+                        max={inputCount}
+                        label="프리뷰 모티프"
+                        description="실제 생성에서는 사용자가 고른 모티프가 이 자리에 들어갑니다. 여기서 고른 모티프는 프리뷰에만 적용되고 저장되지 않습니다."
+                        onChange={(ids, labels) => {
+                          setPreviewMotifIds(ids);
+                          setPreviewMotifLabels(labels);
+                        }}
+                      />
+                      {previewMotifIds.length > 0 &&
+                        previewMotifIds.length < inputCount && (
+                          <Text textStyle="caption" color="fg.neutral-muted">
+                            모티프 {inputCount}개를 모두 고르면 프리뷰에
+                            적용됩니다.
+                          </Text>
+                        )}
+                    </VStack>
+                  )
+                : undefined
+            }
+          />
         </Box>
       </Grid>
     );

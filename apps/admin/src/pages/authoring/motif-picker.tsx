@@ -30,12 +30,19 @@ export function MotifPicker({
   labels,
   onChange,
   disabled,
+  max = MAX_MOTIFS,
+  label = "모티프",
+  description = "고른 순서가 Plan JSON의 motifs[].input_index(1부터)입니다. 카탈로그 모티프만 사용하며 생성형 호출은 하지 않습니다.",
 }: {
   value: string[];
   /** 알고 있는 id→이름. 편집 진입 시에는 비어 있어 ID를 그대로 보여준다 */
   labels: Record<string, string>;
   onChange: (value: string[], labels: Record<string, string>) => void;
   disabled?: boolean;
+  /** 고를 수 있는 개수 상한 — 기본은 Plan 계약 상한(2) */
+  max?: number;
+  label?: string;
+  description?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -48,18 +55,20 @@ export function MotifPicker({
     enabled: open,
   });
 
-  const label = (id: string) => labels[id] ?? id;
+  const labelFor = (id: string) => labels[id] ?? id;
 
   return (
     <>
       <FieldButton
-        label={`모티프 (${value.length}/${MAX_MOTIFS})`}
-        description="고른 순서가 Plan JSON의 motifs[].input_index(1부터)입니다. 카탈로그 모티프만 사용하며 생성형 호출은 하지 않습니다."
+        label={`${label} (${value.length}/${max})`}
+        description={description}
         placeholder="모티프 선택"
         value={
           value.length === 0
             ? undefined
-            : value.map((id, index) => `${index + 1}. ${label(id)}`).join(" · ")
+            : value
+                .map((id, index) => `${index + 1}. ${labelFor(id)}`)
+                .join(" · ")
         }
         disabled={disabled}
         onClick={() => {
@@ -72,7 +81,7 @@ export function MotifPicker({
           open
           onOpenChange={setOpen}
           title="모티프 선택"
-          description={`Plan의 모티프 슬롯 순서대로 최대 ${MAX_MOTIFS}개까지 고릅니다.`}
+          description={`Plan의 모티프 슬롯 순서대로 최대 ${max}개까지 고릅니다.`}
           size="medium"
           showCloseButton
           footer={
@@ -135,10 +144,7 @@ export function MotifPicker({
                   aria-label="모티프 목록"
                   onValueChange={(next) =>
                     setDraft(
-                      (Array.isArray(next) ? next : [next]).slice(
-                        0,
-                        MAX_MOTIFS,
-                      ),
+                      (Array.isArray(next) ? next : [next]).slice(0, max),
                     )
                   }
                 >
@@ -149,7 +155,7 @@ export function MotifPicker({
                       label={motifLabel(motif)}
                       description={`${motif.id} · ${motif.color_slot_count}색 슬롯`}
                       disabled={
-                        draft.length >= MAX_MOTIFS && !draft.includes(motif.id)
+                        draft.length >= max && !draft.includes(motif.id)
                       }
                     />
                   ))}
