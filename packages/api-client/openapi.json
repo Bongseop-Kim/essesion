@@ -4461,18 +4461,11 @@
             "format": "uuid",
             "title": "Operation Id",
             "type": "string"
-          },
-          "reason": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Reason",
-            "type": "string"
           }
         },
         "required": [
           "operation_id",
           "active",
-          "reason",
           "expected_updated_at"
         ],
         "title": "AuthoringExampleActivationRequest",
@@ -4513,17 +4506,10 @@
             "format": "uuid",
             "title": "Operation Id",
             "type": "string"
-          },
-          "reason": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Reason",
-            "type": "string"
           }
         },
         "required": [
-          "operation_id",
-          "reason"
+          "operation_id"
         ],
         "title": "AuthoringExampleDeleteRequest",
         "type": "object"
@@ -4958,12 +4944,6 @@
             ],
             "title": "Plan"
           },
-          "reason": {
-            "maxLength": 500,
-            "minLength": 3,
-            "title": "Reason",
-            "type": "string"
-          },
           "retrieval_text": {
             "anyOf": [
               {
@@ -4980,7 +4960,6 @@
         },
         "required": [
           "operation_id",
-          "reason",
           "expected_updated_at"
         ],
         "title": "AuthoringExampleUpdateRequest",

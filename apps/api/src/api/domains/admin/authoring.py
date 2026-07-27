@@ -22,7 +22,7 @@ from api.db import SessionDep, advisory_xact_lock
 from api.deps import AdminOnly, AdminUser
 from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.schemas import Page
-from api.errors import ConflictError, ForbiddenError, NotFoundError, UpstreamError
+from api.errors import ConflictError, NotFoundError, UpstreamError
 
 router = APIRouter(prefix="/admin/authoring", tags=["admin-authoring"])
 
@@ -145,7 +145,6 @@ class AuthoringExampleDetailOut(AuthoringExampleSummaryOut):
 class AuthoringExampleActivationRequest(BaseModel):
     operation_id: uuid.UUID
     active: bool
-    reason: str = Field(min_length=3, max_length=500)
     expected_updated_at: AwareDatetime
 
 
@@ -189,7 +188,6 @@ class AuthoringExampleCreateRequest(_AuthoringExampleWriteFields):
 
 class AuthoringExampleUpdateRequest(BaseModel):
     operation_id: uuid.UUID
-    reason: str = Field(min_length=3, max_length=500)
     expected_updated_at: AwareDatetime
     retrieval_text: str | None = Field(default=None, min_length=10, max_length=500)
     plan: dict[str, Any] | None = None
@@ -218,7 +216,6 @@ class AuthoringExampleUpdateRequest(BaseModel):
 
 class AuthoringExampleDeleteRequest(BaseModel):
     operation_id: uuid.UUID
-    reason: str = Field(min_length=3, max_length=500)
 
 
 class _WorkerPreparedAuthoringExample(BaseModel):
@@ -830,8 +827,6 @@ async def update_authoring_example(
         return _example_detail(await _example_or_404(session, example_id))
 
     current = await _example_or_404(session, example_id)
-    if current.source != "authored":
-        raise ForbiddenError("직접 작성한 시범만 편집할 수 있습니다")
     if current.updated_at.astimezone(UTC) != body.expected_updated_at.astimezone(UTC):
         raise ConflictError(
             "저작 시범이 다른 관리자에 의해 변경되었습니다",
@@ -846,8 +841,6 @@ async def update_authoring_example(
         motif_ids=body.motif_ids if body.motif_ids is not None else current.motif_ids,
     )
     row = await _example_or_404(session, example_id, lock=True)
-    if row.source != "authored":
-        raise ForbiddenError("직접 작성한 시범만 편집할 수 있습니다")
     if row.updated_at.astimezone(UTC) != body.expected_updated_at.astimezone(UTC):
         raise ConflictError(
             "저작 시범이 다른 관리자에 의해 변경되었습니다",
@@ -888,7 +881,7 @@ async def update_authoring_example(
         target_type="authoring_example",
         target_id=str(example_id),
         target_count=1,
-        reason=body.reason,
+        reason="",
         payload=payload,
         before=before,
         after=_example_audit_state(row),
@@ -919,11 +912,6 @@ async def delete_authoring_example(
         return
 
     row = await _example_or_404(session, example_id, lock=True)
-    if row.source != "authored":
-        raise ConflictError(
-            "초기·승격 시범은 삭제할 수 없습니다. 비활성 상태로 전환해 주세요.",
-            code="authoring_example_delete_forbidden",
-        )
     if row.active:
         raise ConflictError(
             "활성 시범은 비활성화한 뒤 삭제해 주세요.",
@@ -939,7 +927,7 @@ async def delete_authoring_example(
         target_type="authoring_example",
         target_id=str(example_id),
         target_count=1,
-        reason=body.reason,
+        reason="",
         payload=payload,
         before=before,
         after={"deleted": True},
@@ -1026,7 +1014,7 @@ async def set_authoring_example_activation(
     row.active = body.active
     row.active_updated_at = now
     row.active_updated_by = admin.id
-    row.active_reason = body.reason.strip()
+    row.active_reason = None
     after = {"active": row.active}
     record_operation(
         session,
@@ -1036,7 +1024,7 @@ async def set_authoring_example_activation(
         target_type="authoring_example",
         target_id=str(example_id),
         target_count=1,
-        reason=body.reason,
+        reason="",
         payload=payload,
         before=before,
         after=after,

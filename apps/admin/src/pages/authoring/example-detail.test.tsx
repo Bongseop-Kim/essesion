@@ -11,6 +11,8 @@ const api = vi.hoisted(() => ({
   update: vi.fn(),
   preview: vi.fn(),
   listMotifs: vi.fn(),
+  remove: vi.fn(),
+  setActivation: vi.fn(),
 }));
 const auth = vi.hoisted(() => ({ role: "admin" }));
 
@@ -27,8 +29,10 @@ vi.mock("@essesion/api-client/query", () => ({
   }),
   previewAuthoringExampleMutation: () => ({ mutationFn: api.preview }),
   updateAuthoringExampleMutation: () => ({ mutationFn: api.update }),
-  deleteAuthoringExampleMutation: () => ({ mutationFn: vi.fn() }),
-  setAuthoringExampleActivationMutation: () => ({ mutationFn: vi.fn() }),
+  deleteAuthoringExampleMutation: () => ({ mutationFn: api.remove }),
+  setAuthoringExampleActivationMutation: () => ({
+    mutationFn: api.setActivation,
+  }),
 }));
 
 vi.mock("../../shared/session/admin-session", () => ({
@@ -66,7 +70,8 @@ const example: AuthoringExampleDetailOut = {
   motif_ids: [],
   plan: PLAN,
   retrieval_text: "차분한 단색 배경 넥타이 시범",
-  source: "authored",
+  /* bootstrap도 이제 편집·삭제 대상 — 완화된 정책을 그대로 검증한다 */
+  source: "bootstrap",
   source_digest: "digest-1",
   structural_fingerprint: "fingerprint-1",
   tags: ["background", "solid"],
@@ -125,15 +130,11 @@ describe("AuthoringExampleDetailPage", () => {
     });
   });
 
-  it("수정 버튼으로 편집에 들어가 사유와 함께 Plan을 저장한다", async () => {
+  it("수정 버튼으로 편집에 들어가 Plan을 저장한다", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "수정" }));
-    await user.type(
-      screen.getByLabelText(/변경 사유/),
-      "팔레트를 정리했습니다",
-    );
     const nextPlan = { ...PLAN, ground_color_index: 1 };
     await user.clear(screen.getByLabelText(/Plan \(DesignPlanV3\)/));
     await user.paste(JSON.stringify(nextPlan));
@@ -149,7 +150,6 @@ describe("AuthoringExampleDetailPage", () => {
         {
           path: { example_id: example.id },
           body: expect.objectContaining({
-            reason: "팔레트를 정리했습니다",
             expected_updated_at: example.updated_at,
             retrieval_text: example.retrieval_text,
             plan: nextPlan,
@@ -169,5 +169,51 @@ describe("AuthoringExampleDetailPage", () => {
 
     await screen.findByLabelText(/Plan \(DesignPlanV3\)/);
     expect(screen.queryByRole("button", { name: "수정" })).toBeNull();
+  });
+
+  it("사유 입력 없이 확인 다이얼로그만으로 활성화한다", async () => {
+    const user = userEvent.setup();
+    api.setActivation.mockResolvedValue({ ...example, active: true });
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "시범 활성화" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "활성화" }));
+
+    await waitFor(() =>
+      expect(api.setActivation).toHaveBeenCalledWith(
+        {
+          path: { example_id: example.id },
+          body: {
+            operation_id: expect.any(String),
+            active: true,
+            expected_updated_at: example.updated_at,
+          },
+        },
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("비활성 상태에서 삭제 버튼으로 사유 없이 영구 삭제한다", async () => {
+    const user = userEvent.setup();
+    api.remove.mockResolvedValue(undefined);
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "시범 영구 삭제" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "영구 삭제" }));
+
+    await waitFor(() =>
+      expect(api.remove).toHaveBeenCalledWith(
+        {
+          path: { example_id: example.id },
+          body: { operation_id: expect.any(String) },
+        },
+        expect.anything(),
+      ),
+    );
   });
 });

@@ -2393,10 +2393,6 @@ export type AuthoringExampleActivationRequest = {
      * Operation Id
      */
     operation_id: string;
-    /**
-     * Reason
-     */
-    reason: string;
 };
 
 /**
@@ -2427,10 +2423,6 @@ export type AuthoringExampleDeleteRequest = {
      * Operation Id
      */
     operation_id: string;
-    /**
-     * Reason
-     */
-    reason: string;
 };
 
 /**
@@ -2667,10 +2659,6 @@ export type AuthoringExampleUpdateRequest = {
     plan?: {
         [key: string]: unknown;
     } | null;
-    /**
-     * Reason
-     */
-    reason: string;
     /**
      * Retrieval Text
      */
