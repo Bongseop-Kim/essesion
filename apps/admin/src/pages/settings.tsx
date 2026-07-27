@@ -25,6 +25,7 @@ import { AdminCard } from "../shared/ui/admin-card";
 import { ChangeReviewDialog } from "../shared/ui/change-review-dialog";
 import { DetailList } from "../shared/ui/detail-list";
 import { EditModeShell } from "../shared/ui/edit-mode-shell";
+import { NumberField } from "../shared/ui/number-field";
 import { RouteHeading } from "../shared/ui/route-heading";
 
 function settingsDraft(items: readonly AdminSettingOut[]) {
@@ -161,6 +162,11 @@ export function SettingsPage() {
     mutation.reset();
   };
 
+  const updateDraft = (key: string, value: string) => {
+    resetFailedOperation();
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+
   if (query.isLoading) {
     return (
       <VStack gap="x6" alignItems="stretch">
@@ -259,41 +265,26 @@ export function SettingsPage() {
           >
             {editing ? (
               <VStack gap="x4" alignItems="stretch">
-                <TextField
-                  type={
-                    item.value_type === "non_negative_integer"
-                      ? "number"
-                      : "text"
-                  }
-                  min={
-                    item.value_type === "non_negative_integer" ? 0 : undefined
-                  }
-                  step={
-                    item.value_type === "non_negative_integer" ? 1 : undefined
-                  }
-                  max={
-                    item.value_type === "non_negative_integer"
-                      ? (presentation.max ?? GENERIC_NUMERIC_SETTING_MAX)
-                      : undefined
-                  }
-                  label={presentation.inputLabel}
-                  description={`현재 ${formatSettingValue(item)}`}
-                  suffix={
-                    item.value_type === "non_negative_integer"
-                      ? (presentation.unit ?? "개")
-                      : undefined
-                  }
-                  value={draft[item.key] ?? item.value}
-                  disabled={mutation.isPending}
-                  onChange={(event) => {
-                    resetFailedOperation();
-                    const value = event.currentTarget.value;
-                    setDraft((current) => ({
-                      ...current,
-                      [item.key]: value,
-                    }));
-                  }}
-                />
+                {item.value_type === "non_negative_integer" ? (
+                  <NumberField
+                    label={presentation.inputLabel}
+                    description={`현재 ${formatSettingValue(item)}`}
+                    suffix={presentation.unit ?? "개"}
+                    value={draft[item.key] ?? item.value}
+                    disabled={mutation.isPending}
+                    onValueChange={(value) => updateDraft(item.key, value)}
+                  />
+                ) : (
+                  <TextField
+                    label={presentation.inputLabel}
+                    description={`현재 ${formatSettingValue(item)}`}
+                    value={draft[item.key] ?? item.value}
+                    disabled={mutation.isPending}
+                    onChange={(event) =>
+                      updateDraft(item.key, event.currentTarget.value)
+                    }
+                  />
+                )}
                 {presentation.editWarning && (
                   <Callout
                     tone="warning"

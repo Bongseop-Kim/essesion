@@ -24,6 +24,7 @@ import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { FilterSelect } from "../../shared/ui/filter-select";
+import { NumberField } from "../../shared/ui/number-field";
 import {
   PRODUCT_CATEGORIES,
   PRODUCT_COLORS,
@@ -427,33 +428,25 @@ export function ProductForm({
 
         <AdminCard title="가격·재고">
           <Grid columns={{ base: 1, md: 2 }} gap="x4">
-            <TextField
-              type="number"
-              min={0}
-              step={1}
+            <NumberField
               label="기본 가격"
               suffix="원"
               required
               value={draft.price}
               errorMessage={attempted ? errors.price : undefined}
               disabled={pending}
-              onChange={(event) => update("price", event.currentTarget.value)}
+              onValueChange={(value) => update("price", value)}
             />
             {draft.options.length === 0 ? (
               <VStack gap="x2" alignItems="stretch">
-                <TextField
-                  type="number"
-                  min={0}
-                  step={1}
+                <NumberField
                   label="상품 재고"
                   suffix="개"
                   required={!draft.unlimitedStock}
                   value={draft.stock}
                   errorMessage={attempted ? errors.stock : undefined}
                   disabled={draft.unlimitedStock || pending}
-                  onChange={(event) =>
-                    update("stock", event.currentTarget.value)
-                  }
+                  onValueChange={(value) => update("stock", value)}
                 />
                 <Checkbox
                   label="재고 수량 제한 없음"
@@ -562,10 +555,7 @@ export function ProductForm({
                             })
                           }
                         />
-                        <TextField
-                          type="number"
-                          min={0}
-                          step={1}
+                        <NumberField
                           label="추가 금액"
                           suffix="원"
                           required
@@ -576,17 +566,12 @@ export function ProductForm({
                               : undefined
                           }
                           disabled={pending}
-                          onChange={(event) =>
-                            updateOption(option.clientId, {
-                              additionalPrice: event.currentTarget.value,
-                            })
+                          onValueChange={(additionalPrice) =>
+                            updateOption(option.clientId, { additionalPrice })
                           }
                         />
                         <VStack gap="x2" alignItems="stretch">
-                          <TextField
-                            type="number"
-                            min={0}
-                            step={1}
+                          <NumberField
                             label="옵션 재고"
                             suffix="개"
                             required={!option.unlimitedStock}
@@ -595,10 +580,8 @@ export function ProductForm({
                               attempted ? optionErrors?.stock : undefined
                             }
                             disabled={option.unlimitedStock || pending}
-                            onChange={(event) =>
-                              updateOption(option.clientId, {
-                                stock: event.currentTarget.value,
-                              })
+                            onValueChange={(stock) =>
+                              updateOption(option.clientId, { stock })
                             }
                           />
                           <Checkbox

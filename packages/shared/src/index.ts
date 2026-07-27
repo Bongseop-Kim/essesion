@@ -174,6 +174,11 @@ export type {
 } from "./components/text-field";
 export { TextAreaField, TextField } from "./components/text-field";
 export type {
+  DesignPreviewMode,
+  TieCanvasProps,
+} from "./components/tie-canvas";
+export { TieCanvas } from "./components/tie-canvas";
+export type {
   OrderContentRow,
   OrderItemContent,
 } from "./order-content";

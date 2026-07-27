@@ -27,7 +27,6 @@ import {
   TabTrigger,
   Text,
   TextAreaField,
-  TextField,
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,6 +44,7 @@ import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { useAdminSession } from "../../shared/session/admin-session";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
+import { NumberField } from "../../shared/ui/number-field";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import {
@@ -247,7 +247,8 @@ export function CustomerDetailPage() {
 
   const canAdjustTokens =
     state.status === "authenticated" && state.session.role === "admin";
-  const amountValue = Number(amount);
+  // 부호만 입력한 "-"는 NaN이 되므로 0으로 떨어뜨린다.
+  const amountValue = Number(amount) || 0;
   const amountIsValidInteger =
     Number.isSafeInteger(amountValue) && amountValue !== 0;
   const exceedsBalance =
@@ -728,9 +729,8 @@ export function CustomerDetailPage() {
                 ]}
               />
               <Box maxWidth="size.field-narrow">
-                <TextField
-                  type="number"
-                  step={1}
+                <NumberField
+                  allowNegative
                   label="조정 수량"
                   placeholder="지급은 양수, 회수는 음수"
                   value={amount}
@@ -740,7 +740,7 @@ export function CustomerDetailPage() {
                       ? "회수 수량이 현재 잔액을 초과합니다."
                       : undefined
                   }
-                  onChange={(event) => setAmount(event.currentTarget.value)}
+                  onValueChange={setAmount}
                 />
               </Box>
               <TextAreaField

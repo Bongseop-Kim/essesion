@@ -4,11 +4,16 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
+  type DesignPreviewMode,
+  Divider,
   Grid,
   ProgressCircle,
+  SegmentedControl,
+  SegmentedControlItem,
   Skeleton,
   Text,
   TextAreaField,
+  TieCanvas,
   VStack,
 } from "@essesion/shared";
 import { useMutation } from "@tanstack/react-query";
@@ -32,8 +37,13 @@ import {
 
 const PREVIEW_DEBOUNCE_MS = 400;
 const MIN_RETRIEVAL_LENGTH = 10;
-/* 정사각 프리뷰가 컬럼 폭을 다 먹으면 저장 버튼이 화면 밖으로 밀린다 */
-const PREVIEW_SIZE = 280;
+/* 컬럼 폭을 다 쓰되, 스크롤 전(페이지 제목 아래) 위치에서도 카드가 통째로 보이도록
+   높이를 캡한다 — 27rem = 제목 영역 + 카드 크롬(헤더·구분선·저장 버튼·안내) */
+const PREVIEW_SIZE = "min(100%, calc(100dvh - 27rem))";
+
+/* TieCanvas는 SVG를 background-image로 반복시켜서 data URI가 필요하다 */
+const svgToDataUri = (svg: string) =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
 export type AuthoringExampleFormValue = {
   retrievalText: string;
@@ -68,6 +78,7 @@ export function AuthoringExampleForm({
   const [motifIds, setMotifIds] = useState(() => [...initialMotifIds]);
   const [motifLabels, setMotifLabels] = useState<Record<string, string>>({});
   const [previewedSignature, setPreviewedSignature] = useState<string>();
+  const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
 
   const motifNames = motifIds.map((id) => motifLabels[id] ?? id);
   const previewBody = useMemo(
@@ -188,8 +199,20 @@ export function AuthoringExampleForm({
           top="calc(var(--spacing-x16) + var(--spacing-x4))"
         >
           <AdminCard
-            title="타일 프리뷰"
+            title="프리뷰"
             description="바꾸면 바로 다시 그립니다. LLM·Recraft 없이 Plan과 카탈로그 모티프만으로 렌더합니다."
+            action={
+              <SegmentedControl
+                value={previewMode}
+                onValueChange={(value) =>
+                  setPreviewMode(value as DesignPreviewMode)
+                }
+                aria-label="미리보기 방식"
+              >
+                <SegmentedControlItem value="repeat">타일</SegmentedControlItem>
+                <SegmentedControlItem value="tie">넥타이</SegmentedControlItem>
+              </SegmentedControl>
+            }
           >
             <VStack gap="x4" alignItems="stretch">
               {!previewReady ? (
@@ -202,7 +225,12 @@ export function AuthoringExampleForm({
                   }
                 />
               ) : preview.isPending && preview.data === undefined ? (
-                <Skeleton width={PREVIEW_SIZE} height={PREVIEW_SIZE} />
+                <Skeleton
+                  width={PREVIEW_SIZE}
+                  radius="r4"
+                  className="self-center"
+                  style={{ aspectRatio: 1 }}
+                />
               ) : preview.isError ? (
                 <Callout
                   role="alert"
@@ -214,15 +242,28 @@ export function AuthoringExampleForm({
                   )}
                 />
               ) : preview.data === undefined ? (
-                <Skeleton width={PREVIEW_SIZE} height={PREVIEW_SIZE} />
+                <Skeleton
+                  width={PREVIEW_SIZE}
+                  radius="r4"
+                  className="self-center"
+                  style={{ aspectRatio: 1 }}
+                />
               ) : (
                 <>
-                  <Box maxWidth={PREVIEW_SIZE} width="full">
-                    <SafeSvgPreview
-                      svg={preview.data.svg}
-                      status="safe"
-                      alt="저작 시범 타일 프리뷰"
-                    />
+                  <Box maxWidth={PREVIEW_SIZE} width="full" alignSelf="center">
+                    {previewMode === "repeat" ? (
+                      <SafeSvgPreview
+                        svg={preview.data.svg}
+                        status="safe"
+                        alt="저작 시범 프리뷰"
+                      />
+                    ) : (
+                      <TieCanvas
+                        imageSrc={svgToDataUri(preview.data.svg)}
+                        mode="tie"
+                        alt="저작 시범 프리뷰"
+                      />
+                    )}
                   </Box>
                   {preview.data.warnings.length > 0 && (
                     <Callout
@@ -234,24 +275,39 @@ export function AuthoringExampleForm({
                 </>
               )}
 
-              {previewReady && preview.isPending && (
+              <Divider />
+
+              {/* 저장은 이 화면의 마지막 액션 — 구분선 아래 large로 고정한다.
+                  진행 문구는 버튼 아래에 둬야 버튼 위치가 흔들리지 않는다 */}
+              <VStack gap="x2" alignItems="stretch">
+                <ActionButton
+                  type="submit"
+                  variant="brandSolid"
+                  size="large"
+                  loading={submitting}
+                  disabled={
+                    !retrievalValid || !previewCurrent || submitDisabled
+                  }
+                >
+                  {submitLabel}
+                </ActionButton>
                 <Text
                   textStyle="caption"
                   color="fg.neutral-muted"
                   aria-live="polite"
                 >
-                  <ProgressCircle size={16} /> 프리뷰를 다시 그리는 중입니다.
+                  {previewReady && preview.isPending ? (
+                    <>
+                      <ProgressCircle size={16} /> 프리뷰를 다시 그리는
+                      중입니다.
+                    </>
+                  ) : !retrievalValid ? (
+                    "예시 사용자 요청문을 입력하면 저장할 수 있습니다."
+                  ) : (
+                    "현재 프리뷰 그대로 저장합니다."
+                  )}
                 </Text>
-              )}
-
-              <ActionButton
-                type="submit"
-                variant="brandSolid"
-                loading={submitting}
-                disabled={!retrievalValid || !previewCurrent || submitDisabled}
-              >
-                {submitLabel}
-              </ActionButton>
+              </VStack>
 
               {submitError !== undefined && (
                 <Callout

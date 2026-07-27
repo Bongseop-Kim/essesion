@@ -73,7 +73,7 @@ describe("FewShotExampleNewPage", () => {
       screen.getByLabelText(/예시 사용자 요청문/),
       "차분한 격자무늬 넥타이 시범",
     );
-    await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" });
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
     const save = screen.getByRole("button", { name: "비활성 시범 저장" });
     await waitFor(() =>
       expect((save as HTMLButtonElement).disabled).toBe(false),

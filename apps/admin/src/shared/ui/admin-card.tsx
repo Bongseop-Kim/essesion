@@ -39,7 +39,8 @@ export function AdminCard<E extends ElementType = "section">({
                 </Text>
               )}
             </VStack>
-            {action}
+            {/* 액션은 줄이지 않는다 — 설명이 길면 버튼이 눌려 세로로 접힌다 */}
+            {action !== undefined && <Box flexShrink={0}>{action}</Box>}
           </HStack>
         )}
         {children}

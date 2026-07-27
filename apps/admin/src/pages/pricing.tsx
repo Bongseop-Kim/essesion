@@ -18,7 +18,6 @@ import {
   TabTrigger,
   Text,
   TextAreaField,
-  TextField,
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +29,7 @@ import { useAdminSession } from "../shared/session/admin-session";
 import { AdminCard } from "../shared/ui/admin-card";
 import { ChangeReviewDialog } from "../shared/ui/change-review-dialog";
 import { EditModeShell } from "../shared/ui/edit-mode-shell";
+import { NumberField } from "../shared/ui/number-field";
 import { RouteHeading } from "../shared/ui/route-heading";
 import {
   AdminTable,
@@ -283,20 +283,15 @@ export function PricingPage() {
               {editing ? (
                 <Grid columns={{ base: 1, md: 2 }} gap="x4">
                   {(groups[category.value] ?? []).map((item) => (
-                    <TextField
+                    <NumberField
                       key={item.key}
-                      type="number"
-                      min={0}
-                      max={1_000_000_000}
-                      step={1}
                       label={pricingLabel(item.key)}
                       description={`현재 ${formatPricingAmount(item)}`}
                       suffix={item.unit}
                       value={draft[item.key] ?? String(item.amount)}
                       disabled={mutation.isPending}
-                      onChange={(event) => {
+                      onValueChange={(value) => {
                         resetFailedOperation();
-                        const value = event.currentTarget.value;
                         setDraft((current) => ({
                           ...current,
                           [item.key]: value,

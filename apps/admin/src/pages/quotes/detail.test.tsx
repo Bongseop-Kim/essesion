@@ -135,7 +135,7 @@ describe("QuoteDetailPage", () => {
 
     expect(await screen.findByText("견적을 변경하지 못했습니다")).toBeTruthy();
     expect((screen.getByLabelText("견적 금액") as HTMLInputElement).value).toBe(
-      "120000",
+      "120,000",
     );
     expect(
       (screen.getByLabelText("견적 조건") as HTMLTextAreaElement).value,

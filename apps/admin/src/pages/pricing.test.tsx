@@ -141,7 +141,7 @@ describe("PricingPage", () => {
     await act(async () => rejectMutation?.(new Error("동시 수정 충돌")));
 
     expect(await screen.findByText("동시 수정 충돌")).toBeTruthy();
-    expect(amount.value).toBe("1200");
+    expect(amount.value).toBe("1,200");
     expect(
       (screen.getByLabelText(/변경 사유/) as HTMLTextAreaElement).value,
     ).toBe("배송비 정책 변경");

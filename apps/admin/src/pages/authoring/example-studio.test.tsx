@@ -62,7 +62,7 @@ describe("AuthoringExampleForm", () => {
     expect(screen.queryByRole("button", { name: "타일 프리뷰" })).toBeNull();
     const save = screen.getByRole("button", { name: "시범 저장" });
     expect(
-      await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" }),
+      await screen.findByRole("img", { name: /저작 시범 프리뷰/ }),
     ).toBeTruthy();
     await waitFor(() =>
       expect((save as HTMLButtonElement).disabled).toBe(false),
@@ -98,7 +98,7 @@ describe("AuthoringExampleForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" });
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
 
     await user.click(screen.getByRole("button", { name: /모티프 \(0\/2\)/ }));
     await user.click(
@@ -129,7 +129,7 @@ describe("AuthoringExampleForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" });
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
     const calls = api.preview.mock.calls.length;
 
     fireEvent.change(screen.getByLabelText(/1번 HEX/), {
@@ -155,7 +155,7 @@ describe("AuthoringExampleForm", () => {
         onSubmit={vi.fn()}
       />,
     );
-    await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" });
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
 
     await user.click(screen.getByRole("button", { name: /모티프 \(0\/2\)/ }));
     await user.click(
@@ -189,7 +189,7 @@ describe("AuthoringExampleForm", () => {
       screen.getByLabelText(/예시 사용자 요청문/),
       `  ${VALID_INTENT}  `,
     );
-    await screen.findByRole("img", { name: "저작 시범 타일 프리뷰" });
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
     const save = screen.getByRole("button", { name: "시범 저장" });
     await waitFor(() =>
       expect((save as HTMLButtonElement).disabled).toBe(false),

@@ -1,18 +1,18 @@
 import {
   Box,
   ContentPlaceholder,
+  type DesignPreviewMode,
   Flex,
   HStack,
   Icon,
   SegmentedControl,
   SegmentedControlItem,
   Text,
+  TieCanvas,
   VStack,
 } from "@essesion/shared";
 import { PhotoIcon } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
-
-import { type DesignPreviewMode, TieCanvas } from "./tie-canvas";
 
 export type PreviewPanelProps = {
   imageSrc?: string | null;

@@ -26,6 +26,7 @@ import {
 import { getErrorMessage } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { NumberField } from "../../shared/ui/number-field";
 
 export type CouponDraft = {
   name: string;
@@ -243,11 +244,7 @@ export function CouponDefinitionForm({
           </VStack>
 
           <Grid columns={{ base: 1, md: 2 }} gap="x4">
-            <TextField
-              type="number"
-              min={1}
-              max={draft.discountType === "percentage" ? 100 : undefined}
-              step={1}
+            <NumberField
               label={
                 draft.discountType === "percentage" ? "할인율" : "할인 금액"
               }
@@ -256,24 +253,17 @@ export function CouponDefinitionForm({
               value={draft.discountValue}
               errorMessage={attempted ? errors.discountValue : undefined}
               disabled={pending}
-              onChange={(event) =>
-                update("discountValue", event.currentTarget.value)
-              }
+              onValueChange={(value) => update("discountValue", value)}
             />
             {draft.discountType === "percentage" ? (
-              <TextField
-                type="number"
-                min={1}
-                step={1}
+              <NumberField
                 label="최대 할인액"
                 placeholder="비워 두면 제한 없음"
                 suffix="원"
                 value={draft.maxDiscountAmount}
                 errorMessage={attempted ? errors.maxDiscountAmount : undefined}
                 disabled={pending}
-                onChange={(event) =>
-                  update("maxDiscountAmount", event.currentTarget.value)
-                }
+                onValueChange={(value) => update("maxDiscountAmount", value)}
               />
             ) : (
               <DatePicker

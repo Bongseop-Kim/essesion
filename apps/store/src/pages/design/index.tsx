@@ -13,6 +13,7 @@ import {
   AlertDialog,
   Box,
   Callout,
+  type DesignPreviewMode,
   Grid,
   HStack,
   Icon,
@@ -142,7 +143,6 @@ import {
   SessionListModal,
 } from "@/features/design/ui/session-list-modal";
 import { TextMotifModal } from "@/features/design/ui/text-motif-modal";
-import type { DesignPreviewMode } from "@/features/design/ui/tie-canvas";
 import { type TurnCandidate, TurnFeed } from "@/features/design/ui/turn-feed";
 import { validateImageFile } from "@/shared/lib/upload";
 import { useSession } from "@/shared/store/session";

@@ -23,7 +23,6 @@ import {
   TabTrigger,
   Text,
   TextAreaField,
-  TextField,
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,6 +38,7 @@ import {
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
+import { NumberField } from "../../shared/ui/number-field";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
@@ -392,15 +392,12 @@ export function QuoteDetailPage() {
                 title={`저장하면 ${selectedAction.target_status} 상태로 변경됩니다`}
                 description="고객에게 보일 금액과 조건을 먼저 확인해 주세요."
               />
-              <TextField
-                type="number"
-                min={0}
-                step={1}
+              <NumberField
                 label="견적 금액"
                 suffix="원"
                 value={amount}
                 errorMessage={validationError}
-                onChange={(event) => setAmount(event.currentTarget.value)}
+                onValueChange={setAmount}
               />
               <TextAreaField
                 label="견적 조건"
