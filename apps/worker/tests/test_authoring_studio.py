@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from db.models.seamless import EMBEDDING_DIM, Motif
 from sqlalchemy import delete
 from worker.adapters import AdapterClientError
@@ -47,6 +49,42 @@ def _motif_plan() -> dict:
     }
 
 
+def _stripe_motif_plan(size_ratio: float) -> dict:
+    return {
+        "colors": ["#102A43", "#747965", "#D1A13A"],
+        "ground_color_index": 0,
+        "motifs": [{"source": "input", "input_index": 1}],
+        "layers": [
+            {
+                "type": "stripe",
+                "direction": "diagonal_up",
+                "period_ratio": 0.70710677,
+                "bands": [
+                    {
+                        "offset_ratio": 0.3,
+                        "width_ratio": 0.1,
+                        "color_index": 1,
+                    }
+                ],
+            },
+            {
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": size_ratio,
+                "color_indices": [2],
+                "placement": {
+                    "type": "path",
+                    "kind": "straight",
+                    "direction": "diagonal_up",
+                    "spacing_ratio": 0.25,
+                    "phase_ratio": 0,
+                    "rotation": "follow_path",
+                },
+            },
+        ],
+    }
+
+
 def _slot_motif(motif_id: str, slot_count: int) -> Motif:
     slots = [f"s{index}" for index in range(slot_count)]
     return Motif(
@@ -83,6 +121,53 @@ async def test_compile_preview_uses_catalog_without_generation_adapters(
     assert response.json()["warnings"] == []
     assert app.state.adapters.gemini is None
     assert app.state.adapters.recraft is None
+
+
+async def test_compile_preview_renders_requested_plan_without_layout_variants(app, client):
+    motif_id = "studio-preview-identity"
+    async with app.state.sessionmaker() as session:
+        session.add(_slot_motif(motif_id, 1))
+        await session.commit()
+
+    expected_scales = {
+        0.29166667: "14",
+        0.3: "14.4",
+        0.31: "14.88",
+        0.311: "14.928",
+        0.3112: "14.9376",
+    }
+    expected_anchors = {("0", "0"), ("12", "36"), ("24", "24"), ("36", "12")}
+
+    for size_ratio, expected_scale in expected_scales.items():
+        response = await client.post(
+            "/authoring/compile-preview",
+            json={
+                "plan": _stripe_motif_plan(size_ratio),
+                "motif_ids": [motif_id],
+                "seed": 17,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        svg = response.json()["svg"]
+        transforms = re.findall(
+            r'<use [^>]*transform="translate\(([^)]+)\) rotate\([^)]+\) '
+            r'scale\(([^)]+)\)"',
+            svg,
+        )
+        assert {scale for _translate, scale in transforms} == {expected_scale}
+        anchors = {
+            tuple(translate.split())
+            for translate, _scale in transforms
+            if all(0 <= float(value) < 48 for value in translate.split())
+        }
+        assert anchors == expected_anchors
+        assert set(
+            re.findall(
+                r'<line [^>]*stroke="#747965" stroke-width="([^"]+)"',
+                svg,
+            )
+        ) == {"3.3941"}
 
 
 async def test_compile_preview_drops_missing_catalog_motif_with_warning(client):
