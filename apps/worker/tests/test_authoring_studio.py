@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from db.models.seamless import EMBEDDING_DIM, Motif
+from sqlalchemy import delete
 from worker.adapters import AdapterClientError
 
 
@@ -15,27 +16,54 @@ def _solid_plan() -> dict:
     }
 
 
+def _motif_layer(
+    *,
+    motif_index: int = 0,
+    color_indices: list[int] | None = None,
+) -> dict:
+    layer = {
+        "type": "motif",
+        "motif_index": motif_index,
+        "size_ratio": 0.18,
+        "placement": {
+            "type": "lattice",
+            "columns": 4,
+            "rows": 4,
+            "drop": "none",
+            "fixed_rotation_deg": 0,
+        },
+    }
+    if color_indices is not None:
+        layer["color_indices"] = color_indices
+    return layer
+
+
 def _motif_plan() -> dict:
     return {
         "colors": ["#F4EFE6", "#213547"],
         "ground_color_index": 0,
         "motifs": [{"source": "input", "input_index": 1}],
-        "layers": [
-            {
-                "type": "motif",
-                "motif_index": 0,
-                "size_ratio": 0.18,
-                "color_indices": [1],
-                "placement": {
-                    "type": "lattice",
-                    "columns": 4,
-                    "rows": 4,
-                    "drop": "none",
-                    "fixed_rotation_deg": 0,
-                },
-            }
-        ],
+        "layers": [_motif_layer(color_indices=[1])],
     }
+
+
+def _slot_motif(motif_id: str, slot_count: int) -> Motif:
+    slots = [f"s{index}" for index in range(slot_count)]
+    return Motif(
+        id=motif_id,
+        symbol=(
+            f'<symbol id="motif-{motif_id}" overflow="visible">'
+            + "".join(
+                f'<circle cx="{index / 10:.1f}" cy="0" r="0.1" fill="{slot}"/>'
+                for index, slot in enumerate(slots)
+            )
+            + "</symbol>"
+        ),
+        color_slots=slots,
+        bbox=[-0.5, -0.5, 0.5, 0.5],
+        anchor=[0.0, 0.0],
+        subject=f"{slot_count}-slot",
+    )
 
 
 async def test_compile_preview_uses_catalog_without_generation_adapters(
@@ -43,19 +71,7 @@ async def test_compile_preview_uses_catalog_without_generation_adapters(
     client,
 ):
     async with app.state.sessionmaker() as session:
-        session.add(
-            Motif(
-                id="studio-flower",
-                symbol=(
-                    '<symbol id="motif-studio-flower" overflow="visible">'
-                    '<circle cx="0" cy="0" r="0.45" fill="currentColor"/>'
-                    "</symbol>"
-                ),
-                bbox=[-0.5, -0.5, 0.5, 0.5],
-                anchor=[0.0, 0.0],
-                subject="flower",
-            )
-        )
+        session.add(_slot_motif("studio-flower", 1))
         await session.commit()
     response = await client.post(
         "/authoring/compile-preview",
@@ -84,19 +100,7 @@ async def test_compile_preview_drops_missing_catalog_motif_with_warning(client):
 
 async def test_compile_preview_substitutes_placeholder_for_unselected_input(app, client):
     async with app.state.sessionmaker() as session:
-        session.add(
-            Motif(
-                id="studio-placeholder",
-                symbol=(
-                    '<symbol id="motif-studio-placeholder" overflow="visible">'
-                    '<circle cx="0" cy="0" r="0.45" fill="currentColor"/>'
-                    "</symbol>"
-                ),
-                bbox=[-0.5, -0.5, 0.5, 0.5],
-                anchor=[0.0, 0.0],
-                subject="placeholder",
-            )
-        )
+        session.add(_slot_motif("studio-placeholder", 1))
         await session.commit()
     response = await client.post(
         "/authoring/compile-preview",
@@ -107,6 +111,73 @@ async def test_compile_preview_substitutes_placeholder_for_unselected_input(app,
     assert "motif-studio-placeholder" in response.json()["svg"]
     assert response.json()["warnings"] == [
         "motif input 1 was not selected; a placeholder catalog motif is shown"
+    ]
+
+
+async def test_compile_preview_allocates_compatible_unique_placeholders(app, client):
+    six_slot_plan = {
+        "colors": ["#F4EFE6", "#111111", "#222222", "#333333", "#444444", "#555555", "#666666"],
+        "ground_color_index": 0,
+        "motifs": [{"source": "input", "input_index": 1}],
+        "layers": [_motif_layer(color_indices=[1, 2, 3, 4, 5, 6])],
+    }
+    async with app.state.sessionmaker() as session:
+        session.add_all([_slot_motif("aaa-single-slot", 1), _slot_motif("zzz-six-slot", 6)])
+        await session.commit()
+    response = await client.post(
+        "/authoring/compile-preview",
+        json={"plan": six_slot_plan, "motif_ids": [], "seed": 17},
+    )
+
+    assert response.status_code == 200, response.text
+    assert "motif-zzz-six-slot" in response.json()["svg"]
+    assert "motif-aaa-single-slot" not in response.json()["svg"]
+    assert response.json()["warnings"] == [
+        "motif input 1 was not selected; a placeholder catalog motif is shown"
+    ]
+
+    async with app.state.sessionmaker() as session:
+        await session.execute(delete(Motif).where(Motif.id == "zzz-six-slot"))
+        await session.commit()
+    missing = await client.post(
+        "/authoring/compile-preview",
+        json={"plan": six_slot_plan, "motif_ids": [], "seed": 17},
+    )
+
+    assert missing.status_code == 200, missing.text
+    assert "motif-aaa-single-slot" not in missing.json()["svg"]
+    assert missing.json()["warnings"] == [
+        "motif input 1 was not selected and no compatible placeholder catalog motif"
+        " with 6 color slots was found; its layers were omitted"
+    ]
+
+    two_input_plan = {
+        "colors": ["#F4EFE6", "#111111", "#222222", "#333333", "#444444", "#555555", "#666666"],
+        "ground_color_index": 0,
+        "motifs": [
+            {"source": "input", "input_index": 1},
+            {"source": "input", "input_index": 2},
+        ],
+        "layers": [
+            _motif_layer(motif_index=0),
+            _motif_layer(motif_index=1, color_indices=[1, 2, 3, 4, 5, 6]),
+        ],
+    }
+    async with app.state.sessionmaker() as session:
+        await session.execute(delete(Motif))
+        session.add_all([_slot_motif("aaa-six-slot", 6), _slot_motif("bbb-single-slot", 1)])
+        await session.commit()
+    ordered = await client.post(
+        "/authoring/compile-preview",
+        json={"plan": two_input_plan, "motif_ids": [], "seed": 17},
+    )
+
+    assert ordered.status_code == 200, ordered.text
+    assert "motif-aaa-six-slot" in ordered.json()["svg"]
+    assert "motif-bbb-single-slot" in ordered.json()["svg"]
+    assert ordered.json()["warnings"] == [
+        "motif input 1 was not selected; a placeholder catalog motif is shown",
+        "motif input 2 was not selected; a placeholder catalog motif is shown",
     ]
 
 

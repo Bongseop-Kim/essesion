@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from worker.authoring.compiler import AuthoredDesign, PlanCompileError, compile_design_plan_v3
 from worker.authoring.schema import DesignPlanV3
 from worker.motifs.registry import MotifCatalog
-from worker.motifs.store import all_motif_ids, get_motifs
+from worker.motifs.store import find_catalog, get_motifs
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,15 @@ class PreparedAuthoringPreview:
     design: AuthoredDesign
     motifs: MotifCatalog
     warnings: list[str]
+
+
+def _required_recolor_slot_counts(plan: DesignPlanV3) -> dict[int, set[int]]:
+    required: dict[int, set[int]] = {}
+    for layer in plan.layers:
+        if layer.type != "motif" or layer.color_indices is None:
+            continue
+        required.setdefault(layer.motif_index, set()).add(len(layer.color_indices))
+    return required
 
 
 async def prepare_authoring_preview(
@@ -43,8 +52,37 @@ async def prepare_authoring_preview(
     needs_placeholder = any(
         source.source == "input" and source.input_index > len(motif_ids) for source in plan.motifs
     )
-    placeholder_ids = await all_motif_ids(session) if needs_placeholder else []
-    placeholder_cursor = 0
+    placeholder_catalog = await find_catalog(session) if needs_placeholder else []
+    required_slot_counts = _required_recolor_slot_counts(plan)
+    used_placeholder_ids = {
+        source.catalog_ref for source in plan.motifs if source.source == "catalog"
+    } | set(motif_ids)
+    placeholder_ids: dict[int, str] = {}
+    placeholder_indexes = sorted(
+        (
+            index
+            for index, source in enumerate(plan.motifs)
+            if source.source == "input" and source.input_index > len(motif_ids)
+        ),
+        key=lambda index: (len(required_slot_counts.get(index, set())) != 1, index),
+    )
+    for index in placeholder_indexes:
+        counts = required_slot_counts.get(index, set())
+        if len(counts) > 1:
+            continue
+        required_count = next(iter(counts)) if counts else None
+        placeholder = next(
+            (
+                motif
+                for motif in placeholder_catalog
+                if motif.id not in used_placeholder_ids
+                and (required_count is None or len(motif.color_slots) == required_count)
+            ),
+            None,
+        )
+        if placeholder is not None:
+            used_placeholder_ids.add(placeholder.id)
+            placeholder_ids[index] = placeholder.id
 
     requested_ids: dict[int, str] = {}
     warnings: list[str] = []
@@ -52,9 +90,21 @@ async def prepare_authoring_preview(
         if source.source == "input":
             if source.input_index <= len(motif_ids):
                 requested_ids[index] = motif_ids[source.input_index - 1]
-            elif placeholder_ids:
-                requested_ids[index] = placeholder_ids[placeholder_cursor % len(placeholder_ids)]
-                placeholder_cursor += 1
+            elif placeholder_catalog:
+                placeholder_id = placeholder_ids.get(index)
+                if placeholder_id is None:
+                    counts = sorted(required_slot_counts.get(index, set()))
+                    suffix = (
+                        f" with {counts[0]} color slots"
+                        if len(counts) == 1
+                        else " with a compatible color slot count"
+                    )
+                    warnings.append(
+                        f"motif input {source.input_index} was not selected and no compatible"
+                        f" placeholder catalog motif{suffix} was found; its layers were omitted"
+                    )
+                    continue
+                requested_ids[index] = placeholder_id
                 warnings.append(
                     f"motif input {source.input_index} was not selected;"
                     " a placeholder catalog motif is shown"
