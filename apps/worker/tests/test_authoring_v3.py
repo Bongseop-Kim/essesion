@@ -123,8 +123,23 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
     with pytest.raises(ValidationError, match="color_index"):
         DesignPlanV3.model_validate(bad_color)
 
-    bad_host = json.loads(json.dumps(base))
-    bad_host["layers"][1]["placement"]["direction"] = "horizontal"
+    hosted = next(
+        example.plan.model_dump(mode="json")
+        for example in load_example_set()
+        if any(
+            layer.type == "motif"
+            and getattr(layer.placement, "host_stripe_index", None) is not None
+            for layer in example.plan.layers
+        )
+    )
+    bad_host = json.loads(json.dumps(hosted))
+    hosted_layer = next(
+        layer
+        for layer in bad_host["layers"]
+        if layer["type"] == "motif"
+        and layer["placement"]["host_stripe_index"] is not None
+    )
+    hosted_layer["placement"]["direction"] = "horizontal"
     with pytest.raises(ValidationError, match="hosted path direction"):
         DesignPlanV3.model_validate(bad_host)
 
@@ -168,7 +183,7 @@ def test_schema_and_compiler_support_two_alternating_motif_lanes():
         if example.example_id == "gallery_22_motif_path_alternating_bee_circle"
     )
     raw = source.model_dump(mode="json")
-    first, second = raw["layers"]
+    first, second = [layer for layer in raw["layers"] if layer["type"] == "motif"][:2]
     for layer, phase_ratio in ((first, 0.0), (second, 0.1)):
         layer["placement"]["spacing_ratio"] = 0.2
         layer["placement"]["phase_ratio"] = phase_ratio
