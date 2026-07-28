@@ -24,6 +24,7 @@ PathDirection = Literal[
     "diagonal_2_3_up",
     "diagonal_2_3_down",
 ]
+MAX_STRUCTURE_LAYERS = 5
 
 
 class _StrictModel(BaseModel):
@@ -217,7 +218,7 @@ class DesignPlanV3(_StrictModel):
     colors: list[str] = Field(min_length=2, max_length=8)
     ground_color_index: int = Field(ge=0, le=7)
     motifs: list[PlanMotifSource] = Field(max_length=2)
-    layers: list[StructureLayerPlan] = Field(max_length=4)
+    layers: list[StructureLayerPlan] = Field(max_length=MAX_STRUCTURE_LAYERS)
 
     @field_validator("colors", mode="before")
     @classmethod

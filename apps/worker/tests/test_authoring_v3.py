@@ -161,6 +161,68 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
         DesignPlanV3.model_validate(duplicate_colors)
 
 
+def test_schema_and_compiler_support_two_alternating_motif_lanes():
+    source = next(
+        example.plan
+        for example in load_example_set()
+        if example.example_id == "gallery_22_motif_path_alternating_bee_circle"
+    )
+    raw = source.model_dump(mode="json")
+    first, second = raw["layers"]
+    for layer, phase_ratio in ((first, 0.0), (second, 0.1)):
+        layer["placement"]["spacing_ratio"] = 0.2
+        layer["placement"]["phase_ratio"] = phase_ratio
+
+    stripe = {
+        "type": "stripe",
+        "direction": "diagonal_up",
+        "period_ratio": 0.70710677,
+        "bands": [
+            {"color_index": 0, "width_ratio": 0.001, "offset_ratio": 0.0},
+            {"color_index": 0, "width_ratio": 0.001, "offset_ratio": 0.5},
+        ],
+    }
+    motif_layers = []
+    for band_index in range(2):
+        for source_layer in (first, second):
+            layer = json.loads(json.dumps(source_layer))
+            layer["placement"]["host_stripe_index"] = 0
+            layer["placement"]["host_band_index"] = band_index
+            motif_layers.append(layer)
+    raw["layers"] = [stripe, *motif_layers]
+
+    plan = DesignPlanV3.model_validate(raw)
+    compiled = compile_design_plan_v3(
+        plan,
+        plan_index=0,
+        motif_ids=["bee", "circle"],
+    )
+    compiled_motifs = [
+        layer for layer in compiled.intent["layers"] if layer["type"] == "motif"
+    ]
+
+    assert [layer["placement"]["host_layer"] for layer in compiled_motifs] == [
+        "stripe_0"
+    ] * 4
+    assert [layer["placement"]["lane"] for layer in compiled_motifs] == [
+        "b0.center",
+        "b0.center",
+        "b1.center",
+        "b1.center",
+    ]
+    assert [layer["params"]["motif_id"] for layer in compiled_motifs] == [
+        "bee",
+        "circle",
+        "bee",
+        "circle",
+    ]
+
+    too_many = plan.model_dump(mode="json")
+    too_many["layers"].append(json.loads(json.dumps(too_many["layers"][-1])))
+    with pytest.raises(ValidationError, match="at most 5"):
+        DesignPlanV3.model_validate(too_many)
+
+
 def test_generate_motif_source_is_discriminated_bounded_and_stripped():
     plan = _generate_plan()
 
