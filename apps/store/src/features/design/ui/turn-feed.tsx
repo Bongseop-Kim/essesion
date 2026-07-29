@@ -18,7 +18,7 @@ import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { formatDateTime } from "@/shared/lib/format";
 import {
   patternConstraintLabels,
@@ -29,7 +29,7 @@ import {
   type DesignTurnPayload,
   parseDesignTurnPayload,
 } from "../model/turn-payload";
-import { localizeDesignWarnings } from "../model/warnings";
+import { getDesignWarningNotice } from "../model/warnings";
 import {
   CandidateGrid,
   CandidateGridSkeleton,
@@ -48,16 +48,16 @@ export type FinalizeTurnPayload = Extract<
 
 export type TurnFeedProps = {
   turns: readonly DesignTurnOut[];
+  selectedRunId?: string | null;
   selectedCandidateId?: string | null;
+  candidateActionsDisabled?: boolean;
   loading?: boolean;
   generating?: boolean;
   error?: boolean;
   onRetry?: () => void;
-  onSelectCandidate: (
-    runId: string,
-    candidate: TurnCandidate,
-    event: MouseEvent<HTMLButtonElement>,
-  ) => void;
+  /** 모든 런 공통: 타일 클릭이 곧 편집 포인터 커밋(서버 select)이다. 과거 런도
+      대화는 되감지 않고 포인터만 옮긴다. */
+  onSelectCandidate: (runId: string, candidate: TurnCandidate) => void;
   renderFinalizeTurn: (payload: FinalizeTurnPayload) => ReactNode;
   /** 있으면 후보 타일 탭 시 앵커 메뉴로 노출할 항목들(CandidateGrid의 menu). */
   candidateMenu?: ReactNode;
@@ -65,7 +65,9 @@ export type TurnFeedProps = {
 
 export function TurnFeed({
   turns,
+  selectedRunId,
   selectedCandidateId,
+  candidateActionsDisabled = false,
   loading = false,
   generating = false,
   error = false,
@@ -118,20 +120,6 @@ export function TurnFeed({
     );
   }
 
-  const latestSelectableRunId = turns.reduce<{
-    seq: number;
-    runId: string;
-  } | null>((latest, turn) => {
-    const payload = parseDesignTurnPayload(turn.payload);
-    if (
-      payload?.type !== "generate" ||
-      (latest !== null && latest.seq >= turn.seq)
-    ) {
-      return latest;
-    }
-    return { seq: turn.seq, runId: payload.response.run_id };
-  }, null)?.runId;
-
   return (
     <VStack
       as="ol"
@@ -150,11 +138,9 @@ export function TurnFeed({
               payload={payload}
               createdAt={turn.created_at}
               attachments={turn.attachments ?? []}
+              selectedRunId={selectedRunId}
               selectedCandidateId={selectedCandidateId}
-              candidateSelectionEnabled={
-                payload?.type !== "generate" ||
-                payload.response.run_id === latestSelectableRunId
-              }
+              candidateActionsDisabled={candidateActionsDisabled}
               onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
               candidateMenu={candidateMenu}
@@ -183,8 +169,9 @@ function TurnItem({
   payload,
   createdAt,
   attachments,
+  selectedRunId,
   selectedCandidateId,
-  candidateSelectionEnabled,
+  candidateActionsDisabled,
   onSelectCandidate,
   renderFinalizeTurn,
   candidateMenu,
@@ -192,8 +179,9 @@ function TurnItem({
   payload: DesignTurnPayload | null;
   createdAt: string;
   attachments: readonly DesignTurnAttachmentOut[];
+  selectedRunId?: string | null;
   selectedCandidateId?: string | null;
-  candidateSelectionEnabled: boolean;
+  candidateActionsDisabled: boolean;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
   candidateMenu?: ReactNode;
@@ -301,15 +289,15 @@ function TurnItem({
     return (
       <CandidateGrid
         candidates={candidates}
-        selectedId={selectedCandidateId}
-        warnings={localizeDesignWarnings(payload.response.warnings)}
-        disabled={!candidateSelectionEnabled}
-        menu={candidateSelectionEnabled ? candidateMenu : undefined}
+        selectedId={
+          selectedRunId === payload.response.run_id
+            ? selectedCandidateId
+            : undefined
+        }
+        notice={getDesignWarningNotice(payload.response.warnings)}
+        disabled={candidateActionsDisabled}
+        menu={candidateMenu}
         onSelect={(selected, event) => {
-          if (!candidateSelectionEnabled) {
-            event.preventDefault();
-            return;
-          }
           const candidate = payload.response.candidates.find(
             (item) => item.id === selected.id,
           );
@@ -317,7 +305,7 @@ function TurnItem({
             event.preventDefault();
             return;
           }
-          onSelectCandidate(payload.response.run_id, candidate, event);
+          onSelectCandidate(payload.response.run_id, candidate);
         }}
       />
     );

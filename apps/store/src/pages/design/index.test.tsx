@@ -386,7 +386,7 @@ describe("DesignPage composer lifecycle", () => {
     await waitFor(() => expect(api.generate).toHaveBeenCalledTimes(2));
     await waitFor(() => {
       expect(page.composer?.prompt).toBe("");
-      expect(page.composer?.candidateCount).toBe(4);
+      expect(page.composer?.candidateCount).toBe(3);
       expect(page.composer?.attachments).toEqual([]);
       expect(page.composer?.paletteColors).toBeUndefined();
       expect(page.composer?.patternSummary).toEqual([]);
@@ -397,6 +397,74 @@ describe("DesignPage composer lifecycle", () => {
       { upload_id: "upload-1", purpose: "composition" },
     ]);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:reference");
+    queryClient.clear();
+  });
+
+  it("새 생성 요청만 후보 수를 복원하고 같은 요청의 refetch는 사용자 선택을 유지한다", async () => {
+    const firstRequest = {
+      id: "turn-1",
+      seq: 1,
+      role: "user",
+      payload: {
+        type: "generate_request",
+        mode: "prompt",
+        prompt: "첫 요청",
+        seed: null,
+        colorway: null,
+        candidate_count: 2,
+      },
+      created_at: "2026-07-19T00:00:00Z",
+      attachments: [],
+    };
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+      },
+    });
+    queryClient.setQueryData(["page-design-sessions"], [{ id: "session-1" }]);
+    queryClient.setQueryData(
+      ["page-design-turns", "session-1"],
+      [firstRequest],
+    );
+    render(
+      <MemoryRouter initialEntries={["/design"]}>
+        <QueryClientProvider client={queryClient}>
+          <DesignPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(page.composer?.candidateCount).toBe(2));
+    act(() => page.composer?.onCandidateCountChange(3));
+    expect(page.composer?.candidateCount).toBe(3);
+
+    act(() => {
+      queryClient.setQueryData(
+        ["page-design-turns", "session-1"],
+        [{ ...firstRequest }],
+      );
+    });
+    expect(page.composer?.candidateCount).toBe(3);
+
+    act(() => {
+      queryClient.setQueryData(
+        ["page-design-turns", "session-1"],
+        [
+          firstRequest,
+          {
+            ...firstRequest,
+            id: "turn-2",
+            seq: 2,
+            payload: {
+              ...firstRequest.payload,
+              prompt: "두 번째 요청",
+              candidate_count: 4,
+            },
+          },
+        ],
+      );
+    });
+    await waitFor(() => expect(page.composer?.candidateCount).toBe(4));
     queryClient.clear();
   });
 

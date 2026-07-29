@@ -12,6 +12,7 @@ from worker.authoring.examples import _validate_example_set, load_example_set
 from worker.authoring.schema import (
     DesignPlanV3,
     GenerateMotifSource,
+    LatticePlacementPlan,
     MotifLayerPlan,
     motif_source_signature,
     snapshot_resolved_plan,
@@ -113,6 +114,30 @@ def test_all_gallery_plans_compile_deterministically_to_valid_engine_intents():
         )
 
     assert compiled_placements == {"lattice", "scatter", "path_following", "point_set"}
+
+
+def test_lattice_half_drop_rounds_odd_drop_axis_count_up_to_close_the_torus():
+    # A3 회귀: 모델이 half drop을 유지한 채 홀수 열을 뽑으면 엔진 torus closure에서
+    # 거부되던 것을 스키마가 짝수로 올림 보정한다. drop축이 아닌 축은 건드리지 않는다.
+    column_drop = LatticePlacementPlan(type="lattice", columns=5, rows=3, drop="half_column")
+    assert (column_drop.columns, column_drop.rows) == (6, 3)
+    row_drop = LatticePlacementPlan(type="lattice", columns=5, rows=3, drop="half_row")
+    assert (row_drop.columns, row_drop.rows) == (5, 4)
+    no_drop = LatticePlacementPlan(type="lattice", columns=5, rows=3)
+    assert (no_drop.columns, no_drop.rows) == (5, 3)
+    ceiling = LatticePlacementPlan(type="lattice", columns=15, rows=2, drop="half_column")
+    assert ceiling.columns == 16
+
+    plan = _generate_plan()
+    raw = plan.model_dump(mode="json")
+    raw["layers"][0]["placement"] = {
+        "type": "lattice",
+        "columns": 5,
+        "rows": 3,
+        "drop": "half_column",
+    }
+    design = compile_design_plan_v3(DesignPlanV3.model_validate(raw), plan_index=0)
+    validate_intent(design.intent, repair=False, motifs={})
 
 
 def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
@@ -359,6 +384,75 @@ def test_compiler_rejects_duplicate_grounded_sources():
     with pytest.raises(PlanCompileError, match="at most once"):
         compile_design_plan_v3(
             catalog_plan,
+            plan_index=0,
+            catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
+        )
+
+
+def test_compiler_rejects_motif_recolor_count_that_conflicts_with_slot_count():
+    # C2 회귀(seamless log 17d2d034): slot_count=1 카탈로그 모티프에 색 2개를 배정한
+    # 플랜이 컴파일을 통과해, 모티프 해석 후 색 바인딩에서야 요청 전체가 거부됐다.
+    # 카탈로그 메타데이터로 슬롯 수를 아는 경우 컴파일 단계에서 거부해
+    # 저작 재시도 피드백으로 되돌린다.
+    raw = next(
+        example.plan for example in load_example_set() if len(example.plan.motifs) == 2
+    ).model_dump(mode="json")
+    raw["motifs"] = [
+        {"source": "catalog", "catalog_ref": "catalog_1"},
+        {"source": "catalog", "catalog_ref": "catalog_2"},
+    ]
+    motif_layers = [layer for layer in raw["layers"] if layer["type"] == "motif"]
+    motif_layers[0]["color_indices"] = [1, 0]
+    candidates = [
+        {"catalog_ref": "catalog_1", "motif_id": "recraft-bee", "slot_count": 1},
+        {"catalog_ref": "catalog_2", "motif_id": "recraft-circle", "slot_count": 1},
+    ]
+
+    with pytest.raises(PlanCompileError, match="exactly 1 entries") as caught:
+        compile_design_plan_v3(
+            DesignPlanV3.model_validate(raw),
+            plan_index=0,
+            catalog_candidates=candidates,
+        )
+    assert caught.value.grounding is False
+
+    motif_layers[0]["color_indices"] = [1]
+    compiled = compile_design_plan_v3(
+        DesignPlanV3.model_validate(raw),
+        plan_index=0,
+        catalog_candidates=candidates,
+    )
+    assert compiled.motif_color_slots["motif_0"] == ["color_1"]
+
+    # slot_count 메타데이터가 없으면 컴파일은 판단하지 않는다 — 해석 후 바인딩이 백스톱.
+    motif_layers[0]["color_indices"] = [1, 0]
+    without_slot_count = [
+        {key: value for key, value in candidate.items() if key != "slot_count"}
+        for candidate in candidates
+    ]
+    compiled = compile_design_plan_v3(
+        DesignPlanV3.model_validate(raw),
+        plan_index=0,
+        catalog_candidates=without_slot_count,
+    )
+    assert compiled.motif_color_slots["motif_0"] == ["color_1", "ground"]
+
+
+def test_compiler_unknown_catalog_ref_feedback_names_the_corrective_action():
+    raw = load_example_set()[20].plan.model_dump(mode="json")
+    raw["motifs"] = [
+        {"source": "catalog", "catalog_ref": "hallucinated-ref-1"},
+        {"source": "catalog", "catalog_ref": "hallucinated-ref-2"},
+    ]
+    plan = DesignPlanV3.model_validate(raw)
+
+    # 후보가 하나도 없으면 날조된 ref를 되풀이하지 않도록 motifs=[]를 직접 지시한다.
+    with pytest.raises(PlanCompileError, match="set(?s:.*)motifs to \\[\\]"):
+        compile_design_plan_v3(plan, plan_index=0, catalog_candidates=[])
+
+    with pytest.raises(PlanCompileError, match="tokens from the data block"):
+        compile_design_plan_v3(
+            plan,
             plan_index=0,
             catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
         )

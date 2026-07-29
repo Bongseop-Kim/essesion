@@ -836,15 +836,15 @@ async def _generate_from_prompt(
     ]
     request.state.generation_diagnostics["catalog_candidate_count"] = len(public_catalog_candidates)
     retrieval_started = time.perf_counter()
-    available_motif_count = max(
-        1 if body.prompt else 0,
-        min(
-            2,
-            len(body.motif_ids)
-            + reference_capable_count
-            + len(public_catalog_candidates)
-            + len(refine_context.concrete_motif_ids if refine_context is not None else []),
-        ),
+    # 검증된 모티프 소스가 하나도 없는 요청에 모티프 예시를 보여주면 flash-lite가 예시의
+    # input/catalog 소스를 흉내 내 존재하지 않는 ref를 날조한다(재시도로도 회복 안 됨).
+    # generate 소스 경로는 예시 없이 지시문만으로 동작하므로 프롬프트 플로어를 두지 않는다.
+    available_motif_count = min(
+        2,
+        len(body.motif_ids)
+        + reference_capable_count
+        + len(public_catalog_candidates)
+        + len(refine_context.concrete_motif_ids if refine_context is not None else []),
     )
     prompt_examples: list[dict[str, object]] = []
     if refine_context is None:

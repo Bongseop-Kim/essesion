@@ -113,6 +113,17 @@ class LatticePlacementPlan(_StrictModel):
     drop: Literal["none", "half_row", "half_column"] = "none"
     fixed_rotation_deg: float = Field(default=0.0, ge=-180.0, le=180.0, allow_inf_nan=False)
 
+    @model_validator(mode="after")
+    def _drop_axis_count_is_even(self) -> LatticePlacementPlan:
+        # Engine torus closure requires an even count along the drop axis, a parity constraint
+        # neither the provider schema nor the authoring model can express reliably. Round odd
+        # counts up (silent normalization, like normalize_hex) instead of rejecting downstream.
+        if self.drop == "half_column":
+            self.columns += self.columns % 2
+        elif self.drop == "half_row":
+            self.rows += self.rows % 2
+        return self
+
 
 # Scatter/path split by mode/kind so each variant's required fields are STRUCTURAL — enforced by
 # the JSON schema's `required` (and honored by Vertex constrained decoding), not by a post-parse

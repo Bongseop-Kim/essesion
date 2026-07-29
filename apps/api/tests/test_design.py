@@ -170,11 +170,20 @@ class FakeWorker:
             ],
         }
         if self.sessionmaker is not None:
+            provenance = payload.get("motif_provenance") or {}
             async with self.sessionmaker() as session:
                 session.add(
                     SeamlessGenerationLog(
                         id=uuid.UUID(str(run_id)),
                         request_id=response["request_id"],
+                        session_id=(
+                            uuid.UUID(provenance["session_id"])
+                            if provenance.get("session_id")
+                            else None
+                        ),
+                        user_id=(
+                            uuid.UUID(provenance["user_id"]) if provenance.get("user_id") else None
+                        ),
                         input_type="intent" if payload.get("intent") is not None else "prompt",
                         prompt=payload.get("prompt"),
                         colorway=payload.get("colorway"),
@@ -461,10 +470,142 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
     assert fetched.json()["kind"] == "finalize"
 
 
+async def test_branch_design_session_restores_candidate_without_charging(
+    client, app, db_session, settings
+):
+    app.state.worker = FakeWorker(app.state.sessionmaker)
+    owner = await make_user(db_session)
+    other = await make_user(db_session)
+    await _fund(db_session, owner)
+    await _seed_finalize_limit(db_session)
+    headers = auth_headers(owner, settings)
+    source = (await client.post("/design/sessions", headers=headers)).json()
+    generated = await client.post(
+        "/design/generate",
+        json={
+            "session_id": source["id"],
+            "prompt": "분기할 패턴",
+            "candidate_count": 1,
+        },
+        headers=headers,
+    )
+    assert generated.status_code == 200, generated.text
+    balance_after_generate = await ledger.get_balance(db_session, owner.id)
+
+    unauthorized = await client.post(
+        f"/design/sessions/{source['id']}/branch",
+        json={
+            "run_id": generated.json()["run_id"],
+            "candidate_id": "cand-1",
+        },
+    )
+    assert unauthorized.status_code == 401
+
+    missing_candidate = await client.post(
+        f"/design/sessions/{source['id']}/branch",
+        json={
+            "run_id": generated.json()["run_id"],
+            "candidate_id": "missing",
+        },
+        headers=headers,
+    )
+    assert missing_candidate.status_code == 404
+    assert missing_candidate.json()["code"] == "design_candidate_not_found"
+
+    forbidden = await client.post(
+        f"/design/sessions/{source['id']}/branch",
+        json={
+            "run_id": generated.json()["run_id"],
+            "candidate_id": "cand-1",
+        },
+        headers=auth_headers(other, settings),
+    )
+    assert forbidden.status_code == 403
+
+    branched = await client.post(
+        f"/design/sessions/{source['id']}/branch",
+        json={
+            "run_id": generated.json()["run_id"],
+            "candidate_id": "cand-1",
+        },
+        headers=headers,
+    )
+    assert branched.status_code == 201, branched.text
+    branch = branched.json()
+    assert branch["id"] != source["id"]
+    assert branch["current_intent"] is not None
+    assert branch["current_plan"] is not None
+    assert branch["seed"] == 7
+    assert branch["colorway"] == "default"
+    assert await ledger.get_balance(db_session, owner.id) == balance_after_generate
+
+    turns = (await client.get(f"/design/sessions/{branch['id']}/turns", headers=headers)).json()
+    assert [turn["payload"]["type"] for turn in turns] == [
+        "generate_request",
+        "generate",
+        "select",
+    ]
+    assert turns[0]["payload"]["candidate_count"] == 1
+    assert turns[1]["payload"]["response"]["run_id"] == generated.json()["run_id"]
+    assert turns[2]["payload"]["candidate_id"] == "cand-1"
+
+    branched_again = await client.post(
+        f"/design/sessions/{branch['id']}/branch",
+        json={
+            "run_id": generated.json()["run_id"],
+            "candidate_id": "cand-1",
+        },
+        headers=headers,
+    )
+    assert branched_again.status_code == 201, branched_again.text
+    assert await ledger.get_balance(db_session, owner.id) == balance_after_generate
+
+    finalized = await client.post(
+        f"/design/sessions/{branch['id']}/finalize",
+        json={"dpi": 300},
+        headers=headers,
+    )
+    assert finalized.status_code == 201, finalized.text
+
+    # 분기는 원본 세션을 건드리지 않는다 — 원본의 포인터는 생성 시 자동 커밋된 첫 후보 그대로.
+    source_after = (await client.get(f"/design/sessions/{source['id']}", headers=headers)).json()
+    assert source_after["current_intent"] is not None
+    assert source_after["seed"] == 7
+    assert source_after["colorway"] == "default"
+
+    refined = await client.post(
+        "/design/generate",
+        json={
+            "session_id": branch["id"],
+            "prompt": "색상만 바꿔줘",
+            "candidate_count": 1,
+        },
+        headers=headers,
+    )
+    assert refined.status_code == 200, refined.text
+
+    await db_session.execute(
+        update(SeamlessGenerationLog)
+        .where(SeamlessGenerationLog.id == uuid.UUID(generated.json()["run_id"]))
+        .values(user_id=other.id)
+    )
+    await db_session.commit()
+    mismatched_log_owner = await client.post(
+        f"/design/sessions/{source['id']}/branch",
+        json={
+            "run_id": generated.json()["run_id"],
+            "candidate_id": "cand-1",
+        },
+        headers=headers,
+    )
+    assert mismatched_log_owner.status_code == 409
+    assert mismatched_log_owner.json()["code"] == "design_result_unavailable"
+
+
 async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachments(
     client, app, db_session, settings, monkeypatch
 ):
-    worker = FakeWorker()
+    worker = FakeWorker(app.state.sessionmaker)
     app.state.worker = worker
     user = await make_user(db_session)
     await _fund(db_session, user)
@@ -564,6 +705,29 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         "direction": "diagonal",
     }
 
+    branched = await client.post(
+        f"/design/sessions/{design_session['id']}/branch",
+        json={
+            "run_id": generated.json()["run_id"],
+            "candidate_id": generated.json()["candidates"][0]["id"],
+        },
+        headers=headers,
+    )
+    assert branched.status_code == 201, branched.text
+    copied_turns = (
+        await client.get(
+            f"/design/sessions/{branched.json()['id']}/turns",
+            headers=headers,
+        )
+    ).json()
+    assert [
+        (item["kind"], item["filename"], item["purpose"]) for item in copied_turns[0]["attachments"]
+    ] == [
+        ("photo", "구도.webp", "composition"),
+        ("photo", "참고.png", "motif"),
+        ("svg", "내 원형", None),
+    ]
+
     active_signings = 0
     max_active_signings = 0
 
@@ -583,7 +747,7 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
     assert max_active_signings == 2
-    request_turn = turns[-2]
+    request_turn = next(turn for turn in turns if turn["payload"]["type"] == "generate_request")
     assert request_turn["attachments"][0]["filename"] == "구도.webp"
     assert request_turn["attachments"][0]["purpose"] == "composition"
     assert request_turn["attachments"][0]["preview_url"].startswith(
@@ -621,12 +785,29 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
     turns_after_delete = (
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
-    assert turns_after_delete[-2]["attachments"][2]["preview_svg"]
+    assert next(
+        turn for turn in turns_after_delete if turn["payload"]["type"] == "generate_request"
+    )["attachments"][2]["preview_svg"]
 
     deleted_session = await client.delete(
         f"/design/sessions/{design_session['id']}", headers=headers
     )
     assert deleted_session.status_code == 204
+    await db_session.refresh(photo)
+    assert photo.entity_type == "design_reference"
+    assert photo.expires_at is None
+    branch_turns_after_source_delete = (
+        await client.get(
+            f"/design/sessions/{branched.json()['id']}/turns",
+            headers=headers,
+        )
+    ).json()
+    assert branch_turns_after_source_delete[0]["attachments"][0]["preview_url"]
+
+    deleted_branch = await client.delete(
+        f"/design/sessions/{branched.json()['id']}", headers=headers
+    )
+    assert deleted_branch.status_code == 204
     await db_session.refresh(photo)
     assert photo.entity_type == "design_reference_deleted"
     assert photo.expires_at is not None
@@ -1484,7 +1665,10 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
     turns = (
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
-    assert [turn["role"] for turn in turns] == ["user", "assistant"]
+    # 성공한 생성은 첫 후보를 자동 커밋한다 — 마지막 user 턴이 자동 select.
+    assert [turn["role"] for turn in turns] == ["user", "assistant", "user"]
+    assert turns[2]["payload"]["type"] == "select"
+    assert turns[2]["payload"]["candidate_id"] == body["candidates"][0]["id"]
     assert turns[0]["payload"] == {
         "type": "generate_request",
         "run_id": body["run_id"],
@@ -1559,10 +1743,12 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
     assert finalized.json()["params"]["intent"] == selected_intent
 
 
-async def test_unselected_generation_does_not_become_conversation_context(
+async def test_generation_auto_selects_first_candidate_as_conversation_context(
     client, app, db_session, settings
 ):
-    worker = FakeWorker()
+    # 편집 포인터는 항상 최신 결과물로 복귀한다: 성공한 생성은 첫 후보를 자동
+    # 커밋하므로, 후보를 수동 선택하지 않아도 다음 발화의 수정 기준이 된다.
+    worker = FakeWorker(app.state.sessionmaker)
     app.state.worker = worker
     user = await make_user(db_session)
     await _fund(db_session, user)
@@ -1581,7 +1767,88 @@ async def test_unselected_generation_does_not_become_conversation_context(
     )
 
     assert first.status_code == second.status_code == 200
-    assert all("conversation_context" not in payload for payload in worker.generate_payloads)
+    # 첫 생성은 커밋된 기준이 없어 컨텍스트 없이 나간다.
+    assert "conversation_context" not in worker.generate_payloads[0]
+    # 두 번째 생성은 첫 런의 자동 커밋(첫 후보)을 기준으로 나간다.
+    second_context = worker.generate_payloads[1]["conversation_context"]
+    assert second_context["current_intent"] is not None
+    assert second_context["history"] == [
+        {
+            "user_prompt": "네이비 도트",
+            "assistant_summary": "2색 · 단색 구조",
+            "attachments": [],
+        }
+    ]
+
+    session_after = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
+    assert session_after["current_intent"] is not None
+    assert session_after["seed"] == 7
+    assert session_after["colorway"] == "default"
+
+
+async def test_select_accepts_past_run_within_session_only(client, app, db_session, settings):
+    # "이 이미지로 편집"은 새 대화 분기가 아니라 현재 대화의 정본 교체다 —
+    # 과거 런의 후보도 같은 세션이면 select로 커밋할 수 있다.
+    worker = FakeWorker(app.state.sessionmaker)
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    first = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "네이비 도트"},
+        headers=headers,
+    )
+    second = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "스트라이프 추가"},
+        headers=headers,
+    )
+    assert first.status_code == second.status_code == 200
+
+    selected = await client.post(
+        f"/design/sessions/{session_id}/select",
+        json={"run_id": first.json()["run_id"], "candidate_id": "cand-1"},
+        headers=headers,
+    )
+    assert selected.status_code == 200, selected.text
+    assert selected.json()["current_intent"] is not None
+
+    turns = (await client.get(f"/design/sessions/{session_id}/turns", headers=headers)).json()
+    assert turns[-1]["payload"]["type"] == "select"
+    assert turns[-1]["payload"]["run_id"] == first.json()["run_id"]
+
+    # 다른 세션의 런은 커밋할 수 없다.
+    other_session = (await client.post("/design/sessions", headers=headers)).json()["id"]
+    cross = await client.post(
+        f"/design/sessions/{other_session}/select",
+        json={"run_id": first.json()["run_id"], "candidate_id": "cand-1"},
+        headers=headers,
+    )
+    assert cross.status_code == 409
+    assert cross.json()["code"] == "design_result_unavailable"
+
+
+async def test_generation_without_run_log_skips_auto_select(client, app, db_session, settings):
+    # 워커 로그가 없으면(비정상 상태) 자동 커밋은 건너뛰고 생성 성공은 그대로 반환한다.
+    worker = FakeWorker()
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    generated = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "네이비 도트"},
+        headers=headers,
+    )
+
+    assert generated.status_code == 200
+    session_after = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
+    assert session_after["current_intent"] is None
 
 
 async def test_generate_rejects_client_supplied_intent(client, app, db_session, settings):

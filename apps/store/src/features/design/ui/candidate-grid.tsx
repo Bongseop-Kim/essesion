@@ -2,8 +2,6 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
-  Flex,
-  Float,
   Grid,
   Icon,
   ImageFrame,
@@ -15,7 +13,6 @@ import {
   VStack,
 } from "@essesion/shared";
 import {
-  CheckIcon,
   InformationCircleIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
@@ -25,18 +22,20 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import type { DesignWarningNotice } from "../model/warnings";
 
 export type DesignCandidate = {
   id: string;
   /** Sanitized SVG encoded as a data URI. */
   imageSrc: string;
   alt?: string;
+  label?: string;
 };
 
 export type CandidateGridProps = {
   candidates: readonly DesignCandidate[];
   selectedId?: string | null;
-  warnings?: readonly string[];
+  notice?: DesignWarningNotice | null;
   loading?: boolean;
   disabled?: boolean;
   onSelect: (
@@ -51,7 +50,7 @@ export type CandidateGridProps = {
 export function CandidateGrid({
   candidates,
   selectedId,
-  warnings = [],
+  notice,
   loading = false,
   disabled = false,
   onSelect,
@@ -61,19 +60,19 @@ export function CandidateGrid({
 
   return (
     <VStack gap="x3" alignItems="stretch">
-      {warnings.length > 0 ? (
+      {notice ? (
         <Callout
           tone="neutral"
           icon={<Icon svg={<InformationCircleIcon />} size={16} />}
-          title="생성 결과 안내"
-          description={warnings.join(" · ")}
+          title={notice.title}
+          description={notice.description}
         />
       ) : null}
 
       {candidates.length > 0 ? (
         <Grid columns={{ base: 2, md: 4 }} gap="x3" aria-label="디자인 후보">
           {candidates.map((candidate, index) => {
-            const label = `디자인 후보 ${index + 1}`;
+            const label = candidate.label ?? `디자인 후보 ${index + 1}`;
             const tile = (
               <CandidateTile
                 label={label}
@@ -141,31 +140,14 @@ export function CandidateTile({
       p="x1"
       className="text-left transition-colors duration-100 ease-standard hover:border-stroke-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
     >
+      {/* 편집 대상 표시는 선택 링(테두리)과 컴포저의 "이 디자인에 이어서" 칩이 담당한다. */}
       <ImageFrame
         ratio={1}
         src={imageSrc}
         alt={alt}
         fit="cover"
         borderRadius="r2"
-      >
-        {selected ? (
-          <Float placement="top-end" offsetX="x2" offsetY="x2">
-            {/* 선택 체크는 PC 프리뷰 패널과의 연동 표시 — 모바일(탭=메뉴)에선 숨긴다. */}
-            <Flex
-              display={{ base: "none", lg: "flex" }}
-              align="center"
-              justify="center"
-              width={28}
-              height={28}
-              borderRadius="full"
-              bg="bg.brand-solid"
-              className="text-fg-contrast"
-            >
-              <Icon svg={<CheckIcon />} size={18} />
-            </Flex>
-          </Float>
-        ) : null}
-      </ImageFrame>
+      />
     </Box>
   );
 }

@@ -34,6 +34,7 @@ describe("design selection", () => {
         seq: 2,
         payload: {
           type: "select",
+          run_id: "11111111-1111-4111-8111-111111111111",
           candidate_id: "candidate-a",
           design_index: 1,
           seed: 11,
@@ -44,6 +45,7 @@ describe("design selection", () => {
         seq: 4,
         payload: {
           type: "select",
+          run_id: "11111111-1111-4111-8111-111111111111",
           candidate_id: "candidate-b",
           design_index: 0,
           seed: 22,
@@ -62,6 +64,7 @@ describe("design selection", () => {
         turns,
       ),
     ).toMatchObject({
+      runId: "11111111-1111-4111-8111-111111111111",
       candidateId: "candidate-b",
       designIndex: 0,
       intent: { motif: "stripe" },
@@ -84,6 +87,7 @@ describe("design selection", () => {
             seq: 3,
             payload: {
               type: "select",
+              run_id: "33333333-3333-4333-8333-333333333333",
               candidate_id: "missing",
               design_index: 2,
               seed: 99,
@@ -94,6 +98,7 @@ describe("design selection", () => {
       ),
     ).toEqual({
       candidate: null,
+      runId: null,
       candidateId: null,
       designIndex: null,
       intent: { motif: "fallback" },
@@ -127,6 +132,7 @@ describe("design selection", () => {
         seq: 2,
         payload: {
           type: "select",
+          run_id: "44444444-4444-4444-8444-444444444444",
           candidate_id: "candidate-layout",
           design_index: 0,
           seed: 33,
@@ -145,6 +151,7 @@ describe("design selection", () => {
         turns,
       ),
     ).toMatchObject({
+      runId: "44444444-4444-4444-8444-444444444444",
       candidateId: "candidate-layout",
       intent: { layout: "engine-fanout-candidate" },
       source: "turn",
@@ -163,6 +170,7 @@ describe("design selection", () => {
       ),
     ).toEqual({
       candidate: null,
+      runId: null,
       candidateId: null,
       designIndex: null,
       intent: { motif: "session" },
@@ -176,5 +184,73 @@ describe("design selection", () => {
         [],
       ),
     ).toBeNull();
+  });
+
+  it("같은 후보 ID가 반복되어도 select 턴의 run 후보를 복원한다", () => {
+    const candidateId = "repeated-candidate";
+    const olderRunId = "55555555-5555-4555-8555-555555555555";
+    const selectedRunId = "66666666-6666-4666-8666-666666666666";
+
+    expect(
+      restoreDesignSelection(
+        {
+          current_intent: { layout: "selected-run" },
+          seed: 22,
+          colorway: "selected",
+        },
+        [
+          {
+            seq: 1,
+            payload: {
+              type: "generate",
+              response: {
+                run_id: olderRunId,
+                candidates: [
+                  {
+                    id: candidateId,
+                    design_index: 0,
+                    seed: 11,
+                    colorway_id: "older",
+                    svg: "<svg id='older'/>",
+                  },
+                ],
+              },
+            },
+          },
+          {
+            seq: 2,
+            payload: {
+              type: "generate",
+              response: {
+                run_id: selectedRunId,
+                candidates: [
+                  {
+                    id: candidateId,
+                    design_index: 0,
+                    seed: 22,
+                    colorway_id: "selected",
+                    svg: "<svg id='selected'/>",
+                  },
+                ],
+              },
+            },
+          },
+          {
+            seq: 3,
+            payload: {
+              type: "select",
+              run_id: selectedRunId,
+              candidate_id: candidateId,
+              design_index: 0,
+              seed: 22,
+              colorway_id: "selected",
+            },
+          },
+        ],
+      ),
+    ).toMatchObject({
+      runId: selectedRunId,
+      candidate: { svg: "<svg id='selected'/>" },
+    });
   });
 });

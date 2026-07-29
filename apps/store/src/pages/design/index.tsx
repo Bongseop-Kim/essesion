@@ -39,7 +39,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
@@ -91,10 +91,15 @@ import {
   generationJobsQueryOptions,
 } from "@/features/design/model/queries";
 import {
+  type DesignCandidate,
   type DesignSelection,
   restoreDesignSelection,
 } from "@/features/design/model/selection";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
+import {
+  latestSubmittedCandidateCount,
+  parseDesignTurnPayload,
+} from "@/features/design/model/turn-payload";
 import {
   useDeleteDesignSession,
   useDeleteFinalizedJob,
@@ -143,7 +148,7 @@ import {
   SessionListModal,
 } from "@/features/design/ui/session-list-modal";
 import { TextMotifModal } from "@/features/design/ui/text-motif-modal";
-import { type TurnCandidate, TurnFeed } from "@/features/design/ui/turn-feed";
+import { TurnFeed } from "@/features/design/ui/turn-feed";
 import { validateImageFile } from "@/shared/lib/upload";
 import { useSession } from "@/shared/store/session";
 
@@ -236,6 +241,7 @@ export function DesignPage() {
   const generationOperations = useRef(
     new WeakMap<GenerateDesignInput, number>(),
   );
+  const appliedCandidateCountRequest = useRef<string | null>(null);
 
   const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
   const sessionQuery = useQuery(
@@ -290,6 +296,19 @@ export function DesignPage() {
     deleteSessionMutation.isPending ||
     deleteJobMutation.isPending ||
     motifDeleting;
+  const latestCandidateCountRequestId =
+    turnsQuery.data?.reduce<string | null>(
+      (latestId, turn) =>
+        parseDesignTurnPayload(turn.payload)?.type === "generate_request"
+          ? turn.id
+          : latestId,
+      null,
+    ) ?? null;
+  const applyLatestCandidateCount = useEffectEvent(() => {
+    setCandidateCount((current) =>
+      latestSubmittedCandidateCount(turnsQuery.data ?? [], current),
+    );
+  });
 
   useEffect(
     () => () => {
@@ -310,6 +329,19 @@ export function DesignPage() {
       setActiveSessionId(sessionsQuery.data[0].id);
     }
   }, [activeSessionId, authenticated, newSessionMode, sessionsQuery.data]);
+
+  useEffect(() => {
+    if (!activeSessionId || newSessionMode) {
+      appliedCandidateCountRequest.current = null;
+      setCandidateCount(DEFAULT_CANDIDATE_COUNT);
+      return;
+    }
+    if (!latestCandidateCountRequestId) return;
+    const requestIdentity = `${activeSessionId}:${latestCandidateCountRequestId}`;
+    if (appliedCandidateCountRequest.current === requestIdentity) return;
+    appliedCandidateCountRequest.current = requestIdentity;
+    applyLatestCandidateCount();
+  }, [activeSessionId, newSessionMode, latestCandidateCountRequestId]);
 
   const restoredSelection = useMemo(() => {
     if (!sessionQuery.data || !turnsQuery.data) return null;
@@ -376,7 +408,6 @@ export function DesignPage() {
 
   const resetComposerDraft = () => {
     setPrompt("");
-    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setPalette(AUTO_DESIGN_PALETTE);
     setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
     clearComposerAttachments();
@@ -385,7 +416,6 @@ export function DesignPage() {
   const resetVariationControls = () => {
     // A variation rerolls the selected intent. Prompt, photos, and exact motifs are
     // not part of that request, so keep that separate composer draft intact.
-    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setPalette(AUTO_DESIGN_PALETTE);
     setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
   };
@@ -641,7 +671,11 @@ export function DesignPage() {
       };
       const { operation, promise } = runGeneration(input);
       await promise;
-      if (generationEpoch.isCurrent(operation)) resetVariationControls();
+      if (generationEpoch.isCurrent(operation)) {
+        // 서버가 새 런의 첫 후보를 자동 커밋한다 — 이전 낙관적 선택 표시를 걷어낸다.
+        setSelectionOverride(null);
+        resetVariationControls();
+      }
     } catch {
       // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
     }
@@ -664,9 +698,7 @@ export function DesignPage() {
       if (!generationEpoch.isCurrent(operation)) return;
       setActiveSessionId(result.sessionId);
       setNewSessionMode(false);
-      if (retryInput.mode === "prompt") {
-        setSelectionOverride(null);
-      }
+      setSelectionOverride(null);
       if (retryInput.mode === "prompt") {
         resetComposerDraft();
       } else {
@@ -677,22 +709,19 @@ export function DesignPage() {
     }
   };
 
-  const selectCandidate = async (
-    runId: string,
-    candidate: TurnCandidate,
-    event?: MouseEvent<HTMLButtonElement>,
-  ) => {
-    // guard 실패는 전부 첫 await 이전(동기)이라 preventDefault로 타일 메뉴 오픈까지 막는다.
-    if (!activeSessionId || !ensureDesignAuth()) {
-      event?.preventDefault();
-      return;
-    }
+  // 타일 클릭 공통(최신·과거 동일): 클릭한 후보를 다음 발화의 기준으로 커밋한다.
+  // 과거 런이어도 대화는 되감지 않고 포인터만 옮기며(분기는 "새로 만들기"가 유일한
+  // 창구), 다음 생성이 완료되면 서버 자동 커밋이 포인터를 다시 최신 결과로 되돌린다.
+  const selectCandidate = async (runId: string, candidate: DesignCandidate) => {
+    if (!activeSessionId || !ensureDesignAuth()) return;
     const sessionId = activeSessionId;
-    // 이미 선택된 후보 재탭 — 저장할 변화가 없다(메뉴 오픈은 그대로 진행).
-    if (selection?.candidateId === candidate.id) return;
+    // 이미 편집 대상인 후보 — 저장할 변화가 없다.
+    if (selection?.runId === runId && selection.candidateId === candidate.id)
+      return;
     const operation = selectionEpoch.begin();
     const next: DesignSelection = {
       candidate,
+      runId,
       candidateId: candidate.id,
       designIndex: candidate.design_index,
       intent: null,
@@ -726,6 +755,7 @@ export function DesignPage() {
       if (!selectionEpoch.isCurrent(operation)) return;
       setSelectionOverride((current) =>
         current?.sessionId === sessionId &&
+        current.selection.runId === next.runId &&
         current.selection.candidateId === next.candidateId
           ? null
           : current,
@@ -843,6 +873,7 @@ export function DesignPage() {
     if (!pending || !ensureDesignAuth()) return;
     invalidateSessionOperations();
     resetComposerDraft();
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
     setResultPreview(null);
@@ -853,6 +884,7 @@ export function DesignPage() {
   const startNewSession = () => {
     invalidateSessionOperations();
     resetComposerDraft();
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setActiveSessionId(null);
     setNewSessionMode(true);
     setSelectionOverride(null);
@@ -862,6 +894,7 @@ export function DesignPage() {
   const chooseSession = (sessionId: string) => {
     invalidateSessionOperations();
     resetComposerDraft();
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setActiveSessionId(sessionId);
     setNewSessionMode(false);
     setSelectionOverride(null);
@@ -921,6 +954,7 @@ export function DesignPage() {
           // 삭제된 세션이 열려 있었다면 초기화 — 목록 갱신 후 최신 세션이 자동 선택된다.
           invalidateSessionOperations();
           resetComposerDraft();
+          setCandidateCount(DEFAULT_CANDIDATE_COUNT);
           setActiveSessionId(null);
           setSelectionOverride(null);
           setResultPreview(null);
@@ -961,7 +995,9 @@ export function DesignPage() {
   };
 
   const actionProps = {
-    selected: !!selection?.intent,
+    // 편집 대상 전환(select) 중에도 후보가 잡혀 있으면 버튼을 끄지 않는다 —
+    // intent가 서버 응답으로 채워지는 짧은 구간에 버튼이 깜빡이는 것을 막는다.
+    selected: !!selection?.intent || !!selection?.candidate,
     canExport: !!selection?.candidate?.svg,
     finalizeExhausted,
     loading: generateMutation.isPending,
@@ -969,9 +1005,11 @@ export function DesignPage() {
     onExport: openExport,
     onFinalize: () => openFinalize(),
   };
+  // 다시만들기·내려받기·실사화하기는 상시 노출 — 편집 대상(=마지막에 클릭한 후보) 기준.
   const panelActions = <DesignActions {...actionProps} />;
-  // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 핸들러가 전부 페이지
-  // selection 기반이라 모든 타일이 같은 항목을 공유한다.
+  // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 탭이 곧 낙관적 select이므로
+  // 모든 항목이 탭한 후보 기준으로 동작한다. intent가 select 응답으로 채워질 때까지
+  // 다시만들기·실사화는 잠깐 비활성이다.
   const candidateMenu = (
     <>
       <MenuItem
@@ -1062,13 +1100,15 @@ export function DesignPage() {
             >
               <TurnFeed
                 turns={visibleTurns}
+                selectedRunId={selection?.runId}
                 selectedCandidateId={selection?.candidateId}
                 loading={!!activeSessionId && turnsQuery.isPending}
                 generating={generateMutation.isPending}
                 error={!!activeSessionId && turnsQuery.isError}
                 onRetry={() => void turnsQuery.refetch()}
-                onSelectCandidate={(runId, candidate, event) =>
-                  void selectCandidate(runId, candidate, event)
+                candidateActionsDisabled={generateMutation.isPending}
+                onSelectCandidate={(runId, candidate) =>
+                  void selectCandidate(runId, candidate)
                 }
                 candidateMenu={compactPreview ? candidateMenu : undefined}
                 renderFinalizeTurn={(payload) => (
@@ -1121,6 +1161,7 @@ export function DesignPage() {
                 onOpenIdeas={() => {
                   if (ensureDesignAuth()) setOverlay("ideas");
                 }}
+                basisImageSrc={selectedImageSrc}
                 attachments={composerAttachments}
                 onRemoveAttachment={removeComposerAttachment}
                 onPhotoPurposeChange={changePhotoPurpose}
@@ -1376,10 +1417,11 @@ function DesignActions({
 }) {
   return (
     <HStack gap="x2" wrap>
+      {/* 세 버튼 모두 같은 위계(outline)로 통일 — weak 회색 채움은 비활성으로 오독된다. */}
       <ActionButton
         type="button"
         size="small"
-        variant="neutralWeak"
+        variant="neutralOutline"
         disabled={!selected || loading}
         onClick={onVariation}
       >

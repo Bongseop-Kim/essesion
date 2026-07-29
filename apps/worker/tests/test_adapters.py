@@ -21,6 +21,7 @@ from worker.adapters.gemini import (
     _merge_layer_categories,
     _preserve_refine_plan,
     _refine_permissions,
+    _refine_restore_permissions,
     _servable_json_schema,
 )
 from worker.adapters.recraft import (
@@ -364,6 +365,24 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
     assert "arrangement=lattice" in context
 
 
+async def test_author_designs_salvages_valid_plans_when_one_plan_breaks_contract():
+    examples = load_example_set()
+    solid = examples[0].plan.model_dump(mode="json")
+    stripe = examples[1].plan.model_dump(mode="json")
+    broken = json.loads(json.dumps(stripe))
+    stripe_index = next(
+        index for index, layer in enumerate(broken["layers"]) if layer["type"] == "stripe"
+    )
+    # stripe coverage 계약 위반 — 이 플랜만 버려지고 유효한 나머지 2개는 살아야 한다
+    broken["layers"][stripe_index]["bands"][0]["width_ratio"] = 0.9
+
+    client, sdk = _gemini({"plans": [broken, solid, stripe]})
+    designs = await client.author_designs("남색 미니멀 스트라이프")
+
+    assert len(designs) == 2
+    assert len(sdk.models.generate_calls) == 1  # 재시도 없이 첫 응답에서 회복
+
+
 async def test_author_designs_rejects_invalid_json_without_prose_fallback():
     # 불변식: 재검(pydantic) 실패 시 프로즈 파싱 fallback 금지 — 재시도 후 거부만.
     responses = [{"not_plans": "wrong shape"}] * 4  # _MAX_AUTHORING_ATTEMPTS
@@ -500,6 +519,65 @@ def test_refine_prompt_uses_safe_current_alias_and_selected_history_only():
     assert "No verified motif source is available" not in prompt
 
 
+def test_refine_prompt_keeps_only_the_two_nearest_history_turns():
+    raw = load_example_set()[5].plan.model_dump(mode="json")
+    raw["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current_plan = DesignPlanV3.model_validate(raw)
+    history = [
+        {"user_prompt": f"턴{index}", "assistant_summary": f"요약{index}", "attachments": []}
+        for index in range(1, 6)
+    ]
+
+    refine_prompt = _build_prompt(
+        "간격을 넓혀줘",
+        errors=None,
+        current_plan=current_plan,
+        conversation_history=history,
+    )
+    initial_prompt = _build_prompt("벌 패턴", errors=None, conversation_history=history)
+
+    assert "턴4" in refine_prompt and "턴5" in refine_prompt
+    assert "턴3" not in refine_prompt
+    assert all(f"턴{index}" in initial_prompt for index in range(1, 6))
+
+
+async def test_refine_feedback_translates_contract_errors_to_plan_language():
+    # A5 회귀: 선언한 모티프를 레이어에서 쓰지 않는 응답에 pydantic 원문 덤프 대신
+    # plan 필드 언어 피드백을 되돌려준다.
+    raw = load_example_set()[5].plan.model_dump(mode="json")
+    raw["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current = DesignPlanV3.model_validate(raw)
+    stripe_only = current.model_dump(mode="json")
+    stripe_only["layers"] = [
+        {
+            "type": "stripe",
+            "direction": "diagonal_up",
+            "period_ratio": 0.2,
+            "bands": [{"offset_ratio": 0.0, "width_ratio": 0.1, "color_index": 0}],
+        }
+    ]
+    client, sdk = _gemini(*([stripe_only] * 4))
+
+    with pytest.raises(IntentInvalid):
+        await client.author_designs(
+            "얇은 대각 스트라이프 두 줄만 추가해줘. 별 모티프는 그대로 유지해.",
+            current_plan=current,
+            catalog_candidates=[
+                {
+                    "catalog_ref": "current_motif_1",
+                    "motif_id": "circle",
+                    "subject": "committed motif 1",
+                    "current": True,
+                }
+            ],
+        )
+
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "keep every existing motif layer" in retry_prompt
+    assert "input_value" not in retry_prompt
+    assert "errors.pydantic.dev" not in retry_prompt
+
+
 async def test_gemini_non_retryable_raises(monkeypatch):
     monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
     client, _ = _gemini(_SDKError(400))
@@ -614,7 +692,7 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
     proposed["layers"][0]["placement"]["columns"] = 7
     proposed["layers"].append(examples[1].plan.model_dump(mode="json")["layers"][0])
 
-    client, sdk = _gemini(proposed)
+    client, sdk = _gemini(current.model_dump(mode="json"), proposed)
     diagnostics: dict[str, object] = {}
     designs = await client.author_designs(
         "스트라이프를 추가해줘",
@@ -640,6 +718,7 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
     )
     assert len([layer for layer in evolved.layers if layer.type == "stripe"]) == 1
     assert diagnostics["authoring_mode"] == "refine"
+    assert len(sdk.models.generate_calls) == 2
     assert set(cast(list[str], diagnostics["preserve_restored_sections"])) == {
         "palette",
         "motifs",
@@ -647,6 +726,78 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
     }
     response_schema = sdk.models.generate_calls[0]["config"].response_schema
     assert '"plans"' not in json.dumps(response_schema)
+
+
+async def test_refine_retries_when_requested_color_change_is_ignored():
+    current = load_example_set()[1].plan
+    unchanged = current.model_dump(mode="json")
+    changed = current.model_dump(mode="json")
+    changed["colors"][0] = "#800000"
+    changed["colors"][1] = "#FFFFF0"
+    client, sdk = _gemini(unchanged, changed)
+
+    designs = await client.author_designs(
+        "색상만 바꿔줘. 배경은 버건디, 벌은 아이보리로 해줘. 모티프는 유지해.",
+        current_plan=current,
+    )
+
+    assert len(sdk.models.generate_calls) == 2
+    assert designs[0].plan is not None
+    assert designs[0].plan["colors"][:2] == ["#800000", "#FFFFF0"]
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "requested refine change was not applied: colors" in retry_prompt
+
+
+async def test_refine_retries_when_palette_is_only_permuted():
+    # A2 회귀: 모델이 새 hex 없이 ground 인덱스만 셔플한 응답은 recolor로 인정하지 않는다.
+    current = load_example_set()[1].plan
+    permuted = current.model_dump(mode="json")
+    permuted["ground_color_index"] = (current.ground_color_index + 1) % len(current.colors)
+    changed = current.model_dump(mode="json")
+    changed["colors"][0] = "#800000"
+    client, sdk = _gemini(permuted, changed)
+
+    designs = await client.author_designs(
+        "색상만 바꿔줘. 배경은 버건디로 해줘. 모티프는 유지해.",
+        current_plan=current,
+    )
+
+    assert len(sdk.models.generate_calls) == 2
+    assert designs[0].plan is not None
+    assert designs[0].plan["colors"][0] == "#800000"
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "introduce new hex values instead of permuting the palette" in retry_prompt
+
+
+async def test_refine_retries_when_requested_motif_geometry_change_is_ignored():
+    raw_current = load_example_set()[5].plan.model_dump(mode="json")
+    raw_current["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current = DesignPlanV3.model_validate(raw_current)
+    unchanged = current.model_dump(mode="json")
+    changed = current.model_dump(mode="json")
+    motif_layer = next(layer for layer in changed["layers"] if layer["type"] == "motif")
+    motif_layer["placement"]["columns"] -= 1
+    motif_layer["placement"]["rows"] -= 1
+    client, sdk = _gemini(unchanged, changed)
+
+    designs = await client.author_designs(
+        "간격을 더 넓혀 여유로운 반복으로 바꿔줘. 모티프는 유지해.",
+        current_plan=current,
+        catalog_candidates=[
+            {
+                "catalog_ref": "current_motif_1",
+                "motif_id": "circle",
+                "subject": "committed motif 1",
+                "current": True,
+            }
+        ],
+    )
+
+    assert len(sdk.models.generate_calls) == 2
+    assert designs[0].plan is not None
+    assert designs[0].plan["layers"] != current.model_dump(mode="json")["layers"]
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "requested refine change was not applied: motif placement" in retry_prompt
 
 
 def test_refine_layer_merge_caps_allowed_layers_and_preserves_base_layers():
@@ -689,6 +840,19 @@ def test_refine_preserve_word_only_applies_to_direct_category():
     assert permissions.motif_geometry is False
 
 
+def test_refine_color_name_only_prompt_opens_color_permission():
+    # "색"이라는 단어 없이 색이름만 써도 recolor 권한이 열려야 하고,
+    # 색이름 교체가 모티프 교체 휴리스틱으로 새어 나가면 안 된다.
+    permissions = _refine_permissions(
+        "배경은 버건디로 바꿔줘",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert permissions.colors is True
+    assert permissions.motifs is False
+
+
 def test_refine_geometry_permission_is_scoped_to_motif_request():
     stripe_permissions = [
         _refine_permissions(
@@ -708,6 +872,140 @@ def test_refine_geometry_permission_is_scoped_to_motif_request():
     assert all(item.motif_geometry is False for item in stripe_permissions)
     assert preserved_motif_permissions.colors is True
     assert preserved_motif_permissions.motif_geometry is False
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        (
+            "색상만 바꿔줘. 배경은 버건디, 벌은 아이보리로 해줘. "
+            "모티프는 유지해. 크기와 배치와 간격은 유지해.",
+            (True, False, False, False, False, False, False),
+        ),
+        (
+            "간격을 더 넓혀 여유로운 반복으로 바꿔줘. "
+            "색상은 그대로 유지해. 모티프는 그대로 유지해.",
+            (False, False, False, True, False, True, False),
+        ),
+        (
+            "벌을 작은 별 모티프로 바꿔줘. 색상은 그대로 유지해. "
+            "크기와 배치와 간격은 그대로 유지해.",
+            (False, True, False, False, False, False, False),
+        ),
+        (
+            "얇은 대각 스트라이프 두 줄만 추가해줘. 색상은 그대로 유지해. "
+            "별 모티프는 그대로 유지해. 모티프의 크기와 배치와 간격은 그대로 유지해.",
+            (False, False, True, False, False, False, True),
+        ),
+    ],
+)
+def test_refine_permissions_match_manual_a2_to_a5_scenarios(
+    prompt: str,
+    expected: tuple[bool, bool, bool, bool, bool, bool, bool],
+):
+    permissions = _refine_permissions(
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert (
+        permissions.colors,
+        permissions.motifs,
+        permissions.stripes,
+        permissions.motif_geometry,
+        permissions.motif_size,
+        permissions.motif_placement,
+        permissions.add_stripes,
+    ) == expected
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "배경색을 빨강으로 바꿔줘",
+        "스트라이프를 추가해줘",
+        "모티프 간격을 더 넓게 바꿔줘",
+    ],
+)
+def test_catalog_candidates_do_not_open_motif_replacement_for_targeted_edits(
+    prompt: str,
+):
+    requested = _refine_permissions(
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+    allowed = _refine_restore_permissions(
+        prompt,
+        requested,
+        motif_candidates_available=True,
+    )
+
+    assert any((allowed.colors, allowed.stripes, allowed.motif_size, allowed.motif_placement))
+    assert allowed.motifs is False
+
+
+@pytest.mark.parametrize(
+    ("prompt", "use_proposed_size", "use_proposed_placement"),
+    [
+        ("크기는 그대로 유지하고 배치와 간격을 바꿔줘", False, True),
+        ("크기를 작게 바꿔줘. 배치는 그대로 유지해", True, False),
+    ],
+)
+def test_refine_preserves_motif_size_and_placement_independently(
+    prompt: str,
+    use_proposed_size: bool,
+    use_proposed_placement: bool,
+):
+    current = load_example_set()[5].plan
+    proposed_raw = current.model_dump(mode="json")
+    proposed_motif = next(layer for layer in proposed_raw["layers"] if layer["type"] == "motif")
+    proposed_motif["size_ratio"] = 0.1
+    proposed_motif["placement"] = {
+        "type": "lattice",
+        "columns": 7,
+        "rows": 7,
+        "drop": "half_row",
+        "fixed_rotation_deg": 45,
+    }
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        proposed,
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    current_motif = next(layer for layer in current.layers if layer.type == "motif")
+    proposed_motif_plan = next(layer for layer in proposed.layers if layer.type == "motif")
+    evolved_motif = next(layer for layer in evolved.layers if layer.type == "motif")
+    assert evolved_motif.size_ratio == (
+        proposed_motif_plan.size_ratio if use_proposed_size else current_motif.size_ratio
+    )
+    assert evolved_motif.placement == (
+        proposed_motif_plan.placement if use_proposed_placement else current_motif.placement
+    )
+
+
+def test_refine_change_validation_skips_motif_axes_without_motif_layers():
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if not any(layer.type == "motif" for layer in example.plan.layers)
+    )
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        current,
+        "모티프로 바꾸고 크기와 배치를 바꿔줘",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert evolved == current
 
 
 def test_refine_motif_replacement_restores_unrequested_geometry_and_colors():
@@ -769,6 +1067,100 @@ def test_refine_stripe_change_restores_unrequested_band_colors():
     evolved_stripe = next(layer for layer in evolved.layers if layer.type == "stripe")
     assert evolved_stripe.period_ratio == 0.75
     assert evolved_stripe.bands[0].color_index == current_stripe.bands[0].color_index
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        # 명사구 재명세: 변경 동사가 하나도 없다 ("넣지 마"는 "넣어"와 불일치).
+        "짙은 남색 바탕에 작은 꿀벌과 원 모티프를 번갈아 배치한 대각 물결 패턴. "
+        "두 모티프는 아이보리와 금색으로 구분하고 스트라이프는 넣지 마.",
+        # 모티프 단어 없이 주제 명사만 쓴 변형 — 카탈로그 검색 신호로만 모티프 언급이 잡힌다.
+        "짙은 남색 바탕에 작은 꿀벌과 원을 번갈아 배치한 대각 물결 패턴. "
+        "아이보리와 금색으로 구분하고 스트라이프는 넣지 마.",
+    ],
+)
+def test_refine_respecification_keeps_model_plan_over_committed_restore(prompt: str):
+    # C2 재명세 회귀: 커밋된 스트라이프 플랜 위에서 모티프 재명세가 통째로
+    # 복원되어 의도가 사라지던 결함 (seamless log 871f678a/f626aa8f).
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if [layer.type for layer in example.plan.layers] == ["stripe"]
+    )
+    proposed_raw = next(
+        example.plan for example in load_example_set() if len(example.plan.motifs) == 2
+    ).model_dump(mode="json")
+    proposed_raw["motifs"] = [
+        {"source": "catalog", "catalog_ref": "catalog_1"},
+        {"source": "catalog", "catalog_ref": "catalog_2"},
+    ]
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, restored = _preserve_refine_plan(
+        current,
+        proposed,
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+        motif_candidates_available=True,
+    )
+
+    assert restored == []
+    assert evolved.model_dump(mode="json") == proposed.model_dump(mode="json")
+    assert not any(layer.type == "stripe" for layer in evolved.layers)
+
+
+def test_refine_negative_imperative_allows_stripe_removal():
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if [layer.type for layer in example.plan.layers] == ["stripe", "motif"]
+    )
+    proposed_raw = current.model_dump(mode="json")
+    proposed_raw["layers"] = [
+        layer for layer in proposed_raw["layers"] if layer["type"] != "stripe"
+    ]
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        proposed,
+        "스트라이프는 넣지 마. 모티프는 그대로 유지해.",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert not any(layer.type == "stripe" for layer in evolved.layers)
+    current_motif = next(layer for layer in current.layers if layer.type == "motif")
+    evolved_motif = next(layer for layer in evolved.layers if layer.type == "motif")
+    assert evolved_motif == current_motif
+
+
+def test_refine_free_form_prompt_trusts_model_plan():
+    # 어떤 범주도 언급하지 않은 자유 발화에서 전부 복원하면 결과가 직전 디자인과
+    # 동일해져 토큰만 차감된다. 이 경우 모델의 진화 플랜을 그대로 신뢰한다.
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if [layer.type for layer in example.plan.layers] == ["stripe", "motif"]
+    )
+    proposed_raw = current.model_dump(mode="json")
+    proposed_raw["colors"][0] = "#101820"
+    stripe_layer = next(layer for layer in proposed_raw["layers"] if layer["type"] == "stripe")
+    stripe_layer["period_ratio"] = 0.61
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, restored = _preserve_refine_plan(
+        current,
+        proposed,
+        "좀 더 고급스럽고 차분한 느낌으로 다듬어줘.",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert restored == []
+    assert evolved.model_dump(mode="json") == proposed.model_dump(mode="json")
 
 
 def test_servable_schema_is_loosened_for_vertex_enforcement():

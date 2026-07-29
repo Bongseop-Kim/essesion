@@ -79,7 +79,7 @@ describe("TurnFeed generation context", () => {
     expect(screen.queryByText("후보 3개")).toBeNull();
   });
 
-  it("최신 성공 run의 후보만 선택할 수 있다", () => {
+  it("최신·과거 후보 모두 클릭을 선택으로 전달한다", () => {
     const onSelectCandidate = vi.fn();
     const makeTurn = (
       seq: number,
@@ -122,25 +122,73 @@ describe("TurnFeed generation context", () => {
       />,
     );
 
-    const candidates = screen.getAllByRole("button", {
+    const [olderCandidate, latestCandidate] = screen.getAllByRole("button", {
       name: "디자인 후보 1",
     });
-    const olderCandidate = candidates.at(0);
-    const latestCandidate = candidates.at(1);
-    if (!olderCandidate || !latestCandidate) {
-      throw new Error("expected one candidate from each successful run");
-    }
-    expect(olderCandidate.hasAttribute("disabled")).toBe(true);
-    expect(latestCandidate.hasAttribute("disabled")).toBe(false);
+    expect(olderCandidate?.hasAttribute("disabled")).toBe(false);
+    expect(latestCandidate?.hasAttribute("disabled")).toBe(false);
+    if (!olderCandidate || !latestCandidate) throw new Error("tiles missing");
 
     fireEvent.click(olderCandidate);
     fireEvent.click(latestCandidate);
 
-    expect(onSelectCandidate).toHaveBeenCalledOnce();
-    expect(onSelectCandidate).toHaveBeenCalledWith(
+    expect(onSelectCandidate).toHaveBeenCalledTimes(2);
+    expect(onSelectCandidate).toHaveBeenNthCalledWith(
+      1,
+      olderRunId,
+      expect.objectContaining({ id: "older-candidate" }),
+    );
+    expect(onSelectCandidate).toHaveBeenNthCalledWith(
+      2,
       latestRunId,
       expect.objectContaining({ id: "latest-candidate" }),
-      expect.anything(),
     );
+  });
+
+  it("선택 표시는 run과 candidate ID가 모두 일치할 때만 보인다", () => {
+    const runIds = [
+      "77777777-7777-4777-8777-777777777777",
+      "88888888-8888-4888-8888-888888888888",
+    ];
+    const turns = runIds.map(
+      (runId, index): DesignTurnOut => ({
+        id: `turn-${index}`,
+        seq: index + 1,
+        role: "assistant",
+        created_at: "2026-07-19T00:00:00Z",
+        payload: {
+          type: "generate",
+          response: {
+            run_id: runId,
+            candidates: [
+              {
+                id: "same-candidate",
+                design_index: 0,
+                seed: index,
+                colorway_id: "default",
+                svg: "<svg/>",
+              },
+            ],
+            warnings: [],
+          },
+        },
+        attachments: [],
+      }),
+    );
+
+    render(
+      <TurnFeed
+        turns={turns}
+        selectedRunId={runIds[1]}
+        selectedCandidateId="same-candidate"
+        onSelectCandidate={vi.fn()}
+        renderFinalizeTurn={() => null}
+      />,
+    );
+
+    // 편집 포인터 표시는 선택 링(aria-pressed) — run+candidate가 모두 일치하는 타일 하나에만.
+    const candidates = screen.getAllByRole("button");
+    expect(candidates[0]?.getAttribute("aria-pressed")).toBe("false");
+    expect(candidates[1]?.getAttribute("aria-pressed")).toBe("true");
   });
 });

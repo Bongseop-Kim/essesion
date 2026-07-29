@@ -153,6 +153,8 @@ export type DesignComposerProps = {
   onOpenColors: () => void;
   onOpenPatternSettings: () => void;
   onOpenIdeas: () => void;
+  /** 편집 대상(다음 발화가 적용될 디자인) 미리보기 — 있으면 입력창 위에 칩으로 표시. */
+  basisImageSrc?: string | null;
   attachments?: readonly ComposerAttachment[];
   onRemoveAttachment?: (id: string) => void;
   onPhotoPurposeChange?: (id: string, purpose: ReferenceImagePurpose) => void;
@@ -183,6 +185,7 @@ export function DesignComposer({
   onOpenColors,
   onOpenPatternSettings,
   onOpenIdeas,
+  basisImageSrc = null,
   attachments = [],
   onRemoveAttachment,
   onPhotoPurposeChange,
@@ -219,6 +222,22 @@ export function DesignComposer({
   return (
     <Box as="form" onSubmit={handleSubmit} width="full">
       <VStack gap="x3" alignItems="stretch">
+        {basisImageSrc ? (
+          <HStack gap="x2" px="x1">
+            <Box width={24} height={24} className="shrink-0">
+              <ImageFrame
+                ratio={1}
+                src={basisImageSrc}
+                alt=""
+                fit="cover"
+                borderRadius="r2"
+              />
+            </Box>
+            <Text textStyle="captionSm" color="fg.neutral-subtle">
+              이 디자인에 이어서
+            </Text>
+          </HStack>
+        ) : null}
         {attachments.length > 0 ? (
           <ScrollFog direction="horizontal" aria-label="현재 첨부">
             <HStack gap="x2" className="min-w-max px-x1 py-x1">

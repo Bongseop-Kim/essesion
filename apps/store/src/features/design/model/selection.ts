@@ -15,6 +15,7 @@ type SelectPayload = Extract<DesignTurnPayload, { type: "select" }>;
 
 export type DesignSelection = {
   candidate: DesignCandidate | null;
+  runId: string | null;
   candidateId: string | null;
   designIndex: number | null;
   intent: DesignSessionOut["current_intent"];
@@ -53,6 +54,7 @@ function selectedCandidateTurn(
 
   for (const turn of turns) {
     if (turn.seq > selected.seq || turn.payload.type !== "generate") continue;
+    if (turn.payload.response.run_id !== selected.payload.run_id) continue;
     const candidate = turn.payload.response.candidates.find(
       (item) => item.id === selected.payload.candidate_id,
     );
@@ -88,6 +90,7 @@ export function restoreDesignSelection(
     ) {
       return {
         candidate,
+        runId: selected.payload.run_id,
         candidateId: selected.payload.candidate_id,
         designIndex: candidate.design_index,
         intent: session.current_intent,
@@ -100,6 +103,7 @@ export function restoreDesignSelection(
 
   return {
     candidate: null,
+    runId: null,
     candidateId: null,
     designIndex: null,
     intent: session.current_intent,

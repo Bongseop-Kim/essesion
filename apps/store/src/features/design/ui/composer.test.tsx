@@ -121,6 +121,19 @@ describe("DesignComposer token purchase", () => {
     expect(onPurchaseTokens).not.toHaveBeenCalled();
   });
 
+  it("편집 대상이 있으면 입력창 위에 '이 디자인에 이어서' 칩을 표시한다", () => {
+    const { rerender } = render(<DesignComposer {...baseProps} />);
+    expect(screen.queryByText("이 디자인에 이어서")).toBeNull();
+
+    rerender(
+      <DesignComposer
+        {...baseProps}
+        basisImageSrc="data:image/svg+xml,<svg/>"
+      />,
+    );
+    expect(screen.getByText("이 디자인에 이어서")).toBeTruthy();
+  });
+
   it("최종 12개 액션을 모바일 4열·데스크톱 5열 순서로 노출한다", () => {
     render(
       <DesignComposer

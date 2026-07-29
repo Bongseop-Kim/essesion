@@ -35,6 +35,7 @@ from worker.authoring.schema import (
     MAX_STRUCTURE_LAYERS,
     DesignPlansV3,
     DesignPlanV3,
+    StripeLayerPlan,
     motif_source_signature,
     structural_fingerprint,
 )
@@ -83,6 +84,8 @@ class _RefinePermissions:
     motifs: bool
     stripes: bool
     motif_geometry: bool
+    motif_size: bool
+    motif_placement: bool
     add_stripes: bool
 
 
@@ -95,16 +98,33 @@ _PRESERVE_WORDS = re.compile(r"(유지|그대로|보존|keep|preserve|unchanged)
 _COLOR_WORDS = re.compile(
     r"(#[0-9a-f]{3,8}\b|색|컬러|팔레트|네이비|남색|파랑|빨강|초록|노랑|보라|"
     r"분홍|핑크|주황|검정|흰색|화이트|베이지|브라운|그레이|회색|"
+    r"버건디|아이보리|와인|마룬|골드|실버|카키|올리브|민트|크림|차콜|"
     r"colou?r|palette|navy|blue|red|green|yellow|purple|pink|orange|"
-    r"black|white|beige|brown|gr[ae]y)",
+    r"black|white|beige|brown|gr[ae]y|"
+    r"burgundy|ivory|wine|maroon|gold|silver|khaki|olive|mint|cream|charcoal)",
     re.IGNORECASE,
 )
 _STRIPE_WORDS = re.compile(r"(스트라이프|줄무늬|stripe|band)", re.IGNORECASE)
 _MOTIF_WORDS = re.compile(r"(모티프|무늬|도형|형태|주제|subject|motif|shape|icon)", re.IGNORECASE)
+_SIZE_WORDS = re.compile(r"(크기|크게|작게|scale|size)", re.IGNORECASE)
+_PLACEMENT_WORDS = re.compile(
+    r"(배치|간격|밀도|방향|회전|격자|산개|흩|도트|점|대각|세로|가로|"
+    r"layout|spacing|density|direction|rotation|lattice|scatter|dot|"
+    r"diagonal|vertical|horizontal)",
+    re.IGNORECASE,
+)
 _GEOMETRY_WORDS = re.compile(
-    r"(배치|간격|밀도|크기|방향|회전|격자|산개|흩|도트|점|대각|세로|가로|"
-    r"layout|spacing|density|scale|size|direction|rotation|lattice|scatter|"
-    r"dot|diagonal|vertical|horizontal)",
+    rf"(?:{_SIZE_WORDS.pattern}|{_PLACEMENT_WORDS.pattern})", re.IGNORECASE
+)
+_GEOMETRY_JOINER = r"\s*(?:와|과|및|,|and|&)\s*"
+_SIZE_PRESERVE_WORDS = re.compile(
+    rf"(?:{_SIZE_WORDS.pattern})"
+    rf"(?:{_GEOMETRY_JOINER}(?:{_GEOMETRY_WORDS.pattern}))*",
+    re.IGNORECASE,
+)
+_PLACEMENT_PRESERVE_WORDS = re.compile(
+    rf"(?:{_PLACEMENT_WORDS.pattern})"
+    rf"(?:{_GEOMETRY_JOINER}(?:{_GEOMETRY_WORDS.pattern}))*",
     re.IGNORECASE,
 )
 _ADD_WORDS = re.compile(r"(추가|더|넣어|add|another|extra)", re.IGNORECASE)
@@ -135,6 +155,32 @@ def _category_is_preserved(prompt: str, category: re.Pattern[str]) -> bool:
     return False
 
 
+@dataclass(frozen=True)
+class _CategoryMentions:
+    colors: bool
+    stripes: bool
+    motifs: bool
+    geometry: bool
+
+
+def _category_mentions(prompt: str) -> _CategoryMentions:
+    stripe_matches = list(_STRIPE_WORDS.finditer(prompt))
+    return _CategoryMentions(
+        colors=bool(_COLOR_WORDS.search(prompt)),
+        stripes=bool(stripe_matches),
+        # "줄무늬" matches both word lists; a motif word nested inside a stripe word
+        # does not count as a motif mention.
+        motifs=any(
+            not any(
+                stripe.start() <= motif.start() and motif.end() <= stripe.end()
+                for stripe in stripe_matches
+            )
+            for motif in _MOTIF_WORDS.finditer(prompt)
+        ),
+        geometry=bool(_GEOMETRY_WORDS.search(prompt)),
+    )
+
+
 def _refine_permissions(
     prompt: str,
     *,
@@ -142,27 +188,31 @@ def _refine_permissions(
     pattern_constraints: PatternConstraints | None,
 ) -> _RefinePermissions:
     change_requested = bool(_CHANGE_WORDS.search(prompt))
-    stripe_matches = list(_STRIPE_WORDS.finditer(prompt))
-    stripe_mentioned = bool(stripe_matches)
-    motif_mentioned = any(
-        not any(
-            stripe.start() <= motif.start() and motif.end() <= stripe.end()
-            for stripe in stripe_matches
-        )
-        for motif in _MOTIF_WORDS.finditer(prompt)
-    )
-    geometry_mentioned = bool(_GEOMETRY_WORDS.search(prompt))
-    colors = bool(_COLOR_WORDS.search(prompt) and change_requested)
+    mentions = _category_mentions(prompt)
+    stripe_mentioned = mentions.stripes
+    motif_mentioned = mentions.motifs
+    geometry_mentioned = mentions.geometry
+    colors = mentions.colors and change_requested
     stripes = stripe_mentioned and change_requested
-    motif_geometry = bool(
+    motif_geometry_requested = bool(
         geometry_mentioned and change_requested and (motif_mentioned or not stripe_mentioned)
     )
-    motifs = motif_mentioned and change_requested
+    motifs = motif_mentioned and change_requested and not geometry_mentioned and not colors
 
     # "나비로 바꿔" has no literal "motif" word. A bare replacement request that is not
     # clearly about color/stripe/layout is treated as a subject replacement.
     replacement = bool(re.search(r"(로|으로)\s*(바꿔|바꾸|변경)|replace\s+with", prompt, re.I))
-    if replacement and not (colors or stripes or motif_geometry):
+    explicit_motif_replacement = bool(
+        re.search(
+            r"(모티프|무늬|도형|형태|주제|subject|motif|shape|icon)"
+            r"(?:로|으로)\s*(바꿔|바꾸|변경)",
+            prompt,
+            re.I,
+        )
+    )
+    if explicit_motif_replacement or (
+        replacement and not (colors or stripes or motif_geometry_requested)
+    ):
         motifs = True
 
     if _category_is_preserved(prompt, _COLOR_WORDS):
@@ -171,20 +221,111 @@ def _refine_permissions(
         stripes = False
     if _category_is_preserved(prompt, _MOTIF_WORDS):
         motifs = False
-    if _category_is_preserved(prompt, _GEOMETRY_WORDS):
-        motif_geometry = False
-
+    motif_size = bool(
+        motif_geometry_requested
+        and _SIZE_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _SIZE_PRESERVE_WORDS)
+    )
+    motif_placement = bool(
+        motif_geometry_requested
+        and _PLACEMENT_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _PLACEMENT_PRESERVE_WORDS)
+    )
     if palette_constraint is not None and palette_constraint.mode == "fixed":
         colors = True
     if pattern_constraints is not None:
-        motif_geometry = motif_geometry or not pattern_constraints.is_automatic()
+        motif_size = motif_size or pattern_constraints.motif_scale != "auto"
+        motif_placement = motif_placement or any(
+            value != "auto"
+            for value in (
+                pattern_constraints.density,
+                pattern_constraints.arrangement,
+                pattern_constraints.direction,
+            )
+        )
+    motif_geometry = motif_size or motif_placement
 
     return _RefinePermissions(
         colors=colors,
         motifs=motifs,
         stripes=stripes,
         motif_geometry=motif_geometry,
+        motif_size=motif_size,
+        motif_placement=motif_placement,
         add_stripes=stripes and bool(_ADD_WORDS.search(prompt)),
+    )
+
+
+def _refine_restore_permissions(
+    prompt: str,
+    requested: _RefinePermissions,
+    *,
+    motif_candidates_available: bool,
+) -> _RefinePermissions:
+    """Which sections the model's evolved plan keeps instead of being restored.
+
+    Change-verb detection under-recognizes real requests (noun-phrase
+    re-specifications, negative imperatives such as "스트라이프는 넣지 마"), and
+    restoring a category the prompt talks about silently discards user intent.
+    So restoration keys off the weaker mention signal: any category the prompt
+    references stays model-authored unless the user explicitly preserved it, and
+    only the untouched categories of a targeted edit are restored. Motif subjects
+    are open vocabulary ("꿀벌과 원"), so catalog retrieval hits count as a motif
+    mention. A prompt referencing no category at all is a free-form evolution;
+    restoring everything there would sell the user an identical design.
+    """
+
+    mentions = _category_mentions(prompt)
+    targeted_non_motif_edit = (
+        requested.colors or requested.stripes or requested.motif_geometry
+    ) and not requested.motifs
+    motifs_mentioned = mentions.motifs or (
+        motif_candidates_available and not targeted_non_motif_edit
+    )
+    if not (mentions.colors or mentions.stripes or motifs_mentioned or mentions.geometry) and not (
+        requested.colors or requested.motifs or requested.stripes or requested.motif_geometry
+    ):
+        return _RefinePermissions(
+            colors=True,
+            motifs=True,
+            stripes=True,
+            motif_geometry=True,
+            motif_size=True,
+            motif_placement=True,
+            add_stripes=False,
+        )
+
+    colors = requested.colors or (
+        mentions.colors and not _category_is_preserved(prompt, _COLOR_WORDS)
+    )
+    stripes = requested.stripes or (
+        mentions.stripes and not _category_is_preserved(prompt, _STRIPE_WORDS)
+    )
+    motifs = requested.motifs or (
+        motifs_mentioned
+        and not targeted_non_motif_edit
+        and not _category_is_preserved(prompt, _MOTIF_WORDS)
+    )
+    motif_geometry_mentioned = mentions.geometry and (motifs_mentioned or not mentions.stripes)
+    motif_size = requested.motif_size or bool(
+        motif_geometry_mentioned
+        and _SIZE_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _SIZE_PRESERVE_WORDS)
+    )
+    motif_placement = requested.motif_placement or bool(
+        motif_geometry_mentioned
+        and _PLACEMENT_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _PLACEMENT_PRESERVE_WORDS)
+    )
+    motif_geometry = motif_size or motif_placement
+    return _RefinePermissions(
+        colors=colors,
+        motifs=motifs,
+        stripes=stripes,
+        motif_geometry=motif_geometry,
+        motif_size=motif_size,
+        motif_placement=motif_placement,
+        add_stripes=requested.add_stripes or (stripes and bool(_ADD_WORDS.search(prompt))),
     )
 
 
@@ -308,19 +449,30 @@ def _preserve_refine_plan(
     *,
     palette_constraint: PaletteConstraint | None,
     pattern_constraints: PatternConstraints | None,
+    motif_candidates_available: bool = False,
 ) -> tuple[DesignPlanV3, list[str]]:
-    """Restore every plan section the current refine request did not authorize."""
+    """Restore the plan sections the current refine request left untouched.
 
-    permissions = _refine_permissions(
+    ``requested`` (change-verb detection) drives which changes must have landed;
+    ``allowed`` (mention detection) drives which sections may keep the model's
+    version instead of being restored from the committed plan.
+    """
+
+    requested = _refine_permissions(
         prompt,
         palette_constraint=palette_constraint,
         pattern_constraints=pattern_constraints,
+    )
+    allowed = _refine_restore_permissions(
+        prompt,
+        requested,
+        motif_candidates_available=motif_candidates_available,
     )
     base = current.model_dump(mode="json")
     evolved = proposed.model_dump(mode="json")
     restored: list[str] = []
 
-    if not permissions.colors:
+    if not allowed.colors:
         if (
             evolved["colors"] != base["colors"]
             or evolved["ground_color_index"] != base["ground_color_index"]
@@ -329,34 +481,40 @@ def _preserve_refine_plan(
         evolved["colors"] = copy.deepcopy(base["colors"])
         evolved["ground_color_index"] = base["ground_color_index"]
 
-    if not permissions.motifs:
+    if not allowed.motifs:
         if evolved["motifs"] != base["motifs"]:
             restored.append("motifs")
         evolved["motifs"] = copy.deepcopy(base["motifs"])
 
     base_layers = copy.deepcopy(base["layers"])
     proposed_layers = copy.deepcopy(evolved["layers"])
-    allow_motif_layers = permissions.motif_geometry or permissions.motifs
+    allow_motif_layers = allowed.motif_geometry or allowed.motifs
     merged_layers = _merge_layer_categories(
         base_layers,
         proposed_layers,
-        allow_stripes=permissions.stripes,
+        allow_stripes=allowed.stripes,
         allow_motifs=allow_motif_layers,
-        add_stripes=permissions.add_stripes,
+        add_stripes=allowed.add_stripes,
     )
-    if not permissions.motif_geometry:
+    if not allowed.motif_size:
         merged_layers = _copy_motif_fields(
             merged_layers,
             base_layers,
-            ("size_ratio", "placement"),
+            ("size_ratio",),
         )
-    if not permissions.motifs:
+    if not allowed.motif_placement:
+        merged_layers = _copy_motif_fields(
+            merged_layers,
+            base_layers,
+            ("placement",),
+        )
+    if not allowed.motifs:
         merged_layers = _copy_motif_fields(
             merged_layers,
             base_layers,
             ("motif_index",),
         )
-    if permissions.colors:
+    if allowed.colors:
         merged_layers = _copy_color_references(merged_layers, proposed_layers)
     else:
         merged_layers = _copy_color_references(merged_layers, base_layers)
@@ -369,19 +527,109 @@ def _preserve_refine_plan(
     try:
         result = DesignPlanV3.model_validate(evolved)
     except ValidationError:
-        if permissions.motifs:
+        if allowed.motifs:
             raise
         evolved["layers"] = _merge_layer_categories(
             base_layers,
             evolved["layers"],
-            allow_stripes=permissions.stripes,
+            allow_stripes=allowed.stripes,
             allow_motifs=False,
-            add_stripes=permissions.add_stripes,
+            add_stripes=allowed.add_stripes,
         )
         result = DesignPlanV3.model_validate(evolved)
         if "layers" not in restored:
             restored.append("layers")
+    _ensure_requested_refine_changes(
+        current,
+        result,
+        requested,
+        fixed_palette=palette_constraint is not None and palette_constraint.mode == "fixed",
+    )
     return result, restored
+
+
+def _ensure_requested_refine_changes(
+    current: DesignPlanV3,
+    evolved: DesignPlanV3,
+    permissions: _RefinePermissions,
+    *,
+    fixed_palette: bool = False,
+) -> None:
+    """Reject a refine response that ignored a category the user asked to change."""
+
+    missing: list[str] = []
+    base_motifs = [layer for layer in current.layers if layer.type == "motif"]
+    changed_motifs = [layer for layer in evolved.layers if layer.type == "motif"]
+    base_stripes = [layer for layer in current.layers if layer.type == "stripe"]
+    changed_stripes = [layer for layer in evolved.layers if layer.type == "stripe"]
+
+    base_colors = (
+        current.colors,
+        current.ground_color_index,
+        [[band.color_index for band in layer.bands] for layer in base_stripes],
+        [layer.color_indices for layer in base_motifs],
+    )
+    changed_colors = (
+        evolved.colors,
+        evolved.ground_color_index,
+        [[band.color_index for band in layer.bands] for layer in changed_stripes],
+        [layer.color_indices for layer in changed_motifs],
+    )
+    if permissions.colors:
+        if base_colors == changed_colors:
+            missing.append("colors")
+        elif not fixed_palette and set(evolved.colors) == set(current.colors):
+            # Reordering hexes or reshuffling ground/layer indexes is how the model fakes a
+            # recolor; an honest recolor introduces at least one new hex value. Fixed palettes
+            # are exempt because their hex set may never change.
+            missing.append("colors: introduce new hex values instead of permuting the palette")
+    motif_layers_exist = bool(base_motifs or changed_motifs)
+    if (
+        motif_layers_exist
+        and permissions.motifs
+        and (
+            current.motifs,
+            [layer.motif_index for layer in base_motifs],
+        )
+        == (
+            evolved.motifs,
+            [layer.motif_index for layer in changed_motifs],
+        )
+    ):
+        missing.append("motifs")
+    if (
+        motif_layers_exist
+        and permissions.motif_size
+        and [layer.size_ratio for layer in base_motifs]
+        == [layer.size_ratio for layer in changed_motifs]
+    ):
+        missing.append("motif size")
+    if (
+        motif_layers_exist
+        and permissions.motif_placement
+        and [layer.placement for layer in base_motifs]
+        == [layer.placement for layer in changed_motifs]
+    ):
+        missing.append("motif placement")
+
+    def stripe_geometry(
+        layer: StripeLayerPlan,
+    ) -> tuple[str, float, list[tuple[float, float]]]:
+        return (
+            layer.direction,
+            layer.period_ratio,
+            [(band.offset_ratio, band.width_ratio) for band in layer.bands],
+        )
+
+    if permissions.stripes and [stripe_geometry(layer) for layer in base_stripes] == [
+        stripe_geometry(layer) for layer in changed_stripes
+    ]:
+        missing.append("stripes")
+    if permissions.add_stripes and len(changed_stripes) <= len(base_stripes):
+        missing.append("added stripe layer")
+
+    if missing:
+        raise ValueError("requested refine change was not applied: " + ", ".join(missing))
 
 
 def prepare_reference_image(
@@ -528,6 +776,10 @@ def _build_prompt(
     ]
 
     if conversation_history:
+        # Refine already carries the authoritative <current_design>; a long history block
+        # measurably degrades flash-lite's constrained decoding (broken colors arrays,
+        # dropped motif layers), so only the nearest turns are kept there.
+        history_limit = 2 if current_plan is not None else 6
         lines += [
             "",
             "<conversation_history>",
@@ -536,7 +788,7 @@ def _build_prompt(
         ]
         lines.extend(
             json.dumps(turn, ensure_ascii=False, separators=(",", ":"))
-            for turn in conversation_history[-6:]
+            for turn in conversation_history[-history_limit:]
         )
         lines.append("</conversation_history>")
 
@@ -719,6 +971,63 @@ def _build_ideas_prompt(
         lines += ["", "The previous response was rejected. Fix these issues:"]
         lines += [f"- {error}" for error in errors]
     return "\n".join(lines)
+
+
+# 계약 위반 메시지 → plan 필드 언어 힌트. 실제 실패 로그에 나온 항목만 담는다.
+_PLAN_FEEDBACK_HINTS: tuple[tuple[str, str], ...] = (
+    (
+        "every declared motif must be used",
+        "return the complete evolved plan: keep every existing motif layer (with its "
+        "motif_index) in layers and add any new layers alongside it",
+    ),
+    (
+        "color must be #RGB or #RRGGBB",
+        'colors must be an array of individually quoted hex strings such as "#1A2B3C"',
+    ),
+    (
+        "stripe band coverage may not exceed 0.75",
+        "reduce the width_ratio values of that stripe layer's bands so their sum is at most 0.75",
+    ),
+)
+
+
+def _contract_feedback(contract: str, exc: Exception) -> list[str]:
+    """Compact retry feedback in plan-field language.
+
+    Raw pydantic dumps (loc/url/input_value) bury the actionable message and measurably
+    fail to steer flash-lite; keep one line per error plus a known-fix hint.
+    """
+
+    if not isinstance(exc, ValidationError):
+        return [f"model response did not match {contract}: {exc}"]
+    lines: list[str] = []
+    for error in exc.errors(include_url=False, include_input=False):
+        loc = ".".join(str(part) for part in error["loc"])
+        prefix = f"{contract}.{loc}" if loc else contract
+        lines.append(f"{prefix}: {error['msg']}")
+        lines.extend(hint for needle, hint in _PLAN_FEEDBACK_HINTS if needle in error["msg"])
+    return lines[:6]
+
+
+def _parse_indexed_plans(text: str) -> tuple[list[tuple[int, DesignPlanV3]], list[str]]:
+    """플랜을 개별 검증해 (원본 인덱스, 플랜)과 플랜별 피드백을 돌려준다.
+
+    DesignPlansV3로 응답 전체를 한 번에 검증하면 플랜 하나의 계약 위반이 유효한
+    나머지 플랜까지 통째로 버린다 — 필요한 건 2개뿐이므로 살아남은 플랜은 살린다.
+    """
+
+    raw = json.loads(_strip_code_fence(text))
+    items = raw.get("plans") if isinstance(raw, dict) else None
+    if not isinstance(items, list) or not 2 <= len(items) <= 4:
+        raise ValueError("response must contain a plans array with 2 to 4 plans")
+    indexed: list[tuple[int, DesignPlanV3]] = []
+    errors: list[str] = []
+    for index, item in enumerate(items):
+        try:
+            indexed.append((index, DesignPlanV3.model_validate(item)))
+        except ValidationError as exc:
+            errors.extend(_contract_feedback(f"plans[{index}]", exc))
+    return indexed, errors
 
 
 # Vertex 구조화 출력은 서빙측 제약 오토마톤에 상한이 있고 지원 키워드도 제한적이다.
@@ -976,27 +1285,38 @@ class GeminiClient:
                         prompt,
                         palette_constraint=palette_constraint,
                         pattern_constraints=pattern_constraints,
+                        motif_candidates_available=public_catalog_available,
                     )
                     sink["preserve_restored_sections"] = restored
-                    plans = [response_plan]
+                    indexed_plans = [(0, response_plan)]
+                    parse_errors: list[str] = []
                 else:
-                    response_plans = await self.complete_model(
+                    response = await self._generate_response(
                         built_prompt,
-                        DesignPlansV3,
                         reference_images=references,
+                        response_schema=_servable_json_schema(DesignPlansV3),
                         system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
                     )
-                    plans = response_plans.plans
+                    if not response.text:
+                        raise ValueError("Gemini returned an empty structured response")
+                    indexed_plans, parse_errors = _parse_indexed_plans(response.text)
             except (TypeError, ValueError, ValidationError) as exc:
                 contract = "DesignPlanV3" if refine else "DesignPlansV3"
-                last_errors = [f"model response did not match {contract}: {exc}"]
+                last_errors = _contract_feedback(contract, exc)
                 last_attempt_only_grounding_failures = False
                 errors = last_errors
                 continue
 
-            sink["plan_count"] = len(plans)
+            sink["plan_count"] = len(indexed_plans)
             if not refine:
-                source_signatures = {motif_source_signature(plan) for plan in plans}
+                if len(indexed_plans) < 2:
+                    last_errors = parse_errors or [
+                        "model produced fewer than 2 valid, structurally distinct plans"
+                    ]
+                    last_attempt_only_grounding_failures = False
+                    errors = last_errors[:6]
+                    continue
+                source_signatures = {motif_source_signature(plan) for _, plan in indexed_plans}
                 if len(source_signatures) != 1:
                     sink["motif_source_set_mismatch"] = True
                     last_errors = [
@@ -1007,12 +1327,12 @@ class GeminiClient:
                     continue
 
             results: list[AuthoredDesign] = []
-            design_errors: list[str] = []
+            design_errors: list[str] = list(parse_errors)
             seen_fingerprints: set[str] = set()
             duplicate_count = 0
             grounding_failure_count = 0
 
-            for index, plan in enumerate(plans):
+            for index, plan in indexed_plans:
                 fingerprint = structural_fingerprint(plan)
                 if not refine and fingerprint in seen_fingerprints:
                     duplicate_count += 1
@@ -1058,8 +1378,10 @@ class GeminiClient:
                     else "model produced fewer than 2 valid, structurally distinct plans"
                 )
             ]
-            last_attempt_only_grounding_failures = bool(plans) and grounding_failure_count == len(
-                plans
+            last_attempt_only_grounding_failures = (
+                bool(indexed_plans)
+                and not parse_errors
+                and grounding_failure_count == len(indexed_plans)
             )
             errors = last_errors[:6]
 

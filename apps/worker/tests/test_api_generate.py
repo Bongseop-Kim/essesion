@@ -682,7 +682,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
         assert session is retrieval_session
         calls.append("retrieve")
         assert prompt == "대각 스트라이프"
-        assert kwargs["available_motif_count"] == 1
+        assert kwargs["available_motif_count"] == 0
         return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
 
     class Gemini:
