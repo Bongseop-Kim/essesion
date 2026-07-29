@@ -207,7 +207,7 @@ async def test_compile_preview_allocates_compatible_unique_placeholders(app, cli
         "layers": [_motif_layer(color_indices=[1, 2, 3, 4, 5, 6])],
     }
     async with app.state.sessionmaker() as session:
-        session.add_all([_slot_motif("aaa-single-slot", 1), _slot_motif("zzz-six-slot", 6)])
+        session.add_all([_slot_motif("bbb-single-slot", 1), _slot_motif("zzz-six-slot", 6)])
         await session.commit()
     response = await client.post(
         "/authoring/compile-preview",
@@ -216,7 +216,7 @@ async def test_compile_preview_allocates_compatible_unique_placeholders(app, cli
 
     assert response.status_code == 200, response.text
     assert "motif-zzz-six-slot" in response.json()["svg"]
-    assert "motif-aaa-single-slot" not in response.json()["svg"]
+    assert "motif-bbb-single-slot" not in response.json()["svg"]
     assert response.json()["warnings"] == [
         "motif input 1 was not selected; a placeholder catalog motif is shown"
     ]
@@ -230,7 +230,7 @@ async def test_compile_preview_allocates_compatible_unique_placeholders(app, cli
     )
 
     assert missing.status_code == 200, missing.text
-    assert "motif-aaa-single-slot" not in missing.json()["svg"]
+    assert "motif-bbb-single-slot" not in missing.json()["svg"]
     assert missing.json()["warnings"] == [
         "motif input 1 was not selected and no compatible placeholder catalog motif"
         " with 6 color slots was found; its layers were omitted"
@@ -249,7 +249,9 @@ async def test_compile_preview_allocates_compatible_unique_placeholders(app, cli
         ],
     }
     async with app.state.sessionmaker() as session:
-        await session.execute(delete(Motif))
+        await session.execute(
+            delete(Motif).where(Motif.id.in_(("aaa-six-slot", "bbb-single-slot")))
+        )
         session.add_all([_slot_motif("aaa-six-slot", 6), _slot_motif("bbb-single-slot", 1)])
         await session.commit()
     ordered = await client.post(

@@ -123,6 +123,11 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
     with pytest.raises(ValidationError, match="color_index"):
         DesignPlanV3.model_validate(bad_color)
 
+    bad_band = json.loads(json.dumps(base))
+    bad_band["layers"][0]["bands"][0]["offset_ratio"] = 0.95
+    with pytest.raises(ValidationError, match="within one period"):
+        DesignPlanV3.model_validate(bad_band)
+
     hosted = next(
         example.plan.model_dump(mode="json")
         for example in load_example_set()
@@ -136,8 +141,7 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
     hosted_layer = next(
         layer
         for layer in bad_host["layers"]
-        if layer["type"] == "motif"
-        and layer["placement"]["host_stripe_index"] is not None
+        if layer["type"] == "motif" and layer["placement"].get("host_stripe_index") is not None
     )
     hosted_layer["placement"]["direction"] = "horizontal"
     with pytest.raises(ValidationError, match="hosted path direction"):

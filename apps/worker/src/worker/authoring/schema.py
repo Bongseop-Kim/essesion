@@ -86,6 +86,12 @@ class StripeBandPlan(_StrictModel):
     width_ratio: float = Field(gt=0.0, le=0.75, allow_inf_nan=False)
     color_index: int = Field(ge=0, le=7)
 
+    @model_validator(mode="after")
+    def _fits_within_period(self) -> StripeBandPlan:
+        if self.offset_ratio + self.width_ratio > 1.0:
+            raise ValueError("stripe band must fit within one period")
+        return self
+
 
 class StripeLayerPlan(_StrictModel):
     type: Literal["stripe"]
