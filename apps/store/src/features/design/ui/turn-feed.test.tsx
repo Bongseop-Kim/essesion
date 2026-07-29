@@ -57,7 +57,7 @@ describe("TurnFeed generation context", () => {
     const { container } = render(
       <TurnFeed
         turns={[turn]}
-        onViewCandidate={vi.fn()}
+        onSelectCandidate={vi.fn()}
         renderFinalizeTurn={() => null}
       />,
     );
@@ -79,8 +79,8 @@ describe("TurnFeed generation context", () => {
     expect(screen.queryByText("후보 3개")).toBeNull();
   });
 
-  it("최신·과거 후보 모두 클릭은 조회로만 전달한다", () => {
-    const onViewCandidate = vi.fn();
+  it("최신·과거 후보 모두 클릭을 선택으로 전달한다", () => {
+    const onSelectCandidate = vi.fn();
     const makeTurn = (
       seq: number,
       runId: string,
@@ -117,7 +117,7 @@ describe("TurnFeed generation context", () => {
           makeTurn(1, olderRunId, "older-candidate"),
           makeTurn(2, latestRunId, "latest-candidate"),
         ]}
-        onViewCandidate={onViewCandidate}
+        onSelectCandidate={onSelectCandidate}
         renderFinalizeTurn={() => null}
       />,
     );
@@ -132,13 +132,13 @@ describe("TurnFeed generation context", () => {
     fireEvent.click(olderCandidate);
     fireEvent.click(latestCandidate);
 
-    expect(onViewCandidate).toHaveBeenCalledTimes(2);
-    expect(onViewCandidate).toHaveBeenNthCalledWith(
+    expect(onSelectCandidate).toHaveBeenCalledTimes(2);
+    expect(onSelectCandidate).toHaveBeenNthCalledWith(
       1,
       olderRunId,
       expect.objectContaining({ id: "older-candidate" }),
     );
-    expect(onViewCandidate).toHaveBeenNthCalledWith(
+    expect(onSelectCandidate).toHaveBeenNthCalledWith(
       2,
       latestRunId,
       expect.objectContaining({ id: "latest-candidate" }),
@@ -181,15 +181,14 @@ describe("TurnFeed generation context", () => {
         turns={turns}
         selectedRunId={runIds[1]}
         selectedCandidateId="same-candidate"
-        onViewCandidate={vi.fn()}
+        onSelectCandidate={vi.fn()}
         renderFinalizeTurn={() => null}
       />,
     );
 
+    // 편집 포인터 표시는 선택 링(aria-pressed) — run+candidate가 모두 일치하는 타일 하나에만.
     const candidates = screen.getAllByRole("button");
     expect(candidates[0]?.getAttribute("aria-pressed")).toBe("false");
     expect(candidates[1]?.getAttribute("aria-pressed")).toBe("true");
-    // 편집 포인터 배지는 선택된 타일 하나에만 붙는다.
-    expect(screen.getAllByText("편집중")).toHaveLength(1);
   });
 });

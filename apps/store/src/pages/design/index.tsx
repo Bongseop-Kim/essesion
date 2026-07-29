@@ -30,7 +30,6 @@ import {
   ArrowPathIcon,
   EyeIcon,
   FolderOpenIcon,
-  PencilSquareIcon,
   PlusIcon,
   Squares2X2Icon,
   SwatchIcon,
@@ -224,13 +223,6 @@ export function DesignPage() {
     jobId: string;
     src: string;
   } | null>(null);
-  // 과거 런 후보의 조회 전용 스테이징 — 편집 포인터(selection)와 별개이며 서버에 닿지 않는다.
-  // 분기(새 대화)는 여기서 자동 실행하지 않고 명시적 "이 이미지로 편집" 액션으로만.
-  const [viewedCandidate, setViewedCandidate] = useState<{
-    sessionId: string;
-    runId: string;
-    candidate: DesignCandidate;
-  } | null>(null);
   const [localFinalizeTurns, setLocalFinalizeTurns] = useState<
     LocalFinalizeTurn[]
   >([]);
@@ -343,17 +335,8 @@ export function DesignPage() {
   const selectedImageSrc = selection?.candidate?.svg
     ? svgToDataUri(selection.candidate.svg)
     : null;
-  const viewedImageSrc =
-    viewedCandidate && viewedCandidate.sessionId === activeSessionId
-      ? svgToDataUri(viewedCandidate.candidate.svg)
-      : null;
-  const previewImageSrc =
-    resultPreview?.src ?? viewedImageSrc ?? selectedImageSrc;
-  const previewAlt = resultPreview
-    ? "완성된 실사화 이미지"
-    : viewedImageSrc
-      ? "디자인 후보 미리보기"
-      : undefined;
+  const previewImageSrc = resultPreview?.src ?? selectedImageSrc;
+  const previewAlt = resultPreview ? "완성된 실사화 이미지" : undefined;
   // 계정당 24시간 쿼터 — 단건 세션 GET에서만 내려온다. null(미로드·설정 부재)이면
   // 막지 않는다: 서버 409가 최종 방어선이고 스낵바로 안내된다.
   const finalizeQuota = sessionQuery.data?.finalize_quota ?? null;
@@ -632,7 +615,6 @@ export function DesignPage() {
       setActiveSessionId(result.sessionId);
       setNewSessionMode(false);
       setSelectionOverride(null);
-      setViewedCandidate(null);
       resetComposerDraft();
     } catch (error) {
       // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
@@ -673,7 +655,6 @@ export function DesignPage() {
       if (generationEpoch.isCurrent(operation)) {
         // 서버가 새 런의 첫 후보를 자동 커밋한다 — 이전 낙관적 선택 표시를 걷어낸다.
         setSelectionOverride(null);
-        setViewedCandidate(null);
         resetVariationControls();
       }
     } catch {
@@ -698,7 +679,6 @@ export function DesignPage() {
       if (!generationEpoch.isCurrent(operation)) return;
       setActiveSessionId(result.sessionId);
       setNewSessionMode(false);
-      setViewedCandidate(null);
       setSelectionOverride(null);
       if (retryInput.mode === "prompt") {
         resetComposerDraft();
@@ -710,22 +690,12 @@ export function DesignPage() {
     }
   };
 
-  // 타일 클릭 공통(최신·과거 동일): 조회 스테이징만 — 편집 포인터는 움직이지 않는다.
-  // 편집 대상 타일을 다시 누르면 조회를 해제해 패널이 편집 대상으로 돌아온다.
-  const viewCandidate = (runId: string, candidate: DesignCandidate) => {
-    if (!activeSessionId) return;
-    setResultPreview(null);
-    if (selection?.runId === runId && selection.candidateId === candidate.id) {
-      setViewedCandidate(null);
-      return;
-    }
-    setViewedCandidate({ sessionId: activeSessionId, runId, candidate });
-  };
-
+  // 타일 클릭 공통(최신·과거 동일): 클릭한 후보를 다음 발화의 기준으로 커밋한다.
+  // 과거 런이어도 대화는 되감지 않고 포인터만 옮기며(분기는 "새로 만들기"가 유일한
+  // 창구), 다음 생성이 완료되면 서버 자동 커밋이 포인터를 다시 최신 결과로 되돌린다.
   const selectCandidate = async (runId: string, candidate: DesignCandidate) => {
     if (!activeSessionId || !ensureDesignAuth()) return;
     const sessionId = activeSessionId;
-    setViewedCandidate(null);
     // 이미 편집 대상인 후보 — 저장할 변화가 없다.
     if (selection?.runId === runId && selection.candidateId === candidate.id)
       return;
@@ -773,15 +743,6 @@ export function DesignPage() {
       );
       snackbar("디자인을 선택하지 못했습니다. 다시 시도해 주세요.");
     }
-  };
-
-  // "이 이미지로 편집" — 조회 중인 후보를 현재 대화의 다음 발화 기준으로 커밋한다.
-  // 새 대화를 만들지 않는다(새 대화는 "새로 만들기"가 유일한 창구). 다음 생성이
-  // 완료되면 서버 자동 커밋이 포인터를 다시 최신 결과로 되돌린다.
-  const selectFromViewed = () => {
-    if (!viewedCandidate || viewedCandidate.sessionId !== activeSessionId)
-      return;
-    void selectCandidate(viewedCandidate.runId, viewedCandidate.candidate);
   };
 
   const openFinalize = () => {
@@ -837,13 +798,11 @@ export function DesignPage() {
   // 모바일은 앵커 메뉴가 열린다(시트는 메뉴의 미리보기로만).
   const stageFinalizeResult = (job: GenerationJobOut) => {
     if (!job.result_url) return;
-    setViewedCandidate(null);
     setResultPreview({ jobId: job.id, src: job.result_url });
   };
 
   const openFinalizeResultPreview = (job: GenerationJobOut) => {
     if (!job.result_url) return;
-    setViewedCandidate(null);
     setResultPreview({ jobId: job.id, src: job.result_url });
     setOverlay("preview");
   };
@@ -899,7 +858,6 @@ export function DesignPage() {
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
     setResultPreview(null);
-    setViewedCandidate(null);
     clearPendingDesign();
     setPending(null);
   };
@@ -912,7 +870,6 @@ export function DesignPage() {
     setNewSessionMode(true);
     setSelectionOverride(null);
     setResultPreview(null);
-    setViewedCandidate(null);
   };
 
   const chooseSession = (sessionId: string) => {
@@ -923,7 +880,6 @@ export function DesignPage() {
     setNewSessionMode(false);
     setSelectionOverride(null);
     setResultPreview(null);
-    setViewedCandidate(null);
     setOverlay(null);
   };
 
@@ -983,7 +939,6 @@ export function DesignPage() {
           setActiveSessionId(null);
           setSelectionOverride(null);
           setResultPreview(null);
-          setViewedCandidate(null);
         }
         snackbar("세션을 삭제했습니다.");
       } else if (target.kind === "job") {
@@ -1031,35 +986,17 @@ export function DesignPage() {
     onExport: openExport,
     onFinalize: () => openFinalize(),
   };
-  // 다시만들기·내려받기·실사화하기는 상시 노출(편집 대상 기준으로 동작).
-  // "이 이미지로 편집"은 미리보기가 편집 대상이 아닐 때만 앞에 나타난다.
-  const panelActions = (
-    <DesignActions
-      {...actionProps}
-      editBasis={
-        viewedImageSrc
-          ? {
-              loading: selectionMutation.isPending,
-              onCommit: selectFromViewed,
-            }
-          : undefined
-      }
-    />
-  );
-  // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 탭이 조회 스테이징을 먼저
-  // 하므로 "이 이미지로 편집"은 탭한 후보에, 나머지는 편집 대상(selection)에 동작한다.
+  // 다시만들기·내려받기·실사화하기는 상시 노출 — 편집 대상(=마지막에 클릭한 후보) 기준.
+  const panelActions = <DesignActions {...actionProps} />;
+  // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 탭이 곧 낙관적 select이므로
+  // 모든 항목이 탭한 후보 기준으로 동작한다. intent가 select 응답으로 채워질 때까지
+  // 다시만들기·실사화는 잠깐 비활성이다.
   const candidateMenu = (
     <>
       <MenuItem
         label="미리보기"
         prefixIcon={<Icon svg={<EyeIcon />} size={18} />}
         onClick={() => setOverlay("preview")}
-      />
-      <MenuItem
-        label="이 이미지로 편집"
-        prefixIcon={<Icon svg={<PencilSquareIcon />} size={18} />}
-        disabled={selectionMutation.isPending}
-        onClick={selectFromViewed}
       />
       <MenuItem
         label="내려받기"
@@ -1116,7 +1053,6 @@ export function DesignPage() {
             <PreviewPanel
               imageSrc={previewImageSrc}
               alt={previewAlt}
-              title={viewedImageSrc ? "후보 미리보기" : undefined}
               mode={previewMode}
               onModeChange={setPreviewMode}
               actions={panelActions}
@@ -1151,7 +1087,10 @@ export function DesignPage() {
                 generating={generateMutation.isPending}
                 error={!!activeSessionId && turnsQuery.isError}
                 onRetry={() => void turnsQuery.refetch()}
-                onViewCandidate={viewCandidate}
+                candidateActionsDisabled={generateMutation.isPending}
+                onSelectCandidate={(runId, candidate) =>
+                  void selectCandidate(runId, candidate)
+                }
                 candidateMenu={compactPreview ? candidateMenu : undefined}
                 renderFinalizeTurn={(payload) => (
                   <FinalizeTurnCard
@@ -1203,6 +1142,7 @@ export function DesignPage() {
                 onOpenIdeas={() => {
                   if (ensureDesignAuth()) setOverlay("ideas");
                 }}
+                basisImageSrc={selectedImageSrc}
                 attachments={composerAttachments}
                 onRemoveAttachment={removeComposerAttachment}
                 onPhotoPurposeChange={changePhotoPurpose}
@@ -1447,7 +1387,6 @@ function DesignActions({
   onVariation,
   onExport,
   onFinalize,
-  editBasis,
 }: {
   selected: boolean;
   canExport: boolean;
@@ -1456,23 +1395,10 @@ function DesignActions({
   onVariation: () => void;
   onExport: () => void;
   onFinalize: () => void;
-  /** 미리보기 중인 후보가 편집 대상이 아닐 때만 전달 — "이 이미지로 편집" 노출. */
-  editBasis?: { loading: boolean; onCommit: () => void };
 }) {
   return (
     <HStack gap="x2" wrap>
-      {/* 네 버튼 모두 같은 위계(outline)로 통일 — weak 회색 채움은 비활성으로 오독된다. */}
-      {editBasis ? (
-        <ActionButton
-          type="button"
-          size="small"
-          variant="neutralOutline"
-          loading={editBasis.loading}
-          onClick={editBasis.onCommit}
-        >
-          <Icon svg={<PencilSquareIcon />} size={18} />이 이미지로 편집
-        </ActionButton>
-      ) : null}
+      {/* 세 버튼 모두 같은 위계(outline)로 통일 — weak 회색 채움은 비활성으로 오독된다. */}
       <ActionButton
         type="button"
         size="small"

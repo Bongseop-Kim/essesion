@@ -1,9 +1,7 @@
 import {
-  Badge,
   Box,
   Callout,
   ContentPlaceholder,
-  Float,
   Grid,
   Icon,
   ImageFrame,
@@ -142,23 +140,14 @@ export function CandidateTile({
       p="x1"
       className="text-left transition-colors duration-100 ease-standard hover:border-stroke-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
     >
+      {/* 편집 대상 표시는 선택 링(테두리)과 컴포저의 "이 디자인에 이어서" 칩이 담당한다. */}
       <ImageFrame
         ratio={1}
         src={imageSrc}
         alt={alt}
         fit="cover"
         borderRadius="r2"
-      >
-        {selected ? (
-          <Float placement="top-end" offsetX="x2" offsetY="x2">
-            {/* 다음 발화의 수정 기준(편집 포인터) 표시 — 입력창 쪽 별도 표시가 없으므로
-                모바일에서도 노출한다. */}
-            <Badge variant="solid" tone="brand">
-              편집중
-            </Badge>
-          </Float>
-        ) : null}
-      </ImageFrame>
+      />
     </Box>
   );
 }

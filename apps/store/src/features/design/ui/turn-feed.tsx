@@ -55,9 +55,9 @@ export type TurnFeedProps = {
   generating?: boolean;
   error?: boolean;
   onRetry?: () => void;
-  /** 모든 런 공통: 타일 클릭은 조회 스테이징(로컬)만. 편집 포인터 커밋(서버 select)은
-      호출부의 "이 이미지로 편집" 액션으로만 일어난다. */
-  onViewCandidate: (runId: string, candidate: TurnCandidate) => void;
+  /** 모든 런 공통: 타일 클릭이 곧 편집 포인터 커밋(서버 select)이다. 과거 런도
+      대화는 되감지 않고 포인터만 옮긴다. */
+  onSelectCandidate: (runId: string, candidate: TurnCandidate) => void;
   renderFinalizeTurn: (payload: FinalizeTurnPayload) => ReactNode;
   /** 있으면 후보 타일 탭 시 앵커 메뉴로 노출할 항목들(CandidateGrid의 menu). */
   candidateMenu?: ReactNode;
@@ -72,7 +72,7 @@ export function TurnFeed({
   generating = false,
   error = false,
   onRetry,
-  onViewCandidate,
+  onSelectCandidate,
   renderFinalizeTurn,
   candidateMenu,
 }: TurnFeedProps) {
@@ -141,7 +141,7 @@ export function TurnFeed({
               selectedRunId={selectedRunId}
               selectedCandidateId={selectedCandidateId}
               candidateActionsDisabled={candidateActionsDisabled}
-              onViewCandidate={onViewCandidate}
+              onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
               candidateMenu={candidateMenu}
             />
@@ -172,7 +172,7 @@ function TurnItem({
   selectedRunId,
   selectedCandidateId,
   candidateActionsDisabled,
-  onViewCandidate,
+  onSelectCandidate,
   renderFinalizeTurn,
   candidateMenu,
 }: {
@@ -182,7 +182,7 @@ function TurnItem({
   selectedRunId?: string | null;
   selectedCandidateId?: string | null;
   candidateActionsDisabled: boolean;
-  onViewCandidate: TurnFeedProps["onViewCandidate"];
+  onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
   candidateMenu?: ReactNode;
 }) {
@@ -305,7 +305,7 @@ function TurnItem({
             event.preventDefault();
             return;
           }
-          onViewCandidate(payload.response.run_id, candidate);
+          onSelectCandidate(payload.response.run_id, candidate);
         }}
       />
     );
