@@ -14,7 +14,7 @@ import copy
 import io
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal, TypeVar
 
 from google import genai
@@ -40,6 +40,7 @@ from worker.authoring.schema import (
     structural_fingerprint,
 )
 from worker.engine.constraints import PaletteConstraint, PatternConstraints, pattern_prompt_lines
+from worker.engine.palette import hex_to_rgb
 from worker.engine.validate import IntentInvalid
 
 DEFAULT_MODEL = "gemini-2.5-flash-lite"
@@ -104,7 +105,10 @@ _COLOR_WORDS = re.compile(
     r"burgundy|ivory|wine|maroon|gold|silver|khaki|olive|mint|cream|charcoal)",
     re.IGNORECASE,
 )
-_STRIPE_WORDS = re.compile(r"(스트라이프|줄무늬|stripe|band)", re.IGNORECASE)
+_STRIPE_WORDS = re.compile(
+    r"(스트라이프(?:\s*구조)?|줄무늬(?:\s*구조)?|stripe(?:\s+structure)?|band)",
+    re.IGNORECASE,
+)
 _MOTIF_WORDS = re.compile(r"(모티프|무늬|도형|형태|주제|subject|motif|shape|icon)", re.IGNORECASE)
 _SIZE_WORDS = re.compile(r"(크기|크게|작게|scale|size)", re.IGNORECASE)
 _PLACEMENT_WORDS = re.compile(
@@ -137,6 +141,56 @@ _PRESERVE_TO_CATEGORY_GAP = re.compile(
     r"\s*(?:(?:the|this|these|current|existing|기존|현재)\s+)?",
     re.IGNORECASE,
 )
+_GROUND_WORDS = re.compile(r"(바탕|배경(?:색)?|background|ground)", re.IGNORECASE)
+_GROUND_ONLY_WORDS = re.compile(
+    r"(?:바탕|배경)(?:색)?만|only\s+(?:the\s+)?(?:background|ground)(?:\s+colou?r)?",
+    re.IGNORECASE,
+)
+_NAMED_COLOR_TARGETS = (
+    (re.compile(r"(네이비|남색|navy)", re.IGNORECASE), "navy", "#000080"),
+    (re.compile(r"(버건디|burgundy)", re.IGNORECASE), "burgundy", "#800020"),
+    (re.compile(r"(아이보리|ivory)", re.IGNORECASE), "ivory", "#FFFFF0"),
+    (re.compile(r"(금색|골드|gold)", re.IGNORECASE), "gold", "#D4AF37"),
+)
+
+
+def _color_distance(color: str, target: str) -> int:
+    return sum(
+        (value - expected) ** 2
+        for value, expected in zip(hex_to_rgb(color), hex_to_rgb(target), strict=True)
+    )
+
+
+def _named_color_is_excluded(prompt: str, match: re.Match[str]) -> bool:
+    before = prompt[max(0, match.start() - 64) : match.start()]
+    after = prompt[match.end() : match.end() + 64]
+    named_color = "|".join(
+        f"(?:{pattern.pattern})" for pattern, _name, _hex in _NAMED_COLOR_TARGETS
+    )
+    role = r"(?:색(?:상)?|계열|바탕|배경(?:색)?|colou?r|background|ground)"
+    particle = r"(?:은|는|이|가|을|를|만)?"
+    negative = r"(?:없이|빼|제외|사용하지|쓰지|아니라|대신|without|remove|exclude)"
+    joiner = r"(?:와|과|및|또는|,|/|and|or)"
+    return bool(
+        re.search(
+            rf"(?:without|remove|exclude|no|instead\s+of|rather\s+than)\s+"
+            rf"(?:the\s+)?(?:(?:{named_color})(?:\s*{role})?\s*{joiner}\s*)*$",
+            before,
+            re.IGNORECASE,
+        )
+        or re.match(
+            rf"\s*(?:{role})?\s*{particle}\s*{negative}",
+            after,
+            re.IGNORECASE,
+        )
+        or re.match(
+            rf"\s*(?:{joiner}\s*(?:{named_color})(?:\s*{role})?\s*)+{particle}\s*"
+            rf"{negative}",
+            after,
+            re.IGNORECASE,
+        )
+        or re.match(r"\s*(?:대신|가\s+아니라)", after)
+    )
 
 
 def _category_is_preserved(prompt: str, category: re.Pattern[str]) -> bool:
@@ -178,6 +232,222 @@ def _category_mentions(prompt: str) -> _CategoryMentions:
             for motif in _MOTIF_WORDS.finditer(prompt)
         ),
         geometry=bool(_GEOMETRY_WORDS.search(prompt)),
+    )
+
+
+def _requested_named_colors(prompt: str) -> list[tuple[str, str, list[re.Match[str]]]]:
+    requested = [
+        (
+            name,
+            target_hex,
+            [
+                match
+                for match in pattern.finditer(prompt)
+                if not _named_color_is_excluded(prompt, match)
+            ],
+        )
+        for pattern, name, target_hex in _NAMED_COLOR_TARGETS
+    ]
+    return sorted(
+        (item for item in requested if item[2]),
+        key=lambda item: item[2][0].start(),
+    )
+
+
+def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> DesignPlanV3:
+    """Apply the small supported named-color vocabulary to existing PlanV3 slots."""
+
+    requested = _requested_named_colors(prompt)
+    if not requested:
+        return plan
+
+    stripe_roles = list(_STRIPE_WORDS.finditer(prompt))
+    motif_roles = [
+        motif
+        for motif in _MOTIF_WORDS.finditer(prompt)
+        if not any(
+            stripe.start() <= motif.start() and motif.end() <= stripe.end()
+            for stripe in stripe_roles
+        )
+    ]
+
+    def nearby_targets(
+        roles: list[re.Match[str]], *, direct_role: bool = False
+    ) -> set[str]:
+        targets: set[str] = set()
+        for role in roles:
+            candidates = [
+                (
+                    min(abs(color.end() - role.start()), abs(role.end() - color.start())),
+                    color.start(),
+                    name,
+                )
+                for name, _target_hex, matches in requested
+                for color in matches
+                if not direct_role
+                or re.fullmatch(
+                    r"\s*(?:(?:색(?:상)?|컬러|colou?red?|in|of|for|"
+                    r"은|는|이|가|을|를|의|로|으로|인|-)\s*)*",
+                    (
+                        prompt[color.end() : role.start()]
+                        if color.end() <= role.start()
+                        else prompt[role.end() : color.start()]
+                    ),
+                    re.IGNORECASE,
+                )
+            ]
+            distance, _position, name = min(candidates, default=(17, 0, ""))
+            if distance <= 16:
+                targets.add(name)
+        return targets
+
+    ground_targets = nearby_targets(list(_GROUND_WORDS.finditer(prompt)))
+    stripe_targets = nearby_targets(stripe_roles, direct_role=True) - ground_targets
+    motif_targets = (
+        nearby_targets(motif_roles, direct_role=True) - ground_targets - stripe_targets
+    )
+    for name, _target, matches in requested:
+        if name in ground_targets or name in stripe_targets or name in motif_targets:
+            continue
+        if any(
+            (
+                subject := re.search(
+                    r"([가-힣A-Za-z0-9_-]{1,20})(?:은|는|을|를)\s*$",
+                    prompt[max(0, match.start() - 24) : match.start()],
+                )
+            )
+            and subject.group(1).casefold()
+            not in {"색", "색상", "컬러", "팔레트", "color", "palette"}
+            for match in matches
+        ):
+            motif_targets.add(name)
+
+    raw_plan = plan.model_dump(mode="json")
+    colors = list(plan.colors)
+    ground_color_index = plan.ground_color_index
+    layers = raw_plan["layers"]
+
+    def redirect_role_color(role: str, source: int, target: int) -> bool:
+        changed = False
+        for layer in layers:
+            if role == "stripe" and layer["type"] == "stripe":
+                for band in layer["bands"]:
+                    if band["color_index"] == source:
+                        band["color_index"] = target
+                        changed = True
+            elif role == "motif" and layer["type"] == "motif":
+                indices = layer.get("color_indices")
+                if indices is not None and source in indices:
+                    layer["color_indices"] = [
+                        target if index == source else index for index in indices
+                    ]
+                    changed = True
+        return changed
+
+    stripe_slots: set[int] = set()
+    motif_slots: set[int] = set()
+    for layer in plan.layers:
+        if layer.type == "stripe":
+            stripe_slots.update(band.color_index for band in layer.bands)
+        elif layer.color_indices is not None:
+            motif_slots.update(layer.color_indices)
+        else:
+            motif_slots.add(
+                next(
+                    (
+                        index
+                        for index in range(len(colors))
+                        if index != plan.ground_color_index
+                    ),
+                    plan.ground_color_index,
+                )
+            )
+    layer_slots = stripe_slots | motif_slots
+    used: set[int] = set()
+    ordered = sorted(requested, key=lambda item: item[0] not in ground_targets)
+    for name, target, _matches in ordered:
+        existing = next((index for index, color in enumerate(colors) if color == target), None)
+        if name in ground_targets:
+            if existing is not None:
+                ground_color_index = existing
+            else:
+                colors[ground_color_index] = target
+            used.add(ground_color_index)
+            continue
+        if name in stripe_targets:
+            role = "stripe"
+            role_slots = stripe_slots
+            target_slots = stripe_slots - motif_slots
+        elif name in motif_targets:
+            role = "motif"
+            role_slots = motif_slots
+            target_slots = motif_slots - stripe_slots
+        elif stripe_slots and motif_slots:
+            if existing is not None and existing in layer_slots:
+                used.add(existing)
+                continue
+            raise ValueError(f"named color {name} has no unambiguous visible role")
+        else:
+            role = "stripe" if stripe_slots else "motif" if motif_slots else "ground"
+            role_slots = layer_slots
+            target_slots = layer_slots
+        if existing is not None:
+            if existing in target_slots:
+                used.add(existing)
+                continue
+            available = [
+                index
+                for index in target_slots
+                if index not in used
+            ]
+            if not available:
+                available = [index for index in role_slots if index not in used]
+            if (
+                not available
+                and not target_slots
+                and not layer_slots
+                and ground_color_index not in used
+            ):
+                available = [ground_color_index]
+            if not available:
+                raise ValueError(f"named color {name} is not referenced by a visible layer")
+            closest = min(available, key=lambda index: _color_distance(colors[index], target))
+            if role == "ground":
+                ground_color_index = existing
+            elif not redirect_role_color(role, closest, existing):
+                raise ValueError(f"named color {name} cannot be assigned to its visible role")
+            if role == "stripe":
+                stripe_slots = (stripe_slots - {closest}) | {existing}
+            elif role == "motif":
+                motif_slots = (motif_slots - {closest}) | {existing}
+            layer_slots = stripe_slots | motif_slots
+            used.add(existing)
+            continue
+        available = [
+            index
+            for index in target_slots
+            if index not in used
+        ]
+        if (
+            not available
+            and not target_slots
+            and not layer_slots
+            and ground_color_index not in used
+        ):
+            available = [ground_color_index]
+        if not available:
+            raise ValueError(f"plan has no visible slot available for named color {name}")
+        closest = min(available, key=lambda index: _color_distance(colors[index], target))
+        colors[closest] = target
+        used.add(closest)
+
+    return DesignPlanV3.model_validate(
+        {
+            **raw_plan,
+            "colors": colors,
+            "ground_color_index": ground_color_index,
+            "layers": layers,
+        }
     )
 
 
@@ -458,6 +728,8 @@ def _preserve_refine_plan(
     version instead of being restored from the committed plan.
     """
 
+    fixed_palette = palette_constraint is not None and palette_constraint.mode == "fixed"
+    named_colors_applied = not fixed_palette and bool(_requested_named_colors(prompt))
     requested = _refine_permissions(
         prompt,
         palette_constraint=palette_constraint,
@@ -468,6 +740,8 @@ def _preserve_refine_plan(
         requested,
         motif_candidates_available=motif_candidates_available,
     )
+    if named_colors_applied and _GROUND_ONLY_WORDS.search(prompt):
+        allowed = replace(allowed, colors=False)
     base = current.model_dump(mode="json")
     evolved = proposed.model_dump(mode="json")
     restored: list[str] = []
@@ -539,11 +813,14 @@ def _preserve_refine_plan(
         result = DesignPlanV3.model_validate(evolved)
         if "layers" not in restored:
             restored.append("layers")
+    if named_colors_applied:
+        result = _normalize_requested_named_colors(prompt, result)
     _ensure_requested_refine_changes(
         current,
         result,
         requested,
-        fixed_palette=palette_constraint is not None and palette_constraint.mode == "fixed",
+        fixed_palette=fixed_palette,
+        named_colors_applied=named_colors_applied,
     )
     return result, restored
 
@@ -554,6 +831,7 @@ def _ensure_requested_refine_changes(
     permissions: _RefinePermissions,
     *,
     fixed_palette: bool = False,
+    named_colors_applied: bool = False,
 ) -> None:
     """Reject a refine response that ignored a category the user asked to change."""
 
@@ -578,7 +856,11 @@ def _ensure_requested_refine_changes(
     if permissions.colors:
         if base_colors == changed_colors:
             missing.append("colors")
-        elif not fixed_palette and set(evolved.colors) == set(current.colors):
+        elif (
+            not fixed_palette
+            and not named_colors_applied
+            and set(evolved.colors) == set(current.colors)
+        ):
             # Reordering hexes or reshuffling ground/layer indexes is how the model fakes a
             # recolor; an honest recolor introduces at least one new hex value. Fixed palettes
             # are exempt because their hex set may never change.
@@ -1333,6 +1615,12 @@ class GeminiClient:
             grounding_failure_count = 0
 
             for index, plan in indexed_plans:
+                try:
+                    if palette_constraint is None or palette_constraint.mode != "fixed":
+                        plan = _normalize_requested_named_colors(prompt, plan)
+                except ValueError as exc:
+                    design_errors.append(f"plan[{index}]: {exc}")
+                    continue
                 fingerprint = structural_fingerprint(plan)
                 if not refine and fingerprint in seen_fingerprints:
                     duplicate_count += 1

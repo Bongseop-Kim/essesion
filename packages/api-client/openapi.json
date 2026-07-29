@@ -7446,6 +7446,19 @@
       },
       "FinalizeRequest": {
         "properties": {
+          "candidate_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Id"
+          },
           "colorway_id": {
             "anyOf": [
               {
@@ -7523,6 +7536,18 @@
               }
             ],
             "title": "Relief Strength"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
           },
           "texture_strength": {
             "anyOf": [
@@ -8228,6 +8253,34 @@
           }
         },
         "title": "GenerationOutcomeOut",
+        "type": "object"
+      },
+      "GenerationTokenAccountingOut": {
+        "properties": {
+          "debited": {
+            "title": "Debited",
+            "type": "integer"
+          },
+          "matched": {
+            "title": "Matched",
+            "type": "boolean"
+          },
+          "net": {
+            "title": "Net",
+            "type": "integer"
+          },
+          "refunded": {
+            "title": "Refunded",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "matched",
+          "debited",
+          "refunded",
+          "net"
+        ],
+        "title": "GenerationTokenAccountingOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -14138,6 +14191,9 @@
             "title": "Status",
             "type": "string"
           },
+          "token_accounting": {
+            "$ref": "#/components/schemas/GenerationTokenAccountingOut"
+          },
           "warning_count": {
             "title": "Warning Count",
             "type": "integer"
@@ -14179,6 +14235,7 @@
           "warning_groups",
           "diagnostics",
           "outcome",
+          "token_accounting",
           "candidates"
         ],
         "title": "SeamlessDetailOut",
@@ -14472,7 +14529,9 @@
               "generation_warning",
               "motif_layer_dropped",
               "partial_candidates",
-              "preview_unavailable"
+              "preview_unavailable",
+              "spacing_snap",
+              "stripe_period_snap"
             ],
             "title": "Code",
             "type": "string"
@@ -18436,6 +18495,22 @@
           },
           {
             "in": "query",
+            "name": "identifier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identifier"
+            }
+          },
+          {
+            "in": "query",
             "name": "start",
             "required": false,
             "schema": {
@@ -18564,6 +18639,22 @@
                 }
               ],
               "title": "Request Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "identifier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Identifier"
             }
           },
           {

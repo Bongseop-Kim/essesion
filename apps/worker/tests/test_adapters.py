@@ -19,9 +19,11 @@ from worker.adapters.gemini import (
     ReferenceImage,
     _build_prompt,
     _merge_layer_categories,
+    _normalize_requested_named_colors,
     _preserve_refine_plan,
     _refine_permissions,
     _refine_restore_permissions,
+    _requested_named_colors,
     _servable_json_schema,
 )
 from worker.adapters.recraft import (
@@ -728,45 +730,247 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
     assert '"plans"' not in json.dumps(response_schema)
 
 
-async def test_refine_retries_when_requested_color_change_is_ignored():
-    current = load_example_set()[1].plan
+async def test_refine_normalizes_named_colors_when_model_ignores_change():
+    current = load_example_set()[5].plan
     unchanged = current.model_dump(mode="json")
-    changed = current.model_dump(mode="json")
-    changed["colors"][0] = "#800000"
-    changed["colors"][1] = "#FFFFF0"
-    client, sdk = _gemini(unchanged, changed)
+    client, sdk = _gemini(unchanged)
 
     designs = await client.author_designs(
         "색상만 바꿔줘. 배경은 버건디, 벌은 아이보리로 해줘. 모티프는 유지해.",
         current_plan=current,
+        motif_ids=["circle"],
     )
 
-    assert len(sdk.models.generate_calls) == 2
+    assert len(sdk.models.generate_calls) == 1
     assert designs[0].plan is not None
-    assert designs[0].plan["colors"][:2] == ["#800000", "#FFFFF0"]
-    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
-    assert "requested refine change was not applied: colors" in retry_prompt
+    assert designs[0].plan["colors"][current.ground_color_index] == "#800020"
+    assert "#FFFFF0" in designs[0].plan["colors"]
 
 
-async def test_refine_retries_when_palette_is_only_permuted():
-    # A2 회귀: 모델이 새 hex 없이 ground 인덱스만 셔플한 응답은 recolor로 인정하지 않는다.
+async def test_refine_normalizes_named_color_when_palette_is_only_permuted():
     current = load_example_set()[1].plan
     permuted = current.model_dump(mode="json")
     permuted["ground_color_index"] = (current.ground_color_index + 1) % len(current.colors)
-    changed = current.model_dump(mode="json")
-    changed["colors"][0] = "#800000"
-    client, sdk = _gemini(permuted, changed)
+    client, sdk = _gemini(permuted)
 
     designs = await client.author_designs(
         "색상만 바꿔줘. 배경은 버건디로 해줘. 모티프는 유지해.",
         current_plan=current,
     )
 
-    assert len(sdk.models.generate_calls) == 2
+    assert len(sdk.models.generate_calls) == 1
     assert designs[0].plan is not None
-    assert designs[0].plan["colors"][0] == "#800000"
-    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
-    assert "introduce new hex values instead of permuting the palette" in retry_prompt
+    ground_index = designs[0].plan["ground_color_index"]
+    assert designs[0].plan["colors"][ground_index] == "#800020"
+
+
+@pytest.mark.parametrize("model_ground", ["#000000", "#4F77A8"])
+async def test_refine_normalizes_wrong_named_ground_color(model_ground: str):
+    current = load_example_set()[1].plan
+    proposed = current.model_dump(mode="json")
+    proposed["colors"][0] = model_ground
+    proposed["colors"][1] = "#123456"
+    client, sdk = _gemini(proposed)
+
+    designs = await client.author_designs(
+        "배경색만 짙은 네이비로 바꿔줘. 따뜻한 회색과 스트라이프 구조는 그대로 "
+        "유지해. 구체적인 모티프는 넣지 마.",
+        current_plan=current,
+    )
+
+    assert len(sdk.models.generate_calls) == 1
+    assert designs[0].plan is not None
+    assert designs[0].plan["colors"][0] == "#000080"
+    assert designs[0].plan["colors"][1:] == current.colors[1:]
+
+
+async def test_initial_authoring_normalizes_wrong_named_ground_color():
+    examples = load_example_set()
+    wrong_solid = examples[0].plan.model_dump(mode="json")
+    wrong_stripe = examples[1].plan.model_dump(mode="json")
+    wrong_solid["colors"][0] = "#000000"
+    wrong_stripe["colors"][0] = "#4F77A8"
+    client, sdk = _gemini({"plans": [wrong_solid, wrong_stripe]})
+
+    designs = await client.author_designs("짙은 네이비 바탕의 미니멀 스트라이프")
+
+    assert len(designs) == 2
+    assert len(sdk.models.generate_calls) == 1
+    assert all(
+        design.plan is not None
+        and design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
+        for design in designs
+    )
+
+
+@pytest.mark.parametrize("prompt", ["네이비 없이", "네이비는 빼줘", "without navy"])
+async def test_initial_authoring_does_not_require_excluded_named_color(prompt: str):
+    examples = load_example_set()
+    plans = [
+        example.plan.model_copy(
+            update={"colors": ["#222222", *example.plan.colors[1:]]}
+        ).model_dump(mode="json")
+        for example in examples[:2]
+    ]
+    client, sdk = _gemini({"plans": plans})
+
+    designs = await client.author_designs(prompt)
+
+    assert len(designs) == 2
+    assert len(sdk.models.generate_calls) == 1
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "네이비와 아이보리 없이",
+        "네이비 배경은 빼줘",
+        "네이비 배경 대신 버건디",
+        "no navy",
+        "without navy and ivory",
+        "네이비 대신 아이보리",
+    ],
+)
+def test_named_color_exclusions_cover_lists_roles_and_replacements(prompt: str):
+    requested = {name for name, _target, _matches in _requested_named_colors(prompt)}
+
+    assert "navy" not in requested
+    if "아이보리 없이" in prompt or "and ivory" in prompt:
+        assert "ivory" not in requested
+
+
+def test_named_ground_tie_uses_prompt_order_instead_of_color_name():
+    current = load_example_set()[5].plan
+
+    normalized = _normalize_requested_named_colors(
+        "use navy only for the background and preserve ivory accents",
+        current,
+    )
+
+    assert normalized.colors[normalized.ground_color_index] == "#000080"
+
+
+def test_named_existing_color_reuses_role_references_without_swapping_palette():
+    current = DesignPlanV3.model_validate(
+        {
+            "colors": ["#EFE6D4", "#000080", "#FFFFF0"],
+            "ground_color_index": 0,
+            "motifs": [{"source": "generate", "subject": "dot"}],
+            "layers": [
+                {
+                    "type": "stripe",
+                    "direction": "vertical",
+                    "period_ratio": 0.25,
+                    "bands": [
+                        {
+                            "offset_ratio": 0,
+                            "width_ratio": 0.2,
+                            "color_index": 1,
+                        }
+                    ],
+                },
+                {
+                    "type": "motif",
+                    "motif_index": 0,
+                    "size_ratio": 0.1,
+                    "color_indices": [2],
+                    "placement": {
+                        "type": "lattice",
+                        "columns": 2,
+                        "rows": 2,
+                        "drop": "none",
+                    },
+                },
+            ],
+        }
+    )
+
+    ground = _normalize_requested_named_colors(
+        "배경색만 네이비로 바꿔줘. 스트라이프는 그대로 유지해.",
+        current,
+    )
+    stripe = _normalize_requested_named_colors(
+        "스트라이프는 아이보리로 바꿔줘.",
+        current,
+    )
+    motif = _normalize_requested_named_colors(
+        "모티프는 네이비로 바꿔줘.",
+        current,
+    )
+
+    assert ground.colors == stripe.colors == motif.colors == current.colors
+    assert ground.ground_color_index == 1
+    assert next(layer for layer in ground.layers if layer.type == "stripe").bands[
+        0
+    ].color_index == 1
+    assert next(layer for layer in stripe.layers if layer.type == "stripe").bands[
+        0
+    ].color_index == 2
+    assert next(
+        layer for layer in motif.layers if layer.type == "motif"
+    ).color_indices == [1]
+
+
+def test_named_non_ground_color_is_scoped_to_its_visible_role():
+    current = load_example_set()[14].plan
+    stripe_slots = {
+        band.color_index
+        for layer in current.layers
+        if layer.type == "stripe"
+        for band in layer.bands
+    }
+    motif_slots = {
+        index
+        for layer in current.layers
+        if layer.type == "motif" and layer.color_indices is not None
+        for index in layer.color_indices
+    }
+
+    motif_colored = _normalize_requested_named_colors(
+        "벌은 아이보리로 바꿔줘. 모티프는 유지해",
+        current,
+    )
+    stripe_colored = _normalize_requested_named_colors(
+        "스트라이프는 아이보리로 바꿔줘",
+        current,
+    )
+
+    assert "#FFFFF0" in {motif_colored.colors[index] for index in motif_slots}
+    assert [motif_colored.colors[index] for index in stripe_slots] == [
+        current.colors[index] for index in stripe_slots
+    ]
+    assert "#FFFFF0" in {stripe_colored.colors[index] for index in stripe_slots}
+    assert [stripe_colored.colors[index] for index in motif_slots] == [
+        current.colors[index] for index in motif_slots
+    ]
+
+
+async def test_initial_authoring_retries_when_named_colors_exceed_visible_slots():
+    examples = load_example_set()
+    insufficient: list[dict[str, object]] = []
+    for example in examples[5:7]:
+        raw = example.plan.model_dump(mode="json")
+        raw["colors"] = ["#111111", "#EEEEEE"]
+        for layer in raw["layers"]:
+            if layer["type"] == "motif":
+                layer["color_indices"] = [1] * len(layer["color_indices"])
+        insufficient.append(raw)
+    valid = [example.plan.model_dump(mode="json") for example in examples[5:7]]
+    client, sdk = _gemini({"plans": insufficient}, {"plans": valid})
+
+    designs = await client.author_designs(
+        "네이비 배경에 아이보리, 버건디, 골드 포인트",
+        motif_ids=["circle"],
+    )
+
+    assert len(designs) == 2
+    assert len(sdk.models.generate_calls) == 2
+    assert all(
+        design.plan is not None
+        and design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
+        and {"#FFFFF0", "#800020", "#D4AF37"} <= set(design.plan["colors"])
+        for design in designs
+    )
 
 
 async def test_refine_retries_when_requested_motif_geometry_change_is_ignored():
@@ -1107,7 +1311,14 @@ def test_refine_respecification_keeps_model_plan_over_committed_restore(prompt: 
     )
 
     assert restored == []
-    assert evolved.model_dump(mode="json") == proposed.model_dump(mode="json")
+    evolved_raw = evolved.model_dump(mode="json")
+    proposed_raw = proposed.model_dump(mode="json")
+    assert {key: value for key, value in evolved_raw.items() if key != "colors"} == {
+        key: value for key, value in proposed_raw.items() if key != "colors"
+    }
+    assert evolved.colors[evolved.ground_color_index] == "#000080"
+    assert "#FFFFF0" in evolved.colors
+    assert "#D4AF37" in evolved.colors
     assert not any(layer.type == "stripe" for layer in evolved.layers)
 
 

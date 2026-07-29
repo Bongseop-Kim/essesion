@@ -23,6 +23,7 @@ import type { DesignComposerProps } from "@/features/design/ui/composer";
 import type { PatternSettingsModalProps } from "@/features/design/ui/pattern-settings-modal";
 import type { PhotoMotifModalProps } from "@/features/design/ui/photo-motif-modal";
 import type { TextMotifModalProps } from "@/features/design/ui/text-motif-modal";
+import type { TurnFeedProps } from "@/features/design/ui/turn-feed";
 import { useSession } from "@/shared/store/session";
 
 type PageHarness = {
@@ -31,12 +32,14 @@ type PageHarness = {
   textMotif: TextMotifModalProps | null;
   photoMotif: PhotoMotifModalProps | null;
   pattern: PatternSettingsModalProps | null;
+  turnFeed: TurnFeedProps | null;
 };
 
 const api = vi.hoisted(() => ({
   createSession: vi.fn(),
   generate: vi.fn(),
   importMotif: vi.fn(),
+  selectCandidate: vi.fn(),
   uploadPhoto: vi.fn(),
 }));
 const page = vi.hoisted(() => ({
@@ -45,6 +48,7 @@ const page = vi.hoisted(() => ({
   textMotif: null,
   photoMotif: null,
   pattern: null,
+  turnFeed: null,
 })) as PageHarness;
 
 vi.mock("@essesion/api-client", async (importOriginal) => {
@@ -53,6 +57,7 @@ vi.mock("@essesion/api-client", async (importOriginal) => {
     ...actual,
     createDesignSession: api.createSession,
     generateDesign: api.generate,
+    selectDesignCandidate: api.selectCandidate,
   };
 });
 
@@ -166,7 +171,12 @@ vi.mock("@/features/design/ui/pattern-settings-modal", () => ({
   },
 }));
 
-vi.mock("@/features/design/ui/turn-feed", () => ({ TurnFeed: () => null }));
+vi.mock("@/features/design/ui/turn-feed", () => ({
+  TurnFeed: (props: TurnFeedProps) => {
+    page.turnFeed = props;
+    return null;
+  },
+}));
 vi.mock("@/features/design/ui/preview-panel", () => ({
   PreviewPanel: () => null,
 }));
@@ -249,6 +259,7 @@ describe("DesignPage composer lifecycle", () => {
     page.textMotif = null;
     page.photoMotif = null;
     page.pattern = null;
+    page.turnFeed = null;
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
     localStorage.setItem(DESIGN_ONBOARDING_KEY, "1");
@@ -397,6 +408,96 @@ describe("DesignPage composer lifecycle", () => {
       { upload_id: "upload-1", purpose: "composition" },
     ]);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:reference");
+    queryClient.clear();
+  });
+
+  it("후보 선택이 끝날 때까지 다른 후보와 다음 생성을 잠근다", async () => {
+    let finishSelection: (() => void) | undefined;
+    api.selectCandidate.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finishSelection = resolve;
+      });
+      return {
+        data: {
+          current_intent: { motif: "star" },
+          seed: 12,
+          colorway: "navy",
+        },
+      };
+    });
+    api.generate.mockResolvedValueOnce({ data: generated });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
+        mutations: { retry: false },
+      },
+    });
+    queryClient.setQueryData(["page-design-sessions"], [{ id: "session-1" }]);
+    render(
+      <MemoryRouter initialEntries={["/design"]}>
+        <QueryClientProvider client={queryClient}>
+          <DesignPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryState(["page-design-session", "session-1"])?.status,
+      ).toBe("success"),
+    );
+
+    const firstCandidate = {
+      id: "candidate-1",
+      design_index: 0,
+      seed: 12,
+      colorway_id: "navy",
+      svg: "<svg id='first'/>",
+    };
+    const secondCandidate = {
+      ...firstCandidate,
+      id: "candidate-2",
+      design_index: 1,
+      svg: "<svg id='second'/>",
+    };
+    act(() =>
+      page.turnFeed?.onSelectCandidate(
+        "11111111-1111-4111-8111-111111111111",
+        firstCandidate,
+      ),
+    );
+
+    await waitFor(() => expect(api.selectCandidate).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(page.turnFeed?.candidateActionsDisabled).toBe(true);
+      expect(page.composer?.loading).toBe(true);
+    });
+
+    act(() => page.composer?.onPromptChange("선택한 별을 더 크게"));
+    act(() => page.composer?.onSubmit());
+    act(() =>
+      page.turnFeed?.onSelectCandidate(
+        "11111111-1111-4111-8111-111111111111",
+        secondCandidate,
+      ),
+    );
+    expect(api.generate).not.toHaveBeenCalled();
+    expect(api.selectCandidate).toHaveBeenCalledTimes(1);
+
+    await act(async () => finishSelection?.());
+    await waitFor(() => {
+      expect(page.turnFeed?.candidateActionsDisabled).toBe(false);
+      expect(page.composer?.loading).toBe(false);
+    });
+
+    act(() => page.composer?.onSubmit());
+    await waitFor(() => expect(api.generate).toHaveBeenCalledTimes(1));
+    expect(api.generate).toHaveBeenCalledWith({
+      body: expect.objectContaining({
+        session_id: "session-1",
+        prompt: "선택한 별을 더 크게",
+      }),
+      throwOnError: true,
+    });
     queryClient.clear();
   });
 

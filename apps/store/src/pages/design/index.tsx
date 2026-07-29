@@ -289,6 +289,10 @@ export function DesignPage() {
     },
   });
   const selectionMutation = useDesignSelection();
+  const designBusy =
+    attachmentsBusy ||
+    generateMutation.isPending ||
+    selectionMutation.isPending;
   const finalizeMutation = useCreateFinalizeJob();
   const deleteSessionMutation = useDeleteDesignSession();
   const deleteJobMutation = useDeleteFinalizedJob();
@@ -608,7 +612,7 @@ export function DesignPage() {
     if (
       (!prompt.trim() && selectedMotifs.length === 0) ||
       !ensureDesignAuth() ||
-      attachmentsBusy
+      designBusy
     ) {
       return;
     }
@@ -654,7 +658,7 @@ export function DesignPage() {
       !activeSessionId ||
       !selection?.intent ||
       !ensureDesignAuth() ||
-      generateMutation.isPending
+      designBusy
     ) {
       return;
     }
@@ -683,7 +687,7 @@ export function DesignPage() {
 
   const retryGeneration = async () => {
     const previousInput = generateMutation.variables;
-    if (!previousInput || !ensureDesignAuth()) return;
+    if (!previousInput || !ensureDesignAuth() || designBusy) return;
     const retryInput =
       previousInput.mode === "prompt"
         ? {
@@ -713,7 +717,7 @@ export function DesignPage() {
   // 과거 런이어도 대화는 되감지 않고 포인터만 옮기며(분기는 "새로 만들기"가 유일한
   // 창구), 다음 생성이 완료되면 서버 자동 커밋이 포인터를 다시 최신 결과로 되돌린다.
   const selectCandidate = async (runId: string, candidate: DesignCandidate) => {
-    if (!activeSessionId || !ensureDesignAuth()) return;
+    if (!activeSessionId || !ensureDesignAuth() || designBusy) return;
     const sessionId = activeSessionId;
     // 이미 편집 대상인 후보 — 저장할 변화가 없다.
     if (selection?.runId === runId && selection.candidateId === candidate.id)
@@ -797,12 +801,20 @@ export function DesignPage() {
   };
 
   const submitFinalize = async (value: FinalizeDialogValue) => {
-    if (!activeSessionId || !selection?.intent) return;
+    if (
+      !activeSessionId ||
+      !selection?.intent ||
+      !selection.runId ||
+      !selection.candidateId
+    )
+      return;
     await createFinalize(
       {
         sessionId: activeSessionId,
         request: {
           intent: selection.intent,
+          run_id: selection.runId,
+          candidate_id: selection.candidateId,
           colorway_id: selection.colorway,
           production_method: value.productionMethod,
           weave: value.weave,
@@ -995,12 +1007,10 @@ export function DesignPage() {
   };
 
   const actionProps = {
-    // 편집 대상 전환(select) 중에도 후보가 잡혀 있으면 버튼을 끄지 않는다 —
-    // intent가 서버 응답으로 채워지는 짧은 구간에 버튼이 깜빡이는 것을 막는다.
-    selected: !!selection?.intent || !!selection?.candidate,
+    selected: !!selection?.intent,
     canExport: !!selection?.candidate?.svg,
     finalizeExhausted,
-    loading: generateMutation.isPending,
+    loading: designBusy,
     onVariation: () => void generateVariation(),
     onExport: openExport,
     onFinalize: () => openFinalize(),
@@ -1026,7 +1036,7 @@ export function DesignPage() {
       <MenuItem
         label="다시만들기"
         prefixIcon={<Icon svg={<ArrowPathIcon />} size={18} />}
-        disabled={!selection?.intent || generateMutation.isPending}
+        disabled={!selection?.intent || designBusy}
         onClick={() => void generateVariation()}
       />
       <MenuItem
@@ -1106,7 +1116,7 @@ export function DesignPage() {
                 generating={generateMutation.isPending}
                 error={!!activeSessionId && turnsQuery.isError}
                 onRetry={() => void turnsQuery.refetch()}
-                candidateActionsDisabled={generateMutation.isPending}
+                candidateActionsDisabled={designBusy}
                 onSelectCandidate={(runId, candidate) =>
                   void selectCandidate(runId, candidate)
                 }
@@ -1181,7 +1191,7 @@ export function DesignPage() {
                 balance={balanceQuery.data?.total ?? null}
                 generateCost={balanceQuery.data?.generate_cost ?? null}
                 onPurchaseTokens={() => navigate("/token/purchase")}
-                loading={generateMutation.isPending || attachmentsBusy}
+                loading={designBusy}
                 disabled={status === "loading"}
                 sessionActions={
                   <>

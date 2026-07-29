@@ -91,6 +91,12 @@ const log: SeamlessDetailOut = {
     regenerated: false,
     finalized: false,
   },
+  token_accounting: {
+    matched: false,
+    debited: 0,
+    refunded: 0,
+    net: 0,
+  },
   candidates: [],
 };
 
@@ -244,6 +250,10 @@ describe("SeamlessLogDetailPage", () => {
     renderPage({
       ...log,
       candidate_count_returned: 1,
+      outcome: {
+        ...log.outcome,
+        selected_candidate_id: "candidate-1",
+      },
       candidates: [
         {
           id: "candidate-1",
@@ -261,6 +271,25 @@ describe("SeamlessLogDetailPage", () => {
     const heading = await screen.findByRole("heading", { name: "후보 1" });
     const grid = heading.closest("section")?.parentElement;
     expect(grid?.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
+    expect(screen.getByText("선택된 후보")).toBeTruthy();
+    expect(
+      screen
+        .getByText("후보 결과")
+        .compareDocumentPosition(screen.getByText("로그 정보")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("상세 결과를 수동으로 새로고침한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const refresh = await screen.findByRole("button", { name: "새로고침" });
+    expect(api.get).toHaveBeenCalledTimes(1);
+
+    await user.click(refresh);
+
+    await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
   });
 
   it("경고를 실제 원인과 건수로 묶고 partial scope를 후보 부족으로 오인하지 않는다", async () => {
@@ -314,6 +343,26 @@ describe("SeamlessLogDetailPage", () => {
     expect(within(region).getByText(/"input_type": "prompt"/)).toBeTruthy();
     expect(within(region).getByText(/"motif_layer_dropped"/)).toBeTruthy();
     expect(within(region).getByText(/"cmyk_gamut"/)).toBeTruthy();
+  });
+
+  it("간격과 스트라이프 주기 자동 보정을 운영자가 이해할 수 있게 표시한다", async () => {
+    renderPage({
+      ...log,
+      warning_count: 2,
+      warning_groups: [
+        { code: "spacing_snap", count: 1, items: [] },
+        { code: "stripe_period_snap", count: 1, items: [] },
+      ],
+    });
+
+    expect(
+      await screen.findByText("모티프 간격 1건을 타일 경계에 맞췄습니다"),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("스트라이프 주기 1건을 타일 경계에 맞췄습니다"),
+    ).toBeTruthy();
+    expect(screen.getAllByText(/생성 실패가 아닙니다/)).toHaveLength(2);
+    expect(screen.queryByText(/분류되지 않은 생성 경고/)).toBeNull();
   });
 
   it("외부 연동 단계·모티프 해석·사용자 결과를 함께 표시한다", async () => {
@@ -392,6 +441,30 @@ describe("SeamlessLogDetailPage", () => {
     expect(
       screen.getByRole("link", { name: "김고객" }).getAttribute("href"),
     ).toBe("/customers/55555555-5555-4555-8555-555555555555");
+  });
+
+  it("토큰 차감·환불·순변동과 미연결 상태를 구분한다", async () => {
+    const unmatched = renderPage();
+    expect(await screen.findByText("연결된 토큰 기록 없음")).toBeTruthy();
+    unmatched.unmount();
+
+    renderPage({
+      ...log,
+      token_accounting: {
+        matched: true,
+        debited: 5,
+        refunded: 2,
+        net: -3,
+      },
+    });
+
+    const accounting = (
+      await screen.findByRole("heading", { name: "토큰 정산" })
+    ).closest("section");
+    expect(accounting).not.toBeNull();
+    expect(within(accounting as HTMLElement).getByText("-5 토큰")).toBeTruthy();
+    expect(within(accounting as HTMLElement).getByText("+2 토큰")).toBeTruthy();
+    expect(within(accounting as HTMLElement).getByText("-3 토큰")).toBeTruthy();
   });
 
   it("로그와 엔진 식별자를 기본으로 접어 둔다", async () => {

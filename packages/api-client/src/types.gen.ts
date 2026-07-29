@@ -4031,6 +4031,10 @@ export type FinalizeQuotaOut = {
  */
 export type FinalizeRequest = {
     /**
+     * Candidate Id
+     */
+    candidate_id?: string | null;
+    /**
      * Colorway Id
      */
     colorway_id?: string | null;
@@ -4058,6 +4062,10 @@ export type FinalizeRequest = {
      * Relief Strength
      */
     relief_strength?: number | null;
+    /**
+     * Run Id
+     */
+    run_id?: string | null;
     /**
      * Texture Strength
      */
@@ -4392,6 +4400,28 @@ export type GenerationOutcomeOut = {
      * User Name
      */
     user_name?: string | null;
+};
+
+/**
+ * GenerationTokenAccountingOut
+ */
+export type GenerationTokenAccountingOut = {
+    /**
+     * Debited
+     */
+    debited: number;
+    /**
+     * Matched
+     */
+    matched: boolean;
+    /**
+     * Net
+     */
+    net: number;
+    /**
+     * Refunded
+     */
+    refunded: number;
 };
 
 /**
@@ -7625,6 +7655,7 @@ export type SeamlessDetailOut = {
      * Status
      */
     status: 'success' | 'partial' | 'error';
+    token_accounting: GenerationTokenAccountingOut;
     /**
      * Warning Count
      */
@@ -7772,7 +7803,7 @@ export type SeamlessWarningOut = {
     /**
      * Code
      */
-    code: 'candidate_variants_dropped' | 'cmyk_gamut' | 'design_dropped' | 'diversity_shortfall' | 'generation_warning' | 'motif_layer_dropped' | 'partial_candidates' | 'preview_unavailable';
+    code: 'candidate_variants_dropped' | 'cmyk_gamut' | 'design_dropped' | 'diversity_shortfall' | 'generation_warning' | 'motif_layer_dropped' | 'partial_candidates' | 'preview_unavailable' | 'spacing_snap' | 'stripe_period_snap';
     /**
      * Count
      */
@@ -9777,6 +9808,10 @@ export type ListAdminSeamlessLogsData = {
          */
         request_id?: string | null;
         /**
+         * Identifier
+         */
+        identifier?: string | null;
+        /**
          * Start
          */
         start?: string | null;
@@ -9826,6 +9861,10 @@ export type GetAdminSeamlessStatsData = {
          * Request Id
          */
         request_id?: string | null;
+        /**
+         * Identifier
+         */
+        identifier?: string | null;
         /**
          * Start
          */

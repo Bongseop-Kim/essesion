@@ -570,6 +570,8 @@ KNOWN_WEAVES = ("check", "herringbone", "jacquard", "pindot", "solid", "twill-0"
 
 class FinalizeRequest(BaseModel):
     intent: BoundedDesignJson | None = None
+    run_id: uuid.UUID | None = None
+    candidate_id: str | None = Field(default=None, min_length=1, max_length=100)
     colorway_id: str | None = Field(default=None, max_length=100)
     production_method: str | None = Field(default=None, max_length=100)
     dpi: int | None = None
@@ -579,6 +581,12 @@ class FinalizeRequest(BaseModel):
     )
     texture_strength: float | None = Field(None, ge=0)
     relief_strength: float | None = Field(None, ge=0)
+
+    @model_validator(mode="after")
+    def _valid_provenance_pair(self) -> "FinalizeRequest":
+        if (self.run_id is None) != (self.candidate_id is None):
+            raise ValueError("run_id and candidate_id must be provided together")
+        return self
 
 
 class GenerationJobOut(ORMModel):
@@ -1206,6 +1214,10 @@ async def reroll_design(
         "run_id": str(run_id),
         "intent": design_session.current_intent,
         "conversation_context": conversation_context,
+        "motif_provenance": {
+            "user_id": str(user.id),
+            "session_id": str(design_session.id),
+        },
         "seed": body.seed,
         "candidate_count": body.candidate_count,
         "palette": body.palette.model_dump(mode="json"),
@@ -2305,6 +2317,58 @@ async def create_finalize_job(
     )
     if body.weave is not None and body.weave not in KNOWN_WEAVES:
         raise DomainError(f"알 수 없는 weave입니다: {body.weave}", code="unknown_weave")
+
+    run_id = body.run_id
+    candidate_id = body.candidate_id
+    if run_id is None and intent == design_session.current_intent:
+        latest_selection = await session.scalar(
+            select(DesignSessionTurn)
+            .where(
+                DesignSessionTurn.session_id == design_session.id,
+                DesignSessionTurn.role == "user",
+                DesignSessionTurn.payload["type"].astext == "select",
+            )
+            .order_by(DesignSessionTurn.seq.desc())
+            .limit(1)
+        )
+        if latest_selection is not None:
+            try:
+                selection = DesignSelectionTurnPayload.model_validate(latest_selection.payload)
+            except ValidationError:
+                pass
+            else:
+                run_id = selection.run_id
+                candidate_id = selection.candidate_id
+
+    if run_id is not None:
+        assert candidate_id is not None
+        selected_in_session = await session.scalar(
+            select(DesignSessionTurn.id)
+            .where(
+                DesignSessionTurn.session_id == design_session.id,
+                DesignSessionTurn.role == "user",
+                DesignSessionTurn.payload["type"].astext == "select",
+                DesignSessionTurn.payload["run_id"].astext == str(run_id),
+                DesignSessionTurn.payload["candidate_id"].astext == candidate_id,
+            )
+            .limit(1)
+        )
+        if selected_in_session is None:
+            raise ConflictError(
+                "finalize 출처를 확인할 수 없습니다",
+                code="finalize_provenance_invalid",
+            )
+        resolved = await _resolve_design_candidate(
+            session,
+            run_id=run_id,
+            candidate_id=candidate_id,
+        )
+        if resolved.intent != intent:
+            raise ConflictError(
+                "선택한 후보와 finalize intent가 일치하지 않습니다",
+                code="finalize_intent_mismatch",
+            )
+
     # 계정 24시간 쿼터 — advisory lock으로 동시 요청 직렬화, 같은 트랜잭션에서
     # job INSERT까지 커밋해야 다음 요청이 이 슬롯을 센다 (quota.py)
     await acquire_finalize_quota(session, user.id)
@@ -2321,6 +2385,8 @@ async def create_finalize_job(
             **{
                 k: v
                 for k, v in (
+                    ("run_id", str(run_id) if run_id is not None else None),
+                    ("candidate_id", candidate_id),
                     ("weave", body.weave),
                     ("material_map", body.material_map),
                     ("texture_strength", body.texture_strength),

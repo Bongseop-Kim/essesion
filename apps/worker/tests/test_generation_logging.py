@@ -89,6 +89,31 @@ async def test_worker_records_partial_with_render_timing_and_sanitized_warning(
     assert "secret" not in str(row.warnings)
 
 
+async def test_worker_records_advisory_repairs_as_success(client, db_session):
+    intent = mvp_intent()
+    intent["palette"]["slots"][2]["hex"] = "#FFD700"
+    intent["colorways"][0]["mapping"]["gold"] = "#FFD700"
+    intent["layers"][1]["params"]["period_mm"] = 7.2
+    intent["layers"][2]["placement"]["spacing_mm"] = 7
+
+    response = await client.post(
+        "/generate",
+        headers={"X-Request-ID": "log-advisory"},
+        json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 1},
+    )
+
+    assert response.status_code == 200
+    row = await _latest_log(db_session)
+    assert row.status == "success"
+    assert any("outside CMYK gamut" in warning for warning in row.warnings)
+    assert any("period_mm" in warning and "snapped" in warning for warning in row.warnings)
+    assert any("spacing_mm" in warning and "snapped" in warning for warning in row.warnings)
+
+
+def test_generation_status_marks_candidate_shortage_partial():
+    assert routes._generation_status(requested=4, returned=3, warnings=[]) == "partial"
+
+
 async def test_worker_records_exception_with_sanitized_error_and_zero_render_time(
     client, db_session
 ):

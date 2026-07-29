@@ -117,7 +117,7 @@ describe("SeamlessLogsPage", () => {
     expect(api.seamlessOptions).toHaveBeenCalledWith({
       query: {
         status: undefined,
-        request_id: undefined,
+        identifier: undefined,
         start: undefined,
         end: undefined,
         limit: 20,
@@ -129,7 +129,7 @@ describe("SeamlessLogsPage", () => {
     expect(screen.queryByRole("radiogroup", { name: "상태" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "필터" }));
     const dialog = screen.getByRole("dialog", { name: "Seamless 상세 필터" });
-    expect(within(dialog).queryByLabelText("요청 ID 검색")).toBeNull();
+    expect(within(dialog).queryByLabelText("식별자 검색")).toBeNull();
     await user.click(within(dialog).getByRole("radio", { name: "부분 성공" }));
     await user.click(within(dialog).getByRole("button", { name: "필터 적용" }));
 
@@ -158,18 +158,18 @@ describe("SeamlessLogsPage", () => {
     );
   });
 
-  it("요청 ID 검색을 목록과 통계에 적용하고 전체 초기화한다", async () => {
+  it("식별자 검색을 목록과 통계에 적용하고 전체 초기화한다", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("table", { name: "Seamless 로그 목록" });
 
-    const input = screen.getByLabelText("요청 ID 검색") as HTMLInputElement;
+    const input = screen.getByLabelText("식별자 검색") as HTMLInputElement;
     await user.type(input, "request/id");
     await user.click(screen.getByRole("button", { name: "검색" }));
 
-    expect(screen.getByText("요청 ID 형식이 올바르지 않습니다.")).toBeTruthy();
+    expect(screen.getByText("식별자 형식이 올바르지 않습니다.")).toBeTruthy();
     expect(api.seamlessOptions).not.toHaveBeenCalledWith({
-      query: expect.objectContaining({ request_id: "request/id" }),
+      query: expect.objectContaining({ identifier: "request/id" }),
     });
 
     const requestId = "request-2";
@@ -179,11 +179,11 @@ describe("SeamlessLogsPage", () => {
 
     await waitFor(() =>
       expect(api.seamlessOptions).toHaveBeenLastCalledWith({
-        query: expect.objectContaining({ request_id: requestId, offset: 0 }),
+        query: expect.objectContaining({ identifier: requestId, offset: 0 }),
       }),
     );
     expect(api.seamlessStatsOptions).toHaveBeenLastCalledWith({
-      query: expect.objectContaining({ request_id: requestId }),
+      query: expect.objectContaining({ identifier: requestId }),
     });
     expect(screen.getByTestId("location-search").textContent).not.toContain(
       requestId,
@@ -195,7 +195,7 @@ describe("SeamlessLogsPage", () => {
     expect(screen.queryByRole("button", { name: "검색 초기화" })).toBeNull();
     await waitFor(() =>
       expect(api.seamlessOptions).toHaveBeenLastCalledWith({
-        query: expect.objectContaining({ request_id: undefined, offset: 0 }),
+        query: expect.objectContaining({ identifier: undefined, offset: 0 }),
       }),
     );
   });
