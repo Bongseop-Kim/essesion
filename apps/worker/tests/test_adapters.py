@@ -500,6 +500,65 @@ def test_refine_prompt_uses_safe_current_alias_and_selected_history_only():
     assert "No verified motif source is available" not in prompt
 
 
+def test_refine_prompt_keeps_only_the_two_nearest_history_turns():
+    raw = load_example_set()[5].plan.model_dump(mode="json")
+    raw["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current_plan = DesignPlanV3.model_validate(raw)
+    history = [
+        {"user_prompt": f"턴{index}", "assistant_summary": f"요약{index}", "attachments": []}
+        for index in range(1, 6)
+    ]
+
+    refine_prompt = _build_prompt(
+        "간격을 넓혀줘",
+        errors=None,
+        current_plan=current_plan,
+        conversation_history=history,
+    )
+    initial_prompt = _build_prompt("벌 패턴", errors=None, conversation_history=history)
+
+    assert "턴4" in refine_prompt and "턴5" in refine_prompt
+    assert "턴3" not in refine_prompt
+    assert all(f"턴{index}" in initial_prompt for index in range(1, 6))
+
+
+async def test_refine_feedback_translates_contract_errors_to_plan_language():
+    # A5 회귀: 선언한 모티프를 레이어에서 쓰지 않는 응답에 pydantic 원문 덤프 대신
+    # plan 필드 언어 피드백을 되돌려준다.
+    raw = load_example_set()[5].plan.model_dump(mode="json")
+    raw["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current = DesignPlanV3.model_validate(raw)
+    stripe_only = current.model_dump(mode="json")
+    stripe_only["layers"] = [
+        {
+            "type": "stripe",
+            "direction": "diagonal_up",
+            "period_ratio": 0.2,
+            "bands": [{"offset_ratio": 0.0, "width_ratio": 0.1, "color_index": 0}],
+        }
+    ]
+    client, sdk = _gemini(*([stripe_only] * 4))
+
+    with pytest.raises(IntentInvalid):
+        await client.author_designs(
+            "얇은 대각 스트라이프 두 줄만 추가해줘. 별 모티프는 그대로 유지해.",
+            current_plan=current,
+            catalog_candidates=[
+                {
+                    "catalog_ref": "current_motif_1",
+                    "motif_id": "circle",
+                    "subject": "committed motif 1",
+                    "current": True,
+                }
+            ],
+        )
+
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "keep every existing motif layer" in retry_prompt
+    assert "input_value" not in retry_prompt
+    assert "errors.pydantic.dev" not in retry_prompt
+
+
 async def test_gemini_non_retryable_raises(monkeypatch):
     monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
     client, _ = _gemini(_SDKError(400))
@@ -670,6 +729,27 @@ async def test_refine_retries_when_requested_color_change_is_ignored():
     assert "requested refine change was not applied: colors" in retry_prompt
 
 
+async def test_refine_retries_when_palette_is_only_permuted():
+    # A2 회귀: 모델이 새 hex 없이 ground 인덱스만 셔플한 응답은 recolor로 인정하지 않는다.
+    current = load_example_set()[1].plan
+    permuted = current.model_dump(mode="json")
+    permuted["ground_color_index"] = (current.ground_color_index + 1) % len(current.colors)
+    changed = current.model_dump(mode="json")
+    changed["colors"][0] = "#800000"
+    client, sdk = _gemini(permuted, changed)
+
+    designs = await client.author_designs(
+        "색상만 바꿔줘. 배경은 버건디로 해줘. 모티프는 유지해.",
+        current_plan=current,
+    )
+
+    assert len(sdk.models.generate_calls) == 2
+    assert designs[0].plan is not None
+    assert designs[0].plan["colors"][0] == "#800000"
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "introduce new hex values instead of permuting the palette" in retry_prompt
+
+
 async def test_refine_retries_when_requested_motif_geometry_change_is_ignored():
     raw_current = load_example_set()[5].plan.model_dump(mode="json")
     raw_current["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
@@ -739,6 +819,19 @@ def test_refine_preserve_word_only_applies_to_direct_category():
     assert permissions.motifs is False
     assert permissions.stripes is False
     assert permissions.motif_geometry is False
+
+
+def test_refine_color_name_only_prompt_opens_color_permission():
+    # "색"이라는 단어 없이 색이름만 써도 recolor 권한이 열려야 하고,
+    # 색이름 교체가 모티프 교체 휴리스틱으로 새어 나가면 안 된다.
+    permissions = _refine_permissions(
+        "배경은 버건디로 바꿔줘",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert permissions.colors is True
+    assert permissions.motifs is False
 
 
 def test_refine_geometry_permission_is_scoped_to_motif_request():

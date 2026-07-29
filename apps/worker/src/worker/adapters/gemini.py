@@ -98,8 +98,10 @@ _PRESERVE_WORDS = re.compile(r"(유지|그대로|보존|keep|preserve|unchanged)
 _COLOR_WORDS = re.compile(
     r"(#[0-9a-f]{3,8}\b|색|컬러|팔레트|네이비|남색|파랑|빨강|초록|노랑|보라|"
     r"분홍|핑크|주황|검정|흰색|화이트|베이지|브라운|그레이|회색|"
+    r"버건디|아이보리|와인|마룬|골드|실버|카키|올리브|민트|크림|차콜|"
     r"colou?r|palette|navy|blue|red|green|yellow|purple|pink|orange|"
-    r"black|white|beige|brown|gr[ae]y)",
+    r"black|white|beige|brown|gr[ae]y|"
+    r"burgundy|ivory|wine|maroon|gold|silver|khaki|olive|mint|cream|charcoal)",
     re.IGNORECASE,
 )
 _STRIPE_WORDS = re.compile(r"(스트라이프|줄무늬|stripe|band)", re.IGNORECASE)
@@ -411,7 +413,12 @@ def _preserve_refine_plan(
         result = DesignPlanV3.model_validate(evolved)
         if "layers" not in restored:
             restored.append("layers")
-    _ensure_requested_refine_changes(current, result, permissions)
+    _ensure_requested_refine_changes(
+        current,
+        result,
+        permissions,
+        fixed_palette=palette_constraint is not None and palette_constraint.mode == "fixed",
+    )
     return result, restored
 
 
@@ -419,6 +426,8 @@ def _ensure_requested_refine_changes(
     current: DesignPlanV3,
     evolved: DesignPlanV3,
     permissions: _RefinePermissions,
+    *,
+    fixed_palette: bool = False,
 ) -> None:
     """Reject a refine response that ignored a category the user asked to change."""
 
@@ -440,8 +449,14 @@ def _ensure_requested_refine_changes(
         [[band.color_index for band in layer.bands] for layer in changed_stripes],
         [layer.color_indices for layer in changed_motifs],
     )
-    if permissions.colors and base_colors == changed_colors:
-        missing.append("colors")
+    if permissions.colors:
+        if base_colors == changed_colors:
+            missing.append("colors")
+        elif not fixed_palette and set(evolved.colors) == set(current.colors):
+            # Reordering hexes or reshuffling ground/layer indexes is how the model fakes a
+            # recolor; an honest recolor introduces at least one new hex value. Fixed palettes
+            # are exempt because their hex set may never change.
+            missing.append("colors: introduce new hex values instead of permuting the palette")
     if permissions.motifs and (
         current.motifs,
         [layer.motif_index for layer in base_motifs],
@@ -623,6 +638,10 @@ def _build_prompt(
     ]
 
     if conversation_history:
+        # Refine already carries the authoritative <current_design>; a long history block
+        # measurably degrades flash-lite's constrained decoding (broken colors arrays,
+        # dropped motif layers), so only the nearest turns are kept there.
+        history_limit = 2 if current_plan is not None else 6
         lines += [
             "",
             "<conversation_history>",
@@ -631,7 +650,7 @@ def _build_prompt(
         ]
         lines.extend(
             json.dumps(turn, ensure_ascii=False, separators=(",", ":"))
-            for turn in conversation_history[-6:]
+            for turn in conversation_history[-history_limit:]
         )
         lines.append("</conversation_history>")
 
@@ -814,6 +833,38 @@ def _build_ideas_prompt(
         lines += ["", "The previous response was rejected. Fix these issues:"]
         lines += [f"- {error}" for error in errors]
     return "\n".join(lines)
+
+
+# 계약 위반 메시지 → plan 필드 언어 힌트. 실제 실패 로그에 나온 항목만 담는다.
+_PLAN_FEEDBACK_HINTS: tuple[tuple[str, str], ...] = (
+    (
+        "every declared motif must be used",
+        "return the complete evolved plan: keep every existing motif layer (with its "
+        "motif_index) in layers and add any new layers alongside it",
+    ),
+    (
+        "color must be #RGB or #RRGGBB",
+        'colors must be an array of individually quoted hex strings such as "#1A2B3C"',
+    ),
+)
+
+
+def _contract_feedback(contract: str, exc: Exception) -> list[str]:
+    """Compact retry feedback in plan-field language.
+
+    Raw pydantic dumps (loc/url/input_value) bury the actionable message and measurably
+    fail to steer flash-lite; keep one line per error plus a known-fix hint.
+    """
+
+    if not isinstance(exc, ValidationError):
+        return [f"model response did not match {contract}: {exc}"]
+    lines: list[str] = []
+    for error in exc.errors(include_url=False, include_input=False):
+        loc = ".".join(str(part) for part in error["loc"])
+        prefix = f"{contract}.{loc}" if loc else contract
+        lines.append(f"{prefix}: {error['msg']}")
+        lines.extend(hint for needle, hint in _PLAN_FEEDBACK_HINTS if needle in error["msg"])
+    return lines[:6]
 
 
 # Vertex 구조화 출력은 서빙측 제약 오토마톤에 상한이 있고 지원 키워드도 제한적이다.
@@ -1084,7 +1135,7 @@ class GeminiClient:
                     plans = response_plans.plans
             except (TypeError, ValueError, ValidationError) as exc:
                 contract = "DesignPlanV3" if refine else "DesignPlansV3"
-                last_errors = [f"model response did not match {contract}: {exc}"]
+                last_errors = _contract_feedback(contract, exc)
                 last_attempt_only_grounding_failures = False
                 errors = last_errors
                 continue

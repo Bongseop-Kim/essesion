@@ -1,6 +1,6 @@
 # `/design` 텍스트 프롬프트 수동 테스트
 
-상태: 재검증 1차 실행(2026-07-29) — A2·A3·A5 실패, 원인 진단 완료(`docs/reviews/design-text-prompt-manual-test-2026-07-29.md`). `docs/plans/design-refine-authoring-stability.md` 반영 후 재실행 필요
+상태: 재검증 1차 실행(2026-07-29) — A2·A3·A5 실패, 원인 진단·저작 안정화 반영 완료(`docs/reviews/design-text-prompt-manual-test-2026-07-29.md`). 안정화 반영본으로 재실행 필요
 
 대상: `http://localhost:3000/design`
 
