@@ -721,7 +721,13 @@
     "example_id": "gallery_18_two_band_motif_point_set",
     "family": "stripe_motif",
     "retrieval_text": "두 밴드와 대각 두 점 모티프 / two bands with diagonal pair point motif",
-    "tags": ["stripe_motif", "input", "stripe", "diagonal_up", "point_template"],
+    "tags": [
+      "stripe_motif",
+      "input",
+      "stripe",
+      "diagonal_up",
+      "point_template"
+    ],
     "plan": {
       "colors": [
         "#12343B",

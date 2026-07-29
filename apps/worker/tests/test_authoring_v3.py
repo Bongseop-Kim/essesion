@@ -216,13 +216,9 @@ def test_schema_and_compiler_support_two_alternating_motif_lanes():
         plan_index=0,
         motif_ids=["bee", "circle"],
     )
-    compiled_motifs = [
-        layer for layer in compiled.intent["layers"] if layer["type"] == "motif"
-    ]
+    compiled_motifs = [layer for layer in compiled.intent["layers"] if layer["type"] == "motif"]
 
-    assert [layer["placement"]["host_layer"] for layer in compiled_motifs] == [
-        "stripe_0"
-    ] * 4
+    assert [layer["placement"]["host_layer"] for layer in compiled_motifs] == ["stripe_0"] * 4
     assert [layer["placement"]["lane"] for layer in compiled_motifs] == [
         "b0.center",
         "b0.center",
