@@ -110,7 +110,20 @@ def _resolve_motif_sources(
             catalog_refs.add(source.catalog_ref)
             candidate = candidate_by_ref.get(source.catalog_ref)
             if candidate is None:
-                raise PlanCompileError(f"unknown catalog_ref: {source.catalog_ref}", grounding=True)
+                if not candidate_by_ref:
+                    # 날조된 ref를 피드백에 되풀이하면 다음 시도가 그 값에 다시 고착된다 —
+                    # ref 값은 빼고 교정 행동만 지시한다.
+                    raise PlanCompileError(
+                        "catalog motifs are not available for this request; remove every "
+                        "catalog motif source and set motifs to [] using only solid or "
+                        "stripe structure.",
+                        grounding=True,
+                    )
+                raise PlanCompileError(
+                    f"unknown catalog_ref: {source.catalog_ref}. Use exactly one of the "
+                    "catalog_ref tokens from the data block.",
+                    grounding=True,
+                )
             if candidate in required_catalog_candidates:
                 verified_catalog_count += 1
             motif_id = str(candidate["motif_id"])

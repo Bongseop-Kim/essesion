@@ -391,6 +391,26 @@ def test_compiler_rejects_duplicate_grounded_sources():
         )
 
 
+def test_compiler_unknown_catalog_ref_feedback_names_the_corrective_action():
+    raw = load_example_set()[20].plan.model_dump(mode="json")
+    raw["motifs"] = [
+        {"source": "catalog", "catalog_ref": "hallucinated-ref-1"},
+        {"source": "catalog", "catalog_ref": "hallucinated-ref-2"},
+    ]
+    plan = DesignPlanV3.model_validate(raw)
+
+    # 후보가 하나도 없으면 날조된 ref를 되풀이하지 않도록 motifs=[]를 직접 지시한다.
+    with pytest.raises(PlanCompileError, match="set(?s:.*)motifs to \\[\\]"):
+        compile_design_plan_v3(plan, plan_index=0, catalog_candidates=[])
+
+    with pytest.raises(PlanCompileError, match="tokens from the data block"):
+        compile_design_plan_v3(
+            plan,
+            plan_index=0,
+            catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
+        )
+
+
 def test_compiler_requires_every_fixed_color_to_be_guaranteed_visible():
     plan = load_example_set()[1].plan
     fixed = PaletteConstraint(mode="fixed", colors=plan.colors[:5])

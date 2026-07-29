@@ -364,6 +364,24 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
     assert "arrangement=lattice" in context
 
 
+async def test_author_designs_salvages_valid_plans_when_one_plan_breaks_contract():
+    examples = load_example_set()
+    solid = examples[0].plan.model_dump(mode="json")
+    stripe = examples[1].plan.model_dump(mode="json")
+    broken = json.loads(json.dumps(stripe))
+    stripe_index = next(
+        index for index, layer in enumerate(broken["layers"]) if layer["type"] == "stripe"
+    )
+    # stripe coverage 계약 위반 — 이 플랜만 버려지고 유효한 나머지 2개는 살아야 한다
+    broken["layers"][stripe_index]["bands"][0]["width_ratio"] = 0.9
+
+    client, sdk = _gemini({"plans": [broken, solid, stripe]})
+    designs = await client.author_designs("남색 미니멀 스트라이프")
+
+    assert len(designs) == 2
+    assert len(sdk.models.generate_calls) == 1  # 재시도 없이 첫 응답에서 회복
+
+
 async def test_author_designs_rejects_invalid_json_without_prose_fallback():
     # 불변식: 재검(pydantic) 실패 시 프로즈 파싱 fallback 금지 — 재시도 후 거부만.
     responses = [{"not_plans": "wrong shape"}] * 4  # _MAX_AUTHORING_ATTEMPTS

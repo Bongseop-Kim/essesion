@@ -846,6 +846,10 @@ _PLAN_FEEDBACK_HINTS: tuple[tuple[str, str], ...] = (
         "color must be #RGB or #RRGGBB",
         'colors must be an array of individually quoted hex strings such as "#1A2B3C"',
     ),
+    (
+        "stripe band coverage may not exceed 0.75",
+        "reduce the width_ratio values of that stripe layer's bands so their sum is at most 0.75",
+    ),
 )
 
 
@@ -865,6 +869,27 @@ def _contract_feedback(contract: str, exc: Exception) -> list[str]:
         lines.append(f"{prefix}: {error['msg']}")
         lines.extend(hint for needle, hint in _PLAN_FEEDBACK_HINTS if needle in error["msg"])
     return lines[:6]
+
+
+def _parse_indexed_plans(text: str) -> tuple[list[tuple[int, DesignPlanV3]], list[str]]:
+    """플랜을 개별 검증해 (원본 인덱스, 플랜)과 플랜별 피드백을 돌려준다.
+
+    DesignPlansV3로 응답 전체를 한 번에 검증하면 플랜 하나의 계약 위반이 유효한
+    나머지 플랜까지 통째로 버린다 — 필요한 건 2개뿐이므로 살아남은 플랜은 살린다.
+    """
+
+    raw = json.loads(_strip_code_fence(text))
+    items = raw.get("plans") if isinstance(raw, dict) else None
+    if not isinstance(items, list) or not 2 <= len(items) <= 4:
+        raise ValueError("response must contain a plans array with 2 to 4 plans")
+    indexed: list[tuple[int, DesignPlanV3]] = []
+    errors: list[str] = []
+    for index, item in enumerate(items):
+        try:
+            indexed.append((index, DesignPlanV3.model_validate(item)))
+        except ValidationError as exc:
+            errors.extend(_contract_feedback(f"plans[{index}]", exc))
+    return indexed, errors
 
 
 # Vertex 구조화 출력은 서빙측 제약 오토마톤에 상한이 있고 지원 키워드도 제한적이다.
@@ -1124,15 +1149,18 @@ class GeminiClient:
                         pattern_constraints=pattern_constraints,
                     )
                     sink["preserve_restored_sections"] = restored
-                    plans = [response_plan]
+                    indexed_plans = [(0, response_plan)]
+                    parse_errors: list[str] = []
                 else:
-                    response_plans = await self.complete_model(
+                    response = await self._generate_response(
                         built_prompt,
-                        DesignPlansV3,
                         reference_images=references,
+                        response_schema=_servable_json_schema(DesignPlansV3),
                         system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
                     )
-                    plans = response_plans.plans
+                    if not response.text:
+                        raise ValueError("Gemini returned an empty structured response")
+                    indexed_plans, parse_errors = _parse_indexed_plans(response.text)
             except (TypeError, ValueError, ValidationError) as exc:
                 contract = "DesignPlanV3" if refine else "DesignPlansV3"
                 last_errors = _contract_feedback(contract, exc)
@@ -1140,9 +1168,16 @@ class GeminiClient:
                 errors = last_errors
                 continue
 
-            sink["plan_count"] = len(plans)
+            sink["plan_count"] = len(indexed_plans)
             if not refine:
-                source_signatures = {motif_source_signature(plan) for plan in plans}
+                if len(indexed_plans) < 2:
+                    last_errors = parse_errors or [
+                        "model produced fewer than 2 valid, structurally distinct plans"
+                    ]
+                    last_attempt_only_grounding_failures = False
+                    errors = last_errors[:6]
+                    continue
+                source_signatures = {motif_source_signature(plan) for _, plan in indexed_plans}
                 if len(source_signatures) != 1:
                     sink["motif_source_set_mismatch"] = True
                     last_errors = [
@@ -1153,12 +1188,12 @@ class GeminiClient:
                     continue
 
             results: list[AuthoredDesign] = []
-            design_errors: list[str] = []
+            design_errors: list[str] = list(parse_errors)
             seen_fingerprints: set[str] = set()
             duplicate_count = 0
             grounding_failure_count = 0
 
-            for index, plan in enumerate(plans):
+            for index, plan in indexed_plans:
                 fingerprint = structural_fingerprint(plan)
                 if not refine and fingerprint in seen_fingerprints:
                     duplicate_count += 1
@@ -1204,8 +1239,10 @@ class GeminiClient:
                     else "model produced fewer than 2 valid, structurally distinct plans"
                 )
             ]
-            last_attempt_only_grounding_failures = bool(plans) and grounding_failure_count == len(
-                plans
+            last_attempt_only_grounding_failures = (
+                bool(indexed_plans)
+                and not parse_errors
+                and grounding_failure_count == len(indexed_plans)
             )
             errors = last_errors[:6]
 
