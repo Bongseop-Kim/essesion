@@ -670,6 +670,7 @@ def test_refine_layer_merge_caps_allowed_layers_and_preserves_base_layers():
     assert [layer["id"] for layer in merged] == [
         "stripe-0",
         "stripe-1",
+        "stripe-2",
         "motif-1",
         "motif-2",
     ]

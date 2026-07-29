@@ -82,7 +82,9 @@ from worker.engine import (
     generate_candidates,
     validate_intent,
 )
+from worker.engine.composition import compose
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
+from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
 from worker.motifs.labeler import SLOT_LABEL_RANK
@@ -1175,22 +1177,23 @@ async def compile_authoring_preview(
             prepared.motifs,
             [prepared.design.motif_color_slots],
         )
-        candidate_set = generate_candidates(
+        validated = validate_intent(
             prepared.design.intent,
-            candidate_count=1,
-            seed=body.seed,
-            colorway=body.colorway,
-            registry_version=await registry_version_for(session),
+            motifs=prepared.motifs,
+        )
+        assert_seamless_invariants(validated.intent)
+        svg = compose(
+            validated.intent,
+            validated.palette,
+            body.colorway or "default",
             motifs=prepared.motifs,
         )
     except (PlanCompileError, IntentInvalid, AssertionError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    warnings = [*prepared.warnings, *candidate_set.warnings]
-    if not candidate_set.candidates:
-        raise HTTPException(status_code=422, detail="preview did not produce an SVG")
+    warnings = [*prepared.warnings, *validated.warnings]
     return AuthoringCompilePreviewResponse(
-        svg=candidate_set.candidates[0].candidate.svg,
+        svg=svg,
         warnings=list(dict.fromkeys(warnings)),
     )
 

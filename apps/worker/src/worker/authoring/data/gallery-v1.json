@@ -58,17 +58,17 @@
     "example_id": "gallery_03_stripe_diagonal_uneven_bands",
     "family": "stripe",
     "retrieval_text": "폭이 다른 두 줄 대각 스트라이프 / uneven two-band diagonal stripe",
-    "tags": ["stripe", "diagonal", "uneven", "bands"],
+    "tags": ["stripe", "diagonal_up"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#132A44",
+        "#D7C6A5",
+        "#D95A47",
+        "#1C1A20",
+        "#2F7C75",
+        "#D59A3A",
+        "#587DA4",
+        "#F4EEE3"
       ],
       "ground_color_index": 0,
       "motifs": [],
@@ -131,17 +131,17 @@
     "example_id": "gallery_05_stripe_diagonal_three_band_rhythm",
     "family": "stripe",
     "retrieval_text": "세 줄 리듬의 대각 스트라이프 / three-band rhythmic diagonal stripe",
-    "tags": ["stripe", "diagonal", "three", "band", "rhythm"],
+    "tags": ["stripe", "diagonal_up"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#78B7D8",
+        "#F6E8C8",
+        "#E96B50",
+        "#183A5A",
+        "#3AA6A0",
+        "#D94A62",
+        "#4D6FC3",
+        "#FFF7E8"
       ],
       "ground_color_index": 0,
       "motifs": [],
@@ -174,8 +174,8 @@
   {
     "example_id": "gallery_06_motif_lattice_block",
     "family": "lattice",
-    "retrieval_text": "큰 모티프의 정규 격자 반복 / regular block lattice motif",
-    "tags": ["lattice", "block"],
+    "retrieval_text": "큰 모티프가 열마다 반 칸씩 밀리고 살짝 기울어진 사선 엇박자 격자 / large motifs in a subtly tilted half-column offset lattice",
+    "tags": ["lattice", "input"],
     "plan": {
       "colors": [
         "#103A40",
@@ -198,13 +198,14 @@
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.29166667,
+          "size_ratio": 0.22,
           "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "lattice",
-            "columns": 3,
+            "columns": 4,
             "rows": 3,
-            "drop": "none"
+            "drop": "half_column",
+            "fixed_rotation_deg": -8
           }
         }
       ]
@@ -292,17 +293,17 @@
     "example_id": "gallery_09_motif_scatter_poisson",
     "family": "scatter",
     "retrieval_text": "여백 있는 포아송 산포 모티프 / sparse poisson scattered motif",
-    "tags": ["scatter", "poisson"],
+    "tags": ["scatter", "input"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#C7B8E5",
+        "#889A7D",
+        "#F1A33B",
+        "#171722",
+        "#4AA99E",
+        "#D94E62",
+        "#243B75",
+        "#FFF3DF"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -331,17 +332,17 @@
     "example_id": "gallery_10_motif_scatter_sateen",
     "family": "scatter",
     "retrieval_text": "사틴 순열로 분산된 모티프 / sateen ordered scatter motif",
-    "tags": ["scatter", "sateen"],
+    "tags": ["scatter", "input"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#074A3B",
+        "#A6B989",
+        "#F3B51B",
+        "#12160F",
+        "#18B89C",
+        "#F04E5E",
+        "#2E7DE1",
+        "#FFF1D2"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -355,7 +356,7 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.29166667,
-          "color_indices": [3, 7, 2, 6, 5, 7],
+          "color_indices": [3, 7, 2, 6, 5, 4],
           "placement": {
             "type": "scatter",
             "mode": "sateen",
@@ -410,18 +411,18 @@
   {
     "example_id": "gallery_12_motif_path_diagonal_wave",
     "family": "path",
-    "retrieval_text": "대각 물결 경로를 따르는 모티프 / motif following a diagonal wave path",
-    "tags": ["path", "diagonal", "wave"],
+    "retrieval_text": "우상향 대각선 흐름을 따라 큰 모티프가 서로 다른 기울기로 교대하는 대담한 행렬 / large motifs alternating opposite tilts along a rising diagonal flow",
+    "tags": ["path", "input"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#5C9FE3",
+        "#63806F",
+        "#F2B544",
+        "#171619",
+        "#18A7A0",
+        "#E5535F",
+        "#151515",
+        "#FFF1D6"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -434,17 +435,31 @@
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.125,
+          "size_ratio": 0.34,
           "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
-            "kind": "wave",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.11785113,
+            "kind": "straight",
+            "spacing_ratio": 1.0,
             "phase_ratio": 0.0,
-            "wavelength_ratio": 0.47140452,
-            "amplitude_ratio": 0.125,
-            "rotation": "follow_path"
+            "rotation": "fixed",
+            "fixed_rotation_deg": -20
+          }
+        },
+        {
+          "type": "motif",
+          "motif_index": 0,
+          "size_ratio": 0.34,
+          "color_indices": [3, 7, 2, 6, 5, 7],
+          "placement": {
+            "type": "path",
+            "direction": "diagonal_up",
+            "kind": "straight",
+            "spacing_ratio": 1.0,
+            "phase_ratio": 0.5,
+            "rotation": "fixed",
+            "fixed_rotation_deg": -70
           }
         }
       ]
@@ -453,8 +468,8 @@
   {
     "example_id": "gallery_13_motif_point_set_five_anchors",
     "family": "point_set",
-    "retrieval_text": "안쪽 네 모서리와 중앙의 5점 모티프 / five-anchor inset quincunx motif",
-    "tags": ["point", "set", "five", "anchors"],
+    "retrieval_text": "여백을 둔 대각 2점 모티프 / sparse diagonal pair motif with open spacing",
+    "tags": ["point_set", "input", "point_template"],
     "plan": {
       "colors": [
         "#103A40",
@@ -477,11 +492,12 @@
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.29166667,
+          "size_ratio": 0.32,
           "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "point_template",
-            "template": "quincunx_inset"
+            "template": "diagonal_pair",
+            "fixed_rotation_deg": -12
           }
         }
       ]
@@ -490,8 +506,8 @@
   {
     "example_id": "gallery_14_motif_lattice_small_size",
     "family": "lattice",
-    "retrieval_text": "작은 모티프의 촘촘한 정규 격자 / small dense lattice motif",
-    "tags": ["lattice", "small", "size"],
+    "retrieval_text": "작은 모티프의 촘촘한 좌우 반 칸 엇갈림 / small dense half-row staggered lattice motif",
+    "tags": ["lattice", "input"],
     "plan": {
       "colors": [
         "#103A40",
@@ -518,9 +534,10 @@
           "color_indices": [7],
           "placement": {
             "type": "lattice",
-            "columns": 4,
+            "columns": 5,
             "rows": 4,
-            "drop": "none"
+            "drop": "half_row",
+            "fixed_rotation_deg": -8
           }
         }
       ]
@@ -530,17 +547,17 @@
     "example_id": "gallery_15_stripe_motif_center_lane",
     "family": "stripe_motif",
     "retrieval_text": "넓은 스트라이프 중앙 레인의 모티프 / motif centered on a broad stripe lane",
-    "tags": ["stripe", "center", "lane"],
+    "tags": ["stripe_motif", "input", "stripe", "diagonal_up", "path"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#102A43",
+        "#747965",
+        "#D1A13A",
+        "#151A21",
+        "#2D596B",
+        "#365D7B",
+        "#6F91B5",
+        "#E8E1D4"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -556,8 +573,8 @@
           "period_ratio": 0.70710677,
           "bands": [
             {
-              "offset_ratio": 0.0,
-              "width_ratio": 0.70710679,
+              "offset_ratio": 0.45,
+              "width_ratio": 0.1,
               "color_index": 1
             }
           ]
@@ -565,15 +582,14 @@
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.29166667,
+          "size_ratio": 0.25,
           "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "kind": "straight",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.25,
+            "spacing_ratio": 0.35,
             "phase_ratio": 0.0,
-            "host_stripe_index": 0,
             "rotation": "follow_path"
           }
         }
@@ -646,18 +662,18 @@
   {
     "example_id": "gallery_17_stripe_motif_guard_bands",
     "family": "stripe_motif",
-    "retrieval_text": "가드 밴드 사이 중심 레인의 모티프 / motif on guarded stripe center lane",
-    "tags": ["stripe", "guard", "bands"],
+    "retrieval_text": "짙은 남색 여백에 떠 있는 컬러 엠블럼과 토프·골드 이중 핀스트라이프 / floating multicolor emblems in deep navy negative space with taupe and gold twin pinstripes",
+    "tags": ["stripe_motif", "input", "stripe", "diagonal_up", "path"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#18324A",
+        "#8B806B",
+        "#D6A23E",
+        "#15171B",
+        "#35727A",
+        "#9E4F55",
+        "#7596B5",
+        "#EEE9DF"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -673,35 +689,28 @@
           "period_ratio": 0.70710677,
           "bands": [
             {
-              "offset_ratio": 0.97937605,
-              "width_ratio": 0.02062395,
-              "color_index": 5
-            },
-            {
-              "offset_ratio": 0.0,
-              "width_ratio": 0.70710679,
+              "offset_ratio": 0.45,
+              "width_ratio": 0.07,
               "color_index": 1
             },
             {
-              "offset_ratio": 0.70710679,
-              "width_ratio": 0.02062395,
-              "color_index": 5
+              "offset_ratio": 0.54,
+              "width_ratio": 0.012,
+              "color_index": 2
             }
           ]
         },
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.29166667,
+          "size_ratio": 0.26,
           "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "kind": "straight",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.25,
+            "spacing_ratio": 0.32,
             "phase_ratio": 0.0,
-            "host_stripe_index": 0,
-            "host_band_index": 1,
             "rotation": "follow_path"
           }
         }
@@ -712,17 +721,23 @@
     "example_id": "gallery_18_two_band_motif_point_set",
     "family": "stripe_motif",
     "retrieval_text": "두 밴드와 대각 두 점 모티프 / two bands with diagonal pair point motif",
-    "tags": ["two", "band", "point", "set"],
+    "tags": [
+      "stripe_motif",
+      "input",
+      "stripe",
+      "diagonal_up",
+      "point_template"
+    ],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#12343B",
+        "#D8C7A3",
+        "#F2B33D",
+        "#201917",
+        "#2B7D7A",
+        "#D5534B",
+        "#477DB8",
+        "#F6F0E4"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -739,12 +754,12 @@
           "bands": [
             {
               "offset_ratio": 0.83968931,
-              "width_ratio": 0.08838835,
+              "width_ratio": 0.11,
               "color_index": 1
             },
             {
               "offset_ratio": 0.963433,
-              "width_ratio": 0.08838835,
+              "width_ratio": 0.036567,
               "color_index": 5
             }
           ]
@@ -752,7 +767,7 @@
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.25,
+          "size_ratio": 0.28,
           "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "point_template",
@@ -765,18 +780,18 @@
   {
     "example_id": "gallery_19_thin_bands_motif_diagonal_wave",
     "family": "stripe_motif",
-    "retrieval_text": "얇은 밴드 위 대각 물결 모티프 / thin bands with diagonal wave motif",
-    "tags": ["thin", "bands", "diagonal", "wave"],
+    "retrieval_text": "슬레이트 블루 바탕에서 비대칭 얇은 밴드 사이 중앙을 따라 완만한 대각 물결 모티프가 겹치지 않고 흐르는 패턴 / broad diagonal wave motifs centered in the open lane between asymmetrical thin bands on slate blue",
+    "tags": ["stripe_motif", "input", "stripe", "diagonal_up", "path"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#55798B",
+        "#D9C7A2",
+        "#C96342",
+        "#20232A",
+        "#3D8A89",
+        "#51405F",
+        "#365B7A",
+        "#F5ECDB"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -792,18 +807,18 @@
           "period_ratio": 0.70710677,
           "bands": [
             {
-              "offset_ratio": 0.37712362,
-              "width_ratio": 0.05892557,
+              "offset_ratio": 0.36,
+              "width_ratio": 0.055,
               "color_index": 1
             },
             {
-              "offset_ratio": 0.50086731,
-              "width_ratio": 0.05892557,
+              "offset_ratio": 0.445,
+              "width_ratio": 0.1,
               "color_index": 2
             },
             {
-              "offset_ratio": 0.624611,
-              "width_ratio": 0.05892557,
+              "offset_ratio": 0.575,
+              "width_ratio": 0.055,
               "color_index": 5
             }
           ]
@@ -817,10 +832,10 @@
             "type": "path",
             "kind": "wave",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.11785113,
-            "phase_ratio": 0.0,
-            "wavelength_ratio": 0.47140452,
-            "amplitude_ratio": 0.125,
+            "spacing_ratio": 0.16666667,
+            "phase_ratio": 0.06,
+            "wavelength_ratio": 0.70710677,
+            "amplitude_ratio": 0.12,
             "rotation": "follow_path"
           }
         }
@@ -831,17 +846,17 @@
     "example_id": "gallery_20_rhythm_stripe_motif_centered_navy_lane",
     "family": "stripe_motif",
     "retrieval_text": "리듬 스트라이프의 특정 밴드 중앙 모티프 / rhythmic stripe with motif on selected band",
-    "tags": ["rhythm", "stripe", "centered", "navy", "lane"],
+    "tags": ["stripe_motif", "input", "stripe", "diagonal_up", "path"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#102A43",
+        "#86AFC2",
+        "#F2B438",
+        "#141922",
+        "#179EA8",
+        "#E34D62",
+        "#3479C5",
+        "#FFF1D8"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -894,17 +909,17 @@
     "example_id": "gallery_21_motif_lattice_bee_circle",
     "family": "multi_motif",
     "retrieval_text": "작은 포인트 그리드와 큰 격자 모티프 조합 / point grid filler plus lattice motif",
-    "tags": ["lattice", "bee", "circle"],
+    "tags": ["multi_motif", "input", "point_template", "lattice"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#172A46",
+        "#8292A6",
+        "#D79B27",
+        "#14131A",
+        "#1AA39A",
+        "#F4B83A",
+        "#4E7FCB",
+        "#BDE5D9"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -947,17 +962,17 @@
     "example_id": "gallery_22_motif_path_alternating_bee_circle",
     "family": "multi_motif",
     "retrieval_text": "위상이 엇갈린 두 직선 경로 모티프 / two phase-offset straight path motifs",
-    "tags": ["path", "alternating", "bee", "circle"],
+    "tags": ["multi_motif", "input", "stripe", "diagonal_up", "path"],
     "plan": {
       "colors": [
-        "#103A40",
+        "#142A43",
         "#9CA084",
         "#E0A93B",
         "#1C140F",
         "#1F9FAE",
-        "#C0445A",
+        "#E85D43",
         "#3E6FA8",
-        "#F0EEE6"
+        "#F4E3C1"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -972,31 +987,84 @@
       ],
       "layers": [
         {
+          "type": "stripe",
+          "direction": "diagonal_up",
+          "period_ratio": 0.70710677,
+          "bands": [
+            {
+              "offset_ratio": 0.0,
+              "width_ratio": 0.001,
+              "color_index": 0
+            },
+            {
+              "offset_ratio": 0.5,
+              "width_ratio": 0.001,
+              "color_index": 0
+            }
+          ]
+        },
+        {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.12083333,
+          "size_ratio": 0.13,
           "color_indices": [7],
           "placement": {
             "type": "path",
-            "kind": "straight",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.25,
+            "kind": "straight",
+            "spacing_ratio": 0.2,
             "phase_ratio": 0.0,
-            "rotation": "follow_path"
+            "rotation": "follow_path",
+            "host_stripe_index": 0,
+            "host_band_index": 0
           }
         },
         {
           "type": "motif",
           "motif_index": 1,
-          "size_ratio": 0.05833333,
+          "size_ratio": 0.065,
           "color_indices": [5],
           "placement": {
             "type": "path",
-            "kind": "straight",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.25,
-            "phase_ratio": 0.12499999,
-            "rotation": "follow_path"
+            "kind": "straight",
+            "spacing_ratio": 0.2,
+            "phase_ratio": 0.1,
+            "rotation": "follow_path",
+            "host_stripe_index": 0,
+            "host_band_index": 0
+          }
+        },
+        {
+          "type": "motif",
+          "motif_index": 0,
+          "size_ratio": 0.13,
+          "color_indices": [7],
+          "placement": {
+            "type": "path",
+            "direction": "diagonal_up",
+            "kind": "straight",
+            "spacing_ratio": 0.2,
+            "phase_ratio": 0.0,
+            "rotation": "follow_path",
+            "host_stripe_index": 0,
+            "host_band_index": 1
+          }
+        },
+        {
+          "type": "motif",
+          "motif_index": 1,
+          "size_ratio": 0.065,
+          "color_indices": [5],
+          "placement": {
+            "type": "path",
+            "direction": "diagonal_up",
+            "kind": "straight",
+            "spacing_ratio": 0.2,
+            "phase_ratio": 0.1,
+            "rotation": "follow_path",
+            "host_stripe_index": 0,
+            "host_band_index": 1
           }
         }
       ]
@@ -1006,17 +1074,17 @@
     "example_id": "gallery_23_motif_scatter_bee_circle_fill",
     "family": "multi_motif",
     "retrieval_text": "격자 필러와 포아송 메인 모티프 / lattice filler plus poisson main motif",
-    "tags": ["scatter", "bee", "circle", "fill"],
+    "tags": ["multi_motif", "input", "lattice", "scatter"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#A8C5D6",
+        "#718C87",
+        "#C96A2B",
+        "#171D2A",
+        "#268D8A",
+        "#D94F64",
+        "#4F77A8",
+        "#17324D"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -1033,19 +1101,20 @@
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.02083333,
+          "size_ratio": 0.035,
           "color_indices": [2],
           "placement": {
             "type": "lattice",
-            "columns": 12,
-            "rows": 12,
-            "drop": "half_row"
+            "columns": 10,
+            "rows": 9,
+            "drop": "half_column",
+            "fixed_rotation_deg": -8
           }
         },
         {
           "type": "motif",
           "motif_index": 1,
-          "size_ratio": 0.09583333,
+          "size_ratio": 0.12,
           "color_indices": [7],
           "placement": {
             "type": "scatter",
@@ -1123,18 +1192,18 @@
   {
     "example_id": "gallery_25_stripe_two_motif_opposed_lanes",
     "family": "multi_motif",
-    "retrieval_text": "서로 다른 스트라이프 밴드를 따르는 두 모티프 / two motifs on opposed stripe bands",
-    "tags": ["stripe", "two", "opposed", "lanes"],
+    "retrieval_text": "리치 버건디 바탕에 굵은 페일 블루와 보틀 그린 대각 밴드가 흐르고 잉크 잎과 앤티크 골드 별이 번갈아 놓인 리프 타이 패턴 / repp-inspired tie pattern with broad pale-blue and bottle-green bands, ink leaves, and antique-gold stars on rich burgundy",
+    "tags": ["multi_motif", "input", "stripe", "diagonal_up", "path"],
     "plan": {
       "colors": [
-        "#103A40",
-        "#9CA084",
-        "#E0A93B",
-        "#1C140F",
-        "#1F9FAE",
-        "#C0445A",
-        "#3E6FA8",
-        "#F0EEE6"
+        "#74364A",
+        "#4C7358",
+        "#E1B34B",
+        "#17212B",
+        "#7E8F6A",
+        "#B7CDD5",
+        "#556F8B",
+        "#F0E2BF"
       ],
       "ground_color_index": 0,
       "motifs": [
@@ -1154,13 +1223,13 @@
           "period_ratio": 0.70710677,
           "bands": [
             {
-              "offset_ratio": 0.08838835,
-              "width_ratio": 0.13258252,
+              "offset_ratio": 0.03,
+              "width_ratio": 0.22,
               "color_index": 5
             },
             {
-              "offset_ratio": 0.53033009,
-              "width_ratio": 0.16204531,
+              "offset_ratio": 0.38,
+              "width_ratio": 0.27,
               "color_index": 1
             }
           ]
@@ -1168,13 +1237,13 @@
         {
           "type": "motif",
           "motif_index": 0,
-          "size_ratio": 0.04583333,
-          "color_indices": [7],
+          "size_ratio": 0.1,
+          "color_indices": [3],
           "placement": {
             "type": "path",
             "kind": "straight",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.33333333,
+            "spacing_ratio": 0.5,
             "phase_ratio": 0.0,
             "host_stripe_index": 0,
             "host_band_index": 0,
@@ -1184,14 +1253,14 @@
         {
           "type": "motif",
           "motif_index": 1,
-          "size_ratio": 0.10416667,
-          "color_indices": [7],
+          "size_ratio": 0.15,
+          "color_indices": [2],
           "placement": {
             "type": "path",
             "kind": "straight",
             "direction": "diagonal_up",
-            "spacing_ratio": 0.33333333,
-            "phase_ratio": 0.16666666,
+            "spacing_ratio": 0.5,
+            "phase_ratio": 0.25,
             "host_stripe_index": 0,
             "host_band_index": 1,
             "rotation": "follow_path"

@@ -52,6 +52,10 @@ const PLAN = {
   motifs: [],
   layers: [],
 };
+const INPUT_MOTIF_PLAN = {
+  ...PLAN,
+  motifs: [{ source: "input", input_index: 1 }],
+};
 
 const example: AuthoringExampleDetailOut = {
   active: false,
@@ -128,6 +132,28 @@ describe("AuthoringExampleDetailPage", () => {
       plan: PLAN,
       motif_ids: [],
     });
+  });
+
+  it("상세에서는 프리뷰 모티프를 바꿀 수 없고 수정 화면에서만 고른다", async () => {
+    const user = userEvent.setup();
+    api.get.mockResolvedValue({
+      ...example,
+      motif_count: 1,
+      plan: INPUT_MOTIF_PLAN,
+    });
+    renderPage();
+
+    await screen.findByRole("img", { name: /저작 시범 프리뷰/ });
+    expect(screen.queryByRole("button", { name: "모티프 선택" })).toBeNull();
+    expect(api.preview.mock.calls.at(0)?.[0].body).toMatchObject({
+      plan: INPUT_MOTIF_PLAN,
+      motif_ids: [],
+    });
+
+    await user.click(screen.getByRole("button", { name: "수정" }));
+    expect(
+      screen.getByRole("button", { name: /모티프 \(0\/2\)/ }),
+    ).toBeTruthy();
   });
 
   it("수정 버튼으로 편집에 들어가 Plan을 저장한다", async () => {

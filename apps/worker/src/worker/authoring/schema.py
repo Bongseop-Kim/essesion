@@ -24,6 +24,7 @@ PathDirection = Literal[
     "diagonal_2_3_up",
     "diagonal_2_3_down",
 ]
+MAX_STRUCTURE_LAYERS = 5
 
 
 class _StrictModel(BaseModel):
@@ -84,6 +85,12 @@ class StripeBandPlan(_StrictModel):
     offset_ratio: float = Field(ge=0.0, lt=1.0, allow_inf_nan=False)
     width_ratio: float = Field(gt=0.0, le=0.75, allow_inf_nan=False)
     color_index: int = Field(ge=0, le=7)
+
+    @model_validator(mode="after")
+    def _fits_within_period(self) -> StripeBandPlan:
+        if self.offset_ratio + self.width_ratio > 1.0:
+            raise ValueError("stripe band must fit within one period")
+        return self
 
 
 class StripeLayerPlan(_StrictModel):
@@ -217,7 +224,7 @@ class DesignPlanV3(_StrictModel):
     colors: list[str] = Field(min_length=2, max_length=8)
     ground_color_index: int = Field(ge=0, le=7)
     motifs: list[PlanMotifSource] = Field(max_length=2)
-    layers: list[StructureLayerPlan] = Field(max_length=4)
+    layers: list[StructureLayerPlan] = Field(max_length=MAX_STRUCTURE_LAYERS)
 
     @field_validator("colors", mode="before")
     @classmethod

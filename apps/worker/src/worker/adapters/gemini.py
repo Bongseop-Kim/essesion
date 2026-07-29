@@ -32,6 +32,7 @@ from worker.authoring.compiler import (
     compile_design_plan_v3,
 )
 from worker.authoring.schema import (
+    MAX_STRUCTURE_LAYERS,
     DesignPlansV3,
     DesignPlanV3,
     motif_source_signature,
@@ -53,7 +54,7 @@ MAX_REFERENCE_IMAGE_SIDE = 2_048
 # Per-request output ceiling (DoW guard). Generous for 2-4 structured plans; ideas are far smaller.
 # ponytail: single flat cap; split per call-site only if plans start truncating.
 MAX_OUTPUT_TOKENS = 8192
-AUTHORING_PROMPT_REVISION = "design-plan-v3-conversation-refine-slot-parts-v3"
+AUTHORING_PROMPT_REVISION = "design-plan-v3-conversation-refine-five-layers-v4"
 AUTHORING_SYSTEM_INSTRUCTION = (
     "You author normalized, production-safe plans for a deterministic seamless textile "
     "compiler. Follow the response schema exactly. Never output engine JSON, SVG, millimetres, "
@@ -280,7 +281,7 @@ def _merge_layer_categories(
             if layer not in existing:
                 existing.append(layer)
         allowed = existing
-    allowed = allowed[: max(0, 4 - len(preserved))]
+    allowed = allowed[: max(0, MAX_STRUCTURE_LAYERS - len(preserved))]
 
     # Retain the proposed z-order where possible, replacing disallowed category members
     # one-for-one with their exact base counterparts.
