@@ -1,8 +1,8 @@
 import {
+  Badge,
   Box,
   Callout,
   ContentPlaceholder,
-  Flex,
   Float,
   Grid,
   Icon,
@@ -15,7 +15,6 @@ import {
   VStack,
 } from "@essesion/shared";
 import {
-  CheckIcon,
   InformationCircleIcon,
   SparklesIcon,
 } from "@heroicons/react/24/outline";
@@ -152,19 +151,11 @@ export function CandidateTile({
       >
         {selected ? (
           <Float placement="top-end" offsetX="x2" offsetY="x2">
-            {/* 선택 체크는 PC 프리뷰 패널과의 연동 표시 — 모바일(탭=메뉴)에선 숨긴다. */}
-            <Flex
-              display={{ base: "none", lg: "flex" }}
-              align="center"
-              justify="center"
-              width={28}
-              height={28}
-              borderRadius="full"
-              bg="bg.brand-solid"
-              className="text-fg-contrast"
-            >
-              <Icon svg={<CheckIcon />} size={18} />
-            </Flex>
+            {/* 다음 발화의 수정 기준(편집 포인터) 표시 — 입력창 쪽 별도 표시가 없으므로
+                모바일에서도 노출한다. */}
+            <Badge variant="solid" tone="brand">
+              편집중
+            </Badge>
           </Float>
         ) : null}
       </ImageFrame>

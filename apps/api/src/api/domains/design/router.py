@@ -1268,21 +1268,23 @@ async def select_design_candidate(
             code="generation_in_progress",
         )
 
-    latest_success = await session.scalar(
+    # 과거 런 포함, 이 세션에서 성공한 런이면 선택(정본 커밋) 가능 — 대화는 되감지
+    # 않고 포인터만 옮기며, 다음 생성이 완료되면 자동 커밋이 다시 최신으로 되돌린다.
+    run_turn = await session.scalar(
         select(DesignSessionTurn)
         .where(
             DesignSessionTurn.session_id == session_id,
             DesignSessionTurn.role == "assistant",
             DesignSessionTurn.payload["type"].astext == "generate",
             DesignSessionTurn.payload["status"].astext == "succeeded",
+            DesignSessionTurn.payload["run_id"].astext == str(body.run_id),
         )
-        .order_by(DesignSessionTurn.seq.desc())
         .limit(1)
     )
-    if latest_success is None or latest_success.payload.get("run_id") != str(body.run_id):
+    if run_turn is None:
         raise ConflictError(
-            "가장 최근 생성 결과만 선택할 수 있습니다",
-            code="stale_design_selection",
+            "이 대화의 생성 결과가 아닙니다",
+            code="design_result_unavailable",
         )
 
     resolved = await _resolve_design_candidate(
@@ -1906,6 +1908,41 @@ async def _finish_generation_success(
             candidate_summaries=summaries,
         ),
     )
+    # 편집 포인터는 항상 최신 결과물로 복귀 — 후보가 여럿이면 첫 번째를 자동 커밋한다.
+    # (명시 선택은 select로 언제든 같은 런 안에서 바꿀 수 있고, 다음 생성이 다시 최신으로 옮긴다.)
+    # 커밋 실패는 생성 성공을 막지 않는다: 포인터가 이전 기준에 남을 뿐이다.
+    if out.candidates:
+        try:
+            resolved = await _resolve_design_candidate(
+                session,
+                run_id=run_id,
+                candidate_id=out.candidates[0].id,
+            )
+            await _ensure_intent_motif_access(
+                resolved.intent,
+                session=session,
+                user_id=user_id,
+                design_session_id=design_session.id,
+            )
+        except DomainError:
+            logger.warning("first-candidate auto-select skipped", exc_info=True)
+        else:
+            design_session.current_intent = resolved.intent
+            design_session.current_plan = resolved.plan
+            design_session.seed = resolved.seed
+            design_session.colorway = resolved.colorway_id
+            await _append_turn(
+                session,
+                design_session.id,
+                "user",
+                DesignSelectionTurnPayload(
+                    run_id=run_id,
+                    candidate_id=out.candidates[0].id,
+                    design_index=resolved.design_index,
+                    seed=resolved.seed,
+                    colorway_id=resolved.colorway_id,
+                ),
+            )
     await session.commit()
     return public_out
 

@@ -57,7 +57,7 @@ describe("TurnFeed generation context", () => {
     const { container } = render(
       <TurnFeed
         turns={[turn]}
-        onSelectCandidate={vi.fn()}
+        onViewCandidate={vi.fn()}
         renderFinalizeTurn={() => null}
       />,
     );
@@ -79,8 +79,8 @@ describe("TurnFeed generation context", () => {
     expect(screen.queryByText("후보 3개")).toBeNull();
   });
 
-  it("최신 후보는 선택하고 과거 후보는 새 대화 분기로 전달한다", () => {
-    const onSelectCandidate = vi.fn();
+  it("최신·과거 후보 모두 클릭은 조회로만 전달한다", () => {
+    const onViewCandidate = vi.fn();
     const makeTurn = (
       seq: number,
       runId: string,
@@ -117,37 +117,31 @@ describe("TurnFeed generation context", () => {
           makeTurn(1, olderRunId, "older-candidate"),
           makeTurn(2, latestRunId, "latest-candidate"),
         ]}
-        onSelectCandidate={onSelectCandidate}
+        onViewCandidate={onViewCandidate}
         renderFinalizeTurn={() => null}
       />,
     );
 
-    const olderCandidate = screen.getByRole("button", {
-      name: "디자인 후보 1, 새 대화로 이어가기",
-    });
-    const latestCandidate = screen.getByRole("button", {
+    const [olderCandidate, latestCandidate] = screen.getAllByRole("button", {
       name: "디자인 후보 1",
     });
-    expect(olderCandidate.hasAttribute("disabled")).toBe(false);
-    expect(latestCandidate.hasAttribute("disabled")).toBe(false);
+    expect(olderCandidate?.hasAttribute("disabled")).toBe(false);
+    expect(latestCandidate?.hasAttribute("disabled")).toBe(false);
+    if (!olderCandidate || !latestCandidate) throw new Error("tiles missing");
 
     fireEvent.click(olderCandidate);
     fireEvent.click(latestCandidate);
 
-    expect(onSelectCandidate).toHaveBeenCalledTimes(2);
-    expect(onSelectCandidate).toHaveBeenNthCalledWith(
+    expect(onViewCandidate).toHaveBeenCalledTimes(2);
+    expect(onViewCandidate).toHaveBeenNthCalledWith(
       1,
       olderRunId,
       expect.objectContaining({ id: "older-candidate" }),
-      "branch",
-      expect.anything(),
     );
-    expect(onSelectCandidate).toHaveBeenNthCalledWith(
+    expect(onViewCandidate).toHaveBeenNthCalledWith(
       2,
       latestRunId,
       expect.objectContaining({ id: "latest-candidate" }),
-      "select",
-      expect.anything(),
     );
   });
 
@@ -187,7 +181,7 @@ describe("TurnFeed generation context", () => {
         turns={turns}
         selectedRunId={runIds[1]}
         selectedCandidateId="same-candidate"
-        onSelectCandidate={vi.fn()}
+        onViewCandidate={vi.fn()}
         renderFinalizeTurn={() => null}
       />,
     );
@@ -195,5 +189,7 @@ describe("TurnFeed generation context", () => {
     const candidates = screen.getAllByRole("button");
     expect(candidates[0]?.getAttribute("aria-pressed")).toBe("false");
     expect(candidates[1]?.getAttribute("aria-pressed")).toBe("true");
+    // 편집 포인터 배지는 선택된 타일 하나에만 붙는다.
+    expect(screen.getAllByText("편집중")).toHaveLength(1);
   });
 });

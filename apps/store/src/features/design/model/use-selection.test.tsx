@@ -7,16 +7,15 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
-  branch: vi.fn(),
   select: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client", () => ({
-  branchDesignSession: api.branch,
   selectDesignCandidate: api.select,
 }));
 
-import { useDesignBranch } from "./use-selection";
+import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
+import { useDesignSelection } from "./use-selection";
 
 function queryWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
@@ -24,25 +23,25 @@ function queryWrapper(queryClient: QueryClient) {
   );
 }
 
-describe("design branch", () => {
+describe("design selection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("과거 후보로 새 세션을 만들고 세션 목록을 갱신한다", async () => {
-    const session = { id: "branched-session" };
-    api.branch.mockResolvedValue({ data: session });
+  it("후보를 정본으로 커밋하고 세션·턴 쿼리를 갱신한다", async () => {
+    const session = { id: "session-1", current_intent: { motif: "bee" } };
+    api.select.mockResolvedValue({ data: session });
     const queryClient = new QueryClient();
     const invalidateQueries = vi
       .spyOn(queryClient, "invalidateQueries")
       .mockResolvedValue(undefined);
-    const { result } = renderHook(() => useDesignBranch(), {
+    const { result } = renderHook(() => useDesignSelection(), {
       wrapper: queryWrapper(queryClient),
     });
 
     await act(async () => {
-      await result.current.mutateAsync({
-        sessionId: "source-session",
+      const selected = await result.current.mutateAsync({
+        sessionId: "session-1",
         runId: "11111111-1111-4111-8111-111111111111",
         candidate: {
           id: "candidate-1",
@@ -52,18 +51,23 @@ describe("design branch", () => {
           svg: "<svg/>",
         },
       });
+      expect(selected.session).toBe(session);
     });
 
-    expect(api.branch).toHaveBeenCalledWith({
-      path: { session_id: "source-session" },
+    expect(api.select).toHaveBeenCalledWith({
+      path: { session_id: "session-1" },
       body: {
         run_id: "11111111-1111-4111-8111-111111111111",
         candidate_id: "candidate-1",
       },
       throwOnError: true,
     });
-    expect(invalidateQueries).toHaveBeenCalledWith({
-      queryKey: listDesignSessionsQueryKey(),
-    });
+    for (const queryKey of [
+      listDesignSessionsQueryKey(),
+      designSessionQueryKey("session-1"),
+      designTurnsQueryKey("session-1"),
+    ]) {
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey });
+    }
   });
 });

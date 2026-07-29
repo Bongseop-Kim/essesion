@@ -18,7 +18,7 @@ import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { formatDateTime } from "@/shared/lib/format";
 import {
   patternConstraintLabels,
@@ -55,12 +55,9 @@ export type TurnFeedProps = {
   generating?: boolean;
   error?: boolean;
   onRetry?: () => void;
-  onSelectCandidate: (
-    runId: string,
-    candidate: TurnCandidate,
-    action: "select" | "branch",
-    event: MouseEvent<HTMLButtonElement>,
-  ) => void;
+  /** 모든 런 공통: 타일 클릭은 조회 스테이징(로컬)만. 편집 포인터 커밋(서버 select)은
+      호출부의 "이 이미지로 편집" 액션으로만 일어난다. */
+  onViewCandidate: (runId: string, candidate: TurnCandidate) => void;
   renderFinalizeTurn: (payload: FinalizeTurnPayload) => ReactNode;
   /** 있으면 후보 타일 탭 시 앵커 메뉴로 노출할 항목들(CandidateGrid의 menu). */
   candidateMenu?: ReactNode;
@@ -75,7 +72,7 @@ export function TurnFeed({
   generating = false,
   error = false,
   onRetry,
-  onSelectCandidate,
+  onViewCandidate,
   renderFinalizeTurn,
   candidateMenu,
 }: TurnFeedProps) {
@@ -123,20 +120,6 @@ export function TurnFeed({
     );
   }
 
-  const latestSelectableRunId = turns.reduce<{
-    seq: number;
-    runId: string;
-  } | null>((latest, turn) => {
-    const payload = parseDesignTurnPayload(turn.payload);
-    if (
-      payload?.type !== "generate" ||
-      (latest !== null && latest.seq >= turn.seq)
-    ) {
-      return latest;
-    }
-    return { seq: turn.seq, runId: payload.response.run_id };
-  }, null)?.runId;
-
   return (
     <VStack
       as="ol"
@@ -157,12 +140,8 @@ export function TurnFeed({
               attachments={turn.attachments ?? []}
               selectedRunId={selectedRunId}
               selectedCandidateId={selectedCandidateId}
-              historicalCandidate={
-                payload?.type === "generate" &&
-                payload.response.run_id !== latestSelectableRunId
-              }
               candidateActionsDisabled={candidateActionsDisabled}
-              onSelectCandidate={onSelectCandidate}
+              onViewCandidate={onViewCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
               candidateMenu={candidateMenu}
             />
@@ -192,9 +171,8 @@ function TurnItem({
   attachments,
   selectedRunId,
   selectedCandidateId,
-  historicalCandidate,
   candidateActionsDisabled,
-  onSelectCandidate,
+  onViewCandidate,
   renderFinalizeTurn,
   candidateMenu,
 }: {
@@ -203,9 +181,8 @@ function TurnItem({
   attachments: readonly DesignTurnAttachmentOut[];
   selectedRunId?: string | null;
   selectedCandidateId?: string | null;
-  historicalCandidate: boolean;
   candidateActionsDisabled: boolean;
-  onSelectCandidate: TurnFeedProps["onSelectCandidate"];
+  onViewCandidate: TurnFeedProps["onViewCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
   candidateMenu?: ReactNode;
 }) {
@@ -307,9 +284,6 @@ function TurnItem({
         id: candidate.id,
         imageSrc: svgToDataUri(candidate.svg),
         alt: `AI 디자인 후보 ${index + 1}`,
-        label: historicalCandidate
-          ? `디자인 후보 ${index + 1}, 새 대화로 이어가기`
-          : undefined,
       }),
     );
     return (
@@ -322,7 +296,7 @@ function TurnItem({
         }
         notice={getDesignWarningNotice(payload.response.warnings)}
         disabled={candidateActionsDisabled}
-        menu={historicalCandidate ? undefined : candidateMenu}
+        menu={candidateMenu}
         onSelect={(selected, event) => {
           const candidate = payload.response.candidates.find(
             (item) => item.id === selected.id,
@@ -331,12 +305,7 @@ function TurnItem({
             event.preventDefault();
             return;
           }
-          onSelectCandidate(
-            payload.response.run_id,
-            candidate,
-            historicalCandidate ? "branch" : "select",
-            event,
-          );
+          onViewCandidate(payload.response.run_id, candidate);
         }}
       />
     );
