@@ -981,6 +981,100 @@ def test_refine_stripe_change_restores_unrequested_band_colors():
     assert evolved_stripe.bands[0].color_index == current_stripe.bands[0].color_index
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        # 명사구 재명세: 변경 동사가 하나도 없다 ("넣지 마"는 "넣어"와 불일치).
+        "짙은 남색 바탕에 작은 꿀벌과 원 모티프를 번갈아 배치한 대각 물결 패턴. "
+        "두 모티프는 아이보리와 금색으로 구분하고 스트라이프는 넣지 마.",
+        # 모티프 단어 없이 주제 명사만 쓴 변형 — 카탈로그 검색 신호로만 모티프 언급이 잡힌다.
+        "짙은 남색 바탕에 작은 꿀벌과 원을 번갈아 배치한 대각 물결 패턴. "
+        "아이보리와 금색으로 구분하고 스트라이프는 넣지 마.",
+    ],
+)
+def test_refine_respecification_keeps_model_plan_over_committed_restore(prompt: str):
+    # C2 재명세 회귀: 커밋된 스트라이프 플랜 위에서 모티프 재명세가 통째로
+    # 복원되어 의도가 사라지던 결함 (seamless log 871f678a/f626aa8f).
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if [layer.type for layer in example.plan.layers] == ["stripe"]
+    )
+    proposed_raw = next(
+        example.plan for example in load_example_set() if len(example.plan.motifs) == 2
+    ).model_dump(mode="json")
+    proposed_raw["motifs"] = [
+        {"source": "catalog", "catalog_ref": "catalog_1"},
+        {"source": "catalog", "catalog_ref": "catalog_2"},
+    ]
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, restored = _preserve_refine_plan(
+        current,
+        proposed,
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+        motif_candidates_available=True,
+    )
+
+    assert restored == []
+    assert evolved.model_dump(mode="json") == proposed.model_dump(mode="json")
+    assert not any(layer.type == "stripe" for layer in evolved.layers)
+
+
+def test_refine_negative_imperative_allows_stripe_removal():
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if [layer.type for layer in example.plan.layers] == ["stripe", "motif"]
+    )
+    proposed_raw = current.model_dump(mode="json")
+    proposed_raw["layers"] = [
+        layer for layer in proposed_raw["layers"] if layer["type"] != "stripe"
+    ]
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        proposed,
+        "스트라이프는 넣지 마. 모티프는 그대로 유지해.",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert not any(layer.type == "stripe" for layer in evolved.layers)
+    current_motif = next(layer for layer in current.layers if layer.type == "motif")
+    evolved_motif = next(layer for layer in evolved.layers if layer.type == "motif")
+    assert evolved_motif == current_motif
+
+
+def test_refine_free_form_prompt_trusts_model_plan():
+    # 어떤 범주도 언급하지 않은 자유 발화에서 전부 복원하면 결과가 직전 디자인과
+    # 동일해져 토큰만 차감된다. 이 경우 모델의 진화 플랜을 그대로 신뢰한다.
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if [layer.type for layer in example.plan.layers] == ["stripe", "motif"]
+    )
+    proposed_raw = current.model_dump(mode="json")
+    proposed_raw["colors"][0] = "#101820"
+    stripe_layer = next(layer for layer in proposed_raw["layers"] if layer["type"] == "stripe")
+    stripe_layer["period_ratio"] = 0.61
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, restored = _preserve_refine_plan(
+        current,
+        proposed,
+        "좀 더 고급스럽고 차분한 느낌으로 다듬어줘.",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert restored == []
+    assert evolved.model_dump(mode="json") == proposed.model_dump(mode="json")
+
+
 def test_servable_schema_is_loosened_for_vertex_enforcement():
     # The provider schema keeps structure (types, enums, required) so constrained decoding forces
     # valid tags/fields, but drops what Vertex's types.Schema cannot serve: value/length/array

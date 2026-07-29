@@ -54,6 +54,10 @@ class _ResolvedMotifSource:
     motif_id: str
     spec: dict | None = None
     resolution: dict[str, object] | None = None
+    # 카탈로그 메타데이터가 알려준 paint slot 수. 알 때만 color_indices 길이를
+    # 컴파일 단계에서 검증해 재시도 피드백으로 되돌린다 — 여기서 놓치면 해석 후
+    # 색 바인딩에서야 터져 요청 전체가 거부된다.
+    slot_count: int | None = None
 
 
 def _resolve_motif_sources(
@@ -127,6 +131,7 @@ def _resolve_motif_sources(
             if candidate in required_catalog_candidates:
                 verified_catalog_count += 1
             motif_id = str(candidate["motif_id"])
+            slot_count = candidate.get("slot_count")
             sources.append(
                 _ResolvedMotifSource(
                     motif_id=motif_id,
@@ -137,6 +142,13 @@ def _resolve_motif_sources(
                         "similarity": candidate.get("similarity"),
                         "match_type": candidate.get("match_type"),
                     },
+                    slot_count=(
+                        slot_count
+                        if isinstance(slot_count, int)
+                        and not isinstance(slot_count, bool)
+                        and slot_count > 0
+                        else None
+                    ),
                 )
             )
         elif source.source == "reference":
@@ -423,6 +435,17 @@ def compile_design_plan_v3(
             continue
 
         source = sources[structure.motif_index]
+        if (
+            structure.color_indices is not None
+            and source.slot_count is not None
+            and len(structure.color_indices) != source.slot_count
+        ):
+            raise PlanCompileError(
+                f"motif layer for motif_index {structure.motif_index}: color_indices "
+                f"must contain exactly {source.slot_count} entries (slot_count is "
+                f"{source.slot_count}), or omit color_indices to keep the motif's "
+                "original colors"
+            )
         layer_id = f"motif_{motif_layer_index}"
         motif_layer_index += 1
         colors = (

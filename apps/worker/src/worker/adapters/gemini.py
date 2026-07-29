@@ -144,6 +144,32 @@ def _category_is_preserved(prompt: str, category: re.Pattern[str]) -> bool:
     return False
 
 
+@dataclass(frozen=True)
+class _CategoryMentions:
+    colors: bool
+    stripes: bool
+    motifs: bool
+    geometry: bool
+
+
+def _category_mentions(prompt: str) -> _CategoryMentions:
+    stripe_matches = list(_STRIPE_WORDS.finditer(prompt))
+    return _CategoryMentions(
+        colors=bool(_COLOR_WORDS.search(prompt)),
+        stripes=bool(stripe_matches),
+        # "줄무늬" matches both word lists; a motif word nested inside a stripe word
+        # does not count as a motif mention.
+        motifs=any(
+            not any(
+                stripe.start() <= motif.start() and motif.end() <= stripe.end()
+                for stripe in stripe_matches
+            )
+            for motif in _MOTIF_WORDS.finditer(prompt)
+        ),
+        geometry=bool(_GEOMETRY_WORDS.search(prompt)),
+    )
+
+
 def _refine_permissions(
     prompt: str,
     *,
@@ -151,17 +177,11 @@ def _refine_permissions(
     pattern_constraints: PatternConstraints | None,
 ) -> _RefinePermissions:
     change_requested = bool(_CHANGE_WORDS.search(prompt))
-    stripe_matches = list(_STRIPE_WORDS.finditer(prompt))
-    stripe_mentioned = bool(stripe_matches)
-    motif_mentioned = any(
-        not any(
-            stripe.start() <= motif.start() and motif.end() <= stripe.end()
-            for stripe in stripe_matches
-        )
-        for motif in _MOTIF_WORDS.finditer(prompt)
-    )
-    geometry_mentioned = bool(_GEOMETRY_WORDS.search(prompt))
-    colors = bool(_COLOR_WORDS.search(prompt) and change_requested)
+    mentions = _category_mentions(prompt)
+    stripe_mentioned = mentions.stripes
+    motif_mentioned = mentions.motifs
+    geometry_mentioned = mentions.geometry
+    colors = mentions.colors and change_requested
     stripes = stripe_mentioned and change_requested
     motif_geometry = bool(
         geometry_mentioned and change_requested and (motif_mentioned or not stripe_mentioned)
@@ -217,6 +237,65 @@ def _refine_permissions(
         motif_size=motif_size,
         motif_placement=motif_placement,
         add_stripes=stripes and bool(_ADD_WORDS.search(prompt)),
+    )
+
+
+def _refine_restore_permissions(
+    prompt: str,
+    requested: _RefinePermissions,
+    *,
+    motif_candidates_available: bool,
+) -> _RefinePermissions:
+    """Which sections the model's evolved plan keeps instead of being restored.
+
+    Change-verb detection under-recognizes real requests (noun-phrase
+    re-specifications, negative imperatives such as "스트라이프는 넣지 마"), and
+    restoring a category the prompt talks about silently discards user intent.
+    So restoration keys off the weaker mention signal: any category the prompt
+    references stays model-authored unless the user explicitly preserved it, and
+    only the untouched categories of a targeted edit are restored. Motif subjects
+    are open vocabulary ("꿀벌과 원"), so catalog retrieval hits count as a motif
+    mention. A prompt referencing no category at all is a free-form evolution;
+    restoring everything there would sell the user an identical design.
+    """
+
+    mentions = _category_mentions(prompt)
+    motifs_mentioned = mentions.motifs or motif_candidates_available
+    if not (mentions.colors or mentions.stripes or motifs_mentioned or mentions.geometry) and not (
+        requested.colors or requested.motifs or requested.stripes or requested.motif_geometry
+    ):
+        return _RefinePermissions(
+            colors=True,
+            motifs=True,
+            stripes=True,
+            motif_geometry=True,
+            motif_size=True,
+            motif_placement=True,
+            add_stripes=False,
+        )
+
+    colors = requested.colors or (
+        mentions.colors and not _category_is_preserved(prompt, _COLOR_WORDS)
+    )
+    stripes = requested.stripes or (
+        mentions.stripes and not _category_is_preserved(prompt, _STRIPE_WORDS)
+    )
+    motifs = requested.motifs or (
+        motifs_mentioned and not _category_is_preserved(prompt, _MOTIF_WORDS)
+    )
+    motif_geometry = requested.motif_geometry or (
+        mentions.geometry
+        and (motifs_mentioned or not mentions.stripes)
+        and not _category_is_preserved(prompt, _GEOMETRY_WORDS)
+    )
+    return _RefinePermissions(
+        colors=colors,
+        motifs=motifs,
+        stripes=stripes,
+        motif_geometry=motif_geometry,
+        motif_size=requested.motif_size or motif_geometry,
+        motif_placement=requested.motif_placement or motif_geometry,
+        add_stripes=requested.add_stripes or (stripes and bool(_ADD_WORDS.search(prompt))),
     )
 
 
@@ -340,19 +419,30 @@ def _preserve_refine_plan(
     *,
     palette_constraint: PaletteConstraint | None,
     pattern_constraints: PatternConstraints | None,
+    motif_candidates_available: bool = False,
 ) -> tuple[DesignPlanV3, list[str]]:
-    """Restore every plan section the current refine request did not authorize."""
+    """Restore the plan sections the current refine request left untouched.
 
-    permissions = _refine_permissions(
+    ``requested`` (change-verb detection) drives which changes must have landed;
+    ``allowed`` (mention detection) drives which sections may keep the model's
+    version instead of being restored from the committed plan.
+    """
+
+    requested = _refine_permissions(
         prompt,
         palette_constraint=palette_constraint,
         pattern_constraints=pattern_constraints,
+    )
+    allowed = _refine_restore_permissions(
+        prompt,
+        requested,
+        motif_candidates_available=motif_candidates_available,
     )
     base = current.model_dump(mode="json")
     evolved = proposed.model_dump(mode="json")
     restored: list[str] = []
 
-    if not permissions.colors:
+    if not allowed.colors:
         if (
             evolved["colors"] != base["colors"]
             or evolved["ground_color_index"] != base["ground_color_index"]
@@ -361,34 +451,34 @@ def _preserve_refine_plan(
         evolved["colors"] = copy.deepcopy(base["colors"])
         evolved["ground_color_index"] = base["ground_color_index"]
 
-    if not permissions.motifs:
+    if not allowed.motifs:
         if evolved["motifs"] != base["motifs"]:
             restored.append("motifs")
         evolved["motifs"] = copy.deepcopy(base["motifs"])
 
     base_layers = copy.deepcopy(base["layers"])
     proposed_layers = copy.deepcopy(evolved["layers"])
-    allow_motif_layers = permissions.motif_geometry or permissions.motifs
+    allow_motif_layers = allowed.motif_geometry or allowed.motifs
     merged_layers = _merge_layer_categories(
         base_layers,
         proposed_layers,
-        allow_stripes=permissions.stripes,
+        allow_stripes=allowed.stripes,
         allow_motifs=allow_motif_layers,
-        add_stripes=permissions.add_stripes,
+        add_stripes=allowed.add_stripes,
     )
-    if not permissions.motif_geometry:
+    if not allowed.motif_geometry:
         merged_layers = _copy_motif_fields(
             merged_layers,
             base_layers,
             ("size_ratio", "placement"),
         )
-    if not permissions.motifs:
+    if not allowed.motifs:
         merged_layers = _copy_motif_fields(
             merged_layers,
             base_layers,
             ("motif_index",),
         )
-    if permissions.colors:
+    if allowed.colors:
         merged_layers = _copy_color_references(merged_layers, proposed_layers)
     else:
         merged_layers = _copy_color_references(merged_layers, base_layers)
@@ -401,14 +491,14 @@ def _preserve_refine_plan(
     try:
         result = DesignPlanV3.model_validate(evolved)
     except ValidationError:
-        if permissions.motifs:
+        if allowed.motifs:
             raise
         evolved["layers"] = _merge_layer_categories(
             base_layers,
             evolved["layers"],
-            allow_stripes=permissions.stripes,
+            allow_stripes=allowed.stripes,
             allow_motifs=False,
-            add_stripes=permissions.add_stripes,
+            add_stripes=allowed.add_stripes,
         )
         result = DesignPlanV3.model_validate(evolved)
         if "layers" not in restored:
@@ -416,7 +506,7 @@ def _preserve_refine_plan(
     _ensure_requested_refine_changes(
         current,
         result,
-        permissions,
+        requested,
         fixed_palette=palette_constraint is not None and palette_constraint.mode == "fixed",
     )
     return result, restored
@@ -1147,6 +1237,7 @@ class GeminiClient:
                         prompt,
                         palette_constraint=palette_constraint,
                         pattern_constraints=pattern_constraints,
+                        motif_candidates_available=public_catalog_available,
                     )
                     sink["preserve_restored_sections"] = restored
                     indexed_plans = [(0, response_plan)]
