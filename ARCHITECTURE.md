@@ -575,7 +575,7 @@ sequenceDiagram
 
 생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다. 일반 prompt 생성이 성공하면 사용한 프롬프트·첨부·사진 purpose·모티프·palette·pattern 작성 상태를 해제하고 턴 이력에 남긴다. 후보 수는 대화별 마지막 `generate_request` 값으로 복원하며 새 대화만 4개로 시작한다. 실패한 요청은 staging upload ID와 작성 상태를 유지해 재업로드 없이 재시도한다.
 
-세션 문맥은 명시적으로 선택한 후보만 전진시킨다. `current_intent`는 byte-identical 재현을 위한 렌더 정본이고 `current_plan`은 대화 의미 정본인 `DesignPlanV3`다. 선택 API는 generation log의 후보별 intent와 해석 완료 plan을 함께 원자 커밋하고 `context_version`을 증가시킨다. 같은 세션에서는 최신 성공 결과만 선택할 수 있고, 과거 후보는 원본 요청·결과·첨부와 선택 정본을 복사한 새 세션으로 분기한다. 분기는 생성 로그를 복제하거나 토큰을 차감하지 않는다. 선택하지 않은 성공 결과와 실패 턴은 같은 세션의 다음 모델 문맥에 들어가지 않는다. 일반 `/design/generate`는 클라이언트 intent를 받지 않고 소유 세션의 정본과 최근 선택된 성공 턴 최대 6쌍을 서버에서 구성한다.
+세션 문맥은 명시적으로 선택한 후보만 전진시킨다. `current_intent`는 byte-identical 재현을 위한 렌더 정본이고 `current_plan`은 대화 의미 정본인 `DesignPlanV3`다. 선택 API는 같은 세션의 모든 성공 런 후보에 대해 generation log의 후보별 intent와 해석 완료 plan을 함께 원자 커밋하고 `context_version`을 증가시킨다. 스토어에서 과거 런 타일을 클릭하면 `select`가 같은 세션의 정본 포인터를 해당 후보로 옮긴다. `branch`는 과거 후보의 원본 요청·결과·첨부와 선택 정본을 새 세션으로 복제하는 별도 경로다. 분기는 생성 로그를 복제하거나 토큰을 차감하지 않는다. 선택하지 않은 성공 결과와 실패 턴은 같은 세션의 다음 모델 문맥에 들어가지 않는다. 일반 `/design/generate`는 클라이언트 intent를 받지 않고 소유 세션의 정본과 최근 선택된 성공 턴 최대 6쌍을 서버에서 구성한다.
 
 초기 저작은 구조적으로 다른 `DesignPlansV3` 2~4개를 만들되 모든 plan의 motif source 집합이 같아야 한다. 이 규칙은 prompt뿐 아니라 canonical motif signature 하드 가드로 강제되며 motif 정체성은 structural fingerprint에도 포함된다. refine은 현재 plan을 권위 블록으로 넣어 `DesignPlanV3` 하나를 전체 재저작하고, 요청에서 언급하지 않은 palette·motif·stripe·motif geometry를 결정론적 preserve 가드가 원복한다. 이 단일 intent를 엔진 `generate_candidates`가 최대 4개로 팬아웃하므로 비싼 모델 호출을 후보 수만큼 반복하지 않는다.
 

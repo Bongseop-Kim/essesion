@@ -21,6 +21,7 @@ from worker.adapters.gemini import (
     _merge_layer_categories,
     _preserve_refine_plan,
     _refine_permissions,
+    _refine_restore_permissions,
     _servable_json_schema,
 )
 from worker.adapters.recraft import (
@@ -879,28 +880,28 @@ def test_refine_geometry_permission_is_scoped_to_motif_request():
         (
             "색상만 바꿔줘. 배경은 버건디, 벌은 아이보리로 해줘. "
             "모티프는 유지해. 크기와 배치와 간격은 유지해.",
-            (True, False, False, False, False),
+            (True, False, False, False, False, False, False),
         ),
         (
             "간격을 더 넓혀 여유로운 반복으로 바꿔줘. "
             "색상은 그대로 유지해. 모티프는 그대로 유지해.",
-            (False, False, False, True, False),
+            (False, False, False, True, False, True, False),
         ),
         (
             "벌을 작은 별 모티프로 바꿔줘. 색상은 그대로 유지해. "
             "크기와 배치와 간격은 그대로 유지해.",
-            (False, True, False, False, False),
+            (False, True, False, False, False, False, False),
         ),
         (
             "얇은 대각 스트라이프 두 줄만 추가해줘. 색상은 그대로 유지해. "
             "별 모티프는 그대로 유지해. 모티프의 크기와 배치와 간격은 그대로 유지해.",
-            (False, False, True, False, True),
+            (False, False, True, False, False, False, True),
         ),
     ],
 )
 def test_refine_permissions_match_manual_a2_to_a5_scenarios(
     prompt: str,
-    expected: tuple[bool, bool, bool, bool, bool],
+    expected: tuple[bool, bool, bool, bool, bool, bool, bool],
 ):
     permissions = _refine_permissions(
         prompt,
@@ -913,11 +914,98 @@ def test_refine_permissions_match_manual_a2_to_a5_scenarios(
         permissions.motifs,
         permissions.stripes,
         permissions.motif_geometry,
+        permissions.motif_size,
+        permissions.motif_placement,
         permissions.add_stripes,
     ) == expected
-    if "간격을 더 넓혀" in prompt:
-        assert permissions.motif_size is False
-        assert permissions.motif_placement is True
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "배경색을 빨강으로 바꿔줘",
+        "스트라이프를 추가해줘",
+        "모티프 간격을 더 넓게 바꿔줘",
+    ],
+)
+def test_catalog_candidates_do_not_open_motif_replacement_for_targeted_edits(
+    prompt: str,
+):
+    requested = _refine_permissions(
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+    allowed = _refine_restore_permissions(
+        prompt,
+        requested,
+        motif_candidates_available=True,
+    )
+
+    assert any((allowed.colors, allowed.stripes, allowed.motif_size, allowed.motif_placement))
+    assert allowed.motifs is False
+
+
+@pytest.mark.parametrize(
+    ("prompt", "use_proposed_size", "use_proposed_placement"),
+    [
+        ("크기는 그대로 유지하고 배치와 간격을 바꿔줘", False, True),
+        ("크기를 작게 바꿔줘. 배치는 그대로 유지해", True, False),
+    ],
+)
+def test_refine_preserves_motif_size_and_placement_independently(
+    prompt: str,
+    use_proposed_size: bool,
+    use_proposed_placement: bool,
+):
+    current = load_example_set()[5].plan
+    proposed_raw = current.model_dump(mode="json")
+    proposed_motif = next(layer for layer in proposed_raw["layers"] if layer["type"] == "motif")
+    proposed_motif["size_ratio"] = 0.1
+    proposed_motif["placement"] = {
+        "type": "lattice",
+        "columns": 7,
+        "rows": 7,
+        "drop": "half_row",
+        "fixed_rotation_deg": 45,
+    }
+    proposed = DesignPlanV3.model_validate(proposed_raw)
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        proposed,
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    current_motif = next(layer for layer in current.layers if layer.type == "motif")
+    proposed_motif_plan = next(layer for layer in proposed.layers if layer.type == "motif")
+    evolved_motif = next(layer for layer in evolved.layers if layer.type == "motif")
+    assert evolved_motif.size_ratio == (
+        proposed_motif_plan.size_ratio if use_proposed_size else current_motif.size_ratio
+    )
+    assert evolved_motif.placement == (
+        proposed_motif_plan.placement if use_proposed_placement else current_motif.placement
+    )
+
+
+def test_refine_change_validation_skips_motif_axes_without_motif_layers():
+    current = next(
+        example.plan
+        for example in load_example_set()
+        if not any(layer.type == "motif" for layer in example.plan.layers)
+    )
+
+    evolved, _restored = _preserve_refine_plan(
+        current,
+        current,
+        "모티프로 바꾸고 크기와 배치를 바꿔줘",
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert evolved == current
 
 
 def test_refine_motif_replacement_restores_unrequested_geometry_and_colors():

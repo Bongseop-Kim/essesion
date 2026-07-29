@@ -39,7 +39,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
@@ -96,7 +96,10 @@ import {
   restoreDesignSelection,
 } from "@/features/design/model/selection";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
-import { latestSubmittedCandidateCount } from "@/features/design/model/turn-payload";
+import {
+  latestSubmittedCandidateCount,
+  parseDesignTurnPayload,
+} from "@/features/design/model/turn-payload";
 import {
   useDeleteDesignSession,
   useDeleteFinalizedJob,
@@ -238,6 +241,7 @@ export function DesignPage() {
   const generationOperations = useRef(
     new WeakMap<GenerateDesignInput, number>(),
   );
+  const appliedCandidateCountRequest = useRef<string | null>(null);
 
   const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
   const sessionQuery = useQuery(
@@ -292,6 +296,19 @@ export function DesignPage() {
     deleteSessionMutation.isPending ||
     deleteJobMutation.isPending ||
     motifDeleting;
+  const latestCandidateCountRequestId =
+    turnsQuery.data?.reduce<string | null>(
+      (latestId, turn) =>
+        parseDesignTurnPayload(turn.payload)?.type === "generate_request"
+          ? turn.id
+          : latestId,
+      null,
+    ) ?? null;
+  const applyLatestCandidateCount = useEffectEvent(() => {
+    setCandidateCount((current) =>
+      latestSubmittedCandidateCount(turnsQuery.data ?? [], current),
+    );
+  });
 
   useEffect(
     () => () => {
@@ -315,14 +332,16 @@ export function DesignPage() {
 
   useEffect(() => {
     if (!activeSessionId || newSessionMode) {
+      appliedCandidateCountRequest.current = null;
       setCandidateCount(DEFAULT_CANDIDATE_COUNT);
       return;
     }
-    if (!turnsQuery.data) return;
-    setCandidateCount((current) =>
-      latestSubmittedCandidateCount(turnsQuery.data ?? [], current),
-    );
-  }, [activeSessionId, newSessionMode, turnsQuery.data]);
+    if (!latestCandidateCountRequestId) return;
+    const requestIdentity = `${activeSessionId}:${latestCandidateCountRequestId}`;
+    if (appliedCandidateCountRequest.current === requestIdentity) return;
+    appliedCandidateCountRequest.current = requestIdentity;
+    applyLatestCandidateCount();
+  }, [activeSessionId, newSessionMode, latestCandidateCountRequestId]);
 
   const restoredSelection = useMemo(() => {
     if (!sessionQuery.data || !turnsQuery.data) return null;

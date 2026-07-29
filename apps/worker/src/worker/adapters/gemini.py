@@ -116,6 +116,17 @@ _PLACEMENT_WORDS = re.compile(
 _GEOMETRY_WORDS = re.compile(
     rf"(?:{_SIZE_WORDS.pattern}|{_PLACEMENT_WORDS.pattern})", re.IGNORECASE
 )
+_GEOMETRY_JOINER = r"\s*(?:와|과|및|,|and|&)\s*"
+_SIZE_PRESERVE_WORDS = re.compile(
+    rf"(?:{_SIZE_WORDS.pattern})"
+    rf"(?:{_GEOMETRY_JOINER}(?:{_GEOMETRY_WORDS.pattern}))*",
+    re.IGNORECASE,
+)
+_PLACEMENT_PRESERVE_WORDS = re.compile(
+    rf"(?:{_PLACEMENT_WORDS.pattern})"
+    rf"(?:{_GEOMETRY_JOINER}(?:{_GEOMETRY_WORDS.pattern}))*",
+    re.IGNORECASE,
+)
 _ADD_WORDS = re.compile(r"(추가|더|넣어|add|another|extra)", re.IGNORECASE)
 _CATEGORY_TO_PRESERVE_GAP = re.compile(
     r"(?:상)?\s*(?:은|는|이|가|을|를|도|만)?\s*"
@@ -183,7 +194,7 @@ def _refine_permissions(
     geometry_mentioned = mentions.geometry
     colors = mentions.colors and change_requested
     stripes = stripe_mentioned and change_requested
-    motif_geometry = bool(
+    motif_geometry_requested = bool(
         geometry_mentioned and change_requested and (motif_mentioned or not stripe_mentioned)
     )
     motifs = motif_mentioned and change_requested and not geometry_mentioned and not colors
@@ -199,7 +210,9 @@ def _refine_permissions(
             re.I,
         )
     )
-    if explicit_motif_replacement or (replacement and not (colors or stripes or motif_geometry)):
+    if explicit_motif_replacement or (
+        replacement and not (colors or stripes or motif_geometry_requested)
+    ):
         motifs = True
 
     if _category_is_preserved(prompt, _COLOR_WORDS):
@@ -208,16 +221,18 @@ def _refine_permissions(
         stripes = False
     if _category_is_preserved(prompt, _MOTIF_WORDS):
         motifs = False
-    if _category_is_preserved(prompt, _GEOMETRY_WORDS):
-        motif_geometry = False
-
+    motif_size = bool(
+        motif_geometry_requested
+        and _SIZE_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _SIZE_PRESERVE_WORDS)
+    )
+    motif_placement = bool(
+        motif_geometry_requested
+        and _PLACEMENT_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _PLACEMENT_PRESERVE_WORDS)
+    )
     if palette_constraint is not None and palette_constraint.mode == "fixed":
         colors = True
-    if pattern_constraints is not None:
-        motif_geometry = motif_geometry or not pattern_constraints.is_automatic()
-
-    motif_size = motif_geometry and bool(_SIZE_WORDS.search(prompt))
-    motif_placement = motif_geometry and bool(_PLACEMENT_WORDS.search(prompt))
     if pattern_constraints is not None:
         motif_size = motif_size or pattern_constraints.motif_scale != "auto"
         motif_placement = motif_placement or any(
@@ -228,6 +243,7 @@ def _refine_permissions(
                 pattern_constraints.direction,
             )
         )
+    motif_geometry = motif_size or motif_placement
 
     return _RefinePermissions(
         colors=colors,
@@ -260,7 +276,12 @@ def _refine_restore_permissions(
     """
 
     mentions = _category_mentions(prompt)
-    motifs_mentioned = mentions.motifs or motif_candidates_available
+    targeted_non_motif_edit = (
+        requested.colors or requested.stripes or requested.motif_geometry
+    ) and not requested.motifs
+    motifs_mentioned = mentions.motifs or (
+        motif_candidates_available and not targeted_non_motif_edit
+    )
     if not (mentions.colors or mentions.stripes or motifs_mentioned or mentions.geometry) and not (
         requested.colors or requested.motifs or requested.stripes or requested.motif_geometry
     ):
@@ -281,20 +302,29 @@ def _refine_restore_permissions(
         mentions.stripes and not _category_is_preserved(prompt, _STRIPE_WORDS)
     )
     motifs = requested.motifs or (
-        motifs_mentioned and not _category_is_preserved(prompt, _MOTIF_WORDS)
+        motifs_mentioned
+        and not targeted_non_motif_edit
+        and not _category_is_preserved(prompt, _MOTIF_WORDS)
     )
-    motif_geometry = requested.motif_geometry or (
-        mentions.geometry
-        and (motifs_mentioned or not mentions.stripes)
-        and not _category_is_preserved(prompt, _GEOMETRY_WORDS)
+    motif_geometry_mentioned = mentions.geometry and (motifs_mentioned or not mentions.stripes)
+    motif_size = requested.motif_size or bool(
+        motif_geometry_mentioned
+        and _SIZE_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _SIZE_PRESERVE_WORDS)
     )
+    motif_placement = requested.motif_placement or bool(
+        motif_geometry_mentioned
+        and _PLACEMENT_WORDS.search(prompt)
+        and not _category_is_preserved(prompt, _PLACEMENT_PRESERVE_WORDS)
+    )
+    motif_geometry = motif_size or motif_placement
     return _RefinePermissions(
         colors=colors,
         motifs=motifs,
         stripes=stripes,
         motif_geometry=motif_geometry,
-        motif_size=requested.motif_size or motif_geometry,
-        motif_placement=requested.motif_placement or motif_geometry,
+        motif_size=motif_size,
+        motif_placement=motif_placement,
         add_stripes=requested.add_stripes or (stripes and bool(_ADD_WORDS.search(prompt))),
     )
 
@@ -466,11 +496,17 @@ def _preserve_refine_plan(
         allow_motifs=allow_motif_layers,
         add_stripes=allowed.add_stripes,
     )
-    if not allowed.motif_geometry:
+    if not allowed.motif_size:
         merged_layers = _copy_motif_fields(
             merged_layers,
             base_layers,
-            ("size_ratio", "placement"),
+            ("size_ratio",),
+        )
+    if not allowed.motif_placement:
+        merged_layers = _copy_motif_fields(
+            merged_layers,
+            base_layers,
+            ("placement",),
         )
     if not allowed.motifs:
         merged_layers = _copy_motif_fields(
@@ -547,21 +583,33 @@ def _ensure_requested_refine_changes(
             # recolor; an honest recolor introduces at least one new hex value. Fixed palettes
             # are exempt because their hex set may never change.
             missing.append("colors: introduce new hex values instead of permuting the palette")
-    if permissions.motifs and (
-        current.motifs,
-        [layer.motif_index for layer in base_motifs],
-    ) == (
-        evolved.motifs,
-        [layer.motif_index for layer in changed_motifs],
+    motif_layers_exist = bool(base_motifs or changed_motifs)
+    if (
+        motif_layers_exist
+        and permissions.motifs
+        and (
+            current.motifs,
+            [layer.motif_index for layer in base_motifs],
+        )
+        == (
+            evolved.motifs,
+            [layer.motif_index for layer in changed_motifs],
+        )
     ):
         missing.append("motifs")
-    if permissions.motif_size and [layer.size_ratio for layer in base_motifs] == [
-        layer.size_ratio for layer in changed_motifs
-    ]:
+    if (
+        motif_layers_exist
+        and permissions.motif_size
+        and [layer.size_ratio for layer in base_motifs]
+        == [layer.size_ratio for layer in changed_motifs]
+    ):
         missing.append("motif size")
-    if permissions.motif_placement and [layer.placement for layer in base_motifs] == [
-        layer.placement for layer in changed_motifs
-    ]:
+    if (
+        motif_layers_exist
+        and permissions.motif_placement
+        and [layer.placement for layer in base_motifs]
+        == [layer.placement for layer in changed_motifs]
+    ):
         missing.append("motif placement")
 
     def stripe_geometry(
