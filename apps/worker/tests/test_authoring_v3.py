@@ -119,9 +119,7 @@ def test_all_gallery_plans_compile_deterministically_to_valid_engine_intents():
 def test_lattice_half_drop_rounds_odd_drop_axis_count_up_to_close_the_torus():
     # A3 회귀: 모델이 half drop을 유지한 채 홀수 열을 뽑으면 엔진 torus closure에서
     # 거부되던 것을 스키마가 짝수로 올림 보정한다. drop축이 아닌 축은 건드리지 않는다.
-    column_drop = LatticePlacementPlan(
-        type="lattice", columns=5, rows=3, drop="half_column"
-    )
+    column_drop = LatticePlacementPlan(type="lattice", columns=5, rows=3, drop="half_column")
     assert (column_drop.columns, column_drop.rows) == (6, 3)
     row_drop = LatticePlacementPlan(type="lattice", columns=5, rows=3, drop="half_row")
     assert (row_drop.columns, row_drop.rows) == (5, 4)

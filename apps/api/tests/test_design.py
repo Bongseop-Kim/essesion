@@ -747,9 +747,7 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
     assert max_active_signings == 2
-    request_turn = next(
-        turn for turn in turns if turn["payload"]["type"] == "generate_request"
-    )
+    request_turn = next(turn for turn in turns if turn["payload"]["type"] == "generate_request")
     assert request_turn["attachments"][0]["filename"] == "구도.webp"
     assert request_turn["attachments"][0]["purpose"] == "composition"
     assert request_turn["attachments"][0]["preview_url"].startswith(
@@ -788,9 +786,7 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
     assert next(
-        turn
-        for turn in turns_after_delete
-        if turn["payload"]["type"] == "generate_request"
+        turn for turn in turns_after_delete if turn["payload"]["type"] == "generate_request"
     )["attachments"][2]["preview_svg"]
 
     deleted_session = await client.delete(
@@ -1784,9 +1780,7 @@ async def test_generation_auto_selects_first_candidate_as_conversation_context(
         }
     ]
 
-    session_after = (
-        await client.get(f"/design/sessions/{session_id}", headers=headers)
-    ).json()
+    session_after = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
     assert session_after["current_intent"] is not None
     assert session_after["seed"] == 7
     assert session_after["colorway"] == "default"
@@ -1822,9 +1816,7 @@ async def test_select_accepts_past_run_within_session_only(client, app, db_sessi
     assert selected.status_code == 200, selected.text
     assert selected.json()["current_intent"] is not None
 
-    turns = (
-        await client.get(f"/design/sessions/{session_id}/turns", headers=headers)
-    ).json()
+    turns = (await client.get(f"/design/sessions/{session_id}/turns", headers=headers)).json()
     assert turns[-1]["payload"]["type"] == "select"
     assert turns[-1]["payload"]["run_id"] == first.json()["run_id"]
 
@@ -1855,9 +1847,7 @@ async def test_generation_without_run_log_skips_auto_select(client, app, db_sess
     )
 
     assert generated.status_code == 200
-    session_after = (
-        await client.get(f"/design/sessions/{session_id}", headers=headers)
-    ).json()
+    session_after = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
     assert session_after["current_intent"] is None
 
 
