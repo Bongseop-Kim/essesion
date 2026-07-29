@@ -13,6 +13,7 @@ import logging
 import re
 import unicodedata
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal, cast
 
@@ -519,6 +520,16 @@ class DesignSelectionTurnPayload(StrictModel):
     colorway_id: str = Field(min_length=1, max_length=100)
 
 
+@dataclass(frozen=True)
+class _ResolvedDesignCandidate:
+    log: SeamlessGenerationLog
+    design_index: int
+    intent: dict[str, Any]
+    plan: dict[str, Any]
+    seed: int
+    colorway_id: str
+
+
 class DesignFinalizeTurnPayload(StrictModel):
     type: Literal["finalize"] = "finalize"
     job_id: uuid.UUID
@@ -897,9 +908,23 @@ async def delete_design_session(
             DesignTurnAttachment.image_id.is_not(None),
         )
     )
+    photo_ids_in_other_sessions = (
+        select(DesignTurnAttachment.image_id)
+        .join(
+            DesignSessionTurn,
+            DesignSessionTurn.id == DesignTurnAttachment.turn_id,
+        )
+        .where(
+            DesignSessionTurn.session_id != session_id,
+            DesignTurnAttachment.image_id.is_not(None),
+        )
+    )
     await session.execute(
         update(Image)
-        .where(Image.id.in_(photo_ids))
+        .where(
+            Image.id.in_(photo_ids),
+            Image.id.not_in(photo_ids_in_other_sessions),
+        )
         .values(expires_at=datetime.now(UTC), entity_type="design_reference_deleted")
     )
     await session.delete(design_session)
@@ -1260,7 +1285,48 @@ async def select_design_candidate(
             code="stale_design_selection",
         )
 
-    log = await session.get(SeamlessGenerationLog, body.run_id)
+    resolved = await _resolve_design_candidate(
+        session,
+        run_id=body.run_id,
+        candidate_id=body.candidate_id,
+    )
+    await _ensure_intent_motif_access(
+        resolved.intent,
+        session=session,
+        user_id=user.id,
+        design_session_id=design_session.id,
+    )
+
+    design_session.current_intent = resolved.intent
+    design_session.current_plan = resolved.plan
+    design_session.seed = resolved.seed
+    design_session.colorway = resolved.colorway_id
+    design_session.registry_version = resolved.log.registry_version
+    design_session.context_version += 1
+    await _append_turn(
+        session,
+        design_session.id,
+        "user",
+        DesignSelectionTurnPayload(
+            run_id=body.run_id,
+            candidate_id=body.candidate_id,
+            design_index=resolved.design_index,
+            seed=resolved.seed,
+            colorway_id=resolved.colorway_id,
+        ),
+    )
+    await session.commit()
+    await session.refresh(design_session)
+    return DesignSessionOut.model_validate(design_session)
+
+
+async def _resolve_design_candidate(
+    session: SessionDep,
+    *,
+    run_id: uuid.UUID,
+    candidate_id: str,
+) -> _ResolvedDesignCandidate:
+    log = await session.get(SeamlessGenerationLog, run_id)
     if log is None or log.status not in {"success", "partial"}:
         raise ConflictError(
             "선택할 생성 결과를 찾을 수 없습니다",
@@ -1271,7 +1337,7 @@ async def select_design_candidate(
         (
             item
             for item in raw_candidates
-            if isinstance(item, dict) and item.get("id") == body.candidate_id
+            if isinstance(item, dict) and item.get("id") == candidate_id
         ),
         None,
     )
@@ -1310,12 +1376,6 @@ async def select_design_candidate(
         candidate_intent = designs[design_index]
     current_intent = _bounded_design_json(candidate_intent)
     current_plan = _bounded_design_json(plans[design_index])
-    await _ensure_intent_motif_access(
-        current_intent,
-        session=session,
-        user_id=user.id,
-        design_session_id=design_session.id,
-    )
     seed = candidate.get("seed")
     colorway_id = candidate.get("colorway_id")
     if not isinstance(seed, int) or not isinstance(colorway_id, str) or not colorway_id:
@@ -1324,27 +1384,159 @@ async def select_design_candidate(
             code="design_result_invalid",
         )
 
-    design_session.current_intent = current_intent
-    design_session.current_plan = current_plan
-    design_session.seed = seed
-    design_session.colorway = colorway_id
-    design_session.registry_version = log.registry_version
-    design_session.context_version += 1
+    return _ResolvedDesignCandidate(
+        log=log,
+        design_index=design_index,
+        intent=current_intent,
+        plan=current_plan,
+        seed=seed,
+        colorway_id=colorway_id,
+    )
+
+
+@router.post(
+    "/design/sessions/{session_id}/branch",
+    response_model=DesignSessionOut,
+    status_code=201,
+)
+async def branch_design_session(
+    session_id: uuid.UUID,
+    body: DesignSelectionRequest,
+    session: SessionDep,
+    user: CurrentUser,
+) -> DesignSessionOut:
+    """Start a new linear conversation from any successful candidate in an owned session."""
+
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
+    source_session = await session.scalar(
+        select(DesignSession).where(DesignSession.id == session_id).with_for_update()
+    )
+    ensure_owner(source_session, user)
+    assert source_session is not None
+
+    source_turns = list(
+        await session.scalars(
+            select(DesignSessionTurn)
+            .where(
+                DesignSessionTurn.session_id == source_session.id,
+                DesignSessionTurn.payload["run_id"].astext == str(body.run_id),
+            )
+            .order_by(DesignSessionTurn.seq)
+        )
+    )
+    request_turn = next(
+        (
+            turn
+            for turn in source_turns
+            if turn.role == "user" and turn.payload.get("type") == "generate_request"
+        ),
+        None,
+    )
+    assistant_turn = next(
+        (
+            turn
+            for turn in source_turns
+            if turn.role == "assistant"
+            and turn.payload.get("type") == "generate"
+            and turn.payload.get("status") == "succeeded"
+        ),
+        None,
+    )
+    if request_turn is None or assistant_turn is None:
+        raise ConflictError(
+            "분기할 생성 결과를 찾을 수 없습니다",
+            code="design_result_unavailable",
+        )
+
+    resolved = await _resolve_design_candidate(
+        session,
+        run_id=body.run_id,
+        candidate_id=body.candidate_id,
+    )
+    # A branched session intentionally reuses the immutable source log instead of
+    # duplicating it. The server-authored assistant turn above binds that log to this
+    # session; log.user_id remains the ownership boundary across repeated branches.
+    if resolved.log.user_id != user.id:
+        raise ConflictError(
+            "분기할 생성 결과의 소유권을 확인할 수 없습니다",
+            code="design_result_unavailable",
+        )
+    await _ensure_intent_motif_access(
+        resolved.intent,
+        session=session,
+        user_id=user.id,
+        design_session_id=source_session.id,
+    )
+    try:
+        request_payload = DesignUserGenerationPayload.model_validate(request_turn.payload)
+        assistant_payload = DesignAssistantGenerationPayload.model_validate(assistant_turn.payload)
+    except ValidationError as exc:
+        raise ConflictError(
+            "분기할 대화 기록을 복원할 수 없습니다",
+            code="design_result_invalid",
+        ) from exc
+
+    branched_session = DesignSession(
+        user_id=user.id,
+        status="active",
+        seed=resolved.seed,
+        colorway=resolved.colorway_id,
+        registry_version=resolved.log.registry_version,
+        current_intent=resolved.intent,
+        current_plan=resolved.plan,
+        context_version=1,
+        active_generation_id=None,
+        active_generation_started_at=None,
+        recraft_used=0,
+    )
+    session.add(branched_session)
+    await session.flush()
+    copied_request = await _append_turn(
+        session,
+        branched_session.id,
+        "user",
+        request_payload,
+    )
+    attachments = list(
+        await session.scalars(
+            select(DesignTurnAttachment)
+            .where(DesignTurnAttachment.turn_id == request_turn.id)
+            .order_by(DesignTurnAttachment.ordinal)
+        )
+    )
+    for attachment in attachments:
+        session.add(
+            DesignTurnAttachment(
+                turn_id=copied_request.id,
+                kind=attachment.kind,
+                image_id=attachment.image_id,
+                motif_id=attachment.motif_id,
+                purpose=attachment.purpose,
+                filename=attachment.filename,
+                ordinal=attachment.ordinal,
+            )
+        )
     await _append_turn(
         session,
-        design_session.id,
+        branched_session.id,
+        "assistant",
+        assistant_payload,
+    )
+    await _append_turn(
+        session,
+        branched_session.id,
         "user",
         DesignSelectionTurnPayload(
             run_id=body.run_id,
             candidate_id=body.candidate_id,
-            design_index=design_index,
-            seed=seed,
-            colorway_id=colorway_id,
+            design_index=resolved.design_index,
+            seed=resolved.seed,
+            colorway_id=resolved.colorway_id,
         ),
     )
     await session.commit()
-    await session.refresh(design_session)
-    return DesignSessionOut.model_validate(design_session)
+    await session.refresh(branched_session)
+    return DesignSessionOut.model_validate(branched_session)
 
 
 def _generation_attachment_refs(

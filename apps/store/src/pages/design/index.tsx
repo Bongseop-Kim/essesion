@@ -95,6 +95,7 @@ import {
   restoreDesignSelection,
 } from "@/features/design/model/selection";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
+import { latestSubmittedCandidateCount } from "@/features/design/model/turn-payload";
 import {
   useDeleteDesignSession,
   useDeleteFinalizedJob,
@@ -109,7 +110,10 @@ import {
   StaleDesignOperationError,
   useGenerateDesign,
 } from "@/features/design/model/use-generate";
-import { useDesignSelection } from "@/features/design/model/use-selection";
+import {
+  useDesignBranch,
+  useDesignSelection,
+} from "@/features/design/model/use-selection";
 import { ColorSettingsModal } from "@/features/design/ui/color-settings-modal";
 import {
   type ComposerAttachment,
@@ -283,6 +287,7 @@ export function DesignPage() {
     },
   });
   const selectionMutation = useDesignSelection();
+  const branchMutation = useDesignBranch();
   const finalizeMutation = useCreateFinalizeJob();
   const deleteSessionMutation = useDeleteDesignSession();
   const deleteJobMutation = useDeleteFinalizedJob();
@@ -310,6 +315,17 @@ export function DesignPage() {
       setActiveSessionId(sessionsQuery.data[0].id);
     }
   }, [activeSessionId, authenticated, newSessionMode, sessionsQuery.data]);
+
+  useEffect(() => {
+    if (!activeSessionId || newSessionMode) {
+      setCandidateCount(DEFAULT_CANDIDATE_COUNT);
+      return;
+    }
+    if (!turnsQuery.data) return;
+    setCandidateCount((current) =>
+      latestSubmittedCandidateCount(turnsQuery.data ?? [], current),
+    );
+  }, [activeSessionId, newSessionMode, turnsQuery.data]);
 
   const restoredSelection = useMemo(() => {
     if (!sessionQuery.data || !turnsQuery.data) return null;
@@ -376,7 +392,6 @@ export function DesignPage() {
 
   const resetComposerDraft = () => {
     setPrompt("");
-    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setPalette(AUTO_DESIGN_PALETTE);
     setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
     clearComposerAttachments();
@@ -385,7 +400,6 @@ export function DesignPage() {
   const resetVariationControls = () => {
     // A variation rerolls the selected intent. Prompt, photos, and exact motifs are
     // not part of that request, so keep that separate composer draft intact.
-    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setPalette(AUTO_DESIGN_PALETTE);
     setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
   };
@@ -572,6 +586,7 @@ export function DesignPage() {
     selectionEpoch.invalidate();
     generateMutation.reset();
     selectionMutation.reset();
+    branchMutation.reset();
   };
 
   const generatePrompt = async () => {
@@ -680,6 +695,7 @@ export function DesignPage() {
   const selectCandidate = async (
     runId: string,
     candidate: TurnCandidate,
+    action: "select" | "branch",
     event?: MouseEvent<HTMLButtonElement>,
   ) => {
     // guard 실패는 전부 첫 await 이전(동기)이라 preventDefault로 타일 메뉴 오픈까지 막는다.
@@ -688,11 +704,34 @@ export function DesignPage() {
       return;
     }
     const sessionId = activeSessionId;
+    if (action === "branch") {
+      const operation = selectionEpoch.begin();
+      try {
+        const branchedSession = await branchMutation.mutateAsync({
+          sessionId,
+          runId,
+          candidate,
+        });
+        if (!selectionEpoch.isCurrent(operation)) return;
+        resetComposerDraft();
+        setActiveSessionId(branchedSession.id);
+        setNewSessionMode(false);
+        setSelectionOverride(null);
+        setResultPreview(null);
+        snackbar("이 후보에서 새 대화를 시작했어요.");
+      } catch {
+        if (!selectionEpoch.isCurrent(operation)) return;
+        snackbar("새 대화를 시작하지 못했습니다. 다시 시도해 주세요.");
+      }
+      return;
+    }
     // 이미 선택된 후보 재탭 — 저장할 변화가 없다(메뉴 오픈은 그대로 진행).
-    if (selection?.candidateId === candidate.id) return;
+    if (selection?.runId === runId && selection.candidateId === candidate.id)
+      return;
     const operation = selectionEpoch.begin();
     const next: DesignSelection = {
       candidate,
+      runId,
       candidateId: candidate.id,
       designIndex: candidate.design_index,
       intent: null,
@@ -726,6 +765,7 @@ export function DesignPage() {
       if (!selectionEpoch.isCurrent(operation)) return;
       setSelectionOverride((current) =>
         current?.sessionId === sessionId &&
+        current.selection.runId === next.runId &&
         current.selection.candidateId === next.candidateId
           ? null
           : current,
@@ -843,6 +883,7 @@ export function DesignPage() {
     if (!pending || !ensureDesignAuth()) return;
     invalidateSessionOperations();
     resetComposerDraft();
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setActiveSessionId(pending.sessionId);
     setNewSessionMode(false);
     setResultPreview(null);
@@ -853,6 +894,7 @@ export function DesignPage() {
   const startNewSession = () => {
     invalidateSessionOperations();
     resetComposerDraft();
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setActiveSessionId(null);
     setNewSessionMode(true);
     setSelectionOverride(null);
@@ -862,6 +904,7 @@ export function DesignPage() {
   const chooseSession = (sessionId: string) => {
     invalidateSessionOperations();
     resetComposerDraft();
+    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
     setActiveSessionId(sessionId);
     setNewSessionMode(false);
     setSelectionOverride(null);
@@ -921,6 +964,7 @@ export function DesignPage() {
           // 삭제된 세션이 열려 있었다면 초기화 — 목록 갱신 후 최신 세션이 자동 선택된다.
           invalidateSessionOperations();
           resetComposerDraft();
+          setCandidateCount(DEFAULT_CANDIDATE_COUNT);
           setActiveSessionId(null);
           setSelectionOverride(null);
           setResultPreview(null);
@@ -1062,13 +1106,15 @@ export function DesignPage() {
             >
               <TurnFeed
                 turns={visibleTurns}
+                selectedRunId={selection?.runId}
                 selectedCandidateId={selection?.candidateId}
+                candidateActionsDisabled={branchMutation.isPending}
                 loading={!!activeSessionId && turnsQuery.isPending}
                 generating={generateMutation.isPending}
                 error={!!activeSessionId && turnsQuery.isError}
                 onRetry={() => void turnsQuery.refetch()}
-                onSelectCandidate={(runId, candidate, event) =>
-                  void selectCandidate(runId, candidate, event)
+                onSelectCandidate={(runId, candidate, action, event) =>
+                  void selectCandidate(runId, candidate, action, event)
                 }
                 candidateMenu={compactPreview ? candidateMenu : undefined}
                 renderFinalizeTurn={(payload) => (

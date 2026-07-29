@@ -1,4 +1,5 @@
 import {
+  branchDesignSession,
   type DesignSessionOut,
   selectDesignCandidate,
 } from "@essesion/api-client";
@@ -47,6 +48,27 @@ export function useDesignSelection() {
       ]);
 
       return { session };
+    },
+  });
+}
+
+export function useDesignBranch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: SelectDesignInput): Promise<DesignSessionOut> => {
+      const { data: session } = await branchDesignSession({
+        path: { session_id: input.sessionId },
+        body: {
+          run_id: input.runId,
+          candidate_id: input.candidate.id,
+        },
+        throwOnError: true,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: listDesignSessionsQueryKey(),
+      });
+      return session;
     },
   });
 }

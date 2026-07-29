@@ -32,7 +32,7 @@ const generateRequestPayloadSchema = z
     prompt: z.string().nullable(),
     seed: z.number().int().nullable(),
     colorway: z.string().nullable(),
-    candidate_count: z.number().int().positive(),
+    candidate_count: z.number().int().min(1).max(4),
     palette: paletteSchema.optional(),
     pattern_constraints: patternConstraintsSchema.optional(),
   })
@@ -66,6 +66,7 @@ const generateErrorPayloadSchema = z
 const selectPayloadSchema = z
   .object({
     type: z.literal("select"),
+    run_id: z.string().uuid(),
     candidate_id: z.string().min(1),
     design_index: z.number().int().nonnegative(),
     seed: z.number().int(),
@@ -97,4 +98,17 @@ export function parseDesignTurnPayload(
 ): DesignTurnPayload | null {
   const parsed = designTurnPayloadSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
+}
+
+export function latestSubmittedCandidateCount(
+  turns: ReadonlyArray<{ payload: unknown }>,
+  fallback: number,
+): number {
+  for (let index = turns.length - 1; index >= 0; index -= 1) {
+    const payload = parseDesignTurnPayload(turns[index]?.payload);
+    if (payload?.type === "generate_request") {
+      return payload.candidate_count;
+    }
+  }
+  return fallback;
 }

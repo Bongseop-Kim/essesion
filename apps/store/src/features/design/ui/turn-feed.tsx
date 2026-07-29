@@ -29,7 +29,7 @@ import {
   type DesignTurnPayload,
   parseDesignTurnPayload,
 } from "../model/turn-payload";
-import { localizeDesignWarnings } from "../model/warnings";
+import { getDesignWarningNotice } from "../model/warnings";
 import {
   CandidateGrid,
   CandidateGridSkeleton,
@@ -48,7 +48,9 @@ export type FinalizeTurnPayload = Extract<
 
 export type TurnFeedProps = {
   turns: readonly DesignTurnOut[];
+  selectedRunId?: string | null;
   selectedCandidateId?: string | null;
+  candidateActionsDisabled?: boolean;
   loading?: boolean;
   generating?: boolean;
   error?: boolean;
@@ -56,6 +58,7 @@ export type TurnFeedProps = {
   onSelectCandidate: (
     runId: string,
     candidate: TurnCandidate,
+    action: "select" | "branch",
     event: MouseEvent<HTMLButtonElement>,
   ) => void;
   renderFinalizeTurn: (payload: FinalizeTurnPayload) => ReactNode;
@@ -65,7 +68,9 @@ export type TurnFeedProps = {
 
 export function TurnFeed({
   turns,
+  selectedRunId,
   selectedCandidateId,
+  candidateActionsDisabled = false,
   loading = false,
   generating = false,
   error = false,
@@ -150,11 +155,13 @@ export function TurnFeed({
               payload={payload}
               createdAt={turn.created_at}
               attachments={turn.attachments ?? []}
+              selectedRunId={selectedRunId}
               selectedCandidateId={selectedCandidateId}
-              candidateSelectionEnabled={
-                payload?.type !== "generate" ||
-                payload.response.run_id === latestSelectableRunId
+              historicalCandidate={
+                payload?.type === "generate" &&
+                payload.response.run_id !== latestSelectableRunId
               }
+              candidateActionsDisabled={candidateActionsDisabled}
               onSelectCandidate={onSelectCandidate}
               renderFinalizeTurn={renderFinalizeTurn}
               candidateMenu={candidateMenu}
@@ -183,8 +190,10 @@ function TurnItem({
   payload,
   createdAt,
   attachments,
+  selectedRunId,
   selectedCandidateId,
-  candidateSelectionEnabled,
+  historicalCandidate,
+  candidateActionsDisabled,
   onSelectCandidate,
   renderFinalizeTurn,
   candidateMenu,
@@ -192,8 +201,10 @@ function TurnItem({
   payload: DesignTurnPayload | null;
   createdAt: string;
   attachments: readonly DesignTurnAttachmentOut[];
+  selectedRunId?: string | null;
   selectedCandidateId?: string | null;
-  candidateSelectionEnabled: boolean;
+  historicalCandidate: boolean;
+  candidateActionsDisabled: boolean;
   onSelectCandidate: TurnFeedProps["onSelectCandidate"];
   renderFinalizeTurn: TurnFeedProps["renderFinalizeTurn"];
   candidateMenu?: ReactNode;
@@ -296,20 +307,23 @@ function TurnItem({
         id: candidate.id,
         imageSrc: svgToDataUri(candidate.svg),
         alt: `AI 디자인 후보 ${index + 1}`,
+        label: historicalCandidate
+          ? `디자인 후보 ${index + 1}, 새 대화로 이어가기`
+          : undefined,
       }),
     );
     return (
       <CandidateGrid
         candidates={candidates}
-        selectedId={selectedCandidateId}
-        warnings={localizeDesignWarnings(payload.response.warnings)}
-        disabled={!candidateSelectionEnabled}
-        menu={candidateSelectionEnabled ? candidateMenu : undefined}
+        selectedId={
+          selectedRunId === payload.response.run_id
+            ? selectedCandidateId
+            : undefined
+        }
+        notice={getDesignWarningNotice(payload.response.warnings)}
+        disabled={candidateActionsDisabled}
+        menu={historicalCandidate ? undefined : candidateMenu}
         onSelect={(selected, event) => {
-          if (!candidateSelectionEnabled) {
-            event.preventDefault();
-            return;
-          }
           const candidate = payload.response.candidates.find(
             (item) => item.id === selected.id,
           );
@@ -317,7 +331,12 @@ function TurnItem({
             event.preventDefault();
             return;
           }
-          onSelectCandidate(payload.response.run_id, candidate, event);
+          onSelectCandidate(
+            payload.response.run_id,
+            candidate,
+            historicalCandidate ? "branch" : "select",
+            event,
+          );
         }}
       />
     );

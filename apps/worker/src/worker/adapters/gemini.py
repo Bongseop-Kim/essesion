@@ -35,6 +35,7 @@ from worker.authoring.schema import (
     MAX_STRUCTURE_LAYERS,
     DesignPlansV3,
     DesignPlanV3,
+    StripeLayerPlan,
     motif_source_signature,
     structural_fingerprint,
 )
@@ -83,6 +84,8 @@ class _RefinePermissions:
     motifs: bool
     stripes: bool
     motif_geometry: bool
+    motif_size: bool
+    motif_placement: bool
     add_stripes: bool
 
 
@@ -101,11 +104,15 @@ _COLOR_WORDS = re.compile(
 )
 _STRIPE_WORDS = re.compile(r"(스트라이프|줄무늬|stripe|band)", re.IGNORECASE)
 _MOTIF_WORDS = re.compile(r"(모티프|무늬|도형|형태|주제|subject|motif|shape|icon)", re.IGNORECASE)
-_GEOMETRY_WORDS = re.compile(
-    r"(배치|간격|밀도|크기|방향|회전|격자|산개|흩|도트|점|대각|세로|가로|"
-    r"layout|spacing|density|scale|size|direction|rotation|lattice|scatter|"
-    r"dot|diagonal|vertical|horizontal)",
+_SIZE_WORDS = re.compile(r"(크기|크게|작게|scale|size)", re.IGNORECASE)
+_PLACEMENT_WORDS = re.compile(
+    r"(배치|간격|밀도|방향|회전|격자|산개|흩|도트|점|대각|세로|가로|"
+    r"layout|spacing|density|direction|rotation|lattice|scatter|dot|"
+    r"diagonal|vertical|horizontal)",
     re.IGNORECASE,
+)
+_GEOMETRY_WORDS = re.compile(
+    rf"(?:{_SIZE_WORDS.pattern}|{_PLACEMENT_WORDS.pattern})", re.IGNORECASE
 )
 _ADD_WORDS = re.compile(r"(추가|더|넣어|add|another|extra)", re.IGNORECASE)
 _CATEGORY_TO_PRESERVE_GAP = re.compile(
@@ -157,12 +164,20 @@ def _refine_permissions(
     motif_geometry = bool(
         geometry_mentioned and change_requested and (motif_mentioned or not stripe_mentioned)
     )
-    motifs = motif_mentioned and change_requested
+    motifs = motif_mentioned and change_requested and not geometry_mentioned and not colors
 
     # "나비로 바꿔" has no literal "motif" word. A bare replacement request that is not
     # clearly about color/stripe/layout is treated as a subject replacement.
     replacement = bool(re.search(r"(로|으로)\s*(바꿔|바꾸|변경)|replace\s+with", prompt, re.I))
-    if replacement and not (colors or stripes or motif_geometry):
+    explicit_motif_replacement = bool(
+        re.search(
+            r"(모티프|무늬|도형|형태|주제|subject|motif|shape|icon)"
+            r"(?:로|으로)\s*(바꿔|바꾸|변경)",
+            prompt,
+            re.I,
+        )
+    )
+    if explicit_motif_replacement or (replacement and not (colors or stripes or motif_geometry)):
         motifs = True
 
     if _category_is_preserved(prompt, _COLOR_WORDS):
@@ -179,11 +194,26 @@ def _refine_permissions(
     if pattern_constraints is not None:
         motif_geometry = motif_geometry or not pattern_constraints.is_automatic()
 
+    motif_size = motif_geometry and bool(_SIZE_WORDS.search(prompt))
+    motif_placement = motif_geometry and bool(_PLACEMENT_WORDS.search(prompt))
+    if pattern_constraints is not None:
+        motif_size = motif_size or pattern_constraints.motif_scale != "auto"
+        motif_placement = motif_placement or any(
+            value != "auto"
+            for value in (
+                pattern_constraints.density,
+                pattern_constraints.arrangement,
+                pattern_constraints.direction,
+            )
+        )
+
     return _RefinePermissions(
         colors=colors,
         motifs=motifs,
         stripes=stripes,
         motif_geometry=motif_geometry,
+        motif_size=motif_size,
+        motif_placement=motif_placement,
         add_stripes=stripes and bool(_ADD_WORDS.search(prompt)),
     )
 
@@ -381,7 +411,72 @@ def _preserve_refine_plan(
         result = DesignPlanV3.model_validate(evolved)
         if "layers" not in restored:
             restored.append("layers")
+    _ensure_requested_refine_changes(current, result, permissions)
     return result, restored
+
+
+def _ensure_requested_refine_changes(
+    current: DesignPlanV3,
+    evolved: DesignPlanV3,
+    permissions: _RefinePermissions,
+) -> None:
+    """Reject a refine response that ignored a category the user asked to change."""
+
+    missing: list[str] = []
+    base_motifs = [layer for layer in current.layers if layer.type == "motif"]
+    changed_motifs = [layer for layer in evolved.layers if layer.type == "motif"]
+    base_stripes = [layer for layer in current.layers if layer.type == "stripe"]
+    changed_stripes = [layer for layer in evolved.layers if layer.type == "stripe"]
+
+    base_colors = (
+        current.colors,
+        current.ground_color_index,
+        [[band.color_index for band in layer.bands] for layer in base_stripes],
+        [layer.color_indices for layer in base_motifs],
+    )
+    changed_colors = (
+        evolved.colors,
+        evolved.ground_color_index,
+        [[band.color_index for band in layer.bands] for layer in changed_stripes],
+        [layer.color_indices for layer in changed_motifs],
+    )
+    if permissions.colors and base_colors == changed_colors:
+        missing.append("colors")
+    if permissions.motifs and (
+        current.motifs,
+        [layer.motif_index for layer in base_motifs],
+    ) == (
+        evolved.motifs,
+        [layer.motif_index for layer in changed_motifs],
+    ):
+        missing.append("motifs")
+    if permissions.motif_size and [layer.size_ratio for layer in base_motifs] == [
+        layer.size_ratio for layer in changed_motifs
+    ]:
+        missing.append("motif size")
+    if permissions.motif_placement and [layer.placement for layer in base_motifs] == [
+        layer.placement for layer in changed_motifs
+    ]:
+        missing.append("motif placement")
+
+    def stripe_geometry(
+        layer: StripeLayerPlan,
+    ) -> tuple[str, float, list[tuple[float, float]]]:
+        return (
+            layer.direction,
+            layer.period_ratio,
+            [(band.offset_ratio, band.width_ratio) for band in layer.bands],
+        )
+
+    if permissions.stripes and [stripe_geometry(layer) for layer in base_stripes] == [
+        stripe_geometry(layer) for layer in changed_stripes
+    ]:
+        missing.append("stripes")
+    if permissions.add_stripes and len(changed_stripes) <= len(base_stripes):
+        missing.append("added stripe layer")
+
+    if missing:
+        raise ValueError("requested refine change was not applied: " + ", ".join(missing))
 
 
 def prepare_reference_image(

@@ -614,7 +614,7 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
     proposed["layers"][0]["placement"]["columns"] = 7
     proposed["layers"].append(examples[1].plan.model_dump(mode="json")["layers"][0])
 
-    client, sdk = _gemini(proposed)
+    client, sdk = _gemini(current.model_dump(mode="json"), proposed)
     diagnostics: dict[str, object] = {}
     designs = await client.author_designs(
         "스트라이프를 추가해줘",
@@ -640,6 +640,7 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
     )
     assert len([layer for layer in evolved.layers if layer.type == "stripe"]) == 1
     assert diagnostics["authoring_mode"] == "refine"
+    assert len(sdk.models.generate_calls) == 2
     assert set(cast(list[str], diagnostics["preserve_restored_sections"])) == {
         "palette",
         "motifs",
@@ -647,6 +648,57 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
     }
     response_schema = sdk.models.generate_calls[0]["config"].response_schema
     assert '"plans"' not in json.dumps(response_schema)
+
+
+async def test_refine_retries_when_requested_color_change_is_ignored():
+    current = load_example_set()[1].plan
+    unchanged = current.model_dump(mode="json")
+    changed = current.model_dump(mode="json")
+    changed["colors"][0] = "#800000"
+    changed["colors"][1] = "#FFFFF0"
+    client, sdk = _gemini(unchanged, changed)
+
+    designs = await client.author_designs(
+        "색상만 바꿔줘. 배경은 버건디, 벌은 아이보리로 해줘. 모티프는 유지해.",
+        current_plan=current,
+    )
+
+    assert len(sdk.models.generate_calls) == 2
+    assert designs[0].plan is not None
+    assert designs[0].plan["colors"][:2] == ["#800000", "#FFFFF0"]
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "requested refine change was not applied: colors" in retry_prompt
+
+
+async def test_refine_retries_when_requested_motif_geometry_change_is_ignored():
+    raw_current = load_example_set()[5].plan.model_dump(mode="json")
+    raw_current["motifs"] = [{"source": "catalog", "catalog_ref": "current_motif_1"}]
+    current = DesignPlanV3.model_validate(raw_current)
+    unchanged = current.model_dump(mode="json")
+    changed = current.model_dump(mode="json")
+    motif_layer = next(layer for layer in changed["layers"] if layer["type"] == "motif")
+    motif_layer["placement"]["columns"] -= 1
+    motif_layer["placement"]["rows"] -= 1
+    client, sdk = _gemini(unchanged, changed)
+
+    designs = await client.author_designs(
+        "간격을 더 넓혀 여유로운 반복으로 바꿔줘. 모티프는 유지해.",
+        current_plan=current,
+        catalog_candidates=[
+            {
+                "catalog_ref": "current_motif_1",
+                "motif_id": "circle",
+                "subject": "committed motif 1",
+                "current": True,
+            }
+        ],
+    )
+
+    assert len(sdk.models.generate_calls) == 2
+    assert designs[0].plan is not None
+    assert designs[0].plan["layers"] != current.model_dump(mode="json")["layers"]
+    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    assert "requested refine change was not applied: motif placement" in retry_prompt
 
 
 def test_refine_layer_merge_caps_allowed_layers_and_preserves_base_layers():
@@ -708,6 +760,53 @@ def test_refine_geometry_permission_is_scoped_to_motif_request():
     assert all(item.motif_geometry is False for item in stripe_permissions)
     assert preserved_motif_permissions.colors is True
     assert preserved_motif_permissions.motif_geometry is False
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        (
+            "색상만 바꿔줘. 배경은 버건디, 벌은 아이보리로 해줘. "
+            "모티프는 유지해. 크기와 배치와 간격은 유지해.",
+            (True, False, False, False, False),
+        ),
+        (
+            "간격을 더 넓혀 여유로운 반복으로 바꿔줘. "
+            "색상은 그대로 유지해. 모티프는 그대로 유지해.",
+            (False, False, False, True, False),
+        ),
+        (
+            "벌을 작은 별 모티프로 바꿔줘. 색상은 그대로 유지해. "
+            "크기와 배치와 간격은 그대로 유지해.",
+            (False, True, False, False, False),
+        ),
+        (
+            "얇은 대각 스트라이프 두 줄만 추가해줘. 색상은 그대로 유지해. "
+            "별 모티프는 그대로 유지해. 모티프의 크기와 배치와 간격은 그대로 유지해.",
+            (False, False, True, False, True),
+        ),
+    ],
+)
+def test_refine_permissions_match_manual_a2_to_a5_scenarios(
+    prompt: str,
+    expected: tuple[bool, bool, bool, bool, bool],
+):
+    permissions = _refine_permissions(
+        prompt,
+        palette_constraint=None,
+        pattern_constraints=None,
+    )
+
+    assert (
+        permissions.colors,
+        permissions.motifs,
+        permissions.stripes,
+        permissions.motif_geometry,
+        permissions.add_stripes,
+    ) == expected
+    if "간격을 더 넓혀" in prompt:
+        assert permissions.motif_size is False
+        assert permissions.motif_placement is True
 
 
 def test_refine_motif_replacement_restores_unrequested_geometry_and_colors():

@@ -12334,6 +12334,36 @@ export type GetDesignSessionResponses = {
 
 export type GetDesignSessionResponse = GetDesignSessionResponses[keyof GetDesignSessionResponses];
 
+export type BranchDesignSessionData = {
+    body: DesignSelectionRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/branch';
+};
+
+export type BranchDesignSessionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BranchDesignSessionError = BranchDesignSessionErrors[keyof BranchDesignSessionErrors];
+
+export type BranchDesignSessionResponses = {
+    /**
+     * Successful Response
+     */
+    201: DesignSessionOut;
+};
+
+export type BranchDesignSessionResponse = BranchDesignSessionResponses[keyof BranchDesignSessionResponses];
+
 export type CreateFinalizeJobData = {
     body: FinalizeRequest;
     path: {

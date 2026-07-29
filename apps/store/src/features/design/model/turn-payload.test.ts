@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseDesignTurnPayload } from "./turn-payload";
+import {
+  latestSubmittedCandidateCount,
+  parseDesignTurnPayload,
+} from "./turn-payload";
 
 describe("parseDesignTurnPayload", () => {
   it("generate_request payload를 파싱한다", () => {
@@ -72,6 +75,7 @@ describe("parseDesignTurnPayload", () => {
   it("select payload를 파싱한다", () => {
     const payload = {
       type: "select",
+      run_id: "550e8400-e29b-41d4-a716-446655440000",
       candidate_id: "candidate-1",
       design_index: 0,
       seed: 42,
@@ -110,5 +114,38 @@ describe("parseDesignTurnPayload", () => {
         },
       }),
     ).toBeNull();
+  });
+});
+
+describe("latestSubmittedCandidateCount", () => {
+  it("대화의 마지막 제출값을 복원하고 새 대화 기본값을 사용한다", () => {
+    expect(
+      latestSubmittedCandidateCount(
+        [
+          {
+            payload: {
+              type: "generate_request",
+              mode: "prompt",
+              prompt: "첫 요청",
+              seed: null,
+              colorway: null,
+              candidate_count: 1,
+            },
+          },
+          {
+            payload: {
+              type: "generate_request",
+              mode: "prompt",
+              prompt: "두 번째 요청",
+              seed: null,
+              colorway: null,
+              candidate_count: 3,
+            },
+          },
+        ],
+        4,
+      ),
+    ).toBe(3);
+    expect(latestSubmittedCandidateCount([], 4)).toBe(4);
   });
 });

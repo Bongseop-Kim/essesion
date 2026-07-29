@@ -1,43 +1,42 @@
 import { describe, expect, it } from "vitest";
 
-import { localizeDesignWarnings } from "./warnings";
+import { getDesignWarningNotice } from "./warnings";
 
-describe("localizeDesignWarnings", () => {
-  it("워커 영문 경고를 한국어 안내로 변환한다", () => {
+describe("getDesignWarningNotice", () => {
+  it("부분 생성 원인과 해결 방향 한 건을 가장 먼저 안내한다", () => {
     expect(
-      localizeDesignWarnings([
-        "2 candidate variant(s) failed to render and were dropped",
-        "diversity shortfall: 1 distinct layout(s) < required 2",
-        "partial: 3 candidate(s) available after de-dup (requested 4)",
-        "design 1 dropped: IntentInvalid('bad palette')",
+      getDesignWarningNotice([
+        "motif spacing_mm 3.2 snapped to 3.0",
         "color #ff0000 in colorway 'main' likely outside CMYK gamut",
-        "preview upload skipped",
+        "partial: 1 candidate(s) available after de-dup (requested 4)",
       ]),
-    ).toEqual([
-      "일부 시안이 렌더링에 실패해 제외됐어요.",
-      "비슷한 구성이 많아 서로 다른 시안을 충분히 만들지 못했어요.",
-      "요청한 4개 중 3개의 시안만 생성됐어요.",
-      "일부 디자인이 조건에 맞지 않아 제외됐어요.",
-      "일부 색상은 실제 인쇄에서 화면과 다르게 보일 수 있어요.",
-      "일부 미리보기 저장을 건너뛰었어요. 시안 확인에는 영향이 없어요.",
-    ]);
+    ).toEqual({
+      title: "후보를 1개만 만들었어요",
+      description:
+        "요청 조건으로는 서로 다른 시안을 충분히 만들기 어려웠어요. 조건을 조금 단순하게 하거나 후보 수를 줄여 다시 시도해 보세요.",
+    });
   });
 
-  it("알 수 없는 경고는 일반 문구로 폴백하고 중복을 제거한다", () => {
+  it("인쇄 색역 경고만 있으면 색상 조정 방법을 안내한다", () => {
     expect(
-      localizeDesignWarnings([
-        "something unexpected",
-        "another unknown warning",
-        "diversity shortfall: 1 distinct design(s) < required 2",
+      getDesignWarningNotice([
+        "color #ff0000 in colorway 'main' likely outside CMYK gamut",
       ]),
-    ).toEqual([
-      "일부 결과 생성에 제약이 있었어요.",
-      "비슷한 구성이 많아 서로 다른 시안을 충분히 만들지 못했어요.",
-    ]);
+    ).toEqual({
+      title: "인쇄하면 색이 다르게 보일 수 있어요",
+      description:
+        "채도가 높은 색을 조금 낮추면 화면과 인쇄물의 차이를 줄일 수 있어요.",
+    });
   });
 
-  it("경고가 없으면 빈 목록을 반환한다", () => {
-    expect(localizeDesignWarnings(undefined)).toEqual([]);
-    expect(localizeDesignWarnings([])).toEqual([]);
+  it("자동 보정·내부 처리·알 수 없는 경고는 노출하지 않는다", () => {
+    expect(
+      getDesignWarningNotice([
+        "motif spacing_mm 3.2 snapped to 3.0",
+        "preview upload skipped",
+        "something unexpected",
+      ]),
+    ).toBeNull();
+    expect(getDesignWarningNotice(undefined)).toBeNull();
   });
 });

@@ -79,7 +79,7 @@ describe("TurnFeed generation context", () => {
     expect(screen.queryByText("후보 3개")).toBeNull();
   });
 
-  it("최신 성공 run의 후보만 선택할 수 있다", () => {
+  it("최신 후보는 선택하고 과거 후보는 새 대화 분기로 전달한다", () => {
     const onSelectCandidate = vi.fn();
     const makeTurn = (
       seq: number,
@@ -122,25 +122,78 @@ describe("TurnFeed generation context", () => {
       />,
     );
 
-    const candidates = screen.getAllByRole("button", {
+    const olderCandidate = screen.getByRole("button", {
+      name: "디자인 후보 1, 새 대화로 이어가기",
+    });
+    const latestCandidate = screen.getByRole("button", {
       name: "디자인 후보 1",
     });
-    const olderCandidate = candidates.at(0);
-    const latestCandidate = candidates.at(1);
-    if (!olderCandidate || !latestCandidate) {
-      throw new Error("expected one candidate from each successful run");
-    }
-    expect(olderCandidate.hasAttribute("disabled")).toBe(true);
+    expect(olderCandidate.hasAttribute("disabled")).toBe(false);
     expect(latestCandidate.hasAttribute("disabled")).toBe(false);
 
     fireEvent.click(olderCandidate);
     fireEvent.click(latestCandidate);
 
-    expect(onSelectCandidate).toHaveBeenCalledOnce();
-    expect(onSelectCandidate).toHaveBeenCalledWith(
-      latestRunId,
-      expect.objectContaining({ id: "latest-candidate" }),
+    expect(onSelectCandidate).toHaveBeenCalledTimes(2);
+    expect(onSelectCandidate).toHaveBeenNthCalledWith(
+      1,
+      olderRunId,
+      expect.objectContaining({ id: "older-candidate" }),
+      "branch",
       expect.anything(),
     );
+    expect(onSelectCandidate).toHaveBeenNthCalledWith(
+      2,
+      latestRunId,
+      expect.objectContaining({ id: "latest-candidate" }),
+      "select",
+      expect.anything(),
+    );
+  });
+
+  it("선택 표시는 run과 candidate ID가 모두 일치할 때만 보인다", () => {
+    const runIds = [
+      "77777777-7777-4777-8777-777777777777",
+      "88888888-8888-4888-8888-888888888888",
+    ];
+    const turns = runIds.map(
+      (runId, index): DesignTurnOut => ({
+        id: `turn-${index}`,
+        seq: index + 1,
+        role: "assistant",
+        created_at: "2026-07-19T00:00:00Z",
+        payload: {
+          type: "generate",
+          response: {
+            run_id: runId,
+            candidates: [
+              {
+                id: "same-candidate",
+                design_index: 0,
+                seed: index,
+                colorway_id: "default",
+                svg: "<svg/>",
+              },
+            ],
+            warnings: [],
+          },
+        },
+        attachments: [],
+      }),
+    );
+
+    render(
+      <TurnFeed
+        turns={turns}
+        selectedRunId={runIds[1]}
+        selectedCandidateId="same-candidate"
+        onSelectCandidate={vi.fn()}
+        renderFinalizeTurn={() => null}
+      />,
+    );
+
+    const candidates = screen.getAllByRole("button");
+    expect(candidates[0]?.getAttribute("aria-pressed")).toBe("false");
+    expect(candidates[1]?.getAttribute("aria-pressed")).toBe("true");
   });
 });

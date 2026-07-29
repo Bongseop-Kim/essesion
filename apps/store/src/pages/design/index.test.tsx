@@ -386,7 +386,7 @@ describe("DesignPage composer lifecycle", () => {
     await waitFor(() => expect(api.generate).toHaveBeenCalledTimes(2));
     await waitFor(() => {
       expect(page.composer?.prompt).toBe("");
-      expect(page.composer?.candidateCount).toBe(4);
+      expect(page.composer?.candidateCount).toBe(3);
       expect(page.composer?.attachments).toEqual([]);
       expect(page.composer?.paletteColors).toBeUndefined();
       expect(page.composer?.patternSummary).toEqual([]);

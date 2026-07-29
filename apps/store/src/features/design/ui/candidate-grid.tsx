@@ -25,18 +25,20 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import type { DesignWarningNotice } from "../model/warnings";
 
 export type DesignCandidate = {
   id: string;
   /** Sanitized SVG encoded as a data URI. */
   imageSrc: string;
   alt?: string;
+  label?: string;
 };
 
 export type CandidateGridProps = {
   candidates: readonly DesignCandidate[];
   selectedId?: string | null;
-  warnings?: readonly string[];
+  notice?: DesignWarningNotice | null;
   loading?: boolean;
   disabled?: boolean;
   onSelect: (
@@ -51,7 +53,7 @@ export type CandidateGridProps = {
 export function CandidateGrid({
   candidates,
   selectedId,
-  warnings = [],
+  notice,
   loading = false,
   disabled = false,
   onSelect,
@@ -61,19 +63,19 @@ export function CandidateGrid({
 
   return (
     <VStack gap="x3" alignItems="stretch">
-      {warnings.length > 0 ? (
+      {notice ? (
         <Callout
           tone="neutral"
           icon={<Icon svg={<InformationCircleIcon />} size={16} />}
-          title="생성 결과 안내"
-          description={warnings.join(" · ")}
+          title={notice.title}
+          description={notice.description}
         />
       ) : null}
 
       {candidates.length > 0 ? (
         <Grid columns={{ base: 2, md: 4 }} gap="x3" aria-label="디자인 후보">
           {candidates.map((candidate, index) => {
-            const label = `디자인 후보 ${index + 1}`;
+            const label = candidate.label ?? `디자인 후보 ${index + 1}`;
             const tile = (
               <CandidateTile
                 label={label}

@@ -23339,6 +23339,65 @@
         ]
       }
     },
+    "/design/sessions/{session_id}/branch": {
+      "post": {
+        "description": "Start a new linear conversation from any successful candidate in an owned session.",
+        "operationId": "branch_design_session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignSelectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Branch Design Session",
+        "tags": [
+          "design"
+        ]
+      }
+    },
     "/design/sessions/{session_id}/finalize": {
       "post": {
         "operationId": "create_finalize_job",
