@@ -502,6 +502,13 @@ export function SeamlessLogDetailPage() {
               value: formatIdentifier(log.diagnostics.resolved_count),
             },
             {
+              label: "Recraft 호출",
+              value:
+                log.diagnostics.recraft_calls == null
+                  ? "-"
+                  : `${log.diagnostics.recraft_calls}회`,
+            },
+            {
               label: "단계별 시간",
               value: `저작 ${formatMilliseconds(log.diagnostics.authoring_ms)} · 모티프 ${formatMilliseconds(log.diagnostics.motif_resolution_ms)} · 후보 ${formatMilliseconds(log.diagnostics.candidate_ms)} · 렌더 ${formatMilliseconds(log.diagnostics.render_ms)}`,
             },

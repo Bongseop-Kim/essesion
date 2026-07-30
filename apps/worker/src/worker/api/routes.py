@@ -985,6 +985,9 @@ async def _generate_from_prompt(
         request.state.generation_diagnostics["motif_resolution_ms"] = round(
             (time.perf_counter() - resolution_started) * 1000, 3
         )
+        # 실제 Recraft 과금 호출 수(게이트 재프롬프트 포함). 실패 요청은 모티프 upsert가
+        # 롤백돼 저장 모티프 수와 어긋나므로, 비용 추적은 이 값을 정본으로 집계한다.
+        request.state.generation_diagnostics["recraft_calls"] = generation_budget.used
 
     resolved_plans: list[DesignPlanV3] = []
     try:
