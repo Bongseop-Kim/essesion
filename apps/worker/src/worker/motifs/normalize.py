@@ -70,6 +70,31 @@ def _tag(el: ET.Element) -> str:
     return el.tag.rsplit("}", 1)[-1].lower() if isinstance(el.tag, str) else ""
 
 
+# 렌더에 아무 영향이 없는 편집기·생성기 boilerplate. 허용 목록(svg_safety)을 넓히는 대신
+# 인테이크에서 떼어낸다 — Recraft가 내보내는 SVG는 항상 이 넷을 달고 나오므로, 그대로
+# 거부하면 우리 자신의 출력물조차 모티프로 다시 못 들여온다.
+_INERT_TAGS = frozenset({"metadata", "title", "desc"})
+_INERT_ATTRS = frozenset({"version", "preserveAspectRatio", "space", "xml:space"})
+# style은 fill/stroke/url을 실어 색을 바꿀 수 있어 무조건 버리면 조용히 그림이 달라진다.
+# 그런 토큰이 없을 때만(예: display:block) 떼고, 있으면 allowlist 거부에 맡긴다.
+_PAINTING_STYLE = re.compile(
+    r"url\(|fill|stroke|color|paint|background|image|display\s*:\s*none", re.I
+)
+
+
+def _drop_inert_wrappers(root: ET.Element) -> None:
+    for parent in (root, *root.iter()):
+        for child in [el for el in list(parent) if _tag(el) in _INERT_TAGS]:
+            parent.remove(child)
+    for el in (root, *root.iter()):
+        for raw_name in list(el.attrib):
+            name = raw_name.rsplit("}", 1)[-1]
+            if name in _INERT_ATTRS:
+                del el.attrib[raw_name]
+            elif name == "style" and not _PAINTING_STYLE.search(el.attrib[raw_name]):
+                del el.attrib[raw_name]
+
+
 def _validate_frame(root: ET.Element) -> None:
     """작성자 좌표 프레임(viewBox 또는 치수)의 온전성만 검증 — 0/음수 extent 거부."""
     vb = root.get("viewBox")
@@ -334,6 +359,7 @@ def normalize_motif_svg(
     if len(raw_svg.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
         raise ValueError(f"motif SVG exceeds {MAX_MOTIF_SVG_BYTES} bytes")
     root = sanitize.parse_svg_tree(raw_svg)
+    _drop_inert_wrappers(root)
     sanitize._validate_tree(root)  # allowlist — filter/raster image/외부 href 거부
     _validate_intake_complexity(root)
 
