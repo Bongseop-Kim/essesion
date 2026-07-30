@@ -770,8 +770,12 @@ export function DesignPage() {
 
   // finalize는 선택 출처(run/candidate)까지 있어야 한다 — 세션 복원만으로 intent가
   // 채워진 경우(runId 없음)는 서버가 finalize_provenance_invalid로 거절한다.
+  // 생성·선택·첨부가 진행 중이면 선택이 갈아치워질 수 있으니 모든 진입점을 막는다.
   const canFinalize =
-    !!selection?.intent && !!selection.runId && !!selection.candidateId;
+    !designBusy &&
+    !!selection?.intent &&
+    !!selection.runId &&
+    !!selection.candidateId;
 
   const openFinalize = () => {
     if (!canFinalize || !ensureDesignAuth()) return;
@@ -807,6 +811,7 @@ export function DesignPage() {
 
   const submitFinalize = async (value: FinalizeDialogValue) => {
     if (
+      designBusy ||
       !activeSessionId ||
       !selection?.intent ||
       !selection.runId ||

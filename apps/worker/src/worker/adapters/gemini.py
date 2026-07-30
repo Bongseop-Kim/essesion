@@ -169,7 +169,8 @@ _NAMED_COLOR_PARTICLE = r"(?:은|는|이|가|을|를|만)?"
 _NAMED_COLOR_NEGATIVE = r"(?:없이|빼|제외|사용하지|쓰지|아니라|대신|without|remove|exclude)"
 _NAMED_COLOR_JOINER = r"(?:와|과|및|또는|,|/|and|or)"
 _NAMED_COLOR_EXCLUDED_BEFORE = re.compile(
-    rf"(?:without|remove|exclude|no|instead\s+of|rather\s+than)\s+"
+    # \b: "merino"·"kimono"처럼 no로 끝나는 단어가 배제어로 오인되지 않게 한다.
+    rf"\b(?:without|remove|exclude|no|instead\s+of|rather\s+than)\s+"
     rf"(?:the\s+)?(?:(?:{_NAMED_COLOR_ALTERNATION})(?:\s*{_NAMED_COLOR_ROLE})?\s*"
     rf"{_NAMED_COLOR_JOINER}\s*)*$",
     re.IGNORECASE,
@@ -258,7 +259,42 @@ def _requested_named_colors(prompt: str) -> list[tuple[str, str, list[re.Match[s
     )
 
 
-def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> DesignPlanV3:
+def _plan_motif_slot_counts(
+    plan: DesignPlanV3,
+    exact_motif_metadata: list[dict[str, object]] | None,
+    catalog_candidates: list[dict[str, object]] | None,
+) -> list[int]:
+    """motif_index별 paint slot 수. 메타데이터가 없으면 1로 간주한다."""
+
+    by_ref = {
+        str(candidate.get("catalog_ref")): candidate for candidate in catalog_candidates or []
+    }
+    counts: list[int] = []
+    for source in plan.motifs:
+        record: dict[str, object] | None = None
+        if source.source == "catalog":
+            record = by_ref.get(source.catalog_ref)
+        elif source.source == "input" and exact_motif_metadata is not None:
+            if 1 <= source.input_index <= len(exact_motif_metadata):
+                record = exact_motif_metadata[source.input_index - 1]
+        slot_count = record.get("slot_count") if record is not None else None
+        counts.append(
+            slot_count
+            if isinstance(slot_count, int)
+            and not isinstance(slot_count, bool)
+            and slot_count > 0
+            else 1
+        )
+    return counts
+
+
+def _normalize_requested_named_colors(
+    prompt: str,
+    plan: DesignPlanV3,
+    *,
+    exact_motif_metadata: list[dict[str, object]] | None = None,
+    catalog_candidates: list[dict[str, object]] | None = None,
+) -> DesignPlanV3:
     """Apply the small supported named-color vocabulary to existing PlanV3 slots."""
 
     requested = _requested_named_colors(prompt)
@@ -354,7 +390,9 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
     # color_indices를 생략한 모티프 레이어는 컴파일러가 첫 비-바탕 슬롯을 색으로 고르지만
     # 원본색 유지 모티프는 그 팔레트 값을 쓰지 않는다. 그 슬롯에 지명색을 쓸 때는
     # 매핑도 함께 명시화해 조용한 무시 대신 바인딩 단계 검증을 받게 한다.
-    implicit_slot_layers: dict[int, list[int]] = {}
+    # 멀티슬롯 모티프는 같은 인덱스를 slot_count만큼 반복해 길이 계약을 지킨다.
+    slot_counts = _plan_motif_slot_counts(plan, exact_motif_metadata, catalog_candidates)
+    implicit_slot_layers: dict[int, list[tuple[int, int]]] = {}
     for position, layer in enumerate(plan.layers):
         if layer.type == "stripe":
             stripe_slots.update(band.color_index for band in layer.bands)
@@ -366,7 +404,9 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
                 plan.ground_color_index,
             )
             motif_slots.add(guessed)
-            implicit_slot_layers.setdefault(guessed, []).append(position)
+            implicit_slot_layers.setdefault(guessed, []).append(
+                (position, slot_counts[layer.motif_index])
+            )
     layer_slots = stripe_slots | motif_slots
     used: set[int] = set()
     ordered = sorted(requested, key=lambda item: item[0] not in ground_targets)
@@ -436,8 +476,8 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
             raise ValueError(f"plan has no visible slot available for named color {name}")
         closest = min(available, key=lambda index: _color_distance(colors[index], target))
         colors[closest] = target
-        for position in implicit_slot_layers.pop(closest, []):
-            layers[position]["color_indices"] = [closest]
+        for position, slot_count in implicit_slot_layers.pop(closest, []):
+            layers[position]["color_indices"] = [closest] * slot_count
         used.add(closest)
 
     return DesignPlanV3.model_validate(
@@ -719,6 +759,8 @@ def _preserve_refine_plan(
     palette_constraint: PaletteConstraint | None,
     pattern_constraints: PatternConstraints | None,
     motif_candidates_available: bool = False,
+    exact_motif_metadata: list[dict[str, object]] | None = None,
+    catalog_candidates: list[dict[str, object]] | None = None,
 ) -> tuple[DesignPlanV3, list[str]]:
     """Restore the plan sections the current refine request left untouched.
 
@@ -813,7 +855,12 @@ def _preserve_refine_plan(
         if "layers" not in restored:
             restored.append("layers")
     if named_colors_applied:
-        result = _normalize_requested_named_colors(prompt, result)
+        result = _normalize_requested_named_colors(
+            prompt,
+            result,
+            exact_motif_metadata=exact_motif_metadata,
+            catalog_candidates=catalog_candidates,
+        )
     _ensure_requested_refine_changes(
         current,
         result,
@@ -1570,6 +1617,8 @@ class GeminiClient:
                         palette_constraint=palette_constraint,
                         pattern_constraints=pattern_constraints,
                         motif_candidates_available=public_catalog_available,
+                        exact_motif_metadata=exact_motif_metadata,
+                        catalog_candidates=catalog_candidates,
                     )
                     sink["preserve_restored_sections"] = restored
                     indexed_plans = [(0, response_plan)]
@@ -1622,7 +1671,12 @@ class GeminiClient:
                     if not refine and (
                         palette_constraint is None or palette_constraint.mode != "fixed"
                     ):
-                        plan = _normalize_requested_named_colors(prompt, plan)
+                        plan = _normalize_requested_named_colors(
+                            prompt,
+                            plan,
+                            exact_motif_metadata=exact_motif_metadata,
+                            catalog_candidates=catalog_candidates,
+                        )
                 except ValueError as exc:
                     design_errors.append(f"plan[{index}]: {exc}")
                     continue

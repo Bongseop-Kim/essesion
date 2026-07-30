@@ -858,20 +858,26 @@ async def test_initial_authoring_does_not_require_excluded_named_color(prompt: s
 
 
 @pytest.mark.parametrize(
-    ("prompt", "excluded"),
+    ("prompt", "excluded", "kept"),
     [
-        ("네이비와 아이보리 없이", {"navy", "ivory"}),
-        ("네이비 배경은 빼줘", {"navy"}),
-        ("네이비 배경 대신 버건디", {"navy"}),
-        ("no navy", {"navy"}),
-        ("without navy and ivory", {"navy", "ivory"}),
-        ("네이비 대신 아이보리", {"navy"}),
+        ("네이비와 아이보리 없이", {"navy", "ivory"}, set()),
+        ("네이비 배경은 빼줘", {"navy"}, set()),
+        ("네이비 배경 대신 버건디", {"navy"}, {"burgundy"}),
+        ("no navy", {"navy"}, set()),
+        ("without navy and ivory", {"navy", "ivory"}, set()),
+        ("네이비 대신 아이보리", {"navy"}, {"ivory"}),
+        # "no"로 끝나는 단어는 배제어가 아니다.
+        ("merino navy", set(), {"navy"}),
+        ("kimono ivory pattern", set(), {"ivory"}),
     ],
 )
-def test_named_color_exclusions_cover_lists_roles_and_replacements(prompt: str, excluded: set[str]):
+def test_named_color_exclusions_cover_lists_roles_and_replacements(
+    prompt: str, excluded: set[str], kept: set[str]
+):
     requested = {name for name, _target, _matches in _requested_named_colors(prompt)}
 
     assert not (excluded & requested)
+    assert requested == kept
 
 
 def test_named_ground_tie_uses_prompt_order_instead_of_color_name():
@@ -976,6 +982,46 @@ def test_named_non_ground_color_is_scoped_to_its_visible_role():
     assert [stripe_colored.colors[index] for index in motif_slots] == [
         current.colors[index] for index in motif_slots
     ]
+
+
+def test_named_color_on_implicit_motif_layer_expands_to_slot_count():
+    current = DesignPlanV3.model_validate(
+        {
+            "colors": ["#EFE6D4", "#4F77A8"],
+            "ground_color_index": 0,
+            "motifs": [{"source": "catalog", "catalog_ref": "cand_1"}],
+            "layers": [
+                {
+                    "type": "motif",
+                    "motif_index": 0,
+                    "size_ratio": 0.1,
+                    "placement": {
+                        "type": "lattice",
+                        "columns": 2,
+                        "rows": 2,
+                        "drop": "none",
+                    },
+                }
+            ],
+        }
+    )
+
+    normalized = _normalize_requested_named_colors(
+        "모티프는 네이비로 바꿔줘.",
+        current,
+        catalog_candidates=[
+            {
+                "catalog_ref": "cand_1",
+                "motif_id": "bee",
+                "subject": "bee",
+                "slot_count": 3,
+            }
+        ],
+    )
+
+    motif_layer = next(layer for layer in normalized.layers if layer.type == "motif")
+    assert motif_layer.color_indices == [1, 1, 1]
+    assert normalized.colors[1] == "#000080"
 
 
 async def test_initial_authoring_retries_when_named_colors_exceed_visible_slots():
