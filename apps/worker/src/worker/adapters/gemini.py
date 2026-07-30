@@ -280,9 +280,7 @@ def _plan_motif_slot_counts(
         slot_count = record.get("slot_count") if record is not None else None
         counts.append(
             slot_count
-            if isinstance(slot_count, int)
-            and not isinstance(slot_count, bool)
-            and slot_count > 0
+            if isinstance(slot_count, int) and not isinstance(slot_count, bool) and slot_count > 0
             else 1
         )
     return counts
