@@ -17,7 +17,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
 from worker.adapters import AdapterClientError
@@ -435,8 +435,13 @@ async def resolve_spec(
     gemini_client=None,
     provenance: dict | None = None,
     generation_budget: MotifGenerationBudget | None = None,
+    upsert_sessionmaker: async_sessionmaker[AsyncSession] | None = None,
 ) -> ResolveResult:
-    """단일 spec 해석 래더. 래더 히트면 reused=True(Recraft 스킵), miss면 generate 후 upsert."""
+    """단일 spec 해석 래더. 래더 히트면 reused=True(Recraft 스킵), miss면 generate 후 upsert.
+
+    upsert_sessionmaker가 있으면 upsert를 전용 세션에서 즉시 커밋한다 — 이후 요청이
+    실패해도 과금된 Recraft 결과물이 카탈로그 자산으로 남아 재시도가 무료 재사용된다.
+    """
     tau = settings.motif_similarity_tau
     generate_origin = spec.get("reference_image_index") is None
     authored_spec = _screen_facets(
@@ -478,16 +483,25 @@ async def resolve_spec(
         colors=colors,
         seed=seed,
     )
-    upserted = await store.upsert_motif(
-        session,
-        normalized,
-        facets=facets_from_spec(authored_spec),
-        embedding=retrieval.query_vec,
-        source="recraft",
-        variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
-        ingested_user_id=_provenance_uuid(provenance, "user_id"),
-        ingested_session_id=_provenance_uuid(provenance, "session_id"),
-    )
+    async def _upsert(**slot_metadata) -> store.MotifUpsertResult:
+        kwargs: dict = dict(
+            facets=facets_from_spec(authored_spec),
+            embedding=retrieval.query_vec,
+            source="recraft",
+            variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
+            ingested_user_id=_provenance_uuid(provenance, "user_id"),
+            ingested_session_id=_provenance_uuid(provenance, "session_id"),
+            **slot_metadata,
+        )
+        if upsert_sessionmaker is None:
+            return await store.upsert_motif(session, normalized, **kwargs)
+        # 호출마다 새 세션 = 독립 트랜잭션 — 라벨 2차 실패가 1차 저장을 해치지 않는다.
+        async with upsert_sessionmaker() as upsert_session:
+            result = await store.upsert_motif(upsert_session, normalized, **kwargs)
+            await upsert_session.commit()
+            return result
+
+    upserted = await _upsert()
     if upserted.inserted and len(normalized.color_slots) > 1 and normalized.slot_colors:
         metadata = await label_slots(
             normalized.preview_svg,
@@ -496,18 +510,7 @@ async def resolve_spec(
             settings=settings,
         )
         if metadata is not None:
-            await store.upsert_motif(
-                session,
-                normalized,
-                facets=facets_from_spec(authored_spec),
-                embedding=retrieval.query_vec,
-                source="recraft",
-                variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
-                slot_labels=metadata.labels,
-                slot_parts=metadata.parts,
-                ingested_user_id=_provenance_uuid(provenance, "user_id"),
-                ingested_session_id=_provenance_uuid(provenance, "session_id"),
-            )
+            await _upsert(slot_labels=metadata.labels, slot_parts=metadata.parts)
     return ResolveResult(
         upserted.id,
         reused=False,
@@ -563,6 +566,7 @@ async def resolve_motifs(
     generation_budget: MotifGenerationBudget | None = None,
     warnings: list[str] | None = None,
     trace: list[dict[str, object]] | None = None,
+    upsert_sessionmaker: async_sessionmaker[AsyncSession] | None = None,
 ) -> dict:
     """intent 사본의 각 모티프 레이어 params.motif_id를 해석해 반환 (§5 오케스트레이션).
 
@@ -627,6 +631,7 @@ async def resolve_motifs(
                 gemini_client=gemini_client,
                 provenance=provenance,
                 generation_budget=request_budget,
+                upsert_sessionmaker=upsert_sessionmaker,
             )
         except AdapterClientError as exc:
             last_failure = exc

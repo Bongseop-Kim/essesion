@@ -9,6 +9,7 @@ from db.models.auth import User
 from db.models.design import DesignSession
 from db.models.seamless import Motif
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.config import Settings
 from worker.motifs import store
 from worker.motifs.labeler import SlotMetadata
@@ -172,6 +173,41 @@ async def test_miss_generates_when_scope_empty(db_session):
     )
     assert result.reused is False
     assert recraft.calls == 1
+
+
+async def test_precommitted_upsert_survives_rollback_and_retry_skips_recraft(db_session):
+    """upsert 선커밋: 요청 롤백(색 바인딩 실패 등)에도 모티프가 남고 재시도는 무료 재사용."""
+    upsert_sessionmaker = async_sessionmaker(db_session.bind, expire_on_commit=False)
+    recraft = _FakeRecraft()
+    result = await resolve_spec(
+        db_session,
+        {"subject": "novel", "scope": "whole"},
+        recraft_client=recraft,
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+        upsert_sessionmaker=upsert_sessionmaker,
+    )
+    assert recraft.calls == 1
+    await db_session.rollback()  # 해석 이후 단계에서 요청이 죽은 시나리오
+
+    stored = await db_session.get(Motif, result.motif_id)
+    assert stored is not None
+    assert stored.source == "recraft"
+
+    retry_recraft = _FakeRecraft()
+    retry = await resolve_spec(
+        db_session,
+        {"subject": "novel", "scope": "whole"},
+        recraft_client=retry_recraft,
+        embedding_client=None,
+        settings=_SETTINGS,
+        seed=0,
+        upsert_sessionmaker=upsert_sessionmaker,
+    )
+    assert retry.motif_id == result.motif_id
+    assert retry.reused is True
+    assert retry_recraft.calls == 0  # 선커밋된 모티프를 exact 매치로 재사용
 
 
 async def test_new_multislot_ingress_labels_once_and_catalog_hit_never_labels(

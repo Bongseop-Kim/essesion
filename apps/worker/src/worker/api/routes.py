@@ -954,6 +954,8 @@ async def _generate_from_prompt(
                     generation_budget=generation_budget,
                     warnings=warnings,
                     trace=resolution_trace,
+                    # 실패 롤백에도 과금된 모티프가 남도록 upsert만 전용 세션에서 선커밋
+                    upsert_sessionmaker=request.app.state.sessionmaker,
                 )
             )
             if len(iter_motif_ids(resolved_intents[-1])) > 2:
