@@ -11,6 +11,7 @@ import {
   listGenerationJobsQueryKey,
 } from "@essesion/api-client/query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 
 import { isRecord } from "@/shared/lib/guards";
 
@@ -59,6 +60,8 @@ export type CreateFinalizeJobInput = {
   request: FinalizeRequest & {
     production_method: string;
     weave: string;
+    run_id?: string;
+    candidate_id?: string;
   };
 };
 
@@ -82,6 +85,9 @@ export function finalizeRetryInput(
     params.production_method.length === 0 ||
     typeof params.weave !== "string" ||
     params.weave.length === 0 ||
+    !z.string().uuid().safeParse(params.run_id).success ||
+    typeof params.candidate_id !== "string" ||
+    params.candidate_id.length === 0 ||
     typeof params.dpi !== "number" ||
     !Number.isFinite(params.dpi)
   ) {
@@ -90,6 +96,8 @@ export function finalizeRetryInput(
 
   const request: CreateFinalizeJobInput["request"] = {
     intent: params.intent,
+    run_id: params.run_id as string,
+    candidate_id: params.candidate_id,
     colorway_id: params.colorway_id,
     production_method: params.production_method,
     weave: params.weave,

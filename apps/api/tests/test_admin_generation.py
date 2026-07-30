@@ -6,6 +6,7 @@ from api.domains.admin.generation import finalize_duration_seconds
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
+from db.models.tokens import DesignToken
 
 from .factories import auth_headers, make_user
 
@@ -384,6 +385,65 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert unsafe_detail.json()["symbol"] is None
 
 
+async def test_seamless_identifier_filter_matches_request_log_session_and_user(
+    client, db_session, settings
+):
+    admin = await make_user(db_session, role="admin")
+    owner = await make_user(db_session)
+    other_owner = await make_user(db_session)
+    owner_session = DesignSession(user_id=owner.id)
+    other_session = DesignSession(user_id=other_owner.id)
+    db_session.add_all([owner_session, other_session])
+    await db_session.flush()
+    owner_log = SeamlessGenerationLog(
+        request_id="identifier-request",
+        session_id=owner_session.id,
+        user_id=owner.id,
+        input_type="prompt",
+        warnings=[],
+        status="success",
+    )
+    other_log = SeamlessGenerationLog(
+        request_id="other-request",
+        session_id=other_session.id,
+        user_id=other_owner.id,
+        input_type="prompt",
+        warnings=[],
+        status="success",
+    )
+    db_session.add_all([owner_log, other_log])
+    await db_session.commit()
+    headers = auth_headers(admin, settings)
+
+    for identifier in (
+        owner_log.request_id,
+        str(owner_log.id),
+        str(owner_session.id),
+        str(owner.id),
+    ):
+        page = await client.get(
+            "/admin/generation/seamless",
+            params={"identifier": identifier},
+            headers=headers,
+        )
+        stats = await client.get(
+            "/admin/generation/seamless/stats",
+            params={"identifier": identifier},
+            headers=headers,
+        )
+        assert page.status_code == stats.status_code == 200
+        assert page.json()["total"] == stats.json()["total"] == 1
+        assert page.json()["items"][0]["id"] == str(owner_log.id)
+
+    invalid = await client.get(
+        "/admin/generation/seamless",
+        params={"identifier": "invalid/id"},
+        headers=headers,
+    )
+    assert invalid.status_code == 400
+    assert invalid.json()["code"] == "invalid_identifier"
+
+
 async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     client, db_session, settings
 ):
@@ -409,6 +469,9 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
                 f"color {color} in colorway 'default' likely outside CMYK gamut"
                 for color in cmyk_colors
             ],
+            "layer 'motif_1': spacing_mm 7.2 snapped to 6.8mm for exact path closure",
+            "stripe 'stripe_0' period_mm 7.2 snapped to 6.8 for exact tiling",
+            "3 candidate variant(s) failed to render and were dropped",
         ],
         status="partial",
         diagnostics={
@@ -426,6 +489,16 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
             ]
         },
         created_at=now,
+    )
+    previous_log = SeamlessGenerationLog(
+        request_id="previous-run-request",
+        session_id=design_session.id,
+        user_id=owner.id,
+        input_type="prompt",
+        candidates=[{"id": "candidate-1"}, {"id": "candidate-2"}],
+        warnings=[],
+        status="success",
+        created_at=now - timedelta(minutes=10),
     )
     # 실패 로그도 워커가 FK를 채운다 — 상관 턴이 없어도 요청자는 드러난다
     provider_failure = SeamlessGenerationLog(
@@ -446,13 +519,50 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         },
         created_at=now,
     )
-    db_session.add_all([log, provider_failure])
+    db_session.add_all([log, previous_log, provider_failure])
     await db_session.flush()
+    finalize_job = GenerationJob(
+        user_id=owner.id,
+        session_id=design_session.id,
+        kind="finalize",
+        status="succeeded",
+        # 같은 candidate ID여도 다른 run이면 현재 로그의 finalize가 아니다.
+        params={"run_id": str(previous_log.id), "candidate_id": "candidate-2"},
+        result={"object_key": "fabric/0123456789abcdef.png"},
+        created_at=now + timedelta(seconds=3),
+        updated_at=now + timedelta(seconds=3),
+        finished_at=now + timedelta(seconds=3),
+    )
     db_session.add_all(
         [
+            DesignToken(
+                user_id=owner.id,
+                amount=-5,
+                type="use",
+                token_class="free",
+                work_id=f"design_generate_{log.id.hex}_use_free",
+            ),
+            DesignToken(
+                user_id=owner.id,
+                amount=5,
+                type="refund",
+                token_class="free",
+                work_id=f"design_generate_{log.id.hex}_use_free_refund",
+            ),
             DesignSessionTurn(
                 session_id=design_session.id,
                 seq=1,
+                role="assistant",
+                payload={
+                    "type": "generate",
+                    "run_id": str(previous_log.id),
+                    "status": "succeeded",
+                },
+                created_at=now - timedelta(minutes=6),
+            ),
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=2,
                 role="assistant",
                 payload={
                     "type": "generate",
@@ -463,27 +573,35 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
             ),
             DesignSessionTurn(
                 session_id=design_session.id,
-                seq=2,
-                role="user",
-                payload={"type": "select", "candidate_id": "candidate-2"},
-                created_at=now + timedelta(seconds=1),
-            ),
-            GenerationJob(
-                user_id=owner.id,
-                session_id=design_session.id,
-                kind="finalize",
-                status="succeeded",
-                params={},
-                result={"object_key": "fabric/0123456789abcdef.png"},
-                created_at=now + timedelta(seconds=2),
-                updated_at=now + timedelta(seconds=2),
-            ),
-            DesignSessionTurn(
-                session_id=design_session.id,
                 seq=3,
                 role="user",
+                payload={
+                    "type": "select",
+                    "run_id": str(log.id),
+                    "candidate_id": "candidate-2",
+                },
+                created_at=now + timedelta(seconds=1),
+            ),
+            # 현재 실행과 후보 ID가 겹치는 과거 실행을 다시 선택해도 현재 로그의
+            # 선택 결과를 덮어쓰면 안 된다.
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=4,
+                role="user",
+                payload={
+                    "type": "select",
+                    "run_id": str(previous_log.id),
+                    "candidate_id": "candidate-1",
+                },
+                created_at=now + timedelta(seconds=2),
+            ),
+            finalize_job,
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=5,
+                role="user",
                 payload={"type": "generate_request"},
-                created_at=now + timedelta(seconds=3),
+                created_at=now + timedelta(seconds=4),
             ),
         ]
     )
@@ -495,7 +613,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     )
     assert detail.status_code == 200
     body = detail.json()
-    assert body["warning_count"] == 8
+    assert body["warning_count"] == 11
     assert body["warning_groups"] == [
         {
             "code": "motif_layer_dropped",
@@ -506,6 +624,21 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
             "code": "cmyk_gamut",
             "count": 6,
             "items": cmyk_colors,
+        },
+        {
+            "code": "spacing_snap",
+            "count": 1,
+            "items": [],
+        },
+        {
+            "code": "stripe_period_snap",
+            "count": 1,
+            "items": [],
+        },
+        {
+            "code": "candidate_variants_dropped",
+            "count": 3,
+            "items": [],
         },
     ]
     assert all(group["code"] != "partial_candidates" for group in body["warning_groups"])
@@ -528,8 +661,25 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         "user_name": owner.name,
         "selected_candidate_id": "candidate-2",
         "regenerated": True,
-        "finalized": True,
+        "finalized": False,
     }
+    assert body["token_accounting"] == {
+        "matched": True,
+        "debited": 5,
+        "refunded": 5,
+        "net": 0,
+    }
+
+    # exact pair 매칭은 시간창 없이 완료로 집계한다 — 다음 생성 뒤에 끝났어도
+    # 이 run/candidate의 finalize임은 변하지 않는다.
+    finalize_job.params = {"run_id": str(log.id), "candidate_id": "candidate-2"}
+    finalize_job.finished_at = now + timedelta(seconds=5)
+    await db_session.commit()
+    completed = await client.get(
+        f"/admin/generation/seamless/{log.id}",
+        headers=auth_headers(admin, settings),
+    )
+    assert completed.json()["outcome"]["finalized"] is True
 
     failed_detail = await client.get(
         f"/admin/generation/seamless/{provider_failure.id}",
@@ -538,6 +688,12 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     assert failed_detail.status_code == 200
     assert failed_detail.json()["error_summary"] == "Vertex AI 임베딩 생성 연동에 실패했습니다"
     assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
+    assert failed_detail.json()["token_accounting"] == {
+        "matched": False,
+        "debited": 0,
+        "refunded": 0,
+        "net": 0,
+    }
     # 상관 턴이 없으므로 선택·재생성 판정은 비어 있지만 요청자는 FK에서 그대로 온다
     assert failed_detail.json()["outcome"] == {
         "session_id": str(design_session.id),

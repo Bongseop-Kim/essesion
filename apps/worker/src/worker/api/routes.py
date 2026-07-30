@@ -289,6 +289,16 @@ class _RenderedCandidate:
     intent: dict[str, Any]
 
 
+def _generation_status(*, requested: int, returned: int, warnings: list[str]) -> str:
+    partial_warning = any(
+        warning == "preview upload skipped"
+        or warning.startswith("diversity shortfall:")
+        or " dropped" in warning
+        for warning in warnings
+    )
+    return "partial" if returned < requested or partial_warning else "success"
+
+
 async def _render_candidates(
     candidate_set, tile_mm: float, request: Request, settings, warnings: list[str]
 ) -> list["_RenderedCandidate"]:
@@ -1137,7 +1147,11 @@ async def generate(
         warnings=warnings,
         generate_ms=generate_ms,
         render_ms=request.state.generation_render_ms,
-        status="partial" if warnings else "success",
+        status=_generation_status(
+            requested=body.candidate_count,
+            returned=len(outs),
+            warnings=warnings,
+        ),
         diagnostics=request.state.generation_diagnostics,
     )
     session.add(log)

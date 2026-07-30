@@ -32,6 +32,7 @@ async def _source(
     finalize_selected: bool = True,
     regenerate_before_finalize: bool = False,
     status: str = "success",
+    late_other_run_selection: bool = False,
 ) -> SeamlessGenerationLog:
     user = User(name="승격 테스트 사용자", role="customer")
     db_session.add(user)
@@ -41,6 +42,7 @@ async def _source(
     await db_session.flush()
     example = load_example_set()[plan_index]
     candidate_id = f"candidate-{plan_index}-{design_session.id.hex[:8]}"
+    other_candidate_id = f"candidate-other-{design_session.id.hex[:8]}"
     log = SeamlessGenerationLog(
         input_type="prompt",
         prompt=prompt,
@@ -57,43 +59,107 @@ async def _source(
                 "id": candidate_id,
                 "design_index": 0,
                 "svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
-            }
+            },
+            *(
+                [
+                    {
+                        "id": other_candidate_id,
+                        "design_index": 1,
+                        "svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
+                    }
+                ]
+                if late_other_run_selection
+                else []
+            ),
         ],
         status=status,
     )
-    db_session.add(log)
+    previous_log = (
+        SeamlessGenerationLog(
+            session_id=design_session.id,
+            user_id=user.id,
+            input_type="prompt",
+            prompt="과거 실행",
+            candidates=[{"id": other_candidate_id, "design_index": 0}],
+            warnings=[],
+            status="partial",
+        )
+        if late_other_run_selection
+        else None
+    )
+    db_session.add_all([row for row in (log, previous_log) if row is not None])
     await db_session.flush()
     base = datetime.now(UTC) - timedelta(minutes=5)
-    turns = [
-        DesignSessionTurn(
-            session_id=design_session.id,
-            seq=1,
-            role="assistant",
-            payload={
-                "type": "generate",
-                "run_id": str(log.id),
-                "status": "succeeded",
-            },
-            created_at=base,
-        ),
-        DesignSessionTurn(
-            session_id=design_session.id,
-            seq=2,
-            role="user",
-            payload={"type": "select", "candidate_id": candidate_id},
-            created_at=base + timedelta(seconds=1),
-        ),
-    ]
+    turns = []
+    seq = 1
+    if previous_log is not None:
+        turns.append(
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=seq,
+                role="assistant",
+                payload={
+                    "type": "generate",
+                    "run_id": str(previous_log.id),
+                    "status": "succeeded",
+                },
+                created_at=base,
+            )
+        )
+        seq += 1
+    turns.extend(
+        [
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=seq,
+                role="assistant",
+                payload={
+                    "type": "generate",
+                    "run_id": str(log.id),
+                    "status": "succeeded",
+                },
+                created_at=base + timedelta(seconds=seq - 1),
+            ),
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=seq + 1,
+                role="user",
+                payload={
+                    "type": "select",
+                    "run_id": str(log.id),
+                    "candidate_id": candidate_id,
+                },
+                created_at=base + timedelta(seconds=seq),
+            ),
+        ]
+    )
+    seq += 2
+    if previous_log is not None:
+        turns.append(
+            DesignSessionTurn(
+                session_id=design_session.id,
+                seq=seq,
+                role="user",
+                payload={
+                    "type": "select",
+                    "run_id": str(previous_log.id),
+                    "candidate_id": other_candidate_id,
+                },
+                created_at=base + timedelta(seconds=seq - 1),
+            )
+        )
+        seq += 1
     if regenerate_before_finalize:
         turns.append(
             DesignSessionTurn(
                 session_id=design_session.id,
-                seq=3,
+                seq=seq,
                 role="user",
                 payload={"type": "generate_request"},
-                created_at=base + timedelta(seconds=2),
+                created_at=base + timedelta(seconds=seq - 1),
             )
         )
+        seq += 1
     db_session.add_all(turns)
     if finalized:
         db_session.add(
@@ -102,9 +168,13 @@ async def _source(
                 session_id=design_session.id,
                 kind="finalize",
                 status="succeeded",
-                params={"candidate_id": candidate_id if finalize_selected else "another-candidate"},
-                created_at=base + timedelta(seconds=3),
-                updated_at=base + timedelta(seconds=3),
+                params={
+                    "run_id": str(log.id),
+                    "candidate_id": (candidate_id if finalize_selected else "another-candidate"),
+                },
+                created_at=base + timedelta(seconds=seq),
+                updated_at=base + timedelta(seconds=seq),
+                finished_at=base + timedelta(seconds=seq),
             )
         )
     await db_session.commit()
@@ -116,6 +186,7 @@ async def test_scan_registers_only_selected_successful_finalize(db_session):
     eligible = await _source(
         db_session,
         prompt="차분한 네이비 단색 패턴",
+        late_other_run_selection=True,
     )
     await _source(
         db_session,

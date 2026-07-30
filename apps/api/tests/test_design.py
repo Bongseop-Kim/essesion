@@ -465,6 +465,8 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
     )
     assert job.status_code == 201
     assert job.json()["status"] == "queued"
+    assert job.json()["params"]["run_id"] == generated.json()["run_id"]
+    assert job.json()["params"]["candidate_id"] == "cand-1"
 
     fetched = await client.get(f"/design/jobs/{job.json()['id']}", headers=headers)
     assert fetched.json()["kind"] == "finalize"
@@ -998,6 +1000,10 @@ async def test_deleted_library_motif_remains_authorized_for_its_historical_sessi
 
     assert generated.status_code == 200, generated.text
     assert worker.generate_payloads[-1]["intent"] == intent
+    assert worker.generate_payloads[-1]["motif_provenance"] == {
+        "user_id": str(user.id),
+        "session_id": str(design_session.id),
+    }
     assert finalized.status_code == 201, finalized.text
     assert finalized.json()["params"]["intent"] == intent
 
@@ -1390,16 +1396,42 @@ async def test_text_motif_restricts_characters_and_normalizes_nfc(
 async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
     client, app, db_session, settings
 ):
+    class DistinctIntentWorker(FakeWorker):
+        async def generate(self, payload):
+            prompt = payload.get("prompt")
+            intent = {
+                "canvas": {"tile_mm": 24},
+                "layers": [],
+                "palette": {"slots": []},
+                "colorways": [],
+                "marker": prompt,
+            }
+            return await super().generate({**payload, "intent": intent})
+
+    app.state.worker = DistinctIntentWorker(app.state.sessionmaker)
     user = await make_user(db_session)
     # 한도 1 — 실패 job이 카운트에서 빠져야만 재시도가 성공한다
     await _seed_finalize_limit(db_session, limit=1)
+    await _fund(db_session, user)
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
+    first = await client.post(
+        "/design/generate",
+        json={"session_id": design_session["id"], "prompt": "first"},
+        headers=headers,
+    )
+    first_intent = (
+        await client.get(f"/design/sessions/{design_session['id']}", headers=headers)
+    ).json()["current_intent"]
     app.state.tasks = FailingTaskQueue()
 
     failed = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
-        json={"intent": {"canvas": {"tile_mm": 24}, "layers": []}},
+        json={
+            "intent": first_intent,
+            "run_id": first.json()["run_id"],
+            "candidate_id": "cand-1",
+        },
         headers=headers,
     )
     assert failed.status_code == 502
@@ -1412,15 +1444,94 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
     )
     assert job is not None and job.status == "failed"
     assert job.error_message == "finalize 작업 전달에 실패했습니다"
+    assert job.params["run_id"] == first.json()["run_id"]
+    assert job.params["candidate_id"] == "cand-1"
 
-    # failed job은 24시간 쿼터 카운트에서 빠지므로 한도 1에서도 재시도가 성공한다.
+    second = await client.post(
+        "/design/generate",
+        json={"session_id": design_session["id"], "prompt": "second"},
+        headers=headers,
+    )
+    assert second.status_code == 200
+    current_intent = (
+        await client.get(f"/design/sessions/{design_session['id']}", headers=headers)
+    ).json()["current_intent"]
+    assert current_intent != first_intent
+
+    # 현재 포인터가 바뀌어도 원래 실패 job의 pair+intent로 재시도하며,
+    # failed job은 쿼터 카운트에서 빠져 한도 1에서도 성공한다.
     app.state.tasks = DryRunTaskQueue()
     retry = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
-        json={"intent": {"canvas": {"tile_mm": 24}, "layers": []}},
+        json=job.params,
         headers=headers,
     )
     assert retry.status_code == 201
+    assert retry.json()["params"]["intent"] == first_intent
+    assert retry.json()["params"]["run_id"] == first.json()["run_id"]
+    assert retry.json()["params"]["candidate_id"] == "cand-1"
+
+
+async def test_finalize_rejects_incomplete_or_forged_provenance(client, app, db_session, settings):
+    app.state.worker = FakeWorker(app.state.sessionmaker)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    await _seed_finalize_limit(db_session)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+    generated = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "검증할 패턴"},
+        headers=headers,
+    )
+    intent = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()[
+        "current_intent"
+    ]
+
+    for body in (
+        {"intent": intent, "run_id": generated.json()["run_id"]},
+        {"intent": intent, "candidate_id": "cand-1"},
+    ):
+        assert (
+            await client.post(
+                f"/design/sessions/{session_id}/finalize",
+                json=body,
+                headers=headers,
+            )
+        ).status_code == 422
+
+    forged = await client.post(
+        f"/design/sessions/{session_id}/finalize",
+        json={
+            "intent": intent,
+            "run_id": str(uuid.uuid4()),
+            "candidate_id": "cand-1",
+        },
+        headers=headers,
+    )
+    assert forged.status_code == 409
+    assert forged.json()["code"] == "finalize_provenance_invalid"
+
+    mismatched = await client.post(
+        f"/design/sessions/{session_id}/finalize",
+        json={
+            "intent": {**intent, "forged": True},
+            "run_id": generated.json()["run_id"],
+            "candidate_id": "cand-1",
+        },
+        headers=headers,
+    )
+    assert mismatched.status_code == 409
+    assert mismatched.json()["code"] == "finalize_intent_mismatch"
+
+    unprovenanced = await client.post(
+        f"/design/sessions/{session_id}/finalize",
+        json={"intent": {**intent, "forged": True}},
+        headers=headers,
+    )
+    assert unprovenanced.status_code == 409
+    assert unprovenanced.json()["code"] == "finalize_provenance_invalid"
+    assert await db_session.scalar(select(func.count()).select_from(GenerationJob)) == 0
 
 
 async def test_finalize_ambiguous_enqueue_returns_claimed_job(client, app, db_session, settings):
@@ -1429,10 +1540,14 @@ async def test_finalize_ambiguous_enqueue_returns_claimed_job(client, app, db_se
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
     app.state.tasks = ClaimedThenAmbiguousTaskQueue(app.state.sessionmaker)
+    intent = {"canvas": {"tile_mm": 24}, "layers": []}
+    session_row = await db_session.get(DesignSession, uuid.UUID(design_session["id"]))
+    session_row.current_intent = intent
+    await db_session.commit()
 
     response = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
-        json={"intent": {"canvas": {"tile_mm": 24}, "layers": []}},
+        json={"intent": intent},
         headers=headers,
     )
 
@@ -1741,6 +1856,8 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
     )
     assert finalized.status_code == 201
     assert finalized.json()["params"]["intent"] == selected_intent
+    assert finalized.json()["params"]["run_id"] == refined.json()["run_id"]
+    assert finalized.json()["params"]["candidate_id"] == "cand-1"
 
 
 async def test_generation_auto_selects_first_candidate_as_conversation_context(
@@ -2127,6 +2244,9 @@ async def test_finalize_forwards_texture_params(client, app, db_session, setting
     design_session = (await client.post("/design/sessions", headers=headers)).json()
 
     intent = {"canvas": {"tile_mm": 24}, "layers": [], "palette": {"slots": []}, "colorways": []}
+    session_row = await db_session.get(DesignSession, uuid.UUID(design_session["id"]))
+    session_row.current_intent = intent
+    await db_session.commit()
     job = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
         json={

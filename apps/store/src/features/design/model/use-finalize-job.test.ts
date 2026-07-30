@@ -123,6 +123,8 @@ describe("finalizeRetryInput", () => {
         status: "failed",
         params: {
           intent: { motif: "stripe", density: 0.4 },
+          run_id: "30000000-0000-4000-8000-000000000001",
+          candidate_id: "candidate-original",
           colorway_id: "navy",
           production_method: "yarn_dyed",
           weave: "jacquard",
@@ -143,6 +145,8 @@ describe("finalizeRetryInput", () => {
       sessionId: "20000000-0000-4000-8000-000000000001",
       request: {
         intent: { motif: "stripe", density: 0.4 },
+        run_id: "30000000-0000-4000-8000-000000000001",
+        candidate_id: "candidate-original",
         colorway_id: "navy",
         production_method: "yarn_dyed",
         weave: "jacquard",
@@ -163,6 +167,8 @@ describe("finalizeRetryInput", () => {
         status: "canceled",
         params: {
           intent: { motif: "dot" },
+          run_id: "30000000-0000-4000-8000-000000000002",
+          candidate_id: "candidate-canceled",
           colorway_id: null,
           production_method: "print",
           weave: "twill-45",
@@ -180,6 +186,8 @@ describe("finalizeRetryInput", () => {
       sessionId: "20000000-0000-4000-8000-000000000001",
       request: {
         intent: { motif: "dot" },
+        run_id: "30000000-0000-4000-8000-000000000002",
+        candidate_id: "candidate-canceled",
         colorway_id: null,
         production_method: "print",
         weave: "twill-45",
@@ -208,6 +216,8 @@ describe("finalizeRetryInput", () => {
         ...base,
         params: {
           intent: { motif: "stripe" },
+          run_id: "30000000-0000-4000-8000-000000000001",
+          candidate_id: "candidate-original",
           colorway_id: "navy",
           production_method: "print",
           weave: "twill-45",
@@ -220,6 +230,21 @@ describe("finalizeRetryInput", () => {
         status: "succeeded",
         params: {
           intent: { motif: "stripe" },
+          run_id: "30000000-0000-4000-8000-000000000001",
+          candidate_id: "candidate-original",
+          colorway_id: "navy",
+          production_method: "print",
+          weave: "twill-45",
+          dpi: 300,
+        },
+      }),
+    ).toBeNull();
+    expect(
+      finalizeRetryInput({
+        ...base,
+        params: {
+          intent: { motif: "stripe" },
+          run_id: "30000000-0000-4000-8000-000000000001",
           colorway_id: "navy",
           production_method: "print",
           weave: "twill-45",

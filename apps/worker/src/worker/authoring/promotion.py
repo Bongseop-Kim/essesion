@@ -139,6 +139,7 @@ async def _selected_finalized_candidate(
         DesignSessionTurn.session_id == generated_turn.session_id,
         DesignSessionTurn.seq > generated_turn.seq,
         DesignSessionTurn.payload["type"].astext == "select",
+        DesignSessionTurn.payload["run_id"].astext == str(log.id),
         DesignSessionTurn.payload["candidate_id"].astext.in_(candidate_ids),
     ]
     if next_request is not None:
@@ -159,11 +160,12 @@ async def _selected_finalized_candidate(
         GenerationJob.session_id == generated_turn.session_id,
         GenerationJob.kind == "finalize",
         GenerationJob.status == "succeeded",
+        GenerationJob.params["run_id"].astext == str(log.id),
         GenerationJob.params["candidate_id"].astext == selected,
-        GenerationJob.created_at >= selected_turn.created_at,
+        GenerationJob.finished_at >= selected_turn.created_at,
     ]
     if next_request is not None:
-        finalize_filters.append(GenerationJob.created_at < next_request.created_at)
+        finalize_filters.append(GenerationJob.finished_at < next_request.created_at)
     finalized = await session.scalar(
         select(func.count()).select_from(GenerationJob).where(*finalize_filters)
     )

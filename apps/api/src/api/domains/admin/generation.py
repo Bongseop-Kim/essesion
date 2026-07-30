@@ -16,9 +16,10 @@ from db.models.auth import User
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
 from db.models.images import Image
 from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
+from db.models.tokens import DesignToken
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from svg_safety import SanitizeError, sanitize_svg
 
 from api.db import SessionDep
@@ -44,6 +45,8 @@ WarningCode = Literal[
     "motif_layer_dropped",
     "partial_candidates",
     "preview_unavailable",
+    "spacing_snap",
+    "stripe_period_snap",
 ]
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
@@ -61,6 +64,9 @@ _CMYK_WARNING = re.compile(
 )
 _MOTIF_DROP_WARNING = re.compile(
     r"^motif layer '[^']+' dropped — Tier-1 gate exhausted \((.+)/(whole|partial)\)$"
+)
+_CANDIDATE_DROP_WARNING = re.compile(
+    r"^(\d+) candidate variant\(s\) failed to render and were dropped$"
 )
 _INTENT_ALLOWED_KEYS = frozenset(
     {
@@ -229,6 +235,13 @@ class GenerationOutcomeOut(BaseModel):
     finalized: bool = False
 
 
+class GenerationTokenAccountingOut(BaseModel):
+    matched: bool
+    debited: int
+    refunded: int
+    net: int
+
+
 class GenerationDiagnosticsOut(BaseModel):
     mode: Literal["prompt", "refine", "variation"] | None = None
     model: str | None = None
@@ -274,6 +287,7 @@ class SeamlessDetailOut(SeamlessSummaryOut):
     warning_groups: list[SeamlessWarningOut]
     diagnostics: GenerationDiagnosticsOut
     outcome: GenerationOutcomeOut
+    token_accounting: GenerationTokenAccountingOut
     candidates: list[SafeCandidateOut]
 
 
@@ -626,6 +640,7 @@ def _seamless_filters(
     *,
     status: SeamlessStatus | None,
     request_id: str | None,
+    identifier: str | None,
     start: datetime | None,
     end: datetime | None,
 ) -> list[ColumnElement[bool]]:
@@ -637,6 +652,23 @@ def _seamless_filters(
         if clean is None:
             raise DomainError("request_id 형식이 올바르지 않습니다", code="invalid_request_id")
         filters.append(SeamlessGenerationLog.request_id == clean)
+    if identifier is not None:
+        clean = _safe_token(identifier)
+        if clean is None:
+            raise DomainError("식별자 형식이 올바르지 않습니다", code="invalid_identifier")
+        try:
+            identifier_uuid = uuid.UUID(clean)
+        except ValueError:
+            filters.append(SeamlessGenerationLog.request_id == clean)
+        else:
+            filters.append(
+                or_(
+                    SeamlessGenerationLog.id == identifier_uuid,
+                    SeamlessGenerationLog.session_id == identifier_uuid,
+                    SeamlessGenerationLog.user_id == identifier_uuid,
+                    SeamlessGenerationLog.request_id == clean,
+                )
+            )
     return filters
 
 
@@ -807,6 +839,7 @@ def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
     for value in values:
         warning = value if isinstance(value, str) else ""
         items: list[str] = []
+        affected = 1
         if warning.startswith("preview upload skipped"):
             code = "preview_unavailable"
         elif warning.startswith("partial:"):
@@ -820,14 +853,25 @@ def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
         elif match := _CMYK_WARNING.fullmatch(warning):
             code = "cmyk_gamut"
             items = [match.group(1).upper()]
-        elif re.fullmatch(r"\d+ candidate variant\(s\) failed to render and were dropped", warning):
+        elif match := _CANDIDATE_DROP_WARNING.fullmatch(warning):
             code = "candidate_variants_dropped"
+            affected = int(match.group(1))
         elif warning.startswith("design ") and " dropped:" in warning:
             code = "design_dropped"
+        elif (
+            warning.startswith("layer ")
+            and ": spacing_mm " in warning
+            and " snapped to " in warning
+        ):
+            code = "spacing_snap"
+        elif (
+            warning.startswith("stripe ") and " period_mm " in warning and " snapped to " in warning
+        ):
+            code = "stripe_period_snap"
         else:
             code = "generation_warning"
         group = groups.setdefault(code, {"count": 0, "items": []})
-        group["count"] += 1
+        group["count"] += affected
         for item in items:
             if item not in group["items"]:
                 group["items"].append(item)
@@ -941,13 +985,14 @@ async def _generation_outcome(
         DesignSessionTurn.session_id == generated_turn.session_id,
         DesignSessionTurn.seq > generated_turn.seq,
         DesignSessionTurn.payload["type"].astext == "select",
+        DesignSessionTurn.payload["run_id"].astext == str(row.id),
     ]
     if next_request is not None:
         selection_filters.append(DesignSessionTurn.seq < next_request.seq)
-    selected_candidate_id = None
+    selected_turn = None
     if candidate_ids:
-        selected_candidate_id = await session.scalar(
-            select(DesignSessionTurn.payload["candidate_id"].astext)
+        selected_turn = await session.scalar(
+            select(DesignSessionTurn)
             .where(
                 *selection_filters,
                 DesignSessionTurn.payload["candidate_id"].astext.in_(candidate_ids),
@@ -956,19 +1001,27 @@ async def _generation_outcome(
             .limit(1)
         )
 
-    finalized_filters = [
-        GenerationJob.session_id == generated_turn.session_id,
-        GenerationJob.kind == "finalize",
-        GenerationJob.status == "succeeded",
-        GenerationJob.created_at >= generated_turn.created_at,
-    ]
-    if next_request is not None:
-        finalized_filters.append(GenerationJob.created_at < next_request.created_at)
-    finalized = bool(
-        await session.scalar(
-            select(func.count()).select_from(GenerationJob).where(*finalized_filters)
-        )
+    selected_candidate_id = (
+        selected_turn.payload.get("candidate_id") if selected_turn is not None else None
     )
+    finalized = False
+    if isinstance(selected_candidate_id, str) and selected_turn is not None:
+        # run_id+candidate_id 등가 매칭으로 finalize job이 유일하게 식별되므로
+        # finished_at 시간창은 두지 않는다 — 같은 후보를 재선택하면 선택 턴이
+        # finalize보다 늦어져 거짓 미완료가 나온다.
+        finalized = bool(
+            await session.scalar(
+                select(func.count())
+                .select_from(GenerationJob)
+                .where(
+                    GenerationJob.session_id == generated_turn.session_id,
+                    GenerationJob.kind == "finalize",
+                    GenerationJob.status == "succeeded",
+                    GenerationJob.params["run_id"].astext == str(row.id),
+                    GenerationJob.params["candidate_id"].astext == selected_candidate_id,
+                )
+            )
+        )
     return base.model_copy(
         update={
             "selected_candidate_id": _safe_token(selected_candidate_id),
@@ -978,16 +1031,46 @@ async def _generation_outcome(
     )
 
 
+async def _generation_token_accounting(
+    session,
+    row: SeamlessGenerationLog,
+) -> GenerationTokenAccountingOut:
+    prefix = f"design_generate_{row.id.hex}_use_"
+    entries = list(
+        await session.scalars(
+            select(DesignToken).where(
+                DesignToken.work_id.startswith(prefix, autoescape=True),
+                DesignToken.type.in_(("use", "refund")),
+            )
+        )
+    )
+    debited = sum(-entry.amount for entry in entries if entry.type == "use")
+    refunded = sum(entry.amount for entry in entries if entry.type == "refund")
+    return GenerationTokenAccountingOut(
+        matched=bool(entries),
+        debited=debited,
+        refunded=refunded,
+        net=refunded - debited,
+    )
+
+
 @router.get("/generation/seamless/stats", response_model=SeamlessStatsOut)
 async def get_admin_seamless_stats(
     session: SessionDep,
     admin: AdminUser,
     status: SeamlessStatus | None = None,
     request_id: str | None = None,
+    identifier: str | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
 ) -> SeamlessStatsOut:
-    filters = _seamless_filters(status=status, request_id=request_id, start=start, end=end)
+    filters = _seamless_filters(
+        status=status,
+        request_id=request_id,
+        identifier=identifier,
+        start=start,
+        end=end,
+    )
     row = (
         await session.execute(
             select(
@@ -1017,12 +1100,19 @@ async def list_admin_seamless_logs(
     admin: AdminUser,
     status: SeamlessStatus | None = None,
     request_id: str | None = None,
+    identifier: str | None = None,
     start: datetime | None = None,
     end: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=MAX_LIMIT)] = DEFAULT_LIMIT,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[SeamlessSummaryOut]:
-    filters = _seamless_filters(status=status, request_id=request_id, start=start, end=end)
+    filters = _seamless_filters(
+        status=status,
+        request_id=request_id,
+        identifier=identifier,
+        start=start,
+        end=end,
+    )
     total = int(
         await session.scalar(
             select(func.count()).select_from(SeamlessGenerationLog).where(*filters)
@@ -1061,6 +1151,7 @@ async def get_admin_seamless_log(
         row,
         [candidate.id for candidate in candidates if candidate.id is not None],
     )
+    token_accounting = await _generation_token_accounting(session, row)
     return SeamlessDetailOut(
         **summary.model_dump(),
         has_prompt=bool(row.prompt),
@@ -1085,6 +1176,7 @@ async def get_admin_seamless_log(
         warning_groups=_warning_groups(row.warnings or []),
         diagnostics=_safe_diagnostics(row.diagnostics),
         outcome=outcome,
+        token_accounting=token_accounting,
         candidates=candidates,
     )
 

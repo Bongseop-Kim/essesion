@@ -25,7 +25,7 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
-import { FAILURE_STAGE_LABELS } from "./generation-labels";
+import { FAILURE_STAGE_LABELS, inputTypeLabel } from "./generation-labels";
 import {
   formatMilliseconds,
   IdentifierLink,
@@ -39,7 +39,7 @@ import {
 } from "./shared";
 
 const SEAMLESS_STATUSES = ["success", "partial", "error"] as const;
-const SAFE_REQUEST_ID_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/;
+const SAFE_IDENTIFIER_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 type SeamlessStatus = (typeof SEAMLESS_STATUSES)[number];
 
@@ -83,14 +83,14 @@ export function SeamlessLogsPage() {
   const [draftStatus, setDraftStatus] = useState<SeamlessStatus | undefined>(
     status,
   );
-  const [requestId, setRequestId] = useState<string>();
-  const [requestSearchResetKey, setRequestSearchResetKey] = useState(0);
+  const [identifier, setIdentifier] = useState<string>();
+  const [identifierSearchResetKey, setIdentifierSearchResetKey] = useState(0);
   const [draftFrom, setDraftFrom] = useState<string | undefined>(parsed.from);
   const [draftTo, setDraftTo] = useState<string | undefined>(parsed.to);
   const [lastSuccessfulRefreshAt, setLastSuccessfulRefreshAt] = useState(0);
   const commonQuery = {
     status,
-    request_id: requestId,
+    identifier,
     start: periodBoundary(parsed.from, false),
     end: periodBoundary(parsed.to, true),
   };
@@ -155,6 +155,12 @@ export function SeamlessLogsPage() {
       render: (log) => log.request_id ?? "-",
     },
     {
+      key: "input_type",
+      header: "입력",
+      visibility: "large",
+      render: (log) => inputTypeLabel(log.input_type),
+    },
+    {
       key: "status",
       header: "상태",
       render: (log) => <OperationalStatusBadge status={log.status} />,
@@ -167,11 +173,19 @@ export function SeamlessLogsPage() {
         `${log.candidate_count_returned ?? 0} / ${log.candidate_count_requested ?? "-"}`,
     },
     {
-      key: "render_ms",
-      header: "렌더 시간",
+      key: "warning_count",
+      header: "경고",
       align: "end",
       visibility: "medium",
-      render: (log) => formatMilliseconds(log.render_ms),
+      render: (log) => `${log.warning_count}건`,
+    },
+    {
+      key: "duration",
+      header: "생성 / 렌더",
+      align: "end",
+      visibility: "large",
+      render: (log) =>
+        `${formatMilliseconds(log.generate_ms)} / ${formatMilliseconds(log.render_ms)}`,
     },
     {
       key: "created_at",
@@ -210,17 +224,17 @@ export function SeamlessLogsPage() {
       <CompactFilterToolbar
         primaryControls={
           <SubmittedMemorySearch
-            label="요청 ID 검색"
-            placeholder="정확한 요청 ID 입력"
+            label="식별자 검색"
+            placeholder="로그·요청·세션·사용자 ID"
             maxLength={128}
-            resetKey={requestSearchResetKey}
+            resetKey={identifierSearchResetKey}
             validate={(value) =>
-              SAFE_REQUEST_ID_PATTERN.test(value)
+              SAFE_IDENTIFIER_PATTERN.test(value)
                 ? undefined
-                : "요청 ID 형식이 올바르지 않습니다."
+                : "식별자 형식이 올바르지 않습니다."
             }
             onSubmit={(value) => {
-              setRequestId(value);
+              setIdentifier(value);
               replaceQuery({ page: 1 });
             }}
           />
@@ -294,19 +308,19 @@ export function SeamlessLogsPage() {
             label: `종료일: ${parsed.to}`,
             onRemove: () => replaceQuery({ to: undefined, page: 1 }),
           },
-          requestId !== undefined && {
-            key: "request",
-            label: `요청 ID: ${requestId}`,
+          identifier !== undefined && {
+            key: "identifier",
+            label: `식별자: ${identifier}`,
             onRemove: () => {
-              setRequestId(undefined);
-              setRequestSearchResetKey((key) => key + 1);
+              setIdentifier(undefined);
+              setIdentifierSearchResetKey((key) => key + 1);
               replaceQuery({ page: 1 });
             },
           },
         ]}
         onReset={() => {
-          setRequestId(undefined);
-          setRequestSearchResetKey((key) => key + 1);
+          setIdentifier(undefined);
+          setIdentifierSearchResetKey((key) => key + 1);
           replaceQuery({
             page: 1,
             limit: 20,
