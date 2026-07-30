@@ -1218,7 +1218,9 @@ def _build_prompt(
         role_instructions = {
             "auto": "infer color/mood, motif form, or composition from context",
             "color_mood": "use only palette, texture impression, and mood",
-            "motif": "declare this exact image once as a reference motif source",
+            "motif": "declare this exact image once in every plan as a motif with "
+            'source="reference" and reference_image_index set to this image number '
+            "(not an input motif source)",
             "composition": "use only spacing, rhythm, and composition",
         }
         lines += [
@@ -1229,6 +1231,14 @@ def _build_prompt(
                 for index, image in enumerate(reference_images, start=1)
             ],
         ]
+        if not motif_ids and any(image.purpose == "motif" for image in reference_images):
+            lines += [
+                "",
+                "Images with purpose=motif are reference motif sources. Declare each exactly "
+                'once in every plan as {"source": "reference", "reference_image_index": '
+                '<image number>, "subject": "<what the image depicts>"}. This request has no '
+                'exact motif inputs, so source="input" is always invalid here.',
+            ]
 
     if examples:
         lines += [

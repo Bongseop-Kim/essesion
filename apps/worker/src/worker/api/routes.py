@@ -478,9 +478,13 @@ def _bind_resolved_motif_colors(
     motif_color_plans: list[dict[str, list[str]]] | None = None,
     *,
     palette_mode: str = "auto",
-) -> None:
-    """Purely bind resolved motif slots from plan, palette, and ingress metadata."""
+) -> list[str]:
+    """Purely bind resolved motif slots from plan, palette, and ingress metadata.
 
+    Returns layer ids whose planned recolor length was adapted to the resolved slot count.
+    """
+
+    adapted: list[str] = []
     plans = motif_color_plans or []
     for intent_index, intent in enumerate(intents):
         planned_layers = plans[intent_index] if intent_index < len(plans) else {}
@@ -523,11 +527,11 @@ def _bind_resolved_motif_colors(
                 continue
             layer_id = layer.get("id")
             planned_colors = planned_layers.get(layer_id) if isinstance(layer_id, str) else None
+            # 카탈로그 모티프의 recolor 길이는 컴파일 단계가 slot_count 메타데이터로 이미
+            # 강제한다. 여기 도달하는 불일치는 플랜 시점에 슬롯 수를 알 수 없던 생성/사진
+            # 모티프뿐이므로, 요청을 죽이지 않고 아래 모듈로 순환 배정으로 적응한다.
             if planned_colors is not None and len(planned_colors) != len(motif.color_slots):
-                raise ValueError(
-                    "motif recolor count must match resolved slot count "
-                    f"({len(planned_colors)} != {len(motif.color_slots)})"
-                )
+                adapted.append(layer_id if isinstance(layer_id, str) else str(motif_id))
             effective_colors = planned_colors or color_ids
             if len(motif.color_slots) <= 1:
                 chosen = planned_colors[0] if planned_colors else color_ids[0]
@@ -583,6 +587,7 @@ def _bind_resolved_motif_colors(
             }
             params.pop("color", None)
             params["colors"] = {slot: assignments[slot] for slot in motif.color_slots}
+    return adapted
 
 
 @dataclass(frozen=True)
@@ -996,16 +1001,14 @@ async def _generate_from_prompt(
     for resolved in resolved_intents:
         ids |= iter_motif_ids(resolved)
     catalog = await get_motifs(session, ids)
-    try:
-        _bind_resolved_motif_colors(
-            resolved_intents,
-            catalog,
-            [design.motif_color_slots for design in designs],
-            palette_mode=body.palette.mode,
-        )
-    except ValueError as exc:
-        request.state.generation_diagnostics["color_binding_error"] = str(exc)
-        _reject_generation(request, "intent_invalid", "intent")
+    color_binding_adapted = _bind_resolved_motif_colors(
+        resolved_intents,
+        catalog,
+        [design.motif_color_slots for design in designs],
+        palette_mode=body.palette.mode,
+    )
+    if color_binding_adapted:
+        request.state.generation_diagnostics["color_binding_adapted"] = color_binding_adapted
     request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
     registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
     candidate_started = time.perf_counter()
