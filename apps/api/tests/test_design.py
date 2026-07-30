@@ -1472,9 +1472,7 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
     assert retry.json()["params"]["candidate_id"] == "cand-1"
 
 
-async def test_finalize_rejects_incomplete_or_forged_provenance(
-    client, app, db_session, settings
-):
+async def test_finalize_rejects_incomplete_or_forged_provenance(client, app, db_session, settings):
     app.state.worker = FakeWorker(app.state.sessionmaker)
     user = await make_user(db_session)
     await _fund(db_session, user)
@@ -1525,6 +1523,14 @@ async def test_finalize_rejects_incomplete_or_forged_provenance(
     )
     assert mismatched.status_code == 409
     assert mismatched.json()["code"] == "finalize_intent_mismatch"
+
+    unprovenanced = await client.post(
+        f"/design/sessions/{session_id}/finalize",
+        json={"intent": {**intent, "forged": True}},
+        headers=headers,
+    )
+    assert unprovenanced.status_code == 409
+    assert unprovenanced.json()["code"] == "finalize_provenance_invalid"
     assert await db_session.scalar(select(func.count()).select_from(GenerationJob)) == 0
 
 
@@ -1534,10 +1540,14 @@ async def test_finalize_ambiguous_enqueue_returns_claimed_job(client, app, db_se
     headers = auth_headers(user, settings)
     design_session = (await client.post("/design/sessions", headers=headers)).json()
     app.state.tasks = ClaimedThenAmbiguousTaskQueue(app.state.sessionmaker)
+    intent = {"canvas": {"tile_mm": 24}, "layers": []}
+    session_row = await db_session.get(DesignSession, uuid.UUID(design_session["id"]))
+    session_row.current_intent = intent
+    await db_session.commit()
 
     response = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
-        json={"intent": {"canvas": {"tile_mm": 24}, "layers": []}},
+        json={"intent": intent},
         headers=headers,
     )
 
@@ -2234,6 +2244,9 @@ async def test_finalize_forwards_texture_params(client, app, db_session, setting
     design_session = (await client.post("/design/sessions", headers=headers)).json()
 
     intent = {"canvas": {"tile_mm": 24}, "layers": [], "palette": {"slots": []}, "colorways": []}
+    session_row = await db_session.get(DesignSession, uuid.UUID(design_session["id"]))
+    session_row.current_intent = intent
+    await db_session.commit()
     job = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
         json={

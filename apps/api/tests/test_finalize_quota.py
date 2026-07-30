@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from api.domains.design.quota import parse_finalize_limit
-from db.models.design import GenerationJob
+from db.models.design import DesignSession, GenerationJob
 from sqlalchemy import select
 
 from .factories import auth_headers, make_admin, make_user, seed_setting
@@ -41,10 +41,15 @@ async def _seed_limit(db_session, limit):
     await seed_setting(db_session, LIMIT_KEY, str(limit))
 
 
-async def _make_session(client, headers) -> str:
+async def _make_session(client, headers, db_session) -> str:
     response = await client.post("/design/sessions", headers=headers)
     assert response.status_code == 201
-    return response.json()["id"]
+    session_id = response.json()["id"]
+    # finalize provenance 가드 — 세션 포인터와 같은 intent만 출처 없이 통과한다
+    session_row = await db_session.get(DesignSession, uuid.UUID(session_id))
+    session_row.current_intent = INTENT
+    await db_session.commit()
+    return session_id
 
 
 async def _post_finalize(client, headers, session_id):
@@ -71,7 +76,7 @@ async def test_quota_exhaustion_returns_409_with_reset_hint(client, db_session, 
     user = await make_user(db_session)
     await _seed_limit(db_session, 2)
     headers = auth_headers(user, settings)
-    session_id = await _make_session(client, headers)
+    session_id = await _make_session(client, headers, db_session)
 
     assert (await _post_finalize(client, headers, session_id)).status_code == 201
     assert (await _post_finalize(client, headers, session_id)).status_code == 201
@@ -89,7 +94,7 @@ async def test_failed_and_canceled_jobs_free_quota_slots(client, db_session, set
     user = await make_user(db_session)
     await _seed_limit(db_session, 1)
     headers = auth_headers(user, settings)
-    session_id = await _make_session(client, headers)
+    session_id = await _make_session(client, headers, db_session)
 
     first = await _post_finalize(client, headers, session_id)
     assert first.status_code == 201
@@ -114,7 +119,7 @@ async def test_jobs_outside_24h_window_do_not_count(client, db_session, settings
     user = await make_user(db_session)
     await _seed_limit(db_session, 1)
     headers = auth_headers(user, settings)
-    session_id = await _make_session(client, headers)
+    session_id = await _make_session(client, headers, db_session)
     await _add_job(db_session, user, created_at=datetime.now(UTC) - timedelta(hours=25))
 
     assert (await _post_finalize(client, headers, session_id)).status_code == 201
@@ -126,7 +131,7 @@ async def test_session_response_exposes_quota_with_reset_at(client, db_session, 
     user = await make_user(db_session)
     await _seed_limit(db_session, 5)
     headers = auth_headers(user, settings)
-    session_id = await _make_session(client, headers)
+    session_id = await _make_session(client, headers, db_session)
 
     # 카운트 0 — reset_at 없음
     empty = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
@@ -163,7 +168,7 @@ async def test_admin_can_adjust_limit_and_rejects_invalid_values(client, db_sess
     await _seed_limit(db_session, 0)
     admin_headers = auth_headers(admin, settings)
     user_headers = auth_headers(user, settings)
-    session_id = await _make_session(client, user_headers)
+    session_id = await _make_session(client, user_headers, db_session)
 
     # 한도 0 — 즉시 소진 상태
     assert (await _post_finalize(client, user_headers, session_id)).status_code == 409
@@ -205,7 +210,7 @@ async def test_admin_can_adjust_limit_and_rejects_invalid_values(client, db_sess
 async def test_missing_or_invalid_limit_configuration(client, db_session, settings):
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
-    session_id = await _make_session(client, headers)
+    session_id = await _make_session(client, headers, db_session)
 
     # 설정 행 부재 — 생성은 503, 표시(GET 세션)는 관대하게 null
     response = await _post_finalize(client, headers, session_id)
@@ -225,7 +230,7 @@ async def test_concurrent_requests_cannot_exceed_limit(client, db_session, setti
     user = await make_user(db_session)
     await _seed_limit(db_session, 1)
     headers = auth_headers(user, settings)
-    session_id = await _make_session(client, headers)
+    session_id = await _make_session(client, headers, db_session)
 
     responses = await asyncio.gather(
         _post_finalize(client, headers, session_id),

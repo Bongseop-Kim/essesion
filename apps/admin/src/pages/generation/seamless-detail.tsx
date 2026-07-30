@@ -39,6 +39,7 @@ import { TechnicalDetails } from "../../shared/ui/technical-details";
 import {
   FAILURE_STAGE_LABELS,
   GENERATION_MODE_LABELS,
+  inputTypeLabel,
 } from "./generation-labels";
 import { SafeSvgPreview } from "./safe-svg-preview";
 import { formatMilliseconds } from "./shared";
@@ -50,16 +51,6 @@ const SEAMLESS_STATUS_LABELS: Readonly<
   partial: "부분 성공",
   error: "오류",
 };
-
-const INPUT_TYPE_LABELS: Readonly<Record<string, string>> = {
-  intent: "구조화된 디자인 의도",
-  prompt: "텍스트 프롬프트",
-  reference_image: "참고 이미지",
-};
-
-function inputTypeLabel(inputType: string) {
-  return INPUT_TYPE_LABELS[inputType] ?? "알 수 없는 입력 방식";
-}
 
 function warningPresentation(
   warning: SeamlessWarningOut,
@@ -324,9 +315,12 @@ export function SeamlessLogDetailPage() {
 
   const log = query.data;
   const motifResolutions = log.diagnostics.motif_resolutions ?? [];
-  const selectedCandidateIndex = log.candidates.findIndex(
-    (candidate) => candidate.id === log.outcome.selected_candidate_id,
-  );
+  const selectedCandidateIndex =
+    log.outcome.selected_candidate_id == null
+      ? -1
+      : log.candidates.findIndex(
+          (candidate) => candidate.id === log.outcome.selected_candidate_id,
+        );
 
   return (
     <VStack gap="x6" alignItems="stretch">

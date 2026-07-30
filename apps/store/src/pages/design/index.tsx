@@ -768,8 +768,13 @@ export function DesignPage() {
     }
   };
 
+  // finalize는 선택 출처(run/candidate)까지 있어야 한다 — 세션 복원만으로 intent가
+  // 채워진 경우(runId 없음)는 서버가 finalize_provenance_invalid로 거절한다.
+  const canFinalize =
+    !!selection?.intent && !!selection.runId && !!selection.candidateId;
+
   const openFinalize = () => {
-    if (!selection?.intent || !ensureDesignAuth()) return;
+    if (!canFinalize || !ensureDesignAuth()) return;
     setOverlay("finalize");
   };
 
@@ -1009,6 +1014,7 @@ export function DesignPage() {
   const actionProps = {
     selected: !!selection?.intent,
     canExport: !!selection?.candidate?.svg,
+    canFinalize,
     finalizeExhausted,
     loading: designBusy,
     onVariation: () => void generateVariation(),
@@ -1042,7 +1048,7 @@ export function DesignPage() {
       <MenuItem
         label="실사화하기"
         prefixIcon={<Icon svg={<Squares2X2Icon />} size={18} />}
-        disabled={!selection?.intent || finalizeExhausted}
+        disabled={!canFinalize || finalizeExhausted}
         onClick={() => openFinalize()}
       />
     </>
@@ -1303,7 +1309,7 @@ export function DesignPage() {
         remaining={finalizeQuota?.remaining ?? null}
         resetAt={finalizeQuota?.reset_at ?? null}
         loading={finalizeMutation.isPending}
-        disabled={!selection?.intent}
+        disabled={!canFinalize}
       />
       <ExportDialog
         open={overlay === "export"}
@@ -1411,6 +1417,7 @@ export function DesignPage() {
 function DesignActions({
   selected,
   canExport,
+  canFinalize,
   finalizeExhausted,
   loading,
   onVariation,
@@ -1419,6 +1426,7 @@ function DesignActions({
 }: {
   selected: boolean;
   canExport: boolean;
+  canFinalize: boolean;
   finalizeExhausted: boolean;
   loading: boolean;
   onVariation: () => void;
@@ -1452,7 +1460,7 @@ function DesignActions({
         type="button"
         size="small"
         variant="neutralOutline"
-        disabled={!selected || finalizeExhausted}
+        disabled={!canFinalize || finalizeExhausted}
         onClick={onFinalize}
       >
         <Icon svg={<Squares2X2Icon />} size={18} />

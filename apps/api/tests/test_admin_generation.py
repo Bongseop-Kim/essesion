@@ -670,17 +670,10 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         "net": 0,
     }
 
-    # exact pair여도 다음 생성 뒤에 끝난 작업은 이전 결과의 완료로 집계하지 않는다.
+    # exact pair 매칭은 시간창 없이 완료로 집계한다 — 다음 생성 뒤에 끝났어도
+    # 이 run/candidate의 finalize임은 변하지 않는다.
     finalize_job.params = {"run_id": str(log.id), "candidate_id": "candidate-2"}
     finalize_job.finished_at = now + timedelta(seconds=5)
-    await db_session.commit()
-    late = await client.get(
-        f"/admin/generation/seamless/{log.id}",
-        headers=auth_headers(admin, settings),
-    )
-    assert late.json()["outcome"]["finalized"] is False
-
-    finalize_job.finished_at = now + timedelta(seconds=3)
     await db_session.commit()
     completed = await client.get(
         f"/admin/generation/seamless/{log.id}",

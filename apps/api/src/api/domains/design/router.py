@@ -2340,6 +2340,14 @@ async def create_finalize_job(
                 run_id = selection.run_id
                 candidate_id = selection.candidate_id
 
+    # 세션 포인터와 다른 intent는 선택 출처(run/candidate) 없이 finalize할 수 없다 —
+    # 임의 intent가 GenerationJob.params로 흘러가는 걸 막는다.
+    if run_id is None and body.intent is not None and intent != design_session.current_intent:
+        raise ConflictError(
+            "finalize 출처를 확인할 수 없습니다",
+            code="finalize_provenance_invalid",
+        )
+
     if run_id is not None:
         assert candidate_id is not None
         selected_in_session = await session.scalar(

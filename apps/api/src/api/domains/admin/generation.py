@@ -1008,21 +1008,20 @@ async def _generation_outcome(
     )
     finalized = False
     if isinstance(selected_candidate_id, str) and selected_turn is not None:
-        finalized_filters = [
-            GenerationJob.session_id == generated_turn.session_id,
-            GenerationJob.kind == "finalize",
-            GenerationJob.status == "succeeded",
-            GenerationJob.params["run_id"].astext == str(row.id),
-            GenerationJob.params["candidate_id"].astext == selected_candidate_id,
-            GenerationJob.finished_at >= selected_turn.created_at,
-        ]
-        if next_request is not None:
-            finalized_filters.append(GenerationJob.finished_at < next_request.created_at)
+        # run_id+candidate_id 등가 매칭으로 finalize job이 유일하게 식별되므로
+        # finished_at 시간창은 두지 않는다 — 같은 후보를 재선택하면 선택 턴이
+        # finalize보다 늦어져 거짓 미완료가 나온다.
         finalized = bool(
             await session.scalar(
                 select(func.count())
                 .select_from(GenerationJob)
-                .where(*finalized_filters)
+                .where(
+                    GenerationJob.session_id == generated_turn.session_id,
+                    GenerationJob.kind == "finalize",
+                    GenerationJob.status == "succeeded",
+                    GenerationJob.params["run_id"].astext == str(row.id),
+                    GenerationJob.params["candidate_id"].astext == selected_candidate_id,
+                )
             )
         )
     return base.model_copy(

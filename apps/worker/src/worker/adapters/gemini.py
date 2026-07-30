@@ -106,7 +106,7 @@ _COLOR_WORDS = re.compile(
     re.IGNORECASE,
 )
 _STRIPE_WORDS = re.compile(
-    r"(스트라이프(?:\s*구조)?|줄무늬(?:\s*구조)?|stripe(?:\s+structure)?|band)",
+    r"(스트라이프(?:\s*구조)?|줄무늬(?:\s*구조)?|stripe(?:\s+structure)?|\bband\b)",
     re.IGNORECASE,
 )
 _MOTIF_WORDS = re.compile(r"(모티프|무늬|도형|형태|주제|subject|motif|shape|icon)", re.IGNORECASE)
@@ -161,35 +161,39 @@ def _color_distance(color: str, target: str) -> int:
     )
 
 
+_NAMED_COLOR_ALTERNATION = "|".join(
+    f"(?:{pattern.pattern})" for pattern, _name, _hex in _NAMED_COLOR_TARGETS
+)
+_NAMED_COLOR_ROLE = r"(?:색(?:상)?|계열|바탕|배경(?:색)?|colou?r|background|ground)"
+_NAMED_COLOR_PARTICLE = r"(?:은|는|이|가|을|를|만)?"
+_NAMED_COLOR_NEGATIVE = r"(?:없이|빼|제외|사용하지|쓰지|아니라|대신|without|remove|exclude)"
+_NAMED_COLOR_JOINER = r"(?:와|과|및|또는|,|/|and|or)"
+_NAMED_COLOR_EXCLUDED_BEFORE = re.compile(
+    rf"(?:without|remove|exclude|no|instead\s+of|rather\s+than)\s+"
+    rf"(?:the\s+)?(?:(?:{_NAMED_COLOR_ALTERNATION})(?:\s*{_NAMED_COLOR_ROLE})?\s*"
+    rf"{_NAMED_COLOR_JOINER}\s*)*$",
+    re.IGNORECASE,
+)
+_NAMED_COLOR_EXCLUDED_AFTER = re.compile(
+    rf"\s*(?:{_NAMED_COLOR_ROLE})?\s*{_NAMED_COLOR_PARTICLE}\s*{_NAMED_COLOR_NEGATIVE}",
+    re.IGNORECASE,
+)
+_NAMED_COLOR_EXCLUDED_AFTER_LIST = re.compile(
+    rf"\s*(?:{_NAMED_COLOR_JOINER}\s*(?:{_NAMED_COLOR_ALTERNATION})"
+    rf"(?:\s*{_NAMED_COLOR_ROLE})?\s*)+{_NAMED_COLOR_PARTICLE}\s*{_NAMED_COLOR_NEGATIVE}",
+    re.IGNORECASE,
+)
+_NAMED_COLOR_EXCLUDED_INSTEAD = re.compile(r"\s*(?:대신|가\s+아니라)")
+
+
 def _named_color_is_excluded(prompt: str, match: re.Match[str]) -> bool:
     before = prompt[max(0, match.start() - 64) : match.start()]
     after = prompt[match.end() : match.end() + 64]
-    named_color = "|".join(
-        f"(?:{pattern.pattern})" for pattern, _name, _hex in _NAMED_COLOR_TARGETS
-    )
-    role = r"(?:색(?:상)?|계열|바탕|배경(?:색)?|colou?r|background|ground)"
-    particle = r"(?:은|는|이|가|을|를|만)?"
-    negative = r"(?:없이|빼|제외|사용하지|쓰지|아니라|대신|without|remove|exclude)"
-    joiner = r"(?:와|과|및|또는|,|/|and|or)"
     return bool(
-        re.search(
-            rf"(?:without|remove|exclude|no|instead\s+of|rather\s+than)\s+"
-            rf"(?:the\s+)?(?:(?:{named_color})(?:\s*{role})?\s*{joiner}\s*)*$",
-            before,
-            re.IGNORECASE,
-        )
-        or re.match(
-            rf"\s*(?:{role})?\s*{particle}\s*{negative}",
-            after,
-            re.IGNORECASE,
-        )
-        or re.match(
-            rf"\s*(?:{joiner}\s*(?:{named_color})(?:\s*{role})?\s*)+{particle}\s*"
-            rf"{negative}",
-            after,
-            re.IGNORECASE,
-        )
-        or re.match(r"\s*(?:대신|가\s+아니라)", after)
+        _NAMED_COLOR_EXCLUDED_BEFORE.search(before)
+        or _NAMED_COLOR_EXCLUDED_AFTER.match(after)
+        or _NAMED_COLOR_EXCLUDED_AFTER_LIST.match(after)
+        or _NAMED_COLOR_EXCLUDED_INSTEAD.match(after)
     )
 
 
@@ -302,6 +306,11 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
         return targets
 
     ground_targets = nearby_targets(list(_GROUND_WORDS.finditer(prompt)))
+    if len(ground_targets) > 1:
+        # 바탕 슬롯은 하나 — 프롬프트에서 먼저 나온 지명색만 바탕에 배정하고,
+        # 나머지는 스트라이프/모티프/단일 역할 처리로 넘긴다.
+        first_ground = next(name for name, _hex, _m in requested if name in ground_targets)
+        ground_targets = {first_ground}
     stripe_targets = nearby_targets(stripe_roles, direct_role=True) - ground_targets
     motif_targets = (
         nearby_targets(motif_roles, direct_role=True) - ground_targets - stripe_targets
@@ -346,22 +355,22 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
 
     stripe_slots: set[int] = set()
     motif_slots: set[int] = set()
-    for layer in plan.layers:
+    # color_indices를 생략한 모티프 레이어는 컴파일러가 첫 비-바탕 슬롯을 색으로 고르지만
+    # 원본색 유지 모티프는 그 팔레트 값을 쓰지 않는다. 그 슬롯에 지명색을 쓸 때는
+    # 매핑도 함께 명시화해 조용한 무시 대신 바인딩 단계 검증을 받게 한다.
+    implicit_slot_layers: dict[int, list[int]] = {}
+    for position, layer in enumerate(plan.layers):
         if layer.type == "stripe":
             stripe_slots.update(band.color_index for band in layer.bands)
         elif layer.color_indices is not None:
             motif_slots.update(layer.color_indices)
         else:
-            motif_slots.add(
-                next(
-                    (
-                        index
-                        for index in range(len(colors))
-                        if index != plan.ground_color_index
-                    ),
-                    plan.ground_color_index,
-                )
+            guessed = next(
+                (index for index in range(len(colors)) if index != plan.ground_color_index),
+                plan.ground_color_index,
             )
+            motif_slots.add(guessed)
+            implicit_slot_layers.setdefault(guessed, []).append(position)
     layer_slots = stripe_slots | motif_slots
     used: set[int] = set()
     ordered = sorted(requested, key=lambda item: item[0] not in ground_targets)
@@ -439,6 +448,8 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
             raise ValueError(f"plan has no visible slot available for named color {name}")
         closest = min(available, key=lambda index: _color_distance(colors[index], target))
         colors[closest] = target
+        for position in implicit_slot_layers.pop(closest, []):
+            layers[position]["color_indices"] = [closest]
         used.add(closest)
 
     return DesignPlanV3.model_validate(
@@ -855,7 +866,10 @@ def _ensure_requested_refine_changes(
     )
     if permissions.colors:
         if base_colors == changed_colors:
-            missing.append("colors")
+            # 지명색 요청은 정규화가 적용을 보장하므로, 변경 없음 = 이미 충족된
+            # 요청이다 — 재시도로 몰아 attempts를 소진시키지 않는다.
+            if not named_colors_applied:
+                missing.append("colors")
         elif (
             not fixed_palette
             and not named_colors_applied
@@ -1616,7 +1630,10 @@ class GeminiClient:
 
             for index, plan in indexed_plans:
                 try:
-                    if palette_constraint is None or palette_constraint.mode != "fixed":
+                    # refine 플랜은 _preserve_refine_plan이 이미 정규화했다.
+                    if not refine and (
+                        palette_constraint is None or palette_constraint.mode != "fixed"
+                    ):
                         plan = _normalize_requested_named_colors(prompt, plan)
                 except ValueError as exc:
                     design_errors.append(f"plan[{index}]: {exc}")

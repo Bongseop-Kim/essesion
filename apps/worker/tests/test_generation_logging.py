@@ -114,6 +114,13 @@ def test_generation_status_marks_candidate_shortage_partial():
     assert routes._generation_status(requested=4, returned=3, warnings=[]) == "partial"
 
 
+def test_generation_status_marks_partial_warning_partial():
+    assert (
+        routes._generation_status(requested=4, returned=4, warnings=["preview upload skipped"])
+        == "partial"
+    )
+
+
 async def test_worker_records_exception_with_sanitized_error_and_zero_render_time(
     client, db_session
 ):

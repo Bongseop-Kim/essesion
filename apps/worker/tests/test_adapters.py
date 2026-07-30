@@ -747,6 +747,40 @@ async def test_refine_normalizes_named_colors_when_model_ignores_change():
     assert "#FFFFF0" in designs[0].plan["colors"]
 
 
+async def test_refine_accepts_already_satisfied_named_color_without_retry():
+    # 요청한 지명색이 이미 커밋된 플랜에 있으면 무변경 응답은 정답 — 재시도 금지.
+    base = load_example_set()[1].plan
+    colors = list(base.colors)
+    colors[base.ground_color_index] = "#800020"
+    current = base.model_copy(update={"colors": colors})
+    client, sdk = _gemini(current.model_dump(mode="json"))
+
+    designs = await client.author_designs(
+        "배경은 버건디로 바꿔줘.",
+        current_plan=current,
+    )
+
+    assert len(sdk.models.generate_calls) == 1
+    assert designs[0].plan is not None
+    assert designs[0].plan["colors"][designs[0].plan["ground_color_index"]] == "#800020"
+
+
+async def test_refine_rejects_ignored_color_change_for_fixed_palette():
+    # 지명색 없는 색 변경 요청을 모델이 무시하면 fixed palette에서도 재시도로 거부.
+    current = load_example_set()[1].plan
+    unchanged = current.model_dump(mode="json")
+    client, sdk = _gemini(*([unchanged] * 4))
+
+    with pytest.raises(IntentInvalid):
+        await client.author_designs(
+            "색상을 바꿔줘",
+            current_plan=current,
+            palette_constraint=PaletteConstraint(mode="fixed", colors=list(current.colors[:5])),
+        )
+
+    assert len(sdk.models.generate_calls) == 4
+
+
 async def test_refine_normalizes_named_color_when_palette_is_only_permuted():
     current = load_example_set()[1].plan
     permuted = current.model_dump(mode="json")
@@ -818,25 +852,26 @@ async def test_initial_authoring_does_not_require_excluded_named_color(prompt: s
 
     assert len(designs) == 2
     assert len(sdk.models.generate_calls) == 1
+    assert all(
+        design.plan is not None and "#000080" not in design.plan["colors"] for design in designs
+    )
 
 
 @pytest.mark.parametrize(
-    "prompt",
+    ("prompt", "excluded"),
     [
-        "네이비와 아이보리 없이",
-        "네이비 배경은 빼줘",
-        "네이비 배경 대신 버건디",
-        "no navy",
-        "without navy and ivory",
-        "네이비 대신 아이보리",
+        ("네이비와 아이보리 없이", {"navy", "ivory"}),
+        ("네이비 배경은 빼줘", {"navy"}),
+        ("네이비 배경 대신 버건디", {"navy"}),
+        ("no navy", {"navy"}),
+        ("without navy and ivory", {"navy", "ivory"}),
+        ("네이비 대신 아이보리", {"navy"}),
     ],
 )
-def test_named_color_exclusions_cover_lists_roles_and_replacements(prompt: str):
+def test_named_color_exclusions_cover_lists_roles_and_replacements(prompt: str, excluded: set[str]):
     requested = {name for name, _target, _matches in _requested_named_colors(prompt)}
 
-    assert "navy" not in requested
-    if "아이보리 없이" in prompt or "and ivory" in prompt:
-        assert "ivory" not in requested
+    assert not (excluded & requested)
 
 
 def test_named_ground_tie_uses_prompt_order_instead_of_color_name():
@@ -900,15 +935,13 @@ def test_named_existing_color_reuses_role_references_without_swapping_palette():
 
     assert ground.colors == stripe.colors == motif.colors == current.colors
     assert ground.ground_color_index == 1
-    assert next(layer for layer in ground.layers if layer.type == "stripe").bands[
-        0
-    ].color_index == 1
-    assert next(layer for layer in stripe.layers if layer.type == "stripe").bands[
-        0
-    ].color_index == 2
-    assert next(
-        layer for layer in motif.layers if layer.type == "motif"
-    ).color_indices == [1]
+    assert (
+        next(layer for layer in ground.layers if layer.type == "stripe").bands[0].color_index == 1
+    )
+    assert (
+        next(layer for layer in stripe.layers if layer.type == "stripe").bands[0].color_index == 2
+    )
+    assert next(layer for layer in motif.layers if layer.type == "motif").color_indices == [1]
 
 
 def test_named_non_ground_color_is_scoped_to_its_visible_role():
@@ -1312,9 +1345,9 @@ def test_refine_respecification_keeps_model_plan_over_committed_restore(prompt: 
 
     assert restored == []
     evolved_raw = evolved.model_dump(mode="json")
-    proposed_raw = proposed.model_dump(mode="json")
+    proposed_json = proposed.model_dump(mode="json")
     assert {key: value for key, value in evolved_raw.items() if key != "colors"} == {
-        key: value for key, value in proposed_raw.items() if key != "colors"
+        key: value for key, value in proposed_json.items() if key != "colors"
     }
     assert evolved.colors[evolved.ground_color_index] == "#000080"
     assert "#FFFFF0" in evolved.colors

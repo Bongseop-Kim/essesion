@@ -25,7 +25,7 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
-import { FAILURE_STAGE_LABELS } from "./generation-labels";
+import { FAILURE_STAGE_LABELS, inputTypeLabel } from "./generation-labels";
 import {
   formatMilliseconds,
   IdentifierLink,
@@ -158,12 +158,7 @@ export function SeamlessLogsPage() {
       key: "input_type",
       header: "입력",
       visibility: "large",
-      render: (log) =>
-        ({
-          intent: "Intent",
-          prompt: "텍스트",
-          reference_image: "참고 이미지",
-        })[log.input_type] ?? log.input_type,
+      render: (log) => inputTypeLabel(log.input_type),
     },
     {
       key: "status",
