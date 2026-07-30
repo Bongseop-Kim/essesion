@@ -275,9 +275,7 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
         )
     ]
 
-    def nearby_targets(
-        roles: list[re.Match[str]], *, direct_role: bool = False
-    ) -> set[str]:
+    def nearby_targets(roles: list[re.Match[str]], *, direct_role: bool = False) -> set[str]:
         targets: set[str] = set()
         for role in roles:
             candidates = [
@@ -312,9 +310,7 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
         first_ground = next(name for name, _hex, _m in requested if name in ground_targets)
         ground_targets = {first_ground}
     stripe_targets = nearby_targets(stripe_roles, direct_role=True) - ground_targets
-    motif_targets = (
-        nearby_targets(motif_roles, direct_role=True) - ground_targets - stripe_targets
-    )
+    motif_targets = nearby_targets(motif_roles, direct_role=True) - ground_targets - stripe_targets
     for name, _target, matches in requested:
         if name in ground_targets or name in stripe_targets or name in motif_targets:
             continue
@@ -404,11 +400,7 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
             if existing in target_slots:
                 used.add(existing)
                 continue
-            available = [
-                index
-                for index in target_slots
-                if index not in used
-            ]
+            available = [index for index in target_slots if index not in used]
             if not available:
                 available = [index for index in role_slots if index not in used]
             if (
@@ -432,11 +424,7 @@ def _normalize_requested_named_colors(prompt: str, plan: DesignPlanV3) -> Design
             layer_slots = stripe_slots | motif_slots
             used.add(existing)
             continue
-        available = [
-            index
-            for index in target_slots
-            if index not in used
-        ]
+        available = [index for index in target_slots if index not in used]
         if (
             not available
             and not target_slots

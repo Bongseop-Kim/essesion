@@ -865,9 +865,7 @@ def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
         ):
             code = "spacing_snap"
         elif (
-            warning.startswith("stripe ")
-            and " period_mm " in warning
-            and " snapped to " in warning
+            warning.startswith("stripe ") and " period_mm " in warning and " snapped to " in warning
         ):
             code = "stripe_period_snap"
         else:

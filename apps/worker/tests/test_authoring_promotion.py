@@ -170,9 +170,7 @@ async def _source(
                 status="succeeded",
                 params={
                     "run_id": str(log.id),
-                    "candidate_id": (
-                        candidate_id if finalize_selected else "another-candidate"
-                    ),
+                    "candidate_id": (candidate_id if finalize_selected else "another-candidate"),
                 },
                 created_at=base + timedelta(seconds=seq),
                 updated_at=base + timedelta(seconds=seq),
