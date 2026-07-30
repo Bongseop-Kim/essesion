@@ -373,6 +373,29 @@ def test_intent_level_warnings_are_deduped(client):
     assert sum("outside CMYK gamut" in m for m in w) == 1
 
 
+def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
+    intent = mvp_intent()
+    intent["layers"] = intent["layers"][:1] + [
+        {
+            "id": "motif_0",
+            "type": "motif",
+            "z_order": 1,
+            "params": {"motif_id": "circle", "size_mm": 14.4, "color": "accent"},
+            "placement": {
+                "type": "lattice",
+                "lattice": {"cell_w_mm": 12.0, "cell_h_mm": 12.0},
+            },
+        }
+    ]
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 2}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["intents"][0]["layers"][1]["params"]["size_mm"] == 13.8
+    assert [w for w in body["warnings"] if "clamped to 13.8" in w]
+
+
 def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
     client = TestClient(_configure_app(monkeypatch, raster_ok=False))
     resp = client.post(

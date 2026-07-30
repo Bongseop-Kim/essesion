@@ -265,4 +265,5 @@ auto 참고 사진의 소스 규칙 / 서빙 스키마 변형 withhold / 정확 
 후속 플랜으로 남겼다.
 
 - `docs/plans/design-reference-role-isolation.md`
-- `docs/plans/design-motif-lattice-overlap.md`
+- `docs/plans/design-motif-lattice-overlap.md` — 실행 완료,
+  `docs/reviews/design-motif-lattice-overlap-2026-07-30.md`

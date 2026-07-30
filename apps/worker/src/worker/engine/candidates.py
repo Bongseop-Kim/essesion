@@ -9,6 +9,7 @@ from worker.engine.constraints import (
     PaletteConstraint,
     PatternConstraints,
     assert_constraints_satisfied,
+    lattice_size_limit,
 )
 from worker.engine.determinism import REGISTRY_VERSION, layout_id_for, stable_digest
 from worker.engine.generate import Candidate
@@ -451,16 +452,22 @@ def _lattice_cell_variants(base: Intent, layer_idx: int) -> Iterator[Intent]:
 def _with_lattice_cells(base: Intent, layer_idx: int, cell_w: float, cell_h: float) -> Intent:
     layer = cast("MotifLayer", base.layers[layer_idx])
     placement, spec = _lattice_of(layer)
+    # 셀을 줄이는 변이는 모티프도 같이 줄여야 겹침 상한이 유지된다.
+    params = layer.params
+    cap = lattice_size_limit(min(cell_w, cell_h))
+    if params.size_mm > cap:
+        params = params.model_copy(update={"size_mm": _q(cap)})
     updated_layers = list(base.layers)
     updated_layers[layer_idx] = layer.model_copy(
         update={
+            "params": params,
             "placement": placement.model_copy(
                 update={
                     "lattice": spec.model_copy(
                         update={"cell_w_mm": _q(cell_w), "cell_h_mm": _q(cell_h)}
                     )
                 }
-            )
+            ),
         }
     )
     return base.model_copy(update={"layers": updated_layers})
@@ -469,8 +476,14 @@ def _with_lattice_cells(base: Intent, layer_idx: int, cell_w: float, cell_h: flo
 def _motif_size_variants(base: Intent, layer_idx: int) -> Iterator[Intent]:
     layer = cast("MotifLayer", base.layers[layer_idx])
     size = layer.params.size_mm
+    cap = base.canvas.tile_mm
+    placement = layer.placement
+    if placement is not None and placement.lattice is not None:
+        # 격자에서는 확대 변이가 겹침 클램프를 되돌리지 못하게 셀 상한까지만 키운다.
+        spec = placement.lattice
+        cap = min(cap, lattice_size_limit(min(spec.cell_w_mm, spec.cell_h_mm)))
     for factor in (0.75, 1.35):
-        new_size = min(base.canvas.tile_mm, size * factor)
+        new_size = min(cap, size * factor)
         if abs(new_size - size) > 1e-6:
             yield _with_motif_size(base, layer_idx, new_size)
 

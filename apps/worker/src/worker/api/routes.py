@@ -671,11 +671,15 @@ async def _generate_from_intent(
     *,
     effective_colorway: str | None,
     registry_version: str,
+    warnings: list[str],
 ) -> _GenerateOutcome:
     assert body.intent is not None
     try:
         constrained_intent = apply_generation_constraints(
-            body.intent, palette=body.palette, pattern=body.pattern_constraints
+            body.intent,
+            palette=body.palette,
+            pattern=body.pattern_constraints,
+            warnings=warnings,
         )
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
@@ -752,9 +756,14 @@ async def _generate_from_prompt(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     def _validate(intent_raw: dict) -> list[str] | None:
+        # 거절된 재시도의 경고까지 응답에 새지 않도록, 통과한 설계에서만 warnings로 옮긴다.
+        constraint_warnings: list[str] = []
         try:
             constrained = apply_generation_constraints(
-                intent_raw, palette=body.palette, pattern=body.pattern_constraints
+                intent_raw,
+                palette=body.palette,
+                pattern=body.pattern_constraints,
+                warnings=constraint_warnings,
             )
         except ConstraintInvalid as exc:
             return exc.errors
@@ -773,6 +782,7 @@ async def _generate_from_prompt(
         missing = [motif_id for motif_id in body.motif_ids if motif_id not in used]
         if missing:
             return [f"design must use supplied motif ids: {', '.join(missing)}"]
+        warnings.extend(constraint_warnings)
         return None
 
     try:
@@ -1100,6 +1110,7 @@ async def generate(
             session,
             effective_colorway=effective_colorway,
             registry_version=registry_version,
+            warnings=warnings,
         )
     else:
         outcome = await _generate_from_prompt(
