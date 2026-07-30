@@ -1266,10 +1266,10 @@ def _build_prompt(
                 for index, image in enumerate(reference_images, start=1)
             ],
         ]
-        # purpose=color_mood/composition의 역할 격리는 프롬프트로 강제되지 않는다: 금지 문구를
-        # 명시해도 사진 속 형태가 모티프 subject로 새어 나온다(측정 4/4 vs 3/4 — 차이 없음).
-        # 근본 수정은 제한 역할 사진을 모델에 아예 보내지 않는 것 —
-        # docs/plans/design-reference-role-isolation.md.
+        # "…만 사용"이라는 negative 역할은 프롬프트로 강제되지 않는다: 금지 문구를 명시해도
+        # 사진 속 형태가 모티프 subject로 새어 나온다(측정 4/4 vs 3/4 — 차이 없음). 이미지를
+        # 안 보내는 것은 해가 아니다(사진 이해가 이 기능의 값이다) — 지켜야 하는 계약은
+        # "명시된 텍스트 > 이미지 추론"이다: docs/plans/design-reference-text-precedence.md.
         if not motif_ids and any(image.purpose in {"motif", "auto"} for image in reference_images):
             lines += [
                 "",
