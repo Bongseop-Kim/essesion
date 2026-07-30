@@ -483,6 +483,7 @@ async def resolve_spec(
         colors=colors,
         seed=seed,
     )
+
     async def _upsert(**slot_metadata) -> store.MotifUpsertResult:
         kwargs: dict = dict(
             facets=facets_from_spec(authored_spec),
