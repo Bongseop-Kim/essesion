@@ -170,6 +170,7 @@ class SeamlessStatsOut(BaseModel):
     success: int
     partial: int
     error: int
+    recraft_calls: int
     average_generate_ms: float | None
     average_render_ms: float | None
     as_of: datetime
@@ -254,6 +255,9 @@ class GenerationDiagnosticsOut(BaseModel):
     validated_count: int | None = None
     catalog_candidate_count: int | None = None
     resolved_count: int | None = None
+    # 요청당 실제 Recraft 과금 호출 수(게이트 재프롬프트 포함). 실패 요청은 모티프
+    # upsert가 롤백되므로 저장 모티프 수가 아니라 이 값이 비용 추적의 정본이다.
+    recraft_calls: int | None = None
     candidate_count: int | None = None
     authoring_ms: float | None = None
     motif_resolution_ms: float | None = None
@@ -789,6 +793,7 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         validated_count=count("validated_count"),
         catalog_candidate_count=count("catalog_candidate_count"),
         resolved_count=count("resolved_count"),
+        recraft_calls=count("recraft_calls"),
         candidate_count=count("candidate_count"),
         authoring_ms=milliseconds("authoring_ms"),
         motif_resolution_ms=milliseconds("motif_resolution_ms"),
@@ -1078,6 +1083,10 @@ async def get_admin_seamless_stats(
                 func.count().filter(SeamlessGenerationLog.status == "success"),
                 func.count().filter(SeamlessGenerationLog.status == "partial"),
                 func.count().filter(SeamlessGenerationLog.status == "error"),
+                # worker만 쓰는 정수 필드 — 실패(롤백) 요청의 호출까지 포함한 과금 합계.
+                func.coalesce(
+                    func.sum(SeamlessGenerationLog.diagnostics["recraft_calls"].as_integer()), 0
+                ),
                 func.avg(SeamlessGenerationLog.generate_ms),
                 func.avg(SeamlessGenerationLog.render_ms),
             ).where(*filters)
@@ -1088,8 +1097,9 @@ async def get_admin_seamless_stats(
         success=int(row[1]),
         partial=int(row[2]),
         error=int(row[3]),
-        average_generate_ms=float(row[4]) if row[4] is not None else None,
-        average_render_ms=float(row[5]) if row[5] is not None else None,
+        recraft_calls=int(row[4]),
+        average_generate_ms=float(row[5]) if row[5] is not None else None,
+        average_render_ms=float(row[6]) if row[6] is not None else None,
         as_of=datetime.now(UTC),
     )
 

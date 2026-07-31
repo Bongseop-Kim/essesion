@@ -235,83 +235,53 @@ def test_part_aware_recolor_assigns_palette_in_exposed_slot_order():
     }
 
 
-@pytest.mark.parametrize("planned_colors", [["gold"], ["gold", "accent", "gold", "accent"]])
-def test_explicit_recolor_rejects_color_count_that_differs_from_slot_count(planned_colors):
+def test_mismatched_recolor_count_adapts_by_cycling_planned_colors():
+    # 컴파일 단계가 카탈로그 모티프의 recolor 길이를 이미 강제하므로, 바인딩에 도달한
+    # 불일치는 슬롯 수를 알 수 없던 생성/사진 모티프뿐 — 요청 전체 실패 대신 순환 배정.
     intent = mvp_intent()
     motif_layer = _motif_layer(intent)
     motif_layer["id"] = "part-aware"
     motif_layer["params"]["motif_id"] = "multi"
 
-    with pytest.raises(ValueError, match="recolor count must match resolved slot count"):
-        routes._bind_resolved_motif_colors(
-            [intent],
-            {
-                "multi": SimpleNamespace(
-                    color_slots=("s0", "s1", "s2"),
-                    slot_colors=("#112233", "#445566", "#778899"),
-                    slot_labels=("detail", "primary", "outline"),
-                    slot_parts=("몸통", "자전거", "부리·안장"),
-                )
-            },
-            [{"part-aware": planned_colors}],
-        )
-
-
-@pytest.mark.parametrize("planned_colors", [["gold"], ["gold", "accent", "gold", "accent"]])
-def test_generate_returns_422_when_explicit_recolor_count_differs_from_resolved_slots(
-    monkeypatch, planned_colors
-):
-    async def no_public_candidates(*_args, **_kwargs):
-        return []
-
-    async def no_examples(*_args, **_kwargs):
-        return RetrievalOutcome(status="empty", reason="no_examples")
-
-    async def resolved_catalog(_session, ids):
-        return (
-            {
-                "multi": SimpleNamespace(
-                    color_slots=("s0", "s1", "s2"),
-                    slot_colors=("#112233", "#445566", "#778899"),
-                    slot_labels=("detail", "primary", "outline"),
-                    slot_parts=("몸통", "자전거", "부리·안장"),
-                )
-            }
-            if "multi" in ids
-            else {}
-        )
-
-    class Gemini:
-        async def author_designs(self, _prompt, *, validate, **_kwargs):
-            intent = mvp_intent()
-            motif_layer = _motif_layer(intent)
-            motif_layer["id"] = "part-aware"
-            motif_layer["params"]["motif_id"] = "multi"
-            assert validate(intent) is None
-            return [
-                AuthoredDesign(
-                    intent=intent,
-                    motif_color_slots={"part-aware": planned_colors},
-                )
-            ]
-
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", no_public_candidates)
-    monkeypatch.setattr(routes, "retrieve_examples", no_examples)
-    monkeypatch.setattr(routes, "get_motifs", resolved_catalog)
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=Gemini())
-
-    response = TestClient(app).post(
-        "/generate",
-        json={"run_id": _RUN_ID, "prompt": "자전거 모티프를 다시 칠해줘"},
+    adapted = routes._bind_resolved_motif_colors(
+        [intent],
+        {
+            "multi": SimpleNamespace(
+                color_slots=("s0", "s1", "s2"),
+                slot_colors=("#112233", "#445566", "#778899"),
+                slot_labels=("detail", "primary", "outline"),
+                slot_parts=("몸통", "자전거", "부리·안장"),
+            )
+        },
+        [{"part-aware": ["gold", "accent"]}],
     )
 
-    assert response.status_code == 422
-    assert response.json()["detail"] == {
-        "code": "intent_invalid",
-        "stage": "intent",
-        "message": "the design input is invalid",
-    }
+    assert adapted == ["part-aware"]
+    assert motif_layer["params"]["colors"] == {"s0": "gold", "s1": "accent", "s2": "gold"}
+
+
+def test_single_color_recolor_broadcasts_across_unknown_slot_count():
+    # 생성 모티프는 플랜 시점 slot_count 간주값이 1이라 지명색 보정이 1개짜리
+    # color_indices를 주입한다. 해석된 슬롯 수와 달라도 단색이면 전체에 칠한다.
+    intent = mvp_intent()
+    motif_layer = _motif_layer(intent)
+    motif_layer["id"] = "generated"
+    motif_layer["params"]["motif_id"] = "multi"
+
+    routes._bind_resolved_motif_colors(
+        [intent],
+        {
+            "multi": SimpleNamespace(
+                color_slots=("s0", "s1", "s2"),
+                slot_colors=("#112233", "#445566", "#778899"),
+                slot_labels=("detail", "primary", "outline"),
+                slot_parts=("몸통", "자전거", "부리·안장"),
+            )
+        },
+        [{"generated": ["gold"]}],
+    )
+
+    assert motif_layer["params"]["colors"] == {"s0": "gold", "s1": "gold", "s2": "gold"}
 
 
 def test_fixed_palette_recolors_even_when_color_indices_were_omitted():
@@ -401,6 +371,29 @@ def test_intent_level_warnings_are_deduped(client):
     w = resp.json()["warnings"]
     assert len(w) == len(set(w))  # 정확한 중복 없음
     assert sum("outside CMYK gamut" in m for m in w) == 1
+
+
+def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
+    intent = mvp_intent()
+    intent["layers"] = intent["layers"][:1] + [
+        {
+            "id": "motif_0",
+            "type": "motif",
+            "z_order": 1,
+            "params": {"motif_id": "circle", "size_mm": 14.4, "color": "accent"},
+            "placement": {
+                "type": "lattice",
+                "lattice": {"cell_w_mm": 12.0, "cell_h_mm": 12.0},
+            },
+        }
+    ]
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 2}
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["intents"][0]["layers"][1]["params"]["size_mm"] == 13.8
+    assert [w for w in body["warnings"] if "clamped to 13.8" in w]
 
 
 def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):

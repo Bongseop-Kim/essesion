@@ -4157,6 +4157,10 @@ export type GenerationDiagnosticsOut = {
      */
     prompt_revision?: string | null;
     /**
+     * Recraft Calls
+     */
+    recraft_calls?: number | null;
+    /**
      * Reference Count
      */
     reference_count?: number | null;
@@ -7712,6 +7716,10 @@ export type SeamlessStatsOut = {
      * Partial
      */
     partial: number;
+    /**
+     * Recraft Calls
+     */
+    recraft_calls: number;
     /**
      * Success
      */

@@ -27,6 +27,31 @@ async def _seed_dot(session) -> str:
     return upserted.id
 
 
+def test_import_strips_generator_boilerplate_but_keeps_painting_style():
+    # Recraft가 내보내는 SVG는 preserveAspectRatio/style/version/<metadata>를 항상 달고 나와
+    # allowlist 거부로 우리 출력물조차 다시 임포트할 수 없었다. 무해한 것만 떼어낸다.
+    noisy = (
+        '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 100 100"'
+        ' preserveAspectRatio="none" style="display: block;">'
+        "<metadata><recraft-signature>x</recraft-signature></metadata>"
+        "<title>t</title><desc>d</desc>"
+        '<circle cx="50" cy="50" r="30" fill="#ff0000"/></svg>'
+    )
+
+    assert (
+        normalize_motif_svg(noisy, render_check=False).id
+        == normalize_motif_svg(_CIRCLE, render_check=False).id
+    )
+
+    painting = _CIRCLE.replace('<circle cx="50"', '<circle style="fill:url(#x)" cx="50"')
+    try:
+        normalize_motif_svg(painting, render_check=False)
+    except ValueError as exc:
+        assert "style" in str(exc)
+    else:
+        raise AssertionError("paint-carrying style must still be rejected")
+
+
 async def test_motifs_candidates_returns_seeded(client, db_session):
     await _seed_dot(db_session)
     resp = await client.post(

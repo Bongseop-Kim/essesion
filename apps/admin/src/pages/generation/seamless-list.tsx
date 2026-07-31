@@ -58,6 +58,7 @@ function SeamlessStatistics({
         { label: "성공", value: `${data?.success ?? 0}건` },
         { label: "부분 성공", value: `${data?.partial ?? 0}건` },
         { label: "오류", value: `${data?.error ?? 0}건` },
+        { label: "Recraft 호출", value: `${data?.recraft_calls ?? 0}회` },
         {
           label: "평균 생성",
           value: formatMilliseconds(data?.average_generate_ms),

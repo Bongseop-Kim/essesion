@@ -70,6 +70,7 @@ const log: SeamlessDetailOut = {
     validated_count: 3,
     catalog_candidate_count: null,
     resolved_count: 3,
+    recraft_calls: 2,
     candidate_count: 0,
     authoring_ms: null,
     motif_resolution_ms: null,
@@ -326,6 +327,8 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("생성 진단")).toBeTruthy();
     expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
     expect(screen.getByText("3 / 3")).toBeTruthy();
+    expect(screen.getByText("Recraft 호출")).toBeTruthy();
+    expect(screen.getByText("2회")).toBeTruthy();
     expect(
       screen.getByText(/요청한 후보 4개는 모두 생성되었습니다/),
     ).toBeTruthy();

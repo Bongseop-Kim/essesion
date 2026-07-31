@@ -14,6 +14,7 @@ import copy
 import io
 import json
 import re
+from collections.abc import Collection
 from dataclasses import dataclass, replace
 from typing import Literal, TypeVar
 
@@ -56,7 +57,7 @@ MAX_REFERENCE_IMAGE_SIDE = 2_048
 # Per-request output ceiling (DoW guard). Generous for 2-4 structured plans; ideas are far smaller.
 # ponytail: single flat cap; split per call-site only if plans start truncating.
 MAX_OUTPUT_TOKENS = 8192
-AUTHORING_PROMPT_REVISION = "design-plan-v3-conversation-refine-five-layers-v4"
+AUTHORING_PROMPT_REVISION = "design-plan-v3-conversation-refine-five-layers-v5-count-limits"
 AUTHORING_SYSTEM_INSTRUCTION = (
     "You author normalized, production-safe plans for a deterministic seamless textile "
     "compiler. Follow the response schema exactly. Never output engine JSON, SVG, millimetres, "
@@ -1077,6 +1078,20 @@ def _build_prompt(
         "by zero-based indexes into each plan's colors array.",
         "A stripe host index refers to the zero-based order among stripe layers. A motif index "
         "refers to the zero-based order in the motifs array.",
+        # 서빙 스키마는 maxItems 등 개수 상한을 담을 수 없다(_UNSERVABLE_SCHEMA_KEYS) — 제약
+        # 디코딩이 막아주지 않으므로 문장으로 다시 말해준다. 특히 줄무늬 참고 사진이 오면
+        # 모델이 bands를 7~10개 만들어 재시도를 전부 소진하고 요청이 실패했다.
+        "Per-plan count limits, which the response schema cannot express: 2 to 8 colors, at most "
+        "2 motif sources, at most 5 layers, at most 4 bands per stripe layer, and at most 16 "
+        "lattice rows or columns. Never exceed one: express finer repetition with a smaller "
+        "period_ratio or spacing_ratio instead of adding bands or layers.",
+        "Relations the response schema also cannot express: within one stripe layer the "
+        "width_ratio values sum to at most 0.75 and each band's offset_ratio + width_ratio stays "
+        "at most 1.0; colors must all be different; host_band_index may appear only together "
+        "with host_stripe_index, and a hosted path's direction must equal its stripe's direction.",
+        # size_ratio > 1/max(rows, columns)면 격자 인스턴스가 반드시 겹쳐 로고·글자 모티프의
+        # 형상이 뭉개진다. 프롬프트로 알려줘도 위반율이 안 떨어졌다(31% vs 38%, n=21) —
+        # 결정론적 클램프가 필요하다: docs/plans/design-motif-lattice-overlap.md.
         "Every declared motif must be used."
         + (
             " Plans that differ only by colors are duplicates."
@@ -1134,6 +1149,11 @@ def _build_prompt(
         ]
 
     exact_count = len(motif_ids or [])
+    motif_photo_indexes = sorted(
+        index
+        for index, image in enumerate(reference_images or [], start=1)
+        if image.purpose == "motif"
+    )
     if exact_count:
         lines += [
             "",
@@ -1141,6 +1161,18 @@ def _build_prompt(
             'source="input" with input_index 1..N, use every one in every plan, and never emit '
             "or guess its internal ID. Exact inputs cannot be combined with catalog motifs.",
         ]
+        if motif_photo_indexes:
+            # 정확 입력과 purpose=motif 사진이 함께 오면 모델이 사진을 통째로 빠뜨려
+            # "every motif reference photo must be represented exactly once"로 매번 실패했다.
+            # 필요한 소스 집합 전체와 총 개수를 한 줄로 못박아야 둘 다 선언한다.
+            photos = ", ".join(str(index) for index in motif_photo_indexes)
+            total = exact_count + len(motif_photo_indexes)
+            lines.append(
+                f"Image {photos} is also a motif source, so every plan's motifs array holds "
+                f'exactly {total} entries: the {exact_count} source="input" entries above plus '
+                f'{{"source": "reference", "reference_image_index": <image number>, "subject": '
+                f'"<what the image depicts>"}} for image {photos}. Dropping either kind is invalid.'
+            )
         if exact_motif_metadata:
             lines += [
                 "The input_N metadata aliases below correspond to input_index N. They are "
@@ -1185,7 +1217,10 @@ def _build_prompt(
     elif (
         not current_candidates
         and not exact_count
-        and not any(image.purpose in {"motif", "auto"} for image in (reference_images or []))
+        # purpose=motif만 검증된 모티프 소스다. purpose=auto를 여기서 함께 제외하면 auto 사진
+        # 한 장짜리 요청에 모티프 소스 지침이 한 줄도 안 들어가, 모델이 source="input"
+        # (input_index 0)을 발명해 authoring_invalid로 실패했다.
+        and not any(image.purpose == "motif" for image in (reference_images or []))
     ):
         lines += [
             "",
@@ -1218,7 +1253,9 @@ def _build_prompt(
         role_instructions = {
             "auto": "infer color/mood, motif form, or composition from context",
             "color_mood": "use only palette, texture impression, and mood",
-            "motif": "declare this exact image once as a reference motif source",
+            "motif": "declare this exact image once in every plan as a motif with "
+            'source="reference" and reference_image_index set to this image number '
+            "(not an input motif source)",
             "composition": "use only spacing, rhythm, and composition",
         }
         lines += [
@@ -1229,6 +1266,28 @@ def _build_prompt(
                 for index, image in enumerate(reference_images, start=1)
             ],
         ]
+        # "…만 사용"이라는 negative 역할은 프롬프트로 강제되지 않는다: 금지 문구를 명시해도
+        # 사진 속 형태가 모티프 subject로 새어 나온다(측정 4/4 vs 3/4 — 차이 없음). 이미지를
+        # 안 보내는 것은 해가 아니다(사진 이해가 이 기능의 값이다) — 지켜야 하는 계약은
+        # "명시된 텍스트 > 이미지 추론"이다: docs/plans/design-reference-text-precedence.md.
+        if not motif_ids and any(image.purpose in {"motif", "auto"} for image in reference_images):
+            lines += [
+                "",
+                'A reference motif is declared as {"source": "reference", '
+                '"reference_image_index": <image number>, "subject": "<what the image depicts>"}. '
+                'This request has no exact motif inputs, so source="input" is always invalid '
+                "here.",
+            ]
+            if any(image.purpose == "motif" for image in reference_images):
+                lines.append(
+                    "Declare every purpose=motif image exactly once this way in every plan."
+                )
+            if any(image.purpose == "auto" for image in reference_images):
+                lines.append(
+                    "A purpose=auto image may be declared this way when the photo's own shape is "
+                    "the repeating motif; otherwise take only its colors, mood, or composition "
+                    "and pick the motif source from the rules above."
+                )
 
     if examples:
         lines += [
@@ -1317,6 +1376,12 @@ _PLAN_FEEDBACK_HINTS: tuple[tuple[str, str], ...] = (
         "stripe band coverage may not exceed 0.75",
         "reduce the width_ratio values of that stripe layer's bands so their sum is at most 0.75",
     ),
+    (
+        # max_length=4는 스트라이프 bands에만 있으므로 msg만으로 구분된다.
+        "at most 4 items",
+        "a stripe layer carries at most 4 bands: keep the 4 that matter and shrink period_ratio "
+        "so the band group repeats more often, instead of listing every repetition as a band",
+    ),
 )
 
 
@@ -1381,14 +1446,35 @@ _UNSERVABLE_SCHEMA_KEYS = frozenset(
 )
 
 
-def _servable_json_schema(model: type[BaseModel]) -> dict:
+def _servable_json_schema(model: type[BaseModel], *, without: Collection[str] = ()) -> dict:
+    """Serve a Vertex-compatible schema with unavailable motif variants withheld.
+
+    ``without`` drops those ``$defs`` entries and every union branch referencing them. Prompt
+    text alone could not stop flash-lite from reaching for ``source="input"`` or an invented
+    ``catalog_ref`` whenever a photo was attached — the compiler has long carried corrective
+    retry feedback for both fixations. Withholding the variants keeps them out of constrained
+    decoding entirely, so the model can only pick a source this request can actually ground.
+    """
+
+    dropped = frozenset(without)
+    refs = {f"#/$defs/{name}" for name in dropped}
+
     def prune(node: object) -> object:
         if isinstance(node, dict):
-            return {
-                ("anyOf" if k == "oneOf" else k): prune(v)
-                for k, v in node.items()
-                if k not in _UNSERVABLE_SCHEMA_KEYS
-            }
+            out: dict[str, object] = {}
+            for key, value in node.items():
+                if key in _UNSERVABLE_SCHEMA_KEYS:
+                    continue
+                if key == "$defs" and dropped and isinstance(value, dict):
+                    value = {k: v for k, v in value.items() if k not in dropped}
+                if key in {"oneOf", "anyOf"} and refs and isinstance(value, list):
+                    value = [
+                        branch
+                        for branch in value
+                        if not (isinstance(branch, dict) and branch.get("$ref") in refs)
+                    ]
+                out["anyOf" if key == "oneOf" else key] = prune(value)
+            return out
         if isinstance(node, list):
             return [prune(v) for v in node]
         return node
@@ -1523,11 +1609,12 @@ class GeminiClient:
         *,
         reference_images: list[ReferenceImage] | None = None,
         system_instruction: str | None = None,
+        without_schema_variants: Collection[str] = (),
     ) -> _ModelT:
         response = await self._generate_response(
             prompt,
             reference_images=reference_images,
-            response_schema=_servable_json_schema(schema),
+            response_schema=_servable_json_schema(schema, without=without_schema_variants),
             system_instruction=system_instruction,
         )
         parsed = getattr(response, "parsed", None)
@@ -1583,6 +1670,12 @@ class GeminiClient:
         public_catalog_available = any(
             candidate.get("current") is not True for candidate in (catalog_candidates or [])
         )
+        # 근거 없는 모티프 소스는 서빙 스키마에서 뺀다 — 사진이 붙으면 프롬프트 금지 문구로도
+        # source="input"(input_index 0)이나 날조한 catalog_ref 고착이 풀리지 않았다.
+        withheld_source_variants = [
+            *([] if motif_ids else ["InputMotifSource"]),
+            *([] if catalog_candidates else ["CatalogMotifSource"]),
+        ]
 
         for attempt in range(_MAX_AUTHORING_ATTEMPTS):
             sink["authoring_attempts"] = attempt + 1
@@ -1606,6 +1699,7 @@ class GeminiClient:
                         DesignPlanV3,
                         reference_images=references,
                         system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
+                        without_schema_variants=withheld_source_variants,
                     )
                     assert current_plan is not None
                     response_plan, restored = _preserve_refine_plan(
@@ -1625,7 +1719,9 @@ class GeminiClient:
                     response = await self._generate_response(
                         built_prompt,
                         reference_images=references,
-                        response_schema=_servable_json_schema(DesignPlansV3),
+                        response_schema=_servable_json_schema(
+                            DesignPlansV3, without=withheld_source_variants
+                        ),
                         system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
                     )
                     if not response.text:

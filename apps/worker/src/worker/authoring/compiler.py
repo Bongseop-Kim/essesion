@@ -90,6 +90,14 @@ def _resolve_motif_sources(
         if source.source == "input":
             input_count += 1
             if source.input_index > len(motif_ids):
+                if not motif_ids and reference_image_count:
+                    # 사진 첨부를 input으로 오선언하는 고착을 교정 — 값을 되풀이하지 않고
+                    # 올바른 소스 형태를 지시한다 (catalog_ref 피드백과 같은 패턴).
+                    raise PlanCompileError(
+                        "exact motif inputs are not available for this request; declare "
+                        'each attached image instead as {"source": "reference", '
+                        '"reference_image_index": <image number>, "subject": ...}.'
+                    )
                 raise PlanCompileError(f"unknown exact motif input: {source.input_index}")
             input_indexes.add(source.input_index)
             motif_id = motif_ids[source.input_index - 1]

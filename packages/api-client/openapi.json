@@ -7789,6 +7789,17 @@
             ],
             "title": "Prompt Revision"
           },
+          "recraft_calls": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recraft Calls"
+          },
           "reference_count": {
             "anyOf": [
               {
@@ -14313,6 +14324,10 @@
             "title": "Partial",
             "type": "integer"
           },
+          "recraft_calls": {
+            "title": "Recraft Calls",
+            "type": "integer"
+          },
           "success": {
             "title": "Success",
             "type": "integer"
@@ -14327,6 +14342,7 @@
           "success",
           "partial",
           "error",
+          "recraft_calls",
           "average_generate_ms",
           "average_render_ms",
           "as_of"

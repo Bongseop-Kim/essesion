@@ -478,9 +478,13 @@ def _bind_resolved_motif_colors(
     motif_color_plans: list[dict[str, list[str]]] | None = None,
     *,
     palette_mode: str = "auto",
-) -> None:
-    """Purely bind resolved motif slots from plan, palette, and ingress metadata."""
+) -> list[str]:
+    """Purely bind resolved motif slots from plan, palette, and ingress metadata.
 
+    Returns layer ids whose planned recolor length was adapted to the resolved slot count.
+    """
+
+    adapted: list[str] = []
     plans = motif_color_plans or []
     for intent_index, intent in enumerate(intents):
         planned_layers = plans[intent_index] if intent_index < len(plans) else {}
@@ -523,11 +527,11 @@ def _bind_resolved_motif_colors(
                 continue
             layer_id = layer.get("id")
             planned_colors = planned_layers.get(layer_id) if isinstance(layer_id, str) else None
+            # 카탈로그 모티프의 recolor 길이는 컴파일 단계가 slot_count 메타데이터로 이미
+            # 강제한다. 여기 도달하는 불일치는 플랜 시점에 슬롯 수를 알 수 없던 생성/사진
+            # 모티프뿐이므로, 요청을 죽이지 않고 아래 모듈로 순환 배정으로 적응한다.
             if planned_colors is not None and len(planned_colors) != len(motif.color_slots):
-                raise ValueError(
-                    "motif recolor count must match resolved slot count "
-                    f"({len(planned_colors)} != {len(motif.color_slots)})"
-                )
+                adapted.append(layer_id if isinstance(layer_id, str) else str(motif_id))
             effective_colors = planned_colors or color_ids
             if len(motif.color_slots) <= 1:
                 chosen = planned_colors[0] if planned_colors else color_ids[0]
@@ -583,6 +587,7 @@ def _bind_resolved_motif_colors(
             }
             params.pop("color", None)
             params["colors"] = {slot: assignments[slot] for slot in motif.color_slots}
+    return adapted
 
 
 @dataclass(frozen=True)
@@ -666,11 +671,15 @@ async def _generate_from_intent(
     *,
     effective_colorway: str | None,
     registry_version: str,
+    warnings: list[str],
 ) -> _GenerateOutcome:
     assert body.intent is not None
     try:
         constrained_intent = apply_generation_constraints(
-            body.intent, palette=body.palette, pattern=body.pattern_constraints
+            body.intent,
+            palette=body.palette,
+            pattern=body.pattern_constraints,
+            warnings=warnings,
         )
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
@@ -747,9 +756,14 @@ async def _generate_from_prompt(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     def _validate(intent_raw: dict) -> list[str] | None:
+        # 거절된 재시도의 경고까지 응답에 새지 않도록, 통과한 설계에서만 warnings로 옮긴다.
+        constraint_warnings: list[str] = []
         try:
             constrained = apply_generation_constraints(
-                intent_raw, palette=body.palette, pattern=body.pattern_constraints
+                intent_raw,
+                palette=body.palette,
+                pattern=body.pattern_constraints,
+                warnings=constraint_warnings,
             )
         except ConstraintInvalid as exc:
             return exc.errors
@@ -768,6 +782,7 @@ async def _generate_from_prompt(
         missing = [motif_id for motif_id in body.motif_ids if motif_id not in used]
         if missing:
             return [f"design must use supplied motif ids: {', '.join(missing)}"]
+        warnings.extend(constraint_warnings)
         return None
 
     try:
@@ -949,6 +964,8 @@ async def _generate_from_prompt(
                     generation_budget=generation_budget,
                     warnings=warnings,
                     trace=resolution_trace,
+                    # 실패 롤백에도 과금된 모티프가 남도록 upsert만 전용 세션에서 선커밋
+                    upsert_sessionmaker=request.app.state.sessionmaker,
                 )
             )
             if len(iter_motif_ids(resolved_intents[-1])) > 2:
@@ -980,6 +997,9 @@ async def _generate_from_prompt(
         request.state.generation_diagnostics["motif_resolution_ms"] = round(
             (time.perf_counter() - resolution_started) * 1000, 3
         )
+        # 실제 Recraft 과금 호출 수(게이트 재프롬프트 포함). 실패 요청은 모티프 upsert가
+        # 롤백돼 저장 모티프 수와 어긋나므로, 비용 추적은 이 값을 정본으로 집계한다.
+        request.state.generation_diagnostics["recraft_calls"] = generation_budget.used
 
     resolved_plans: list[DesignPlanV3] = []
     try:
@@ -996,16 +1016,14 @@ async def _generate_from_prompt(
     for resolved in resolved_intents:
         ids |= iter_motif_ids(resolved)
     catalog = await get_motifs(session, ids)
-    try:
-        _bind_resolved_motif_colors(
-            resolved_intents,
-            catalog,
-            [design.motif_color_slots for design in designs],
-            palette_mode=body.palette.mode,
-        )
-    except ValueError as exc:
-        request.state.generation_diagnostics["color_binding_error"] = str(exc)
-        _reject_generation(request, "intent_invalid", "intent")
+    color_binding_adapted = _bind_resolved_motif_colors(
+        resolved_intents,
+        catalog,
+        [design.motif_color_slots for design in designs],
+        palette_mode=body.palette.mode,
+    )
+    if color_binding_adapted:
+        request.state.generation_diagnostics["color_binding_adapted"] = color_binding_adapted
     request.state.generation_diagnostics["resolved_count"] = len(resolved_intents)
     registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
     candidate_started = time.perf_counter()
@@ -1092,6 +1110,7 @@ async def generate(
             session,
             effective_colorway=effective_colorway,
             registry_version=registry_version,
+            warnings=warnings,
         )
     else:
         outcome = await _generate_from_prompt(

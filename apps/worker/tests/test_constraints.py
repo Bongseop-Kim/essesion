@@ -64,7 +64,8 @@ def test_pattern_controls_map_to_physical_engine_primitives_and_lock_variants():
     constrained = apply_generation_constraints(mvp_intent(), palette=palette, pattern=pattern)
     assert constrained["layers"][1]["params"]["angle"] == 90.0
     for layer in constrained["layers"][2:]:
-        assert layer["params"]["size_mm"] == 13.44
+        # large(48*0.28=13.44)는 dense 셀(6.0)의 1.15배로 클램프된다
+        assert layer["params"]["size_mm"] == 6.9
         assert layer["placement"]["type"] == "lattice"
         assert layer["placement"]["lattice"] == {
             "cell_w_mm": 6.0,
@@ -84,6 +85,71 @@ def test_pattern_controls_map_to_physical_engine_primitives_and_lock_variants():
     for candidate in candidates.candidates:
         assert_constraints_satisfied(candidate.intent, palette=palette, pattern=pattern)
         assert "rotate(90)" in candidate.candidate.svg
+
+
+def _lattice_intent(size_mm: float, columns: int) -> dict:
+    """저작 모델이 내보내는 모양: size_ratio와 columns가 서로를 모르는 격자 한 장."""
+    raw = mvp_intent()
+    raw["layers"] = raw["layers"][:1] + [
+        {
+            "id": "motif_0",
+            "type": "motif",
+            "z_order": 1,
+            "params": {"motif_id": "circle", "size_mm": size_mm, "color": "accent"},
+            "placement": {
+                "type": "lattice",
+                "lattice": {"cell_w_mm": 48 / columns, "cell_h_mm": 48 / columns},
+            },
+        }
+    ]
+    return raw
+
+
+def test_lattice_motif_larger_than_cell_is_clamped_with_a_warning():
+    warnings: list[str] = []
+    # S4 회귀: size_ratio 0.3 · columns 4 → 셀 12mm에 14.4mm 모티프 (로고 형상 파괴)
+    constrained = apply_generation_constraints(
+        _lattice_intent(14.4, 4),
+        palette=PaletteConstraint(),
+        pattern=PatternConstraints(),
+        warnings=warnings,
+    )
+    assert constrained["layers"][1]["params"]["size_mm"] == 13.8  # 12.0 × 1.15
+    assert warnings == ["layer 'motif_0': size_mm 14.4 clamped to 13.8 (lattice cell 12.0 × 1.15)"]
+
+    # 상한 이하의 의도적 밀집은 건드리지 않는다
+    warnings.clear()
+    untouched = apply_generation_constraints(
+        _lattice_intent(13.0, 4),
+        palette=PaletteConstraint(),
+        pattern=PatternConstraints(),
+        warnings=warnings,
+    )
+    assert untouched["layers"][1]["params"]["size_mm"] == 13.0
+    assert warnings == []
+
+
+@pytest.mark.parametrize("scale", ["small", "medium", "large"])
+@pytest.mark.parametrize("density", ["sparse", "medium", "dense"])
+def test_scale_and_density_together_never_exceed_the_overlap_allowance(scale, density):
+    """S7 회귀: 크기·밀도를 함께 지정한 9조합 모두 셀의 1.15배 이하."""
+    palette = PaletteConstraint()
+    pattern = PatternConstraints(motif_scale=scale, density=density, arrangement="lattice")
+    constrained = apply_generation_constraints(
+        _lattice_intent(5.0, 4), palette=palette, pattern=pattern
+    )
+    layer = constrained["layers"][1]
+    cell = min(layer["placement"]["lattice"][key] for key in ("cell_w_mm", "cell_h_mm"))
+    assert layer["params"]["size_mm"] <= cell * 1.15 + 1e-9
+    # 클램프가 걸려도 사후 검증(motif_scale)과 충돌하지 않는다
+    assert_constraints_satisfied(constrained, palette=palette, pattern=pattern)
+    for candidate in generate_candidates(
+        constrained, candidate_count=8, palette_constraint=palette, pattern_constraints=pattern
+    ).candidates:
+        for variant in candidate.intent.model_dump()["layers"][1:]:
+            cells = variant["placement"]["lattice"]
+            limit = min(cells["cell_w_mm"], cells["cell_h_mm"]) * 1.15
+            assert variant["params"]["size_mm"] <= limit + 1e-9
 
 
 def test_direction_constraint_rejects_malformed_layers():

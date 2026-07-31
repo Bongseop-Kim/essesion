@@ -10,6 +10,7 @@ import httpx
 import pytest
 import respx
 from google import genai
+from pydantic import ValidationError
 from svg_safety import parse_svg_tree
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import EmbeddingError, VertexEmbeddingClient, embed_query
@@ -18,6 +19,7 @@ from worker.adapters.gemini import (
     GeminiClient,
     ReferenceImage,
     _build_prompt,
+    _contract_feedback,
     _merge_layer_categories,
     _normalize_requested_named_colors,
     _preserve_refine_plan,
@@ -482,6 +484,106 @@ def test_authoring_prompt_exposes_ordered_parts_for_public_current_and_exact_mot
         assert "exactly slot_count entries" in prompt
         assert "private-content-hash" not in prompt
     assert "input_N metadata aliases" in exact
+
+
+def test_authoring_prompt_states_motif_source_rules_for_an_auto_reference_photo():
+    # purpose=auto 사진 한 장만 붙은 요청에 모티프 소스 지침이 한 줄도 없어 모델이
+    # source="input"(input_index 0)을 발명해 authoring_invalid로 실패한 회귀.
+    auto = _build_prompt(
+        "이 사진을 참고해서 넥타이 패턴을 만들어줘",
+        errors=None,
+        reference_images=[ReferenceImage(data=b"one", mime_type="image/png", purpose="auto")],
+    )
+
+    assert 'source="input" is always invalid' in auto
+    assert '"source": "reference"' in auto
+    assert "No verified motif source is available" in auto
+    assert "purpose=auto image may be declared this way" in auto
+
+
+def test_served_schema_withholds_the_input_motif_variant_when_asked():
+    # 사진 첨부 요청에서 source="input" 고착이 프롬프트로 풀리지 않아, 정확 모티프 입력이
+    # 없을 때는 변형 자체를 서빙 스키마에서 뺀다.
+    full = json.dumps(_servable_json_schema(DesignPlansV3))
+    pruned = json.dumps(
+        _servable_json_schema(DesignPlansV3, without=["InputMotifSource", "CatalogMotifSource"])
+    )
+
+    assert "input_index" in full and "catalog_ref" in full
+    assert "input_index" not in pruned
+    assert "catalog_ref" not in pruned
+    for kept in ("ReferenceMotifSource", "GenerateMotifSource"):
+        assert kept in pruned
+
+
+def test_authoring_prompt_requires_both_exact_inputs_and_motif_photos():
+    # 라이브러리 모티프 1개 + purpose=motif 사진 1장 조합에서 모델이 사진을 통째로 빼먹어
+    # "every motif reference photo must be represented exactly once"로 매번 실패한 회귀.
+    combined = _build_prompt(
+        "네이비 바탕에 이 형태들을 배치",
+        errors=None,
+        motif_ids=["private-hash"],
+        exact_motif_metadata=[{"catalog_ref": "input_1", "slot_count": 1}],
+        reference_images=[ReferenceImage(data=b"one", mime_type="image/png", purpose="motif")],
+    )
+    exact_only = _build_prompt(
+        "네이비 바탕",
+        errors=None,
+        motif_ids=["private-hash"],
+        exact_motif_metadata=[{"catalog_ref": "input_1", "slot_count": 1}],
+    )
+
+    assert "Image 1 is also a motif source" in combined
+    assert "exactly 2 entries" in combined
+    assert "is also a motif source" not in exact_only
+
+
+def test_authoring_prompt_states_the_count_limits_the_served_schema_drops():
+    # 서빙 스키마에서 maxItems가 제거되므로 개수 상한은 문장으로만 전달된다.
+    prompt = _build_prompt("네이비 사선 줄무늬", errors=None)
+
+    assert "at most 4 bands per stripe layer" in prompt
+    assert "at most 5 layers" in prompt
+
+    feedback = _contract_feedback(
+        "DesignPlansV3",
+        _bands_validation_error(),
+    )
+    assert any("at most 4 bands" in line for line in feedback)
+
+
+def _bands_validation_error() -> ValidationError:
+    try:
+        DesignPlansV3.model_validate(
+            {
+                "plans": [
+                    {
+                        "colors": ["#101820", "#F5F5DC"],
+                        "ground_color_index": 0,
+                        "motifs": [],
+                        "layers": [
+                            {
+                                "type": "stripe",
+                                "direction": "diagonal_up",
+                                "period_ratio": 0.5,
+                                "bands": [
+                                    {
+                                        "offset_ratio": index / 20,
+                                        "width_ratio": 0.01,
+                                        "color_index": 1,
+                                    }
+                                    for index in range(10)
+                                ],
+                            }
+                        ],
+                    }
+                ]
+                * 2
+            }
+        )
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("10 bands must be rejected")
 
 
 def test_refine_prompt_uses_safe_current_alias_and_selected_history_only():

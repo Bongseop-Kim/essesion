@@ -210,6 +210,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "plan_count": 3,
                 "validated_count": 3,
                 "resolved_count": 3,
+                "recraft_calls": 3,
                 "candidate_count": 2,
                 "fixed_palette": False,
                 "pattern_controls": True,
@@ -239,6 +240,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "failure_code": "authoring_invalid",
                 "failure_stage": "authoring",
                 "model": "customer-secret@test.local",
+                "recraft_calls": 2,
             },
         ),
     ]
@@ -289,6 +291,8 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "error": 1,
     }
     assert stats.json()["average_render_ms"] == 2.5
+    # 성공 3회 + 실패(롤백) 2회 — 실패분 호출도 과금 합계에 포함돼야 한다.
+    assert stats.json()["recraft_calls"] == 5
 
     detail = await client.get(f"/admin/generation/seamless/{rows[0].id}", headers=headers)
     assert detail.status_code == 200
@@ -349,6 +353,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "validated_count": 3,
         "catalog_candidate_count": None,
         "resolved_count": 3,
+        "recraft_calls": 3,
         "candidate_count": 2,
         "authoring_ms": None,
         "motif_resolution_ms": None,

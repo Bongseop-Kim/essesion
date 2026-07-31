@@ -23,6 +23,9 @@ _LATTICE_AXIS_COUNT = {"sparse": 4, "medium": 6, "dense": 8}
 _PATH_REPEAT_COUNT = {"sparse": 4, "medium": 8, "dense": 12}
 _SCATTER_COUNT = {"sparse": 8, "medium": 16, "dense": 28}
 _DIRECTION_ANGLE = {"horizontal": 0.0, "vertical": 90.0, "diagonal": -45.0}
+# 격자에서 모티프가 셀보다 크면 인스턴스가 반드시 겹친다. 살짝 닿는 밀집(플로랄 등)은
+# 디자인일 수 있어 셀의 1.15배까지 허용하고, 그 위는 형상 파괴로 보고 클램프한다.
+LATTICE_OVERLAP_ALLOWANCE = 1.15
 
 
 class ConstraintInvalid(ValueError):
@@ -211,6 +214,58 @@ def _scatter_placement(*, tile: float, layer: dict[str, Any], density: str) -> d
     }
 
 
+def lattice_size_limit(cell_mm: float) -> float:
+    """격자 셀 크기에 대한 모티프 size_mm 상한.
+
+    회전(fixed_rotation_deg)으로 커지는 실제 바운딩 박스는 계산하지 않는다 — 상한이
+    회전각까지 반영해야 할 만큼 문제가 되면 여기에 cos/sin 보정을 더하면 된다.
+    """
+    return round(cell_mm * LATTICE_OVERLAP_ALLOWANCE, 6)
+
+
+def _lattice_cell_mm(layer: dict[str, Any]) -> float | None:
+    """격자 배치 레이어의 짧은 쪽 셀 크기 — 격자가 아니면 None."""
+    placement = layer.get("placement")
+    if not isinstance(placement, dict) or placement.get("type") != "lattice":
+        return None
+    lattice = placement.get("lattice")
+    if not isinstance(lattice, dict):
+        return None
+    cells = [
+        float(lattice[key])
+        for key in ("cell_w_mm", "cell_h_mm")
+        if isinstance(lattice.get(key), int | float)
+        and math.isfinite(float(lattice[key]))
+        and float(lattice[key]) > 0
+    ]
+    return min(cells) if len(cells) == 2 else None
+
+
+def _clamp_lattice_overlap(raw: dict[str, Any], warnings: list[str]) -> None:
+    """겹침이 형상을 뭉개는 격자 모티프를 셀 기준으로 줄인다(조용한 정규화 + 경고).
+
+    저작 모델은 size_ratio와 columns/rows를 서로 모르는 필드로 내보내고, 패턴 설정은
+    크기·밀도를 각각 덮어쓰므로 두 경로 모두 관계가 깨진다. 프롬프트 규칙으로는 위반율이
+    떨어지지 않아(리뷰 design-input-modality-e2e-2026-07-30) 여기서 결정론적으로 잡는다.
+    """
+    for layer in _motif_layers(raw):
+        params = layer.get("params")
+        cell = _lattice_cell_mm(layer)
+        if cell is None or not isinstance(params, dict):
+            continue
+        size = params.get("size_mm")
+        if not isinstance(size, int | float) or not math.isfinite(float(size)):
+            continue
+        limit = lattice_size_limit(cell)
+        if float(size) <= limit + 1e-9:
+            continue
+        params["size_mm"] = limit
+        warnings.append(
+            f"layer {layer.get('id')!r}: size_mm {float(size)} clamped to {limit} "
+            f"(lattice cell {cell} × {LATTICE_OVERLAP_ALLOWANCE})"
+        )
+
+
 def _apply_pattern(raw: dict[str, Any], constraint: PatternConstraints) -> None:
     if constraint.is_automatic():
         return
@@ -297,12 +352,15 @@ def apply_generation_constraints(
     *,
     palette: PaletteConstraint,
     pattern: PatternConstraints,
+    warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     """Return a constrained deep copy; never partially mutate the caller on failure."""
 
     constrained = copy.deepcopy(raw)
     _apply_fixed_palette(constrained, palette)
     _apply_pattern(constrained, pattern)
+    # 크기·밀도를 모두 적용한 뒤 마지막에 클램프 — 두 축을 함께 지정해도 겹치지 않는다.
+    _clamp_lattice_overlap(constrained, warnings if warnings is not None else [])
     return constrained
 
 
@@ -351,6 +409,10 @@ def assert_constraints_satisfied(
             layer_id = layer.get("id")
             if pattern.motif_scale != "auto" and isinstance(params, dict):
                 expected = round(tile * _SCALE_FRACTION[pattern.motif_scale], 6)
+                # 격자 겹침 클램프가 걸린 레이어는 상한이 기대값 — 정확 일치를 요구하면 실패한다.
+                cell = _lattice_cell_mm(layer)
+                if cell is not None:
+                    expected = min(expected, lattice_size_limit(cell))
                 if not math.isclose(float(params.get("size_mm", -1)), expected, abs_tol=1e-6):
                     errors.append(f"motif layer {layer_id!r} does not satisfy motif_scale")
             if not isinstance(placement, dict):
