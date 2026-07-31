@@ -1,8 +1,5 @@
-import { deleteUserMotif, type UserMotifOut } from "@essesion/api-client";
-import {
-  listUserMotifsOptions,
-  listUserMotifsQueryKey,
-} from "@essesion/api-client/query";
+import { deleteUserMotif } from "@essesion/api-client";
+import { listUserMotifsQueryKey } from "@essesion/api-client/query";
 import { AlertDialog, snackbar } from "@essesion/shared";
 import {
   useInfiniteQuery,
@@ -23,6 +20,7 @@ import {
   useDeleteDesignSession,
   useDeleteFinalizedJob,
 } from "@/features/design/model/use-delete";
+import type { MotifSearchState } from "@/features/design/model/use-motif-search";
 import type { PhotoReference } from "@/features/design/model/use-photo-references";
 import { ColorSettingsModal } from "@/features/design/ui/color-settings-modal";
 import {
@@ -35,7 +33,8 @@ import {
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
 import { IdeasModal } from "@/features/design/ui/ideas-modal";
-import { MotifLibraryModal } from "@/features/design/ui/motif-library-modal";
+import { MotifGenerateModal } from "@/features/design/ui/motif-generate-modal";
+import { MotifModal } from "@/features/design/ui/motif-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { PhotoReferenceModal } from "@/features/design/ui/photo-reference-modal";
 import { SessionListModal } from "@/features/design/ui/session-list-modal";
@@ -45,6 +44,7 @@ export type DesignOverlayName =
   | "sessions"
   | "finalized"
   | "motifs"
+  | "motif-generate"
   | "photos"
   | "colors"
   | "ideas"
@@ -68,9 +68,8 @@ export type DesignOverlaysProps = {
   onSelectSession: (sessionId: string) => void;
   onSessionDeleted: (sessionId: string) => void;
   onOnboardingComplete: () => void;
-  activeMotifIds: readonly string[];
-  onSelectMotif: (motifId: string) => void;
-  onImportSvg: () => void;
+  /** 모티프 모달 전체의 상태·호출 — 페이지가 소유해 모달을 넘나들어도 유지된다. */
+  motifs: MotifSearchState;
   photos: readonly PhotoReference[];
   onAddPhotos: (files: File[]) => void;
   onRemovePhoto: (id: string) => void;
@@ -102,9 +101,7 @@ export function DesignOverlays({
   onSelectSession,
   onSessionDeleted,
   onOnboardingComplete,
-  activeMotifIds,
-  onSelectMotif,
-  onImportSvg,
+  motifs,
   photos,
   onAddPhotos,
   onRemovePhoto,
@@ -135,10 +132,6 @@ export function DesignOverlays({
   const finalizedJobsQuery = useInfiniteQuery(
     finalizedJobsInfiniteQueryOptions(authenticated && overlay === "finalized"),
   );
-  const motifsQuery = useQuery({
-    ...listUserMotifsOptions({ query: { limit: 100, offset: 0 } }),
-    enabled: authenticated && overlay === "motifs",
-  });
   const deleteSession = useDeleteDesignSession();
   const deleteJob = useDeleteFinalizedJob();
   const deleting =
@@ -157,6 +150,12 @@ export function DesignOverlays({
   const requestDelete = (target: DeleteTarget) => {
     onOverlayChange(null);
     afterExit(() => setDeleteTarget(target));
+  };
+
+  /** 모달 위 모달 금지 — 하나가 닫히는 모션이 끝난 뒤 다음 오버레이를 연다. */
+  const switchOverlay = (next: DesignOverlayName) => {
+    onOverlayChange(null);
+    afterExit(() => onOverlayChange(next));
   };
 
   // 확인 다이얼로그가 닫히면(취소·성공 공통) 원래의 목록 모달로 돌아간다.
@@ -218,19 +217,26 @@ export function DesignOverlays({
           onOnboardingComplete();
         }}
       />
-      <MotifLibraryModal
+      <MotifModal
         open={overlay === "motifs"}
         onOpenChange={change("motifs")}
-        motifs={motifsQuery.data ?? []}
-        activeIds={activeMotifIds}
-        loading={motifsQuery.isPending}
-        error={motifsQuery.isError}
-        onRetry={() => void motifsQuery.refetch()}
-        onSelect={(motif: UserMotifOut) => onSelectMotif(motif.motif_id)}
-        onDelete={(motif) =>
+        state={motifs}
+        onRequestGenerate={() => {
+          // 검색어를 프리필하되 확인창에서 다시 쓸 수 있게 둔다.
+          motifs.setGeneratePrompt(motifs.query);
+          switchOverlay("motif-generate");
+        }}
+        onDeleteMotif={(motif) =>
           requestDelete({ kind: "motif", id: motif.id, name: motif.name })
         }
-        onImportSvg={onImportSvg}
+      />
+      <MotifGenerateModal
+        open={overlay === "motif-generate"}
+        // 취소 = 모티프 모달로 복귀(검색어·결과 유지). 생성 성공은 페이지가 닫는다.
+        onOpenChange={(open) => {
+          if (!open) switchOverlay("motifs");
+        }}
+        state={motifs}
       />
       <PhotoReferenceModal
         open={overlay === "photos"}

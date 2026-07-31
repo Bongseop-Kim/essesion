@@ -3938,6 +3938,10 @@ export type DesignSessionOut = {
      */
     last_prompt?: string | null;
     /**
+     * Recraft Remaining
+     */
+    recraft_remaining?: number | null;
+    /**
      * Recraft Used
      */
     recraft_used: number;

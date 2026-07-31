@@ -22,6 +22,9 @@ const api = vi.hoisted(() => ({
   createSession: vi.fn(),
   generate: vi.fn(),
   activateStep: vi.fn(),
+  searchMotifs: vi.fn(),
+  generateMotif: vi.fn(),
+  activateMotif: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client", async (importOriginal) => {
@@ -31,6 +34,9 @@ vi.mock("@essesion/api-client", async (importOriginal) => {
     createDesignSession: api.createSession,
     generateDesign: api.generate,
     activateDesignStep: api.activateStep,
+    searchMotifs: api.searchMotifs,
+    generateMotif: api.generateMotif,
+    activateMotif: api.activateMotif,
   };
 });
 
@@ -49,7 +55,8 @@ const session = {
   current_motifs: [
     { motif_id: "catalog-bee", name: "벌", preview_svg: "<svg id='bee'/>" },
   ],
-  recraft_used: 0,
+  recraft_used: 1,
+  recraft_remaining: 2,
   context_version: 4,
   active_generation_id: null,
   active_generation_started_at: null,
@@ -57,6 +64,9 @@ const session = {
   updated_at: "2026-07-31T00:00:00Z",
   finalize_quota: null,
 };
+
+/** 세션 응답을 케이스별로 덮어쓴다(예: 생성 예산 소진). beforeEach가 비운다. */
+let sessionOverride: Record<string, unknown> = {};
 
 const step = (seq: number, runId: string, svg: string) => ({
   id: `turn-${seq}`,
@@ -104,7 +114,7 @@ vi.mock("@/features/design/model/queries", () => ({
   ],
   designSessionQueryOptions: ({ sessionId }: { sessionId: string | null }) => ({
     queryKey: ["page-design-session", sessionId],
-    queryFn: async () => session,
+    queryFn: async () => ({ ...session, ...sessionOverride }),
     enabled: !!sessionId,
   }),
   designTurnsQueryKey: (sessionId: string) => ["page-design-turns", sessionId],
@@ -152,6 +162,19 @@ function disabled(element: HTMLElement) {
   return (element as HTMLButtonElement | HTMLInputElement).disabled;
 }
 
+/** 지금 열려 있는 오버레이의 제목들 — dialog 자식은 닫혀도 DOM에 남는다. */
+function openDialogs() {
+  return Array.from(
+    document.querySelectorAll("dialog[open]"),
+    (dialog) => dialog.querySelector("h2")?.textContent,
+  );
+}
+
+/** 오버레이가 실제로 열릴 때까지 기다린다(자식 조회는 닫힌 모달도 찾으므로). */
+async function waitForDialog(title: string) {
+  await waitFor(() => expect(openDialogs()).toEqual([title]));
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -172,6 +195,7 @@ function renderPage() {
 describe("DesignPage canvas shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionOverride = {};
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
     localStorage.setItem(DESIGN_ONBOARDING_KEY, "1");
@@ -181,11 +205,25 @@ describe("DesignPage canvas shell", () => {
       user: null,
     });
     api.createSession.mockResolvedValue({ data: { id: "session-1" } });
-    vi.stubGlobal("matchMedia", () => ({
-      matches: false,
+    api.activateMotif.mockResolvedValue({ data: { warnings: [] } });
+    // min-width는 전부 false(모바일 390 렌더), 모션 축소만 true — 오버레이 교대가 즉시 끝난다.
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     }));
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", {
+      configurable: true,
+      value(this: HTMLDialogElement) {
+        this.removeAttribute("open");
+      },
+    });
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -293,7 +331,147 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  // matchMedia가 항상 false라 이 스위트는 base 브레이크포인트(모바일 390) 렌더다.
+  it("엔터로 검색하고 고른 그림으로 바꿔도 잔액이 그대로다", async () => {
+    api.searchMotifs.mockResolvedValue({
+      data: {
+        results: [
+          {
+            motif_id: "catalog-bee",
+            name: "벌",
+            preview_svg: "<svg/>",
+            current: true,
+          },
+          {
+            motif_id: "catalog-wing",
+            name: "날개 편 벌",
+            preview_svg: "<svg/>",
+          },
+        ],
+      },
+    });
+    const queryClient = renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
+    await waitForDialog("모티프 바꾸기");
+    const input = screen.getByLabelText("어떤 그림을 넣을지");
+    fireEvent.change(input, { target: { value: "작은 벌" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(api.searchMotifs).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { query: "작은 벌" },
+        throwOnError: true,
+      }),
+    );
+    // 지금 쓰는 그림은 한 칸 차지하되 확정 대상이 될 수 없다.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "지금 쓰는 그림 고르기" }),
+    );
+    expect(
+      disabled(screen.getByRole("button", { name: "이 그림으로 바꾸기" })),
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "날개 편 벌 고르기" }));
+    fireEvent.click(screen.getByRole("button", { name: "이 그림으로 바꾸기" }));
+
+    await waitFor(() =>
+      expect(api.activateMotif).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { slot: 1, motif_id: "catalog-wing" },
+        throwOnError: true,
+      }),
+    );
+    // 무료 경로 — 모델을 부르지 않고 잔액 표시도 그대로다.
+    expect(api.generateMotif).not.toHaveBeenCalled();
+    screen.getByText("455토큰");
+    queryClient.clear();
+  });
+
+  it("검색 결과가 0건이면 안내만 남는다", async () => {
+    api.searchMotifs.mockResolvedValue({ data: { results: [] } });
+    const queryClient = renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
+    await waitForDialog("모티프 바꾸기");
+    const input = screen.getByLabelText("어떤 그림을 넣을지");
+    fireEvent.change(input, { target: { value: "없는 그림" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await screen.findByText("찾은 그림이 없어요");
+    expect(
+      disabled(screen.getByRole("button", { name: "이 그림으로 바꾸기" })),
+    ).toBe(true);
+    queryClient.clear();
+  });
+
+  it("생성은 확인 모달을 지나서만 호출되고 성공하면 바로 슬롯에 들어간다", async () => {
+    api.generateMotif.mockResolvedValue({
+      data: {
+        request_id: "req-1",
+        reused: false,
+        motif: {
+          motif_id: "recraft-bee",
+          name: "작은 벌",
+          preview_svg: "<svg/>",
+        },
+      },
+    });
+    const queryClient = renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
+    await waitForDialog("모티프 바꾸기");
+    fireEvent.change(screen.getByLabelText("어떤 그림을 넣을지"), {
+      target: { value: "작은 벌" },
+    });
+    await screen.findByText("문장 그대로 새로 만들어요 · 2번 더 가능");
+
+    fireEvent.click(screen.getByRole("button", { name: "새로 만들기" }));
+    // 유료 행은 확인 모달을 여는 것까지만 한다.
+    expect(api.generateMotif).not.toHaveBeenCalled();
+    // 모달 위 모달 금지 — 모티프 모달이 닫힌 뒤에 확인 모달이 열린다.
+    await waitForDialog("모티프 새로 만들기");
+    const prompt = screen.getByLabelText("새로 만들 그림");
+    expect((prompt as HTMLInputElement).value).toBe("작은 벌");
+
+    fireEvent.change(prompt, { target: { value: "아주 작은 벌" } });
+    fireEvent.click(screen.getByRole("button", { name: "이 문장으로 만들기" }));
+
+    await waitFor(() =>
+      expect(api.generateMotif).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { prompt: "아주 작은 벌" },
+        throwOnError: true,
+      }),
+    );
+    await waitFor(() =>
+      expect(api.activateMotif).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { slot: 1, motif_id: "recraft-bee" },
+        throwOnError: true,
+      }),
+    );
+    queryClient.clear();
+  });
+
+  it("생성 예산이 없으면 유료 행이 잠긴다", async () => {
+    sessionOverride = { recraft_remaining: 0, recraft_used: 3 };
+    const queryClient = renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
+    await waitForDialog("모티프 바꾸기");
+    fireEvent.change(screen.getByLabelText("어떤 그림을 넣을지"), {
+      target: { value: "작은 벌" },
+    });
+
+    await screen.findByText("이번 디자인에서 더 만들 수 없어요");
+    expect(disabled(screen.getByRole("button", { name: "새로 만들기" }))).toBe(
+      true,
+    );
+    queryClient.clear();
+  });
+
+  // matchMedia가 min-width에 false라 이 스위트는 base 브레이크포인트(모바일 390) 렌더다.
   it("모바일에서는 레일이 아이콘 1열이 되고 라벨과 모티프 메타가 사라진다", async () => {
     const queryClient = renderPage();
 

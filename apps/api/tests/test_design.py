@@ -433,9 +433,10 @@ async def test_session_reports_current_motifs_including_catalog(client, db_sessi
         f'href="#motif-{motif["motif_id"]}"' in motif["preview_svg"]
         for motif in fetched["current_motifs"]
     )
-    # 목록 응답은 N+1을 피해 빈 배열로 둔다.
+    # 목록 응답은 N+1을 피해 빈 배열로 둔다. 남은 생성 횟수도 단건 전용이다.
     listed = (await client.get("/design/sessions", headers=headers)).json()
     assert listed[0]["current_motifs"] == []
+    assert listed[0]["recraft_remaining"] is None
 
 
 async def test_generate_and_finalize_job(client, app, db_session, settings):
@@ -2674,6 +2675,12 @@ async def _session_recraft_used(client, headers, sid):
     return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()["recraft_used"]
 
 
+async def _session_recraft_remaining(client, headers, sid):
+    return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()[
+        "recraft_remaining"
+    ]
+
+
 async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_session, settings):
     """문장 하나 → 최대 4개 카드. Recraft 미호출이라 예산은 그대로다."""
     worker = MotifWorker()
@@ -2734,6 +2741,9 @@ async def test_motif_generate_budget_exhaustion(client, app, db_session, setting
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
     body = {"prompt": "꿀벌 한 마리"}
 
+    # 상한은 서버 설정이라 store가 계산할 수 없다 — 남은 횟수를 세션이 알려준다.
+    assert await _session_recraft_remaining(client, headers, sid) == 3
+
     for _ in range(3):
         res = await client.post(
             f"/design/sessions/{sid}/motifs/generate", json=body, headers=headers
@@ -2741,6 +2751,7 @@ async def test_motif_generate_budget_exhaustion(client, app, db_session, setting
         assert res.status_code == 200, res.text
         assert res.json()["motif"]["preview_svg"]
     assert await _session_recraft_used(client, headers, sid) == 3
+    assert await _session_recraft_remaining(client, headers, sid) == 0
 
     blocked = await client.post(
         f"/design/sessions/{sid}/motifs/generate", json=body, headers=headers

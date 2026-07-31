@@ -1,4 +1,3 @@
-import { listUserMotifsQueryKey } from "@essesion/api-client/query";
 import {
   ActionButton,
   Box,
@@ -9,15 +8,11 @@ import {
   Text,
 } from "@essesion/shared";
 import { LightBulbIcon } from "@heroicons/react/24/outline";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
-import {
-  DESIGN_SVG_ACCEPT,
-  importDesignMotif,
-} from "@/features/design/api/attachments";
 import {
   createDesignIdeas,
   extractDesignPalette,
@@ -44,11 +39,9 @@ import {
   useDesignExport,
   useFinalizeFlow,
 } from "@/features/design/model/use-design-output";
+import { useMotifSearch } from "@/features/design/model/use-motif-search";
 import { usePromptGeneration } from "@/features/design/model/use-prompt-generation";
-import {
-  useActivateDesignStep,
-  useActivateMotifSlot,
-} from "@/features/design/model/use-steps";
+import { useActivateDesignStep } from "@/features/design/model/use-steps";
 import {
   CanvasNoticeLayer,
   designNotices,
@@ -75,7 +68,6 @@ const DESCRIPTION =
 /** 풀블리드 캔버스 + 떠 있는 컨트롤 4그룹을 조립하는 컨테이너. */
 export function DesignPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const status = useSession((state) => state.status);
   const authenticated = status === "authenticated";
   const { requireAuth } = useAuthGuard();
@@ -87,10 +79,8 @@ export function DesignPage() {
   const [overlay, setOverlay] = useState<DesignOverlayName | null>(() =>
     isDesignOnboardingComplete() ? null : "onboarding",
   );
-  const [motifSlot, setMotifSlot] = useState<1 | 2>(1);
   const [collapsed, setCollapsed] = useState(() => isMotifPanelCollapsed());
   const [pending, setPending] = useState(() => readPendingDesign());
-  const svgInputRef = useRef<HTMLInputElement>(null);
 
   const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
   const sessionQuery = useQuery(
@@ -105,7 +95,7 @@ export function DesignPage() {
     () => readDesignHistory(turnsQuery.data),
     [turnsQuery.data],
   );
-  const motifs = useMemo(
+  const motifSlots = useMemo(
     () =>
       (sessionQuery.data?.current_motifs ?? []).map((motif) => ({
         motifId: motif.motif_id,
@@ -118,12 +108,20 @@ export function DesignPage() {
   const quota = sessionQuery.data?.finalize_quota ?? null;
 
   const activateStep = useActivateDesignStep();
-  const activateMotif = useActivateMotifSlot();
+  const motifs = useMotifSearch({
+    sessionId,
+    currentMotifs: motifSlots,
+    recraftRemaining: sessionQuery.data?.recraft_remaining ?? null,
+    onDone: (name) => {
+      setOverlay(null);
+      snackbar(`‘${name}’ 모티프로 바꿨어요.`);
+    },
+  });
   const editor = usePromptGeneration({
     sessionId,
     hasDesign,
     ensureAuth,
-    blocked: activateStep.isPending || activateMotif.isPending,
+    blocked: activateStep.isPending || motifs.replacing,
     notify: snackbar,
     onSessionChange: (id) => {
       setSessionId(id);
@@ -171,31 +169,6 @@ export function DesignPage() {
     } catch (error) {
       snackbar(designErrorMessage(error, fallback));
       return false;
-    }
-  };
-
-  const replaceMotif = (motifId: string) =>
-    runOnSession(async (id) => {
-      await activateMotif.mutateAsync({
-        sessionId: id,
-        slot: motifSlot,
-        motifId,
-      });
-      setOverlay(null);
-    }, "모티프를 바꾸지 못했습니다.");
-
-  const importMotifFile = async (file: File) => {
-    try {
-      const motif = await importDesignMotif(file);
-      await queryClient.invalidateQueries({
-        queryKey: listUserMotifsQueryKey(),
-      });
-      // 활성화가 건너뛰어지거나 실패하면 성공 안내를 내지 않는다(실패 스낵바와 모순 방지).
-      if (await replaceMotif(motif.motif_id)) {
-        snackbar(`‘${motif.name}’ 모티프로 바꿨어요.`);
-      }
-    } catch (error) {
-      snackbar(designErrorMessage(error, "SVG 모티프를 저장하지 못했습니다."));
     }
   };
 
@@ -255,16 +228,13 @@ export function DesignPage() {
             notices={designNotices({
               rejected: editor.rejected,
               errorMessage: editor.error?.detail ?? editor.error?.message,
-              warnings: [
-                ...editor.warnings,
-                ...(activateMotif.data?.warnings ?? []),
-              ],
+              warnings: [...editor.warnings, ...motifs.activateWarnings],
             })}
           />
         }
         left={
           <MotifPanel
-            motifs={motifs}
+            motifs={motifSlots}
             collapsed={collapsed}
             onCollapsedChange={(next) => {
               setCollapsed(next);
@@ -272,7 +242,7 @@ export function DesignPage() {
             }}
             onEditSlot={(slot) => {
               if (!ensureAuth()) return;
-              setMotifSlot(slot);
+              motifs.openSlot(slot);
               setOverlay("motifs");
             }}
             disabled={busy || !hasDesign}
@@ -303,7 +273,7 @@ export function DesignPage() {
             <HistoryTrack
               cells={history.cells}
               currentRunId={history.currentRunId}
-              pending={editor.generating || activateMotif.isPending}
+              pending={editor.generating || motifs.replacing}
               disabled={busy}
               onSelect={(runId) =>
                 void runOnSession(
@@ -332,19 +302,6 @@ export function DesignPage() {
         }
       />
 
-      <input
-        ref={svgInputRef}
-        type="file"
-        accept={DESIGN_SVG_ACCEPT}
-        aria-label="SVG 모티프 파일 선택"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          if (file) void importMotifFile(file);
-        }}
-      />
       <DesignOverlays
         overlay={overlay}
         onOverlayChange={setOverlay}
@@ -355,9 +312,7 @@ export function DesignPage() {
           if (sessionId === id) openSession(null, false);
         }}
         onOnboardingComplete={() => setOverlay(null)}
-        activeMotifIds={motifs.map((motif) => motif.motifId)}
-        onSelectMotif={(motifId) => void replaceMotif(motifId)}
-        onImportSvg={() => svgInputRef.current?.click()}
+        motifs={motifs}
         photos={editor.photos.photos}
         onAddPhotos={(files) => ensureAuth() && editor.photos.add(files)}
         onRemovePhoto={editor.photos.remove}

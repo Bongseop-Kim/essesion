@@ -76,6 +76,10 @@ grep -rn "turn-feed\|candidate-grid\|pattern-settings-modal\|preview-panel\|fina
   `ledger.use_tokens(..., cost_key=...)`로 분기한다. 모티프 생성은 기존 5토큰 유지.
 - 첫 생성을 구성 수정과 같은 값으로 둘지 별도로 둘지 이 단계에서 확정하고, admin 설정 화면과
   store 표기(`토큰 pill` 상세)를 맞춘다.
+- **모티프 생성은 지금 토큰을 0 차감한다**(세션 Recraft 예산 3회만). 그래서 5단계는 유료 행에
+  가격을 적지 않고 `문장 그대로 새로 만들어요 · N번 더 가능`만 말한다(5단계 리뷰 §1).
+  토큰을 매기기로 정하면 두 곳에 가격을 붙인다: `motif-modal.tsx` 유료 행 버튼 왼쪽과
+  `motif-generate-modal.tsx`의 확인 버튼 라벨(`이 문장으로 만들기` → `N토큰으로 만들기`).
 
 ## 6. e2e
 

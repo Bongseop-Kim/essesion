@@ -142,6 +142,9 @@ class DesignSessionOut(ORMModel):
     last_prompt: str | None = None
     # 단건 GET 전용 — 계정 쿼터 (목록은 null, 설정 부재 시에도 null)
     finalize_quota: FinalizeQuotaOut | None = None
+    # 단건 GET·스텝 이동 전용 — 남은 모티프 생성 횟수(예산 - recraft_used). 목록은 null.
+    # 상한은 서버 설정이라 프론트가 계산할 수 없다 — 유료 행의 "N번 더 가능"이 이 값을 쓴다.
+    recraft_remaining: int | None = None
     # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
 
@@ -635,10 +638,13 @@ def _user_motif_out(link: UserMotif, motif: Motif) -> UserMotifOut:
 async def _design_session_out(
     session: SessionDep,
     design_session: DesignSession,
+    recraft_budget: int,
 ) -> DesignSessionOut:
-    """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2)."""
+    """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2) + 남은 생성 횟수."""
 
-    out = DesignSessionOut.model_validate(design_session)
+    out = DesignSessionOut.model_validate(design_session).model_copy(
+        update={"recraft_remaining": max(recraft_budget - design_session.recraft_used, 0)}
+    )
     motif_ids = _intent_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
     if not motif_ids:
         return out
@@ -910,12 +916,12 @@ async def list_design_sessions(session: SessionDep, user: CurrentUser) -> list[D
 
 @router.get("/design/sessions/{session_id}", response_model=DesignSessionOut)
 async def get_design_session(
-    session_id: uuid.UUID, session: SessionDep, user: CurrentUser
+    session_id: uuid.UUID, session: SessionDep, user: CurrentUser, settings: SettingsDep
 ) -> DesignSessionOut:
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
-    out = await _design_session_out(session, design_session)
+    out = await _design_session_out(session, design_session, settings.design_recraft_budget)
     # 표시용 쿼터 — 설정 행이 없으면 null로 둔다(페이지를 깨지 않음). 소유자 검증
     # 이후에 계산해 authz 403/404 순서를 보존한다.
     limit = await load_finalize_limit(session)
@@ -1245,6 +1251,7 @@ async def activate_design_step(
     body: DesignStepActivateRequest,
     session: SessionDep,
     user: CurrentUser,
+    settings: SettingsDep,
 ) -> DesignSessionOut:
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     design_session = await session.scalar(
@@ -1303,7 +1310,7 @@ async def activate_design_step(
     )
     await session.commit()
     await session.refresh(design_session)
-    return await _design_session_out(session, design_session)
+    return await _design_session_out(session, design_session, settings.design_recraft_budget)
 
 
 async def _resolve_design_run(
