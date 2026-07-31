@@ -12,8 +12,8 @@ import asyncio
 import base64
 import hashlib
 import io
+import json
 from contextlib import asynccontextmanager
-from dataclasses import replace
 from types import SimpleNamespace
 
 import httpx
@@ -24,11 +24,9 @@ from PIL import Image
 from worker.adapters import Adapters
 from worker.adapters.gemini import AuthoredDesign
 from worker.api import routes
-from worker.authoring.compiler import compile_design_plan_v3
-from worker.authoring.examples import load_example_set
 from worker.authoring.retrieval import RetrievalOutcome
-from worker.authoring.schema import DesignPlanV3
 from worker.db import get_session
+from worker.engine.patch import DesignPatchV1
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
 from worker.motifs.registry import get_motif
@@ -341,15 +339,18 @@ def test_generate_returns_product_shape(client):
     )
 
 
-def test_warnings_are_deduped(client):
+def test_warnings_are_customer_facing_and_deduped_by_code(client):
     intent = mvp_intent()
     intent["palette"]["slots"][2]["hex"] = "#ffd700"
     intent["colorways"][0]["mapping"]["gold"] = "#ffd700"
     resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 200
-    w = resp.json()["warnings"]
-    assert len(w) == len(set(w))  # 정확한 중복 없음
-    assert sum("outside CMYK gamut" in m for m in w) == 1
+    warnings = resp.json()["warnings"]
+    codes = [item["code"] for item in warnings]
+    assert codes.count("color_out_of_gamut") == 1
+    assert len(codes) == len(set(codes))
+    # 엔진 영문 문자열이 아니라 한글 한 줄만 노출된다.
+    assert all(item["message"] and "gamut" not in item["message"] for item in warnings)
 
 
 def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
@@ -370,7 +371,7 @@ def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["intent"]["layers"][1]["params"]["size_mm"] == 13.8
-    assert [w for w in body["warnings"] if "clamped to 13.8" in w]
+    assert [w for w in body["warnings"] if w["code"] == "motif_size_clamped"]
 
 
 def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
@@ -379,7 +380,7 @@ def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["design"]["png_object_key"] is None
-    assert any("preview upload skipped" in w for w in body["warnings"])
+    assert any(w["code"] == "preview_unavailable" for w in body["warnings"])
 
 
 def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeypatch):
@@ -397,7 +398,7 @@ def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeyp
     assert resp.status_code == 200
     body = resp.json()
     assert body["design"]["png_object_key"] is None
-    assert "preview upload skipped" in body["warnings"]
+    assert [w["code"] for w in body["warnings"]] == ["preview_unavailable"]
 
 
 def test_request_id_propagates_to_body_and_header(client):
@@ -683,118 +684,91 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
     assert calls == ["retrieve", "author"]
 
 
-def test_refine_uses_one_plan_without_exposing_the_concrete_motif(monkeypatch):
-    concrete_raw = load_example_set()[5].plan.model_dump(mode="json")
-    concrete_raw["motifs"] = [{"source": "catalog", "catalog_ref": "circle"}]
-    next(layer for layer in concrete_raw["layers"] if layer["type"] == "motif")["color_indices"] = [
-        1,
-        1,
-    ]
-    concrete_plan = DesignPlanV3.model_validate(concrete_raw)
-    current = compile_design_plan_v3(
-        concrete_plan,
-        catalog_candidates=[
-            {
-                "catalog_ref": "circle",
-                "motif_id": "circle",
-                "current": True,
-            }
-        ],
-    )
-    calls = 0
-    catalog_reads = 0
+class _PatchGemini:
+    """author_patch만 구현 — 구성 수정은 모티프 해석·예시 검색을 전혀 타지 않는다."""
 
-    async def no_public_candidates(*_args, **_kwargs):
-        return []
+    def __init__(self, patch: dict) -> None:
+        self._patch = patch
+        self.snapshots: list[dict] = []
+        self.histories: list[list[dict]] = []
 
-    async def prompt_then_render_catalog(_session, _ids):
-        nonlocal catalog_reads
-        catalog_reads += 1
-        if catalog_reads == 1:
-            return {
-                "circle": SimpleNamespace(
-                    color_slots=("s0", "s1"),
-                    slot_parts=("몸통", "윤곽"),
-                )
-            }
-        return {
-            "circle": replace(
-                get_motif("circle"),
-                color_slots=("s0", "s1"),
-                slot_parts=("몸통", "윤곽"),
-            )
-        }
+    async def author_patch(
+        self, prompt, *, snapshot, conversation_history=None, palette_constraint=None, diagnostics
+    ):
+        self.snapshots.append(snapshot)
+        self.histories.append(list(conversation_history or []))
+        diagnostics["authoring_mode"] = "patch"
+        return DesignPatchV1.model_validate(self._patch)
 
-    class RefineGemini:
-        async def author_design(
-            self,
-            _prompt,
-            *,
-            validate,
-            catalog_candidates,
-            current_plan,
-            conversation_history,
-            **_kwargs,
-        ):
-            nonlocal calls
-            calls += 1
-            assert current_plan.motifs[0].catalog_ref == "current_motif_1"
-            assert conversation_history == [
+    async def author_design(self, *_args, **_kwargs):  # pragma: no cover - 호출되면 계약 위반
+        raise AssertionError("composition edits must not re-author a plan")
+
+
+def _patch_request(prompt: str, intent: dict) -> dict:
+    return {
+        "run_id": _RUN_ID,
+        "prompt": prompt,
+        "conversation_context": {
+            "current_intent": intent,
+            "history": [
                 {
-                    "user_prompt": "원형 패턴으로 만들어줘",
-                    "assistant_summary": "3×3 격자 후보를 선택함",
+                    "user_prompt": "네이비 스트라이프로 만들어줘",
+                    "assistant_summary": "3색 · 스트라이프",
                     "attachments": [],
                 }
-            ]
-            assert catalog_candidates == [
-                {
-                    "catalog_ref": "current_motif_1",
-                    "motif_id": "circle",
-                    "subject": "committed motif 1",
-                    "description": None,
-                    "style": None,
-                    "current": True,
-                    "slot_count": 2,
-                    "parts": ["몸통", "윤곽"],
-                }
-            ]
-            authored = compile_design_plan_v3(
-                current_plan,
-                catalog_candidates=catalog_candidates,
-            )
-            assert validate(authored.intent) is None
-            return authored
+            ],
+        },
+    }
 
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", no_public_candidates)
-    monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
+
+def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
+    gemini = _PatchGemini({"background": {"color": "#F5F0E6"}, "note": "바탕을 밝게 했어요."})
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=RefineGemini())
+    app.state.adapters = Adapters(gemini=gemini)
+    intent = mvp_intent()
+
+    response = TestClient(app).post("/generate", json=_patch_request("바탕을 밝게", intent))
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["note"] == "바탕을 밝게 했어요."
+    assert body["plan"] is None  # patch 경로는 plan을 다시 저작하지 않는다
+    slots = {slot["id"]: slot["hex"] for slot in body["intent"]["palette"]["slots"]}
+    assert slots["ground"] == "#F5F0E6"
+    # 모티프는 타입상 바뀔 수 없다.
+    assert [
+        layer["params"]["motif_id"]
+        for layer in body["intent"]["layers"]
+        if layer["type"] == "motif"
+    ] == ["circle", "bee"]
+    # 모델에게는 모티프 정체성이 아니라 구성 스냅샷만 간다.
+    assert "circle" not in json.dumps(gemini.snapshots[0])
+    assert gemini.histories[0][0]["user_prompt"] == "네이비 스트라이프로 만들어줘"
+
+
+def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch):
+    gemini = _PatchGemini({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=gemini)
 
     response = TestClient(app).post(
-        "/generate",
-        json={
-            "run_id": _RUN_ID,
-            "prompt": "간격을 조금 더 촘촘하게 해줘",
-            "conversation_context": {
-                "current_plan": concrete_plan.model_dump(mode="json"),
-                "current_intent": current.intent,
-                "history": [
-                    {
-                        "user_prompt": "원형 패턴으로 만들어줘",
-                        "assistant_summary": "3×3 격자 후보를 선택함",
-                        "attachments": [],
-                    }
-                ],
-            },
-        },
+        "/generate", json=_patch_request("벌을 나비로 바꿔줘", mvp_intent())
     )
 
     assert response.status_code == 200, response.text
-    payload = response.json()
-    assert calls == 1
-    assert payload["design"]["id"]
-    assert payload["plan"]["motifs"] == [{"source": "catalog", "catalog_ref": "circle"}]
-    assert "current_motif_1" not in response.text
+    assert response.json() == {"status": "scope_rejected"}
+
+
+def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=_PatchGemini({"note": "x"}))
+    payload = _patch_request("이 사진처럼", mvp_intent())
+    payload["motif_ids"] = ["circle"]
+
+    response = TestClient(app).post("/generate", json=payload)
+
+    assert response.status_code == 422
+    assert "cannot include reference images or motif ids" in response.text
 
 
 @respx.mock

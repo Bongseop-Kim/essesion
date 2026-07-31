@@ -39,7 +39,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import CursorResult, delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from svg_safety import SanitizeError, sanitize_svg
 
@@ -429,13 +429,28 @@ class DesignGenerateRequest(StrictModel):
         return self
 
 
+class DesignWarningOut(BaseModel):
+    """자동 조정 안내 — message는 그대로 노출한다(상단 알림, 노랑 톤)."""
+
+    code: str = Field(min_length=1, max_length=100)
+    message: str = Field(min_length=1, max_length=200)
+
+
 class DesignGenerateOut(BaseModel):
     run_id: uuid.UUID
     request_id: str
     registry_version: str
     engine_version: str
     design: DesignOut
-    warnings: list[str] = []
+    warnings: list[DesignWarningOut] = []
+    # 입력창 문장을 어떻게 해석했는지 한 줄. 최초 생성은 null.
+    note: str | None = None
+
+
+class DesignGenerateRejectedOut(BaseModel):
+    """구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤)."""
+
+    rejected: Literal["motif"]
 
 
 class WorkerDesignOut(DesignOut):
@@ -451,7 +466,8 @@ class WorkerDesignGenerateOut(BaseModel):
     plan: dict[str, Any] | None = None
     structural_fingerprint: str | None = None
     design: WorkerDesignOut
-    warnings: list[str] = Field(default_factory=list)
+    warnings: list[DesignWarningOut] = Field(default_factory=list)
+    note: str | None = Field(default=None, max_length=200)
 
 
 class DesignStepActivateRequest(StrictModel):
@@ -511,7 +527,8 @@ class DesignStepActivateTurnPayload(StrictModel):
 class _ResolvedDesignRun:
     log: SeamlessGenerationLog
     intent: dict[str, Any]
-    plan: dict[str, Any]
+    # 최초 저작 런만 plan을 남긴다. 구성 patch 런은 None.
+    plan: dict[str, Any] | None
     seed: int
     colorway_id: str
 
@@ -1116,13 +1133,16 @@ async def append_design_turn(
     return DesignTurnOut.model_validate(turn)
 
 
-@router.post("/design/generate", response_model=DesignGenerateOut)
+@router.post(
+    "/design/generate",
+    response_model=DesignGenerateOut | DesignGenerateRejectedOut,
+)
 async def generate_design(
     body: DesignGenerateRequest,
     request: Request,
     session: SessionDep,
     user: CurrentUser,
-) -> DesignGenerateOut:
+) -> DesignGenerateOut | DesignGenerateRejectedOut:
     motif_reference_count = sum(reference.purpose == "motif" for reference in body.reference_images)
     if len(body.user_motif_ids) + motif_reference_count > MAX_DESIGN_MOTIFS:
         raise DomainError(
@@ -1134,6 +1154,14 @@ async def generate_design(
     design_session = await session.get(DesignSession, body.session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
+    # 커밋된 디자인이 있으면 입력창은 구성만 바꾼다 — 사진·모티프는 모티프 경로로.
+    if design_session.current_intent is not None and (body.reference_images or body.user_motif_ids):
+        raise DomainError(
+            "이미 만든 디자인은 문장으로만 고칠 수 있습니다. 무늬는 모티프에서 바꿔주세요",
+            code="motif_input_conflict",
+            status=422,
+            stage="constraints",
+        )
     photos = await _resolve_reference_images(
         body.reference_images,
         session=session,
@@ -1289,12 +1317,8 @@ async def _resolve_design_run(
             code="design_result_invalid",
         )
     intent_log = log.intent if isinstance(log.intent, dict) else {}
+    # 구성 patch로 만든 스텝에는 저작 plan이 없다 — 복원 정본은 intent다.
     raw_plan = intent_log.get("resolved_plan")
-    if not isinstance(raw_plan, dict):
-        raise ConflictError(
-            "생성 결과의 대화 계획을 복원할 수 없습니다",
-            code="design_plan_unavailable",
-        )
     design_intent = design.get("intent")
     if not isinstance(design_intent, dict):
         raise ConflictError(
@@ -1312,7 +1336,7 @@ async def _resolve_design_run(
     return _ResolvedDesignRun(
         log=log,
         intent=_bounded_design_json(design_intent),
-        plan=_bounded_design_json(raw_plan),
+        plan=_bounded_design_json(raw_plan) if isinstance(raw_plan, dict) else None,
         seed=seed,
         colorway_id=colorway_id,
     )
@@ -1342,7 +1366,7 @@ async def _build_conversation_context(
     session: SessionDep,
     design_session: DesignSession,
 ) -> dict[str, Any] | None:
-    if design_session.current_plan is None or design_session.current_intent is None:
+    if design_session.current_intent is None:
         return None
     turns = list(
         await session.scalars(
@@ -1392,7 +1416,6 @@ async def _build_conversation_context(
             }
         )
     return {
-        "current_plan": design_session.current_plan,
         "current_intent": design_session.current_intent,
         "history": history[-6:],
     }
@@ -1591,8 +1614,10 @@ async def _finish_generation_success(
         engine_version=out.engine_version,
         design=DesignOut.model_validate(out.design.model_dump()),
         warnings=out.warnings,
+        note=out.note,
     )
-    summary = _short_design_description(out.plan)
+    # 구성 수정은 워커가 해석 한 줄(note)을 준다 — 이력·다음 문장의 문맥이 된다.
+    summary = out.note or _short_design_description(out.plan)
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
     design_session = await session.scalar(
         select(DesignSession)
@@ -1727,6 +1752,52 @@ async def _finish_generation_failure(
     await session.commit()
 
 
+async def _undo_generation(
+    *,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    design_session_id: uuid.UUID,
+    run_id: uuid.UUID,
+    charge_cost: int,
+) -> None:
+    """시작을 되돌린다 — 환불 + 요청 턴 삭제 + context_version 원복.
+
+    범위 밖 거절은 결과가 아니라 무효한 시도다: 잔액·이력·문맥이 요청 전과 같아야 하고,
+    그래야 프론트가 입력창 문장을 그대로 유지한 채 다시 보낼 수 있다. 생성 진행 중에는
+    같은 세션의 다른 변경이 막히므로(active_generation_id) 원복이 남의 변경을 지우지 않는다.
+    """
+
+    await session.rollback()
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
+    design_session = await session.scalar(
+        select(DesignSession)
+        .where(
+            DesignSession.id == design_session_id,
+            DesignSession.user_id == user_id,
+        )
+        .with_for_update()
+    )
+    await ledger.refund_failed_generation(
+        session,
+        user_id,
+        charge_cost,
+        f"design_generate_{run_id.hex}",
+        commit=False,
+    )
+    await session.execute(
+        delete(DesignSessionTurn).where(
+            DesignSessionTurn.session_id == design_session_id,
+            DesignSessionTurn.payload["run_id"].astext == str(run_id),
+        )
+    )
+    if design_session is not None and design_session.active_generation_id == run_id:
+        design_session.active_generation_id = None
+        design_session.active_generation_started_at = None
+        # _start_generation이 올린 1만 되돌린다 — stale 회수가 함께 올린 몫은 남긴다.
+        design_session.context_version = max(0, design_session.context_version - 1)
+    await session.commit()
+
+
 async def _dispatch_generation(
     *,
     payload: dict[str, Any],
@@ -1739,7 +1810,7 @@ async def _dispatch_generation(
     user_turn: DesignUserGenerationPayload,
     photos: list[tuple[Image, ReferencePurpose]],
     user_motifs: list[tuple[UserMotif, Motif]],
-) -> DesignGenerateOut:
+) -> DesignGenerateOut | DesignGenerateRejectedOut:
     try:
         charge_cost = await _start_generation(
             session=session,
@@ -1761,6 +1832,15 @@ async def _dispatch_generation(
 
     try:
         response = await request.app.state.worker.generate(payload)
+        if isinstance(response, dict) and response.get("status") == "scope_rejected":
+            await _undo_generation(
+                session=session,
+                user_id=user_id,
+                design_session_id=design_session_id,
+                run_id=run_id,
+                charge_cost=charge_cost,
+            )
+            return DesignGenerateRejectedOut(rejected="motif")
         try:
             out = WorkerDesignGenerateOut.model_validate(response)
         except ValidationError as exc:

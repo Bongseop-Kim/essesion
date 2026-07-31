@@ -3721,6 +3721,10 @@ export type DesignGenerateOut = {
      */
     engine_version: string;
     /**
+     * Note
+     */
+    note?: string | null;
+    /**
      * Registry Version
      */
     registry_version: string;
@@ -3735,7 +3739,19 @@ export type DesignGenerateOut = {
     /**
      * Warnings
      */
-    warnings?: Array<string>;
+    warnings?: Array<DesignWarningOut>;
+};
+
+/**
+ * DesignGenerateRejectedOut
+ *
+ * 구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤).
+ */
+export type DesignGenerateRejectedOut = {
+    /**
+     * Rejected
+     */
+    rejected: 'motif';
 };
 
 /**
@@ -4030,6 +4046,22 @@ export type DesignTurnOut = {
 };
 
 /**
+ * DesignWarningOut
+ *
+ * 자동 조정 안내 — message는 그대로 노출한다(상단 알림, 노랑 톤).
+ */
+export type DesignWarningOut = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
  * FinalizeQuotaOut
  *
  * 계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).
@@ -4154,7 +4186,7 @@ export type GenerationDiagnosticsOut = {
     /**
      * Mode
      */
-    mode?: 'prompt' | 'refine' | 'variation' | null;
+    mode?: 'prompt' | 'patch' | 'variation' | null;
     /**
      * Model
      */
@@ -11901,9 +11933,11 @@ export type GenerateDesignError = GenerateDesignErrors[keyof GenerateDesignError
 
 export type GenerateDesignResponses = {
     /**
+     * Response Generate Design
+     *
      * Successful Response
      */
-    200: DesignGenerateOut;
+    200: DesignGenerateOut | DesignGenerateRejectedOut;
 };
 
 export type GenerateDesignResponse = GenerateDesignResponses[keyof GenerateDesignResponses];

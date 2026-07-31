@@ -6864,6 +6864,17 @@
             "title": "Engine Version",
             "type": "string"
           },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
           "registry_version": {
             "title": "Registry Version",
             "type": "string"
@@ -6880,7 +6891,7 @@
           "warnings": {
             "default": [],
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DesignWarningOut"
             },
             "title": "Warnings",
             "type": "array"
@@ -6894,6 +6905,21 @@
           "design"
         ],
         "title": "DesignGenerateOut",
+        "type": "object"
+      },
+      "DesignGenerateRejectedOut": {
+        "description": "구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤).",
+        "properties": {
+          "rejected": {
+            "const": "motif",
+            "title": "Rejected",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rejected"
+        ],
+        "title": "DesignGenerateRejectedOut",
         "type": "object"
       },
       "DesignGenerateRequest": {
@@ -7436,6 +7462,29 @@
         "title": "DesignTurnOut",
         "type": "object"
       },
+      "DesignWarningOut": {
+        "description": "자동 조정 안내 — message는 그대로 노출한다(상단 알림, 노랑 톤).",
+        "properties": {
+          "code": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "DesignWarningOut",
+        "type": "object"
+      },
       "FinalizeQuotaOut": {
         "description": "계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).",
         "properties": {
@@ -7732,7 +7781,7 @@
               {
                 "enum": [
                   "prompt",
-                  "refine",
+                  "patch",
                   "variation"
                 ],
                 "type": "string"
@@ -22583,7 +22632,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DesignGenerateOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DesignGenerateOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DesignGenerateRejectedOut"
+                    }
+                  ],
+                  "title": "Response Generate Design"
                 }
               }
             },

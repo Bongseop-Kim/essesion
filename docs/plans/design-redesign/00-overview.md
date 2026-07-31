@@ -26,7 +26,7 @@
 | # | 문서 | 범위 | 의존 |
 |---|---|---|---|
 | ~~1~~ | **완료** — `docs/reviews/design-redesign-01-server-single-design.md` | 후보 제거, 생성 결과 1개, 스텝 이동, 세션 응답에 현재 모티프 | — |
-| 2 | `02-server-scoped-edit.md` | 구성 patch 계약, refine 보존 기계 폐기, 범위 밖 거절, 경고 문구 | 1 |
+| ~~2~~ | **완료** — `docs/reviews/design-redesign-02-server-scoped-edit.md` | 구성 patch 계약, refine 보존 기계 폐기, 범위 밖 거절, 경고 문구 | 1 |
 | 3 | `03-server-motif-paths.md` | 모티프 문장 검색·생성 API, 패턴 설정(4축) 전면 폐기 | 1 |
 | 4 | `04-store-canvas-shell.md` | 풀블리드 캔버스 셸, 좌 모티프 패널, 우 레일, 하단 이력·입력창, 상단 알림 | 1·2 |
 | 5 | `05-store-motif-modal.md` | 모티프 모달(찾기·SVG·사진·글자·AI 생성) 통합 | 3·4 |
@@ -39,7 +39,7 @@
 | `candidate_count`(1–4/1–8), 후보 배열·요약·선택 UI | 후보 개념 삭제 | 1 |
 | `engine/candidates.py`의 레이아웃 변주 팬아웃 | 후보가 없으면 변주 축이 없다 | 1 |
 | `POST /design/sessions/{id}/reroll`, `.../branch` | "같은 지시로 다시"·분기 UI 없음 | 1 |
-| `gemini.py` refine 보존·언급탐지 기계(84–960행) | patch 스키마가 타입으로 대체 | 2 |
+| ~~`gemini.py` refine 보존·언급탐지 기계(84–960행)~~ | patch 스키마가 타입으로 대체 | ~~2~~ 완료 |
 | `PatternConstraints` 4축(크기·밀도·배치·방향) 전 계층 | 문장으로 대체, UI 진입점 삭제 확정 | 3 |
 | `docs/specs/design-generation-controls.md` | 위 계약을 기술한 문서 — 전제가 사라짐 | 3 |
 | store `turn-feed`·`candidate-grid`·`composer`·`pattern-settings-modal`·`preview-modal` 등 | 화면 구조 교체 | 4·5 |

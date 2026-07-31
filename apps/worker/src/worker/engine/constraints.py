@@ -93,7 +93,8 @@ class PatternConstraints(BaseModel):
         )
 
 
-def _ordered_slot_refs(raw: dict[str, Any]) -> list[str]:
+def ordered_slot_refs(raw: dict[str, Any]) -> list[str]:
+    """레이어가 실제로 참조하는 팔레트 슬롯 id — 선언 순서, 중복 제거."""
     refs: list[str] = []
     layers = raw.get("layers")
     if not isinstance(layers, list):
@@ -141,7 +142,7 @@ def _apply_fixed_palette(raw: dict[str, Any], constraint: PaletteConstraint) -> 
         for slot in slots
         if isinstance(slot, dict) and isinstance(slot.get("id"), str)
     }
-    refs = _ordered_slot_refs(raw)
+    refs = ordered_slot_refs(raw)
     unknown = [slot_id for slot_id in refs if slot_id not in slot_by_id]
     if unknown:
         raise ConstraintInvalid([f"fixed palette references unknown slots: {unknown}"])
@@ -186,10 +187,8 @@ def _density_axis_count(density: str, tile: float, layer: dict[str, Any]) -> int
     return _auto_axis_count(tile, layer)
 
 
-def _lattice_placement(
-    *, tile: float, layer: dict[str, Any], density: str, staggered: bool
-) -> dict[str, Any]:
-    count = _density_axis_count(density, tile, layer)
+def lattice_placement(*, tile: float, count: int, staggered: bool) -> dict[str, Any]:
+    """축당 count개 격자 — 셀은 항상 tile을 나눈다(seamless 불변식). 엇갈림은 짝수 축."""
     if staggered and count % 2:
         count = min(10, count + 1)
     lattice: dict[str, Any] = {
@@ -201,9 +200,8 @@ def _lattice_placement(
     return {"type": "lattice", "lattice": lattice}
 
 
-def _scatter_placement(*, tile: float, layer: dict[str, Any], density: str) -> dict[str, Any]:
-    axis = _density_axis_count(density, tile, layer)
-    count = _SCATTER_COUNT[density] if density != "auto" else max(4, round(axis * axis * 0.5))
+def scatter_placement(*, tile: float, axis: int, count: int) -> dict[str, Any]:
+    """축당 axis개 간격의 Poisson 산개."""
     return {
         "type": "scatter",
         "scatter": {
@@ -212,6 +210,20 @@ def _scatter_placement(*, tile: float, layer: dict[str, Any], density: str) -> d
             "count": count,
         },
     }
+
+
+def _lattice_for_density(
+    *, tile: float, layer: dict[str, Any], density: str, staggered: bool
+) -> dict[str, Any]:
+    return lattice_placement(
+        tile=tile, count=_density_axis_count(density, tile, layer), staggered=staggered
+    )
+
+
+def _scatter_for_density(*, tile: float, layer: dict[str, Any], density: str) -> dict[str, Any]:
+    axis = _density_axis_count(density, tile, layer)
+    count = _SCATTER_COUNT[density] if density != "auto" else max(4, round(axis * axis * 0.5))
+    return scatter_placement(tile=tile, axis=axis, count=count)
 
 
 def lattice_size_limit(cell_mm: float) -> float:
@@ -287,15 +299,15 @@ def _apply_pattern(raw: dict[str, Any], constraint: PatternConstraints) -> None:
             params["size_mm"] = round(tile * _SCALE_FRACTION[constraint.motif_scale], 6)
 
         if constraint.arrangement == "lattice":
-            layer["placement"] = _lattice_placement(
+            layer["placement"] = _lattice_for_density(
                 tile=tile, layer=layer, density=constraint.density, staggered=False
             )
         elif constraint.arrangement == "staggered":
-            layer["placement"] = _lattice_placement(
+            layer["placement"] = _lattice_for_density(
                 tile=tile, layer=layer, density=constraint.density, staggered=True
             )
         elif constraint.arrangement == "scatter":
-            layer["placement"] = _scatter_placement(
+            layer["placement"] = _scatter_for_density(
                 tile=tile, layer=layer, density=constraint.density
             )
         elif constraint.density != "auto":
@@ -304,7 +316,7 @@ def _apply_pattern(raw: dict[str, Any], constraint: PatternConstraints) -> None:
                 raise ConstraintInvalid([f"motif layer {layer.get('id')!r} has no placement"])
             placement_type = placement.get("type")
             if placement_type == "lattice":
-                replacement = _lattice_placement(
+                replacement = _lattice_for_density(
                     tile=tile,
                     layer=layer,
                     density=constraint.density,
@@ -315,7 +327,7 @@ def _apply_pattern(raw: dict[str, Any], constraint: PatternConstraints) -> None:
                 )
                 layer["placement"] = replacement
             elif placement_type == "scatter":
-                layer["placement"] = _scatter_placement(
+                layer["placement"] = _scatter_for_density(
                     tile=tile, layer=layer, density=constraint.density
                 )
             elif placement_type == "path_following":
@@ -393,7 +405,7 @@ def assert_constraints_satisfied(
             requested = set(palette.colors)
             if not mapped <= requested:
                 errors.append("fixed palette contains a color outside the request")
-            used = {mapping[slot] for slot in _ordered_slot_refs(raw) if slot in mapping}
+            used = {mapping[slot] for slot in ordered_slot_refs(raw) if slot in mapping}
             missing = [color for color in palette.colors if color not in used]
             if missing:
                 errors.append(f"fixed palette colors are not used by rendered layers: {missing}")

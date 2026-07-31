@@ -106,7 +106,8 @@ class ConversationHistoryItem(StrictRequest):
 
 
 class ConversationContext(StrictRequest):
-    current_plan: DesignPlanV3
+    """커밋된 디자인 + 최근 턴 요약. 구성 수정은 intent에 patch를 적용한다 — plan은 필요 없다."""
+
     current_intent: dict[str, Any]
     history: list[ConversationHistoryItem] = Field(default_factory=list, max_length=6)
 
@@ -139,8 +140,15 @@ class GenerateRequest(StrictRequest):
         if self.intent is not None and self.conversation_context is not None:
             if self.intent != self.conversation_context.current_intent:
                 raise ValueError("intent reroll must use the committed conversation intent")
-        if self.conversation_context is not None and self.intent is None and self.prompt is None:
-            raise ValueError("conversation refinement requires a prompt")
+        if self.conversation_context is not None and self.intent is None:
+            if self.prompt is None:
+                raise ValueError("conversation refinement requires a prompt")
+            # 구성 patch는 색·줄무늬·배치·크기만 담는다 — 사진·SVG는 모티프 입력이므로
+            # 조용히 무시되지 않게 계약에서 막는다(모티프 교체는 별도 경로).
+            if self.reference_images or self.motif_ids:
+                raise ValueError(
+                    "conversation refinement cannot include reference images or motif ids"
+                )
         motif_references = sum(item.purpose == "motif" for item in self.reference_images)
         if len(self.motif_ids) + motif_references > 2:
             raise ValueError("exact motifs and motif reference photos may use at most 2 slots")
@@ -165,6 +173,13 @@ class DesignOut(BaseModel):
     png_object_key: str | None
 
 
+class GenerationWarning(BaseModel):
+    """자동 조정 안내 — 코드는 로그·admin용, message는 고객에게 그대로 노출한다."""
+
+    code: str
+    message: str
+
+
 class GenerateResponse(BaseModel):
     generation_log_id: uuid.UUID
     request_id: str
@@ -174,7 +189,15 @@ class GenerateResponse(BaseModel):
     plan: dict[str, Any] | None = None
     structural_fingerprint: str | None = None
     design: DesignOut
-    warnings: list[str] = []
+    warnings: list[GenerationWarning] = []
+    # 구성 patch가 사용자 문장을 어떻게 해석했는지 한 줄 (고객 노출용). 최초 저작은 null.
+    note: str | None = None
+
+
+class ScopeRejectedResponse(BaseModel):
+    """구성 patch로 표현할 수 없는 요청 — 아무것도 만들지 않았고 과금도 없다(HTTP 200)."""
+
+    status: Literal["scope_rejected"] = "scope_rejected"
 
 
 class ExportRequest(StrictRequest):

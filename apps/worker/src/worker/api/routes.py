@@ -42,6 +42,7 @@ from worker.api.schemas import (
     FinalizeTaskRequest,
     GenerateRequest,
     GenerateResponse,
+    GenerationWarning,
     IdeasRequest,
     IdeasResponse,
     MotifGenerateRequest,
@@ -56,6 +57,7 @@ from worker.api.schemas import (
     PromotionScanRequest,
     PromotionScanResponse,
     ReferenceImageInput,
+    ScopeRejectedResponse,
     TextMotifPreviewRequest,
     TextMotifPreviewResponse,
 )
@@ -83,6 +85,7 @@ from worker.engine import (
 )
 from worker.engine.composition import compose
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
+from worker.engine.patch import apply_patch, composition_snapshot
 from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
@@ -101,6 +104,7 @@ from worker.motifs.store import get_motifs
 from worker.motifs.text_svg import text_to_svg
 from worker.render.fabric import FabricError, render_fabric
 from worker.render.raster import RasterError, RasterLimitError, rasterize_svg
+from worker.warnings import customer_warnings
 
 generate_router = APIRouter()
 finalize_router = APIRouter()
@@ -201,7 +205,7 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
             "mode": (
                 "variation"
                 if body.intent is not None
-                else "refine"
+                else "patch"
                 if body.conversation_context is not None
                 else "prompt"
             ),
@@ -569,14 +573,8 @@ class _GenerateOutcome:
     registry_version: str
     plan: dict[str, Any] | None
     structural_fingerprint: str | None
-
-
-@dataclass(frozen=True)
-class _RefineAuthoringContext:
-    plan: DesignPlanV3
-    current_candidates: list[dict[str, object]]
-    concrete_motif_ids: list[str]
-    history: list[dict[str, object]]
+    # 구성 patch가 사용자 문장을 해석한 한 줄. 최초 저작은 None.
+    note: str | None = None
 
 
 def _motif_prompt_slot_metadata(motif) -> dict[str, object]:  # noqa: ANN001
@@ -587,50 +585,6 @@ def _motif_prompt_slot_metadata(motif) -> dict[str, object]:  # noqa: ANN001
     if parts is not None and len(parts) == len(motif.color_slots):
         metadata["parts"] = list(parts)
     return metadata
-
-
-def _refine_authoring_context(
-    body: GenerateRequest,
-    request: Request,
-) -> _RefineAuthoringContext | None:
-    context = body.conversation_context
-    if context is None or body.intent is not None:
-        return None
-
-    raw = context.current_plan.model_dump(mode="json")
-    concrete_ids: list[str] = []
-    safe_sources: list[dict[str, str]] = []
-    current_candidates: list[dict[str, object]] = []
-    for index, source in enumerate(context.current_plan.motifs, start=1):
-        if source.source != "catalog":
-            _reject_generation(request, "intent_invalid", "intent")
-        motif_id = source.catalog_ref
-        alias = f"current_motif_{index}"
-        concrete_ids.append(motif_id)
-        safe_sources.append({"source": "catalog", "catalog_ref": alias})
-        current_candidates.append(
-            {
-                "catalog_ref": alias,
-                "motif_id": motif_id,
-                "subject": f"committed motif {index}",
-                "description": None,
-                "style": None,
-                "current": True,
-            }
-        )
-    if set(concrete_ids) != iter_motif_ids(context.current_intent):
-        _reject_generation(request, "intent_invalid", "intent")
-    raw["motifs"] = safe_sources
-    try:
-        provider_plan = DesignPlanV3.model_validate(raw)
-    except ValueError:
-        _reject_generation(request, "intent_invalid", "intent")
-    return _RefineAuthoringContext(
-        plan=provider_plan,
-        current_candidates=current_candidates,
-        concrete_motif_ids=concrete_ids,
-        history=[item.model_dump(mode="json") for item in context.history],
-    )
 
 
 async def _generate_from_intent(
@@ -672,11 +626,6 @@ async def _generate_from_intent(
         request.state.generation_diagnostics["compose_ms"] = round(
             (time.perf_counter() - compose_started) * 1000, 3
         )
-    plan = (
-        body.conversation_context.current_plan.model_dump(mode="json")
-        if body.conversation_context is not None
-        else None
-    )
     return _GenerateOutcome(
         input_type="intent",
         design=design,
@@ -686,15 +635,11 @@ async def _generate_from_intent(
             "designs": [constrained_intent],
             "palette": body.palette.model_dump(),
             "pattern_constraints": body.pattern_constraints.model_dump(),
-            "resolved_plan": plan,
+            "resolved_plan": None,
         },
         registry_version=registry_version,
-        plan=plan,
-        structural_fingerprint=(
-            structural_fingerprint(body.conversation_context.current_plan)
-            if body.conversation_context is not None
-            else None
-        ),
+        plan=None,
+        structural_fingerprint=None,
     )
 
 
@@ -760,12 +705,7 @@ async def _generate_from_prompt(
     author_prompt = body.prompt or (
         "Create a balanced necktie pattern using the supplied SVG motif."
     )
-    refine_context = _refine_authoring_context(body, request)
-    prompt_motif_ids = [
-        *body.motif_ids,
-        *(refine_context.concrete_motif_ids if refine_context is not None else []),
-    ]
-    prompt_motifs = await get_motifs(session, prompt_motif_ids)
+    prompt_motifs = await get_motifs(session, body.motif_ids)
     exact_motif_metadata = [
         {
             "catalog_ref": f"input_{index}",
@@ -777,94 +717,42 @@ async def _generate_from_prompt(
     reference_capable_count = sum(
         image.purpose in {"motif", "auto"} for image in body.reference_images
     )
-    public_catalog_candidates: list[dict[str, object]] = []
+    catalog_candidates: list[dict[str, object]] = []
     if body.prompt and not body.motif_ids and reference_capable_count < 2:
-        public_catalog_candidates = await prompt_catalog_candidates(
+        catalog_candidates = await prompt_catalog_candidates(
             session,
             body.prompt,
             embedding_client=embedding,
             tau=settings.motif_similarity_tau,
             top_k=5,
         )
-    if refine_context is not None:
-        current_ids = set(refine_context.concrete_motif_ids)
-        public_catalog_candidates = [
-            {**candidate, "optional": True}
-            for candidate in public_catalog_candidates
-            if candidate.get("motif_id") not in current_ids
-        ]
-    current_candidates = (
-        [
-            {
-                **candidate,
-                **_motif_prompt_slot_metadata(prompt_motifs.get(str(candidate["motif_id"]))),
-            }
-            for candidate in refine_context.current_candidates
-        ]
-        if refine_context is not None
-        else []
-    )
-    refine_exact_candidates = (
-        [
-            {
-                "catalog_ref": f"new_input_{index}",
-                "motif_id": motif_id,
-                "subject": f"new exact motif {index}",
-                "description": None,
-                "style": None,
-                "optional": True,
-                **_motif_prompt_slot_metadata(prompt_motifs.get(motif_id)),
-            }
-            for index, motif_id in enumerate(body.motif_ids, start=1)
-        ]
-        if refine_context is not None
-        else []
-    )
-    catalog_candidates = [
-        *current_candidates,
-        *refine_exact_candidates,
-        *public_catalog_candidates,
-    ]
-    request.state.generation_diagnostics["catalog_candidate_count"] = len(public_catalog_candidates)
+    request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
     retrieval_started = time.perf_counter()
     # 검증된 모티프 소스가 하나도 없는 요청에 모티프 예시를 보여주면 flash-lite가 예시의
     # input/catalog 소스를 흉내 내 존재하지 않는 ref를 날조한다(재시도로도 회복 안 됨).
     # generate 소스 경로는 예시 없이 지시문만으로 동작하므로 프롬프트 플로어를 두지 않는다.
     available_motif_count = min(
-        2,
-        len(body.motif_ids)
-        + reference_capable_count
-        + len(public_catalog_candidates)
-        + len(refine_context.concrete_motif_ids if refine_context is not None else []),
+        2, len(body.motif_ids) + reference_capable_count + len(catalog_candidates)
     )
-    prompt_examples: list[dict[str, object]] = []
-    if refine_context is None:
-        async with request.app.state.sessionmaker() as retrieval_session:
-            retrieval = await retrieve_examples(
-                retrieval_session,
-                author_prompt,
-                embedding_client=embedding,
-                embedding_model=getattr(embedding, "model", settings.embedding_model),
-                available_motif_count=available_motif_count,
-                pattern_constraints=body.pattern_constraints,
-            )
-        prompt_examples = retrieval.prompt_examples()
-        retrieval_status = retrieval.status
-        retrieval_reason = retrieval.reason
-        selected_examples = retrieval.diagnostics()
-    else:
-        retrieval_status = "skipped"
-        retrieval_reason = "refine_uses_committed_plan"
-        selected_examples = []
+    async with request.app.state.sessionmaker() as retrieval_session:
+        retrieval = await retrieve_examples(
+            retrieval_session,
+            author_prompt,
+            embedding_client=embedding,
+            embedding_model=getattr(embedding, "model", settings.embedding_model),
+            available_motif_count=available_motif_count,
+            pattern_constraints=body.pattern_constraints,
+        )
+    prompt_examples = retrieval.prompt_examples()
     request.state.generation_diagnostics.update(
         {
-            "example_retrieval_status": retrieval_status,
-            "example_retrieval_reason": retrieval_reason,
+            "example_retrieval_status": retrieval.status,
+            "example_retrieval_reason": retrieval.reason,
             "example_retrieval_ms": round(
                 (time.perf_counter() - retrieval_started) * 1000,
                 3,
             ),
-            "selected_examples": selected_examples,
+            "selected_examples": retrieval.diagnostics(),
         }
     )
 
@@ -874,15 +762,13 @@ async def _generate_from_prompt(
             author_prompt,
             validate=_validate,
             reference_images=reference_images,
-            motif_ids=[] if refine_context is not None else body.motif_ids,
-            exact_motif_metadata=(None if refine_context is not None else exact_motif_metadata),
+            motif_ids=body.motif_ids,
+            exact_motif_metadata=exact_motif_metadata,
             catalog_candidates=catalog_candidates,
             palette_constraint=body.palette,
             pattern_constraints=body.pattern_constraints,
             examples=prompt_examples,
             diagnostics=request.state.generation_diagnostics,
-            current_plan=refine_context.plan if refine_context is not None else None,
-            conversation_history=(refine_context.history if refine_context is not None else None),
         )
     except SemanticMismatch as exc:
         request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
@@ -1028,11 +914,116 @@ async def _generate_from_prompt(
     )
 
 
-@generate_router.post("/generate", response_model=GenerateResponse)
+async def _generate_from_patch(
+    body: GenerateRequest,
+    request: Request,
+    session: AsyncSession,
+    *,
+    adapters,  # noqa: ANN001
+    effective_colorway: str | None,
+    registry_version: str,
+    warnings: list[str],
+) -> _GenerateOutcome | ScopeRejectedResponse:
+    """구성 수정 — 문장 → 좁은 patch → 결정론 적용. 모델은 모티프를 볼 수 없다."""
+
+    context = body.conversation_context
+    assert context is not None and body.prompt is not None
+    gemini = adapters.gemini
+    if gemini is None:
+        exc = AdapterNotConfigured(
+            "Gemini 미구성 (구성 수정은 저작 모델이 필요하다)",
+            provider="gemini",
+            operation="generate_content",
+            reason_code="not_configured",
+        )
+        _record_adapter_failure(request, exc, stage="authoring")
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    authoring_started = time.perf_counter()
+    try:
+        patch = await gemini.author_patch(
+            body.prompt,
+            snapshot=composition_snapshot(context.current_intent),
+            conversation_history=[item.model_dump(mode="json") for item in context.history],
+            palette_constraint=body.palette,
+            diagnostics=request.state.generation_diagnostics,
+        )
+    except IntentInvalid as exc:
+        request.state.generation_diagnostics["authoring_validation_errors"] = list(exc.errors)
+        _reject_generation(request, "authoring_invalid", "authoring")
+    except AdapterClientError as exc:
+        _record_adapter_failure(
+            request,
+            exc,
+            stage="authoring",
+            duration_ms=round((time.perf_counter() - authoring_started) * 1000, 3),
+        )
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    finally:
+        request.state.generation_diagnostics["authoring_ms"] = round(
+            (time.perf_counter() - authoring_started) * 1000, 3
+        )
+
+    if patch.out_of_scope or not patch.has_changes:
+        # 아무것도 만들지 않았다 — api가 과금을 되돌리고 턴도 남기지 않는다.
+        request.state.generation_diagnostics["failure_code"] = "scope_rejected"
+        request.state.generation_diagnostics["failure_stage"] = "authoring"
+        return ScopeRejectedResponse()
+
+    try:
+        patched = apply_patch(context.current_intent, patch, palette_constraint=body.palette)
+        constrained_intent = apply_generation_constraints(
+            patched,
+            palette=body.palette,
+            pattern=body.pattern_constraints,
+            warnings=warnings,
+        )
+    except ConstraintInvalid:
+        _reject_generation(request, "constraint_conflict", "constraints")
+
+    catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
+    compose_started = time.perf_counter()
+    try:
+        design = compose_design(
+            constrained_intent,
+            seed=body.seed,
+            colorway=effective_colorway,
+            motifs=catalog or None,
+            palette_constraint=body.palette,
+            pattern_constraints=body.pattern_constraints,
+        )
+    except IntentInvalid:
+        _reject_generation(request, "intent_invalid", "intent")
+    except (AssertionError, ValueError):
+        _reject_generation(request, "design_invalid", "design")
+    finally:
+        request.state.generation_diagnostics["compose_ms"] = round(
+            (time.perf_counter() - compose_started) * 1000, 3
+        )
+    return _GenerateOutcome(
+        input_type="prompt",
+        design=design,
+        resolved_intent=constrained_intent,
+        tile_mm=float(constrained_intent["canvas"]["tile_mm"]),
+        intent_log={
+            "designs": [constrained_intent],
+            "palette": body.palette.model_dump(),
+            "pattern_constraints": body.pattern_constraints.model_dump(),
+            "resolved_plan": None,
+            "patch": patch.model_dump(mode="json", exclude_none=True),
+        },
+        registry_version=registry_version,
+        plan=None,
+        structural_fingerprint=None,
+        note=patch.note,
+    )
+
+
+@generate_router.post("/generate", response_model=GenerateResponse | ScopeRejectedResponse)
 @_logged_generation
 async def generate(
     body: GenerateRequest, request: Request, session: SessionDep
-) -> GenerateResponse:
+) -> GenerateResponse | ScopeRejectedResponse:
     started = time.perf_counter()
     settings = request.app.state.settings
     adapters = request.app.state.adapters
@@ -1051,6 +1042,19 @@ async def generate(
             registry_version=registry_version,
             warnings=warnings,
         )
+    elif body.conversation_context is not None:
+        outcome = await _generate_from_patch(
+            body,
+            request,
+            session,
+            adapters=adapters,
+            effective_colorway=effective_colorway,
+            registry_version=registry_version,
+            warnings=warnings,
+        )
+        if isinstance(outcome, ScopeRejectedResponse):
+            await _log_scope_rejection(session, body, request)
+            return outcome
     else:
         outcome = await _generate_from_prompt(
             body,
@@ -1109,8 +1113,37 @@ async def generate(
         plan=outcome.plan,
         structural_fingerprint=outcome.structural_fingerprint,
         design=out,
-        warnings=warnings,
+        # 진단 문자열은 로그에만 남기고 응답에는 고객 문구가 있는 경고만 내린다.
+        warnings=[GenerationWarning(**item) for item in customer_warnings(warnings)],
+        note=outcome.note,
     )
+
+
+async def _log_scope_rejection(
+    session: AsyncSession, body: GenerateRequest, request: Request
+) -> None:
+    """범위 밖 거절도 한 행 남긴다 — 결과가 없으니 status는 error다(과금은 api가 되돌린다)."""
+
+    await session.rollback()
+    session.add(
+        SeamlessGenerationLog(
+            id=body.run_id,
+            request_id=request_id_var.get(),
+            session_id=body.motif_provenance.session_id if body.motif_provenance else None,
+            user_id=body.motif_provenance.user_id if body.motif_provenance else None,
+            input_type="prompt",
+            prompt=body.prompt,
+            colorway=body.colorway,
+            seed=body.seed,
+            candidate_count_requested=1,
+            warnings=[],
+            status="error",
+            error_type="ScopeRejected",
+            error_message="request is outside the composition patch scope",
+            diagnostics=request.state.generation_diagnostics,
+        )
+    )
+    await session.commit()
 
 
 @generate_router.post(

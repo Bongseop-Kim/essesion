@@ -204,7 +204,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
             render_ms=Decimal("3.5"),
             status="success",
             diagnostics={
-                "mode": "refine",
+                "mode": "patch",
                 "model": "gemini-2.5-flash-lite",
                 "authoring_attempts": 1,
                 "plan_count": 3,
@@ -342,7 +342,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert "raw-provider-secret" not in detail.text
     assert "png_object_key" not in detail.text
     assert detail.json()["diagnostics"] == {
-        "mode": "refine",
+        "mode": "patch",
         "model": "gemini-2.5-flash-lite",
         "prompt_revision": None,
         "reference_count": 1,

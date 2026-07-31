@@ -666,16 +666,32 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
     assert photo.entity_id == design_session["id"]
     assert photo.expires_at is None
 
+    # 소비된 업로드는 다시 쓸 수 없다. 사진은 최초 생성에서만 받으므로 새 세션으로 확인한다.
+    fresh_session = (await client.post("/design/sessions", headers=headers)).json()
     reused_photo = await client.post(
         "/design/generate",
         json={
-            "session_id": design_session["id"],
+            "session_id": fresh_session["id"],
             "prompt": "같은 사진 재사용",
             "reference_images": [{"upload_id": str(photo.id), "purpose": "auto"}],
         },
         headers=headers,
     )
     assert reused_photo.status_code == 409
+    assert len(worker.generate_payloads) == 1
+
+    # 커밋된 디자인이 있는 세션은 사진·모티프를 더 받지 않는다(구성 수정 전용).
+    with_photo_on_committed = await client.post(
+        "/design/generate",
+        json={
+            "session_id": design_session["id"],
+            "prompt": "사진을 하나 더",
+            "reference_images": [{"upload_id": str(second_photo.id), "purpose": "auto"}],
+        },
+        headers=headers,
+    )
+    assert with_photo_on_committed.status_code == 422
+    assert with_photo_on_committed.json()["code"] == "motif_input_conflict"
     assert len(worker.generate_payloads) == 1
 
     deleted_motif = await client.delete(f"/design/motifs/{user_motif.id}", headers=headers)
@@ -1675,7 +1691,8 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
     )
     assert refined.status_code == 200, refined.text
     conversation_context = app.state.worker.generate_payloads[-1]["conversation_context"]
-    assert conversation_context["current_plan"] == activated.json()["current_plan"]
+    # 구성 수정은 intent에 patch를 적용한다 — plan은 문맥에 보내지 않는다.
+    assert "current_plan" not in conversation_context
     assert conversation_context["current_intent"] == activated.json()["current_intent"]
     assert conversation_context["history"] == [
         {
@@ -1737,6 +1754,60 @@ async def test_generation_auto_selects_first_candidate_as_conversation_context(
     assert session_after["current_intent"] is not None
     assert session_after["seed"] == 7
     assert session_after["colorway"] == "default"
+
+
+async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(
+    client, app, db_session, settings
+):
+    # "벌을 나비로 바꿔줘" — 구성 patch로 표현할 수 없는 요청. 상단 알림 1건으로 끝나야
+    # 하므로 잔액·이력·context_version이 요청 전과 완전히 같아야 한다.
+    class RejectingWorker(FakeWorker):
+        async def generate(self, payload):
+            if payload.get("conversation_context") is None:
+                return await super().generate(payload)
+            self.generate_payloads.append(payload)
+            return {"status": "scope_rejected"}
+
+    worker = RejectingWorker(app.state.sessionmaker)
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+    await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "꿀벌 패턴"},
+        headers=headers,
+    )
+    before = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
+    turns_before = (
+        await client.get(f"/design/sessions/{session_id}/turns", headers=headers)
+    ).json()
+    balance_before = await ledger.get_balance(db_session, user.id)
+
+    rejected = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "벌을 나비로 바꿔줘"},
+        headers=headers,
+    )
+
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json() == {"rejected": "motif"}
+    assert await ledger.get_balance(db_session, user.id) == balance_before
+    after = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
+    assert after["context_version"] == before["context_version"]
+    assert after["active_generation_id"] is None
+    assert after["current_intent"] == before["current_intent"]
+    turns_after = (await client.get(f"/design/sessions/{session_id}/turns", headers=headers)).json()
+    assert [turn["id"] for turn in turns_after] == [turn["id"] for turn in turns_before]
+
+    # 거절 뒤에도 같은 문맥으로 다시 보낼 수 있다(문맥 버전이 그대로다).
+    retried = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "바탕을 밝게"},
+        headers=headers,
+    )
+    assert retried.status_code == 200, retried.text
 
 
 async def test_activate_accepts_past_run_within_session_only(client, app, db_session, settings):
