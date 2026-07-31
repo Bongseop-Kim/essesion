@@ -379,7 +379,7 @@ def _build_patch_prompt(
         + _fence_safe(json.dumps(user_prompt, ensure_ascii=False)),
         "",
         "<current_composition>",
-        json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")),
+        _fence_safe(json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))),
         "</current_composition>",
     ]
     if conversation_history:

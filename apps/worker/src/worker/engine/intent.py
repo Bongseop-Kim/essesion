@@ -60,8 +60,8 @@ class LatticeSpec(BaseModel):
     drop_axis: Literal["row", "column"] = "column"
     # 격자 전체의 위상 이동. 인스턴스는 항상 tile로 modulo되므로 seamless 불변식은 그대로다.
     # 두 번째 모티프 슬롯이 첫 슬롯과 같은 격자에서 엇갈리게 놓이는 유일한 축이다.
-    offset_x_mm: float = 0.0
-    offset_y_mm: float = 0.0
+    offset_x_mm: float = Field(default=0.0, allow_inf_nan=False)
+    offset_y_mm: float = Field(default=0.0, allow_inf_nan=False)
 
 
 class ScatterSpec(BaseModel):

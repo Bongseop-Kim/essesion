@@ -40,7 +40,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from sqlalchemy import CursorResult, delete, func, select, update
+from sqlalchemy import CursorResult, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from svg_safety import SanitizeError, sanitize_svg
 
@@ -2580,8 +2580,13 @@ async def _motif_results(
     *,
     user_id: uuid.UUID,
     current_ids: Collection[str] = (),
+    allow_ids: Collection[str] = (),
 ) -> list[MotifResultOut]:
-    """카탈로그 행을 붙여 카드로 — 이름은 내 라이브러리 이름, 없으면 모티프 subject."""
+    """카탈로그 행을 붙여 카드로 — 이름은 내 라이브러리 이름, 없으면 모티프 subject.
+
+    워커 응답을 그대로 노출하지 않는다 — 공개 카탈로그, 내 라이브러리 링크,
+    명시적 allow_ids(방금 생성한 모티프)만 통과.
+    """
     if not motif_ids:
         return []
     rows = await session.execute(
@@ -2590,7 +2595,14 @@ async def _motif_results(
             UserMotif,
             (UserMotif.motif_id == Motif.id) & (UserMotif.user_id == user_id),
         )
-        .where(Motif.id.in_(motif_ids))
+        .where(
+            Motif.id.in_(motif_ids),
+            or_(
+                Motif.source != "user_upload",
+                UserMotif.motif_id.is_not(None),
+                Motif.id.in_(allow_ids),
+            ),
+        )
     )
     by_id = {motif.id: (motif, name) for motif, name in rows.all()}
     return [
@@ -2666,6 +2678,26 @@ async def generate_motif(
     }
     if style_hint is not None:
         payload["style_hint"] = style_hint
+    return await _shielded(
+        _dispatch_motif_generation(
+            payload=payload,
+            request=request,
+            session=session,
+            session_id=session_id,
+            user_id=user.id,
+        )
+    )
+
+
+async def _dispatch_motif_generation(
+    *,
+    payload: dict[str, Any],
+    request: Request,
+    session: SessionDep,
+    session_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> MotifGenerateOut:
+    """클라이언트가 끊겨도 선차감한 Recraft 예산을 정합하게 되돌린다 — 생성과 같은 기계."""
     try:
         response = await request.app.state.worker.motif_generate(payload)
         out = WorkerMotifGenerateOut.model_validate(response)
@@ -2678,7 +2710,9 @@ async def generate_motif(
     if out.reused:
         # 래더 히트 — Recraft 미호출이므로 예산 환급 (멱등 재호출이 예산을 태우지 않게)
         await _release_recraft_budget(session, session_id)
-    results = await _motif_results(session, [out.motif_id], user_id=user.id)
+    results = await _motif_results(
+        session, [out.motif_id], user_id=user_id, allow_ids=(out.motif_id,)
+    )
     if not results:
         raise UpstreamError("생성한 모티프를 카탈로그에서 찾을 수 없습니다")
     return MotifGenerateOut(request_id=out.request_id, reused=out.reused, motif=results[0])

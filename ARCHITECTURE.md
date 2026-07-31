@@ -454,7 +454,8 @@ flowchart LR
     Active --> Retrieve
     Retrieve -->|호환 후보 중 최대 3개| Author
     Photo[참고 사진 최대 5장 + 사진별 purpose] -->|검증·축소·메타데이터 제거| Author
-    Controls[fixed palette] -->|prompt 지시 + 결정적 보정·재검증| Intent
+    Controls[fixed palette] -->|palette_constraint prompt 지시| Author
+    Controls -->|결정적 보정·재검증 최종 권위| Intent
     UserInput[SVG / 텍스트 / 사진] -->|path·vectorize + sanitize·normalize·content hash| PrivateMotif[소유자 exact 모티프]
     Author --> Plan[typed DesignPlansV3]
     Plan -->|deterministic compiler| Intent[intent + motif specs]
