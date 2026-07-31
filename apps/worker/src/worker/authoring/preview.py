@@ -149,7 +149,6 @@ async def prepare_authoring_preview(
     preview_plan = DesignPlanV3.model_validate(raw)
     design = compile_design_plan_v3(
         preview_plan,
-        plan_index=0,
         motif_ids=resolved_ids,
         tile_mm=tile_mm,
         seed=seed,

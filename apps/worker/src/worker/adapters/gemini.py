@@ -34,11 +34,8 @@ from worker.authoring.compiler import (
 )
 from worker.authoring.schema import (
     MAX_STRUCTURE_LAYERS,
-    DesignPlansV3,
     DesignPlanV3,
     StripeLayerPlan,
-    motif_source_signature,
-    structural_fingerprint,
 )
 from worker.engine.constraints import PaletteConstraint, PatternConstraints, pattern_prompt_lines
 from worker.engine.palette import hex_to_rgb
@@ -54,7 +51,7 @@ _BASE_DELAY_S = 0.5
 _MAX_AUTHORING_ATTEMPTS = 4
 MAX_REFERENCE_IMAGE_PIXELS = 20_000_000
 MAX_REFERENCE_IMAGE_SIDE = 2_048
-# Per-request output ceiling (DoW guard). Generous for 2-4 structured plans; ideas are far smaller.
+# Per-request output ceiling (DoW guard). Generous for one structured plan; ideas are far smaller.
 # ponytail: single flat cap; split per call-site only if plans start truncating.
 MAX_OUTPUT_TOKENS = 8192
 AUTHORING_PROMPT_REVISION = "design-plan-v3-conversation-refine-five-layers-v5-count-limits"
@@ -1061,9 +1058,8 @@ def _build_prompt(
 ) -> str:
     if current_plan is None:
         lines = [
-            "Create 2 to 4 structurally different seamless textile plans.",
-            "Every plan must use exactly the same motif source set. Vary only structure, "
-            "placement, and color; never split one request into different subjects or motifs.",
+            "Create exactly one seamless textile plan.",
+            "Return one DesignPlanV3 object, not a plans array and not a patch.",
         ]
     else:
         lines = [
@@ -1094,7 +1090,7 @@ def _build_prompt(
         # 결정론적 클램프가 필요하다: docs/plans/design-motif-lattice-overlap.md.
         "Every declared motif must be used."
         + (
-            " Plans that differ only by colors are duplicates."
+            ""
             if current_plan is None
             else " Keep current_motif_N aliases unchanged unless the user explicitly replaces "
             "a motif."
@@ -1105,11 +1101,7 @@ def _build_prompt(
         "When recoloring a motif whose metadata includes slot_count, color_indices must contain "
         "exactly slot_count entries. Entry i colors slot i and, when parts are provided, the "
         "visual part at parts[i].",
-        (
-            "Return only the DesignPlansV3 response required by the schema."
-            if current_plan is None
-            else "Return only the DesignPlanV3 response required by the schema."
-        ),
+        "Return only the DesignPlanV3 response required by the schema.",
         "",
         (
             "User description (JSON string): "
@@ -1403,27 +1395,6 @@ def _contract_feedback(contract: str, exc: Exception) -> list[str]:
     return lines[:6]
 
 
-def _parse_indexed_plans(text: str) -> tuple[list[tuple[int, DesignPlanV3]], list[str]]:
-    """플랜을 개별 검증해 (원본 인덱스, 플랜)과 플랜별 피드백을 돌려준다.
-
-    DesignPlansV3로 응답 전체를 한 번에 검증하면 플랜 하나의 계약 위반이 유효한
-    나머지 플랜까지 통째로 버린다 — 필요한 건 2개뿐이므로 살아남은 플랜은 살린다.
-    """
-
-    raw = json.loads(_strip_code_fence(text))
-    items = raw.get("plans") if isinstance(raw, dict) else None
-    if not isinstance(items, list) or not 2 <= len(items) <= 4:
-        raise ValueError("response must contain a plans array with 2 to 4 plans")
-    indexed: list[tuple[int, DesignPlanV3]] = []
-    errors: list[str] = []
-    for index, item in enumerate(items):
-        try:
-            indexed.append((index, DesignPlanV3.model_validate(item)))
-        except ValidationError as exc:
-            errors.extend(_contract_feedback(f"plans[{index}]", exc))
-    return indexed, errors
-
-
 # Vertex 구조화 출력은 서빙측 제약 오토마톤에 상한이 있고 지원 키워드도 제한적이다.
 # 프로바이더 스키마에서만 (1) 값·길이·배열 개수 바운드를 벗겨 상태 폭발("too many states
 # for serving" 400)을 막고, (2) 판별 유니온의 oneOf→anyOf 변환 + discriminator 제거(Vertex
@@ -1625,7 +1596,7 @@ class GeminiClient:
             raise ValueError("Gemini returned an empty structured response")
         return schema.model_validate_json(_strip_code_fence(text))
 
-    async def author_designs(
+    async def author_design(
         self,
         prompt: str,
         *,
@@ -1640,8 +1611,8 @@ class GeminiClient:
         diagnostics: dict[str, object] | None = None,
         current_plan: DesignPlanV3 | None = None,
         conversation_history: list[dict[str, object]] | None = None,
-    ) -> list[AuthoredDesign]:
-        """Author initial variants or one fully rewritten, preservation-guarded refine plan."""
+    ) -> AuthoredDesign:
+        """Author one plan — an initial design, or a preservation-guarded refine rewrite."""
 
         sink = diagnostics if diagnostics is not None else {}
         refine = current_plan is not None
@@ -1660,13 +1631,11 @@ class GeminiClient:
         }
         errors: list[str] | None = None
         last_errors = [
-            (
-                "model did not produce one valid evolved plan"
-                if refine
-                else "model produced fewer than 2 valid, structurally distinct plans"
-            )
+            "model did not produce one valid evolved plan"
+            if refine
+            else "model did not produce one valid plan"
         ]
-        last_attempt_only_grounding_failures = False
+        last_attempt_grounding_failure = False
         public_catalog_available = any(
             candidate.get("current") is not True for candidate in (catalog_candidates or [])
         )
@@ -1693,18 +1662,18 @@ class GeminiClient:
                     current_plan=current_plan,
                     conversation_history=conversation_history,
                 )
+                plan = await self.complete_model(
+                    built_prompt,
+                    DesignPlanV3,
+                    reference_images=references,
+                    system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
+                    without_schema_variants=withheld_source_variants,
+                )
                 if refine:
-                    response_plan = await self.complete_model(
-                        built_prompt,
-                        DesignPlanV3,
-                        reference_images=references,
-                        system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
-                        without_schema_variants=withheld_source_variants,
-                    )
                     assert current_plan is not None
-                    response_plan, restored = _preserve_refine_plan(
+                    plan, restored = _preserve_refine_plan(
                         current_plan,
-                        response_plan,
+                        plan,
                         prompt,
                         palette_constraint=palette_constraint,
                         pattern_constraints=pattern_constraints,
@@ -1713,120 +1682,45 @@ class GeminiClient:
                         catalog_candidates=catalog_candidates,
                     )
                     sink["preserve_restored_sections"] = restored
-                    indexed_plans = [(0, response_plan)]
-                    parse_errors: list[str] = []
-                else:
-                    response = await self._generate_response(
-                        built_prompt,
-                        reference_images=references,
-                        response_schema=_servable_json_schema(
-                            DesignPlansV3, without=withheld_source_variants
-                        ),
-                        system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
+                elif palette_constraint is None or palette_constraint.mode != "fixed":
+                    # refine 플랜은 _preserve_refine_plan이 이미 정규화했다.
+                    plan = _normalize_requested_named_colors(
+                        prompt,
+                        plan,
+                        exact_motif_metadata=exact_motif_metadata,
+                        catalog_candidates=catalog_candidates,
                     )
-                    if not response.text:
-                        raise ValueError("Gemini returned an empty structured response")
-                    indexed_plans, parse_errors = _parse_indexed_plans(response.text)
             except (TypeError, ValueError, ValidationError) as exc:
-                contract = "DesignPlanV3" if refine else "DesignPlansV3"
-                last_errors = _contract_feedback(contract, exc)
-                last_attempt_only_grounding_failures = False
+                last_errors = _contract_feedback("DesignPlanV3", exc)
+                last_attempt_grounding_failure = False
                 errors = last_errors
                 continue
 
-            sink["plan_count"] = len(indexed_plans)
-            if not refine:
-                if len(indexed_plans) < 2:
-                    last_errors = parse_errors or [
-                        "model produced fewer than 2 valid, structurally distinct plans"
-                    ]
-                    last_attempt_only_grounding_failures = False
+            try:
+                design = compile_design_plan_v3(
+                    plan,
+                    motif_ids=motif_ids,
+                    catalog_candidates=catalog_candidates,
+                    reference_motif_indexes=required_reference_indexes,
+                    reference_image_count=len(references),
+                    palette_constraint=palette_constraint,
+                )
+            except PlanCompileError as exc:
+                last_errors = [str(exc)]
+                last_attempt_grounding_failure = exc.grounding
+                errors = last_errors
+                continue
+            if validate is not None:
+                validation_errors = validate(design.intent)
+                if validation_errors:
+                    last_errors = list(validation_errors)
+                    last_attempt_grounding_failure = False
                     errors = last_errors[:6]
                     continue
-                source_signatures = {motif_source_signature(plan) for _, plan in indexed_plans}
-                if len(source_signatures) != 1:
-                    sink["motif_source_set_mismatch"] = True
-                    last_errors = [
-                        "all plans in one authoring response must use the same motif source set"
-                    ]
-                    last_attempt_only_grounding_failures = False
-                    errors = last_errors
-                    continue
+            sink["structural_fingerprint"] = design.structural_fingerprint
+            return design
 
-            results: list[AuthoredDesign] = []
-            design_errors: list[str] = list(parse_errors)
-            seen_fingerprints: set[str] = set()
-            duplicate_count = 0
-            grounding_failure_count = 0
-
-            for index, plan in indexed_plans:
-                try:
-                    # refine 플랜은 _preserve_refine_plan이 이미 정규화했다.
-                    if not refine and (
-                        palette_constraint is None or palette_constraint.mode != "fixed"
-                    ):
-                        plan = _normalize_requested_named_colors(
-                            prompt,
-                            plan,
-                            exact_motif_metadata=exact_motif_metadata,
-                            catalog_candidates=catalog_candidates,
-                        )
-                except ValueError as exc:
-                    design_errors.append(f"plan[{index}]: {exc}")
-                    continue
-                fingerprint = structural_fingerprint(plan)
-                if not refine and fingerprint in seen_fingerprints:
-                    duplicate_count += 1
-                    design_errors.append(
-                        f"plan[{index}]: duplicates a previous structural fingerprint"
-                    )
-                    continue
-                try:
-                    design = compile_design_plan_v3(
-                        plan,
-                        plan_index=index,
-                        motif_ids=motif_ids,
-                        catalog_candidates=catalog_candidates,
-                        reference_motif_indexes=required_reference_indexes,
-                        reference_image_count=len(references),
-                        palette_constraint=palette_constraint,
-                    )
-                except PlanCompileError as exc:
-                    grounding_failure_count += int(exc.grounding)
-                    design_errors.append(f"plan[{index}]: {exc}")
-                    continue
-                if validate is not None:
-                    validation_errors = validate(design.intent)
-                    if validation_errors:
-                        design_errors.extend(
-                            f"plan[{index}]: {error}" for error in validation_errors
-                        )
-                        continue
-                seen_fingerprints.add(fingerprint)
-                results.append(design)
-
-            sink["validated_count"] = len(results)
-            sink["duplicate_plan_count"] = duplicate_count
-            sink["structural_fingerprints"] = [design.structural_fingerprint for design in results]
-            required_count = 1 if refine else 2
-            if len(results) >= required_count:
-                return results
-
-            last_errors = design_errors or [
-                (
-                    "model did not produce one valid evolved plan"
-                    if refine
-                    else "model produced fewer than 2 valid, structurally distinct plans"
-                )
-            ]
-            last_attempt_only_grounding_failures = (
-                bool(indexed_plans)
-                and not parse_errors
-                and grounding_failure_count == len(indexed_plans)
-            )
-            errors = last_errors[:6]
-
-        if public_catalog_available and last_attempt_only_grounding_failures:
+        if public_catalog_available and last_attempt_grounding_failure:
             raise SemanticMismatch(last_errors)
         raise IntentInvalid(last_errors)
 

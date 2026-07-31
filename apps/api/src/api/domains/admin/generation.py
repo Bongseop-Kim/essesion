@@ -261,7 +261,7 @@ class GenerationDiagnosticsOut(BaseModel):
     candidate_count: int | None = None
     authoring_ms: float | None = None
     motif_resolution_ms: float | None = None
-    candidate_ms: float | None = None
+    compose_ms: float | None = None
     render_ms: float | None = None
     failure_code: str | None = None
     failure_stage: str | None = None
@@ -797,7 +797,7 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         candidate_count=count("candidate_count"),
         authoring_ms=milliseconds("authoring_ms"),
         motif_resolution_ms=milliseconds("motif_resolution_ms"),
-        candidate_ms=milliseconds("candidate_ms"),
+        compose_ms=milliseconds("compose_ms"),
         render_ms=milliseconds("render_ms"),
         failure_code=failure_code,
         failure_stage=failure_stage,

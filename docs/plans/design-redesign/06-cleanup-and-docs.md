@@ -16,6 +16,15 @@
 | `apps/admin/src/pages/generation/generation-labels.ts` | `candidate_count`·후보 관련 라벨 삭제, patch/scope_rejected 진단 라벨 추가 |
 | `apps/api/src/api/domains/admin/generation.py` | 응답에서 `candidate_count` 삭제, patch 진단 필드 노출(`patch_axes`, `scope_rejected`) |
 
+1단계가 admin을 건드리지 않으려고 **일부러 남긴 것**이 있다. 이 단계에서 함께 지운다
+(`docs/reviews/design-redesign-01-server-single-design.md`).
+
+- `db/models/seamless.py` + 베이스라인의 `candidate_count_requested`·`candidate_count_returned`·
+  `distinct_layouts`·`available_strategies` — 워커가 상수 1만 쓰고 있다.
+- 로그 JSON의 `intent.designs`(원소 1개 배열)·`candidates`(원소 1개 배열) → 단수 키로.
+- 진단 `plan_count`·`validated_count`·`candidate_count` — 워커가 더 이상 기록하지 않아
+  admin 상세에 `-`로 뜬다. 해당 행을 지운다.
+
 `apps/admin/src/pages/authoring/candidates-list.tsx`·`candidate-detail.tsx`는 **오소링 승격
 후보**로 이번 재설계와 무관하다. 이름이 비슷하다고 건드리지 않는다.
 

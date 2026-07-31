@@ -357,7 +357,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "candidate_count": 2,
         "authoring_ms": None,
         "motif_resolution_ms": None,
-        "candidate_ms": None,
+        "compose_ms": None,
         "render_ms": None,
         "failure_code": None,
         "failure_stage": None,

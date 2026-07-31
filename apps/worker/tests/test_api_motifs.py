@@ -120,58 +120,34 @@ async def test_generate_renders_with_db_motif_catalog(client, db_session):
         json={
             "run_id": _RUN_ID,
             "intent": _lattice_intent(mid),
-            "candidate_count": 1,
         },
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["candidates"]
+    assert body["design"]["svg"]
     assert body["registry_version"].startswith("0.1.0")
 
 
 async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     mid = await _seed_dot(db_session)
     design = {
-        "plans": [
+        "colors": ["#FFFFFF", "#111111"],
+        "ground_color_index": 0,
+        "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
+        "layers": [
             {
-                "colors": ["#FFFFFF", "#111111"],
-                "ground_color_index": 0,
-                "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
-                "layers": [
-                    {
-                        "type": "motif",
-                        "motif_index": 0,
-                        "size_ratio": 0.12,
-                        "color_indices": [1],
-                        "placement": {
-                            "type": "lattice",
-                            "columns": 4,
-                            "rows": 4,
-                            "drop": "none",
-                        },
-                    }
-                ],
-            },
-            {
-                "colors": ["#F0EBDD", "#223344"],
-                "ground_color_index": 0,
-                "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
-                "layers": [
-                    {
-                        "type": "motif",
-                        "motif_index": 0,
-                        "size_ratio": 0.18,
-                        "color_indices": [1],
-                        "placement": {
-                            "type": "scatter",
-                            "mode": "poisson",
-                            "count": 18,
-                            "min_distance_ratio": 0.14,
-                        },
-                    }
-                ],
-            },
-        ]
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": 0.12,
+                "color_indices": [1],
+                "placement": {
+                    "type": "lattice",
+                    "columns": 4,
+                    "rows": 4,
+                    "drop": "none",
+                },
+            }
+        ],
     }
     sdk = SimpleNamespace(
         aio=SimpleNamespace(
@@ -185,7 +161,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     app.state.adapters.gemini = GeminiClient("", client=cast(genai.Client, sdk))
     resp = await client.post(
         "/generate",
-        json={"run_id": _RUN_ID, "prompt": "dot pattern", "candidate_count": 1},
+        json={"run_id": _RUN_ID, "prompt": "dot pattern"},
     )
     generate_content = sdk.aio.models.generate_content
     generate_content.assert_awaited_once()
@@ -195,11 +171,9 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     assert 'User description (JSON string): "dot pattern"' in contents[0].parts[-1].text
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["candidates"]
-    assert len(body["intents"]) == 2
     # 시드 모티프로 재사용 해석됐는지 — 로그 intent의 motif_id가 치환됐는지 확인
-    assert mid in body["candidates"][0]["svg"]
-    motif_layer = next(layer for layer in body["intents"][0]["layers"] if layer["type"] == "motif")
+    assert mid in body["design"]["svg"]
+    motif_layer = next(layer for layer in body["intent"]["layers"] if layer["type"] == "motif")
     assert motif_layer["params"]["motif_id"] == mid
 
 
@@ -211,7 +185,7 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
     intent["seed"] = 37
 
     class FakeGemini:
-        async def author_designs(
+        async def author_design(
             self,
             _prompt,
             *,
@@ -225,7 +199,7 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
             assert reference_images == []
             assert motif_ids == []
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     seen: list[int] = []
 
@@ -238,9 +212,9 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
 
     response = await client.post(
         "/generate",
-        json={"run_id": _RUN_ID, "prompt": "seeded dots", "candidate_count": 1},
+        json={"run_id": _RUN_ID, "prompt": "seeded dots"},
     )
 
     assert response.status_code == 200, response.text
     assert seen == [37]
-    assert response.json()["candidates"][0]["seed"] == 37
+    assert response.json()["design"]["seed"] == 37

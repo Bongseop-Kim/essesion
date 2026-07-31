@@ -35,7 +35,7 @@ from worker.adapters.recraft import (
     generate_motif,
 )
 from worker.authoring.examples import load_example_set
-from worker.authoring.schema import DesignPlansV3, DesignPlanV3
+from worker.authoring.schema import DesignPlanV3
 from worker.config import Settings
 from worker.engine.constraints import (
     PaletteConstraint,
@@ -369,30 +369,29 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
     assert "arrangement=lattice" in context
 
 
-async def test_author_designs_salvages_valid_plans_when_one_plan_breaks_contract():
+async def test_author_design_retries_when_the_single_plan_breaks_the_contract():
     examples = load_example_set()
-    solid = examples[0].plan.model_dump(mode="json")
     stripe = examples[1].plan.model_dump(mode="json")
     broken = json.loads(json.dumps(stripe))
     stripe_index = next(
         index for index, layer in enumerate(broken["layers"]) if layer["type"] == "stripe"
     )
-    # stripe coverage 계약 위반 — 이 플랜만 버려지고 유효한 나머지 2개는 살아야 한다
+    # stripe coverage 계약 위반 — 살릴 다른 플랜이 없으므로 재시도로만 회복한다
     broken["layers"][stripe_index]["bands"][0]["width_ratio"] = 0.9
 
-    client, sdk = _gemini({"plans": [broken, solid, stripe]})
-    designs = await client.author_designs("남색 미니멀 스트라이프")
+    client, sdk = _gemini(broken, stripe)
+    design = await client.author_design("남색 미니멀 스트라이프")
 
-    assert len(designs) == 2
-    assert len(sdk.models.generate_calls) == 1  # 재시도 없이 첫 응답에서 회복
+    assert design.plan is not None
+    assert len(sdk.models.generate_calls) == 2
 
 
-async def test_author_designs_rejects_invalid_json_without_prose_fallback():
+async def test_author_design_rejects_invalid_json_without_prose_fallback():
     # 불변식: 재검(pydantic) 실패 시 프로즈 파싱 fallback 금지 — 재시도 후 거부만.
-    responses = [{"not_plans": "wrong shape"}] * 4  # _MAX_AUTHORING_ATTEMPTS
+    responses = [{"not_a_plan": "wrong shape"}] * 4  # _MAX_AUTHORING_ATTEMPTS
     client, sdk = _gemini(*responses)
     with pytest.raises(IntentInvalid):
-        await client.author_designs("dots")
+        await client.author_design("dots")
     assert len(sdk.models.generate_calls) == 4  # 모든 시도가 재시도됐고 salvage 경로가 없다
 
 
@@ -504,9 +503,9 @@ def test_authoring_prompt_states_motif_source_rules_for_an_auto_reference_photo(
 def test_served_schema_withholds_the_input_motif_variant_when_asked():
     # 사진 첨부 요청에서 source="input" 고착이 프롬프트로 풀리지 않아, 정확 모티프 입력이
     # 없을 때는 변형 자체를 서빙 스키마에서 뺀다.
-    full = json.dumps(_servable_json_schema(DesignPlansV3))
+    full = json.dumps(_servable_json_schema(DesignPlanV3))
     pruned = json.dumps(
-        _servable_json_schema(DesignPlansV3, without=["InputMotifSource", "CatalogMotifSource"])
+        _servable_json_schema(DesignPlanV3, without=["InputMotifSource", "CatalogMotifSource"])
     )
 
     assert "input_index" in full and "catalog_ref" in full
@@ -546,7 +545,7 @@ def test_authoring_prompt_states_the_count_limits_the_served_schema_drops():
     assert "at most 5 layers" in prompt
 
     feedback = _contract_feedback(
-        "DesignPlansV3",
+        "DesignPlanV3",
         _bands_validation_error(),
     )
     assert any("at most 4 bands" in line for line in feedback)
@@ -554,31 +553,26 @@ def test_authoring_prompt_states_the_count_limits_the_served_schema_drops():
 
 def _bands_validation_error() -> ValidationError:
     try:
-        DesignPlansV3.model_validate(
+        DesignPlanV3.model_validate(
             {
-                "plans": [
+                "colors": ["#101820", "#F5F5DC"],
+                "ground_color_index": 0,
+                "motifs": [],
+                "layers": [
                     {
-                        "colors": ["#101820", "#F5F5DC"],
-                        "ground_color_index": 0,
-                        "motifs": [],
-                        "layers": [
+                        "type": "stripe",
+                        "direction": "diagonal_up",
+                        "period_ratio": 0.5,
+                        "bands": [
                             {
-                                "type": "stripe",
-                                "direction": "diagonal_up",
-                                "period_ratio": 0.5,
-                                "bands": [
-                                    {
-                                        "offset_ratio": index / 20,
-                                        "width_ratio": 0.01,
-                                        "color_index": 1,
-                                    }
-                                    for index in range(10)
-                                ],
+                                "offset_ratio": index / 20,
+                                "width_ratio": 0.01,
+                                "color_index": 1,
                             }
+                            for index in range(10)
                         ],
                     }
-                ]
-                * 2
+                ],
             }
         )
     except ValidationError as exc:
@@ -663,7 +657,7 @@ async def test_refine_feedback_translates_contract_errors_to_plan_language():
     client, sdk = _gemini(*([stripe_only] * 4))
 
     with pytest.raises(IntentInvalid):
-        await client.author_designs(
+        await client.author_design(
             "얇은 대각 스트라이프 두 줄만 추가해줘. 별 모티프는 그대로 유지해.",
             current_plan=current,
             catalog_candidates=[
@@ -686,7 +680,7 @@ async def test_gemini_non_retryable_raises(monkeypatch):
     monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
     client, _ = _gemini(_SDKError(400))
     with pytest.raises(AdapterClientError) as caught:
-        await client.author_designs("dots")
+        await client.author_design("dots")
     assert caught.value.provider == "gemini"
     assert caught.value.operation == "generate_content"
     assert caught.value.reason_code == "provider_4xx"
@@ -697,47 +691,21 @@ async def _noop() -> None:
     return None
 
 
-async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplicates():
+async def test_gemini_uses_typed_schema_and_few_shot_examples():
     examples = load_example_set()
     stripe_a = examples[1]
     stripe_b = examples[2]
-    duplicate_response = {
-        "plans": [
-            stripe_a.plan.model_dump(mode="json"),
-            stripe_a.plan.model_copy(
-                update={
-                    "colors": [
-                        "#111111",
-                        "#222222",
-                        "#333333",
-                        "#444444",
-                        "#555555",
-                        "#666666",
-                        "#777777",
-                        "#888888",
-                    ]
-                }
-            ).model_dump(mode="json"),
-        ]
-    }
-    valid_response = {
-        "plans": [
-            stripe_a.plan.model_dump(mode="json"),
-            stripe_b.plan.model_dump(mode="json"),
-        ]
-    }
-    client, sdk = _gemini(duplicate_response, valid_response)
+    client, sdk = _gemini(stripe_a.plan.model_dump(mode="json"))
     diagnostics: dict[str, object] = {}
 
-    designs = await client.author_designs(
+    design = await client.author_design(
         "굵기가 다른 대각 스트라이프",
         examples=[stripe_a.prompt_example(), stripe_b.prompt_example()],
         diagnostics=diagnostics,
     )
 
-    assert len(designs) == 2
-    assert len(set(design.structural_fingerprint for design in designs)) == 2
-    assert len(sdk.models.generate_calls) == 2
+    assert design.structural_fingerprint == diagnostics["structural_fingerprint"]
+    assert len(sdk.models.generate_calls) == 1
     first_call = sdk.models.generate_calls[0]
     config = first_call["config"]
     # Must use the ENFORCED response_schema path — response_json_schema is only a hint that Vertex
@@ -746,32 +714,12 @@ async def test_gemini_uses_typed_schema_few_shot_and_retries_palette_only_duplic
     assert config.response_schema is not None
     assert first_call["config"].system_instruction == AUTHORING_SYSTEM_INSTRUCTION
     prompt = first_call["contents"][0].parts[-1].text
+    assert "Create exactly one seamless textile plan." in prompt
     assert stripe_a.example_id in prompt
     assert "tile_mm" not in prompt
     assert "motif_id" not in prompt
     assert diagnostics["plan_contract_version"] == 3
-    assert diagnostics["authoring_attempts"] == 2
-    assert diagnostics["validated_count"] == 2
-
-
-async def test_author_designs_rejects_mixed_motif_sets_across_initial_plans():
-    examples = load_example_set()
-    mismatched = {
-        "plans": [
-            examples[5].plan.model_dump(mode="json"),
-            examples[20].plan.model_dump(mode="json"),
-        ]
-    }
-    client, sdk = _gemini(*([mismatched] * 4))
-    diagnostics: dict[str, object] = {}
-
-    with pytest.raises(IntentInvalid, match="same motif source set"):
-        await client.author_designs("벌과 원을 활용한 패턴", diagnostics=diagnostics)
-
-    assert len(sdk.models.generate_calls) == 4
-    assert diagnostics["motif_source_set_mismatch"] is True
-    first_prompt = sdk.models.generate_calls[0]["contents"][0].parts[-1].text
-    assert "Every plan must use exactly the same motif source set" in first_prompt
+    assert diagnostics["authoring_attempts"] == 1
 
 
 async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
@@ -798,7 +746,7 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
 
     client, sdk = _gemini(current.model_dump(mode="json"), proposed)
     diagnostics: dict[str, object] = {}
-    designs = await client.author_designs(
+    design = await client.author_design(
         "스트라이프를 추가해줘",
         current_plan=current,
         catalog_candidates=[
@@ -812,8 +760,7 @@ async def test_refine_authors_one_full_plan_and_restores_unmentioned_sections():
         diagnostics=diagnostics,
     )
 
-    assert len(designs) == 1
-    evolved = DesignPlanV3.model_validate(designs[0].plan)
+    evolved = DesignPlanV3.model_validate(design.plan)
     assert evolved.colors == current.colors
     assert evolved.ground_color_index == current.ground_color_index
     assert evolved.motifs == current.motifs
@@ -837,16 +784,16 @@ async def test_refine_normalizes_named_colors_when_model_ignores_change():
     unchanged = current.model_dump(mode="json")
     client, sdk = _gemini(unchanged)
 
-    designs = await client.author_designs(
+    design = await client.author_design(
         "색상만 바꿔줘. 배경은 버건디, 벌은 아이보리로 해줘. 모티프는 유지해.",
         current_plan=current,
         motif_ids=["circle"],
     )
 
     assert len(sdk.models.generate_calls) == 1
-    assert designs[0].plan is not None
-    assert designs[0].plan["colors"][current.ground_color_index] == "#800020"
-    assert "#FFFFF0" in designs[0].plan["colors"]
+    assert design.plan is not None
+    assert design.plan["colors"][current.ground_color_index] == "#800020"
+    assert "#FFFFF0" in design.plan["colors"]
 
 
 async def test_refine_accepts_already_satisfied_named_color_without_retry():
@@ -857,14 +804,14 @@ async def test_refine_accepts_already_satisfied_named_color_without_retry():
     current = base.model_copy(update={"colors": colors})
     client, sdk = _gemini(current.model_dump(mode="json"))
 
-    designs = await client.author_designs(
+    design = await client.author_design(
         "배경은 버건디로 바꿔줘.",
         current_plan=current,
     )
 
     assert len(sdk.models.generate_calls) == 1
-    assert designs[0].plan is not None
-    assert designs[0].plan["colors"][designs[0].plan["ground_color_index"]] == "#800020"
+    assert design.plan is not None
+    assert design.plan["colors"][design.plan["ground_color_index"]] == "#800020"
 
 
 async def test_refine_rejects_ignored_color_change_for_fixed_palette():
@@ -874,7 +821,7 @@ async def test_refine_rejects_ignored_color_change_for_fixed_palette():
     client, sdk = _gemini(*([unchanged] * 4))
 
     with pytest.raises(IntentInvalid):
-        await client.author_designs(
+        await client.author_design(
             "색상을 바꿔줘",
             current_plan=current,
             palette_constraint=PaletteConstraint(mode="fixed", colors=list(current.colors[:5])),
@@ -889,15 +836,15 @@ async def test_refine_normalizes_named_color_when_palette_is_only_permuted():
     permuted["ground_color_index"] = (current.ground_color_index + 1) % len(current.colors)
     client, sdk = _gemini(permuted)
 
-    designs = await client.author_designs(
+    design = await client.author_design(
         "색상만 바꿔줘. 배경은 버건디로 해줘. 모티프는 유지해.",
         current_plan=current,
     )
 
     assert len(sdk.models.generate_calls) == 1
-    assert designs[0].plan is not None
-    ground_index = designs[0].plan["ground_color_index"]
-    assert designs[0].plan["colors"][ground_index] == "#800020"
+    assert design.plan is not None
+    ground_index = design.plan["ground_color_index"]
+    assert design.plan["colors"][ground_index] == "#800020"
 
 
 @pytest.mark.parametrize("model_ground", ["#000000", "#4F77A8"])
@@ -908,55 +855,45 @@ async def test_refine_normalizes_wrong_named_ground_color(model_ground: str):
     proposed["colors"][1] = "#123456"
     client, sdk = _gemini(proposed)
 
-    designs = await client.author_designs(
+    design = await client.author_design(
         "배경색만 짙은 네이비로 바꿔줘. 따뜻한 회색과 스트라이프 구조는 그대로 "
         "유지해. 구체적인 모티프는 넣지 마.",
         current_plan=current,
     )
 
     assert len(sdk.models.generate_calls) == 1
-    assert designs[0].plan is not None
-    assert designs[0].plan["colors"][0] == "#000080"
-    assert designs[0].plan["colors"][1:] == current.colors[1:]
+    assert design.plan is not None
+    assert design.plan["colors"][0] == "#000080"
+    assert design.plan["colors"][1:] == current.colors[1:]
 
 
 async def test_initial_authoring_normalizes_wrong_named_ground_color():
     examples = load_example_set()
-    wrong_solid = examples[0].plan.model_dump(mode="json")
     wrong_stripe = examples[1].plan.model_dump(mode="json")
-    wrong_solid["colors"][0] = "#000000"
     wrong_stripe["colors"][0] = "#4F77A8"
-    client, sdk = _gemini({"plans": [wrong_solid, wrong_stripe]})
+    client, sdk = _gemini(wrong_stripe)
 
-    designs = await client.author_designs("짙은 네이비 바탕의 미니멀 스트라이프")
+    design = await client.author_design("짙은 네이비 바탕의 미니멀 스트라이프")
 
-    assert len(designs) == 2
     assert len(sdk.models.generate_calls) == 1
-    assert all(
-        design.plan is not None
-        and design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
-        for design in designs
-    )
+    assert design.plan is not None
+    assert design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
 
 
 @pytest.mark.parametrize("prompt", ["네이비 없이", "네이비는 빼줘", "without navy"])
 async def test_initial_authoring_does_not_require_excluded_named_color(prompt: str):
     examples = load_example_set()
-    plans = [
-        example.plan.model_copy(
-            update={"colors": ["#222222", *example.plan.colors[1:]]}
-        ).model_dump(mode="json")
-        for example in examples[:2]
-    ]
-    client, sdk = _gemini({"plans": plans})
-
-    designs = await client.author_designs(prompt)
-
-    assert len(designs) == 2
-    assert len(sdk.models.generate_calls) == 1
-    assert all(
-        design.plan is not None and "#000080" not in design.plan["colors"] for design in designs
+    plan = (
+        examples[0]
+        .plan.model_copy(update={"colors": ["#222222", *examples[0].plan.colors[1:]]})
+        .model_dump(mode="json")
     )
+    client, sdk = _gemini(plan)
+
+    design = await client.author_design(prompt)
+
+    assert len(sdk.models.generate_calls) == 1
+    assert design.plan is not None and "#000080" not in design.plan["colors"]
 
 
 @pytest.mark.parametrize(
@@ -1128,30 +1065,23 @@ def test_named_color_on_implicit_motif_layer_expands_to_slot_count():
 
 async def test_initial_authoring_retries_when_named_colors_exceed_visible_slots():
     examples = load_example_set()
-    insufficient: list[dict[str, object]] = []
-    for example in examples[5:7]:
-        raw = example.plan.model_dump(mode="json")
-        raw["colors"] = ["#111111", "#EEEEEE"]
-        for layer in raw["layers"]:
-            if layer["type"] == "motif":
-                layer["color_indices"] = [1] * len(layer["color_indices"])
-        insufficient.append(raw)
-    valid = [example.plan.model_dump(mode="json") for example in examples[5:7]]
-    client, sdk = _gemini({"plans": insufficient}, {"plans": valid})
+    insufficient = examples[5].plan.model_dump(mode="json")
+    insufficient["colors"] = ["#111111", "#EEEEEE"]
+    for layer in insufficient["layers"]:
+        if layer["type"] == "motif":
+            layer["color_indices"] = [1] * len(layer["color_indices"])
+    valid = examples[5].plan.model_dump(mode="json")
+    client, sdk = _gemini(insufficient, valid)
 
-    designs = await client.author_designs(
+    design = await client.author_design(
         "네이비 배경에 아이보리, 버건디, 골드 포인트",
         motif_ids=["circle"],
     )
 
-    assert len(designs) == 2
     assert len(sdk.models.generate_calls) == 2
-    assert all(
-        design.plan is not None
-        and design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
-        and {"#FFFFF0", "#800020", "#D4AF37"} <= set(design.plan["colors"])
-        for design in designs
-    )
+    assert design.plan is not None
+    assert design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
+    assert {"#FFFFF0", "#800020", "#D4AF37"} <= set(design.plan["colors"])
 
 
 async def test_refine_retries_when_requested_motif_geometry_change_is_ignored():
@@ -1165,7 +1095,7 @@ async def test_refine_retries_when_requested_motif_geometry_change_is_ignored():
     motif_layer["placement"]["rows"] -= 1
     client, sdk = _gemini(unchanged, changed)
 
-    designs = await client.author_designs(
+    design = await client.author_design(
         "간격을 더 넓혀 여유로운 반복으로 바꿔줘. 모티프는 유지해.",
         current_plan=current,
         catalog_candidates=[
@@ -1179,8 +1109,8 @@ async def test_refine_retries_when_requested_motif_geometry_change_is_ignored():
     )
 
     assert len(sdk.models.generate_calls) == 2
-    assert designs[0].plan is not None
-    assert designs[0].plan["layers"] != current.model_dump(mode="json")["layers"]
+    assert design.plan is not None
+    assert design.plan["layers"] != current.model_dump(mode="json")["layers"]
     retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
     assert "requested refine change was not applied: motif placement" in retry_prompt
 
@@ -1559,8 +1489,8 @@ def test_servable_schema_is_loosened_for_vertex_enforcement():
     # The provider schema keeps structure (types, enums, required) so constrained decoding forces
     # valid tags/fields, but drops what Vertex's types.Schema cannot serve: value/length/array
     # bounds, and oneOf/discriminator (converted to anyOf). pydantic re-checks bounds post-parse.
-    schema_text = json.dumps(_servable_json_schema(DesignPlansV3))
-    assert '"plans"' in schema_text
+    schema_text = json.dumps(_servable_json_schema(DesignPlanV3))
+    assert '"layers"' in schema_text
     for banned in ("minimum", "maximum", "exclusiveMinimum", "maxItems", "minItems", "oneOf"):
         assert banned not in schema_text, banned
     assert "discriminator" not in schema_text

@@ -510,7 +510,7 @@ export function SeamlessLogDetailPage() {
             },
             {
               label: "단계별 시간",
-              value: `저작 ${formatMilliseconds(log.diagnostics.authoring_ms)} · 모티프 ${formatMilliseconds(log.diagnostics.motif_resolution_ms)} · 후보 ${formatMilliseconds(log.diagnostics.candidate_ms)} · 렌더 ${formatMilliseconds(log.diagnostics.render_ms)}`,
+              value: `저작 ${formatMilliseconds(log.diagnostics.authoring_ms)} · 모티프 ${formatMilliseconds(log.diagnostics.motif_resolution_ms)} · 합성 ${formatMilliseconds(log.diagnostics.compose_ms)} · 렌더 ${formatMilliseconds(log.diagnostics.render_ms)}`,
             },
             {
               label: "실패 단계",

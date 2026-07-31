@@ -117,7 +117,6 @@ class GenerateRequest(StrictRequest):
     intent: dict[str, Any] | None = None
     colorway: str | None = None
     seed: int | None = None
-    candidate_count: int = Field(default=1, ge=1, le=8)
     reference_images: list["ReferenceImageInput"] = Field(default_factory=list, max_length=5)
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
     motif_provenance: MotifIngressProvenance | None = None
@@ -156,9 +155,8 @@ class ReferenceImageInput(StrictRequest):
     purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto"
 
 
-class CandidateOut(BaseModel):
+class DesignOut(BaseModel):
     id: str
-    design_index: int
     layout_id: str
     source_fidelity: str
     colorway_id: str
@@ -172,10 +170,10 @@ class GenerateResponse(BaseModel):
     request_id: str
     registry_version: str
     engine_version: str
-    intents: list[dict[str, Any]]
-    plans: list[dict[str, Any]] = Field(default_factory=list)
-    structural_fingerprints: list[str] = Field(default_factory=list)
-    candidates: list[CandidateOut]
+    intent: dict[str, Any]
+    plan: dict[str, Any] | None = None
+    structural_fingerprint: str | None = None
+    design: DesignOut
     warnings: list[str] = []
 
 

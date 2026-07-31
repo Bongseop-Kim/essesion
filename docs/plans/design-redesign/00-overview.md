@@ -25,7 +25,7 @@
 
 | # | 문서 | 범위 | 의존 |
 |---|---|---|---|
-| 1 | `01-server-single-design.md` | 후보 제거, 생성 결과 1개, 스텝 이동, 세션 응답에 현재 모티프 | — |
+| ~~1~~ | **완료** — `docs/reviews/design-redesign-01-server-single-design.md` | 후보 제거, 생성 결과 1개, 스텝 이동, 세션 응답에 현재 모티프 | — |
 | 2 | `02-server-scoped-edit.md` | 구성 patch 계약, refine 보존 기계 폐기, 범위 밖 거절, 경고 문구 | 1 |
 | 3 | `03-server-motif-paths.md` | 모티프 문장 검색·생성 API, 패턴 설정(4축) 전면 폐기 | 1 |
 | 4 | `04-store-canvas-shell.md` | 풀블리드 캔버스 셸, 좌 모티프 패널, 우 레일, 하단 이력·입력창, 상단 알림 | 1·2 |

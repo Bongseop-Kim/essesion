@@ -290,17 +290,11 @@ class DesignPlanV3(_StrictModel):
         return self
 
 
-class DesignPlansV3(_StrictModel):
-    plans: list[DesignPlanV3] = Field(min_length=2, max_length=4)
-
-
 def _canonical_motif_source(source: PlanMotifSource) -> dict[str, object]:
     """Return the semantic identity of a provider-facing motif source.
 
-    Palette and placement are intentionally absent.  The result is used both by the
-    single-source-set authoring guard and by structural de-duplication, so two plans
-    cannot look structurally distinct merely because the model silently switched the
-    subject being repeated.
+    Palette and placement are intentionally absent, so the fingerprint tracks what the
+    plan actually repeats rather than how it was colored.
     """
 
     raw = source.model_dump(mode="json", exclude_none=True)
@@ -308,21 +302,6 @@ def _canonical_motif_source(source: PlanMotifSource) -> dict[str, object]:
         if isinstance(value, str):
             raw[key] = " ".join(value.split()).casefold()
     return raw
-
-
-def motif_source_signature(plan: DesignPlanV3) -> tuple[str, ...]:
-    """Canonical multiset signature for M4's one-authoring-call motif invariant."""
-
-    identities = [
-        json.dumps(
-            _canonical_motif_source(source),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        )
-        for source in plan.motifs
-    ]
-    return tuple(sorted(identities))
 
 
 def structural_fingerprint(plan: DesignPlanV3) -> str:

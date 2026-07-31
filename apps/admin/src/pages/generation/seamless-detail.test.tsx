@@ -74,7 +74,7 @@ const log: SeamlessDetailOut = {
     candidate_count: 0,
     authoring_ms: null,
     motif_resolution_ms: null,
-    candidate_ms: null,
+    compose_ms: null,
     render_ms: null,
     failure_code: null,
     failure_stage: null,
@@ -377,7 +377,7 @@ describe("SeamlessLogDetailPage", () => {
         prompt_revision: "design-plan-v1",
         authoring_ms: 121,
         motif_resolution_ms: 35,
-        candidate_ms: 18,
+        compose_ms: 18,
         render_ms: 9,
         failure_provider: "vertex_embedding",
         failure_operation: "embed",
@@ -423,7 +423,7 @@ describe("SeamlessLogDetailPage", () => {
 
     expect(await screen.findByText("design-plan-v1")).toBeTruthy();
     expect(
-      screen.getByText("저작 121ms · 모티프 35ms · 후보 18ms · 렌더 9ms"),
+      screen.getByText("저작 121ms · 모티프 35ms · 합성 18ms · 렌더 9ms"),
     ).toBeTruthy();
     expect(screen.getByText("대화 수정")).toBeTruthy();
     expect(screen.getByText("Vertex AI 임베딩 · embed")).toBeTruthy();

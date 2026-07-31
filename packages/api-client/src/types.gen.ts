@@ -3298,6 +3298,26 @@ export type CreatedOrder = {
 };
 
 /**
+ * CurrentMotifOut
+ *
+ * 현재 디자인이 쓰고 있는 모티프 슬롯 — 좌측 패널이 썸네일·이름으로 표시한다.
+ */
+export type CurrentMotifOut = {
+    /**
+     * Motif Id
+     */
+    motif_id: string;
+    /**
+     * Name
+     */
+    name: string | null;
+    /**
+     * Preview Svg
+     */
+    preview_svg: string;
+};
+
+/**
  * CustomAmountRequest
  */
 export type CustomAmountRequest = {
@@ -3695,10 +3715,7 @@ export type DesignFinalizeTurnPayload = {
  * DesignGenerateOut
  */
 export type DesignGenerateOut = {
-    /**
-     * Candidates
-     */
-    candidates: Array<WorkerCandidateOut>;
+    design: DesignOut;
     /**
      * Engine Version
      */
@@ -3725,10 +3742,6 @@ export type DesignGenerateOut = {
  * DesignGenerateRequest
  */
 export type DesignGenerateRequest = {
-    /**
-     * Candidate Count
-     */
-    candidate_count?: number;
     /**
      * Colorway
      */
@@ -3806,6 +3819,40 @@ export type DesignOrderReferenceOut = {
 };
 
 /**
+ * DesignOut
+ */
+export type DesignOut = {
+    /**
+     * Colorway Id
+     */
+    colorway_id: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Layout Id
+     */
+    layout_id: string;
+    /**
+     * Png Object Key
+     */
+    png_object_key: string | null;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Source Fidelity
+     */
+    source_fidelity: string;
+    /**
+     * Svg
+     */
+    svg: string;
+};
+
+/**
  * DesignReferenceUploadOut
  */
 export type DesignReferenceUploadOut = {
@@ -3825,40 +3872,6 @@ export type DesignReferenceUploadOut = {
      * Upload Id
      */
     upload_id: string;
-};
-
-/**
- * DesignRerollRequest
- */
-export type DesignRerollRequest = {
-    /**
-     * Candidate Count
-     */
-    candidate_count?: number;
-    /**
-     * Colorway
-     */
-    colorway?: string | null;
-    palette?: PaletteConstraint;
-    pattern_constraints?: PatternConstraints;
-    /**
-     * Seed
-     */
-    seed: number;
-};
-
-/**
- * DesignSelectionRequest
- */
-export type DesignSelectionRequest = {
-    /**
-     * Candidate Id
-     */
-    candidate_id: string;
-    /**
-     * Run Id
-     */
-    run_id: string;
 };
 
 /**
@@ -3891,6 +3904,10 @@ export type DesignSessionOut = {
     current_intent: {
         [key: string]: unknown;
     } | null;
+    /**
+     * Current Motifs
+     */
+    current_motifs?: Array<CurrentMotifOut>;
     /**
      * Current Plan
      */
@@ -3926,6 +3943,16 @@ export type DesignSessionOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * DesignStepActivateRequest
+ */
+export type DesignStepActivateRequest = {
+    /**
+     * Run Id
+     */
+    run_id: string;
 };
 
 /**
@@ -4031,10 +4058,6 @@ export type FinalizeQuotaOut = {
  */
 export type FinalizeRequest = {
     /**
-     * Candidate Id
-     */
-    candidate_id?: string | null;
-    /**
      * Colorway Id
      */
     colorway_id?: string | null;
@@ -4093,13 +4116,13 @@ export type GenerationDiagnosticsOut = {
      */
     candidate_count?: number | null;
     /**
-     * Candidate Ms
-     */
-    candidate_ms?: number | null;
-    /**
      * Catalog Candidate Count
      */
     catalog_candidate_count?: number | null;
+    /**
+     * Compose Ms
+     */
+    compose_ms?: number | null;
     /**
      * Failure Code
      */
@@ -8368,44 +8391,6 @@ export type WidthReform = {
     target_width_cm: number;
 };
 
-/**
- * WorkerCandidateOut
- */
-export type WorkerCandidateOut = {
-    /**
-     * Colorway Id
-     */
-    colorway_id: string;
-    /**
-     * Design Index
-     */
-    design_index: number;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Layout Id
-     */
-    layout_id: string;
-    /**
-     * Png Object Key
-     */
-    png_object_key: string | null;
-    /**
-     * Seed
-     */
-    seed: number;
-    /**
-     * Source Fidelity
-     */
-    source_fidelity: string;
-    /**
-     * Svg
-     */
-    svg: string;
-};
-
 export type ListAuthoringCandidatesData = {
     body?: never;
     path?: never;
@@ -12381,36 +12366,6 @@ export type GetDesignSessionResponses = {
 
 export type GetDesignSessionResponse = GetDesignSessionResponses[keyof GetDesignSessionResponses];
 
-export type BranchDesignSessionData = {
-    body: DesignSelectionRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/branch';
-};
-
-export type BranchDesignSessionErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type BranchDesignSessionError = BranchDesignSessionErrors[keyof BranchDesignSessionErrors];
-
-export type BranchDesignSessionResponses = {
-    /**
-     * Successful Response
-     */
-    201: DesignSessionOut;
-};
-
-export type BranchDesignSessionResponse = BranchDesignSessionResponses[keyof BranchDesignSessionResponses];
-
 export type CreateFinalizeJobData = {
     body: FinalizeRequest;
     path: {
@@ -12501,8 +12456,8 @@ export type MotifGenerateResponses = {
 
 export type MotifGenerateResponse = MotifGenerateResponses[keyof MotifGenerateResponses];
 
-export type RerollDesignData = {
-    body: DesignRerollRequest;
+export type ActivateDesignStepData = {
+    body: DesignStepActivateRequest;
     path: {
         /**
          * Session Id
@@ -12510,56 +12465,26 @@ export type RerollDesignData = {
         session_id: string;
     };
     query?: never;
-    url: '/design/sessions/{session_id}/reroll';
+    url: '/design/sessions/{session_id}/steps/activate';
 };
 
-export type RerollDesignErrors = {
+export type ActivateDesignStepErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RerollDesignError = RerollDesignErrors[keyof RerollDesignErrors];
+export type ActivateDesignStepError = ActivateDesignStepErrors[keyof ActivateDesignStepErrors];
 
-export type RerollDesignResponses = {
-    /**
-     * Successful Response
-     */
-    200: DesignGenerateOut;
-};
-
-export type RerollDesignResponse = RerollDesignResponses[keyof RerollDesignResponses];
-
-export type SelectDesignCandidateData = {
-    body: DesignSelectionRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/select';
-};
-
-export type SelectDesignCandidateErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type SelectDesignCandidateError = SelectDesignCandidateErrors[keyof SelectDesignCandidateErrors];
-
-export type SelectDesignCandidateResponses = {
+export type ActivateDesignStepResponses = {
     /**
      * Successful Response
      */
     200: DesignSessionOut;
 };
 
-export type SelectDesignCandidateResponse = SelectDesignCandidateResponses[keyof SelectDesignCandidateResponses];
+export type ActivateDesignStepResponse = ActivateDesignStepResponses[keyof ActivateDesignStepResponses];
 
 export type ListDesignTurnsData = {
     body?: never;

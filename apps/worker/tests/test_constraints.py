@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from worker.engine import generate_candidates
+from worker.engine import compose_design
 from worker.engine.constraints import (
     ConstraintInvalid,
     PaletteConstraint,
@@ -75,16 +75,13 @@ def test_pattern_controls_map_to_physical_engine_primitives_and_lock_variants():
         }
         assert layer["placement"]["fixed_rotation_deg"] == 90.0
 
-    candidates = generate_candidates(
+    design = compose_design(
         constrained,
-        candidate_count=8,
         palette_constraint=palette,
         pattern_constraints=pattern,
     )
-    assert candidates.candidates
-    for candidate in candidates.candidates:
-        assert_constraints_satisfied(candidate.intent, palette=palette, pattern=pattern)
-        assert "rotate(90)" in candidate.candidate.svg
+    assert_constraints_satisfied(design.intent, palette=palette, pattern=pattern)
+    assert "rotate(90)" in design.svg
 
 
 def _lattice_intent(size_mm: float, columns: int) -> dict:
@@ -143,13 +140,11 @@ def test_scale_and_density_together_never_exceed_the_overlap_allowance(scale, de
     assert layer["params"]["size_mm"] <= cell * 1.15 + 1e-9
     # 클램프가 걸려도 사후 검증(motif_scale)과 충돌하지 않는다
     assert_constraints_satisfied(constrained, palette=palette, pattern=pattern)
-    for candidate in generate_candidates(
-        constrained, candidate_count=8, palette_constraint=palette, pattern_constraints=pattern
-    ).candidates:
-        for variant in candidate.intent.model_dump()["layers"][1:]:
-            cells = variant["placement"]["lattice"]
-            limit = min(cells["cell_w_mm"], cells["cell_h_mm"]) * 1.15
-            assert variant["params"]["size_mm"] <= limit + 1e-9
+    design = compose_design(constrained, palette_constraint=palette, pattern_constraints=pattern)
+    for layer in design.intent.model_dump()["layers"][1:]:
+        cells = layer["placement"]["lattice"]
+        limit = min(cells["cell_w_mm"], cells["cell_h_mm"]) * 1.15
+        assert layer["params"]["size_mm"] <= limit + 1e-9
 
 
 def test_direction_constraint_rejects_malformed_layers():

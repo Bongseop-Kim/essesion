@@ -12,8 +12,6 @@ import asyncio
 import base64
 import hashlib
 import io
-import threading
-import time
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from types import SimpleNamespace
@@ -120,9 +118,8 @@ def client(monkeypatch):
     return TestClient(_configure_app(monkeypatch))
 
 
-_CANDIDATE_KEYS = {
+_DESIGN_KEYS = {
     "id",
-    "design_index",
     "layout_id",
     "source_fidelity",
     "colorway_id",
@@ -330,43 +327,25 @@ def test_single_slot_avoids_ground_equivalent_hex_and_degenerate_palette_is_stab
 
 def test_generate_returns_product_shape(client):
     intent = mvp_intent()
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 4}
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 200
     body = resp.json()
     assert body["request_id"]
     assert body["engine_version"] and body["registry_version"]
-    assert body["intents"] == [intent]
-    assert len(body["candidates"]) == 4
-    cand = body["candidates"][0]
-    assert set(cand) == _CANDIDATE_KEYS
+    assert body["intent"] == intent
+    design = body["design"]
+    assert set(design) == _DESIGN_KEYS
     digest = hashlib.sha256(b"fake-png").hexdigest()[:16]
-    assert cand["png_object_key"] == (f"previews/{body['request_id']}/{cand['id']}/{digest}.png")
-
-
-def test_candidates_are_diverse_and_deduped(client):
-    resp = client.post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 4},
+    assert design["png_object_key"] == (
+        f"previews/{body['request_id']}/{design['id']}/{digest}.png"
     )
-    body = resp.json()
-    cands = body["candidates"]
-    ids = [c["id"] for c in cands]
-    keys = [c["png_object_key"] for c in cands]
-    assert len(set(ids)) == len(ids)  # de-dup: 후보마다 distinct id
-    assert len(set(keys)) == len(keys)  # 따라서 distinct object key
-    assert "diversity shortfall" not in " ".join(body["warnings"])
 
 
-def test_intent_level_warnings_are_deduped(client):
-    # 색역 밖 색은 후보마다 intent 경고를 낸다; 후보 전반에서 동일 메시지는 1개로 접혀야 한다.
+def test_warnings_are_deduped(client):
     intent = mvp_intent()
     intent["palette"]["slots"][2]["hex"] = "#ffd700"
     intent["colorways"][0]["mapping"]["gold"] = "#ffd700"
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 4}
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 200
     w = resp.json()["warnings"]
     assert len(w) == len(set(w))  # 정확한 중복 없음
@@ -387,24 +366,19 @@ def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
             },
         }
     ]
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 2}
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["intents"][0]["layers"][1]["params"]["size_mm"] == 13.8
+    assert body["intent"]["layers"][1]["params"]["size_mm"] == 13.8
     assert [w for w in body["warnings"] if "clamped to 13.8" in w]
 
 
 def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
     client = TestClient(_configure_app(monkeypatch, raster_ok=False))
-    resp = client.post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 2},
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": mvp_intent()})
     assert resp.status_code == 200
     body = resp.json()
-    assert all(c["png_object_key"] is None for c in body["candidates"])
+    assert body["design"]["png_object_key"] is None
     assert any("preview upload skipped" in w for w in body["warnings"])
 
 
@@ -418,14 +392,11 @@ def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeyp
     app = _configure_app(monkeypatch)
     app.state.object_store = FailingObjectStore()
 
-    resp = TestClient(app).post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 2},
-    )
+    resp = TestClient(app).post("/generate", json={"run_id": _RUN_ID, "intent": mvp_intent()})
 
     assert resp.status_code == 200
     body = resp.json()
-    assert all(candidate["png_object_key"] is None for candidate in body["candidates"])
+    assert body["design"]["png_object_key"] is None
     assert "preview upload skipped" in body["warnings"]
 
 
@@ -455,17 +426,13 @@ def test_request_id_header_is_sanitized(client):
     assert resp.headers["X-Request-ID"] == "bad-id-with-spaces"
 
 
-def test_determinism_same_request_same_candidates(client):
-    payload = {
-        "run_id": _RUN_ID,
-        "intent": mvp_intent(),
-        "candidate_count": 4,
-        "seed": 999,
-    }
+def test_determinism_same_request_same_design(client):
+    payload = {"run_id": _RUN_ID, "intent": mvp_intent(), "seed": 999}
     a = client.post("/generate", json=payload).json()
     b = client.post("/generate", json=payload).json()
-    # request_id를 제외하면 후보 id 집합은 byte-identical (엔진 결정론)
-    assert [c["id"] for c in a["candidates"]] == [c["id"] for c in b["candidates"]]
+    # request_id를 제외하면 디자인은 byte-identical (엔진 결정론)
+    assert a["design"]["id"] == b["design"]["id"]
+    assert a["design"]["svg"] == b["design"]["svg"]
 
 
 def test_semantic_invalid_intent_returns_422(client):
@@ -506,11 +473,7 @@ def test_concurrent_requests_keep_distinct_request_ids(monkeypatch):
                 r = await ac.post(
                     "/generate",
                     headers={"X-Request-ID": rid},
-                    json={
-                        "run_id": _RUN_ID,
-                        "intent": mvp_intent(),
-                        "candidate_count": 2,
-                    },
+                    json={"run_id": _RUN_ID, "intent": mvp_intent()},
                 )
                 return rid, r.json()["request_id"], r.headers["X-Request-ID"]
 
@@ -518,15 +481,6 @@ def test_concurrent_requests_keep_distinct_request_ids(monkeypatch):
 
     for sent, body_rid, header_rid in asyncio.run(run()):
         assert body_rid == sent == header_rid
-
-
-def test_schema_invalid_request_returns_422(client):
-    # candidate_count가 스키마 범위(1..8) 밖 — 요청 스키마 실패(422), 의미 오류 아님.
-    resp = client.post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 99},
-    )
-    assert resp.status_code == 422
 
 
 def test_request_schema_rejects_unknown_fields(client):
@@ -540,31 +494,6 @@ def test_request_schema_rejects_unknown_fields(client):
     )
     assert response.status_code == 422
     assert "extra_forbidden" in response.text
-
-
-def test_preview_render_parallelism_is_bounded(monkeypatch):
-    app = _configure_app(monkeypatch)
-    lock = threading.Lock()
-    active = 0
-    maximum = 0
-
-    def slow_raster(_svg, **_kwargs):
-        nonlocal active, maximum
-        with lock:
-            active += 1
-            maximum = max(maximum, active)
-        time.sleep(0.02)
-        with lock:
-            active -= 1
-        return b"fake-png", "image/png"
-
-    monkeypatch.setattr(routes, "rasterize_svg", slow_raster)
-    response = TestClient(app).post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 8},
-    )
-    assert response.status_code == 200
-    assert maximum <= app.state.settings.preview_render_concurrency
 
 
 def test_prompt_only_without_gemini_returns_503(client):
@@ -597,9 +526,9 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
         return catalog
 
     class GroundedGemini:
-        async def author_designs(self, _prompt, *, catalog_candidates, **_kwargs):
+        async def author_design(self, _prompt, *, catalog_candidates, **_kwargs):
             assert catalog_candidates == catalog
-            return [AuthoredDesign(intent=mvp_intent())]
+            return AuthoredDesign(intent=mvp_intent())
 
     monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
     app = _configure_app(monkeypatch)
@@ -625,11 +554,11 @@ def test_auto_references_fill_motif_capacity_without_catalog_lookup(monkeypatch)
         return RetrievalOutcome(status="empty", reason="no_examples")
 
     class Gemini:
-        async def author_designs(self, _prompt, *, validate, catalog_candidates, **_kwargs):
+        async def author_design(self, _prompt, *, validate, catalog_candidates, **_kwargs):
             assert catalog_candidates == []
             intent = mvp_intent()
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     async def fake_reference_images(_body, _settings):
         return []
@@ -679,7 +608,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
         return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
 
     class Gemini:
-        async def author_designs(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
+        async def author_design(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
             calls.append("author")
             assert examples == []
             assert diagnostics["example_retrieval_status"] == "retrieval_error"
@@ -691,12 +620,10 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
                 compiler_revision="design-plan-v3.1",
                 prompt_revision="design-plan-v3-rag-generated-motif-colors",
             )
-            return [
-                AuthoredDesign(
-                    intent=intent,
-                    structural_fingerprint="layout-v3",
-                )
-            ]
+            return AuthoredDesign(
+                intent=intent,
+                structural_fingerprint="layout-v3",
+            )
 
     monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
     app = _configure_app(monkeypatch)
@@ -717,7 +644,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
     assert calls == ["retrieve", "author"]
 
 
-def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monkeypatch):
+def test_refine_uses_one_plan_without_exposing_the_concrete_motif(monkeypatch):
     concrete_raw = load_example_set()[5].plan.model_dump(mode="json")
     concrete_raw["motifs"] = [{"source": "catalog", "catalog_ref": "circle"}]
     next(layer for layer in concrete_raw["layers"] if layer["type"] == "motif")["color_indices"] = [
@@ -727,7 +654,6 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
     concrete_plan = DesignPlanV3.model_validate(concrete_raw)
     current = compile_design_plan_v3(
         concrete_plan,
-        plan_index=0,
         catalog_candidates=[
             {
                 "catalog_ref": "circle",
@@ -761,7 +687,7 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
         }
 
     class RefineGemini:
-        async def author_designs(
+        async def author_design(
             self,
             _prompt,
             *,
@@ -795,11 +721,10 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
             ]
             authored = compile_design_plan_v3(
                 current_plan,
-                plan_index=0,
                 catalog_candidates=catalog_candidates,
             )
             assert validate(authored.intent) is None
-            return [authored]
+            return authored
 
     monkeypatch.setattr(routes, "prompt_catalog_candidates", no_public_candidates)
     monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
@@ -811,7 +736,6 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
         json={
             "run_id": _RUN_ID,
             "prompt": "간격을 조금 더 촘촘하게 해줘",
-            "candidate_count": 8,
             "conversation_context": {
                 "current_plan": concrete_plan.model_dump(mode="json"),
                 "current_intent": current.intent,
@@ -829,10 +753,8 @@ def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monke
     assert response.status_code == 200, response.text
     payload = response.json()
     assert calls == 1
-    assert 1 <= len(payload["candidates"]) <= 4
-    assert {candidate["design_index"] for candidate in payload["candidates"]} == {0}
-    assert len(payload["plans"]) == 1
-    assert payload["plans"][0]["motifs"] == [{"source": "catalog", "catalog_ref": "circle"}]
+    assert payload["design"]["id"]
+    assert payload["plan"]["motifs"] == [{"source": "catalog", "catalog_ref": "circle"}]
     assert "current_motif_1" not in response.text
 
 
@@ -842,7 +764,7 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
         def __init__(self):
             self.calls = []
 
-        async def author_designs(
+        async def author_design(
             self,
             prompt,
             *,
@@ -858,7 +780,7 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
             self.calls.append((prompt, reference_images, motif_ids))
             intent = mvp_intent()
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     raw = io.BytesIO()
     Image.new("RGBA", (4, 3), (12, 34, 56, 128)).save(raw, format="PNG")
@@ -944,7 +866,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
         return {"circle": get_motif("circle"), "bee": get_motif("bee")}
 
     class ExactMotifGemini:
-        async def author_designs(
+        async def author_design(
             self,
             _prompt,
             *,
@@ -964,7 +886,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
             ]
             intent = mvp_intent()
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
     app = _configure_app(monkeypatch)
@@ -1140,19 +1062,6 @@ def test_ideas_endpoint_rejects_motif_context_order_mismatch(monkeypatch):
     )
     assert response.status_code == 422
     assert "same order" in response.text
-
-
-def test_partial_success_when_count_exceeds_available(client):
-    # distinct 결정론 변이보다 많은 후보를 요청하면 partial.
-    intent = mvp_intent()
-    intent["layers"] = [intent["layers"][0]]  # 배경 단일 레이어
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 8}
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["candidates"]) < 8
-    assert any("partial" in w for w in body["warnings"])
 
 
 def test_generate_rejects_mixing_intent_and_prompt(client):
