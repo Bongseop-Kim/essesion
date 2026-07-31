@@ -222,8 +222,9 @@ export function DesignOverlays({
         onOpenChange={change("motifs")}
         state={motifs}
         onRequestGenerate={() => {
-          // 검색어를 프리필하되 확인창에서 다시 쓸 수 있게 둔다.
+          // 검색어를 프리필하되 확인창에서 다시 쓸 수 있게 둔다. 지난 실패 문구는 지운다.
           motifs.setGeneratePrompt(motifs.query);
+          motifs.setGenerateError(null);
           switchOverlay("motif-generate");
         }}
         onDeleteMotif={(motif) =>

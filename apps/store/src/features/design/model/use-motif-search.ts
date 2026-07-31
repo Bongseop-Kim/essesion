@@ -308,6 +308,7 @@ export function useMotifSearch({
     generatePrompt,
     setGeneratePrompt,
     generateError,
+    setGenerateError,
     error,
     warnings,
     /** 교체·생성이 만든 디자인 경고 — 상단 알림이 그린다. */
