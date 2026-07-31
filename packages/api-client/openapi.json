@@ -6940,9 +6940,6 @@
           "palette": {
             "$ref": "#/components/schemas/PaletteConstraint"
           },
-          "pattern_constraints": {
-            "$ref": "#/components/schemas/PatternConstraints"
-          },
           "prompt": {
             "anyOf": [
               {
@@ -7030,9 +7027,6 @@
           },
           "palette": {
             "$ref": "#/components/schemas/PaletteConstraint"
-          },
-          "pattern_constraints": {
-            "$ref": "#/components/schemas/PatternConstraints"
           },
           "prompt": {
             "default": "",
@@ -9215,140 +9209,29 @@
         "title": "MessageResponse",
         "type": "object"
       },
-      "MotifCandidateOut": {
+      "MotifActivateRequest": {
+        "additionalProperties": false,
         "properties": {
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
           "motif_id": {
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Motif Id",
             "type": "string"
           },
-          "scope": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "slot": {
+            "enum": [
+              1,
+              2
             ],
-            "title": "Scope"
-          },
-          "similarity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Similarity"
-          },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
-          },
-          "style": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Style"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject"
-          },
-          "view": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "View"
-          }
-        },
-        "required": [
-          "motif_id",
-          "similarity"
-        ],
-        "title": "MotifCandidateOut",
-        "type": "object"
-      },
-      "MotifCandidatesOut": {
-        "properties": {
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/MotifCandidateOut"
-            },
-            "title": "Candidates",
-            "type": "array"
-          },
-          "registry_version": {
-            "title": "Registry Version",
-            "type": "string"
-          },
-          "request_id": {
-            "title": "Request Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "request_id",
-          "registry_version",
-          "candidates"
-        ],
-        "title": "MotifCandidatesOut",
-        "type": "object"
-      },
-      "MotifCandidatesRequest": {
-        "properties": {
-          "spec": {
-            "$ref": "#/components/schemas/MotifSpecIn"
-          },
-          "top_k": {
-            "default": 5,
-            "maximum": 10.0,
-            "minimum": 1.0,
-            "title": "Top K",
+            "title": "Slot",
             "type": "integer"
           }
         },
         "required": [
-          "spec"
+          "slot",
+          "motif_id"
         ],
-        "title": "MotifCandidatesRequest",
+        "title": "MotifActivateRequest",
         "type": "object"
       },
       "MotifDetailOut": {
@@ -9560,9 +9443,8 @@
       },
       "MotifGenerateOut": {
         "properties": {
-          "motif_id": {
-            "title": "Motif Id",
-            "type": "string"
+          "motif": {
+            "$ref": "#/components/schemas/MotifResultOut"
           },
           "request_id": {
             "title": "Request Id",
@@ -9571,49 +9453,28 @@
           "reused": {
             "title": "Reused",
             "type": "boolean"
-          },
-          "similarity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Similarity"
           }
         },
         "required": [
           "request_id",
-          "motif_id",
           "reused",
-          "similarity"
+          "motif"
         ],
         "title": "MotifGenerateOut",
         "type": "object"
       },
       "MotifGenerateRequest": {
+        "additionalProperties": false,
         "properties": {
-          "seed": {
-            "anyOf": [
-              {
-                "maximum": 9.223372036854776e+18,
-                "minimum": -9.223372036854776e+18,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed"
-          },
-          "spec": {
-            "$ref": "#/components/schemas/MotifSpecIn"
+          "prompt": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
           }
         },
         "required": [
-          "spec"
+          "prompt"
         ],
         "title": "MotifGenerateRequest",
         "type": "object"
@@ -9791,74 +9652,72 @@
         "title": "MotifResolutionOut",
         "type": "object"
       },
-      "MotifSpecIn": {
+      "MotifResultOut": {
+        "description": "모달 카드 하나 — 프론트가 썸네일을 바로 그린다.",
         "properties": {
-          "description": {
-            "anyOf": [
-              {
-                "maxLength": 1000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
+          "current": {
+            "default": false,
+            "title": "Current",
+            "type": "boolean"
           },
-          "expression": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expression"
-          },
-          "scope": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Scope",
+          "motif_id": {
+            "title": "Motif Id",
             "type": "string"
           },
-          "style": {
+          "name": {
             "anyOf": [
               {
-                "maxLength": 200,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Style"
+            "title": "Name"
           },
-          "subject": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Subject",
+          "preview_svg": {
+            "title": "Preview Svg",
             "type": "string"
-          },
-          "view": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "View"
           }
         },
         "required": [
-          "subject",
-          "scope"
+          "motif_id",
+          "name",
+          "preview_svg"
         ],
-        "title": "MotifSpecIn",
+        "title": "MotifResultOut",
+        "type": "object"
+      },
+      "MotifSearchOut": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/MotifResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "MotifSearchOut",
+        "type": "object"
+      },
+      "MotifSearchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "MotifSearchRequest",
         "type": "object"
       },
       "MotifSummaryOut": {
@@ -11629,57 +11488,6 @@
           "upload_id"
         ],
         "title": "PaletteExtractRequest",
-        "type": "object"
-      },
-      "PatternConstraints": {
-        "additionalProperties": false,
-        "properties": {
-          "arrangement": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "lattice",
-              "staggered",
-              "scatter"
-            ],
-            "title": "Arrangement",
-            "type": "string"
-          },
-          "density": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "sparse",
-              "medium",
-              "dense"
-            ],
-            "title": "Density",
-            "type": "string"
-          },
-          "direction": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "vertical",
-              "horizontal",
-              "diagonal"
-            ],
-            "title": "Direction",
-            "type": "string"
-          },
-          "motif_scale": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "small",
-              "medium",
-              "large"
-            ],
-            "title": "Motif Scale",
-            "type": "string"
-          }
-        },
-        "title": "PatternConstraints",
         "type": "object"
       },
       "PaymentConfirmRequest": {
@@ -23522,10 +23330,10 @@
         ]
       }
     },
-    "/design/sessions/{session_id}/motifs/candidates": {
+    "/design/sessions/{session_id}/motifs/activate": {
       "post": {
-        "description": "read-only 검색 — 워커가 Recraft를 호출하지 않으므로 예산 없음.",
-        "operationId": "motif_candidates",
+        "description": "모티프 슬롯 교체 — 모티프 id만 바뀐 결정론 재렌더라 모델 호출도 과금도 없다.",
+        "operationId": "activate_motif",
         "parameters": [
           {
             "in": "path",
@@ -23542,7 +23350,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MotifCandidatesRequest"
+                "$ref": "#/components/schemas/MotifActivateRequest"
               }
             }
           },
@@ -23553,7 +23361,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MotifCandidatesOut"
+                  "$ref": "#/components/schemas/DesignGenerateOut"
                 }
               }
             },
@@ -23575,7 +23383,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Motif Candidates",
+        "summary": "Activate Motif",
         "tags": [
           "design"
         ]
@@ -23583,7 +23391,7 @@
     },
     "/design/sessions/{session_id}/motifs/generate": {
       "post": {
-        "operationId": "motif_generate",
+        "operationId": "generate_motif",
         "parameters": [
           {
             "in": "path",
@@ -23633,7 +23441,66 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Motif Generate",
+        "summary": "Generate Motif",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/sessions/{session_id}/motifs/search": {
+      "post": {
+        "description": "문장으로 카탈로그를 찾는다 — 워커가 Recraft를 호출하지 않으므로 무과금.",
+        "operationId": "search_motifs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotifSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifSearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search Motifs",
         "tags": [
           "design"
         ]

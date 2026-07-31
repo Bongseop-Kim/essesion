@@ -381,12 +381,6 @@ describe("DesignPage composer lifecycle", () => {
         reference_images: [{ upload_id: "upload-1", purpose: "composition" }],
         user_motif_ids: [motif.id],
         palette: fixedPalette,
-        pattern_constraints: {
-          motif_scale: "small",
-          density: "dense",
-          arrangement: "staggered",
-          direction: "diagonal",
-        },
       }),
       throwOnError: true,
     });

@@ -81,12 +81,6 @@ export async function createDesignIdeas(context: IdeaContext) {
       })),
       user_motif_ids: context.userMotifIds,
       palette: context.palette,
-      pattern_constraints: {
-        motif_scale: context.patternConstraints.motifScale,
-        density: context.patternConstraints.density,
-        arrangement: context.patternConstraints.arrangement,
-        direction: context.patternConstraints.direction,
-      },
       count: 4,
     },
     throwOnError: true,

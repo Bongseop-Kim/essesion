@@ -9,7 +9,6 @@ from worker.adapters import AdapterClientError
 from worker.authoring import store
 from worker.authoring.examples import load_example_set
 from worker.authoring.retrieval import retrieve_examples
-from worker.engine.constraints import PatternConstraints
 
 DIM = 3072
 MODEL = "test-embedding-3072"
@@ -212,7 +211,6 @@ async def test_retrieval_selects_up_to_three_compatible_unique_families(db_sessi
         embedding_client=_Embedding(),
         embedding_model=MODEL,
         available_motif_count=2,
-        pattern_constraints=PatternConstraints(),
     )
 
     assert outcome.status == "ok"
@@ -238,7 +236,6 @@ async def test_retrieval_does_not_append_duplicate_families(db_session):
         embedding_client=_Embedding(),
         embedding_model=MODEL,
         available_motif_count=2,
-        pattern_constraints=PatternConstraints(),
     )
 
     assert outcome.status == "ok"
@@ -263,7 +260,6 @@ async def test_retrieval_fails_soft_when_embedding_provider_fails(db_session):
         embedding_client=_BrokenEmbedding(),
         embedding_model=MODEL,
         available_motif_count=0,
-        pattern_constraints=PatternConstraints(),
     )
     assert outcome.status == "embedding_error"
     assert outcome.reason == "provider_5xx"

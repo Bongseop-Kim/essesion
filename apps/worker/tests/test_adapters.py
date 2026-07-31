@@ -37,10 +37,7 @@ from worker.adapters.recraft import (
 from worker.authoring.examples import load_example_set
 from worker.authoring.schema import DesignPlanV3
 from worker.config import Settings
-from worker.engine.constraints import (
-    PaletteConstraint,
-    PatternConstraints,
-)
+from worker.engine.constraints import PaletteConstraint
 from worker.engine.validate import IntentInvalid
 
 _SETTINGS = Settings(motif_render_check=False, recraft_max_color_slots=6)
@@ -351,9 +348,6 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
         reference_images=references,
         motifs=[{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
         palette_constraint=PaletteConstraint(mode="fixed", colors=["#10243A", "#EFE6D4"]),
-        pattern_constraints=PatternConstraints(
-            motif_scale="small", arrangement="lattice", direction="diagonal"
-        ),
     )
 
     assert ideas == valid["ideas"]
@@ -366,7 +360,6 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
     assert 'exact motif 1: name="동백"' in context
     assert "upload-a1b2c3d4e5f6" not in context
     assert "#10243A, #EFE6D4" in context
-    assert "arrangement=lattice" in context
 
 
 async def test_author_design_retries_when_the_single_plan_breaks_the_contract():

@@ -109,12 +109,6 @@ describe("useGenerateDesign pending side effects", () => {
           mode: "fixed",
           colors: ["#112233", "#AABBCC"],
         },
-        pattern_constraints: {
-          motif_scale: "small",
-          density: "dense",
-          arrangement: "staggered",
-          direction: "diagonal",
-        },
         reference_images: [
           { upload_id: "upload-a", purpose: "color_mood" },
           { upload_id: "upload-b", purpose: "composition" },

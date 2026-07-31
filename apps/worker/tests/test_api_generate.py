@@ -813,11 +813,9 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
             reference_images,
             motif_ids,
             palette_constraint,
-            pattern_constraints,
             **_kwargs,
         ):
             assert palette_constraint.mode == "auto"
-            assert pattern_constraints.is_automatic()
             self.calls.append((prompt, reference_images, motif_ids))
             intent = mvp_intent()
             assert validate(intent) is None
@@ -1080,7 +1078,6 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
             "motif_ids": ["upload-a1b2c3d4e5f6"],
             "motifs": [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
             "palette": {"mode": "fixed", "colors": ["#123", "#abcdef"]},
-            "pattern_constraints": {"density": "dense"},
             "count": 3,
         },
     )
@@ -1090,7 +1087,6 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
     assert prompt == "차분한 패턴"
     assert context["motifs"] == [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}]
     assert context["palette_constraint"].colors == ["#112233", "#ABCDEF"]
-    assert context["pattern_constraints"].density == "dense"
 
 
 def test_ideas_endpoint_rejects_motif_context_order_mismatch(monkeypatch):

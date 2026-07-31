@@ -27,7 +27,7 @@
 |---|---|---|---|
 | ~~1~~ | **완료** — `docs/reviews/design-redesign-01-server-single-design.md` | 후보 제거, 생성 결과 1개, 스텝 이동, 세션 응답에 현재 모티프 | — |
 | ~~2~~ | **완료** — `docs/reviews/design-redesign-02-server-scoped-edit.md` | 구성 patch 계약, refine 보존 기계 폐기, 범위 밖 거절, 경고 문구 | 1 |
-| 3 | `03-server-motif-paths.md` | 모티프 문장 검색·생성 API, 패턴 설정(4축) 전면 폐기 | 1 |
+| ~~3~~ | **완료** — `docs/reviews/design-redesign-03-server-motif-paths.md` | 모티프 문장 검색·생성·교체 API, 패턴 설정(4축) 전면 폐기 | 1 |
 | 4 | `04-store-canvas-shell.md` | 풀블리드 캔버스 셸, 좌 모티프 패널, 우 레일, 하단 이력·입력창, 상단 알림 | 1·2 |
 | 5 | `05-store-motif-modal.md` | 모티프 모달(찾기·SVG·사진·글자·AI 생성) 통합 | 3·4 |
 | 6 | `06-cleanup-and-docs.md` | admin 단수화, 죽은 코드 스윕, 문서·체크리스트·리뷰 기록 | 1–5 |
@@ -66,7 +66,7 @@
 |---|---|---|
 | M1 | 첫 생성 가격을 구성 수정과 다르게 둘지 (지금은 생성 1회 5토큰 단일) | 6 (과금 확정 시) |
 | M2 | 모티프 카드 접힘 상태의 표현 | 4 |
-| M3 | 문장 → `MotifSpec` 변환을 LLM 1콜로 할지 규칙 기반으로 할지 | 3 |
+| ~~M3~~ | **결정** — flash-lite 1콜 구조화 출력 + 실패 시 문장을 subject로 쓰는 폴백 (3단계 리뷰) | ~~3~~ |
 
 ## 검사 명령 (모든 단계 공통, 끝에서 전부 통과)
 

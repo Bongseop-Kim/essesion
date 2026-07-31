@@ -28,7 +28,6 @@ from worker.adapters.embedding import DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL
 from worker.adapters.embedding import VertexEmbeddingClient
 from worker.adapters.gemini import DEFAULT_MODEL, GeminiClient
 from worker.authoring.retrieval import retrieve_examples
-from worker.engine.constraints import PatternConstraints
 from worker.engine.validate import IntentInvalid, validate_intent
 
 DEFAULT_CORPUS = Path(__file__).with_name("authoring_prompts.json")
@@ -85,7 +84,6 @@ async def _evaluate_model(
                 embedding_client=embedding,
                 embedding_model=embedding_model,
                 available_motif_count=case.motif_count,
-                pattern_constraints=PatternConstraints(),
             )
             retrieval_statuses[retrieval.status] += 1
             selected_families = {example.family for example in retrieval.examples}

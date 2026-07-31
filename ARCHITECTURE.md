@@ -454,7 +454,7 @@ flowchart LR
     Active --> Retrieve
     Retrieve -->|호환 후보 중 최대 3개| Author
     Photo[참고 사진 최대 5장 + 사진별 purpose] -->|검증·축소·메타데이터 제거| Author
-    Controls[fixed palette + pattern constraints] -->|prompt 지시 + 결정적 보정·재검증| Intent
+    Controls[fixed palette] -->|prompt 지시 + 결정적 보정·재검증| Intent
     UserInput[SVG / 텍스트 / 사진] -->|path·vectorize + sanitize·normalize·content hash| PrivateMotif[소유자 exact 모티프]
     Author --> Plan[typed DesignPlansV3]
     Plan -->|deterministic compiler| Intent[intent + motif specs]
@@ -476,7 +476,7 @@ flowchart LR
 
 Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-constrained `DesignPlansV3`를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개 motif source와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. 검증된 후보가 없는 텍스트 경로에서는 사용자가 반복 모티프로 명시한 구체적 개별 도형만 원문 그대로 `generate` source 한 건으로 표현할 수 있고, 색·무드·질감만 말한 요청에는 모티프를 발명하지 않는다. Pydantic 모델 자체를 Vertex `response_schema`로 넘기고, 결정적 compiler가 48mm/300dpi intent와 motif sidecar를 만든다. verified catalog, exact input, `current_motif_N`에는 실제 ID 대신 authoritative `slot_count`와 유효할 때만 슬롯 순서의 `slot_parts`를 untrusted metadata 블록으로 제공한다. 멀티슬롯 모티프는 `color_indices`를 생략하면 원색 보존 의도를 전달하고, 명시하면 재색 의도를 전달한다. 재색 배열은 정확히 `slot_count`개이며 i번째 색 인덱스는 i번째 슬롯·부위에 대응한다. fixed palette에서는 compiler가 `color_indices`를 강제한다. 색만 다른 plan은 structural fingerprint로 중복 처리하며 2개 이상의 유효한 구조가 없으면 검증 오류와 함께 한 번 다시 저작한다.
 
-`gallery-v1` Plan v3 manifest는 빈 DB를 위한 소량 starter 입력일 뿐 운영 셋의 정본이나 골든 목록이 아니다. 시드는 같은 ID가 이미 있으면 건너뛰어 DB에서 큐레이션한 행을 덮어쓰지 않으며, 운영 셋 전체의 정본은 bootstrap·관리자 직접 저작(`authored`)·생성 승격(`promoted`)을 함께 보관하는 `authoring_examples`다. 런타임은 그중 `active=true`인 현재 contract·embedding model 행만 읽는다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수·pattern constraint로 거른 뒤 상위 8개에서 family가 겹치지 않는 시범을 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 시범 없이 typed schema 경로를 계속한다.
+`gallery-v1` Plan v3 manifest는 빈 DB를 위한 소량 starter 입력일 뿐 운영 셋의 정본이나 골든 목록이 아니다. 시드는 같은 ID가 이미 있으면 건너뛰어 DB에서 큐레이션한 행을 덮어쓰지 않으며, 운영 셋 전체의 정본은 bootstrap·관리자 직접 저작(`authored`)·생성 승격(`promoted`)을 함께 보관하는 `authoring_examples`다. 런타임은 그중 `active=true`인 현재 contract·embedding model 행만 읽는다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수로 거른 뒤 상위 8개에서 family가 겹치지 않는 시범을 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 시범 없이 typed schema 경로를 계속한다.
 
 모든 생성 요청은 Plan v3 경로만 사용한다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 generation diagnostics/intent log에 남긴다. 매일 성공·선택·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 시범이 되며, 문제 시범은 `active=false`로 즉시 제외한다. 관리자는 별도로 intent와 Plan v3를 작성하고 카탈로그 motif만 사용하는 무-LLM 타일 프리뷰를 확인한 뒤 `authored` 시범을 비활성 상태로 저장·편집·삭제할 수 있다. bootstrap/promoted 행의 Plan 본문은 읽기 전용이다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
 
@@ -486,7 +486,7 @@ Gemini는 텍스트와 참고 사진에서 엔진 intent가 아니라 schema-con
 
 사진 purpose와 순서는 API request, worker image part, generation/turn attachment까지 보존한다. 사용자 SVG는 worker의 기존 SVG 안전 경계와 normalize를 통과하며 계정당 100개까지 보관한다. 텍스트는 동봉 OFL font와 FontTools로 결정적 path를 만든다. 한 생성에서 최종 motif는 최대 2개이고, 사용자 모티프는 일반 retrieval·embedding 검색·registry fingerprint에서 제외되어 다른 계정 요청에 노출되지 않는다. 서버가 선택 상태에서 만든 reroll intent의 private motif ID도 현재 사용자의 라이브러리 링크 또는 같은 소유자·같은 세션의 과거 SVG 첨부 이력에 한정해 허용하여, 라이브러리 삭제 뒤 기존 variation/finalize는 유지하면서 교차 사용자·교차 세션 참조를 막는다.
 
-fixed palette는 기존 slot/default colorway 계약 안에서 모든 지정 색이 실제 layer에 쓰이도록 결정적으로 재매핑한다. pattern constraint는 사용자 표현을 lattice/half-drop/Poisson scatter, 물리 크기·간격, 고정 rotation으로 변환한다. Gemini 저작 결과와 candidate variation 뒤에 모두 제약을 재검증하며 만족할 수 없으면 조용히 무시하지 않고 constrained retry 또는 422로 끝낸다. 상세 계약과 상한은 `docs/specs/design-generation-controls.md`가 설명한다.
+fixed palette는 기존 slot/default colorway 계약 안에서 모든 지정 색이 실제 layer에 쓰이도록 결정적으로 재매핑한다. 크기·밀도·배치·방향 4축 설정은 폐기됐다 — 그 축은 입력창 문장을 좁은 구성 patch로 바꿔 결정적으로 적용한다(`engine/patch.py`). Gemini 저작 결과 뒤에 색 제약을 재검증하며 만족할 수 없으면 조용히 무시하지 않고 constrained retry 또는 422로 끝낸다. 상세 계약과 상한은 `docs/api-spec/worker-engine.md` §7.1이 설명한다.
 
 ### 7.2 결정론 계약
 
@@ -583,7 +583,9 @@ sequenceDiagram
 
 세션은 외부 worker 호출 전에 `active_generation_id`와 시작 시각, 사용자 턴, 토큰 차감을 한 트랜잭션으로 커밋한다. active run이 있으면 동시 요청을 거부하고 DB lock을 외부 호출 동안 유지하지 않는다. finalize job과 같은 명시적 stale window가 지난 run만 회수해 멱등 환불·assistant error turn을 남긴다. 성공·실패의 늦은 응답은 run ID와 세션 상태가 일치할 때만 active 상태를 끝낼 수 있다.
 
-최종 모티프는 최대 2개다. exact user motif와 `purpose=motif` 사진의 합이 2를 넘으면 API가 과금 전에 `motif_input_conflict`로 거부한다. exact 1개+motif 사진 1개는 둘 다 필수이며 하나라도 최종 intent에서 빠지면 성공으로 낮추지 않는다. fixed palette와 pattern constraints는 Gemini·검색 결과보다 뒤의 결정론적 constraint 경계가 최종 권위다.
+최종 모티프는 최대 2개다. exact user motif와 `purpose=motif` 사진의 합이 2를 넘으면 API가 과금 전에 `motif_input_conflict`로 거부한다. exact 1개+motif 사진 1개는 둘 다 필수이며 하나라도 최종 intent에서 빠지면 성공으로 낮추지 않는다. fixed palette는 Gemini·검색 결과보다 뒤의 결정론적 constraint 경계가 최종 권위다.
+
+만든 뒤 모티프를 바꾸는 경로는 문장 하나다: `motifs/search`가 카탈로그를 무과금으로 찾고, 없으면 `motifs/generate`가 세션 Recraft 예산으로 만들고, `motifs/activate`가 슬롯(최대 2)의 motif id만 바꿔 결정적으로 재렌더한다. activate는 모델을 호출하지 않으므로 토큰을 쓰지 않고 새 스텝만 남긴다.
 
 사용자 모티프 경로에서 worker는 DB 소유권을 만들지 않는다. `/motifs/import`와 텍스트·사진
 preview는 순수 변환 경계로 안전한 SVG와 identity만 반환하고, API가 사용자 advisory lock과

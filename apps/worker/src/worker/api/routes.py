@@ -85,7 +85,7 @@ from worker.engine import (
 )
 from worker.engine.composition import compose
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
-from worker.engine.patch import apply_patch, composition_snapshot
+from worker.engine.patch import apply_patch, composition_snapshot, set_motif_slot
 from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
@@ -100,6 +100,7 @@ from worker.motifs.resolver import (
     resolve_motifs,
     resolve_spec,
 )
+from worker.motifs.spec import motif_spec_from_sentence
 from worker.motifs.store import get_motifs
 from worker.motifs.text_svg import text_to_svg
 from worker.render.fabric import FabricError, render_fabric
@@ -203,7 +204,9 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
         request.state.generation_render_ms = 0.0
         request.state.generation_diagnostics = {
             "mode": (
-                "variation"
+                "motif_slot"
+                if body.motif_slot is not None
+                else "variation"
                 if body.intent is not None
                 else "patch"
                 if body.conversation_context is not None
@@ -211,7 +214,6 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
             ),
             "reference_count": len(body.reference_images),
             "fixed_palette": body.palette.mode == "fixed",
-            "pattern_controls": not body.pattern_constraints.is_automatic(),
             "motif_resolutions": [],
         }
         try:
@@ -598,15 +600,24 @@ async def _generate_from_intent(
 ) -> _GenerateOutcome:
     assert body.intent is not None
     try:
+        raw_intent = body.intent
+        if body.motif_slot is not None:
+            raw_intent = set_motif_slot(
+                raw_intent,
+                slot=body.motif_slot.slot,
+                motif_id=body.motif_slot.motif_id,
+            )
         constrained_intent = apply_generation_constraints(
-            body.intent,
+            raw_intent,
             palette=body.palette,
-            pattern=body.pattern_constraints,
             warnings=warnings,
         )
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
     catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
+    if body.motif_slot is not None:
+        # 새 모티프의 paint slot 수는 이전 모티프와 다를 수 있다 — 카탈로그 기준으로 재바인딩.
+        _bind_resolved_motif_colors([constrained_intent], catalog, palette_mode=body.palette.mode)
     compose_started = time.perf_counter()
     try:
         design = compose_design(
@@ -615,7 +626,6 @@ async def _generate_from_intent(
             colorway=effective_colorway,
             motifs=catalog or None,  # DB에 없으면 전역 registry 폴백(테스트/시드 경로)
             palette_constraint=body.palette,
-            pattern_constraints=body.pattern_constraints,
         )
     except IntentInvalid:
         _reject_generation(request, "intent_invalid", "intent")
@@ -634,8 +644,8 @@ async def _generate_from_intent(
         intent_log={
             "designs": [constrained_intent],
             "palette": body.palette.model_dump(),
-            "pattern_constraints": body.pattern_constraints.model_dump(),
             "resolved_plan": None,
+            **({"motif_slot": body.motif_slot.model_dump()} if body.motif_slot is not None else {}),
         },
         registry_version=registry_version,
         plan=None,
@@ -673,7 +683,6 @@ async def _generate_from_prompt(
             constrained = apply_generation_constraints(
                 intent_raw,
                 palette=body.palette,
-                pattern=body.pattern_constraints,
                 warnings=constraint_warnings,
             )
         except ConstraintInvalid as exc:
@@ -741,7 +750,6 @@ async def _generate_from_prompt(
             embedding_client=embedding,
             embedding_model=getattr(embedding, "model", settings.embedding_model),
             available_motif_count=available_motif_count,
-            pattern_constraints=body.pattern_constraints,
         )
     prompt_examples = retrieval.prompt_examples()
     request.state.generation_diagnostics.update(
@@ -766,7 +774,6 @@ async def _generate_from_prompt(
             exact_motif_metadata=exact_motif_metadata,
             catalog_candidates=catalog_candidates,
             palette_constraint=body.palette,
-            pattern_constraints=body.pattern_constraints,
             examples=prompt_examples,
             diagnostics=request.state.generation_diagnostics,
         )
@@ -874,7 +881,6 @@ async def _generate_from_prompt(
             colorway=effective_colorway,
             motifs=catalog or None,
             palette_constraint=body.palette,
-            pattern_constraints=body.pattern_constraints,
         )
     except (IntentInvalid, AssertionError, ValueError):
         _reject_generation(request, "design_invalid", "design")
@@ -885,7 +891,6 @@ async def _generate_from_prompt(
     intent_log: dict[str, Any] = {
         "designs": [resolved_intent],
         "palette": body.palette.model_dump(),
-        "pattern_constraints": body.pattern_constraints.model_dump(),
         "resolved_plan": resolved_plan.model_dump(mode="json") if resolved_plan else None,
     }
     if authored.plan is not None:
@@ -975,7 +980,6 @@ async def _generate_from_patch(
         constrained_intent = apply_generation_constraints(
             patched,
             palette=body.palette,
-            pattern=body.pattern_constraints,
             warnings=warnings,
         )
     except ConstraintInvalid:
@@ -990,7 +994,6 @@ async def _generate_from_patch(
             colorway=effective_colorway,
             motifs=catalog or None,
             palette_constraint=body.palette,
-            pattern_constraints=body.pattern_constraints,
         )
     except IntentInvalid:
         _reject_generation(request, "intent_invalid", "intent")
@@ -1008,7 +1011,6 @@ async def _generate_from_patch(
         intent_log={
             "designs": [constrained_intent],
             "palette": body.palette.model_dump(),
-            "pattern_constraints": body.pattern_constraints.model_dump(),
             "resolved_plan": None,
             "patch": patch.model_dump(mode="json", exclude_none=True),
         },
@@ -1294,11 +1296,17 @@ async def ensure_authoring_promotion_embedding(
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
+    """문장 → spec → 카탈로그 검색. Recraft 미호출이라 과금이 없다."""
     adapters = request.app.state.adapters
     registry_version = await registry_version_for(session)
+    spec = await motif_spec_from_sentence(
+        body.query,
+        gemini_client=adapters.gemini,
+        style_hint=body.style_hint,
+    )
     candidates = await present_candidates(
         session,
-        body.spec.model_dump(),
+        spec,
         embedding_client=adapters.embedding,
         top_k=body.top_k,
         tau=request.app.state.settings.motif_similarity_tau,
@@ -1339,7 +1347,6 @@ async def suggest_ideas(body: IdeasRequest, request: Request) -> IdeasResponse:
             reference_images=references,
             motifs=[motif.model_dump() for motif in body.motifs],
             palette_constraint=body.palette,
-            pattern_constraints=body.pattern_constraints,
         )
     except AdapterClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -1434,15 +1441,19 @@ async def motif_generate(
 ) -> dict[str, Any]:
     settings = request.app.state.settings
     adapters = request.app.state.adapters
-    seed = body.seed if body.seed is not None else 0
+    spec = await motif_spec_from_sentence(
+        body.query,
+        gemini_client=adapters.gemini,
+        style_hint=body.style_hint,
+    )
     try:
         result = await resolve_spec(
             session,
-            body.spec.model_dump(),
+            spec,
             recraft_client=adapters.recraft,
             embedding_client=adapters.embedding,
             settings=settings,
-            seed=seed,
+            seed=0,
             gemini_client=adapters.gemini,
             provenance=(
                 body.motif_provenance.model_dump() if body.motif_provenance is not None else None

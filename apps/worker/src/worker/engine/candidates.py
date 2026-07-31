@@ -10,7 +10,6 @@ from typing import Any
 from worker.engine.composition import compose
 from worker.engine.constraints import (
     PaletteConstraint,
-    PatternConstraints,
     assert_constraints_satisfied,
 )
 from worker.engine.determinism import layout_id_for, stable_digest
@@ -45,20 +44,14 @@ def compose_design(
     colorway: str | None = None,
     motifs: MotifCatalog | None = None,
     palette_constraint: PaletteConstraint | None = None,
-    pattern_constraints: PatternConstraints | None = None,
 ) -> ComposedDesign:
     """검증된 intent를 하나의 SVG로 합성한다. 같은 intent+seed → byte-identical."""
 
     base = validate_intent(base_raw, motifs=motifs)
     intent = base.intent
     assert_seamless_invariants(intent)
-    # 한쪽만 주어져도 검증 — 기본값(auto)은 아무것도 단정하지 않으므로 안전.
-    if palette_constraint is not None or pattern_constraints is not None:
-        assert_constraints_satisfied(
-            intent,
-            palette=palette_constraint or PaletteConstraint(),
-            pattern=pattern_constraints or PatternConstraints(),
-        )
+    if palette_constraint is not None:
+        assert_constraints_satisfied(intent, palette=palette_constraint)
 
     available = [cw.id for cw in intent.colorways]
     if colorway is not None:

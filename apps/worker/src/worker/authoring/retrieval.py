@@ -10,7 +10,6 @@ from worker.adapters import AdapterClientError
 from worker.adapters.embedding import SupportsEmbed, embed_query
 from worker.authoring import store
 from worker.authoring.schema import DesignPlanV3
-from worker.engine.constraints import PatternConstraints, pattern_prompt_lines
 
 
 @dataclass(frozen=True)
@@ -42,43 +41,17 @@ class RetrievalOutcome:
         ]
 
 
-def retrieval_query_document(
-    prompt: str,
-    *,
-    available_motif_count: int,
-    pattern_constraints: PatternConstraints,
-) -> str:
-    lines = [
-        prompt.strip(),
-        f"available motif slots: {available_motif_count}",
-        *pattern_prompt_lines(pattern_constraints),
-    ]
+def retrieval_query_document(prompt: str, *, available_motif_count: int) -> str:
+    lines = [prompt.strip(), f"available motif slots: {available_motif_count}"]
     return "\n".join(line for line in lines if line)
 
 
-def _compatible(
-    match: store.ExampleMatch,
-    *,
-    available_motif_count: int,
-    pattern_constraints: PatternConstraints,
-) -> bool:
+def _compatible(match: store.ExampleMatch, *, available_motif_count: int) -> bool:
     try:
         plan = DesignPlanV3.model_validate(match.plan)
     except ValueError:
         return False
-    if len(plan.motifs) > available_motif_count:
-        return False
-    arrangement = pattern_constraints.arrangement
-    if arrangement == "auto":
-        return True
-    placements = [layer.placement for layer in plan.layers if layer.type == "motif"]
-    if not placements:
-        return True
-    if arrangement == "lattice":
-        return all(p.type == "lattice" and p.drop == "none" for p in placements)
-    if arrangement == "staggered":
-        return all(p.type == "lattice" and p.drop != "none" for p in placements)
-    return all(p.type == "scatter" for p in placements)
+    return len(plan.motifs) <= available_motif_count
 
 
 async def retrieve_examples(
@@ -88,15 +61,10 @@ async def retrieve_examples(
     embedding_client: SupportsEmbed | None,
     embedding_model: str,
     available_motif_count: int,
-    pattern_constraints: PatternConstraints,
 ) -> RetrievalOutcome:
     if embedding_client is None:
         return RetrievalOutcome(status="embedding_unavailable")
-    query = retrieval_query_document(
-        prompt,
-        available_motif_count=available_motif_count,
-        pattern_constraints=pattern_constraints,
-    )
+    query = retrieval_query_document(prompt, available_motif_count=available_motif_count)
     try:
         embedding = await embed_query(query, client=embedding_client)
         if embedding is None:
@@ -114,11 +82,7 @@ async def retrieve_examples(
     compatible = [
         match
         for match in matches
-        if _compatible(
-            match,
-            available_motif_count=available_motif_count,
-            pattern_constraints=pattern_constraints,
-        )
+        if _compatible(match, available_motif_count=available_motif_count)
     ][:8]
     if not compatible:
         return RetrievalOutcome(status="index_empty")

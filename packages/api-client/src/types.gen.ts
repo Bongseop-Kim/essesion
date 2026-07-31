@@ -3763,7 +3763,6 @@ export type DesignGenerateRequest = {
      */
     colorway?: string | null;
     palette?: PaletteConstraint;
-    pattern_constraints?: PatternConstraints;
     /**
      * Prompt
      */
@@ -3805,7 +3804,6 @@ export type DesignIdeasRequest = {
      */
     count?: 3 | 4;
     palette?: PaletteConstraint;
-    pattern_constraints?: PatternConstraints;
     /**
      * Prompt
      */
@@ -4985,70 +4983,17 @@ export type MessageResponse = {
 };
 
 /**
- * MotifCandidateOut
+ * MotifActivateRequest
  */
-export type MotifCandidateOut = {
-    /**
-     * Description
-     */
-    description?: string | null;
+export type MotifActivateRequest = {
     /**
      * Motif Id
      */
     motif_id: string;
     /**
-     * Scope
+     * Slot
      */
-    scope?: string | null;
-    /**
-     * Similarity
-     */
-    similarity: number | null;
-    /**
-     * Source
-     */
-    source?: string | null;
-    /**
-     * Style
-     */
-    style?: string | null;
-    /**
-     * Subject
-     */
-    subject?: string | null;
-    /**
-     * View
-     */
-    view?: string | null;
-};
-
-/**
- * MotifCandidatesOut
- */
-export type MotifCandidatesOut = {
-    /**
-     * Candidates
-     */
-    candidates: Array<MotifCandidateOut>;
-    /**
-     * Registry Version
-     */
-    registry_version: string;
-    /**
-     * Request Id
-     */
-    request_id: string;
-};
-
-/**
- * MotifCandidatesRequest
- */
-export type MotifCandidatesRequest = {
-    spec: MotifSpecIn;
-    /**
-     * Top K
-     */
-    top_k?: number;
+    slot: 1 | 2;
 };
 
 /**
@@ -5141,10 +5086,7 @@ export type MotifDetailOut = {
  * MotifGenerateOut
  */
 export type MotifGenerateOut = {
-    /**
-     * Motif Id
-     */
-    motif_id: string;
+    motif: MotifResultOut;
     /**
      * Request Id
      */
@@ -5153,10 +5095,6 @@ export type MotifGenerateOut = {
      * Reused
      */
     reused: boolean;
-    /**
-     * Similarity
-     */
-    similarity: number | null;
 };
 
 /**
@@ -5164,10 +5102,9 @@ export type MotifGenerateOut = {
  */
 export type MotifGenerateRequest = {
     /**
-     * Seed
+     * Prompt
      */
-    seed?: number | null;
-    spec: MotifSpecIn;
+    prompt: string;
 };
 
 /**
@@ -5243,33 +5180,47 @@ export type MotifResolutionOut = {
 };
 
 /**
- * MotifSpecIn
+ * MotifResultOut
+ *
+ * 모달 카드 하나 — 프론트가 썸네일을 바로 그린다.
  */
-export type MotifSpecIn = {
+export type MotifResultOut = {
     /**
-     * Description
+     * Current
      */
-    description?: string | null;
+    current?: boolean;
     /**
-     * Expression
+     * Motif Id
      */
-    expression?: string | null;
+    motif_id: string;
     /**
-     * Scope
+     * Name
      */
-    scope: string;
+    name: string | null;
     /**
-     * Style
+     * Preview Svg
      */
-    style?: string | null;
+    preview_svg: string;
+};
+
+/**
+ * MotifSearchOut
+ */
+export type MotifSearchOut = {
     /**
-     * Subject
+     * Results
      */
-    subject: string;
+    results: Array<MotifResultOut>;
+};
+
+/**
+ * MotifSearchRequest
+ */
+export type MotifSearchRequest = {
     /**
-     * View
+     * Query
      */
-    view?: string | null;
+    query: string;
 };
 
 /**
@@ -6259,28 +6210,6 @@ export type PaletteExtractRequest = {
      * Upload Id
      */
     upload_id: string;
-};
-
-/**
- * PatternConstraints
- */
-export type PatternConstraints = {
-    /**
-     * Arrangement
-     */
-    arrangement?: 'auto' | 'lattice' | 'staggered' | 'scatter';
-    /**
-     * Density
-     */
-    density?: 'auto' | 'sparse' | 'medium' | 'dense';
-    /**
-     * Direction
-     */
-    direction?: 'auto' | 'vertical' | 'horizontal' | 'diagonal';
-    /**
-     * Motif Scale
-     */
-    motif_scale?: 'auto' | 'small' | 'medium' | 'large';
 };
 
 /**
@@ -12430,8 +12359,8 @@ export type CreateFinalizeJobResponses = {
 
 export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
 
-export type MotifCandidatesData = {
-    body: MotifCandidatesRequest;
+export type ActivateMotifData = {
+    body: MotifActivateRequest;
     path: {
         /**
          * Session Id
@@ -12439,28 +12368,28 @@ export type MotifCandidatesData = {
         session_id: string;
     };
     query?: never;
-    url: '/design/sessions/{session_id}/motifs/candidates';
+    url: '/design/sessions/{session_id}/motifs/activate';
 };
 
-export type MotifCandidatesErrors = {
+export type ActivateMotifErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type MotifCandidatesError = MotifCandidatesErrors[keyof MotifCandidatesErrors];
+export type ActivateMotifError = ActivateMotifErrors[keyof ActivateMotifErrors];
 
-export type MotifCandidatesResponses = {
+export type ActivateMotifResponses = {
     /**
      * Successful Response
      */
-    200: MotifCandidatesOut;
+    200: DesignGenerateOut;
 };
 
-export type MotifCandidatesResponse = MotifCandidatesResponses[keyof MotifCandidatesResponses];
+export type ActivateMotifResponse = ActivateMotifResponses[keyof ActivateMotifResponses];
 
-export type MotifGenerateData = {
+export type GenerateMotifData = {
     body: MotifGenerateRequest;
     path: {
         /**
@@ -12472,23 +12401,53 @@ export type MotifGenerateData = {
     url: '/design/sessions/{session_id}/motifs/generate';
 };
 
-export type MotifGenerateErrors = {
+export type GenerateMotifErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type MotifGenerateError = MotifGenerateErrors[keyof MotifGenerateErrors];
+export type GenerateMotifError = GenerateMotifErrors[keyof GenerateMotifErrors];
 
-export type MotifGenerateResponses = {
+export type GenerateMotifResponses = {
     /**
      * Successful Response
      */
     200: MotifGenerateOut;
 };
 
-export type MotifGenerateResponse = MotifGenerateResponses[keyof MotifGenerateResponses];
+export type GenerateMotifResponse = GenerateMotifResponses[keyof GenerateMotifResponses];
+
+export type SearchMotifsData = {
+    body: MotifSearchRequest;
+    path: {
+        /**
+         * Session Id
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/design/sessions/{session_id}/motifs/search';
+};
+
+export type SearchMotifsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchMotifsError = SearchMotifsErrors[keyof SearchMotifsErrors];
+
+export type SearchMotifsResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifSearchOut;
+};
+
+export type SearchMotifsResponse = SearchMotifsResponses[keyof SearchMotifsResponses];
 
 export type ActivateDesignStepData = {
     body: DesignStepActivateRequest;

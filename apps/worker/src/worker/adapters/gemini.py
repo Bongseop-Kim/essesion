@@ -33,7 +33,7 @@ from worker.authoring.compiler import (
     compile_design_plan_v3,
 )
 from worker.authoring.schema import DesignPlanV3
-from worker.engine.constraints import PaletteConstraint, PatternConstraints, pattern_prompt_lines
+from worker.engine.constraints import PaletteConstraint
 from worker.engine.patch import DesignPatchV1
 from worker.engine.validate import IntentInvalid
 
@@ -176,7 +176,6 @@ def _build_prompt(
     catalog_candidates: list[dict[str, object]] | None = None,
     reference_images: list[ReferenceImage] | None = None,
     palette_constraint: PaletteConstraint | None = None,
-    pattern_constraints: PatternConstraints | None = None,
     examples: list[dict[str, object]] | None = None,
 ) -> str:
     lines = [
@@ -287,11 +286,6 @@ def _build_prompt(
             "Additional motif color indexes do not count because the resolved motif may have "
             "only one paint slot.",
         ]
-
-    if pattern_constraints is not None:
-        constraint_lines = pattern_prompt_lines(pattern_constraints)
-        if constraint_lines:
-            lines += ["", *constraint_lines]
 
     if reference_images:
         role_instructions = {
@@ -417,7 +411,6 @@ def _build_ideas_prompt(
     reference_images: list[ReferenceImage],
     motifs: list[dict[str, str]],
     palette_constraint: PaletteConstraint,
-    pattern_constraints: PatternConstraints,
     errors: list[str] | None = None,
 ) -> str:
     lines = [
@@ -452,9 +445,6 @@ def _build_ideas_prompt(
         ]
     if palette_constraint.mode == "fixed":
         lines += ["", f"Fixed colors: {', '.join(palette_constraint.colors)}"]
-    constraint_lines = pattern_prompt_lines(pattern_constraints)
-    if constraint_lines:
-        lines += ["", *constraint_lines]
     if errors:
         lines += ["", "The previous response was rejected. Fix these issues:"]
         lines += [f"- {error}" for error in errors]
@@ -714,7 +704,6 @@ class GeminiClient:
         exact_motif_metadata: list[dict[str, object]] | None = None,
         catalog_candidates: list[dict[str, object]] | None = None,
         palette_constraint: PaletteConstraint | None = None,
-        pattern_constraints: PatternConstraints | None = None,
         examples: list[dict[str, object]] | None = None,
         diagnostics: dict[str, object] | None = None,
     ) -> AuthoredDesign:
@@ -756,7 +745,6 @@ class GeminiClient:
                     catalog_candidates=catalog_candidates,
                     reference_images=references,
                     palette_constraint=palette_constraint,
-                    pattern_constraints=pattern_constraints,
                     examples=examples,
                 )
                 plan = await self.complete_model(
@@ -856,14 +844,12 @@ class GeminiClient:
         reference_images: list[ReferenceImage] | None = None,
         motifs: list[dict[str, str]] | None = None,
         palette_constraint: PaletteConstraint | None = None,
-        pattern_constraints: PatternConstraints | None = None,
     ) -> list[str]:
         """Return context-aware drafts only; this path never authors or stores an intent."""
 
         references = reference_images or []
         motif_context = motifs or []
         palette = palette_constraint or PaletteConstraint()
-        pattern = pattern_constraints or PatternConstraints()
         errors: list[str] | None = None
         for _ in range(2):
             text = await self.complete(
@@ -873,7 +859,6 @@ class GeminiClient:
                     reference_images=references,
                     motifs=motif_context,
                     palette_constraint=palette,
-                    pattern_constraints=pattern,
                     errors=errors,
                 ),
                 reference_images=references,

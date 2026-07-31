@@ -65,6 +65,7 @@ scope: {scope}
 7. 자동 `/generate` 한 요청은 모든 authored design과 적합성 재시도를 합쳐 실제 Recraft provider 호출을 기본 2회(`motif_generate_per_request_limit`)로 제한한다. 초과한 best-effort motif layer는 host cascade와 함께 drop하고 경고를 남기며, 비모티프 layer가 남으면 partial success다.
 8. **변이 선택**: `variant_group = sha256(canonical_json({"v":2, "subject", "scope"}))[:16]`; hit pool은 seed로 안정 선택한다.
 9. `present_candidates`는 같은 신뢰도 게이트를 쓰고 Recraft를 호출하거나 관련 없는 ID로 채우지 않는다.
+10. **문장 입력**: `POST /motifs/candidates`와 `POST /motifs/generate`는 spec이 아니라 `{query, style_hint?}` 문장 하나를 받는다. worker가 flash-lite 1콜 구조화 출력으로 `MotifSpec(subject, scope, view, expression, style, description)`을 뽑고(`motifs/spec.py`), 변환이 실패하거나 모델이 없으면 문장을 그대로 `subject`로 써서 렉시컬·벡터 검색을 계속한다. 검색은 Recraft를 호출하지 않으므로 과금이 없다.
 
 store 읽기 오류는 해당 읽기만 savepoint로 rollback한 뒤 miss로 흡수한다. 같은 요청에서 앞서
 upsert한 미커밋 motif까지 전체 rollback하지 않으며, 쓰기 오류는 그대로 전파한다.
@@ -120,7 +121,7 @@ resolver가 concrete ID와 metadata를 확정한 뒤 네트워크 없이 다음 
 
 ### 7.2 문맥 기반 아이디어
 
-`POST /ideas`는 기존 prompt, ordered `(reference image,purpose)`, 최대 2개의 exact motif 문맥, palette, pattern constraints와 count(3 또는 4)를 받는다. worker 내부에서는 id/name 순서를 검증하지만 Gemini 프롬프트에는 ordinal과 human name만 보내고 private content-hash id는 공개하지 않는다. 이미지는 생성과 같은 순서/전처리를 쓴다. 결과는 서로 다른 180자 이하 문장 정확히 count개인 JSON만 수용하며 형식 오류는 한 번 constrained retry 후 502다.
+`POST /ideas`는 기존 prompt, ordered `(reference image,purpose)`, 최대 2개의 exact motif 문맥, palette와 count(3 또는 4)를 받는다. worker 내부에서는 id/name 순서를 검증하지만 Gemini 프롬프트에는 ordinal과 human name만 보내고 private content-hash id는 공개하지 않는다. 이미지는 생성과 같은 순서/전처리를 쓴다. 결과는 서로 다른 180자 이하 문장 정확히 count개인 JSON만 수용하며 형식 오류는 한 번 constrained retry 후 502다.
 
 이 경로는 intent·candidate·generation log를 만들지 않고 Recraft도 호출하지 않는다. 과금과 사용자별 rate limit은 API 경계가 소유하며 worker에는 토큰 차감 로직이 없다. 프론트가 provider를 직접 호출하지 않는다.
 

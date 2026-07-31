@@ -179,15 +179,15 @@ async def _claim_delete(session: AsyncSession, owner: User) -> tuple[str, dict |
     return f"/claims/{claim.id}", None
 
 
-async def _design_motif_candidates(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+async def _design_motif_search(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
     from db.models.design import DesignSession
 
     design_session = DesignSession(user_id=owner.id)
     session.add(design_session)
     await session.commit()
     return (
-        f"/design/sessions/{design_session.id}/motifs/candidates",
-        {"spec": {"subject": "flower", "scope": "whole"}},
+        f"/design/sessions/{design_session.id}/motifs/search",
+        {"query": "flower"},
     )
 
 
@@ -199,7 +199,19 @@ async def _design_motif_generate(session: AsyncSession, owner: User) -> tuple[st
     await session.commit()
     return (
         f"/design/sessions/{design_session.id}/motifs/generate",
-        {"spec": {"subject": "flower", "scope": "whole"}},
+        {"prompt": "flower"},
+    )
+
+
+async def _design_motif_activate(session: AsyncSession, owner: User) -> tuple[str, dict | None]:
+    from db.models.design import DesignSession
+
+    design_session = DesignSession(user_id=owner.id)
+    session.add(design_session)
+    await session.commit()
+    return (
+        f"/design/sessions/{design_session.id}/motifs/activate",
+        {"slot": 1, "motif_id": "seed-flower"},
     )
 
 
@@ -292,8 +304,9 @@ OWNER_CASES: list[OwnerCase] = [
     OwnerCase("design_job_detail", "GET", _design_job_detail),
     OwnerCase("design_job_delete", "DELETE", _design_job_delete),
     OwnerCase("design_job_cancel", "POST", _design_job_cancel),
-    OwnerCase("design_motif_candidates", "POST", _design_motif_candidates),
+    OwnerCase("design_motif_search", "POST", _design_motif_search),
     OwnerCase("design_motif_generate", "POST", _design_motif_generate),
+    OwnerCase("design_motif_activate", "POST", _design_motif_activate),
     OwnerCase("address_delete", "DELETE", _address_delete),
 ]
 

@@ -102,14 +102,6 @@ export function useGenerateDesign(options?: {
           colorway:
             input.palette?.mode === "fixed" ? undefined : input.colorway,
           palette: input.palette,
-          pattern_constraints: input.patternConstraints
-            ? {
-                motif_scale: input.patternConstraints.motifScale,
-                density: input.patternConstraints.density,
-                arrangement: input.patternConstraints.arrangement,
-                direction: input.patternConstraints.direction,
-              }
-            : undefined,
         };
         const { data: response } =
           input.mode === "prompt"

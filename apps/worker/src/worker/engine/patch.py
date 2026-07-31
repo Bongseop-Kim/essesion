@@ -7,6 +7,9 @@
 적용은 결정론(`apply_patch`)이다. 격자 셀은 tile을 나누는 값으로만 만들고, 밴드는 period
 안으로 정규화하고, 모티프 크기는 tile로 클램프한다 — patch가 엔진 불변식을 깨는 intent를
 만들 수 없으므로 자기수정 재시도 라운드가 없다.
+
+모티프 정체성 교체(`set_motif_slot`)는 이 파일의 두 번째 축이다. 모델이 아니라 사용자가
+고른 id를 그대로 넣는 결정론 연산이라 patch 스키마 밖에 둔다.
 """
 
 from __future__ import annotations
@@ -419,8 +422,114 @@ def apply_patch(
                 params.pop("colors", None)
                 params["color"] = slot_id
 
-    # 참조가 끊긴 슬롯은 남기지 않는다 — 편집이 쌓여도 팔레트가 커지지 않고, colorway는
-    # 선언 슬롯 전부를 정확히 매핑해야 한다(engine.palette 불변식).
+    _renumber(raw)
+    return raw
+
+
+# ---- 모티프 슬롯 교체 ----
+#
+# patch와 달리 여기 들어오는 모티프 id는 모델이 아니라 사용자가 고른 값이다. 모델 호출이
+# 없으므로 같은 (intent, slot, motif_id)는 항상 같은 intent를 만든다.
+
+MAX_MOTIF_SLOTS = 2
+
+
+def _derived_placement(placement: dict[str, Any], tile: float) -> dict[str, Any]:
+    """기존 레이어의 배치에서 파생한, 반 칸 엇갈린 배치.
+
+    격자면 셀을 그대로 쓰고 위상만 옮긴다. 그 밖의 배치(산개·점집합·경로)는 축 개수만
+    물려받아 격자로 내린다 — 같은 seed의 산개를 복제하면 두 모티프가 정확히 겹친다.
+    """
+
+    if placement.get("type") == "lattice" and isinstance(placement.get("lattice"), dict):
+        derived = copy.deepcopy(placement)
+        spec = derived["lattice"]
+    else:
+        count = _axis_count(placement, tile) or 6
+        derived = lattice_placement(tile=tile, count=count, staggered=False)
+        spec = derived["lattice"]
+        if placement.get("fixed_rotation_deg") is not None:
+            derived["fixed_rotation_deg"] = placement["fixed_rotation_deg"]
+    spec["offset_x_mm"] = round(float(spec["cell_w_mm"]) / 2, 6)
+    spec["offset_y_mm"] = round(float(spec["cell_h_mm"]) / 2, 6)
+    return derived
+
+
+def _first_motif_layer(raw: dict[str, Any], tile: float, motif_id: str) -> dict[str, Any]:
+    """모티프가 없던 디자인의 첫 레이어. 칠 색은 이후 카탈로그 바인딩이 다시 고른다."""
+
+    slots = [
+        slot["id"]
+        for slot in raw["palette"]["slots"]
+        if isinstance(slot, dict) and isinstance(slot.get("id"), str)
+    ]
+    if not slots:
+        raise ConstraintInvalid(["intent requires at least one palette slot"])
+    return {
+        "id": _free_layer_id(raw, "motif_slot_1"),
+        "type": "motif",
+        "z_order": len(raw["layers"]),
+        "params": {"motif_id": motif_id, "size_mm": round(tile * 0.18, 6), "color": slots[0]},
+        "placement": lattice_placement(tile=tile, count=6, staggered=False),
+    }
+
+
+def set_motif_slot(intent: dict[str, Any], *, slot: int, motif_id: str) -> dict[str, Any]:
+    """슬롯(1..2)의 모티프 id만 바꾼 새 intent — 없는 슬롯은 레이어를 파생해 만든다.
+
+    모티프가 하나도 없는 디자인은 어느 슬롯을 요청해도 첫 레이어를 만든다 — 빈 슬롯 2만
+    따로 만들면 슬롯 1이 영구히 비어 UI가 채울 방법이 없다.
+    """
+
+    if not 1 <= slot <= MAX_MOTIF_SLOTS:
+        raise ConstraintInvalid([f"motif slot must be 1..{MAX_MOTIF_SLOTS}"])
+    raw = copy.deepcopy(intent)
+    tile = _positive_float(_tile_mm(raw))
+    palette = raw.get("palette")
+    if (
+        tile is None
+        or not isinstance(raw.get("layers"), list)
+        or not isinstance(raw.get("colorways"), list)
+        or not isinstance(palette, dict)
+        or not isinstance(palette.get("slots"), list)
+    ):
+        raise ConstraintInvalid(["intent requires palette.slots, layers, and colorways"])
+    motifs = _layers(raw, "motif")
+    if not motifs:
+        # 줄무늬·단색만 있는 디자인의 첫 무늬 — 파생할 레이어가 없으니 기본 격자로 시작한다.
+        raw["layers"].append(_first_motif_layer(raw, tile, motif_id))
+        _renumber(raw)
+        return raw
+    source = motifs[min(slot, len(motifs)) - 1]
+    if not isinstance(source.get("params"), dict):
+        raise ConstraintInvalid(["motif layer is missing params"])
+    if slot <= len(motifs):
+        source["params"]["motif_id"] = motif_id
+        return raw
+
+    placement = source.get("placement")
+    derived = copy.deepcopy(source)
+    derived["id"] = _free_layer_id(raw, f"motif_slot_{slot}")
+    derived["params"]["motif_id"] = motif_id
+    derived["placement"] = _derived_placement(
+        placement if isinstance(placement, dict) else {}, tile
+    )
+    raw["layers"].append(derived)
+    _renumber(raw)
+    return raw
+
+
+def _free_layer_id(raw: dict[str, Any], base: str) -> str:
+    taken = {str(layer.get("id")) for layer in raw["layers"] if isinstance(layer, dict)}
+    candidate, index = base, 2
+    while candidate in taken:
+        candidate, index = f"{base}_{index}", index + 1
+    return candidate
+
+
+def _renumber(raw: dict[str, Any]) -> None:
+    """참조가 끊긴 슬롯 제거 + z_order 재부여 — 편집이 쌓여도 팔레트가 커지지 않고,
+    colorway는 선언 슬롯 전부를 정확히 매핑해야 한다(engine.palette 불변식)."""
     referenced = set(ordered_slot_refs(raw))
     slots = raw["palette"]["slots"]
     kept = [slot for slot in slots if slot.get("id") in referenced]
@@ -434,4 +543,3 @@ def apply_patch(
             }
     for index, layer in enumerate(raw["layers"]):
         layer["z_order"] = index
-    return raw

@@ -51,14 +51,12 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
             "mode",
             "reference_count",
             "fixed_palette",
-            "pattern_controls",
             "motif_resolutions",
         )
     } == {
         "mode": "variation",
         "reference_count": 0,
         "fixed_palette": False,
-        "pattern_controls": False,
         "motif_resolutions": [],
     }
     assert row.diagnostics["compose_ms"] >= 0
@@ -176,7 +174,6 @@ async def test_worker_records_safe_provider_failure_diagnostics(client, db_sessi
         "mode": "prompt",
         "reference_count": 0,
         "fixed_palette": False,
-        "pattern_controls": False,
         "motif_resolutions": [],
         "failure_code": "provider_request_failed",
         "failure_stage": "authoring",

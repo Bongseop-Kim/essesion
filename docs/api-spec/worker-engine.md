@@ -24,11 +24,11 @@
 - **motif**: params `{motif_id, size_mm(gt0), color|colors}` — **color(단색 슬롯)와 colors(멀티슬롯 매핑) 중 정확히 하나**. + placement?
 
 Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 spec 정확히 하나(경합 spec 거부, path_following은 셋 다 없어야):
-- LatticeSpec: cell_w_mm/cell_h_mm(gt0), drop_fraction?(0<x<1), drop_axis ∈ {row, column}(기본 column)
+- LatticeSpec: cell_w_mm/cell_h_mm(gt0), drop_fraction?(0<x<1), drop_axis ∈ {row, column}(기본 column), offset_x_mm/offset_y_mm(기본 0 — 격자 전체의 위상 이동, 두 모티프 슬롯을 엇갈리게 놓는 축)
 - ScatterSpec: mode ∈ {poisson, sateen}, min_dist_mm?(gt0), count?(1..10000), sateen_n?(2..1024), sateen_step?(1..1024)
 - PointSetSpec: points 1..10000
 - path_following: host_layer+lane 또는 standalone path(PathSpec: kind ∈ {straight, wave}, angle?, wavelength?(gt0), amplitude?(ge0)) + spacing_mm(gt0), phase_mm=0, rotation ∈ {follow_path, fixed}?
-- 모든 placement의 `fixed_rotation_deg?`는 구조화된 방향 제약이 사용하는 결정론적 각도다. 생략 시 기존과 동일하게 0°이며 canonical layout JSON에서도 빠져 기존 layout id·SVG 바이트를 보존한다. path-following에서 `rotation=follow_path`면 tangent가 우선한다.
+- 모든 placement의 `fixed_rotation_deg?`는 구성 patch가 사용하는 결정론적 각도다. 생략 시 기존과 동일하게 0°이며 canonical layout JSON에서도 빠져 기존 layout id·SVG 바이트를 보존한다. path-following에서 `rotation=follow_path`면 tangent가 우선한다.
 
 `validate_intent`의 결정론적 repair(경고 발생): dpi→ALLOWED_DPI(150,300,600) 최근접, off-grid stripe period→`tile/(k·hypot(p,q))` 스냅(밴드 비례, round 6자리), 다중밴드 bare lane(start/center/end)→b0.*, ground-gap(coverage > 0.75) 축소·균등 배치. drop_fraction 허용값 `(0.5, 1/3, 0.25)`.
 
@@ -54,7 +54,7 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 
 디스패치 `place(layer, host, tile_mm, seed)`:
 
-- **lattice** (RNG 없음): `nx=round(tile/cw), ny=round(tile/ch)`; `nx*ny > 50_000`이면 오류. drop_axis=column → b1=(cw, ch·drop), b2=(0, ch); row → b1=(cw, 0), b2=(cw·drop, ch). `x=i·b1x+j·b2x, y=i·b1y+j·b2y`, 좌표 `% tile`, 회전은 `fixed_rotation_deg` 또는 0°. (block=drop 없음, half_drop=column, brick=row)
+- **lattice** (RNG 없음): `nx=round(tile/cw), ny=round(tile/ch)`; `nx*ny > 50_000`이면 오류. drop_axis=column → b1=(cw, ch·drop), b2=(0, ch); row → b1=(cw, 0), b2=(cw·drop, ch). `x=i·b1x+j·b2x+offset_x, y=i·b1y+j·b2y+offset_y`, 좌표 `% tile`(offset은 위상만 옮기므로 seamless 불변식과 무관), 회전은 `fixed_rotation_deg` 또는 0°. (block=drop 없음, half_drop=column, brick=row)
 - **scatter**: sateen(RNG 없음) — `cell=tile/n`, `Instance(i·cell, ((i·step)%n)·cell)`; poisson(유일한 RNG 소비처) — `rng=random.Random(seed)`, capacity=`max(1, int(tile²/(min_dist²·(√3/2))))`, target=count or capacity, 시도 상한 `target×30`, **x 먼저 y 나중** `rng.random()·tile`, 토러스 거리(`dx=min(|Δ|, tile-|Δ|)`) ≥ min_dist면 채택.
 - **path_following**: centerline은 host stripe lane 또는 standalone path. 각도 스냅 `snap_angle`(기울기 `Fraction.limit_denominator(16)`), 길이 `L=tile·hypot(p,q)`, `n=max(1,round(L/spacing)), spacing_eff=L/n`, `s=phase%L + k·spacing_eff (s < L-1e-9)`. straight: `x=offset·nx+s·dx`; wave: 법선방향 `amp·sin(2πs/λ)` 추가, tangent는 도함수 반영. rotation=follow_path면 tangent, 아니면 0.
 - **point_set**: `(x%tile, y%tile, fixed_rotation_deg 또는 0)`.
@@ -97,27 +97,18 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 
 ## 7.1 구조화된 생성 제약
 
-`POST /generate`는 프롬프트와 별도로 다음 계약을 받는다. 두 모델 모두 unknown field를 거부한다.
+`POST /generate`는 프롬프트와 별도로 색 지정만 구조 계약으로 받는다. 크기·밀도·배치·방향
+4축(`pattern_constraints`)은 폐기됐다 — 그 축은 입력창 문장 → 구성 patch(`worker-pipeline.md`)가 바꾼다.
+모델은 unknown field를 거부한다.
 
 ```json
-{
-  "palette": {"mode": "fixed", "colors": ["#10243A", "#EFE6D4"]},
-  "pattern_constraints": {
-    "motif_scale": "small",
-    "density": "dense",
-    "arrangement": "staggered",
-    "direction": "diagonal"
-  }
-}
+{"palette": {"mode": "fixed", "colors": ["#10243A", "#EFE6D4"]}}
 ```
 
 - palette: `auto`는 colors가 없어야 한다. `fixed`는 중복 제거 후 2~5색이며 `#RGB`/`#RRGGBB`를 uppercase `#RRGGBB`로 정규화한다. 엔진이 사용 중인 palette slot을 요청 순서대로 결정적으로 치환하고 colorway를 `default` 하나로 고정한다. 요청색 전부가 실제 layer에서 사용될 slot 수가 없으면 422로 실패한다.
-- motif_scale: small/medium/large를 tile 한 변의 10%/18%/28% `size_mm`로 변환한다.
-- density: lattice 축당 4/6/8, path repeat 4/8/12, Poisson count 8/16/28로 변환한다.
-- arrangement: lattice는 regular grid, staggered는 `drop_fraction=0.5, drop_axis=column`인 half-drop lattice, scatter는 Poisson이다. 프롬프트 문구만으로 흉내 내지 않는다.
-- direction: horizontal/vertical/diagonal을 0°/90°/-45°로 변환해 stripe angle과 motif `fixed_rotation_deg`에 적용한다.
-- Gemini는 같은 제약을 semantic DesignPlan 힌트로 받지만 권위 경계는 결정적 compiler와 엔진이다. compiler가 만든 intent에 제약을 적용한 뒤 검증하며, 각 후보도 다시 제약 충족을 검사한다. 고정된 scale/density/arrangement 축은 후보 다양화에서 잠근다. 표현 불가능하거나 후단에서 제약이 유실되면 임의 fallback 없이 단계별 422다.
-- `seamless_generation_logs.intent`에는 `{designs, palette, pattern_constraints}`가 함께 기록된다. 모든 필드가 auto인 요청은 기존 렌더 경로와 byte-identical이다.
+- Gemini는 같은 색 제약을 semantic DesignPlan 힌트로도 받지만 권위 경계는 결정적 compiler와 엔진이다. compiler가 만든 intent에 제약을 적용한 뒤 다시 충족을 검사하며, 표현 불가능하거나 후단에서 유실되면 임의 fallback 없이 단계별 422다.
+- 격자 겹침 클램프는 품질 가드로 남는다: 격자 배치 모티프의 `size_mm`이 셀의 1.15배를 넘으면 상한으로 줄이고 경고를 남긴다(저작 모델이 크기와 행·열을 서로 모르는 필드로 내보내므로).
+- `seamless_generation_logs.intent`에는 `{designs, palette, resolved_plan}`(+구성 patch 런은 `patch`, 모티프 슬롯 교체 런은 `motif_slot`)이 기록된다.
 
 ## 8. 엔진 설정·상수
 
