@@ -5,6 +5,7 @@
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 from worker.engine.composition import compose
 from worker.engine.constraints import (
@@ -38,7 +39,7 @@ def _design_id(layout_id: str, colorway_id: str, seed: int) -> str:
 
 
 def compose_design(
-    base_raw,
+    base_raw: dict[str, Any] | Intent,
     *,
     seed: int | None = None,
     colorway: str | None = None,
@@ -51,9 +52,12 @@ def compose_design(
     base = validate_intent(base_raw, motifs=motifs)
     intent = base.intent
     assert_seamless_invariants(intent)
-    if palette_constraint is not None and pattern_constraints is not None:
+    # 한쪽만 주어져도 검증 — 기본값(auto)은 아무것도 단정하지 않으므로 안전.
+    if palette_constraint is not None or pattern_constraints is not None:
         assert_constraints_satisfied(
-            intent, palette=palette_constraint, pattern=pattern_constraints
+            intent,
+            palette=palette_constraint or PaletteConstraint(),
+            pattern=pattern_constraints or PatternConstraints(),
         )
 
     available = [cw.id for cw in intent.colorways]

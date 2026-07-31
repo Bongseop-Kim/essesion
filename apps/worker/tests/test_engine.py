@@ -61,6 +61,7 @@ print(generate(intent).svg)
 def test_compose_design_matches_original_engine():
     """compose_design의 id·svg가 원본 엔진 산출(기본 seed·기본 컬러웨이)과 일치."""
     intent = json.loads((GOLDEN / "json" / "09_motif_scatter_poisson.json").read_text())
+    # candidates.json / candidates/<svg> 명칭은 원본 엔진 골든과의 호환 기준선 — 의도적으로 유지.
     expected = json.loads((GOLDEN / "candidates.json").read_text())["candidates"][0]
 
     design = compose_design(intent)

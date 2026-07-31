@@ -447,6 +447,45 @@ def test_semantic_invalid_intent_returns_422(client):
     }
 
 
+def test_intent_path_compose_failure_returns_design_invalid(client):
+    # 검증은 통과하지만 합성이 거부(unknown colorway)되면 intent_invalid가 아니라 design_invalid.
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "intent": mvp_intent(), "colorway": "nope"}
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == {
+        "code": "design_invalid",
+        "stage": "design",
+        "message": "the design could not be composed",
+    }
+
+
+def test_prompt_path_compose_failure_returns_design_invalid(monkeypatch):
+    # Gemini가 _validate를 통과하는 intent를 반환해도 compose_design이 거부하면 design_invalid.
+    async def fake_candidates(*_args, **_kwargs):
+        return []
+
+    class GroundedGemini:
+        async def author_design(self, _prompt, **_kwargs):
+            return AuthoredDesign(intent=mvp_intent())
+
+    def broken_compose(*_args, **_kwargs):
+        raise ValueError("composition rejected")
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=GroundedGemini())
+    monkeypatch.setattr(routes, "compose_design", broken_compose)
+
+    resp = TestClient(app).post("/generate", json={"run_id": _RUN_ID, "prompt": "chess pattern"})
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == {
+        "code": "design_invalid",
+        "stage": "design",
+        "message": "the design could not be composed",
+    }
+
+
 def test_error_response_echoes_request_id_header(client):
     # 의미 오류(422)여도 미들웨어는 X-Request-ID를 응답 헤더로 에코한다.
     intent = mvp_intent()

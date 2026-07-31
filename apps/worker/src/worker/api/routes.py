@@ -663,8 +663,11 @@ async def _generate_from_intent(
             palette_constraint=body.palette,
             pattern_constraints=body.pattern_constraints,
         )
-    except (IntentInvalid, AssertionError, ValueError):
+    except IntentInvalid:
         _reject_generation(request, "intent_invalid", "intent")
+    except (AssertionError, ValueError):
+        # 검증 통과 후의 합성 실패 — 프롬프트 경로와 동일한 실패 코드로.
+        _reject_generation(request, "design_invalid", "design")
     finally:
         request.state.generation_diagnostics["compose_ms"] = round(
             (time.perf_counter() - compose_started) * 1000, 3

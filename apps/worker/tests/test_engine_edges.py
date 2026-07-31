@@ -154,11 +154,29 @@ def test_compose_design_uses_the_intent_colorway_by_default():
     assert design.warnings == []
 
 
-def test_explicit_colorway_is_honored():
+def _two_colorway_intent() -> dict:
     intent = mvp_intent()
+    intent["colorways"].append(
+        {
+            "id": "mono",
+            "name": "mono",
+            "mapping": {"ground": "#111111", "accent": "#111111", "gold": "#111111"},
+        }
+    )
+    return intent
+
+
+def test_explicit_colorway_is_honored():
+    intent = _two_colorway_intent()
     available = [cw["id"] for cw in intent["colorways"]]
+    assert len(available) >= 2
     for colorway in available:
         assert compose_design(intent, colorway=colorway).colorway_id == colorway
+
+
+def test_default_colorway_picks_fewest_distinct_colors():
+    # mono(1색) vs default(3색) — 명시가 없으면 색 수가 가장 적은 컬러웨이.
+    assert compose_design(_two_colorway_intent()).colorway_id == "mono"
 
 
 def test_unknown_colorway_raises():

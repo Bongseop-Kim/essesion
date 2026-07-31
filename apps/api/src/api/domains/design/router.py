@@ -1072,14 +1072,19 @@ async def _design_turn_outs(
                 log = logs_by_id.get(run_id) if run_id is not None else None
                 design = _logged_design(log) if log is not None else None
                 if log is not None and design is not None:
-                    payload["response"] = {
-                        "run_id": str(log.id),
-                        "request_id": log.request_id or "",
-                        "registry_version": log.registry_version or "",
-                        "engine_version": log.engine_version or "",
-                        "design": DesignOut.model_validate(design).model_dump(mode="json"),
-                        "warnings": log.warnings,
-                    }
+                    try:
+                        design_json = DesignOut.model_validate(design).model_dump(mode="json")
+                    except ValidationError:
+                        design_json = None  # 레거시/손상 로그 — 해당 턴만 response 생략
+                    if design_json is not None:
+                        payload["response"] = {
+                            "run_id": str(log.id),
+                            "request_id": log.request_id or "",
+                            "registry_version": log.registry_version or "",
+                            "engine_version": log.engine_version or "",
+                            "design": design_json,
+                            "warnings": log.warnings,
+                        }
         outputs.append(
             DesignTurnOut.model_validate(turn).model_copy(
                 update={
