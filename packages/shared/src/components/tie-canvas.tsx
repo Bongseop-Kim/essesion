@@ -12,6 +12,11 @@ export type TieCanvasProps = {
   imageSrc: string;
   mode: DesignPreviewMode;
   alt?: string;
+  /**
+   * `panel`(기본) = 라운드 면 위에 얹는다(미리보기 패널·모달).
+   * `none` = 면·라운드 없이 부모 배경에 바로 놓는다(풀블리드 캔버스).
+   */
+  surface?: "panel" | "none";
   className?: string;
 };
 
@@ -49,6 +54,7 @@ export function TieCanvas({
   imageSrc,
   mode,
   alt = "선택한 디자인 미리보기",
+  surface = "panel",
   className,
 }: TieCanvasProps) {
   const backgroundStyle = {
@@ -64,8 +70,8 @@ export function TieCanvas({
       width="full"
       height="full"
       overflow="hidden"
-      borderRadius="r4"
-      bg="bg.neutral-weak"
+      borderRadius={surface === "panel" ? "r4" : 0}
+      bg={surface === "panel" ? "bg.neutral-weak" : "transparent"}
       className={className}
       // 부모가 높이를 정하면(미리보기 패널) 그 영역을 그대로 채우고,
       // 높이가 불확정이면(모달) aspectRatio가 적용되어 폭 기준 정사각이 된다.

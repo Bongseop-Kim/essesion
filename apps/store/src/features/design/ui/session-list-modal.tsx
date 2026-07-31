@@ -66,8 +66,8 @@ export function SessionListModal({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="내 세션"
-      description="이어서 작업할 세션을 선택해 주세요."
+      title="내 디자인"
+      description="이어서 고칠 디자인을 선택해 주세요."
       size="medium"
       showCloseButton
     >
@@ -76,7 +76,7 @@ export function SessionListModal({
       ) : error ? (
         <ContentPlaceholder
           icon={<Icon svg={<ExclamationTriangleIcon />} size={32} />}
-          title="세션을 불러오지 못했어요"
+          title="디자인을 불러오지 못했어요"
           description={
             typeof error === "string" ? error : "잠시 후 다시 시도해 주세요."
           }
@@ -96,8 +96,8 @@ export function SessionListModal({
       ) : sessions.length === 0 ? (
         <ContentPlaceholder
           icon={<Icon svg={<FolderOpenIcon />} size={32} />}
-          title="저장된 세션이 없어요"
-          description="첫 디자인을 생성하면 세션이 여기에 저장돼요."
+          title="저장된 디자인이 없어요"
+          description="첫 디자인을 만들면 여기에 저장돼요."
         />
       ) : (
         <VStack gap="x3" alignItems="stretch">

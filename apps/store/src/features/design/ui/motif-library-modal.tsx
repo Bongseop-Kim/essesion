@@ -12,6 +12,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import {
+  ArrowUpTrayIcon,
   BookmarkSquareIcon,
   ExclamationTriangleIcon,
   TrashIcon,
@@ -23,10 +24,13 @@ export type MotifLibraryModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   motifs: readonly UserMotifOut[];
-  selectedIds: readonly string[];
-  max: number;
-  onToggle: (motif: UserMotifOut) => void;
+  /** 슬롯에 넣을 모티프 하나를 고른다 — 교체는 무과금 재렌더다. */
+  onSelect: (motif: UserMotifOut) => void;
   onDelete: (motif: UserMotifOut) => void;
+  /** 지금 슬롯에 들어 있는 모티프 id — 이미 쓰는 그림을 표시만 한다. */
+  activeIds?: readonly string[];
+  /** SVG 파일에서 새 모티프를 만드는 유일한 진입점(5단계에서 문장 검색과 합쳐진다). */
+  onImportSvg?: () => void;
   loading?: boolean;
   error?: boolean;
   onRetry?: () => void;
@@ -36,10 +40,10 @@ export function MotifLibraryModal({
   open,
   onOpenChange,
   motifs,
-  selectedIds,
-  max,
-  onToggle,
+  onSelect,
   onDelete,
+  activeIds = [],
+  onImportSvg,
   loading = false,
   error = false,
   onRetry,
@@ -48,14 +52,22 @@ export function MotifLibraryModal({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="내 모티프"
-      description={`이번 생성에 사용할 모티프를 최대 ${max}개 선택해 주세요.`}
+      title="모티프 바꾸기"
+      description="이 슬롯에 넣을 그림을 하나 골라 주세요. 교체에는 토큰이 들지 않아요."
       size="medium"
       showCloseButton
       footer={
-        <Text textStyle="captionSm" color="fg.neutral-subtle">
-          {selectedIds.length}/{max}개 선택
-        </Text>
+        onImportSvg ? (
+          <ActionButton
+            type="button"
+            variant="neutralOutline"
+            size="medium"
+            onClick={onImportSvg}
+          >
+            <Icon svg={<ArrowUpTrayIcon />} size={18} />
+            SVG 올리기
+          </ActionButton>
+        ) : undefined
       }
     >
       {loading ? (
@@ -82,13 +94,12 @@ export function MotifLibraryModal({
         <ContentPlaceholder
           icon={<Icon svg={<BookmarkSquareIcon />} size={32} />}
           title="저장한 모티프가 없어요"
-          description="+ 메뉴의 SVG·텍스트·사진 모티프로 첫 모티프를 추가해 보세요."
+          description="SVG·사진·글자로 만든 모티프가 여기에 모입니다."
         />
       ) : (
         <VStack gap="x2" alignItems="stretch">
           {motifs.map((motif) => {
-            const selected = selectedIds.includes(motif.id);
-            const limitReached = !selected && selectedIds.length >= max;
+            const selected = activeIds.includes(motif.motif_id);
             return (
               <HStack
                 key={motif.id}
@@ -104,11 +115,9 @@ export function MotifLibraryModal({
                   type="button"
                   flex={1}
                   minWidth={0}
-                  disabled={limitReached}
-                  aria-pressed={selected}
-                  aria-label={`${motif.name} ${selected ? "선택 해제" : "선택"}`}
-                  onClick={() => onToggle(motif)}
-                  className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:opacity-50"
+                  aria-label={`${motif.name} 모티프로 바꾸기`}
+                  onClick={() => onSelect(motif)}
+                  className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
                 >
                   <HStack gap="x3">
                     <Box width={64} height={64} className="shrink-0">
@@ -125,7 +134,9 @@ export function MotifLibraryModal({
                         {motif.name}
                       </Text>
                       <Text textStyle="captionSm" color="fg.neutral-subtle">
-                        {selected ? "사용할 모티프로 선택됨" : "탭하여 선택"}
+                        {selected
+                          ? "지금 쓰는 그림"
+                          : "탭하여 이 그림으로 바꾸기"}
                       </Text>
                     </VStack>
                   </HStack>

@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  AUTO_PATTERN_CONSTRAINTS,
-  normalizeHexColor,
-  normalizePaletteColors,
-  patternConstraintLabels,
-} from "./draft";
+import { normalizeHexColor, normalizePaletteColors } from "./draft";
 
 describe("design draft contracts", () => {
   it("#RGB와 #RRGGBB를 대문자 6자리로 정규화한다", () => {
@@ -19,15 +14,5 @@ describe("design draft contracts", () => {
       "#AABBCC",
       "#123456",
     ]);
-  });
-
-  it("자동 패턴과 사용자 요약을 구분한다", () => {
-    expect(
-      patternConstraintLabels({
-        ...AUTO_PATTERN_CONSTRAINTS,
-        density: "dense",
-        arrangement: "staggered",
-      }),
-    ).toEqual(["촘촘하게", "엇갈림"]);
   });
 });

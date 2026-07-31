@@ -1,0 +1,107 @@
+import { snackbar } from "@essesion/shared";
+import { useEffect, useRef, useState } from "react";
+
+import {
+  MAX_DESIGN_PHOTOS,
+  uploadDesignPhoto,
+} from "@/features/design/api/attachments";
+import { validateImageFile } from "@/shared/lib/upload";
+
+import type { DesignReferenceImage } from "./draft";
+
+export type PhotoReference = {
+  id: string;
+  name: string;
+  previewUrl: string;
+  file: File;
+  /** 업로드는 첫 전송 때 한 번만 — 실패한 요청을 재시도해도 다시 올리지 않는다. */
+  uploadId?: string;
+};
+
+/**
+ * 참고 사진 첨부 — 첫 디자인을 만들 때만 함께 보낼 수 있다(커밋된 디자인에는 서버가 422).
+ * 목적(purpose)은 서버 자동 판단에 맡긴다: 모티프 정체성은 모티프 패널이, 색은 색 지정이 담당한다.
+ */
+export function usePhotoReferences() {
+  const [photos, setPhotos] = useState<PhotoReference[]>([]);
+  const current = useRef<PhotoReference[]>([]);
+  current.current = photos;
+
+  useEffect(
+    () => () => {
+      for (const photo of current.current)
+        URL.revokeObjectURL(photo.previewUrl);
+    },
+    [],
+  );
+
+  const add = (files: File[]) => {
+    const remaining = MAX_DESIGN_PHOTOS - current.current.length;
+    if (files.length > remaining) {
+      snackbar(`참고 사진은 최대 ${MAX_DESIGN_PHOTOS}장까지 첨부할 수 있어요.`);
+    }
+    const accepted: PhotoReference[] = [];
+    for (const file of files.slice(0, Math.max(0, remaining))) {
+      try {
+        validateImageFile(file, "사진은 장당 10MB 이하로 선택해 주세요.");
+        accepted.push({
+          id: globalThis.crypto.randomUUID(),
+          name: file.name,
+          previewUrl: URL.createObjectURL(file),
+          file,
+        });
+      } catch (error) {
+        snackbar(
+          error instanceof Error ? error.message : "사진을 확인해 주세요.",
+        );
+      }
+    }
+    if (accepted.length > 0) setPhotos((items) => [...items, ...accepted]);
+  };
+
+  const remove = (id: string) => {
+    const photo = current.current.find((item) => item.id === id);
+    if (photo) URL.revokeObjectURL(photo.previewUrl);
+    setPhotos((items) => items.filter((item) => item.id !== id));
+  };
+
+  const clear = () => {
+    for (const photo of current.current) URL.revokeObjectURL(photo.previewUrl);
+    setPhotos([]);
+  };
+
+  const ensureUploaded = async (photo: PhotoReference) => {
+    if (photo.uploadId) return photo.uploadId;
+    const uploadId = await uploadDesignPhoto(photo.file);
+    photo.uploadId = uploadId;
+    setPhotos((items) =>
+      items.map((item) =>
+        item.id === photo.id ? { ...item, uploadId } : item,
+      ),
+    );
+    return uploadId;
+  };
+
+  return {
+    photos,
+    add,
+    remove,
+    clear,
+    /** 색 지정 모달이 사진에서 팔레트를 뽑을 때 쓴다. */
+    async uploadIdOf(id: string) {
+      const photo = current.current.find((item) => item.id === id);
+      if (!photo) throw new Error("첨부한 사진을 찾지 못했습니다.");
+      return ensureUploaded(photo);
+    },
+    async referenceImages(): Promise<DesignReferenceImage[]> {
+      const references: DesignReferenceImage[] = [];
+      for (const photo of current.current) {
+        references.push({
+          uploadId: await ensureUploaded(photo),
+          purpose: "auto",
+        });
+      }
+      return references;
+    },
+  };
+}

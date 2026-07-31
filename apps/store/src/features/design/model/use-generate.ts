@@ -1,8 +1,9 @@
 import {
   createDesignSession,
   type DesignGenerateOut,
+  type DesignOut,
+  type DesignWarningOut,
   generateDesign,
-  rerollDesign,
 } from "@essesion/api-client";
 import {
   getTokenBalanceQueryKey,
@@ -12,11 +13,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { trackEvent } from "@/shared/lib/analytics";
 
-import type {
-  DesignPalette,
-  DesignPatternConstraints,
-  DesignReferenceImage,
-} from "./draft";
+import type { DesignPalette, DesignReferenceImage } from "./draft";
 
 import {
   clearPendingDesign,
@@ -25,30 +22,25 @@ import {
 } from "./pending";
 import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 
-type GenerateBase = {
-  candidateCount?: number;
-  colorway?: string | null;
+export type GenerateDesignInput = {
+  sessionId?: string | null;
+  prompt: string;
+  /** 첫 생성에만 보낼 수 있다 — 커밋된 디자인이 있으면 서버가 422로 막는다. */
   referenceImages?: DesignReferenceImage[];
   userMotifIds?: string[];
   palette?: DesignPalette;
-  patternConstraints?: DesignPatternConstraints;
 };
-
-export type GenerateDesignInput =
-  | (GenerateBase & {
-      mode: "prompt";
-      sessionId?: string | null;
-      prompt: string;
-    })
-  | (GenerateBase & {
-      mode: "variation";
-      sessionId: string;
-      seed: number;
-    });
 
 export type GenerateDesignResult = {
   sessionId: string;
-  response: DesignGenerateOut;
+  /** 범위 밖 지시 — 토큰·이력·문맥이 요청 전과 같다. */
+  rejected: boolean;
+  design: DesignOut | null;
+  /**
+   * 자동 조정 안내(코드 + 한글 한 줄). 턴 이력의 `response.warnings`는 엔진 영문
+   * 진단이라 쓸 수 없다 — 고객 문구는 이 응답에만 있다.
+   */
+  warnings: readonly DesignWarningOut[];
 };
 
 export class StaleDesignOperationError extends Error {
@@ -71,7 +63,7 @@ function createPendingOperationId() {
 
 export function useGenerateDesign(options?: {
   pendingStorage?: StorageLike | null;
-  onSessionReady?: (sessionId: string, input: GenerateDesignInput) => boolean;
+  onSessionReady?: (sessionId: string) => boolean;
 }) {
   const queryClient = useQueryClient();
 
@@ -87,7 +79,7 @@ export function useGenerateDesign(options?: {
         sessionId = session.id;
       }
 
-      const accepted = options?.onSessionReady?.(sessionId, input) ?? true;
+      const accepted = options?.onSessionReady?.(sessionId) ?? true;
       if (!accepted) throw new StaleDesignOperationError();
       const operationId = createPendingOperationId();
       writePendingDesign(sessionId, {
@@ -95,42 +87,33 @@ export function useGenerateDesign(options?: {
         operationId,
       });
       try {
-        const sharedConstraints = {
-          candidate_count: input.candidateCount ?? 4,
-          // A fixed palette deterministically collapses the worker colorway axis to
-          // `default`; carrying a previous session colorway would be contradictory.
-          colorway:
-            input.palette?.mode === "fixed" ? undefined : input.colorway,
-          palette: input.palette,
-        };
-        const { data: response } =
-          input.mode === "prompt"
-            ? await generateDesign({
-                body: {
-                  session_id: sessionId,
-                  prompt: input.prompt,
-                  ...sharedConstraints,
-                  reference_images: (input.referenceImages ?? []).map(
-                    (image) => ({
-                      upload_id: image.uploadId,
-                      purpose: image.purpose,
-                    }),
-                  ),
-                  user_motif_ids: input.userMotifIds ?? [],
-                },
-                throwOnError: true,
-              })
-            : await rerollDesign({
-                path: { session_id: sessionId },
-                body: {
-                  seed: input.seed,
-                  ...sharedConstraints,
-                },
-                throwOnError: true,
-              });
+        const { data: response } = await generateDesign({
+          body: {
+            session_id: sessionId,
+            prompt: input.prompt,
+            palette: input.palette,
+            reference_images: (input.referenceImages ?? []).map((image) => ({
+              upload_id: image.uploadId,
+              purpose: image.purpose,
+            })),
+            user_motif_ids: input.userMotifIds ?? [],
+          },
+          throwOnError: true,
+        });
         // prompt 원문·sessionId는 넣지 않는다
-        trackEvent("generate_design", { mode: input.mode });
-        return { sessionId, response };
+        trackEvent("generate_design", {
+          rejected: "rejected" in response ? ("1" as const) : ("0" as const),
+        });
+        const out =
+          response && !("rejected" in response)
+            ? (response as DesignGenerateOut)
+            : null;
+        return {
+          sessionId,
+          rejected: out === null,
+          design: out?.design ?? null,
+          warnings: out?.warnings ?? [],
+        };
       } finally {
         clearPendingDesign({
           storage: options?.pendingStorage,

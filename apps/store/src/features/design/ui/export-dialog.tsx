@@ -10,7 +10,7 @@ import {
   TextField,
   VStack,
 } from "@essesion/shared";
-import { useId } from "react";
+import { useId, useState } from "react";
 
 export type ExportFormat = "png" | "tiff";
 export type ExportDpi = 150 | 300 | 600;
@@ -24,12 +24,6 @@ export type ExportDialogValue = {
 export type ExportDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  format: ExportFormat;
-  dpi: ExportDpi;
-  widthMm: string;
-  onFormatChange: (format: ExportFormat) => void;
-  onDpiChange: (dpi: ExportDpi) => void;
-  onWidthMmChange: (widthMm: string) => void;
   onSubmit: (value: ExportDialogValue) => void;
   loading?: boolean;
   disabled?: boolean;
@@ -37,20 +31,18 @@ export type ExportDialogProps = {
 
 const DPI_OPTIONS: readonly ExportDpi[] = [150, 300, 600];
 
+/** 출력 형식은 다이얼로그 로컬 폼 상태다 — 요청 payload가 아니라 이 폼의 값이다. */
 export function ExportDialog({
   open,
   onOpenChange,
-  format,
-  dpi,
-  widthMm,
-  onFormatChange,
-  onDpiChange,
-  onWidthMmChange,
   onSubmit,
   loading = false,
   disabled = false,
 }: ExportDialogProps) {
   const formId = useId();
+  const [format, onFormatChange] = useState<ExportFormat>("png");
+  const [dpi, onDpiChange] = useState<ExportDpi>(300);
+  const [widthMm, onWidthMmChange] = useState("100");
   const numericWidth = Number(widthMm);
   const validWidth =
     widthMm.trim() !== "" && Number.isFinite(numericWidth) && numericWidth > 0;

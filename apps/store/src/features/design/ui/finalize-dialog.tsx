@@ -9,6 +9,8 @@ import {
   Text,
   VStack,
 } from "@essesion/shared";
+import { useState } from "react";
+
 import { formatDateTime } from "@/shared/lib/format";
 
 export type ProductionMethod = "print" | "yarn_dyed";
@@ -28,11 +30,9 @@ export type FinalizeDialogValue = {
   dpi: 300;
 };
 
-export type FinalizeDialogProps = FinalizeDialogValue & {
+export type FinalizeDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onProductionMethodChange: (method: ProductionMethod) => void;
-  onWeaveChange: (weave: FabricWeave) => void;
   onSubmit: (value: FinalizeDialogValue) => void;
   /** 계정당 24시간 쿼터 남은 횟수 — null이면 미로드/설정 부재(막지 않음, 서버가 최종 방어) */
   remaining: number | null;
@@ -95,19 +95,26 @@ const formatResetAt = (resetAt: string | null): string | null =>
     minute: "2-digit",
   }) || null;
 
+/** 제작 방식·짜임은 다이얼로그 로컬 폼 상태다 — 캔버스가 들고 있을 값이 아니다. */
 export function FinalizeDialog({
   open,
   onOpenChange,
-  productionMethod,
-  weave,
-  onProductionMethodChange,
-  onWeaveChange,
   onSubmit,
   remaining,
   resetAt,
   loading = false,
   disabled = false,
 }: FinalizeDialogProps) {
+  const [productionMethod, setProductionMethod] =
+    useState<ProductionMethod>("print");
+  const [weave, onWeaveChange] = useState<FabricWeave>("twill-45");
+  // 날염은 트윌 2종만 지원 — 방식이 바뀌면 선택을 유효한 값으로 되돌린다.
+  const onProductionMethodChange = (method: ProductionMethod) => {
+    setProductionMethod(method);
+    if (method === "print" && !PRINT_WEAVES.includes(weave)) {
+      onWeaveChange("twill-45");
+    }
+  };
   const availableWeaves =
     productionMethod === "print"
       ? WEAVES.filter((option) => PRINT_WEAVES.includes(option.value))

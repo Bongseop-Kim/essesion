@@ -7,7 +7,6 @@ import {
 
 import type {
   DesignPalette,
-  DesignPatternConstraints,
   DesignReferenceImage,
 } from "@/features/design/model/draft";
 
@@ -16,7 +15,6 @@ type IdeaContext = {
   referenceImages: DesignReferenceImage[];
   userMotifIds: string[];
   palette: DesignPalette;
-  patternConstraints: DesignPatternConstraints;
 };
 
 export async function extractDesignPalette(uploadId: string, colorCount = 5) {

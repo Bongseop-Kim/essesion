@@ -11,13 +11,11 @@ import { readPendingDesign, type StorageLike } from "./pending";
 const api = vi.hoisted(() => ({
   createSession: vi.fn(),
   generate: vi.fn(),
-  reroll: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client", () => ({
   createDesignSession: api.createSession,
   generateDesign: api.generate,
-  rerollDesign: api.reroll,
 }));
 
 vi.mock("@essesion/api-client/query", () => ({
@@ -60,14 +58,29 @@ function queryWrapper(queryClient: QueryClient) {
   );
 }
 
-const generated = {} as DesignGenerateOut;
+const design = {
+  id: "design-1",
+  layout_id: "layout-1",
+  colorway_id: "default",
+  seed: 1,
+  source_fidelity: "exact",
+  png_object_key: null,
+  svg: "<svg/>",
+};
+const generated = {
+  run_id: "11111111-1111-4111-8111-111111111111",
+  request_id: "request-1",
+  registry_version: "registry-1",
+  engine_version: "engine-1",
+  design,
+} satisfies DesignGenerateOut;
 
-describe("useGenerateDesign pending side effects", () => {
+describe("useGenerateDesign", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("사진 순서·참고 방식과 색상·패턴 제약을 구조화해 보낸다", async () => {
+  it("문장·색 지정·참고 사진을 하나의 생성 요청으로 보낸다", async () => {
     api.generate.mockResolvedValue({ data: generated });
     const queryClient = new QueryClient();
     const { result } = renderHook(
@@ -75,27 +88,13 @@ describe("useGenerateDesign pending side effects", () => {
       { wrapper: queryWrapper(queryClient) },
     );
 
+    let outcome!: Awaited<ReturnType<typeof result.current.mutateAsync>>;
     await act(async () => {
-      await result.current.mutateAsync({
-        mode: "prompt",
+      outcome = await result.current.mutateAsync({
         sessionId: "session-a",
         prompt: "기하학 패턴",
-        candidateCount: 3,
-        referenceImages: [
-          { uploadId: "upload-a", purpose: "color_mood" },
-          { uploadId: "upload-b", purpose: "composition" },
-        ],
-        userMotifIds: ["motif-a"],
-        palette: {
-          mode: "fixed",
-          colors: ["#112233", "#AABBCC"],
-        },
-        patternConstraints: {
-          motifScale: "small",
-          density: "dense",
-          arrangement: "staggered",
-          direction: "diagonal",
-        },
+        referenceImages: [{ uploadId: "upload-a", purpose: "auto" }],
+        palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
       });
     });
 
@@ -103,49 +102,42 @@ describe("useGenerateDesign pending side effects", () => {
       body: {
         session_id: "session-a",
         prompt: "기하학 패턴",
-        candidate_count: 3,
-        colorway: undefined,
-        palette: {
-          mode: "fixed",
-          colors: ["#112233", "#AABBCC"],
-        },
-        reference_images: [
-          { upload_id: "upload-a", purpose: "color_mood" },
-          { upload_id: "upload-b", purpose: "composition" },
-        ],
-        user_motif_ids: ["motif-a"],
+        palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
+        reference_images: [{ upload_id: "upload-a", purpose: "auto" }],
+        user_motif_ids: [],
       },
       throwOnError: true,
+    });
+    expect(outcome).toEqual({
+      sessionId: "session-a",
+      rejected: false,
+      design,
+      warnings: [],
     });
     queryClient.clear();
   });
 
-  it("고정 팔레트 variation은 이전 colorway를 함께 보내지 않는다", async () => {
-    api.reroll.mockResolvedValue({ data: generated });
+  it("범위 밖 거절은 오류가 아니라 rejected 결과로 돌아온다", async () => {
+    api.generate.mockResolvedValue({ data: { rejected: "motif" } });
     const queryClient = new QueryClient();
     const { result } = renderHook(
       () => useGenerateDesign({ onSessionReady: () => true }),
       { wrapper: queryWrapper(queryClient) },
     );
 
+    let outcome!: Awaited<ReturnType<typeof result.current.mutateAsync>>;
     await act(async () => {
-      await result.current.mutateAsync({
-        mode: "variation",
+      outcome = await result.current.mutateAsync({
         sessionId: "session-a",
-        seed: 42,
-        colorway: "navy",
-        palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
+        prompt: "벌을 나비로 바꿔줘",
       });
     });
 
-    expect(api.reroll).toHaveBeenCalledWith({
-      path: { session_id: "session-a" },
-      body: expect.objectContaining({
-        seed: 42,
-        colorway: undefined,
-        palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
-      }),
-      throwOnError: true,
+    expect(outcome).toEqual({
+      sessionId: "session-a",
+      rejected: true,
+      design: null,
+      warnings: [],
     });
     queryClient.clear();
   });
@@ -173,7 +165,6 @@ describe("useGenerateDesign pending side effects", () => {
     let first!: Promise<unknown>;
     act(() => {
       first = result.current.mutateAsync({
-        mode: "prompt",
         sessionId: "session-a",
         prompt: "A",
       });
@@ -184,7 +175,6 @@ describe("useGenerateDesign pending side effects", () => {
     let second!: Promise<unknown>;
     act(() => {
       second = result.current.mutateAsync({
-        mode: "prompt",
         sessionId: "session-b",
         prompt: "B",
       });
@@ -222,7 +212,6 @@ describe("useGenerateDesign pending side effects", () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          mode: "prompt",
           sessionId: "stale-session",
           prompt: "stale",
         }),
