@@ -44,6 +44,8 @@ export function usePromptGeneration({
   const epoch = useRef(createOperationEpoch()).current;
   // pending 가드로 제출은 한 번에 하나 — 진행 중인 요청의 epoch만 담는다.
   const operation = useRef(0);
+  // state 기반 pending은 같은 tick의 중복 호출을 못 막는다 — ref로 즉시 잠근다.
+  const inFlight = useRef(false);
   const photos = usePhotoReferences();
 
   const mutation = useGenerateDesign({
@@ -70,7 +72,8 @@ export function usePromptGeneration({
   const pending = uploading || mutation.isPending || blocked;
 
   const submit = async () => {
-    if (!prompt.trim() || !ensureAuth() || pending) return;
+    if (inFlight.current || !prompt.trim() || !ensureAuth() || pending) return;
+    inFlight.current = true;
     mutation.reset();
     let started = false;
     setUploading(true);
@@ -96,6 +99,7 @@ export function usePromptGeneration({
         notify(designErrorMessage(error, "첨부 파일을 업로드하지 못했습니다."));
       }
     } finally {
+      inFlight.current = false;
       setUploading(false);
     }
   };

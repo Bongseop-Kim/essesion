@@ -129,7 +129,9 @@ export function DesignOverlays({
   const [motifDeleting, setMotifDeleting] = useState(false);
   const timer = useRef<number | undefined>(undefined);
 
-  const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
+  const sessionsQuery = useQuery(
+    designSessionsQueryOptions(authenticated && overlay === "sessions"),
+  );
   const finalizedJobsQuery = useInfiniteQuery(
     finalizedJobsInfiniteQueryOptions(authenticated && overlay === "finalized"),
   );

@@ -106,6 +106,9 @@ function download(blob: Blob, filename: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  // 다운로드 시작은 비동기 — 즉시 revoke하면 파일이 비는 브라우저가 있다.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

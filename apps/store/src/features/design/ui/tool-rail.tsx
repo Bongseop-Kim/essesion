@@ -140,7 +140,8 @@ function RailButton({
       width={{ base: 40, md: 72 }}
       onClick={onClick}
       disabled={disabled}
-      aria-label={label}
+      // 모달을 여는 버튼이라 aria-pressed 대신 라벨로 적용 상태를 알린다.
+      aria-label={active ? `${label}, 적용 중` : label}
       className="group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
     >
       <Flex

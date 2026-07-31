@@ -70,8 +70,8 @@ export function TieCanvas({
       width="full"
       height="full"
       overflow="hidden"
-      borderRadius={surface === "panel" ? "r4" : 0}
-      bg={surface === "panel" ? "bg.neutral-weak" : "transparent"}
+      borderRadius={surface === "panel" ? "r4" : undefined}
+      bg={surface === "panel" ? "bg.neutral-weak" : undefined}
       className={className}
       // 부모가 높이를 정하면(미리보기 패널) 그 영역을 그대로 채우고,
       // 높이가 불확정이면(모달) aspectRatio가 적용되어 폭 기준 정사각이 된다.

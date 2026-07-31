@@ -211,12 +211,13 @@ describe("DesignPage canvas shell", () => {
     const first = await screen.findByRole("button", {
       name: "1번째 디자인으로 되돌리기",
     });
-    // 포인터가 가리키는 마지막 스텝은 다시 누를 대상이 아니다.
-    expect(
-      disabled(
-        screen.getByRole("button", { name: "2번째 디자인, 현재 편집 중" }),
-      ),
-    ).toBe(true);
+    // 포인터가 가리키는 마지막 스텝은 포커스는 되지만 눌러도 아무 일도 없다.
+    const current = screen.getByRole("button", {
+      name: "2번째 디자인, 현재 편집 중",
+    });
+    expect(disabled(current)).toBe(false);
+    fireEvent.click(current);
+    expect(api.activateStep).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /되돌리기$/ })).toBe(first);
 
     fireEvent.click(first);

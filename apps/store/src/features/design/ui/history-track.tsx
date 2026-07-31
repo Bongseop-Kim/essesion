@@ -99,8 +99,9 @@ function StepCell({
       ref={ref}
       alignItems="center"
       gap="x1"
-      onClick={onSelect}
-      disabled={disabled || current}
+      // 현재 스텝은 disabled 대신 no-op — 포커스 가능해야 aria-current가 읽힌다.
+      onClick={current ? undefined : onSelect}
+      disabled={disabled}
       aria-current={current ? "step" : undefined}
       aria-label={
         current

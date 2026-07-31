@@ -69,36 +69,50 @@ export function designNotices(input: {
  * 노랑은 자동 조정 안내, 빨강은 거절·실패. 버튼은 두지 않는다(문장이 그대로 남아 재시도가 곧 전송).
  */
 export function CanvasNoticeLayer({ notices }: CanvasNoticeLayerProps) {
-  if (notices.length === 0) return null;
+  // live region은 항상 마운트돼 있어야 새 알림이 낭독된다 — 빈 상태도 렌더한다.
   return (
-    <VStack gap="x2" alignItems="center" role="status" aria-live="polite">
-      {notices.map((notice) => {
-        const tone = TONES[notice.tone];
-        return (
-          <Flex
-            key={notice.id}
-            alignItems="flex-start"
-            gap="x2"
-            px="x4_5"
-            py="x2_5"
-            bg={tone.bg}
-            borderWidth={1}
-            borderColor={tone.border}
-            borderRadius="full"
-            boxShadow="s2"
-          >
-            <Icon
-              svg={<ExclamationTriangleIcon />}
-              size={16}
-              color={tone.border}
-              className="mt-x0_5"
-            />
-            <Text textStyle="caption" color={tone.fg}>
-              {notice.message}
-            </Text>
-          </Flex>
-        );
-      })}
+    <VStack gap="x2" alignItems="center">
+      <VStack gap="x2" alignItems="center" role="alert" aria-live="assertive">
+        {notices
+          .filter((notice) => notice.tone === "critical")
+          .map((notice) => (
+            <NoticeChip key={notice.id} notice={notice} />
+          ))}
+      </VStack>
+      <VStack gap="x2" alignItems="center" role="status" aria-live="polite">
+        {notices
+          .filter((notice) => notice.tone !== "critical")
+          .map((notice) => (
+            <NoticeChip key={notice.id} notice={notice} />
+          ))}
+      </VStack>
     </VStack>
+  );
+}
+
+function NoticeChip({ notice }: { notice: CanvasNoticeItem }) {
+  const tone = TONES[notice.tone];
+  return (
+    <Flex
+      alignItems="flex-start"
+      gap="x2"
+      px="x4_5"
+      py="x2_5"
+      bg={tone.bg}
+      borderWidth={1}
+      borderColor={tone.border}
+      borderRadius="full"
+      boxShadow="s2"
+    >
+      <Icon
+        svg={<ExclamationTriangleIcon />}
+        size={16}
+        color={tone.border}
+        className="mt-x0_5"
+      />
+      <Text textStyle="caption" color={tone.fg}>
+        {notice.message}
+      </Text>
+    </Flex>
   );
 }

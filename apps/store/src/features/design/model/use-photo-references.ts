@@ -36,12 +36,11 @@ export function usePhotoReferences() {
   );
 
   const add = (files: File[]) => {
-    const remaining = MAX_DESIGN_PHOTOS - current.current.length;
-    if (files.length > remaining) {
+    if (files.length > MAX_DESIGN_PHOTOS - current.current.length) {
       snackbar(`참고 사진은 최대 ${MAX_DESIGN_PHOTOS}장까지 첨부할 수 있어요.`);
     }
     const accepted: PhotoReference[] = [];
-    for (const file of files.slice(0, Math.max(0, remaining))) {
+    for (const file of files) {
       try {
         validateImageFile(file, "사진은 장당 10MB 이하로 선택해 주세요.");
         accepted.push({
@@ -56,7 +55,17 @@ export function usePhotoReferences() {
         );
       }
     }
-    if (accepted.length > 0) setPhotos((items) => [...items, ...accepted]);
+    if (accepted.length > 0)
+      // 한도 판정은 updater 안에서 — 동시 호출이 겹쳐도 최대 장수를 넘지 않는다.
+      setPhotos((items) => {
+        const kept = accepted.slice(
+          0,
+          Math.max(0, MAX_DESIGN_PHOTOS - items.length),
+        );
+        for (const dropped of accepted.slice(kept.length))
+          URL.revokeObjectURL(dropped.previewUrl);
+        return [...items, ...kept];
+      });
   };
 
   const remove = (id: string) => {
@@ -70,10 +79,14 @@ export function usePhotoReferences() {
     setPhotos([]);
   };
 
+  // state 객체를 직접 변형하지 않기 위한 캐시 — 재렌더 전에도 값을 쓸 수 있다.
+  const uploadIds = useRef(new Map<string, string>());
+
   const ensureUploaded = async (photo: PhotoReference) => {
-    if (photo.uploadId) return photo.uploadId;
+    const cached = photo.uploadId ?? uploadIds.current.get(photo.id);
+    if (cached) return cached;
     const uploadId = await uploadDesignPhoto(photo.file);
-    photo.uploadId = uploadId;
+    uploadIds.current.set(photo.id, uploadId);
     setPhotos((items) =>
       items.map((item) =>
         item.id === photo.id ? { ...item, uploadId } : item,

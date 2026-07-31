@@ -100,17 +100,19 @@ export function useGenerateDesign(options?: {
           },
           throwOnError: true,
         });
+        const rejected =
+          typeof response === "object" &&
+          response !== null &&
+          "rejected" in response;
         // prompt 원문·sessionId는 넣지 않는다
         trackEvent("generate_design", {
-          rejected: "rejected" in response ? ("1" as const) : ("0" as const),
+          rejected: rejected ? ("1" as const) : ("0" as const),
         });
         const out =
-          response && !("rejected" in response)
-            ? (response as DesignGenerateOut)
-            : null;
+          response && !rejected ? (response as DesignGenerateOut) : null;
         return {
           sessionId,
-          rejected: out === null,
+          rejected,
           design: out?.design ?? null,
           warnings: out?.warnings ?? [],
         };

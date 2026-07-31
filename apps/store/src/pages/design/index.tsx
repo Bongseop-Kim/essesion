@@ -163,12 +163,14 @@ export function DesignPage() {
   const runOnSession = async (
     run: (id: string) => Promise<unknown>,
     fallback: string,
-  ) => {
-    if (!sessionId || !ensureAuth() || busy) return;
+  ): Promise<boolean> => {
+    if (!sessionId || !ensureAuth() || busy) return false;
     try {
       await run(sessionId);
+      return true;
     } catch (error) {
       snackbar(designErrorMessage(error, fallback));
+      return false;
     }
   };
 
@@ -188,8 +190,10 @@ export function DesignPage() {
       await queryClient.invalidateQueries({
         queryKey: listUserMotifsQueryKey(),
       });
-      await replaceMotif(motif.motif_id);
-      snackbar(`‘${motif.name}’ 모티프로 바꿨어요.`);
+      // 활성화가 건너뛰어지거나 실패하면 성공 안내를 내지 않는다(실패 스낵바와 모순 방지).
+      if (await replaceMotif(motif.motif_id)) {
+        snackbar(`‘${motif.name}’ 모티프로 바꿨어요.`);
+      }
     } catch (error) {
       snackbar(designErrorMessage(error, "SVG 모티프를 저장하지 못했습니다."));
     }

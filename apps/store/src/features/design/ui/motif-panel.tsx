@@ -88,8 +88,14 @@ export function MotifPanel({
             <MiniChip key={slot} motif={motifs[slot - 1]} />
           ))}
         </HStack>
-      ) : (
-        slots.map((slot) => (
+      ) : null}
+      {/* base엔 제목 줄·미니 칩이 없으니 접힘 상태와 무관하게 슬롯을 보여준다. */}
+      <VStack
+        alignItems="stretch"
+        gap="x3"
+        display={{ base: "flex", md: collapsed ? "none" : "flex" }}
+      >
+        {slots.map((slot) => (
           <MotifSlotView
             key={slot}
             slot={slot}
@@ -97,8 +103,8 @@ export function MotifPanel({
             disabled={disabled}
             onEdit={onEditSlot}
           />
-        ))
-      )}
+        ))}
+      </VStack>
     </VStack>
   );
 }
@@ -161,7 +167,17 @@ function MotifSlotView({
   const name = motif.name ?? "모티프";
   return (
     <VStack alignItems="stretch" gap="x2">
-      <Box width="full">
+      {/* base엔 편집 버튼 줄이 없다 — 미리보기 자체가 편집 진입점을 겸한다. */}
+      <Box
+        as="button"
+        type="button"
+        width="full"
+        borderRadius="r2"
+        onClick={() => onEdit(slot)}
+        disabled={disabled}
+        aria-label={`${name} 바꾸기`}
+        className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none"
+      >
         <ImageFrame
           ratio={1}
           borderRadius="r2"
