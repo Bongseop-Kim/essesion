@@ -1124,26 +1124,30 @@ async def _log_scope_rejection(
 ) -> None:
     """범위 밖 거절도 한 행 남긴다 — 결과가 없으니 status는 error다(과금은 api가 되돌린다)."""
 
-    await session.rollback()
-    session.add(
-        SeamlessGenerationLog(
-            id=body.run_id,
-            request_id=request_id_var.get(),
-            session_id=body.motif_provenance.session_id if body.motif_provenance else None,
-            user_id=body.motif_provenance.user_id if body.motif_provenance else None,
-            input_type="prompt",
-            prompt=body.prompt,
-            colorway=body.colorway,
-            seed=body.seed,
-            candidate_count_requested=1,
-            warnings=[],
-            status="error",
-            error_type="ScopeRejected",
-            error_message="request is outside the composition patch scope",
-            diagnostics=request.state.generation_diagnostics,
+    # 로그 실패가 거절 응답을 500으로 바꾸지 않게 한다 — 데코레이터의 에러 로그와 같은 규칙.
+    try:
+        await session.rollback()
+        session.add(
+            SeamlessGenerationLog(
+                id=body.run_id,
+                request_id=request_id_var.get(),
+                session_id=body.motif_provenance.session_id if body.motif_provenance else None,
+                user_id=body.motif_provenance.user_id if body.motif_provenance else None,
+                input_type="prompt",
+                prompt=body.prompt,
+                colorway=body.colorway,
+                seed=body.seed,
+                candidate_count_requested=1,
+                warnings=[],
+                status="error",
+                error_type="ScopeRejected",
+                error_message="request is outside the composition patch scope",
+                diagnostics=request.state.generation_diagnostics,
+            )
         )
-    )
-    await session.commit()
+        await session.commit()
+    except Exception:
+        logger.exception("scope rejection log persistence failed")
 
 
 @generate_router.post(

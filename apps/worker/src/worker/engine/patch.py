@@ -387,7 +387,18 @@ def apply_patch(
     if patch.background is not None:
         backgrounds = _layers(raw, "background")
         if backgrounds:
-            book.recolor(backgrounds[0]["params"]["color"], patch.background.color)
+            ground = backgrounds[0]
+            slot_id = ground["params"]["color"]
+            shared = any(
+                slot_id in ordered_slot_refs({"layers": [layer]})
+                for layer in raw["layers"]
+                if layer is not ground
+            )
+            # 줄무늬·무늬와 슬롯을 공유하면 배경만 떼어낸다 — 슬롯을 덮으면 같이 물든다.
+            if shared:
+                ground["params"]["color"] = book.slot_for(patch.background.color)
+            else:
+                book.recolor(slot_id, patch.background.color)
     if patch.stripe is not None:
         _apply_stripe(raw, patch.stripe, tile=tile, book=book)
     if patch.placement is not None:

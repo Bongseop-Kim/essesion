@@ -31,6 +31,7 @@ from worker.integrations import DryRunObjectStore
 from worker.main import create_app
 from worker.motifs.registry import get_motif
 from worker.render.raster import RasterError
+from worker.warnings import WARNING_MESSAGES, customer_warnings
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
@@ -351,6 +352,33 @@ def test_warnings_are_customer_facing_and_deduped_by_code(client):
     assert len(codes) == len(set(codes))
     # 엔진 영문 문자열이 아니라 한글 한 줄만 노출된다.
     assert all(item["message"] and "gamut" not in item["message"] for item in warnings)
+
+
+def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
+    texts = [
+        "color #FFD700 is outside CMYK gamut",
+        "motif bee dropped (unavailable)",
+        "preview upload skipped",
+        "spacing snapped to 8.0mm",
+        "widths reduced to keep the background visible",
+        "motif size 9.0mm (lattice cell 8.0mm)",
+        "another color is outside CMYK gamut",  # 중복 코드는 첫 건만
+        "engine did something unmapped",  # 문구 없는 진단은 내려보내지 않는다
+    ]
+
+    warnings = customer_warnings(texts)
+
+    assert [item["code"] for item in warnings] == [
+        "color_out_of_gamut",
+        "motif_dropped",
+        "preview_unavailable",
+        "spacing_snapped",
+        "stripe_coverage_reduced",
+        "motif_size_clamped",
+    ]
+    assert [item["message"] for item in warnings] == [
+        WARNING_MESSAGES[item["code"]] for item in warnings
+    ]
 
 
 def test_lattice_overlap_clamp_is_reported_as_a_warning(client):

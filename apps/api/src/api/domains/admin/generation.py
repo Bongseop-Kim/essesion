@@ -782,7 +782,7 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
     ]
 
     return GenerationDiagnosticsOut(
-        mode=cast("Literal['prompt', 'variation'] | None", mode),
+        mode=cast("Literal['prompt', 'patch', 'variation'] | None", mode),
         model=_safe_token(raw.get("model")),
         prompt_revision=_safe_token(raw.get("prompt_revision")),
         reference_count=count("reference_count"),

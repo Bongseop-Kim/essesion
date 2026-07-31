@@ -75,6 +75,43 @@ def test_background_patch_recolors_the_ground_slot_and_its_colorway():
     assert _slot_hex(patched, "color_1") == "#000080"
 
 
+def test_background_patch_does_not_recolor_a_slot_shared_with_the_stripes():
+    shared = _lattice_intent()
+    shared["layers"].insert(
+        1,
+        {
+            "id": "stripe_0",
+            "type": "stripe",
+            "z_order": 1,
+            "params": {
+                "angle": 0.0,
+                "period_mm": 12.0,
+                # 밴드가 배경 슬롯을 그대로 쓴다 — 배경만 바꿔야 한다.
+                "bands": [{"offset_mm": 0.0, "width_mm": 4.0, "color": "ground"}],
+            },
+        },
+    )
+
+    patched = apply_patch(shared, _patch(background={"color": "#F5F0E6"}))
+
+    band_slot = patched["layers"][1]["params"]["bands"][0]["color"]
+    bg_slot = patched["layers"][0]["params"]["color"]
+    assert bg_slot != band_slot
+    assert _slot_hex(patched, bg_slot) == "#F5F0E6"
+    assert _slot_hex(patched, band_slot) == "#FFFFFF"
+    assert patched["colorways"][0]["mapping"][bg_slot] == "#F5F0E6"
+
+
+def test_placement_patch_derives_scatter_density_from_the_axis_count():
+    patched = apply_patch(
+        _lattice_intent(), _patch(placement={"arrangement": "scatter", "count_per_axis": 4})
+    )
+
+    placement = patched["layers"][1]["placement"]
+    assert placement["type"] == "scatter"
+    assert placement["scatter"] == {"mode": "poisson", "min_dist_mm": 12.0, "count": 8}
+
+
 def test_motif_color_paints_every_slot_including_original_color_motifs():
     base = mvp_intent()
     # 원본색을 유지하는 여러 색 무늬 — 슬롯 참조가 아니라 직접 hex다.
