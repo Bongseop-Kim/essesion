@@ -348,6 +348,7 @@ ADMIN_CASES: list[AdminCase] = [
         "/admin/reviews/00000000-0000-0000-0000-000000000000",
     ),
     AdminCase("admin_coupons_list", "GET", "/admin/coupons"),
+    AdminCase("admin_design_examples_list", "GET", "/admin/design/examples"),
     AdminCase("admin_manual_orders_list", "GET", "/admin/manual-orders"),
     AdminCase(
         "admin_manual_orders_create",

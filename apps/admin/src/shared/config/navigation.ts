@@ -72,6 +72,11 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
         href: "/few-shot-examples",
       },
       { key: "motifs", label: "Motif SVG", href: "/motifs" },
+      {
+        key: "design-examples",
+        label: "디자인 예시",
+        href: "/design-examples",
+      },
     ],
   },
   {

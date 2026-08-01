@@ -32,6 +32,7 @@ const api = vi.hoisted(() => ({
   searchMotifs: vi.fn(),
   generateMotif: vi.fn(),
   activateMotif: vi.fn(),
+  startFromExample: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client", async (importOriginal) => {
@@ -44,6 +45,7 @@ vi.mock("@essesion/api-client", async (importOriginal) => {
     searchMotifs: api.searchMotifs,
     generateMotif: api.generateMotif,
     activateMotif: api.activateMotif,
+    createDesignSessionFromExample: api.startFromExample,
   };
 });
 
@@ -74,6 +76,8 @@ const session = {
 
 /** 세션 응답을 케이스별로 덮어쓴다(예: 생성 예산 소진). beforeEach가 비운다. */
 let sessionOverride: Record<string, unknown> = {};
+/** 첫 진입 예시 갤러리 응답 — 기본은 0건(기존 빈 상태 폴백). */
+let examples: Record<string, unknown>[] = [];
 
 const step = (seq: number, runId: string, svg: string) => ({
   id: `turn-${seq}`,
@@ -149,6 +153,14 @@ vi.mock("@/features/design/model/queries", () => ({
   }),
 }));
 
+vi.mock("@essesion/api-client/query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
+  listDesignExamplesOptions: () => ({
+    queryKey: ["page-design-examples"],
+    queryFn: async () => examples,
+  }),
+}));
+
 import { DesignPage } from "./index";
 
 function memoryStorage(): Storage {
@@ -203,6 +215,7 @@ describe("DesignPage canvas shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionOverride = {};
+    examples = [];
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
     localStorage.setItem(DESIGN_ONBOARDING_KEY, "1");
@@ -327,6 +340,7 @@ describe("DesignPage canvas shell", () => {
     useSession.setState({ status: "anonymous", accessToken: null, user: null });
     const queryClient = renderPage();
 
+    // 예시 0건이면 갤러리 대신 기존 빈 상태 문구로 폴백한다.
     await screen.findByText("아직 만든 디자인이 없어요");
     expect(disabled(screen.getByRole("button", { name: "내려받기" }))).toBe(
       true,
@@ -335,6 +349,43 @@ describe("DesignPage canvas shell", () => {
     expect(disabled(screen.getByRole("button", { name: "참고 사진" }))).toBe(
       false,
     );
+    queryClient.clear();
+  });
+
+  it("비로그인 첫 진입에서 예시를 고르면 그 디자인으로 시작한다", async () => {
+    useSession.setState({ status: "anonymous", accessToken: null, user: null });
+    examples = [
+      {
+        id: "example-1",
+        name: "미드나잇 웨이브",
+        caption: "네이비 · 대각 스트라이프",
+        preview_svg: "<svg id='e1'/>",
+      },
+    ];
+    api.startFromExample.mockResolvedValue({
+      data: { ...session, id: "session-2" },
+    });
+    const queryClient = renderPage();
+
+    const card = await screen.findByRole("button", {
+      name: "미드나잇 웨이브 예시로 시작하기",
+    });
+    // 타일 아래 흰 면이 제목·설명 두 줄을 받는다.
+    expect(card.textContent).toBe("미드나잇 웨이브네이비 · 대각 스트라이프");
+
+    fireEvent.click(card);
+
+    await waitFor(() =>
+      expect(api.startFromExample).toHaveBeenCalledWith({
+        body: { example_id: "example-1" },
+        throwOnError: true,
+      }),
+    );
+    // 빈 세션을 새로 만들지도, 생성을 돌리지도 않는다 — 토큰이 들지 않는 경로다.
+    expect(api.createSession).not.toHaveBeenCalled();
+    expect(api.generate).not.toHaveBeenCalled();
+    // 캔버스·이력이 그대로 채워진다(서버가 붙인 스텝 2개).
+    await screen.findByRole("button", { name: "2번째 디자인, 현재 편집 중" });
     queryClient.clear();
   });
 

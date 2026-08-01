@@ -794,6 +794,84 @@ export type AdminCustomerTokenOut = {
 };
 
 /**
+ * AdminDesignExampleCreateRequest
+ */
+export type AdminDesignExampleCreateRequest = {
+    /**
+     * Caption
+     */
+    caption?: string | null;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Ordinal
+     */
+    ordinal?: number;
+    /**
+     * Run Id
+     */
+    run_id: string;
+};
+
+/**
+ * AdminDesignExampleOut
+ */
+export type AdminDesignExampleOut = {
+    /**
+     * Caption
+     */
+    caption: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Ordinal
+     */
+    ordinal: number;
+    /**
+     * Preview Svg
+     */
+    preview_svg: string;
+    /**
+     * Published
+     */
+    published: boolean;
+    /**
+     * Run Id
+     */
+    run_id: string;
+};
+
+/**
+ * AdminDesignExampleUpdateRequest
+ */
+export type AdminDesignExampleUpdateRequest = {
+    /**
+     * Caption
+     */
+    caption?: string | null;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Ordinal
+     */
+    ordinal?: number | null;
+    /**
+     * Published
+     */
+    published?: boolean | null;
+};
+
+/**
  * AdminInquiryActorOut
  */
 export type AdminInquiryActorOut = {
@@ -3644,6 +3722,38 @@ export type DashboardTopProductsOut = {
      * Start Date
      */
     start_date: string;
+};
+
+/**
+ * DesignExampleOut
+ */
+export type DesignExampleOut = {
+    /**
+     * Caption
+     */
+    caption: string | null;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Preview Svg
+     */
+    preview_svg: string;
+};
+
+/**
+ * DesignExampleStartRequest
+ */
+export type DesignExampleStartRequest = {
+    /**
+     * Example Id
+     */
+    example_id: string;
 };
 
 /**
@@ -9564,6 +9674,109 @@ export type GetDashboardTopProductsResponses = {
 
 export type GetDashboardTopProductsResponse = GetDashboardTopProductsResponses[keyof GetDashboardTopProductsResponses];
 
+export type ListAdminDesignExamplesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/design/examples';
+};
+
+export type ListAdminDesignExamplesResponses = {
+    /**
+     * Response List Admin Design Examples
+     *
+     * Successful Response
+     */
+    200: Array<AdminDesignExampleOut>;
+};
+
+export type ListAdminDesignExamplesResponse = ListAdminDesignExamplesResponses[keyof ListAdminDesignExamplesResponses];
+
+export type CreateAdminDesignExampleData = {
+    body: AdminDesignExampleCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/design/examples';
+};
+
+export type CreateAdminDesignExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAdminDesignExampleError = CreateAdminDesignExampleErrors[keyof CreateAdminDesignExampleErrors];
+
+export type CreateAdminDesignExampleResponses = {
+    /**
+     * Successful Response
+     */
+    201: AdminDesignExampleOut;
+};
+
+export type CreateAdminDesignExampleResponse = CreateAdminDesignExampleResponses[keyof CreateAdminDesignExampleResponses];
+
+export type DeleteAdminDesignExampleData = {
+    body?: never;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/design/examples/{example_id}';
+};
+
+export type DeleteAdminDesignExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteAdminDesignExampleError = DeleteAdminDesignExampleErrors[keyof DeleteAdminDesignExampleErrors];
+
+export type DeleteAdminDesignExampleResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteAdminDesignExampleResponse = DeleteAdminDesignExampleResponses[keyof DeleteAdminDesignExampleResponses];
+
+export type UpdateAdminDesignExampleData = {
+    body: AdminDesignExampleUpdateRequest;
+    path: {
+        /**
+         * Example Id
+         */
+        example_id: string;
+    };
+    query?: never;
+    url: '/admin/design/examples/{example_id}';
+};
+
+export type UpdateAdminDesignExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAdminDesignExampleError = UpdateAdminDesignExampleErrors[keyof UpdateAdminDesignExampleErrors];
+
+export type UpdateAdminDesignExampleResponses = {
+    /**
+     * Successful Response
+     */
+    200: AdminDesignExampleOut;
+};
+
+export type UpdateAdminDesignExampleResponse = UpdateAdminDesignExampleResponses[keyof UpdateAdminDesignExampleResponses];
+
 export type ListAdminGenerationJobsData = {
     body?: never;
     path?: never;
@@ -11774,6 +11987,24 @@ export type CompleteDesignReferenceUploadResponses = {
 
 export type CompleteDesignReferenceUploadResponse = CompleteDesignReferenceUploadResponses[keyof CompleteDesignReferenceUploadResponses];
 
+export type ListDesignExamplesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/design/examples';
+};
+
+export type ListDesignExamplesResponses = {
+    /**
+     * Response List Design Examples
+     *
+     * Successful Response
+     */
+    200: Array<DesignExampleOut>;
+};
+
+export type ListDesignExamplesResponse = ListDesignExamplesResponses[keyof ListDesignExamplesResponses];
+
 export type ExportDesignData = {
     body: DesignExportRequest;
     path?: never;
@@ -12221,6 +12452,31 @@ export type CreateDesignSessionResponses = {
 };
 
 export type CreateDesignSessionResponse = CreateDesignSessionResponses[keyof CreateDesignSessionResponses];
+
+export type CreateDesignSessionFromExampleData = {
+    body: DesignExampleStartRequest;
+    path?: never;
+    query?: never;
+    url: '/design/sessions/from-example';
+};
+
+export type CreateDesignSessionFromExampleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateDesignSessionFromExampleError = CreateDesignSessionFromExampleErrors[keyof CreateDesignSessionFromExampleErrors];
+
+export type CreateDesignSessionFromExampleResponses = {
+    /**
+     * Successful Response
+     */
+    201: DesignSessionOut;
+};
+
+export type CreateDesignSessionFromExampleResponse = CreateDesignSessionFromExampleResponses[keyof CreateDesignSessionFromExampleResponses];
 
 export type DeleteDesignSessionData = {
     body?: never;

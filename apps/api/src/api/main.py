@@ -349,6 +349,8 @@ def _include_routers(app: FastAPI) -> None:
     from api.domains.cart.router import router as cart_router
     from api.domains.claims.router import router as claims_router
     from api.domains.coupons.router import router as coupons_router
+    from api.domains.design.examples import admin_router as admin_design_examples_router
+    from api.domains.design.examples import router as design_examples_router
     from api.domains.design.router import router as design_router
     from api.domains.images.router import router as images_router
     from api.domains.inquiries.router import router as inquiries_router
@@ -376,7 +378,9 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(images_router)
     app.include_router(reform_router)
     app.include_router(design_router)
+    app.include_router(design_examples_router)
     app.include_router(admin_router)
+    app.include_router(admin_design_examples_router)
     app.include_router(admin_authoring_router)
     app.include_router(admin_customers_router)
     app.include_router(admin_coupons_router)
