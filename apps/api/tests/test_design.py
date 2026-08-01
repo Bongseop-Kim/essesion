@@ -2808,9 +2808,7 @@ async def test_motif_generate_reused_refunds_budget(client, app, db_session, set
     assert await _session_recraft_used(client, headers, sid) == 0
 
 
-async def test_motif_generate_saves_to_user_library_idempotently(
-    client, app, db_session, settings
-):
+async def test_motif_generate_saves_to_user_library_idempotently(client, app, db_session, settings):
     """적용하지 않아도 내 모티프에 남는다 — 같은 모티프를 다시 만들어도 링크는 하나."""
     app.state.worker = MotifWorker(reused=False)
     await _seed_catalog_motif(db_session)
