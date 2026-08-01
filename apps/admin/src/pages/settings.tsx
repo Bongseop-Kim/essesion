@@ -42,6 +42,8 @@ type SettingPresentation = {
   unit?: string;
   /** 정수형 설정의 서버측 상한 */
   max?: number;
+  /** 정수형 설정의 서버측 하한 (기본 0) */
+  min?: number;
   /** 변경 검토 다이얼로그에 표시하는 적용 영향 */
   impact: string;
   /** 편집 화면에 상주로 띄우는 경고 (필요한 설정만) */
@@ -78,6 +80,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     inputLabel: "토큰 수량",
     unit: "개",
     max: 1_000,
+    min: 1,
     impact:
       "이후의 새 생성 요청부터 즉시 적용됩니다. store 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
     editWarning: {
@@ -95,6 +98,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     inputLabel: "토큰 수량",
     unit: "개",
     max: 1_000,
+    min: 1,
     impact:
       "이후의 새 구성 수정 요청부터 즉시 적용됩니다. store 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
     editWarning: {
@@ -236,8 +240,9 @@ export function SettingsPage() {
     const value = draft[item.key] ?? "";
     if (item.value_type === "courier")
       return value.trim().length === 0 || value.length > 100;
-    const max = settingPresentation(item).max ?? GENERIC_NUMERIC_SETTING_MAX;
-    return !/^\d+$/.test(value) || Number(value) > max;
+    const { max = GENERIC_NUMERIC_SETTING_MAX, min = 0 } =
+      settingPresentation(item);
+    return !/^\d+$/.test(value) || Number(value) < min || Number(value) > max;
   });
 
   const save = () => {

@@ -3,7 +3,7 @@
 import uuid
 from collections.abc import Collection
 from datetime import UTC, datetime
-from typing import Literal, cast
+from typing import Literal, cast, get_args
 
 from db.models.commerce import AdminSetting, PricingConstant
 from fastapi import APIRouter
@@ -61,13 +61,6 @@ PRICE_CATEGORIES: dict[str, str] = {
     "token_plan_pro_price": "token",
     "token_plan_pro_amount": "token",
 }
-SETTING_KEYS = (
-    "default_courier_company",
-    "design_edit_cost",
-    "design_finalize_daily_limit",
-    "design_token_cost_openai_render_standard",
-    "design_token_initial_grant",
-)
 SettingKey = Literal[
     "default_courier_company",
     "design_edit_cost",
@@ -75,6 +68,7 @@ SettingKey = Literal[
     "design_token_cost_openai_render_standard",
     "design_token_initial_grant",
 ]
+SETTING_KEYS: tuple[str, ...] = get_args(SettingKey)
 # 단가 하한이 1인 이유: 0이면 생성 자체가 503이다 (ledger.get_cost).
 _COST_RANGE = (1, 1_000, "토큰 단가는 1에서 1000 사이 정수여야 합니다")
 _INT_SETTING_RANGES = {

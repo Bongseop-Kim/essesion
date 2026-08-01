@@ -32,6 +32,7 @@ async def _source(
     finalized: bool = True,
     finalize_other_run: bool = False,
     status: str = "success",
+    with_design_id: bool = True,
 ) -> SeamlessGenerationLog:
     user = User(name="승격 테스트 사용자", role="customer")
     db_session.add(user)
@@ -54,7 +55,11 @@ async def _source(
             }
         },
         design={
-            "id": f"design-{example_index}-{design_session.id.hex[:8]}",
+            **(
+                {"id": f"design-{example_index}-{design_session.id.hex[:8]}"}
+                if with_design_id
+                else {}
+            ),
             "svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
         },
         status=status,
@@ -99,6 +104,12 @@ async def test_scan_registers_only_finalized_successful_runs(db_session):
         prompt="부분 성공 패턴",
         example_index=3,
         status="partial",
+    )
+    await _source(
+        db_session,
+        prompt="design id 없는 패턴",
+        example_index=4,
+        with_design_id=False,
     )
 
     result = await scan_promotion_candidates(

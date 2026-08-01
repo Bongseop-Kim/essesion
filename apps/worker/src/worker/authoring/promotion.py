@@ -15,7 +15,7 @@ from db.models.seamless import (
     AuthoringPromotionCandidate,
     SeamlessGenerationLog,
 )
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -99,19 +99,18 @@ def _design_id(log: SeamlessGenerationLog) -> str | None:
     return value if isinstance(value, str) else None
 
 
-async def _is_finalized(session: AsyncSession, log: SeamlessGenerationLog) -> bool:
+async def _finalized_run_ids(session: AsyncSession, run_ids: list[str]) -> set[str]:
     """실사화가 유일한 승격 신호다 — 후보 선택이 없어졌으므로 생성이 곧 선택이다."""
-    return bool(
-        await session.scalar(
-            select(func.count())
-            .select_from(GenerationJob)
-            .where(
-                GenerationJob.kind == "finalize",
-                GenerationJob.status == "succeeded",
-                GenerationJob.params["run_id"].astext == str(log.id),
-            )
+    if not run_ids:
+        return set()
+    rows = await session.scalars(
+        select(GenerationJob.params["run_id"].astext).where(
+            GenerationJob.kind == "finalize",
+            GenerationJob.status == "succeeded",
+            GenerationJob.params["run_id"].astext.in_(run_ids),
         )
     )
+    return set(rows)
 
 
 async def _source_plans(
@@ -132,15 +131,20 @@ async def _source_plans(
         .order_by(SeamlessGenerationLog.created_at.desc(), SeamlessGenerationLog.id.desc())
         .limit(limit * 5)
     )
-    sources: list[_SourcePlan] = []
+    prelim: list[tuple[SeamlessGenerationLog, str, dict[str, Any]]] = []
     for log in logs:
         design_id = _design_id(log)
         authoring = _safe_authoring(log.intent)
         if design_id is None or authoring is None:
             continue
-        plan = authoring.get("plan")
-        if not isinstance(plan, dict) or not await _is_finalized(session, log):
+        if isinstance(authoring.get("plan"), dict):
+            prelim.append((log, design_id, authoring))
+    finalized = await _finalized_run_ids(session, [str(log.id) for log, _, _ in prelim])
+    sources: list[_SourcePlan] = []
+    for log, design_id, authoring in prelim:
+        if str(log.id) not in finalized:
             continue
+        plan = authoring["plan"]
         contract = authoring.get("plan_contract_version")
         compiler = authoring.get("compiler_revision")
         prompt_revision = authoring.get("prompt_revision")

@@ -65,6 +65,7 @@ async def get_balance(session: AsyncSession, user_id: uuid.UUID) -> dict[str, in
 async def get_cost(session: AsyncSession, cost_key: str = TOKEN_COST_SETTING) -> int:
     cost_value = await get_admin_setting(session, cost_key)
     if not cost_value or not cost_value.isdigit() or int(cost_value) <= 0:
+        logger.error("토큰 비용 설정이 없거나 잘못됨: %s=%r", cost_key, cost_value)
         raise DomainError("토큰 비용이 설정되지 않았습니다", code="token_cost_not_configured")
     return int(cost_value)
 
