@@ -123,7 +123,7 @@ resolver가 concrete ID와 metadata를 확정한 뒤 네트워크 없이 다음 
 
 `POST /ideas`는 기존 prompt, ordered `(reference image,purpose)`, 최대 2개의 exact motif 문맥, palette와 count(3 또는 4)를 받는다. worker 내부에서는 id/name 순서를 검증하지만 Gemini 프롬프트에는 ordinal과 human name만 보내고 private content-hash id는 공개하지 않는다. 이미지는 생성과 같은 순서/전처리를 쓴다. 결과는 서로 다른 180자 이하 문장 정확히 count개인 JSON만 수용하며 형식 오류는 한 번 constrained retry 후 502다.
 
-이 경로는 intent·candidate·generation log를 만들지 않고 Recraft도 호출하지 않는다. 과금과 사용자별 rate limit은 API 경계가 소유하며 worker에는 토큰 차감 로직이 없다. 프론트가 provider를 직접 호출하지 않는다.
+이 경로는 intent·디자인·generation log를 만들지 않고 Recraft도 호출하지 않는다. 과금과 사용자별 rate limit은 API 경계가 소유하며 worker에는 토큰 차감 로직이 없다. 프론트가 provider를 직접 호출하지 않는다.
 
 ## 8. registry fingerprint
 

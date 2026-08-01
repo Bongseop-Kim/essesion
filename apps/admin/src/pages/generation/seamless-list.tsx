@@ -167,13 +167,6 @@ export function SeamlessLogsPage() {
       render: (log) => <OperationalStatusBadge status={log.status} />,
     },
     {
-      key: "candidates",
-      header: "후보",
-      align: "end",
-      render: (log) =>
-        `${log.candidate_count_returned ?? 0} / ${log.candidate_count_requested ?? "-"}`,
-    },
-    {
       key: "warning_count",
       header: "경고",
       align: "end",
@@ -340,7 +333,7 @@ export function SeamlessLogsPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="Seamless 로그"
-        description="Seamless 생성 요청의 상태·지연·정제된 오류를 조회합니다."
+        description="생성 1건 = 디자인 1개입니다. 상태·지연·정제된 오류를 조회합니다."
       />
 
       <AdminCard title="Seamless 통계" description="현재 필터 기준 집계입니다.">

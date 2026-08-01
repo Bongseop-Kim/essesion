@@ -61,6 +61,9 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
     }
     assert row.diagnostics["compose_ms"] >= 0
     assert row.diagnostics["render_ms"] >= 0
+    # 생성 1회 = 디자인 1개 — 로그도 배열이 아니라 단수 키다.
+    assert isinstance(row.design, dict) and isinstance(row.design["id"], str)
+    assert isinstance(row.intent, dict) and isinstance(row.intent["design"], dict)
 
 
 async def test_worker_records_partial_with_render_timing_and_sanitized_warning(

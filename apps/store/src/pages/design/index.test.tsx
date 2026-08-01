@@ -138,7 +138,7 @@ vi.mock("@/features/design/model/queries", () => ({
   }),
   designTokenBalanceQueryOptions: () => ({
     queryKey: ["page-design-balance"],
-    queryFn: async () => ({ total: 455, generate_cost: 5 }),
+    queryFn: async () => ({ total: 455, generate_cost: 5, edit_cost: 2 }),
   }),
 }));
 

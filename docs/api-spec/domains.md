@@ -80,6 +80,28 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - 통계: 오늘(주문 수·매출 합, 타입 필터 all|sale|custom|repair|token|sample), 기간(start≤end, created_at 범위).
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).
 
-## 11. 에러 메시지 계약
+## 11. 디자인(`/design`) 엔드포인트
+
+재설계 뒤의 현재 표면. 한 번의 생성이 디자인 1개를 만들고, 세션은 그 디자인들의 선형 이력(스텝)을 갖는다. 계약 상세는 [worker-pipeline.md](./worker-pipeline.md) §5, 과금은 [money.md](./money.md) §6.
+
+| 엔드포인트 | 역할 | 과금 |
+|---|---|---|
+| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`·`finalize_quota` 포함 | — |
+| `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
+| `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 범위 밖 요청은 `200 {rejected:"motif"}` | `design_token_cost_openai_render_standard` / `design_edit_cost` |
+| `POST /design/sessions/{id}/steps/activate` | 이력 썸네일 클릭 = 편집 포인터 이동(`{run_id}`). 이후 스텝은 그대로 남는다 | — |
+| `POST /design/sessions/{id}/motifs/search` | 문장으로 카탈로그 모티프 찾기 | 무료 |
+| `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(Recraft) | 0토큰 · 세션 예산 3회 |
+| `POST /design/sessions/{id}/motifs/activate` | 슬롯(≤2)의 모티프 교체 → 결정적 재렌더 | 무료 |
+| `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
+| `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` · `/design/palette/extract` | 글자·사진 → SVG 변환, 색 추출 | 무료 |
+| `POST /design/ideas` | 편집 초안 문장 3~4개 (별도 rate limit) | 무료 |
+| `POST /design/sessions/{id}/finalize` | 실사화 job 생성 (계정당 24시간 쿼터) | job 단위 |
+| `POST /design/export` | 이미 만든 SVG의 PNG/TIFF 변환 | 무료 |
+| `GET·DELETE /design/jobs`·`/design/jobs/{id}` · `POST /design/jobs/{id}/cancel`·`/order-reference` | job 상태·취소·주문 연결 | — |
+
+폐기된 엔드포인트: `POST /design/sessions/{id}/select`(→ `steps/activate`), `.../reroll`("같은 지시로 다시" 없음), `.../branch`(분기 트리 UI 없음).
+
+## 12. 에러 메시지 계약
 
 기존 P0001 한국어 메시지는 프론트 노출 문자열 — 그대로 보존(detail 필드). 대표: `유효하지 않은 휴대폰 번호입니다`, `1분 후 재전송 가능합니다`, `오늘 인증 시도 횟수를 초과했습니다`, `인증번호가 만료되었습니다`, `인증번호가 일치하지 않습니다`, `현재 주문 상태에서는 취소할 수 없습니다`, `활성 클레임이 있는 주문은 주문 상태를 직접 변경할 수 없습니다`, `롤백 시 사유 입력 필수`, `접수 상태에서만 클레임을 취소할 수 있습니다`, `발송대기 상태에서만 송장번호를 등록할 수 있습니다`, `딤플은 자동 봉제(AUTO)에서만 선택 가능합니다`, `관리자 권한이 없습니다.` 등 — 각 도메인 구현 시 원문 사용.

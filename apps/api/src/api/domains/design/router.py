@@ -999,9 +999,8 @@ async def list_design_turns(
 
 
 def _logged_design(log: SeamlessGenerationLog) -> dict[str, Any] | None:
-    """워커 로그가 보관한 단일 디자인 — 저장 형식은 1개짜리 배열(admin 관측용)."""
-    entries = log.candidates if isinstance(log.candidates, list) else []
-    return next((entry for entry in entries if isinstance(entry, dict)), None)
+    """워커 로그가 보관한 단일 디자인 — 생성 1회 = 디자인 1개."""
+    return log.design if isinstance(log.design, dict) else None
 
 
 async def _design_turn_outs(
@@ -1213,6 +1212,12 @@ async def generate_design(
             design_session_id=design_session.id,
             expected_context_version=expected_context_version,
             run_id=run_id,
+            # 커밋된 디자인을 고치는 요청(patch)은 첫 생성보다 싸다.
+            cost_key=(
+                ledger.DESIGN_EDIT_COST_SETTING
+                if conversation_context is not None
+                else ledger.TOKEN_COST_SETTING
+            ),
             user_turn=DesignUserGenerationPayload(
                 run_id=run_id,
                 mode="prompt",
@@ -1508,6 +1513,7 @@ async def _start_generation(
     design_session_id: uuid.UUID,
     expected_context_version: int,
     run_id: uuid.UUID,
+    cost_key: str,
     user_turn: DesignUserGenerationPayload,
     photos: list[tuple[Image, ReferencePurpose]],
     user_motifs: list[tuple[UserMotif, Motif]],
@@ -1543,6 +1549,7 @@ async def _start_generation(
         session,
         user_id,
         work_id,
+        cost_key=cost_key,
         commit=False,
     )
     if not charge.success:
@@ -1823,6 +1830,7 @@ async def _dispatch_generation(
     design_session_id: uuid.UUID,
     expected_context_version: int,
     run_id: uuid.UUID,
+    cost_key: str,
     user_turn: DesignUserGenerationPayload,
     photos: list[tuple[Image, ReferencePurpose]],
     user_motifs: list[tuple[UserMotif, Motif]],
@@ -1834,6 +1842,7 @@ async def _dispatch_generation(
             design_session_id=design_session_id,
             expected_context_version=expected_context_version,
             run_id=run_id,
+            cost_key=cost_key,
             user_turn=user_turn,
             photos=photos,
             user_motifs=user_motifs,

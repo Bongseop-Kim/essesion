@@ -155,8 +155,8 @@ class AuthoringPromotionCandidate(TimestampMixin, Base):
     source_generation_log_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("seamless_generation_logs.id", ondelete="SET NULL"), index=True
     )
-    plan_index: Mapped[int] = mapped_column(Integer)
-    selected_candidate_id: Mapped[str]
+    # 승격 대상 디자인의 결정론 id — 로그 1행에 디자인 1개이므로 인덱스는 없다.
+    design_id: Mapped[str]
     contract_version: Mapped[int] = mapped_column(Integer)
     compiler_revision: Mapped[str]
     prompt_revision: Mapped[str]
@@ -185,7 +185,6 @@ class AuthoringPromotionCandidate(TimestampMixin, Base):
     )
 
     __table_args__ = (
-        CheckConstraint("plan_index >= 0", name="plan_index"),
         CheckConstraint("contract_version > 0", name="contract_version_positive"),
         CheckConstraint("motif_count BETWEEN 0 AND 2", name="motif_count"),
         CheckConstraint(
@@ -238,14 +237,11 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     reference_image_bytes: Mapped[int | None]
     colorway: Mapped[str | None]
     seed: Mapped[int | None] = mapped_column(BigInteger)
-    candidate_count_requested: Mapped[int | None]
-    candidate_count_returned: Mapped[int | None]
-    distinct_layouts: Mapped[int | None]
-    available_strategies: Mapped[int | None]
     engine_version: Mapped[str | None]
     registry_version: Mapped[str | None]
     intent: Mapped[dict[str, Any] | None]
-    candidates: Mapped[list[Any] | None] = mapped_column(JSONB)
+    # 생성 1회 = 디자인 1개 — 렌더 결과 스냅샷(id·svg·png_url·layout/colorway·seed).
+    design: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     warnings: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     generate_ms: Mapped[Decimal | None]
     render_ms: Mapped[Decimal | None]

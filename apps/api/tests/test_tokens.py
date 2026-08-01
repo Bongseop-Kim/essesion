@@ -16,6 +16,7 @@ from sqlalchemy import select
 from .factories import auth_headers, make_order, make_user, seed_pricing, seed_setting
 
 COST_SETTING = ("design_token_cost_openai_render_standard", "5")
+EDIT_COST_SETTING = ("design_edit_cost", "2")
 
 
 def _grant(user_id, amount, token_class="free", **kw):
@@ -149,14 +150,21 @@ async def test_expired_tokens_excluded_from_balance(db_session):
     assert (await ledger.get_balance(db_session, user.id))["total"] == 0
 
 
-async def test_balance_endpoint_includes_generate_cost(client, db_session, settings):
+async def test_balance_endpoint_includes_generate_and_edit_costs(client, db_session, settings):
     await seed_setting(db_session, *COST_SETTING)
+    await seed_setting(db_session, *EDIT_COST_SETTING)
     user = await make_user(db_session)
 
     response = await client.get("/tokens/balance", headers=auth_headers(user, settings))
 
     assert response.status_code == 200
-    assert response.json() == {"total": 0, "paid": 0, "bonus": 0, "generate_cost": 5}
+    assert response.json() == {
+        "total": 0,
+        "paid": 0,
+        "bonus": 0,
+        "generate_cost": 5,
+        "edit_cost": 2,
+    }
 
 
 async def test_history_is_owned_newest_first_paginated_and_filterable(client, db_session, settings):

@@ -37,6 +37,8 @@ from api.pricing import get_admin_setting, get_pricing_constants
 logger = logging.getLogger(__name__)
 
 TOKEN_COST_SETTING = "design_token_cost_openai_render_standard"
+# 구성 수정(patch)은 flash-lite 1콜뿐이라 첫 생성과 단가를 분리한다 (money.md §6).
+DESIGN_EDIT_COST_SETTING = "design_edit_cost"
 PLAN_KEYS = ("starter", "popular", "pro")
 TOKEN_DEBIT_ORDER = ("paid", "bonus", "free")
 
@@ -60,8 +62,8 @@ async def get_balance(session: AsyncSession, user_id: uuid.UUID) -> dict[str, in
     return {"total": paid + bonus, "paid": paid, "bonus": bonus}
 
 
-async def get_generate_cost(session: AsyncSession) -> int:
-    cost_value = await get_admin_setting(session, TOKEN_COST_SETTING)
+async def get_cost(session: AsyncSession, cost_key: str = TOKEN_COST_SETTING) -> int:
+    cost_value = await get_admin_setting(session, cost_key)
     if not cost_value or not cost_value.isdigit() or int(cost_value) <= 0:
         raise DomainError("토큰 비용이 설정되지 않았습니다", code="token_cost_not_configured")
     return int(cost_value)
@@ -207,10 +209,11 @@ async def use_tokens(
     user_id: uuid.UUID,
     work_id: str,
     *,
+    cost_key: str = TOKEN_COST_SETTING,
     commit: bool = True,
 ) -> UseResult:
-    """생성 1회 과금 — 4단계에서 워커 generate 경로가 호출한다."""
-    cost = await get_generate_cost(session)
+    """생성 1회 과금 — `cost_key`로 첫 생성/구성 수정 단가를 가른다."""
+    cost = await get_cost(session, cost_key)
 
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user_id))
 

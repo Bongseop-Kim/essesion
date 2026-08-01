@@ -16,6 +16,7 @@ import { krw } from "@/shared/lib/format";
 export type TokenPillProps = {
   balance: number | null;
   generateCost: number | null;
+  editCost: number | null;
   onPurchase: () => void;
 };
 
@@ -23,6 +24,7 @@ export type TokenPillProps = {
 export function TokenPill({
   balance,
   generateCost,
+  editCost,
   onPurchase,
 }: TokenPillProps) {
   return (
@@ -54,7 +56,8 @@ export function TokenPill({
         <VStack gap="x0_5" alignItems="stretch" px="x2" py="x1_5">
           <Text textStyle="labelSm">잔액 {format(balance)}토큰</Text>
           <Text textStyle="captionSm" color="fg.neutral-subtle">
-            디자인 만들기·고치기 1회 {format(generateCost)}토큰
+            처음 만들기 1회 {format(generateCost)}토큰 · 고치기 1회{" "}
+            {format(editCost)}토큰
           </Text>
         </VStack>
         <MenuItem

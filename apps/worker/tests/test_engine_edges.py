@@ -7,7 +7,7 @@ test_scatter/test_placement_path/test_candidates에서 이식).
 import math
 
 import pytest
-from worker.engine.candidates import compose_design
+from worker.engine.compose import compose_design
 from worker.engine.intent import Placement, ScatterSpec
 from worker.engine.placement import _torus_dist, place_scatter
 from worker.engine.units import MAX_LANE_PERIOD_TILES, divides, snap_angle, snap_spacing

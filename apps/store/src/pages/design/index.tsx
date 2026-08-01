@@ -215,6 +215,7 @@ export function DesignPage() {
               <TokenPill
                 balance={balanceQuery.data?.total ?? null}
                 generateCost={balanceQuery.data?.generate_cost ?? null}
+                editCost={balanceQuery.data?.edit_cost ?? null}
                 onPurchase={() => navigate("/token/purchase")}
               />
             ) : (

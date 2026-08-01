@@ -89,9 +89,9 @@
 
 - **플랜**: pricing_constants `token_plan_{starter|popular|pro}_{price|amount}` 6키 (DB가 소스).
 - **토큰 주문 생성**: 플랜 검증 → `TKN-` 채번 → orders(order_type='token', 배송지 NULL, total=price) + order_items(item_type='token', item_data={plan_key, token_amount}).
-- **차감 (use)**: 비용 = admin_settings `design_token_cost_openai_render_standard`(현행 5). 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus(work_id `{work}_use_bonus`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리한다.
+- **차감 (use)**: 비용 = 호출자가 지정한 `cost_key`의 admin_settings 값. 디자인 첫 생성은 `design_token_cost_openai_render_standard`(현행 5), 이미 만든 디자인의 구성 수정(patch)은 `design_edit_cost`(현행 2) — 수정은 flash-lite 1콜뿐이라 단가를 분리했다. 두 키 모두 관리자 설정 화면에서 1~1000으로 바꿀 수 있고 0이면 생성이 503이다. 모티프 검색·교체는 무과금이고 모티프 생성은 토큰 0 + 세션 Recraft 예산 3회만 쓴다. 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus(work_id `{work}_use_bonus`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리한다.
 - **실패 환불 (refund)**: 내부 전용. 실제 차감 행마다 class·source_order_id·expires_at을 보존한 양수 반전 행을 INSERT한다. work_id는 각 `{work}_use_*_refund`로 필수 멱등.
-- **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합.
+- **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합. `GET /tokens/balance`는 여기에 `generate_cost`·`edit_cost`를 실어 store 토큰 pill이 두 단가를 그대로 보여준다.
 - **가입 지급**: 신규 유저 생성 시(소셜 가입) admin_settings `design_token_initial_grant`(기본 30), type='grant', class='free', **만료 없음**.
 - **admin 지급/회수**: amount≠0, description 필수, 음수면 잔액 검증(유저 lock). type='admin', class='paid'.
 - **환불 요청 (고객)**: 조건 = ①본인 완료(status='완료') 토큰 주문 ②paid 지급분 존재·미만료 ③**가장 최근 완료 토큰 주문일 것** ④지급 이후 type='use' 내역 없음 ⑤중복 요청 없음(거부 제외). refund_amount = total_price 전액. claims INSERT: type='token_refund', status='접수', claim_number=`TKR-...`, refund_data=`{paid_token_amount, bonus_token_amount:0, refund_amount}`.

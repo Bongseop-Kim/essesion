@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, cast
 
-from db.models.design import DesignSessionTurn, GenerationJob
+from db.models.design import GenerationJob
 from db.models.seamless import (
     AuthoringExample,
     AuthoringPromotionCandidate,
@@ -49,8 +49,7 @@ class PromotionScanResult:
 @dataclass(frozen=True)
 class _SourcePlan:
     log: SeamlessGenerationLog
-    plan_index: int
-    selected_candidate_id: str
+    design_id: str
     raw_plan: dict[str, Any]
     contract_version: int
     compiler_revision: str
@@ -58,7 +57,8 @@ class _SourcePlan:
 
     @property
     def source_key(self) -> str:
-        return f"{self.log.id}:{self.plan_index}"
+        # 생성 1회 = 플랜 1개라 로그 id가 곧 유일 키다.
+        return str(self.log.id)
 
 
 @dataclass(frozen=True)
@@ -91,85 +91,27 @@ def _safe_authoring(value: object) -> dict[str, Any] | None:
     return authoring if isinstance(authoring, dict) else None
 
 
-def _candidate_design_index(log: SeamlessGenerationLog, candidate_id: str) -> int | None:
-    for value in log.candidates or []:
-        if not isinstance(value, dict) or value.get("id") != candidate_id:
-            continue
-        index = value.get("design_index")
-        return index if isinstance(index, int) and not isinstance(index, bool) else None
-    return None
+def _design_id(log: SeamlessGenerationLog) -> str | None:
+    design = log.design
+    if not isinstance(design, dict):
+        return None
+    value = design.get("id")
+    return value if isinstance(value, str) else None
 
 
-async def _selected_finalized_candidate(
-    session: AsyncSession,
-    log: SeamlessGenerationLog,
-) -> str | None:
-    exact_link = DesignSessionTurn.payload["run_id"].astext == str(log.id)
-    generated_turn = await session.scalar(
-        select(DesignSessionTurn)
-        .where(
-            DesignSessionTurn.role == "assistant",
-            DesignSessionTurn.payload["type"].astext == "generate",
-            exact_link,
+async def _is_finalized(session: AsyncSession, log: SeamlessGenerationLog) -> bool:
+    """실사화가 유일한 승격 신호다 — 후보 선택이 없어졌으므로 생성이 곧 선택이다."""
+    return bool(
+        await session.scalar(
+            select(func.count())
+            .select_from(GenerationJob)
+            .where(
+                GenerationJob.kind == "finalize",
+                GenerationJob.status == "succeeded",
+                GenerationJob.params["run_id"].astext == str(log.id),
+            )
         )
-        .order_by(DesignSessionTurn.created_at, DesignSessionTurn.seq)
-        .limit(1)
     )
-    if generated_turn is None:
-        return None
-
-    next_request = await session.scalar(
-        select(DesignSessionTurn)
-        .where(
-            DesignSessionTurn.session_id == generated_turn.session_id,
-            DesignSessionTurn.seq > generated_turn.seq,
-            DesignSessionTurn.payload["type"].astext == "generate_request",
-        )
-        .order_by(DesignSessionTurn.seq)
-        .limit(1)
-    )
-    candidate_ids = [
-        value["id"]
-        for value in (log.candidates or [])
-        if isinstance(value, dict) and isinstance(value.get("id"), str)
-    ]
-    if not candidate_ids:
-        return None
-    selection_filters = [
-        DesignSessionTurn.session_id == generated_turn.session_id,
-        DesignSessionTurn.seq > generated_turn.seq,
-        DesignSessionTurn.payload["type"].astext == "select",
-        DesignSessionTurn.payload["run_id"].astext == str(log.id),
-        DesignSessionTurn.payload["candidate_id"].astext.in_(candidate_ids),
-    ]
-    if next_request is not None:
-        selection_filters.append(DesignSessionTurn.seq < next_request.seq)
-    selected_turn = await session.scalar(
-        select(DesignSessionTurn)
-        .where(*selection_filters)
-        .order_by(DesignSessionTurn.seq.desc())
-        .limit(1)
-    )
-    if selected_turn is None:
-        return None
-    selected = selected_turn.payload.get("candidate_id")
-    if not isinstance(selected, str):
-        return None
-
-    finalize_filters = [
-        GenerationJob.session_id == generated_turn.session_id,
-        GenerationJob.kind == "finalize",
-        GenerationJob.status == "succeeded",
-        GenerationJob.params["run_id"].astext == str(log.id),
-        GenerationJob.params["candidate_id"].astext == selected,
-        GenerationJob.finished_at >= selected_turn.created_at,
-    ]
-    if next_request is not None:
-        finalize_filters.append(GenerationJob.finished_at < next_request.created_at)
-    finalized = await session.scalar(
-        select(func.count()).select_from(GenerationJob).where(*finalize_filters)
-    )
-    return selected if finalized else None
 
 
 async def _source_plans(
@@ -192,20 +134,12 @@ async def _source_plans(
     )
     sources: list[_SourcePlan] = []
     for log in logs:
-        selected = await _selected_finalized_candidate(session, log)
-        if selected is None:
-            continue
-        plan_index = _candidate_design_index(log, selected)
+        design_id = _design_id(log)
         authoring = _safe_authoring(log.intent)
-        if authoring is None:
+        if design_id is None or authoring is None:
             continue
-        plans = authoring.get("plans")
-        if (
-            plan_index is None
-            or not isinstance(plans, list)
-            or plan_index >= len(plans)
-            or not isinstance(plans[plan_index], dict)
-        ):
+        plan = authoring.get("plan")
+        if not isinstance(plan, dict) or not await _is_finalized(session, log):
             continue
         contract = authoring.get("plan_contract_version")
         compiler = authoring.get("compiler_revision")
@@ -213,9 +147,8 @@ async def _source_plans(
         sources.append(
             _SourcePlan(
                 log=log,
-                plan_index=plan_index,
-                selected_candidate_id=selected,
-                raw_plan=plans[plan_index],
+                design_id=design_id,
+                raw_plan=plan,
                 contract_version=contract if isinstance(contract, int) else 0,
                 compiler_revision=compiler if isinstance(compiler, str) else "unknown",
                 prompt_revision=(
@@ -337,8 +270,7 @@ def _candidate_values(
     return {
         "source_key": source.source_key,
         "source_generation_log_id": source.log.id,
-        "plan_index": source.plan_index,
-        "selected_candidate_id": source.selected_candidate_id,
+        "design_id": source.design_id,
         "contract_version": source.contract_version,
         "compiler_revision": source.compiler_revision,
         "prompt_revision": source.prompt_revision,
@@ -355,7 +287,7 @@ def _candidate_values(
         "nearest_id": duplicate.identifier if duplicate else None,
         "nearest_similarity": duplicate.similarity if duplicate else None,
         "status": status,
-        "rule_reasons": ([duplicate.reason] if duplicate else ["success", "selected", "finalized"]),
+        "rule_reasons": ([duplicate.reason] if duplicate else ["success", "finalized"]),
     }
 
 
@@ -407,8 +339,7 @@ async def scan_promotion_candidates(
             values = {
                 "source_key": source.source_key,
                 "source_generation_log_id": source.log.id,
-                "plan_index": source.plan_index,
-                "selected_candidate_id": source.selected_candidate_id,
+                "design_id": source.design_id,
                 "contract_version": PLAN_CONTRACT_VERSION,
                 "compiler_revision": source.compiler_revision,
                 "prompt_revision": source.prompt_revision,

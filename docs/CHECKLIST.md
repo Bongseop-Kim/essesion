@@ -13,6 +13,8 @@
 ## 2. 스키마 재설계
 
 - [ ] Alembic 스테이징 적용 — *첫 배포의 migrate Cloud Run job 성공과 단일 head 확인*
+- [ ] 로컬·스테이징 DB 재생성 — *디자인 재설계가 미배포 베이스라인(`dadd999bf858`)을 직접 고쳤다: `seamless_generation_logs`의 후보 관측 컬럼 4개 삭제 + `candidates`→`design`(단일 객체), `authoring_promotion_candidates.plan_index` 삭제 + `selected_candidate_id`→`design_id`. 기존 볼륨은 새 스키마로 읽히지 않으므로 `docker compose down -v && docker compose up -d` 후 마이그레이션·시드를 다시 돌린다(모티프 카탈로그·저작 예시·임베딩 인덱스 포함).*
+- [ ] `admin_settings.design_edit_cost` 행 확인 — *구성 수정 단가(신규 필수 키). 없으면 `/admin/settings`가 503, 구성 수정이 `token_cost_not_configured`. `apps/api/scripts/seed.py`가 기본 2로 시드한다.*
 
 ## 4. worker
 
@@ -26,7 +28,7 @@
 
 - [ ] 빈 스테이징 DB에 단일 베이스라인 적용 → 관리자·motif 초기 입력과 `seed_authoring_examples.py --confirm-live` 실행, motif/example `embedded=total`, 공개 멀티슬롯 `slot_labels`·`slot_parts` 백필의 `eligible/updated` 및 admin 표본 결과 검증
 - [ ] Recraft V4.1 vector 스테이징 스모크 → `controls.colors`·`random_seed` 수용, 팔레트 겹침률·gradient 게이트 거부율 기록, 부위 지정 채팅 리컬러의 `color_indices` 길이·슬롯 매핑 표본 검증
-- [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(generate → finalize 큐 → 결과 수신)
+- [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(첫 생성 → 구성 수정 → 이력 되돌리기 → finalize 큐 → 결과 수신)
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정
 - [ ] Gemini 참고 사진 처리 지역·학습 사용·로그/abuse monitoring 보존·삭제 제어·DPA·사용자 고지를 실제 계약·프로젝트 설정 기준으로 승인
 - [ ] 회원 탈퇴 후 역사성 개인정보 필드별 보존 목적·기간·접근 통제·분리 저장·만료 시 익명화/삭제 정책 승인

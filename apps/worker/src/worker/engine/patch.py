@@ -34,6 +34,14 @@ Arrangement = Literal["lattice", "staggered", "scatter"]
 MAX_PATCH_BANDS = 4
 MIN_AXIS_COUNT = 2
 MAX_AXIS_COUNT = 10
+PATCH_AXES = (
+    "background",
+    "stripe",
+    "placement",
+    "motif_size_mm",
+    "motif_color",
+    "palette",
+)
 
 
 class _Patch(BaseModel):
@@ -96,18 +104,13 @@ class DesignPatchV1(_Patch):
     out_of_scope: bool = False
 
     @property
+    def changed_axes(self) -> list[str]:
+        """실제로 바뀐 축 이름 — 거절 판정과 admin 진단이 같은 목록을 본다."""
+        return [axis for axis in PATCH_AXES if getattr(self, axis) is not None]
+
+    @property
     def has_changes(self) -> bool:
-        return any(
-            value is not None
-            for value in (
-                self.background,
-                self.stripe,
-                self.placement,
-                self.motif_size_mm,
-                self.motif_color,
-                self.palette,
-            )
-        )
+        return bool(self.changed_axes)
 
 
 def _layers(raw: dict[str, Any], layer_type: str) -> list[dict[str, Any]]:

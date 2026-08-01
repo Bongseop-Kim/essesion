@@ -27,7 +27,8 @@ router = APIRouter(tags=["tokens"])
 async def get_token_balance(session: SessionDep, user: CurrentUser) -> TokenBalance:
     return TokenBalance(
         **await ledger.get_balance(session, user.id),
-        generate_cost=await ledger.get_generate_cost(session),
+        generate_cost=await ledger.get_cost(session),
+        edit_cost=await ledger.get_cost(session, ledger.DESIGN_EDIT_COST_SETTING),
     )
 
 

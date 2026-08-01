@@ -3641,7 +3641,9 @@
           "key": {
             "enum": [
               "default_courier_company",
+              "design_edit_cost",
               "design_finalize_daily_limit",
+              "design_token_cost_openai_render_standard",
               "design_token_initial_grant"
             ],
             "title": "Key",
@@ -3993,6 +3995,10 @@
             "title": "Created At",
             "type": "string"
           },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
           "embedding_model": {
             "anyOf": [
               {
@@ -4058,10 +4064,6 @@
             "additionalProperties": true,
             "title": "Plan",
             "type": "object"
-          },
-          "plan_index": {
-            "title": "Plan Index",
-            "type": "integer"
           },
           "preview_status": {
             "enum": [
@@ -4135,10 +4137,6 @@
             "title": "Rule Reasons",
             "type": "array"
           },
-          "selected_candidate_id": {
-            "title": "Selected Candidate Id",
-            "type": "string"
-          },
           "source_digest": {
             "title": "Source Digest",
             "type": "string"
@@ -4198,8 +4196,7 @@
         "required": [
           "id",
           "source_generation_log_id",
-          "plan_index",
-          "selected_candidate_id",
+          "design_id",
           "contract_version",
           "compiler_revision",
           "prompt_revision",
@@ -4258,6 +4255,10 @@
             "title": "Created At",
             "type": "string"
           },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
           "family": {
             "title": "Family",
             "type": "string"
@@ -4307,10 +4308,6 @@
               }
             ],
             "title": "Nearest Similarity"
-          },
-          "plan_index": {
-            "title": "Plan Index",
-            "type": "integer"
           },
           "prompt_revision": {
             "title": "Prompt Revision",
@@ -4364,10 +4361,6 @@
             "title": "Rule Reasons",
             "type": "array"
           },
-          "selected_candidate_id": {
-            "title": "Selected Candidate Id",
-            "type": "string"
-          },
           "source_generation_log_id": {
             "anyOf": [
               {
@@ -4419,8 +4412,7 @@
         "required": [
           "id",
           "source_generation_log_id",
-          "plan_index",
-          "selected_candidate_id",
+          "design_id",
           "contract_version",
           "compiler_revision",
           "prompt_revision",
@@ -7671,17 +7663,6 @@
             ],
             "title": "Authoring Ms"
           },
-          "candidate_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count"
-          },
           "catalog_candidate_count": {
             "anyOf": [
               {
@@ -7787,7 +7768,8 @@
                 "enum": [
                   "prompt",
                   "patch",
-                  "variation"
+                  "variation",
+                  "motif_slot"
                 ],
                 "type": "string"
               },
@@ -7826,27 +7808,12 @@
             "title": "Motif Resolutions",
             "type": "array"
           },
-          "pattern_controls": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pattern Controls"
-          },
-          "plan_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Plan Count"
+          "patch_axes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Patch Axes",
+            "type": "array"
           },
           "prompt_revision": {
             "anyOf": [
@@ -7902,17 +7869,6 @@
               }
             ],
             "title": "Resolved Count"
-          },
-          "validated_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Validated Count"
           }
         },
         "title": "GenerationDiagnosticsOut",
@@ -8281,21 +8237,15 @@
             "title": "Finalized",
             "type": "boolean"
           },
+          "reactivated": {
+            "default": false,
+            "title": "Reactivated",
+            "type": "boolean"
+          },
           "regenerated": {
             "default": false,
             "title": "Regenerated",
             "type": "boolean"
-          },
-          "selected_candidate_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Selected Candidate Id"
           },
           "session_id": {
             "anyOf": [
@@ -13654,7 +13604,7 @@
         "title": "ReviewUpdateRequest",
         "type": "object"
       },
-      "SafeCandidateOut": {
+      "SafeDesignOut": {
         "properties": {
           "colorway_id": {
             "anyOf": [
@@ -13666,17 +13616,6 @@
               }
             ],
             "title": "Colorway Id"
-          },
-          "design_index": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Design Index"
           },
           "id": {
             "anyOf": [
@@ -13745,7 +13684,6 @@
         },
         "required": [
           "id",
-          "design_index",
           "layout_id",
           "source_fidelity",
           "colorway_id",
@@ -13753,7 +13691,7 @@
           "svg",
           "svg_status"
         ],
-        "title": "SafeCandidateOut",
+        "title": "SafeDesignOut",
         "type": "object"
       },
       "SampleAmountRequest": {
@@ -13851,64 +13789,23 @@
       },
       "SeamlessDetailOut": {
         "properties": {
-          "available_strategies": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Available Strategies"
-          },
-          "candidate_count_requested": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Requested"
-          },
-          "candidate_count_returned": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Returned"
-          },
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/SafeCandidateOut"
-            },
-            "title": "Candidates",
-            "type": "array"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
           },
-          "diagnostics": {
-            "$ref": "#/components/schemas/GenerationDiagnosticsOut"
-          },
-          "distinct_layouts": {
+          "design": {
             "anyOf": [
               {
-                "type": "integer"
+                "$ref": "#/components/schemas/SafeDesignOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Distinct Layouts"
+            ]
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/GenerationDiagnosticsOut"
           },
           "engine_version": {
             "anyOf": [
@@ -13993,13 +13890,17 @@
             "title": "Input Type",
             "type": "string"
           },
-          "intents": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Intents",
-            "type": "array"
+          "intent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
           },
           "outcome": {
             "$ref": "#/components/schemas/GenerationOutcomeOut"
@@ -14106,9 +14007,6 @@
           "request_id",
           "input_type",
           "status",
-          "candidate_count_requested",
-          "candidate_count_returned",
-          "distinct_layouts",
           "warning_count",
           "generate_ms",
           "render_ms",
@@ -14121,17 +14019,16 @@
           "created_at",
           "has_prompt",
           "prompt",
-          "intents",
+          "intent",
           "has_reference_image",
           "reference_image_bytes",
           "reference_images",
           "seed",
-          "available_strategies",
           "warning_groups",
           "diagnostics",
           "outcome",
           "token_accounting",
-          "candidates"
+          "design"
         ],
         "title": "SeamlessDetailOut",
         "type": "object"
@@ -14236,43 +14133,10 @@
       },
       "SeamlessSummaryOut": {
         "properties": {
-          "candidate_count_requested": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Requested"
-          },
-          "candidate_count_returned": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Returned"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
-          },
-          "distinct_layouts": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distinct Layouts"
           },
           "engine_version": {
             "anyOf": [
@@ -14401,9 +14265,6 @@
           "request_id",
           "input_type",
           "status",
-          "candidate_count_requested",
-          "candidate_count_returned",
-          "distinct_layouts",
           "warning_count",
           "generate_ms",
           "render_ms",
@@ -14422,13 +14283,9 @@
         "properties": {
           "code": {
             "enum": [
-              "candidate_variants_dropped",
               "cmyk_gamut",
-              "design_dropped",
-              "diversity_shortfall",
               "generation_warning",
               "motif_layer_dropped",
-              "partial_candidates",
               "preview_unavailable",
               "spacing_snap",
               "stripe_period_snap"
@@ -14465,7 +14322,9 @@
           "key": {
             "enum": [
               "default_courier_company",
+              "design_edit_cost",
               "design_finalize_daily_limit",
+              "design_token_cost_openai_render_standard",
               "design_token_initial_grant"
             ],
             "title": "Key",
@@ -14491,7 +14350,7 @@
             "items": {
               "$ref": "#/components/schemas/SettingUpdateItem"
             },
-            "maxItems": 3,
+            "maxItems": 5,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -14765,6 +14624,10 @@
             "title": "Bonus",
             "type": "integer"
           },
+          "edit_cost": {
+            "title": "Edit Cost",
+            "type": "integer"
+          },
           "generate_cost": {
             "title": "Generate Cost",
             "type": "integer"
@@ -14782,7 +14645,8 @@
           "total",
           "paid",
           "bonus",
-          "generate_cost"
+          "generate_cost",
+          "edit_cost"
         ],
         "title": "TokenBalance",
         "type": "object"

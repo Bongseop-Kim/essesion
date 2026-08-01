@@ -141,7 +141,7 @@ class GenerateRequest(StrictRequest):
             raise ValueError("prompt or SVG motif is required")
         if self.intent is not None and self.conversation_context is not None:
             if self.intent != self.conversation_context.current_intent:
-                raise ValueError("intent reroll must use the committed conversation intent")
+                raise ValueError("direct intent must match the committed conversation intent")
         if self.conversation_context is not None and self.intent is None:
             if self.prompt is None:
                 raise ValueError("conversation refinement requires a prompt")

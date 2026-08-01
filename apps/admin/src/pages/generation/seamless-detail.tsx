@@ -1,6 +1,5 @@
 import type {
   MotifResolutionOut,
-  SafeCandidateOut,
   SeamlessDetailOut,
   SeamlessWarningOut,
 } from "@essesion/api-client";
@@ -15,7 +14,6 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
-  Grid,
   HStack,
   ImageFrame,
   Skeleton,
@@ -37,9 +35,11 @@ import { RouteHeading } from "../../shared/ui/route-heading";
 import { StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
 import {
+  FAILURE_CODE_LABELS,
   FAILURE_STAGE_LABELS,
   GENERATION_MODE_LABELS,
   inputTypeLabel,
+  PATCH_AXIS_LABELS,
 } from "./generation-labels";
 import { SafeSvgPreview } from "./safe-svg-preview";
 import { formatMilliseconds } from "./shared";
@@ -52,11 +52,7 @@ const SEAMLESS_STATUS_LABELS: Readonly<
   error: "오류",
 };
 
-function warningPresentation(
-  warning: SeamlessWarningOut,
-  requested: number | null,
-  returned: number | null,
-) {
+function warningPresentation(warning: SeamlessWarningOut) {
   const count = warning.count.toLocaleString("ko-KR");
   const code = warning.code;
   const items = warning.items ?? [];
@@ -64,51 +60,21 @@ function warningPresentation(
     return {
       title: `미리보기 ${count}개를 저장하지 못했습니다`,
       description:
-        "후보 SVG를 확인하고, 이미지 미리보기가 필요하면 생성을 다시 실행해 주세요.",
-    };
-  }
-  if (code === "partial_candidates") {
-    return {
-      title: "후보가 일부만 생성되었습니다",
-      description: `요청 ${requested ?? "-"}개 중 ${returned ?? "-"}개가 반환되었습니다. 선택지가 부족하면 같은 조건으로 다시 생성해 주세요.`,
+        "디자인 SVG를 확인하고, 이미지 미리보기가 필요하면 생성을 다시 실행해 주세요.",
     };
   }
   if (code === "motif_layer_dropped") {
     const motifs = items.length > 0 ? items.join(", ") : "일부 모티프";
-    const candidatesComplete =
-      requested !== null && returned === requested
-        ? ` 요청한 후보 ${returned}개는 모두 생성되었습니다.`
-        : "";
     return {
       title: `모티프 레이어 ${count}개를 제외했습니다`,
-      description: `${motifs} 모티프를 카탈로그 재사용 또는 외부 생성으로 해석하지 못해 해당 레이어만 제거했습니다.${candidatesComplete}`,
+      description: `${motifs} 모티프를 카탈로그 재사용 또는 외부 생성으로 해석하지 못해 해당 레이어만 제거했습니다.`,
     };
   }
   if (code === "cmyk_gamut") {
     const colors = items.length > 0 ? ` (${items.join(", ")})` : "";
     return {
       title: `CMYK 색역 확인이 필요한 색상 ${count}개`,
-      description: `화면용 RGB 색상${colors}이 인쇄 시 달라질 가능성이 있습니다. 후보 생성 실패가 아니라 인쇄 전 색상 확인이 필요한 안내입니다.`,
-    };
-  }
-  if (code === "diversity_shortfall") {
-    return {
-      title: "후보의 레이아웃 다양성이 부족합니다",
-      description:
-        "후보 수는 충족했지만 서로 다른 레이아웃 수가 목표보다 적습니다. 더 다양한 선택지가 필요하면 다시 생성해 주세요.",
-    };
-  }
-  if (code === "candidate_variants_dropped") {
-    return {
-      title: `렌더할 수 없는 후보 변형 ${count}개를 제외했습니다`,
-      description:
-        "유효한 후보만 반환되었습니다. 요청/반환 후보 수가 같다면 별도 재생성은 필요하지 않습니다.",
-    };
-  }
-  if (code === "design_dropped") {
-    return {
-      title: `사용할 수 없는 디자인 계획 ${count}개를 제외했습니다`,
-      description: "검증을 통과한 나머지 디자인 계획으로 후보를 생성했습니다.",
+      description: `화면용 RGB 색상${colors}이 인쇄 시 달라질 가능성이 있습니다. 생성 실패가 아니라 인쇄 전 색상 확인이 필요한 안내입니다.`,
     };
   }
   if (code === "spacing_snap") {
@@ -186,30 +152,6 @@ function motifResolutionValue(item: MotifResolutionOut) {
   return `${outcome}${matchType}${similarity}${motifId}${failure}`;
 }
 
-function CandidateCard({
-  candidate,
-  index,
-  selected,
-}: {
-  candidate: SafeCandidateOut;
-  index: number;
-  selected: boolean;
-}) {
-  const label = `후보 ${index + 1}`;
-  return (
-    <AdminCard
-      title={label}
-      action={selected ? <Badge tone="positive">선택된 후보</Badge> : undefined}
-    >
-      <SafeSvgPreview
-        svg={candidate.svg}
-        status={candidate.svg_status}
-        alt={`${label}${selected ? " 선택됨" : ""} 안전 미리보기`}
-      />
-    </AdminCard>
-  );
-}
-
 function SeamlessReferenceImage({
   logId,
   imageId,
@@ -277,7 +219,7 @@ function SeamlessDetailLoading() {
           <Skeleton width="80%" height={20} />
         </VStack>
       </AdminCard>
-      <AdminCard title="후보 결과">
+      <AdminCard title="디자인">
         <Skeleton width="100%" height={280} />
       </AdminCard>
     </VStack>
@@ -315,12 +257,7 @@ export function SeamlessLogDetailPage() {
 
   const log = query.data;
   const motifResolutions = log.diagnostics.motif_resolutions ?? [];
-  const selectedCandidateIndex =
-    log.outcome.selected_candidate_id == null
-      ? -1
-      : log.candidates.findIndex(
-          (candidate) => candidate.id === log.outcome.selected_candidate_id,
-        );
+  const patchAxes = log.diagnostics.patch_axes ?? [];
 
   return (
     <VStack gap="x6" alignItems="stretch">
@@ -352,24 +289,30 @@ export function SeamlessLogDetailPage() {
 
       <VStack gap="x4" alignItems="stretch">
         <Text as="h2" textStyle="title2">
-          후보 결과
+          생성 결과
         </Text>
-        {log.candidates.length === 0 ? (
+        {log.design === null ? (
           <ContentPlaceholder
-            title="표시할 후보가 없습니다"
-            description="실패했거나 후보 SVG가 기록되지 않은 생성입니다."
+            title="표시할 디자인이 없습니다"
+            description="실패했거나 디자인 SVG가 기록되지 않은 생성입니다."
           />
         ) : (
-          <Grid columns={{ base: 2, md: 4 }} gap="x3">
-            {log.candidates.map((candidate, index) => (
-              <CandidateCard
-                key={candidate.id ?? `${candidate.design_index}-${index}`}
-                candidate={candidate}
-                index={index}
-                selected={index === selectedCandidateIndex}
+          <Box maxWidth={480}>
+            <AdminCard
+              title="디자인"
+              action={
+                log.design.id ? (
+                  <Badge tone="neutral">{log.design.id}</Badge>
+                ) : undefined
+              }
+            >
+              <SafeSvgPreview
+                svg={log.design.svg}
+                status={log.design.svg_status}
+                alt="디자인 안전 미리보기"
               />
-            ))}
-          </Grid>
+            </AdminCard>
+          </Box>
         )}
       </VStack>
 
@@ -421,20 +364,12 @@ export function SeamlessLogDetailPage() {
         </AdminCard>
       )}
 
-      {log.intents.length > 0 && (
+      {log.intent !== null && (
         <AdminCard
           title="생성 Intent"
           description="프롬프트 해석 후 검증·제약 적용·모티프 해석까지 끝난 엔진 입력입니다."
         >
-          <VStack gap="x3" alignItems="stretch">
-            {log.intents.map((intent, index) => (
-              <TechnicalDetails
-                key={index}
-                title={`Intent ${index + 1} JSON`}
-                json={intent}
-              />
-            ))}
-          </VStack>
+          <TechnicalDetails title="Intent JSON" json={log.intent} />
         </AdminCard>
       )}
 
@@ -448,21 +383,9 @@ export function SeamlessLogDetailPage() {
           />
         ))}
 
-      <AdminCard title="성능·후보 집계">
+      <AdminCard title="성능">
         <DetailList
           items={[
-            {
-              label: "요청 / 반환 후보",
-              value: `${log.candidate_count_requested ?? "-"} / ${log.candidate_count_returned ?? 0}`,
-            },
-            {
-              label: "고유 레이아웃",
-              value: formatIdentifier(log.distinct_layouts),
-            },
-            {
-              label: "사용 가능 전략",
-              value: formatIdentifier(log.available_strategies),
-            },
             { label: "생성 시간", value: formatMilliseconds(log.generate_ms) },
             { label: "렌더 시간", value: formatMilliseconds(log.render_ms) },
             { label: "경고 수", value: `${log.warning_count}건` },
@@ -490,8 +413,13 @@ export function SeamlessLogDetailPage() {
               value: formatIdentifier(log.diagnostics.authoring_attempts),
             },
             {
-              label: "계획 검증",
-              value: `${log.diagnostics.validated_count ?? "-"} / ${log.diagnostics.plan_count ?? "-"}`,
+              label: "수정한 구성 축",
+              value:
+                patchAxes.length === 0
+                  ? "-"
+                  : patchAxes
+                      .map((axis) => PATCH_AXIS_LABELS[axis] ?? axis)
+                      .join(" · "),
             },
             {
               label: "공개 카탈로그 후보",
@@ -519,7 +447,13 @@ export function SeamlessLogDetailPage() {
                 log.failure_stage ??
                 "-",
             },
-            { label: "실패 코드", value: log.failure_code ?? "-" },
+            {
+              label: "실패 코드",
+              value:
+                FAILURE_CODE_LABELS[log.failure_code ?? ""] ??
+                log.failure_code ??
+                "-",
+            },
             {
               label: "외부 연동",
               value: log.diagnostics.failure_provider
@@ -558,12 +492,8 @@ export function SeamlessLogDetailPage() {
           <DetailList
             items={[
               {
-                label: "후보 선택",
-                value: log.outcome.selected_candidate_id
-                  ? selectedCandidateIndex >= 0
-                    ? `후보 ${selectedCandidateIndex + 1} 선택`
-                    : "선택함"
-                  : "선택 기록 없음",
+                label: "이력에서 다시 활성화",
+                value: log.outcome.reactivated ? "있음" : "없음",
               },
               {
                 label: "후속 재생성",
@@ -611,11 +541,7 @@ export function SeamlessLogDetailPage() {
         >
           <VStack gap="x3" alignItems="stretch">
             {log.warning_groups.map((warning) => {
-              const presentation = warningPresentation(
-                warning,
-                log.candidate_count_requested,
-                log.candidate_count_returned,
-              );
+              const presentation = warningPresentation(warning);
               return (
                 <Callout
                   key={warning.code}
@@ -646,20 +572,19 @@ export function SeamlessLogDetailPage() {
           diagnostics: log.diagnostics,
           outcome: log.outcome,
           token_accounting: log.token_accounting,
-          intent_count: log.intents.length,
+          has_intent: log.intent !== null,
           reference_images: log.reference_images,
           seed: log.seed,
           engine_version: log.engine_version,
           registry_version: log.registry_version,
-          candidates: log.candidates.map((candidate) => ({
-            candidate_id: candidate.id,
-            design_index: candidate.design_index,
-            layout_id: candidate.layout_id,
-            colorway_id: candidate.colorway_id,
-            source_fidelity: candidate.source_fidelity,
-            seed: candidate.seed,
-            svg_status: candidate.svg_status,
-          })),
+          design: log.design && {
+            design_id: log.design.id,
+            layout_id: log.design.layout_id,
+            colorway_id: log.design.colorway_id,
+            source_fidelity: log.design.source_fidelity,
+            seed: log.design.seed,
+            svg_status: log.design.svg_status,
+          },
         }}
       />
     </VStack>

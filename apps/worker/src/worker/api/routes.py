@@ -250,7 +250,6 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                     ),
                     colorway=body.colorway,
                     seed=body.seed,
-                    candidate_count_requested=1,
                     warnings=[],
                     generate_ms=generate_ms,
                     render_ms=request.state.generation_render_ms,
@@ -642,7 +641,7 @@ async def _generate_from_intent(
         resolved_intent=constrained_intent,
         tile_mm=float(constrained_intent["canvas"]["tile_mm"]),
         intent_log={
-            "designs": [constrained_intent],
+            "design": constrained_intent,
             "palette": body.palette.model_dump(),
             "resolved_plan": None,
             **({"motif_slot": body.motif_slot.model_dump()} if body.motif_slot is not None else {}),
@@ -889,7 +888,7 @@ async def _generate_from_prompt(
             (time.perf_counter() - compose_started) * 1000, 3
         )
     intent_log: dict[str, Any] = {
-        "designs": [resolved_intent],
+        "design": resolved_intent,
         "palette": body.palette.model_dump(),
         "resolved_plan": resolved_plan.model_dump(mode="json") if resolved_plan else None,
     }
@@ -969,6 +968,7 @@ async def _generate_from_patch(
             (time.perf_counter() - authoring_started) * 1000, 3
         )
 
+    request.state.generation_diagnostics["patch_axes"] = patch.changed_axes
     if patch.out_of_scope or not patch.has_changes:
         # 아무것도 만들지 않았다 — api가 과금을 되돌리고 턴도 남기지 않는다.
         request.state.generation_diagnostics["failure_code"] = "scope_rejected"
@@ -1009,7 +1009,7 @@ async def _generate_from_patch(
         resolved_intent=constrained_intent,
         tile_mm=float(constrained_intent["canvas"]["tile_mm"]),
         intent_log={
-            "designs": [constrained_intent],
+            "design": constrained_intent,
             "palette": body.palette.model_dump(),
             "resolved_plan": None,
             "patch": patch.model_dump(mode="json", exclude_none=True),
@@ -1089,14 +1089,10 @@ async def generate(
         reference_image_bytes=sum(item.size_bytes for item in body.reference_images) or None,
         colorway=body.colorway,
         seed=body.seed,
-        candidate_count_requested=1,
-        candidate_count_returned=1,
-        distinct_layouts=1,
-        available_strategies=1,
         engine_version=settings.engine_version,
         registry_version=registry_version,
         intent=outcome.intent_log,
-        candidates=[{**out.model_dump(), "intent": outcome.design.intent.model_dump(mode="json")}],
+        design={**out.model_dump(), "intent": outcome.design.intent.model_dump(mode="json")},
         warnings=warnings,
         generate_ms=generate_ms,
         render_ms=request.state.generation_render_ms,
@@ -1139,7 +1135,6 @@ async def _log_scope_rejection(
                 prompt=body.prompt,
                 colorway=body.colorway,
                 seed=body.seed,
-                candidate_count_requested=1,
                 warnings=[],
                 status="error",
                 error_type="ScopeRejected",

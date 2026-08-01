@@ -1950,7 +1950,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -2160,6 +2160,10 @@ export type AuthoringCandidateDetailOut = {
      */
     created_at: string;
     /**
+     * Design Id
+     */
+    design_id: string;
+    /**
      * Embedding Model
      */
     embedding_model: string | null;
@@ -2198,10 +2202,6 @@ export type AuthoringCandidateDetailOut = {
         [key: string]: unknown;
     };
     /**
-     * Plan Index
-     */
-    plan_index: number;
-    /**
      * Preview Status
      */
     preview_status: 'safe' | 'unavailable' | 'unsafe';
@@ -2237,10 +2237,6 @@ export type AuthoringCandidateDetailOut = {
      * Rule Reasons
      */
     rule_reasons: Array<unknown>;
-    /**
-     * Selected Candidate Id
-     */
-    selected_candidate_id: string;
     /**
      * Source Digest
      */
@@ -2292,6 +2288,10 @@ export type AuthoringCandidateSummaryOut = {
      */
     created_at: string;
     /**
+     * Design Id
+     */
+    design_id: string;
+    /**
      * Family
      */
     family: string;
@@ -2320,10 +2320,6 @@ export type AuthoringCandidateSummaryOut = {
      */
     nearest_similarity: number | null;
     /**
-     * Plan Index
-     */
-    plan_index: number;
-    /**
      * Prompt Revision
      */
     prompt_revision: string;
@@ -2351,10 +2347,6 @@ export type AuthoringCandidateSummaryOut = {
      * Rule Reasons
      */
     rule_reasons: Array<unknown>;
-    /**
-     * Selected Candidate Id
-     */
-    selected_candidate_id: string;
     /**
      * Source Generation Log Id
      */
@@ -4146,10 +4138,6 @@ export type GenerationDiagnosticsOut = {
      */
     authoring_ms?: number | null;
     /**
-     * Candidate Count
-     */
-    candidate_count?: number | null;
-    /**
      * Catalog Candidate Count
      */
     catalog_candidate_count?: number | null;
@@ -4188,7 +4176,7 @@ export type GenerationDiagnosticsOut = {
     /**
      * Mode
      */
-    mode?: 'prompt' | 'patch' | 'variation' | null;
+    mode?: 'prompt' | 'patch' | 'variation' | 'motif_slot' | null;
     /**
      * Model
      */
@@ -4202,13 +4190,9 @@ export type GenerationDiagnosticsOut = {
      */
     motif_resolutions?: Array<MotifResolutionOut>;
     /**
-     * Pattern Controls
+     * Patch Axes
      */
-    pattern_controls?: boolean | null;
-    /**
-     * Plan Count
-     */
-    plan_count?: number | null;
+    patch_axes?: Array<string>;
     /**
      * Prompt Revision
      */
@@ -4229,10 +4213,6 @@ export type GenerationDiagnosticsOut = {
      * Resolved Count
      */
     resolved_count?: number | null;
-    /**
-     * Validated Count
-     */
-    validated_count?: number | null;
 };
 
 /**
@@ -4442,13 +4422,13 @@ export type GenerationOutcomeOut = {
      */
     finalized?: boolean;
     /**
+     * Reactivated
+     */
+    reactivated?: boolean;
+    /**
      * Regenerated
      */
     regenerated?: boolean;
-    /**
-     * Selected Candidate Id
-     */
-    selected_candidate_id?: string | null;
     /**
      * Session Id
      */
@@ -7444,17 +7424,13 @@ export type ReviewUpdateRequest = {
 };
 
 /**
- * SafeCandidateOut
+ * SafeDesignOut
  */
-export type SafeCandidateOut = {
+export type SafeDesignOut = {
     /**
      * Colorway Id
      */
     colorway_id: string | null;
-    /**
-     * Design Index
-     */
-    design_index: number | null;
     /**
      * Id
      */
@@ -7544,30 +7520,11 @@ export type SampleOrderCreateRequest = {
  */
 export type SeamlessDetailOut = {
     /**
-     * Available Strategies
-     */
-    available_strategies: number | null;
-    /**
-     * Candidate Count Requested
-     */
-    candidate_count_requested: number | null;
-    /**
-     * Candidate Count Returned
-     */
-    candidate_count_returned: number | null;
-    /**
-     * Candidates
-     */
-    candidates: Array<SafeCandidateOut>;
-    /**
      * Created At
      */
     created_at: string;
+    design: SafeDesignOut | null;
     diagnostics: GenerationDiagnosticsOut;
-    /**
-     * Distinct Layouts
-     */
-    distinct_layouts: number | null;
     /**
      * Engine Version
      */
@@ -7609,11 +7566,11 @@ export type SeamlessDetailOut = {
      */
     input_type: string;
     /**
-     * Intents
+     * Intent
      */
-    intents: Array<{
+    intent: {
         [key: string]: unknown;
-    }>;
+    } | null;
     outcome: GenerationOutcomeOut;
     /**
      * Prompt
@@ -7723,21 +7680,9 @@ export type SeamlessStatsOut = {
  */
 export type SeamlessSummaryOut = {
     /**
-     * Candidate Count Requested
-     */
-    candidate_count_requested: number | null;
-    /**
-     * Candidate Count Returned
-     */
-    candidate_count_returned: number | null;
-    /**
      * Created At
      */
     created_at: string;
-    /**
-     * Distinct Layouts
-     */
-    distinct_layouts: number | null;
     /**
      * Engine Version
      */
@@ -7799,7 +7744,7 @@ export type SeamlessWarningOut = {
     /**
      * Code
      */
-    code: 'candidate_variants_dropped' | 'cmyk_gamut' | 'design_dropped' | 'diversity_shortfall' | 'generation_warning' | 'motif_layer_dropped' | 'partial_candidates' | 'preview_unavailable' | 'spacing_snap' | 'stripe_period_snap';
+    code: 'cmyk_gamut' | 'generation_warning' | 'motif_layer_dropped' | 'preview_unavailable' | 'spacing_snap' | 'stripe_period_snap';
     /**
      * Count
      */
@@ -7821,7 +7766,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Value
      */
@@ -7996,6 +7941,10 @@ export type TokenBalance = {
      * Bonus
      */
     bonus: number;
+    /**
+     * Edit Cost
+     */
+    edit_cost: number;
     /**
      * Generate Cost
      */

@@ -49,7 +49,7 @@ print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회
 ## 4. 원본 API 표면 (참고 — 재구현 계약은 §5)
 
 - `GET /api/v1/health`, `GET /api/v1/palettes`(프리셋 mono/navy/earth/pastel).
-- `POST /api/v1/generate`: 입력 `{prompt?, reference_image?(≤12M chars), images?(≤8, 합 24M), canvas?, palette?, intent?, colorway?, seed?, candidate_count(1..8, 기본 1), session_id?, from_checkpoint?}` — 우선순위 intent > images > reference_image > prompt, 전부 없으면 422. **응답은 슬림**: `{request_id, candidates: [{id, png_url}], warnings}` — svg·repro는 generation_logs에만.
+- `POST /api/v1/generate`: 입력 `{prompt?, reference_image?(≤12M chars), images?(≤8, 합 24M), canvas?, palette?, intent?, colorway?, seed?, session_id?, from_checkpoint?}` — 우선순위 intent > images > reference_image > prompt, 전부 없으면 422. **응답은 슬림**: 결과 배열 + warnings — svg·repro는 generation_logs에만. 원본의 결과 팬아웃(요청당 N개)과 그 개수 파라미터는 **미승계**다 — 재구현은 요청 1건 = 디자인 1개다(§5).
 - `POST /api/v1/finalize`: `{intent, colorway_id?, production_method?, weave="twill-45", material_map?, dpi?, texture_strength?, relief_strength?}` → `{request_id, image_url?, warnings}`. 업로드 키 `fabric/{sha256(png)[:16]}.png`(content-addressed, create-only).
 - `POST /api/v1/export`: `{svg(≤2M), format: png|tiff, dpi=300, width_mm(gt0), height_mm?}` → 바이너리. 클라이언트 SVG는 **scrub**(재직렬화 — 엔진 출력과 달리 신뢰 불가). 400: dpi>1200, mm>2000, px>20000.
 - 세션 라우트(LangGraph): propose→select→commit→finalize, motif_candidates interrupt 게이트, confirm(generate_motif=Recraft 승인/finalize), budget(recraft 3/finalize 10). **재구현에서 세션 계층 전체 미승계** — 세션은 api 소유(design_sessions/turns), 게이트·recraft budget 의미는 api가 재현. finalize는 세션 예산 대신 계정당 24시간 쿼터로 대체(§5).
@@ -68,7 +68,7 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 - `warnings`는 `[{code, message}]`다. 엔진·리졸버의 영문 진단 문자열은 로그·`diagnostics`의 정본으로 남기고, `worker.warnings.WARNING_MESSAGES`에 한글 문구가 있는 코드만 응답에 담는다(코드별 1건). 매핑에 없는 경고는 고객에게 노출하지 않는다.
 - 사용자 수정 가능한 422는 `{detail:{code,stage,message}}` 고정 계약이다. code는 `reference_invalid|constraint_conflict|authoring_invalid|semantic_mismatch|intent_invalid|design_invalid`, stage는 각각 `reference|constraints|authoring|authoring|intent|design`다. API는 exact+motif 사진이 2슬롯을 넘으면, 그리고 커밋된 디자인이 있는 세션에 사진·모티프를 함께 보내면 worker 호출·과금 전에 `motif_input_conflict`를 반환한다. 원문 오류는 노출하지 않고 code/stage별 한국어 메시지로 투영하며 과금 뒤 generate worker 실패는 기존과 같이 환불한다.
 - 프리뷰 PNG는 GCS `previews/{request_id}/{design_id}/{sha256(png)[:16]}.png`에 create-only 업로드(`if_generation_match=0`)한다(공개 assets 버킷, best-effort — 실패 시 key null+경고). 같은 내용의 기존 객체로 인한 412는 멱등 성공이며 덮어쓰지 않는다. 호출자가 `X-Request-ID`를 재사용해도 다른 PNG는 다른 키가 된다.
-- `POST /motifs/candidates`(구 present_candidates) — 게이트 UI용 재사용 후보 나열. `POST /motifs/generate`(구 confirm generate_motif) — Recraft 생성 승인 실행. 예산 검사·차감은 **api가 세션 카운터(design_sessions.recraft_used)로 수행 후 호출**(worker는 검사 안 함).
+- `POST /motifs/candidates` — 문장 → `MotifSpec` → 카탈로그 재사용 후보 나열(모델 1콜, Recraft 미호출 → 무과금). api의 `motifs/search`가 이걸 부른다. 여기서 "후보"는 카탈로그 매칭 후보이며 폐기된 디자인 후보와 무관하다. `POST /motifs/generate` — Recraft 생성 승인 실행. 예산 검사·차감은 **api가 세션 카운터(design_sessions.recraft_used)로 수행 후 호출**(worker는 검사 안 함, 세션당 3회).
 - `POST /motifs/import` — 모든 user SVG를 공통 sanitize/normalize/content-hash 경계로 처리하되 worker DB에는 쓰지 않고 `{motif_id,symbol,color_slots,bbox,anchor,preview_svg}`를 반환한다. API가 Motif+사용자 소유 링크를 하나의 transaction으로 저장한다. `POST /motifs/text-preview`와 `/motifs/photo-preview`는 각각 번들 폰트 path 변환, 제한적 로컬 배경 분리+VTracer 결과를 normalized standalone SVG로 만들고 같은 import 경계로 넘긴다. CPU 작업은 thread pool에서 실행한다.
 - `POST /palette/extract` — private image에서 2~5색을 결정적으로 추출. `POST /ideas` — 현재 prompt/ordered photo purposes/exact motifs/palette를 Gemini에 전달해 3~4개 편집 초안만 반환하며 intent·generation log를 만들지 않는다. helper의 rate limit·무료 정책은 api 소유다.
 - resolve가 끝난 모티프 색은 provider 호출 없이 결정적으로 bind한다. 멀티슬롯은 일반 palette에서 plan 색 생략 시 원색을 보존하고, 명시 재색·fixed palette에서는 semantic slot-label rank를 쓰며, 라벨 없는 legacy는 DFS 위치+모듈로를 유지한다. 단일슬롯은 ground와 실제 HEX가 겹치지 않는 다음 팔레트 색을 고른다.
@@ -83,7 +83,7 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 
 **DB 접근**: 워커는 motifs(R/W)·seamless_generation_logs(W)·generation_jobs(W, finalize만). SQLAlchemy async + essesion-db 모델 재사용(원본 psycopg 동기 → 스택 통일, ARCHITECTURE §3). 세션·과금 테이블은 api 전용.
 
-**과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등, 3단계 구현 완료). 어느 시점에 무엇을 과금할지는 5단계 /design 기획과 함께 확정 — worker는 과금을 모른다.
+**과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등). worker는 과금을 모른다. 확정된 단가: 첫 생성 = `admin_settings.design_token_cost_openai_render_standard`, 구성 수정(patch) = `admin_settings.design_edit_cost`, 모티프 검색·교체 = 0(세션 Recraft 예산 3회만 쓰는 모티프 생성도 0), `scope_rejected`는 멱등 환불.
 
 ## 6. 결정론 대조 테스트 전략
 
@@ -96,7 +96,7 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 ### 원본 테스트 인벤토리(대조 기준 카탈로그)
 
 결정론: test_determinism(바이트 동일·프로세스 교차), test_variant_sampling(% pool), test_registry_fingerprint, test_text_motif(폰트 파이프라인 결정론), test_fabric(픽셀 결정론·seam·relief·inlay).
-엔진: test_composition(2MB 캡), test_candidates(다양화), test_colorway, test_lattice, test_scatter, test_point_set, test_placement_path, test_wave, test_angle_snap, test_seamless, test_seamless_mvp(size>tile 거부), test_primitives, test_intent, test_render_svg, test_geometry, test_example_tile(오프라인 E2E).
+엔진: test_composition(2MB 캡), test_candidates(다양화 — 미승계), test_colorway, test_lattice, test_scatter, test_point_set, test_placement_path, test_wave, test_angle_snap, test_seamless, test_seamless_mvp(size>tile 거부), test_primitives, test_intent, test_render_svg, test_geometry, test_example_tile(오프라인 E2E).
 모티프·어댑터: test_motif_gate, test_motif_facets, test_motif_resolver, test_motif_pool, test_motif_store(+_pg, live opt-in), test_recraft_client/gate/intake, test_embedding, test_gemini_retry, test_adapters, test_multi_image_chat, test_multicolor, test_retrieval_eval(τ 보정).
 API·기타: test_api_generate(슬림 계약·캐시·오류 매핑), test_api_export, test_sanitize, test_health, test_config. (세션 3종 — test_sessions/test_session_persistence/test_time_travel — 은 미승계 범위.)
 픽스처: tests/fixtures/recraft_samples/*.svg 3개(pig face flat, honeybee top, pelican bicycle side — 재구현 결정: 원본 8종 대신 원하는 스타일의 커스텀 샘플로 교체), motif_eval/{embeddings,labelset}.json — 재구현 레포로 복사해 대조에 사용.

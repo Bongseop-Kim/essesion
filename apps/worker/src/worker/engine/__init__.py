@@ -1,4 +1,4 @@
-from worker.engine.candidates import ComposedDesign, compose_design
+from worker.engine.compose import ComposedDesign, compose_design
 from worker.engine.generate import Candidate, generate
 from worker.engine.validate import IntentInvalid, validate_intent
 

@@ -43,6 +43,7 @@ from .factories import auth_headers, make_token_refund_claim, make_user, seed_se
 _WORKER_FABRIC_ASSETS = Path(__file__).parents[2] / "worker/src/worker/render/assets/fabric"
 
 TOKEN_COST = ("design_token_cost_openai_render_standard", "5")
+EDIT_COST = ("design_edit_cost", "2")
 FINALIZE_LIMIT_KEY = "design_finalize_daily_limit"
 
 
@@ -101,6 +102,7 @@ def _motif_intent(motif_id: str) -> dict[str, object]:
 async def _fund(db_session, user, amount=30):
     """generate 과금 전제 — 비용 설정 + 잔액 지급."""
     await seed_setting(db_session, *TOKEN_COST)
+    await seed_setting(db_session, *EDIT_COST)
     db_session.add(DesignToken(user_id=user.id, amount=amount, type="grant", token_class="free"))
     await db_session.commit()
 
@@ -175,17 +177,13 @@ class FakeWorker:
                         prompt=payload.get("prompt"),
                         colorway=payload.get("colorway"),
                         seed=payload.get("seed"),
-                        candidate_count_requested=1,
-                        candidate_count_returned=1,
-                        distinct_layouts=1,
-                        available_strategies=1,
                         engine_version=response["engine_version"],
                         registry_version=response["registry_version"],
                         intent={
-                            "designs": [resolved_intent],
+                            "design": resolved_intent,
                             "resolved_plan": response["plan"],
                         },
-                        candidates=[{**response["design"], "intent": resolved_intent}],
+                        design={**response["design"], "intent": resolved_intent},
                         warnings=[],
                         status="success",
                     )
@@ -1180,7 +1178,8 @@ async def test_design_ideas_require_auth_and_have_separate_rate_limit(
     [
         {"prompt": "x", "palette": {"mode": "fixed", "colors": ["#123456"]}},
         {"prompt": "x", "palette": {"mode": "fixed", "colors": ["not-a-color", "#fff"]}},
-        {"prompt": "x", "pattern_constraints": {"arrangement": "lattice"}},
+        # 모티프 정체성은 입력창으로 못 온다 — 모티프 경로(motifs/activate)만 슬롯을 바꾼다.
+        {"prompt": "x", "motif_slot": {"slot": 0, "motif_id": "bee"}},
         {"prompt": "x", "reference_image_upload_ids": []},
         {
             "prompt": "x",
@@ -1716,6 +1715,33 @@ async def test_generation_auto_selects_first_candidate_as_conversation_context(
     assert session_after["current_intent"] is not None
     assert session_after["seed"] == 7
     assert session_after["colorway"] == "default"
+
+
+async def test_composition_edit_charges_the_edit_cost_not_the_generate_cost(
+    client, app, db_session, settings
+):
+    # 첫 생성은 전체 저작 + 모티프 해석, 구성 수정은 flash-lite 1콜 — 단가가 다르다.
+    app.state.worker = FakeWorker(app.state.sessionmaker)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "네이비 도트"},
+        headers=headers,
+    )
+    after_first = (await ledger.get_balance(db_session, user.id))["total"]
+    await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "간격을 넓혀줘"},
+        headers=headers,
+    )
+    after_edit = (await ledger.get_balance(db_session, user.id))["total"]
+
+    assert 30 - after_first == int(TOKEN_COST[1])
+    assert after_first - after_edit == int(EDIT_COST[1])
 
 
 async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(

@@ -1,7 +1,7 @@
 """구성 patch 단위 테스트 — 축별 적용/미적용, 모티프 불변, 결정론 (design-redesign 2단계)."""
 
 import pytest
-from worker.engine.candidates import compose_design
+from worker.engine.compose import compose_design
 from worker.engine.constraints import ConstraintInvalid, PaletteConstraint
 from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot
 
@@ -48,6 +48,15 @@ def test_patch_schema_has_no_motif_identity_field():
     assert "motif_id" not in DesignPatchV1.model_json_schema(mode="serialization")["properties"]
     with pytest.raises(ValueError, match="extra"):
         DesignPatchV1.model_validate({"note": "x", "motif_id": "bee"})
+
+
+def test_changed_axes_lists_only_the_set_axes():
+    """admin 진단(`diagnostics.patch_axes`)과 거절 판정이 같은 목록을 본다."""
+    assert _patch().changed_axes == []
+    assert not _patch().has_changes
+    patch = _patch(background={"color": "#FFFFFF"}, motif_color="#000080")
+    assert patch.changed_axes == ["background", "motif_color"]
+    assert patch.has_changes
 
 
 def test_snapshot_round_trips_the_patchable_axes_without_motif_identity():

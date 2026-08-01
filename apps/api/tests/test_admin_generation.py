@@ -121,84 +121,75 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
             input_type="prompt",
             prompt="customer-secret@test.local",
             intent={
-                "designs": [
-                    {
-                        "intent_version": 1,
-                        "canvas": {
-                            "tile_mm": 48,
-                            "dpi": 300,
-                            "private_path": "/private/customer.png",
-                        },
-                        "seed": 7,
-                        "production": {"method": "print", "max_colors": 4},
-                        "palette": {
-                            "slots": [
-                                {
-                                    "id": "ground",
-                                    "hex": "#112233",
-                                    "name": "navy",
-                                    "provider_payload": "raw-provider-secret",
-                                }
-                            ]
-                        },
-                        "colorways": [
-                            {
-                                "id": "default",
-                                "mapping": {"ground": "#112233"},
-                            }
-                        ],
-                        "layers": [
+                "design": {
+                    "intent_version": 1,
+                    "canvas": {
+                        "tile_mm": 48,
+                        "dpi": 300,
+                        "private_path": "/private/customer.png",
+                    },
+                    "seed": 7,
+                    "production": {"method": "print", "max_colors": 4},
+                    "palette": {
+                        "slots": [
                             {
                                 "id": "ground",
-                                "type": "background",
-                                "params": {
-                                    "color": "ground",
-                                    "private_path": "/private/customer.png",
-                                },
-                                "z_order": 0,
+                                "hex": "#112233",
+                                "name": "navy",
+                                "provider_payload": "raw-provider-secret",
+                            }
+                        ]
+                    },
+                    "colorways": [
+                        {
+                            "id": "default",
+                            "mapping": {"ground": "#112233"},
+                        }
+                    ],
+                    "layers": [
+                        {
+                            "id": "ground",
+                            "type": "background",
+                            "params": {
+                                "color": "ground",
+                                "private_path": "/private/customer.png",
                             },
-                            {
-                                "id": "flower",
-                                "type": "motif",
-                                "params": {
-                                    "motif_id": "motif-safe",
-                                    "size_mm": 12,
-                                    "color": "ground",
-                                },
-                                "placement": {
-                                    "type": "lattice",
-                                    "fixed_rotation_deg": 0,
-                                    "lattice": {
-                                        "cell_w_mm": 24,
-                                        "cell_h_mm": 24,
-                                        "drop_fraction": 0.5,
-                                        "drop_axis": "row",
-                                    },
-                                },
-                                "z_order": 1,
+                            "z_order": 0,
+                        },
+                        {
+                            "id": "flower",
+                            "type": "motif",
+                            "params": {
+                                "motif_id": "motif-safe",
+                                "size_mm": 12,
+                                "color": "ground",
                             },
-                        ],
-                        "provider_payload": {"api_key": "raw-provider-secret"},
-                    }
-                ],
+                            "placement": {
+                                "type": "lattice",
+                                "fixed_rotation_deg": 0,
+                                "lattice": {
+                                    "cell_w_mm": 24,
+                                    "cell_h_mm": 24,
+                                    "drop_fraction": 0.5,
+                                    "drop_axis": "row",
+                                },
+                            },
+                            "z_order": 1,
+                        },
+                    ],
+                    "provider_payload": {"api_key": "raw-provider-secret"},
+                },
                 "provider_response": "raw-provider-secret",
             },
-            candidate_count_requested=2,
-            candidate_count_returned=2,
-            distinct_layouts=1,
-            candidates=[
-                {
-                    "id": "safe-candidate",
-                    "design_index": 0,
-                    "layout_id": "grid",
-                    "source_fidelity": "exact",
-                    "colorway_id": "default",
-                    "seed": 1,
-                    "svg": safe_svg,
-                    "png_object_key": "previews/private/secret.png",
-                },
-                {"id": "unsafe-candidate", "svg": unsafe_svg},
-            ],
+            design={
+                "id": "safe-design",
+                "layout_id": "grid",
+                "source_fidelity": "exact",
+                "colorway_id": "default",
+                "seed": 1,
+                "svg": safe_svg,
+                "png_object_key": "previews/private/secret.png",
+            },
             warnings=[],
             generate_ms=Decimal("10.5"),
             render_ms=Decimal("3.5"),
@@ -207,19 +198,17 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "mode": "patch",
                 "model": "gemini-2.5-flash-lite",
                 "authoring_attempts": 1,
-                "plan_count": 3,
-                "validated_count": 3,
+                "patch_axes": ["background", "placement"],
                 "resolved_count": 3,
                 "recraft_calls": 3,
-                "candidate_count": 2,
                 "fixed_palette": False,
-                "pattern_controls": True,
                 "reference_count": 1,
             },
         ),
         SeamlessGenerationLog(
             request_id="seamless-partial",
             input_type="intent",
+            design={"id": "unsafe-design", "svg": unsafe_svg},
             warnings=["preview upload skipped: /private/customer.png"],
             generate_ms=Decimal("20"),
             render_ms=Decimal("4"),
@@ -273,7 +262,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert page.status_code == 200
     assert page.json()["total"] == 3
     assert all("prompt" not in item for item in page.json()["items"])
-    assert all("intents" not in item for item in page.json()["items"])
+    assert all("intent" not in item for item in page.json()["items"])
     assert "customer-secret@test.local" not in page.text
     assert "<svg" not in page.text
     assert "private/secret" not in page.text
@@ -296,49 +285,46 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
 
     detail = await client.get(f"/admin/generation/seamless/{rows[0].id}", headers=headers)
     assert detail.status_code == 200
-    assert detail.json()["candidates"][0]["svg"] == safe_svg
-    assert detail.json()["candidates"][0]["svg_status"] == "safe"
-    assert detail.json()["candidates"][1]["svg"] is None
-    assert detail.json()["candidates"][1]["svg_status"] == "unsafe"
+    assert detail.json()["design"]["id"] == "safe-design"
+    assert detail.json()["design"]["svg"] == safe_svg
+    assert detail.json()["design"]["svg_status"] == "safe"
     assert detail.json()["prompt"] == "customer-secret@test.local"
-    assert detail.json()["intents"] == [
-        {
-            "intent_version": 1,
-            "canvas": {"tile_mm": 48, "dpi": 300},
-            "seed": 7,
-            "production": {"method": "print", "max_colors": 4},
-            "palette": {"slots": [{"id": "ground", "hex": "#112233", "name": "navy"}]},
-            "colorways": [{"id": "default", "mapping": {"ground": "#112233"}}],
-            "layers": [
-                {
-                    "id": "ground",
-                    "type": "background",
-                    "params": {"color": "ground"},
-                    "z_order": 0,
+    assert detail.json()["intent"] == {
+        "intent_version": 1,
+        "canvas": {"tile_mm": 48, "dpi": 300},
+        "seed": 7,
+        "production": {"method": "print", "max_colors": 4},
+        "palette": {"slots": [{"id": "ground", "hex": "#112233", "name": "navy"}]},
+        "colorways": [{"id": "default", "mapping": {"ground": "#112233"}}],
+        "layers": [
+            {
+                "id": "ground",
+                "type": "background",
+                "params": {"color": "ground"},
+                "z_order": 0,
+            },
+            {
+                "id": "flower",
+                "type": "motif",
+                "params": {
+                    "motif_id": "motif-safe",
+                    "size_mm": 12,
+                    "color": "ground",
                 },
-                {
-                    "id": "flower",
-                    "type": "motif",
-                    "params": {
-                        "motif_id": "motif-safe",
-                        "size_mm": 12,
-                        "color": "ground",
+                "placement": {
+                    "type": "lattice",
+                    "fixed_rotation_deg": 0,
+                    "lattice": {
+                        "cell_w_mm": 24,
+                        "cell_h_mm": 24,
+                        "drop_fraction": 0.5,
+                        "drop_axis": "row",
                     },
-                    "placement": {
-                        "type": "lattice",
-                        "fixed_rotation_deg": 0,
-                        "lattice": {
-                            "cell_w_mm": 24,
-                            "cell_h_mm": 24,
-                            "drop_fraction": 0.5,
-                            "drop_axis": "row",
-                        },
-                    },
-                    "z_order": 1,
                 },
-            ],
-        }
-    ]
+                "z_order": 1,
+            },
+        ],
+    }
     assert "raw-provider-secret" not in detail.text
     assert "png_object_key" not in detail.text
     assert detail.json()["diagnostics"] == {
@@ -347,14 +333,11 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "prompt_revision": None,
         "reference_count": 1,
         "fixed_palette": False,
-        "pattern_controls": True,
+        "patch_axes": ["background", "placement"],
         "authoring_attempts": 1,
-        "plan_count": 3,
-        "validated_count": 3,
         "catalog_candidate_count": None,
         "resolved_count": 3,
         "recraft_calls": 3,
-        "candidate_count": 2,
         "authoring_ms": None,
         "motif_resolution_ms": None,
         "compose_ms": None,
@@ -367,6 +350,13 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "failure_status_code": None,
         "motif_resolutions": [],
     }
+
+    unsafe_detail_log = await client.get(
+        f"/admin/generation/seamless/{rows[1].id}", headers=headers
+    )
+    assert unsafe_detail_log.json()["design"]["svg"] is None
+    assert unsafe_detail_log.json()["design"]["svg_status"] == "unsafe"
+    assert unsafe_detail_log.json()["intent"] is None
 
     motif_page = await client.get("/admin/motifs", headers=headers)
     assert motif_page.json()["total"] == 2
@@ -464,9 +454,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         session_id=design_session.id,
         user_id=owner.id,
         input_type="prompt",
-        candidate_count_requested=4,
-        candidate_count_returned=4,
-        candidates=[{"id": "candidate-1"}, {"id": "candidate-2"}],
+        design={"id": "design-1"},
         warnings=[
             "motif layer 'motif_1' dropped — Tier-1 gate exhausted (triangle/partial)",
             "motif layer 'motif_2' dropped — Tier-1 gate exhausted (line/partial)",
@@ -476,7 +464,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
             ],
             "layer 'motif_1': spacing_mm 7.2 snapped to 6.8mm for exact path closure",
             "stripe 'stripe_0' period_mm 7.2 snapped to 6.8 for exact tiling",
-            "3 candidate variant(s) failed to render and were dropped",
+            "알 수 없는 경고",
         ],
         status="partial",
         diagnostics={
@@ -500,7 +488,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         session_id=design_session.id,
         user_id=owner.id,
         input_type="prompt",
-        candidates=[{"id": "candidate-1"}, {"id": "candidate-2"}],
+        design={"id": "design-0"},
         warnings=[],
         status="success",
         created_at=now - timedelta(minutes=10),
@@ -531,8 +519,8 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         session_id=design_session.id,
         kind="finalize",
         status="succeeded",
-        # 같은 candidate ID여도 다른 run이면 현재 로그의 finalize가 아니다.
-        params={"run_id": str(previous_log.id), "candidate_id": "candidate-2"},
+        # 다른 run의 finalize는 현재 로그의 완료가 아니다.
+        params={"run_id": str(previous_log.id)},
         result={"object_key": "fabric/0123456789abcdef.png"},
         created_at=now + timedelta(seconds=3),
         updated_at=now + timedelta(seconds=3),
@@ -580,24 +568,15 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
                 session_id=design_session.id,
                 seq=3,
                 role="user",
-                payload={
-                    "type": "select",
-                    "run_id": str(log.id),
-                    "candidate_id": "candidate-2",
-                },
+                payload={"type": "activate", "run_id": str(log.id)},
                 created_at=now + timedelta(seconds=1),
             ),
-            # 현재 실행과 후보 ID가 겹치는 과거 실행을 다시 선택해도 현재 로그의
-            # 선택 결과를 덮어쓰면 안 된다.
+            # 과거 실행을 다시 활성화해도 현재 로그의 판정을 덮어쓰면 안 된다.
             DesignSessionTurn(
                 session_id=design_session.id,
                 seq=4,
                 role="user",
-                payload={
-                    "type": "select",
-                    "run_id": str(previous_log.id),
-                    "candidate_id": "candidate-1",
-                },
+                payload={"type": "activate", "run_id": str(previous_log.id)},
                 created_at=now + timedelta(seconds=2),
             ),
             finalize_job,
@@ -641,12 +620,11 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
             "items": [],
         },
         {
-            "code": "candidate_variants_dropped",
-            "count": 3,
+            "code": "generation_warning",
+            "count": 1,
             "items": [],
         },
     ]
-    assert all(group["code"] != "partial_candidates" for group in body["warning_groups"])
     assert body["diagnostics"]["motif_resolutions"][0] == {
         "layer_id": "motif_1",
         "subject": "triangle",
@@ -664,7 +642,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         "session_id": str(design_session.id),
         "user_id": str(owner.id),
         "user_name": owner.name,
-        "selected_candidate_id": "candidate-2",
+        "reactivated": True,
         "regenerated": True,
         "finalized": False,
     }
@@ -675,9 +653,9 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         "net": 0,
     }
 
-    # exact pair 매칭은 시간창 없이 완료로 집계한다 — 다음 생성 뒤에 끝났어도
-    # 이 run/candidate의 finalize임은 변하지 않는다.
-    finalize_job.params = {"run_id": str(log.id), "candidate_id": "candidate-2"}
+    # run_id 등가 매칭은 시간창 없이 완료로 집계한다 — 다음 생성 뒤에 끝났어도
+    # 이 run의 finalize임은 변하지 않는다.
+    finalize_job.params = {"run_id": str(log.id)}
     finalize_job.finished_at = now + timedelta(seconds=5)
     await db_session.commit()
     completed = await client.get(
@@ -699,12 +677,12 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         "refunded": 0,
         "net": 0,
     }
-    # 상관 턴이 없으므로 선택·재생성 판정은 비어 있지만 요청자는 FK에서 그대로 온다
+    # 상관 턴이 없으므로 활성화·재생성 판정은 비어 있지만 요청자는 FK에서 그대로 온다
     assert failed_detail.json()["outcome"] == {
         "session_id": str(design_session.id),
         "user_id": str(owner.id),
         "user_name": owner.name,
-        "selected_candidate_id": None,
+        "reactivated": False,
         "regenerated": False,
         "finalized": False,
     }

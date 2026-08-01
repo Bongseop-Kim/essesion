@@ -209,14 +209,10 @@ def upgrade() -> None:
         sa.Column("reference_image_bytes", sa.Integer(), nullable=True),
         sa.Column("colorway", sa.Text(), nullable=True),
         sa.Column("seed", sa.BigInteger(), nullable=True),
-        sa.Column("candidate_count_requested", sa.Integer(), nullable=True),
-        sa.Column("candidate_count_returned", sa.Integer(), nullable=True),
-        sa.Column("distinct_layouts", sa.Integer(), nullable=True),
-        sa.Column("available_strategies", sa.Integer(), nullable=True),
         sa.Column("engine_version", sa.Text(), nullable=True),
         sa.Column("registry_version", sa.Text(), nullable=True),
         sa.Column("intent", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("candidates", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("design", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column(
             "warnings",
             postgresql.JSONB(astext_type=sa.Text()),
@@ -1014,8 +1010,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("source_key", sa.Text(), nullable=False),
         sa.Column("source_generation_log_id", sa.Uuid(), nullable=True),
-        sa.Column("plan_index", sa.Integer(), nullable=False),
-        sa.Column("selected_candidate_id", sa.Text(), nullable=False),
+        sa.Column("design_id", sa.Text(), nullable=False),
         sa.Column("contract_version", sa.Integer(), nullable=False),
         sa.Column("compiler_revision", sa.Text(), nullable=False),
         sa.Column("prompt_revision", sa.Text(), nullable=False),
@@ -1083,9 +1078,6 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "nearest_similarity IS NULL OR nearest_similarity BETWEEN -1 AND 1",
             name=op.f("ck_authoring_promotion_candidates_nearest_similarity"),
-        ),
-        sa.CheckConstraint(
-            "plan_index >= 0", name=op.f("ck_authoring_promotion_candidates_plan_index")
         ),
         sa.CheckConstraint(
             "review_version >= 0", name=op.f("ck_authoring_promotion_candidates_review_version")
