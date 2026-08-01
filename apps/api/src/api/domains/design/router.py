@@ -2721,7 +2721,7 @@ async def _save_generated_motif(
 ) -> bool:
     """생성 결과를 내 모티프에 남긴다 — 적용하지 않아도 나중에 다시 고를 수 있게.
 
-    한도를 넘으면 저장만 건너뛴다(생성 자체는 실패가 아니다).
+    한도 초과·저장 실패면 저장만 건너뛴다(생성 자체는 실패가 아니다).
     """
     existing, count = await _user_motif_link_state(session, user_id=user_id, motif_id=motif_id)
     saved = True
@@ -2730,7 +2730,12 @@ async def _save_generated_motif(
             saved = False
         else:
             session.add(UserMotif(user_id=user_id, motif_id=motif_id, name=name))
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception:
+        logger.warning("생성 모티프 저장 실패 — 생성 응답은 그대로 반환", exc_info=True)
+        await session.rollback()
+        return False
     return saved
 
 

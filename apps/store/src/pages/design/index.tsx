@@ -156,7 +156,7 @@ export function DesignPage() {
     authenticated,
     onStarted: () => setOverlay(null),
   });
-  const busy = editor.pending;
+  const busy = editor.pending || activateStep.isPending;
   const exportable = !!history.currentSvg && !busy;
 
   useEffect(() => {

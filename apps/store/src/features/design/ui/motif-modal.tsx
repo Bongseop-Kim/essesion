@@ -175,6 +175,7 @@ function ModalFooter({
           type="button"
           variant="neutralOutline"
           width="full"
+          loading={state.busySource === "generate"}
           disabled={state.working || state.exhausted}
           onClick={() => void state.generate()}
         >
@@ -186,7 +187,8 @@ function ModalFooter({
           as={ActionButton}
           type="button"
           width="full"
-          loading={state.working}
+          loading={state.busySource === "confirm"}
+          disabled={state.working}
           onClick={() => void state.applyGenerated()}
         >
           이 그림 적용
@@ -270,7 +272,7 @@ function SearchBody({ state }: { state: MotifSearchState }) {
 }
 
 function GenerateBody({ state }: { state: MotifSearchState }) {
-  const generating = state.working && !state.generated;
+  const generating = state.busySource === "generate";
   return (
     <VStack gap="x4" alignItems="stretch">
       <TextField
@@ -298,6 +300,7 @@ function GenerateBody({ state }: { state: MotifSearchState }) {
                 type="button"
                 size="small"
                 variant="outline"
+                selected={state.generatePrompt === example}
                 onClick={() => state.setGeneratePrompt(example)}
               >
                 {example}
@@ -415,7 +418,9 @@ function TextBody({ state }: { state: MotifSearchState }) {
         </SegmentedControl>
       </HStack>
 
-      {state.working ? <BusyBlock message="글자를 그리고 있어요" /> : null}
+      {state.busySource === "text" ? (
+        <BusyBlock message="글자를 그리고 있어요" />
+      ) : null}
       {state.textResult ? (
         <ResultPreview svg={state.textResult.svg} alt="만든 글자 그림" />
       ) : null}
@@ -463,12 +468,12 @@ function PhotoBody({ state }: { state: MotifSearchState }) {
             disabled={state.working}
             onClick={() => photoInput.current?.click()}
           >
-            다른 사진
+            {photo ? "다른 사진" : "사진 고르기"}
           </ActionButton>
         </Box>
       </HStack>
 
-      {state.working ? (
+      {state.busySource === "photo" ? (
         <BusyBlock message="배경을 지우고 있어요 · 10초쯤 걸려요" />
       ) : null}
 

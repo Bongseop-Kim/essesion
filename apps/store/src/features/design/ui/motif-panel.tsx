@@ -1,6 +1,5 @@
 import {
   ActionButton,
-  Badge,
   Box,
   Divider,
   Flex,
@@ -265,16 +264,11 @@ function SlotMenu({
             prefixIcon={<Icon svg={<PaintBrushIcon />} size={20} />}
             label="AI 생성"
             description={
-              exhausted ? (
-                "이번 디자인에서 더 만들 수 없어요"
-              ) : recraftRemaining === null ? (
-                "문장 그대로 새로 만들어요"
-              ) : (
-                <>
-                  문장 그대로 새로 만들어요{" "}
-                  <Badge tone="brand">{recraftRemaining}번 남음</Badge>
-                </>
-              )
+              exhausted
+                ? "이번 디자인에서 더 만들 수 없어요"
+                : recraftRemaining === null
+                  ? "문장 그대로 새로 만들어요"
+                  : `문장 그대로 새로 만들어요 · ${recraftRemaining}번 남음`
             }
             disabled={exhausted}
             onClick={() => onPickSource(slot, "generate")}

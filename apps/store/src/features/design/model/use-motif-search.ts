@@ -224,7 +224,7 @@ export function useMotifSearch({
 
   /** SVG는 모달을 거치지 않는다 — 읽기·저장·교체를 한 번에 하고 슬롯이 진행을 보여준다. */
   const addSvgFile = async (target: 1 | 2, file: File) => {
-    if (!sessionId || pendingSlot) return;
+    if (!sessionId || pendingSlot || busy) return;
     setPendingSlot(target);
     try {
       const svg = await readDesignMotifSvg(file);
@@ -373,10 +373,7 @@ export function useMotifSearch({
         });
       }
       setGenerateError(
-        designErrorMessage(
-          cause,
-          "횟수는 줄지 않았으니 문장을 조금 바꿔 다시 시도해 주세요.",
-        ),
+        designErrorMessage(cause, "문장을 조금 바꿔 다시 시도해 주세요."),
       );
     } finally {
       setBusy(null);
@@ -443,6 +440,8 @@ export function useMotifSearch({
     refetchLibrary: () => void library.refetch(),
     /** 모달 안에서 무엇이든 진행 중 — 모달의 버튼을 잠근다. */
     working: busy !== null || activate.isPending,
+    /** 지금 도는 작업의 종류 — 진행 블록·스피너를 눌린 버튼에만 붙인다. */
+    busySource: busy,
     /** 디자인을 실제로 바꾸는 중 — 이력의 대기 칸과 입력창 잠금은 이것만 본다. */
     replacing: busy === "confirm" || activate.isPending || pendingSlot !== null,
     /** 유료 경로 상태 — 남은 횟수를 모르면 null, 0이면 잠긴다. */
