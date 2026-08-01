@@ -36,9 +36,14 @@ function OrdinalCell({
   onCommit,
 }: {
   row: AdminDesignExampleOut;
-  onCommit: (ordinal: number) => void;
+  onCommit: (ordinal: number) => Promise<unknown>;
 }) {
   const [value, setValue] = useState(String(row.ordinal));
+  const [seenOrdinal, setSeenOrdinal] = useState(row.ordinal);
+  if (row.ordinal !== seenOrdinal) {
+    setSeenOrdinal(row.ordinal);
+    setValue(String(row.ordinal));
+  }
   return (
     <NumberField
       aria-label={`${row.name} 노출 순서`}
@@ -46,7 +51,8 @@ function OrdinalCell({
       onValueChange={setValue}
       onBlur={() => {
         const next = Number(value || 0);
-        if (next !== row.ordinal) onCommit(next);
+        if (next !== row.ordinal)
+          onCommit(next).catch(() => setValue(String(row.ordinal)));
       }}
     />
   );
@@ -140,7 +146,7 @@ export function DesignExamplesPage() {
           <OrdinalCell
             row={row}
             onCommit={(next) =>
-              update.mutate({
+              update.mutateAsync({
                 path: { example_id: row.id },
                 body: { ordinal: next },
               })

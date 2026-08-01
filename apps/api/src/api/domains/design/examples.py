@@ -11,7 +11,7 @@ from db.models.design import DesignExample, DesignSession
 from db.models.seamless import Motif, SeamlessGenerationLog
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from api.db import SessionDep
 from api.deps import AdminUser, CurrentUser, SettingsDep
@@ -198,6 +198,14 @@ async def create_admin_design_example(
 ) -> AdminDesignExampleOut:
     """run 하나를 예시로 등록한다 — 비공개 모티프를 쓰는 run은 공개할 수 없다."""
     resolved = await _resolve_design_run(session, run_id=body.run_id)
+    duplicate = await session.scalar(
+        select(DesignExample.id).where(DesignExample.run_id == body.run_id).limit(1)
+    )
+    if duplicate is not None:
+        raise ConflictError(
+            "이미 같은 run으로 등록된 예시가 있습니다",
+            code="duplicate_example_run",
+        )
     motif_ids = _intent_motif_ids(resolved.intent)
     if motif_ids:
         private = await session.scalar(
@@ -235,6 +243,18 @@ async def update_admin_design_example(
     admin: AdminUser,
 ) -> AdminDesignExampleOut:
     example = await _example_or_404(session, example_id)
+    if body.published and not example.published:
+        published_count = await session.scalar(
+            select(func.count())
+            .select_from(DesignExample)
+            .where(DesignExample.published.is_(True), DesignExample.id != example.id)
+        )
+        if (published_count or 0) >= MAX_PUBLISHED_EXAMPLES:
+            raise ConflictError(
+                f"게시 예시는 최대 {MAX_PUBLISHED_EXAMPLES}개까지입니다 — "
+                "먼저 다른 예시를 내려주세요",
+                code="published_example_limit",
+            )
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(example, field, value.strip() or None if field == "caption" else value)
     await session.commit()

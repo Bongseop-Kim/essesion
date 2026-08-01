@@ -195,6 +195,7 @@ async def test_admin_registers_curates_and_deletes_examples(client, db_session, 
         headers=headers,
     )
     assert duplicate.status_code == 409
+    assert duplicate.json()["code"] == "duplicate_example_run"
 
     published = await client.patch(
         f"/admin/design/examples/{example_id}",
@@ -221,6 +222,37 @@ async def test_admin_registers_curates_and_deletes_examples(client, db_session, 
     removed = await client.delete(f"/admin/design/examples/{example_id}", headers=headers)
     assert removed.status_code == 204
     assert (await client.get("/design/examples")).json() == []
+
+
+async def test_admin_publish_rejects_over_cap(client, db_session, settings, monkeypatch):
+    monkeypatch.setattr("api.domains.design.examples.MAX_PUBLISHED_EXAMPLES", 1)
+    admin = await make_admin(db_session)
+    headers = auth_headers(admin, settings)
+    live = await _make_example(db_session, await _make_run(db_session), name="게시 중")
+    draft = await _make_example(
+        db_session, await _make_run(db_session), name="대기", published=False
+    )
+
+    over_cap = await client.patch(
+        f"/admin/design/examples/{draft.id}", json={"published": True}, headers=headers
+    )
+    assert over_cap.status_code == 409
+    assert over_cap.json()["code"] == "published_example_limit"
+
+    # 이미 게시된 예시의 수정과 게시 내리기는 상한과 무관하다.
+    keep = await client.patch(
+        f"/admin/design/examples/{live.id}", json={"published": True, "ordinal": 5}, headers=headers
+    )
+    down = await client.patch(
+        f"/admin/design/examples/{live.id}", json={"published": False}, headers=headers
+    )
+    assert (keep.status_code, down.status_code) == (200, 200)
+
+    # 자리가 나면 게시할 수 있다.
+    freed = await client.patch(
+        f"/admin/design/examples/{draft.id}", json={"published": True}, headers=headers
+    )
+    assert freed.status_code == 200
 
 
 async def test_admin_registration_rejects_private_motifs_unknown_runs_and_non_admins(

@@ -218,7 +218,10 @@ export function DesignPage() {
       <DesignCanvas
         imageSrc={history.currentSvg ? svgToDataUri(history.currentSvg) : null}
         empty={
-          !hasDesign && !busy && examples.length > 0 ? (
+          !hasDesign &&
+          !busy &&
+          !sessionQuery.isLoading &&
+          examples.length > 0 ? (
             <StarterGallery
               examples={examples}
               onSelect={(example) => void startFromExample(example)}
