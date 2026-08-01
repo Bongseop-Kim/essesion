@@ -262,23 +262,19 @@ describe("DesignPage canvas shell", () => {
     useSession.setState({ status: "anonymous", accessToken: null, user: null });
   });
 
-  it("이력 썸네일 클릭이 그 스텝을 activate 한다 — 되돌리기 버튼은 없다", async () => {
+  it("이력 카드의 ◀ 가 이전 디자인을 activate 하고 끝에서는 ▶ 가 잠긴다", async () => {
     api.activateStep.mockResolvedValue({ data: session });
     const queryClient = renderPage();
 
-    const first = await screen.findByRole("button", {
+    const back = await screen.findByRole("button", {
       name: "1번째 디자인으로 되돌리기",
     });
-    // 포인터가 가리키는 마지막 스텝은 포커스는 되지만 눌러도 아무 일도 없다.
-    const current = screen.getByRole("button", {
-      name: "2번째 디자인, 현재 편집 중",
-    });
-    expect(disabled(current)).toBe(false);
-    fireEvent.click(current);
-    expect(api.activateStep).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /되돌리기$/ })).toBe(first);
+    // 포인터가 마지막 스텝이라 앞으로 갈 곳이 없다.
+    expect(disabled(screen.getByRole("button", { name: "다음 디자인" }))).toBe(
+      true,
+    );
 
-    fireEvent.click(first);
+    fireEvent.click(back);
     await waitFor(() =>
       expect(api.activateStep).toHaveBeenCalledWith({
         path: { session_id: "session-1" },
@@ -309,7 +305,7 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  it("적용 중에는 입력창을 잠그고 이력 끝에 대기 칸을 만든다", async () => {
+  it("적용 중에는 입력창과 이력 카드를 함께 잠근다", async () => {
     let finish!: (value: unknown) => void;
     api.generate.mockImplementation(
       () =>
@@ -324,7 +320,12 @@ describe("DesignPage canvas shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "디자인에 적용" }));
 
     await waitFor(() => expect(disabled(input)).toBe(true));
-    screen.getByText("적용 중");
+    // 되돌리기는 적용이 끝날 때까지 잠긴다(썸네일 자리는 스켈레톤).
+    expect(
+      disabled(
+        screen.getByRole("button", { name: "1번째 디자인으로 되돌리기" }),
+      ),
+    ).toBe(true);
     expect(disabled(screen.getByRole("button", { name: "내려받기" }))).toBe(
       true,
     );
@@ -385,7 +386,9 @@ describe("DesignPage canvas shell", () => {
     expect(api.createSession).not.toHaveBeenCalled();
     expect(api.generate).not.toHaveBeenCalled();
     // 캔버스·이력이 그대로 채워진다(서버가 붙인 스텝 2개).
-    await screen.findByRole("button", { name: "2번째 디자인, 현재 편집 중" });
+    await screen.findByRole("button", {
+      name: "2번째 디자인 · 전체 이력 보기",
+    });
     queryClient.clear();
   });
 

@@ -58,6 +58,9 @@ describe("readDesignHistory", () => {
     ]);
     expect(history.currentRunId).toBe(RUN_3);
     expect(history.currentSvg).toBe("<svg id='b'/>");
+    // 스테퍼는 실패 칸을 건너뛴 designCells 기준으로 센다.
+    expect(history.designCells.map((cell) => cell.label)).toEqual([1, 2]);
+    expect(history.currentIndex).toBe(1);
   });
 
   it("되돌린 뒤에도 이후 스텝은 남고 포인터만 과거로 옮겨진다", () => {
@@ -72,6 +75,7 @@ describe("readDesignHistory", () => {
     expect(history.cells).toHaveLength(2);
     expect(history.currentRunId).toBe(RUN_1);
     expect(history.currentSvg).toBe("<svg id='a'/>");
+    expect(history.currentIndex).toBe(0);
   });
 
   it("엔진 영문 진단이 담긴 turn warnings는 스텝 파싱을 막지 않는다", () => {
@@ -104,6 +108,8 @@ describe("readDesignHistory", () => {
   it("턴이 없으면 첫 진입 상태다", () => {
     expect(readDesignHistory(undefined)).toEqual({
       cells: [],
+      designCells: [],
+      currentIndex: -1,
       currentRunId: null,
       currentSvg: null,
     });

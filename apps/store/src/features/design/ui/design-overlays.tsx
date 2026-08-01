@@ -16,6 +16,7 @@ import {
   designSessionsQueryOptions,
   finalizedJobsInfiniteQueryOptions,
 } from "@/features/design/model/queries";
+import type { DesignHistoryCell } from "@/features/design/model/steps";
 import {
   useDeleteDesignSession,
   useDeleteFinalizedJob,
@@ -32,6 +33,7 @@ import {
   type FinalizeDialogValue,
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
+import { HistoryModal } from "@/features/design/ui/history-modal";
 import { IdeasModal } from "@/features/design/ui/ideas-modal";
 import { MotifGenerateModal } from "@/features/design/ui/motif-generate-modal";
 import { MotifModal } from "@/features/design/ui/motif-modal";
@@ -43,6 +45,7 @@ export type DesignOverlayName =
   | "onboarding"
   | "sessions"
   | "finalized"
+  | "history"
   | "motifs"
   | "motif-generate"
   | "photos"
@@ -68,6 +71,10 @@ export type DesignOverlaysProps = {
   onSelectSession: (sessionId: string) => void;
   onSessionDeleted: (sessionId: string) => void;
   onOnboardingComplete: () => void;
+  /** 전체 이력 격자 — 좌측 이력 카드와 같은 데이터·같은 되돌리기 호출을 쓴다. */
+  historyCells: readonly DesignHistoryCell[];
+  historyCurrentRunId: string | null;
+  onSelectStep: (runId: string) => void;
   /** 모티프 모달 전체의 상태·호출 — 페이지가 소유해 모달을 넘나들어도 유지된다. */
   motifs: MotifSearchState;
   photos: readonly PhotoReference[];
@@ -101,6 +108,9 @@ export function DesignOverlays({
   onSelectSession,
   onSessionDeleted,
   onOnboardingComplete,
+  historyCells,
+  historyCurrentRunId,
+  onSelectStep,
   motifs,
   photos,
   onAddPhotos,
@@ -216,6 +226,13 @@ export function DesignOverlays({
           completeDesignOnboarding();
           onOnboardingComplete();
         }}
+      />
+      <HistoryModal
+        open={overlay === "history"}
+        onOpenChange={change("history")}
+        cells={historyCells}
+        currentRunId={historyCurrentRunId}
+        onSelect={onSelectStep}
       />
       <MotifModal
         open={overlay === "motifs"}
