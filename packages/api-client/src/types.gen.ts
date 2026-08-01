@@ -5189,6 +5189,10 @@ export type MotifGenerateOut = {
      * Reused
      */
     reused: boolean;
+    /**
+     * Saved
+     */
+    saved: boolean;
 };
 
 /**

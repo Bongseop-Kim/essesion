@@ -9612,12 +9612,17 @@
           "reused": {
             "title": "Reused",
             "type": "boolean"
+          },
+          "saved": {
+            "title": "Saved",
+            "type": "boolean"
           }
         },
         "required": [
           "request_id",
           "reused",
-          "motif"
+          "motif",
+          "saved"
         ],
         "title": "MotifGenerateOut",
         "type": "object"

@@ -770,6 +770,23 @@ async def create_design_ideas(
     return out
 
 
+async def _user_motif_link_state(
+    session: SessionDep, *, user_id: uuid.UUID, motif_id: str
+) -> tuple[UserMotif | None, int]:
+    """user-motif 락을 잡고 기존 링크·보유 수를 읽는다 — 저장 경로(import·생성) 공통."""
+    await advisory_xact_lock(session, f"user-motif:{user_id}")
+    existing = await session.scalar(
+        select(UserMotif).where(UserMotif.user_id == user_id, UserMotif.motif_id == motif_id)
+    )
+    count = int(
+        await session.scalar(
+            select(func.count()).select_from(UserMotif).where(UserMotif.user_id == user_id)
+        )
+        or 0
+    )
+    return existing, count
+
+
 @router.post("/design/motifs", response_model=UserMotifOut, status_code=201)
 async def import_user_motif(
     body: UserMotifImportRequest,
@@ -787,24 +804,14 @@ async def import_user_motif(
     except ValidationError as exc:
         raise UpstreamError("모티프 워커 응답 형식이 올바르지 않습니다") from exc
 
-    await advisory_xact_lock(session, f"user-motif:{user.id}")
-    existing = await session.scalar(
-        select(UserMotif).where(
-            UserMotif.user_id == user.id,
-            UserMotif.motif_id == worker_out.motif_id,
-        )
+    existing, count = await _user_motif_link_state(
+        session, user_id=user.id, motif_id=worker_out.motif_id
     )
     if existing is not None:
         motif = await session.get(Motif, worker_out.motif_id)
         if motif is None or motif.source != "user_upload":
             raise UpstreamError("가져온 모티프를 확인하지 못했습니다")
         return _user_motif_out(existing, motif)
-    count = int(
-        await session.scalar(
-            select(func.count()).select_from(UserMotif).where(UserMotif.user_id == user.id)
-        )
-        or 0
-    )
     if count >= MAX_USER_MOTIFS:
         raise ConflictError(
             "내 모티프는 최대 100개까지 저장할 수 있습니다",
@@ -859,7 +866,8 @@ async def list_user_motifs(
         await session.execute(
             select(UserMotif, Motif)
             .join(Motif, Motif.id == UserMotif.motif_id)
-            .where(UserMotif.user_id == user.id, Motif.source == "user_upload")
+            # 링크 존재 자체가 "내가 만든 것"의 진실 — import와 generate만 링크를 만든다.
+            .where(UserMotif.user_id == user.id)
             .order_by(UserMotif.created_at.desc(), UserMotif.id.desc())
             .limit(limit)
             .offset(offset)
@@ -2554,6 +2562,8 @@ class MotifGenerateOut(BaseModel):
     # 래더 히트로 카탈로그를 재사용했으면 true — 예산은 환급된다.
     reused: bool
     motif: MotifResultOut
+    # 내 모티프에 남겼는지 — 한도(100개)를 넘으면 생성만 되고 저장은 건너뛴다.
+    saved: bool
 
 
 class MotifActivateRequest(StrictModel):
@@ -2701,8 +2711,32 @@ async def generate_motif(
             session=session,
             session_id=session_id,
             user_id=user.id,
+            name=body.prompt.strip()[:100],
         )
     )
+
+
+async def _save_generated_motif(
+    session: SessionDep, *, user_id: uuid.UUID, motif_id: str, name: str
+) -> bool:
+    """생성 결과를 내 모티프에 남긴다 — 적용하지 않아도 나중에 다시 고를 수 있게.
+
+    한도 초과·저장 실패면 저장만 건너뛴다(생성 자체는 실패가 아니다).
+    """
+    existing, count = await _user_motif_link_state(session, user_id=user_id, motif_id=motif_id)
+    saved = True
+    if existing is None:
+        if count >= MAX_USER_MOTIFS:
+            saved = False
+        else:
+            session.add(UserMotif(user_id=user_id, motif_id=motif_id, name=name))
+    try:
+        await session.commit()
+    except Exception:
+        logger.warning("생성 모티프 저장 실패 — 생성 응답은 그대로 반환", exc_info=True)
+        await session.rollback()
+        return False
+    return saved
 
 
 async def _dispatch_motif_generation(
@@ -2712,6 +2746,7 @@ async def _dispatch_motif_generation(
     session: SessionDep,
     session_id: uuid.UUID,
     user_id: uuid.UUID,
+    name: str,
 ) -> MotifGenerateOut:
     """클라이언트가 끊겨도 선차감한 Recraft 예산을 정합하게 되돌린다 — 생성과 같은 기계."""
     try:
@@ -2731,7 +2766,15 @@ async def _dispatch_motif_generation(
     )
     if not results:
         raise UpstreamError("생성한 모티프를 카탈로그에서 찾을 수 없습니다")
-    return MotifGenerateOut(request_id=out.request_id, reused=out.reused, motif=results[0])
+    saved = await _save_generated_motif(
+        session,
+        user_id=user_id,
+        motif_id=out.motif_id,
+        name=name or results[0].name or "만든 모티프",
+    )
+    return MotifGenerateOut(
+        request_id=out.request_id, reused=out.reused, motif=results[0], saved=saved
+    )
 
 
 @router.post("/design/sessions/{session_id}/motifs/activate", response_model=DesignGenerateOut)

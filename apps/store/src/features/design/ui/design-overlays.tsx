@@ -16,6 +16,7 @@ import {
   designSessionsQueryOptions,
   finalizedJobsInfiniteQueryOptions,
 } from "@/features/design/model/queries";
+import type { DesignHistoryCell } from "@/features/design/model/steps";
 import {
   useDeleteDesignSession,
   useDeleteFinalizedJob,
@@ -32,8 +33,8 @@ import {
   type FinalizeDialogValue,
 } from "@/features/design/ui/finalize-dialog";
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
+import { HistoryModal } from "@/features/design/ui/history-modal";
 import { IdeasModal } from "@/features/design/ui/ideas-modal";
-import { MotifGenerateModal } from "@/features/design/ui/motif-generate-modal";
 import { MotifModal } from "@/features/design/ui/motif-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { PhotoReferenceModal } from "@/features/design/ui/photo-reference-modal";
@@ -43,8 +44,8 @@ export type DesignOverlayName =
   | "onboarding"
   | "sessions"
   | "finalized"
+  | "history"
   | "motifs"
-  | "motif-generate"
   | "photos"
   | "colors"
   | "ideas"
@@ -68,6 +69,10 @@ export type DesignOverlaysProps = {
   onSelectSession: (sessionId: string) => void;
   onSessionDeleted: (sessionId: string) => void;
   onOnboardingComplete: () => void;
+  /** 전체 이력 격자 — 좌측 이력 카드와 같은 데이터·같은 되돌리기 호출을 쓴다. */
+  historyCells: readonly DesignHistoryCell[];
+  historyCurrentRunId: string | null;
+  onSelectStep: (runId: string) => void;
   /** 모티프 모달 전체의 상태·호출 — 페이지가 소유해 모달을 넘나들어도 유지된다. */
   motifs: MotifSearchState;
   photos: readonly PhotoReference[];
@@ -101,6 +106,9 @@ export function DesignOverlays({
   onSelectSession,
   onSessionDeleted,
   onOnboardingComplete,
+  historyCells,
+  historyCurrentRunId,
+  onSelectStep,
   motifs,
   photos,
   onAddPhotos,
@@ -150,12 +158,6 @@ export function DesignOverlays({
   const requestDelete = (target: DeleteTarget) => {
     onOverlayChange(null);
     afterExit(() => setDeleteTarget(target));
-  };
-
-  /** 모달 위 모달 금지 — 하나가 닫히는 모션이 끝난 뒤 다음 오버레이를 연다. */
-  const switchOverlay = (next: DesignOverlayName) => {
-    onOverlayChange(null);
-    afterExit(() => onOverlayChange(next));
   };
 
   // 확인 다이얼로그가 닫히면(취소·성공 공통) 원래의 목록 모달로 돌아간다.
@@ -217,27 +219,20 @@ export function DesignOverlays({
           onOnboardingComplete();
         }}
       />
+      <HistoryModal
+        open={overlay === "history"}
+        onOpenChange={change("history")}
+        cells={historyCells}
+        currentRunId={historyCurrentRunId}
+        onSelect={onSelectStep}
+      />
       <MotifModal
         open={overlay === "motifs"}
         onOpenChange={change("motifs")}
         state={motifs}
-        onRequestGenerate={() => {
-          // 검색어를 프리필하되 확인창에서 다시 쓸 수 있게 둔다. 지난 실패 문구는 지운다.
-          motifs.setGeneratePrompt(motifs.query);
-          motifs.setGenerateError(null);
-          switchOverlay("motif-generate");
-        }}
         onDeleteMotif={(motif) =>
           requestDelete({ kind: "motif", id: motif.id, name: motif.name })
         }
-      />
-      <MotifGenerateModal
-        open={overlay === "motif-generate"}
-        // 취소 = 모티프 모달로 복귀(검색어·결과 유지). 생성 성공은 페이지가 닫는다.
-        onOpenChange={(open) => {
-          if (!open) switchOverlay("motifs");
-        }}
-        state={motifs}
       />
       <PhotoReferenceModal
         open={overlay === "photos"}

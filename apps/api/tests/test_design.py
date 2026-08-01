@@ -2808,6 +2808,79 @@ async def test_motif_generate_reused_refunds_budget(client, app, db_session, set
     assert await _session_recraft_used(client, headers, sid) == 0
 
 
+async def test_motif_generate_saves_to_user_library_idempotently(client, app, db_session, settings):
+    """적용하지 않아도 내 모티프에 남는다 — 같은 모티프를 다시 만들어도 링크는 하나."""
+    app.state.worker = MotifWorker(reused=False)
+    await _seed_catalog_motif(db_session)
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    first = await client.post(
+        f"/design/sessions/{sid}/motifs/generate",
+        json={"prompt": "꿀벌 한 마리"},
+        headers=headers,
+    )
+
+    assert first.status_code == 200, first.text
+    assert first.json()["saved"] is True
+    # 생성 모티프는 source가 user_upload가 아니다 — 링크 존재만으로 목록에 나와야 한다.
+    library = (await client.get("/design/motifs", headers=headers)).json()
+    assert [(item["motif_id"], item["name"]) for item in library] == [
+        (_CATALOG_MOTIF_ID, "꿀벌 한 마리")
+    ]
+
+    again = await client.post(
+        f"/design/sessions/{sid}/motifs/generate",
+        json={"prompt": "다른 문장"},
+        headers=headers,
+    )
+
+    assert again.status_code == 200 and again.json()["saved"] is True
+    library = (await client.get("/design/motifs", headers=headers)).json()
+    assert len(library) == 1 and library[0]["name"] == "꿀벌 한 마리"
+
+
+async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_session, settings):
+    """내 모티프가 가득 차면 저장만 건너뛴다 — 예산을 쓴 생성을 실패로 되돌리지 않는다."""
+    app.state.worker = MotifWorker(reused=False)
+    await _seed_catalog_motif(db_session)
+    user = await make_user(db_session)
+    filler_ids = [f"seed-filler-{index:03d}" for index in range(100)]
+    db_session.add_all(
+        Motif(
+            id=motif_id,
+            symbol=(
+                f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
+                '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            ),
+            bbox=[-0.5, -0.5, 0.5, 0.5],
+            anchor=[0, 0],
+            source="catalog",
+        )
+        for motif_id in filler_ids
+    )
+    await db_session.flush()
+    db_session.add_all(
+        UserMotif(user_id=user.id, motif_id=motif_id, name=f"모티프 {index + 1}")
+        for index, motif_id in enumerate(filler_ids)
+    )
+    await db_session.commit()
+    headers = auth_headers(user, settings)
+    sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    res = await client.post(
+        f"/design/sessions/{sid}/motifs/generate",
+        json={"prompt": "꿀벌 한 마리"},
+        headers=headers,
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["saved"] is False
+    assert res.json()["motif"]["motif_id"] == _CATALOG_MOTIF_ID
+    assert await _session_recraft_used(client, headers, sid) == 1
+
+
 async def test_motif_generate_worker_failure_refunds_budget(client, app, db_session, settings):
     app.state.worker = MotifWorker(fail=True)
     user = await make_user(db_session)

@@ -9,6 +9,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,6 +33,7 @@ const api = vi.hoisted(() => ({
   searchMotifs: vi.fn(),
   generateMotif: vi.fn(),
   activateMotif: vi.fn(),
+  importMotif: vi.fn(),
   startFromExample: vi.fn(),
 }));
 
@@ -45,6 +47,7 @@ vi.mock("@essesion/api-client", async (importOriginal) => {
     searchMotifs: api.searchMotifs,
     generateMotif: api.generateMotif,
     activateMotif: api.activateMotif,
+    importUserMotif: api.importMotif,
     createDesignSessionFromExample: api.startFromExample,
   };
 });
@@ -262,23 +265,19 @@ describe("DesignPage canvas shell", () => {
     useSession.setState({ status: "anonymous", accessToken: null, user: null });
   });
 
-  it("이력 썸네일 클릭이 그 스텝을 activate 한다 — 되돌리기 버튼은 없다", async () => {
+  it("이력 카드의 ◀ 가 이전 디자인을 activate 하고 끝에서는 ▶ 가 잠긴다", async () => {
     api.activateStep.mockResolvedValue({ data: session });
     const queryClient = renderPage();
 
-    const first = await screen.findByRole("button", {
+    const back = await screen.findByRole("button", {
       name: "1번째 디자인으로 되돌리기",
     });
-    // 포인터가 가리키는 마지막 스텝은 포커스는 되지만 눌러도 아무 일도 없다.
-    const current = screen.getByRole("button", {
-      name: "2번째 디자인, 현재 편집 중",
-    });
-    expect(disabled(current)).toBe(false);
-    fireEvent.click(current);
-    expect(api.activateStep).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: /되돌리기$/ })).toBe(first);
+    // 포인터가 마지막 스텝이라 앞으로 갈 곳이 없다.
+    expect(disabled(screen.getByRole("button", { name: "다음 디자인" }))).toBe(
+      true,
+    );
 
-    fireEvent.click(first);
+    fireEvent.click(back);
     await waitFor(() =>
       expect(api.activateStep).toHaveBeenCalledWith({
         path: { session_id: "session-1" },
@@ -309,7 +308,7 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  it("적용 중에는 입력창을 잠그고 이력 끝에 대기 칸을 만든다", async () => {
+  it("적용 중에는 입력창과 이력 카드를 함께 잠근다", async () => {
     let finish!: (value: unknown) => void;
     api.generate.mockImplementation(
       () =>
@@ -324,7 +323,12 @@ describe("DesignPage canvas shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "디자인에 적용" }));
 
     await waitFor(() => expect(disabled(input)).toBe(true));
-    screen.getByText("적용 중");
+    // 되돌리기는 적용이 끝날 때까지 잠긴다(썸네일 자리는 스켈레톤).
+    expect(
+      disabled(
+        screen.getByRole("button", { name: "1번째 디자인으로 되돌리기" }),
+      ),
+    ).toBe(true);
     expect(disabled(screen.getByRole("button", { name: "내려받기" }))).toBe(
       true,
     );
@@ -385,9 +389,20 @@ describe("DesignPage canvas shell", () => {
     expect(api.createSession).not.toHaveBeenCalled();
     expect(api.generate).not.toHaveBeenCalled();
     // 캔버스·이력이 그대로 채워진다(서버가 붙인 스텝 2개).
-    await screen.findByRole("button", { name: "2번째 디자인, 현재 편집 중" });
+    await screen.findByRole("button", {
+      name: "2번째 디자인 · 전체 이력 보기",
+    });
     queryClient.clear();
   });
+
+  /** 슬롯 트리거를 눌러 소스 메뉴를 열고 항목 하나를 고른다. */
+  function pickSource(slotTrigger: HTMLElement, slot: 1 | 2, item: RegExp) {
+    fireEvent.click(slotTrigger);
+    const menu = screen.getByRole("menu", {
+      name: `슬롯 ${slot}에 그림 넣는 방법`,
+    });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: item }));
+  }
 
   it("엔터로 검색하고 고른 그림으로 바꿔도 잔액이 그대로다", async () => {
     api.searchMotifs.mockResolvedValue({
@@ -409,8 +424,12 @@ describe("DesignPage canvas shell", () => {
     });
     const queryClient = renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
-    await waitForDialog("모티프 바꾸기");
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^탐색/,
+    );
+    await waitForDialog("탐색");
     const input = screen.getByLabelText("어떤 그림을 넣을지");
     fireEvent.change(input, { target: { value: "작은 벌" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -450,8 +469,12 @@ describe("DesignPage canvas shell", () => {
     api.searchMotifs.mockResolvedValue({ data: { results: [] } });
     const queryClient = renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
-    await waitForDialog("모티프 바꾸기");
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^탐색/,
+    );
+    await waitForDialog("탐색");
     const input = screen.getByLabelText("어떤 그림을 넣을지");
     fireEvent.change(input, { target: { value: "없는 그림" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -463,11 +486,12 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  it("생성은 확인 모달을 지나서만 호출되고 성공하면 바로 슬롯에 들어간다", async () => {
+  it("생성 결과는 적용 전에 한 장으로 보여주고 내 모티프에 저장된다", async () => {
     api.generateMotif.mockResolvedValue({
       data: {
         request_id: "req-1",
         reused: false,
+        saved: true,
         motif: {
           motif_id: "recraft-bee",
           name: "작은 벌",
@@ -477,22 +501,15 @@ describe("DesignPage canvas shell", () => {
     });
     const queryClient = renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
-    await waitForDialog("모티프 바꾸기");
-    fireEvent.change(screen.getByLabelText("어떤 그림을 넣을지"), {
-      target: { value: "작은 벌" },
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^AI 생성/,
+    );
+    await waitForDialog("AI 생성");
+    fireEvent.change(screen.getByLabelText("새로 만들 그림"), {
+      target: { value: "아주 작은 벌" },
     });
-    await screen.findByText("문장 그대로 새로 만들어요 · 2번 더 가능");
-
-    fireEvent.click(screen.getByRole("button", { name: "새로 만들기" }));
-    // 유료 행은 확인 모달을 여는 것까지만 한다.
-    expect(api.generateMotif).not.toHaveBeenCalled();
-    // 모달 위 모달 금지 — 모티프 모달이 닫힌 뒤에 확인 모달이 열린다.
-    await waitForDialog("모티프 새로 만들기");
-    const prompt = screen.getByLabelText("새로 만들 그림");
-    expect((prompt as HTMLInputElement).value).toBe("작은 벌");
-
-    fireEvent.change(prompt, { target: { value: "아주 작은 벌" } });
     fireEvent.click(screen.getByRole("button", { name: "이 문장으로 만들기" }));
 
     await waitFor(() =>
@@ -502,6 +519,13 @@ describe("DesignPage canvas shell", () => {
         throwOnError: true,
       }),
     );
+    // 결과는 한 장으로 남고, 적용은 사용자가 따로 누른다.
+    await screen.findByText(
+      "내 모티프에 저장했어요 — 적용하지 않아도 나중에 다시 고를 수 있어요",
+    );
+    expect(api.activateMotif).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "이 그림 적용" }));
     await waitFor(() =>
       expect(api.activateMotif).toHaveBeenCalledWith({
         path: { session_id: "session-1" },
@@ -512,20 +536,65 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  it("생성 예산이 없으면 유료 행이 잠긴다", async () => {
+  it("생성 예산이 없으면 메뉴의 AI 생성만 잠긴다", async () => {
     sessionOverride = { recraft_remaining: 0, recraft_used: 3 };
     const queryClient = renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
-    await waitForDialog("모티프 바꾸기");
-    fireEvent.change(screen.getByLabelText("어떤 그림을 넣을지"), {
-      target: { value: "작은 벌" },
+    const menu = screen.getByRole("menu", { name: "슬롯 1에 그림 넣는 방법" });
+
+    expect(
+      disabled(within(menu).getByRole("menuitem", { name: /^AI 생성/ })),
+    ).toBe(true);
+    within(menu).getByText("이번 디자인에서 더 만들 수 없어요");
+    // 무료 경로는 그대로 열린다 — 배지 없음이 곧 무료 표시다.
+    expect(
+      disabled(within(menu).getByRole("menuitem", { name: /^글자 넣기/ })),
+    ).toBe(false);
+    queryClient.clear();
+  });
+
+  it("SVG 올리기는 모달을 열지 않고 슬롯에 바로 넣는다", async () => {
+    api.importMotif.mockResolvedValue({
+      data: {
+        id: "user-motif-1",
+        motif_id: "upload-a1b2c3d4e5f6",
+        name: "bee",
+        preview_svg: "<svg/>",
+        created_at: "2026-07-31T00:00:00Z",
+      },
+    });
+    const queryClient = renderPage();
+
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^SVG 올리기/,
+    );
+    // 파일 선택창만 열린다 — 열린 모달이 없으니 취소해도 닫힐 것이 없다.
+    expect(openDialogs()).toEqual([]);
+
+    // jsdom의 File에는 arrayBuffer()가 없다 — 읽기만 흉내 낸다.
+    const file = new File(["<svg/>"], "bee.svg", { type: "image/svg+xml" });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => new TextEncoder().encode("<svg/>").buffer,
+    });
+    fireEvent.change(screen.getByLabelText("SVG 모티프 파일 선택"), {
+      target: { files: [file] },
     });
 
-    await screen.findByText("이번 디자인에서 더 만들 수 없어요");
-    expect(disabled(screen.getByRole("button", { name: "새로 만들기" }))).toBe(
-      true,
+    await waitFor(() =>
+      expect(api.activateMotif).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { slot: 1, motif_id: "upload-a1b2c3d4e5f6" },
+        throwOnError: true,
+      }),
     );
+    expect(api.importMotif).toHaveBeenCalledWith({
+      body: { name: "bee", svg: "<svg/>" },
+      throwOnError: true,
+    });
+    expect(openDialogs()).toEqual([]);
     queryClient.clear();
   });
 

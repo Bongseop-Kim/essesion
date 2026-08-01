@@ -8,6 +8,7 @@ import {
   PageBanner,
   snackbar,
   Text,
+  VStack,
 } from "@essesion/shared";
 import { LightBulbIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
@@ -20,11 +21,13 @@ import {
   extractDesignPalette,
 } from "@/features/design/api/context-tools";
 import { designErrorMessage } from "@/features/design/model/errors";
-import {
-  isMotifPanelCollapsed,
-  setMotifPanelCollapsed,
-} from "@/features/design/model/motif-panel-state";
 import { isDesignOnboardingComplete } from "@/features/design/model/onboarding";
+import {
+  HISTORY_CARD_COLLAPSED_KEY,
+  isPanelCollapsed,
+  MOTIF_PANEL_COLLAPSED_KEY,
+  setPanelCollapsed,
+} from "@/features/design/model/panel-collapsed";
 import {
   clearPendingDesign,
   readPendingDesign,
@@ -54,7 +57,7 @@ import {
   type DesignOverlayName,
   DesignOverlays,
 } from "@/features/design/ui/design-overlays";
-import { HistoryTrack } from "@/features/design/ui/history-track";
+import { HistoryCard } from "@/features/design/ui/history-card";
 import { MotifPanel } from "@/features/design/ui/motif-panel";
 import { PromptBar } from "@/features/design/ui/prompt-bar";
 import { StarterGallery } from "@/features/design/ui/starter-gallery";
@@ -83,7 +86,12 @@ export function DesignPage() {
   const [overlay, setOverlay] = useState<DesignOverlayName | null>(() =>
     isDesignOnboardingComplete() ? null : "onboarding",
   );
-  const [collapsed, setCollapsed] = useState(() => isMotifPanelCollapsed());
+  const [collapsed, setCollapsed] = useState(() =>
+    isPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY),
+  );
+  const [historyCollapsed, setHistoryCollapsed] = useState(() =>
+    isPanelCollapsed(HISTORY_CARD_COLLAPSED_KEY),
+  );
   const [pending, setPending] = useState(() => readPendingDesign());
 
   const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
@@ -125,6 +133,7 @@ export function DesignPage() {
       setOverlay(null);
       snackbar(`‘${name}’ 모티프로 바꿨어요.`);
     },
+    notify: snackbar,
   });
   const editor = usePromptGeneration({
     sessionId,
@@ -147,7 +156,7 @@ export function DesignPage() {
     authenticated,
     onStarted: () => setOverlay(null),
   });
-  const busy = editor.pending;
+  const busy = editor.pending || activateStep.isPending;
   const exportable = !!history.currentSvg && !busy;
 
   useEffect(() => {
@@ -180,6 +189,13 @@ export function DesignPage() {
       return false;
     }
   };
+
+  /** 되돌리기 — 카드 스테퍼와 이력 모달이 같은 호출을 쓴다. */
+  const selectStep = (runId: string) =>
+    void runOnSession(
+      (id) => activateStep.mutateAsync({ sessionId: id, runId }),
+      "그 스텝으로 되돌리지 못했습니다.",
+    );
 
   const startFromExample = async (example: DesignExampleOut) => {
     if (!ensureAuth()) return;
@@ -266,20 +282,47 @@ export function DesignPage() {
           />
         }
         left={
-          <MotifPanel
-            motifs={motifSlots}
-            collapsed={collapsed}
-            onCollapsedChange={(next) => {
-              setCollapsed(next);
-              setMotifPanelCollapsed(next);
-            }}
-            onEditSlot={(slot) => {
-              if (!ensureAuth()) return;
-              motifs.openSlot(slot);
-              setOverlay("motifs");
-            }}
-            disabled={busy || !hasDesign}
-          />
+          <VStack alignItems="stretch" gap="x3">
+            <MotifPanel
+              motifs={motifSlots}
+              collapsed={collapsed}
+              onCollapsedChange={(next) => {
+                setCollapsed(next);
+                setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, next);
+              }}
+              onPickSource={(slot, source) => {
+                if (!ensureAuth()) return;
+                motifs.openSlot(slot, source);
+                setOverlay("motifs");
+              }}
+              onAddSvg={(slot, file) => {
+                if (!ensureAuth()) return;
+                void motifs.addSvgFile(slot, file);
+              }}
+              onAddPhoto={(slot, file) => {
+                if (!ensureAuth()) return;
+                motifs.openSlot(slot, "photo");
+                void motifs.addPhotoFile(file);
+                setOverlay("motifs");
+              }}
+              recraftRemaining={sessionQuery.data?.recraft_remaining ?? null}
+              pendingSlot={motifs.pendingSlot}
+              disabled={busy || !hasDesign}
+            />
+            <HistoryCard
+              cells={history.designCells}
+              currentIndex={history.currentIndex}
+              pending={editor.generating || motifs.replacing}
+              disabled={busy}
+              collapsed={historyCollapsed}
+              onCollapsedChange={(next) => {
+                setHistoryCollapsed(next);
+                setPanelCollapsed(HISTORY_CARD_COLLAPSED_KEY, next);
+              }}
+              onSelect={selectStep}
+              onOpenAll={() => setOverlay("history")}
+            />
+          </VStack>
         }
         right={
           <ToolRail
@@ -302,36 +345,22 @@ export function DesignPage() {
           />
         }
         bottom={
-          <>
-            <HistoryTrack
-              cells={history.cells}
-              currentRunId={history.currentRunId}
-              pending={editor.generating || motifs.replacing}
-              disabled={busy}
-              onSelect={(runId) =>
-                void runOnSession(
-                  (id) => activateStep.mutateAsync({ sessionId: id, runId }),
-                  "그 스텝으로 되돌리지 못했습니다.",
-                )
+          <Box width="full" maxWidth={860}>
+            <PromptBar
+              value={editor.prompt}
+              onChange={editor.changePrompt}
+              onSubmit={editor.submit}
+              onOpenIdeas={() => ensureAuth() && setOverlay("ideas")}
+              placeholder={
+                hasDesign
+                  ? "무엇을 바꿀까요? 색, 줄무늬, 배치, 크기"
+                  : "원하는 색상, 무늬, 분위기를 입력하세요"
               }
+              loading={busy}
+              disabled={status === "loading"}
+              selectSignal={editor.selectSignal}
             />
-            <Box width="full" maxWidth={860}>
-              <PromptBar
-                value={editor.prompt}
-                onChange={editor.changePrompt}
-                onSubmit={editor.submit}
-                onOpenIdeas={() => ensureAuth() && setOverlay("ideas")}
-                placeholder={
-                  hasDesign
-                    ? "무엇을 바꿀까요? 색, 줄무늬, 배치, 크기"
-                    : "원하는 색상, 무늬, 분위기를 입력하세요"
-                }
-                loading={busy}
-                disabled={status === "loading"}
-                selectSignal={editor.selectSignal}
-              />
-            </Box>
-          </>
+          </Box>
         }
       />
 
@@ -345,6 +374,9 @@ export function DesignPage() {
           if (sessionId === id) openSession(null, false);
         }}
         onOnboardingComplete={() => setOverlay(null)}
+        historyCells={history.cells}
+        historyCurrentRunId={history.currentRunId}
+        onSelectStep={selectStep}
         motifs={motifs}
         photos={editor.photos.photos}
         onAddPhotos={(files) => ensureAuth() && editor.photos.add(files)}

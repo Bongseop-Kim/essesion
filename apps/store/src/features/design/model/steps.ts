@@ -2,20 +2,27 @@ import type { DesignTurnOut } from "@essesion/api-client";
 
 import { parseDesignTurnPayload } from "./turn-payload";
 
-/** 하단 이력 트랙의 한 칸. 실패 칸은 번호를 차지하지 않는다. */
+/** 번호를 받은 성공 스텝 한 칸. */
+export type DesignStepCell = {
+  kind: "design";
+  seq: number;
+  runId: string;
+  svg: string;
+  label: number;
+};
+
+/** 이력 격자의 한 칸. 실패 칸은 번호를 차지하지 않는다. */
 export type DesignHistoryCell =
-  | {
-      kind: "design";
-      seq: number;
-      runId: string;
-      svg: string;
-      label: number;
-    }
+  | DesignStepCell
   | { kind: "failed"; seq: number };
 
 export type DesignHistory = {
   cells: readonly DesignHistoryCell[];
-  /** 편집 포인터 — 마지막 `activate` 턴의 런. 이력 클릭이 이 값을 옮긴다. */
+  /** 성공 칸만 — 스테퍼의 `n / 총`과 ◀ ▶ 이동 기준 */
+  designCells: readonly DesignStepCell[];
+  /** `designCells`에서 편집 포인터의 위치. 가리키는 칸이 없으면 -1 */
+  currentIndex: number;
+  /** 편집 포인터 — 마지막 `activate` 턴의 런. 이력 선택이 이 값을 옮긴다. */
   currentRunId: string | null;
   /** 포인터가 가리키는 디자인 SVG (없으면 첫 진입) */
   currentSvg: string | null;
@@ -23,6 +30,8 @@ export type DesignHistory = {
 
 const EMPTY: DesignHistory = {
   cells: [],
+  designCells: [],
+  currentIndex: -1,
   currentRunId: null,
   currentSvg: null,
 };
@@ -60,12 +69,15 @@ export function readDesignHistory(
     }
   }
 
-  const current = cells.find(
-    (cell) => cell.kind === "design" && cell.runId === currentRunId,
+  const designCells = cells.filter((cell) => cell.kind === "design");
+  const currentIndex = designCells.findIndex(
+    (cell) => cell.runId === currentRunId,
   );
   return {
     cells,
+    designCells,
+    currentIndex,
     currentRunId,
-    currentSvg: current?.kind === "design" ? current.svg : null,
+    currentSvg: designCells[currentIndex]?.svg ?? null,
   };
 }
