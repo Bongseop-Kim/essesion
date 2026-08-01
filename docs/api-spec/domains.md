@@ -79,6 +79,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - 쿠폰 일괄 발급: user_coupons upsert(ON CONFLICT (user,coupon) DO UPDATE status='active' — 재활성화). 회수: **active만** revoked로 (id 목록 / 쿠폰×유저 목록 2종).
 - 통계: 오늘(주문 수·매출 합, 타입 필터 all|sale|custom|repair|token|sample), 기간(start≤end, created_at 범위).
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).
+- 디자인 예시 큐레이션: `GET·POST /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`. 등록은 run 하나당 1개(unique)이고, intent가 `source='user_upload'` 모티프를 쓰면 409(`private_motif_example`). 등록 직후는 비게시 — `published`를 켜야 store 갤러리에 노출된다.
 
 ## 11. 디자인(`/design`) 엔드포인트
 
@@ -87,6 +88,8 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | 엔드포인트 | 역할 | 과금 |
 |---|---|---|
 | `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`·`finalize_quota` 포함 | — |
+| `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**) | 무료 |
+| `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음 | 무료 |
 | `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
 | `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 범위 밖 요청은 `200 {rejected:"motif"}` | `design_token_cost_openai_render_standard` / `design_edit_cost` |
 | `POST /design/sessions/{id}/steps/activate` | 이력 썸네일 클릭 = 편집 포인터 이동(`{run_id}`). 이후 스텝은 그대로 남는다 | — |

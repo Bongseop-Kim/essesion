@@ -126,6 +126,28 @@ class DesignTurnAttachment(CreatedAtMixin, Base):
     )
 
 
+class DesignExample(TimestampMixin, Base):
+    """첫 진입 갤러리에 노출하는 큐레이션 예시.
+
+    상태는 전부 run(seamless_generation_logs)에서 파생되므로 예시는 run 포인터만
+    들고 있으면 된다 — 고르면 토큰 과금 없이 새 세션의 시작점이 된다.
+    """
+
+    __tablename__ = "design_examples"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("seamless_generation_logs.id", ondelete="RESTRICT"), unique=True
+    )
+    name: Mapped[str]
+    # 카드 라벨 둘째 줄 — 큐레이터가 쓰는 한 줄 설명. 없으면 제목만 그린다.
+    caption: Mapped[str | None]
+    ordinal: Mapped[int] = mapped_column(server_default=text("0"))
+    published: Mapped[bool] = mapped_column(server_default=text("false"))
+
+    __table_args__ = (Index("ix_design_examples_published_ordinal", "published", "ordinal"),)
+
+
 class GenerationJob(TimestampMixin, Base):
     __tablename__ = "generation_jobs"
 

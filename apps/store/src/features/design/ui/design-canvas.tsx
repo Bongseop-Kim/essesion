@@ -14,6 +14,8 @@ import type { ReactNode } from "react";
 export type DesignCanvasProps = {
   /** 현재 스텝의 디자인(data URI). null이면 첫 진입 안내를 그린다. */
   imageSrc: string | null;
+  /** 디자인이 없을 때 안내 대신 그릴 콘텐츠 (첫 진입 예시 갤러리) */
+  empty?: ReactNode;
   mode: DesignPreviewMode;
   /** 좌상단 플로팅 pill (만드는 방법) */
   topStart?: ReactNode;
@@ -35,6 +37,7 @@ export type DesignCanvasProps = {
  */
 export function DesignCanvas({
   imageSrc,
+  empty,
   mode,
   topStart,
   topEnd,
@@ -60,11 +63,13 @@ export function DesignCanvas({
                 <TieCanvas imageSrc={imageSrc} mode={mode} surface="none" />
               </Box>
             ) : (
-              <ContentPlaceholder
-                icon={<Icon svg={<SparklesIcon />} size={32} />}
-                title="아직 만든 디자인이 없어요"
-                description="원하는 넥타이를 한 문장으로 알려주세요. 만든 다음에는 여기서 계속 고쳐 나갈 수 있어요."
-              />
+              (empty ?? (
+                <ContentPlaceholder
+                  icon={<Icon svg={<SparklesIcon />} size={32} />}
+                  title="아직 만든 디자인이 없어요"
+                  description="원하는 넥타이를 한 문장으로 알려주세요. 만든 다음에는 여기서 계속 고쳐 나갈 수 있어요."
+                />
+              ))
             )}
           </Flex>
           <VStack alignItems="center" gap="x2_5" px="x4" pb="x5">

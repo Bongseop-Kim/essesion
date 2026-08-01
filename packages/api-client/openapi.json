@@ -1365,6 +1365,153 @@
         "title": "AdminCustomerTokenOut",
         "type": "object"
       },
+      "AdminDesignExampleCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "ordinal": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "name"
+        ],
+        "title": "AdminDesignExampleCreateRequest",
+        "type": "object"
+      },
+      "AdminDesignExampleOut": {
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          },
+          "preview_svg": {
+            "title": "Preview Svg",
+            "type": "string"
+          },
+          "published": {
+            "title": "Published",
+            "type": "boolean"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "caption",
+          "preview_svg",
+          "run_id",
+          "ordinal",
+          "published"
+        ],
+        "title": "AdminDesignExampleOut",
+        "type": "object"
+      },
+      "AdminDesignExampleUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "ordinal": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ordinal"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          }
+        },
+        "title": "AdminDesignExampleUpdateRequest",
+        "type": "object"
+      },
       "AdminInquiryActorOut": {
         "properties": {
           "email": {
@@ -6750,6 +6897,57 @@
           "as_of"
         ],
         "title": "DashboardTopProductsOut",
+        "type": "object"
+      },
+      "DesignExampleOut": {
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "preview_svg": {
+            "title": "Preview Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "caption",
+          "preview_svg"
+        ],
+        "title": "DesignExampleOut",
+        "type": "object"
+      },
+      "DesignExampleStartRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "example_id": {
+            "format": "uuid",
+            "title": "Example Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "example_id"
+        ],
+        "title": "DesignExampleStartRequest",
         "type": "object"
       },
       "DesignExportRequest": {
@@ -17792,6 +17990,178 @@
         ]
       }
     },
+    "/admin/design/examples": {
+      "get": {
+        "operationId": "list_admin_design_examples",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminDesignExampleOut"
+                  },
+                  "title": "Response List Admin Design Examples",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Admin Design Examples",
+        "tags": [
+          "admin-design-examples"
+        ]
+      },
+      "post": {
+        "description": "run 하나를 예시로 등록한다 — 비공개 모티프를 쓰는 run은 공개할 수 없다.",
+        "operationId": "create_admin_design_example",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDesignExampleCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDesignExampleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Admin Design Example",
+        "tags": [
+          "admin-design-examples"
+        ]
+      }
+    },
+    "/admin/design/examples/{example_id}": {
+      "delete": {
+        "operationId": "delete_admin_design_example",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Admin Design Example",
+        "tags": [
+          "admin-design-examples"
+        ]
+      },
+      "patch": {
+        "operationId": "update_admin_design_example",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "example_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Example Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDesignExampleUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDesignExampleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Admin Design Example",
+        "tags": [
+          "admin-design-examples"
+        ]
+      }
+    },
     "/admin/generation/jobs": {
       "get": {
         "operationId": "list_admin_generation_jobs",
@@ -22252,6 +22622,32 @@
         ]
       }
     },
+    "/design/examples": {
+      "get": {
+        "description": "첫 진입 갤러리 — 상품과 같은 공개 조회. 그릴 수 없는 예시는 내리지 않는다.",
+        "operationId": "list_design_examples",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DesignExampleOut"
+                  },
+                  "title": "Response List Design Examples",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Design Examples",
+        "tags": [
+          "design"
+        ]
+      }
+    },
     "/design/export": {
       "post": {
         "description": "디자인 SVG를 PNG/TIFF로 변환해 바이너리로 반환 (워커 /export 프록시, 과금 없음).",
@@ -23054,6 +23450,53 @@
           }
         ],
         "summary": "Create Design Session",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/design/sessions/from-example": {
+      "post": {
+        "description": "예시를 새 세션의 시작점으로 복원한다 — 렌더도 워커 호출도 없어 토큰이 들지 않는다.",
+        "operationId": "create_design_session_from_example",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesignExampleStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Design Session From Example",
         "tags": [
           "design"
         ]

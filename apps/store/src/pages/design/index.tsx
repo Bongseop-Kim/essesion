@@ -1,3 +1,5 @@
+import type { DesignExampleOut } from "@essesion/api-client";
+import { listDesignExamplesOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Box,
@@ -39,6 +41,7 @@ import {
   useDesignExport,
   useFinalizeFlow,
 } from "@/features/design/model/use-design-output";
+import { useStartDesignFromExample } from "@/features/design/model/use-example-start";
 import { useMotifSearch } from "@/features/design/model/use-motif-search";
 import { usePromptGeneration } from "@/features/design/model/use-prompt-generation";
 import { useActivateDesignStep } from "@/features/design/model/use-steps";
@@ -54,6 +57,7 @@ import {
 import { HistoryTrack } from "@/features/design/ui/history-track";
 import { MotifPanel } from "@/features/design/ui/motif-panel";
 import { PromptBar } from "@/features/design/ui/prompt-bar";
+import { StarterGallery } from "@/features/design/ui/starter-gallery";
 import {
   TokenPill,
   TokenPillPlaceholder,
@@ -90,6 +94,8 @@ export function DesignPage() {
     designTurnsQueryOptions({ sessionId, authenticated }),
   );
   const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
+  // 첫 진입 갤러리 — 공개 조회라 비로그인에도 뜬다.
+  const examplesQuery = useQuery(listDesignExamplesOptions());
 
   const history = useMemo(
     () => readDesignHistory(turnsQuery.data),
@@ -107,7 +113,10 @@ export function DesignPage() {
   const hasDesign = !!sessionQuery.data?.current_intent;
   const quota = sessionQuery.data?.finalize_quota ?? null;
 
+  const examples = examplesQuery.data ?? [];
+
   const activateStep = useActivateDesignStep();
+  const startExample = useStartDesignFromExample();
   const motifs = useMotifSearch({
     sessionId,
     currentMotifs: motifSlots,
@@ -172,6 +181,17 @@ export function DesignPage() {
     }
   };
 
+  const startFromExample = async (example: DesignExampleOut) => {
+    if (!ensureAuth()) return;
+    try {
+      const started = await startExample.mutateAsync(example.id);
+      openSession(started.id, false);
+      snackbar(`‘${example.name}’에서 시작했어요 · 토큰은 쓰지 않았어요`);
+    } catch (error) {
+      snackbar(designErrorMessage(error, "예시를 불러오지 못했습니다."));
+    }
+  };
+
   return (
     <>
       <title>AI 넥타이 디자인 | 영선산업</title>
@@ -197,6 +217,15 @@ export function DesignPage() {
 
       <DesignCanvas
         imageSrc={history.currentSvg ? svgToDataUri(history.currentSvg) : null}
+        empty={
+          !hasDesign && !busy && examples.length > 0 ? (
+            <StarterGallery
+              examples={examples}
+              onSelect={(example) => void startFromExample(example)}
+              disabled={startExample.isPending}
+            />
+          ) : undefined
+        }
         mode={previewMode}
         topStart={
           <ActionButton

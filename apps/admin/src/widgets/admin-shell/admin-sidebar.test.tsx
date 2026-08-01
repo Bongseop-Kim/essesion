@@ -45,6 +45,7 @@ describe("AdminSidebar", () => {
       "few-shot 후보",
       "선별된 few-shot",
       "Motif SVG",
+      "디자인 예시",
     ]);
     expect(
       within(sidebar)
