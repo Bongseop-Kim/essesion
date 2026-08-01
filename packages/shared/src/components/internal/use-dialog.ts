@@ -76,6 +76,9 @@ export function useDialog({
     dialogProps: {
       ref: dialogRef,
       onCancel: (event) => {
+        // <input type="file">의 선택 취소도 bubbles: true인 cancel을 올려보낸다 —
+        // 내 dialog가 낸 것(ESC)만 닫힘으로 친다.
+        if (event.target !== dialogRef.current) return;
         // 네이티브 즉시 close를 막고 자체 퇴장 파이프라인으로
         event.preventDefault();
         if (closeOnEscape) onClose();

@@ -1,20 +1,39 @@
 import {
   ActionButton,
+  Badge,
   Box,
+  Divider,
   Flex,
   HStack,
   Icon,
   ImageFrame,
+  MenuContent,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
+  type MenuTriggerProps,
+  ProgressCircle,
   Text,
   VStack,
 } from "@essesion/shared";
 import {
+  ArrowUpTrayIcon,
+  BookmarkIcon,
+  CameraIcon,
   ChevronDownIcon,
+  LanguageIcon,
+  MagnifyingGlassIcon,
+  PaintBrushIcon,
   PencilSquareIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
+import { type ReactNode, useRef } from "react";
 
-import { MAX_DESIGN_MOTIFS } from "@/features/design/api/attachments";
+import {
+  DESIGN_PHOTO_ACCEPT,
+  DESIGN_SVG_ACCEPT,
+  MAX_DESIGN_MOTIFS,
+} from "@/features/design/api/attachments";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
 
 export type MotifPanelSlot = {
@@ -23,28 +42,53 @@ export type MotifPanelSlot = {
   previewSvg: string;
 };
 
+/** 모달을 여는 소스 — SVG·사진은 파일 선택창이 먼저라 여기에 없다. */
+export type MotifPanelSource = "search" | "library" | "generate" | "text";
+
 export type MotifPanelProps = {
   /** 세션의 `current_motifs` — 레이어 순서, 최대 2 */
   motifs: readonly MotifPanelSlot[];
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
-  /** 슬롯 편집·추가 — 슬롯 번호(1·2)로 모티프 모달을 연다 */
-  onEditSlot: (slot: 1 | 2) => void;
+  /** 소스를 고름 — 페이지가 슬롯을 열고 그 소스의 모달을 띄운다 */
+  onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
+  /** SVG는 모달을 건너뛴다 — 파일 선택 즉시 저장·교체 */
+  onAddSvg: (slot: 1 | 2, file: File) => void;
+  /** 사진은 파일이 먼저, 확인 모달이 나중 */
+  onAddPhoto: (slot: 1 | 2, file: File) => void;
+  /** 남은 생성 횟수 — 유일한 유료 항목의 배지·잠금 */
+  recraftRemaining: number | null;
+  /** SVG를 넣는 중인 슬롯 — 썸네일 자리에 진행 표시 */
+  pendingSlot: 1 | 2 | null;
   disabled?: boolean;
 };
 
 /**
  * 캔버스 좌측 모티프 카드. 슬롯 2개를 세로로 세워 "지금 무엇을 쓰는지"만 보여주고,
- * 교체·추가는 모티프 모달로 넘긴다. 접으면 제목 줄과 24px 미니 칩만 남는다.
+ * 슬롯을 누르면 소스 Menu가 열린다 — 무엇으로 넣을지 묻는 곳은 여기 하나다.
  */
 export function MotifPanel({
   motifs,
   collapsed,
   onCollapsedChange,
-  onEditSlot,
+  onPickSource,
+  onAddSvg,
+  onAddPhoto,
+  recraftRemaining,
+  pendingSlot,
   disabled = false,
 }: MotifPanelProps) {
   const slots = [1, 2] as const;
+  const svgInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  // 파일 선택창은 슬롯을 모른다 — 어느 슬롯이 열었는지 여기에 적어 둔다.
+  const fileSlot = useRef<1 | 2>(1);
+
+  const pickFile = (kind: "svg" | "photo", slot: 1 | 2) => {
+    fileSlot.current = slot;
+    (kind === "svg" ? svgInput : photoInput).current?.click();
+  };
+
   return (
     <VStack
       alignItems="stretch"
@@ -101,10 +145,40 @@ export function MotifPanel({
             slot={slot}
             motif={motifs[slot - 1]}
             disabled={disabled}
-            onEdit={onEditSlot}
+            pending={pendingSlot === slot}
+            recraftRemaining={recraftRemaining}
+            onPickSource={onPickSource}
+            onPickFile={pickFile}
           />
         ))}
       </VStack>
+
+      <input
+        ref={svgInput}
+        type="file"
+        accept={DESIGN_SVG_ACCEPT}
+        aria-label="SVG 모티프 파일 선택"
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (file) onAddSvg(fileSlot.current, file);
+        }}
+      />
+      <input
+        ref={photoInput}
+        type="file"
+        accept={DESIGN_PHOTO_ACCEPT}
+        aria-label="모티프로 따올 사진 선택"
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (file) onAddPhoto(fileSlot.current, file);
+        }}
+      />
     </VStack>
   );
 }
@@ -124,84 +198,226 @@ function MiniChip({ motif }: { motif: MotifPanelSlot | undefined }) {
   );
 }
 
+type SlotMenuProps = {
+  slot: 1 | 2;
+  recraftRemaining: number | null;
+  onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
+  onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
+  children: MenuTriggerProps["children"];
+};
+
+/** 메뉴 구획 — 보이는 제목은 group 라벨이 대신 읽으므로 스크린리더에서 숨긴다. */
+function MenuGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <VStack role="group" aria-label={label} gap="x0_5" alignItems="stretch">
+      <Text
+        aria-hidden
+        textStyle="captionSm"
+        color="fg.neutral-subtle"
+        px="x2"
+        py="x1"
+      >
+        {label}
+      </Text>
+      {children}
+    </VStack>
+  );
+}
+
+/** 슬롯 하나의 소스 목록. 빈 슬롯·미리보기·편집 버튼이 모두 이 메뉴를 연다. */
+function SlotMenu({
+  slot,
+  recraftRemaining,
+  onPickSource,
+  onPickFile,
+  children,
+}: SlotMenuProps) {
+  const exhausted = recraftRemaining !== null && recraftRemaining <= 0;
+  return (
+    <MenuRoot>
+      <MenuTrigger>{children}</MenuTrigger>
+      <MenuContent aria-label={`슬롯 ${slot}에 그림 넣는 방법`}>
+        <MenuGroup label="고르기">
+          <MenuItem
+            prefixIcon={<Icon svg={<MagnifyingGlassIcon />} size={20} />}
+            label="탐색"
+            description="문장으로 카탈로그에서 찾아요"
+            onClick={() => onPickSource(slot, "search")}
+          />
+          <MenuItem
+            prefixIcon={<Icon svg={<BookmarkIcon />} size={20} />}
+            label="내 모티프"
+            description="저장해 둔 그림에서 골라요"
+            onClick={() => onPickSource(slot, "library")}
+          />
+        </MenuGroup>
+        <Box py="x1">
+          <Divider />
+        </Box>
+        <MenuGroup label="만들기">
+          <MenuItem
+            prefixIcon={<Icon svg={<PaintBrushIcon />} size={20} />}
+            label="AI 생성"
+            description={
+              exhausted ? (
+                "이번 디자인에서 더 만들 수 없어요"
+              ) : recraftRemaining === null ? (
+                "문장 그대로 새로 만들어요"
+              ) : (
+                <>
+                  문장 그대로 새로 만들어요{" "}
+                  <Badge tone="brand">{recraftRemaining}번 남음</Badge>
+                </>
+              )
+            }
+            disabled={exhausted}
+            onClick={() => onPickSource(slot, "generate")}
+          />
+          <MenuItem
+            prefixIcon={<Icon svg={<LanguageIcon />} size={20} />}
+            label="글자 넣기"
+            description="짧은 글자를 그림으로 만들어요"
+            onClick={() => onPickSource(slot, "text")}
+          />
+          <MenuItem
+            prefixIcon={<Icon svg={<CameraIcon />} size={20} />}
+            label="사진에서 따오기"
+            description="사진에서 배경만 지워요"
+            onClick={() => onPickFile("photo", slot)}
+          />
+          <MenuItem
+            prefixIcon={<Icon svg={<ArrowUpTrayIcon />} size={20} />}
+            label="SVG 올리기"
+            description="가지고 있는 SVG 파일을 넣어요"
+            onClick={() => onPickFile("svg", slot)}
+          />
+        </MenuGroup>
+      </MenuContent>
+    </MenuRoot>
+  );
+}
+
 function MotifSlotView({
   slot,
   motif,
   disabled,
-  onEdit,
+  pending,
+  recraftRemaining,
+  onPickSource,
+  onPickFile,
 }: {
   slot: 1 | 2;
   motif: MotifPanelSlot | undefined;
   disabled: boolean;
-  onEdit: (slot: 1 | 2) => void;
+  pending: boolean;
+  recraftRemaining: number | null;
+  onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
+  onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
 }) {
-  if (!motif) {
+  const menu = { slot, recraftRemaining, onPickSource, onPickFile };
+
+  if (pending) {
     return (
-      <Flex
-        as="button"
-        type="button"
-        direction="column"
-        alignItems="center"
-        justifyContent="center"
+      <VStack
+        align="center"
+        justify="center"
         gap="x1_5"
         width="full"
+        borderWidth={1}
+        borderColor="stroke.neutral-weak"
         borderRadius="r2"
         style={{ aspectRatio: 1 }}
-        onClick={() => onEdit(slot)}
-        disabled={disabled}
-        aria-label={`모티프 슬롯 ${slot}에 그림 추가`}
-        className="border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+        aria-busy="true"
+        aria-label={`모티프 슬롯 ${slot} 올리는 중`}
       >
-        <Icon svg={<PlusIcon />} size={22} />
+        <ProgressCircle size={24} />
         <Text
           textStyle="captionSm"
           color="fg.neutral-subtle"
           display={{ base: "none", md: "block" }}
         >
-          그림 추가
+          올리는 중…
         </Text>
-      </Flex>
+      </VStack>
+    );
+  }
+
+  if (!motif) {
+    return (
+      <SlotMenu {...menu}>
+        <Flex
+          as="button"
+          type="button"
+          direction="column"
+          align="center"
+          justify="center"
+          gap="x1_5"
+          width="full"
+          borderRadius="r2"
+          disabled={disabled}
+          aria-label={`모티프 슬롯 ${slot}에 그림 추가`}
+          className="border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+          style={{ aspectRatio: 1 }}
+        >
+          <Icon svg={<PlusIcon />} size={22} />
+          <Text
+            textStyle="captionSm"
+            color="fg.neutral-subtle"
+            display={{ base: "none", md: "block" }}
+          >
+            그림 추가
+          </Text>
+        </Flex>
+      </SlotMenu>
     );
   }
 
   const name = motif.name ?? "모티프";
   return (
     <VStack alignItems="stretch" gap="x2">
-      {/* base엔 편집 버튼 줄이 없다 — 미리보기 자체가 편집 진입점을 겸한다. */}
-      <Box
-        as="button"
-        type="button"
-        width="full"
-        borderRadius="r2"
-        onClick={() => onEdit(slot)}
-        disabled={disabled}
-        aria-label={`${name} 바꾸기`}
-        className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none"
-      >
-        <ImageFrame
-          ratio={1}
+      {/* base엔 편집 버튼 줄이 없다 — 미리보기 자체가 메뉴 진입점을 겸한다. */}
+      <SlotMenu {...menu}>
+        <Box
+          as="button"
+          type="button"
+          width="full"
           borderRadius="r2"
-          stroke
-          fit="contain"
-          src={svgToDataUri(motif.previewSvg)}
-          alt={name}
-        />
-      </Box>
+          disabled={disabled}
+          aria-label={`${name} 바꾸기`}
+          className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none"
+        >
+          <ImageFrame
+            ratio={1}
+            borderRadius="r2"
+            stroke
+            fit="contain"
+            src={svgToDataUri(motif.previewSvg)}
+            alt={name}
+          />
+        </Box>
+      </SlotMenu>
       <HStack gap="x1_5" display={{ base: "none", md: "flex" }}>
         <Text textStyle="captionSm" maxLines={1} minWidth={0}>
           {name}
         </Text>
         <Box ml="auto">
-          <ActionButton
-            variant="neutralOutline"
-            size="xsmall"
-            onClick={() => onEdit(slot)}
-            disabled={disabled}
-            aria-label={`${name} 바꾸기`}
-          >
-            <Icon svg={<PencilSquareIcon />} size={14} />
-            편집
-          </ActionButton>
+          <SlotMenu {...menu}>
+            <ActionButton
+              variant="neutralOutline"
+              size="xsmall"
+              disabled={disabled}
+              aria-label={`${name} 편집 메뉴`}
+            >
+              <Icon svg={<PencilSquareIcon />} size={14} />
+              편집
+            </ActionButton>
+          </SlotMenu>
         </Box>
       </HStack>
     </VStack>

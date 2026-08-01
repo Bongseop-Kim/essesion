@@ -133,6 +133,7 @@ export function DesignPage() {
       setOverlay(null);
       snackbar(`‘${name}’ 모티프로 바꿨어요.`);
     },
+    notify: snackbar,
   });
   const editor = usePromptGeneration({
     sessionId,
@@ -289,11 +290,23 @@ export function DesignPage() {
                 setCollapsed(next);
                 setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, next);
               }}
-              onEditSlot={(slot) => {
+              onPickSource={(slot, source) => {
                 if (!ensureAuth()) return;
-                motifs.openSlot(slot);
+                motifs.openSlot(slot, source);
                 setOverlay("motifs");
               }}
+              onAddSvg={(slot, file) => {
+                if (!ensureAuth()) return;
+                void motifs.addSvgFile(slot, file);
+              }}
+              onAddPhoto={(slot, file) => {
+                if (!ensureAuth()) return;
+                motifs.openSlot(slot, "photo");
+                void motifs.addPhotoFile(file);
+                setOverlay("motifs");
+              }}
+              recraftRemaining={sessionQuery.data?.recraft_remaining ?? null}
+              pendingSlot={motifs.pendingSlot}
               disabled={busy || !hasDesign}
             />
             <HistoryCard

@@ -35,7 +35,6 @@ import {
 import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
 import { HistoryModal } from "@/features/design/ui/history-modal";
 import { IdeasModal } from "@/features/design/ui/ideas-modal";
-import { MotifGenerateModal } from "@/features/design/ui/motif-generate-modal";
 import { MotifModal } from "@/features/design/ui/motif-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
 import { PhotoReferenceModal } from "@/features/design/ui/photo-reference-modal";
@@ -47,7 +46,6 @@ export type DesignOverlayName =
   | "finalized"
   | "history"
   | "motifs"
-  | "motif-generate"
   | "photos"
   | "colors"
   | "ideas"
@@ -162,12 +160,6 @@ export function DesignOverlays({
     afterExit(() => setDeleteTarget(target));
   };
 
-  /** 모달 위 모달 금지 — 하나가 닫히는 모션이 끝난 뒤 다음 오버레이를 연다. */
-  const switchOverlay = (next: DesignOverlayName) => {
-    onOverlayChange(null);
-    afterExit(() => onOverlayChange(next));
-  };
-
   // 확인 다이얼로그가 닫히면(취소·성공 공통) 원래의 목록 모달로 돌아간다.
   const closeConfirm = (target: DeleteTarget) => {
     setDeleteTarget(null);
@@ -238,23 +230,9 @@ export function DesignOverlays({
         open={overlay === "motifs"}
         onOpenChange={change("motifs")}
         state={motifs}
-        onRequestGenerate={() => {
-          // 검색어를 프리필하되 확인창에서 다시 쓸 수 있게 둔다. 지난 실패 문구는 지운다.
-          motifs.setGeneratePrompt(motifs.query);
-          motifs.setGenerateError(null);
-          switchOverlay("motif-generate");
-        }}
         onDeleteMotif={(motif) =>
           requestDelete({ kind: "motif", id: motif.id, name: motif.name })
         }
-      />
-      <MotifGenerateModal
-        open={overlay === "motif-generate"}
-        // 취소 = 모티프 모달로 복귀(검색어·결과 유지). 생성 성공은 페이지가 닫는다.
-        onOpenChange={(open) => {
-          if (!open) switchOverlay("motifs");
-        }}
-        state={motifs}
       />
       <PhotoReferenceModal
         open={overlay === "photos"}

@@ -286,6 +286,8 @@ export type MenuItemProps = Omit<
   "children"
 > & {
   label: ReactNode;
+  /** 라벨 아래 한 줄 보조 문구 — 항목이 무엇을 하는지 설명한다. */
+  description?: ReactNode;
   prefixIcon?: ReactNode;
   /** 선택 메뉴 항목. 지정하면 menuitemradio/aria-checked로 노출한다. */
   checked?: boolean;
@@ -294,6 +296,7 @@ export type MenuItemProps = Omit<
 /** 메뉴 항목 — 클릭 시 onClick 후 메뉴를 닫는다(preventDefault로 유지 가능). */
 export function MenuItem({
   label,
+  description,
   prefixIcon,
   checked,
   className,
@@ -326,6 +329,11 @@ export function MenuItem({
       {prefixIcon}
       <VStack gap="x0_5" alignItems="stretch" minWidth={0} flex={1}>
         <span className="truncate">{label}</span>
+        {description != null && (
+          <span className="truncate text-t2 text-fg-neutral-subtle">
+            {description}
+          </span>
+        )}
       </VStack>
       {checked ? <CheckGlyph aria-hidden className="size-4" /> : null}
     </button>
