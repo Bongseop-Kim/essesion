@@ -17,8 +17,10 @@ import { DESIGN_ONBOARDING_KEY } from "@/features/design/model/onboarding";
 import { useSession } from "@/shared/store/session";
 
 // 세션→턴 쿼리 체인 뒤에 나타나는 요소는 CI 2코어 러너에서 렌더 사이클당
-// ~1초가 걸려 기본 1000ms 대기를 초과한다. 이 파일만 한도를 올린다.
-configure({ asyncUtilTimeout: 3000 });
+// ~1초가 걸리고, 파일 첫 테스트는 콜드 스타트(첫 렌더 + 워커 경합)로 3초도
+// 초과한 전례가 있다. 이 파일만 대기·테스트 한도를 올린다.
+configure({ asyncUtilTimeout: 10_000 });
+vi.setConfig({ testTimeout: 30_000 });
 
 const RUN_1 = "11111111-1111-4111-8111-111111111111";
 const RUN_2 = "22222222-2222-4222-8222-222222222222";
