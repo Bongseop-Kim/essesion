@@ -9,8 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from worker.authoring.examples import AuthoringFamily
 from worker.authoring.promotion import DEFAULT_SCAN_LIMIT
 from worker.authoring.schema import DesignPlanV3
-from worker.engine.constraints import PaletteConstraint, PatternConstraints
+from worker.engine.constraints import PaletteConstraint
 from worker.motifs.photo_svg import MAX_PROCESSED_PREVIEW_BYTES
+from worker.motifs.spec import MAX_MOTIF_QUERY_LENGTH
 from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH
 
 
@@ -106,7 +107,8 @@ class ConversationHistoryItem(StrictRequest):
 
 
 class ConversationContext(StrictRequest):
-    current_plan: DesignPlanV3
+    """커밋된 디자인 + 최근 턴 요약. 구성 수정은 intent에 patch를 적용한다 — plan은 필요 없다."""
+
     current_intent: dict[str, Any]
     history: list[ConversationHistoryItem] = Field(default_factory=list, max_length=6)
 
@@ -117,13 +119,13 @@ class GenerateRequest(StrictRequest):
     intent: dict[str, Any] | None = None
     colorway: str | None = None
     seed: int | None = None
-    candidate_count: int = Field(default=1, ge=1, le=8)
     reference_images: list["ReferenceImageInput"] = Field(default_factory=list, max_length=5)
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
     motif_provenance: MotifIngressProvenance | None = None
     palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
-    pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
     conversation_context: ConversationContext | None = None
+    # 모티프 슬롯 교체는 intent 재렌더 경로만 쓴다(모델 호출 없음).
+    motif_slot: "MotifSlotInput | None" = None
 
     @model_validator(mode="after")
     def _valid_generation_mode(self) -> "GenerateRequest":
@@ -139,13 +141,27 @@ class GenerateRequest(StrictRequest):
             raise ValueError("prompt or SVG motif is required")
         if self.intent is not None and self.conversation_context is not None:
             if self.intent != self.conversation_context.current_intent:
-                raise ValueError("intent reroll must use the committed conversation intent")
-        if self.conversation_context is not None and self.intent is None and self.prompt is None:
-            raise ValueError("conversation refinement requires a prompt")
+                raise ValueError("direct intent must match the committed conversation intent")
+        if self.conversation_context is not None and self.intent is None:
+            if self.prompt is None:
+                raise ValueError("conversation refinement requires a prompt")
+            # 구성 patch는 색·줄무늬·배치·크기만 담는다 — 사진·SVG는 모티프 입력이므로
+            # 조용히 무시되지 않게 계약에서 막는다(모티프 교체는 별도 경로).
+            if self.reference_images or self.motif_ids:
+                raise ValueError(
+                    "conversation refinement cannot include reference images or motif ids"
+                )
         motif_references = sum(item.purpose == "motif" for item in self.reference_images)
         if len(self.motif_ids) + motif_references > 2:
             raise ValueError("exact motifs and motif reference photos may use at most 2 slots")
+        if self.motif_slot is not None and self.intent is None:
+            raise ValueError("motif slot replacement requires the committed intent")
         return self
+
+
+class MotifSlotInput(StrictRequest):
+    slot: Literal[1, 2]
+    motif_id: str = Field(min_length=1, max_length=100)
 
 
 class ReferenceImageInput(StrictRequest):
@@ -156,9 +172,8 @@ class ReferenceImageInput(StrictRequest):
     purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto"
 
 
-class CandidateOut(BaseModel):
+class DesignOut(BaseModel):
     id: str
-    design_index: int
     layout_id: str
     source_fidelity: str
     colorway_id: str
@@ -167,16 +182,31 @@ class CandidateOut(BaseModel):
     png_object_key: str | None
 
 
+class GenerationWarning(BaseModel):
+    """자동 조정 안내 — 코드는 로그·admin용, message는 고객에게 그대로 노출한다."""
+
+    code: str
+    message: str
+
+
 class GenerateResponse(BaseModel):
     generation_log_id: uuid.UUID
     request_id: str
     registry_version: str
     engine_version: str
-    intents: list[dict[str, Any]]
-    plans: list[dict[str, Any]] = Field(default_factory=list)
-    structural_fingerprints: list[str] = Field(default_factory=list)
-    candidates: list[CandidateOut]
-    warnings: list[str] = []
+    intent: dict[str, Any]
+    plan: dict[str, Any] | None = None
+    structural_fingerprint: str | None = None
+    design: DesignOut
+    warnings: list[GenerationWarning] = []
+    # 구성 patch가 사용자 문장을 어떻게 해석했는지 한 줄 (고객 노출용). 최초 저작은 null.
+    note: str | None = None
+
+
+class ScopeRejectedResponse(BaseModel):
+    """구성 patch로 표현할 수 없는 요청 — 아무것도 만들지 않았고 과금도 없다(HTTP 200)."""
+
+    status: Literal["scope_rejected"] = "scope_rejected"
 
 
 class ExportRequest(StrictRequest):
@@ -191,24 +221,18 @@ class FinalizeTaskRequest(StrictRequest):
     job_id: uuid.UUID
 
 
-class MotifSpec(StrictRequest):
-    # 길이 상한은 api MotifSpecIn과 동일하게 유지 (C-10 — 무제한 자유텍스트 유입 차단).
-    subject: str = Field(min_length=1, max_length=100)
-    scope: str = Field(min_length=1, max_length=100)
-    view: str | None = Field(default=None, max_length=100)
-    expression: str | None = Field(default=None, max_length=100)
-    style: str | None = Field(default=None, max_length=200)
-    description: str | None = Field(default=None, max_length=1_000)
+class MotifQuery(StrictRequest):
+    """문장 하나 — worker가 MotifSpec으로 바꾼다 (C-10: 무제한 자유텍스트 유입 차단)."""
+
+    query: str = Field(min_length=1, max_length=MAX_MOTIF_QUERY_LENGTH)
+    style_hint: str | None = Field(default=None, max_length=200)
 
 
-class CandidatesRequest(StrictRequest):
-    spec: MotifSpec
+class CandidatesRequest(MotifQuery):
     top_k: int = Field(default=5, ge=1, le=10)
 
 
-class MotifGenerateRequest(StrictRequest):
-    spec: MotifSpec
-    seed: int | None = None
+class MotifGenerateRequest(MotifQuery):
     motif_provenance: MotifIngressProvenance | None = None
 
 
@@ -277,7 +301,6 @@ class IdeasRequest(StrictRequest):
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
     motifs: list[IdeaMotifContext] = Field(default_factory=list, max_length=2)
     palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
-    pattern_constraints: PatternConstraints = Field(default_factory=PatternConstraints)
     count: Literal[3, 4] = 4
 
     @model_validator(mode="after")

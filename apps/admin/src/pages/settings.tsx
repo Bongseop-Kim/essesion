@@ -42,6 +42,8 @@ type SettingPresentation = {
   unit?: string;
   /** 정수형 설정의 서버측 상한 */
   max?: number;
+  /** 정수형 설정의 서버측 하한 (기본 0) */
+  min?: number;
   /** 변경 검토 다이얼로그에 표시하는 적용 영향 */
   impact: string;
   /** 편집 화면에 상주로 띄우는 경고 (필요한 설정만) */
@@ -68,6 +70,42 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     max: 1_000,
     impact:
       "이후의 새 실사화 요청부터 즉시 적용됩니다. 실패·취소한 요청은 횟수에 포함되지 않습니다.",
+  },
+  design_token_cost_openai_render_standard: {
+    title: "디자인 첫 생성 단가",
+    description:
+      "빈 캔버스에서 디자인을 처음 만들 때 1회 차감하는 토큰입니다. 실패한 요청은 자동 환불됩니다.",
+    scope: "이후의 새 생성 요청",
+    defaultValue: "5개",
+    inputLabel: "토큰 수량",
+    unit: "개",
+    max: 1_000,
+    min: 1,
+    impact:
+      "이후의 새 생성 요청부터 즉시 적용됩니다. store 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
+    editWarning: {
+      title: "고객에게 보이는 가격입니다",
+      description:
+        "store 토큰 잔액 상세에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+    },
+  },
+  design_edit_cost: {
+    title: "디자인 구성 수정 단가",
+    description:
+      "이미 만든 디자인을 문장으로 고칠 때 1회 차감하는 토큰입니다. 범위 밖 요청은 차감하지 않습니다.",
+    scope: "이후의 새 구성 수정 요청",
+    defaultValue: "2개",
+    inputLabel: "토큰 수량",
+    unit: "개",
+    max: 1_000,
+    min: 1,
+    impact:
+      "이후의 새 구성 수정 요청부터 즉시 적용됩니다. store 잔액 안내 문구도 이 값을 그대로 보여줍니다.",
+    editWarning: {
+      title: "고객에게 보이는 가격입니다",
+      description:
+        "store 토큰 잔액 상세에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+    },
   },
   design_token_initial_grant: {
     title: "신규 사용자 초기 토큰",
@@ -202,8 +240,9 @@ export function SettingsPage() {
     const value = draft[item.key] ?? "";
     if (item.value_type === "courier")
       return value.trim().length === 0 || value.length > 100;
-    const max = settingPresentation(item).max ?? GENERIC_NUMERIC_SETTING_MAX;
-    return !/^\d+$/.test(value) || Number(value) > max;
+    const { max = GENERIC_NUMERIC_SETTING_MAX, min = 0 } =
+      settingPresentation(item);
+    return !/^\d+$/.test(value) || Number(value) < min || Number(value) > max;
   });
 
   const save = () => {

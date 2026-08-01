@@ -107,11 +107,10 @@ Plan/fingerprint/compiler/prompt revision을 제공한다. embedding vector 원�
 
 ## RAG 선택 계약
 
-query document는 사용자 prompt, 사용 가능한 motif slot 수와 pattern constraint를 순서대로
-합친다. Vertex `RETRIEVAL_QUERY` embedding으로 현재 contract·embedding model의 active
+query document는 사용자 prompt와 사용 가능한 motif slot 수를 순서대로 합친다. Vertex `RETRIEVAL_QUERY` embedding으로 현재 contract·embedding model의 active
 시범만 cosine top-25로 읽고 다음 순서로 줄인다.
 
-1. motif 수와 명시 arrangement에 맞지 않거나 Plan v3로 재검증되지 않는 행 제외
+1. motif 수가 맞지 않거나 Plan v3로 재검증되지 않는 행 제외
 2. 상위 8개만 후보로 유지
 3. 서로 다른 family를 먼저 뽑고 부족할 때 rank 순으로 보충
 4. 최대 3개의 normalized Plan만 prompt에 포함

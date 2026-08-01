@@ -3,7 +3,7 @@
 import uuid
 from collections.abc import Collection
 from datetime import UTC, datetime
-from typing import Literal, cast
+from typing import Literal, cast, get_args
 
 from db.models.commerce import AdminSetting, PricingConstant
 from fastapi import APIRouter
@@ -61,16 +61,25 @@ PRICE_CATEGORIES: dict[str, str] = {
     "token_plan_pro_price": "token",
     "token_plan_pro_amount": "token",
 }
-SETTING_KEYS = (
-    "default_courier_company",
-    "design_finalize_daily_limit",
-    "design_token_initial_grant",
-)
 SettingKey = Literal[
     "default_courier_company",
+    "design_edit_cost",
     "design_finalize_daily_limit",
+    "design_token_cost_openai_render_standard",
     "design_token_initial_grant",
 ]
+SETTING_KEYS: tuple[str, ...] = get_args(SettingKey)
+# 단가 하한이 1인 이유: 0이면 생성 자체가 503이다 (ledger.get_cost).
+_COST_RANGE = (1, 1_000, "토큰 단가는 1에서 1000 사이 정수여야 합니다")
+_INT_SETTING_RANGES = {
+    "design_edit_cost": _COST_RANGE,
+    "design_token_cost_openai_render_standard": _COST_RANGE,
+    "design_token_initial_grant": (
+        0,
+        100_000,
+        "신규 사용자 초기 토큰은 0에서 100000 사이 정수여야 합니다",
+    ),
+}
 
 
 class PricingValueOut(BaseModel):
@@ -233,12 +242,9 @@ def _validate_setting(key: str, value: str) -> str:
                 status=422,
             )
         return str(limit)
-    if not clean.isdigit() or not 0 <= int(clean) <= 100_000:
-        raise DomainError(
-            "신규 사용자 초기 토큰은 0에서 100000 사이 정수여야 합니다",
-            code="invalid_setting",
-            status=422,
-        )
+    low, high, message = _INT_SETTING_RANGES[key]
+    if not clean.isdigit() or not low <= int(clean) <= high:
+        raise DomainError(message, code="invalid_setting", status=422)
     return str(int(clean))
 
 

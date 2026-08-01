@@ -75,7 +75,11 @@ function FieldFrame({
   );
 }
 
-export type TextFieldProps = Omit<ComponentPropsWithRef<"input">, "size"> &
+// native `prefix`(RDFa 문자열 속성)를 빼야 ReactNode 슬롯이 앱에서 쓸 수 있다 — Chip과 같은 처리.
+export type TextFieldProps = Omit<
+  ComponentPropsWithRef<"input">,
+  "size" | "prefix"
+> &
   FieldOwnProps;
 
 function TextFieldControl({
@@ -148,7 +152,7 @@ export function TextField({
 
 export type TextAreaFieldProps = Omit<
   ComponentPropsWithRef<"textarea">,
-  "size"
+  "size" | "prefix"
 > &
   FieldOwnProps & {
     rows?: number;

@@ -450,6 +450,8 @@ async def test_pricing_and_settings_are_allowlisted_atomic_and_admin_only(
     await _ensure_setting(db_session, "default_courier_company", "롯데택배")
     await _ensure_setting(db_session, "design_finalize_daily_limit", "10")
     await _ensure_setting(db_session, "design_token_initial_grant", "30")
+    await _ensure_setting(db_session, "design_token_cost_openai_render_standard", "5")
+    await _ensure_setting(db_session, "design_edit_cost", "2")
     admin_headers = auth_headers(admin, settings)
 
     pricing = await client.get("/admin/pricing", headers=admin_headers)

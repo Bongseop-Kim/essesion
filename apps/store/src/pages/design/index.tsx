@@ -1,85 +1,30 @@
 import {
-  deleteUserMotif,
-  exportDesign,
-  type GenerationJobOut,
-  type UserMotifOut,
-} from "@essesion/api-client";
-import {
-  listUserMotifsOptions,
-  listUserMotifsQueryKey,
-} from "@essesion/api-client/query";
-import {
   ActionButton,
-  AlertDialog,
   Box,
-  Callout,
   type DesignPreviewMode,
-  Grid,
-  HStack,
   Icon,
-  LayoutContent,
-  MenuItem,
   PageBanner,
   snackbar,
   Text,
-  useBreakpoint,
-  VStack,
 } from "@essesion/shared";
-import {
-  ArrowDownTrayIcon,
-  ArrowPathIcon,
-  EyeIcon,
-  FolderOpenIcon,
-  PlusIcon,
-  Squares2X2Icon,
-  SwatchIcon,
-} from "@heroicons/react/24/outline";
-import {
-  useInfiniteQuery,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { LightBulbIcon } from "@heroicons/react/24/outline";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
 import {
-  DESIGN_SVG_ACCEPT,
-  importDesignMotif,
-  MAX_DESIGN_MOTIFS,
-  MAX_DESIGN_PHOTOS,
-  uploadDesignPhoto,
-} from "@/features/design/api/attachments";
-import {
   createDesignIdeas,
   extractDesignPalette,
 } from "@/features/design/api/context-tools";
+import { designErrorMessage } from "@/features/design/model/errors";
 import {
-  AUTO_DESIGN_PALETTE,
-  AUTO_PATTERN_CONSTRAINTS,
-  DEFAULT_CANDIDATE_COUNT,
-  type DesignPalette,
-  type DesignPatternConstraints,
-  patternConstraintLabels,
-  type ReferenceImagePurpose,
-} from "@/features/design/model/draft";
-import {
-  type DesignErrorKind,
-  designErrorMessage,
-  parseDesignError,
-} from "@/features/design/model/errors";
-import {
-  type LocalFinalizeTurn,
-  mergeFinalizeTurns,
-} from "@/features/design/model/finalize-turns";
-import {
-  completeDesignOnboarding,
-  isDesignOnboardingComplete,
-} from "@/features/design/model/onboarding";
-import { createOperationEpoch } from "@/features/design/model/operation-epoch";
+  isMotifPanelCollapsed,
+  setMotifPanelCollapsed,
+} from "@/features/design/model/motif-panel-state";
+import { isDesignOnboardingComplete } from "@/features/design/model/onboarding";
 import {
   clearPendingDesign,
-  type DesignPending,
   readPendingDesign,
 } from "@/features/design/model/pending";
 import {
@@ -87,1511 +32,317 @@ import {
   designSessionsQueryOptions,
   designTokenBalanceQueryOptions,
   designTurnsQueryOptions,
-  finalizedJobsInfiniteQueryOptions,
-  generationJobsQueryOptions,
 } from "@/features/design/model/queries";
-import {
-  type DesignCandidate,
-  type DesignSelection,
-  restoreDesignSelection,
-} from "@/features/design/model/selection";
+import { readDesignHistory } from "@/features/design/model/steps";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
 import {
-  latestSubmittedCandidateCount,
-  parseDesignTurnPayload,
-} from "@/features/design/model/turn-payload";
+  useDesignExport,
+  useFinalizeFlow,
+} from "@/features/design/model/use-design-output";
+import { useMotifSearch } from "@/features/design/model/use-motif-search";
+import { usePromptGeneration } from "@/features/design/model/use-prompt-generation";
+import { useActivateDesignStep } from "@/features/design/model/use-steps";
 import {
-  useDeleteDesignSession,
-  useDeleteFinalizedJob,
-} from "@/features/design/model/use-delete";
+  CanvasNoticeLayer,
+  designNotices,
+} from "@/features/design/ui/canvas-notice";
+import { DesignCanvas } from "@/features/design/ui/design-canvas";
 import {
-  type CreateFinalizeJobInput,
-  finalizeRetryInput,
-  useCreateFinalizeJob,
-} from "@/features/design/model/use-finalize-job";
+  type DesignOverlayName,
+  DesignOverlays,
+} from "@/features/design/ui/design-overlays";
+import { HistoryTrack } from "@/features/design/ui/history-track";
+import { MotifPanel } from "@/features/design/ui/motif-panel";
+import { PromptBar } from "@/features/design/ui/prompt-bar";
 import {
-  type GenerateDesignInput,
-  StaleDesignOperationError,
-  useGenerateDesign,
-} from "@/features/design/model/use-generate";
-import { useDesignSelection } from "@/features/design/model/use-selection";
-import { ColorSettingsModal } from "@/features/design/ui/color-settings-modal";
-import {
-  type ComposerAttachment,
-  ComposerPanelItem,
-  DesignComposer,
-  type MotifAddKind,
-} from "@/features/design/ui/composer";
-import {
-  ExportDialog,
-  type ExportDialogValue,
-  type ExportDpi,
-  type ExportFormat,
-} from "@/features/design/ui/export-dialog";
-import {
-  type FabricWeave,
-  FinalizeDialog,
-  type FinalizeDialogValue,
-  type ProductionMethod,
-} from "@/features/design/ui/finalize-dialog";
-import { FinalizeTurnCard } from "@/features/design/ui/finalize-turn-card";
-import { FinalizedListModal } from "@/features/design/ui/finalized-list-modal";
-import { IdeasModal } from "@/features/design/ui/ideas-modal";
-import { MotifLibraryModal } from "@/features/design/ui/motif-library-modal";
-import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
-import { PatternSettingsModal } from "@/features/design/ui/pattern-settings-modal";
-import { PhotoMotifModal } from "@/features/design/ui/photo-motif-modal";
-import { PreviewModal } from "@/features/design/ui/preview-modal";
-import { PreviewPanel } from "@/features/design/ui/preview-panel";
-import {
-  type DesignSessionSummary,
-  SessionListModal,
-} from "@/features/design/ui/session-list-modal";
-import { TextMotifModal } from "@/features/design/ui/text-motif-modal";
-import { TurnFeed } from "@/features/design/ui/turn-feed";
-import { validateImageFile } from "@/shared/lib/upload";
+  TokenPill,
+  TokenPillPlaceholder,
+} from "@/features/design/ui/token-pill";
+import { ToolRail } from "@/features/design/ui/tool-rail";
+import { ViewToggle } from "@/features/design/ui/view-toggle";
 import { useSession } from "@/shared/store/session";
 
 const DESCRIPTION =
   "AI와 함께 반복 가능한 넥타이 패턴을 만들고 실사화까지 확인하세요.";
-// 모달 위 모달 금지 — 목록 모달이 닫히는 모션이 끝난 뒤 확인 다이얼로그를 연다.
-const OVERLAY_EXIT_MS = 250;
 
-type DeleteTarget =
-  | { kind: "session"; id: string }
-  | { kind: "job"; id: string }
-  | { kind: "motif"; id: string; name: string };
-
-type PendingPhoto = {
-  id: string;
-  file: File;
-  previewUrl: string;
-  purpose: ReferenceImagePurpose;
-  uploadId?: string;
-};
-
-type DesignOverlay =
-  | "sessions"
-  | "finalized"
-  | "motifs"
-  | "textMotif"
-  | "photoMotif"
-  | "colors"
-  | "patternSettings"
-  | "ideas"
-  | "preview"
-  | "finalize"
-  | "export"
-  | "onboarding";
-
+/** 풀블리드 캔버스 + 떠 있는 컨트롤 4그룹을 조립하는 컨테이너. */
 export function DesignPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const breakpoint = useBreakpoint();
-  const compactPreview =
-    breakpoint === "base" || breakpoint === "sm" || breakpoint === "md";
   const status = useSession((state) => state.status);
   const authenticated = status === "authenticated";
   const { requireAuth } = useAuthGuard();
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [newSessionMode, setNewSessionMode] = useState(false);
-  const [prompt, setPrompt] = useState("");
-  const [candidateCount, setCandidateCount] = useState(DEFAULT_CANDIDATE_COUNT);
-  const [palette, setPalette] = useState<DesignPalette>(AUTO_DESIGN_PALETTE);
-  const [patternConstraints, setPatternConstraints] =
-    useState<DesignPatternConstraints>(AUTO_PATTERN_CONSTRAINTS);
+  const ensureAuth = () => requireAuth({ path: "/design" });
+
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [freshSession, setFreshSession] = useState(false);
   const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
-  // 오버레이는 한 번에 하나만 — 디자인 시스템의 "모달 위 모달 금지"를 상태로 강제한다.
-  const [overlay, setOverlay] = useState<DesignOverlay | null>(() =>
+  const [overlay, setOverlay] = useState<DesignOverlayName | null>(() =>
     isDesignOnboardingComplete() ? null : "onboarding",
   );
-  const svgMotifInputRef = useRef<HTMLInputElement>(null);
-  const [svgMotifImporting, setSvgMotifImporting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
-  const [photos, setPhotos] = useState<PendingPhoto[]>([]);
-  const photosRef = useRef<PendingPhoto[]>([]);
-  photosRef.current = photos;
-  const [selectedMotifs, setSelectedMotifs] = useState<UserMotifOut[]>([]);
-  const [attachmentsBusy, setAttachmentsBusy] = useState(false);
-  const [motifDeleting, setMotifDeleting] = useState(false);
-  const deleteFlowTimer = useRef<number | undefined>(undefined);
-  const [pending, setPending] = useState<DesignPending | null>(() =>
-    readPendingDesign(),
-  );
-  const [selectionOverride, setSelectionOverride] = useState<{
-    sessionId: string;
-    selection: DesignSelection;
-  } | null>(null);
-  const [resultPreview, setResultPreview] = useState<{
-    jobId: string;
-    src: string;
-  } | null>(null);
-  const [localFinalizeTurns, setLocalFinalizeTurns] = useState<
-    LocalFinalizeTurn[]
-  >([]);
-  const [productionMethod, setProductionMethod] =
-    useState<ProductionMethod>("print");
-  const [weave, setWeave] = useState<FabricWeave>("twill-45");
-  const [exportFormat, setExportFormat] = useState<ExportFormat>("png");
-  const [exportDpi, setExportDpi] = useState<ExportDpi>(300);
-  const [exportWidthMm, setExportWidthMm] = useState("100");
-  const [exporting, setExporting] = useState(false);
-  const generationEpoch = useRef(createOperationEpoch()).current;
-  const selectionEpoch = useRef(createOperationEpoch()).current;
-  const generationOperations = useRef(
-    new WeakMap<GenerateDesignInput, number>(),
-  );
-  const appliedCandidateCountRequest = useRef<string | null>(null);
+  const [collapsed, setCollapsed] = useState(() => isMotifPanelCollapsed());
+  const [pending, setPending] = useState(() => readPendingDesign());
 
   const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
   const sessionQuery = useQuery(
-    designSessionQueryOptions({
-      sessionId: activeSessionId,
-      authenticated,
-    }),
+    designSessionQueryOptions({ sessionId, authenticated }),
   );
   const turnsQuery = useQuery(
-    designTurnsQueryOptions({
-      sessionId: activeSessionId,
-      authenticated,
-    }),
-  );
-  const jobsQuery = useQuery(
-    generationJobsQueryOptions({
-      filters: activeSessionId
-        ? {
-            kind: "finalize",
-            session_id: activeSessionId,
-            limit: 100,
-            offset: 0,
-          }
-        : undefined,
-      authenticated: authenticated && !!activeSessionId,
-    }),
+    designTurnsQueryOptions({ sessionId, authenticated }),
   );
   const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
-  const finalizedJobsQuery = useInfiniteQuery(
-    finalizedJobsInfiniteQueryOptions(authenticated && overlay === "finalized"),
-  );
-  const motifsQuery = useQuery({
-    ...listUserMotifsOptions({ query: { limit: 100, offset: 0 } }),
-    enabled: authenticated && overlay === "motifs",
-  });
-  const finalizedJobs = finalizedJobsQuery.data?.pages.flat() ?? [];
-  const generateMutation = useGenerateDesign({
-    onSessionReady: (sessionId, input) => {
-      const operation = generationOperations.current.get(input);
-      if (operation === undefined || !generationEpoch.isCurrent(operation))
-        return false;
-      setActiveSessionId(sessionId);
-      setNewSessionMode(false);
-      return true;
-    },
-  });
-  const selectionMutation = useDesignSelection();
-  const designBusy =
-    attachmentsBusy ||
-    generateMutation.isPending ||
-    selectionMutation.isPending;
-  const finalizeMutation = useCreateFinalizeJob();
-  const deleteSessionMutation = useDeleteDesignSession();
-  const deleteJobMutation = useDeleteFinalizedJob();
-  const deleting =
-    deleteSessionMutation.isPending ||
-    deleteJobMutation.isPending ||
-    motifDeleting;
-  const latestCandidateCountRequestId =
-    turnsQuery.data?.reduce<string | null>(
-      (latestId, turn) =>
-        parseDesignTurnPayload(turn.payload)?.type === "generate_request"
-          ? turn.id
-          : latestId,
-      null,
-    ) ?? null;
-  const applyLatestCandidateCount = useEffectEvent(() => {
-    setCandidateCount((current) =>
-      latestSubmittedCandidateCount(turnsQuery.data ?? [], current),
-    );
-  });
 
-  useEffect(
-    () => () => {
-      window.clearTimeout(deleteFlowTimer.current);
-      for (const photo of photosRef.current)
-        URL.revokeObjectURL(photo.previewUrl);
-    },
-    [],
+  const history = useMemo(
+    () => readDesignHistory(turnsQuery.data),
+    [turnsQuery.data],
   );
+  const motifSlots = useMemo(
+    () =>
+      (sessionQuery.data?.current_motifs ?? []).map((motif) => ({
+        motifId: motif.motif_id,
+        name: motif.name,
+        previewSvg: motif.preview_svg,
+      })),
+    [sessionQuery.data?.current_motifs],
+  );
+  const hasDesign = !!sessionQuery.data?.current_intent;
+  const quota = sessionQuery.data?.finalize_quota ?? null;
+
+  const activateStep = useActivateDesignStep();
+  const motifs = useMotifSearch({
+    sessionId,
+    currentMotifs: motifSlots,
+    recraftRemaining: sessionQuery.data?.recraft_remaining ?? null,
+    onDone: (name) => {
+      setOverlay(null);
+      snackbar(`‘${name}’ 모티프로 바꿨어요.`);
+    },
+  });
+  const editor = usePromptGeneration({
+    sessionId,
+    hasDesign,
+    ensureAuth,
+    blocked: activateStep.isPending || motifs.replacing,
+    notify: snackbar,
+    onSessionChange: (id) => {
+      setSessionId(id);
+      setFreshSession(false);
+    },
+  });
+  const exporter = useDesignExport({
+    sessionId,
+    svg: history.currentSvg,
+    onDone: () => setOverlay(null),
+  });
+  const finalize = useFinalizeFlow({
+    sessionId,
+    authenticated,
+    onStarted: () => setOverlay(null),
+  });
+  const busy = editor.pending;
+  const exportable = !!history.currentSvg && !busy;
 
   useEffect(() => {
     if (
       authenticated &&
-      !activeSessionId &&
-      !newSessionMode &&
+      !sessionId &&
+      !freshSession &&
       sessionsQuery.data?.[0]
     ) {
-      setActiveSessionId(sessionsQuery.data[0].id);
+      setSessionId(sessionsQuery.data[0].id);
     }
-  }, [activeSessionId, authenticated, newSessionMode, sessionsQuery.data]);
+  }, [authenticated, freshSession, sessionId, sessionsQuery.data]);
 
-  useEffect(() => {
-    if (!activeSessionId || newSessionMode) {
-      appliedCandidateCountRequest.current = null;
-      setCandidateCount(DEFAULT_CANDIDATE_COUNT);
-      return;
-    }
-    if (!latestCandidateCountRequestId) return;
-    const requestIdentity = `${activeSessionId}:${latestCandidateCountRequestId}`;
-    if (appliedCandidateCountRequest.current === requestIdentity) return;
-    appliedCandidateCountRequest.current = requestIdentity;
-    applyLatestCandidateCount();
-  }, [activeSessionId, newSessionMode, latestCandidateCountRequestId]);
-
-  const restoredSelection = useMemo(() => {
-    if (!sessionQuery.data || !turnsQuery.data) return null;
-    return restoreDesignSelection(sessionQuery.data, turnsQuery.data);
-  }, [sessionQuery.data, turnsQuery.data]);
-  const selection =
-    selectionOverride?.sessionId === activeSessionId
-      ? selectionOverride.selection
-      : restoredSelection;
-  const selectedImageSrc = selection?.candidate?.svg
-    ? svgToDataUri(selection.candidate.svg)
-    : null;
-  const previewImageSrc = resultPreview?.src ?? selectedImageSrc;
-  const previewAlt = resultPreview ? "완성된 실사화 이미지" : undefined;
-  // 계정당 24시간 쿼터 — 단건 세션 GET에서만 내려온다. null(미로드·설정 부재)이면
-  // 막지 않는다: 서버 409가 최종 방어선이고 스낵바로 안내된다.
-  const finalizeQuota = sessionQuery.data?.finalize_quota ?? null;
-  const finalizeExhausted =
-    finalizeQuota !== null && finalizeQuota.remaining <= 0;
-  const visibleTurns = useMemo(
-    () =>
-      mergeFinalizeTurns(
-        turnsQuery.data ?? [],
-        jobsQuery.data ?? [],
-        localFinalizeTurns,
-        activeSessionId,
-      ),
-    [activeSessionId, jobsQuery.data, localFinalizeTurns, turnsQuery.data],
-  );
-  const generationError =
-    generateMutation.error &&
-    !(generateMutation.error instanceof StaleDesignOperationError)
-      ? parseDesignError(generateMutation.error)
-      : null;
-
-  const ensureDesignAuth = () => requireAuth({ path: "/design" });
-
-  const composerAttachments = useMemo<ComposerAttachment[]>(
-    () => [
-      ...photos.map((photo) => ({
-        id: photo.id,
-        kind: "photo" as const,
-        name: photo.file.name,
-        previewSrc: photo.previewUrl,
-        purpose: photo.purpose,
-      })),
-      ...selectedMotifs.map((motif) => ({
-        id: motif.id,
-        kind: "motif" as const,
-        name: motif.name,
-        previewSrc: svgToDataUri(motif.preview_svg),
-      })),
-    ],
-    [photos, selectedMotifs],
-  );
-
-  const clearComposerAttachments = () => {
-    for (const photo of photosRef.current)
-      URL.revokeObjectURL(photo.previewUrl);
-    photosRef.current = [];
-    setPhotos([]);
-    setSelectedMotifs([]);
+  const openSession = (nextSessionId: string | null, fresh: boolean) => {
+    editor.reset();
+    setSessionId(nextSessionId);
+    setFreshSession(fresh);
   };
 
-  const resetComposerDraft = () => {
-    setPrompt("");
-    setPalette(AUTO_DESIGN_PALETTE);
-    setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
-    clearComposerAttachments();
-  };
-
-  const resetVariationControls = () => {
-    // A variation rerolls the selected intent. Prompt, photos, and exact motifs are
-    // not part of that request, so keep that separate composer draft intact.
-    setPalette(AUTO_DESIGN_PALETTE);
-    setPatternConstraints(AUTO_PATTERN_CONSTRAINTS);
-  };
-
-  const removeComposerAttachment = (id: string) => {
-    const photo = photosRef.current.find((item) => item.id === id);
-    if (photo) URL.revokeObjectURL(photo.previewUrl);
-    setPhotos((current) => current.filter((item) => item.id !== id));
-    setSelectedMotifs((current) => current.filter((item) => item.id !== id));
-  };
-
-  const changePhotoPurpose = (id: string, purpose: ReferenceImagePurpose) => {
-    const photo = photosRef.current.find((item) => item.id === id);
-    const otherMotifPhotos = photosRef.current.filter(
-      (item) => item.id !== id && item.purpose === "motif",
-    ).length;
-    if (
-      purpose === "motif" &&
-      photo?.purpose !== "motif" &&
-      selectedMotifs.length + otherMotifPhotos >= MAX_DESIGN_MOTIFS
-    ) {
-      snackbar(
-        "직접 선택한 모티프와 모티프 형태 참고 사진은 합쳐서 2개까지 사용할 수 있어요.",
-      );
-      return;
-    }
-    if (photo) photo.purpose = purpose;
-    setPhotos((current) =>
-      current.map((item) => (item.id === id ? { ...item, purpose } : item)),
-    );
-  };
-
-  const addPhotoFiles = (files: File[]) => {
-    if (!ensureDesignAuth()) return;
-    const remaining = MAX_DESIGN_PHOTOS - photosRef.current.length;
-    if (remaining <= 0) {
-      snackbar(`참고 사진은 최대 ${MAX_DESIGN_PHOTOS}장까지 첨부할 수 있어요.`);
-      return;
-    }
-    if (files.length > remaining) {
-      snackbar(`참고 사진은 최대 ${MAX_DESIGN_PHOTOS}장까지 첨부할 수 있어요.`);
-    }
-    const accepted: PendingPhoto[] = [];
-    for (const file of files.slice(0, remaining)) {
-      try {
-        validateImageFile(file, "사진은 장당 10MB 이하로 선택해 주세요.");
-        accepted.push({
-          id: globalThis.crypto.randomUUID(),
-          file,
-          previewUrl: URL.createObjectURL(file),
-          purpose: "auto",
-        });
-      } catch (error) {
-        snackbar(
-          error instanceof Error ? error.message : "사진을 확인해 주세요.",
-        );
-      }
-    }
-    if (accepted.length > 0) {
-      setPhotos((current) => [...current, ...accepted]);
-    }
-  };
-
-  const toggleMotif = (motif: UserMotifOut) => {
-    setSelectedMotifs((current) => {
-      if (current.some((item) => item.id === motif.id)) {
-        return current.filter((item) => item.id !== motif.id);
-      }
-      const motifPhotoCount = photosRef.current.filter(
-        (photo) => photo.purpose === "motif",
-      ).length;
-      if (current.length + motifPhotoCount >= MAX_DESIGN_MOTIFS) {
-        snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
-        return current;
-      }
-      return [...current, motif];
-    });
-  };
-
-  const addMotif = (kind: MotifAddKind) => {
-    if (!ensureDesignAuth()) return;
-    const motifPhotoCount = photosRef.current.filter(
-      (photo) => photo.purpose === "motif",
-    ).length;
-    if (selectedMotifs.length + motifPhotoCount >= MAX_DESIGN_MOTIFS) {
-      snackbar(`모티프는 최대 ${MAX_DESIGN_MOTIFS}개까지 사용할 수 있어요.`);
-      return;
-    }
-    if (kind === "svg") svgMotifInputRef.current?.click();
-    else if (kind === "text") setOverlay("textMotif");
-    else setOverlay("photoMotif");
-  };
-
-  // SVG는 어차피 저장하려고 고른 파일 — 확인 단계 없이 즉시 저장하고 이번 생성에 선택한다.
-  const importSvgMotifFile = async (file: File) => {
-    if (svgMotifImporting) return;
-    setSvgMotifImporting(true);
+  const runOnSession = async (
+    run: (id: string) => Promise<unknown>,
+    fallback: string,
+  ): Promise<boolean> => {
+    if (!sessionId || !ensureAuth() || busy) return false;
     try {
-      const motif = await importDesignMotif(file);
-      selectCreatedMotif(motif);
-      snackbar(`‘${motif.name}’ 모티프를 저장했어요.`);
+      await run(sessionId);
+      return true;
     } catch (error) {
-      snackbar(designErrorMessage(error, "SVG 모티프를 저장하지 못했습니다."));
-    } finally {
-      setSvgMotifImporting(false);
+      snackbar(designErrorMessage(error, fallback));
+      return false;
     }
   };
-
-  const selectCreatedMotif = (motif: UserMotifOut) => {
-    setSelectedMotifs((current) => {
-      if (current.some((item) => item.id === motif.id)) return current;
-      const motifPhotoCount = photosRef.current.filter(
-        (photo) => photo.purpose === "motif",
-      ).length;
-      if (current.length + motifPhotoCount >= MAX_DESIGN_MOTIFS) {
-        snackbar(
-          "모티프 슬롯이 가득 찼어요. 저장한 모티프는 내 모티프에서 다시 선택할 수 있어요.",
-        );
-        return current;
-      }
-      return [...current, motif];
-    });
-    void queryClient.invalidateQueries({
-      queryKey: listUserMotifsQueryKey(),
-    });
-  };
-
-  const ensureUploadedPhoto = async (photo: PendingPhoto) => {
-    if (photo.uploadId) return photo.uploadId;
-    const uploadId = await uploadDesignPhoto(photo.file);
-    photo.uploadId = uploadId;
-    setPhotos((current) =>
-      current.map((item) =>
-        item.id === photo.id ? { ...item, uploadId } : item,
-      ),
-    );
-    return uploadId;
-  };
-
-  const ensurePhotoUploadById = async (photoId: string) => {
-    const photo = photosRef.current.find((item) => item.id === photoId);
-    if (!photo) throw new Error("첨부한 사진을 찾지 못했습니다.");
-    return ensureUploadedPhoto(photo);
-  };
-
-  const ensureUploadedPhotos = async () => {
-    const references: Array<{
-      uploadId: string;
-      purpose: ReferenceImagePurpose;
-    }> = [];
-    for (const photo of photosRef.current) {
-      references.push({
-        uploadId: await ensureUploadedPhoto(photo),
-        purpose: photo.purpose,
-      });
-    }
-    return references;
-  };
-
-  const extractPaletteFromPhoto = async (photoId: string) => {
-    if (!ensureDesignAuth()) throw new Error("로그인이 필요합니다.");
-    return extractDesignPalette(await ensurePhotoUploadById(photoId));
-  };
-
-  const requestIdeas = async () => {
-    if (!ensureDesignAuth()) throw new Error("로그인이 필요합니다.");
-    return createDesignIdeas({
-      prompt: prompt.trim(),
-      referenceImages: await ensureUploadedPhotos(),
-      userMotifIds: selectedMotifs.map((motif) => motif.id),
-      palette,
-      patternConstraints,
-    });
-  };
-
-  const runGeneration = (input: GenerateDesignInput) => {
-    const operation = generationEpoch.begin();
-    generationOperations.current.set(input, operation);
-    return { operation, promise: generateMutation.mutateAsync(input) };
-  };
-
-  const invalidateSessionOperations = () => {
-    generationEpoch.invalidate();
-    selectionEpoch.invalidate();
-    generateMutation.reset();
-    selectionMutation.reset();
-  };
-
-  const generatePrompt = async () => {
-    if (
-      (!prompt.trim() && selectedMotifs.length === 0) ||
-      !ensureDesignAuth() ||
-      designBusy
-    ) {
-      return;
-    }
-    generateMutation.reset();
-    let generationStarted = false;
-    setAttachmentsBusy(true);
-    try {
-      const referenceImages = await ensureUploadedPhotos();
-      const input: GenerateDesignInput = {
-        mode: "prompt",
-        sessionId: activeSessionId,
-        prompt: prompt.trim(),
-        candidateCount,
-        referenceImages,
-        userMotifIds: selectedMotifs.map((motif) => motif.id),
-        palette,
-        patternConstraints,
-      };
-      generationStarted = true;
-      const { operation, promise } = runGeneration(input);
-      const result = await promise;
-      if (!generationEpoch.isCurrent(operation)) return;
-      setActiveSessionId(result.sessionId);
-      setNewSessionMode(false);
-      setSelectionOverride(null);
-      resetComposerDraft();
-    } catch (error) {
-      // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
-      if (!generationStarted) {
-        snackbar(
-          error instanceof Error
-            ? error.message
-            : "첨부 파일을 업로드하지 못했습니다.",
-        );
-      }
-    } finally {
-      setAttachmentsBusy(false);
-    }
-  };
-
-  const generateVariation = async () => {
-    if (
-      !activeSessionId ||
-      !selection?.intent ||
-      !ensureDesignAuth() ||
-      designBusy
-    ) {
-      return;
-    }
-    generateMutation.reset();
-    try {
-      const input: GenerateDesignInput = {
-        mode: "variation",
-        sessionId: activeSessionId,
-        seed: randomSeed(),
-        candidateCount,
-        colorway: selection.colorway,
-        palette,
-        patternConstraints,
-      };
-      const { operation, promise } = runGeneration(input);
-      await promise;
-      if (generationEpoch.isCurrent(operation)) {
-        // 서버가 새 런의 첫 후보를 자동 커밋한다 — 이전 낙관적 선택 표시를 걷어낸다.
-        setSelectionOverride(null);
-        resetVariationControls();
-      }
-    } catch {
-      // 상주 Callout이 오류 종류에 맞는 다음 행동을 제공한다.
-    }
-  };
-
-  const retryGeneration = async () => {
-    const previousInput = generateMutation.variables;
-    if (!previousInput || !ensureDesignAuth() || designBusy) return;
-    const retryInput =
-      previousInput.mode === "prompt"
-        ? {
-            ...previousInput,
-            sessionId: activeSessionId ?? previousInput.sessionId,
-          }
-        : previousInput;
-    generateMutation.reset();
-    try {
-      const { operation, promise } = runGeneration(retryInput);
-      const result = await promise;
-      if (!generationEpoch.isCurrent(operation)) return;
-      setActiveSessionId(result.sessionId);
-      setNewSessionMode(false);
-      setSelectionOverride(null);
-      if (retryInput.mode === "prompt") {
-        resetComposerDraft();
-      } else {
-        resetVariationControls();
-      }
-    } catch {
-      // 같은 입력으로 다시 실패한 경우 Callout을 유지한다.
-    }
-  };
-
-  // 타일 클릭 공통(최신·과거 동일): 클릭한 후보를 다음 발화의 기준으로 커밋한다.
-  // 과거 런이어도 대화는 되감지 않고 포인터만 옮기며(분기는 "새로 만들기"가 유일한
-  // 창구), 다음 생성이 완료되면 서버 자동 커밋이 포인터를 다시 최신 결과로 되돌린다.
-  const selectCandidate = async (runId: string, candidate: DesignCandidate) => {
-    if (!activeSessionId || !ensureDesignAuth() || designBusy) return;
-    const sessionId = activeSessionId;
-    // 이미 편집 대상인 후보 — 저장할 변화가 없다.
-    if (selection?.runId === runId && selection.candidateId === candidate.id)
-      return;
-    const operation = selectionEpoch.begin();
-    const next: DesignSelection = {
-      candidate,
-      runId,
-      candidateId: candidate.id,
-      designIndex: candidate.design_index,
-      intent: null,
-      seed: candidate.seed,
-      colorway: candidate.colorway_id,
-      source: "candidate",
-    };
-    setSelectionOverride({ sessionId, selection: next });
-    setResultPreview(null);
-    try {
-      const result = await selectionMutation.mutateAsync({
-        sessionId,
-        runId,
-        candidate,
-      });
-      if (
-        selectionEpoch.isCurrent(operation) &&
-        result.session.current_intent
-      ) {
-        setSelectionOverride({
-          sessionId,
-          selection: {
-            ...next,
-            intent: result.session.current_intent,
-            seed: result.session.seed,
-            colorway: result.session.colorway,
-          },
-        });
-      }
-    } catch {
-      if (!selectionEpoch.isCurrent(operation)) return;
-      setSelectionOverride((current) =>
-        current?.sessionId === sessionId &&
-        current.selection.runId === next.runId &&
-        current.selection.candidateId === next.candidateId
-          ? null
-          : current,
-      );
-      snackbar("디자인을 선택하지 못했습니다. 다시 시도해 주세요.");
-    }
-  };
-
-  // finalize는 선택 출처(run/candidate)까지 있어야 한다 — 세션 복원만으로 intent가
-  // 채워진 경우(runId 없음)는 서버가 finalize_provenance_invalid로 거절한다.
-  // 생성·선택·첨부가 진행 중이면 선택이 갈아치워질 수 있으니 모든 진입점을 막는다.
-  const canFinalize =
-    !designBusy &&
-    !!selection?.intent &&
-    !!selection.runId &&
-    !!selection.candidateId;
-
-  const openFinalize = () => {
-    if (!canFinalize || !ensureDesignAuth()) return;
-    setOverlay("finalize");
-  };
-
-  const createFinalize = async (
-    input: CreateFinalizeJobInput,
-    closeDialog: boolean,
-  ) => {
-    try {
-      const result = await finalizeMutation.mutateAsync(input);
-      if (result.turnAppendError) {
-        setLocalFinalizeTurns((current) => [
-          ...current,
-          {
-            sessionId: input.sessionId,
-            type: "finalize",
-            job_id: result.job.id,
-            production_method: input.request.production_method,
-            weave: input.request.weave,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-        snackbar("작업은 시작했지만 이력 기록은 남기지 못했습니다.");
-      }
-      if (closeDialog) setOverlay(null);
-    } catch (error) {
-      const feedback = parseDesignError(error);
-      snackbar(feedback.detail ?? feedback.message);
-    }
-  };
-
-  const submitFinalize = async (value: FinalizeDialogValue) => {
-    if (
-      designBusy ||
-      !activeSessionId ||
-      !selection?.intent ||
-      !selection.runId ||
-      !selection.candidateId
-    )
-      return;
-    await createFinalize(
-      {
-        sessionId: activeSessionId,
-        request: {
-          intent: selection.intent,
-          run_id: selection.runId,
-          candidate_id: selection.candidateId,
-          colorway_id: selection.colorway,
-          production_method: value.productionMethod,
-          weave: value.weave,
-          dpi: value.dpi,
-        },
-      },
-      true,
-    );
-  };
-
-  // 결과 타일 탭: 프리뷰 대상 스테이징만 — 데스크톱은 좌측 패널에 즉시 반영,
-  // 모바일은 앵커 메뉴가 열린다(시트는 메뉴의 미리보기로만).
-  const stageFinalizeResult = (job: GenerationJobOut) => {
-    if (!job.result_url) return;
-    setResultPreview({ jobId: job.id, src: job.result_url });
-  };
-
-  const openFinalizeResultPreview = (job: GenerationJobOut) => {
-    if (!job.result_url) return;
-    setResultPreview({ jobId: job.id, src: job.result_url });
-    setOverlay("preview");
-  };
-
-  const retryFinalize = async (job: GenerationJobOut) => {
-    if (!ensureDesignAuth()) return;
-    const input = finalizeRetryInput(job);
-    if (!input) {
-      snackbar("이전 작업의 설정을 복원하지 못해 재시도할 수 없습니다.");
-      return;
-    }
-    await createFinalize(input, false);
-  };
-
-  const submitExport = async (value: ExportDialogValue) => {
-    if (!selection?.candidate?.svg || exporting) return;
-    setExporting(true);
-    try {
-      const response = await exportDesign({
-        body: {
-          session_id: activeSessionId,
-          svg: selection.candidate.svg,
-          format: value.format,
-          dpi: value.dpi,
-          width_mm: value.widthMm,
-        },
-        parseAs: "blob",
-        throwOnError: true,
-      });
-      if (!(response.data instanceof Blob)) {
-        throw new Error("내려받기 응답이 파일 형식이 아닙니다.");
-      }
-      downloadBlob(response.data, `essesion-design.${value.format}`);
-      setOverlay(null);
-      snackbar("디자인 파일을 만들었습니다.");
-    } catch (error) {
-      snackbar(parseDesignError(error).message);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const openExport = () => {
-    if (!selection?.candidate?.svg || !ensureDesignAuth()) return;
-    setOverlay("export");
-  };
-
-  const openPendingSession = () => {
-    if (!pending || !ensureDesignAuth()) return;
-    invalidateSessionOperations();
-    resetComposerDraft();
-    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
-    setActiveSessionId(pending.sessionId);
-    setNewSessionMode(false);
-    setResultPreview(null);
-    clearPendingDesign();
-    setPending(null);
-  };
-
-  const startNewSession = () => {
-    invalidateSessionOperations();
-    resetComposerDraft();
-    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
-    setActiveSessionId(null);
-    setNewSessionMode(true);
-    setSelectionOverride(null);
-    setResultPreview(null);
-  };
-
-  const chooseSession = (sessionId: string) => {
-    invalidateSessionOperations();
-    resetComposerDraft();
-    setCandidateCount(DEFAULT_CANDIDATE_COUNT);
-    setActiveSessionId(sessionId);
-    setNewSessionMode(false);
-    setSelectionOverride(null);
-    setResultPreview(null);
-    setOverlay(null);
-  };
-
-  const scheduleAfterOverlayExit = (run: () => void) => {
-    const reducedMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    window.clearTimeout(deleteFlowTimer.current);
-    deleteFlowTimer.current = window.setTimeout(
-      run,
-      reducedMotion ? 0 : OVERLAY_EXIT_MS,
-    );
-  };
-
-  const requestDeleteSession = (session: DesignSessionSummary) => {
-    setOverlay(null);
-    scheduleAfterOverlayExit(() =>
-      setDeleteTarget({ kind: "session", id: session.id }),
-    );
-  };
-
-  const requestDeleteJob = (job: GenerationJobOut) => {
-    setOverlay(null);
-    scheduleAfterOverlayExit(() =>
-      setDeleteTarget({ kind: "job", id: job.id }),
-    );
-  };
-
-  const requestDeleteMotif = (motif: UserMotifOut) => {
-    setOverlay(null);
-    scheduleAfterOverlayExit(() =>
-      setDeleteTarget({ kind: "motif", id: motif.id, name: motif.name }),
-    );
-  };
-
-  // 확인 다이얼로그가 닫히면(취소·성공 공통) 원래의 목록 모달로 돌아간다.
-  const closeDeleteConfirm = (target: DeleteTarget) => {
-    setDeleteTarget(null);
-    scheduleAfterOverlayExit(() => {
-      if (target.kind === "session") setOverlay("sessions");
-      else if (target.kind === "job") setOverlay("finalized");
-      else setOverlay("motifs");
-    });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget || deleting) return;
-    const target = deleteTarget;
-    try {
-      if (target.kind === "session") {
-        await deleteSessionMutation.mutateAsync(target.id);
-        if (activeSessionId === target.id) {
-          // 삭제된 세션이 열려 있었다면 초기화 — 목록 갱신 후 최신 세션이 자동 선택된다.
-          invalidateSessionOperations();
-          resetComposerDraft();
-          setCandidateCount(DEFAULT_CANDIDATE_COUNT);
-          setActiveSessionId(null);
-          setSelectionOverride(null);
-          setResultPreview(null);
-        }
-        snackbar("세션을 삭제했습니다.");
-      } else if (target.kind === "job") {
-        await deleteJobMutation.mutateAsync(target.id);
-        setResultPreview((current) =>
-          current?.jobId === target.id ? null : current,
-        );
-        snackbar("완성본을 삭제했습니다.");
-      } else {
-        setMotifDeleting(true);
-        await deleteUserMotif({
-          path: { user_motif_id: target.id },
-          throwOnError: true,
-        });
-        setSelectedMotifs((current) =>
-          current.filter((motif) => motif.id !== target.id),
-        );
-        await queryClient.invalidateQueries({
-          queryKey: listUserMotifsQueryKey(),
-        });
-        snackbar("모티프를 삭제했습니다.");
-      }
-      closeDeleteConfirm(target);
-    } catch {
-      snackbar(
-        target.kind === "session"
-          ? "세션을 삭제하지 못했습니다. 다시 시도해 주세요."
-          : target.kind === "job"
-            ? "완성본을 삭제하지 못했습니다. 다시 시도해 주세요."
-            : "모티프를 삭제하지 못했습니다. 다시 시도해 주세요.",
-      );
-    } finally {
-      setMotifDeleting(false);
-    }
-  };
-
-  const actionProps = {
-    selected: !!selection?.intent,
-    canExport: !!selection?.candidate?.svg,
-    canFinalize,
-    finalizeExhausted,
-    loading: designBusy,
-    onVariation: () => void generateVariation(),
-    onExport: openExport,
-    onFinalize: () => openFinalize(),
-  };
-  // 다시만들기·내려받기·실사화하기는 상시 노출 — 편집 대상(=마지막에 클릭한 후보) 기준.
-  const panelActions = <DesignActions {...actionProps} />;
-  // 모바일: 타일 탭 시 앵커 메뉴로 노출되는 항목들 — 탭이 곧 낙관적 select이므로
-  // 모든 항목이 탭한 후보 기준으로 동작한다. intent가 select 응답으로 채워질 때까지
-  // 다시만들기·실사화는 잠깐 비활성이다.
-  const candidateMenu = (
-    <>
-      <MenuItem
-        label="미리보기"
-        prefixIcon={<Icon svg={<EyeIcon />} size={18} />}
-        onClick={() => setOverlay("preview")}
-      />
-      <MenuItem
-        label="내려받기"
-        prefixIcon={<Icon svg={<ArrowDownTrayIcon />} size={18} />}
-        disabled={!selection?.candidate?.svg}
-        onClick={openExport}
-      />
-      <MenuItem
-        label="다시만들기"
-        prefixIcon={<Icon svg={<ArrowPathIcon />} size={18} />}
-        disabled={!selection?.intent || designBusy}
-        onClick={() => void generateVariation()}
-      />
-      <MenuItem
-        label="실사화하기"
-        prefixIcon={<Icon svg={<Squares2X2Icon />} size={18} />}
-        disabled={!canFinalize || finalizeExhausted}
-        onClick={() => openFinalize()}
-      />
-    </>
-  );
 
   return (
     <>
       <title>AI 넥타이 디자인 | 영선산업</title>
       <meta name="description" content={DESCRIPTION} />
       <meta name="robots" content="noindex, nofollow" />
-      <LayoutContent
-        density="high"
-        height="full"
-        minHeight={0}
-        display="flex"
-        flexDirection="column"
-        px={{ base: 0, lg: "x6" }}
-        py={{ base: 0, lg: "x5" }}
-      >
-        {pending ? (
-          <PageBanner
-            tone="informative"
-            title="진행 중이던 생성이 있어요"
-            description="세션을 열면 서버에 저장된 결과를 확인할 수 있어요."
-            actionLabel="세션 열기"
-            onAction={openPendingSession}
-          />
-        ) : null}
+      <Text as="h1" className="sr-only">
+        AI 넥타이 디자인
+      </Text>
+      {pending ? (
+        <PageBanner
+          tone="informative"
+          title="진행 중이던 생성이 있어요"
+          description="디자인을 열면 서버에 저장된 결과를 확인할 수 있어요."
+          actionLabel="열기"
+          onAction={() => {
+            if (!ensureAuth()) return;
+            openSession(pending.sessionId, false);
+            clearPendingDesign();
+            setPending(null);
+          }}
+        />
+      ) : null}
 
-        <Grid
-          columns={{ base: 1, lg: 2 }}
-          gap={{ base: 0, lg: "x5" }}
-          minHeight={0}
-          flex={1}
-        >
-          <Box display={{ base: "none", lg: "block" }} minHeight={0}>
-            <PreviewPanel
-              imageSrc={previewImageSrc}
-              alt={previewAlt}
-              mode={previewMode}
-              onModeChange={setPreviewMode}
-              actions={panelActions}
-            />
-          </Box>
-
-          <VStack
-            minHeight={0}
-            height="full"
-            alignItems="stretch"
-            overflow="hidden"
-            borderWidth={{ base: 0, lg: 1 }}
-            borderColor="stroke.neutral-weak"
-            borderRadius={{ base: 0, lg: "r4" }}
-            bg="bg.layer-default"
+      <DesignCanvas
+        imageSrc={history.currentSvg ? svgToDataUri(history.currentSvg) : null}
+        mode={previewMode}
+        topStart={
+          <ActionButton
+            variant="neutralOutline"
+            size="small"
+            className="rounded-full bg-bg-layer-floating shadow-s1"
+            onClick={() => setOverlay("onboarding")}
           >
-            <Text as="h1" className="sr-only">
-              AI 패턴 디자인
-            </Text>
-
-            <Box
-              minHeight={0}
-              flex={1}
-              overflowY="auto"
-              className="overscroll-contain"
-            >
-              <TurnFeed
-                turns={visibleTurns}
-                selectedRunId={selection?.runId}
-                selectedCandidateId={selection?.candidateId}
-                loading={!!activeSessionId && turnsQuery.isPending}
-                generating={generateMutation.isPending}
-                error={!!activeSessionId && turnsQuery.isError}
-                onRetry={() => void turnsQuery.refetch()}
-                candidateActionsDisabled={designBusy}
-                onSelectCandidate={(runId, candidate) =>
-                  void selectCandidate(runId, candidate)
-                }
-                candidateMenu={compactPreview ? candidateMenu : undefined}
-                renderFinalizeTurn={(payload) => (
-                  <FinalizeTurnCard
-                    payload={payload}
-                    authenticated={authenticated}
-                    previewActive={resultPreview?.jobId === payload.job_id}
-                    anchorMenu={compactPreview}
-                    onPreview={stageFinalizeResult}
-                    onOpenPreview={openFinalizeResultPreview}
-                    onRetry={retryFinalize}
-                    onOrder={(job) =>
-                      navigate("/custom-order", {
-                        state: { designJobs: [job] },
-                      })
-                    }
-                  />
-                )}
-              />
-            </Box>
-
-            {generationError ? (
-              <Box px="x4" py="x3">
-                <GenerationErrorCallout
-                  error={generationError}
-                  onRetry={() => void retryGeneration()}
-                  onPurchase={() => navigate("/token/purchase")}
-                />
-              </Box>
-            ) : null}
-            <Box
-              px="x4"
-              py="x4"
-              bg="bg.layer-default"
-              className="border-t border-stroke-neutral-weak"
-            >
-              <DesignComposer
-                prompt={prompt}
-                candidateCount={candidateCount}
-                onPromptChange={setPrompt}
-                onCandidateCountChange={setCandidateCount}
-                onSubmit={() => void generatePrompt()}
-                onPhotoFilesSelect={addPhotoFiles}
-                onAddMotif={addMotif}
-                onOpenMotifLibrary={() => {
-                  if (ensureDesignAuth()) setOverlay("motifs");
-                }}
-                onOpenColors={() => setOverlay("colors")}
-                onOpenPatternSettings={() => setOverlay("patternSettings")}
-                onOpenIdeas={() => {
-                  if (ensureDesignAuth()) setOverlay("ideas");
-                }}
-                basisImageSrc={selectedImageSrc}
-                attachments={composerAttachments}
-                onRemoveAttachment={removeComposerAttachment}
-                onPhotoPurposeChange={changePhotoPurpose}
-                paletteColors={
-                  palette.mode === "fixed" ? palette.colors : undefined
-                }
-                patternSummary={patternConstraintLabels(patternConstraints)}
-                motifSlotCount={
-                  selectedMotifs.length +
-                  photos.filter((photo) => photo.purpose === "motif").length
-                }
-                onResetPalette={() => setPalette(AUTO_DESIGN_PALETTE)}
-                onResetPattern={() =>
-                  setPatternConstraints(AUTO_PATTERN_CONSTRAINTS)
-                }
-                canSubmitWithoutPrompt={selectedMotifs.length > 0}
+            <Icon svg={<LightBulbIcon />} size={20} />
+            만드는 방법
+          </ActionButton>
+        }
+        topEnd={
+          <>
+            {authenticated ? (
+              <TokenPill
                 balance={balanceQuery.data?.total ?? null}
                 generateCost={balanceQuery.data?.generate_cost ?? null}
-                onPurchaseTokens={() => navigate("/token/purchase")}
-                loading={designBusy}
-                disabled={status === "loading"}
-                sessionActions={
-                  <>
-                    <ComposerPanelItem
-                      icon={<Icon svg={<FolderOpenIcon />} size={24} />}
-                      label="내 세션"
-                      onClick={() => setOverlay("sessions")}
-                      disabled={!authenticated}
-                    />
-                    <ComposerPanelItem
-                      icon={<Icon svg={<SwatchIcon />} size={24} />}
-                      label="내 완성본"
-                      onClick={() => setOverlay("finalized")}
-                      disabled={!authenticated}
-                    />
-                    <ComposerPanelItem
-                      icon={<Icon svg={<PlusIcon />} size={24} />}
-                      label="새로 만들기"
-                      onClick={startNewSession}
-                    />
-                  </>
+                editCost={balanceQuery.data?.edit_cost ?? null}
+                onPurchase={() => navigate("/token/purchase")}
+              />
+            ) : (
+              <TokenPillPlaceholder />
+            )}
+            <ViewToggle mode={previewMode} onModeChange={setPreviewMode} />
+          </>
+        }
+        notice={
+          <CanvasNoticeLayer
+            notices={designNotices({
+              rejected: editor.rejected,
+              errorMessage: editor.error?.detail ?? editor.error?.message,
+              warnings: [...editor.warnings, ...motifs.activateWarnings],
+            })}
+          />
+        }
+        left={
+          <MotifPanel
+            motifs={motifSlots}
+            collapsed={collapsed}
+            onCollapsedChange={(next) => {
+              setCollapsed(next);
+              setMotifPanelCollapsed(next);
+            }}
+            onEditSlot={(slot) => {
+              if (!ensureAuth()) return;
+              motifs.openSlot(slot);
+              setOverlay("motifs");
+            }}
+            disabled={busy || !hasDesign}
+          />
+        }
+        right={
+          <ToolRail
+            onExport={() => ensureAuth() && setOverlay("export")}
+            onFinalize={() => ensureAuth() && setOverlay("finalize")}
+            onPhotos={() => ensureAuth() && setOverlay("photos")}
+            onColors={() => setOverlay("colors")}
+            onSessions={() => setOverlay("sessions")}
+            onFinalized={() => setOverlay("finalized")}
+            onNewSession={() => openSession(null, true)}
+            canExport={exportable}
+            canFinalize={
+              hasDesign && !busy && !(quota !== null && quota.remaining <= 0)
+            }
+            canAttachPhotos={!hasDesign && !busy}
+            photosAttached={editor.photos.photos.length > 0}
+            paletteFixed={editor.palette.mode === "fixed"}
+            authenticated={authenticated}
+            busy={busy}
+          />
+        }
+        bottom={
+          <>
+            <HistoryTrack
+              cells={history.cells}
+              currentRunId={history.currentRunId}
+              pending={editor.generating || motifs.replacing}
+              disabled={busy}
+              onSelect={(runId) =>
+                void runOnSession(
+                  (id) => activateStep.mutateAsync({ sessionId: id, runId }),
+                  "그 스텝으로 되돌리지 못했습니다.",
+                )
+              }
+            />
+            <Box width="full" maxWidth={860}>
+              <PromptBar
+                value={editor.prompt}
+                onChange={editor.changePrompt}
+                onSubmit={editor.submit}
+                onOpenIdeas={() => ensureAuth() && setOverlay("ideas")}
+                placeholder={
+                  hasDesign
+                    ? "무엇을 바꿀까요? 색, 줄무늬, 배치, 크기"
+                    : "원하는 색상, 무늬, 분위기를 입력하세요"
                 }
+                loading={busy}
+                disabled={status === "loading"}
+                selectSignal={editor.selectSignal}
               />
             </Box>
-          </VStack>
-        </Grid>
-      </LayoutContent>
-
-      <ColorSettingsModal
-        open={overlay === "colors"}
-        value={palette}
-        photos={photos.map((photo) => ({
-          id: photo.id,
-          name: photo.file.name,
-        }))}
-        onOpenChange={(open) => setOverlay(open ? "colors" : null)}
-        onApply={setPalette}
-        onExtract={extractPaletteFromPhoto}
-      />
-      <PatternSettingsModal
-        open={overlay === "patternSettings"}
-        value={patternConstraints}
-        onOpenChange={(open) => setOverlay(open ? "patternSettings" : null)}
-        onApply={setPatternConstraints}
-      />
-      <input
-        ref={svgMotifInputRef}
-        type="file"
-        accept={DESIGN_SVG_ACCEPT}
-        aria-label="SVG 모티프 파일 선택"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          if (file) void importSvgMotifFile(file);
-        }}
-      />
-      <TextMotifModal
-        open={overlay === "textMotif"}
-        onOpenChange={(open) => setOverlay(open ? "textMotif" : null)}
-        onCreated={selectCreatedMotif}
-      />
-      <PhotoMotifModal
-        open={overlay === "photoMotif"}
-        photos={photos.map((photo) => ({
-          id: photo.id,
-          name: photo.file.name,
-          previewSrc: photo.previewUrl,
-        }))}
-        onOpenChange={(open) => setOverlay(open ? "photoMotif" : null)}
-        onEnsurePhotoUpload={ensurePhotoUploadById}
-        onCreated={selectCreatedMotif}
-      />
-      <IdeasModal
-        open={overlay === "ideas"}
-        currentPrompt={prompt}
-        onOpenChange={(open) => setOverlay(open ? "ideas" : null)}
-        onRequest={requestIdeas}
-        onApply={setPrompt}
+          </>
+        }
       />
 
-      <PreviewModal
-        open={overlay === "preview"}
-        onOpenChange={(open) => setOverlay(open ? "preview" : null)}
-        imageSrc={previewImageSrc}
-        alt={previewAlt}
-        mode={previewMode}
-        onModeChange={setPreviewMode}
-      />
-      <FinalizeDialog
-        open={overlay === "finalize"}
-        onOpenChange={(open) => setOverlay(open ? "finalize" : null)}
-        productionMethod={productionMethod}
-        weave={weave}
-        dpi={300}
-        onProductionMethodChange={(method) => {
-          setProductionMethod(method);
-          if (
-            method === "print" &&
-            weave !== "twill-0" &&
-            weave !== "twill-45"
-          ) {
-            setWeave("twill-45");
-          }
+      <DesignOverlays
+        overlay={overlay}
+        onOverlayChange={setOverlay}
+        authenticated={authenticated}
+        activeSessionId={sessionId}
+        onSelectSession={(id) => openSession(id, false)}
+        onSessionDeleted={(id) => {
+          if (sessionId === id) openSession(null, false);
         }}
-        onWeaveChange={setWeave}
-        onSubmit={(value) => void submitFinalize(value)}
-        remaining={finalizeQuota?.remaining ?? null}
-        resetAt={finalizeQuota?.reset_at ?? null}
-        loading={finalizeMutation.isPending}
-        disabled={!canFinalize}
-      />
-      <ExportDialog
-        open={overlay === "export"}
-        onOpenChange={(open) => setOverlay(open ? "export" : null)}
-        format={exportFormat}
-        dpi={exportDpi}
-        widthMm={exportWidthMm}
-        onFormatChange={setExportFormat}
-        onDpiChange={setExportDpi}
-        onWidthMmChange={setExportWidthMm}
-        onSubmit={(value) => void submitExport(value)}
-        loading={exporting}
-        disabled={!selection?.candidate?.svg}
-      />
-      <SessionListModal
-        open={overlay === "sessions"}
-        onOpenChange={(open) => setOverlay(open ? "sessions" : null)}
-        sessions={(sessionsQuery.data ?? []).map((session) => ({
-          id: session.id,
-          createdAt: session.created_at,
-          status: session.status,
-          lastPrompt: session.last_prompt ?? null,
-        }))}
-        selectedId={activeSessionId}
-        loading={sessionsQuery.isPending}
-        error={sessionsQuery.isError}
-        onRetry={() => void sessionsQuery.refetch()}
-        onSelect={(session) => chooseSession(session.id)}
-        onDelete={requestDeleteSession}
-      />
-      <FinalizedListModal
-        open={overlay === "finalized"}
-        onOpenChange={(open) => setOverlay(open ? "finalized" : null)}
-        jobs={finalizedJobs}
-        loading={finalizedJobsQuery.isPending}
-        error={finalizedJobsQuery.isError && finalizedJobs.length === 0}
-        onRetry={() => void finalizedJobsQuery.refetch()}
-        hasMore={finalizedJobsQuery.hasNextPage}
-        loadingMore={finalizedJobsQuery.isFetchingNextPage}
-        loadMoreError={finalizedJobsQuery.isFetchNextPageError}
-        onLoadMore={() => void finalizedJobsQuery.fetchNextPage()}
-        onOrder={(job) =>
-          navigate("/custom-order", { state: { designJobs: [job] } })
+        onOnboardingComplete={() => setOverlay(null)}
+        motifs={motifs}
+        photos={editor.photos.photos}
+        onAddPhotos={(files) => ensureAuth() && editor.photos.add(files)}
+        onRemovePhoto={editor.photos.remove}
+        onExtractPalette={async (photoId) =>
+          extractDesignPalette(await editor.photos.uploadIdOf(photoId))
         }
-        onDelete={requestDeleteJob}
-      />
-      <MotifLibraryModal
-        open={overlay === "motifs"}
-        onOpenChange={(open) => setOverlay(open ? "motifs" : null)}
-        motifs={motifsQuery.data ?? []}
-        selectedIds={selectedMotifs.map((motif) => motif.id)}
-        max={MAX_DESIGN_MOTIFS}
-        loading={motifsQuery.isPending}
-        error={motifsQuery.isError}
-        onRetry={() => void motifsQuery.refetch()}
-        onToggle={toggleMotif}
-        onDelete={requestDeleteMotif}
-      />
-      <AlertDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open && deleteTarget) closeDeleteConfirm(deleteTarget);
-        }}
-        title={
-          deleteTarget?.kind === "session"
-            ? "세션을 삭제할까요?"
-            : deleteTarget?.kind === "job"
-              ? "완성본을 삭제할까요?"
-              : "모티프를 삭제할까요?"
+        palette={editor.palette}
+        onPaletteChange={editor.setPalette}
+        prompt={editor.prompt}
+        onPromptChange={editor.changePrompt}
+        onRequestIdeas={async () =>
+          createDesignIdeas({
+            prompt: editor.prompt.trim(),
+            referenceImages: hasDesign
+              ? []
+              : await editor.photos.referenceImages(),
+            userMotifIds: [],
+            palette: editor.palette,
+          })
         }
-        description={
-          deleteTarget?.kind === "session"
-            ? "대화 이력이 함께 삭제돼요. 완성한 실사화 결과는 내 완성본에 남아요."
-            : deleteTarget?.kind === "job"
-              ? "삭제한 완성본은 복구할 수 없어요. 이미 접수한 주문에는 영향이 없어요."
-              : `‘${deleteTarget?.name ?? "선택한 모티프"}’를 목록에서 삭제해요. 이미 만든 디자인에는 영향이 없어요.`
-        }
-        primaryActionProps={{
-          children: "삭제",
-          variant: "criticalSolid",
-          loading: deleting,
-          onClick: (event) => {
-            // 요청 완료 전 닫히지 않도록 기본 닫힘을 막는다 — 성공 시 confirmDelete가 닫는다.
-            event.preventDefault();
-            void confirmDelete();
-          },
-        }}
-        secondaryActionProps={{
-          children: "취소",
-          disabled: deleting,
-        }}
-      />
-      <OnboardingDialog
-        open={overlay === "onboarding"}
-        onOpenChange={(open) => setOverlay(open ? "onboarding" : null)}
-        onComplete={() => {
-          completeDesignOnboarding();
-          setOverlay(null);
-        }}
+        finalizeRemaining={quota?.remaining ?? null}
+        finalizeResetAt={quota?.reset_at ?? null}
+        onFinalize={finalize.submit}
+        finalizeLoading={finalize.loading}
+        finalizeDisabled={!hasDesign || busy}
+        onExport={exporter.submit}
+        exportLoading={exporter.exporting}
+        exportDisabled={!exportable}
       />
     </>
   );
-}
-
-function DesignActions({
-  selected,
-  canExport,
-  canFinalize,
-  finalizeExhausted,
-  loading,
-  onVariation,
-  onExport,
-  onFinalize,
-}: {
-  selected: boolean;
-  canExport: boolean;
-  canFinalize: boolean;
-  finalizeExhausted: boolean;
-  loading: boolean;
-  onVariation: () => void;
-  onExport: () => void;
-  onFinalize: () => void;
-}) {
-  return (
-    <HStack gap="x2" wrap>
-      {/* 세 버튼 모두 같은 위계(outline)로 통일 — weak 회색 채움은 비활성으로 오독된다. */}
-      <ActionButton
-        type="button"
-        size="small"
-        variant="neutralOutline"
-        disabled={!selected || loading}
-        onClick={onVariation}
-      >
-        <Icon svg={<ArrowPathIcon />} size={18} />
-        다시만들기
-      </ActionButton>
-      <ActionButton
-        type="button"
-        size="small"
-        variant="neutralOutline"
-        disabled={!canExport}
-        onClick={onExport}
-      >
-        <Icon svg={<ArrowDownTrayIcon />} size={18} />
-        내려받기
-      </ActionButton>
-      <ActionButton
-        type="button"
-        size="small"
-        variant="neutralOutline"
-        disabled={!canFinalize || finalizeExhausted}
-        onClick={onFinalize}
-      >
-        <Icon svg={<Squares2X2Icon />} size={18} />
-        실사화하기
-      </ActionButton>
-    </HStack>
-  );
-}
-
-function GenerationErrorCallout({
-  error,
-  onRetry,
-  onPurchase,
-}: {
-  error: ReturnType<typeof parseDesignError>;
-  onRetry: () => void;
-  onPurchase: () => void;
-}) {
-  const spec = GENERATION_ERROR_CALLOUTS[error.kind] ?? GENERATION_ERROR_RETRY;
-  const onClick =
-    spec.action === "purchase"
-      ? onPurchase
-      : spec.action === "retry"
-        ? onRetry
-        : undefined;
-  return (
-    <Callout
-      tone={spec.tone}
-      title={spec.title}
-      description={spec.description ?? error.message}
-      onClick={onClick}
-    >
-      {spec.action === "purchase" ? (
-        <Text as="span" textStyle="labelSm">
-          토큰 충전하기
-        </Text>
-      ) : spec.action === "retry" ? (
-        <Text as="span" textStyle="labelSm">
-          같은 요청 다시 시도
-        </Text>
-      ) : spec.note ? (
-        <Text as="span" textStyle="captionSm">
-          {spec.note}
-        </Text>
-      ) : null}
-    </Callout>
-  );
-}
-
-type GenerationErrorCalloutSpec = {
-  tone: "warning" | "critical";
-  title: string;
-  /** 생략 시 error.message를 본문으로 사용. */
-  description?: string;
-  action?: "retry" | "purchase";
-  note?: string;
-};
-
-// 미등록 kind(finalize_quota_exhausted·conflict·upstream_error·unknown)는 재시도 폴백.
-const GENERATION_ERROR_RETRY: GenerationErrorCalloutSpec = {
-  tone: "critical",
-  title: "디자인을 생성하지 못했어요",
-  action: "retry",
-};
-
-const GENERATION_ERROR_CALLOUTS: Partial<
-  Record<DesignErrorKind, GenerationErrorCalloutSpec>
-> = {
-  insufficient_tokens: {
-    tone: "warning",
-    title: "토큰이 부족해요",
-    description: "토큰을 충전한 뒤 다시 생성해 주세요.",
-    action: "purchase",
-  },
-  refund_pending: {
-    tone: "warning",
-    title: "환불 심사 중에는 생성할 수 없어요",
-    description: "심사가 끝난 뒤 다시 이용해 주세요.",
-  },
-  worker_rejected: { tone: "warning", title: "요청을 이해하지 못했어요" },
-  authoring_invalid: {
-    tone: "warning",
-    title: "디자인 구성을 만들지 못했어요",
-    action: "retry",
-  },
-  semantic_mismatch: {
-    tone: "warning",
-    title: "요청한 모티프를 확정하지 못했어요",
-  },
-  motif_input_conflict: {
-    tone: "warning",
-    title: "모티프를 2개 이하로 조정해 주세요",
-  },
-  constraint_conflict: {
-    tone: "warning",
-    title: "설정을 함께 적용할 수 없어요",
-    note: "색상이나 패턴 설정을 바꿔 다시 생성해 주세요.",
-  },
-  reference_invalid: {
-    tone: "warning",
-    title: "참고 이미지를 사용할 수 없어요",
-    note: "해당 이미지를 삭제하거나 다시 첨부해 주세요.",
-  },
-  intent_invalid: {
-    tone: "warning",
-    title: "선택한 디자인을 처리할 수 없어요",
-  },
-  candidate_invalid: {
-    tone: "critical",
-    title: "디자인 후보를 완성하지 못했어요",
-    action: "retry",
-  },
-};
-
-function randomSeed() {
-  if (globalThis.crypto?.getRandomValues) {
-    return globalThis.crypto.getRandomValues(new Uint32Array(1))[0] ?? 0;
-  }
-  return Date.now() % 4_294_967_296;
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
 }

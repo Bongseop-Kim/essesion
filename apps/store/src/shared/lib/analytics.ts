@@ -27,7 +27,7 @@ type GaEvents = {
   begin_checkout: { currency: "KRW"; value: number };
   purchase: { currency: "KRW"; value: number; transaction_id?: string };
   token_purchase: { currency: "KRW"; value: number; token_amount: number };
-  generate_design: { mode: "prompt" | "variation" };
+  generate_design: { rejected: "0" | "1" };
   quote_request: { quantity: number };
 };
 

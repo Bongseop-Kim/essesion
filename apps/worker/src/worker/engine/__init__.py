@@ -1,19 +1,12 @@
-from worker.engine.candidates import (
-    CandidateSet,
-    RankedCandidate,
-    generate_candidate_set,
-    generate_candidates,
-)
+from worker.engine.compose import ComposedDesign, compose_design
 from worker.engine.generate import Candidate, generate
 from worker.engine.validate import IntentInvalid, validate_intent
 
 __all__ = [
     "Candidate",
-    "CandidateSet",
+    "ComposedDesign",
     "IntentInvalid",
-    "RankedCandidate",
+    "compose_design",
     "generate",
-    "generate_candidate_set",
-    "generate_candidates",
     "validate_intent",
 ]

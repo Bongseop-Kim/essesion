@@ -6,6 +6,7 @@ from typing import cast
 from unittest.mock import AsyncMock
 
 from google import genai
+from worker.adapters import AdapterClientError
 from worker.adapters.gemini import AuthoredDesign, GeminiClient
 from worker.api import routes
 from worker.motifs import store
@@ -19,9 +20,13 @@ _RUN_ID = "11111111-1111-4111-8111-111111111111"
 
 
 async def _seed_dot(session) -> str:
-    motif = normalize_motif_svg(_CIRCLE, render_check=False)
+    return await _seed(session, _CIRCLE, "dot")
+
+
+async def _seed(session, svg: str, subject: str) -> str:
+    motif = normalize_motif_svg(svg, render_check=False)
     upserted = await store.upsert_motif(
-        session, motif, facets={"subject": "dot", "scope": "whole"}, source="seed"
+        session, motif, facets={"subject": subject, "scope": "whole"}, source="seed"
     )
     await session.commit()
     return upserted.id
@@ -54,9 +59,7 @@ def test_import_strips_generator_boilerplate_but_keeps_painting_style():
 
 async def test_motifs_candidates_returns_seeded(client, db_session):
     await _seed_dot(db_session)
-    resp = await client.post(
-        "/motifs/candidates", json={"spec": {"subject": "dot", "scope": "whole"}, "top_k": 5}
-    )
+    resp = await client.post("/motifs/candidates", json={"query": "dot", "top_k": 5})
     assert resp.status_code == 200
     body = resp.json()
     assert body["registry_version"]
@@ -66,17 +69,13 @@ async def test_motifs_candidates_returns_seeded(client, db_session):
 
 async def test_motifs_generate_503_when_unconfigured_and_miss(client):
     # 빈 DB → miss → Recraft 미구성 → 503.
-    resp = await client.post(
-        "/motifs/generate", json={"spec": {"subject": "novel", "scope": "whole"}}
-    )
+    resp = await client.post("/motifs/generate", json={"query": "novel"})
     assert resp.status_code == 503
 
 
 async def test_motifs_generate_reuses_seeded(client, db_session):
     mid = await _seed_dot(db_session)
-    resp = await client.post(
-        "/motifs/generate", json={"spec": {"subject": "dot", "scope": "whole"}}
-    )
+    resp = await client.post("/motifs/generate", json={"query": "dot"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["motif_id"] == mid
@@ -120,58 +119,34 @@ async def test_generate_renders_with_db_motif_catalog(client, db_session):
         json={
             "run_id": _RUN_ID,
             "intent": _lattice_intent(mid),
-            "candidate_count": 1,
         },
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["candidates"]
+    assert body["design"]["svg"]
     assert body["registry_version"].startswith("0.1.0")
 
 
 async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     mid = await _seed_dot(db_session)
     design = {
-        "plans": [
+        "colors": ["#FFFFFF", "#111111"],
+        "ground_color_index": 0,
+        "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
+        "layers": [
             {
-                "colors": ["#FFFFFF", "#111111"],
-                "ground_color_index": 0,
-                "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
-                "layers": [
-                    {
-                        "type": "motif",
-                        "motif_index": 0,
-                        "size_ratio": 0.12,
-                        "color_indices": [1],
-                        "placement": {
-                            "type": "lattice",
-                            "columns": 4,
-                            "rows": 4,
-                            "drop": "none",
-                        },
-                    }
-                ],
-            },
-            {
-                "colors": ["#F0EBDD", "#223344"],
-                "ground_color_index": 0,
-                "motifs": [{"source": "catalog", "catalog_ref": "catalog_1"}],
-                "layers": [
-                    {
-                        "type": "motif",
-                        "motif_index": 0,
-                        "size_ratio": 0.18,
-                        "color_indices": [1],
-                        "placement": {
-                            "type": "scatter",
-                            "mode": "poisson",
-                            "count": 18,
-                            "min_distance_ratio": 0.14,
-                        },
-                    }
-                ],
-            },
-        ]
+                "type": "motif",
+                "motif_index": 0,
+                "size_ratio": 0.12,
+                "color_indices": [1],
+                "placement": {
+                    "type": "lattice",
+                    "columns": 4,
+                    "rows": 4,
+                    "drop": "none",
+                },
+            }
+        ],
     }
     sdk = SimpleNamespace(
         aio=SimpleNamespace(
@@ -185,7 +160,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     app.state.adapters.gemini = GeminiClient("", client=cast(genai.Client, sdk))
     resp = await client.post(
         "/generate",
-        json={"run_id": _RUN_ID, "prompt": "dot pattern", "candidate_count": 1},
+        json={"run_id": _RUN_ID, "prompt": "dot pattern"},
     )
     generate_content = sdk.aio.models.generate_content
     generate_content.assert_awaited_once()
@@ -195,11 +170,9 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     assert 'User description (JSON string): "dot pattern"' in contents[0].parts[-1].text
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["candidates"]
-    assert len(body["intents"]) == 2
     # 시드 모티프로 재사용 해석됐는지 — 로그 intent의 motif_id가 치환됐는지 확인
-    assert mid in body["candidates"][0]["svg"]
-    motif_layer = next(layer for layer in body["intents"][0]["layers"] if layer["type"] == "motif")
+    assert mid in body["design"]["svg"]
+    motif_layer = next(layer for layer in body["intent"]["layers"] if layer["type"] == "motif")
     assert motif_layer["params"]["motif_id"] == mid
 
 
@@ -211,7 +184,7 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
     intent["seed"] = 37
 
     class FakeGemini:
-        async def author_designs(
+        async def author_design(
             self,
             _prompt,
             *,
@@ -219,13 +192,12 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
             reference_images=(),
             motif_ids=(),
             palette_constraint=None,
-            pattern_constraints=None,
             **_kwargs,
         ):
             assert reference_images == []
             assert motif_ids == []
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     seen: list[int] = []
 
@@ -238,9 +210,137 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
 
     response = await client.post(
         "/generate",
-        json={"run_id": _RUN_ID, "prompt": "seeded dots", "candidate_count": 1},
+        json={"run_id": _RUN_ID, "prompt": "seeded dots"},
     )
 
     assert response.status_code == 200, response.text
     assert seen == [37]
-    assert response.json()["candidates"][0]["seed"] == 37
+    assert response.json()["design"]["seed"] == 37
+
+
+async def test_motifs_candidates_falls_back_to_the_sentence_when_conversion_fails(
+    app, client, db_session
+):
+    """spec 변환은 검색을 막지 못한다 — 모델이 죽어도 문장 그대로 카탈로그를 찾는다."""
+    mid = await _seed_dot(db_session)
+
+    class BrokenGemini:
+        async def complete_model(self, *_args, **_kwargs):
+            raise AdapterClientError(
+                "down",
+                provider="gemini",
+                operation="generate_content",
+                reason_code="provider_5xx",
+            )
+
+    app.state.adapters.gemini = BrokenGemini()
+    resp = await client.post("/motifs/candidates", json={"query": "dot", "top_k": 4})
+    assert resp.status_code == 200, resp.text
+    assert [candidate["motif_id"] for candidate in resp.json()["candidates"]] == [mid]
+
+
+async def test_motifs_candidates_searches_the_converted_spec(app, client, db_session):
+    mid = await _seed_dot(db_session)
+    seen: list[str] = []
+
+    class SpecGemini:
+        async def complete_model(self, prompt, schema, **_kwargs):
+            seen.append(prompt)
+            return schema.model_validate({"subject": "dot", "scope": "whole", "style": "flat"})
+
+    app.state.adapters.gemini = SpecGemini()
+    resp = await client.post(
+        "/motifs/candidates",
+        json={"query": "점무늬 하나 넣어줘", "top_k": 4, "style_hint": "minimal"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert [candidate["motif_id"] for candidate in resp.json()["candidates"]] == [mid]
+    assert "점무늬 하나 넣어줘" in seen[0]
+    assert "minimal" in seen[0]
+
+
+async def test_motif_slot_replaces_the_layer_without_touching_a_model(client, db_session):
+    dot = await _seed_dot(db_session)
+    square = await _seed(
+        db_session,
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+        '<rect x="20" y="20" width="60" height="60" fill="#00ff00"/></svg>',
+        "square",
+    )
+
+    async def activate(slot: int, motif_id: str, run_id: str) -> dict:
+        resp = await client.post(
+            "/generate",
+            json={
+                "run_id": run_id,
+                "intent": _lattice_intent(dot),
+                "motif_slot": {"slot": slot, "motif_id": motif_id},
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        return resp.json()
+
+    first = await activate(1, square, _RUN_ID)
+    layers = [layer for layer in first["intent"]["layers"] if layer["type"] == "motif"]
+    assert [layer["params"]["motif_id"] for layer in layers] == [square]
+    assert square in first["design"]["svg"]
+
+    # 같은 입력 → byte-identical (모델을 부르지 않는 결정론 재렌더)
+    again = await activate(1, square, "22222222-2222-4222-8222-222222222222")
+    assert again["design"]["svg"] == first["design"]["svg"]
+
+    # 빈 슬롯 2는 기존 레이어에서 파생 — 같은 격자, 반 칸 엇갈림
+    second = await activate(2, square, "33333333-3333-4333-8333-333333333333")
+    layers = [layer for layer in second["intent"]["layers"] if layer["type"] == "motif"]
+    assert [layer["params"]["motif_id"] for layer in layers] == [dot, square]
+    derived = layers[1]["placement"]["lattice"]
+    assert (derived["cell_w_mm"], derived["offset_x_mm"], derived["offset_y_mm"]) == (
+        12.0,
+        6.0,
+        6.0,
+    )
+
+
+async def test_motif_slot_requires_the_committed_intent(client):
+    resp = await client.post(
+        "/generate",
+        json={
+            "run_id": _RUN_ID,
+            "prompt": "dots",
+            "motif_slot": {"slot": 1, "motif_id": "seed-1"},
+        },
+    )
+    assert resp.status_code == 422
+
+
+async def test_motif_slot_creates_the_first_layer_for_a_motifless_design(client, db_session):
+    """줄무늬만 있던 디자인도 무늬를 얻을 수 있다 — 기본 격자 한 장으로 시작한다."""
+    dot = await _seed_dot(db_session)
+    intent = _lattice_intent(dot)
+    intent["layers"] = [
+        intent["layers"][0],
+        {
+            "id": "stripe_0",
+            "type": "stripe",
+            "z_order": 1,
+            "params": {
+                "angle": 0.0,
+                "period_mm": 12.0,
+                "bands": [{"offset_mm": 0.0, "width_mm": 4.0, "color": "accent"}],
+            },
+        },
+    ]
+
+    resp = await client.post(
+        "/generate",
+        json={
+            "run_id": _RUN_ID,
+            "intent": intent,
+            "motif_slot": {"slot": 1, "motif_id": dot},
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    layers = [layer for layer in resp.json()["intent"]["layers"] if layer["type"] == "motif"]
+    assert [layer["params"]["motif_id"] for layer in layers] == [dot]
+    assert layers[0]["placement"]["lattice"]["cell_w_mm"] == 8.0  # tile 48 / 6
+    assert dot in resp.json()["design"]["svg"]

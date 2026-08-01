@@ -89,8 +89,8 @@ export function IdeasModal({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="문맥 기반 아이디어"
-      description="현재 사진의 참고 방식, 모티프, 색상, 패턴 설정과 입력 내용을 함께 살펴봐요."
+      title="아이디어 받기"
+      description="지금 쓰는 모티프와 색, 참고 사진을 함께 보고 문장을 제안해요."
       size="medium"
       showCloseButton
       footer={

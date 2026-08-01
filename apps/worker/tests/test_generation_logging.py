@@ -33,7 +33,7 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-success"},
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 1},
+        json={"run_id": _RUN_ID, "intent": mvp_intent()},
     )
     assert response.status_code == 200
 
@@ -51,20 +51,19 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
             "mode",
             "reference_count",
             "fixed_palette",
-            "pattern_controls",
-            "candidate_count",
             "motif_resolutions",
         )
     } == {
         "mode": "variation",
         "reference_count": 0,
         "fixed_palette": False,
-        "pattern_controls": False,
-        "candidate_count": 1,
         "motif_resolutions": [],
     }
-    assert row.diagnostics["candidate_ms"] >= 0
+    assert row.diagnostics["compose_ms"] >= 0
     assert row.diagnostics["render_ms"] >= 0
+    # 생성 1회 = 디자인 1개 — 로그도 배열이 아니라 단수 키다.
+    assert isinstance(row.design, dict) and isinstance(row.design["id"], str)
+    assert isinstance(row.intent, dict) and isinstance(row.intent["design"], dict)
 
 
 async def test_worker_records_partial_with_render_timing_and_sanitized_warning(
@@ -77,7 +76,7 @@ async def test_worker_records_partial_with_render_timing_and_sanitized_warning(
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-partial"},
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 1},
+        json={"run_id": _RUN_ID, "intent": mvp_intent()},
     )
     assert response.status_code == 200
 
@@ -99,7 +98,7 @@ async def test_worker_records_advisory_repairs_as_success(client, db_session):
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-advisory"},
-        json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 1},
+        json={"run_id": _RUN_ID, "intent": intent},
     )
 
     assert response.status_code == 200
@@ -110,15 +109,13 @@ async def test_worker_records_advisory_repairs_as_success(client, db_session):
     assert any("spacing_mm" in warning and "snapped" in warning for warning in row.warnings)
 
 
-def test_generation_status_marks_candidate_shortage_partial():
-    assert routes._generation_status(requested=4, returned=3, warnings=[]) == "partial"
+def test_generation_status_marks_dropped_warning_partial():
+    assert routes._generation_status(["1 layer(s) dropped"]) == "partial"
 
 
 def test_generation_status_marks_partial_warning_partial():
-    assert (
-        routes._generation_status(requested=4, returned=4, warnings=["preview upload skipped"])
-        == "partial"
-    )
+    assert routes._generation_status(["preview upload skipped"]) == "partial"
+    assert routes._generation_status([]) == "success"
 
 
 async def test_worker_records_exception_with_sanitized_error_and_zero_render_time(
@@ -151,7 +148,7 @@ async def test_worker_sanitizes_unexpected_exception_before_persisting(
     def fail_generation(*_args, **_kwargs):
         raise RuntimeError("api_key=super-secret /private/customer.png")
 
-    monkeypatch.setattr(routes, "generate_candidates", fail_generation)
+    monkeypatch.setattr(routes, "compose_design", fail_generation)
     with pytest.raises(RuntimeError, match="super-secret"):
         await client.post(
             "/generate",
@@ -180,7 +177,6 @@ async def test_worker_records_safe_provider_failure_diagnostics(client, db_sessi
         "mode": "prompt",
         "reference_count": 0,
         "fixed_palette": False,
-        "pattern_controls": False,
         "motif_resolutions": [],
         "failure_code": "provider_request_failed",
         "failure_stage": "authoring",

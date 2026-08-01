@@ -1,6 +1,5 @@
 import {
   appendDesignTurn,
-  cancelGenerationJob,
   createFinalizeJob,
   type DesignTurnOut,
   type FinalizeRequest,
@@ -11,9 +10,6 @@ import {
   listGenerationJobsQueryKey,
 } from "@essesion/api-client/query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { z } from "zod";
-
-import { isRecord } from "@/shared/lib/guards";
 
 import {
   designSessionQueryKey,
@@ -46,23 +42,9 @@ export function finalizeJobPollInterval(
   return FINALIZE_JOB_POLL_INTERVAL_MS;
 }
 
-export function finalizeJobDelayed(
-  job: Pick<GenerationJobOut, "status" | "created_at"> | undefined,
-  now = Date.now(),
-): boolean {
-  return (
-    finalizeJobPollInterval(job, now) === FINALIZE_JOB_SLOW_POLL_INTERVAL_MS
-  );
-}
-
 export type CreateFinalizeJobInput = {
   sessionId: string;
-  request: FinalizeRequest & {
-    production_method: string;
-    weave: string;
-    run_id?: string;
-    candidate_id?: string;
-  };
+  request: FinalizeRequest & { production_method: string; weave: string };
 };
 
 export type CreateFinalizeJobResult = {
@@ -70,60 +52,6 @@ export type CreateFinalizeJobResult = {
   turn: DesignTurnOut | null;
   turnAppendError: unknown | null;
 };
-
-export function finalizeRetryInput(
-  job: GenerationJobOut,
-): CreateFinalizeJobInput | null {
-  const { params } = job;
-  if (
-    job.kind !== "finalize" ||
-    (job.status !== "failed" && job.status !== "canceled") ||
-    !job.session_id ||
-    !isRecord(params.intent) ||
-    (typeof params.colorway_id !== "string" && params.colorway_id !== null) ||
-    typeof params.production_method !== "string" ||
-    params.production_method.length === 0 ||
-    typeof params.weave !== "string" ||
-    params.weave.length === 0 ||
-    !z.string().uuid().safeParse(params.run_id).success ||
-    typeof params.candidate_id !== "string" ||
-    params.candidate_id.length === 0 ||
-    typeof params.dpi !== "number" ||
-    !Number.isFinite(params.dpi)
-  ) {
-    return null;
-  }
-
-  const request: CreateFinalizeJobInput["request"] = {
-    intent: params.intent,
-    run_id: params.run_id as string,
-    candidate_id: params.candidate_id,
-    colorway_id: params.colorway_id,
-    production_method: params.production_method,
-    weave: params.weave,
-    dpi: params.dpi,
-  };
-
-  if ("material_map" in params) {
-    if (!isStringRecord(params.material_map)) return null;
-    request.material_map = params.material_map;
-  }
-  for (const key of ["texture_strength", "relief_strength"] as const) {
-    if (!(key in params)) continue;
-    const value = params[key];
-    if (typeof value !== "number" || !Number.isFinite(value)) return null;
-    request[key] = value;
-  }
-
-  return { sessionId: job.session_id, request };
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return (
-    isRecord(value) &&
-    Object.values(value).every((item) => typeof item === "string")
-  );
-}
 
 export function useCreateFinalizeJob() {
   const queryClient = useQueryClient();
@@ -176,36 +104,6 @@ export function useCreateFinalizeJob() {
       ]);
 
       return { job, turn, turnAppendError };
-    },
-  });
-}
-
-export function useCancelFinalizeJob() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (jobId: string): Promise<GenerationJobOut> => {
-      const { data: job } = await cancelGenerationJob({
-        path: { job_id: jobId },
-        throwOnError: true,
-      });
-      queryClient.setQueryData(generationJobQueryKey(job.id), job);
-
-      const invalidations = [
-        queryClient.invalidateQueries({
-          queryKey: listGenerationJobsQueryKey(),
-        }),
-      ];
-      if (job.session_id) {
-        // 취소된 잡은 24시간 쿼터 카운트에서 빠진다 — 세션의 finalize_quota 갱신
-        invalidations.push(
-          queryClient.invalidateQueries({
-            queryKey: designSessionQueryKey(job.session_id),
-          }),
-        );
-      }
-      await Promise.all(invalidations);
-      return job;
     },
   });
 }

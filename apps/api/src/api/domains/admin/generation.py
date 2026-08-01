@@ -10,7 +10,7 @@ import re
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Annotated, Any, Literal, NamedTuple, cast
+from typing import Annotated, Any, Literal, NamedTuple, cast, get_args
 
 from db.models.auth import User
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
@@ -36,14 +36,13 @@ JobKind = Literal["finalize", "export"]
 JobStatus = Literal["queued", "processing", "succeeded", "failed", "canceled"]
 SeamlessStatus = Literal["success", "partial", "error"]
 SvgStatus = Literal["safe", "unavailable", "unsafe"]
+# 워커의 `_logged_generation`이 기록하는 4종 (worker/api/routes.py)
+GenerationMode = Literal["prompt", "patch", "variation", "motif_slot"]
+GENERATION_MODES = frozenset(get_args(GenerationMode))
 WarningCode = Literal[
-    "candidate_variants_dropped",
     "cmyk_gamut",
-    "design_dropped",
-    "diversity_shortfall",
     "generation_warning",
     "motif_layer_dropped",
-    "partial_candidates",
     "preview_unavailable",
     "spacing_snap",
     "stripe_period_snap",
@@ -64,9 +63,6 @@ _CMYK_WARNING = re.compile(
 )
 _MOTIF_DROP_WARNING = re.compile(
     r"^motif layer '[^']+' dropped — Tier-1 gate exhausted \((.+)/(whole|partial)\)$"
-)
-_CANDIDATE_DROP_WARNING = re.compile(
-    r"^(\d+) candidate variant\(s\) failed to render and were dropped$"
 )
 _INTENT_ALLOWED_KEYS = frozenset(
     {
@@ -129,7 +125,6 @@ _INTENT_ALLOWED_KEYS = frozenset(
 )
 _INTENT_DYNAMIC_MAP_KEYS = frozenset({"mapping", "colors"})
 _INTENT_OMIT = object()
-_MAX_INTENT_DESIGNS = 8
 _MAX_INTENT_SEQUENCE = 10_000
 _MAX_INTENT_DEPTH = 12
 _MAX_SLOT_PART_LENGTH = 40
@@ -181,9 +176,6 @@ class SeamlessSummaryOut(BaseModel):
     request_id: str | None
     input_type: str
     status: SeamlessStatus
-    candidate_count_requested: int | None
-    candidate_count_returned: int | None
-    distinct_layouts: int | None
     warning_count: int
     generate_ms: float | None
     render_ms: float | None
@@ -196,9 +188,8 @@ class SeamlessSummaryOut(BaseModel):
     created_at: datetime
 
 
-class SafeCandidateOut(BaseModel):
+class SafeDesignOut(BaseModel):
     id: str | None
-    design_index: int | None
     layout_id: str | None
     source_fidelity: str | None
     colorway_id: str | None
@@ -231,7 +222,8 @@ class GenerationOutcomeOut(BaseModel):
     session_id: uuid.UUID | None = None
     user_id: uuid.UUID | None = None
     user_name: str | None = None
-    selected_candidate_id: str | None = None
+    # 이력 썸네일로 이 스텝을 다시 편집 포인터로 삼았는지 (steps/activate 턴)
+    reactivated: bool = False
     regenerated: bool = False
     finalized: bool = False
 
@@ -244,24 +236,22 @@ class GenerationTokenAccountingOut(BaseModel):
 
 
 class GenerationDiagnosticsOut(BaseModel):
-    mode: Literal["prompt", "refine", "variation"] | None = None
+    mode: GenerationMode | None = None
     model: str | None = None
     prompt_revision: str | None = None
     reference_count: int | None = None
     fixed_palette: bool | None = None
-    pattern_controls: bool | None = None
+    # 구성 수정에서 실제로 바뀐 축 — patch 런에서만 채워진다.
+    patch_axes: list[str] = Field(default_factory=list)
     authoring_attempts: int | None = None
-    plan_count: int | None = None
-    validated_count: int | None = None
     catalog_candidate_count: int | None = None
     resolved_count: int | None = None
     # 요청당 실제 Recraft 과금 호출 수(게이트 재프롬프트 포함). 실패 요청은 모티프
     # upsert가 롤백되므로 저장 모티프 수가 아니라 이 값이 비용 추적의 정본이다.
     recraft_calls: int | None = None
-    candidate_count: int | None = None
     authoring_ms: float | None = None
     motif_resolution_ms: float | None = None
-    candidate_ms: float | None = None
+    compose_ms: float | None = None
     render_ms: float | None = None
     failure_code: str | None = None
     failure_stage: str | None = None
@@ -282,17 +272,16 @@ class SeamlessReferenceImageOut(BaseModel):
 class SeamlessDetailOut(SeamlessSummaryOut):
     has_prompt: bool
     prompt: str | None
-    intents: list[dict[str, Any]]
+    intent: dict[str, Any] | None
     has_reference_image: bool
     reference_image_bytes: int | None
     reference_images: list[SeamlessReferenceImageOut]
     seed: int | None
-    available_strategies: int | None
     warning_groups: list[SeamlessWarningOut]
     diagnostics: GenerationDiagnosticsOut
     outcome: GenerationOutcomeOut
     token_accounting: GenerationTokenAccountingOut
-    candidates: list[SafeCandidateOut]
+    design: SafeDesignOut | None
 
 
 class MotifSummaryOut(BaseModel):
@@ -426,15 +415,11 @@ def _safe_intent_value(value: Any, *, key: str | None = None, depth: int = 0) ->
     return projected_fields
 
 
-def _safe_intents(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, dict) or not isinstance(value.get("designs"), list):
-        return []
-    intents: list[dict[str, Any]] = []
-    for design in value["designs"][:_MAX_INTENT_DESIGNS]:
-        projected = _safe_intent_value(design)
-        if isinstance(projected, dict) and projected:
-            intents.append(projected)
-    return intents
+def _safe_intent(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    projected = _safe_intent_value(value.get("design"))
+    return projected if isinstance(projected, dict) and projected else None
 
 
 def _number_list(value: Any, *, size: int) -> list[float]:
@@ -693,7 +678,9 @@ def _error_projection(
         "constraint_conflict": "선택한 생성 조건이 충돌했습니다",
         "reference_invalid": "참고 이미지를 처리하지 못했습니다",
         "intent_invalid": "디자인 intent 검증에 실패했습니다",
-        "candidate_invalid": "후보 구성에 실패했습니다",
+        "design_invalid": "디자인 합성에 실패했습니다",
+        "semantic_mismatch": "요청한 주제와 맞는 구성을 만들지 못했습니다",
+        "ScopeRejected": "구성 수정으로 표현할 수 없는 요청이라 거절했습니다",
     }
     provider = {
         "gemini": "Gemini",
@@ -714,9 +701,15 @@ def _error_projection(
 
 def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
     raw = value if isinstance(value, dict) else {}
-    mode = raw.get("mode") if raw.get("mode") in {"prompt", "refine", "variation"} else None
+    mode = raw.get("mode") if raw.get("mode") in GENERATION_MODES else None
     failure_code = _safe_token(raw.get("failure_code"))
     failure_stage = _safe_token(raw.get("failure_stage"))
+    raw_axes = raw.get("patch_axes")
+    patch_axes = [
+        axis
+        for item in (raw_axes[:8] if isinstance(raw_axes, list) else [])
+        if (axis := _safe_token(item)) is not None
+    ]
 
     def count(key: str) -> int | None:
         item = raw.get(key)
@@ -782,22 +775,19 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
     ]
 
     return GenerationDiagnosticsOut(
-        mode=cast("Literal['prompt', 'variation'] | None", mode),
+        mode=cast("GenerationMode | None", mode),
         model=_safe_token(raw.get("model")),
         prompt_revision=_safe_token(raw.get("prompt_revision")),
         reference_count=count("reference_count"),
         fixed_palette=flag("fixed_palette"),
-        pattern_controls=flag("pattern_controls"),
+        patch_axes=patch_axes,
         authoring_attempts=count("authoring_attempts"),
-        plan_count=count("plan_count"),
-        validated_count=count("validated_count"),
         catalog_candidate_count=count("catalog_candidate_count"),
         resolved_count=count("resolved_count"),
         recraft_calls=count("recraft_calls"),
-        candidate_count=count("candidate_count"),
         authoring_ms=milliseconds("authoring_ms"),
         motif_resolution_ms=milliseconds("motif_resolution_ms"),
-        candidate_ms=milliseconds("candidate_ms"),
+        compose_ms=milliseconds("compose_ms"),
         render_ms=milliseconds("render_ms"),
         failure_code=failure_code,
         failure_stage=failure_stage,
@@ -823,9 +813,6 @@ def _seamless_summary(row: SeamlessGenerationLog) -> SeamlessSummaryOut:
         request_id=_safe_token(row.request_id),
         input_type=_safe_token(row.input_type) or "unknown",
         status=cast("SeamlessStatus", row.status),
-        candidate_count_requested=row.candidate_count_requested,
-        candidate_count_returned=row.candidate_count_returned,
-        distinct_layouts=row.distinct_layouts,
         warning_count=len(row.warnings or []),
         generate_ms=_milliseconds(row.generate_ms),
         render_ms=_milliseconds(row.render_ms),
@@ -844,13 +831,8 @@ def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
     for value in values:
         warning = value if isinstance(value, str) else ""
         items: list[str] = []
-        affected = 1
         if warning.startswith("preview upload skipped"):
             code = "preview_unavailable"
-        elif warning.startswith("partial:"):
-            code = "partial_candidates"
-        elif warning.startswith("diversity shortfall:"):
-            code = "diversity_shortfall"
         elif match := _MOTIF_DROP_WARNING.fullmatch(warning):
             code = "motif_layer_dropped"
             if subject := _safe_metadata(match.group(1), limit=80):
@@ -858,11 +840,6 @@ def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
         elif match := _CMYK_WARNING.fullmatch(warning):
             code = "cmyk_gamut"
             items = [match.group(1).upper()]
-        elif match := _CANDIDATE_DROP_WARNING.fullmatch(warning):
-            code = "candidate_variants_dropped"
-            affected = int(match.group(1))
-        elif warning.startswith("design ") and " dropped:" in warning:
-            code = "design_dropped"
         elif (
             warning.startswith("layer ")
             and ": spacing_mm " in warning
@@ -876,7 +853,7 @@ def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
         else:
             code = "generation_warning"
         group = groups.setdefault(code, {"count": 0, "items": []})
-        group["count"] += affected
+        group["count"] += 1
         for item in items:
             if item not in group["items"]:
                 group["items"].append(item)
@@ -890,7 +867,7 @@ def _warning_groups(values: list[Any]) -> list[SeamlessWarningOut]:
     ]
 
 
-def _safe_candidate(value: Any) -> SafeCandidateOut | None:
+def _safe_design(value: Any) -> SafeDesignOut | None:
     if not isinstance(value, dict):
         return None
     raw_svg = value.get("svg")
@@ -902,11 +879,8 @@ def _safe_candidate(value: Any) -> SafeCandidateOut | None:
             svg_status = "safe"
         except SanitizeError:
             svg_status = "unsafe"
-    return SafeCandidateOut(
+    return SafeDesignOut(
         id=_safe_token(value.get("id")),
-        design_index=(
-            value.get("design_index") if isinstance(value.get("design_index"), int) else None
-        ),
         layout_id=_safe_token(value.get("layout_id")),
         source_fidelity=_safe_token(value.get("source_fidelity")),
         colorway_id=_safe_token(value.get("colorway_id")),
@@ -945,7 +919,6 @@ def _reference_image_available(image: Image | None) -> bool:
 async def _generation_outcome(
     session,
     row: SeamlessGenerationLog,
-    candidate_ids: list[str],
 ) -> GenerationOutcomeOut:
     if row.session_id is None:
         return GenerationOutcomeOut(user_id=row.user_id)
@@ -986,50 +959,35 @@ async def _generation_outcome(
         .order_by(DesignSessionTurn.seq)
         .limit(1)
     )
-    selection_filters = [
-        DesignSessionTurn.session_id == generated_turn.session_id,
-        DesignSessionTurn.seq > generated_turn.seq,
-        DesignSessionTurn.payload["type"].astext == "select",
-        DesignSessionTurn.payload["run_id"].astext == str(row.id),
-    ]
-    if next_request is not None:
-        selection_filters.append(DesignSessionTurn.seq < next_request.seq)
-    selected_turn = None
-    if candidate_ids:
-        selected_turn = await session.scalar(
-            select(DesignSessionTurn)
+    # 이력 썸네일로 이 스텝에 편집 포인터를 되돌린 기록 (없어도 정상 — 생성이 곧 활성화다)
+    reactivated = bool(
+        await session.scalar(
+            select(func.count())
+            .select_from(DesignSessionTurn)
             .where(
-                *selection_filters,
-                DesignSessionTurn.payload["candidate_id"].astext.in_(candidate_ids),
+                DesignSessionTurn.session_id == generated_turn.session_id,
+                DesignSessionTurn.seq > generated_turn.seq,
+                DesignSessionTurn.payload["type"].astext == "activate",
+                DesignSessionTurn.payload["run_id"].astext == str(row.id),
             )
-            .order_by(DesignSessionTurn.seq.desc())
-            .limit(1)
         )
-
-    selected_candidate_id = (
-        selected_turn.payload.get("candidate_id") if selected_turn is not None else None
     )
-    finalized = False
-    if isinstance(selected_candidate_id, str) and selected_turn is not None:
-        # run_id+candidate_id 등가 매칭으로 finalize job이 유일하게 식별되므로
-        # finished_at 시간창은 두지 않는다 — 같은 후보를 재선택하면 선택 턴이
-        # finalize보다 늦어져 거짓 미완료가 나온다.
-        finalized = bool(
-            await session.scalar(
-                select(func.count())
-                .select_from(GenerationJob)
-                .where(
-                    GenerationJob.session_id == generated_turn.session_id,
-                    GenerationJob.kind == "finalize",
-                    GenerationJob.status == "succeeded",
-                    GenerationJob.params["run_id"].astext == str(row.id),
-                    GenerationJob.params["candidate_id"].astext == selected_candidate_id,
-                )
+    # run_id 등가 매칭으로 finalize job이 유일하게 식별되므로 finished_at 시간창은 두지 않는다.
+    finalized = bool(
+        await session.scalar(
+            select(func.count())
+            .select_from(GenerationJob)
+            .where(
+                GenerationJob.session_id == generated_turn.session_id,
+                GenerationJob.kind == "finalize",
+                GenerationJob.status == "succeeded",
+                GenerationJob.params["run_id"].astext == str(row.id),
             )
         )
+    )
     return base.model_copy(
         update={
-            "selected_candidate_id": _safe_token(selected_candidate_id),
+            "reactivated": reactivated,
             "regenerated": next_request is not None,
             "finalized": finalized,
         }
@@ -1152,21 +1110,14 @@ async def get_admin_seamless_log(
     if row is None:
         raise NotFoundError("Seamless 생성 로그를 찾을 수 없습니다")
     summary = _seamless_summary(row)
-    candidates = [
-        candidate for item in (row.candidates or []) if (candidate := _safe_candidate(item))
-    ]
     reference_images = await _seamless_reference_images(session, row)
-    outcome = await _generation_outcome(
-        session,
-        row,
-        [candidate.id for candidate in candidates if candidate.id is not None],
-    )
+    outcome = await _generation_outcome(session, row)
     token_accounting = await _generation_token_accounting(session, row)
     return SeamlessDetailOut(
         **summary.model_dump(),
         has_prompt=bool(row.prompt),
         prompt=row.prompt,
-        intents=_safe_intents(row.intent),
+        intent=_safe_intent(row.intent),
         has_reference_image=row.has_reference_image,
         reference_image_bytes=row.reference_image_bytes,
         reference_images=[
@@ -1182,12 +1133,11 @@ async def get_admin_seamless_log(
             for attachment, image in reference_images
         ],
         seed=row.seed,
-        available_strategies=row.available_strategies,
         warning_groups=_warning_groups(row.warnings or []),
         diagnostics=_safe_diagnostics(row.diagnostics),
         outcome=outcome,
         token_accounting=token_accounting,
-        candidates=candidates,
+        design=_safe_design(row.design),
     )
 
 

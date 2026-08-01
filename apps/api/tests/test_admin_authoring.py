@@ -26,8 +26,7 @@ async def _candidate(
 ) -> AuthoringPromotionCandidate:
     row = AuthoringPromotionCandidate(
         source_key=f"test:{uuid.uuid4()}",
-        plan_index=0,
-        selected_candidate_id=f"candidate-{uuid.uuid4().hex[:8]}",
+        design_id=f"design-{uuid.uuid4().hex[:8]}",
         contract_version=3,
         compiler_revision="design-plan-v3.0",
         prompt_revision="design-plan-v3-rag-grounded",
@@ -46,7 +45,7 @@ async def _candidate(
         embedding_model=MODEL,
         embedding_vertex=_vec(),
         status="pending",
-        rule_reasons=["success", "selected", "finalized"],
+        rule_reasons=["success", "finalized"],
     )
     db_session.add(row)
     await db_session.commit()

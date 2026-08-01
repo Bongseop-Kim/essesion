@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 import pytest
-from worker.engine import generate, generate_candidates
+from worker.engine import compose_design, generate
 
 from .golden_helpers import GOLDEN, golden_intents, golden_svg, register_golden_motifs
 
@@ -58,27 +58,27 @@ print(generate(intent).svg)
     assert outputs[0] == outputs[1] == outputs[2]
 
 
-def test_candidates_match_original_engine():
-    """generate_candidates(count=4)의 id·svg가 원본 엔진 산출 세트와 일치."""
+def test_compose_design_matches_original_engine():
+    """compose_design의 id·svg가 원본 엔진 산출(기본 seed·기본 컬러웨이)과 일치."""
     intent = json.loads((GOLDEN / "json" / "09_motif_scatter_poisson.json").read_text())
-    expected = json.loads((GOLDEN / "candidates.json").read_text())
+    # candidates.json / candidates/<svg> 명칭은 원본 엔진 골든과의 호환 기준선 — 의도적으로 유지.
+    expected = json.loads((GOLDEN / "candidates.json").read_text())["candidates"][0]
 
-    candidate_set = generate_candidates(intent, candidate_count=4)
-    assert [rc.id for rc in candidate_set.candidates] == [c["id"] for c in expected["candidates"]]
-    assert list(candidate_set.warnings) == list(expected["warnings"])
-    for ranked, meta in zip(candidate_set.candidates, expected["candidates"], strict=True):
-        assert ranked.candidate.layout_id == meta["layout_id"]
-        assert ranked.colorway_id == meta["colorway_id"]
-        assert ranked.seed == meta["seed"]
-        assert ranked.candidate.svg == (GOLDEN / "candidates" / meta["svg_file"]).read_text()
+    design = compose_design(intent)
+    assert design.id == expected["id"]
+    assert design.layout_id == expected["layout_id"]
+    assert design.colorway_id == expected["colorway_id"]
+    assert design.seed == expected["seed"]
+    assert design.warnings == []
+    assert design.svg == (GOLDEN / "candidates" / expected["svg_file"]).read_text()
 
 
-def test_candidates_are_deterministic():
+def test_compose_design_is_deterministic():
     intent = json.loads((GOLDEN / "json" / "09_motif_scatter_poisson.json").read_text())
-    first = generate_candidates(intent, candidate_count=8)
-    second = generate_candidates(intent, candidate_count=8)
-    assert [rc.id for rc in first.candidates] == [rc.id for rc in second.candidates]
-    assert len(first.candidates) <= 8
+    first = compose_design(intent, seed=7)
+    second = compose_design(intent, seed=7)
+    assert first.id == second.id
+    assert first.svg == second.svg
 
 
 def test_unknown_motif_rejected():

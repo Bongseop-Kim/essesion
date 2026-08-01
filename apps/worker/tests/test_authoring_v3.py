@@ -14,7 +14,6 @@ from worker.authoring.schema import (
     GenerateMotifSource,
     LatticePlacementPlan,
     MotifLayerPlan,
-    motif_source_signature,
     snapshot_resolved_plan,
     structural_fingerprint,
 )
@@ -93,7 +92,6 @@ def test_all_gallery_plans_compile_deterministically_to_valid_engine_intents():
         golden = _golden(example)
         motif_ids = _motif_ids(golden)
         kwargs = {
-            "plan_index": 0,
             "motif_ids": motif_ids,
             "seed": golden["seed"],
             "tile_mm": golden["canvas"]["tile_mm"],
@@ -136,7 +134,7 @@ def test_lattice_half_drop_rounds_odd_drop_axis_count_up_to_close_the_torus():
         "rows": 3,
         "drop": "half_column",
     }
-    design = compile_design_plan_v3(DesignPlanV3.model_validate(raw), plan_index=0)
+    design = compile_design_plan_v3(DesignPlanV3.model_validate(raw))
     validate_intent(design.intent, repair=False, motifs={})
 
 
@@ -238,7 +236,6 @@ def test_schema_and_compiler_support_two_alternating_motif_lanes():
     plan = DesignPlanV3.model_validate(raw)
     compiled = compile_design_plan_v3(
         plan,
-        plan_index=0,
         motif_ids=["bee", "circle"],
     )
     compiled_motifs = [layer for layer in compiled.intent["layers"] if layer["type"] == "motif"]
@@ -283,7 +280,7 @@ def test_generate_motif_source_is_discriminated_bounded_and_stripped():
 
 
 def test_generate_source_compiles_best_effort_only_without_catalog_grounding():
-    compiled = compile_design_plan_v3(_generate_plan(), plan_index=0)
+    compiled = compile_design_plan_v3(_generate_plan())
 
     assert compiled.motif_specs == [
         {
@@ -300,7 +297,6 @@ def test_generate_source_compiles_best_effort_only_without_catalog_grounding():
     with pytest.raises(PlanCompileError, match="verified catalog is empty") as caught:
         compile_design_plan_v3(
             _generate_plan(),
-            plan_index=0,
             catalog_candidates=[{"catalog_ref": "catalog_1", "motif_id": "recraft-grounded"}],
         )
     assert caught.value.grounding is True
@@ -312,13 +308,11 @@ def test_fixed_palette_requires_explicit_motif_color_indices():
     with pytest.raises(PlanCompileError, match="must declare color_indices"):
         compile_design_plan_v3(
             _generate_plan(),
-            plan_index=0,
             palette_constraint=fixed,
         )
 
     compiled = compile_design_plan_v3(
         _generate_plan(color_indices=[1]),
-        plan_index=0,
         palette_constraint=fixed,
     )
     assert compiled.motif_color_slots == {"motif_0": ["color_1"]}
@@ -329,7 +323,6 @@ def test_compiler_accepts_motif_free_plan_with_catalog_candidates_and_one_refere
 
     compiled = compile_design_plan_v3(
         plan,
-        plan_index=0,
         catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
         reference_image_count=1,
     )
@@ -347,10 +340,10 @@ def test_compiler_requires_each_exact_input_once():
     plan = DesignPlanV3.model_validate(raw)
 
     with pytest.raises(PlanCompileError, match="exactly once"):
-        compile_design_plan_v3(plan, plan_index=0, motif_ids=["first", "second"])
+        compile_design_plan_v3(plan, motif_ids=["first", "second"])
 
     with pytest.raises(PlanCompileError, match="must be distinct"):
-        compile_design_plan_v3(plan, plan_index=0, motif_ids=["same", "same"])
+        compile_design_plan_v3(plan, motif_ids=["same", "same"])
 
 
 def test_compiler_rejects_duplicate_grounded_sources():
@@ -371,7 +364,6 @@ def test_compiler_rejects_duplicate_grounded_sources():
     with pytest.raises(PlanCompileError, match="exactly once"):
         compile_design_plan_v3(
             reference_plan,
-            plan_index=0,
             reference_motif_indexes={1},
             reference_image_count=1,
         )
@@ -384,7 +376,6 @@ def test_compiler_rejects_duplicate_grounded_sources():
     with pytest.raises(PlanCompileError, match="at most once"):
         compile_design_plan_v3(
             catalog_plan,
-            plan_index=0,
             catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
         )
 
@@ -411,7 +402,6 @@ def test_compiler_rejects_motif_recolor_count_that_conflicts_with_slot_count():
     with pytest.raises(PlanCompileError, match="exactly 1 entries") as caught:
         compile_design_plan_v3(
             DesignPlanV3.model_validate(raw),
-            plan_index=0,
             catalog_candidates=candidates,
         )
     assert caught.value.grounding is False
@@ -419,7 +409,6 @@ def test_compiler_rejects_motif_recolor_count_that_conflicts_with_slot_count():
     motif_layers[0]["color_indices"] = [1]
     compiled = compile_design_plan_v3(
         DesignPlanV3.model_validate(raw),
-        plan_index=0,
         catalog_candidates=candidates,
     )
     assert compiled.motif_color_slots["motif_0"] == ["color_1"]
@@ -432,7 +421,6 @@ def test_compiler_rejects_motif_recolor_count_that_conflicts_with_slot_count():
     ]
     compiled = compile_design_plan_v3(
         DesignPlanV3.model_validate(raw),
-        plan_index=0,
         catalog_candidates=without_slot_count,
     )
     assert compiled.motif_color_slots["motif_0"] == ["color_1", "ground"]
@@ -448,12 +436,11 @@ def test_compiler_unknown_catalog_ref_feedback_names_the_corrective_action():
 
     # 후보가 하나도 없으면 날조된 ref를 되풀이하지 않도록 motifs=[]를 직접 지시한다.
     with pytest.raises(PlanCompileError, match="set(?s:.*)motifs to \\[\\]"):
-        compile_design_plan_v3(plan, plan_index=0, catalog_candidates=[])
+        compile_design_plan_v3(plan, catalog_candidates=[])
 
     with pytest.raises(PlanCompileError, match="tokens from the data block"):
         compile_design_plan_v3(
             plan,
-            plan_index=0,
             catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
         )
 
@@ -468,7 +455,6 @@ def test_compiler_requires_every_fixed_color_to_be_guaranteed_visible():
     with pytest.raises(PlanCompileError, match="missing color indexes"):
         compile_design_plan_v3(
             DesignPlanV3.model_validate(raw),
-            plan_index=0,
             palette_constraint=fixed,
         )
 
@@ -478,7 +464,6 @@ def test_compiler_requires_every_fixed_color_to_be_guaranteed_visible():
     ]
     compiled = compile_design_plan_v3(
         DesignPlanV3.model_validate(raw),
-        plan_index=0,
         palette_constraint=fixed,
     )
     validate_intent(compiled.intent, repair=False, motifs={})
@@ -517,7 +502,6 @@ def test_structural_fingerprint_includes_motif_identity():
 
     first = DesignPlanV3.model_validate(source)
     second = DesignPlanV3.model_validate(changed)
-    assert motif_source_signature(first) != motif_source_signature(second)
     assert structural_fingerprint(first) != structural_fingerprint(second)
 
 
@@ -525,7 +509,6 @@ def test_snapshot_resolved_plan_freezes_concrete_motif_identity():
     plan = load_example_set()[5].plan
     compiled = compile_design_plan_v3(
         plan,
-        plan_index=0,
         motif_ids=["circle"],
     )
 
@@ -536,7 +519,6 @@ def test_snapshot_resolved_plan_freezes_concrete_motif_identity():
     assert snapshot.layers == plan.layers
     recompiled = compile_design_plan_v3(
         snapshot,
-        plan_index=0,
         catalog_candidates=[
             {
                 "catalog_ref": "circle",
@@ -552,7 +534,6 @@ def test_snapshot_resolved_plan_prunes_soft_dropped_optional_motif():
     plan = load_example_set()[14].plan
     compiled = compile_design_plan_v3(
         plan,
-        plan_index=0,
         motif_ids=["circle"],
     )
     resolved = json.loads(json.dumps(compiled.intent))

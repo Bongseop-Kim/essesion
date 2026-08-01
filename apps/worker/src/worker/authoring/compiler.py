@@ -346,7 +346,6 @@ def _compile_path(
 def compile_design_plan_v3(
     plan: DesignPlanV3,
     *,
-    plan_index: int,
     motif_ids: list[str] | None = None,
     catalog_candidates: list[dict[str, object]] | None = None,
     reference_motif_indexes: set[int] | None = None,
@@ -498,7 +497,7 @@ def compile_design_plan_v3(
         intent={
             "intent_version": 1,
             "canvas": {"tile_mm": tile_mm, "dpi": dpi},
-            "seed": seed if seed is not None else (plan_index + 1) * 104729,
+            "seed": seed if seed is not None else 104729,
             "production": {"method": "print", "max_colors": 12},
             "palette": {"slots": slots},
             "colorways": [{"id": "default", "name": "default", "mapping": mapping}],

@@ -72,8 +72,3 @@ export async function importDesignMotifSvg(
   });
   return response.data;
 }
-
-export async function importDesignMotif(file: File): Promise<UserMotifOut> {
-  const svg = await readDesignMotifSvg(file);
-  return importDesignMotifSvg(file.name.replace(/\.svg$/i, ""), svg);
-}

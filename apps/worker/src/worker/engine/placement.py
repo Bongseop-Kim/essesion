@@ -129,8 +129,8 @@ def place_lattice(placement: Placement, tile_mm: float) -> list[Instance]:
     instances: list[Instance] = []
     for i in range(nx):
         for j in range(ny):
-            x = i * b1[0] + j * b2[0]
-            y = i * b1[1] + j * b2[1]
+            x = i * b1[0] + j * b2[0] + spec.offset_x_mm
+            y = i * b1[1] + j * b2[1] + spec.offset_y_mm
             instances.append(
                 Instance(x % tile_mm, y % tile_mm, placement.fixed_rotation_deg or 0.0)
             )

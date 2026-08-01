@@ -1,10 +1,9 @@
 import pytest
 from pydantic import ValidationError
-from worker.engine import generate_candidates
+from worker.engine import compose_design
 from worker.engine.constraints import (
     ConstraintInvalid,
     PaletteConstraint,
-    PatternConstraints,
     apply_generation_constraints,
     assert_constraints_satisfied,
     normalize_hex,
@@ -34,8 +33,7 @@ def test_fixed_palette_normalizes_deduplicates_and_rejects_too_few_colors():
 
 def test_fixed_palette_is_applied_to_used_slots_and_collapses_colorways():
     palette = PaletteConstraint(mode="fixed", colors=["#112233", "#ddeeff"])
-    pattern = PatternConstraints()
-    constrained = apply_generation_constraints(mvp_intent(), palette=palette, pattern=pattern)
+    constrained = apply_generation_constraints(mvp_intent(), palette=palette)
 
     assert constrained["colorways"] == [
         {
@@ -45,7 +43,7 @@ def test_fixed_palette_is_applied_to_used_slots_and_collapses_colorways():
         }
     ]
     assert "spot" not in constrained["palette"]["slots"][0]
-    assert_constraints_satisfied(constrained, palette=palette, pattern=pattern)
+    assert_constraints_satisfied(constrained, palette=palette)
 
 
 def test_fixed_palette_fails_when_authored_layers_do_not_use_every_color():
@@ -53,38 +51,7 @@ def test_fixed_palette_fails_when_authored_layers_do_not_use_every_color():
     raw["layers"] = raw["layers"][:2]
     palette = PaletteConstraint(mode="fixed", colors=["#111111", "#222222", "#333333"])
     with pytest.raises(ConstraintInvalid, match="at least 3 color slots"):
-        apply_generation_constraints(raw, palette=palette, pattern=PatternConstraints())
-
-
-def test_pattern_controls_map_to_physical_engine_primitives_and_lock_variants():
-    palette = PaletteConstraint()
-    pattern = PatternConstraints(
-        motif_scale="large", density="dense", arrangement="staggered", direction="vertical"
-    )
-    constrained = apply_generation_constraints(mvp_intent(), palette=palette, pattern=pattern)
-    assert constrained["layers"][1]["params"]["angle"] == 90.0
-    for layer in constrained["layers"][2:]:
-        # large(48*0.28=13.44)는 dense 셀(6.0)의 1.15배로 클램프된다
-        assert layer["params"]["size_mm"] == 6.9
-        assert layer["placement"]["type"] == "lattice"
-        assert layer["placement"]["lattice"] == {
-            "cell_w_mm": 6.0,
-            "cell_h_mm": 6.0,
-            "drop_fraction": 0.5,
-            "drop_axis": "column",
-        }
-        assert layer["placement"]["fixed_rotation_deg"] == 90.0
-
-    candidates = generate_candidates(
-        constrained,
-        candidate_count=8,
-        palette_constraint=palette,
-        pattern_constraints=pattern,
-    )
-    assert candidates.candidates
-    for candidate in candidates.candidates:
-        assert_constraints_satisfied(candidate.intent, palette=palette, pattern=pattern)
-        assert "rotate(90)" in candidate.candidate.svg
+        apply_generation_constraints(raw, palette=palette)
 
 
 def _lattice_intent(size_mm: float, columns: int) -> dict:
@@ -111,7 +78,6 @@ def test_lattice_motif_larger_than_cell_is_clamped_with_a_warning():
     constrained = apply_generation_constraints(
         _lattice_intent(14.4, 4),
         palette=PaletteConstraint(),
-        pattern=PatternConstraints(),
         warnings=warnings,
     )
     assert constrained["layers"][1]["params"]["size_mm"] == 13.8  # 12.0 × 1.15
@@ -122,43 +88,16 @@ def test_lattice_motif_larger_than_cell_is_clamped_with_a_warning():
     untouched = apply_generation_constraints(
         _lattice_intent(13.0, 4),
         palette=PaletteConstraint(),
-        pattern=PatternConstraints(),
         warnings=warnings,
     )
     assert untouched["layers"][1]["params"]["size_mm"] == 13.0
     assert warnings == []
 
 
-@pytest.mark.parametrize("scale", ["small", "medium", "large"])
-@pytest.mark.parametrize("density", ["sparse", "medium", "dense"])
-def test_scale_and_density_together_never_exceed_the_overlap_allowance(scale, density):
-    """S7 회귀: 크기·밀도를 함께 지정한 9조합 모두 셀의 1.15배 이하."""
-    palette = PaletteConstraint()
-    pattern = PatternConstraints(motif_scale=scale, density=density, arrangement="lattice")
-    constrained = apply_generation_constraints(
-        _lattice_intent(5.0, 4), palette=palette, pattern=pattern
-    )
-    layer = constrained["layers"][1]
-    cell = min(layer["placement"]["lattice"][key] for key in ("cell_w_mm", "cell_h_mm"))
-    assert layer["params"]["size_mm"] <= cell * 1.15 + 1e-9
-    # 클램프가 걸려도 사후 검증(motif_scale)과 충돌하지 않는다
-    assert_constraints_satisfied(constrained, palette=palette, pattern=pattern)
-    for candidate in generate_candidates(
-        constrained, candidate_count=8, palette_constraint=palette, pattern_constraints=pattern
-    ).candidates:
-        for variant in candidate.intent.model_dump()["layers"][1:]:
-            cells = variant["placement"]["lattice"]
-            limit = min(cells["cell_w_mm"], cells["cell_h_mm"]) * 1.15
-            assert variant["params"]["size_mm"] <= limit + 1e-9
-
-
-def test_direction_constraint_rejects_malformed_layers():
-    raw = mvp_intent()
-    raw["layers"] = {}
-
-    with pytest.raises(ConstraintInvalid, match="selected direction requires intent.layers"):
-        apply_generation_constraints(
-            raw,
-            palette=PaletteConstraint(),
-            pattern=PatternConstraints(direction="vertical"),
-        )
+def test_clamped_lattice_design_still_composes_and_satisfies_the_fixed_palette():
+    """4축을 없앤 뒤에도 남는 두 기계 — 팔레트 강제와 겹침 클램프 — 가 함께 동작한다."""
+    palette = PaletteConstraint(mode="fixed", colors=["#112233", "#ddeeff"])
+    constrained = apply_generation_constraints(_lattice_intent(30.0, 4), palette=palette)
+    assert constrained["layers"][1]["params"]["size_mm"] == 13.8  # 12.0 × 1.15
+    design = compose_design(constrained, palette_constraint=palette)
+    assert_constraints_satisfied(design.intent, palette=palette)

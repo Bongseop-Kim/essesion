@@ -73,8 +73,7 @@ def _normalize_motif_ids(values: list[str]) -> list[str]:
 class AuthoringCandidateSummaryOut(BaseModel):
     id: uuid.UUID
     source_generation_log_id: uuid.UUID | None
-    plan_index: int
-    selected_candidate_id: str
+    design_id: str
     contract_version: int
     compiler_revision: str
     prompt_revision: str
@@ -239,8 +238,7 @@ def _candidate_summary(row: AuthoringPromotionCandidate) -> AuthoringCandidateSu
     return AuthoringCandidateSummaryOut(
         id=row.id,
         source_generation_log_id=row.source_generation_log_id,
-        plan_index=row.plan_index,
-        selected_candidate_id=row.selected_candidate_id,
+        design_id=row.design_id,
         contract_version=row.contract_version,
         compiler_revision=row.compiler_revision,
         prompt_revision=row.prompt_revision,
@@ -388,19 +386,15 @@ async def _candidate_preview(
     if row.source_generation_log_id is None:
         return None, "unavailable"
     log = await session.get(SeamlessGenerationLog, row.source_generation_log_id)
-    if log is None:
+    if log is None or not isinstance(log.design, dict):
         return None, "unavailable"
-    for candidate in log.candidates or []:
-        if not isinstance(candidate, dict) or candidate.get("id") != row.selected_candidate_id:
-            continue
-        raw_svg = candidate.get("svg")
-        if not isinstance(raw_svg, str):
-            return None, "unavailable"
-        try:
-            return sanitize_svg(raw_svg), "safe"
-        except SanitizeError:
-            return None, "unsafe"
-    return None, "unavailable"
+    raw_svg = log.design.get("svg")
+    if log.design.get("id") != row.design_id or not isinstance(raw_svg, str):
+        return None, "unavailable"
+    try:
+        return sanitize_svg(raw_svg), "safe"
+    except SanitizeError:
+        return None, "unsafe"
 
 
 async def _candidate_detail(

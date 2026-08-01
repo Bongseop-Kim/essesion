@@ -1,9 +1,10 @@
 """생성 결과 기반 저작 예시 승격 후보 선별."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 from db.models.auth import User
-from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
+from db.models.design import DesignSession, GenerationJob
 from db.models.seamless import AuthoringPromotionCandidate, SeamlessGenerationLog
 from sqlalchemy import select
 from worker.authoring.compiler import COMPILER_REVISION, PLAN_CONTRACT_VERSION
@@ -27,12 +28,11 @@ async def _source(
     db_session,
     *,
     prompt: str,
-    plan_index: int = 0,
+    example_index: int = 0,
     finalized: bool = True,
-    finalize_selected: bool = True,
-    regenerate_before_finalize: bool = False,
+    finalize_other_run: bool = False,
     status: str = "success",
-    late_other_run_selection: bool = False,
+    with_design_id: bool = True,
 ) -> SeamlessGenerationLog:
     user = User(name="승격 테스트 사용자", role="customer")
     db_session.add(user)
@@ -40,10 +40,10 @@ async def _source(
     design_session = DesignSession(user_id=user.id, status="active")
     db_session.add(design_session)
     await db_session.flush()
-    example = load_example_set()[plan_index]
-    candidate_id = f"candidate-{plan_index}-{design_session.id.hex[:8]}"
-    other_candidate_id = f"candidate-other-{design_session.id.hex[:8]}"
+    example = load_example_set()[example_index]
     log = SeamlessGenerationLog(
+        session_id=design_session.id,
+        user_id=user.id,
         input_type="prompt",
         prompt=prompt,
         intent={
@@ -51,116 +51,22 @@ async def _source(
                 "plan_contract_version": PLAN_CONTRACT_VERSION,
                 "compiler_revision": COMPILER_REVISION,
                 "prompt_revision": "design-plan-v3-rag-grounded",
-                "plans": [example.plan.model_dump(mode="json")],
+                "plan": example.plan.model_dump(mode="json"),
             }
         },
-        candidates=[
-            {
-                "id": candidate_id,
-                "design_index": 0,
-                "svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
-            },
-            *(
-                [
-                    {
-                        "id": other_candidate_id,
-                        "design_index": 1,
-                        "svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
-                    }
-                ]
-                if late_other_run_selection
-                else []
+        design={
+            **(
+                {"id": f"design-{example_index}-{design_session.id.hex[:8]}"}
+                if with_design_id
+                else {}
             ),
-        ],
+            "svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
+        },
         status=status,
     )
-    previous_log = (
-        SeamlessGenerationLog(
-            session_id=design_session.id,
-            user_id=user.id,
-            input_type="prompt",
-            prompt="과거 실행",
-            candidates=[{"id": other_candidate_id, "design_index": 0}],
-            warnings=[],
-            status="partial",
-        )
-        if late_other_run_selection
-        else None
-    )
-    db_session.add_all([row for row in (log, previous_log) if row is not None])
+    db_session.add(log)
     await db_session.flush()
-    base = datetime.now(UTC) - timedelta(minutes=5)
-    turns = []
-    seq = 1
-    if previous_log is not None:
-        turns.append(
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=seq,
-                role="assistant",
-                payload={
-                    "type": "generate",
-                    "run_id": str(previous_log.id),
-                    "status": "succeeded",
-                },
-                created_at=base,
-            )
-        )
-        seq += 1
-    turns.extend(
-        [
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=seq,
-                role="assistant",
-                payload={
-                    "type": "generate",
-                    "run_id": str(log.id),
-                    "status": "succeeded",
-                },
-                created_at=base + timedelta(seconds=seq - 1),
-            ),
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=seq + 1,
-                role="user",
-                payload={
-                    "type": "select",
-                    "run_id": str(log.id),
-                    "candidate_id": candidate_id,
-                },
-                created_at=base + timedelta(seconds=seq),
-            ),
-        ]
-    )
-    seq += 2
-    if previous_log is not None:
-        turns.append(
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=seq,
-                role="user",
-                payload={
-                    "type": "select",
-                    "run_id": str(previous_log.id),
-                    "candidate_id": other_candidate_id,
-                },
-                created_at=base + timedelta(seconds=seq - 1),
-            )
-        )
-        seq += 1
-    if regenerate_before_finalize:
-        turns.append(
-            DesignSessionTurn(
-                session_id=design_session.id,
-                seq=seq,
-                role="user",
-                payload={"type": "generate_request"},
-                created_at=base + timedelta(seconds=seq - 1),
-            )
-        )
-        seq += 1
-    db_session.add_all(turns)
+    finished = datetime.now(UTC) - timedelta(minutes=5)
     if finalized:
         db_session.add(
             GenerationJob(
@@ -168,13 +74,10 @@ async def _source(
                 session_id=design_session.id,
                 kind="finalize",
                 status="succeeded",
-                params={
-                    "run_id": str(log.id),
-                    "candidate_id": (candidate_id if finalize_selected else "another-candidate"),
-                },
-                created_at=base + timedelta(seconds=seq),
-                updated_at=base + timedelta(seconds=seq),
-                finished_at=base + timedelta(seconds=seq),
+                params={"run_id": str(uuid.uuid4() if finalize_other_run else log.id)},
+                created_at=finished,
+                updated_at=finished,
+                finished_at=finished,
             )
         )
     await db_session.commit()
@@ -182,35 +85,31 @@ async def _source(
     return log
 
 
-async def test_scan_registers_only_selected_successful_finalize(db_session):
-    eligible = await _source(
-        db_session,
-        prompt="차분한 네이비 단색 패턴",
-        late_other_run_selection=True,
-    )
+async def test_scan_registers_only_finalized_successful_runs(db_session):
+    eligible = await _source(db_session, prompt="차분한 네이비 단색 패턴")
     await _source(
         db_session,
         prompt="실사화하지 않은 패턴",
-        plan_index=1,
+        example_index=1,
         finalized=False,
     )
     await _source(
         db_session,
-        prompt="다른 후보만 실사화한 패턴",
-        plan_index=1,
-        finalize_selected=False,
-    )
-    await _source(
-        db_session,
-        prompt="재생성 뒤 실사화한 패턴",
-        plan_index=2,
-        regenerate_before_finalize=True,
+        prompt="다른 실행만 실사화한 패턴",
+        example_index=2,
+        finalize_other_run=True,
     )
     await _source(
         db_session,
         prompt="부분 성공 패턴",
-        plan_index=3,
+        example_index=3,
         status="partial",
+    )
+    await _source(
+        db_session,
+        prompt="design id 없는 패턴",
+        example_index=4,
+        with_design_id=False,
     )
 
     result = await scan_promotion_candidates(
@@ -224,10 +123,12 @@ async def test_scan_registers_only_selected_successful_finalize(db_session):
     candidate = await db_session.scalar(select(AuthoringPromotionCandidate))
     assert candidate is not None
     assert candidate.source_generation_log_id == eligible.id
+    assert eligible.design is not None
+    assert candidate.design_id == eligible.design["id"]
     assert candidate.retrieval_text == "차분한 네이비 단색 패턴"
     assert candidate.status == "pending"
     assert candidate.embedding_model == MODEL
-    assert candidate.rule_reasons == ["success", "selected", "finalized"]
+    assert candidate.rule_reasons == ["success", "finalized"]
     assert "svg" not in candidate.plan
 
     repeated = await scan_promotion_candidates(

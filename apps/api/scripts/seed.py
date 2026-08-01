@@ -40,6 +40,8 @@ ADMIN_SETTINGS = {
     "default_courier_company": "롯데택배",
     "design_token_initial_grant": "30",
     "design_token_cost_openai_render_standard": "5",
+    # 구성 수정은 flash-lite 1콜뿐이라 첫 생성보다 싸다 (6단계 미결 M1 확정).
+    "design_edit_cost": "2",
     "design_finalize_daily_limit": "10",
 }
 

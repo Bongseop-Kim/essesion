@@ -28,7 +28,6 @@ from worker.adapters.embedding import DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL
 from worker.adapters.embedding import VertexEmbeddingClient
 from worker.adapters.gemini import DEFAULT_MODEL, GeminiClient
 from worker.authoring.retrieval import retrieve_examples
-from worker.engine.constraints import PatternConstraints
 from worker.engine.validate import IntentInvalid, validate_intent
 
 DEFAULT_CORPUS = Path(__file__).with_name("authoring_prompts.json")
@@ -71,13 +70,10 @@ async def _evaluate_model(
     client = GeminiClient(project, model)
     latencies: list[float] = []
     attempts: list[int] = []
-    valid_counts: list[int] = []
-    diversity_counts: list[int] = []
     failures: Counter[str] = Counter()
     retrieval_statuses: Counter[str] = Counter()
     retrieval_family_hits = 0
     succeeded = 0
-    diversity_passed = 0
     try:
         for case in cases:
             diagnostics: dict[str, object] = {}
@@ -88,7 +84,6 @@ async def _evaluate_model(
                 embedding_client=embedding,
                 embedding_model=embedding_model,
                 available_motif_count=case.motif_count,
-                pattern_constraints=PatternConstraints(),
             )
             retrieval_statuses[retrieval.status] += 1
             selected_families = {example.family for example in retrieval.examples}
@@ -99,7 +94,7 @@ async def _evaluate_model(
 
             started = time.perf_counter()
             try:
-                designs = await client.author_designs(
+                await client.author_design(
                     case.prompt,
                     motif_ids=motif_ids,
                     examples=examples,
@@ -114,10 +109,6 @@ async def _evaluate_model(
                 failures["unexpected_error"] += 1
             else:
                 succeeded += 1
-                valid_counts.append(len(designs))
-                fingerprints = {design.structural_fingerprint for design in designs}
-                diversity_counts.append(len(fingerprints))
-                diversity_passed += int(len(fingerprints) >= 2)
             finally:
                 latencies.append((time.perf_counter() - started) * 1000)
                 value = diagnostics.get("authoring_attempts")
@@ -134,20 +125,11 @@ async def _evaluate_model(
         "total": total,
         "succeeded": succeeded,
         "schema_compile_success_rate": round(succeeded / total, 4) if total else 0,
-        "structural_diversity_pass_rate": (
-            round(diversity_passed / succeeded, 4) if succeeded else 0
-        ),
         "failure_counts": dict(sorted(failures.items())),
         "average_latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else None,
         "p95_latency_ms": _percentile(latencies, 0.95),
         "average_authoring_attempts": (
             round(sum(attempts) / len(attempts), 2) if attempts else None
-        ),
-        "average_valid_designs": (
-            round(sum(valid_counts) / len(valid_counts), 2) if valid_counts else None
-        ),
-        "average_distinct_structures": (
-            round(sum(diversity_counts) / len(diversity_counts), 2) if diversity_counts else None
         ),
         "retrieval_status_counts": dict(sorted(retrieval_statuses.items())),
         "retrieval_expected_family_recall": (

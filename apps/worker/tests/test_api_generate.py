@@ -12,10 +12,8 @@ import asyncio
 import base64
 import hashlib
 import io
-import threading
-import time
+import json
 from contextlib import asynccontextmanager
-from dataclasses import replace
 from types import SimpleNamespace
 
 import httpx
@@ -26,15 +24,14 @@ from PIL import Image
 from worker.adapters import Adapters
 from worker.adapters.gemini import AuthoredDesign
 from worker.api import routes
-from worker.authoring.compiler import compile_design_plan_v3
-from worker.authoring.examples import load_example_set
 from worker.authoring.retrieval import RetrievalOutcome
-from worker.authoring.schema import DesignPlanV3
 from worker.db import get_session
+from worker.engine.patch import DesignPatchV1
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
 from worker.motifs.registry import get_motif
 from worker.render.raster import RasterError
+from worker.warnings import WARNING_MESSAGES, customer_warnings
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
@@ -120,9 +117,8 @@ def client(monkeypatch):
     return TestClient(_configure_app(monkeypatch))
 
 
-_CANDIDATE_KEYS = {
+_DESIGN_KEYS = {
     "id",
-    "design_index",
     "layout_id",
     "source_fidelity",
     "colorway_id",
@@ -330,47 +326,59 @@ def test_single_slot_avoids_ground_equivalent_hex_and_degenerate_palette_is_stab
 
 def test_generate_returns_product_shape(client):
     intent = mvp_intent()
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 4}
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 200
     body = resp.json()
     assert body["request_id"]
     assert body["engine_version"] and body["registry_version"]
-    assert body["intents"] == [intent]
-    assert len(body["candidates"]) == 4
-    cand = body["candidates"][0]
-    assert set(cand) == _CANDIDATE_KEYS
+    assert body["intent"] == intent
+    design = body["design"]
+    assert set(design) == _DESIGN_KEYS
     digest = hashlib.sha256(b"fake-png").hexdigest()[:16]
-    assert cand["png_object_key"] == (f"previews/{body['request_id']}/{cand['id']}/{digest}.png")
-
-
-def test_candidates_are_diverse_and_deduped(client):
-    resp = client.post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 4},
+    assert design["png_object_key"] == (
+        f"previews/{body['request_id']}/{design['id']}/{digest}.png"
     )
-    body = resp.json()
-    cands = body["candidates"]
-    ids = [c["id"] for c in cands]
-    keys = [c["png_object_key"] for c in cands]
-    assert len(set(ids)) == len(ids)  # de-dup: 후보마다 distinct id
-    assert len(set(keys)) == len(keys)  # 따라서 distinct object key
-    assert "diversity shortfall" not in " ".join(body["warnings"])
 
 
-def test_intent_level_warnings_are_deduped(client):
-    # 색역 밖 색은 후보마다 intent 경고를 낸다; 후보 전반에서 동일 메시지는 1개로 접혀야 한다.
+def test_warnings_are_customer_facing_and_deduped_by_code(client):
     intent = mvp_intent()
     intent["palette"]["slots"][2]["hex"] = "#ffd700"
     intent["colorways"][0]["mapping"]["gold"] = "#ffd700"
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 4}
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 200
-    w = resp.json()["warnings"]
-    assert len(w) == len(set(w))  # 정확한 중복 없음
-    assert sum("outside CMYK gamut" in m for m in w) == 1
+    warnings = resp.json()["warnings"]
+    codes = [item["code"] for item in warnings]
+    assert codes.count("color_out_of_gamut") == 1
+    assert len(codes) == len(set(codes))
+    # 엔진 영문 문자열이 아니라 한글 한 줄만 노출된다.
+    assert all(item["message"] and "gamut" not in item["message"] for item in warnings)
+
+
+def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
+    texts = [
+        "color #FFD700 is outside CMYK gamut",
+        "motif bee dropped (unavailable)",
+        "preview upload skipped",
+        "spacing snapped to 8.0mm",
+        "widths reduced to keep the background visible",
+        "motif size 9.0mm (lattice cell 8.0mm)",
+        "another color is outside CMYK gamut",  # 중복 코드는 첫 건만
+        "engine did something unmapped",  # 문구 없는 진단은 내려보내지 않는다
+    ]
+
+    warnings = customer_warnings(texts)
+
+    assert [item["code"] for item in warnings] == [
+        "color_out_of_gamut",
+        "motif_dropped",
+        "preview_unavailable",
+        "spacing_snapped",
+        "stripe_coverage_reduced",
+        "motif_size_clamped",
+    ]
+    assert [item["message"] for item in warnings] == [
+        WARNING_MESSAGES[item["code"]] for item in warnings
+    ]
 
 
 def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
@@ -387,25 +395,20 @@ def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
             },
         }
     ]
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 2}
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["intents"][0]["layers"][1]["params"]["size_mm"] == 13.8
-    assert [w for w in body["warnings"] if "clamped to 13.8" in w]
+    assert body["intent"]["layers"][1]["params"]["size_mm"] == 13.8
+    assert [w for w in body["warnings"] if w["code"] == "motif_size_clamped"]
 
 
 def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
     client = TestClient(_configure_app(monkeypatch, raster_ok=False))
-    resp = client.post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 2},
-    )
+    resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": mvp_intent()})
     assert resp.status_code == 200
     body = resp.json()
-    assert all(c["png_object_key"] is None for c in body["candidates"])
-    assert any("preview upload skipped" in w for w in body["warnings"])
+    assert body["design"]["png_object_key"] is None
+    assert any(w["code"] == "preview_unavailable" for w in body["warnings"])
 
 
 def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeypatch):
@@ -418,15 +421,12 @@ def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeyp
     app = _configure_app(monkeypatch)
     app.state.object_store = FailingObjectStore()
 
-    resp = TestClient(app).post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 2},
-    )
+    resp = TestClient(app).post("/generate", json={"run_id": _RUN_ID, "intent": mvp_intent()})
 
     assert resp.status_code == 200
     body = resp.json()
-    assert all(candidate["png_object_key"] is None for candidate in body["candidates"])
-    assert "preview upload skipped" in body["warnings"]
+    assert body["design"]["png_object_key"] is None
+    assert [w["code"] for w in body["warnings"]] == ["preview_unavailable"]
 
 
 def test_request_id_propagates_to_body_and_header(client):
@@ -455,17 +455,13 @@ def test_request_id_header_is_sanitized(client):
     assert resp.headers["X-Request-ID"] == "bad-id-with-spaces"
 
 
-def test_determinism_same_request_same_candidates(client):
-    payload = {
-        "run_id": _RUN_ID,
-        "intent": mvp_intent(),
-        "candidate_count": 4,
-        "seed": 999,
-    }
+def test_determinism_same_request_same_design(client):
+    payload = {"run_id": _RUN_ID, "intent": mvp_intent(), "seed": 999}
     a = client.post("/generate", json=payload).json()
     b = client.post("/generate", json=payload).json()
-    # request_id를 제외하면 후보 id 집합은 byte-identical (엔진 결정론)
-    assert [c["id"] for c in a["candidates"]] == [c["id"] for c in b["candidates"]]
+    # request_id를 제외하면 디자인은 byte-identical (엔진 결정론)
+    assert a["design"]["id"] == b["design"]["id"]
+    assert a["design"]["svg"] == b["design"]["svg"]
 
 
 def test_semantic_invalid_intent_returns_422(client):
@@ -477,6 +473,45 @@ def test_semantic_invalid_intent_returns_422(client):
         "code": "intent_invalid",
         "stage": "intent",
         "message": "the design input is invalid",
+    }
+
+
+def test_intent_path_compose_failure_returns_design_invalid(client):
+    # 검증은 통과하지만 합성이 거부(unknown colorway)되면 intent_invalid가 아니라 design_invalid.
+    resp = client.post(
+        "/generate", json={"run_id": _RUN_ID, "intent": mvp_intent(), "colorway": "nope"}
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == {
+        "code": "design_invalid",
+        "stage": "design",
+        "message": "the design could not be composed",
+    }
+
+
+def test_prompt_path_compose_failure_returns_design_invalid(monkeypatch):
+    # Gemini가 _validate를 통과하는 intent를 반환해도 compose_design이 거부하면 design_invalid.
+    async def fake_candidates(*_args, **_kwargs):
+        return []
+
+    class GroundedGemini:
+        async def author_design(self, _prompt, **_kwargs):
+            return AuthoredDesign(intent=mvp_intent())
+
+    def broken_compose(*_args, **_kwargs):
+        raise ValueError("composition rejected")
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=GroundedGemini())
+    monkeypatch.setattr(routes, "compose_design", broken_compose)
+
+    resp = TestClient(app).post("/generate", json={"run_id": _RUN_ID, "prompt": "chess pattern"})
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == {
+        "code": "design_invalid",
+        "stage": "design",
+        "message": "the design could not be composed",
     }
 
 
@@ -506,11 +541,7 @@ def test_concurrent_requests_keep_distinct_request_ids(monkeypatch):
                 r = await ac.post(
                     "/generate",
                     headers={"X-Request-ID": rid},
-                    json={
-                        "run_id": _RUN_ID,
-                        "intent": mvp_intent(),
-                        "candidate_count": 2,
-                    },
+                    json={"run_id": _RUN_ID, "intent": mvp_intent()},
                 )
                 return rid, r.json()["request_id"], r.headers["X-Request-ID"]
 
@@ -518,15 +549,6 @@ def test_concurrent_requests_keep_distinct_request_ids(monkeypatch):
 
     for sent, body_rid, header_rid in asyncio.run(run()):
         assert body_rid == sent == header_rid
-
-
-def test_schema_invalid_request_returns_422(client):
-    # candidate_count가 스키마 범위(1..8) 밖 — 요청 스키마 실패(422), 의미 오류 아님.
-    resp = client.post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 99},
-    )
-    assert resp.status_code == 422
 
 
 def test_request_schema_rejects_unknown_fields(client):
@@ -540,31 +562,6 @@ def test_request_schema_rejects_unknown_fields(client):
     )
     assert response.status_code == 422
     assert "extra_forbidden" in response.text
-
-
-def test_preview_render_parallelism_is_bounded(monkeypatch):
-    app = _configure_app(monkeypatch)
-    lock = threading.Lock()
-    active = 0
-    maximum = 0
-
-    def slow_raster(_svg, **_kwargs):
-        nonlocal active, maximum
-        with lock:
-            active += 1
-            maximum = max(maximum, active)
-        time.sleep(0.02)
-        with lock:
-            active -= 1
-        return b"fake-png", "image/png"
-
-    monkeypatch.setattr(routes, "rasterize_svg", slow_raster)
-    response = TestClient(app).post(
-        "/generate",
-        json={"run_id": _RUN_ID, "intent": mvp_intent(), "candidate_count": 8},
-    )
-    assert response.status_code == 200
-    assert maximum <= app.state.settings.preview_render_concurrency
 
 
 def test_prompt_only_without_gemini_returns_503(client):
@@ -597,9 +594,9 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
         return catalog
 
     class GroundedGemini:
-        async def author_designs(self, _prompt, *, catalog_candidates, **_kwargs):
+        async def author_design(self, _prompt, *, catalog_candidates, **_kwargs):
             assert catalog_candidates == catalog
-            return [AuthoredDesign(intent=mvp_intent())]
+            return AuthoredDesign(intent=mvp_intent())
 
     monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
     app = _configure_app(monkeypatch)
@@ -625,11 +622,11 @@ def test_auto_references_fill_motif_capacity_without_catalog_lookup(monkeypatch)
         return RetrievalOutcome(status="empty", reason="no_examples")
 
     class Gemini:
-        async def author_designs(self, _prompt, *, validate, catalog_candidates, **_kwargs):
+        async def author_design(self, _prompt, *, validate, catalog_candidates, **_kwargs):
             assert catalog_candidates == []
             intent = mvp_intent()
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     async def fake_reference_images(_body, _settings):
         return []
@@ -679,7 +676,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
         return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
 
     class Gemini:
-        async def author_designs(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
+        async def author_design(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
             calls.append("author")
             assert examples == []
             assert diagnostics["example_retrieval_status"] == "retrieval_error"
@@ -691,12 +688,10 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
                 compiler_revision="design-plan-v3.1",
                 prompt_revision="design-plan-v3-rag-generated-motif-colors",
             )
-            return [
-                AuthoredDesign(
-                    intent=intent,
-                    structural_fingerprint="layout-v3",
-                )
-            ]
+            return AuthoredDesign(
+                intent=intent,
+                structural_fingerprint="layout-v3",
+            )
 
     monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
     app = _configure_app(monkeypatch)
@@ -717,123 +712,91 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
     assert calls == ["retrieve", "author"]
 
 
-def test_refine_uses_one_plan_and_fans_out_without_exposing_concrete_motif(monkeypatch):
-    concrete_raw = load_example_set()[5].plan.model_dump(mode="json")
-    concrete_raw["motifs"] = [{"source": "catalog", "catalog_ref": "circle"}]
-    next(layer for layer in concrete_raw["layers"] if layer["type"] == "motif")["color_indices"] = [
-        1,
-        1,
-    ]
-    concrete_plan = DesignPlanV3.model_validate(concrete_raw)
-    current = compile_design_plan_v3(
-        concrete_plan,
-        plan_index=0,
-        catalog_candidates=[
-            {
-                "catalog_ref": "circle",
-                "motif_id": "circle",
-                "current": True,
-            }
-        ],
-    )
-    calls = 0
-    catalog_reads = 0
+class _PatchGemini:
+    """author_patch만 구현 — 구성 수정은 모티프 해석·예시 검색을 전혀 타지 않는다."""
 
-    async def no_public_candidates(*_args, **_kwargs):
-        return []
+    def __init__(self, patch: dict) -> None:
+        self._patch = patch
+        self.snapshots: list[dict] = []
+        self.histories: list[list[dict]] = []
 
-    async def prompt_then_render_catalog(_session, _ids):
-        nonlocal catalog_reads
-        catalog_reads += 1
-        if catalog_reads == 1:
-            return {
-                "circle": SimpleNamespace(
-                    color_slots=("s0", "s1"),
-                    slot_parts=("몸통", "윤곽"),
-                )
-            }
-        return {
-            "circle": replace(
-                get_motif("circle"),
-                color_slots=("s0", "s1"),
-                slot_parts=("몸통", "윤곽"),
-            )
-        }
+    async def author_patch(
+        self, prompt, *, snapshot, conversation_history=None, palette_constraint=None, diagnostics
+    ):
+        self.snapshots.append(snapshot)
+        self.histories.append(list(conversation_history or []))
+        diagnostics["authoring_mode"] = "patch"
+        return DesignPatchV1.model_validate(self._patch)
 
-    class RefineGemini:
-        async def author_designs(
-            self,
-            _prompt,
-            *,
-            validate,
-            catalog_candidates,
-            current_plan,
-            conversation_history,
-            **_kwargs,
-        ):
-            nonlocal calls
-            calls += 1
-            assert current_plan.motifs[0].catalog_ref == "current_motif_1"
-            assert conversation_history == [
+    async def author_design(self, *_args, **_kwargs):  # pragma: no cover - 호출되면 계약 위반
+        raise AssertionError("composition edits must not re-author a plan")
+
+
+def _patch_request(prompt: str, intent: dict) -> dict:
+    return {
+        "run_id": _RUN_ID,
+        "prompt": prompt,
+        "conversation_context": {
+            "current_intent": intent,
+            "history": [
                 {
-                    "user_prompt": "원형 패턴으로 만들어줘",
-                    "assistant_summary": "3×3 격자 후보를 선택함",
+                    "user_prompt": "네이비 스트라이프로 만들어줘",
+                    "assistant_summary": "3색 · 스트라이프",
                     "attachments": [],
                 }
-            ]
-            assert catalog_candidates == [
-                {
-                    "catalog_ref": "current_motif_1",
-                    "motif_id": "circle",
-                    "subject": "committed motif 1",
-                    "description": None,
-                    "style": None,
-                    "current": True,
-                    "slot_count": 2,
-                    "parts": ["몸통", "윤곽"],
-                }
-            ]
-            authored = compile_design_plan_v3(
-                current_plan,
-                plan_index=0,
-                catalog_candidates=catalog_candidates,
-            )
-            assert validate(authored.intent) is None
-            return [authored]
+            ],
+        },
+    }
 
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", no_public_candidates)
-    monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
+
+def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
+    gemini = _PatchGemini({"background": {"color": "#F5F0E6"}, "note": "바탕을 밝게 했어요."})
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=RefineGemini())
+    app.state.adapters = Adapters(gemini=gemini)
+    intent = mvp_intent()
+
+    response = TestClient(app).post("/generate", json=_patch_request("바탕을 밝게", intent))
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["note"] == "바탕을 밝게 했어요."
+    assert body["plan"] is None  # patch 경로는 plan을 다시 저작하지 않는다
+    slots = {slot["id"]: slot["hex"] for slot in body["intent"]["palette"]["slots"]}
+    assert slots["ground"] == "#F5F0E6"
+    # 모티프는 타입상 바뀔 수 없다.
+    assert [
+        layer["params"]["motif_id"]
+        for layer in body["intent"]["layers"]
+        if layer["type"] == "motif"
+    ] == ["circle", "bee"]
+    # 모델에게는 모티프 정체성이 아니라 구성 스냅샷만 간다.
+    assert "circle" not in json.dumps(gemini.snapshots[0])
+    assert gemini.histories[0][0]["user_prompt"] == "네이비 스트라이프로 만들어줘"
+
+
+def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch):
+    gemini = _PatchGemini({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=gemini)
 
     response = TestClient(app).post(
-        "/generate",
-        json={
-            "run_id": _RUN_ID,
-            "prompt": "간격을 조금 더 촘촘하게 해줘",
-            "candidate_count": 8,
-            "conversation_context": {
-                "current_plan": concrete_plan.model_dump(mode="json"),
-                "current_intent": current.intent,
-                "history": [
-                    {
-                        "user_prompt": "원형 패턴으로 만들어줘",
-                        "assistant_summary": "3×3 격자 후보를 선택함",
-                        "attachments": [],
-                    }
-                ],
-            },
-        },
+        "/generate", json=_patch_request("벌을 나비로 바꿔줘", mvp_intent())
     )
 
     assert response.status_code == 200, response.text
-    payload = response.json()
-    assert calls == 1
-    assert 1 <= len(payload["candidates"]) <= 4
-    assert {candidate["design_index"] for candidate in payload["candidates"]} == {0}
-    assert len(payload["plans"]) == 1
-    assert payload["plans"][0]["motifs"] == [{"source": "catalog", "catalog_ref": "circle"}]
-    assert "current_motif_1" not in response.text
+    assert response.json() == {"status": "scope_rejected"}
+
+
+def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(gemini=_PatchGemini({"note": "x"}))
+    payload = _patch_request("이 사진처럼", mvp_intent())
+    payload["motif_ids"] = ["circle"]
+
+    response = TestClient(app).post("/generate", json=payload)
+
+    assert response.status_code == 422
+    assert "cannot include reference images or motif ids" in response.text
 
 
 @respx.mock
@@ -842,7 +805,7 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
         def __init__(self):
             self.calls = []
 
-        async def author_designs(
+        async def author_design(
             self,
             prompt,
             *,
@@ -850,15 +813,13 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
             reference_images,
             motif_ids,
             palette_constraint,
-            pattern_constraints,
             **_kwargs,
         ):
             assert palette_constraint.mode == "auto"
-            assert pattern_constraints.is_automatic()
             self.calls.append((prompt, reference_images, motif_ids))
             intent = mvp_intent()
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     raw = io.BytesIO()
     Image.new("RGBA", (4, 3), (12, 34, 56, 128)).save(raw, format="PNG")
@@ -944,7 +905,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
         return {"circle": get_motif("circle"), "bee": get_motif("bee")}
 
     class ExactMotifGemini:
-        async def author_designs(
+        async def author_design(
             self,
             _prompt,
             *,
@@ -964,7 +925,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
             ]
             intent = mvp_intent()
             assert validate(intent) is None
-            return [AuthoredDesign(intent=intent)]
+            return AuthoredDesign(intent=intent)
 
     monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
     app = _configure_app(monkeypatch)
@@ -1117,7 +1078,6 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
             "motif_ids": ["upload-a1b2c3d4e5f6"],
             "motifs": [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
             "palette": {"mode": "fixed", "colors": ["#123", "#abcdef"]},
-            "pattern_constraints": {"density": "dense"},
             "count": 3,
         },
     )
@@ -1127,7 +1087,6 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
     assert prompt == "차분한 패턴"
     assert context["motifs"] == [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}]
     assert context["palette_constraint"].colors == ["#112233", "#ABCDEF"]
-    assert context["pattern_constraints"].density == "dense"
 
 
 def test_ideas_endpoint_rejects_motif_context_order_mismatch(monkeypatch):
@@ -1140,19 +1099,6 @@ def test_ideas_endpoint_rejects_motif_context_order_mismatch(monkeypatch):
     )
     assert response.status_code == 422
     assert "same order" in response.text
-
-
-def test_partial_success_when_count_exceeds_available(client):
-    # distinct 결정론 변이보다 많은 후보를 요청하면 partial.
-    intent = mvp_intent()
-    intent["layers"] = [intent["layers"][0]]  # 배경 단일 레이어
-    resp = client.post(
-        "/generate", json={"run_id": _RUN_ID, "intent": intent, "candidate_count": 8}
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert len(body["candidates"]) < 8
-    assert any("partial" in w for w in body["warnings"])
 
 
 def test_generate_rejects_mixing_intent_and_prompt(client):

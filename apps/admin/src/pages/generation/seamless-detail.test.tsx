@@ -29,9 +29,6 @@ const log: SeamlessDetailOut = {
   request_id: "request-2",
   input_type: "reference_image",
   status: "success",
-  candidate_count_requested: 0,
-  candidate_count_returned: 0,
-  distinct_layouts: 0,
   warning_count: 0,
   generate_ms: 100,
   render_ms: 25,
@@ -44,7 +41,7 @@ const log: SeamlessDetailOut = {
   created_at: "2026-07-12T01:00:00Z",
   has_prompt: false,
   prompt: null,
-  intents: [],
+  intent: null,
   has_reference_image: true,
   reference_image_bytes: 2_048,
   reference_images: [
@@ -56,7 +53,6 @@ const log: SeamlessDetailOut = {
     },
   ],
   seed: 1,
-  available_strategies: 0,
   warning_groups: [],
   diagnostics: {
     mode: "prompt",
@@ -64,17 +60,14 @@ const log: SeamlessDetailOut = {
     prompt_revision: null,
     reference_count: 1,
     fixed_palette: false,
-    pattern_controls: false,
+    patch_axes: [],
     authoring_attempts: 1,
-    plan_count: 3,
-    validated_count: 3,
     catalog_candidate_count: null,
     resolved_count: 3,
     recraft_calls: 2,
-    candidate_count: 0,
     authoring_ms: null,
     motif_resolution_ms: null,
-    candidate_ms: null,
+    compose_ms: null,
     render_ms: null,
     failure_code: null,
     failure_stage: null,
@@ -88,7 +81,7 @@ const log: SeamlessDetailOut = {
     session_id: null,
     user_id: null,
     user_name: null,
-    selected_candidate_id: null,
+    reactivated: false,
     regenerated: false,
     finalized: false,
   },
@@ -98,7 +91,7 @@ const log: SeamlessDetailOut = {
     refunded: 0,
     net: 0,
   },
-  candidates: [],
+  design: null,
 };
 
 function renderPage(value: SeamlessDetailOut & Record<string, unknown> = log) {
@@ -205,7 +198,7 @@ describe("SeamlessLogDetailPage", () => {
     ).toBeTruthy();
   });
 
-  it("프롬프트에서 확정된 intent를 디자인별 JSON으로 표시한다", async () => {
+  it("프롬프트에서 확정된 intent를 JSON으로 표시한다", async () => {
     const user = userEvent.setup();
     const intent = {
       intent_version: 1,
@@ -232,53 +225,50 @@ describe("SeamlessLogDetailPage", () => {
       input_type: "prompt",
       has_prompt: true,
       prompt: "청록색 꽃무늬를 작게 배치해 줘.",
-      intents: [intent],
+      intent,
     });
 
     expect(await screen.findByText("생성 Intent")).toBeTruthy();
-    const trigger = screen.getByRole("button", { name: "Intent 1 JSON" });
+    const trigger = screen.getByRole("button", { name: "Intent JSON" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
 
     await user.click(trigger);
 
-    const region = screen.getByRole("region", { name: "Intent 1 JSON" });
+    const region = screen.getByRole("region", { name: "Intent JSON" });
     expect(within(region).getByText(/"intent_version": 1/)).toBeTruthy();
     expect(within(region).getByText(/"motif_id": "motif-safe"/)).toBeTruthy();
     expect(within(region).getByText(/"type": "lattice"/)).toBeTruthy();
   });
 
-  it("후보 결과를 store 디자인 페이지와 같은 데스크톱 4열로 표시한다", async () => {
+  it("생성 결과를 디자인 1개로 표시한다", async () => {
     renderPage({
       ...log,
-      candidate_count_returned: 1,
-      outcome: {
-        ...log.outcome,
-        selected_candidate_id: "candidate-1",
+      design: {
+        id: "design-1",
+        layout_id: "layout-1",
+        source_fidelity: "exact",
+        colorway_id: "default",
+        seed: 7,
+        svg: null,
+        svg_status: "unavailable",
       },
-      candidates: [
-        {
-          id: "candidate-1",
-          design_index: 0,
-          layout_id: "layout-1",
-          source_fidelity: "exact",
-          colorway_id: "default",
-          seed: 7,
-          svg: null,
-          svg_status: "unavailable",
-        },
-      ],
     });
 
-    const heading = await screen.findByRole("heading", { name: "후보 1" });
-    const grid = heading.closest("section")?.parentElement;
-    expect(grid?.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
-    expect(screen.getByText("선택된 후보")).toBeTruthy();
+    expect(await screen.findByText("design-1")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "디자인" })).toBeTruthy();
+    expect(screen.queryByText(/후보 1/)).toBeNull();
     expect(
       screen
-        .getByText("후보 결과")
+        .getByText("생성 결과")
         .compareDocumentPosition(screen.getByText("로그 정보")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("디자인이 기록되지 않은 생성은 빈 상태로 표시한다", async () => {
+    renderPage();
+
+    expect(await screen.findByText("표시할 디자인이 없습니다")).toBeTruthy();
   });
 
   it("상세 결과를 수동으로 새로고침한다", async () => {
@@ -293,7 +283,7 @@ describe("SeamlessLogDetailPage", () => {
     await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
   });
 
-  it("경고를 실제 원인과 건수로 묶고 partial scope를 후보 부족으로 오인하지 않는다", async () => {
+  it("경고를 실제 원인과 건수로 묶어 표시한다", async () => {
     const user = userEvent.setup();
     renderPage({
       ...log,
@@ -301,8 +291,6 @@ describe("SeamlessLogDetailPage", () => {
       input_type: "prompt",
       has_prompt: true,
       prompt: "청록색 꽃무늬를 작게 배치해 줘.",
-      candidate_count_requested: 4,
-      candidate_count_returned: 4,
       warning_count: 8,
       warning_groups: [
         {
@@ -322,18 +310,12 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("텍스트 프롬프트")).toBeTruthy();
     expect(screen.getByText("모티프 레이어 2개를 제외했습니다")).toBeTruthy();
     expect(screen.getByText("CMYK 색역 확인이 필요한 색상 6개")).toBeTruthy();
-    expect(screen.queryByText("후보가 일부만 생성되었습니다")).toBeNull();
-    expect(screen.queryByText("생성 결과를 확인해 주세요")).toBeNull();
     expect(screen.getByText("생성 진단")).toBeTruthy();
     expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
-    expect(screen.getByText("3 / 3")).toBeTruthy();
     expect(screen.getByText("Recraft 호출")).toBeTruthy();
     expect(screen.getByText("2회")).toBeTruthy();
     expect(
-      screen.getByText(/요청한 후보 4개는 모두 생성되었습니다/),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/후보 생성 실패가 아니라 인쇄 전 색상 확인/),
+      screen.getByText(/생성 실패가 아니라 인쇄 전 색상 확인/),
     ).toBeTruthy();
     expect(screen.queryByRole("region", { name: "기술 정보" })).toBeNull();
     expect(screen.queryByText("motif_layer_dropped")).toBeNull();
@@ -373,11 +355,12 @@ describe("SeamlessLogDetailPage", () => {
       ...log,
       diagnostics: {
         ...log.diagnostics,
-        mode: "refine",
+        mode: "patch",
+        patch_axes: ["background", "motif_size_mm"],
         prompt_revision: "design-plan-v1",
         authoring_ms: 121,
         motif_resolution_ms: 35,
-        candidate_ms: 18,
+        compose_ms: 18,
         render_ms: 9,
         failure_provider: "vertex_embedding",
         failure_operation: "embed",
@@ -403,29 +386,27 @@ describe("SeamlessLogDetailPage", () => {
         session_id: "44444444-4444-4444-8444-444444444444",
         user_id: "55555555-5555-4555-8555-555555555555",
         user_name: "김고객",
-        selected_candidate_id: "candidate-1",
+        reactivated: true,
         regenerated: true,
         finalized: true,
       },
-      candidates: [
-        {
-          id: "candidate-1",
-          design_index: 0,
-          layout_id: "layout-1",
-          source_fidelity: "exact",
-          colorway_id: "default",
-          seed: 7,
-          svg: null,
-          svg_status: "unavailable",
-        },
-      ],
+      design: {
+        id: "design-1",
+        layout_id: "layout-1",
+        source_fidelity: "exact",
+        colorway_id: "default",
+        seed: 7,
+        svg: null,
+        svg_status: "unavailable",
+      },
     });
 
     expect(await screen.findByText("design-plan-v1")).toBeTruthy();
     expect(
-      screen.getByText("저작 121ms · 모티프 35ms · 후보 18ms · 렌더 9ms"),
+      screen.getByText("저작 121ms · 모티프 35ms · 합성 18ms · 렌더 9ms"),
     ).toBeTruthy();
-    expect(screen.getByText("대화 수정")).toBeTruthy();
+    expect(screen.getByText("구성 수정")).toBeTruthy();
+    expect(screen.getByText("바탕색 · 무늬 크기")).toBeTruthy();
     expect(screen.getByText("Vertex AI 임베딩 · embed")).toBeTruthy();
     expect(screen.getByText("요청 한도 초과 (429)")).toBeTruthy();
     expect(
@@ -437,9 +418,9 @@ describe("SeamlessLogDetailPage", () => {
       .closest("section");
     expect(outcome).not.toBeNull();
     expect(
-      within(outcome as HTMLElement).getByText("후보 1 선택"),
+      within(outcome as HTMLElement).getByText("이력에서 다시 활성화"),
     ).toBeTruthy();
-    expect(within(outcome as HTMLElement).getByText("있음")).toBeTruthy();
+    expect(within(outcome as HTMLElement).getAllByText("있음")).toHaveLength(2);
     expect(within(outcome as HTMLElement).getByText("완료")).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "김고객" }).getAttribute("href"),

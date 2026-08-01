@@ -15,6 +15,8 @@ class TokenBalance(BaseModel):
     paid: int
     bonus: int  # bonus + free
     generate_cost: int
+    # 이미 만든 디자인을 문장으로 고치는 1회 단가 (patch)
+    edit_cost: int
 
 
 class TokenPlan(BaseModel):

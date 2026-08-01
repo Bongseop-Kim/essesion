@@ -51,7 +51,7 @@ const columns: readonly AdminTableColumn<AuthoringCandidateSummaryOut>[] = [
           {row.retrieval_text}
         </Text>
         <Text textStyle="caption" color="fg.neutral-muted">
-          {row.selected_candidate_id}
+          {row.design_id}
         </Text>
       </VStack>
     ),

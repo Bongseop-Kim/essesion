@@ -1,51 +1,33 @@
 import { z } from "zod";
 
-const paletteSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("auto"), colors: z.array(z.string()).max(0) }),
-  z.object({
-    mode: z.literal("fixed"),
-    colors: z.array(z.string()).min(2).max(5),
-  }),
-]);
+/**
+ * 화면이 실제로 읽는 턴 payload만 파싱한다.
+ *
+ * 서버는 `generate_request`·`motif_activate`·`finalize` 턴도 남기지만 캔버스 셸은
+ * 편집 이력(성공 스텝·실패 칸)과 편집 포인터만 그린다 — 나머지는 파싱 대상이 아니다.
+ */
 
-const patternConstraintsSchema = z.object({
-  motif_scale: z.enum(["auto", "small", "medium", "large"]),
-  density: z.enum(["auto", "sparse", "medium", "dense"]),
-  arrangement: z.enum(["auto", "lattice", "staggered", "scatter"]),
-  direction: z.enum(["auto", "vertical", "horizontal", "diagonal"]),
-});
-
-const candidateSchema = z
+const designSchema = z
   .object({
     id: z.string().min(1),
-    design_index: z.number().int().nonnegative(),
     seed: z.number().int(),
     colorway_id: z.string().min(1),
     svg: z.string().min(1),
   })
   .passthrough();
 
-const generateRequestPayloadSchema = z
-  .object({
-    type: z.literal("generate_request"),
-    mode: z.enum(["prompt", "variation"]),
-    prompt: z.string().nullable(),
-    seed: z.number().int().nullable(),
-    colorway: z.string().nullable(),
-    candidate_count: z.number().int().min(1).max(4),
-    palette: paletteSchema.optional(),
-    pattern_constraints: patternConstraintsSchema.optional(),
-  })
-  .passthrough();
-
+// 로그가 손상된 턴은 api가 response를 생략한다 — 썸네일을 그릴 수 없으므로 파싱 실패로 둔다.
+// `response.warnings`는 엔진 영문 진단 문자열이라 읽지 않는다 — 고객 문구는 생성 응답이 준다.
 const generatePayloadSchema = z
   .object({
     type: z.literal("generate"),
+    run_id: z.string().uuid(),
+    status: z.literal("succeeded"),
+    summary: z.string().nullable().optional(),
     response: z
       .object({
         run_id: z.string().uuid(),
-        candidates: z.array(candidateSchema),
-        warnings: z.array(z.string()).optional(),
+        design: designSchema,
       })
       .passthrough(),
   })
@@ -54,41 +36,26 @@ const generatePayloadSchema = z
 const generateErrorPayloadSchema = z
   .object({
     type: z.literal("generate_error"),
-    run_id: z.string().uuid(),
+    run_id: z.string().uuid().nullable(),
     status: z.literal("error"),
-    error: z.object({
-      stage: z.string().min(1),
-      code: z.string().min(1),
-    }),
+    error: z
+      .object({ stage: z.string().min(1), code: z.string().min(1) })
+      .nullable()
+      .optional(),
   })
   .passthrough();
 
-const selectPayloadSchema = z
+const activatePayloadSchema = z
   .object({
-    type: z.literal("select"),
+    type: z.literal("activate"),
     run_id: z.string().uuid(),
-    candidate_id: z.string().min(1),
-    design_index: z.number().int().nonnegative(),
-    seed: z.number().int(),
-    colorway_id: z.string().min(1),
-  })
-  .passthrough();
-
-const finalizePayloadSchema = z
-  .object({
-    type: z.literal("finalize"),
-    job_id: z.string().uuid(),
-    production_method: z.string().min(1),
-    weave: z.string().min(1),
   })
   .passthrough();
 
 const designTurnPayloadSchema = z.discriminatedUnion("type", [
-  generateRequestPayloadSchema,
   generatePayloadSchema,
   generateErrorPayloadSchema,
-  selectPayloadSchema,
-  finalizePayloadSchema,
+  activatePayloadSchema,
 ]);
 
 export type DesignTurnPayload = z.infer<typeof designTurnPayloadSchema>;
@@ -98,17 +65,4 @@ export function parseDesignTurnPayload(
 ): DesignTurnPayload | null {
   const parsed = designTurnPayloadSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
-}
-
-export function latestSubmittedCandidateCount(
-  turns: ReadonlyArray<{ payload: unknown }>,
-  fallback: number,
-): number {
-  for (let index = turns.length - 1; index >= 0; index -= 1) {
-    const payload = parseDesignTurnPayload(turns[index]?.payload);
-    if (payload?.type === "generate_request") {
-      return payload.candidate_count;
-    }
-  }
-  return fallback;
 }

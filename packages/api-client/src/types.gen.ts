@@ -1950,7 +1950,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -2160,6 +2160,10 @@ export type AuthoringCandidateDetailOut = {
      */
     created_at: string;
     /**
+     * Design Id
+     */
+    design_id: string;
+    /**
      * Embedding Model
      */
     embedding_model: string | null;
@@ -2198,10 +2202,6 @@ export type AuthoringCandidateDetailOut = {
         [key: string]: unknown;
     };
     /**
-     * Plan Index
-     */
-    plan_index: number;
-    /**
      * Preview Status
      */
     preview_status: 'safe' | 'unavailable' | 'unsafe';
@@ -2237,10 +2237,6 @@ export type AuthoringCandidateDetailOut = {
      * Rule Reasons
      */
     rule_reasons: Array<unknown>;
-    /**
-     * Selected Candidate Id
-     */
-    selected_candidate_id: string;
     /**
      * Source Digest
      */
@@ -2292,6 +2288,10 @@ export type AuthoringCandidateSummaryOut = {
      */
     created_at: string;
     /**
+     * Design Id
+     */
+    design_id: string;
+    /**
      * Family
      */
     family: string;
@@ -2320,10 +2320,6 @@ export type AuthoringCandidateSummaryOut = {
      */
     nearest_similarity: number | null;
     /**
-     * Plan Index
-     */
-    plan_index: number;
-    /**
      * Prompt Revision
      */
     prompt_revision: string;
@@ -2351,10 +2347,6 @@ export type AuthoringCandidateSummaryOut = {
      * Rule Reasons
      */
     rule_reasons: Array<unknown>;
-    /**
-     * Selected Candidate Id
-     */
-    selected_candidate_id: string;
     /**
      * Source Generation Log Id
      */
@@ -3298,6 +3290,26 @@ export type CreatedOrder = {
 };
 
 /**
+ * CurrentMotifOut
+ *
+ * 현재 디자인이 쓰고 있는 모티프 슬롯 — 좌측 패널이 썸네일·이름으로 표시한다.
+ */
+export type CurrentMotifOut = {
+    /**
+     * Motif Id
+     */
+    motif_id: string;
+    /**
+     * Name
+     */
+    name: string | null;
+    /**
+     * Preview Svg
+     */
+    preview_svg: string;
+};
+
+/**
  * CustomAmountRequest
  */
 export type CustomAmountRequest = {
@@ -3695,14 +3707,15 @@ export type DesignFinalizeTurnPayload = {
  * DesignGenerateOut
  */
 export type DesignGenerateOut = {
-    /**
-     * Candidates
-     */
-    candidates: Array<WorkerCandidateOut>;
+    design: DesignOut;
     /**
      * Engine Version
      */
     engine_version: string;
+    /**
+     * Note
+     */
+    note?: string | null;
     /**
      * Registry Version
      */
@@ -3718,7 +3731,19 @@ export type DesignGenerateOut = {
     /**
      * Warnings
      */
-    warnings?: Array<string>;
+    warnings?: Array<DesignWarningOut>;
+};
+
+/**
+ * DesignGenerateRejectedOut
+ *
+ * 구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤).
+ */
+export type DesignGenerateRejectedOut = {
+    /**
+     * Rejected
+     */
+    rejected: 'motif';
 };
 
 /**
@@ -3726,15 +3751,10 @@ export type DesignGenerateOut = {
  */
 export type DesignGenerateRequest = {
     /**
-     * Candidate Count
-     */
-    candidate_count?: number;
-    /**
      * Colorway
      */
     colorway?: string | null;
     palette?: PaletteConstraint;
-    pattern_constraints?: PatternConstraints;
     /**
      * Prompt
      */
@@ -3776,7 +3796,6 @@ export type DesignIdeasRequest = {
      */
     count?: 3 | 4;
     palette?: PaletteConstraint;
-    pattern_constraints?: PatternConstraints;
     /**
      * Prompt
      */
@@ -3806,6 +3825,40 @@ export type DesignOrderReferenceOut = {
 };
 
 /**
+ * DesignOut
+ */
+export type DesignOut = {
+    /**
+     * Colorway Id
+     */
+    colorway_id: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Layout Id
+     */
+    layout_id: string;
+    /**
+     * Png Object Key
+     */
+    png_object_key: string | null;
+    /**
+     * Seed
+     */
+    seed: number;
+    /**
+     * Source Fidelity
+     */
+    source_fidelity: string;
+    /**
+     * Svg
+     */
+    svg: string;
+};
+
+/**
  * DesignReferenceUploadOut
  */
 export type DesignReferenceUploadOut = {
@@ -3825,40 +3878,6 @@ export type DesignReferenceUploadOut = {
      * Upload Id
      */
     upload_id: string;
-};
-
-/**
- * DesignRerollRequest
- */
-export type DesignRerollRequest = {
-    /**
-     * Candidate Count
-     */
-    candidate_count?: number;
-    /**
-     * Colorway
-     */
-    colorway?: string | null;
-    palette?: PaletteConstraint;
-    pattern_constraints?: PatternConstraints;
-    /**
-     * Seed
-     */
-    seed: number;
-};
-
-/**
- * DesignSelectionRequest
- */
-export type DesignSelectionRequest = {
-    /**
-     * Candidate Id
-     */
-    candidate_id: string;
-    /**
-     * Run Id
-     */
-    run_id: string;
 };
 
 /**
@@ -3892,6 +3911,10 @@ export type DesignSessionOut = {
         [key: string]: unknown;
     } | null;
     /**
+     * Current Motifs
+     */
+    current_motifs?: Array<CurrentMotifOut>;
+    /**
      * Current Plan
      */
     current_plan: {
@@ -3906,6 +3929,10 @@ export type DesignSessionOut = {
      * Last Prompt
      */
     last_prompt?: string | null;
+    /**
+     * Recraft Remaining
+     */
+    recraft_remaining?: number | null;
     /**
      * Recraft Used
      */
@@ -3926,6 +3953,16 @@ export type DesignSessionOut = {
      * Updated At
      */
     updated_at: string;
+};
+
+/**
+ * DesignStepActivateRequest
+ */
+export type DesignStepActivateRequest = {
+    /**
+     * Run Id
+     */
+    run_id: string;
 };
 
 /**
@@ -4003,6 +4040,22 @@ export type DesignTurnOut = {
 };
 
 /**
+ * DesignWarningOut
+ *
+ * 자동 조정 안내 — message는 그대로 노출한다(상단 알림, 노랑 톤).
+ */
+export type DesignWarningOut = {
+    /**
+     * Code
+     */
+    code: string;
+    /**
+     * Message
+     */
+    message: string;
+};
+
+/**
  * FinalizeQuotaOut
  *
  * 계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).
@@ -4030,10 +4083,6 @@ export type FinalizeQuotaOut = {
  * FinalizeRequest
  */
 export type FinalizeRequest = {
-    /**
-     * Candidate Id
-     */
-    candidate_id?: string | null;
     /**
      * Colorway Id
      */
@@ -4089,17 +4138,13 @@ export type GenerationDiagnosticsOut = {
      */
     authoring_ms?: number | null;
     /**
-     * Candidate Count
-     */
-    candidate_count?: number | null;
-    /**
-     * Candidate Ms
-     */
-    candidate_ms?: number | null;
-    /**
      * Catalog Candidate Count
      */
     catalog_candidate_count?: number | null;
+    /**
+     * Compose Ms
+     */
+    compose_ms?: number | null;
     /**
      * Failure Code
      */
@@ -4131,7 +4176,7 @@ export type GenerationDiagnosticsOut = {
     /**
      * Mode
      */
-    mode?: 'prompt' | 'refine' | 'variation' | null;
+    mode?: 'prompt' | 'patch' | 'variation' | 'motif_slot' | null;
     /**
      * Model
      */
@@ -4145,13 +4190,9 @@ export type GenerationDiagnosticsOut = {
      */
     motif_resolutions?: Array<MotifResolutionOut>;
     /**
-     * Pattern Controls
+     * Patch Axes
      */
-    pattern_controls?: boolean | null;
-    /**
-     * Plan Count
-     */
-    plan_count?: number | null;
+    patch_axes?: Array<string>;
     /**
      * Prompt Revision
      */
@@ -4172,10 +4213,6 @@ export type GenerationDiagnosticsOut = {
      * Resolved Count
      */
     resolved_count?: number | null;
-    /**
-     * Validated Count
-     */
-    validated_count?: number | null;
 };
 
 /**
@@ -4385,13 +4422,13 @@ export type GenerationOutcomeOut = {
      */
     finalized?: boolean;
     /**
+     * Reactivated
+     */
+    reactivated?: boolean;
+    /**
      * Regenerated
      */
     regenerated?: boolean;
-    /**
-     * Selected Candidate Id
-     */
-    selected_candidate_id?: string | null;
     /**
      * Session Id
      */
@@ -4930,70 +4967,17 @@ export type MessageResponse = {
 };
 
 /**
- * MotifCandidateOut
+ * MotifActivateRequest
  */
-export type MotifCandidateOut = {
-    /**
-     * Description
-     */
-    description?: string | null;
+export type MotifActivateRequest = {
     /**
      * Motif Id
      */
     motif_id: string;
     /**
-     * Scope
+     * Slot
      */
-    scope?: string | null;
-    /**
-     * Similarity
-     */
-    similarity: number | null;
-    /**
-     * Source
-     */
-    source?: string | null;
-    /**
-     * Style
-     */
-    style?: string | null;
-    /**
-     * Subject
-     */
-    subject?: string | null;
-    /**
-     * View
-     */
-    view?: string | null;
-};
-
-/**
- * MotifCandidatesOut
- */
-export type MotifCandidatesOut = {
-    /**
-     * Candidates
-     */
-    candidates: Array<MotifCandidateOut>;
-    /**
-     * Registry Version
-     */
-    registry_version: string;
-    /**
-     * Request Id
-     */
-    request_id: string;
-};
-
-/**
- * MotifCandidatesRequest
- */
-export type MotifCandidatesRequest = {
-    spec: MotifSpecIn;
-    /**
-     * Top K
-     */
-    top_k?: number;
+    slot: 1 | 2;
 };
 
 /**
@@ -5086,10 +5070,7 @@ export type MotifDetailOut = {
  * MotifGenerateOut
  */
 export type MotifGenerateOut = {
-    /**
-     * Motif Id
-     */
-    motif_id: string;
+    motif: MotifResultOut;
     /**
      * Request Id
      */
@@ -5098,10 +5079,6 @@ export type MotifGenerateOut = {
      * Reused
      */
     reused: boolean;
-    /**
-     * Similarity
-     */
-    similarity: number | null;
 };
 
 /**
@@ -5109,10 +5086,9 @@ export type MotifGenerateOut = {
  */
 export type MotifGenerateRequest = {
     /**
-     * Seed
+     * Prompt
      */
-    seed?: number | null;
-    spec: MotifSpecIn;
+    prompt: string;
 };
 
 /**
@@ -5188,33 +5164,47 @@ export type MotifResolutionOut = {
 };
 
 /**
- * MotifSpecIn
+ * MotifResultOut
+ *
+ * 모달 카드 하나 — 프론트가 썸네일을 바로 그린다.
  */
-export type MotifSpecIn = {
+export type MotifResultOut = {
     /**
-     * Description
+     * Current
      */
-    description?: string | null;
+    current?: boolean;
     /**
-     * Expression
+     * Motif Id
      */
-    expression?: string | null;
+    motif_id: string;
     /**
-     * Scope
+     * Name
      */
-    scope: string;
+    name: string | null;
     /**
-     * Style
+     * Preview Svg
      */
-    style?: string | null;
+    preview_svg: string;
+};
+
+/**
+ * MotifSearchOut
+ */
+export type MotifSearchOut = {
     /**
-     * Subject
+     * Results
      */
-    subject: string;
+    results: Array<MotifResultOut>;
+};
+
+/**
+ * MotifSearchRequest
+ */
+export type MotifSearchRequest = {
     /**
-     * View
+     * Query
      */
-    view?: string | null;
+    query: string;
 };
 
 /**
@@ -6204,28 +6194,6 @@ export type PaletteExtractRequest = {
      * Upload Id
      */
     upload_id: string;
-};
-
-/**
- * PatternConstraints
- */
-export type PatternConstraints = {
-    /**
-     * Arrangement
-     */
-    arrangement?: 'auto' | 'lattice' | 'staggered' | 'scatter';
-    /**
-     * Density
-     */
-    density?: 'auto' | 'sparse' | 'medium' | 'dense';
-    /**
-     * Direction
-     */
-    direction?: 'auto' | 'vertical' | 'horizontal' | 'diagonal';
-    /**
-     * Motif Scale
-     */
-    motif_scale?: 'auto' | 'small' | 'medium' | 'large';
 };
 
 /**
@@ -7456,17 +7424,13 @@ export type ReviewUpdateRequest = {
 };
 
 /**
- * SafeCandidateOut
+ * SafeDesignOut
  */
-export type SafeCandidateOut = {
+export type SafeDesignOut = {
     /**
      * Colorway Id
      */
     colorway_id: string | null;
-    /**
-     * Design Index
-     */
-    design_index: number | null;
     /**
      * Id
      */
@@ -7556,30 +7520,11 @@ export type SampleOrderCreateRequest = {
  */
 export type SeamlessDetailOut = {
     /**
-     * Available Strategies
-     */
-    available_strategies: number | null;
-    /**
-     * Candidate Count Requested
-     */
-    candidate_count_requested: number | null;
-    /**
-     * Candidate Count Returned
-     */
-    candidate_count_returned: number | null;
-    /**
-     * Candidates
-     */
-    candidates: Array<SafeCandidateOut>;
-    /**
      * Created At
      */
     created_at: string;
+    design: SafeDesignOut | null;
     diagnostics: GenerationDiagnosticsOut;
-    /**
-     * Distinct Layouts
-     */
-    distinct_layouts: number | null;
     /**
      * Engine Version
      */
@@ -7621,11 +7566,11 @@ export type SeamlessDetailOut = {
      */
     input_type: string;
     /**
-     * Intents
+     * Intent
      */
-    intents: Array<{
+    intent: {
         [key: string]: unknown;
-    }>;
+    } | null;
     outcome: GenerationOutcomeOut;
     /**
      * Prompt
@@ -7735,21 +7680,9 @@ export type SeamlessStatsOut = {
  */
 export type SeamlessSummaryOut = {
     /**
-     * Candidate Count Requested
-     */
-    candidate_count_requested: number | null;
-    /**
-     * Candidate Count Returned
-     */
-    candidate_count_returned: number | null;
-    /**
      * Created At
      */
     created_at: string;
-    /**
-     * Distinct Layouts
-     */
-    distinct_layouts: number | null;
     /**
      * Engine Version
      */
@@ -7811,7 +7744,7 @@ export type SeamlessWarningOut = {
     /**
      * Code
      */
-    code: 'candidate_variants_dropped' | 'cmyk_gamut' | 'design_dropped' | 'diversity_shortfall' | 'generation_warning' | 'motif_layer_dropped' | 'partial_candidates' | 'preview_unavailable' | 'spacing_snap' | 'stripe_period_snap';
+    code: 'cmyk_gamut' | 'generation_warning' | 'motif_layer_dropped' | 'preview_unavailable' | 'spacing_snap' | 'stripe_period_snap';
     /**
      * Count
      */
@@ -7833,7 +7766,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_finalize_daily_limit' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Value
      */
@@ -8008,6 +7941,10 @@ export type TokenBalance = {
      * Bonus
      */
     bonus: number;
+    /**
+     * Edit Cost
+     */
+    edit_cost: number;
     /**
      * Generate Cost
      */
@@ -8366,44 +8303,6 @@ export type WidthReform = {
      * Target Width Cm
      */
     target_width_cm: number;
-};
-
-/**
- * WorkerCandidateOut
- */
-export type WorkerCandidateOut = {
-    /**
-     * Colorway Id
-     */
-    colorway_id: string;
-    /**
-     * Design Index
-     */
-    design_index: number;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Layout Id
-     */
-    layout_id: string;
-    /**
-     * Png Object Key
-     */
-    png_object_key: string | null;
-    /**
-     * Seed
-     */
-    seed: number;
-    /**
-     * Source Fidelity
-     */
-    source_fidelity: string;
-    /**
-     * Svg
-     */
-    svg: string;
 };
 
 export type ListAuthoringCandidatesData = {
@@ -11916,9 +11815,11 @@ export type GenerateDesignError = GenerateDesignErrors[keyof GenerateDesignError
 
 export type GenerateDesignResponses = {
     /**
+     * Response Generate Design
+     *
      * Successful Response
      */
-    200: DesignGenerateOut;
+    200: DesignGenerateOut | DesignGenerateRejectedOut;
 };
 
 export type GenerateDesignResponse = GenerateDesignResponses[keyof GenerateDesignResponses];
@@ -12381,36 +12282,6 @@ export type GetDesignSessionResponses = {
 
 export type GetDesignSessionResponse = GetDesignSessionResponses[keyof GetDesignSessionResponses];
 
-export type BranchDesignSessionData = {
-    body: DesignSelectionRequest;
-    path: {
-        /**
-         * Session Id
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/design/sessions/{session_id}/branch';
-};
-
-export type BranchDesignSessionErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type BranchDesignSessionError = BranchDesignSessionErrors[keyof BranchDesignSessionErrors];
-
-export type BranchDesignSessionResponses = {
-    /**
-     * Successful Response
-     */
-    201: DesignSessionOut;
-};
-
-export type BranchDesignSessionResponse = BranchDesignSessionResponses[keyof BranchDesignSessionResponses];
-
 export type CreateFinalizeJobData = {
     body: FinalizeRequest;
     path: {
@@ -12441,8 +12312,8 @@ export type CreateFinalizeJobResponses = {
 
 export type CreateFinalizeJobResponse = CreateFinalizeJobResponses[keyof CreateFinalizeJobResponses];
 
-export type MotifCandidatesData = {
-    body: MotifCandidatesRequest;
+export type ActivateMotifData = {
+    body: MotifActivateRequest;
     path: {
         /**
          * Session Id
@@ -12450,28 +12321,28 @@ export type MotifCandidatesData = {
         session_id: string;
     };
     query?: never;
-    url: '/design/sessions/{session_id}/motifs/candidates';
+    url: '/design/sessions/{session_id}/motifs/activate';
 };
 
-export type MotifCandidatesErrors = {
+export type ActivateMotifErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type MotifCandidatesError = MotifCandidatesErrors[keyof MotifCandidatesErrors];
+export type ActivateMotifError = ActivateMotifErrors[keyof ActivateMotifErrors];
 
-export type MotifCandidatesResponses = {
+export type ActivateMotifResponses = {
     /**
      * Successful Response
      */
-    200: MotifCandidatesOut;
+    200: DesignGenerateOut;
 };
 
-export type MotifCandidatesResponse = MotifCandidatesResponses[keyof MotifCandidatesResponses];
+export type ActivateMotifResponse = ActivateMotifResponses[keyof ActivateMotifResponses];
 
-export type MotifGenerateData = {
+export type GenerateMotifData = {
     body: MotifGenerateRequest;
     path: {
         /**
@@ -12483,26 +12354,26 @@ export type MotifGenerateData = {
     url: '/design/sessions/{session_id}/motifs/generate';
 };
 
-export type MotifGenerateErrors = {
+export type GenerateMotifErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type MotifGenerateError = MotifGenerateErrors[keyof MotifGenerateErrors];
+export type GenerateMotifError = GenerateMotifErrors[keyof GenerateMotifErrors];
 
-export type MotifGenerateResponses = {
+export type GenerateMotifResponses = {
     /**
      * Successful Response
      */
     200: MotifGenerateOut;
 };
 
-export type MotifGenerateResponse = MotifGenerateResponses[keyof MotifGenerateResponses];
+export type GenerateMotifResponse = GenerateMotifResponses[keyof GenerateMotifResponses];
 
-export type RerollDesignData = {
-    body: DesignRerollRequest;
+export type SearchMotifsData = {
+    body: MotifSearchRequest;
     path: {
         /**
          * Session Id
@@ -12510,29 +12381,29 @@ export type RerollDesignData = {
         session_id: string;
     };
     query?: never;
-    url: '/design/sessions/{session_id}/reroll';
+    url: '/design/sessions/{session_id}/motifs/search';
 };
 
-export type RerollDesignErrors = {
+export type SearchMotifsErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type RerollDesignError = RerollDesignErrors[keyof RerollDesignErrors];
+export type SearchMotifsError = SearchMotifsErrors[keyof SearchMotifsErrors];
 
-export type RerollDesignResponses = {
+export type SearchMotifsResponses = {
     /**
      * Successful Response
      */
-    200: DesignGenerateOut;
+    200: MotifSearchOut;
 };
 
-export type RerollDesignResponse = RerollDesignResponses[keyof RerollDesignResponses];
+export type SearchMotifsResponse = SearchMotifsResponses[keyof SearchMotifsResponses];
 
-export type SelectDesignCandidateData = {
-    body: DesignSelectionRequest;
+export type ActivateDesignStepData = {
+    body: DesignStepActivateRequest;
     path: {
         /**
          * Session Id
@@ -12540,26 +12411,26 @@ export type SelectDesignCandidateData = {
         session_id: string;
     };
     query?: never;
-    url: '/design/sessions/{session_id}/select';
+    url: '/design/sessions/{session_id}/steps/activate';
 };
 
-export type SelectDesignCandidateErrors = {
+export type ActivateDesignStepErrors = {
     /**
      * Validation Error
      */
     422: HttpValidationError;
 };
 
-export type SelectDesignCandidateError = SelectDesignCandidateErrors[keyof SelectDesignCandidateErrors];
+export type ActivateDesignStepError = ActivateDesignStepErrors[keyof ActivateDesignStepErrors];
 
-export type SelectDesignCandidateResponses = {
+export type ActivateDesignStepResponses = {
     /**
      * Successful Response
      */
     200: DesignSessionOut;
 };
 
-export type SelectDesignCandidateResponse = SelectDesignCandidateResponses[keyof SelectDesignCandidateResponses];
+export type ActivateDesignStepResponse = ActivateDesignStepResponses[keyof ActivateDesignStepResponses];
 
 export type ListDesignTurnsData = {
     body?: never;

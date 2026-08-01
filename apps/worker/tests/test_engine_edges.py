@@ -7,7 +7,7 @@ test_scatter/test_placement_path/test_candidates에서 이식).
 import math
 
 import pytest
-from worker.engine.candidates import generate_candidates
+from worker.engine.compose import compose_design
 from worker.engine.intent import Placement, ScatterSpec
 from worker.engine.placement import _torus_dist, place_scatter
 from worker.engine.units import MAX_LANE_PERIOD_TILES, divides, snap_angle, snap_spacing
@@ -144,27 +144,41 @@ def test_sateen_has_zero_alignment():
     assert len(set(xs)) == 5 and len(set(ys)) == 5  # 행·열마다 정확히 한 점
 
 
-# --- candidates de-dup·rank ----------------------------------------------------
+# --- compose_design ------------------------------------------------------------
 
 
-def test_dedup_keeps_only_distinct_svgs():
-    cs = generate_candidates(mvp_intent(), candidate_count=8)
-    svgs = [c.candidate.svg for c in cs.candidates]
-    assert len(set(svgs)) == len(svgs)
+def test_compose_design_uses_the_intent_colorway_by_default():
+    design = compose_design(mvp_intent())
+    assert design.colorway_id == "default"
+    assert design.svg.startswith("<svg")
+    assert design.warnings == []
 
 
-def test_candidates_are_rank_sorted():
-    cs = generate_candidates(mvp_intent(), candidate_count=4)
-    keys = [c.rank_key for c in cs.candidates]
-    assert keys == sorted(keys)
+def _two_colorway_intent() -> dict:
+    intent = mvp_intent()
+    intent["colorways"].append(
+        {
+            "id": "mono",
+            "name": "mono",
+            "mapping": {"ground": "#111111", "accent": "#111111", "gold": "#111111"},
+        }
+    )
+    return intent
 
 
-def test_count_one_has_no_diversity_warning():
-    cs = generate_candidates(mvp_intent(), candidate_count=1)
-    assert len(cs.candidates) == 1
-    assert all("diversity" not in w for w in cs.warnings)
+def test_explicit_colorway_is_honored():
+    intent = _two_colorway_intent()
+    available = [cw["id"] for cw in intent["colorways"]]
+    assert len(available) >= 2
+    for colorway in available:
+        assert compose_design(intent, colorway=colorway).colorway_id == colorway
+
+
+def test_default_colorway_picks_fewest_distinct_colors():
+    # mono(1색) vs default(3색) — 명시가 없으면 색 수가 가장 적은 컬러웨이.
+    assert compose_design(_two_colorway_intent()).colorway_id == "mono"
 
 
 def test_unknown_colorway_raises():
     with pytest.raises(ValueError):
-        generate_candidates(mvp_intent(), candidate_count=2, colorway="nope")
+        compose_design(mvp_intent(), colorway="nope")

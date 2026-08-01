@@ -3641,7 +3641,9 @@
           "key": {
             "enum": [
               "default_courier_company",
+              "design_edit_cost",
               "design_finalize_daily_limit",
+              "design_token_cost_openai_render_standard",
               "design_token_initial_grant"
             ],
             "title": "Key",
@@ -3993,6 +3995,10 @@
             "title": "Created At",
             "type": "string"
           },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
           "embedding_model": {
             "anyOf": [
               {
@@ -4058,10 +4064,6 @@
             "additionalProperties": true,
             "title": "Plan",
             "type": "object"
-          },
-          "plan_index": {
-            "title": "Plan Index",
-            "type": "integer"
           },
           "preview_status": {
             "enum": [
@@ -4135,10 +4137,6 @@
             "title": "Rule Reasons",
             "type": "array"
           },
-          "selected_candidate_id": {
-            "title": "Selected Candidate Id",
-            "type": "string"
-          },
           "source_digest": {
             "title": "Source Digest",
             "type": "string"
@@ -4198,8 +4196,7 @@
         "required": [
           "id",
           "source_generation_log_id",
-          "plan_index",
-          "selected_candidate_id",
+          "design_id",
           "contract_version",
           "compiler_revision",
           "prompt_revision",
@@ -4258,6 +4255,10 @@
             "title": "Created At",
             "type": "string"
           },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
           "family": {
             "title": "Family",
             "type": "string"
@@ -4307,10 +4308,6 @@
               }
             ],
             "title": "Nearest Similarity"
-          },
-          "plan_index": {
-            "title": "Plan Index",
-            "type": "integer"
           },
           "prompt_revision": {
             "title": "Prompt Revision",
@@ -4364,10 +4361,6 @@
             "title": "Rule Reasons",
             "type": "array"
           },
-          "selected_candidate_id": {
-            "title": "Selected Candidate Id",
-            "type": "string"
-          },
           "source_generation_log_id": {
             "anyOf": [
               {
@@ -4419,8 +4412,7 @@
         "required": [
           "id",
           "source_generation_log_id",
-          "plan_index",
-          "selected_candidate_id",
+          "design_id",
           "contract_version",
           "compiler_revision",
           "prompt_revision",
@@ -6207,6 +6199,37 @@
         "title": "CreatedOrder",
         "type": "object"
       },
+      "CurrentMotifOut": {
+        "description": "현재 디자인이 쓰고 있는 모티프 슬롯 — 좌측 패널이 썸네일·이름으로 표시한다.",
+        "properties": {
+          "motif_id": {
+            "title": "Motif Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "preview_svg": {
+            "title": "Preview Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motif_id",
+          "name",
+          "preview_svg"
+        ],
+        "title": "CurrentMotifOut",
+        "type": "object"
+      },
       "CustomAmountRequest": {
         "properties": {
           "options": {
@@ -6826,16 +6849,23 @@
       },
       "DesignGenerateOut": {
         "properties": {
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/WorkerCandidateOut"
-            },
-            "title": "Candidates",
-            "type": "array"
+          "design": {
+            "$ref": "#/components/schemas/DesignOut"
           },
           "engine_version": {
             "title": "Engine Version",
             "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
           "registry_version": {
             "title": "Registry Version",
@@ -6853,7 +6883,7 @@
           "warnings": {
             "default": [],
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DesignWarningOut"
             },
             "title": "Warnings",
             "type": "array"
@@ -6864,21 +6894,29 @@
           "request_id",
           "registry_version",
           "engine_version",
-          "candidates"
+          "design"
         ],
         "title": "DesignGenerateOut",
+        "type": "object"
+      },
+      "DesignGenerateRejectedOut": {
+        "description": "구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤).",
+        "properties": {
+          "rejected": {
+            "const": "motif",
+            "title": "Rejected",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rejected"
+        ],
+        "title": "DesignGenerateRejectedOut",
         "type": "object"
       },
       "DesignGenerateRequest": {
         "additionalProperties": false,
         "properties": {
-          "candidate_count": {
-            "default": 1,
-            "maximum": 4.0,
-            "minimum": 1.0,
-            "title": "Candidate Count",
-            "type": "integer"
-          },
           "colorway": {
             "anyOf": [
               {
@@ -6893,9 +6931,6 @@
           },
           "palette": {
             "$ref": "#/components/schemas/PaletteConstraint"
-          },
-          "pattern_constraints": {
-            "$ref": "#/components/schemas/PatternConstraints"
           },
           "prompt": {
             "anyOf": [
@@ -6985,9 +7020,6 @@
           "palette": {
             "$ref": "#/components/schemas/PaletteConstraint"
           },
-          "pattern_constraints": {
-            "$ref": "#/components/schemas/PatternConstraints"
-          },
           "prompt": {
             "default": "",
             "maxLength": 4000,
@@ -7040,6 +7072,56 @@
         "title": "DesignOrderReferenceOut",
         "type": "object"
       },
+      "DesignOut": {
+        "properties": {
+          "colorway_id": {
+            "title": "Colorway Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "layout_id": {
+            "title": "Layout Id",
+            "type": "string"
+          },
+          "png_object_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Png Object Key"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "source_fidelity": {
+            "title": "Source Fidelity",
+            "type": "string"
+          },
+          "svg": {
+            "title": "Svg",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "layout_id",
+          "source_fidelity",
+          "colorway_id",
+          "seed",
+          "svg",
+          "png_object_key"
+        ],
+        "title": "DesignOut",
+        "type": "object"
+      },
       "DesignReferenceUploadOut": {
         "properties": {
           "content_type": {
@@ -7068,69 +7150,6 @@
           "upload_completed_at"
         ],
         "title": "DesignReferenceUploadOut",
-        "type": "object"
-      },
-      "DesignRerollRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "candidate_count": {
-            "default": 4,
-            "maximum": 4.0,
-            "minimum": 1.0,
-            "title": "Candidate Count",
-            "type": "integer"
-          },
-          "colorway": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Colorway"
-          },
-          "palette": {
-            "$ref": "#/components/schemas/PaletteConstraint"
-          },
-          "pattern_constraints": {
-            "$ref": "#/components/schemas/PatternConstraints"
-          },
-          "seed": {
-            "maximum": 9.223372036854776e+18,
-            "minimum": -9.223372036854776e+18,
-            "title": "Seed",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "seed"
-        ],
-        "title": "DesignRerollRequest",
-        "type": "object"
-      },
-      "DesignSelectionRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "candidate_id": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Candidate Id",
-            "type": "string"
-          },
-          "run_id": {
-            "format": "uuid",
-            "title": "Run Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "run_id",
-          "candidate_id"
-        ],
-        "title": "DesignSelectionRequest",
         "type": "object"
       },
       "DesignSessionOut": {
@@ -7191,6 +7210,13 @@
             ],
             "title": "Current Intent"
           },
+          "current_motifs": {
+            "items": {
+              "$ref": "#/components/schemas/CurrentMotifOut"
+            },
+            "title": "Current Motifs",
+            "type": "array"
+          },
           "current_plan": {
             "anyOf": [
               {
@@ -7228,6 +7254,17 @@
               }
             ],
             "title": "Last Prompt"
+          },
+          "recraft_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recraft Remaining"
           },
           "recraft_used": {
             "title": "Recraft Used",
@@ -7281,6 +7318,21 @@
           "updated_at"
         ],
         "title": "DesignSessionOut",
+        "type": "object"
+      },
+      "DesignStepActivateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "DesignStepActivateRequest",
         "type": "object"
       },
       "DesignTurnAttachmentOut": {
@@ -7407,6 +7459,29 @@
         "title": "DesignTurnOut",
         "type": "object"
       },
+      "DesignWarningOut": {
+        "description": "자동 조정 안내 — message는 그대로 노출한다(상단 알림, 노랑 톤).",
+        "properties": {
+          "code": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "DesignWarningOut",
+        "type": "object"
+      },
       "FinalizeQuotaOut": {
         "description": "계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).",
         "properties": {
@@ -7446,19 +7521,6 @@
       },
       "FinalizeRequest": {
         "properties": {
-          "candidate_id": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Id"
-          },
           "colorway_id": {
             "anyOf": [
               {
@@ -7601,28 +7663,6 @@
             ],
             "title": "Authoring Ms"
           },
-          "candidate_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count"
-          },
-          "candidate_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Ms"
-          },
           "catalog_candidate_count": {
             "anyOf": [
               {
@@ -7633,6 +7673,17 @@
               }
             ],
             "title": "Catalog Candidate Count"
+          },
+          "compose_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compose Ms"
           },
           "failure_code": {
             "anyOf": [
@@ -7716,8 +7767,9 @@
               {
                 "enum": [
                   "prompt",
-                  "refine",
-                  "variation"
+                  "patch",
+                  "variation",
+                  "motif_slot"
                 ],
                 "type": "string"
               },
@@ -7756,27 +7808,12 @@
             "title": "Motif Resolutions",
             "type": "array"
           },
-          "pattern_controls": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pattern Controls"
-          },
-          "plan_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Plan Count"
+          "patch_axes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Patch Axes",
+            "type": "array"
           },
           "prompt_revision": {
             "anyOf": [
@@ -7832,17 +7869,6 @@
               }
             ],
             "title": "Resolved Count"
-          },
-          "validated_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Validated Count"
           }
         },
         "title": "GenerationDiagnosticsOut",
@@ -8211,21 +8237,15 @@
             "title": "Finalized",
             "type": "boolean"
           },
+          "reactivated": {
+            "default": false,
+            "title": "Reactivated",
+            "type": "boolean"
+          },
           "regenerated": {
             "default": false,
             "title": "Regenerated",
             "type": "boolean"
-          },
-          "selected_candidate_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Selected Candidate Id"
           },
           "session_id": {
             "anyOf": [
@@ -9150,140 +9170,29 @@
         "title": "MessageResponse",
         "type": "object"
       },
-      "MotifCandidateOut": {
+      "MotifActivateRequest": {
+        "additionalProperties": false,
         "properties": {
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
           "motif_id": {
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Motif Id",
             "type": "string"
           },
-          "scope": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+          "slot": {
+            "enum": [
+              1,
+              2
             ],
-            "title": "Scope"
-          },
-          "similarity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Similarity"
-          },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
-          },
-          "style": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Style"
-          },
-          "subject": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject"
-          },
-          "view": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "View"
-          }
-        },
-        "required": [
-          "motif_id",
-          "similarity"
-        ],
-        "title": "MotifCandidateOut",
-        "type": "object"
-      },
-      "MotifCandidatesOut": {
-        "properties": {
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/MotifCandidateOut"
-            },
-            "title": "Candidates",
-            "type": "array"
-          },
-          "registry_version": {
-            "title": "Registry Version",
-            "type": "string"
-          },
-          "request_id": {
-            "title": "Request Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "request_id",
-          "registry_version",
-          "candidates"
-        ],
-        "title": "MotifCandidatesOut",
-        "type": "object"
-      },
-      "MotifCandidatesRequest": {
-        "properties": {
-          "spec": {
-            "$ref": "#/components/schemas/MotifSpecIn"
-          },
-          "top_k": {
-            "default": 5,
-            "maximum": 10.0,
-            "minimum": 1.0,
-            "title": "Top K",
+            "title": "Slot",
             "type": "integer"
           }
         },
         "required": [
-          "spec"
+          "slot",
+          "motif_id"
         ],
-        "title": "MotifCandidatesRequest",
+        "title": "MotifActivateRequest",
         "type": "object"
       },
       "MotifDetailOut": {
@@ -9495,9 +9404,8 @@
       },
       "MotifGenerateOut": {
         "properties": {
-          "motif_id": {
-            "title": "Motif Id",
-            "type": "string"
+          "motif": {
+            "$ref": "#/components/schemas/MotifResultOut"
           },
           "request_id": {
             "title": "Request Id",
@@ -9506,49 +9414,28 @@
           "reused": {
             "title": "Reused",
             "type": "boolean"
-          },
-          "similarity": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Similarity"
           }
         },
         "required": [
           "request_id",
-          "motif_id",
           "reused",
-          "similarity"
+          "motif"
         ],
         "title": "MotifGenerateOut",
         "type": "object"
       },
       "MotifGenerateRequest": {
+        "additionalProperties": false,
         "properties": {
-          "seed": {
-            "anyOf": [
-              {
-                "maximum": 9.223372036854776e+18,
-                "minimum": -9.223372036854776e+18,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed"
-          },
-          "spec": {
-            "$ref": "#/components/schemas/MotifSpecIn"
+          "prompt": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
           }
         },
         "required": [
-          "spec"
+          "prompt"
         ],
         "title": "MotifGenerateRequest",
         "type": "object"
@@ -9726,74 +9613,72 @@
         "title": "MotifResolutionOut",
         "type": "object"
       },
-      "MotifSpecIn": {
+      "MotifResultOut": {
+        "description": "모달 카드 하나 — 프론트가 썸네일을 바로 그린다.",
         "properties": {
-          "description": {
-            "anyOf": [
-              {
-                "maxLength": 1000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
+          "current": {
+            "default": false,
+            "title": "Current",
+            "type": "boolean"
           },
-          "expression": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expression"
-          },
-          "scope": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Scope",
+          "motif_id": {
+            "title": "Motif Id",
             "type": "string"
           },
-          "style": {
+          "name": {
             "anyOf": [
               {
-                "maxLength": 200,
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Style"
+            "title": "Name"
           },
-          "subject": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Subject",
+          "preview_svg": {
+            "title": "Preview Svg",
             "type": "string"
-          },
-          "view": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "View"
           }
         },
         "required": [
-          "subject",
-          "scope"
+          "motif_id",
+          "name",
+          "preview_svg"
         ],
-        "title": "MotifSpecIn",
+        "title": "MotifResultOut",
+        "type": "object"
+      },
+      "MotifSearchOut": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/MotifResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "MotifSearchOut",
+        "type": "object"
+      },
+      "MotifSearchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "MotifSearchRequest",
         "type": "object"
       },
       "MotifSummaryOut": {
@@ -11564,57 +11449,6 @@
           "upload_id"
         ],
         "title": "PaletteExtractRequest",
-        "type": "object"
-      },
-      "PatternConstraints": {
-        "additionalProperties": false,
-        "properties": {
-          "arrangement": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "lattice",
-              "staggered",
-              "scatter"
-            ],
-            "title": "Arrangement",
-            "type": "string"
-          },
-          "density": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "sparse",
-              "medium",
-              "dense"
-            ],
-            "title": "Density",
-            "type": "string"
-          },
-          "direction": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "vertical",
-              "horizontal",
-              "diagonal"
-            ],
-            "title": "Direction",
-            "type": "string"
-          },
-          "motif_scale": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "small",
-              "medium",
-              "large"
-            ],
-            "title": "Motif Scale",
-            "type": "string"
-          }
-        },
-        "title": "PatternConstraints",
         "type": "object"
       },
       "PaymentConfirmRequest": {
@@ -13770,7 +13604,7 @@
         "title": "ReviewUpdateRequest",
         "type": "object"
       },
-      "SafeCandidateOut": {
+      "SafeDesignOut": {
         "properties": {
           "colorway_id": {
             "anyOf": [
@@ -13782,17 +13616,6 @@
               }
             ],
             "title": "Colorway Id"
-          },
-          "design_index": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Design Index"
           },
           "id": {
             "anyOf": [
@@ -13861,7 +13684,6 @@
         },
         "required": [
           "id",
-          "design_index",
           "layout_id",
           "source_fidelity",
           "colorway_id",
@@ -13869,7 +13691,7 @@
           "svg",
           "svg_status"
         ],
-        "title": "SafeCandidateOut",
+        "title": "SafeDesignOut",
         "type": "object"
       },
       "SampleAmountRequest": {
@@ -13967,64 +13789,23 @@
       },
       "SeamlessDetailOut": {
         "properties": {
-          "available_strategies": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Available Strategies"
-          },
-          "candidate_count_requested": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Requested"
-          },
-          "candidate_count_returned": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Returned"
-          },
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/SafeCandidateOut"
-            },
-            "title": "Candidates",
-            "type": "array"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
           },
-          "diagnostics": {
-            "$ref": "#/components/schemas/GenerationDiagnosticsOut"
-          },
-          "distinct_layouts": {
+          "design": {
             "anyOf": [
               {
-                "type": "integer"
+                "$ref": "#/components/schemas/SafeDesignOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Distinct Layouts"
+            ]
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/GenerationDiagnosticsOut"
           },
           "engine_version": {
             "anyOf": [
@@ -14109,13 +13890,17 @@
             "title": "Input Type",
             "type": "string"
           },
-          "intents": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Intents",
-            "type": "array"
+          "intent": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
           },
           "outcome": {
             "$ref": "#/components/schemas/GenerationOutcomeOut"
@@ -14222,9 +14007,6 @@
           "request_id",
           "input_type",
           "status",
-          "candidate_count_requested",
-          "candidate_count_returned",
-          "distinct_layouts",
           "warning_count",
           "generate_ms",
           "render_ms",
@@ -14237,17 +14019,16 @@
           "created_at",
           "has_prompt",
           "prompt",
-          "intents",
+          "intent",
           "has_reference_image",
           "reference_image_bytes",
           "reference_images",
           "seed",
-          "available_strategies",
           "warning_groups",
           "diagnostics",
           "outcome",
           "token_accounting",
-          "candidates"
+          "design"
         ],
         "title": "SeamlessDetailOut",
         "type": "object"
@@ -14352,43 +14133,10 @@
       },
       "SeamlessSummaryOut": {
         "properties": {
-          "candidate_count_requested": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Requested"
-          },
-          "candidate_count_returned": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Candidate Count Returned"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
-          },
-          "distinct_layouts": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distinct Layouts"
           },
           "engine_version": {
             "anyOf": [
@@ -14517,9 +14265,6 @@
           "request_id",
           "input_type",
           "status",
-          "candidate_count_requested",
-          "candidate_count_returned",
-          "distinct_layouts",
           "warning_count",
           "generate_ms",
           "render_ms",
@@ -14538,13 +14283,9 @@
         "properties": {
           "code": {
             "enum": [
-              "candidate_variants_dropped",
               "cmyk_gamut",
-              "design_dropped",
-              "diversity_shortfall",
               "generation_warning",
               "motif_layer_dropped",
-              "partial_candidates",
               "preview_unavailable",
               "spacing_snap",
               "stripe_period_snap"
@@ -14581,7 +14322,9 @@
           "key": {
             "enum": [
               "default_courier_company",
+              "design_edit_cost",
               "design_finalize_daily_limit",
+              "design_token_cost_openai_render_standard",
               "design_token_initial_grant"
             ],
             "title": "Key",
@@ -14607,7 +14350,7 @@
             "items": {
               "$ref": "#/components/schemas/SettingUpdateItem"
             },
-            "maxItems": 3,
+            "maxItems": 5,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -14881,6 +14624,10 @@
             "title": "Bonus",
             "type": "integer"
           },
+          "edit_cost": {
+            "title": "Edit Cost",
+            "type": "integer"
+          },
           "generate_cost": {
             "title": "Generate Cost",
             "type": "integer"
@@ -14898,7 +14645,8 @@
           "total",
           "paid",
           "bonus",
-          "generate_cost"
+          "generate_cost",
+          "edit_cost"
         ],
         "title": "TokenBalance",
         "type": "object"
@@ -15477,61 +15225,6 @@
           "target_width_cm"
         ],
         "title": "WidthReform",
-        "type": "object"
-      },
-      "WorkerCandidateOut": {
-        "properties": {
-          "colorway_id": {
-            "title": "Colorway Id",
-            "type": "string"
-          },
-          "design_index": {
-            "title": "Design Index",
-            "type": "integer"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "layout_id": {
-            "title": "Layout Id",
-            "type": "string"
-          },
-          "png_object_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Png Object Key"
-          },
-          "seed": {
-            "title": "Seed",
-            "type": "integer"
-          },
-          "source_fidelity": {
-            "title": "Source Fidelity",
-            "type": "string"
-          },
-          "svg": {
-            "title": "Svg",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "design_index",
-          "layout_id",
-          "source_fidelity",
-          "colorway_id",
-          "seed",
-          "svg",
-          "png_object_key"
-        ],
-        "title": "WorkerCandidateOut",
         "type": "object"
       }
     },
@@ -22622,7 +22315,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DesignGenerateOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DesignGenerateOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DesignGenerateRejectedOut"
+                    }
+                  ],
+                  "title": "Response Generate Design"
                 }
               }
             },
@@ -23446,65 +23147,6 @@
         ]
       }
     },
-    "/design/sessions/{session_id}/branch": {
-      "post": {
-        "description": "Start a new linear conversation from any successful candidate in an owned session.",
-        "operationId": "branch_design_session",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DesignSelectionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignSessionOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Branch Design Session",
-        "tags": [
-          "design"
-        ]
-      }
-    },
     "/design/sessions/{session_id}/finalize": {
       "post": {
         "operationId": "create_finalize_job",
@@ -23563,10 +23205,10 @@
         ]
       }
     },
-    "/design/sessions/{session_id}/motifs/candidates": {
+    "/design/sessions/{session_id}/motifs/activate": {
       "post": {
-        "description": "read-only 검색 — 워커가 Recraft를 호출하지 않으므로 예산 없음.",
-        "operationId": "motif_candidates",
+        "description": "모티프 슬롯 교체 — 모티프 id만 바뀐 결정론 재렌더라 모델 호출도 과금도 없다.",
+        "operationId": "activate_motif",
         "parameters": [
           {
             "in": "path",
@@ -23583,7 +23225,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MotifCandidatesRequest"
+                "$ref": "#/components/schemas/MotifActivateRequest"
               }
             }
           },
@@ -23594,7 +23236,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MotifCandidatesOut"
+                  "$ref": "#/components/schemas/DesignGenerateOut"
                 }
               }
             },
@@ -23616,7 +23258,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Motif Candidates",
+        "summary": "Activate Motif",
         "tags": [
           "design"
         ]
@@ -23624,7 +23266,7 @@
     },
     "/design/sessions/{session_id}/motifs/generate": {
       "post": {
-        "operationId": "motif_generate",
+        "operationId": "generate_motif",
         "parameters": [
           {
             "in": "path",
@@ -23674,15 +23316,16 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Motif Generate",
+        "summary": "Generate Motif",
         "tags": [
           "design"
         ]
       }
     },
-    "/design/sessions/{session_id}/reroll": {
+    "/design/sessions/{session_id}/motifs/search": {
       "post": {
-        "operationId": "reroll_design",
+        "description": "문장으로 카탈로그를 찾는다 — 워커가 Recraft를 호출하지 않으므로 무과금.",
+        "operationId": "search_motifs",
         "parameters": [
           {
             "in": "path",
@@ -23699,7 +23342,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DesignRerollRequest"
+                "$ref": "#/components/schemas/MotifSearchRequest"
               }
             }
           },
@@ -23710,7 +23353,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DesignGenerateOut"
+                  "$ref": "#/components/schemas/MotifSearchOut"
                 }
               }
             },
@@ -23732,15 +23375,15 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Reroll Design",
+        "summary": "Search Motifs",
         "tags": [
           "design"
         ]
       }
     },
-    "/design/sessions/{session_id}/select": {
+    "/design/sessions/{session_id}/steps/activate": {
       "post": {
-        "operationId": "select_design_candidate",
+        "operationId": "activate_design_step",
         "parameters": [
           {
             "in": "path",
@@ -23757,7 +23400,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DesignSelectionRequest"
+                "$ref": "#/components/schemas/DesignStepActivateRequest"
               }
             }
           },
@@ -23790,7 +23433,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Select Design Candidate",
+        "summary": "Activate Design Step",
         "tags": [
           "design"
         ]

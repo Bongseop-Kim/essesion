@@ -16,7 +16,6 @@ from api.domains.design.router import (
     KNOWN_WEAVES,
     MAX_DESIGN_JSON_BYTES,
     MAX_DESIGN_PROMPT_LENGTH,
-    SIGNED_INT64_MAX,
     SIGNED_INT64_MIN,
     STALE_GENERATION_JOB_AFTER,
 )
@@ -44,6 +43,7 @@ from .factories import auth_headers, make_token_refund_claim, make_user, seed_se
 _WORKER_FABRIC_ASSETS = Path(__file__).parents[2] / "worker/src/worker/render/assets/fabric"
 
 TOKEN_COST = ("design_token_cost_openai_render_standard", "5")
+EDIT_COST = ("design_edit_cost", "2")
 FINALIZE_LIMIT_KEY = "design_finalize_daily_limit"
 
 
@@ -61,14 +61,7 @@ def _generation_request_payload(
         "prompt": prompt,
         "seed": seed,
         "colorway": None,
-        "candidate_count": 4,
         "palette": {"mode": "auto", "colors": []},
-        "pattern_constraints": {
-            "motif_scale": "auto",
-            "density": "auto",
-            "arrangement": "auto",
-            "direction": "auto",
-        },
         "attachment_refs": [],
     }
 
@@ -82,7 +75,7 @@ def _assistant_generation_payload(
         "type": "generate",
         "run_id": str(run_id),
         "status": status,
-        "candidate_summaries": [],
+        "summary": "2색 · 단색 구조",
     }
     if status == "error":
         payload["error"] = {"stage": "authoring", "code": "test_failure"}
@@ -109,6 +102,7 @@ def _motif_intent(motif_id: str) -> dict[str, object]:
 async def _fund(db_session, user, amount=30):
     """generate 과금 전제 — 비용 설정 + 잔액 지급."""
     await seed_setting(db_session, *TOKEN_COST)
+    await seed_setting(db_session, *EDIT_COST)
     db_session.add(DesignToken(user_id=user.id, amount=amount, type="grant", token_class="free"))
     await db_session.commit()
 
@@ -145,29 +139,24 @@ class FakeWorker:
             "request_id": "rid-worker",
             "registry_version": "0.1.0",
             "engine_version": "0.1.0",
-            "intents": [resolved_intent],
-            "plans": [
-                {
-                    "colors": ["#10243A", "#EFE6D4"],
-                    "ground_color_index": 0,
-                    "motifs": [],
-                    "layers": [],
-                }
-            ],
-            "structural_fingerprints": ["structure-1"],
+            "intent": resolved_intent,
+            "plan": {
+                "colors": ["#10243A", "#EFE6D4"],
+                "ground_color_index": 0,
+                "motifs": [],
+                "layers": [],
+            },
+            "structural_fingerprint": "structure-1",
             "warnings": [],
-            "candidates": [
-                {
-                    "id": "cand-1",
-                    "design_index": 0,
-                    "layout_id": "layout-1",
-                    "source_fidelity": "vector",
-                    "colorway_id": "default",
-                    "seed": 7,
-                    "svg": "<svg/>",
-                    "png_object_key": "previews/rid-worker/cand-1.png",
-                }
-            ],
+            "design": {
+                "id": "design-1",
+                "layout_id": "layout-1",
+                "source_fidelity": "vector",
+                "colorway_id": "default",
+                "seed": 7,
+                "svg": "<svg/>",
+                "png_object_key": "previews/rid-worker/design-1.png",
+            },
         }
         if self.sessionmaker is not None:
             provenance = payload.get("motif_provenance") or {}
@@ -188,22 +177,13 @@ class FakeWorker:
                         prompt=payload.get("prompt"),
                         colorway=payload.get("colorway"),
                         seed=payload.get("seed"),
-                        candidate_count_requested=payload.get("candidate_count"),
-                        candidate_count_returned=1,
-                        distinct_layouts=1,
-                        available_strategies=1,
                         engine_version=response["engine_version"],
                         registry_version=response["registry_version"],
                         intent={
-                            "designs": [resolved_intent],
-                            "resolved_plans": response["plans"],
+                            "design": resolved_intent,
+                            "resolved_plan": response["plan"],
                         },
-                        candidates=[
-                            {
-                                **response["candidates"][0],
-                                "intent": resolved_intent,
-                            }
-                        ],
+                        design={**response["design"], "intent": resolved_intent},
                         warnings=[],
                         status="success",
                     )
@@ -330,10 +310,8 @@ async def test_session_lifecycle_and_turns(client, db_session, settings):
             json={
                 "role": "user",
                 "payload": {
-                    "type": "select",
+                    "type": "activate",
                     "run_id": str(run_id),
-                    "candidate_id": "forged",
-                    "design_index": 0,
                     "seed": 7,
                     "colorway_id": "default",
                 },
@@ -404,6 +382,61 @@ async def test_session_list_returns_last_prompt(client, db_session, settings):
     assert by_id[without_prompt["id"]]["last_prompt"] is None
 
 
+async def test_session_reports_current_motifs_including_catalog(client, db_session, settings):
+    """좌측 모티프 패널 데이터 — 내 라이브러리 이름은 그대로, 카탈로그는 이름 없이 나온다."""
+    user = await make_user(db_session)
+    mine = Motif(
+        id="upload-333333333333",
+        symbol=(
+            '<symbol id="motif-upload-333333333333" viewBox="-0.5 -0.5 1 1">'
+            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+        ),
+        bbox=[-0.5, -0.5, 0.5, 0.5],
+        anchor=[0, 0],
+        source="user_upload",
+    )
+    catalog = Motif(
+        id="seed-bee",
+        symbol=(
+            '<symbol id="motif-seed-bee" viewBox="-0.5 -0.5 1 1">'
+            '<rect x="-0.3" y="-0.3" width="0.6" height="0.6" fill="currentColor"/></symbol>'
+        ),
+        bbox=[-0.5, -0.5, 0.5, 0.5],
+        anchor=[0, 0],
+        source="catalog",
+    )
+    design_session = DesignSession(user_id=user.id)
+    design_session.current_intent = {
+        "canvas": {"tile_mm": 24},
+        "palette": {"slots": []},
+        "colorways": [],
+        "layers": [
+            {"id": "bg", "type": "background", "z_order": 0, "params": {"color": "ground"}},
+            {"id": "m0", "type": "motif", "z_order": 1, "params": {"motif_id": catalog.id}},
+            {"id": "m1", "type": "motif", "z_order": 2, "params": {"motif_id": mine.id}},
+        ],
+    }
+    db_session.add_all([mine, catalog, design_session])
+    await db_session.flush()
+    db_session.add(UserMotif(user_id=user.id, motif_id=mine.id, name="내 원형"))
+    await db_session.commit()
+    headers = auth_headers(user, settings)
+
+    fetched = (await client.get(f"/design/sessions/{design_session.id}", headers=headers)).json()
+
+    # 레이어 순서 유지, 최대 2개 — 카탈로그 모티프도 포함된다.
+    assert [motif["motif_id"] for motif in fetched["current_motifs"]] == [catalog.id, mine.id]
+    assert [motif["name"] for motif in fetched["current_motifs"]] == [None, "내 원형"]
+    assert all(
+        f'href="#motif-{motif["motif_id"]}"' in motif["preview_svg"]
+        for motif in fetched["current_motifs"]
+    )
+    # 목록 응답은 N+1을 피해 빈 배열로 둔다. 남은 생성 횟수도 단건 전용이다.
+    listed = (await client.get("/design/sessions", headers=headers)).json()
+    assert listed[0]["current_motifs"] == []
+    assert listed[0]["recraft_remaining"] is None
+
+
 async def test_generate_and_finalize_job(client, app, db_session, settings):
     app.state.worker = FakeWorker(app.state.sessionmaker)
     user = await make_user(db_session)
@@ -417,21 +450,17 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
             "session_id": design_session["id"],
             "prompt": "차분한 단색 패턴",
             "seed": 7,
-            "candidate_count": 1,
         },
         headers=headers,
     )
     assert generated.status_code == 200
-    assert generated.json()["candidates"][0]["id"] == "cand-1"
-    selected = await client.post(
-        f"/design/sessions/{design_session['id']}/select",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": "cand-1",
-        },
+    assert generated.json()["design"]["id"] == "design-1"
+    activated = await client.post(
+        f"/design/sessions/{design_session['id']}/steps/activate",
+        json={"run_id": generated.json()["run_id"]},
         headers=headers,
     )
-    assert selected.status_code == 200, selected.text
+    assert activated.status_code == 200, activated.text
 
     turns = (
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
@@ -443,20 +472,14 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
         "prompt": "차분한 단색 패턴",
         "seed": 7,
         "colorway": None,
-        "candidate_count": 1,
         "palette": {"mode": "auto", "colors": []},
-        "pattern_constraints": {
-            "motif_scale": "auto",
-            "density": "auto",
-            "arrangement": "auto",
-            "direction": "auto",
-        },
         "attachment_refs": [],
     }
     assert turns[1]["payload"]["type"] == "generate"
     assert turns[1]["payload"]["response"]["run_id"] == generated.json()["run_id"]
-    assert "intents" not in turns[1]["payload"]["response"]
-    assert turns[2]["payload"]["type"] == "select"
+    assert "intent" not in turns[1]["payload"]["response"]
+    assert turns[1]["payload"]["response"]["design"]["id"] == "design-1"
+    assert turns[2]["payload"]["type"] == "activate"
 
     job = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
@@ -466,142 +489,9 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
     assert job.status_code == 201
     assert job.json()["status"] == "queued"
     assert job.json()["params"]["run_id"] == generated.json()["run_id"]
-    assert job.json()["params"]["candidate_id"] == "cand-1"
 
     fetched = await client.get(f"/design/jobs/{job.json()['id']}", headers=headers)
     assert fetched.json()["kind"] == "finalize"
-
-
-async def test_branch_design_session_restores_candidate_without_charging(
-    client, app, db_session, settings
-):
-    app.state.worker = FakeWorker(app.state.sessionmaker)
-    owner = await make_user(db_session)
-    other = await make_user(db_session)
-    await _fund(db_session, owner)
-    await _seed_finalize_limit(db_session)
-    headers = auth_headers(owner, settings)
-    source = (await client.post("/design/sessions", headers=headers)).json()
-    generated = await client.post(
-        "/design/generate",
-        json={
-            "session_id": source["id"],
-            "prompt": "분기할 패턴",
-            "candidate_count": 1,
-        },
-        headers=headers,
-    )
-    assert generated.status_code == 200, generated.text
-    balance_after_generate = await ledger.get_balance(db_session, owner.id)
-
-    unauthorized = await client.post(
-        f"/design/sessions/{source['id']}/branch",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": "cand-1",
-        },
-    )
-    assert unauthorized.status_code == 401
-
-    missing_candidate = await client.post(
-        f"/design/sessions/{source['id']}/branch",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": "missing",
-        },
-        headers=headers,
-    )
-    assert missing_candidate.status_code == 404
-    assert missing_candidate.json()["code"] == "design_candidate_not_found"
-
-    forbidden = await client.post(
-        f"/design/sessions/{source['id']}/branch",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": "cand-1",
-        },
-        headers=auth_headers(other, settings),
-    )
-    assert forbidden.status_code == 403
-
-    branched = await client.post(
-        f"/design/sessions/{source['id']}/branch",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": "cand-1",
-        },
-        headers=headers,
-    )
-    assert branched.status_code == 201, branched.text
-    branch = branched.json()
-    assert branch["id"] != source["id"]
-    assert branch["current_intent"] is not None
-    assert branch["current_plan"] is not None
-    assert branch["seed"] == 7
-    assert branch["colorway"] == "default"
-    assert await ledger.get_balance(db_session, owner.id) == balance_after_generate
-
-    turns = (await client.get(f"/design/sessions/{branch['id']}/turns", headers=headers)).json()
-    assert [turn["payload"]["type"] for turn in turns] == [
-        "generate_request",
-        "generate",
-        "select",
-    ]
-    assert turns[0]["payload"]["candidate_count"] == 1
-    assert turns[1]["payload"]["response"]["run_id"] == generated.json()["run_id"]
-    assert turns[2]["payload"]["candidate_id"] == "cand-1"
-
-    branched_again = await client.post(
-        f"/design/sessions/{branch['id']}/branch",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": "cand-1",
-        },
-        headers=headers,
-    )
-    assert branched_again.status_code == 201, branched_again.text
-    assert await ledger.get_balance(db_session, owner.id) == balance_after_generate
-
-    finalized = await client.post(
-        f"/design/sessions/{branch['id']}/finalize",
-        json={"dpi": 300},
-        headers=headers,
-    )
-    assert finalized.status_code == 201, finalized.text
-
-    # 분기는 원본 세션을 건드리지 않는다 — 원본의 포인터는 생성 시 자동 커밋된 첫 후보 그대로.
-    source_after = (await client.get(f"/design/sessions/{source['id']}", headers=headers)).json()
-    assert source_after["current_intent"] is not None
-    assert source_after["seed"] == 7
-    assert source_after["colorway"] == "default"
-
-    refined = await client.post(
-        "/design/generate",
-        json={
-            "session_id": branch["id"],
-            "prompt": "색상만 바꿔줘",
-            "candidate_count": 1,
-        },
-        headers=headers,
-    )
-    assert refined.status_code == 200, refined.text
-
-    await db_session.execute(
-        update(SeamlessGenerationLog)
-        .where(SeamlessGenerationLog.id == uuid.UUID(generated.json()["run_id"]))
-        .values(user_id=other.id)
-    )
-    await db_session.commit()
-    mismatched_log_owner = await client.post(
-        f"/design/sessions/{source['id']}/branch",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": "cand-1",
-        },
-        headers=headers,
-    )
-    assert mismatched_log_owner.status_code == 409
-    assert mismatched_log_owner.json()["code"] == "design_result_unavailable"
 
 
 async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachments(
@@ -665,12 +555,6 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
             ],
             "user_motif_ids": [str(user_motif.id)],
             "palette": {"mode": "fixed", "colors": ["#abc", "#AABBCC", "#123456"]},
-            "pattern_constraints": {
-                "motif_scale": "small",
-                "density": "dense",
-                "arrangement": "staggered",
-                "direction": "diagonal",
-            },
         },
         headers=headers,
     )
@@ -700,30 +584,16 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         },
     ]
     assert payload["palette"] == {"mode": "fixed", "colors": ["#AABBCC", "#123456"]}
-    assert payload["pattern_constraints"] == {
-        "motif_scale": "small",
-        "density": "dense",
-        "arrangement": "staggered",
-        "direction": "diagonal",
-    }
 
-    branched = await client.post(
-        f"/design/sessions/{design_session['id']}/branch",
-        json={
-            "run_id": generated.json()["run_id"],
-            "candidate_id": generated.json()["candidates"][0]["id"],
-        },
-        headers=headers,
-    )
-    assert branched.status_code == 201, branched.text
-    copied_turns = (
+    recorded_turns = (
         await client.get(
-            f"/design/sessions/{branched.json()['id']}/turns",
+            f"/design/sessions/{design_session['id']}/turns",
             headers=headers,
         )
     ).json()
     assert [
-        (item["kind"], item["filename"], item["purpose"]) for item in copied_turns[0]["attachments"]
+        (item["kind"], item["filename"], item["purpose"])
+        for item in recorded_turns[0]["attachments"]
     ] == [
         ("photo", "구도.webp", "composition"),
         ("photo", "참고.png", "motif"),
@@ -763,23 +633,38 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         "mode": "fixed",
         "colors": ["#AABBCC", "#123456"],
     }
-    assert request_turn["payload"]["pattern_constraints"]["arrangement"] == "staggered"
 
     await db_session.refresh(photo)
     assert photo.entity_type == "design_reference"
     assert photo.entity_id == design_session["id"]
     assert photo.expires_at is None
 
+    # 소비된 업로드는 다시 쓸 수 없다. 사진은 최초 생성에서만 받으므로 새 세션으로 확인한다.
+    fresh_session = (await client.post("/design/sessions", headers=headers)).json()
     reused_photo = await client.post(
         "/design/generate",
         json={
-            "session_id": design_session["id"],
+            "session_id": fresh_session["id"],
             "prompt": "같은 사진 재사용",
             "reference_images": [{"upload_id": str(photo.id), "purpose": "auto"}],
         },
         headers=headers,
     )
     assert reused_photo.status_code == 409
+    assert len(worker.generate_payloads) == 1
+
+    # 커밋된 디자인이 있는 세션은 사진·모티프를 더 받지 않는다(구성 수정 전용).
+    with_photo_on_committed = await client.post(
+        "/design/generate",
+        json={
+            "session_id": design_session["id"],
+            "prompt": "사진을 하나 더",
+            "reference_images": [{"upload_id": str(second_photo.id), "purpose": "auto"}],
+        },
+        headers=headers,
+    )
+    assert with_photo_on_committed.status_code == 422
+    assert with_photo_on_committed.json()["code"] == "motif_input_conflict"
     assert len(worker.generate_payloads) == 1
 
     deleted_motif = await client.delete(f"/design/motifs/{user_motif.id}", headers=headers)
@@ -795,21 +680,6 @@ async def test_generate_passes_owned_photo_and_svg_and_preserves_turn_attachment
         f"/design/sessions/{design_session['id']}", headers=headers
     )
     assert deleted_session.status_code == 204
-    await db_session.refresh(photo)
-    assert photo.entity_type == "design_reference"
-    assert photo.expires_at is None
-    branch_turns_after_source_delete = (
-        await client.get(
-            f"/design/sessions/{branched.json()['id']}/turns",
-            headers=headers,
-        )
-    ).json()
-    assert branch_turns_after_source_delete[0]["attachments"][0]["preview_url"]
-
-    deleted_branch = await client.delete(
-        f"/design/sessions/{branched.json()['id']}", headers=headers
-    )
-    assert deleted_branch.status_code == 204
     await db_session.refresh(photo)
     assert photo.entity_type == "design_reference_deleted"
     assert photo.expires_at is not None
@@ -895,11 +765,6 @@ async def test_private_intent_motif_rejects_cross_user_access_at_all_api_boundar
         "layers": [],
     }
     await db_session.commit()
-    rerolled = await client.post(
-        f"/design/sessions/{attacker_session.id}/reroll",
-        json={"seed": 7},
-        headers=headers,
-    )
     finalized_stored = await client.post(
         f"/design/sessions/{attacker_session.id}/finalize",
         json={},
@@ -907,7 +772,7 @@ async def test_private_intent_motif_rejects_cross_user_access_at_all_api_boundar
     )
 
     assert generated.status_code == 422
-    for response in (rerolled, finalized_body, finalized_stored):
+    for response in (finalized_body, finalized_stored):
         assert response.status_code == 409
         assert response.json()["code"] == "invalid_user_motif"
     assert worker.generate_payloads == []
@@ -987,23 +852,12 @@ async def test_deleted_library_motif_remains_authorized_for_its_historical_sessi
         ],
     }
     await db_session.commit()
-    generated = await client.post(
-        f"/design/sessions/{design_session.id}/reroll",
-        json={"seed": 7},
-        headers=headers,
-    )
     finalized = await client.post(
         f"/design/sessions/{design_session.id}/finalize",
         json={},
         headers=headers,
     )
 
-    assert generated.status_code == 200, generated.text
-    assert worker.generate_payloads[-1]["intent"] == intent
-    assert worker.generate_payloads[-1]["motif_provenance"] == {
-        "user_id": str(user.id),
-        "session_id": str(design_session.id),
-    }
     assert finalized.status_code == 201, finalized.text
     assert finalized.json()["params"]["intent"] == intent
 
@@ -1245,7 +1099,6 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
             "reference_images": [{"upload_id": str(photo.id), "purpose": "color_mood"}],
             "user_motif_ids": [str(user_motif.id)],
             "palette": {"mode": "fixed", "colors": ["#123", "#456789"]},
-            "pattern_constraints": {"density": "sparse", "arrangement": "scatter"},
             "count": 3,
         },
         headers=owner_headers,
@@ -1268,12 +1121,6 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
     assert idea_payload["motif_ids"] == [motif.id]
     assert idea_payload["motifs"] == [{"motif_id": motif.id, "name": "원형 문양"}]
     assert idea_payload["palette"] == {"mode": "fixed", "colors": ["#112233", "#456789"]}
-    assert idea_payload["pattern_constraints"] == {
-        "motif_scale": "auto",
-        "density": "sparse",
-        "arrangement": "scatter",
-        "direction": "auto",
-    }
     assert await db_session.scalar(select(func.count()).select_from(DesignSessionTurn)) == 0
     assert await ledger.get_balance(db_session, owner.id) == {"total": 0, "paid": 0, "bonus": 0}
 
@@ -1331,7 +1178,8 @@ async def test_design_ideas_require_auth_and_have_separate_rate_limit(
     [
         {"prompt": "x", "palette": {"mode": "fixed", "colors": ["#123456"]}},
         {"prompt": "x", "palette": {"mode": "fixed", "colors": ["not-a-color", "#fff"]}},
-        {"prompt": "x", "pattern_constraints": {"arrangement": "unsupported"}},
+        # 모티프 정체성은 입력창으로 못 온다 — 모티프 경로(motifs/activate)만 슬롯을 바꾼다.
+        {"prompt": "x", "motif_slot": {"slot": 0, "motif_id": "bee"}},
         {"prompt": "x", "reference_image_upload_ids": []},
         {
             "prompt": "x",
@@ -1427,11 +1275,7 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
 
     failed = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
-        json={
-            "intent": first_intent,
-            "run_id": first.json()["run_id"],
-            "candidate_id": "cand-1",
-        },
+        json={"intent": first_intent, "run_id": first.json()["run_id"]},
         headers=headers,
     )
     assert failed.status_code == 502
@@ -1445,7 +1289,6 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
     assert job is not None and job.status == "failed"
     assert job.error_message == "finalize 작업 전달에 실패했습니다"
     assert job.params["run_id"] == first.json()["run_id"]
-    assert job.params["candidate_id"] == "cand-1"
 
     second = await client.post(
         "/design/generate",
@@ -1469,7 +1312,6 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
     assert retry.status_code == 201
     assert retry.json()["params"]["intent"] == first_intent
     assert retry.json()["params"]["run_id"] == first.json()["run_id"]
-    assert retry.json()["params"]["candidate_id"] == "cand-1"
 
 
 async def test_finalize_rejects_incomplete_or_forged_provenance(client, app, db_session, settings):
@@ -1488,25 +1330,9 @@ async def test_finalize_rejects_incomplete_or_forged_provenance(client, app, db_
         "current_intent"
     ]
 
-    for body in (
-        {"intent": intent, "run_id": generated.json()["run_id"]},
-        {"intent": intent, "candidate_id": "cand-1"},
-    ):
-        assert (
-            await client.post(
-                f"/design/sessions/{session_id}/finalize",
-                json=body,
-                headers=headers,
-            )
-        ).status_code == 422
-
     forged = await client.post(
         f"/design/sessions/{session_id}/finalize",
-        json={
-            "intent": intent,
-            "run_id": str(uuid.uuid4()),
-            "candidate_id": "cand-1",
-        },
+        json={"intent": intent, "run_id": str(uuid.uuid4())},
         headers=headers,
     )
     assert forged.status_code == 409
@@ -1517,7 +1343,6 @@ async def test_finalize_rejects_incomplete_or_forged_provenance(client, app, db_
         json={
             "intent": {**intent, "forged": True},
             "run_id": generated.json()["run_id"],
-            "candidate_id": "cand-1",
         },
         headers=headers,
     )
@@ -1768,22 +1593,22 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
         json={
             "session_id": design_session["id"],
             "prompt": "잔잔한 네이비 페이즐리",
-            "candidate_count": 4,
         },
         headers=headers,
     )
     assert generated.status_code == 200
     body = generated.json()
-    assert "intents" not in body
+    assert body["design"]["id"] == "design-1"
+    assert "intent" not in body
     assert "generation_log_id" not in body
 
     turns = (
         await client.get(f"/design/sessions/{design_session['id']}/turns", headers=headers)
     ).json()
-    # 성공한 생성은 첫 후보를 자동 커밋한다 — 마지막 user 턴이 자동 select.
+    # 성공한 생성은 새 스텝을 자동 활성화한다 — 마지막 user 턴이 자동 activate.
     assert [turn["role"] for turn in turns] == ["user", "assistant", "user"]
-    assert turns[2]["payload"]["type"] == "select"
-    assert turns[2]["payload"]["candidate_id"] == body["candidates"][0]["id"]
+    assert turns[2]["payload"]["type"] == "activate"
+    assert turns[2]["payload"]["run_id"] == body["run_id"]
     assert turns[0]["payload"] == {
         "type": "generate_request",
         "run_id": body["run_id"],
@@ -1791,55 +1616,45 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
         "prompt": "잔잔한 네이비 페이즐리",
         "seed": None,
         "colorway": None,
-        "candidate_count": 4,
         "palette": {"mode": "auto", "colors": []},
-        "pattern_constraints": {
-            "motif_scale": "auto",
-            "density": "auto",
-            "arrangement": "auto",
-            "direction": "auto",
-        },
         "attachment_refs": [],
     }
 
-    candidate = body["candidates"][0]
-    selected = await client.post(
-        f"/design/sessions/{design_session['id']}/select",
-        json={
-            "run_id": body["run_id"],
-            "candidate_id": candidate["id"],
-        },
+    activated = await client.post(
+        f"/design/sessions/{design_session['id']}/steps/activate",
+        json={"run_id": body["run_id"]},
         headers=headers,
     )
-    assert selected.status_code == 200
-    selected_intent = selected.json()["current_intent"]
-    assert selected_intent == {
+    assert activated.status_code == 200
+    activated_intent = activated.json()["current_intent"]
+    assert activated.json()["current_motifs"] == []
+    assert activated_intent == {
         "canvas": {"tile_mm": 24},
         "layers": [],
         "palette": {"slots": []},
         "colorways": [],
     }
-    assert selected.json()["current_plan"] == {
+    assert activated.json()["current_plan"] == {
         "colors": ["#10243A", "#EFE6D4"],
         "ground_color_index": 0,
         "motifs": [],
         "layers": [],
     }
-    assert selected.json()["context_version"] == 3
+    assert activated.json()["context_version"] == 3
 
     refined = await client.post(
         "/design/generate",
         json={
             "session_id": design_session["id"],
             "prompt": "스트라이프를 추가해 주세요",
-            "candidate_count": 4,
         },
         headers=headers,
     )
     assert refined.status_code == 200, refined.text
     conversation_context = app.state.worker.generate_payloads[-1]["conversation_context"]
-    assert conversation_context["current_plan"] == selected.json()["current_plan"]
-    assert conversation_context["current_intent"] == selected.json()["current_intent"]
+    # 구성 수정은 intent에 patch를 적용한다 — plan은 문맥에 보내지 않는다.
+    assert "current_plan" not in conversation_context
+    assert conversation_context["current_intent"] == activated.json()["current_intent"]
     assert conversation_context["history"] == [
         {
             "user_prompt": "잔잔한 네이비 페이즐리",
@@ -1855,16 +1670,15 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
         f"/design/sessions/{design_session['id']}/finalize", json={}, headers=headers
     )
     assert finalized.status_code == 201
-    assert finalized.json()["params"]["intent"] == selected_intent
+    assert finalized.json()["params"]["intent"] == activated_intent
     assert finalized.json()["params"]["run_id"] == refined.json()["run_id"]
-    assert finalized.json()["params"]["candidate_id"] == "cand-1"
 
 
 async def test_generation_auto_selects_first_candidate_as_conversation_context(
     client, app, db_session, settings
 ):
-    # 편집 포인터는 항상 최신 결과물로 복귀한다: 성공한 생성은 첫 후보를 자동
-    # 커밋하므로, 후보를 수동 선택하지 않아도 다음 발화의 수정 기준이 된다.
+    # 편집 포인터는 항상 최신 스텝으로 이동한다: 성공한 생성은 그 스텝을 자동
+    # 활성화하므로, 별도 조작 없이 다음 발화의 수정 기준이 된다.
     worker = FakeWorker(app.state.sessionmaker)
     app.state.worker = worker
     user = await make_user(db_session)
@@ -1886,7 +1700,7 @@ async def test_generation_auto_selects_first_candidate_as_conversation_context(
     assert first.status_code == second.status_code == 200
     # 첫 생성은 커밋된 기준이 없어 컨텍스트 없이 나간다.
     assert "conversation_context" not in worker.generate_payloads[0]
-    # 두 번째 생성은 첫 런의 자동 커밋(첫 후보)을 기준으로 나간다.
+    # 두 번째 생성은 첫 런의 자동 활성화 스텝을 기준으로 나간다.
     second_context = worker.generate_payloads[1]["conversation_context"]
     assert second_context["current_intent"] is not None
     assert second_context["history"] == [
@@ -1903,9 +1717,89 @@ async def test_generation_auto_selects_first_candidate_as_conversation_context(
     assert session_after["colorway"] == "default"
 
 
-async def test_select_accepts_past_run_within_session_only(client, app, db_session, settings):
-    # "이 이미지로 편집"은 새 대화 분기가 아니라 현재 대화의 정본 교체다 —
-    # 과거 런의 후보도 같은 세션이면 select로 커밋할 수 있다.
+async def test_composition_edit_charges_the_edit_cost_not_the_generate_cost(
+    client, app, db_session, settings
+):
+    # 첫 생성은 전체 저작 + 모티프 해석, 구성 수정은 flash-lite 1콜 — 단가가 다르다.
+    app.state.worker = FakeWorker(app.state.sessionmaker)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "네이비 도트"},
+        headers=headers,
+    )
+    after_first = (await ledger.get_balance(db_session, user.id))["total"]
+    await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "간격을 넓혀줘"},
+        headers=headers,
+    )
+    after_edit = (await ledger.get_balance(db_session, user.id))["total"]
+
+    assert 30 - after_first == int(TOKEN_COST[1])
+    assert after_first - after_edit == int(EDIT_COST[1])
+
+
+async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(
+    client, app, db_session, settings
+):
+    # "벌을 나비로 바꿔줘" — 구성 patch로 표현할 수 없는 요청. 상단 알림 1건으로 끝나야
+    # 하므로 잔액·이력·context_version이 요청 전과 완전히 같아야 한다.
+    class RejectingWorker(FakeWorker):
+        async def generate(self, payload):
+            if payload.get("conversation_context") is None:
+                return await super().generate(payload)
+            self.generate_payloads.append(payload)
+            return {"status": "scope_rejected"}
+
+    worker = RejectingWorker(app.state.sessionmaker)
+    app.state.worker = worker
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+    await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "꿀벌 패턴"},
+        headers=headers,
+    )
+    before = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
+    turns_before = (
+        await client.get(f"/design/sessions/{session_id}/turns", headers=headers)
+    ).json()
+    balance_before = await ledger.get_balance(db_session, user.id)
+
+    rejected = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "벌을 나비로 바꿔줘"},
+        headers=headers,
+    )
+
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json() == {"rejected": "motif"}
+    assert await ledger.get_balance(db_session, user.id) == balance_before
+    after = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
+    assert after["context_version"] == before["context_version"]
+    assert after["active_generation_id"] is None
+    assert after["current_intent"] == before["current_intent"]
+    turns_after = (await client.get(f"/design/sessions/{session_id}/turns", headers=headers)).json()
+    assert [turn["id"] for turn in turns_after] == [turn["id"] for turn in turns_before]
+
+    # 거절 뒤에도 같은 문맥으로 다시 보낼 수 있다(문맥 버전이 그대로다).
+    retried = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "바탕을 밝게"},
+        headers=headers,
+    )
+    assert retried.status_code == 200, retried.text
+
+
+async def test_activate_accepts_past_run_within_session_only(client, app, db_session, settings):
+    # 이력 썸네일 클릭 = 편집 포인터 이동 — 과거 런도 같은 세션이면 활성화할 수 있다.
     worker = FakeWorker(app.state.sessionmaker)
     app.state.worker = worker
     user = await make_user(db_session)
@@ -1925,31 +1819,47 @@ async def test_select_accepts_past_run_within_session_only(client, app, db_sessi
     )
     assert first.status_code == second.status_code == 200
 
-    selected = await client.post(
-        f"/design/sessions/{session_id}/select",
-        json={"run_id": first.json()["run_id"], "candidate_id": "cand-1"},
+    before = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
+    activated = await client.post(
+        f"/design/sessions/{session_id}/steps/activate",
+        json={"run_id": first.json()["run_id"]},
         headers=headers,
     )
-    assert selected.status_code == 200, selected.text
-    assert selected.json()["current_intent"] is not None
+    assert activated.status_code == 200, activated.text
+    assert activated.json()["current_intent"] is not None
+    assert activated.json()["context_version"] == before["context_version"] + 1
 
     turns = (await client.get(f"/design/sessions/{session_id}/turns", headers=headers)).json()
-    assert turns[-1]["payload"]["type"] == "select"
+    assert turns[-1]["payload"]["type"] == "activate"
     assert turns[-1]["payload"]["run_id"] == first.json()["run_id"]
 
-    # 다른 세션의 런은 커밋할 수 없다.
+    # 다른 세션의 런은 활성화할 수 없다.
     other_session = (await client.post("/design/sessions", headers=headers)).json()["id"]
     cross = await client.post(
-        f"/design/sessions/{other_session}/select",
-        json={"run_id": first.json()["run_id"], "candidate_id": "cand-1"},
+        f"/design/sessions/{other_session}/steps/activate",
+        json={"run_id": first.json()["run_id"]},
         headers=headers,
     )
     assert cross.status_code == 409
     assert cross.json()["code"] == "design_result_unavailable"
 
+    # 남의 세션은 소유자만 — 인가 경계는 mock 없이 실제 Postgres로 검증한다.
+    intruder = await make_user(db_session)
+    forbidden = await client.post(
+        f"/design/sessions/{session_id}/steps/activate",
+        json={"run_id": first.json()["run_id"]},
+        headers=auth_headers(intruder, settings),
+    )
+    assert forbidden.status_code == 403
+    anonymous = await client.post(
+        f"/design/sessions/{session_id}/steps/activate",
+        json={"run_id": first.json()["run_id"]},
+    )
+    assert anonymous.status_code == 401
 
-async def test_generation_without_run_log_skips_auto_select(client, app, db_session, settings):
-    # 워커 로그가 없으면(비정상 상태) 자동 커밋은 건너뛰고 생성 성공은 그대로 반환한다.
+
+async def test_generation_without_run_log_skips_auto_activate(client, app, db_session, settings):
+    # 워커 로그가 없으면(비정상 상태) 자동 활성화는 건너뛰고 생성 성공은 그대로 반환한다.
     worker = FakeWorker()
     app.state.worker = worker
     user = await make_user(db_session)
@@ -2315,7 +2225,7 @@ class FailOnceWorker(FakeWorker):
 class MalformedWorker(FakeWorker):
     async def generate(self, payload):
         response = await super().generate(payload)
-        del response["intents"]
+        del response["intent"]
         return response
 
 
@@ -2449,7 +2359,6 @@ async def test_generate_charges_tokens_with_session(client, app, db_session, set
         json={
             "session_id": design_session["id"],
             "prompt": "navy dots",
-            "candidate_count": 1,
         },
         headers=headers,
     )
@@ -2704,14 +2613,19 @@ async def test_generate_refund_pending_has_specific_error(client, app, db_sessio
     assert worker.generate_payloads == []
 
 
-# ---- 모티프 프록시 + recraft 예산 (P5) ----
+# ---- 모티프 문장 경로 + recraft 예산 (P5) ----
+
+_CATALOG_MOTIF_ID = "seed-bee-catalog"
 
 
 class MotifWorker(FakeWorker):
-    def __init__(self, *, reused=False, fail=False):
-        super().__init__()
+    """모티프 검색·생성 워커 스텁 — 문장 하나를 받아 카탈로그 id로 답한다."""
+
+    def __init__(self, *, sessionmaker=None, reused=False, fail=False, motif_id=_CATALOG_MOTIF_ID):
+        super().__init__(sessionmaker)
         self.reused = reused
         self.fail = fail
+        self.motif_id = motif_id
         self.motif_calls = []
 
     async def motif_candidates(self, payload):
@@ -2720,7 +2634,8 @@ class MotifWorker(FakeWorker):
             "request_id": "rid-worker",
             "registry_version": "0.1.0",
             "candidates": [
-                {"motif_id": "recraft-abc123def456", "similarity": 0.91, "scope": "whole"}
+                {"motif_id": self.motif_id, "similarity": 0.91, "scope": "whole"},
+                {"motif_id": "seed-missing", "similarity": 0.5},
             ],
         }
 
@@ -2730,10 +2645,27 @@ class MotifWorker(FakeWorker):
         self.motif_calls.append(("generate", payload))
         return {
             "request_id": "rid-worker",
-            "motif_id": "recraft-abc123def456",
+            "motif_id": self.motif_id,
             "reused": self.reused,
             "similarity": None if not self.reused else 1.0,
         }
+
+
+async def _seed_catalog_motif(db_session, motif_id=_CATALOG_MOTIF_ID, subject="꿀벌"):
+    motif = Motif(
+        id=motif_id,
+        symbol=(
+            f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
+            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+        ),
+        bbox=[-0.5, -0.5, 0.5, 0.5],
+        anchor=[0, 0],
+        source="catalog",
+        subject=subject,
+    )
+    db_session.add(motif)
+    await db_session.commit()
+    return motif
 
 
 async def test_seed_inputs_reject_outside_signed_int64_before_db_or_worker(
@@ -2755,16 +2687,7 @@ async def test_seed_inputs_reject_outside_signed_int64_before_db_or_worker(
         },
         headers=headers,
     )
-    motif = await client.post(
-        f"/design/sessions/{session_id}/motifs/generate",
-        json={
-            "spec": {"subject": "flower", "scope": "whole"},
-            "seed": SIGNED_INT64_MAX + 1,
-        },
-        headers=headers,
-    )
-
-    assert generate.status_code == motif.status_code == 422
+    assert generate.status_code == 422
     persisted = await db_session.get(DesignSession, uuid.UUID(session_id))
     assert persisted is not None
     await db_session.refresh(persisted)
@@ -2778,36 +2701,83 @@ async def _session_recraft_used(client, headers, sid):
     return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()["recraft_used"]
 
 
-async def test_motif_candidates_proxy_no_budget(client, app, db_session, settings):
-    app.state.worker = MotifWorker()
+async def _session_recraft_remaining(client, headers, sid):
+    return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()[
+        "recraft_remaining"
+    ]
+
+
+async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_session, settings):
+    """문장 하나 → 최대 4개 카드. Recraft 미호출이라 예산은 그대로다."""
+    worker = MotifWorker()
+    app.state.worker = worker
+    await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
-    sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
+    design_session = DesignSession(user_id=user.id)
+    design_session.current_intent = {
+        "canvas": {"tile_mm": 24},
+        "palette": {"slots": []},
+        "colorways": [],
+        "layers": [
+            {
+                "id": "m0",
+                "type": "motif",
+                "z_order": 0,
+                "params": {"motif_id": _CATALOG_MOTIF_ID},
+            }
+        ],
+    }
+    design_session.current_plan = {"motifs": [{"source": "generate", "style": "flat vector"}]}
+    db_session.add(design_session)
+    await db_session.commit()
+    sid = str(design_session.id)
 
     res = await client.post(
-        f"/design/sessions/{sid}/motifs/candidates",
-        json={"spec": {"subject": "flower", "scope": "whole"}},
+        f"/design/sessions/{sid}/motifs/search",
+        json={"query": "꿀벌 한 마리"},
         headers=headers,
     )
-    assert res.status_code == 200
-    assert res.json()["candidates"][0]["motif_id"] == "recraft-abc123def456"
-    assert await _session_recraft_used(client, headers, sid) == 0  # read-only — 예산 무관
+
+    assert res.status_code == 200, res.text
+    results = res.json()["results"]
+    # 카탈로그에 없는 후보는 카드가 될 수 없어 조용히 빠진다.
+    assert [item["motif_id"] for item in results] == [_CATALOG_MOTIF_ID]
+    assert results[0] == {
+        "motif_id": _CATALOG_MOTIF_ID,
+        "name": "꿀벌",
+        "preview_svg": results[0]["preview_svg"],
+        "current": True,
+    }
+    assert f'href="#motif-{_CATALOG_MOTIF_ID}"' in results[0]["preview_svg"]
+    assert worker.motif_calls[-1][1] == {
+        "query": "꿀벌 한 마리",
+        "top_k": 4,
+        "style_hint": "flat vector",
+    }
+    assert await _session_recraft_used(client, headers, sid) == 0
 
 
 async def test_motif_generate_budget_exhaustion(client, app, db_session, settings):
     """생성(reused=False) 3회 후 4회째 409 — 조건부 UPDATE 예산."""
     app.state.worker = MotifWorker(reused=False)
+    await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
-    body = {"spec": {"subject": "flower", "scope": "whole"}}
+    body = {"prompt": "꿀벌 한 마리"}
+
+    # 상한은 서버 설정이라 store가 계산할 수 없다 — 남은 횟수를 세션이 알려준다.
+    assert await _session_recraft_remaining(client, headers, sid) == 3
 
     for _ in range(3):
         res = await client.post(
             f"/design/sessions/{sid}/motifs/generate", json=body, headers=headers
         )
-        assert res.status_code == 200
+        assert res.status_code == 200, res.text
+        assert res.json()["motif"]["preview_svg"]
     assert await _session_recraft_used(client, headers, sid) == 3
+    assert await _session_recraft_remaining(client, headers, sid) == 0
 
     blocked = await client.post(
         f"/design/sessions/{sid}/motifs/generate", json=body, headers=headers
@@ -2819,19 +2789,21 @@ async def test_motif_generate_budget_exhaustion(client, app, db_session, setting
 async def test_motif_generate_reused_refunds_budget(client, app, db_session, settings):
     """래더 히트(reused=True)는 Recraft 미호출 — 예산 원복."""
     app.state.worker = MotifWorker(reused=True)
+    await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
 
     res = await client.post(
         f"/design/sessions/{sid}/motifs/generate",
-        json={"spec": {"subject": "flower", "scope": "whole"}},
+        json={"prompt": "꿀벌 한 마리"},
         headers=headers,
     )
     assert res.status_code == 200 and res.json()["reused"] is True
-    assert app.state.worker.motif_calls[-1][1]["motif_provenance"] == {
-        "user_id": str(user.id),
-        "session_id": sid,
+    assert res.json()["motif"]["motif_id"] == _CATALOG_MOTIF_ID
+    assert app.state.worker.motif_calls[-1][1] == {
+        "query": "꿀벌 한 마리",
+        "motif_provenance": {"user_id": str(user.id), "session_id": sid},
     }
     assert await _session_recraft_used(client, headers, sid) == 0
 
@@ -2844,11 +2816,100 @@ async def test_motif_generate_worker_failure_refunds_budget(client, app, db_sess
 
     res = await client.post(
         f"/design/sessions/{sid}/motifs/generate",
-        json={"spec": {"subject": "flower", "scope": "whole"}},
+        json={"prompt": "꿀벌 한 마리"},
         headers=headers,
     )
     assert res.status_code == 502
     assert await _session_recraft_used(client, headers, sid) == 0
+
+
+async def test_motif_activate_swaps_the_slot_for_free_and_appends_a_step(
+    client, app, db_session, settings
+):
+    """교체는 결정론 재렌더 — 토큰을 쓰지 않고 새 스텝만 남는다."""
+    worker = MotifWorker(sessionmaker=app.state.sessionmaker)
+    app.state.worker = worker
+    await _seed_catalog_motif(db_session)
+    user = await make_user(db_session)
+    await _fund(db_session, user, amount=30)
+    headers = auth_headers(user, settings)
+    design_session = DesignSession(user_id=user.id)
+    design_session.current_intent = {
+        "canvas": {"tile_mm": 24},
+        "palette": {"slots": []},
+        "colorways": [],
+        "layers": [{"id": "m0", "type": "motif", "z_order": 0, "params": {"motif_id": "seed-old"}}],
+    }
+    design_session.seed = 7
+    design_session.colorway = "default"
+    db_session.add(design_session)
+    await db_session.commit()
+    sid = str(design_session.id)
+    before = await ledger.get_balance(db_session, user.id)
+
+    res = await client.post(
+        f"/design/sessions/{sid}/motifs/activate",
+        json={"slot": 2, "motif_id": _CATALOG_MOTIF_ID},
+        headers=headers,
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["design"]["id"] == "design-1"
+    payload = worker.generate_payloads[-1]
+    assert payload["motif_slot"] == {"slot": 2, "motif_id": _CATALOG_MOTIF_ID}
+    assert payload["intent"] == design_session.current_intent
+    assert (payload["seed"], payload["colorway"]) == (7, "default")
+    assert "prompt" not in payload
+    # 무과금 — 잔액 불변
+    assert await ledger.get_balance(db_session, user.id) == before
+
+    turns = (await client.get(f"/design/sessions/{sid}/turns", headers=headers)).json()
+    assert [turn["payload"]["type"] for turn in turns] == [
+        "motif_activate",
+        "generate",
+        "activate",
+    ]
+    assert turns[0]["payload"] == {
+        "type": "motif_activate",
+        "run_id": res.json()["run_id"],
+        "slot": 2,
+        "motif_id": _CATALOG_MOTIF_ID,
+    }
+    assert turns[1]["payload"]["summary"] == "꿀벌 무늬로 바꿨습니다"
+    persisted = await db_session.get(DesignSession, design_session.id)
+    assert persisted is not None
+    await db_session.refresh(persisted)
+    assert persisted.active_generation_id is None
+
+
+async def test_motif_activate_rejects_unknown_motif_and_empty_session(
+    client, app, db_session, settings
+):
+    app.state.worker = MotifWorker()
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    empty = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    not_started = await client.post(
+        f"/design/sessions/{empty}/motifs/activate",
+        json={"slot": 1, "motif_id": _CATALOG_MOTIF_ID},
+        headers=headers,
+    )
+    assert not_started.status_code == 409
+    assert not_started.json()["code"] == "design_not_started"
+
+    design_session = DesignSession(user_id=user.id)
+    design_session.current_intent = {"canvas": {"tile_mm": 24}, "layers": []}
+    db_session.add(design_session)
+    await db_session.commit()
+    unknown = await client.post(
+        f"/design/sessions/{design_session.id}/motifs/activate",
+        json={"slot": 1, "motif_id": "seed-nope"},
+        headers=headers,
+    )
+    assert unknown.status_code == 404
+    assert unknown.json()["code"] == "invalid_motif"
+    assert app.state.worker.generate_payloads == []
 
 
 # ---- 워커 오류 status 구분 (요청 오류 422 vs 일시 장애 502 — 둘 다 환불) ----
@@ -2881,31 +2942,6 @@ async def test_generate_worker_rejection_returns_422_and_refunds(client, app, db
         "stage": "authoring",
         "detail": "디자인 구성을 만들지 못했습니다",
     }
-    assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
-
-
-async def test_generate_candidate_count_bounds_reject_before_charge(
-    client, app, db_session, settings
-):
-    worker = FakeWorker()
-    app.state.worker = worker
-    user = await make_user(db_session)
-    await _fund(db_session, user, amount=30)
-    headers = auth_headers(user, settings)
-    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
-
-    res = await client.post(
-        "/design/generate",
-        json={
-            "session_id": session_id,
-            "prompt": "navy dots",
-            "candidate_count": 5,
-        },
-        headers=headers,
-    )
-    assert res.status_code == 422
-    assert worker.generate_payloads == []  # 워커 미호출
-    # 검증이 과금보다 먼저 — 차감 자체가 없어 잔액 원형 유지
     assert await ledger.get_balance(db_session, user.id) == {"total": 30, "paid": 0, "bonus": 30}
 
 
