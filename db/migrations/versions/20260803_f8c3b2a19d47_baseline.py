@@ -1,10 +1,10 @@
 """baseline
 
-Revision ID: a3f1c05e7d24
+Revision ID: f8c3b2a19d47
 Revises:
 Create Date: 2026-08-03 00:00:00.000000
 
-개발 단계 스쿼시: dadd999bf858 + 6c4f2a9d1b7e + c93e4a7b2d10을 단일 baseline으로 합친 것.
+개발 단계 스쿼시: 기존 a3f1c05e7d24 baseline에 motif 승인 게이트를 합친 것.
 기존 DB는 이 리비전으로 이어붙일 수 없으니 재생성 후 재시드할 것.
 """
 
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "a3f1c05e7d24"
+revision: str = "f8c3b2a19d47"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -117,8 +117,10 @@ def upgrade() -> None:
         ),
         sa.Column("embedding_vertex", pgvector.sqlalchemy.Vector(dim=3072), nullable=True),
         sa.Column("source", sa.Text(), server_default="recraft", nullable=False),
-        sa.Column("quality", sa.REAL(), nullable=True),
         sa.Column("variant_group", sa.Text(), nullable=True),
+        sa.Column("status", sa.Text(), server_default="pending", nullable=False),
+        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("reviewed_by", sa.Uuid(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -127,6 +129,9 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "scope IS NULL OR scope IN ('whole', 'partial')", name=op.f("ck_motifs_scope")
+        ),
+        sa.CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected')", name=op.f("ck_motifs_status")
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_motifs")),
     )
@@ -504,6 +509,14 @@ def upgrade() -> None:
         "motifs",
         "users",
         ["ingested_user_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_foreign_key(
+        op.f("fk_motifs_reviewed_by_users"),
+        "motifs",
+        "users",
+        ["reviewed_by"],
         ["id"],
         ondelete="SET NULL",
     )
@@ -2198,6 +2211,11 @@ def downgrade() -> None:
     )
     op.drop_constraint(
         op.f("fk_motifs_ingested_user_id_users"),
+        "motifs",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        op.f("fk_motifs_reviewed_by_users"),
         "motifs",
         type_="foreignkey",
     )

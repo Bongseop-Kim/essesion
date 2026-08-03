@@ -63,11 +63,16 @@ class Motif(CreatedAtMixin, Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     source: Mapped[str] = mapped_column(server_default="recraft")
-    quality: Mapped[float | None] = mapped_column(REAL)
     variant_group: Mapped[str | None]
+    status: Mapped[str] = mapped_column(server_default="pending")
+    reviewed_at: Mapped[datetime | None]
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
 
     __table_args__ = (
         CheckConstraint("scope IS NULL OR scope IN ('whole', 'partial')", name="scope"),
+        CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="status"),
         Index(
             "ix_motifs_embedding_vertex_halfvec_hnsw",
             literal_column("(embedding_vertex::halfvec(3072))").label("embedding_vertex_halfvec"),

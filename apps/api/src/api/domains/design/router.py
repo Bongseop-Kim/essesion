@@ -716,7 +716,8 @@ async def import_user_motif(
             description=None,
             tags=[],
             source="user_upload",
-            quality=None,
+            # ponytail: 비공개(user_upload)라 게이트 무관 — pending 큐 오염 방지용 approved.
+            status="approved",
             variant_group=None,
         )
         .on_conflict_do_nothing(index_elements=["id"])

@@ -75,7 +75,13 @@ async def _seed(session, mid, **facets):
     embedding = facets.pop("embedding", None)
     vg = facets.pop("variant_group", None)
     await store.upsert_motif(
-        session, _motif(mid), facets=facets, embedding=embedding, source="seed", variant_group=vg
+        session,
+        _motif(mid),
+        facets=facets,
+        embedding=embedding,
+        source="seed",
+        status="approved",
+        variant_group=vg,
     )
     await session.commit()
 
@@ -168,8 +174,8 @@ async def test_miss_generates_when_scope_empty(db_session):
     assert recraft.calls == 1
 
 
-async def test_precommitted_upsert_survives_rollback_and_retry_skips_recraft(db_session):
-    """upsert 선커밋: 이후 요청 롤백에도 모티프가 남고 재시도는 무료 재사용."""
+async def test_precommitted_pending_upsert_survives_rollback_but_retry_regenerates(db_session):
+    """upsert 선커밋은 보존되지만 승인 전 재시도는 카탈로그 miss라 Recraft를 다시 쓴다."""
     upsert_sessionmaker = async_sessionmaker(db_session.bind, expire_on_commit=False)
     recraft = _FakeRecraft()
     result = await resolve_spec(
@@ -187,6 +193,7 @@ async def test_precommitted_upsert_survives_rollback_and_retry_skips_recraft(db_
     stored = await db_session.get(Motif, result.motif_id)
     assert stored is not None
     assert stored.source == "recraft"
+    assert stored.status == "pending"
 
     retry_recraft = _FakeRecraft()
     retry = await resolve_spec(
@@ -199,8 +206,8 @@ async def test_precommitted_upsert_survives_rollback_and_retry_skips_recraft(db_
         upsert_sessionmaker=upsert_sessionmaker,
     )
     assert retry.motif_id == result.motif_id
-    assert retry.reused is True
-    assert retry_recraft.calls == 0  # 선커밋된 모티프를 exact 매치로 재사용
+    assert retry.reused is False
+    assert retry_recraft.calls == 1
 
 
 async def test_resolve_spec_honors_motif_generation_budget(db_session):
@@ -688,7 +695,7 @@ async def test_registry_version_fingerprint_moves_with_pool(db_session):
 
 
 async def test_ingress_sanitizes_facets_before_store(db_session):
-    # C-10: 관리자 게이트 없는 recraft 유입의 유일 방어선 — 비가시/제어 문자는 저장 전 제거.
+    # C-10 1차 방어: 비가시/제어 문자는 pending 저장 전 제거되고 승인 전 공개되지 않는다.
     recraft = _FakeRecraft()
     result = await resolve_spec(
         db_session,
@@ -704,7 +711,10 @@ async def test_ingress_sanitizes_facets_before_store(db_session):
         seed=0,
     )
     assert result.reused is False
-    stored = {m.id: m for m in await store.find_catalog(db_session)}[result.motif_id]
+    stored = await db_session.get(Motif, result.motif_id)
+    assert stored is not None
     assert stored.subject == "dot"
     assert stored.description == "clean mark"
     assert stored.style == "flat"
+    assert stored.status == "pending"
+    assert all(row.id != result.motif_id for row in await store.find_catalog(db_session))

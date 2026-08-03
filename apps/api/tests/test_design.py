@@ -818,6 +818,8 @@ async def test_user_motif_library_is_idempotent_and_owner_scoped(client, app, db
     assert imported.json()["name"] == "원형"
     stored = await db_session.get(Motif, "upload-a1b2c3d4e5f6")
     assert stored is not None and stored.source == "user_upload"
+    # 비공개(user_upload)는 게이트 무관 — pending 검토 큐에 쌓이지 않게 approved로 저장한다.
+    assert stored.status == "approved"
     assert len((await client.get("/design/motifs", headers=owner_headers)).json()) == 1
     assert (await client.get("/design/motifs", headers=auth_headers(other, settings))).json() == []
     denied = await client.delete(

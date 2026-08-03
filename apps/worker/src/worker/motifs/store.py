@@ -30,6 +30,7 @@ VARIANT_GROUP_VERSION = 2
 VARIANT_GROUP_LEN = 16
 
 USER_UPLOAD_SOURCE = "user_upload"
+APPROVED_STATUS = "approved"
 
 
 def normalize_facet(value: str | None) -> str:
@@ -125,6 +126,7 @@ async def upsert_motif(
     facets: dict,
     embedding: list[float] | None = None,
     source: str = "recraft",
+    status: str = "pending",
     variant_group: str | None = None,
     ingested_user_id: uuid.UUID | None = None,
     ingested_session_id: uuid.UUID | None = None,
@@ -132,11 +134,16 @@ async def upsert_motif(
     """정규화 모티프를 content-hash id로 멱등 저장한다(id는 호출자가 이미 갖고 있다).
 
     scope는 정규화해 저장(하드 필터가 정규 형태로 비교). commit은 호출자(라우트/시드) 소관.
-    기존 geometry/facet/provenance는 절대 덮지 않는다.
+    Recraft 기본 상태는 pending이고 신뢰된 시드만 approved를 명시한다. 기존
+    geometry/facet/provenance/status는 절대 덮지 않는다.
     """
     scope = normalize_facet(facets.get("scope")) or None
     if embedding is not None and len(embedding) != EMBEDDING_DIM:
         raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(embedding)}")
+    # 승인 전 행에 embedding을 남기면 승인 후 인덱서(missing_embedding_documents)가 건너뛰어
+    # RETRIEVAL_DOCUMENT 임베딩을 영영 못 받는다 — embedding은 approved 행만 가진다.
+    if status != APPROVED_STATUS:
+        embedding = None
     values = {
         "id": normalized.id,
         "symbol": normalized.symbol,
@@ -152,6 +159,7 @@ async def upsert_motif(
         "description": facets.get("description"),
         "tags": list(facets.get("tags") or []),
         "source": source,
+        "status": status,
         "variant_group": variant_group,
         "embedding_vertex": embedding,
     }
@@ -193,7 +201,10 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
                 Motif.tags,
                 Motif.source,
             )
-            .where(Motif.source != USER_UPLOAD_SOURCE)
+            .where(
+                Motif.source != USER_UPLOAD_SOURCE,
+                Motif.status == APPROVED_STATUS,
+            )
             .order_by(Motif.id)
         )
     ).all()
@@ -229,6 +240,7 @@ async def nearest_by_embedding(
             .where(
                 column.is_not(None),
                 Motif.source != USER_UPLOAD_SOURCE,
+                Motif.status == APPROVED_STATUS,
             )
             .order_by(distance.asc(), Motif.id.asc())
             .limit(top_k)
@@ -252,7 +264,11 @@ async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbedd
                 Motif.expression,
                 Motif.tags,
             )
-            .where(Motif.source != USER_UPLOAD_SOURCE, Motif.embedding_vertex.is_(None))
+            .where(
+                Motif.source != USER_UPLOAD_SOURCE,
+                Motif.status == APPROVED_STATUS,
+                Motif.embedding_vertex.is_(None),
+            )
             .order_by(Motif.id)
         )
     ).all()
@@ -279,6 +295,7 @@ async def update_embedding_if_missing(
         .where(
             Motif.id == motif_id,
             Motif.source != USER_UPLOAD_SOURCE,
+            Motif.status == APPROVED_STATUS,
             Motif.embedding_vertex.is_(None),
         )
         .values(embedding_vertex=embedding)
@@ -293,7 +310,10 @@ async def public_embedding_counts(session: AsyncSession) -> tuple[int, int]:
             select(
                 func.count().filter(Motif.embedding_vertex.is_not(None)),
                 func.count(),
-            ).where(Motif.source != USER_UPLOAD_SOURCE)
+            ).where(
+                Motif.source != USER_UPLOAD_SOURCE,
+                Motif.status == APPROVED_STATUS,
+            )
         )
     ).one()
     return int(embedded), int(total)
@@ -307,6 +327,7 @@ async def find_variant_pool(session: AsyncSession, variant_group: str) -> list[P
             .where(
                 Motif.variant_group == variant_group,
                 Motif.source != USER_UPLOAD_SOURCE,
+                Motif.status == APPROVED_STATUS,
             )
             .order_by(Motif.id)
         )
@@ -317,12 +338,17 @@ async def find_variant_pool(session: AsyncSession, variant_group: str) -> list[P
     ]
 
 
-async def all_motif_ids(session: AsyncSession) -> list[str]:
-    """전체 모티프 id, ORDER BY id — fingerprint용 경량 스캔."""
+async def approved_motif_ids(session: AsyncSession) -> list[str]:
+    """승인된 공개 모티프 id, ORDER BY id — fingerprint용 경량 스캔."""
     return list(
         (
             await session.scalars(
-                select(Motif.id).where(Motif.source != USER_UPLOAD_SOURCE).order_by(Motif.id)
+                select(Motif.id)
+                .where(
+                    Motif.source != USER_UPLOAD_SOURCE,
+                    Motif.status == APPROVED_STATUS,
+                )
+                .order_by(Motif.id)
             )
         ).all()
     )

@@ -88,6 +88,7 @@ def _motif(motif_id: str, color: str = "#213547") -> Motif:
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0.0, 0.0],
         subject="preview motif",
+        status="approved",
     )
 
 

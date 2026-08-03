@@ -24,7 +24,11 @@ async def _seed_dot(session) -> str:
 async def _seed(session, svg: str, subject: str) -> str:
     motif = normalize_motif_svg(svg, render_check=False)
     await store.upsert_motif(
-        session, motif, facets={"subject": subject, "scope": "whole"}, source="seed"
+        session,
+        motif,
+        facets={"subject": subject, "scope": "whole"},
+        source="seed",
+        status="approved",
     )
     await session.commit()
     return motif.id

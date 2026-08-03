@@ -9331,16 +9331,17 @@
             "title": "Id",
             "type": "string"
           },
-          "quality": {
+          "reviewed_at": {
             "anyOf": [
               {
-                "type": "number"
+                "format": "date-time",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Quality"
+            "title": "Reviewed At"
           },
           "scope": {
             "anyOf": [
@@ -9355,6 +9356,15 @@
           },
           "source": {
             "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "title": "Status",
             "type": "string"
           },
           "style": {
@@ -9437,8 +9447,9 @@
           "expression",
           "style",
           "source",
-          "quality",
           "variant_group",
+          "status",
+          "reviewed_at",
           "created_at",
           "bbox",
           "symbol",
@@ -9702,6 +9713,23 @@
         "title": "MotifResultOut",
         "type": "object"
       },
+      "MotifReviewRequest": {
+        "properties": {
+          "status": {
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "MotifReviewRequest",
+        "type": "object"
+      },
       "MotifSearchOut": {
         "properties": {
           "results": {
@@ -9763,16 +9791,17 @@
             "title": "Id",
             "type": "string"
           },
-          "quality": {
+          "reviewed_at": {
             "anyOf": [
               {
-                "type": "number"
+                "format": "date-time",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Quality"
+            "title": "Reviewed At"
           },
           "scope": {
             "anyOf": [
@@ -9787,6 +9816,15 @@
           },
           "source": {
             "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "approved",
+              "rejected"
+            ],
+            "title": "Status",
             "type": "string"
           },
           "style": {
@@ -9862,8 +9900,9 @@
           "expression",
           "style",
           "source",
-          "quality",
           "variant_group",
+          "status",
+          "reviewed_at",
           "created_at",
           "bbox",
           "symbol",
@@ -19147,6 +19186,22 @@
         "parameters": [
           {
             "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "pending",
+              "enum": [
+                "all",
+                "pending",
+                "approved",
+                "rejected"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "scope",
             "required": false,
             "schema": {
@@ -19333,6 +19388,63 @@
           }
         ],
         "summary": "Get Admin Motif",
+        "tags": [
+          "admin-generation"
+        ]
+      }
+    },
+    "/admin/motifs/{motif_id}/review": {
+      "post": {
+        "operationId": "review_admin_motif",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "motif_id",
+            "required": true,
+            "schema": {
+              "title": "Motif Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotifReviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review Admin Motif",
         "tags": [
           "admin-generation"
         ]
