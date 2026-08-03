@@ -15,14 +15,26 @@ import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
 import { DateRangeFilters } from "../../shared/ui/date-range-filters";
 import { FilterSelect } from "../../shared/ui/filter-select";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { StatusBadge } from "../../shared/ui/status-badge";
 import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 import { motifPreviewDocument } from "./detail";
 
 const SCOPES = ["whole", "partial"] as const;
+const DEFAULT_STATUS = "pending";
+const MOTIF_STATUS_LABELS = {
+  pending: "검토 대기",
+  approved: "승인",
+  rejected: "거절",
+  all: "전체",
+} as const;
+const MOTIF_STATUSES = Object.keys(
+  MOTIF_STATUS_LABELS,
+) as readonly MotifStatus[];
 
 type MotifScope = (typeof SCOPES)[number];
+type MotifStatus = keyof typeof MOTIF_STATUS_LABELS;
 
 function isScope(value: string | undefined): value is MotifScope {
   return value !== undefined && SCOPES.includes(value as MotifScope);
@@ -84,12 +96,9 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
     render: (motif) => motif.source,
   },
   {
-    key: "quality",
-    header: "품질",
-    align: "end",
-    visibility: "medium",
-    render: (motif) =>
-      motif.quality === null ? "-" : motif.quality.toFixed(3),
+    key: "status",
+    header: "검토 상태",
+    render: (motif) => <StatusBadge status={motif.status} />,
   },
   {
     key: "created_at",
@@ -103,9 +112,12 @@ export function MotifsPage() {
   const navigate = useNavigate();
   const { query: parsed, replaceQuery } = useAdminListUrlState({
     allowedTypes: SCOPES,
+    allowedStatuses: MOTIF_STATUSES,
   });
   const scope = isScope(parsed.type) ? parsed.type : undefined;
+  const status = (parsed.status ?? DEFAULT_STATUS) as MotifStatus;
   const [draftScope, setDraftScope] = useState<MotifScope | undefined>(scope);
+  const [draftStatus, setDraftStatus] = useState<MotifStatus>(status);
   const [search, setSearch] = useState<string>();
   const [searchResetKey, setSearchResetKey] = useState(0);
   const [draftFrom, setDraftFrom] = useState(parsed.from);
@@ -113,6 +125,7 @@ export function MotifsPage() {
   const query = useQuery({
     ...listAdminMotifsOptions({
       query: {
+        status,
         scope,
         q: search,
         start_date: parsed.from,
@@ -140,7 +153,7 @@ export function MotifsPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="Motif SVG"
-        description="등록된 Motif 메타데이터와 서버 안전성 검사를 통과한 SVG를 읽기 전용으로 조회합니다."
+        description="Recraft Motif의 공개 카탈로그 반영 여부를 검토하고 안전한 SVG와 메타데이터를 확인합니다."
       />
 
       <PaginatedAdminTableCard
@@ -184,6 +197,18 @@ export function MotifsPage() {
               secondaryFilters={
                 <VStack gap="x4" alignItems="stretch">
                   <FilterSelect
+                    label="검토 상태"
+                    presentation="inline"
+                    value={draftStatus}
+                    options={MOTIF_STATUSES.map((value) => ({
+                      value,
+                      label: MOTIF_STATUS_LABELS[value],
+                    }))}
+                    onValueChange={(value) =>
+                      setDraftStatus(value as MotifStatus)
+                    }
+                  />
+                  <FilterSelect
                     label="범위"
                     presentation="inline"
                     value={draftScope ?? "all"}
@@ -208,19 +233,23 @@ export function MotifsPage() {
                 </VStack>
               }
               secondaryFilterCount={
+                Number(parsed.status !== undefined) +
                 Number(scope !== undefined) +
                 Number(parsed.from !== undefined) +
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="Motif 필터"
-              secondaryDescription="Motif 범위와 생성일을 한 번에 적용합니다."
+              secondaryDescription="검토 상태와 Motif 범위, 생성일을 한 번에 적용합니다."
               onOpenSecondaryFilters={() => {
+                setDraftStatus(status);
                 setDraftScope(scope);
                 setDraftFrom(parsed.from);
                 setDraftTo(parsed.to);
               }}
               onApplySecondaryFilters={() => {
                 replaceQuery({
+                  status:
+                    draftStatus === DEFAULT_STATUS ? undefined : draftStatus,
                   type: draftScope,
                   from: draftFrom,
                   to: draftTo,
@@ -228,6 +257,7 @@ export function MotifsPage() {
                 });
               }}
               onCancelSecondaryFilters={() => {
+                setDraftStatus(status);
                 setDraftScope(scope);
                 setDraftFrom(parsed.from);
                 setDraftTo(parsed.to);
@@ -248,6 +278,11 @@ export function MotifsPage() {
                   key: "scope",
                   label: `범위: ${scope === "whole" ? "전체 모티프" : "부분 모티프"}`,
                   onRemove: () => replaceQuery({ type: undefined, page: 1 }),
+                },
+                parsed.status !== undefined && {
+                  key: "status",
+                  label: `검토 상태: ${MOTIF_STATUS_LABELS[status]}`,
+                  onRemove: () => replaceQuery({ status: undefined, page: 1 }),
                 },
                 parsed.from !== undefined && {
                   key: "from",

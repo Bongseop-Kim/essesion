@@ -1,6 +1,6 @@
 # 기존 → 새 스키마 매핑 표
 
-기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (단일 베이스라인 `a3f1c05e7d24` = 현재 head).
+기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (단일 베이스라인 `f8c3b2a19d47` = 현재 head).
 
 ## 1. 테이블 매핑
 

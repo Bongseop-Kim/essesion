@@ -5081,9 +5081,9 @@ export type MotifDetailOut = {
      */
     id: string;
     /**
-     * Quality
+     * Reviewed At
      */
-    quality: number | null;
+    reviewed_at: string | null;
     /**
      * Scope
      */
@@ -5092,6 +5092,10 @@ export type MotifDetailOut = {
      * Source
      */
     source: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'approved' | 'rejected';
     /**
      * Style
      */
@@ -5248,6 +5252,16 @@ export type MotifResultOut = {
 };
 
 /**
+ * MotifReviewRequest
+ */
+export type MotifReviewRequest = {
+    /**
+     * Status
+     */
+    status: 'approved' | 'rejected';
+};
+
+/**
  * MotifSearchOut
  */
 export type MotifSearchOut = {
@@ -5288,9 +5302,9 @@ export type MotifSummaryOut = {
      */
     id: string;
     /**
-     * Quality
+     * Reviewed At
      */
-    quality: number | null;
+    reviewed_at: string | null;
     /**
      * Scope
      */
@@ -5299,6 +5313,10 @@ export type MotifSummaryOut = {
      * Source
      */
     source: string;
+    /**
+     * Status
+     */
+    status: 'pending' | 'approved' | 'rejected';
     /**
      * Style
      */
@@ -10206,6 +10224,10 @@ export type ListAdminMotifsData = {
     path?: never;
     query?: {
         /**
+         * Status
+         */
+        status?: 'all' | 'pending' | 'approved' | 'rejected';
+        /**
          * Scope
          */
         scope?: 'whole' | 'partial' | null;
@@ -10284,6 +10306,36 @@ export type GetAdminMotifResponses = {
 };
 
 export type GetAdminMotifResponse = GetAdminMotifResponses[keyof GetAdminMotifResponses];
+
+export type ReviewAdminMotifData = {
+    body: MotifReviewRequest;
+    path: {
+        /**
+         * Motif Id
+         */
+        motif_id: string;
+    };
+    query?: never;
+    url: '/admin/motifs/{motif_id}/review';
+};
+
+export type ReviewAdminMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ReviewAdminMotifError = ReviewAdminMotifErrors[keyof ReviewAdminMotifErrors];
+
+export type ReviewAdminMotifResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifDetailOut;
+};
+
+export type ReviewAdminMotifResponse = ReviewAdminMotifResponses[keyof ReviewAdminMotifResponses];
 
 export type ListAllOrdersData = {
     body?: never;

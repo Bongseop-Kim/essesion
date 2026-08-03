@@ -12,7 +12,7 @@
 
 ## 2. 스키마 재설계
 
-- [ ] Alembic 스테이징 적용 — *첫 배포의 migrate Cloud Run job 성공과 단일 head(`a3f1c05e7d24`) 확인. 미배포 단계라 리비전 체인을 스쿼시했으므로 빈 DB에서만 적용되며, 적용 뒤 필수 시드를 실행한다.*
+- [ ] Alembic 스테이징 적용 — *첫 배포의 migrate Cloud Run job 성공과 단일 head(`f8c3b2a19d47`) 확인. 미배포 단계라 리비전 체인을 스쿼시했으므로 빈 DB에서만 적용되며, 적용 뒤 필수 시드를 실행한다.*
 - [ ] 로컬·스테이징 DB 재생성 — *베이스라인이 새 revision id로 스쿼시되어 기존 DB는 이어붙일 수 없다. `docker compose down -v && docker compose up -d` 후 head까지 마이그레이션하고 계정·설정, 고정 색상 모티프 카탈로그, 첫 진입 갤러리 예시, 저작 예시와 임베딩 인덱스를 다시 시드한다.*
 - [ ] `admin_settings.design_edit_cost` 행 확인 — *구성 수정 단가(신규 필수 키). 없으면 `/admin/settings`가 503, 구성 수정이 `token_cost_not_configured`. `apps/api/scripts/seed.py`가 기본 2로 시드한다.*
 
@@ -27,7 +27,8 @@
 ## 6. 리허설 (스테이징)
 
 - [ ] 빈 스테이징 DB를 현재 Alembic head까지 적용 → 관리자·고정 색상 motif 초기 입력과 `seed_authoring_examples.py --confirm-live` 실행, motif/example `embedded=total` 및 admin 표본의 SVG 색상 보존 결과 검증
-- [ ] 모티프 모달의 Recraft V4.1 vector 스테이징 스모크 → 한국어 원문 subject, 선택적 style hint, `random_seed` 수용과 gradient·텍스트·복잡도 게이트 거부율 기록. V4.1에서 지원하지 않는 `negative_prompt`·`controls.no_text`가 전송되지 않는지 함께 확인한다(V2/V3 호환 경로만 조건부 전송). 생성 SVG의 원본 색상이 저장·검색·디자인 배치까지 유지되는지, 디자인 생성의 catalog miss에서는 Recraft 호출·예산 변화가 없는지도 확인
+- [ ] 모티프 모달의 Recraft V4.1 vector 스테이징 스모크 → 한국어 원문 subject와 `random_seed` 수용, 별도 style/design context 미주입, gradient·텍스트·복잡도 게이트 거부율 기록. V4.1에서 지원하지 않는 `negative_prompt`·`controls.no_text`가 전송되지 않는지 함께 확인한다(V2/V3 호환 경로만 조건부 전송). 생성 SVG의 원본 색상이 저장·검색·디자인 배치까지 유지되는지, 디자인 생성의 catalog miss에서는 Recraft 호출·예산 변화가 없는지도 확인
+- [ ] Recraft 모티프 승인 게이트 스테이징 리허설 → 신규 행이 `pending`이고 요청 세션의 ID 직접 렌더는 유지되는지, 다른 사용자 검색·grounding·variant 풀과 registry fingerprint에서는 빠지는지 확인. admin 승인 시 즉시 노출·fingerprint 변경, 거절/승인 회수 시 즉시 제외, manager mutation 403을 함께 검증
 - [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(첫 생성 → 구성 수정 → 모티프 검색·명시적 생성·교체 → 이력 되돌리기 → finalize 큐 → 결과 수신)
 - [ ] 디자인 첫 진입 예시 큐레이션 — *기본 6종은 `apps/worker/scripts/seed_design_examples.py`(외부 API 없이 gallery-v1 플랜을 결정론 컴파일)가 게시 상태로 시드한다. 그 위에 실제 run을 `/admin/design-examples`에서 run ID로 등록·게시해 큐레이션을 보강한다. 게시 예시가 0건이면 store `/design` 첫 진입이 기존 빈 상태 문구로 폴백한다(비로그인 포함).*
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정

@@ -1,4 +1,4 @@
-"""재사용 모티프 풀에서 registry_version 파생 (worker-motifs.md §8).
+"""승인된 재사용 모티프 풀에서 registry_version 파생 (worker-motifs.md §8).
 
 "(prompt, seed, registry_version) → 같은 결과" 봉인은 풀이 바뀌면 버전도 움직일 때만
 성립한다. 풀은 가변 DB 상태이므로 정적 상수로는 추적 불가 — 요청 시점에 정렬된 모티프
@@ -21,7 +21,7 @@ async def registry_version_for(session: AsyncSession) -> str:
     비지 않으면 f"{REGISTRY_VERSION}+pool.{hex8}", hex8 = sha256("\\n".join(sorted ids))[:8].
     풀 내용의 순수 함수(시간·난수·저장 순서 무관 — id를 재정렬).
     """
-    pool_ids = sorted(await store.all_motif_ids(session))
+    pool_ids = sorted(await store.approved_motif_ids(session))
     if not pool_ids:
         return REGISTRY_VERSION
     hex8 = format(stable_hash("\n".join(pool_ids)), "064x")[:8]

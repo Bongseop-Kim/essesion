@@ -1,5 +1,5 @@
 import type { MotifDetailOut, PageMotifSummaryOut } from "@essesion/api-client";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,9 +9,11 @@ import { renderAdminPage } from "../../test/render-admin-page";
 const api = vi.hoisted(() => ({
   list: vi.fn(),
   detail: vi.fn(),
+  review: vi.fn(),
   listOptions: vi.fn(),
   detailOptions: vi.fn(),
 }));
+const auth = vi.hoisted(() => ({ role: "admin" as "admin" | "manager" }));
 
 vi.mock("@essesion/api-client/query", () => ({
   listAdminMotifsOptions: (options: unknown) => {
@@ -28,6 +30,21 @@ vi.mock("@essesion/api-client/query", () => ({
       queryFn: api.detail,
     };
   },
+  getAdminMotifQueryKey: (options: unknown) => [
+    "motif-detail",
+    JSON.stringify(options),
+  ],
+  listAdminMotifsQueryKey: () => ["motifs"],
+  reviewAdminMotifMutation: () => ({ mutationFn: api.review }),
+}));
+
+vi.mock("../../shared/session/admin-session", () => ({
+  useAdminSession: () => ({
+    state: {
+      status: "authenticated",
+      session: { userId: "admin-1", displayName: "운영자", role: auth.role },
+    },
+  }),
 }));
 
 import { MotifDetailPage, motifPreviewDocument } from "./detail";
@@ -43,8 +60,9 @@ const page: PageMotifSummaryOut = {
       expression: "flat",
       style: "line",
       source: "registry",
-      quality: 0.95,
       variant_group: "flowers",
+      status: "pending",
+      reviewed_at: null,
       created_at: "2026-07-12T01:00:00Z",
       bbox: [0, 0, 24, 24],
       symbol:
@@ -82,6 +100,11 @@ describe("MotifsPage", () => {
     });
     api.list.mockResolvedValue(page);
     api.detail.mockResolvedValue(detail);
+    api.review.mockResolvedValue({
+      ...detail,
+      status: "approved",
+      reviewed_at: "2026-08-03T08:00:00Z",
+    });
   });
 
   it("scope 필터와 페이지를 생성 클라이언트에 전달한다", async () => {
@@ -92,6 +115,7 @@ describe("MotifsPage", () => {
     ).toBeTruthy();
     expect(api.listOptions).toHaveBeenCalledWith({
       query: {
+        status: "pending",
         scope: "whole",
         q: undefined,
         start_date: undefined,
@@ -208,6 +232,22 @@ describe("MotifsPage", () => {
       }),
     );
   });
+
+  it("검토 대기를 기본 조회하고 상태 필터를 적용한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("table", { name: "Motif 목록" });
+
+    await user.click(screen.getByRole("button", { name: "필터" }));
+    await user.click(screen.getByRole("radio", { name: "승인" }));
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+
+    await waitFor(() =>
+      expect(api.listOptions).toHaveBeenLastCalledWith({
+        query: expect.objectContaining({ status: "approved", offset: 0 }),
+      }),
+    );
+  });
 });
 
 describe("MotifDetailPage", () => {
@@ -220,6 +260,11 @@ describe("MotifDetailPage", () => {
       revokeObjectURL: { configurable: true, value: revokeObjectURL },
     });
     api.detail.mockResolvedValue(detail);
+    api.review.mockResolvedValue({
+      ...detail,
+      status: "approved",
+      reviewed_at: "2026-08-03T08:00:00Z",
+    });
   });
 
   it("safe symbol을 Blob 이미지로 표현한다", async () => {
@@ -262,12 +307,37 @@ describe("MotifDetailPage", () => {
       "표현",
       "스타일",
       "소스",
+      "검토 상태",
+      "검토 시각",
       "품질",
       "변형 그룹",
       "생성일",
       "bbox",
       "anchor",
     ]);
+  });
+
+  it("승인 확인 후 생성 클라이언트로 검토 상태를 변경한다", async () => {
+    const user = userEvent.setup();
+    renderAdminPage(
+      <Routes>
+        <Route path="/motifs/:motifId" element={<MotifDetailPage />} />
+      </Routes>,
+      { entry: "/motifs/motif-1" },
+    );
+    await screen.findByText("정면 동백꽃 모티프");
+
+    await user.click(screen.getByRole("button", { name: "승인" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "승인" }));
+
+    await waitFor(() =>
+      expect(api.review.mock.calls[0]?.[0]).toEqual({
+        path: { motif_id: "motif-1" },
+        body: { status: "approved" },
+      }),
+    );
+    expect(screen.getAllByText("승인").length).toBeGreaterThan(0);
   });
 
   it("symbol fragment를 innerHTML 없이 독립 SVG 문서로 감싼다", () => {

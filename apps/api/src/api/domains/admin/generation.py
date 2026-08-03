@@ -22,10 +22,10 @@ from sqlalchemy import ColumnElement, func, or_, select
 from svg_safety import SanitizeError, sanitize_svg
 
 from api.db import SessionDep
-from api.deps import AdminUser, SettingsDep
+from api.deps import AdminOnly, AdminUser, SettingsDep
 from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.schemas import Page
-from api.errors import DomainError, NotFoundError
+from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.gcs import public_asset_url
 
 router = APIRouter(prefix="/admin", tags=["admin-generation"])
@@ -34,6 +34,8 @@ JobKind = Literal["finalize", "export"]
 JobStatus = Literal["queued", "processing", "succeeded", "failed", "canceled"]
 SeamlessStatus = Literal["success", "partial", "error"]
 SvgStatus = Literal["safe", "unavailable", "unsafe"]
+MotifStatus = Literal["pending", "approved", "rejected"]
+MotifStatusFilter = Literal["all", "pending", "approved", "rejected"]
 # 워커의 `_logged_generation`이 기록하는 4종 (worker/api/routes.py)
 GenerationMode = Literal["prompt", "patch", "variation", "motif_slot"]
 GENERATION_MODES = frozenset(get_args(GenerationMode))
@@ -268,8 +270,9 @@ class MotifSummaryOut(BaseModel):
     expression: str | None
     style: str | None
     source: str
-    quality: float | None
     variant_group: str | None
+    status: MotifStatus
+    reviewed_at: datetime | None
     created_at: datetime
     bbox: list[float]
     symbol: str | None
@@ -280,6 +283,10 @@ class MotifDetailOut(MotifSummaryOut):
     description: str | None
     tags: list[str]
     anchor: list[float]
+
+
+class MotifReviewRequest(BaseModel):
+    status: Literal["approved", "rejected"]
 
 
 def _validate_range(start: datetime | None, end: datetime | None) -> None:
@@ -1048,8 +1055,9 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
         expression=_safe_metadata(row.expression),
         style=_safe_metadata(row.style),
         source=_safe_token(row.source) or "unknown",
-        quality=row.quality,
         variant_group=_safe_token(row.variant_group),
+        status=cast("MotifStatus", row.status),
+        reviewed_at=row.reviewed_at,
         created_at=row.created_at,
         bbox=_number_list(row.bbox, size=4),
         symbol=symbol,
@@ -1061,6 +1069,7 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
 async def list_admin_motifs(
     session: SessionDep,
     admin: AdminUser,
+    status: MotifStatusFilter = "pending",
     scope: Literal["whole", "partial"] | None = None,
     source: Annotated[str | None, Query(max_length=50)] = None,
     q: Annotated[str | None, Query(min_length=2, max_length=100)] = None,
@@ -1070,6 +1079,8 @@ async def list_admin_motifs(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Page[MotifSummaryOut]:
     filters: list[ColumnElement[bool]] = []
+    if status != "all":
+        filters.append(Motif.status == status)
     start_at, end_at = kst_day_bounds(start_date, end_date)
     if start_at is not None:
         filters.append(Motif.created_at >= start_at)
@@ -1112,6 +1123,10 @@ async def get_admin_motif(motif_id: str, session: SessionDep, admin: AdminUser) 
     row = await session.get(Motif, motif_id)
     if row is None:
         raise NotFoundError("Motif를 찾을 수 없습니다")
+    return _motif_detail(row)
+
+
+def _motif_detail(row: Motif) -> MotifDetailOut:
     summary = _motif_summary(row)
     return MotifDetailOut(
         **summary.model_dump(),
@@ -1119,3 +1134,30 @@ async def get_admin_motif(motif_id: str, session: SessionDep, admin: AdminUser) 
         tags=[safe for tag in row.tags if (safe := _safe_metadata(tag, limit=80))],
         anchor=_number_list(row.anchor, size=2),
     )
+
+
+@router.post("/motifs/{motif_id}/review", response_model=MotifDetailOut)
+async def review_admin_motif(
+    motif_id: str,
+    body: MotifReviewRequest,
+    session: SessionDep,
+    admin: AdminOnly,
+) -> MotifDetailOut:
+    row = await session.scalar(select(Motif).where(Motif.id == motif_id).with_for_update())
+    if row is None:
+        raise NotFoundError("Motif를 찾을 수 없습니다")
+    if row.source == "user_upload":
+        raise ConflictError(
+            "사용자 업로드 Motif는 검토 대상이 아닙니다",
+            code="invalid_motif_transition",
+        )
+    if row.status == body.status:
+        raise ConflictError(
+            "Motif가 이미 같은 검토 상태입니다",
+            code="invalid_motif_transition",
+        )
+    row.status = body.status
+    row.reviewed_at = datetime.now(UTC)
+    row.reviewed_by = admin.id
+    await session.commit()
+    return _motif_detail(row)

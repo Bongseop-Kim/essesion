@@ -36,9 +36,10 @@ _SCREENED_FACETS = ("subject", "description", "style", "view", "expression")
 
 
 def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
-    """관리자 게이트 없는 recraft 카탈로그 유입의 유일 자동 방어선 (C-10).
+    """Recraft pending 유입의 1차 자동 방어선 (C-10).
 
-    비가시·제어 문자를 제거하고 명령형 인젝션 패턴은 유입 전에 거부한다.
+    비가시·제어 문자를 제거하고 명령형 인젝션 패턴은 저장 전에 거부한다. 통과한 행도
+    관리자 승인 전에는 공개 카탈로그에 들어가지 않는다.
     """
     screened = dict(spec)
     for key in _SCREENED_FACETS:
@@ -420,7 +421,8 @@ async def resolve_spec(
     """단일 spec 해석 래더. 래더 히트면 reused=True(Recraft 스킵), miss면 generate 후 upsert.
 
     upsert_sessionmaker가 있으면 upsert를 전용 세션에서 즉시 커밋한다 — 이후 요청이
-    실패해도 과금된 Recraft 결과물이 카탈로그 자산으로 남아 재시도가 무료 재사용된다.
+    실패해도 현재 생성 세션이 직접 참조할 pending 결과는 남는다. 승인 전 재요청은 공개
+    카탈로그 miss이므로 Recraft를 다시 호출할 수 있다.
     """
     tau = settings.motif_similarity_tau
     authored_spec = _screen_facets(
@@ -473,7 +475,7 @@ async def resolve_spec(
     if upsert_sessionmaker is None:
         await store.upsert_motif(session, normalized, **kwargs)
     else:
-        # 전용 세션 = 독립 트랜잭션 — 이후 요청이 실패해도 과금된 결과물이 카탈로그에 남는다.
+        # 전용 세션 = 독립 트랜잭션 — 이후 요청이 실패해도 pending 결과와 직접 참조가 남는다.
         async with upsert_sessionmaker() as upsert_session:
             await store.upsert_motif(upsert_session, normalized, **kwargs)
             await upsert_session.commit()

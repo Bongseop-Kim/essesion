@@ -3,7 +3,7 @@
 인라인 5개(flower/whole ×3, leaf/whole ×2, style=flat)로 variant pool ≥ 2를 시연하고,
 `motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 글리프 —
 동물·마린·하늘·문장·과일·취미·식물, subject = 파일명 첫 토큰, style=outline)를
-기본 모티프로 얹는다. 전부 source="seed"이며 SVG의 concrete 색을 그대로 보존한다.
+기본 모티프로 얹는다. 전부 source="seed", status="approved"이며 SVG의 concrete 색을 그대로 보존한다.
 멱등 — content-hash id + ON CONFLICT DO NOTHING이라 여러 번 실행해도 안전.
 render_check는 끈다(librsvg 없는 환경에서도 결정론적으로 시드).
 
@@ -201,6 +201,7 @@ async def seed_motifs() -> tuple[int, int]:
                     "tags": tags,
                 },
                 source="seed",
+                status="approved",
                 variant_group=store.variant_group_key(subject, "whole"),
             )
             # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags를 갱신하지 않는다.

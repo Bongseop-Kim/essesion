@@ -702,10 +702,97 @@ async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
     assert response.status_code == 200
     body = response.json()
     assert body["svg_status"] == "safe"
+    assert body["status"] == "pending"
+    assert body["reviewed_at"] is None
     assert "#010000" in body["symbol"] and "#0685b1" in body["symbol"]
     assert "color_slots" not in body
     assert "slot_colors" not in body
     assert "slot_parts" not in body
+
+
+async def test_motif_review_requires_admin_and_allows_reversal(client, db_session, settings):
+    admin = await make_user(db_session, role="admin")
+    manager = await make_user(db_session, role="manager")
+    customer = await make_user(db_session)
+    motif = Motif(
+        id="motif-review-gate",
+        symbol='<symbol id="motif-review-gate"/>',
+        bbox=[0, 0, 1, 1],
+        anchor=[0.5, 0.5],
+        subject="review gate",
+        scope="whole",
+        source="recraft",
+    )
+    db_session.add(motif)
+    await db_session.commit()
+
+    path = f"/admin/motifs/{motif.id}/review"
+    assert (await client.post(path, json={"status": "approved"})).status_code == 401
+    assert (
+        await client.post(
+            path,
+            json={"status": "approved"},
+            headers=auth_headers(customer, settings),
+        )
+    ).status_code == 403
+    assert (
+        await client.post(
+            path,
+            json={"status": "approved"},
+            headers=auth_headers(manager, settings),
+        )
+    ).status_code == 403
+
+    headers = auth_headers(admin, settings)
+    invalid = await client.post(path, json={"status": "pending"}, headers=headers)
+    assert invalid.status_code == 422
+
+    approved = await client.post(path, json={"status": "approved"}, headers=headers)
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "approved"
+    assert approved.json()["reviewed_at"] is not None
+    await db_session.refresh(motif)
+    assert motif.reviewed_by == admin.id
+    assert motif.reviewed_at is not None
+
+    pending_page = await client.get("/admin/motifs", headers=headers)
+    approved_page = await client.get(
+        "/admin/motifs", params={"status": "approved"}, headers=headers
+    )
+    all_page = await client.get("/admin/motifs", params={"status": "all"}, headers=headers)
+    assert pending_page.json()["total"] == 0
+    assert [item["id"] for item in approved_page.json()["items"]] == [motif.id]
+    assert all_page.json()["total"] == 1
+
+    no_op = await client.post(path, json={"status": "approved"}, headers=headers)
+    assert no_op.status_code == 409
+    assert no_op.json()["code"] == "invalid_motif_transition"
+
+    rejected = await client.post(path, json={"status": "rejected"}, headers=headers)
+    assert rejected.status_code == 200
+    assert rejected.json()["status"] == "rejected"
+
+    # user_upload은 소스 필터로 공개 카탈로그에서 이미 제외 — 검토 대상이 아니다.
+    db_session.add(
+        Motif(
+            id="motif-user-upload",
+            symbol='<symbol id="motif-user-upload"/>',
+            bbox=[0, 0, 1, 1],
+            anchor=[0.5, 0.5],
+            subject="user upload",
+            scope="whole",
+            source="user_upload",
+            status="approved",
+        )
+    )
+    await db_session.commit()
+    upload_review = await client.post(
+        "/admin/motifs/motif-user-upload/review",
+        json={"status": "rejected"},
+        headers=headers,
+    )
+    assert upload_review.status_code == 409
+    assert upload_review.json()["code"] == "invalid_motif_transition"
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(
