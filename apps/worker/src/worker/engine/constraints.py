@@ -1,8 +1,8 @@
-"""Structured user constraints applied at the deterministic engine boundary.
+"""Structured constraints applied at the deterministic engine boundary.
 
-색 지정(`PaletteConstraint`)만 사용자 축으로 남는다 — 크기·밀도·배치·방향 4축은 폐기됐고,
-그 자리는 입력창 문장 → 구성 patch(`engine.patch`)가 대신한다. 남은 기계는 팔레트 강제와
-격자 겹침 클램프(품질 가드)뿐이다.
+구조화된 사용자 축은 남아 있지 않다 — 크기·밀도·배치·방향과 색 지정 모두 폐기됐고,
+그 자리는 입력창 문장 → 구성 patch(`engine.patch`)가 대신한다. 남은 기계는 격자 겹침
+클램프(품질 가드)뿐이다.
 """
 
 from __future__ import annotations
@@ -10,11 +10,7 @@ from __future__ import annotations
 import copy
 import math
 import re
-from typing import Any, Literal
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-from worker.engine.palette import is_hex_color
+from typing import Any
 
 _HEX = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 # 격자에서 모티프가 셀보다 크면 인스턴스가 반드시 겹친다. 살짝 닿는 밀집(플로랄 등)은
@@ -41,37 +37,6 @@ def normalize_hex(value: str) -> str:
     return f"#{digits.upper()}"
 
 
-class PaletteConstraint(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    mode: Literal["auto", "fixed"] = "auto"
-    colors: list[str] = Field(default_factory=list, max_length=5)
-
-    @field_validator("colors", mode="before")
-    @classmethod
-    def _normalize_colors(cls, value: object) -> object:
-        if value is None:
-            return []
-        if not isinstance(value, list):
-            raise ValueError("colors must be an array")
-        normalized: list[str] = []
-        for raw in value:
-            if not isinstance(raw, str):
-                raise ValueError("each color must be a HEX string")
-            color = normalize_hex(raw)
-            if color not in normalized:
-                normalized.append(color)
-        return normalized
-
-    @model_validator(mode="after")
-    def _mode_matches_colors(self) -> PaletteConstraint:
-        if self.mode == "auto" and self.colors:
-            raise ValueError("automatic palette must not include fixed colors")
-        if self.mode == "fixed" and not 2 <= len(self.colors) <= 5:
-            raise ValueError("fixed palette requires 2 to 5 distinct colors")
-        return self
-
-
 def ordered_slot_refs(raw: dict[str, Any]) -> list[str]:
     """레이어가 실제로 참조하는 팔레트 슬롯 id — 선언 순서, 중복 제거."""
     refs: list[str] = []
@@ -92,56 +57,10 @@ def ordered_slot_refs(raw: dict[str, Any]) -> list[str]:
             bands = params.get("bands")
             if isinstance(bands, list):
                 candidates.extend(band.get("color") for band in bands if isinstance(band, dict))
-        elif layer_type == "motif":
-            colors = params.get("colors")
-            if isinstance(colors, dict) and colors:
-                candidates.extend(colors[key] for key in sorted(colors))
-            else:
-                candidates.append(params.get("color"))
         for candidate in candidates:
-            if (
-                isinstance(candidate, str)
-                and candidate
-                and not (layer_type == "motif" and is_hex_color(candidate))
-                and candidate not in refs
-            ):
+            if isinstance(candidate, str) and candidate and candidate not in refs:
                 refs.append(candidate)
     return refs
-
-
-def _apply_fixed_palette(raw: dict[str, Any], constraint: PaletteConstraint) -> None:
-    if constraint.mode != "fixed":
-        return
-    palette = raw.get("palette")
-    slots = palette.get("slots") if isinstance(palette, dict) else None
-    if not isinstance(slots, list):
-        raise ConstraintInvalid(["fixed palette requires intent.palette.slots"])
-    slot_by_id = {
-        slot.get("id"): slot
-        for slot in slots
-        if isinstance(slot, dict) and isinstance(slot.get("id"), str)
-    }
-    refs = ordered_slot_refs(raw)
-    unknown = [slot_id for slot_id in refs if slot_id not in slot_by_id]
-    if unknown:
-        raise ConstraintInvalid([f"fixed palette references unknown slots: {unknown}"])
-    if len(refs) < len(constraint.colors):
-        raise ConstraintInvalid(
-            [
-                "fixed palette needs at least "
-                f"{len(constraint.colors)} color slots used by layers; authored intent uses "
-                f"{len(refs)}"
-            ]
-        )
-    ordered_ids = refs + [slot_id for slot_id in slot_by_id if slot_id not in refs]
-    mapping = {
-        slot_id: constraint.colors[index % len(constraint.colors)]
-        for index, slot_id in enumerate(ordered_ids)
-    }
-    for slot_id, slot in slot_by_id.items():
-        slot["hex"] = mapping[slot_id]
-        slot.pop("spot", None)
-    raw["colorways"] = [{"id": "default", "name": "fixed", "mapping": mapping}]
 
 
 def _motif_layers(raw: dict[str, Any]) -> list[dict[str, Any]]:
@@ -231,44 +150,10 @@ def _clamp_lattice_overlap(raw: dict[str, Any], warnings: list[str]) -> None:
 def apply_generation_constraints(
     raw: dict[str, Any],
     *,
-    palette: PaletteConstraint,
     warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     """Return a constrained deep copy; never partially mutate the caller on failure."""
 
     constrained = copy.deepcopy(raw)
-    _apply_fixed_palette(constrained, palette)
     _clamp_lattice_overlap(constrained, warnings if warnings is not None else [])
     return constrained
-
-
-def assert_constraints_satisfied(raw: Any, *, palette: PaletteConstraint) -> None:
-    """Fail closed if a later engine stage drifts from an explicit user constraint."""
-
-    if hasattr(raw, "model_dump"):
-        raw = raw.model_dump(mode="json", exclude_none=True)
-    if not isinstance(raw, dict):
-        raise ConstraintInvalid(["constrained intent must be an object"])
-    if palette.mode != "fixed":
-        return
-    errors: list[str] = []
-    colorways = raw.get("colorways")
-    default = colorways[0] if isinstance(colorways, list) and len(colorways) == 1 else None
-    mapping = default.get("mapping") if isinstance(default, dict) else None
-    if (
-        not isinstance(default, dict)
-        or not isinstance(mapping, dict)
-        or default.get("id") != "default"
-    ):
-        errors.append("fixed palette must resolve to exactly one default colorway")
-    else:
-        mapped = set(mapping.values())
-        requested = set(palette.colors)
-        if not mapped <= requested:
-            errors.append("fixed palette contains a color outside the request")
-        used = {mapping[slot] for slot in ordered_slot_refs(raw) if slot in mapping}
-        missing = [color for color in palette.colors if color not in used]
-        if missing:
-            errors.append(f"fixed palette colors are not used by rendered layers: {missing}")
-    if errors:
-        raise ConstraintInvalid(list(dict.fromkeys(errors)))

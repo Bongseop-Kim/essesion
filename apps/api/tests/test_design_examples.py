@@ -77,7 +77,7 @@ async def _seed_motif(db_session, motif_id: str, source: str) -> None:
             id=motif_id,
             symbol=(
                 f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
-                '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+                '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
             ),
             bbox=[-0.5, -0.5, 0.5, 0.5],
             anchor=[0, 0],

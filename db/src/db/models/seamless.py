@@ -44,18 +44,6 @@ class Motif(CreatedAtMixin, Base):
 
     id: Mapped[str] = mapped_column(primary_key=True)  # content-hash
     symbol: Mapped[str]
-    color_slots: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[\"s0\"]'::jsonb"))
-    # Original per-slot colors (index-aligned with color_slots), preserved for multi-slot motifs as
-    # the default colorway; NULL for single-slot (currentColor) and legacy rows. Never part of the
-    # content-hash id — colors stay out of motif identity.
-    slot_colors: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
-    # Semantic role labels are index-aligned with color_slots for multi-slot motifs. They are
-    # ingress metadata only, NULL for unlabeled/single-slot/legacy rows, and never participate in
-    # the content-hash id.
-    slot_labels: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
-    # Short visible part names are index-aligned with color_slots. Invalid/incomplete vision
-    # metadata is stored as SQL NULL, independently of otherwise-valid slot_labels.
-    slot_parts: Mapped[list[Any] | None] = mapped_column(JSONB(none_as_null=True))
     # First Recraft ingress provenance. Catalog reuse never rewrites these values; account/session
     # deletion nulls them instead of blocking privacy cleanup.
     ingested_user_id: Mapped[uuid.UUID | None] = mapped_column(

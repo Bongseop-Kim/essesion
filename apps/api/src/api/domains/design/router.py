@@ -10,7 +10,6 @@ import base64
 import binascii
 import json
 import logging
-import re
 import unicodedata
 import uuid
 from collections.abc import Collection, Coroutine
@@ -74,8 +73,8 @@ MAX_TEXT_MOTIF_LENGTH = 20
 MAX_PROCESSED_PREVIEW_BYTES = 2_000_000
 MAX_PROCESSED_PREVIEW_BASE64_CHARS = 2_666_668
 MAX_DESIGN_IDEA_LENGTH = 180
-# 모티프 문장(찾기·만들기) 상한 — worker MotifSpec facet 상한과 같게 유지한다.
-MAX_MOTIF_QUERY_LENGTH = 100
+# 모티프 문장(찾기·만들기) 상한 — worker의 직접 subject 조회 상한과 같게 유지한다.
+MAX_MOTIF_QUERY_LENGTH = 200
 MOTIF_SEARCH_LIMIT = 4
 SIGNED_INT64_MIN = -(2**63)
 SIGNED_INT64_MAX = 2**63 - 1
@@ -175,7 +174,6 @@ class UserMotifImportRequest(BaseModel):
 class WorkerMotifImportOut(BaseModel):
     motif_id: str = Field(pattern=r"^upload-[0-9a-f]{12}$")
     symbol: str = Field(max_length=MAX_MOTIF_SVG_BYTES)
-    color_slots: list[str] = Field(min_length=1, max_length=6)
     bbox: tuple[float, float, float, float]
     anchor: tuple[float, float]
     preview_svg: str = Field(max_length=MAX_MOTIF_SVG_BYTES)
@@ -190,13 +188,6 @@ class WorkerMotifImportOut(BaseModel):
         except SanitizeError as exc:
             raise ValueError("worker returned unsafe motif symbol") from exc
         return value
-
-    @field_validator("color_slots")
-    @classmethod
-    def _ordered_color_slots(cls, values: list[str]) -> list[str]:
-        if values != [f"s{index}" for index in range(len(values))]:
-            raise ValueError("motif color slots must be ordered s0..sN")
-        return values
 
     @field_validator("bbox")
     @classmethod
@@ -229,50 +220,6 @@ class UserMotifOut(BaseModel):
     name: str
     preview_svg: str
     created_at: datetime
-
-
-def _normalize_hex(value: str) -> str:
-    value = value.strip().upper()
-    if re.fullmatch(r"#[0-9A-F]{3}", value):
-        value = "#" + "".join(character * 2 for character in value[1:])
-    if not re.fullmatch(r"#[0-9A-F]{6}", value):
-        raise ValueError("colors must be #RGB or #RRGGBB")
-    return value
-
-
-class PaletteConstraint(StrictModel):
-    mode: Literal["auto", "fixed"] = "auto"
-    colors: list[str] = Field(default_factory=list, max_length=5)
-
-    @field_validator("colors")
-    @classmethod
-    def _normalize_colors(cls, values: list[str]) -> list[str]:
-        return list(dict.fromkeys(_normalize_hex(value) for value in values))
-
-    @model_validator(mode="after")
-    def _valid_mode(self) -> "PaletteConstraint":
-        if self.mode == "auto" and self.colors:
-            raise ValueError("auto palette cannot include colors")
-        if self.mode == "fixed" and not 2 <= len(self.colors) <= 5:
-            raise ValueError("fixed palette requires 2 to 5 distinct colors")
-        return self
-
-
-class PaletteExtractRequest(StrictModel):
-    upload_id: uuid.UUID
-    color_count: int = Field(5, ge=2, le=5)
-
-
-class PaletteExtractOut(BaseModel):
-    colors: list[str] = Field(min_length=2, max_length=5)
-
-    @field_validator("colors")
-    @classmethod
-    def _normalize_colors(cls, values: list[str]) -> list[str]:
-        normalized = list(dict.fromkeys(_normalize_hex(value) for value in values))
-        if not 2 <= len(normalized) <= 5:
-            raise ValueError("palette extraction must return 2 to 5 distinct colors")
-        return normalized
 
 
 class TextMotifPreviewRequest(StrictModel):
@@ -348,7 +295,6 @@ class MotifPreviewOut(BaseModel):
 class DesignIdeasRequest(StrictModel):
     prompt: str = Field("", max_length=MAX_DESIGN_PROMPT_LENGTH)
     user_motif_ids: list[uuid.UUID] = Field(default_factory=list, max_length=MAX_DESIGN_MOTIFS)
-    palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
     count: Literal[3, 4] = 4
 
     @model_validator(mode="after")
@@ -391,7 +337,6 @@ class DesignGenerateRequest(StrictModel):
     colorway: str | None = Field(default=None, max_length=100)
     seed: SignedInt64 | None = None
     user_motif_ids: list[uuid.UUID] = Field(default_factory=list, max_length=MAX_DESIGN_MOTIFS)
-    palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
 
     @model_validator(mode="after")
     def _valid_attachment_request(self) -> "DesignGenerateRequest":
@@ -460,7 +405,6 @@ class DesignUserGenerationPayload(StrictModel):
     prompt: str | None = Field(default=None, max_length=MAX_DESIGN_PROMPT_LENGTH)
     seed: SignedInt64 | None = None
     colorway: str | None = Field(default=None, max_length=100)
-    palette: PaletteConstraint
     attachment_refs: list[DesignTurnAttachmentRefPayload] = Field(
         default_factory=list,
         max_length=MAX_DESIGN_MOTIFS,
@@ -595,7 +539,7 @@ def _motif_preview_svg(motif: Motif) -> str:
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-0.6 -0.6 1.2 1.2" '
         'preserveAspectRatio="xMidYMid meet">'
         f"<defs>{symbol}</defs>"
-        f'<use href="#motif-{motif.id}" color="#111111"/>'
+        f'<use href="#motif-{motif.id}"/>'
         "</svg>"
     )
 
@@ -645,31 +589,6 @@ async def _design_session_out(
             ]
         }
     )
-
-
-@router.post("/design/palette/extract", response_model=PaletteExtractOut)
-async def extract_design_palette(
-    body: PaletteExtractRequest,
-    request: Request,
-    session: SessionDep,
-    user: CurrentUser,
-) -> PaletteExtractOut:
-    image = await _resolve_staged_reference_image(
-        body.upload_id,
-        session=session,
-        user_id=user.id,
-        request=request,
-    )
-    response = await request.app.state.worker.palette_extract(
-        {
-            "image": await _reference_image_payload(image, request),
-            "color_count": body.color_count,
-        }
-    )
-    try:
-        return PaletteExtractOut.model_validate(response)
-    except ValidationError as exc:
-        raise UpstreamError("팔레트 추출 워커 응답 형식이 올바르지 않습니다") from exc
 
 
 @router.post("/design/motifs/text-preview", response_model=MotifPreviewOut)
@@ -787,7 +706,6 @@ async def import_user_motif(
         .values(
             id=worker_out.motif_id,
             symbol=worker_out.symbol,
-            color_slots=worker_out.color_slots,
             bbox=list(worker_out.bbox),
             anchor=list(worker_out.anchor),
             subject="user upload",
@@ -808,7 +726,6 @@ async def import_user_motif(
         motif is None
         or motif.source != "user_upload"
         or motif.symbol != worker_out.symbol
-        or list(motif.color_slots) != worker_out.color_slots
         or list(motif.bbox) != list(worker_out.bbox)
         or list(motif.anchor) != list(worker_out.anchor)
     ):
@@ -1114,7 +1031,6 @@ async def generate_design(
                 prompt=body.prompt,
                 seed=body.seed,
                 colorway=body.colorway,
-                palette=body.palette,
                 attachment_refs=_generation_attachment_refs(user_motifs),
             ),
             user_motifs=user_motifs,
@@ -2317,7 +2233,7 @@ def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # no
 # ---- 모티프 프록시 — worker는 OIDC 프라이빗이라 api가 인증·예산을 얹어 중계 ----
 #
 # 모티프는 목록이 아니라 문장으로 찾고, 없으면 문장으로 만든다. 찾기·교체는 무료고
-# 만들기만 세션 Recraft 예산을 쓴다. 문장 → MotifSpec 변환은 worker가 한다.
+# 만들기만 세션 Recraft 예산을 쓴다. worker는 문장을 그대로 검색·생성 입력으로 쓴다.
 
 
 class MotifSearchRequest(StrictModel):
@@ -2368,21 +2284,6 @@ class WorkerMotifGenerateOut(BaseModel):
     request_id: str
     motif_id: str
     reused: bool
-
-
-def _plan_style_hint(plan: dict[str, Any] | None) -> str | None:
-    """현재 디자인의 스타일 단서 — plan 모티프의 style 문구를 그대로 넘긴다."""
-    motifs = plan.get("motifs") if isinstance(plan, dict) else None
-    if not isinstance(motifs, list):
-        return None
-    styles = [
-        motif["style"].strip()
-        for motif in motifs
-        if isinstance(motif, dict)
-        and isinstance(motif.get("style"), str)
-        and motif["style"].strip()
-    ]
-    return ", ".join(dict.fromkeys(styles))[:200] or None
 
 
 async def _motif_results(
@@ -2441,8 +2342,6 @@ async def search_motifs(
     ensure_owner(design_session, user)
     assert design_session is not None
     payload: dict[str, Any] = {"query": body.query, "top_k": MOTIF_SEARCH_LIMIT}
-    if (style_hint := _plan_style_hint(design_session.current_plan)) is not None:
-        payload["style_hint"] = style_hint
     try:
         out = WorkerMotifCandidatesOut.model_validate(
             await request.app.state.worker.motif_candidates(payload)
@@ -2470,7 +2369,6 @@ async def generate_motif(
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
-    style_hint = _plan_style_hint(design_session.current_plan)
     # 예산 선차감(조건부 UPDATE — finalize와 동일 패턴) 후 커밋 — Recraft가 수십 초라
     # 행 잠금을 들고 있지 않는다. 워커 실패·래더 재사용(reused)이면 보상 환급.
     budget = request.app.state.settings.design_recraft_budget
@@ -2487,8 +2385,6 @@ async def generate_motif(
         "query": body.prompt,
         "motif_provenance": {"user_id": str(user.id), "session_id": str(session_id)},
     }
-    if style_hint is not None:
-        payload["style_hint"] = style_hint
     return await _shielded(
         _dispatch_motif_generation(
             payload=payload,

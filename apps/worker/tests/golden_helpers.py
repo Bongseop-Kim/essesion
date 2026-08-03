@@ -18,7 +18,6 @@ def register_golden_motifs() -> None:
                 symbol=spec["symbol"],
                 bbox_mm=tuple(spec["bbox_mm"]),
                 anchor=tuple(spec["anchor"]),
-                color_slots=tuple(spec["color_slots"]),
             )
         )
 

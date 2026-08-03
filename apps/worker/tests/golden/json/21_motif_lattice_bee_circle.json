@@ -72,10 +72,7 @@
    "z_order": 1,
    "params": {
     "motif_id": "recraft-508a8e471454",
-    "size_mm": 2.4,
-    "colors": {
-     "s0": "plum"
-    }
+    "size_mm": 2.4
    },
    "placement": {
     "type": "point_set",
@@ -155,10 +152,7 @@
    "z_order": 2,
    "params": {
     "motif_id": "recraft-033b3870e911",
-    "size_mm": 6.0,
-    "colors": {
-     "s0": "leaf"
-    }
+    "size_mm": 6.0
    },
    "placement": {
     "type": "lattice",

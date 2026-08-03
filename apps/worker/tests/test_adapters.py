@@ -30,16 +30,16 @@ from worker.adapters.named_colors import (
 from worker.adapters.recraft import (
     RecraftError,
     RecraftHTTPClient,
+    _build_recraft_prompt,
     gate_recraft_svg,
     generate_motif,
 )
 from worker.authoring.examples import load_example_set
 from worker.authoring.schema import DesignPlanV3
 from worker.config import Settings
-from worker.engine.constraints import PaletteConstraint
 from worker.engine.validate import IntentInvalid
 
-_SETTINGS = Settings(motif_render_check=False, recraft_max_color_slots=6)
+_SETTINGS = Settings(motif_render_check=False)
 
 
 class _SDKError(Exception):
@@ -137,6 +137,22 @@ def test_gate_converts_rgb_to_hex():
     assert "rgb(" not in out
 
 
+def test_gate_rejects_a_style_sheet_instead_of_dropping_it():
+    # <style>을 통째로 버리면 클래스로 칠한 SVG가 조용히 전부 검정이 되어 저장된다.
+    svg = _svg('<style>.st0{fill:#c0392b}</style><circle class="st0" cx="50" cy="50" r="30"/>')
+    with pytest.raises(ValueError, match="style"):
+        gate_recraft_svg(svg)
+
+
+def test_gate_keeps_a_full_bleed_shape_that_is_not_a_rect():
+    # viewBox를 꽉 채우는 원반은 배경이 아니라 모티프 본체다 — 면적만 보면 지워버렸다.
+    svg = _svg(
+        '<circle cx="50" cy="50" r="50" fill="#e67e22"/>'
+        '<path d="M40 40 L60 40 L50 60 Z" fill="#ffffff"/>'
+    )
+    assert gate_recraft_svg(svg) == svg  # 무변경 — 지울 배경이 없다
+
+
 def test_gate_removes_full_canvas_background():
     svg = _svg(
         '<rect x="0" y="0" width="100" height="100" fill="#ffffff"/>'
@@ -158,17 +174,16 @@ class _FakeRecraft:
     def __init__(self, svgs: list[str]) -> None:
         self._svgs = list(svgs)
         self.calls = 0
-        self.requests: list[tuple[str, tuple[str, ...], int | None]] = []
+        self.requests: list[tuple[str, int | None]] = []
 
     async def generate(
         self,
         prompt: str,
         *,
-        colors: tuple[str, ...] = (),
         seed: int | None = None,
     ) -> str:
         self.calls += 1
-        self.requests.append((prompt, colors, seed))
+        self.requests.append((prompt, seed))
         return self._svgs.pop(0)
 
 
@@ -185,15 +200,15 @@ async def test_generate_motif_first_try():
         {"subject": "dot", "scope": "whole"},
         client=client,
         settings=_SETTINGS,
-        colors=("#112233", "#AABBCC"),
         seed=0,
     )
     assert client.calls == 1
     assert motif.id.startswith("recraft-")
-    prompt, colors, seed = client.requests[0]
-    assert "distinct flat solid color for each distinct visual part" in prompt
-    assert "textures, photorealistic shading" in prompt
-    assert colors == ("#112233", "#AABBCC")
+    prompt, seed = client.requests[0]
+    assert "User description: dot" in prompt
+    assert "Style context" not in prompt
+    assert "transparent canvas" in prompt
+    assert "Do not include text" in prompt
     assert seed == 0
 
 
@@ -204,7 +219,17 @@ async def test_generate_motif_reprompts_once_then_succeeds():
     )
     assert client.calls == 2
     assert motif.id.startswith("recraft-")
-    assert client.requests[0][1:] == client.requests[1][1:]
+    assert client.requests[0][1] == client.requests[1][1]
+    assert "previous SVG was rejected" in client.requests[1][0]
+
+
+def test_recraft_retry_prompt_clamps_the_sanitize_error():
+    # sanitize 에러는 거부된 paint 원문을 그대로 담아 길어질 수 있는데, V2/V3 프롬프트는
+    # 1000자 상한이라 그대로 붙이면 재프롬프트 자체가 거부된다.
+    prompt = _build_recraft_prompt({"subject": "dot"}, errors=["x" * 1000])
+
+    assert "x" * 160 in prompt
+    assert "x" * 161 not in prompt
 
 
 async def test_generate_motif_two_failures_raises():
@@ -239,13 +264,30 @@ async def test_recraft_http_uses_inline_b64_and_never_fetches_response_url():
     )
     client = RecraftHTTPClient("k")
     try:
-        assert await client.generate("dot", colors=("#10243A", "#EFE6D4"), seed=0) == _CLEAN
+        assert await client.generate("dot", seed=0) == _CLEAN
         payload = json.loads(route.calls.last.request.content)
         assert payload["response_format"] == "b64_json"
-        assert payload["controls"] == {"colors": [{"rgb": [16, 36, 58]}, {"rgb": [239, 230, 212]}]}
         assert payload["random_seed"] == 0
+        assert "controls" not in payload
         assert "negative_prompt" not in payload
         assert len(respx.calls) == 1
+    finally:
+        await client.aclose()
+
+
+@respx.mock
+async def test_recraft_http_uses_negative_prompt_and_no_text_only_for_v3():
+    encoded = base64.b64encode(_CLEAN.encode()).decode()
+    route = respx.post("https://external.api.recraft.ai/v1/images/generations").mock(
+        return_value=httpx.Response(200, json={"data": [{"b64_json": encoded}]})
+    )
+    client = RecraftHTTPClient("k", model="recraftv3_vector")
+    try:
+        assert await client.generate("dot") == _CLEAN
+        payload = json.loads(route.calls.last.request.content)
+        assert payload["controls"] == {"no_text": True}
+        assert "pattern" in payload["negative_prompt"]
+        assert "gradient" in payload["negative_prompt"]
     finally:
         await client.aclose()
 
@@ -328,7 +370,7 @@ async def test_embedding_client_error_raises():
 # ---- Gemini ----
 
 
-async def test_gemini_ideas_use_motif_and_palette_context_and_retry_invalid_shape():
+async def test_gemini_ideas_use_motif_context_and_retry_invalid_shape():
     valid = {
         "ideas": [
             "동백 모티프를 작은 격자로 반복하고 남색과 크림색을 사용해 보세요.",
@@ -341,7 +383,6 @@ async def test_gemini_ideas_use_motif_and_palette_context_and_retry_invalid_shap
         "차분한 넥타이",
         count=3,
         motifs=[{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
-        palette_constraint=PaletteConstraint(mode="fixed", colors=["#10243A", "#EFE6D4"]),
     )
 
     assert ideas == valid["ideas"]
@@ -351,7 +392,6 @@ async def test_gemini_ideas_use_motif_and_palette_context_and_retry_invalid_shap
     context = parts[-1].text
     assert 'exact motif 1: name="동백"' in context
     assert "upload-a1b2c3d4e5f6" not in context
-    assert "#10243A, #EFE6D4" in context
 
 
 async def test_author_design_retries_when_the_single_plan_breaks_the_contract():
@@ -429,11 +469,11 @@ def test_authoring_prompt_delimits_and_prechecks_all_catalog_facets():
     assert '"view":"정면"' in prompt
     assert '"scope":"whole"' in prompt
     assert '"tags":["꽃","line art"]' in prompt
-    assert '"slot_count":3' in prompt
+    assert '"slot_count"' not in prompt
     assert '"parts"' not in prompt
 
 
-def test_authoring_prompt_exposes_ordered_parts_for_public_current_and_exact_motifs():
+def test_authoring_prompt_omits_color_slot_metadata_and_private_ids():
     public = _build_prompt(
         "자전거는 파란색",
         errors=None,
@@ -451,21 +491,13 @@ def test_authoring_prompt_exposes_ordered_parts_for_public_current_and_exact_mot
         "자전거는 파란색",
         errors=None,
         motif_ids=["private-content-hash"],
-        exact_motif_metadata=[
-            {
-                "catalog_ref": "input_1",
-                "slot_count": 3,
-                "parts": ["몸통", "자전거", "부리·안장"],
-            }
-        ],
     )
 
     for prompt in (public, exact):
-        assert '"slot_count":3' in prompt
-        assert '"parts":["몸통","자전거","부리·안장"]' in prompt
-        assert "exactly slot_count entries" in prompt
+        assert '"slot_count"' not in prompt
+        assert '"parts"' not in prompt
+        assert "color_indices" not in prompt
         assert "private-content-hash" not in prompt
-    assert "input_N metadata aliases" in exact
 
 
 def test_served_schema_withholds_the_input_motif_variant_when_asked():
@@ -660,16 +692,11 @@ async def test_author_patch_marks_a_motif_request_out_of_scope():
     assert patch.out_of_scope and not patch.has_changes
 
 
-def test_patch_prompt_states_the_motif_boundary_and_locked_palette():
-    prompt = _build_patch_prompt(
-        "줄무늬를 넓게",
-        snapshot=_SNAPSHOT,
-        palette_constraint=PaletteConstraint(mode="fixed", colors=["#000080", "#FFFFFF"]),
-    )
+def test_patch_prompt_states_the_motif_boundary():
+    prompt = _build_patch_prompt("줄무늬를 넓게", snapshot=_SNAPSHOT)
 
     assert "cannot be changed, added, or removed here" in prompt
     assert "out_of_scope" in prompt
-    assert "#000080" in prompt
     # 스키마에 모티프 필드가 없으니 프롬프트도 모티프 소스를 설명하지 않는다.
     assert "source=" not in prompt
 
@@ -726,15 +753,66 @@ def test_named_color_exclusions_cover_lists_roles_and_replacements(
     assert requested == kept
 
 
-def test_named_ground_tie_uses_prompt_order_instead_of_color_name():
-    current = load_example_set()[5].plan
+def _stripe_plan(colors: list[str]) -> DesignPlanV3:
+    return DesignPlanV3.model_validate(
+        {
+            "colors": colors,
+            "ground_color_index": 0,
+            "motifs": [{"source": "catalog", "catalog_ref": "dot"}],
+            "layers": [
+                {
+                    "type": "stripe",
+                    "direction": "vertical",
+                    "period_ratio": 0.25,
+                    "bands": [{"offset_ratio": 0, "width_ratio": 0.2, "color_index": 1}],
+                },
+                {
+                    "type": "motif",
+                    "motif_index": 0,
+                    "size_ratio": 0.1,
+                    "placement": {"type": "lattice", "columns": 2, "rows": 2, "drop": "none"},
+                },
+            ],
+        }
+    )
 
+
+def test_named_ground_tie_uses_prompt_order_instead_of_color_name():
+    # 바탕 슬롯은 하나뿐이라 "background" 근처의 두 색 중 먼저 나온 navy가 바탕을 갖고,
+    # ivory는 남은 stripe 슬롯으로 밀린다.
     normalized = normalize_requested_named_colors(
         "use navy only for the background and preserve ivory accents",
-        current,
+        _stripe_plan(["#EFE6D4", "#123456"]),
     )
 
     assert normalized.colors[normalized.ground_color_index] == "#000080"
+    assert normalized.colors[1] == "#FFFFF0"
+
+
+def test_named_color_without_a_visible_slot_goes_back_to_the_authoring_loop():
+    # 모티프 색은 Plan v3에 없고 바탕 슬롯은 하나 — stripe가 없으면 두 번째 지명색이 갈 곳이
+    # 없다. 조용히 넘기면 요청한 색이 빠진 플랜이 그대로 성공으로 나간다.
+    motif_only = DesignPlanV3.model_validate(
+        {
+            "colors": ["#EFE6D4", "#123456"],
+            "ground_color_index": 0,
+            "motifs": [{"source": "catalog", "catalog_ref": "dot"}],
+            "layers": [
+                {
+                    "type": "motif",
+                    "motif_index": 0,
+                    "size_ratio": 0.1,
+                    "placement": {"type": "lattice", "columns": 2, "rows": 2, "drop": "none"},
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="ivory"):
+        normalize_requested_named_colors(
+            "use navy only for the background and preserve ivory accents",
+            motif_only,
+        )
 
 
 def test_named_existing_color_reuses_role_references_without_swapping_palette():
@@ -760,7 +838,6 @@ def test_named_existing_color_reuses_role_references_without_swapping_palette():
                     "type": "motif",
                     "motif_index": 0,
                     "size_ratio": 0.1,
-                    "color_indices": [2],
                     "placement": {
                         "type": "lattice",
                         "columns": 2,
@@ -793,7 +870,7 @@ def test_named_existing_color_reuses_role_references_without_swapping_palette():
     assert (
         next(layer for layer in stripe.layers if layer.type == "stripe").bands[0].color_index == 2
     )
-    assert next(layer for layer in motif.layers if layer.type == "motif").color_indices == [1]
+    assert motif == current
 
 
 def test_named_non_ground_color_is_scoped_to_its_visible_role():
@@ -804,14 +881,7 @@ def test_named_non_ground_color_is_scoped_to_its_visible_role():
         if layer.type == "stripe"
         for band in layer.bands
     }
-    motif_slots = {
-        index
-        for layer in current.layers
-        if layer.type == "motif" and layer.color_indices is not None
-        for index in layer.color_indices
-    }
-
-    motif_colored = normalize_requested_named_colors(
+    motif_request_ignored = normalize_requested_named_colors(
         "벌은 아이보리로 바꿔줘. 모티프는 유지해",
         current,
     )
@@ -820,17 +890,11 @@ def test_named_non_ground_color_is_scoped_to_its_visible_role():
         current,
     )
 
-    assert "#FFFFF0" in {motif_colored.colors[index] for index in motif_slots}
-    assert [motif_colored.colors[index] for index in stripe_slots] == [
-        current.colors[index] for index in stripe_slots
-    ]
+    assert motif_request_ignored == current
     assert "#FFFFF0" in {stripe_colored.colors[index] for index in stripe_slots}
-    assert [stripe_colored.colors[index] for index in motif_slots] == [
-        current.colors[index] for index in motif_slots
-    ]
 
 
-def test_named_color_on_implicit_motif_layer_expands_to_slot_count():
+def test_named_color_on_motif_layer_keeps_fixed_artwork_and_palette():
     current = DesignPlanV3.model_validate(
         {
             "colors": ["#EFE6D4", "#4F77A8"],
@@ -852,43 +916,9 @@ def test_named_color_on_implicit_motif_layer_expands_to_slot_count():
         }
     )
 
-    normalized = normalize_requested_named_colors(
-        "모티프는 네이비로 바꿔줘.",
-        current,
-        catalog_candidates=[
-            {
-                "catalog_ref": "cand_1",
-                "motif_id": "bee",
-                "subject": "bee",
-                "slot_count": 3,
-            }
-        ],
-    )
+    normalized = normalize_requested_named_colors("모티프는 네이비로 바꿔줘.", current)
 
-    motif_layer = next(layer for layer in normalized.layers if layer.type == "motif")
-    assert motif_layer.color_indices == [1, 1, 1]
-    assert normalized.colors[1] == "#000080"
-
-
-async def test_initial_authoring_retries_when_named_colors_exceed_visible_slots():
-    examples = load_example_set()
-    insufficient = examples[5].plan.model_dump(mode="json")
-    insufficient["colors"] = ["#111111", "#EEEEEE"]
-    for layer in insufficient["layers"]:
-        if layer["type"] == "motif":
-            layer["color_indices"] = [1] * len(layer["color_indices"])
-    valid = examples[5].plan.model_dump(mode="json")
-    client, sdk = _gemini(insufficient, valid)
-
-    design = await client.author_design(
-        "네이비 배경에 아이보리, 버건디, 골드 포인트",
-        motif_ids=["circle"],
-    )
-
-    assert len(sdk.models.generate_calls) == 2
-    assert design.plan is not None
-    assert design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
-    assert {"#FFFFF0", "#800020", "#D4AF37"} <= set(design.plan["colors"])
+    assert normalized == current
 
 
 def test_servable_schema_is_loosened_for_vertex_enforcement():

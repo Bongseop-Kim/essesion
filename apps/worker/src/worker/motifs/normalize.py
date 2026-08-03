@@ -1,27 +1,28 @@
 """authored/Recraft SVG → 모티프 인테이크 계약 정규화 (worker-motifs.md §1·§2).
 
-파이프라인: allowlist 파싱·검증 → 프레임 검증 → tight bbox 프레이밍 → (선택) 색 양자화
-→ slotify → `<g>` 래핑 + content-hash id → (선택) render gate.
+파이프라인: allowlist 파싱·검증 → 프레임 검증 → 루트 presentation 래핑 → paint 정규화
+→ tight bbox 프레이밍 → `<g>` 래핑 + content-hash id → (선택) render gate.
 
 정규화된 모티프는 항상 bbox `(-0.5,-0.5,0.5,0.5)`, anchor `(0,0)`. content-hash는
-slotify **후**의 geometry에서 뽑으므로 같은 도형은 colorway 무관 같은 id(upsert 멱등의 근거).
+구체 색을 포함한 geometry에서 뽑으므로 도형과 색이 모두 같을 때만 같은 id다.
+
+# ponytail: 자식 `id`는 네임스페이스를 붙이지 않는다. 서로 다른 두 모티프가 같은 defs id를
+# 쓰면 한 문서에 함께 등록될 때 `<use href="#id">`가 상대 쪽을 가리킬 수 있다. 알려진 상한이며
+# 고치지 않는다 — id를 다시 쓰면 preview_svg를 재정규화해도 같은 id가 나온다는 멱등 계약이
+# 깨진다. 실사용 모티프는 defs/use를 거의 쓰지 않아 충돌 확률이 낮다.
 """
 
 from __future__ import annotations
 
-import html
 import re
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import cast
 
 import svg_safety as sanitize
 
 from worker.engine.determinism import stable_digest
-from worker.engine.palette import hex_to_rgb, is_hex_color
 from worker.engine.units import fmt
-from worker.motifs.registry import MotifDef, slot_render_symbols
 
 BBox = tuple[float, float, float, float]
 Anchor = tuple[float, float]
@@ -43,6 +44,8 @@ MAX_MOTIF_PATH_COMMANDS = 50_000
 MAX_MOTIF_GEOMETRY_TOKENS = 200_000
 _PATH_COMMAND = re.compile(r"[MmLlHhVvCcSsQqTtAaZz]")
 _NUMBER_TOKEN = re.compile(r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?")
+_RGB_RE = re.compile(r"rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)", re.IGNORECASE)
+_HEX_DIGITS = "0123456789abcdef"
 
 # defs 밖에서 실제로 그려지는 요소.
 _RENDERABLE = frozenset({"path", "polygon", "polyline", "rect", "circle", "ellipse", "line", "use"})
@@ -56,13 +59,8 @@ class NormalizedMotif:
     symbol: str
     bbox_mm: BBox = _UNIT_BBOX
     anchor: Anchor = _ORIGIN
-    color_slots: tuple[str, ...] = ("s0",)
-    # Original per-slot colors (index-aligned with color_slots), the default colorway. Set only for
-    # multi-slot motifs; None for single-slot (currentColor). Excluded from the content-hash id.
-    slot_colors: tuple[str, ...] | None = None
-    # Standalone, importable document showing the exact geometry that produced this identity.
-    # It uses deterministic concrete preview colors because internal s0/s1 slot tokens are not
-    # valid CSS paints. Re-normalizing this document must recover the same id and symbol.
+    # Standalone, importable document showing the exact concrete-color geometry that produced
+    # this identity. Re-normalizing it must recover the same id and symbol.
     preview_svg: str = ""
 
 
@@ -157,134 +155,95 @@ def _validate_intake_complexity(root: ET.Element) -> None:
         stack.extend((child, depth + 1) for child in reversed(list(element)))
 
 
-def _norm_color(value: str) -> str | None:
-    """concrete paint의 비교 키, 또는 슬롯 없는 paint(none/url(#…))는 None.
-
-    currentColor는 concrete로 취급 — 단독이면 단색(s0), concrete와 섞이면 자체 슬롯.
-    """
-    low = value.strip().lower()
-    if low == "none" or low.startswith("url("):
+def rgb_to_hex(value: str) -> str | None:
+    """`rgb()`/`rgba()` → `#rrggbb`(알파는 버린다). 그 형식이 아니면 None."""
+    match = _RGB_RE.match(value.strip())
+    if not match:
         return None
-    return low
+    r, g, b = (max(0, min(255, round(float(channel)))) for channel in match.groups())
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def _paint_attrs(children: list[ET.Element]) -> Iterator[tuple[ET.Element, str, str]]:
-    """(노드, 속성, 값) — fill 먼저 stroke, DFS 최초 등장순. 읽기/재색/슬롯화가 공유하는 순회."""
-    for child in children:
-        for node in child.iter():
-            for attr in ("fill", "stroke"):
-                value = node.get(attr)
-                if value is not None:
-                    yield node, attr, value
+def canonical_paint(value: str) -> str:
+    """paint 한 값을 소문자 6/8자리 hex 또는 `none`으로 확정 — 다른 표기는 거부.
 
-
-def _distinct_colors(children: list[ET.Element]) -> list[str]:
-    order: list[str] = []
-    for _node, _attr, value in _paint_attrs(children):
-        norm = _norm_color(value)
-        if norm is not None and norm not in order:
-            order.append(norm)
-    return order
-
-
-def _hex_rgb(color: str) -> tuple[int, int, int] | None:
-    c = color.strip()
-    return hex_to_rgb(c) if is_hex_color(c) else None
-
-
-def _quantize_colors(children: list[ET.Element], max_slots: int) -> None:
-    """concrete 색을 max_slots 이하로 결정론적 융합 — 최근접 RGB 두 hex 반복 병합.
-
-    동점은 hex 사전순(작은 hex가 대표). hex 아닌 paint(currentColor)는 측정 불가라 병합
-    불가 — 이것 때문에 예산 초과가 남으면 ValueError(재생성 트리거). in-place 변형.
+    `red`/`rgb(255,0,0)`/`#F00`/`#FF0000`이 전부 다른 content-hash가 되지 않게 하나로 접는다.
+    named color·Pantone spot은 우리가 hex를 확정할 수 없으므로 거부하고, `url(#...)`는
+    gradient·pattern paint server라 모티프에 존재할 수 없으므로 거부한다(계약 층 차단).
     """
-    distinct = _distinct_colors(children)
-    if len(distinct) <= max_slots:
-        return
-    rgb = {c: _hex_rgb(c) for c in distinct}
-    rep = {c: c for c in distinct}
-    unmergeable = sum(1 for c in distinct if rgb[c] is None)
-    active = sorted(c for c in distinct if rgb[c] is not None)
-    while unmergeable + len(active) > max_slots and len(active) >= 2:
-        best: tuple[int, str, str] | None = None  # (거리, keep, drop)
-        for i in range(len(active)):
-            for j in range(i + 1, len(active)):
-                a, b = active[i], active[j]  # a < b (active 정렬됨)
-                ra, rb = rgb[a], rgb[b]
-                assert ra is not None and rb is not None  # active는 hex만 담는다
-                dist = (ra[0] - rb[0]) ** 2 + (ra[1] - rb[1]) ** 2 + (ra[2] - rb[2]) ** 2
-                cand = (dist, a, b)
-                if best is None or cand < best:
-                    best = cand
-        assert best is not None  # len(active) >= 2 이므로 최소 한 쌍이 존재
-        _, keep, drop = best
-        for color, representative in rep.items():
-            if representative == drop:
-                rep[color] = keep
-        active.remove(drop)
-    if unmergeable + len(active) > max_slots:
+    low = value.strip().casefold()
+    if low in {"none", "transparent"}:
+        return "none"
+    if low.startswith("#"):
+        digits = low[1:]
+        if len(digits) in {3, 4}:
+            digits = "".join(c * 2 for c in digits)
+        if len(digits) not in {6, 8} or digits.strip(_HEX_DIGITS):
+            raise ValueError(f"motif paint {value!r} is not a valid hex color")
+        return "#" + digits
+    hexed = rgb_to_hex(low)
+    if hexed is None:
         raise ValueError(
-            f"motif has {len(distinct)} colors that cannot be quantized to "
-            f"{max_slots} slots (too many non-hex paints)"
+            f"motif paint {value!r} must be a hex color, rgb()/rgba(), or none "
+            "(named colors and url() paint servers are not allowed)"
         )
-    for node, attr, value in _paint_attrs(children):
-        norm = _norm_color(value)
-        if norm is not None and rep.get(norm, norm) != norm:
-            node.set(attr, rep[norm])
+    return hexed
 
 
-def _slotize_colors(children: list[ET.Element]) -> tuple[str, ...]:
-    """concrete fill/stroke를 슬롯 토큰으로 치환하고 color_slots 반환 (DFS 최초 등장순).
-
-    ≤1색 → 전부 currentColor + ("s0",)(단색 레거시 유지). ≥2색 → 각 색을 s0,s1,… 토큰으로.
-    """
-    order = _distinct_colors(children)
-    if len(order) <= 1:
-        for node, attr, value in _paint_attrs(children):
-            if _norm_color(value) is not None:
-                node.set(attr, "currentColor")
-        return ("s0",)
-    token = {color: f"s{i}" for i, color in enumerate(order)}
-    for node, attr, value in _paint_attrs(children):
-        norm = _norm_color(value)
-        if norm is not None:
-            node.set(attr, token[norm])
-    return tuple(f"s{i}" for i in range(len(order)))
+def _canonical_color(value: str | None, inherited: str) -> str:
+    text = (value or "").strip()
+    if text.casefold() in {"", "currentcolor", "inherit"}:
+        return inherited
+    return canonical_paint(text)
 
 
-def _standalone_preview_svg(
-    inner: str,
-    *,
-    bbox: BBox,
-    color_slots: tuple[str, ...],
-    preview_colors: list[str],
-    inherited_color: str,
-) -> str:
-    """Make normalized input geometry independently previewable and safely re-importable.
+def _canonicalize_paints(children: list[ET.Element], root_color: str | None) -> None:
+    """루트 `<svg>`가 버려지기 전에 상속 currentColor를 풀고 모든 paint를 정규 hex로 접는다.
 
-    Multi-color normalized geometry contains internal slot tokens (s0, s1, ...), not CSS
-    colors. Deterministic concrete colors preserve slot order on the next normalization pass;
-    slotification then recreates the original content-hash input exactly.
+    생성·시드 SVG는 보통 이미 hex지만, 업로드 문서는 루트 `color` 상속이나 `rgb()`·단축 hex를
+    실어 온다. 여기서 확정해야 같은 그림이 표기 차이만으로 다른 모티프가 되지 않고, 나중에
+    UI 색이 저장된 모티프를 바꾸지도 못한다.
     """
 
-    visible = inner
-    if len(color_slots) > 1:
-        for index, slot in enumerate(color_slots):
-            # Restore a safe concrete preview paint. Slotification on re-import maps the same
-            # first-occurrence order back to s0/s1, so colors do not enter motif identity.
-            color = html.escape(preview_colors[index], quote=True)
-            visible = visible.replace(f'fill="{slot}"', f'fill="{color}"')
-            visible = visible.replace(f'stroke="{slot}"', f'stroke="{color}"')
-    root_color = preview_colors[0] if len(preview_colors) == 1 else inherited_color
-    if root_color.casefold() == "currentcolor":
-        root_color = inherited_color
-    bx, by, bx2, by2 = bbox
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" '
-        f'color="{html.escape(root_color, quote=True)}" '
-        f'viewBox="{fmt(bx)} {fmt(by)} {fmt(bx2 - bx)} {fmt(by2 - by)}">'
-        f"{visible}</svg>"
-    )
+    fallback = _canonical_color(root_color, "#111111")
+
+    def visit(node: ET.Element, inherited: str) -> None:
+        raw_color = node.get("color")
+        local = _canonical_color(raw_color, inherited)
+        if raw_color is not None:
+            node.set("color", local)
+        for attr in ("fill", "stroke"):
+            value = node.get(attr)
+            if value is not None:
+                node.set(attr, _canonical_color(value, local))
+        for child in node:
+            visit(child, local)
+
+    for child in children:
+        visit(child, fallback)
+
+
+def _wrap_root_presentation(root: ET.Element) -> list[ET.Element]:
+    """루트 `<svg>`의 presentation 속성을 자식들을 감싸는 `<g>` 하나로 옮긴다.
+
+    자식만 취하고 루트를 버리면 루트에 걸린 fill/stroke가 통째로 사라진다 — `<svg fill="#c0445a">`
+    안의 원은 검은 원이 되고, `<svg stroke="#000" fill="none">`의 선은 아예 보이지 않는다.
+    자식마다 복사하지 않고 그룹으로 감싸는 이유는 opacity가 그룹 단위 합성이기 때문이다.
+    """
+    children = list(root)
+    inherited = {
+        name: value
+        for name in ("fill", "stroke", "stroke-width", "opacity")
+        if (value := root.get(name)) is not None
+    }
+    if not inherited:
+        return children
+    group = ET.Element("g", inherited)
+    group.extend(children)
+    for child in children:
+        root.remove(child)
+    root.append(group)
+    return [group]
 
 
 def _edge_seam(image) -> float:
@@ -324,21 +283,21 @@ def _render_gate(motif: NormalizedMotif, *, edge_seam_tol: float) -> None:
     size = float(_GATE_RENDER_MM)
     scale = size * (1.0 - 2.0 * _GATE_MARGIN_FRAC)
     transform = f"translate({fmt(size / 2.0)} {fmt(size / 2.0)}) scale({fmt(scale)})"
-    symbols = slot_render_symbols(cast(MotifDef, motif))
-    defs = "".join(symbol for _, symbol in symbols)
-    body = "".join(
-        f'<use href="#{sym_id}" color="#000000" transform="{transform}"/>' for sym_id, _ in symbols
-    )
     document = (
         '<svg xmlns="http://www.w3.org/2000/svg" '
         f'width="{fmt(size)}mm" height="{fmt(size)}mm" viewBox="0 0 {fmt(size)} {fmt(size)}">'
-        f"<defs>{defs}</defs>{body}</svg>"
+        f'<defs>{motif.symbol}</defs><use href="#motif-{motif.id}" transform="{transform}"/>'
+        "</svg>"
     )
     try:
         png, _media = rasterize_svg(document, width_mm=size, dpi=_GATE_RENDER_DPI)
     except RasterError as exc:
         raise ValueError(f"motif failed to render: {exc}") from exc
     image = Image.open(io.BytesIO(png)).convert("RGBA")
+    if image.getchannel("A").getbbox() is None:
+        # 완전 투명 래스터는 seam이 0이라 아래 검사를 그냥 통과한다 — 아무것도 안 그리는
+        # 모티프(예: fill/stroke가 전부 none)를 여기서 명시적으로 거부한다.
+        raise ValueError("motif renders nothing (the rasterized motif is fully transparent)")
     seam = _edge_seam(image)
     if seam > edge_seam_tol:
         raise ValueError(
@@ -350,7 +309,6 @@ def normalize_motif_svg(
     raw_svg: str,
     *,
     id_prefix: str = "recraft",
-    max_color_slots: int | None = None,
     max_aspect_ratio: float = 20.0,
     edge_seam_tol: float = 2.0,
     render_check: bool = True,
@@ -365,7 +323,7 @@ def normalize_motif_svg(
 
     _validate_frame(root)  # 작성자 프레임 온전성
 
-    children = list(root)
+    children = _wrap_root_presentation(root)
     if not _has_drawable(children):
         raise ValueError("motif SVG has no drawable geometry")
 
@@ -391,27 +349,16 @@ def normalize_motif_svg(
     tx = -(bx + bw / 2.0) * scale
     ty = -(by + bh / 2.0) * scale
 
-    if max_color_slots is not None:
-        _quantize_colors(children, max_color_slots)
-    preview_colors = _distinct_colors(children)
-    inherited_color = root.get("color", "#111111")
-    if inherited_color.casefold() in {"currentcolor", "inherit"}:
-        inherited_color = "#111111"
-    color_slots = _slotize_colors(children)
-    # Preserve the original colors as the default colorway for multi-slot motifs. Single-slot motifs
-    # slotify to currentColor, so their concrete color is intentionally not retained.
-    slot_colors = tuple(preview_colors) if len(color_slots) > 1 else None
+    _canonicalize_paints(children, root.get("color"))
     inner = "".join(ET.tostring(child, encoding="unicode") for child in children)
     geometry = f'<g transform="translate({fmt(tx)} {fmt(ty)}) scale({fmt(scale)})">{inner}</g>'
 
     motif_id = id_prefix + "-" + stable_digest(geometry, 12)
     symbol = f'<symbol id="motif-{motif_id}" overflow="visible">{geometry}</symbol>'
-    preview_svg = _standalone_preview_svg(
-        inner,
-        bbox=bbox,
-        color_slots=color_slots,
-        preview_colors=preview_colors,
-        inherited_color=inherited_color,
+    # 저장 symbol과 같은 concrete geometry의 standalone 문서 — 재-import하면 같은 id를 회복한다.
+    preview_svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="{fmt(bx)} {fmt(by)} {fmt(bw)} {fmt(bh)}">{inner}</svg>'
     )
     if len(symbol.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
         raise ValueError(f"normalized motif symbol exceeds {MAX_MOTIF_SVG_BYTES} bytes")
@@ -420,8 +367,6 @@ def normalize_motif_svg(
     motif = NormalizedMotif(
         id=motif_id,
         symbol=symbol,
-        color_slots=color_slots,
-        slot_colors=slot_colors,
         preview_svg=preview_svg,
     )
     if render_check:

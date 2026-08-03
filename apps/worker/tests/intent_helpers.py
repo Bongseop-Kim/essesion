@@ -21,7 +21,7 @@ def register_test_motifs() -> None:
     register_motif(
         MotifDef(
             id="circle",
-            symbol=_symbol("circle", '<circle cx="0" cy="0" r="0.5" fill="currentColor"/>'),
+            symbol=_symbol("circle", '<circle cx="0" cy="0" r="0.5" fill="#ef8a7a"/>'),
             bbox_mm=_UNIT_BBOX,
             anchor=_ORIGIN,
         )
@@ -31,9 +31,9 @@ def register_test_motifs() -> None:
             id="bee",
             symbol=_symbol(
                 "bee",
-                '<ellipse cx="0" cy="0" rx="0.22" ry="0.42" fill="currentColor"/>'
-                '<ellipse cx="-0.3" cy="-0.1" rx="0.18" ry="0.28" fill="currentColor"/>'
-                '<ellipse cx="0.3" cy="-0.1" rx="0.18" ry="0.28" fill="currentColor"/>',
+                '<ellipse cx="0" cy="0" rx="0.22" ry="0.42" fill="#f5ca57"/>'
+                '<ellipse cx="-0.3" cy="-0.1" rx="0.18" ry="0.28" fill="#f5ca57"/>'
+                '<ellipse cx="0.3" cy="-0.1" rx="0.18" ry="0.28" fill="#f5ca57"/>',
             ),
             bbox_mm=_UNIT_BBOX,
             anchor=_ORIGIN,
@@ -82,7 +82,7 @@ def mvp_intent() -> dict:
                 "type": "motif",
                 "z_order": 2,
                 "opacity": 1.0,
-                "params": {"motif_id": "circle", "size_mm": 1.4, "color": "accent"},
+                "params": {"motif_id": "circle", "size_mm": 1.4},
                 "placement": {
                     "type": "path_following",
                     "host_layer": "stripe_base",
@@ -95,7 +95,7 @@ def mvp_intent() -> dict:
                 "id": "bee_on_stripe",
                 "type": "motif",
                 "z_order": 3,
-                "params": {"motif_id": "bee", "size_mm": 5, "color": "gold"},
+                "params": {"motif_id": "bee", "size_mm": 5},
                 "placement": {
                     "type": "path_following",
                     "host_layer": "stripe_base",

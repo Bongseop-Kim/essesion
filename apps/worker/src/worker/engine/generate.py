@@ -26,7 +26,7 @@ def generate(
     registry_version: str = REGISTRY_VERSION,
     motifs: MotifCatalog | None = None,
 ) -> Candidate:
-    result = validate_intent(raw, motifs=motifs)
+    result = validate_intent(raw)
     effective_seed = result.intent.seed if seed is None else seed
     intent = result.intent.model_copy(update={"seed": effective_seed})
     assert_seamless_invariants(intent)

@@ -35,7 +35,7 @@ uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 
 Plan에는 normalized ratio와 제한된 enum/template만 둔다. engine layer ID, motif
 content-hash ID, mm, SVG와 임의 좌표는 compiler 뒤에만 존재한다. motif source는
-exact/private `input` 또는 검증된 `catalog`뿐이며 fixed palette와 catalog grounding은 compiler와
+exact/private `input` 또는 검증된 `catalog`뿐이며 catalog grounding은 compiler와
 최종 engine validation이 다시 강제한다. 참고 이미지와 generate/reference source는 계약 밖이다.
 
 ## 생성 데이터 승격 후보

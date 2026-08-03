@@ -92,9 +92,6 @@ class WorkerClient:
     async def motif_photo_preview(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/motifs/photo-preview", payload)
 
-    async def palette_extract(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._post_json("/palette/extract", payload)
-
     async def ideas(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/ideas", payload)
 

@@ -12,8 +12,8 @@
 
 ## 2. 스키마 재설계
 
-- [ ] Alembic 스테이징 적용 — *첫 배포의 migrate Cloud Run job 성공과 단일 head(`6c4f2a9d1b7e`) 확인. 적용 후 참고 사진 첨부가 있던 기존 세션에서 구성 수정 1회가 200인지 확인(레거시 턴 payload는 API가 전송 전에 정규화한다)*
-- [ ] 로컬·스테이징 DB 재생성 — *베이스라인 뒤 현재 head는 디자인 참고 이미지 테이블·컬럼·행과 `generate|reference` authoring example을 제거한다. `docker compose down -v && docker compose up -d` 후 head까지 마이그레이션하고 계정·설정, 모티프 카탈로그, 저작 예시와 임베딩 인덱스를 다시 시드한다.*
+- [ ] Alembic 스테이징 적용 — *첫 배포의 migrate Cloud Run job 성공과 단일 head(`a3f1c05e7d24`) 확인. 미배포 단계라 리비전 체인을 스쿼시했으므로 빈 DB에서만 적용되며, 적용 뒤 필수 시드를 실행한다.*
+- [ ] 로컬·스테이징 DB 재생성 — *베이스라인이 새 revision id로 스쿼시되어 기존 DB는 이어붙일 수 없다. `docker compose down -v && docker compose up -d` 후 head까지 마이그레이션하고 계정·설정, 고정 색상 모티프 카탈로그, 첫 진입 갤러리 예시, 저작 예시와 임베딩 인덱스를 다시 시드한다.*
 - [ ] `admin_settings.design_edit_cost` 행 확인 — *구성 수정 단가(신규 필수 키). 없으면 `/admin/settings`가 503, 구성 수정이 `token_cost_not_configured`. `apps/api/scripts/seed.py`가 기본 2로 시드한다.*
 
 ## 4. worker
@@ -26,10 +26,10 @@
 
 ## 6. 리허설 (스테이징)
 
-- [ ] 빈 스테이징 DB를 현재 Alembic head까지 적용 → 관리자·motif 초기 입력과 `seed_authoring_examples.py --confirm-live` 실행, motif/example `embedded=total`, 공개 멀티슬롯 `slot_labels`·`slot_parts` 백필의 `eligible/updated` 및 admin 표본 결과 검증
-- [ ] 모티프 모달의 Recraft V4.1 vector 스테이징 스모크 → `controls.colors`·`random_seed` 수용, 팔레트 겹침률·gradient 게이트 거부율 기록, 부위 지정 채팅 리컬러의 `color_indices` 길이·슬롯 매핑 표본 검증. 디자인 생성의 catalog miss에서는 Recraft 호출·예산 변화가 없는지 함께 확인
+- [ ] 빈 스테이징 DB를 현재 Alembic head까지 적용 → 관리자·고정 색상 motif 초기 입력과 `seed_authoring_examples.py --confirm-live` 실행, motif/example `embedded=total` 및 admin 표본의 SVG 색상 보존 결과 검증
+- [ ] 모티프 모달의 Recraft V4.1 vector 스테이징 스모크 → 한국어 원문 subject, 선택적 style hint, `random_seed` 수용과 gradient·텍스트·복잡도 게이트 거부율 기록. V4.1에서 지원하지 않는 `negative_prompt`·`controls.no_text`가 전송되지 않는지 함께 확인한다(V2/V3 호환 경로만 조건부 전송). 생성 SVG의 원본 색상이 저장·검색·디자인 배치까지 유지되는지, 디자인 생성의 catalog miss에서는 Recraft 호출·예산 변화가 없는지도 확인
 - [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(첫 생성 → 구성 수정 → 모티프 검색·명시적 생성·교체 → 이력 되돌리기 → finalize 큐 → 결과 수신)
-- [ ] 디자인 첫 진입 예시 큐레이션 — *`/admin/design-examples`에서 run ID로 등록 후 게시. 등록된 예시가 0건이면 store `/design` 첫 진입이 기존 빈 상태 문구로 폴백한다(비로그인 포함).*
+- [ ] 디자인 첫 진입 예시 큐레이션 — *기본 6종은 `apps/worker/scripts/seed_design_examples.py`(외부 API 없이 gallery-v1 플랜을 결정론 컴파일)가 게시 상태로 시드한다. 그 위에 실제 run을 `/admin/design-examples`에서 run ID로 등록·게시해 큐레이션을 보강한다. 게시 예시가 0건이면 store `/design` 첫 진입이 기존 빈 상태 문구로 폴백한다(비로그인 포함).*
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정
 - [ ] 회원 탈퇴 후 역사성 개인정보 필드별 보존 목적·기간·접근 통제·분리 저장·만료 시 익명화/삭제 정책 승인
 - [ ] 주문/클레임/견적/문의/수선/이미지/디자인 job·관리자 로그 샘플로 purge·익명화 배치와 복구 불가성 검증

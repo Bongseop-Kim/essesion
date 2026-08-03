@@ -81,6 +81,7 @@ const HEADERS: Record<
 };
 
 const GENERATE_EXAMPLES = ["작은 벌", "네잎클로버", "종이비행기"];
+const MAX_MOTIF_QUERY_LENGTH = 200;
 
 const fileSize = (bytes: number) =>
   bytes >= 1_000_000
@@ -244,7 +245,7 @@ function SearchBody({ state }: { state: MotifSearchState }) {
         aria-label="어떤 그림을 넣을지"
         placeholder="예: 작은 벌"
         value={state.query}
-        maxLength={100}
+        maxLength={MAX_MOTIF_QUERY_LENGTH}
         description="카탈로그에서 고르는 건 추가 비용이 없어요"
         prefix={<Icon svg={<MagnifyingGlassIcon />} size={20} />}
         suffix={
@@ -279,14 +280,14 @@ function GenerateBody({ state }: { state: MotifSearchState }) {
         aria-label="새로 만들 그림"
         placeholder="예: 작은 벌"
         value={state.generatePrompt}
-        maxLength={100}
+        maxLength={MAX_MOTIF_QUERY_LENGTH}
         disabled={state.working || state.exhausted}
         description={
           state.exhausted
             ? "이번 디자인에서 더 만들 수 없어요"
             : state.remaining === null
-              ? `${state.generatePrompt.length}/100`
-              : `이번 디자인에서 ${state.remaining}번 더 만들 수 있어요 · ${state.generatePrompt.length}/100`
+              ? `${state.generatePrompt.length}/${MAX_MOTIF_QUERY_LENGTH}`
+              : `이번 디자인에서 ${state.remaining}번 더 만들 수 있어요 · ${state.generatePrompt.length}/${MAX_MOTIF_QUERY_LENGTH}`
         }
         onChange={(event) => state.setGeneratePrompt(event.currentTarget.value)}
       />

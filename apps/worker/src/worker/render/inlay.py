@@ -1,5 +1,6 @@
 """모티프 실 인레이 — 대각 round-cap 가닥 + seam 위상 연속 (worker-pipeline.md §2).
 
+입력 마스크는 기하학 커버리지다(render/motif_mask.py) — 색 대비와 무관하다.
 모티프 영역을 `/` 방향 실 가닥으로 다시 그려 base fabric이 실 사이로 비치게 한다. 실
 weave는 항상 twill-45 고정(MOTIF_WEAVE) — base weave/material_map과 무관(평탄색은 플라스틱,
 슬롯별 weave는 패치워크처럼 읽힘). 가닥 위상은 마스크를 3×3 타일링 후 스캔하고 중앙을
@@ -17,7 +18,7 @@ MOTIF_WEAVE = "twill-45"
 THREAD_PERIOD_MM = 0.70
 THREAD_FILL = 0.82
 AA_SCALE = 3
-MASK_THRESHOLD = 24  # 이 alpha/level 미만의 모티프 커버리지는 실로 치지 않음
+MASK_THRESHOLD = 24  # 이 미만의 기하 커버리지(motif_mask의 L 레벨)는 실로 치지 않음
 THREAD_RELIEF_MM = 0.04  # 가닥 가장자리 음영 offset(물리, DPI 안정)
 THREAD_SHADE_K = 0.23  # relief_strength 단위당 음영 강도
 

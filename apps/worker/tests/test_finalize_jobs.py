@@ -132,7 +132,6 @@ async def test_finalize_loads_db_backed_motifs(client, db_session):
         Motif(
             id=motif_id,
             symbol=spec["symbol"],
-            color_slots=list(spec["color_slots"]),
             bbox=list(spec["bbox_mm"]),
             anchor=list(spec["anchor"]),
         )

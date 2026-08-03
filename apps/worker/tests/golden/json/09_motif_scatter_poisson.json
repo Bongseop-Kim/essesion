@@ -72,15 +72,7 @@
    "z_order": 2,
    "params": {
     "motif_id": "recraft-832977800421",
-    "size_mm": 14.0,
-    "colors": {
-     "s0": "ink",
-     "s1": "leaf",
-     "s2": "gold",
-     "s3": "sky",
-     "s4": "plum",
-     "s5": "leaf"
-    }
+    "size_mm": 14.0
    },
    "placement": {
     "type": "scatter",

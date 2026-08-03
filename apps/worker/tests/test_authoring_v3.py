@@ -15,7 +15,6 @@ from worker.authoring.schema import (
     snapshot_resolved_plan,
     structural_fingerprint,
 )
-from worker.engine.constraints import PaletteConstraint
 from worker.engine.validate import validate_intent
 
 GOLDEN_DIR = Path(__file__).parent / "golden/json"
@@ -37,21 +36,20 @@ def _motif_ids(intent: dict) -> list[str]:
     return result
 
 
-def _input_plan(*, color_indices: list[int] | None = None) -> DesignPlanV3:
-    layer = {
-        "type": "motif",
-        "motif_index": 0,
-        "size_ratio": 0.15,
-        "placement": {"type": "lattice", "columns": 4, "rows": 4},
-    }
-    if color_indices is not None:
-        layer["color_indices"] = color_indices
+def _input_plan() -> DesignPlanV3:
     return DesignPlanV3.model_validate(
         {
             "colors": ["#10243A", "#EF8A7A"],
             "ground_color_index": 0,
             "motifs": [{"source": "input", "input_index": 1}],
-            "layers": [layer],
+            "layers": [
+                {
+                    "type": "motif",
+                    "motif_index": 0,
+                    "size_ratio": 0.15,
+                    "placement": {"type": "lattice", "columns": 4, "rows": 4},
+                }
+            ],
         }
     )
 
@@ -102,7 +100,7 @@ def test_all_gallery_plans_compile_deterministically_to_valid_engine_intents():
         assert first.plan == example.plan.model_dump(mode="json")
         assert first.structural_fingerprint == structural_fingerprint(example.plan)
         assert _motif_ids(first.intent) == motif_ids
-        validate_intent(first.intent, repair=False, motifs={})
+        validate_intent(first.intent, repair=False)
         compiled_placements.update(
             layer["placement"]["type"]
             for layer in first.intent["layers"]
@@ -133,7 +131,7 @@ def test_lattice_half_drop_rounds_odd_drop_axis_count_up_to_close_the_torus():
         "drop": "half_column",
     }
     design = compile_design_plan_v3(DesignPlanV3.model_validate(raw), motif_ids=["pelican"])
-    validate_intent(design.intent, repair=False, motifs={})
+    validate_intent(design.intent, repair=False)
 
 
 def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
@@ -183,7 +181,6 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
                 "type": "motif",
                 "motif_index": 0,
                 "size_ratio": 0.1,
-                "color_indices": [1],
                 "placement": {
                     "type": "lattice",
                     "columns": 2,
@@ -270,24 +267,6 @@ def test_schema_rejects_removed_motif_sources(source: str):
         DesignPlanV3.model_validate(raw)
 
 
-def test_fixed_palette_requires_explicit_motif_color_indices():
-    fixed = PaletteConstraint(mode="fixed", colors=["#10243A", "#EF8A7A"])
-
-    with pytest.raises(PlanCompileError, match="must declare color_indices"):
-        compile_design_plan_v3(
-            _input_plan(),
-            motif_ids=["pelican"],
-            palette_constraint=fixed,
-        )
-
-    compiled = compile_design_plan_v3(
-        _input_plan(color_indices=[1]),
-        motif_ids=["pelican"],
-        palette_constraint=fixed,
-    )
-    assert compiled.motif_color_slots == {"motif_0": ["color_1"]}
-
-
 def test_compiler_accepts_motif_free_plan_with_catalog_candidates():
     plan = load_example_set()[0].plan
 
@@ -329,50 +308,11 @@ def test_compiler_rejects_duplicate_grounded_sources():
         )
 
 
-def test_compiler_rejects_motif_recolor_count_that_conflicts_with_slot_count():
-    # C2 회귀(seamless log 17d2d034): slot_count=1 카탈로그 모티프에 색 2개를 배정한
-    # 플랜이 컴파일을 통과해, 모티프 해석 후 색 바인딩에서야 요청 전체가 거부됐다.
-    # 카탈로그 메타데이터로 슬롯 수를 아는 경우 컴파일 단계에서 거부해
-    # 저작 재시도 피드백으로 되돌린다.
-    raw = next(
-        example.plan for example in load_example_set() if len(example.plan.motifs) == 2
-    ).model_dump(mode="json")
-    raw["motifs"] = [
-        {"source": "catalog", "catalog_ref": "catalog_1"},
-        {"source": "catalog", "catalog_ref": "catalog_2"},
-    ]
-    motif_layers = [layer for layer in raw["layers"] if layer["type"] == "motif"]
-    motif_layers[0]["color_indices"] = [1, 0]
-    candidates = [
-        {"catalog_ref": "catalog_1", "motif_id": "recraft-bee", "slot_count": 1},
-        {"catalog_ref": "catalog_2", "motif_id": "recraft-circle", "slot_count": 1},
-    ]
+def test_compiler_emits_no_motif_color_binding():
+    compiled = compile_design_plan_v3(_input_plan(), motif_ids=["pelican"])
+    motif = next(layer for layer in compiled.intent["layers"] if layer["type"] == "motif")
 
-    with pytest.raises(PlanCompileError, match="exactly 1 entries") as caught:
-        compile_design_plan_v3(
-            DesignPlanV3.model_validate(raw),
-            catalog_candidates=candidates,
-        )
-    assert caught.value.grounding is False
-
-    motif_layers[0]["color_indices"] = [1]
-    compiled = compile_design_plan_v3(
-        DesignPlanV3.model_validate(raw),
-        catalog_candidates=candidates,
-    )
-    assert compiled.motif_color_slots["motif_0"] == ["color_1"]
-
-    # slot_count 메타데이터가 없으면 컴파일은 판단하지 않는다 — 해석 후 바인딩이 백스톱.
-    motif_layers[0]["color_indices"] = [1, 0]
-    without_slot_count = [
-        {key: value for key, value in candidate.items() if key != "slot_count"}
-        for candidate in candidates
-    ]
-    compiled = compile_design_plan_v3(
-        DesignPlanV3.model_validate(raw),
-        catalog_candidates=without_slot_count,
-    )
-    assert compiled.motif_color_slots["motif_0"] == ["color_1", "ground"]
+    assert motif["params"] == {"motif_id": "pelican", "size_mm": 7.2}
 
 
 def test_compiler_unknown_catalog_ref_feedback_names_the_corrective_action():
@@ -392,30 +332,6 @@ def test_compiler_unknown_catalog_ref_feedback_names_the_corrective_action():
             plan,
             catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
         )
-
-
-def test_compiler_requires_every_fixed_color_to_be_guaranteed_visible():
-    plan = load_example_set()[1].plan
-    fixed = PaletteConstraint(mode="fixed", colors=plan.colors[:5])
-    raw = plan.model_dump(mode="json")
-    raw["colors"] = fixed.colors
-    raw["layers"][0]["bands"][0]["color_index"] = 1
-
-    with pytest.raises(PlanCompileError, match="missing color indexes"):
-        compile_design_plan_v3(
-            DesignPlanV3.model_validate(raw),
-            palette_constraint=fixed,
-        )
-
-    raw["layers"][0]["bands"] = [
-        {"offset_ratio": index * 0.2, "width_ratio": 0.1, "color_index": index + 1}
-        for index in range(4)
-    ]
-    compiled = compile_design_plan_v3(
-        DesignPlanV3.model_validate(raw),
-        palette_constraint=fixed,
-    )
-    validate_intent(compiled.intent, repair=False, motifs={})
 
 
 def test_structural_fingerprint_ignores_palette_but_not_geometry():

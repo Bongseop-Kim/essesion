@@ -45,11 +45,10 @@ const page: PageMotifSummaryOut = {
       source: "registry",
       quality: 0.95,
       variant_group: "flowers",
-      color_slot_count: 2,
       created_at: "2026-07-12T01:00:00Z",
       bbox: [0, 0, 24, 24],
       symbol:
-        '<symbol id="motif-1"><path fill="currentColor" d="M0 0h24v24H0z"/></symbol>',
+        '<symbol id="motif-1"><path fill="#C0445A" d="M0 0h24v24H0z"/></symbol>',
       svg_status: "safe",
     },
   ],
@@ -63,8 +62,6 @@ const detail: MotifDetailOut = {
   description: "정면 동백꽃 모티프",
   tags: ["flower", "camellia"],
   anchor: [12, 12],
-  color_slots: ["primary", "secondary"],
-  slot_parts: ["꽃잎", "잎"],
 };
 
 const createObjectURL = vi.fn(() => "blob:motif-preview");
@@ -247,17 +244,30 @@ describe("MotifDetailPage", () => {
     );
   });
 
-  it("색상 슬롯과 부위 이름을 같은 인덱스로 표시한다", async () => {
-    renderAdminPage(
+  it("모티프 메타데이터 행 집합을 그대로 노출한다", async () => {
+    const { container } = renderAdminPage(
       <Routes>
         <Route path="/motifs/:motifId" element={<MotifDetailPage />} />
       </Routes>,
       { entry: "/motifs/motif-1" },
     );
 
-    expect(await screen.findByText("색상 슬롯 · 부위")).toBeTruthy();
-    expect(screen.getByText("1. primary → 꽃잎")).toBeTruthy();
-    expect(screen.getByText("2. secondary → 잎")).toBeTruthy();
+    await screen.findByText("정면 동백꽃 모티프");
+    expect(
+      Array.from(container.querySelectorAll("dt"), (node) => node.textContent),
+    ).toEqual([
+      "주제",
+      "범위",
+      "뷰",
+      "표현",
+      "스타일",
+      "소스",
+      "품질",
+      "변형 그룹",
+      "생성일",
+      "bbox",
+      "anchor",
+    ]);
   });
 
   it("symbol fragment를 innerHTML 없이 독립 SVG 문서로 감싼다", () => {
@@ -273,38 +283,13 @@ describe("MotifDetailPage", () => {
     expect(preview?.endsWith("</svg>")).toBe(true);
   });
 
-  it("멀티슬롯 fill 토큰을 slot_colors로 치환한다", () => {
+  it("symbol의 고정 색을 그대로 보존한다", () => {
     const preview = motifPreviewDocument(
-      '<symbol id="motif-m"><path fill="s0"/><path fill="s1"/></symbol>',
-      [0, 0, 1, 1],
-      ["#ff0000", "#00ff00"],
-    );
-
-    expect(preview).toContain('fill="#ff0000"');
-    expect(preview).toContain('fill="#00ff00"');
-    expect(preview).not.toContain('fill="s0"');
-    expect(preview).not.toContain('fill="s1"');
-  });
-
-  it("slot_colors가 없으면 fill 토큰을 그대로 둔다", () => {
-    const preview = motifPreviewDocument(
-      '<symbol id="motif-m"><path fill="s0"/></symbol>',
+      '<symbol id="motif-m"><path fill="#C0445A"/><path fill="#3E6FA8"/></symbol>',
       [0, 0, 1, 1],
     );
 
-    expect(preview).toContain('fill="s0"');
-  });
-
-  it("유효하지 않은 slot_colors는 SVG 속성에 삽입하지 않는다", () => {
-    const preview = motifPreviewDocument(
-      '<symbol id="motif-m"><path fill="s0"/><path fill="s1"/><path fill="s2"/></symbol>',
-      [0, 0, 1, 1],
-      ['#ff0000" onload="alert(1)', "red", "#A1b2C3"],
-    );
-
-    expect(preview).toContain('fill="s0"');
-    expect(preview).toContain('fill="s1"');
-    expect(preview).toContain('fill="#A1b2C3"');
-    expect(preview).not.toContain("onload");
+    expect(preview).toContain('fill="#C0445A"');
+    expect(preview).toContain('fill="#3E6FA8"');
   });
 });

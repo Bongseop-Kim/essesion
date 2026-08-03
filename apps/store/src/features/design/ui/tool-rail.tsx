@@ -5,20 +5,17 @@ import {
   FolderOpenIcon,
   PlusIcon,
   Squares2X2Icon,
-  SwatchIcon,
 } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
 
 export type ToolRailProps = {
   onExport: () => void;
   onFinalize: () => void;
-  onColors: () => void;
   onSessions: () => void;
   onFinalized: () => void;
   onNewSession: () => void;
   canExport: boolean;
   canFinalize: boolean;
-  paletteFixed: boolean;
   authenticated: boolean;
   busy: boolean;
 };
@@ -29,8 +26,6 @@ type RailItem = {
   icon: ReactNode;
   onClick: () => void;
   disabled?: boolean;
-  /** 지금 적용 중인 도구(예: 색 지정) — 원형을 채워 상태를 알린다. */
-  active?: boolean;
 };
 
 /**
@@ -55,14 +50,6 @@ export function ToolRail(props: ToolRailProps) {
     },
   ];
   const tools: RailItem[] = [
-    {
-      key: "colors",
-      label: "색 지정",
-      icon: <Icon svg={<SwatchIcon />} size={24} />,
-      onClick: props.onColors,
-      disabled: props.busy,
-      active: props.paletteFixed,
-    },
     {
       key: "sessions",
       label: "내 디자인",
@@ -115,7 +102,6 @@ function RailButton({
   icon,
   onClick,
   disabled = false,
-  active = false,
 }: Omit<RailItem, "key">) {
   return (
     <Flex
@@ -127,8 +113,7 @@ function RailButton({
       width={{ base: 40, md: 72 }}
       onClick={onClick}
       disabled={disabled}
-      // 모달을 여는 버튼이라 aria-pressed 대신 라벨로 적용 상태를 알린다.
-      aria-label={active ? `${label}, 적용 중` : label}
+      aria-label={label}
       className="group focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
     >
       <Flex
@@ -138,14 +123,10 @@ function RailButton({
         height={{ base: 40, md: 48 }}
         borderRadius="full"
         borderWidth={1}
-        borderColor={active ? "stroke.brand" : "stroke.neutral-weak"}
-        bg={active ? "bg.brand-solid" : "bg.layer-floating"}
+        borderColor="stroke.neutral-weak"
+        bg="bg.layer-floating"
         boxShadow={disabled ? "none" : "s1"}
-        className={
-          active
-            ? "text-fg-contrast transition-colors duration-100 ease-standard"
-            : "text-fg-neutral transition-colors duration-100 ease-standard group-hover:bg-bg-neutral-weak"
-        }
+        className="text-fg-neutral transition-colors duration-100 ease-standard group-hover:bg-bg-neutral-weak"
       >
         {icon}
       </Flex>

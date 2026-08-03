@@ -146,16 +146,16 @@ def test_duplicate_layer_id_rejected():
         validate_intent(intent)
 
 
-def test_motif_requires_exactly_one_color_spec():
-    both = mvp_intent()
-    both["layers"][2]["params"]["colors"] = {"fill": "accent"}
+def test_motif_rejects_legacy_color_fields():
+    color = mvp_intent()
+    color["layers"][2]["params"]["color"] = "accent"
     with pytest.raises(IntentInvalid):
-        validate_intent(both)
+        validate_intent(color)
 
-    neither = mvp_intent()
-    del neither["layers"][2]["params"]["color"]
+    colors = mvp_intent()
+    colors["layers"][2]["params"]["colors"] = {"fill": "accent"}
     with pytest.raises(IntentInvalid):
-        validate_intent(neither)
+        validate_intent(colors)
 
 
 def test_negative_spacing_rejected():
@@ -249,7 +249,7 @@ def test_color_resolution_is_repeatable_and_colorway_aware():
     assert palette.resolve_color("#A1B2C3", None) == "#A1B2C3"
 
 
-def test_multicolor_literal_originals_validate_render_and_remain_byte_identical():
+def test_concrete_multicolor_motif_validates_and_renders_byte_identically():
     intent = mvp_intent()
     intent["layers"] = [
         intent["layers"][0],
@@ -260,7 +260,6 @@ def test_multicolor_literal_originals_validate_render_and_remain_byte_identical(
             "params": {
                 "motif_id": "multi-original",
                 "size_mm": 6,
-                "colors": {"s0": "#112233", "s1": "#AABBCC"},
             },
             "placement": {
                 "type": "lattice",
@@ -272,15 +271,13 @@ def test_multicolor_literal_originals_validate_render_and_remain_byte_identical(
         id="multi-original",
         symbol=(
             '<symbol id="motif-multi-original">'
-            '<circle r="0.5" fill="s0"/><circle r="0.2" fill="s1"/>'
+            '<circle r="0.5" fill="#112233"/><circle r="0.2" fill="#AABBCC"/>'
             "</symbol>"
         ),
-        color_slots=("s0", "s1"),
-        slot_colors=("#112233", "#AABBCC"),
     )
     catalog = {motif.id: motif}
 
-    validate_intent(intent, motifs=catalog)
+    validate_intent(intent)
     first = generate(intent, motifs=catalog).svg
     second = generate(intent, motifs=catalog).svg
 

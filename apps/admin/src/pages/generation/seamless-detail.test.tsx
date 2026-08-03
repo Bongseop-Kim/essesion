@@ -44,7 +44,6 @@ const log: SeamlessDetailOut = {
     mode: "prompt",
     model: "gemini-2.5-flash-lite",
     prompt_revision: null,
-    fixed_palette: false,
     patch_axes: [],
     authoring_attempts: 1,
     catalog_candidate_count: null,

@@ -9,7 +9,6 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
-import type { DesignPalette } from "@/features/design/model/draft";
 import { designErrorMessage } from "@/features/design/model/errors";
 import { completeDesignOnboarding } from "@/features/design/model/onboarding";
 import {
@@ -22,7 +21,6 @@ import {
   useDeleteFinalizedJob,
 } from "@/features/design/model/use-delete";
 import type { MotifSearchState } from "@/features/design/model/use-motif-search";
-import { ColorSettingsModal } from "@/features/design/ui/color-settings-modal";
 import {
   ExportDialog,
   type ExportDialogValue,
@@ -44,7 +42,6 @@ export type DesignOverlayName =
   | "finalized"
   | "history"
   | "motifs"
-  | "colors"
   | "ideas"
   | "finalize"
   | "export";
@@ -72,9 +69,6 @@ export type DesignOverlaysProps = {
   onSelectStep: (runId: string) => void;
   /** 모티프 모달 전체의 상태·호출 — 페이지가 소유해 모달을 넘나들어도 유지된다. */
   motifs: MotifSearchState;
-  onExtractPalette: (photo: File) => Promise<string[]>;
-  palette: DesignPalette;
-  onPaletteChange: (palette: DesignPalette) => void;
   prompt: string;
   onPromptChange: (prompt: string) => void;
   onRequestIdeas: () => Promise<string[]>;
@@ -104,9 +98,6 @@ export function DesignOverlays({
   historyCurrentRunId,
   onSelectStep,
   motifs,
-  onExtractPalette,
-  palette,
-  onPaletteChange,
   prompt,
   onPromptChange,
   onRequestIdeas,
@@ -224,13 +215,6 @@ export function DesignOverlays({
         onDeleteMotif={(motif) =>
           requestDelete({ kind: "motif", id: motif.id, name: motif.name })
         }
-      />
-      <ColorSettingsModal
-        open={overlay === "colors"}
-        value={palette}
-        onOpenChange={change("colors")}
-        onApply={onPaletteChange}
-        onExtract={onExtractPalette}
       />
       <IdeasModal
         open={overlay === "ideas"}

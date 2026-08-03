@@ -1,25 +1,13 @@
 import {
   createDesignIdeas as createDesignIdeasRequest,
-  extractDesignPalette as extractDesignPaletteRequest,
   previewPhotoMotif as previewPhotoMotifRequest,
   previewTextMotif as previewTextMotifRequest,
 } from "@essesion/api-client";
 
-import type { DesignPalette } from "@/features/design/model/draft";
-
 type IdeaContext = {
   prompt: string;
   userMotifIds: string[];
-  palette: DesignPalette;
 };
-
-export async function extractDesignPalette(uploadId: string, colorCount = 5) {
-  const response = await extractDesignPaletteRequest({
-    body: { upload_id: uploadId, color_count: colorCount },
-    throwOnError: true,
-  });
-  return response.data.colors;
-}
 
 export async function previewTextMotif(input: {
   text: string;
@@ -70,7 +58,6 @@ export async function createDesignIdeas(context: IdeaContext) {
     body: {
       prompt: context.prompt,
       user_motif_ids: context.userMotifIds,
-      palette: context.palette,
       count: 4,
     },
     throwOnError: true,

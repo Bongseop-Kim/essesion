@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from worker.config import get_settings
 from worker.engine.intent import Intent
-from worker.engine.palette import ColorSlot, Colorway, Palette, is_hex_color, out_of_gamut
+from worker.engine.palette import ColorSlot, Colorway, Palette, out_of_gamut
 from worker.engine.placement import lattice_axis_count, scatter_target_count
 from worker.engine.primitives import stripe_line_count
 from worker.engine.units import (
@@ -24,7 +24,6 @@ from worker.engine.units import (
     snap_spacing,
     stripe_tiles,
 )
-from worker.motifs.registry import MotifCatalog, resolve_motif
 
 
 class IntentInvalid(Exception):
@@ -63,11 +62,6 @@ def _layer_slot_refs(layer) -> list[str]:
         return [layer.params.color]
     if layer.type == "stripe":
         return [b.color for b in layer.params.bands]
-    if layer.type == "motif":
-        if layer.params.colors:
-            return [color for color in layer.params.colors.values() if not is_hex_color(color)]
-        if layer.params.color is not None:
-            return [] if is_hex_color(layer.params.color) else [layer.params.color]
     return []
 
 
@@ -227,9 +221,7 @@ def _repair_stripe_ground_gap(layer, cap: float):
     return new_layer, warning
 
 
-def validate_intent(
-    raw, *, repair: bool = True, motifs: MotifCatalog | None = None
-) -> ValidationResult:
+def validate_intent(raw, *, repair: bool = True) -> ValidationResult:
     # 1. 구조
     if isinstance(raw, Intent):
         intent = raw
@@ -336,25 +328,6 @@ def validate_intent(
                 errors.append(f"layer {layer.id!r} references unknown color slot {slot_id!r}")
 
         if layer.type == "motif":
-            try:
-                motif = resolve_motif(layer.params.motif_id, motifs)
-            except ValueError:
-                motif = None  # 미등록 모티프는 compose에 위임 (stale 카탈로그 422 방지)
-            if motif is not None:
-                slots = set(motif.color_slots)
-                if layer.params.colors is not None:
-                    keys = set(layer.params.colors)
-                    if keys != slots:
-                        errors.append(
-                            f"layer {layer.id!r}: colors bind {sorted(keys)} but motif "
-                            f"{motif.id!r} has color_slots {sorted(slots)} (every slot "
-                            f"must be bound exactly once; no unbound slots)"
-                        )
-                elif layer.params.color is not None and slots != {"s0"}:
-                    errors.append(
-                        f"layer {layer.id!r}: motif {motif.id!r} is multi-color "
-                        f"(color_slots {sorted(slots)}); use a `colors` mapping"
-                    )
             if layer.params.size_mm > tile:
                 errors.append(
                     f"layer {layer.id!r}: motif size_mm {layer.params.size_mm} exceeds "

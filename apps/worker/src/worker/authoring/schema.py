@@ -1,7 +1,7 @@
 """Provider-facing DesignPlan v3 schema.
 
-The model chooses normalized structure. Engine IDs, millimetres, point coordinates, and
-motif color-slot names stay behind the deterministic compiler boundary.
+The model chooses normalized structure. Engine IDs, millimetres, and point coordinates stay
+behind the deterministic compiler boundary. Motif artwork, including its colors, is immutable.
 """
 
 from __future__ import annotations
@@ -182,17 +182,7 @@ class MotifLayerPlan(_StrictModel):
     type: Literal["motif"]
     motif_index: int = Field(ge=0, le=1)
     size_ratio: float = Field(gt=0.0, le=0.4, allow_inf_nan=False)
-    color_indices: list[int] | None = Field(default=None, min_length=1, max_length=8)
     placement: PlacementPlan
-
-    @field_validator("color_indices")
-    @classmethod
-    def _color_indexes_are_bounded(cls, values: list[int] | None) -> list[int] | None:
-        if values is None:
-            return None
-        if any(value < 0 or value > 7 for value in values):
-            raise ValueError("motif color indexes must be between 0 and 7")
-        return values
 
 
 StructureLayerPlan = Annotated[
@@ -233,10 +223,6 @@ class DesignPlanV3(_StrictModel):
             if layer.type == "stripe":
                 if any(band.color_index >= color_count for band in layer.bands):
                     raise ValueError("stripe color_index is outside colors")
-            elif layer.color_indices is not None and any(
-                index >= color_count for index in layer.color_indices
-            ):
-                raise ValueError("motif color_index is outside colors")
 
         used_motifs = {layer.motif_index for layer in motif_layers}
         if used_motifs != set(range(len(self.motifs))):
@@ -282,8 +268,6 @@ def structural_fingerprint(plan: DesignPlanV3) -> str:
         if layer["type"] == "stripe":
             for band in layer["bands"]:
                 band.pop("color_index", None)
-        else:
-            layer.pop("color_indices", None)
     payload = {
         "motifs": [_canonical_motif_source(source) for source in plan.motifs],
         "layers": layers,

@@ -1,4 +1,4 @@
-"""모티프 정의 + 슬롯 심볼 파생 (worker-motifs.md §1).
+"""모티프 정의와 카탈로그 조회 (worker-motifs.md §1).
 
 프로덕션 소스는 DB(motifs, pgvector) — 요청 초입에서 store.get_motifs로 조회한
 `MotifCatalog`(불변 Mapping)를 엔진에 명시 인자로 전달한다(ARCHITECTURE §7
@@ -16,13 +16,9 @@ Anchor = tuple[float, float]
 @dataclass(frozen=True)
 class MotifDef:
     id: str
-    symbol: str  # <symbol id="motif-{id}" overflow="visible">…</symbol> (슬롯 토큰 보존)
+    symbol: str  # <symbol id="motif-{id}" overflow="visible">…</symbol> (구체 색 보존)
     bbox_mm: BBox = (-0.5, -0.5, 0.5, 0.5)
     anchor: Anchor = (0.0, 0.0)
-    color_slots: tuple[str, ...] = ("s0",)
-    slot_colors: tuple[str, ...] | None = None
-    slot_labels: tuple[str, ...] | None = None
-    slot_parts: tuple[str, ...] | None = None
 
 
 _REGISTRY: dict[str, MotifDef] = {}
@@ -73,25 +69,3 @@ def iter_motif_ids(raw: object) -> set[str]:
         if isinstance(motif_id, str) and motif_id:
             ids.add(motif_id)
     return ids
-
-
-def slot_render_symbols(motif: MotifDef) -> list[tuple[str, str]]:
-    """슬롯별 colorway-agnostic 심볼 파생 (worker-engine.md §6).
-
-    단색은 원본 심볼 그대로(motif-{id}). 멀티컬러는 슬롯 k마다 활성 토큰만
-    currentColor, 나머지는 none — `fill="sK"` 정확일치 치환(닫는 따옴표 포함,
-    s1/s10 충돌 방지). color_slots 순서 = z-order.
-    """
-    if len(motif.color_slots) <= 1:
-        return [(f"motif-{motif.id}", motif.symbol)]
-    out: list[tuple[str, str]] = []
-    for k in range(len(motif.color_slots)):
-        body = motif.symbol
-        for j, slot in enumerate(motif.color_slots):
-            repl = "currentColor" if j == k else "none"
-            body = body.replace(f'fill="{slot}"', f'fill="{repl}"')
-            body = body.replace(f'stroke="{slot}"', f'stroke="{repl}"')
-        sym_id = f"motif-{motif.id}-s{k}"
-        body = body.replace(f'id="motif-{motif.id}"', f'id="{sym_id}"', 1)
-        out.append((sym_id, body))
-    return out

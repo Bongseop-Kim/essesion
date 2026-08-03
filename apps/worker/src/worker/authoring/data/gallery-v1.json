@@ -199,7 +199,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.22,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "lattice",
             "columns": 4,
@@ -239,7 +238,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.29166667,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "lattice",
             "columns": 4,
@@ -278,7 +276,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.29166667,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "lattice",
             "columns": 2,
@@ -317,7 +314,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.29166667,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "scatter",
             "mode": "poisson",
@@ -356,7 +352,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.29166667,
-          "color_indices": [3, 7, 2, 6, 5, 4],
           "placement": {
             "type": "scatter",
             "mode": "sateen",
@@ -395,7 +390,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.29166667,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "kind": "straight",
@@ -436,7 +430,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.34,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "direction": "diagonal_up",
@@ -451,7 +444,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.34,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "direction": "diagonal_up",
@@ -493,7 +485,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.32,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "point_template",
             "template": "diagonal_pair",
@@ -531,7 +522,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.125,
-          "color_indices": [7],
           "placement": {
             "type": "lattice",
             "columns": 5,
@@ -583,7 +573,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.25,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "kind": "straight",
@@ -646,7 +635,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.24479167,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "kind": "straight",
@@ -704,7 +692,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.26,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "kind": "straight",
@@ -768,7 +755,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.28,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "point_template",
             "template": "diagonal_pair"
@@ -827,7 +813,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.125,
-          "color_indices": [7],
           "placement": {
             "type": "path",
             "kind": "wave",
@@ -892,7 +877,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.17708333,
-          "color_indices": [3, 7, 2, 6, 5, 7],
           "placement": {
             "type": "path",
             "kind": "straight",
@@ -937,7 +921,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.05,
-          "color_indices": [5],
           "placement": {
             "type": "point_template",
             "template": "grid4_inset"
@@ -947,7 +930,6 @@
           "type": "motif",
           "motif_index": 1,
           "size_ratio": 0.125,
-          "color_indices": [7],
           "placement": {
             "type": "lattice",
             "columns": 4,
@@ -1007,7 +989,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.13,
-          "color_indices": [7],
           "placement": {
             "type": "path",
             "direction": "diagonal_up",
@@ -1023,7 +1004,6 @@
           "type": "motif",
           "motif_index": 1,
           "size_ratio": 0.065,
-          "color_indices": [5],
           "placement": {
             "type": "path",
             "direction": "diagonal_up",
@@ -1039,7 +1019,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.13,
-          "color_indices": [7],
           "placement": {
             "type": "path",
             "direction": "diagonal_up",
@@ -1055,7 +1034,6 @@
           "type": "motif",
           "motif_index": 1,
           "size_ratio": 0.065,
-          "color_indices": [5],
           "placement": {
             "type": "path",
             "direction": "diagonal_up",
@@ -1102,7 +1080,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.035,
-          "color_indices": [2],
           "placement": {
             "type": "lattice",
             "columns": 10,
@@ -1115,7 +1092,6 @@
           "type": "motif",
           "motif_index": 1,
           "size_ratio": 0.12,
-          "color_indices": [7],
           "placement": {
             "type": "scatter",
             "mode": "poisson",
@@ -1158,7 +1134,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.05,
-          "color_indices": [5],
           "placement": {
             "type": "path",
             "kind": "wave",
@@ -1174,7 +1149,6 @@
           "type": "motif",
           "motif_index": 1,
           "size_ratio": 0.09166667,
-          "color_indices": [7],
           "placement": {
             "type": "path",
             "kind": "wave",
@@ -1238,7 +1212,6 @@
           "type": "motif",
           "motif_index": 0,
           "size_ratio": 0.1,
-          "color_indices": [3],
           "placement": {
             "type": "path",
             "kind": "straight",
@@ -1254,7 +1227,6 @@
           "type": "motif",
           "motif_index": 1,
           "size_ratio": 0.15,
-          "color_indices": [2],
           "placement": {
             "type": "path",
             "kind": "straight",

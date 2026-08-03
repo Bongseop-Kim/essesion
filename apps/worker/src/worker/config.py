@@ -44,8 +44,6 @@ class Settings(BaseSettings):
     recraft_style: str = ""
     recraft_size: str = "1024x1024"
     recraft_base_url: str = "https://external.api.recraft.ai/v1"
-    recraft_max_color_slots: int = Field(default=6, ge=1)
-
     motif_similarity_tau: float = Field(default=0.84, ge=0.0, le=1.0)
     # One explicit motif-generation request may retry the suitability gate. Bound its actual
     # Recraft calls while catalog hits remain free.

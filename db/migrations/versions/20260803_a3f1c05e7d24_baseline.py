@@ -1,9 +1,11 @@
 """baseline
 
-Revision ID: dadd999bf858
+Revision ID: a3f1c05e7d24
 Revises:
-Create Date: 2026-07-22 23:52:40.983417
+Create Date: 2026-08-03 00:00:00.000000
 
+개발 단계 스쿼시: dadd999bf858 + 6c4f2a9d1b7e + c93e4a7b2d10을 단일 baseline으로 합친 것.
+기존 DB는 이 리비전으로 이어붙일 수 없으니 재생성 후 재시드할 것.
 """
 
 from collections.abc import Sequence
@@ -13,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "dadd999bf858"
+revision: str = "a3f1c05e7d24"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -97,15 +99,6 @@ def upgrade() -> None:
         "motifs",
         sa.Column("id", sa.Text(), nullable=False),
         sa.Column("symbol", sa.Text(), nullable=False),
-        sa.Column(
-            "color_slots",
-            postgresql.JSONB(astext_type=sa.Text()),
-            server_default=sa.text("'[\"s0\"]'::jsonb"),
-            nullable=False,
-        ),
-        sa.Column("slot_colors", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("slot_labels", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("slot_parts", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("ingested_user_id", sa.Uuid(), nullable=True),
         sa.Column("ingested_session_id", sa.Uuid(), nullable=True),
         sa.Column("bbox", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
@@ -203,10 +196,6 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Uuid(), nullable=True),
         sa.Column("input_type", sa.Text(), nullable=False),
         sa.Column("prompt", sa.Text(), nullable=True),
-        sa.Column(
-            "has_reference_image", sa.Boolean(), server_default=sa.text("false"), nullable=False
-        ),
-        sa.Column("reference_image_bytes", sa.Integer(), nullable=True),
         sa.Column("colorway", sa.Text(), nullable=True),
         sa.Column("seed", sa.BigInteger(), nullable=True),
         sa.Column("engine_version", sa.Text(), nullable=True),
@@ -237,7 +226,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            "input_type IN ('intent', 'prompt', 'reference_image')",
+            "input_type IN ('intent', 'prompt')",
             name=op.f("ck_seamless_generation_logs_input_type"),
         ),
         sa.CheckConstraint(
@@ -1415,55 +1404,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_quote_requests_user_id"), "quote_requests", ["user_id"], unique=False)
     op.create_table(
-        "seamless_generation_attachments",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
-        sa.Column("log_id", sa.Uuid(), nullable=False),
-        sa.Column("image_id", sa.Uuid(), nullable=False),
-        sa.Column("purpose", sa.Text(), server_default="auto", nullable=False),
-        sa.Column("ordinal", sa.Integer(), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "purpose IN ('auto', 'color_mood', 'motif', 'composition')",
-            name=op.f("ck_seamless_generation_attachments_purpose"),
-        ),
-        sa.ForeignKeyConstraint(
-            ["image_id"],
-            ["images.id"],
-            name=op.f("fk_seamless_generation_attachments_image_id_images"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["log_id"],
-            ["seamless_generation_logs.id"],
-            name=op.f("fk_seamless_generation_attachments_log_id_seamless_generation_logs"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_seamless_generation_attachments")),
-    )
-    op.create_index(
-        op.f("ix_seamless_generation_attachments_image_id"),
-        "seamless_generation_attachments",
-        ["image_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_seamless_generation_attachments_log_id"),
-        "seamless_generation_attachments",
-        ["log_id"],
-        unique=False,
-    )
-    op.create_index(
-        "uq_seamless_generation_attachments_log_ordinal",
-        "seamless_generation_attachments",
-        ["log_id", "ordinal"],
-        unique=True,
-    )
-    op.create_table(
         "design_tokens",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
@@ -1533,10 +1473,7 @@ def upgrade() -> None:
         "design_turn_attachments",
         sa.Column("id", sa.Uuid(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("turn_id", sa.Uuid(), nullable=False),
-        sa.Column("kind", sa.Text(), nullable=False),
-        sa.Column("image_id", sa.Uuid(), nullable=True),
-        sa.Column("motif_id", sa.Text(), nullable=True),
-        sa.Column("purpose", sa.Text(), nullable=True),
+        sa.Column("motif_id", sa.Text(), nullable=False),
         sa.Column("filename", sa.Text(), nullable=False),
         sa.Column("ordinal", sa.Integer(), nullable=False),
         sa.Column(
@@ -1544,23 +1481,6 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
-        ),
-        sa.CheckConstraint(
-            "(kind = 'photo' AND purpose IS NOT NULL AND purpose IN ('auto', 'color_mood', 'motif', 'composition')) OR (kind = 'svg' AND purpose IS NULL)",
-            name=op.f("ck_design_turn_attachments_purpose"),
-        ),
-        sa.CheckConstraint(
-            "kind IN ('photo', 'svg')", name=op.f("ck_design_turn_attachments_kind")
-        ),
-        sa.CheckConstraint(
-            "(image_id IS NOT NULL)::int + (motif_id IS NOT NULL)::int = 1",
-            name=op.f("ck_design_turn_attachments_exactly_one_target"),
-        ),
-        sa.ForeignKeyConstraint(
-            ["image_id"],
-            ["images.id"],
-            name=op.f("fk_design_turn_attachments_image_id_images"),
-            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["motif_id"], ["motifs.id"], name=op.f("fk_design_turn_attachments_motif_id_motifs")
@@ -2169,19 +2089,6 @@ def downgrade() -> None:
         postgresql_where=sa.text("source_order_id IS NOT NULL"),
     )
     op.drop_table("design_tokens")
-    op.drop_index(
-        "uq_seamless_generation_attachments_log_ordinal",
-        table_name="seamless_generation_attachments",
-    )
-    op.drop_index(
-        op.f("ix_seamless_generation_attachments_log_id"),
-        table_name="seamless_generation_attachments",
-    )
-    op.drop_index(
-        op.f("ix_seamless_generation_attachments_image_id"),
-        table_name="seamless_generation_attachments",
-    )
-    op.drop_table("seamless_generation_attachments")
     op.drop_index(op.f("ix_quote_requests_user_id"), table_name="quote_requests")
     op.drop_index("ix_quote_requests_admin_list", table_name="quote_requests")
     op.drop_table("quote_requests")

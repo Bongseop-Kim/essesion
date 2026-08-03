@@ -12,10 +12,10 @@ from worker.config import get_settings
 from worker.engine.intent import Intent, Layer, MotifLayer
 from worker.engine.palette import Palette
 from worker.engine.placement import Instance, place
-from worker.engine.primitives import build_primitive, escape_attr
+from worker.engine.primitives import build_primitive
 from worker.engine.seamless import clone_instances
 from worker.engine.units import fmt
-from worker.motifs.registry import MotifCatalog, MotifDef, resolve_motif, slot_render_symbols
+from worker.motifs.registry import MotifCatalog, MotifDef, resolve_motif
 
 
 def render_svg_document(
@@ -93,17 +93,13 @@ def _render_layer(
     if layer.type == "stripe":
         return hosts[layer.id].render(palette, colorway_id)
     if layer.type == "motif":
-        return _render_motif_layer(
-            layer, hosts, palette, colorway_id, tile, symbol_defs, seed, motifs
-        )
+        return _render_motif_layer(layer, hosts, tile, symbol_defs, seed, motifs)
     raise ValueError(f"unsupported layer type: {layer.type!r}")
 
 
 def _render_motif_layer(
     layer: MotifLayer,
     hosts: dict[str, Any],
-    palette: Palette,
-    colorway_id: str | None,
     tile: float,
     symbol_defs: dict[str, str],
     seed: int,
@@ -125,29 +121,9 @@ def _render_motif_layer(
     placed = place(layer, host, tile, seed)
     instances = clone_instances(placed, motif=motif, size_mm=size_mm, tile_mm=tile)
 
-    # 멀티컬러: 슬롯별 심볼을 instance-major/slot-minor로 겹쳐 그림
-    if layer.params.colors is not None:
-        render_symbols = slot_render_symbols(motif)
-        for sym_id, body in render_symbols:
-            symbol_defs.setdefault(sym_id, body)
-        slot_colors = [
-            escape_attr(palette.resolve_color(layer.params.colors[slot], colorway_id))
-            for slot in motif.color_slots
-        ]
-        uses: list[str] = []
-        for inst in instances:
-            transform = _instance_transform(motif, inst, size_mm)
-            for (sym_id, _body), color in zip(render_symbols, slot_colors, strict=True):
-                uses.append(f'<use href="#{sym_id}" color="{color}" transform="{transform}"/>')
-        return "".join(uses)
-
     symbol_defs.setdefault(f"motif-{motif.id}", motif.symbol)
-    color_slot = layer.params.color
-    assert color_slot is not None  # _exactly_one_color_spec이 보장
-    color = escape_attr(palette.resolve_color(color_slot, colorway_id))
     return "".join(
-        f'<use href="#motif-{motif.id}" color="{color}" '
-        f'transform="{_instance_transform(motif, inst, size_mm)}"/>'
+        f'<use href="#motif-{motif.id}" transform="{_instance_transform(motif, inst, size_mm)}"/>'
         for inst in instances
     )
 

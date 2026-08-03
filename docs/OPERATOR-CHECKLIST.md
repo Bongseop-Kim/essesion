@@ -119,9 +119,8 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
    unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
    uv run python apps/worker/scripts/seed_motifs.py
    uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
-   uv run python apps/worker/scripts/backfill_slot_labels.py --confirm-live
    ```
-   인덱싱 출력이 `embedded=<total>/<total>`인지, 슬롯 메타데이터 백필 출력이 `eligible=<대상>; updated=<갱신>`인지 배포 기록에 남긴다. 백필은 공개 멀티슬롯의 NULL `slot_labels` 또는 `slot_parts`만 각각 조건부 갱신하므로 재실행이 안전하다. 완료 뒤 admin Motif 상세에서 `슬롯 → 부위` 표본을 확인한다. `GCP_PROJECT_ID`/ADC 또는 확인 플래그가 없으면 실행되지 않으며 `user_upload`은 두 작업 모두 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
+   인덱싱 출력이 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. `GCP_PROJECT_ID`/ADC 또는 확인 플래그가 없으면 인덱싱이 실행되지 않으며 `user_upload`은 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
 7. 외부 콘솔은 프록시 검증 후 처음부터 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - **Toss** 대시보드: 웹훅 URL → `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로 갱신
    - **Google·Kakao** 콘솔: redirect URI → `https://api.essesion.shop/auth/{provider}/callback`
@@ -148,7 +147,7 @@ Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐
 
 ## E. 스테이징 리허설
 
-1. 빈 스테이징 DB에 Alembic migrate job이 `dadd999bf858` 단일 베이스라인을 적용했는지
+1. 빈 스테이징 DB에 Alembic migrate job이 `a3f1c05e7d24` 단일 베이스라인을 적용했는지
    확인한다. 이전 개발 revision이 발견되면 데이터 변환을 시도하지 말고 DB를 재생성한다.
 2. 실제 Toss sandbox, Google/Kakao OAuth, Solapi, generate → finalize Cloud Tasks 흐름과
    주문·클레임 E2E를 실행한다. Apple/Naver는 구현·등록 전까지 완료로 판정하지 않는다.

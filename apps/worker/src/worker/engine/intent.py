@@ -140,14 +140,6 @@ class MotifParams(BaseModel):
 
     motif_id: str
     size_mm: float = Field(gt=0)
-    color: str | None = None
-    colors: dict[str, str] | None = None
-
-    @model_validator(mode="after")
-    def _exactly_one_color_spec(self) -> "MotifParams":
-        if (self.color is not None) == bool(self.colors):
-            raise ValueError("motif params must set exactly one of `color` or non-empty `colors`")
-        return self
 
 
 class BackgroundLayer(BaseModel):
