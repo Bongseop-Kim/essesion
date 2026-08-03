@@ -202,7 +202,7 @@ def _build_recraft_prompt(spec: dict, *, errors: list[str] | None = None) -> str
 class RecraftHTTPClient:
     """실제 Recraft 벡터 API 호출 — generate, 120s, HTTP 재시도 없음.
 
-    vectorize(이미지→SVG) 경로는 이미지 입력 파이프라인과 함께 5단계에서 재도입한다.
+    이미지→SVG 벡터화는 Recraft가 아닌 로컬 VTracer(worker.motifs.photo_svg) 소관.
     """
 
     def __init__(
