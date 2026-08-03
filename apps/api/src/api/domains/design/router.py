@@ -978,10 +978,14 @@ async def _design_turn_outs(
             .order_by(DesignTurnAttachment.turn_id, DesignTurnAttachment.ordinal)
         )
         for attachment, motif in attachment_rows:
+            try:
+                preview_svg = _motif_preview_svg(motif)
+            except DomainError:
+                continue  # 손상된 모티프 SVG — 해당 첨부만 제외하고 이력은 유지
             by_turn.setdefault(attachment.turn_id, []).append(
                 DesignTurnAttachmentOut(
                     filename=attachment.filename,
-                    preview_svg=_motif_preview_svg(motif),
+                    preview_svg=preview_svg,
                 )
             )
     outputs: list[DesignTurnOut] = []
@@ -1307,6 +1311,7 @@ async def _build_conversation_context(
             if isinstance(ref, dict)
             and ref.get("kind", "svg") == "svg"
             and isinstance(ref.get("filename"), str)
+            and 1 <= len(ref["filename"]) <= 255  # 워커 filename 계약: min 1, max 255
         ]
         history.append(
             {

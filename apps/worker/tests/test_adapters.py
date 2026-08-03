@@ -477,6 +477,18 @@ def test_served_schema_withholds_the_input_motif_variant_when_asked():
     assert "catalog_ref" in pruned
 
 
+async def test_author_design_without_motif_sources_serves_the_full_schema():
+    # motif_ids도 catalog_candidates도 없으면 빈 union이 생기므로 variant를 빼지 않는다.
+    examples = load_example_set()
+    client, sdk = _gemini(examples[1].plan.model_dump(mode="json"))
+
+    await client.author_design("남색 미니멀 스트라이프")
+
+    served = json.dumps(sdk.models.generate_calls[0]["config"].response_schema)
+    assert "input_index" in served
+    assert "catalog_ref" in served
+
+
 def test_authoring_prompt_states_the_count_limits_the_served_schema_drops():
     # 서빙 스키마에서 maxItems가 제거되므로 개수 상한은 문장으로만 전달된다.
     prompt = _build_prompt("네이비 사선 줄무늬", errors=None)

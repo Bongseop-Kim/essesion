@@ -386,7 +386,7 @@ sequenceDiagram
 
 - `db/src/db/models/`의 SQLAlchemy 모델이 스키마 source of truth다.
 - 모든 변경은 Alembic revision으로 만들고 `alembic check`로 모델 drift를 검증한다.
-- 현재 스키마는 43개 모델 테이블과 단일 베이스라인 revision으로 구성되어 있다. head는 `dadd999bf858`이며 빈 PostgreSQL에서 upgrade, `alembic check`, downgrade를 검증한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
+- 현재 스키마는 42개 모델 테이블과 베이스라인 `dadd999bf858`에서 시작하는 2-revision 체인으로 구성되어 있다. head는 `6c4f2a9d1b7e`이며 빈 PostgreSQL에서 upgrade, `alembic check`, downgrade를 검증한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
 - PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 사용한다.
 - DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다. updated timestamp와 도메인 규칙은 서비스 계층이 소유한다.
 - 공개 motif와 authoring example 검색은 Vertex AI `gemini-embedding-001`의 pgvector `vector(3072)`만 사용한다.
