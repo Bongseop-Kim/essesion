@@ -140,6 +140,10 @@ async def upsert_motif(
     scope = normalize_facet(facets.get("scope")) or None
     if embedding is not None and len(embedding) != EMBEDDING_DIM:
         raise ValueError(f"embedding dimension must be {EMBEDDING_DIM}, got {len(embedding)}")
+    # 승인 전 행에 embedding을 남기면 승인 후 인덱서(missing_embedding_documents)가 건너뛰어
+    # RETRIEVAL_DOCUMENT 임베딩을 영영 못 받는다 — embedding은 approved 행만 가진다.
+    if status != APPROVED_STATUS:
+        embedding = None
     values = {
         "id": normalized.id,
         "symbol": normalized.symbol,
@@ -291,6 +295,7 @@ async def update_embedding_if_missing(
         .where(
             Motif.id == motif_id,
             Motif.source != USER_UPLOAD_SOURCE,
+            Motif.status == APPROVED_STATUS,
             Motif.embedding_vertex.is_(None),
         )
         .values(embedding_vertex=embedding)

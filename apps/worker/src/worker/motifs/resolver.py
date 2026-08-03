@@ -466,7 +466,6 @@ async def resolve_spec(
 
     kwargs: dict = dict(
         facets=facets_from_spec(authored_spec),
-        embedding=retrieval.query_vec,
         source="recraft",
         variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
         ingested_user_id=_provenance_uuid(provenance, "user_id"),

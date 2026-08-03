@@ -255,6 +255,29 @@ async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(d
     assert client.texts == ["chess, chess king outline, king"]
 
 
+async def test_pending_motif_stores_no_embedding_until_approved(db_session):
+    """승인 전 embedding 저장 금지 — 승인 후 인덱서가 DOCUMENT 임베딩을 채울 수 있어야 한다."""
+    m = _motif("recraft-pendingembed")
+    await store.upsert_motif(
+        db_session,
+        m,
+        facets={"subject": "owl", "scope": "whole"},
+        embedding=_vec(1.0),  # resolve_spec이 넘기던 query_vec — 무시돼야 한다
+    )
+    await db_session.commit()
+    row = await db_session.get(Motif, m.id)
+    assert row is not None
+    assert row.embedding_vertex is None
+    assert await store.update_embedding_if_missing(db_session, m.id, _vec(1.0)) is False
+
+    row.status = "approved"
+    await db_session.commit()
+    assert [doc.id for doc in await store.missing_embedding_documents(db_session)] == [m.id]
+    assert await store.update_embedding_if_missing(db_session, m.id, _vec(1.0)) is True
+    await db_session.commit()
+    assert await store.public_embedding_counts(db_session) == (1, 1)
+
+
 async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):
     """에셋 수정으로 생긴 시드 고아만 지우고, 현재 시드·user_upload·참조 행은 남긴다."""
     for mid, source in [

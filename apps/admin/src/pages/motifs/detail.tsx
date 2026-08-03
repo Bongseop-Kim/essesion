@@ -20,6 +20,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { MouseEvent } from "react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
@@ -138,12 +139,17 @@ function MotifReviewActions({
     setNextStatus(status);
     setConfirmOpen(true);
   };
-  const submit = () => {
-    if (nextStatus === undefined) return;
-    mutation.mutate({
-      path: { motif_id: motif.id },
-      body: { status: nextStatus },
-    });
+  const submit = (event: MouseEvent<HTMLButtonElement>) => {
+    // AlertDialog는 preventDefault가 없으면 클릭 즉시 닫힌다 — mutation이 끝날 때까지 열어둔다.
+    event.preventDefault();
+    if (nextStatus === undefined || mutation.isPending) return;
+    mutation.mutate(
+      {
+        path: { motif_id: motif.id },
+        body: { status: nextStatus },
+      },
+      { onSettled: () => setConfirmOpen(false) },
+    );
   };
 
   return (
@@ -194,7 +200,10 @@ function MotifReviewActions({
           loading: mutation.isPending,
           onClick: submit,
         }}
-        secondaryActionProps={{ children: "취소" }}
+        secondaryActionProps={{
+          children: "취소",
+          disabled: mutation.isPending,
+        }}
       />
     </AdminCard>
   );
