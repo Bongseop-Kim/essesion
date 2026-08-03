@@ -13,7 +13,6 @@ describe("parseDesignError", () => {
     "worker_rejected",
     "authoring_invalid",
     "constraint_conflict",
-    "reference_invalid",
     "intent_invalid",
     "design_invalid",
     "generation_in_progress",

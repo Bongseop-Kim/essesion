@@ -3,10 +3,7 @@ import type {
   SeamlessDetailOut,
   SeamlessWarningOut,
 } from "@essesion/api-client";
-import {
-  createAdminSeamlessReferenceImageReadUrlMutation,
-  getAdminSeamlessLogOptions,
-} from "@essesion/api-client/query";
+import { getAdminSeamlessLogOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Article,
@@ -15,20 +12,14 @@ import {
   Callout,
   ContentPlaceholder,
   HStack,
-  ImageFrame,
   Skeleton,
   Text,
   VStack,
 } from "@essesion/shared";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 
-import {
-  formatDateTime,
-  formatFileSize,
-  formatIdentifier,
-} from "../../shared/lib/format";
+import { formatDateTime, formatIdentifier } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -67,7 +58,7 @@ function warningPresentation(warning: SeamlessWarningOut) {
     const motifs = items.length > 0 ? items.join(", ") : "일부 모티프";
     return {
       title: `모티프 레이어 ${count}개를 제외했습니다`,
-      description: `${motifs} 모티프를 카탈로그 재사용 또는 외부 생성으로 해석하지 못해 해당 레이어만 제거했습니다.`,
+      description: `${motifs} 모티프를 카탈로그에서 사용할 수 없어 해당 레이어만 제거했습니다.`,
     };
   }
   if (code === "cmyk_gamut") {
@@ -101,25 +92,17 @@ const PROVIDER_LABELS: Readonly<Record<string, string>> = {
   gemini: "Gemini",
   openai_embedding: "OpenAI 임베딩",
   vertex_embedding: "Vertex AI 임베딩",
-  recraft: "Recraft",
   worker: "Worker",
 };
 
 const RESOLUTION_LABELS: Readonly<Record<string, string>> = {
   user_exact: "사용자 직접 선택",
   prompt_catalog: "프롬프트 카탈로그 재사용",
-  reference_catalog: "참고 사진 카탈로그 재사용",
-  exact: "카탈로그 정확 일치 재사용 (이전 로그)",
-  embedding_reuse: "임베딩 유사 모티프 재사용 (이전 로그)",
-  catalog_fallback: "카탈로그 fallback 재사용 (이전 로그)",
-  recraft: "Recraft 신규 생성",
-  dropped: "레이어 제외",
 };
 
 const MATCH_TYPE_LABELS: Readonly<Record<string, string>> = {
   exact_token: "주제·태그 일치",
   embedding: "벡터 유사도",
-  recraft: "신규 생성",
 };
 
 const REASON_LABELS: Readonly<Record<string, string>> = {
@@ -150,59 +133,6 @@ function motifResolutionValue(item: MotifResolutionOut) {
     : "";
   const motifId = item.motif_id ? ` · ${item.motif_id}` : "";
   return `${outcome}${matchType}${similarity}${motifId}${failure}`;
-}
-
-function SeamlessReferenceImage({
-  logId,
-  imageId,
-}: {
-  logId: string;
-  imageId: string;
-}) {
-  const [readUrl, setReadUrl] = useState<string>();
-  const mutation = useMutation({
-    ...createAdminSeamlessReferenceImageReadUrlMutation(),
-    onSuccess: (data) => setReadUrl(data.read_url),
-  });
-
-  return (
-    <AdminCard
-      title="입력 이미지"
-      description="로그와 연결된 비공개 원본에 한해 만료 URL을 발급합니다."
-    >
-      <VStack gap="x3" alignItems="stretch">
-        <Box maxWidth={640}>
-          <ImageFrame
-            src={readUrl}
-            alt="Seamless 입력 참고 이미지"
-            ratio={4 / 3}
-            fit="contain"
-            stroke
-          />
-        </Box>
-        <ActionButton
-          size="small"
-          variant="neutralOutline"
-          loading={mutation.isPending}
-          onClick={() =>
-            mutation.mutate({
-              path: { log_id: logId, image_id: imageId },
-            })
-          }
-        >
-          {readUrl === undefined ? "입력 이미지 보기" : "URL 재발급"}
-        </ActionButton>
-        {mutation.isError && (
-          <Callout
-            role="alert"
-            tone="critical"
-            title="입력 이미지를 불러오지 못했습니다"
-            description="이미지가 만료되었거나 이 생성 로그와 연결되어 있지 않습니다."
-          />
-        )}
-      </VStack>
-    </AdminCard>
-  );
 }
 
 function SeamlessDetailLoading() {
@@ -326,12 +256,6 @@ export function SeamlessLogDetailPage() {
               value: log.has_prompt ? "있음" : "없음",
             },
             {
-              label: "참고 이미지",
-              value: log.has_reference_image
-                ? `있음 (${formatFileSize(log.reference_image_bytes)})`
-                : "없음",
-            },
-            {
               label: "요청자",
               value: log.outcome.user_id ? (
                 <Link to={`/customers/${log.outcome.user_id}`}>
@@ -372,16 +296,6 @@ export function SeamlessLogDetailPage() {
           <TechnicalDetails title="Intent JSON" json={log.intent} />
         </AdminCard>
       )}
-
-      {log.reference_images
-        .filter((image) => image.available)
-        .map((image) => (
-          <SeamlessReferenceImage
-            key={`${log.id}:${image.image_id}`}
-            logId={log.id}
-            imageId={image.image_id}
-          />
-        ))}
 
       <AdminCard title="성능">
         <DetailList
@@ -430,15 +344,8 @@ export function SeamlessLogDetailPage() {
               value: formatIdentifier(log.diagnostics.resolved_count),
             },
             {
-              label: "Recraft 호출",
-              value:
-                log.diagnostics.recraft_calls == null
-                  ? "-"
-                  : `${log.diagnostics.recraft_calls}회`,
-            },
-            {
               label: "단계별 시간",
-              value: `저작 ${formatMilliseconds(log.diagnostics.authoring_ms)} · 모티프 ${formatMilliseconds(log.diagnostics.motif_resolution_ms)} · 합성 ${formatMilliseconds(log.diagnostics.compose_ms)} · 렌더 ${formatMilliseconds(log.diagnostics.render_ms)}`,
+              value: `저작 ${formatMilliseconds(log.diagnostics.authoring_ms)} · 합성 ${formatMilliseconds(log.diagnostics.compose_ms)} · 렌더 ${formatMilliseconds(log.diagnostics.render_ms)}`,
             },
             {
               label: "실패 단계",
@@ -473,7 +380,7 @@ export function SeamlessLogDetailPage() {
       {motifResolutions.length > 0 && (
         <AdminCard
           title="모티프 해석"
-          description="직접 선택·프롬프트 검색·참고 사진·신규 생성 중 실제 적용된 출처입니다."
+          description="직접 선택 또는 프롬프트 카탈로그 검색으로 적용된 출처입니다."
         >
           <DetailList
             items={motifResolutions.map((item, index) => ({
@@ -573,7 +480,6 @@ export function SeamlessLogDetailPage() {
           outcome: log.outcome,
           token_accounting: log.token_accounting,
           has_intent: log.intent !== null,
-          reference_images: log.reference_images,
           seed: log.seed,
           engine_version: log.engine_version,
           registry_version: log.registry_version,

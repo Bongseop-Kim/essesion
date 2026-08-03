@@ -95,15 +95,13 @@ class MotifIngressProvenance(StrictRequest):
 
 
 class ConversationAttachmentRef(StrictRequest):
-    kind: Literal["photo", "svg"]
     filename: str = Field(min_length=1, max_length=255)
-    purpose: Literal["auto", "color_mood", "motif", "composition"] | None = None
 
 
 class ConversationHistoryItem(StrictRequest):
     user_prompt: str = Field(min_length=1, max_length=4_000)
     assistant_summary: str = Field(min_length=1, max_length=500)
-    attachments: list[ConversationAttachmentRef] = Field(default_factory=list, max_length=7)
+    attachments: list[ConversationAttachmentRef] = Field(default_factory=list, max_length=2)
 
 
 class ConversationContext(StrictRequest):
@@ -115,13 +113,15 @@ class ConversationContext(StrictRequest):
 
 class GenerateRequest(StrictRequest):
     run_id: uuid.UUID
+    # 로그 표식 전용 — admin이 생성 로그를 요청자·세션 턴과 상관하는 근거.
+    # 과금·모티프 유입 provenance가 아니다(그쪽은 모달 경로의 MotifIngressProvenance).
+    session_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
     prompt: str | None = None
     intent: dict[str, Any] | None = None
     colorway: str | None = None
     seed: int | None = None
-    reference_images: list["ReferenceImageInput"] = Field(default_factory=list, max_length=5)
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
-    motif_provenance: MotifIngressProvenance | None = None
     palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
     conversation_context: ConversationContext | None = None
     # 모티프 슬롯 교체는 intent 재렌더 경로만 쓴다(모델 호출 없음).
@@ -131,12 +131,8 @@ class GenerateRequest(StrictRequest):
     def _valid_generation_mode(self) -> "GenerateRequest":
         if self.prompt is not None and not self.prompt.strip():
             self.prompt = None
-        if self.intent is not None and (
-            self.prompt is not None or self.reference_images or self.motif_ids
-        ):
-            raise ValueError(
-                "intent variation cannot include prompt, reference images, or motif ids"
-            )
+        if self.intent is not None and (self.prompt is not None or self.motif_ids):
+            raise ValueError("intent variation cannot include prompt or motif ids")
         if self.prompt is None and self.intent is None and not self.motif_ids:
             raise ValueError("prompt or SVG motif is required")
         if self.intent is not None and self.conversation_context is not None:
@@ -145,15 +141,8 @@ class GenerateRequest(StrictRequest):
         if self.conversation_context is not None and self.intent is None:
             if self.prompt is None:
                 raise ValueError("conversation refinement requires a prompt")
-            # 구성 patch는 색·줄무늬·배치·크기만 담는다 — 사진·SVG는 모티프 입력이므로
-            # 조용히 무시되지 않게 계약에서 막는다(모티프 교체는 별도 경로).
-            if self.reference_images or self.motif_ids:
-                raise ValueError(
-                    "conversation refinement cannot include reference images or motif ids"
-                )
-        motif_references = sum(item.purpose == "motif" for item in self.reference_images)
-        if len(self.motif_ids) + motif_references > 2:
-            raise ValueError("exact motifs and motif reference photos may use at most 2 slots")
+            if self.motif_ids:
+                raise ValueError("conversation refinement cannot include motif ids")
         if self.motif_slot is not None and self.intent is None:
             raise ValueError("motif slot replacement requires the committed intent")
         return self
@@ -165,11 +154,9 @@ class MotifSlotInput(StrictRequest):
 
 
 class ReferenceImageInput(StrictRequest):
-    image_id: uuid.UUID
     url: str = Field(max_length=4_000)
     content_type: Literal["image/jpeg", "image/png", "image/webp"]
     size_bytes: int = Field(gt=0, le=10 * 1024 * 1024)
-    purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto"
 
 
 class DesignOut(BaseModel):
@@ -297,7 +284,6 @@ class IdeaMotifContext(StrictRequest):
 
 class IdeasRequest(StrictRequest):
     prompt: str = Field(default="", max_length=4_000)
-    reference_images: list[ReferenceImageInput] = Field(default_factory=list, max_length=5)
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
     motifs: list[IdeaMotifContext] = Field(default_factory=list, max_length=2)
     palette: PaletteConstraint = Field(default_factory=PaletteConstraint)

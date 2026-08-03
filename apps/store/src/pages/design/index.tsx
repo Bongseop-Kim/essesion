@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
+import { uploadDesignPhoto } from "@/features/design/api/attachments";
 import {
   createDesignIdeas,
   extractDesignPalette,
@@ -137,10 +138,8 @@ export function DesignPage() {
   });
   const editor = usePromptGeneration({
     sessionId,
-    hasDesign,
     ensureAuth,
     blocked: activateStep.isPending || motifs.replacing,
-    notify: snackbar,
     onSessionChange: (id) => {
       setSessionId(id);
       setFreshSession(false);
@@ -328,7 +327,6 @@ export function DesignPage() {
           <ToolRail
             onExport={() => ensureAuth() && setOverlay("export")}
             onFinalize={() => ensureAuth() && setOverlay("finalize")}
-            onPhotos={() => ensureAuth() && setOverlay("photos")}
             onColors={() => setOverlay("colors")}
             onSessions={() => setOverlay("sessions")}
             onFinalized={() => setOverlay("finalized")}
@@ -337,8 +335,6 @@ export function DesignPage() {
             canFinalize={
               hasDesign && !busy && !(quota !== null && quota.remaining <= 0)
             }
-            canAttachPhotos={!hasDesign && !busy}
-            photosAttached={editor.photos.photos.length > 0}
             paletteFixed={editor.palette.mode === "fixed"}
             authenticated={authenticated}
             busy={busy}
@@ -378,12 +374,10 @@ export function DesignPage() {
         historyCurrentRunId={history.currentRunId}
         onSelectStep={selectStep}
         motifs={motifs}
-        photos={editor.photos.photos}
-        onAddPhotos={(files) => ensureAuth() && editor.photos.add(files)}
-        onRemovePhoto={editor.photos.remove}
-        onExtractPalette={async (photoId) =>
-          extractDesignPalette(await editor.photos.uploadIdOf(photoId))
-        }
+        onExtractPalette={async (photo) => {
+          if (!ensureAuth()) throw new Error("로그인이 필요합니다.");
+          return extractDesignPalette(await uploadDesignPhoto(photo));
+        }}
         palette={editor.palette}
         onPaletteChange={editor.setPalette}
         prompt={editor.prompt}
@@ -391,9 +385,6 @@ export function DesignPage() {
         onRequestIdeas={async () =>
           createDesignIdeas({
             prompt: editor.prompt.trim(),
-            referenceImages: hasDesign
-              ? []
-              : await editor.photos.referenceImages(),
             userMotifIds: [],
             palette: editor.palette,
           })

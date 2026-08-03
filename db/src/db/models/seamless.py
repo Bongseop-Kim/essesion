@@ -223,8 +223,8 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     request_id: Mapped[str | None]
-    # 요청자 링크 — 워커가 motif_provenance로 채운다. 탈퇴·세션 삭제는 SET NULL로
-    # 프라이버시 정리를 막지 않는다(motifs.ingested_user_id와 같은 근거).
+    # 요청자 링크 — API가 보낸 로그 표식(session_id/user_id)으로 워커가 채운다.
+    # 탈퇴·세션 삭제는 SET NULL로 프라이버시 정리를 막지 않는다.
     session_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("design_sessions.id", ondelete="SET NULL"), index=True
     )
@@ -233,8 +233,6 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     )
     input_type: Mapped[str]
     prompt: Mapped[str | None]
-    has_reference_image: Mapped[bool] = mapped_column(server_default=text("false"))
-    reference_image_bytes: Mapped[int | None]
     colorway: Mapped[str | None]
     seed: Mapped[int | None] = mapped_column(BigInteger)
     engine_version: Mapped[str | None]
@@ -251,29 +249,6 @@ class SeamlessGenerationLog(CreatedAtMixin, Base):
     diagnostics: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
 
     __table_args__ = (
-        CheckConstraint("input_type IN ('intent', 'prompt', 'reference_image')", name="input_type"),
+        CheckConstraint("input_type IN ('intent', 'prompt')", name="input_type"),
         CheckConstraint("status IN ('success', 'partial', 'error')", name="status"),
-    )
-
-
-class SeamlessGenerationAttachment(CreatedAtMixin, Base):
-    """생성 로그에 전달된 참고 사진."""
-
-    __tablename__ = "seamless_generation_attachments"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    log_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("seamless_generation_logs.id", ondelete="CASCADE"), index=True
-    )
-    image_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("images.id", ondelete="CASCADE"), index=True
-    )
-    purpose: Mapped[str] = mapped_column(server_default="auto")
-    ordinal: Mapped[int]
-
-    __table_args__ = (
-        CheckConstraint(
-            "purpose IN ('auto', 'color_mood', 'motif', 'composition')", name="purpose"
-        ),
-        Index("uq_seamless_generation_attachments_log_ordinal", "log_id", "ordinal", unique=True),
     )

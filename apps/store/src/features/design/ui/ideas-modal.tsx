@@ -90,7 +90,7 @@ export function IdeasModal({
       open={open}
       onOpenChange={onOpenChange}
       title="아이디어 받기"
-      description="지금 쓰는 모티프와 색, 참고 사진을 함께 보고 문장을 제안해요."
+      description="지금 쓰는 모티프와 색을 함께 보고 문장을 제안해요."
       size="medium"
       showCloseButton
       footer={

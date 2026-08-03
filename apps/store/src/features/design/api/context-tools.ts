@@ -5,14 +5,10 @@ import {
   previewTextMotif as previewTextMotifRequest,
 } from "@essesion/api-client";
 
-import type {
-  DesignPalette,
-  DesignReferenceImage,
-} from "@/features/design/model/draft";
+import type { DesignPalette } from "@/features/design/model/draft";
 
 type IdeaContext = {
   prompt: string;
-  referenceImages: DesignReferenceImage[];
   userMotifIds: string[];
   palette: DesignPalette;
 };
@@ -73,10 +69,6 @@ export async function createDesignIdeas(context: IdeaContext) {
   const response = await createDesignIdeasRequest({
     body: {
       prompt: context.prompt,
-      reference_images: context.referenceImages.map((image) => ({
-        upload_id: image.uploadId,
-        purpose: image.purpose,
-      })),
       user_motif_ids: context.userMotifIds,
       palette: context.palette,
       count: 4,

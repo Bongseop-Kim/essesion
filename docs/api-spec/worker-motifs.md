@@ -52,40 +52,35 @@ scope: {scope}
 - 미설정·호출 실패는 exact subject/tag token 검색만 남기는 fail-soft다. 관련성 근거 없이 카탈로그를 재사용하지 않는다.
 - 시드한 공개 NULL 행은 `apps/worker/scripts/index_motif_embeddings.py --confirm-live`가 초기 인덱싱한다. GCP project/ADC·확인 플래그가 없으면 실행을 거부하고 `user_upload`은 제외한다.
 
-## 5. 검색·재사용 래더 (resolver)
+## 5. 디자인 catalog grounding과 명시적 생성
 
-순서: **원문 retrieval → 정확도 게이트 → Gemini grounding → semantic retrieval → generate-on-miss**.
+디자인 `/generate`의 카탈로그 경로는 **원문 retrieval → 정확도 게이트 → Gemini grounding**에서 끝난다.
 
 1. prompt 원문의 NFC/casefold token과 공개 motif subject/tag의 완전 token 일치를 ID 순으로 모은다.
 2. 공개 카탈로그 전체 pgvector cosine top-5를 구하고 **τ=0.84** 이상만 더한다. 동점은 lowest ID다. `scope`는 필터로 사용하지 않고 `user_upload`은 항상 제외한다.
 3. 후보는 실제 ID 없이 `catalog_ref`, subject, description, style로 Gemini에 제공한다. compiler만 ref→ID를 변환한다.
-4. 후보가 있는데 prompt-derived semantic motif를 만들거나 후보를 모두 무시한 plan은 거부한다. 한 번 재저작 후에도 같으면 `semantic_mismatch`다.
-5. 후보가 없는 텍스트 경로에서 Gemini는 사용자가 반복 모티프로 명시한 구체적 개별 도형만 원문 그대로 `generate` source 한 건으로 선언할 수 있다. 무드·색·재질만인 요청은 모티프를 만들지 않는다. 사진 유래 semantic spec과 `generate` spec은 같은 exact/vector 게이트를 다시 거치고 miss에서만 Recraft를 호출한다.
-6. 이미지 index가 없는 generate-origin facet에서 injection 의심 문자열이 검출되면 생성 전에 거부한다. reference-origin은 기존 sanitize+관측 경계를 유지한다. embedding 없음·장애·nearest read 실패 시 lowest-ID fallback 없이 Recraft로 간다.
-7. 자동 `/generate` 한 요청은 모든 authored design과 적합성 재시도를 합쳐 실제 Recraft provider 호출을 기본 2회(`motif_generate_per_request_limit`)로 제한한다. 초과한 best-effort motif layer는 host cascade와 함께 drop하고 경고를 남기며, 비모티프 layer가 남으면 partial success다.
-8. **변이 선택**: `variant_group = sha256(canonical_json({"v":2, "subject", "scope"}))[:16]`; hit pool은 seed로 안정 선택한다.
-9. `present_candidates`는 같은 신뢰도 게이트를 쓰고 Recraft를 호출하거나 관련 없는 ID로 채우지 않는다.
-10. **문장 입력**: `POST /motifs/candidates`와 `POST /motifs/generate`는 spec이 아니라 `{query, style_hint?}` 문장 하나를 받는다. worker가 flash-lite 1콜 구조화 출력으로 `MotifSpec(subject, scope, view, expression, style, description)`을 뽑고(`motifs/spec.py`), 변환이 실패하거나 모델이 없으면 문장을 그대로 `subject`로 써서 렉시컬·벡터 검색을 계속한다. 검색은 Recraft를 호출하지 않으므로 과금이 없다.
+4. 후보가 있는데 검증되지 않은 source를 만들거나 후보를 모두 무시한 plan은 거부한다. 한 번 재저작 후에도 같으면 `semantic_mismatch`다. 후보가 없으면 모티프 없이 계속하며 Recraft나 lowest-ID fallback을 호출하지 않는다.
+5. `variant_group = sha256(canonical_json({"v":2, "subject", "scope"}))[:16]`; catalog hit pool은 seed로 안정 선택한다.
+
+새 모티프 생성은 모티프 모달의 별도 계약이다. `POST /motifs/candidates`와 `POST /motifs/generate`는 spec이 아니라 `{query, style_hint?}` 문장 하나를 받는다. worker가 flash-lite 1콜 구조화 출력으로 `MotifSpec(subject, scope, view, expression, style, description)`을 뽑고(`motifs/spec.py`), 변환이 실패하거나 모델이 없으면 문장을 그대로 `subject`로 써서 렉시컬·벡터 검색을 계속한다. `candidates`는 같은 신뢰도 게이트의 catalog hit만 반환하고 Recraft를 호출하지 않는다. 사용자가 `generate`를 명시적으로 선택한 뒤에만 `resolve_spec`이 miss에서 Recraft를 호출하며, injection 의심 facet은 호출 전에 거부한다. 실제 provider 호출은 요청당 `motif_generate_per_request_limit`(기본 2)로 제한되고 API는 별도로 세션 예산 3회를 선차감·보상한다.
 
 store 읽기 오류는 해당 읽기만 savepoint로 rollback한 뒤 miss로 흡수한다. 같은 요청에서 앞서
 upsert한 미커밋 motif까지 전체 rollback하지 않으며, 쓰기 오류는 그대로 전파한다.
 
-상위 오케스트레이션은 Gemini의 일반 `motif_specs`를 motif layer에 매칭한다. 사용자 텍스트·사진 모티프는 이 생성 경로에 암묵적으로 섞지 않고 §7의 명시적 preview→import 경로에서 먼저 exact private motif로 만든다. 개별 일반 모티프의 generate 예산 소진·generate-origin facet 거부는 그 layer만 drop(+host cascade drop, fixpoint)하고 생존자와 함께 partial 200 + 경고로 반환한다. 그 밖의 resolver 실패가 모든 plan을 없애면 502다.
+사용자 SVG·텍스트·사진 모티프는 디자인 생성에 암묵적으로 섞지 않고 §7의 명시적 preview→import 경로에서 먼저 exact private motif로 만든다. 디자인 compiler는 이미 확정된 `input`과 검증된 `catalog` source만 다룬다.
 
 Recraft miss가 신규 content-hash 행을 insert했을 때만 최초 유입 사용자·세션 provenance를 저장한다. 신규 멀티슬롯이면 원색 standalone preview를 20mm PNG로 threadpool rasterize하고 Gemini에 고정 길이 schema로 한 번 전달해 `slot_labels`와 슬롯 순서의 짧은 `slot_parts`를 함께 만든다. 같은 색을 공유하는 부위는 `부리·안장`처럼 하나의 part로 묶는다. labels가 유효하면 parts만 실패해도 labels는 보존하지만 parts는 부분 배열을 저장하지 않고 NULL로 fail-soft한다. 렌더러·비전·schema·안전 검사 실패는 모티프 저장을 되돌리지 않는다. 단일슬롯과 catalog/content-hash hit의 라벨링 호출은 0회다.
 
 ## 6. Gemini DesignPlan v3 저작
 
 - 모델 `gemini-2.5-flash-lite`, ADC + Google Gen AI SDK, temperature 0.7, `response_mime_type="application/json"`을 사용한다. v3는 Pydantic `DesignPlansV3` 타입 자체를 `response_schema`로 전달하고 SDK parsed 결과를 우선 사용한다. 429/503은 0.5/1/2s 지수 백오프로 최대 4회 재시도하고 그 외 provider 오류는 502급이다.
-- Gemini는 전체 엔진 intent를 직접 만들지 않는다. v3 structured output은 2~4 plan, 2~8 HEX palette, 최대 2개 discriminated motif source(`input`/verified `catalog`/`reference`/catalog-empty text `generate`), 최대 5개 stripe/motif layer와 normalized placement(lattice, Poisson/sateen scatter, closed straight/wave path, 고정 point template)만 가진다. engine ID·mm·SVG·임의 point 좌표는 schema 밖이다.
-- worker compiler가 plan을 48mm/300dpi intent로 결정적으로 변환한다. palette/colorway/layer ID, tile-commensurate geometry, motif placeholder/spec/color-slot sidecar를 코드가 만들고 엔진 경계가 다시 검증한다. palette를 제외한 geometry/topology fingerprint가 같은 plan은 중복이며 유효하고 서로 다른 plan이 2개 미만이면 오류를 붙여 1회 재요청한다.
-- exact private motif의 실제 ID는 Gemini에 전달하지 않고 1-based input 순번만 요구한다. verified catalog, exact input, `current_motif_N`에는 authoritative `slot_count`와, 전부 유효할 때만 슬롯 원 순서의 `slot_parts`를 동일한 untrusted metadata 블록으로 노출한다. 모든 exact 및 `purpose=motif` reference는 각 plan에 정확히 한 번 있어야 하고 verified catalog는 `catalog_ref`만 노출한다. `generate`는 catalog candidate가 없는 분기에서만 허용하고 compiler가 best-effort semantic spec으로 바꾼다. compiler만 ref→ID를 변환한다. 멀티슬롯의 `color_indices` 생략은 원색 보존, 명시는 재색 신호이며 fixed palette에서는 생략을 거부한다. 재색할 때 배열 길이는 정확히 `slot_count`이고 i번째 인덱스는 i번째 슬롯·부위에 대응한다.
+- Gemini는 전체 엔진 intent를 직접 만들지 않는다. v3 structured output은 DesignPlanV3 한 객체, 2~8 HEX palette, 최대 2개 discriminated motif source(`input`/verified `catalog`), 최대 5개 stripe/motif layer와 normalized placement(lattice, Poisson/sateen scatter, closed straight/wave path, 고정 point template)만 가진다. engine ID·mm·SVG·임의 point 좌표는 schema 밖이다.
+- worker compiler가 plan을 48mm/300dpi intent로 결정적으로 변환한다. palette/colorway/layer ID, tile-commensurate geometry와 concrete motif ID를 코드가 만들고 엔진 경계가 다시 검증한다.
+- exact private motif의 실제 ID는 Gemini에 전달하지 않고 1-based input 순번만 요구한다. verified catalog, exact input, `current_motif_N`에는 authoritative `slot_count`와, 전부 유효할 때만 슬롯 원 순서의 `slot_parts`를 동일한 untrusted metadata 블록으로 노출한다. 모든 exact input은 plan에 정확히 한 번 있어야 하고 verified catalog는 `catalog_ref`만 노출한다. compiler만 ref→ID를 변환한다. 멀티슬롯의 `color_indices` 생략은 원색 보존, 명시는 재색 신호이며 fixed palette에서는 생략을 거부한다. 재색할 때 배열 길이는 정확히 `slot_count`이고 i번째 인덱스는 i번째 슬롯·부위에 대응한다.
 - `gallery-v1`은 빈 DB용 소량 starter Plan v3 시드이며 골든 파일과 독립적이다. 컴파일러 회귀는 테스트 픽스처의 ID-파일명 규약으로 검증한다. 실제 RAG는 `authoring_examples`의 현재 contract·embedding model에 맞는 active 시범만 검색한다. query top-25를 motif 수/배치 제약으로 거른 상위 8개에서 family 다양성을 우선해 최대 3개를 prompt에 넣는다. retrieval 장애·빈 active 집합은 시범 없이 계속하는 fail-soft다.
 - 모든 요청은 Plan v3 저작 경로만 사용한다. contract/compiler/prompt/example revision, retrieval 상태·선택 ID/유사도, fingerprint는 generation diagnostics와 intent log에 남긴다.
 - live 평가는 `eval_authoring.py --confirm-live`의 label 30-case corpus로 schema/compiler 성공률, 구조 다양성, retrieval expected-family recall, 시도 수와 latency를 측정한다. prompt/provider 원문은 출력·저장하지 않고 CI는 유료 호출을 실행하지 않는다. 정본·동기화·승격 절차는 `docs/specs/authoring-plan-v3.md`다.
-- 이미지: private signed URL을 allowlist(`storage.googleapis.com`, emulator)로만 읽고 redirect를 따르지 않는다. 선언 길이와 실제 길이를 일치 확인하며 장당 10MB, 최대 5장, 합계 50MB다. decode→실제 MIME 대조→20M픽셀 검증→EXIF 방향 적용→최대 2048px 축소→메타데이터 없는 JPEG로 재인코딩한다. Gemini Part 순서는 요청 이미지 순서 그대로 먼저, 텍스트가 마지막이다.
-- 사진별 `purpose ∈ {auto,color_mood,motif,composition}`도 같은 순서로 전달한다. 명시 목적은 해당 역할로만 쓰도록 binding하며, `auto`에서만 사용자 문맥으로 역할을 추론한다. generation attachment에는 `(image_id, ordinal, purpose)`를 기록한다.
-- exact private motif id는 최대 2개 모두 compiler와 resolver에 전달하되 Gemini에는 ID를 공개하지 않는다. compiler가 모든 exact motif를 intent에 넣고 worker가 누락을 검증한다. user-upload source는 exact id 조회로만 렌더되고 일반 facet/embedding/variant 검색 및 registry fingerprint에서 제외된다.
+- exact private motif id는 최대 2개 모두 compiler에 전달하되 Gemini에는 ID를 공개하지 않는다. compiler가 모든 exact motif를 intent에 넣고 worker가 누락을 검증한다. user-upload source는 exact id 조회로만 렌더되고 일반 facet/embedding/variant 검색 및 registry fingerprint에서 제외된다.
 
 ### 6.1 하이브리드 모티프 색 배정
 
@@ -108,7 +103,7 @@ resolver가 concrete ID와 metadata를 확정한 뒤 네트워크 없이 다음 
 
 ### 7.1 사진→SVG와 팔레트 추출
 
-`POST /motifs/photo-preview`는 새 업로드 또는 기존 참고 사진의 private signed URL을 재사용한다. JPEG/PNG/WebP 실제 MIME, 장당 10MB, 20M픽셀을 확인하고 최대 1024px로 축소한 뒤 CPU 처리를 thread pool에서 실행한다.
+`POST /motifs/photo-preview`는 모티프 모달에서 완료한 private staged upload의 signed URL을 사용한다. JPEG/PNG/WebP 실제 MIME, 장당 10MB, 20M픽셀을 확인하고 최대 1024px로 축소한 뒤 CPU 처리를 thread pool에서 실행한다.
 
 - 배경 제거는 별도 provider·대형 모델·GPU 없이 Pillow로 수행한다. 기존 alpha를 우선 사용하고, 아니면 테두리 median 색을 구한 뒤 유사색의 4-neighbor border-connected 영역만 제거한다. 균일한 테두리 confidence 0.55 미만, 빈 피사체, 프레임을 거의 채운 피사체는 명시 오류다. 복잡한 장면을 성공처럼 보이는 hidden fallback은 없다.
 - 색상 수(1~6)와 단순화 강도(low/medium/high)를 결정적으로 양자화한 뒤 로컬 VTracer로 path화한다. 원본/중간 파일은 worker가 저장하지 않고 결과 SVG만 기존 private motif import 경계로 전달한다.
@@ -121,7 +116,7 @@ resolver가 concrete ID와 metadata를 확정한 뒤 네트워크 없이 다음 
 
 ### 7.2 문맥 기반 아이디어
 
-`POST /ideas`는 기존 prompt, ordered `(reference image,purpose)`, 최대 2개의 exact motif 문맥, palette와 count(3 또는 4)를 받는다. worker 내부에서는 id/name 순서를 검증하지만 Gemini 프롬프트에는 ordinal과 human name만 보내고 private content-hash id는 공개하지 않는다. 이미지는 생성과 같은 순서/전처리를 쓴다. 결과는 서로 다른 180자 이하 문장 정확히 count개인 JSON만 수용하며 형식 오류는 한 번 constrained retry 후 502다.
+`POST /ideas`는 기존 prompt, 최대 2개의 exact motif 문맥, palette와 count(3 또는 4)를 받는다. worker 내부에서는 id/name 순서를 검증하지만 Gemini 프롬프트에는 ordinal과 human name만 보내고 private content-hash id는 공개하지 않는다. 이미지는 받거나 Gemini에 보내지 않는다. 결과는 서로 다른 180자 이하 문장 정확히 count개인 JSON만 수용하며 형식 오류는 한 번 constrained retry 후 502다.
 
 이 경로는 intent·디자인·generation log를 만들지 않고 Recraft도 호출하지 않는다. 과금과 사용자별 rate limit은 API 경계가 소유하며 worker에는 토큰 차감 로직이 없다. 프론트가 provider를 직접 호출하지 않는다.
 

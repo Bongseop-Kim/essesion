@@ -10,7 +10,6 @@ import { putToSignedUrl, validateImageFile } from "@/shared/lib/upload";
 export { IMAGE_ACCEPT as DESIGN_PHOTO_ACCEPT } from "@/shared/lib/upload";
 
 export const DESIGN_SVG_ACCEPT = ".svg,image/svg+xml";
-export const MAX_DESIGN_PHOTOS = 5;
 export const MAX_DESIGN_MOTIFS = 2;
 export const MAX_DESIGN_SVG_BYTES = 2_000_000;
 
@@ -30,7 +29,7 @@ export async function uploadDesignPhoto(file: File): Promise<string> {
       issued.data.upload_url,
       issued.data.required_headers,
       file,
-      "참고 사진을 업로드하지 못했습니다.",
+      "사진을 업로드하지 못했습니다.",
     );
   }
   const completed = await completeDesignReferenceUpload({

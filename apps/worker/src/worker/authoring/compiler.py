@@ -36,7 +36,6 @@ class AuthoredDesign:
     """Engine intent plus authoring-only sidecars consumed before final validation."""
 
     intent: dict
-    motif_specs: list[dict] = field(default_factory=list)
     motif_resolutions: list[dict[str, object]] = field(default_factory=list)
     motif_color_slots: dict[str, list[str]] = field(default_factory=dict)
     plan: dict | None = None
@@ -52,7 +51,6 @@ class PlanCompileError(ValueError):
 @dataclass(frozen=True)
 class _ResolvedMotifSource:
     motif_id: str
-    spec: dict | None = None
     resolution: dict[str, object] | None = None
     # 카탈로그 메타데이터가 알려준 paint slot 수. 알 때만 color_indices 길이를
     # 컴파일 단계에서 검증해 재시도 피드백으로 되돌린다 — 여기서 놓치면 해석 후
@@ -65,8 +63,6 @@ def _resolve_motif_sources(
     *,
     motif_ids: list[str],
     catalog_candidates: list[dict[str, object]],
-    reference_motif_indexes: set[int],
-    reference_image_count: int,
 ) -> list[_ResolvedMotifSource]:
     candidate_by_ref = {
         str(candidate["catalog_ref"]): candidate for candidate in catalog_candidates
@@ -82,7 +78,6 @@ def _resolve_motif_sources(
     sources: list[_ResolvedMotifSource] = []
     input_indexes: set[int] = set()
     input_count = 0
-    reference_counts: dict[int, int] = {}
     catalog_refs: set[str] = set()
     verified_catalog_count = 0
 
@@ -90,14 +85,6 @@ def _resolve_motif_sources(
         if source.source == "input":
             input_count += 1
             if source.input_index > len(motif_ids):
-                if not motif_ids and reference_image_count:
-                    # 사진 첨부를 input으로 오선언하는 고착을 교정 — 값을 되풀이하지 않고
-                    # 올바른 소스 형태를 지시한다 (catalog_ref 피드백과 같은 패턴).
-                    raise PlanCompileError(
-                        "exact motif inputs are not available for this request; declare "
-                        'each attached image instead as {"source": "reference", '
-                        '"reference_image_index": <image number>, "subject": ...}.'
-                    )
                 raise PlanCompileError(f"unknown exact motif input: {source.input_index}")
             input_indexes.add(source.input_index)
             motif_id = motif_ids[source.input_index - 1]
@@ -111,7 +98,7 @@ def _resolve_motif_sources(
                     },
                 )
             )
-        elif source.source == "catalog":
+        else:
             if motif_ids:
                 raise PlanCompileError("catalog motifs cannot be combined with exact motifs")
             if source.catalog_ref in catalog_refs:
@@ -159,54 +146,13 @@ def _resolve_motif_sources(
                     ),
                 )
             )
-        elif source.source == "reference":
-            if source.reference_image_index > reference_image_count:
-                raise PlanCompileError(f"unknown reference image: {source.reference_image_index}")
-            reference_counts[source.reference_image_index] = (
-                reference_counts.get(source.reference_image_index, 0) + 1
-            )
-            sources.append(
-                _ResolvedMotifSource(
-                    motif_id=f"semantic_{len(sources)}",
-                    spec={
-                        "subject": source.subject,
-                        "scope": source.scope,
-                        "style": source.style,
-                        "description": source.description,
-                        "reference_image_index": source.reference_image_index,
-                        "required": source.reference_image_index in reference_motif_indexes,
-                    },
-                )
-            )
-        else:
-            if verified_catalog_candidates:
-                raise PlanCompileError(
-                    "generated motifs are allowed only when the verified catalog is empty",
-                    grounding=True,
-                )
-            sources.append(
-                _ResolvedMotifSource(
-                    motif_id=f"semantic_{len(sources)}",
-                    spec={
-                        "subject": source.subject,
-                        "scope": source.scope,
-                        "style": source.style,
-                        "description": source.description,
-                        "required": False,
-                    },
-                )
-            )
-
     required_inputs = set(range(1, len(motif_ids) + 1))
     if input_indexes != required_inputs or input_count != len(required_inputs):
         raise PlanCompileError("every exact motif input must be represented exactly once")
-    if any(reference_counts.get(index, 0) != 1 for index in reference_motif_indexes):
-        raise PlanCompileError("every motif reference photo must be represented exactly once")
     if (
         plan.motifs
         and required_catalog_candidates
         and not motif_ids
-        and len(reference_counts) < 2
         and verified_catalog_count == 0
     ):
         raise PlanCompileError(
@@ -348,14 +294,12 @@ def compile_design_plan_v3(
     *,
     motif_ids: list[str] | None = None,
     catalog_candidates: list[dict[str, object]] | None = None,
-    reference_motif_indexes: set[int] | None = None,
-    reference_image_count: int = 0,
     palette_constraint: PaletteConstraint | None = None,
     tile_mm: float = DEFAULT_TILE_MM,
     dpi: int = DEFAULT_DPI,
     seed: int | None = None,
 ) -> AuthoredDesign:
-    """Compile normalized ratios and references to a schema-valid engine intent."""
+    """Compile normalized ratios and concrete motif references to an engine intent."""
 
     exact_ids = list(motif_ids or [])
     if len(exact_ids) > 2:
@@ -363,13 +307,10 @@ def compile_design_plan_v3(
     if len(set(exact_ids)) != len(exact_ids):
         raise PlanCompileError("exact motif inputs must be distinct")
     candidates = catalog_candidates or []
-    required_references = reference_motif_indexes or set()
     sources = _resolve_motif_sources(
         plan,
         motif_ids=exact_ids,
         catalog_candidates=candidates,
-        reference_motif_indexes=required_references,
-        reference_image_count=reference_image_count,
     )
 
     palette = palette_constraint or PaletteConstraint()
@@ -411,7 +352,6 @@ def compile_design_plan_v3(
     stripe_plans = [layer for layer in plan.layers if layer.type == "stripe"]
     stripe_index = 0
     motif_layer_index = 0
-    motif_specs: list[dict] = []
     motif_resolutions: list[dict[str, object]] = []
     motif_color_slots: dict[str, list[str]] = {}
 
@@ -488,8 +428,6 @@ def compile_design_plan_v3(
         )
         if structure.color_indices is not None:
             motif_color_slots[layer_id] = colors
-        if source.spec is not None:
-            motif_specs.append({"layer_id": layer_id, **source.spec})
         if source.resolution is not None:
             motif_resolutions.append({"layer_id": layer_id, "scope": "whole", **source.resolution})
 
@@ -503,7 +441,6 @@ def compile_design_plan_v3(
             "colorways": [{"id": "default", "name": "default", "mapping": mapping}],
             "layers": layers,
         },
-        motif_specs=motif_specs,
         motif_resolutions=motif_resolutions,
         motif_color_slots=motif_color_slots,
         plan=plan.model_dump(mode="json"),

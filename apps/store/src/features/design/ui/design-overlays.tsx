@@ -22,7 +22,6 @@ import {
   useDeleteFinalizedJob,
 } from "@/features/design/model/use-delete";
 import type { MotifSearchState } from "@/features/design/model/use-motif-search";
-import type { PhotoReference } from "@/features/design/model/use-photo-references";
 import { ColorSettingsModal } from "@/features/design/ui/color-settings-modal";
 import {
   ExportDialog,
@@ -37,7 +36,6 @@ import { HistoryModal } from "@/features/design/ui/history-modal";
 import { IdeasModal } from "@/features/design/ui/ideas-modal";
 import { MotifModal } from "@/features/design/ui/motif-modal";
 import { OnboardingDialog } from "@/features/design/ui/onboarding-dialog";
-import { PhotoReferenceModal } from "@/features/design/ui/photo-reference-modal";
 import { SessionListModal } from "@/features/design/ui/session-list-modal";
 
 export type DesignOverlayName =
@@ -46,7 +44,6 @@ export type DesignOverlayName =
   | "finalized"
   | "history"
   | "motifs"
-  | "photos"
   | "colors"
   | "ideas"
   | "finalize"
@@ -75,10 +72,7 @@ export type DesignOverlaysProps = {
   onSelectStep: (runId: string) => void;
   /** 모티프 모달 전체의 상태·호출 — 페이지가 소유해 모달을 넘나들어도 유지된다. */
   motifs: MotifSearchState;
-  photos: readonly PhotoReference[];
-  onAddPhotos: (files: File[]) => void;
-  onRemovePhoto: (id: string) => void;
-  onExtractPalette: (photoId: string) => Promise<string[]>;
+  onExtractPalette: (photo: File) => Promise<string[]>;
   palette: DesignPalette;
   onPaletteChange: (palette: DesignPalette) => void;
   prompt: string;
@@ -110,9 +104,6 @@ export function DesignOverlays({
   historyCurrentRunId,
   onSelectStep,
   motifs,
-  photos,
-  onAddPhotos,
-  onRemovePhoto,
   onExtractPalette,
   palette,
   onPaletteChange,
@@ -234,17 +225,9 @@ export function DesignOverlays({
           requestDelete({ kind: "motif", id: motif.id, name: motif.name })
         }
       />
-      <PhotoReferenceModal
-        open={overlay === "photos"}
-        onOpenChange={change("photos")}
-        photos={photos}
-        onAddFiles={onAddPhotos}
-        onRemove={onRemovePhoto}
-      />
       <ColorSettingsModal
         open={overlay === "colors"}
         value={palette}
-        photos={photos.map((photo) => ({ id: photo.id, name: photo.name }))}
         onOpenChange={change("colors")}
         onApply={onPaletteChange}
         onExtract={onExtractPalette}

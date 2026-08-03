@@ -3,6 +3,8 @@ import logging
 from decimal import Decimal
 
 import pytest
+from db.models.auth import User
+from db.models.design import DesignSession
 from db.models.seamless import SeamlessGenerationLog
 from obs import JsonFormatter
 from sqlalchemy import select
@@ -30,10 +32,21 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
         "rasterize_svg",
         lambda _svg, **_kwargs: (b"fake-png", "image/png"),
     )
+    requester = User(name="로그 표식")
+    db_session.add(requester)
+    await db_session.flush()
+    design_session = DesignSession(user_id=requester.id)
+    db_session.add(design_session)
+    await db_session.commit()
     response = await client.post(
         "/generate",
         headers={"X-Request-ID": "log-success"},
-        json={"run_id": _RUN_ID, "intent": mvp_intent()},
+        json={
+            "run_id": _RUN_ID,
+            "intent": mvp_intent(),
+            "session_id": str(design_session.id),
+            "user_id": str(requester.id),
+        },
     )
     assert response.status_code == 200
 
@@ -41,6 +54,9 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
     assert str(row.id) == _RUN_ID
     assert response.json()["generation_log_id"] == _RUN_ID
     assert row.request_id == "log-success"
+    # admin 상관용 로그 표식 — API가 보낸 요청자·세션이 그대로 남는다.
+    assert row.session_id == design_session.id
+    assert row.user_id == requester.id
     assert row.status == "success"
     assert row.generate_ms is not None and row.generate_ms >= Decimal(0)
     assert row.render_ms is not None and row.render_ms >= Decimal(0)
@@ -49,13 +65,11 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
         key: row.diagnostics[key]
         for key in (
             "mode",
-            "reference_count",
             "fixed_palette",
             "motif_resolutions",
         )
     } == {
         "mode": "variation",
-        "reference_count": 0,
         "fixed_palette": False,
         "motif_resolutions": [],
     }
@@ -175,7 +189,6 @@ async def test_worker_records_safe_provider_failure_diagnostics(client, db_sessi
     row = await _latest_log(db_session)
     assert row.diagnostics == {
         "mode": "prompt",
-        "reference_count": 0,
         "fixed_palette": False,
         "motif_resolutions": [],
         "failure_code": "provider_request_failed",

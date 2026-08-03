@@ -14,6 +14,7 @@ import {
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { DESIGN_PHOTO_ACCEPT } from "@/features/design/api/attachments";
 import {
   type DesignPalette,
   normalizeHexColor,
@@ -21,18 +22,12 @@ import {
 } from "@/features/design/model/draft";
 import { designErrorMessage } from "@/features/design/model/errors";
 
-export type PaletteSourcePhoto = {
-  id: string;
-  name: string;
-};
-
 export type ColorSettingsModalProps = {
   open: boolean;
   value: DesignPalette;
-  photos: readonly PaletteSourcePhoto[];
   onOpenChange: (open: boolean) => void;
   onApply: (value: DesignPalette) => void;
-  onExtract: (photoId: string) => Promise<string[]>;
+  onExtract: (photo: File) => Promise<string[]>;
 };
 
 const EMPTY_FIXED_COLORS = ["", ""];
@@ -41,17 +36,17 @@ const PICKER_FALLBACK = `#${"000000"}`;
 export function ColorSettingsModal({
   open,
   value,
-  photos,
   onOpenChange,
   onApply,
   onExtract,
 }: ColorSettingsModalProps) {
   const formId = useId();
+  const photoInputId = useId();
   const [mode, setMode] = useState<DesignPalette["mode"]>(value.mode);
   const [colors, setColors] = useState<string[]>(
     value.mode === "fixed" ? value.colors : [],
   );
-  const [sourcePhotoId, setSourcePhotoId] = useState("");
+  const [sourcePhoto, setSourcePhoto] = useState<File | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const extractSequence = useRef(0);
@@ -67,9 +62,9 @@ export function ColorSettingsModal({
     if (!open) return;
     setMode(value.mode);
     setColors(value.mode === "fixed" ? value.colors : []);
-    setSourcePhotoId(photos[0]?.id ?? "");
+    setSourcePhoto(null);
     setError(null);
-  }, [open, value.mode, value.colors, photos]);
+  }, [open, value.mode, value.colors]);
 
   const chooseMode = (next: string) => {
     extractSequence.current += 1;
@@ -102,13 +97,13 @@ export function ColorSettingsModal({
   };
 
   const extract = async () => {
-    if (!sourcePhotoId || extracting) return;
+    if (!sourcePhoto || extracting) return;
     const sequence = ++extractSequence.current;
     setExtracting(true);
     setError(null);
     try {
       const extracted = normalizePaletteColors(
-        await onExtract(sourcePhotoId),
+        await onExtract(sourcePhoto),
       ).slice(0, 5);
       if (!openRef.current || sequence !== extractSequence.current) return;
       if (extracted.length < 2) {
@@ -175,7 +170,7 @@ export function ColorSettingsModal({
             <RadioGroupItem
               value="auto"
               label="자동"
-              description="프롬프트와 참고 사진에 맞춰 색상을 정해요."
+              description="프롬프트에 맞춰 색상을 정해요."
             />
             <RadioGroupItem
               value="fixed"
@@ -254,38 +249,37 @@ export function ColorSettingsModal({
             </VStack>
           ) : null}
 
-          {photos.length > 0 ? (
-            <VStack gap="x3" alignItems="stretch">
-              <Text textStyle="label">참고 사진에서 추출</Text>
-              <RadioGroup
-                value={sourcePhotoId}
-                onValueChange={(photoId) => {
-                  extractSequence.current += 1;
-                  setExtracting(false);
-                  setSourcePhotoId(photoId);
-                  setError(null);
-                }}
-                aria-label="색상을 추출할 사진"
-              >
-                {photos.map((photo) => (
-                  <RadioGroupItem
-                    key={photo.id}
-                    value={photo.id}
-                    label={photo.name}
-                  />
-                ))}
-              </RadioGroup>
-              <ActionButton
-                type="button"
-                variant="neutralOutline"
-                loading={extracting}
-                disabled={!sourcePhotoId}
-                onClick={() => void extract()}
-              >
-                대표 색상 추출
-              </ActionButton>
-            </VStack>
-          ) : null}
+          <VStack gap="x3" alignItems="stretch">
+            <Text as="label" htmlFor={photoInputId} textStyle="label">
+              사진에서 대표 색상 추출
+            </Text>
+            <Box
+              as="input"
+              id={photoInputId}
+              type="file"
+              accept={DESIGN_PHOTO_ACCEPT}
+              disabled={extracting}
+              onChange={(event) => {
+                extractSequence.current += 1;
+                setExtracting(false);
+                setSourcePhoto(event.currentTarget.files?.[0] ?? null);
+                setError(null);
+              }}
+              className="block w-full text-t4 text-fg-neutral-muted file:mr-3 file:rounded-r2 file:border-0 file:bg-bg-neutral-weak file:px-3 file:py-2 file:text-fg-neutral"
+            />
+            <Text textStyle="caption" color="fg.neutral-muted">
+              사진은 색상만 추출하며 디자인 생성에는 전송하지 않아요.
+            </Text>
+            <ActionButton
+              type="button"
+              variant="neutralOutline"
+              loading={extracting}
+              disabled={!sourcePhoto}
+              onClick={() => void extract()}
+            >
+              대표 색상 추출
+            </ActionButton>
+          </VStack>
 
           {error ? (
             <Callout

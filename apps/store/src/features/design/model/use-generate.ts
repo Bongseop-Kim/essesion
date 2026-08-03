@@ -13,7 +13,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { trackEvent } from "@/shared/lib/analytics";
 
-import type { DesignPalette, DesignReferenceImage } from "./draft";
+import type { DesignPalette } from "./draft";
 
 import {
   clearPendingDesign,
@@ -25,8 +25,6 @@ import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 export type GenerateDesignInput = {
   sessionId?: string | null;
   prompt: string;
-  /** 첫 생성에만 보낼 수 있다 — 커밋된 디자인이 있으면 서버가 422로 막는다. */
-  referenceImages?: DesignReferenceImage[];
   userMotifIds?: string[];
   palette?: DesignPalette;
 };
@@ -92,10 +90,6 @@ export function useGenerateDesign(options?: {
             session_id: sessionId,
             prompt: input.prompt,
             palette: input.palette,
-            reference_images: (input.referenceImages ?? []).map((image) => ({
-              upload_id: image.uploadId,
-              purpose: image.purpose,
-            })),
             user_motif_ids: input.userMotifIds ?? [],
           },
           throwOnError: true,

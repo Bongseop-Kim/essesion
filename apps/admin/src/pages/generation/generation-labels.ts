@@ -18,7 +18,6 @@ export const PATCH_AXIS_LABELS: Readonly<Record<string, string>> = {
 export const INPUT_TYPE_LABELS: Readonly<Record<string, string>> = {
   intent: "구조화된 디자인 의도",
   prompt: "텍스트 프롬프트",
-  reference_image: "참고 이미지",
 };
 
 export function inputTypeLabel(inputType: string) {
@@ -26,7 +25,6 @@ export function inputTypeLabel(inputType: string) {
 }
 
 export const FAILURE_STAGE_LABELS: Readonly<Record<string, string>> = {
-  reference: "참고 이미지",
   constraints: "사용자 설정",
   authoring: "계획 저작",
   intent: "Intent 검증",
@@ -40,7 +38,6 @@ export const FAILURE_CODE_LABELS: Readonly<Record<string, string>> = {
   constraint_conflict: "설정 충돌",
   design_invalid: "디자인 합성 실패",
   intent_invalid: "Intent 검증 실패",
-  reference_invalid: "참고 이미지 처리 실패",
   scope_rejected: "구성 수정 범위 밖 요청",
   semantic_mismatch: "요청 주제와 계획 불일치",
   provider_request_failed: "외부 연동 실패",

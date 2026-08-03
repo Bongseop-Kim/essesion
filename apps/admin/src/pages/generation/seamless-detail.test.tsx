@@ -9,7 +9,6 @@ import { renderAdminPage } from "../../test/render-admin-page";
 const api = vi.hoisted(() => ({
   get: vi.fn(),
   getOptions: vi.fn(),
-  createReadUrl: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client/query", () => ({
@@ -17,9 +16,6 @@ vi.mock("@essesion/api-client/query", () => ({
     api.getOptions(options);
     return { queryKey: ["seamless-detail"], queryFn: api.get };
   },
-  createAdminSeamlessReferenceImageReadUrlMutation: () => ({
-    mutationFn: api.createReadUrl,
-  }),
 }));
 
 import { SeamlessLogDetailPage } from "./seamless-detail";
@@ -27,7 +23,7 @@ import { SeamlessLogDetailPage } from "./seamless-detail";
 const log: SeamlessDetailOut = {
   id: "22222222-2222-4222-8222-222222222222",
   request_id: "request-2",
-  input_type: "reference_image",
+  input_type: "prompt",
   status: "success",
   warning_count: 0,
   generate_ms: 100,
@@ -42,31 +38,18 @@ const log: SeamlessDetailOut = {
   has_prompt: false,
   prompt: null,
   intent: null,
-  has_reference_image: true,
-  reference_image_bytes: 2_048,
-  reference_images: [
-    {
-      image_id: "33333333-3333-4333-8333-333333333333",
-      purpose: "auto",
-      ordinal: 0,
-      available: true,
-    },
-  ],
   seed: 1,
   warning_groups: [],
   diagnostics: {
     mode: "prompt",
     model: "gemini-2.5-flash-lite",
     prompt_revision: null,
-    reference_count: 1,
     fixed_palette: false,
     patch_axes: [],
     authoring_attempts: 1,
     catalog_candidate_count: null,
     resolved_count: 3,
-    recraft_calls: 2,
     authoring_ms: null,
-    motif_resolution_ms: null,
     compose_ms: null,
     render_ms: null,
     failure_code: null,
@@ -107,80 +90,6 @@ function renderPage(value: SeamlessDetailOut & Record<string, unknown> = log) {
 describe("SeamlessLogDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("검증된 관계 ID로만 만료 URL을 발급하고 state의 이미지를 재발급한다", async () => {
-    const user = userEvent.setup();
-    api.createReadUrl
-      .mockResolvedValueOnce({ read_url: "https://storage.example/signed-1" })
-      .mockResolvedValueOnce({ read_url: "https://storage.example/signed-2" });
-    const { container } = renderPage({
-      ...log,
-      object_key: "uploads/seamless_generation/private-input.png",
-    });
-
-    expect(await screen.findByText("입력 이미지")).toBeTruthy();
-    expect(api.getOptions).toHaveBeenCalledWith({
-      path: { log_id: log.id },
-    });
-    expect(
-      screen.queryByRole("img", { name: "Seamless 입력 참고 이미지" }),
-    ).toBeNull();
-    expect(container.textContent).not.toContain("uploads/seamless_generation");
-
-    await user.click(screen.getByRole("button", { name: "입력 이미지 보기" }));
-
-    const image = await screen.findByRole("img", {
-      name: "Seamless 입력 참고 이미지",
-    });
-    expect(image.getAttribute("src")).toBe("https://storage.example/signed-1");
-    expect(api.createReadUrl).toHaveBeenCalledWith(
-      {
-        path: {
-          log_id: log.id,
-          image_id: log.reference_images[0]?.image_id,
-        },
-      },
-      expect.anything(),
-    );
-    expect(container.textContent).not.toContain("https://storage.example");
-
-    await user.click(screen.getByRole("button", { name: "URL 재발급" }));
-    await waitFor(() => expect(api.createReadUrl).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(image.getAttribute("src")).toBe(
-        "https://storage.example/signed-2",
-      ),
-    );
-  });
-
-  it.each([
-    {
-      name: "관계 ID 없음",
-      value: { ...log, reference_images: [] },
-    },
-    {
-      name: "조회 불가 관계",
-      value: {
-        ...log,
-        reference_images: [{ ...log.reference_images[0]!, available: false }],
-      },
-    },
-  ])("$name 상태에서는 입력 이미지 작업을 노출하지 않는다", async ({
-    value,
-  }) => {
-    renderPage(value);
-
-    expect(
-      await screen.findByRole("heading", {
-        name: "Seamless 로그 상세",
-        level: 1,
-      }),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "입력 이미지 보기" }),
-    ).toBeNull();
-    expect(api.createReadUrl).not.toHaveBeenCalled();
   });
 
   it("저장된 프롬프트 원문을 줄바꿈 그대로 표시한다", async () => {
@@ -312,8 +221,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("CMYK 색역 확인이 필요한 색상 6개")).toBeTruthy();
     expect(screen.getByText("생성 진단")).toBeTruthy();
     expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
-    expect(screen.getByText("Recraft 호출")).toBeTruthy();
-    expect(screen.getByText("2회")).toBeTruthy();
+    expect(screen.queryByText("Recraft 호출")).toBeNull();
     expect(
       screen.getByText(/생성 실패가 아니라 인쇄 전 색상 확인/),
     ).toBeTruthy();
@@ -359,7 +267,6 @@ describe("SeamlessLogDetailPage", () => {
         patch_axes: ["background", "motif_size_mm"],
         prompt_revision: "design-plan-v1",
         authoring_ms: 121,
-        motif_resolution_ms: 35,
         compose_ms: 18,
         render_ms: 9,
         failure_provider: "vertex_embedding",
@@ -402,9 +309,7 @@ describe("SeamlessLogDetailPage", () => {
     });
 
     expect(await screen.findByText("design-plan-v1")).toBeTruthy();
-    expect(
-      screen.getByText("저작 121ms · 모티프 35ms · 합성 18ms · 렌더 9ms"),
-    ).toBeTruthy();
+    expect(screen.getByText("저작 121ms · 합성 18ms · 렌더 9ms")).toBeTruthy();
     expect(screen.getByText("구성 수정")).toBeTruthy();
     expect(screen.getByText("바탕색 · 무늬 크기")).toBeTruthy();
     expect(screen.getByText("Vertex AI 임베딩 · embed")).toBeTruthy();

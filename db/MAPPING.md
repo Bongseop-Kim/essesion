@@ -1,6 +1,6 @@
 # 기존 → 새 스키마 매핑 표
 
-기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (단일 베이스라인 리비전 `dadd999bf858`).
+기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (베이스라인 `dadd999bf858`, 현재 head `6c4f2a9d1b7e`).
 
 ## 1. 테이블 매핑
 
@@ -29,10 +29,12 @@
 | notification_preference_logs | 동일 | — |
 | design_tokens | design_tokens | 동일 — 원장 의미(amount±, type, token_class, 만료) 보존. work_id = 생성 작업 멱등 키(구 ai_generation_logs.work_id FK였으나 대상 드롭 → FK 없는 text 유지) |
 | token_purchases | token_purchases | 동일 |
-| images | **images** (재설계) | url·file_id·folder(ImageKit) → object_key(GCS 업로드 버킷). 2단계 삭제·expires_at·부분 unique 유지. 비회원 수선 업로드를 위해 claim_token_hash/content_type/size_bytes/upload_completed_at 추가, 미귀속·장바구니 제거 이미지는 24시간 후 정리. 견적 종료 시 90일 만료 트리거 → api 로직 |
+| images | **images** (재설계) | url·file_id·folder(ImageKit) → object_key(GCS 업로드 버킷). 2단계 삭제·expires_at·부분 unique 유지. 비회원 수선 업로드를 위해 claim_token_hash/content_type/size_bytes/upload_completed_at 추가, 미귀속·장바구니 제거 이미지는 24시간 후 정리. 디자인 staged upload는 팔레트 추출과 사진→SVG 모티프에만 쓰며 생성 첨부로 귀속하지 않는다. 견적 종료 시 90일 만료 트리거 → api 로직 |
 | motifs | motifs | 도메인 의미 유지. Vertex AI `vector(3072)` 한 컬럼과 halfvec HNSW 검색 인덱스를 사용. extensions.vector → public vector |
-| seamless_generation_logs | seamless_generation_logs | 동일 — admin 로그 뷰어 + SVG 재-export system of record |
+| seamless_generation_logs | seamless_generation_logs | admin 로그 뷰어 + SVG 재-export system of record. 입력 타입은 `prompt|intent`만 허용하고 참고 이미지 여부·바이트 컬럼은 두지 않는다 |
 | seamless_sessions | **design_sessions** (재설계) | thread_id(text PK)→id(uuid). status/seed/colorway/registry_version/current_intent 승계, user_id NOT NULL화. **예산 카운터 recraft_used 추가** — 프로세스-로컬 budget 대체(Postgres 공유 카운터, ARCHITECTURE §7). finalize는 세션 카운터 대신 계정당 24시간 쿼터(generation_jobs 카운트, worker-pipeline.md §5) — finalize_used 컬럼은 도입 후 제거됨 |
+| (없음) | **design_session_turns / design_turn_attachments** (신규) | API 소유 대화 이력. 첨부는 턴에서 사용한 concrete motif ID·이름·순서만 저장하며 사진/image/purpose 컬럼은 없다 |
+| (이전 개발 스키마) seamless_generation_attachments | — (드롭) | 디자인 참고 사진 레거시와 전용 staging image 행을 `6c4f2a9d1b7e`에서 삭제 |
 | **checkpoints / checkpoint_blobs / checkpoint_writes / checkpoint_migrations** | — (드롭) | LangGraph 미승계. 턴 이력은 **design_session_turns**(신규, session_id+seq unique)로 api가 소유 |
 | **ai_generation_logs** | — (드롭) | generate-tile 잔재 — seamless 워커가 대체 |
 | **design_chat_sessions / design_chat_messages** | — (드롭) | generate-tile 기반 /design 구현체 — /design은 신규 설계(보존 예외) |
@@ -69,4 +71,4 @@
 
 ## 3. 미배포 초기화 정책 (§6)
 
-이 프로젝트는 외부 환경에 배포되지 않았으므로 기존 Supabase 데이터나 중간 개발 스키마를 새 DB로 변환하지 않는다. 이전 개발 DB는 drop/recreate하고 단일 베이스라인부터 시작한다. 스테이징과 프로덕션도 빈 DB에 베이스라인을 적용한 뒤 환경별 관리자, 설정, 공개 motif와 authoring example을 초기 입력한다.
+이 프로젝트는 외부 환경에 배포되지 않았으므로 기존 Supabase 데이터나 중간 개발 스키마를 새 DB로 변환하지 않는다. 이전 개발 DB는 drop/recreate하고 베이스라인부터 현재 Alembic head까지 적용한다. 스테이징과 프로덕션도 빈 DB를 head까지 올린 뒤 환경별 관리자, 설정, 공개 motif와 authoring example을 초기 입력한다.

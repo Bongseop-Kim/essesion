@@ -1,14 +1,3 @@
-export type ReferenceImagePurpose =
-  | "auto"
-  | "color_mood"
-  | "motif"
-  | "composition";
-
-export type DesignReferenceImage = {
-  uploadId: string;
-  purpose: ReferenceImagePurpose;
-};
-
 export type DesignPalette =
   | { mode: "auto"; colors: [] }
   | { mode: "fixed"; colors: string[] };

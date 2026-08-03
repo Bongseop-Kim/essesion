@@ -6,7 +6,6 @@ export type DesignErrorKind =
   | "worker_rejected"
   | "authoring_invalid"
   | "constraint_conflict"
-  | "reference_invalid"
   | "intent_invalid"
   | "design_invalid"
   | "semantic_mismatch"
@@ -29,8 +28,6 @@ export const DESIGN_ERROR_MESSAGES: Record<DesignErrorKind, string> = {
     "같은 요청을 다시 시도하거나 내용을 조금 더 구체적으로 작성해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
   constraint_conflict:
     "지정한 색과 요청을 함께 적용할 수 없어요. 색 지정을 조정해 다시 시도해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
-  reference_invalid:
-    "참고 이미지를 사용할 수 없어요. 이미지를 삭제하거나 다시 첨부해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
   intent_invalid:
     "지금 디자인 정보를 처리할 수 없어요. 이력에서 다른 스텝을 고르거나 새로 시작해 주세요. 실패한 요청의 토큰은 자동으로 환불돼요.",
   design_invalid:

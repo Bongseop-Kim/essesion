@@ -14,10 +14,9 @@ from typing import Annotated, Any, Literal, NamedTuple, cast, get_args
 
 from db.models.auth import User
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
-from db.models.images import Image
-from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
+from db.models.seamless import Motif, SeamlessGenerationLog
 from db.models.tokens import DesignToken
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import ColumnElement, func, or_, select
 from svg_safety import SanitizeError, sanitize_svg
@@ -25,7 +24,6 @@ from svg_safety import SanitizeError, sanitize_svg
 from api.db import SessionDep
 from api.deps import AdminUser, SettingsDep
 from api.domains.admin.helpers import kst_day_bounds
-from api.domains.admin.quote_schemas import SignedReadUrlOut
 from api.domains.admin.schemas import Page
 from api.errors import DomainError, NotFoundError
 from api.integrations.gcs import public_asset_url
@@ -49,9 +47,6 @@ WarningCode = Literal[
 ]
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
-SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE = "design_reference"
-SEAMLESS_REFERENCE_IMAGE_PREFIX = "uploads/design_reference/"
-
 _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 _CONTENT_KEY = re.compile(r"^fabric/[0-9a-f]{16}\.png$")
 _EMAIL = re.compile(r"\b[^\s@]+@[^\s@]+\.[^\s@]+\b")
@@ -165,7 +160,6 @@ class SeamlessStatsOut(BaseModel):
     success: int
     partial: int
     error: int
-    recraft_calls: int
     average_generate_ms: float | None
     average_render_ms: float | None
     as_of: datetime
@@ -239,18 +233,13 @@ class GenerationDiagnosticsOut(BaseModel):
     mode: GenerationMode | None = None
     model: str | None = None
     prompt_revision: str | None = None
-    reference_count: int | None = None
     fixed_palette: bool | None = None
     # 구성 수정에서 실제로 바뀐 축 — patch 런에서만 채워진다.
     patch_axes: list[str] = Field(default_factory=list)
     authoring_attempts: int | None = None
     catalog_candidate_count: int | None = None
     resolved_count: int | None = None
-    # 요청당 실제 Recraft 과금 호출 수(게이트 재프롬프트 포함). 실패 요청은 모티프
-    # upsert가 롤백되므로 저장 모티프 수가 아니라 이 값이 비용 추적의 정본이다.
-    recraft_calls: int | None = None
     authoring_ms: float | None = None
-    motif_resolution_ms: float | None = None
     compose_ms: float | None = None
     render_ms: float | None = None
     failure_code: str | None = None
@@ -262,20 +251,10 @@ class GenerationDiagnosticsOut(BaseModel):
     motif_resolutions: list[MotifResolutionOut] = Field(default_factory=list)
 
 
-class SeamlessReferenceImageOut(BaseModel):
-    image_id: uuid.UUID
-    purpose: Literal["auto", "color_mood", "motif", "composition"]
-    ordinal: int
-    available: bool
-
-
 class SeamlessDetailOut(SeamlessSummaryOut):
     has_prompt: bool
     prompt: str | None
     intent: dict[str, Any] | None
-    has_reference_image: bool
-    reference_image_bytes: int | None
-    reference_images: list[SeamlessReferenceImageOut]
     seed: int | None
     warning_groups: list[SeamlessWarningOut]
     diagnostics: GenerationDiagnosticsOut
@@ -676,7 +655,6 @@ def _error_projection(
         "HTTPException": "생성 요청이 거부되었습니다",
         "authoring_invalid": "디자인 계획 저작에 실패했습니다",
         "constraint_conflict": "선택한 생성 조건이 충돌했습니다",
-        "reference_invalid": "참고 이미지를 처리하지 못했습니다",
         "intent_invalid": "디자인 intent 검증에 실패했습니다",
         "design_invalid": "디자인 합성에 실패했습니다",
         "semantic_mismatch": "요청한 주제와 맞는 구성을 만들지 못했습니다",
@@ -686,13 +664,11 @@ def _error_projection(
         "gemini": "Gemini",
         "openai_embedding": "OpenAI 임베딩",
         "vertex_embedding": "Vertex AI 임베딩",
-        "recraft": "Recraft",
     }.get(diagnostics.failure_provider or "")
     if provider and safe_type in {
         "AdapterClientError",
         "AdapterNotConfigured",
         "EmbeddingError",
-        "RecraftError",
     }:
         action = "구성되지 않았습니다" if safe_type == "AdapterNotConfigured" else "실패했습니다"
         return safe_type, f"{provider} 생성 연동에 {action}"
@@ -778,15 +754,12 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         mode=cast("GenerationMode | None", mode),
         model=_safe_token(raw.get("model")),
         prompt_revision=_safe_token(raw.get("prompt_revision")),
-        reference_count=count("reference_count"),
         fixed_palette=flag("fixed_palette"),
         patch_axes=patch_axes,
         authoring_attempts=count("authoring_attempts"),
         catalog_candidate_count=count("catalog_candidate_count"),
         resolved_count=count("resolved_count"),
-        recraft_calls=count("recraft_calls"),
         authoring_ms=milliseconds("authoring_ms"),
-        motif_resolution_ms=milliseconds("motif_resolution_ms"),
         compose_ms=milliseconds("compose_ms"),
         render_ms=milliseconds("render_ms"),
         failure_code=failure_code,
@@ -887,32 +860,6 @@ def _safe_design(value: Any) -> SafeDesignOut | None:
         seed=value.get("seed") if isinstance(value.get("seed"), int) else None,
         svg=svg,
         svg_status=svg_status,
-    )
-
-
-async def _seamless_reference_images(
-    session,
-    row: SeamlessGenerationLog,  # noqa: ANN001 — SessionDep 전달
-) -> list[tuple[SeamlessGenerationAttachment, Image]]:
-    rows = await session.execute(
-        select(SeamlessGenerationAttachment, Image)
-        .join(Image, Image.id == SeamlessGenerationAttachment.image_id)
-        .where(
-            SeamlessGenerationAttachment.log_id == row.id,
-            Image.entity_type == SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE,
-            Image.upload_completed_at.is_not(None),
-            Image.deleted_at.is_(None),
-        )
-        .order_by(SeamlessGenerationAttachment.ordinal)
-    )
-    return list(rows.tuples())
-
-
-def _reference_image_available(image: Image | None) -> bool:
-    return bool(
-        image is not None
-        and image.object_key.startswith(SEAMLESS_REFERENCE_IMAGE_PREFIX)
-        and (image.expires_at is None or image.expires_at > datetime.now(UTC))
     )
 
 
@@ -1041,10 +988,6 @@ async def get_admin_seamless_stats(
                 func.count().filter(SeamlessGenerationLog.status == "success"),
                 func.count().filter(SeamlessGenerationLog.status == "partial"),
                 func.count().filter(SeamlessGenerationLog.status == "error"),
-                # worker만 쓰는 정수 필드 — 실패(롤백) 요청의 호출까지 포함한 과금 합계.
-                func.coalesce(
-                    func.sum(SeamlessGenerationLog.diagnostics["recraft_calls"].as_integer()), 0
-                ),
                 func.avg(SeamlessGenerationLog.generate_ms),
                 func.avg(SeamlessGenerationLog.render_ms),
             ).where(*filters)
@@ -1055,9 +998,8 @@ async def get_admin_seamless_stats(
         success=int(row[1]),
         partial=int(row[2]),
         error=int(row[3]),
-        recraft_calls=int(row[4]),
-        average_generate_ms=float(row[5]) if row[5] is not None else None,
-        average_render_ms=float(row[6]) if row[6] is not None else None,
+        average_generate_ms=float(row[4]) if row[4] is not None else None,
+        average_render_ms=float(row[5]) if row[5] is not None else None,
         as_of=datetime.now(UTC),
     )
 
@@ -1110,7 +1052,6 @@ async def get_admin_seamless_log(
     if row is None:
         raise NotFoundError("Seamless 생성 로그를 찾을 수 없습니다")
     summary = _seamless_summary(row)
-    reference_images = await _seamless_reference_images(session, row)
     outcome = await _generation_outcome(session, row)
     token_accounting = await _generation_token_accounting(session, row)
     return SeamlessDetailOut(
@@ -1118,20 +1059,6 @@ async def get_admin_seamless_log(
         has_prompt=bool(row.prompt),
         prompt=row.prompt,
         intent=_safe_intent(row.intent),
-        has_reference_image=row.has_reference_image,
-        reference_image_bytes=row.reference_image_bytes,
-        reference_images=[
-            SeamlessReferenceImageOut(
-                image_id=image.id,
-                purpose=cast(
-                    "Literal['auto', 'color_mood', 'motif', 'composition']",
-                    attachment.purpose,
-                ),
-                ordinal=attachment.ordinal,
-                available=_reference_image_available(image),
-            )
-            for attachment, image in reference_images
-        ],
         seed=row.seed,
         warning_groups=_warning_groups(row.warnings or []),
         diagnostics=_safe_diagnostics(row.diagnostics),
@@ -1139,41 +1066,6 @@ async def get_admin_seamless_log(
         token_accounting=token_accounting,
         design=_safe_design(row.design),
     )
-
-
-@router.post(
-    "/generation/seamless/{log_id}/reference-image/{image_id}/read-url",
-    response_model=SignedReadUrlOut,
-)
-async def create_admin_seamless_reference_image_read_url(
-    log_id: uuid.UUID,
-    image_id: uuid.UUID,
-    session: SessionDep,
-    admin: AdminUser,
-    request: Request,
-) -> SignedReadUrlOut:
-    row = await session.get(SeamlessGenerationLog, log_id)
-    if row is None:
-        raise NotFoundError("Seamless 생성 로그를 찾을 수 없습니다")
-    image = await session.scalar(
-        select(Image)
-        .join(
-            SeamlessGenerationAttachment,
-            SeamlessGenerationAttachment.image_id == Image.id,
-        )
-        .where(
-            SeamlessGenerationAttachment.log_id == row.id,
-            SeamlessGenerationAttachment.image_id == image_id,
-            Image.entity_type == SEAMLESS_REFERENCE_IMAGE_ENTITY_TYPE,
-            Image.upload_completed_at.is_not(None),
-            Image.deleted_at.is_(None),
-        )
-    )
-    if image is None or not image.object_key.startswith(SEAMLESS_REFERENCE_IMAGE_PREFIX):
-        raise NotFoundError("Seamless 참고 이미지를 찾을 수 없습니다")
-    if image.expires_at is not None and image.expires_at <= datetime.now(UTC):
-        raise DomainError("이미지가 만료되었습니다", code="image_expired")
-    return SignedReadUrlOut(read_url=await request.app.state.gcs.signed_read_url(image.object_key))
 
 
 def _motif_summary(row: Motif) -> MotifSummaryOut:

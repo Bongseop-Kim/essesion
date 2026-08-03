@@ -350,9 +350,7 @@ describe("DesignPage canvas shell", () => {
       true,
     );
     expect(disabled(screen.getByRole("button", { name: "실사화" }))).toBe(true);
-    expect(disabled(screen.getByRole("button", { name: "참고 사진" }))).toBe(
-      false,
-    );
+    expect(screen.queryByRole("button", { name: "참고 사진" })).toBeNull();
     queryClient.clear();
   });
 
