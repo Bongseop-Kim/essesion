@@ -9,10 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from worker.authoring.examples import AuthoringFamily
 from worker.authoring.promotion import DEFAULT_SCAN_LIMIT
 from worker.authoring.schema import DesignPlanV3
-from worker.engine.constraints import PaletteConstraint
 from worker.motifs.photo_svg import MAX_PROCESSED_PREVIEW_BYTES
-from worker.motifs.spec import MAX_MOTIF_QUERY_LENGTH
 from worker.motifs.text_svg import MAX_TEXT_MOTIF_LENGTH
+
+MAX_MOTIF_QUERY_LENGTH = 200
 
 
 class StrictRequest(BaseModel):
@@ -122,7 +122,6 @@ class GenerateRequest(StrictRequest):
     colorway: str | None = None
     seed: int | None = None
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
-    palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
     conversation_context: ConversationContext | None = None
     # 모티프 슬롯 교체는 intent 재렌더 경로만 쓴다(모델 호출 없음).
     motif_slot: "MotifSlotInput | None" = None
@@ -209,10 +208,9 @@ class FinalizeTaskRequest(StrictRequest):
 
 
 class MotifQuery(StrictRequest):
-    """문장 하나 — worker가 MotifSpec으로 바꾼다 (C-10: 무제한 자유텍스트 유입 차단)."""
+    """Recraft/검색에 그대로 전달할 문장(C-10: 자유텍스트 길이 제한)."""
 
     query: str = Field(min_length=1, max_length=MAX_MOTIF_QUERY_LENGTH)
-    style_hint: str | None = Field(default=None, max_length=200)
 
 
 class CandidatesRequest(MotifQuery):
@@ -237,19 +235,9 @@ class MotifImportRequest(StrictRequest):
 class MotifImportResponse(BaseModel):
     motif_id: str
     symbol: str = Field(max_length=2_000_000)
-    color_slots: list[str] = Field(min_length=1, max_length=6)
     bbox: tuple[float, float, float, float]
     anchor: tuple[float, float]
     preview_svg: str = Field(max_length=2_000_000)
-
-
-class PaletteExtractRequest(StrictRequest):
-    image: ReferenceImageInput
-    color_count: int = Field(default=5, ge=2, le=5)
-
-
-class PaletteExtractResponse(BaseModel):
-    colors: list[str] = Field(min_length=2, max_length=5)
 
 
 class TextMotifPreviewRequest(StrictRequest):
@@ -286,7 +274,6 @@ class IdeasRequest(StrictRequest):
     prompt: str = Field(default="", max_length=4_000)
     motif_ids: list[str] = Field(default_factory=list, max_length=2)
     motifs: list[IdeaMotifContext] = Field(default_factory=list, max_length=2)
-    palette: PaletteConstraint = Field(default_factory=PaletteConstraint)
     count: Literal[3, 4] = 4
 
     @model_validator(mode="after")

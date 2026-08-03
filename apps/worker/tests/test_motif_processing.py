@@ -9,7 +9,6 @@ from worker.motifs.normalize import normalize_motif_svg
 from worker.motifs.photo_svg import (
     _canonicalize_vtracer_svg,
     decode_user_image,
-    extract_palette,
     photo_to_svg,
 )
 from worker.motifs.text_svg import normalize_text_motif_input, text_to_svg
@@ -83,12 +82,6 @@ def test_bundled_font_assets_match_documented_hashes():
     } == expected
 
 
-def test_palette_extraction_is_deterministic_and_population_ordered():
-    raw = _simple_photo()
-    assert extract_palette(raw, "image/png", 5) == ["#FFFFFF", "#DC1428"]
-    assert extract_palette(raw, "image/png", 5) == extract_palette(raw, "image/png", 5)
-
-
 def test_photo_vectorization_removes_flat_border_and_returns_png_preview():
     result = photo_to_svg(
         _simple_photo(),
@@ -146,7 +139,7 @@ def test_photo_vectorization_can_keep_background_and_flat_removal_fails_closed()
 
 def test_photo_mime_is_verified_from_bytes():
     with pytest.raises(ValueError, match="does not match"):
-        extract_palette(_simple_photo(), "image/jpeg", 3)
+        decode_user_image(_simple_photo(), "image/jpeg")
 
 
 def test_photo_pixel_cap_fails_before_decode(monkeypatch):
@@ -193,7 +186,7 @@ def test_photo_vectorizer_color_cap_fails_closed(monkeypatch):
         )
 
 
-def test_multicolor_standalone_preview_preserves_slots_and_identity():
+def test_multicolor_standalone_preview_preserves_paints_and_identity():
     raw = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
         '<path fill="#FF0000" d="M0 0H5V10H0Z"/>'
@@ -201,7 +194,7 @@ def test_multicolor_standalone_preview_preserves_slots_and_identity():
     )
     first = normalize_motif_svg(raw, id_prefix="upload", render_check=False)
     second = normalize_motif_svg(first.preview_svg, id_prefix="upload", render_check=False)
-    assert first.color_slots == second.color_slots == ("s0", "s1")
+    assert "#ff0000" in first.preview_svg and "#0000ff" in first.preview_svg
     assert (first.id, first.symbol, first.preview_svg) == (
         second.id,
         second.symbol,

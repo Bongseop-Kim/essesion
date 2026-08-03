@@ -58,8 +58,8 @@ describe("AuthoringExampleForm", () => {
     });
     api.listMotifs.mockResolvedValue({
       items: [
-        { id: "studio-flower", subject: "flower", color_slot_count: 1 },
-        { id: "studio-bee", subject: "bee", color_slot_count: 1 },
+        { id: "studio-flower", subject: "flower" },
+        { id: "studio-bee", subject: "bee" },
       ],
       total: 2,
     });

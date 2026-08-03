@@ -16,7 +16,7 @@ import {
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useState } from "react";
 
-/** 서버 계약(DesignPlanV3)의 모티프 슬롯 상한 */
+/** 서버 계약(DesignPlanV3)의 모티프 개수 상한 */
 const MAX_MOTIFS = 2;
 
 export function motifLabel(motif: MotifSummaryOut) {
@@ -49,9 +49,15 @@ export function MotifPicker({
   // 타이핑마다 요청하지 않도록 검색어만 지연시킨다 — 입력 표시는 즉시.
   const deferredSearch = useDeferredValue(search);
   const [draft, setDraft] = useState(value);
+  // 서버 q는 2자 이상만 받는다 — 1자는 검색어 없이 조회한다.
+  const trimmedSearch = deferredSearch.trim();
   const query = useQuery({
     ...listAdminMotifsOptions({
-      query: { q: deferredSearch.trim() || undefined, limit: 100, offset: 0 },
+      query: {
+        q: trimmedSearch.length >= 2 ? trimmedSearch : undefined,
+        limit: 100,
+        offset: 0,
+      },
     }),
     placeholderData: keepPreviousData,
     enabled: open,
@@ -83,7 +89,7 @@ export function MotifPicker({
           open
           onOpenChange={setOpen}
           title="모티프 선택"
-          description={`Plan의 모티프 슬롯 순서대로 최대 ${max}개까지 고릅니다.`}
+          description={`Plan의 모티프 순서대로 최대 ${max}개까지 고릅니다.`}
           size="medium"
           showCloseButton
           footer={
@@ -155,7 +161,8 @@ export function MotifPicker({
                       key={motif.id}
                       value={motif.id}
                       label={motifLabel(motif)}
-                      description={`${motif.id} · ${motif.color_slot_count}색 슬롯`}
+                      // subject가 없으면 label이 이미 id다 — 같은 줄을 두 번 보여주지 않는다.
+                      description={motif.subject?.trim() ? motif.id : undefined}
                       disabled={
                         draft.length >= max && !draft.includes(motif.id)
                       }

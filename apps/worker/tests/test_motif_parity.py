@@ -1,8 +1,8 @@
-"""normalize → motif_id 원본 parity — "같은 입력 → 같은 id" 계약 (worker-motifs.md §2).
+"""고정색 normalize 결정론의 최소 회귀 기준선 (worker-motifs.md §2).
 
-기대 id는 원본 seamless-tile의 `normalize_motif_svg`를 recraft_samples 픽스처에
-실행해 추출한 값(2026-07-07, render_check=False). 재구현이 프레이밍·slotify·해시 입력
-어느 하나라도 다르게 계산하면 여기서 갈라진다.
+seamless-tile의 슬롯화 ID와 byte parity는 더 이상 공식 계약이 아니다. 한 픽스처만 남겨
+구체 색을 포함한 essesion 정규화 결과의 결정론을 고정한다. 다색·currentColor 동작은
+`test_motif_normalize.py`에서 직접 검증한다.
 """
 
 from pathlib import Path
@@ -12,17 +12,15 @@ from worker.motifs.normalize import normalize_motif_svg
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "recraft_samples"
 
-# (stem, 원본 motif_id, 원본 color_slots)
+# (stem, essesion fixed-color motif_id)
 _EXPECTED = [
-    ("honeybee_top", "recraft-6922bc0e3284", ("s0", "s1", "s2", "s3")),
-    ("pelican_bicycle_side", "recraft-aabff336b478", ("s0", "s1", "s2", "s3", "s4", "s5")),
-    ("pig_face_flat", "recraft-b226a66c1475", ("s0", "s1", "s2")),
+    ("honeybee_top", "recraft-f0ea70370e3d"),
 ]
 
 
-@pytest.mark.parametrize("stem,expected_id,expected_slots", _EXPECTED)
-def test_normalize_produces_original_motif_id(stem, expected_id, expected_slots):
+@pytest.mark.parametrize("stem,expected_id", _EXPECTED)
+def test_normalize_produces_fixed_color_motif_id(stem, expected_id):
     svg = (_FIXTURES / f"{stem}.svg").read_text()
     motif = normalize_motif_svg(svg, render_check=False)
     assert motif.id == expected_id
-    assert motif.color_slots == expected_slots
+    assert "currentColor" not in motif.symbol

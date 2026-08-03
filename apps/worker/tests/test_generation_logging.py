@@ -65,12 +65,10 @@ async def test_worker_records_success_with_actual_render_timing(client, db_sessi
         key: row.diagnostics[key]
         for key in (
             "mode",
-            "fixed_palette",
             "motif_resolutions",
         )
     } == {
         "mode": "variation",
-        "fixed_palette": False,
         "motif_resolutions": [],
     }
     assert row.diagnostics["compose_ms"] >= 0
@@ -189,7 +187,6 @@ async def test_worker_records_safe_provider_failure_diagnostics(client, db_sessi
     row = await _latest_log(db_session)
     assert row.diagnostics == {
         "mode": "prompt",
-        "fixed_palette": False,
         "motif_resolutions": [],
         "failure_code": "provider_request_failed",
         "failure_stage": "authoring",

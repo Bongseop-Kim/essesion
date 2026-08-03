@@ -97,7 +97,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(Recraft) | 0토큰 · 세션 예산 3회 |
 | `POST /design/sessions/{id}/motifs/activate` | 슬롯(≤2)의 모티프 교체 → 결정적 재렌더 | 무료 |
 | `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
-| `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` · `/design/palette/extract` | 글자·사진 → SVG 변환, 색 추출 | 무료 |
+| `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` | 글자·사진 → SVG 변환 | 무료 |
 | `POST /design/ideas` | 편집 초안 문장 3~4개 (별도 rate limit) | 무료 |
 | `POST /design/sessions/{id}/finalize` | 실사화 job 생성 (계정당 24시간 쿼터) | job 단위 |
 | `POST /design/export` | 이미 만든 SVG의 PNG/TIFF 변환 | 무료 |

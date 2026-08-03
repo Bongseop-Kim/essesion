@@ -161,7 +161,6 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                             "params": {
                                 "motif_id": "motif-safe",
                                 "size_mm": 12,
-                                "color": "ground",
                             },
                             "placement": {
                                 "type": "lattice",
@@ -200,7 +199,6 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "patch_axes": ["background", "placement"],
                 "resolved_count": 3,
                 "recraft_calls": 3,
-                "fixed_palette": False,
                 "reference_count": 1,
             },
         ),
@@ -235,7 +233,6 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     safe_motif = Motif(
         id="motif-safe",
         symbol='<symbol id="motif-safe"><path d="M0 0L1 1"/></symbol>',
-        color_slots=["s0"],
         bbox=[0, 0, 1, 1],
         anchor=[0.5, 0.5],
         subject="flower",
@@ -247,7 +244,6 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     unsafe_motif = Motif(
         id="motif-unsafe",
         symbol='<symbol id="motif-unsafe"><script>alert(1)</script></symbol>',
-        color_slots=["s0"],
         bbox=[0, 0, 1, 1],
         anchor=[0, 0],
         subject="unsafe",
@@ -307,7 +303,6 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "params": {
                     "motif_id": "motif-safe",
                     "size_mm": 12,
-                    "color": "ground",
                 },
                 "placement": {
                     "type": "lattice",
@@ -329,7 +324,6 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "mode": "patch",
         "model": "gemini-2.5-flash-lite",
         "prompt_revision": None,
-        "fixed_palette": False,
         "patch_axes": ["background", "placement"],
         "authoring_attempts": 1,
         "catalog_candidate_count": None,
@@ -683,96 +677,35 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     }
 
 
-async def test_motif_detail_returns_index_aligned_slot_metadata(client, db_session, settings):
+async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
+    client, db_session, settings
+):
     admin = await make_user(db_session, role="admin")
     headers = auth_headers(admin, settings)
-    db_session.add_all(
-        [
-            Motif(
-                id="motif-multislot",
-                symbol='<symbol id="motif-multislot"><path fill="s0"/><path fill="s1"/></symbol>',
-                color_slots=["s0", "s1"],
-                slot_colors=["#010000", "#0685b1"],
-                slot_parts=["  몸통  ", "파란\n자전거"],
-                bbox=[0, 0, 1, 1],
-                anchor=[0.5, 0.5],
-                subject="pelican",
-                scope="whole",
-                source="seed",
+    db_session.add(
+        Motif(
+            id="motif-fixed-colors",
+            symbol=(
+                '<symbol id="motif-fixed-colors">'
+                '<path fill="#010000"/><path fill="#0685b1"/></symbol>'
             ),
-            Motif(
-                id="motif-singleslot",
-                symbol='<symbol id="motif-singleslot"><path fill="currentColor"/></symbol>',
-                color_slots=["s0"],
-                bbox=[0, 0, 1, 1],
-                anchor=[0.5, 0.5],
-                subject="bee",
-                scope="whole",
-                source="seed",
-            ),
-            Motif(
-                id="motif-misaligned-parts",
-                symbol=(
-                    '<symbol id="motif-misaligned-parts">'
-                    '<path fill="s0"/><path fill="s1"/>'
-                    "</symbol>"
-                ),
-                color_slots=["s0", "s1"],
-                slot_parts=["몸통"],
-                bbox=[0, 0, 1, 1],
-                anchor=[0.5, 0.5],
-                subject="misaligned",
-                scope="whole",
-                source="seed",
-            ),
-            Motif(
-                id="motif-unsafe-parts",
-                symbol=(
-                    '<symbol id="motif-unsafe-parts"><path fill="s0"/><path fill="s1"/></symbol>'
-                ),
-                color_slots=["s0", "s1"],
-                slot_parts=["몸통", "https://private.example.test/part"],
-                bbox=[0, 0, 1, 1],
-                anchor=[0.5, 0.5],
-                subject="unsafe",
-                scope="whole",
-                source="seed",
-            ),
-            Motif(
-                id="motif-overlong-parts",
-                symbol=(
-                    '<symbol id="motif-overlong-parts"><path fill="s0"/><path fill="s1"/></symbol>'
-                ),
-                color_slots=["s0", "s1"],
-                slot_parts=["몸통", "가" * 41],
-                bbox=[0, 0, 1, 1],
-                anchor=[0.5, 0.5],
-                subject="overlong",
-                scope="whole",
-                source="seed",
-            ),
-        ]
+            bbox=[0, 0, 1, 1],
+            anchor=[0.5, 0.5],
+            subject="pelican",
+            scope="whole",
+            source="seed",
+        )
     )
     await db_session.commit()
 
-    multi = await client.get("/admin/motifs/motif-multislot", headers=headers)
-    assert multi.status_code == 200
-    assert multi.json()["slot_colors"] == ["#010000", "#0685b1"]
-    assert multi.json()["slot_parts"] == ["몸통", "파란 자전거"]
-
-    single = await client.get("/admin/motifs/motif-singleslot", headers=headers)
-    assert single.status_code == 200
-    assert single.json()["slot_colors"] is None
-    assert single.json()["slot_parts"] is None
-
-    for motif_id in (
-        "motif-misaligned-parts",
-        "motif-unsafe-parts",
-        "motif-overlong-parts",
-    ):
-        invalid = await client.get(f"/admin/motifs/{motif_id}", headers=headers)
-        assert invalid.status_code == 200
-        assert invalid.json()["slot_parts"] is None
+    response = await client.get("/admin/motifs/motif-fixed-colors", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["svg_status"] == "safe"
+    assert "#010000" in body["symbol"] and "#0685b1" in body["symbol"]
+    assert "color_slots" not in body
+    assert "slot_colors" not in body
+    assert "slot_parts" not in body
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(
@@ -784,7 +717,6 @@ async def test_motif_list_searches_fields_and_filters_kst_created_date(
         Motif(
             id="motif-id-needle",
             symbol='<symbol id="motif-id-needle"/>',
-            color_slots=["s0"],
             bbox=[0, 0, 1, 1],
             anchor=[0.5, 0.5],
             subject="Rose",
@@ -795,7 +727,6 @@ async def test_motif_list_searches_fields_and_filters_kst_created_date(
         Motif(
             id="motif-subject",
             symbol='<symbol id="motif-subject"/>',
-            color_slots=["s0"],
             bbox=[0, 0, 1, 1],
             anchor=[0.5, 0.5],
             subject="Needle Flower",
@@ -806,7 +737,6 @@ async def test_motif_list_searches_fields_and_filters_kst_created_date(
         Motif(
             id="motif-source",
             symbol='<symbol id="motif-source"/>',
-            color_slots=["s0"],
             bbox=[0, 0, 1, 1],
             anchor=[0.5, 0.5],
             subject="Plain",
@@ -817,7 +747,6 @@ async def test_motif_list_searches_fields_and_filters_kst_created_date(
         Motif(
             id="motif-literal",
             symbol='<symbol id="motif-literal"/>',
-            color_slots=["s0"],
             bbox=[0, 0, 1, 1],
             anchor=[0.5, 0.5],
             subject="literal %_ mark",

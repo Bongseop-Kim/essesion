@@ -3864,7 +3864,6 @@ export type DesignGenerateRequest = {
      * Colorway
      */
     colorway?: string | null;
-    palette?: PaletteConstraint;
     /**
      * Prompt
      */
@@ -3901,7 +3900,6 @@ export type DesignIdeasRequest = {
      * Count
      */
     count?: 3 | 4;
-    palette?: PaletteConstraint;
     /**
      * Prompt
      */
@@ -4259,10 +4257,6 @@ export type GenerationDiagnosticsOut = {
      * Failure Status Code
      */
     failure_status_code?: number | null;
-    /**
-     * Fixed Palette
-     */
-    fixed_palette?: boolean | null;
     /**
      * Mode
      */
@@ -5071,14 +5065,6 @@ export type MotifDetailOut = {
      */
     bbox: Array<number>;
     /**
-     * Color Slot Count
-     */
-    color_slot_count: number;
-    /**
-     * Color Slots
-     */
-    color_slots: Array<string>;
-    /**
      * Created At
      */
     created_at: string;
@@ -5102,14 +5088,6 @@ export type MotifDetailOut = {
      * Scope
      */
     scope: string | null;
-    /**
-     * Slot Colors
-     */
-    slot_colors?: Array<string> | null;
-    /**
-     * Slot Parts
-     */
-    slot_parts?: Array<string> | null;
     /**
      * Source
      */
@@ -5298,10 +5276,6 @@ export type MotifSummaryOut = {
      */
     bbox: Array<number>;
     /**
-     * Color Slot Count
-     */
-    color_slot_count: number;
-    /**
      * Created At
      */
     created_at: string;
@@ -5321,10 +5295,6 @@ export type MotifSummaryOut = {
      * Scope
      */
     scope: string | null;
-    /**
-     * Slot Colors
-     */
-    slot_colors?: Array<string> | null;
     /**
      * Source
      */
@@ -6238,44 +6208,6 @@ export type PageSeamlessSummaryOut = {
      * Total
      */
     total: number;
-};
-
-/**
- * PaletteConstraint
- */
-export type PaletteConstraint = {
-    /**
-     * Colors
-     */
-    colors?: Array<string>;
-    /**
-     * Mode
-     */
-    mode?: 'auto' | 'fixed';
-};
-
-/**
- * PaletteExtractOut
- */
-export type PaletteExtractOut = {
-    /**
-     * Colors
-     */
-    colors: Array<string>;
-};
-
-/**
- * PaletteExtractRequest
- */
-export type PaletteExtractRequest = {
-    /**
-     * Color Count
-     */
-    color_count?: number;
-    /**
-     * Upload Id
-     */
-    upload_id: string;
 };
 
 /**
@@ -12279,31 +12211,6 @@ export type DeleteUserMotifResponses = {
 };
 
 export type DeleteUserMotifResponse = DeleteUserMotifResponses[keyof DeleteUserMotifResponses];
-
-export type ExtractDesignPaletteData = {
-    body: PaletteExtractRequest;
-    path?: never;
-    query?: never;
-    url: '/design/palette/extract';
-};
-
-export type ExtractDesignPaletteErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ExtractDesignPaletteError = ExtractDesignPaletteErrors[keyof ExtractDesignPaletteErrors];
-
-export type ExtractDesignPaletteResponses = {
-    /**
-     * Successful Response
-     */
-    200: PaletteExtractOut;
-};
-
-export type ExtractDesignPaletteResponse = ExtractDesignPaletteResponses[keyof ExtractDesignPaletteResponses];
 
 export type ListDesignSessionsData = {
     body?: never;

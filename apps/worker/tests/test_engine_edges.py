@@ -5,6 +5,7 @@ test_scatter/test_placement_path/test_candidates에서 이식).
 """
 
 import math
+import re
 
 import pytest
 from worker.engine.compose import compose_design
@@ -172,6 +173,29 @@ def test_explicit_colorway_is_honored():
     assert len(available) >= 2
     for colorway in available:
         assert compose_design(intent, colorway=colorway).colorway_id == colorway
+
+
+_SYMBOL_RE = re.compile(r"<symbol\b.*?</symbol>", re.S)
+_FILL_RE = re.compile(r'fill="([^"]+)"')
+
+
+def _fills(svg: str) -> tuple[set[str], set[str]]:
+    """(심볼 내부 fill, 심볼 밖 fill) — 모티프 색과 팔레트 색을 갈라 본다."""
+    return (
+        {fill for block in _SYMBOL_RE.findall(svg) for fill in _FILL_RE.findall(block)},
+        set(_FILL_RE.findall(_SYMBOL_RE.sub("", svg))),
+    )
+
+
+def test_colorway_switch_leaves_motif_symbol_paint_untouched():
+    """ "모티프 색 고정" 계약 — colorway는 배경·스트라이프만 바꾸고 심볼 paint는 못 건드린다."""
+    intent = _two_colorway_intent()
+    symbol_default, pattern_default = _fills(compose_design(intent, colorway="default").svg)
+    symbol_mono, pattern_mono = _fills(compose_design(intent, colorway="mono").svg)
+
+    assert symbol_default == symbol_mono == {"#ef8a7a", "#f5ca57"}  # circle·bee 고유색
+    assert pattern_default != pattern_mono
+    assert pattern_mono - {"url(#tile)"} == {"#111111"}
 
 
 def test_default_colorway_picks_fewest_distinct_colors():

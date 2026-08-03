@@ -19,35 +19,14 @@ import { DetailList } from "../../shared/ui/detail-list";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { SafeSvgPreview } from "../generation/safe-svg-preview";
 
-// Multi-slot motifs carry fill="s0..sN" tokens (not CSS paints); single-slot ones use
-// currentColor. When the API supplies the original per-slot colors, restore them so the preview
-// renders the true colorway instead of a black silhouette. No literal hex fallback (harness
-// raw-hex rule) — an unmapped slot keeps its token.
-const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
-
-function paintSlotTokens(
-  svg: string,
-  slotColors?: readonly (string | null)[] | null,
-): string {
-  if (!slotColors || slotColors.length === 0) return svg;
-  return svg.replace(/fill="s(\d+)"/g, (match, index) => {
-    const color = slotColors[Number(index)];
-    return typeof color === "string" && HEX_COLOR_PATTERN.test(color)
-      ? `fill="${color}"`
-      : match;
-  });
-}
-
 export function motifPreviewDocument(
   symbol: string | null,
   bbox: readonly number[],
-  slotColors?: readonly (string | null)[] | null,
 ) {
   if (symbol === null) return null;
   const trimmed = symbol.trim();
-  if (trimmed.startsWith("<svg")) return paintSlotTokens(trimmed, slotColors);
   if (!/^<symbol(?:\s|>)/.test(trimmed) || !trimmed.endsWith("</symbol>")) {
-    return paintSlotTokens(trimmed, slotColors);
+    return trimmed;
   }
   const [minX = 0, minY = 0, maxX = 100, maxY = 100] = bbox;
   const hasUsableBbox =
@@ -71,7 +50,7 @@ export function motifPreviewDocument(
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}"`,
     )
     .replace(/<\/symbol>$/, "</svg>");
-  return paintSlotTokens(svg, slotColors);
+  return svg;
 }
 
 function MotifDetailLoading() {
@@ -128,7 +107,7 @@ export function MotifDetailPage() {
   const motif = query.data;
   const preview =
     motif.svg_status === "safe"
-      ? motifPreviewDocument(motif.symbol, motif.bbox, motif.slot_colors)
+      ? motifPreviewDocument(motif.symbol, motif.bbox)
       : motif.symbol;
 
   return (
@@ -168,7 +147,6 @@ export function MotifDetailPage() {
                   label: "변형 그룹",
                   value: formatIdentifier(motif.variant_group),
                 },
-                { label: "색상 슬롯", value: `${motif.color_slot_count}개` },
                 { label: "생성일", value: formatDateTime(motif.created_at) },
                 {
                   label: "bbox",
@@ -197,24 +175,6 @@ export function MotifDetailPage() {
                 <TagGroup>
                   {motif.tags.map((tag) => (
                     <Tag key={tag}>{tag}</Tag>
-                  ))}
-                </TagGroup>
-              </VStack>
-            )}
-            {motif.color_slots.length > 0 && (
-              <VStack gap="x1">
-                <Text textStyle="caption" color="fg.neutral-muted">
-                  {motif.slot_parts === null || motif.slot_parts === undefined
-                    ? "색상 슬롯 키"
-                    : "색상 슬롯 · 부위"}
-                </Text>
-                <TagGroup>
-                  {motif.color_slots.map((slot, index) => (
-                    <Tag key={`${index}-${slot}`}>
-                      {motif.slot_parts?.[index] === undefined
-                        ? slot
-                        : `${index + 1}. ${slot} → ${motif.slot_parts[index]}`}
-                    </Tag>
                   ))}
                 </TagGroup>
               </VStack>

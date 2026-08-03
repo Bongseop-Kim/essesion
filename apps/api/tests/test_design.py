@@ -61,7 +61,6 @@ def _generation_request_payload(
         "prompt": prompt,
         "seed": seed,
         "colorway": None,
-        "palette": {"mode": "auto", "colors": []},
         "attachment_refs": [],
     }
 
@@ -120,7 +119,6 @@ class FakeWorker:
         self.finalize_jobs = []
         self.export_payloads = []
         self.motif_import_payloads = []
-        self.palette_extract_payloads = []
         self.text_preview_payloads = []
         self.photo_preview_payloads = []
         self.idea_payloads = []
@@ -198,17 +196,12 @@ class FakeWorker:
             "motif_id": "upload-a1b2c3d4e5f6",
             "symbol": (
                 '<symbol id="motif-upload-a1b2c3d4e5f6" viewBox="-0.5 -0.5 1 1">'
-                '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+                '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
             ),
-            "color_slots": ["s0"],
             "bbox": [-0.5, -0.5, 0.5, 0.5],
             "anchor": [0, 0],
             "preview_svg": "<svg/>",
         }
-
-    async def palette_extract(self, payload):
-        self.palette_extract_payloads.append(payload)
-        return {"colors": ["#123456", "#ABCDEF", "#FEDCBA"]}
 
     async def motif_text_preview(self, payload):
         self.text_preview_payloads.append(payload)
@@ -382,7 +375,7 @@ async def test_session_reports_current_motifs_including_catalog(client, db_sessi
         id="upload-333333333333",
         symbol=(
             '<symbol id="motif-upload-333333333333" viewBox="-0.5 -0.5 1 1">'
-            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -392,7 +385,7 @@ async def test_session_reports_current_motifs_including_catalog(client, db_sessi
         id="seed-bee",
         symbol=(
             '<symbol id="motif-seed-bee" viewBox="-0.5 -0.5 1 1">'
-            '<rect x="-0.3" y="-0.3" width="0.6" height="0.6" fill="currentColor"/></symbol>'
+            '<rect x="-0.3" y="-0.3" width="0.6" height="0.6" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -465,7 +458,6 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
         "prompt": "차분한 단색 패턴",
         "seed": 7,
         "colorway": None,
-        "palette": {"mode": "auto", "colors": []},
         "attachment_refs": [],
     }
     assert turns[1]["payload"]["type"] == "generate"
@@ -500,7 +492,7 @@ async def test_generate_passes_owned_motif_without_reference_contract_and_preser
         id="upload-a1b2c3d4e5f6",
         symbol=(
             '<symbol id="motif-upload-a1b2c3d4e5f6" viewBox="-0.5 -0.5 1 1">'
-            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -519,7 +511,6 @@ async def test_generate_passes_owned_motif_without_reference_contract_and_preser
             "session_id": design_session["id"],
             "prompt": "원형 모티프 패턴",
             "user_motif_ids": [str(user_motif.id)],
-            "palette": {"mode": "fixed", "colors": ["#abc", "#AABBCC", "#123456"]},
         },
         headers=headers,
     )
@@ -531,7 +522,7 @@ async def test_generate_passes_owned_motif_without_reference_contract_and_preser
     # 로그 표식 — admin이 생성 로그를 요청자·세션과 상관하는 근거.
     assert payload["session_id"] == design_session["id"]
     assert payload["user_id"] == str(user.id)
-    assert payload["palette"] == {"mode": "fixed", "colors": ["#AABBCC", "#123456"]}
+    assert "palette" not in payload
 
     recorded_turns = (
         await client.get(
@@ -543,10 +534,6 @@ async def test_generate_passes_owned_motif_without_reference_contract_and_preser
     assert request_turn["attachments"][0]["filename"] == "내 원형"
     assert "motif-upload-a1b2c3d4e5f6" in request_turn["attachments"][0]["preview_svg"]
     assert set(request_turn["attachments"][0]) == {"filename", "preview_svg"}
-    assert request_turn["payload"]["palette"] == {
-        "mode": "fixed",
-        "colors": ["#AABBCC", "#123456"],
-    }
 
     deleted_motif = await client.delete(f"/design/motifs/{user_motif.id}", headers=headers)
     assert deleted_motif.status_code == 204
@@ -604,7 +591,7 @@ async def test_private_intent_motif_rejects_cross_user_access_at_all_api_boundar
         id="upload-111111111111",
         symbol=(
             '<symbol id="motif-upload-111111111111" viewBox="-0.5 -0.5 1 1">'
-            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -668,7 +655,7 @@ async def test_deleted_library_motif_remains_authorized_for_its_historical_sessi
         id="upload-222222222222",
         symbol=(
             '<symbol id="motif-upload-222222222222" viewBox="-0.5 -0.5 1 1">'
-            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -773,7 +760,7 @@ async def test_motif_only_generate_is_allowed_and_reference_images_are_rejected(
         id="upload-a1b2c3d4e5f6",
         symbol=(
             '<symbol id="motif-upload-a1b2c3d4e5f6" viewBox="-0.5 -0.5 1 1">'
-            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -855,7 +842,7 @@ async def test_user_motif_quota_failure_does_not_persist_ownerless_motif(
                 id=motif_id,
                 symbol=(
                     f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
-                    '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+                    '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
                 ),
                 bbox=[-0.5, -0.5, 0.5, 0.5],
                 anchor=[0, 0],
@@ -905,7 +892,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         id="upload-a1b2c3d4e5f6",
         symbol=(
             '<symbol id="motif-upload-a1b2c3d4e5f6" viewBox="-0.5 -0.5 1 1">'
-            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -918,11 +905,6 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
     await db_session.commit()
     owner_headers = auth_headers(owner, settings)
 
-    palette = await client.post(
-        "/design/palette/extract",
-        json={"upload_id": str(photo.id), "color_count": 3},
-        headers=owner_headers,
-    )
     text_preview = await client.post(
         "/design/motifs/text-preview",
         json={
@@ -948,23 +930,17 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         json={
             "prompt": "차분한 넥타이",
             "user_motif_ids": [str(user_motif.id)],
-            "palette": {"mode": "fixed", "colors": ["#123", "#456789"]},
             "count": 3,
         },
         headers=owner_headers,
     )
 
-    assert palette.status_code == 200
-    assert palette.json() == {"colors": ["#123456", "#ABCDEF", "#FEDCBA"]}
     assert text_preview.status_code == 200
     assert photo_preview.status_code == 200
     assert photo_preview.json()["background_confidence"] == 0.9
     assert photo_preview.json()["processed_preview_base64"]
     assert ideas.status_code == 200
     assert len(ideas.json()["ideas"]) == 3
-    palette_image = worker.palette_extract_payloads[-1]["image"]
-    assert set(palette_image) == {"url", "content_type", "size_bytes"}
-    assert palette_image["content_type"] == photo.content_type
     assert worker.text_preview_payloads[-1]["text"] == "이니셜 A1"
     assert set(worker.photo_preview_payloads[-1]["image"]) == {
         "url",
@@ -975,7 +951,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
     assert "reference_images" not in idea_payload
     assert idea_payload["motif_ids"] == [motif.id]
     assert idea_payload["motifs"] == [{"motif_id": motif.id, "name": "원형 문양"}]
-    assert idea_payload["palette"] == {"mode": "fixed", "colors": ["#112233", "#456789"]}
+    assert "palette" not in idea_payload
     assert await db_session.scalar(select(func.count()).select_from(DesignSessionTurn)) == 0
     assert await ledger.get_balance(db_session, owner.id) == {"total": 0, "paid": 0, "bonus": 0}
 
@@ -990,16 +966,13 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
     assert removed_reference.status_code == 422
     assert len(worker.idea_payloads) == 1
 
-    for path, body in (
-        ("/design/palette/extract", {"upload_id": str(photo.id)}),
-        (
-            "/design/motifs/photo-preview",
-            {"upload_id": str(photo.id), "color_count": 3},
-        ),
-    ):
-        response = await client.post(path, json=body, headers=auth_headers(other, settings))
-        assert response.status_code == 409
-        assert response.json()["code"] == "invalid_design_reference"
+    response = await client.post(
+        "/design/motifs/photo-preview",
+        json={"upload_id": str(photo.id), "color_count": 3},
+        headers=auth_headers(other, settings),
+    )
+    assert response.status_code == 409
+    assert response.json()["code"] == "invalid_design_reference"
 
     other_motif_ideas = await client.post(
         "/design/ideas",
@@ -1038,19 +1011,11 @@ async def test_design_ideas_require_auth_and_have_separate_rate_limit(
 @pytest.mark.parametrize(
     "body",
     [
-        {"prompt": "x", "palette": {"mode": "fixed", "colors": ["#123456"]}},
-        {"prompt": "x", "palette": {"mode": "fixed", "colors": ["not-a-color", "#fff"]}},
+        # 색 지정은 제거된 기능 — 팔레트를 보내면 StrictModel이 거절한다.
+        {"prompt": "x", "palette": {"mode": "fixed", "colors": ["#AABBCC", "#123456"]}},
         # 모티프 정체성은 입력창으로 못 온다 — 모티프 경로(motifs/activate)만 슬롯을 바꾼다.
         {"prompt": "x", "motif_slot": {"slot": 0, "motif_id": "bee"}},
         {"prompt": "x", "reference_image_upload_ids": []},
-        {
-            "prompt": "x",
-            "palette": {
-                "mode": "fixed",
-                "colors": ["#fff", "#000"],
-                "colour": "#123456",
-            },
-        },
         {
             "prompt": "x",
             "reference_images": [{"upload_id": str(uuid.uuid4()), "purpose": "texture"}],
@@ -1478,7 +1443,6 @@ async def test_prompt_generate_select_and_finalize(client, app, db_session, sett
         "prompt": "잔잔한 네이비 페이즐리",
         "seed": None,
         "colorway": None,
-        "palette": {"mode": "auto", "colors": []},
         "attachment_refs": [],
     }
 
@@ -2521,7 +2485,7 @@ async def _seed_catalog_motif(db_session, motif_id=_CATALOG_MOTIF_ID, subject="�
         id=motif_id,
         symbol=(
             f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
-            '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+            '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
         ),
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0, 0],
@@ -2620,7 +2584,6 @@ async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_s
     assert worker.motif_calls[-1][1] == {
         "query": "꿀벌 한 마리",
         "top_k": 4,
-        "style_hint": "flat vector",
     }
     assert await _session_recraft_used(client, headers, sid) == 0
 
@@ -2719,7 +2682,7 @@ async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_
             id=motif_id,
             symbol=(
                 f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
-                '<circle cx="0" cy="0" r="0.4" fill="currentColor"/></symbol>'
+                '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
             ),
             bbox=[-0.5, -0.5, 0.5, 0.5],
             anchor=[0, 0],
@@ -3009,7 +2972,6 @@ async def test_worker_client_routes_design_helpers(settings):
     from api.integrations.worker import WorkerClient
 
     routes = {
-        "/palette/extract": {"colors": ["#000000", "#FFFFFF"]},
         "/motifs/text-preview": {"svg": "<svg/>"},
         "/motifs/photo-preview": {"svg": "<svg/>", "warnings": []},
         "/ideas": {"ideas": ["a", "b", "c"]},
@@ -3022,7 +2984,6 @@ async def test_worker_client_routes_design_helpers(settings):
     }
     wc = WorkerClient(settings)
 
-    assert await wc.palette_extract({"image": {}}) == routes["/palette/extract"]
     assert await wc.motif_text_preview({"text": "A"}) == routes["/motifs/text-preview"]
     assert await wc.motif_photo_preview({"image": {}}) == routes["/motifs/photo-preview"]
     assert await wc.ideas({"prompt": "x"}) == routes["/ideas"]

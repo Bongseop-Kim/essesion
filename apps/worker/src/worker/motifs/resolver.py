@@ -23,7 +23,6 @@ from worker.adapters.embedding import EmbeddingError, embed_query
 from worker.adapters.recraft import RecraftError, generate_motif
 from worker.engine import determinism
 from worker.motifs import store
-from worker.motifs.labeler import label_slots
 from worker.motifs.store import (
     MotifMeta,
     facets_from_spec,
@@ -122,7 +121,6 @@ class _BudgetedRecraftClient:
         self,
         prompt: str,
         *,
-        colors: tuple[str, ...] = (),
         seed: int | None = None,
     ) -> str:
         if not self.budget.reserve():
@@ -134,7 +132,6 @@ class _BudgetedRecraftClient:
             )
         return await self.client.generate(  # type: ignore[attr-defined]
             prompt,
-            colors=colors,
             seed=seed,
         )
 
@@ -366,13 +363,6 @@ async def prompt_catalog_candidates(
             "tags": list(match.meta.tags),
             "similarity": match.similarity,
             "match_type": match.match_type,
-            "slot_count": len(match.meta.color_slots),
-            **(
-                {"parts": list(match.meta.slot_parts)}
-                if match.meta.slot_parts is not None
-                and len(match.meta.slot_parts) == len(match.meta.color_slots)
-                else {}
-            ),
         }
         for index, match in enumerate(retrieval.matches, start=1)
     ]
@@ -423,8 +413,6 @@ async def resolve_spec(
     embedding_client,
     settings,
     seed: int,
-    colors: tuple[str, ...] = (),
-    gemini_client=None,
     provenance: dict | None = None,
     generation_budget: MotifGenerationBudget | None = None,
     upsert_sessionmaker: async_sessionmaker[AsyncSession] | None = None,
@@ -471,40 +459,26 @@ async def resolve_spec(
         authored_spec,
         client=effective_recraft,
         settings=settings,
-        colors=colors,
         seed=seed,
     )
 
-    async def _upsert(**slot_metadata) -> store.MotifUpsertResult:
-        kwargs: dict = dict(
-            facets=facets_from_spec(authored_spec),
-            embedding=retrieval.query_vec,
-            source="recraft",
-            variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
-            ingested_user_id=_provenance_uuid(provenance, "user_id"),
-            ingested_session_id=_provenance_uuid(provenance, "session_id"),
-            **slot_metadata,
-        )
-        if upsert_sessionmaker is None:
-            return await store.upsert_motif(session, normalized, **kwargs)
-        # 호출마다 새 세션 = 독립 트랜잭션 — 라벨 2차 실패가 1차 저장을 해치지 않는다.
+    kwargs: dict = dict(
+        facets=facets_from_spec(authored_spec),
+        embedding=retrieval.query_vec,
+        source="recraft",
+        variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
+        ingested_user_id=_provenance_uuid(provenance, "user_id"),
+        ingested_session_id=_provenance_uuid(provenance, "session_id"),
+    )
+    if upsert_sessionmaker is None:
+        await store.upsert_motif(session, normalized, **kwargs)
+    else:
+        # 전용 세션 = 독립 트랜잭션 — 이후 요청이 실패해도 과금된 결과물이 카탈로그에 남는다.
         async with upsert_sessionmaker() as upsert_session:
-            result = await store.upsert_motif(upsert_session, normalized, **kwargs)
+            await store.upsert_motif(upsert_session, normalized, **kwargs)
             await upsert_session.commit()
-            return result
-
-    upserted = await _upsert()
-    if upserted.inserted and len(normalized.color_slots) > 1 and normalized.slot_colors:
-        metadata = await label_slots(
-            normalized.preview_svg,
-            normalized.slot_colors,
-            gemini_client=gemini_client,
-            settings=settings,
-        )
-        if metadata is not None:
-            await _upsert(slot_labels=metadata.labels, slot_parts=metadata.parts)
     return ResolveResult(
-        upserted.id,
+        normalized.id,
         reused=False,
         similarity=None,
         subject=authored_spec.get("subject"),

@@ -11,7 +11,6 @@ export const PATCH_AXIS_LABELS: Readonly<Record<string, string>> = {
   stripe: "줄무늬",
   placement: "배치",
   motif_size_mm: "무늬 크기",
-  motif_color: "무늬 색",
   palette: "팔레트",
 };
 

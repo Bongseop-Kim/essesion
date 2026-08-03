@@ -19,13 +19,6 @@ def test_settings_validates_motif_similarity_tau() -> None:
         _settings(motif_similarity_tau=1.01)
 
 
-def test_settings_validates_recraft_max_color_slots() -> None:
-    _settings(recraft_max_color_slots=1)
-
-    with pytest.raises(ValidationError):
-        _settings(recraft_max_color_slots=0)
-
-
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_settings_rejects_non_finite_motif_max_aspect_ratio(value: float) -> None:
     with pytest.raises(ValidationError):

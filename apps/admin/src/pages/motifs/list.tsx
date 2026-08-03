@@ -31,7 +31,7 @@ function isScope(value: string | undefined): value is MotifScope {
 function MotifPreviewCell({ motif }: { motif: MotifSummaryOut }) {
   const doc =
     motif.svg_status === "safe"
-      ? motifPreviewDocument(motif.symbol, motif.bbox, motif.slot_colors)
+      ? motifPreviewDocument(motif.symbol, motif.bbox)
       : null;
   return (
     <Box width={44}>
@@ -90,13 +90,6 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
     visibility: "medium",
     render: (motif) =>
       motif.quality === null ? "-" : motif.quality.toFixed(3),
-  },
-  {
-    key: "colors",
-    header: "색상 슬롯",
-    align: "end",
-    visibility: "large",
-    render: (motif) => `${motif.color_slot_count}개`,
   },
   {
     key: "created_at",

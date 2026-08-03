@@ -13,8 +13,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { trackEvent } from "@/shared/lib/analytics";
 
-import type { DesignPalette } from "./draft";
-
 import {
   clearPendingDesign,
   type StorageLike,
@@ -26,7 +24,6 @@ export type GenerateDesignInput = {
   sessionId?: string | null;
   prompt: string;
   userMotifIds?: string[];
-  palette?: DesignPalette;
 };
 
 export type GenerateDesignResult = {
@@ -89,7 +86,6 @@ export function useGenerateDesign(options?: {
           body: {
             session_id: sessionId,
             prompt: input.prompt,
-            palette: input.palette,
             user_motif_ids: input.userMotifIds ?? [],
           },
           throwOnError: true,

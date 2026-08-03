@@ -22,7 +22,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from worker.engine.constraints import (
     ConstraintInvalid,
-    PaletteConstraint,
     lattice_placement,
     normalize_hex,
     ordered_slot_refs,
@@ -39,7 +38,6 @@ PATCH_AXES = (
     "stripe",
     "placement",
     "motif_size_mm",
-    "motif_color",
     "palette",
 )
 
@@ -92,13 +90,7 @@ class DesignPatchV1(_Patch):
     placement: PlacementPatch | None = None
     # 모티프 레이어 순서대로. 남는 값은 무시한다(모델이 레이어 수를 세지 못해도 안전).
     motif_size_mm: list[float] | None = Field(default=None, max_length=2)
-    # 무늬 전체를 이 색으로 칠한다. 원본색을 유지하던 여러 색 무늬도 여기서 단색이 된다.
-    motif_color: str | None = None
     palette: PalettePatch | None = None
-
-    _normalize_motif_color = field_validator("motif_color")(
-        staticmethod(lambda value: None if value is None else normalize_hex(value))
-    )
     note: str = Field(min_length=1, max_length=200)
     # 요청이 이 계약으로 표현할 수 없는 축(모티프 정체성 등)일 때만 true.
     out_of_scope: bool = False
@@ -174,7 +166,7 @@ def composition_snapshot(intent: dict[str, Any]) -> dict[str, Any]:
         if isinstance(slot, dict) and isinstance(slot.get("id"), str)
     }
     roles: dict[str, list[str]] = {slot_id: [] for slot_id in hex_by_id}
-    for role in ("background", "stripe", "motif"):
+    for role in ("background", "stripe"):
         for layer in _layers(intent, role):
             for slot_id in ordered_slot_refs({"layers": [layer]}):
                 if slot_id in roles and role not in roles[slot_id]:
@@ -219,34 +211,21 @@ def composition_snapshot(intent: dict[str, Any]) -> dict[str, Any]:
             "rotation_deg": placement.get("fixed_rotation_deg"),
         }
         snapshot["motif_size_mm"] = [layer.get("params", {}).get("size_mm") for layer in motifs]
-        # 여러 색 무늬는 원본색(직접 hex)일 수 있어 슬롯 역할로 드러나지 않는다 — 첫 칠 색을
-        # 그대로 보여주고, 무늬 색 변경은 motif_color 축으로 받는다.
-        params = motifs[0].get("params", {})
-        paint = params.get("color")
-        if paint is None and isinstance(params.get("colors"), dict) and params["colors"]:
-            paint = next(iter(params["colors"].values()))
-        snapshot["motif_color"] = hex_by_id.get(paint, paint)
     return snapshot
 
 
 class _SlotBook:
     """patch의 hex를 팔레트 슬롯으로 결정론적으로 옮긴다."""
 
-    def __init__(self, raw: dict[str, Any], fixed: frozenset[str] | None) -> None:
+    def __init__(self, raw: dict[str, Any]) -> None:
         self._slots: list[dict[str, Any]] = raw["palette"]["slots"]
         self._colorways: list[dict[str, Any]] = raw["colorways"]
-        self._fixed = fixed
-
-    def _check(self, hex_value: str) -> None:
-        if self._fixed is not None and hex_value not in self._fixed:
-            raise ConstraintInvalid([f"color {hex_value} is outside the fixed palette"])
 
     def _map(self, slot_id: str, hex_value: str) -> None:
         for colorway in self._colorways:
             colorway["mapping"][slot_id] = hex_value
 
     def recolor(self, slot_id: str, hex_value: str) -> None:
-        self._check(hex_value)
         slot = next((slot for slot in self._slots if slot.get("id") == slot_id), None)
         if slot is None:
             raise ConstraintInvalid([f"unknown color slot {slot_id!r}"])
@@ -258,7 +237,6 @@ class _SlotBook:
         for slot in self._slots:
             if str(slot.get("hex", "")).casefold() == hex_value.casefold():
                 return str(slot["id"])
-        self._check(hex_value)
         taken = {str(slot.get("id")) for slot in self._slots}
         slot_id = next(
             candidate
@@ -360,12 +338,7 @@ def _apply_placement(raw: dict[str, Any], patch: PlacementPatch, *, tile: float)
         layer["placement"] = placement
 
 
-def apply_patch(
-    intent: dict[str, Any],
-    patch: DesignPatchV1,
-    *,
-    palette_constraint: PaletteConstraint | None = None,
-) -> dict[str, Any]:
+def apply_patch(intent: dict[str, Any], patch: DesignPatchV1) -> dict[str, Any]:
     """patch를 적용한 새 intent를 돌려준다 — 호출부의 intent는 건드리지 않는다."""
 
     raw = copy.deepcopy(intent)
@@ -380,12 +353,7 @@ def apply_patch(
         or not isinstance(palette.get("slots"), list)
     ):
         raise ConstraintInvalid(["intent requires palette.slots, layers, and colorways"])
-    fixed = (
-        frozenset(palette_constraint.colors)
-        if palette_constraint is not None and palette_constraint.mode == "fixed"
-        else None
-    )
-    book = _SlotBook(raw, fixed)
+    book = _SlotBook(raw)
 
     if patch.palette is not None:
         for slot in patch.palette.slots:
@@ -400,7 +368,7 @@ def apply_patch(
                 for layer in raw["layers"]
                 if layer is not ground
             )
-            # 줄무늬·무늬와 슬롯을 공유하면 배경만 떼어낸다 — 슬롯을 덮으면 같이 물든다.
+            # 다른 팔레트 레이어와 슬롯을 공유하면 배경만 떼어낸다.
             if shared:
                 ground["params"]["color"] = book.slot_for(patch.background.color)
             else:
@@ -414,17 +382,6 @@ def apply_patch(
             requested = _positive_float(size)
             if requested is not None:
                 layer["params"]["size_mm"] = round(min(requested, tile), 6)
-    if patch.motif_color is not None:
-        slot_id = book.slot_for(patch.motif_color)
-        for layer in _layers(raw, "motif"):
-            params = layer["params"]
-            # 슬롯 이름은 그대로 둔다 — 모티프의 paint slot 계약(colors 키 == color_slots).
-            if isinstance(params.get("colors"), dict) and params["colors"]:
-                params["colors"] = dict.fromkeys(params["colors"], slot_id)
-            else:
-                params.pop("colors", None)
-                params["color"] = slot_id
-
     _renumber(raw)
     return raw
 
@@ -459,20 +416,13 @@ def _derived_placement(placement: dict[str, Any], tile: float) -> dict[str, Any]
 
 
 def _first_motif_layer(raw: dict[str, Any], tile: float, motif_id: str) -> dict[str, Any]:
-    """모티프가 없던 디자인의 첫 레이어. 칠 색은 이후 카탈로그 바인딩이 다시 고른다."""
+    """모티프가 없던 디자인의 첫 레이어."""
 
-    slots = [
-        slot["id"]
-        for slot in raw["palette"]["slots"]
-        if isinstance(slot, dict) and isinstance(slot.get("id"), str)
-    ]
-    if not slots:
-        raise ConstraintInvalid(["intent requires at least one palette slot"])
     return {
         "id": _free_layer_id(raw, "motif_slot_1"),
         "type": "motif",
         "z_order": len(raw["layers"]),
-        "params": {"motif_id": motif_id, "size_mm": round(tile * 0.18, 6), "color": slots[0]},
+        "params": {"motif_id": motif_id, "size_mm": round(tile * 0.18, 6)},
         "placement": lattice_placement(tile=tile, count=6, staggered=False),
     }
 

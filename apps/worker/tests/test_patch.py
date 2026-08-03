@@ -2,7 +2,7 @@
 
 import pytest
 from worker.engine.compose import compose_design
-from worker.engine.constraints import ConstraintInvalid, PaletteConstraint
+from worker.engine.constraints import ConstraintInvalid
 from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot
 
 from .intent_helpers import mvp_intent, register_test_motifs
@@ -21,11 +21,9 @@ def _lattice_intent() -> dict:
         "canvas": {"tile_mm": 48, "dpi": 300},
         "seed": 7,
         "production": {"method": "print", "max_colors": 12},
-        "palette": {
-            "slots": [{"id": "ground", "hex": "#FFFFFF"}, {"id": "color_1", "hex": "#000080"}]
-        },
+        "palette": {"slots": [{"id": "ground", "hex": "#FFFFFF"}]},
         "colorways": [
-            {"id": "default", "mapping": {"ground": "#FFFFFF", "color_1": "#000080"}},
+            {"id": "default", "mapping": {"ground": "#FFFFFF"}},
         ],
         "layers": [
             {"id": "ground", "type": "background", "z_order": 0, "params": {"color": "ground"}},
@@ -33,7 +31,7 @@ def _lattice_intent() -> dict:
                 "id": "motif_0",
                 "type": "motif",
                 "z_order": 1,
-                "params": {"motif_id": "circle", "size_mm": 6.0, "color": "color_1"},
+                "params": {"motif_id": "circle", "size_mm": 6.0},
                 "placement": {"type": "lattice", "lattice": {"cell_w_mm": 8.0, "cell_h_mm": 8.0}},
             },
         ],
@@ -45,17 +43,21 @@ def _slot_hex(intent: dict, slot_id: str) -> str:
 
 
 def test_patch_schema_has_no_motif_identity_field():
-    assert "motif_id" not in DesignPatchV1.model_json_schema(mode="serialization")["properties"]
+    properties = DesignPatchV1.model_json_schema(mode="serialization")["properties"]
+    assert "motif_id" not in properties
+    assert "motif_color" not in properties
     with pytest.raises(ValueError, match="extra"):
         DesignPatchV1.model_validate({"note": "x", "motif_id": "bee"})
+    with pytest.raises(ValueError, match="extra"):
+        DesignPatchV1.model_validate({"note": "x", "motif_color": "#000080"})
 
 
 def test_changed_axes_lists_only_the_set_axes():
     """admin 진단(`diagnostics.patch_axes`)과 거절 판정이 같은 목록을 본다."""
     assert _patch().changed_axes == []
     assert not _patch().has_changes
-    patch = _patch(background={"color": "#FFFFFF"}, motif_color="#000080")
-    assert patch.changed_axes == ["background", "motif_color"]
+    patch = _patch(background={"color": "#FFFFFF"}, motif_size_mm=[4.0])
+    assert patch.changed_axes == ["background", "motif_size_mm"]
     assert patch.has_changes
 
 
@@ -71,7 +73,6 @@ def test_snapshot_round_trips_the_patchable_axes_without_motif_identity():
     assert snapshot["motif_size_mm"] == [6.0]
     assert snapshot["palette"]["slots"] == [
         {"id": "ground", "hex": "#FFFFFF", "roles": ["background"]},
-        {"id": "color_1", "hex": "#000080", "roles": ["motif"]},
     ]
     assert "circle" not in repr(snapshot)
 
@@ -81,7 +82,6 @@ def test_background_patch_recolors_the_ground_slot_and_its_colorway():
 
     assert _slot_hex(patched, "ground") == "#F5F0E6"
     assert patched["colorways"][0]["mapping"]["ground"] == "#F5F0E6"
-    assert _slot_hex(patched, "color_1") == "#000080"
 
 
 def test_background_patch_does_not_recolor_a_slot_shared_with_the_stripes():
@@ -119,26 +119,6 @@ def test_placement_patch_derives_scatter_density_from_the_axis_count():
     placement = patched["layers"][1]["placement"]
     assert placement["type"] == "scatter"
     assert placement["scatter"] == {"mode": "poisson", "min_dist_mm": 12.0, "count": 8}
-
-
-def test_motif_color_paints_every_slot_including_original_color_motifs():
-    base = mvp_intent()
-    # 원본색을 유지하는 여러 색 무늬 — 슬롯 참조가 아니라 직접 hex다.
-    base["layers"][2]["params"] = {
-        "motif_id": "circle",
-        "size_mm": 1.4,
-        "colors": {"s0": "#112233", "s1": "#445566"},
-    }
-
-    patched = apply_patch(base, _patch(motif_color="#C81E1E"))
-
-    slot_id = patched["layers"][2]["params"]["colors"]["s0"]
-    assert set(patched["layers"][2]["params"]["colors"]) == {"s0", "s1"}
-    assert patched["layers"][2]["params"]["colors"]["s1"] == slot_id
-    assert _slot_hex(patched, slot_id) == "#C81E1E"
-    # 단일 슬롯 무늬는 color 필드로 남는다.
-    assert patched["layers"][3]["params"]["color"] == slot_id
-    assert "colors" not in patched["layers"][3]["params"]
 
 
 def test_null_axes_leave_everything_else_untouched():
@@ -235,7 +215,7 @@ def test_empty_bands_remove_the_stripes_unless_a_motif_path_hosts_them():
             "params": {
                 "angle": 0.0,
                 "period_mm": 12.0,
-                "bands": [{"offset_mm": 0.0, "width_mm": 4.0, "color": "color_1"}],
+                "bands": [{"offset_mm": 0.0, "width_mm": 4.0, "color": "ground"}],
             },
         },
     )
@@ -273,30 +253,7 @@ def test_unreferenced_slots_are_pruned_so_edits_do_not_grow_the_palette():
     slot_ids = {slot["id"] for slot in patched["palette"]["slots"]}
     assert "color_2" not in slot_ids  # 밴드만 쓰던 슬롯 — 참조가 끊겼다
     assert set(patched["colorways"][0]["mapping"]) == slot_ids
-    assert len(slot_ids) == 3
-
-
-def test_fixed_palette_conflict_is_a_constraint_error():
-    constraint = PaletteConstraint(mode="fixed", colors=["#FFFFFF", "#000080"])
-
-    with pytest.raises(ConstraintInvalid, match="outside the fixed palette"):
-        apply_patch(
-            _lattice_intent(),
-            _patch(background={"color": "#D4AF37"}),
-            palette_constraint=constraint,
-        )
-    # 강제 팔레트 안의 색은 그대로 통과한다.
-    assert (
-        _slot_hex(
-            apply_patch(
-                _lattice_intent(),
-                _patch(background={"color": "#000080"}),
-                palette_constraint=constraint,
-            ),
-            "ground",
-        )
-        == "#000080"
-    )
+    assert len(slot_ids) == 2
 
 
 def test_same_intent_and_patch_render_byte_identical_svg():

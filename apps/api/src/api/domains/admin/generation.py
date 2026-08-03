@@ -91,7 +91,6 @@ _INTENT_ALLOWED_KEYS = frozenset(
         "width_mm",
         "motif_id",
         "size_mm",
-        "colors",
         "placement",
         "host_layer",
         "lane",
@@ -118,11 +117,10 @@ _INTENT_ALLOWED_KEYS = frozenset(
         "points",
     }
 )
-_INTENT_DYNAMIC_MAP_KEYS = frozenset({"mapping", "colors"})
+_INTENT_DYNAMIC_MAP_KEYS = frozenset({"mapping"})
 _INTENT_OMIT = object()
 _MAX_INTENT_SEQUENCE = 10_000
 _MAX_INTENT_DEPTH = 12
-_MAX_SLOT_PART_LENGTH = 40
 
 
 class GenerationJobStatsOut(BaseModel):
@@ -233,7 +231,6 @@ class GenerationDiagnosticsOut(BaseModel):
     mode: GenerationMode | None = None
     model: str | None = None
     prompt_revision: str | None = None
-    fixed_palette: bool | None = None
     # 구성 수정에서 실제로 바뀐 축 — patch 런에서만 채워진다.
     patch_axes: list[str] = Field(default_factory=list)
     authoring_attempts: int | None = None
@@ -273,22 +270,16 @@ class MotifSummaryOut(BaseModel):
     source: str
     quality: float | None
     variant_group: str | None
-    color_slot_count: int
     created_at: datetime
     bbox: list[float]
     symbol: str | None
     svg_status: SvgStatus
-    # Original per-slot colors (index-aligned with the symbol's s0..sN tokens) for multi-slot
-    # motifs; None for single-slot/legacy rows. Lets the admin preview render true colors.
-    slot_colors: list[str] | None = None
 
 
 class MotifDetailOut(MotifSummaryOut):
     description: str | None
     tags: list[str]
     anchor: list[float]
-    color_slots: list[str]
-    slot_parts: list[str] | None = None
 
 
 def _validate_range(start: datetime | None, end: datetime | None) -> None:
@@ -319,29 +310,6 @@ def _safe_metadata(value: Any, *, limit: int = 160) -> str | None:
     if not clean or _EMAIL.search(clean) or _PHONE.search(clean) or _URL_OR_PATH.search(clean):
         return None
     return clean
-
-
-def _safe_slot_parts(value: Any, color_slots: Any) -> list[str] | None:
-    if (
-        not isinstance(value, list)
-        or not value
-        or not isinstance(color_slots, list)
-        or len(value) != len(color_slots)
-        or any(_safe_token(slot) is None for slot in color_slots)
-    ):
-        return None
-    safe_parts: list[str] = []
-    for part in value:
-        if not isinstance(part, str):
-            return None
-        clean = " ".join(part.split())
-        if len(clean) > _MAX_SLOT_PART_LENGTH:
-            return None
-        safe = _safe_metadata(clean, limit=_MAX_SLOT_PART_LENGTH)
-        if safe is None:
-            return None
-        safe_parts.append(safe)
-    return safe_parts
 
 
 def _safe_intent_value(value: Any, *, key: str | None = None, depth: int = 0) -> Any:
@@ -695,10 +663,6 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
             else None
         )
 
-    def flag(key: str) -> bool | None:
-        item = raw.get(key)
-        return item if isinstance(item, bool) else None
-
     def milliseconds(key: str) -> float | None:
         item = raw.get(key)
         return (
@@ -754,7 +718,6 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         mode=cast("GenerationMode | None", mode),
         model=_safe_token(raw.get("model")),
         prompt_revision=_safe_token(raw.get("prompt_revision")),
-        fixed_palette=flag("fixed_palette"),
         patch_axes=patch_axes,
         authoring_attempts=count("authoring_attempts"),
         catalog_candidate_count=count("catalog_candidate_count"),
@@ -1087,19 +1050,10 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
         source=_safe_token(row.source) or "unknown",
         quality=row.quality,
         variant_group=_safe_token(row.variant_group),
-        color_slot_count=len(row.color_slots or []),
         created_at=row.created_at,
         bbox=_number_list(row.bbox, size=4),
         symbol=symbol,
         svg_status=svg_status,
-        # All-or-nothing: only surface a fully-valid hex list so slot indexes stay aligned with the
-        # symbol's fill="sN" tokens. _safe_token would strip '#', so use _HEX_COLOR here.
-        slot_colors=(
-            list(row.slot_colors)
-            if row.slot_colors
-            and all(isinstance(c, str) and _HEX_COLOR.fullmatch(c) for c in row.slot_colors)
-            else None
-        ),
     )
 
 
@@ -1164,6 +1118,4 @@ async def get_admin_motif(motif_id: str, session: SessionDep, admin: AdminUser) 
         description=_safe_metadata(row.description, limit=500),
         tags=[safe for tag in row.tags if (safe := _safe_metadata(tag, limit=80))],
         anchor=_number_list(row.anchor, size=2),
-        color_slots=[safe for slot in row.color_slots if (safe := _safe_token(slot))],
-        slot_parts=_safe_slot_parts(row.slot_parts, row.color_slots),
     )

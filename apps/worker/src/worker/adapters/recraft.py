@@ -4,8 +4,10 @@
 authoring-time 단계 — 런타임 generate가 아니다. 한 번 생성·게이트·정규화해 content-hash
 motif_id로 저장하면 이후 런타임은 id만 참조하므로 같은 intent+seed는 늘 같은 SVG.
 
-재구현 결정(원본과 다름): gradient는 첫 stop 색으로 평탄화하지 않고 **오류**로 처리해
-재프롬프트를 유발한다(gradient 미사용 방침). 프롬프트도 "Do NOT use ..." 금지형.
+gradient는 첫 stop 색으로 평탄화하지 않고 **오류**로 처리해 재프롬프트를 유발한다.
+`<style>` 시트도 같다 — 조용히 버리면 클래스로 칠한 SVG가 통째로 검정이 된다.
+V2/V3에서만 지원하는 negative_prompt와 V3 전용 controls.no_text는 모델에 맞춰 보내고,
+V4/V4.1은 같은 제약을 본문과 SVG 게이트로 강제한다.
 """
 
 from __future__ import annotations
@@ -19,22 +21,26 @@ import httpx
 import svg_safety as sanitize
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured, adapter_http_reason
-from worker.engine.palette import hex_to_rgb
 from worker.motifs import geometry as geom
-from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg
+from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg, rgb_to_hex
 
 _GRADIENT_TAGS = {"lineargradient", "radialgradient"}
-_DROP_TAGS = {"filter", "clippath", "mask", "title", "desc", "metadata", "style", "text", "tspan"}
-_RGB_RE = re.compile(r"rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)", re.IGNORECASE)
+_DROP_TAGS = {"filter", "clippath", "mask", "title", "desc", "metadata", "text", "tspan"}
 _PAINT_ATTRS = ("fill", "stroke", "color")
 # 선두 filled 도형의 bbox가 viewBox의 이 비율 이상이면 전면 배경 — 제거(최소 1 drawable 유지).
 _BG_AREA_RATIO = 0.9
+# 재프롬프트에 싣는 sanitize 에러 한 건의 상한 — V2/V3 프롬프트 1000자 예산을 지킨다.
+_MAX_ERROR_CHARS = 160
 _B64_RESPONSE_FORMAT = "b64_json"
 
 DEFAULT_VECTOR_MODEL = "recraftv4_1_vector"
 DEFAULT_SIZE = "1024x1024"
 DEFAULT_BASE_URL = "https://external.api.recraft.ai/v1"
 _API_PATH = "/images/generations"
+_NEGATIVE_PROMPT = (
+    "pattern, tiled, repeated, scattered, background, backdrop, border, gradient, text, "
+    "photorealistic shading, raster texture, collage, grid"
+)
 
 
 class RecraftError(AdapterClientError):
@@ -54,15 +60,8 @@ def _is_clean_paint(value: str) -> bool:
 
 
 def _color_to_hex(value: str) -> str:
-    """rgb()/rgba() → #rrggbb; hex/none/currentColor/url()은 그대로. 그 외는 원문(정규화가 거부)."""
-    low = value.strip().lower()
-    if low in ("none", "currentcolor") or low.startswith(("#", "url(")):
-        return value
-    match = _RGB_RE.match(low)
-    if not match:
-        return value
-    r, g, b = (max(0, min(255, round(float(c)))) for c in match.groups())
-    return f"#{r:02x}{g:02x}{b:02x}"
+    """rgb()/rgba() → #rrggbb, 그 외는 원문 — named color·url()은 정규화가 거부한다."""
+    return rgb_to_hex(value) or value
 
 
 def _hoist_style_paint(el: ET.Element, style: str) -> None:
@@ -98,7 +97,13 @@ def _is_filled(el: ET.Element) -> bool:
 
 
 def _find_backgrounds(root: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
-    """제거 대상 선두 전면 도형 (parent, element) 쌍 — 최소 1 drawable은 항상 남긴다."""
+    """제거 대상 선두 전면 `<rect>` (parent, element) 쌍 — 최소 1 drawable은 항상 남긴다.
+
+    배경 관용구는 캔버스 전체를 덮는 rect다. 면적만 보고 판단하면 viewBox를 꽉 채우는 원반·
+    잎사귀 같은 모티프 본체를 배경으로 오인해 지워버린다.
+    # ponytail: full-bleed <path> 배경은 그대로 남는다 — rect가 아닌 배경을 본체와 구분할
+    # 신뢰할 만한 신호가 없어, 오탐으로 모티프를 지우느니 배경 한 겹을 남긴다.
+    """
     parts = (root.get("viewBox") or "").replace(",", " ").split()
     if len(parts) < 4:
         return []
@@ -120,7 +125,7 @@ def _find_backgrounds(root: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
     for el in kids:
         if len(kids) - len(backgrounds) <= 1:
             break  # 최소 1 drawable 유지
-        if not _is_filled(el):
+        if _local(el) != "rect" or not _is_filled(el):
             break  # 선두만 — 첫 비배경 drawable에서 중단
         box = geom.element_bbox(el)
         if box is None:
@@ -135,8 +140,8 @@ def _find_backgrounds(root: ET.Element) -> list[tuple[ET.Element, ET.Element]]:
 def gate_recraft_svg(raw_svg: str) -> str:
     """Recraft SVG 적합성 게이트(순수) — 깨끗하면 무변경, 아니면 정리본 반환.
 
-    gradient·raster image는 오류(재프롬프트 트리거). 그 외: rgb()→hex, style paint hoist,
-    비허용 속성/비벡터 태그 drop, 전면 배경 제거. normalize_motif_svg가 소비하기 전 단계.
+    gradient·raster image·`<style>`는 오류(재프롬프트 트리거). 그 외: rgb()→hex, style 속성
+    paint hoist, 비허용 속성/비벡터 태그 drop, 전면 배경 제거. normalize_motif_svg 직전 단계.
     """
     root = sanitize.parse_svg_tree(raw_svg)
 
@@ -147,6 +152,11 @@ def gate_recraft_svg(raw_svg: str) -> str:
             raise ValueError("raster <image> in motif SVG is not allowed")
         if tag in _GRADIENT_TAGS:
             raise ValueError("gradient in motif SVG is not allowed (use flat solid fills)")
+        if tag == "style":
+            # 통째로 버리면 `.st0{fill:#c0392b}` 클래스 채색이 조용히 전부 검정이 된다.
+            raise ValueError(
+                "<style> in motif SVG is not allowed (put fills on the shapes themselves)"
+            )
         if tag in _DROP_TAGS:
             needs_clean = True
         if any(a.rsplit("}", 1)[-1] not in sanitize.ALLOWED_ATTRS for a in el.attrib):
@@ -172,27 +182,23 @@ def gate_recraft_svg(raw_svg: str) -> str:
     return ET.tostring(root, encoding="unicode")
 
 
-def _build_recraft_prompt(spec: dict, *, errors: list[str] | None = None) -> str:
+def _build_recraft_prompt(
+    spec: dict,
+    *,
+    errors: list[str] | None = None,
+) -> str:
+    # 사용자 문장이 유일한 스타일 입력이다 — 문장이 같으면 언제 누가 요청해도 같은 취지의
+    # 결과가 나와야 하므로(문장=정체성, 재사용 판정과 일치) 숨은 컨텍스트를 주입하지 않는다.
     lines = [
-        "Draw ONE single, isolated object as one inline SVG. Output ONLY the SVG markup — "
-        "no markdown, no prose, no <?xml?> prolog.",
-        "CRITICAL: exactly ONE centered subject that FILLS the frame. It must NOT be a "
-        "pattern, NOT repeated, NOT scattered or tiled, NOT a scene, collage or grid.",
-        "NO background: do not draw any background rectangle, border or backdrop — the "
-        "object sits on a transparent canvas.",
-        "The root <svg> MUST have a viewBox. Use a distinct flat solid color for each distinct "
-        "visual part, and do not reuse one color for unrelated parts. Use flat vector "
-        "<path>/<g> shapes only. Do NOT use raster <image>, <text>, gradients, textures, "
-        "photorealistic shading or filters.",
-        f"subject: {spec.get('subject')}",
-        f"scope: {spec.get('scope')}",
+        "Create one isolated object as a clean SVG vector motif.",
+        "Place exactly one centered object on a transparent canvas.",
+        "Use flat solid vector shapes and preserve a clear silhouette.",
+        "Do not include text, letters, gradients, patterns, tiles, repetitions, or backgrounds.",
+        f"User description: {spec.get('subject')}",
     ]
-    for key in ("view", "expression", "style", "description"):
-        if spec.get(key):
-            lines.append(f"{key}: {spec.get(key)}")
     if errors:
         lines += ["", "Your previous SVG was rejected. Fix exactly these:"]
-        lines += [f"- {e}" for e in errors]
+        lines += [f"- {e[:_MAX_ERROR_CHARS]}" for e in errors]
     return "\n".join(lines)
 
 
@@ -202,7 +208,7 @@ def _build_recraft_prompt(spec: dict, *, errors: list[str] | None = None) -> str
 class RecraftHTTPClient:
     """실제 Recraft 벡터 API 호출 — generate, 120s, HTTP 재시도 없음.
 
-    vectorize(이미지→SVG) 경로는 이미지 입력 파이프라인과 함께 5단계에서 재도입한다.
+    이미지→SVG 벡터화는 Recraft가 아닌 로컬 VTracer(worker.motifs.photo_svg) 소관.
     """
 
     def __init__(
@@ -249,7 +255,6 @@ class RecraftHTTPClient:
         self,
         prompt: str,
         *,
-        colors: tuple[str, ...] = (),
         seed: int | None = None,
     ) -> str:
         payload: dict = {
@@ -258,12 +263,14 @@ class RecraftHTTPClient:
             "response_format": _B64_RESPONSE_FORMAT,
             "n": 1,
         }
+        if self._model.startswith(("recraftv2", "recraftv3")):
+            payload["negative_prompt"] = _NEGATIVE_PROMPT
+        if self._model.startswith("recraftv3"):
+            payload["controls"] = {"no_text": True}
         if self._style:
             payload["style"] = self._style
         if self._size:
             payload["size"] = self._size
-        if colors:
-            payload["controls"] = {"colors": [{"rgb": list(hex_to_rgb(color))} for color in colors]}
         if seed is not None:
             payload["random_seed"] = seed
 
@@ -357,7 +364,6 @@ async def generate_motif(
     *,
     client,
     settings,
-    colors: tuple[str, ...] = (),
     seed: int | None = None,
 ) -> NormalizedMotif:
     """miss spec에 대해 Recraft로 모티프 생성 → 정규화 모티프 반환(등록은 호출자/store 소관).
@@ -378,7 +384,6 @@ async def generate_motif(
         try:
             raw = await client.generate(
                 _build_recraft_prompt(spec, errors=errors),
-                colors=colors,
                 seed=seed,
             )
         except RecraftError:
@@ -394,7 +399,6 @@ async def generate_motif(
             flat = gate_recraft_svg(raw)
             return normalize_motif_svg(
                 flat,
-                max_color_slots=settings.recraft_max_color_slots,
                 max_aspect_ratio=settings.motif_max_aspect_ratio,
                 edge_seam_tol=settings.motif_edge_seam_tol,
                 render_check=settings.motif_render_check,

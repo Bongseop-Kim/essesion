@@ -3,7 +3,7 @@
 인라인 5개(flower/whole ×3, leaf/whole ×2, style=flat)로 variant pool ≥ 2를 시연하고,
 `motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 글리프 —
 동물·마린·하늘·문장·과일·취미·식물, subject = 파일명 첫 토큰, style=outline)를
-기본 모티프로 얹는다. 전부 source="seed", 단색 → s0.
+기본 모티프로 얹는다. 전부 source="seed"이며 SVG의 concrete 색을 그대로 보존한다.
 멱등 — content-hash id + ON CONFLICT DO NOTHING이라 여러 번 실행해도 안전.
 render_check는 끈다(librsvg 없는 환경에서도 결정론적으로 시드).
 
@@ -142,6 +142,14 @@ _SEEDS: list[tuple[str, str, str]] = [
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
         '<path fill="#27ae60" d="M20 50 C20 25 45 20 55 20 C55 45 45 80 20 50 Z"/></svg>',
     ),
+    # 손으로 쓴 원반 — 글리프가 아니라 여기 산다. motif_assets에 두면 파일명 템플릿이
+    # "circle outline icon"/style=outline로 라벨을 붙여 실물(단색 원반)과 어긋난다.
+    (
+        "circle",
+        "solid disc",
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+        '<circle cx="12" cy="12" r="12" fill="#c0445a"/></svg>',
+    ),
 ]
 
 
@@ -197,14 +205,7 @@ async def seed_motifs() -> tuple[int, int]:
             )
             # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags를 갱신하지 않는다.
             # 한글 tag 백필을 위해 시드 행 tags는 의도값으로 명시 재기록한다(멱등).
-            await session.execute(
-                update(Motif)
-                .where(Motif.id == normalized.id)
-                .values(
-                    tags=tags,
-                    slot_colors=list(normalized.slot_colors) if normalized.slot_colors else None,
-                )
-            )
+            await session.execute(update(Motif).where(Motif.id == normalized.id).values(tags=tags))
             seeded_ids.append(normalized.id)
             inserted += 1
         pruned = await store.prune_stale_seeds(session, seeded_ids)

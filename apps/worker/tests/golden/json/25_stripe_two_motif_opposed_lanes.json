@@ -93,10 +93,7 @@
    "z_order": 2,
    "params": {
     "motif_id": "recraft-508a8e471454",
-    "size_mm": 2.2,
-    "colors": {
-     "s0": "leaf"
-    }
+    "size_mm": 2.2
    },
    "placement": {
     "type": "path_following",
@@ -113,10 +110,7 @@
    "z_order": 3,
    "params": {
     "motif_id": "recraft-033b3870e911",
-    "size_mm": 5.0,
-    "colors": {
-     "s0": "leaf"
-    }
+    "size_mm": 5.0
    },
    "placement": {
     "type": "path_following",

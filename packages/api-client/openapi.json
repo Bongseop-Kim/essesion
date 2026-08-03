@@ -7127,9 +7127,6 @@
             ],
             "title": "Colorway"
           },
-          "palette": {
-            "$ref": "#/components/schemas/PaletteConstraint"
-          },
           "prompt": {
             "anyOf": [
               {
@@ -7206,9 +7203,6 @@
             ],
             "title": "Count",
             "type": "integer"
-          },
-          "palette": {
-            "$ref": "#/components/schemas/PaletteConstraint"
           },
           "prompt": {
             "default": "",
@@ -7889,17 +7883,6 @@
               }
             ],
             "title": "Failure Status Code"
-          },
-          "fixed_palette": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Palette"
           },
           "mode": {
             "anyOf": [
@@ -9317,17 +9300,6 @@
             "title": "Bbox",
             "type": "array"
           },
-          "color_slot_count": {
-            "title": "Color Slot Count",
-            "type": "integer"
-          },
-          "color_slots": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Color Slots",
-            "type": "array"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -9380,34 +9352,6 @@
               }
             ],
             "title": "Scope"
-          },
-          "slot_colors": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slot Colors"
-          },
-          "slot_parts": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slot Parts"
           },
           "source": {
             "title": "Source",
@@ -9495,15 +9439,13 @@
           "source",
           "quality",
           "variant_group",
-          "color_slot_count",
           "created_at",
           "bbox",
           "symbol",
           "svg_status",
           "description",
           "tags",
-          "anchor",
-          "color_slots"
+          "anchor"
         ],
         "title": "MotifDetailOut",
         "type": "object"
@@ -9539,7 +9481,7 @@
         "additionalProperties": false,
         "properties": {
           "prompt": {
-            "maxLength": 100,
+            "maxLength": 200,
             "minLength": 1,
             "title": "Prompt",
             "type": "string"
@@ -9780,7 +9722,7 @@
         "additionalProperties": false,
         "properties": {
           "query": {
-            "maxLength": 100,
+            "maxLength": 200,
             "minLength": 1,
             "title": "Query",
             "type": "string"
@@ -9800,10 +9742,6 @@
             },
             "title": "Bbox",
             "type": "array"
-          },
-          "color_slot_count": {
-            "title": "Color Slot Count",
-            "type": "integer"
           },
           "created_at": {
             "format": "date-time",
@@ -9846,20 +9784,6 @@
               }
             ],
             "title": "Scope"
-          },
-          "slot_colors": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slot Colors"
           },
           "source": {
             "title": "Source",
@@ -9940,7 +9864,6 @@
           "source",
           "quality",
           "variant_group",
-          "color_slot_count",
           "created_at",
           "bbox",
           "symbol",
@@ -11496,70 +11419,6 @@
           "offset"
         ],
         "title": "Page[SeamlessSummaryOut]",
-        "type": "object"
-      },
-      "PaletteConstraint": {
-        "additionalProperties": false,
-        "properties": {
-          "colors": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 5,
-            "title": "Colors",
-            "type": "array"
-          },
-          "mode": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "fixed"
-            ],
-            "title": "Mode",
-            "type": "string"
-          }
-        },
-        "title": "PaletteConstraint",
-        "type": "object"
-      },
-      "PaletteExtractOut": {
-        "properties": {
-          "colors": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 5,
-            "minItems": 2,
-            "title": "Colors",
-            "type": "array"
-          }
-        },
-        "required": [
-          "colors"
-        ],
-        "title": "PaletteExtractOut",
-        "type": "object"
-      },
-      "PaletteExtractRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "color_count": {
-            "default": 5,
-            "maximum": 5.0,
-            "minimum": 2.0,
-            "title": "Color Count",
-            "type": "integer"
-          },
-          "upload_id": {
-            "format": "uuid",
-            "title": "Upload Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "upload_id"
-        ],
-        "title": "PaletteExtractRequest",
         "type": "object"
       },
       "PaymentConfirmRequest": {
@@ -23114,52 +22973,6 @@
           }
         ],
         "summary": "Delete User Motif",
-        "tags": [
-          "design"
-        ]
-      }
-    },
-    "/design/palette/extract": {
-      "post": {
-        "operationId": "extract_design_palette",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PaletteExtractRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaletteExtractOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Extract Design Palette",
         "tags": [
           "design"
         ]

@@ -1,8 +1,9 @@
-"""최초 저작의 지명색 접지 — "네이비 바탕", "골드 모티프"를 실제 플랜 슬롯에 반영한다.
+"""최초 저작의 지명색 접지 — "네이비 바탕", "골드 줄무늬"를 실제 플랜 슬롯에 반영한다.
 
 저작 모델은 좁은 지명색 어휘를 자주 무시하거나 근처 색으로 바꿔 놓는다. 프롬프트로는
 위반율이 떨어지지 않아 여기서 결정론적으로 정규화한다. 문장 안에서 색이 어떤 역할
-(바탕·줄무늬·모티프)에 붙었는지만 읽고, 그 역할이 쓰는 슬롯의 hex를 요청 색으로 맞춘다.
+(바탕·줄무늬)에 붙었는지만 읽고, 그 역할이 쓰는 슬롯의 hex를 요청 색으로 맞춘다.
+모티프 artwork와 색은 이 단계에서 바꾸지 않는다.
 
 구성 수정(patch) 경로는 이 모듈을 쓰지 않는다 — 거기서는 색이 patch 필드로 직접 들어온다.
 """
@@ -91,39 +92,9 @@ def requested_named_colors(prompt: str) -> list[tuple[str, str, list[re.Match[st
     )
 
 
-def _plan_motif_slot_counts(
-    plan: DesignPlanV3,
-    exact_motif_metadata: list[dict[str, object]] | None,
-    catalog_candidates: list[dict[str, object]] | None,
-) -> list[int]:
-    """motif_index별 paint slot 수. 메타데이터가 없으면 1로 간주한다."""
-
-    by_ref = {
-        str(candidate.get("catalog_ref")): candidate for candidate in catalog_candidates or []
-    }
-    counts: list[int] = []
-    for source in plan.motifs:
-        record: dict[str, object] | None = None
-        if source.source == "catalog":
-            record = by_ref.get(source.catalog_ref)
-        elif source.source == "input" and exact_motif_metadata is not None:
-            if 1 <= source.input_index <= len(exact_motif_metadata):
-                record = exact_motif_metadata[source.input_index - 1]
-        slot_count = record.get("slot_count") if record is not None else None
-        counts.append(
-            slot_count
-            if isinstance(slot_count, int) and not isinstance(slot_count, bool) and slot_count > 0
-            else 1
-        )
-    return counts
-
-
 def normalize_requested_named_colors(
     prompt: str,
     plan: DesignPlanV3,
-    *,
-    exact_motif_metadata: list[dict[str, object]] | None = None,
-    catalog_candidates: list[dict[str, object]] | None = None,
 ) -> DesignPlanV3:
     """Apply the small supported named-color vocabulary to existing PlanV3 slots."""
 
@@ -176,9 +147,11 @@ def normalize_requested_named_colors(
         first_ground = next(name for name, _hex, _m in requested if name in ground_targets)
         ground_targets = {first_ground}
     stripe_targets = nearby_targets(stripe_roles, direct_role=True) - ground_targets
-    motif_targets = nearby_targets(motif_roles, direct_role=True) - ground_targets - stripe_targets
+    immutable_motif_targets = (
+        nearby_targets(motif_roles, direct_role=True) - ground_targets - stripe_targets
+    )
     for name, _target, matches in requested:
-        if name in ground_targets or name in stripe_targets or name in motif_targets:
+        if name in ground_targets or name in stripe_targets or name in immutable_motif_targets:
             continue
         if any(
             (
@@ -191,53 +164,33 @@ def normalize_requested_named_colors(
             not in {"색", "색상", "컬러", "팔레트", "color", "palette"}
             for match in matches
         ):
-            motif_targets.add(name)
+            immutable_motif_targets.add(name)
+
+    # An explicit motif-color request cannot be represented by DesignPlanV3 anymore. Leave the
+    # fixed artwork untouched instead of redirecting that color to an unrelated palette role.
+    requested = [item for item in requested if item[0] not in immutable_motif_targets]
+    if not requested:
+        return plan
 
     raw_plan = plan.model_dump(mode="json")
     colors = list(plan.colors)
     ground_color_index = plan.ground_color_index
     layers = raw_plan["layers"]
 
-    def redirect_role_color(role: str, source: int, target: int) -> bool:
+    def redirect_stripe_color(source: int, target: int) -> bool:
         changed = False
         for layer in layers:
-            if role == "stripe" and layer["type"] == "stripe":
+            if layer["type"] == "stripe":
                 for band in layer["bands"]:
                     if band["color_index"] == source:
                         band["color_index"] = target
                         changed = True
-            elif role == "motif" and layer["type"] == "motif":
-                indices = layer.get("color_indices")
-                if indices is not None and source in indices:
-                    layer["color_indices"] = [
-                        target if index == source else index for index in indices
-                    ]
-                    changed = True
         return changed
 
     stripe_slots: set[int] = set()
-    motif_slots: set[int] = set()
-    # color_indices를 생략한 모티프 레이어는 컴파일러가 첫 비-바탕 슬롯을 색으로 고르지만
-    # 원본색 유지 모티프는 그 팔레트 값을 쓰지 않는다. 그 슬롯에 지명색을 쓸 때는
-    # 매핑도 함께 명시화해 조용한 무시 대신 바인딩 단계 검증을 받게 한다.
-    # 멀티슬롯 모티프는 같은 인덱스를 slot_count만큼 반복해 길이 계약을 지킨다.
-    slot_counts = _plan_motif_slot_counts(plan, exact_motif_metadata, catalog_candidates)
-    implicit_slot_layers: dict[int, list[tuple[int, int]]] = {}
-    for position, layer in enumerate(plan.layers):
+    for layer in plan.layers:
         if layer.type == "stripe":
             stripe_slots.update(band.color_index for band in layer.bands)
-        elif layer.color_indices is not None:
-            motif_slots.update(layer.color_indices)
-        else:
-            guessed = next(
-                (index for index in range(len(colors)) if index != plan.ground_color_index),
-                plan.ground_color_index,
-            )
-            motif_slots.add(guessed)
-            implicit_slot_layers.setdefault(guessed, []).append(
-                (position, slot_counts[layer.motif_index])
-            )
-    layer_slots = stripe_slots | motif_slots
     used: set[int] = set()
     ordered = sorted(requested, key=lambda item: item[0] not in ground_targets)
     for name, target, _matches in ordered:
@@ -249,65 +202,36 @@ def normalize_requested_named_colors(
                 colors[ground_color_index] = target
             used.add(ground_color_index)
             continue
-        if name in stripe_targets:
-            role = "stripe"
-            role_slots = stripe_slots
-            target_slots = stripe_slots - motif_slots
-        elif name in motif_targets:
-            role = "motif"
-            role_slots = motif_slots
-            target_slots = motif_slots - stripe_slots
-        elif stripe_slots and motif_slots:
-            if existing is not None and existing in layer_slots:
-                used.add(existing)
-                continue
-            raise ValueError(f"named color {name} has no unambiguous visible role")
-        else:
-            role = "stripe" if stripe_slots else "motif" if motif_slots else "ground"
-            role_slots = layer_slots
-            target_slots = layer_slots
+        # 남은 가시 역할은 stripe뿐 — stripe를 직접 지목하지 않았고 stripe 슬롯도 없을
+        # 때만 바탕으로 넘긴다.
+        role_is_ground = name not in stripe_targets and not stripe_slots
         if existing is not None:
-            if existing in target_slots:
+            if existing in stripe_slots:
                 used.add(existing)
                 continue
-            available = [index for index in target_slots if index not in used]
-            if not available:
-                available = [index for index in role_slots if index not in used]
-            if (
-                not available
-                and not target_slots
-                and not layer_slots
-                and ground_color_index not in used
-            ):
+            available = [index for index in stripe_slots if index not in used]
+            if not available and not stripe_slots and ground_color_index not in used:
                 available = [ground_color_index]
             if not available:
                 raise ValueError(f"named color {name} is not referenced by a visible layer")
             closest = min(available, key=lambda index: _color_distance(colors[index], target))
-            if role == "ground":
+            if role_is_ground:
                 ground_color_index = existing
-            elif not redirect_role_color(role, closest, existing):
-                raise ValueError(f"named color {name} cannot be assigned to its visible role")
-            if role == "stripe":
+            else:
+                if not redirect_stripe_color(closest, existing):
+                    raise ValueError(f"named color {name} cannot be assigned to its visible role")
                 stripe_slots = (stripe_slots - {closest}) | {existing}
-            elif role == "motif":
-                motif_slots = (motif_slots - {closest}) | {existing}
-            layer_slots = stripe_slots | motif_slots
             used.add(existing)
             continue
-        available = [index for index in target_slots if index not in used]
-        if (
-            not available
-            and not target_slots
-            and not layer_slots
-            and ground_color_index not in used
-        ):
+        available = [index for index in stripe_slots if index not in used]
+        if not available and not stripe_slots and ground_color_index not in used:
             available = [ground_color_index]
         if not available:
+            # 저작 루프(gemini.author_design)가 이 문장을 피드백으로 받아 재저작한다 —
+            # 조용히 넘기면 요청한 지명색이 없는 플랜이 그대로 성공으로 나간다.
             raise ValueError(f"plan has no visible slot available for named color {name}")
         closest = min(available, key=lambda index: _color_distance(colors[index], target))
         colors[closest] = target
-        for position, slot_count in implicit_slot_layers.pop(closest, []):
-            layers[position]["color_indices"] = [closest] * slot_count
         used.add(closest)
 
     return DesignPlanV3.model_validate(

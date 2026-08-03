@@ -6,18 +6,19 @@
 
     print                     : 1회 (실색 디자인)
     yarn_dyed, 모티프 없음     : 1회 + (material_map ∨ relief>0 시) 라벨 1회
-    yarn_dyed, 모티프          : R1 라벨(별칭 슬롯) + R2 base 실색 = 2회
-                +material_map  : + R3 base 라벨 = 3회
+    yarn_dyed, 모티프          : R1 full 실색 + R2 base 실색 + R3 모티프 마스크 = 3회
+                +material_map/relief : + R4 base 라벨 = 4회
 
-원본의 "전체 실색 렌더"는 생략했다 — 실 가닥 색 소스는 R2(base 실색) 위에 모티프 마스크로
-평탄 슬롯색을 합성한 이미지이며, yarn = 그 이미지 × twill-45다. 슬롯 경계 relief는 R1의
-folded 세그먼트를 재사용한다(추가 렌더 없음).
+모티프 마스크는 기하학이다 — 팔레트를 검정, 모티프 심볼 paint를 흰색으로 치환한 마스크
+문서를 렌더해 얻는다(render/motif_mask.py). 실 가닥 색 소스는 R1 자체를 사용하므로
+팔레트 슬롯과 무관한 모티프 고유색이 그대로 보존된다.
 
 원본 대비 의도적 차이 3건:
-  ① 저불투명 모티프는 라벨 최근접 quantize로 흡수한다(원본은 motif-only 렌더의 alpha ≥ 24
-     게이트). 별칭 슬롯이 지배하는 픽셀만 가닥이 된다.
-  ② 스트라이프/배경에 가려진 모티프 픽셀에는 가닥을 그리지 않는다(원본은 그렸다 — 가려진
-     실이 위로 새는 것을 개선). 별칭은 가시 모티프 픽셀에만 남기 때문이다.
+  ① 모티프 마스크는 마스크 문서 렌더에서 얻는다. z-order상 위 레이어에 가려진 부분에는
+     가닥을 그리지 않지만, 색 대비에는 의존하지 않는다 — 모티프 색이 바탕색·팔레트색과
+     같아도 실루엣이 사라지거나 쪼개지지 않는다.
+  ② 모티프 가닥은 고정 twill-45를 쓰되 색 소스는 고유색을 담은 full 렌더다. 따라서 base
+     material_map과 무관하고 생성 시 확정된 모티프 색을 보존한다.
   ③ weave 에셋 누락은 하드 에러다(원본은 평탄색 폴백). 에셋은 결정론 입력이므로 조용한
      폴백은 골든을 깨는 무결성 위험 — 명시적 실패가 옳다.
 
@@ -27,15 +28,14 @@ blocking(Pillow·subprocess) — async 핸들러에서는 run_in_threadpool로 �
 import io
 from typing import Any
 
-from PIL import Image, ImageChops
+from PIL import Image
 
 from worker.config import Settings
 from worker.engine.composition import compose
-from worker.engine.palette import hex_to_rgb
 from worker.engine.units import mm_to_px
 from worker.engine.validate import validate_intent
 from worker.motifs.registry import MotifCatalog, iter_motif_ids, resolve_motif
-from worker.render import inlay, materials, raster
+from worker.render import inlay, materials, motif_mask, raster
 from worker.render import segment as segment_mod
 from worker.render.inlay import MOTIF_WEAVE
 from worker.render.weave import apply_weave, available_weaves, is_print_weave
@@ -137,7 +137,7 @@ def render_fabric(
         if bad_weaves:
             raise FabricError(f"material_map uses unknown weaves: {bad_weaves}")
 
-    if segment_mod.motif_slots(intent):
+    if any(layer.type == "motif" for layer in intent.layers):
         out = _render_yarn_dyed_motifs(
             intent,
             palette,
@@ -155,9 +155,7 @@ def render_fabric(
     design = _render_design(intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs)
     seg = None
     if material_map or relief > 0:
-        seg = segment_mod.segment(
-            intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=False, motifs=motifs
-        )
+        seg = segment_mod.segment(intent, palette, dpi=dpi, tile_mm=tile_mm)
     out = materials.apply_materials(
         design, weave=weave, material_map=material_map, strength=strength, seg=seg
     )
@@ -184,44 +182,34 @@ def _render_yarn_dyed_motifs(
     if n_px > _MAX_INLAY_PIXELS:
         raise FabricError(f"motif inlay exceeds {_MAX_INLAY_PIXELS}px; lower dpi or tile_mm")
 
-    seg = segment_mod.segment(
-        intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=True, motifs=motifs
+    full_design = _render_design(
+        intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs
     )  # R1
     base_intent = segment_mod.without_motif_layers(intent)
-    if base_intent is None or not seg.motif_masks:
+    if base_intent is None:
         # 모티프만 있는 intent(base 없음) — 실색 fallback(정상 경로 아님)
-        design = _render_design(
-            intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs
-        )
-        return apply_weave(design, weave, strength)
+        return apply_weave(full_design, weave, strength)
 
     base_design = _render_design(
         base_intent, palette, colorway_id, dpi=dpi, tile_mm=tile_mm, motifs=motifs
     )  # R2
+    coverage = motif_mask.motif_coverage_mask(
+        intent, palette, dpi=dpi, tile_mm=tile_mm, motifs=motifs
+    )  # R3
     base_seg = None
-    if material_map:
-        base_seg = segment_mod.segment(
-            base_intent, palette, dpi=dpi, tile_mm=tile_mm, split_motifs=False, motifs=motifs
-        )  # R3
+    if material_map or relief > 0:
+        base_seg = segment_mod.segment(base_intent, palette, dpi=dpi, tile_mm=tile_mm)  # R4
     base = materials.apply_materials(
         base_design, weave=weave, material_map=material_map, strength=strength, seg=base_seg
     )
 
-    # 실 색 소스 F — base 실색 위에 모티프 슬롯 평탄색을 마스크로 합성(마스크 disjoint → 순서 무관)
-    yarn_src = base_design.copy()
-    for slot, mask in seg.motif_masks.items():
-        color = hex_to_rgb(palette.resolve_color(slot, colorway_id))
-        yarn_src = Image.composite(Image.new("RGB", yarn_src.size, color), yarn_src, mask)
-    yarn = apply_weave(yarn_src, MOTIF_WEAVE, strength)
-
-    # 슬롯별 run 스캔 후 union → 단일 합성(순서 무관, edge 음영은 정확히 1회)
-    thread: Image.Image | None = None
-    for mask in seg.motif_masks.values():
-        strand = inlay.motif_thread_mask(mask, dpi=dpi)
-        thread = strand if thread is None else ImageChops.lighter(thread, strand)
-    assert thread is not None
+    yarn = apply_weave(full_design, MOTIF_WEAVE, strength)
+    # 모티프가 전부 가려져 마스크가 비어도 relief 경로는 그대로 탄다 — 보이지 않는 레이어의
+    # 유무가 슬롯 경계 emboss를 켜고 끄면 안 된다(빈 thread는 composite/emboss에 무해).
+    thread = inlay.motif_thread_mask(coverage, dpi=dpi)
     out = Image.composite(yarn, base, thread)
     if relief > 0:
         out = inlay.apply_thread_relief(out, thread, relief, dpi=dpi)
-        out = materials.apply_relief(out, seg.slot_index, weave, relief, dpi=dpi)
+        assert base_seg is not None
+        out = materials.apply_relief(out, base_seg.slot_index, weave, relief, dpi=dpi)
     return out

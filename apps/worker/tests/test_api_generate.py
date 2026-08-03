@@ -14,7 +14,6 @@ import hashlib
 import io
 import json
 from contextlib import asynccontextmanager
-from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -128,202 +127,6 @@ _DESIGN_KEYS = {
 }
 
 
-def _motif_layer(intent: dict) -> dict:
-    return next(layer for layer in intent["layers"] if layer["type"] == "motif")
-
-
-def test_unlabeled_legacy_multicolor_motif_uses_positional_modulo():
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["params"]["motif_id"] = "multi"
-
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {
-            "multi": SimpleNamespace(
-                color_slots=("s0", "s1", "s2"),
-                slot_colors=None,
-                slot_labels=None,
-            )
-        },
-    )
-
-    assert "color" not in motif_layer["params"]
-    assert motif_layer["params"]["colors"] == {
-        "s0": "accent",
-        "s1": "gold",
-        "s2": "accent",
-    }
-
-
-def test_multicolor_motif_preserves_original_colors_when_recolor_is_omitted():
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["params"]["motif_id"] = "multi"
-
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {
-            "multi": SimpleNamespace(
-                color_slots=("s0", "s1", "s2"),
-                slot_colors=("#112233", "#445566", "#778899"),
-                slot_labels=("detail", "primary", "outline"),
-            )
-        },
-    )
-
-    assert motif_layer["params"]["colors"] == {
-        "s0": "#112233",
-        "s1": "#445566",
-        "s2": "#778899",
-    }
-
-
-def test_explicit_recolor_assigns_palette_by_semantic_label_rank():
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["id"] = "ranked"
-    motif_layer["params"]["motif_id"] = "multi"
-
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {
-            "multi": SimpleNamespace(
-                color_slots=("s0", "s1", "s2"),
-                slot_colors=("#112233", "#445566", "#778899"),
-                slot_labels=("detail", "primary", "outline"),
-            )
-        },
-        [{"ranked": ["gold", "accent", "gold"]}],
-    )
-
-    # Ranked slot order is s1(primary), s2(outline), s0(detail).
-    assert motif_layer["params"]["colors"] == {
-        "s0": "gold",
-        "s1": "gold",
-        "s2": "accent",
-    }
-
-
-def test_part_aware_recolor_assigns_palette_in_exposed_slot_order():
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["id"] = "part-aware"
-    motif_layer["params"]["motif_id"] = "multi"
-
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {
-            "multi": SimpleNamespace(
-                color_slots=("s0", "s1", "s2"),
-                slot_colors=("#112233", "#445566", "#778899"),
-                slot_labels=("detail", "primary", "outline"),
-                slot_parts=("몸통", "자전거", "부리·안장"),
-            )
-        },
-        [{"part-aware": ["gold", "accent", "gold"]}],
-    )
-
-    assert motif_layer["params"]["colors"] == {
-        "s0": "gold",
-        "s1": "accent",
-        "s2": "gold",
-    }
-
-
-def test_mismatched_recolor_count_adapts_by_cycling_planned_colors():
-    # 컴파일 단계가 카탈로그 모티프의 recolor 길이를 이미 강제하므로, 바인딩에 도달한
-    # 불일치는 슬롯 수를 알 수 없던 생성/사진 모티프뿐 — 요청 전체 실패 대신 순환 배정.
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["id"] = "part-aware"
-    motif_layer["params"]["motif_id"] = "multi"
-
-    adapted = routes._bind_resolved_motif_colors(
-        [intent],
-        {
-            "multi": SimpleNamespace(
-                color_slots=("s0", "s1", "s2"),
-                slot_colors=("#112233", "#445566", "#778899"),
-                slot_labels=("detail", "primary", "outline"),
-                slot_parts=("몸통", "자전거", "부리·안장"),
-            )
-        },
-        [{"part-aware": ["gold", "accent"]}],
-    )
-
-    assert adapted == ["part-aware"]
-    assert motif_layer["params"]["colors"] == {"s0": "gold", "s1": "accent", "s2": "gold"}
-
-
-def test_single_color_recolor_broadcasts_across_unknown_slot_count():
-    # 생성 모티프는 플랜 시점 slot_count 간주값이 1이라 지명색 보정이 1개짜리
-    # color_indices를 주입한다. 해석된 슬롯 수와 달라도 단색이면 전체에 칠한다.
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["id"] = "generated"
-    motif_layer["params"]["motif_id"] = "multi"
-
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {
-            "multi": SimpleNamespace(
-                color_slots=("s0", "s1", "s2"),
-                slot_colors=("#112233", "#445566", "#778899"),
-                slot_labels=("detail", "primary", "outline"),
-                slot_parts=("몸통", "자전거", "부리·안장"),
-            )
-        },
-        [{"generated": ["gold"]}],
-    )
-
-    assert motif_layer["params"]["colors"] == {"s0": "gold", "s1": "gold", "s2": "gold"}
-
-
-def test_fixed_palette_recolors_even_when_color_indices_were_omitted():
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["params"]["motif_id"] = "multi"
-
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {
-            "multi": SimpleNamespace(
-                color_slots=("s0", "s1"),
-                slot_colors=("#112233", "#445566"),
-                slot_labels=("secondary", "primary"),
-                slot_parts=("몸통", "윤곽"),
-            )
-        },
-        palette_mode="fixed",
-    )
-
-    assert motif_layer["params"]["colors"] == {"s0": "accent", "s1": "gold"}
-
-
-def test_single_slot_avoids_ground_equivalent_hex_and_degenerate_palette_is_stable():
-    intent = mvp_intent()
-    motif_layer = _motif_layer(intent)
-    motif_layer["id"] = "single"
-    motif_layer["params"]["motif_id"] = "one"
-    intent["palette"]["slots"][1]["hex"] = intent["palette"]["slots"][0]["hex"]
-
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {"one": SimpleNamespace(color_slots=("s0",), slot_colors=None, slot_labels=None)},
-        [{"single": ["accent"]}],
-    )
-    assert motif_layer["params"]["color"] == "gold"
-
-    intent["palette"]["slots"][2]["hex"] = intent["palette"]["slots"][0]["hex"]
-    routes._bind_resolved_motif_colors(
-        [intent],
-        {"one": SimpleNamespace(color_slots=("s0",), slot_colors=None, slot_labels=None)},
-        [{"single": ["accent"]}],
-    )
-    assert motif_layer["params"]["color"] == "accent"
-
-
 def test_generate_returns_product_shape(client):
     intent = mvp_intent()
     resp = client.post("/generate", json={"run_id": _RUN_ID, "intent": intent})
@@ -388,7 +191,7 @@ def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
             "id": "motif_0",
             "type": "motif",
             "z_order": 1,
-            "params": {"motif_id": "circle", "size_mm": 14.4, "color": "accent"},
+            "params": {"motif_id": "circle", "size_mm": 14.4},
             "placement": {
                 "type": "lattice",
                 "lattice": {"cell_w_mm": 12.0, "cell_h_mm": 12.0},
@@ -669,9 +472,7 @@ class _PatchGemini:
         self.snapshots: list[dict] = []
         self.histories: list[list[dict]] = []
 
-    async def author_patch(
-        self, prompt, *, snapshot, conversation_history=None, palette_constraint=None, diagnostics
-    ):
+    async def author_patch(self, prompt, *, snapshot, conversation_history=None, diagnostics):
         self.snapshots.append(snapshot)
         self.histories.append(list(conversation_history or []))
         diagnostics["authoring_mode"] = "patch"
@@ -796,19 +597,7 @@ def test_generate_rejects_reference_images_as_extra_input(monkeypatch):
 
 
 def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
-    catalog_reads = 0
-
-    async def prompt_then_render_catalog(_session, _ids):
-        nonlocal catalog_reads
-        catalog_reads += 1
-        if catalog_reads == 1:
-            return {
-                "circle": SimpleNamespace(color_slots=("s0",), slot_parts=None),
-                "bee": SimpleNamespace(
-                    color_slots=("s0", "s1"),
-                    slot_parts=("몸통", "날개"),
-                ),
-            }
+    async def render_catalog(_session, _ids):
         return {"circle": get_motif("circle"), "bee": get_motif("bee")}
 
     class ExactMotifGemini:
@@ -818,23 +607,14 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
             *,
             validate,
             motif_ids,
-            exact_motif_metadata,
             **_kwargs,
         ):
             assert motif_ids == ["circle", "bee"]
-            assert exact_motif_metadata == [
-                {"catalog_ref": "input_1", "slot_count": 1},
-                {
-                    "catalog_ref": "input_2",
-                    "slot_count": 2,
-                    "parts": ["몸통", "날개"],
-                },
-            ]
             intent = mvp_intent()
             assert validate(intent) is None
             return AuthoredDesign(intent=intent)
 
-    monkeypatch.setattr(routes, "get_motifs", prompt_then_render_catalog)
+    monkeypatch.setattr(routes, "get_motifs", render_catalog)
     app = _configure_app(monkeypatch)
     app.state.adapters = Adapters(gemini=ExactMotifGemini())
     client = TestClient(app)
@@ -871,7 +651,7 @@ def test_user_svg_import_is_pure_normalization_response(monkeypatch):
     body = response.json()
     assert body["motif_id"].startswith("upload-")
     assert body["symbol"].startswith('<symbol id="motif-upload-')
-    assert body["color_slots"] == ["s0"]
+    assert "color_slots" not in body
     assert body["bbox"] == [-0.5, -0.5, 0.5, 0.5]
     assert body["anchor"] == [0.0, 0.0]
     assert body["preview_svg"].startswith("<svg ")
@@ -927,7 +707,7 @@ def test_text_motif_preview_returns_importable_path_only_svg(monkeypatch):
 
 
 @respx.mock
-def test_palette_and_photo_preview_reuse_private_image_fetch(monkeypatch):
+def test_photo_preview_fetches_the_private_image(monkeypatch):
     raw = io.BytesIO()
     image = Image.new("RGB", (64, 64), "white")
     for y in range(16, 48):
@@ -944,10 +724,6 @@ def test_palette_and_photo_preview_reuse_private_image_fetch(monkeypatch):
     }
     client = TestClient(_configure_app(monkeypatch))
 
-    palette = client.post("/palette/extract", json={"image": image_input, "color_count": 5})
-    assert palette.status_code == 200, palette.text
-    assert palette.json()["colors"] == ["#FFFFFF", "#DC1428"]
-
     preview = client.post(
         "/motifs/photo-preview",
         json={
@@ -960,7 +736,7 @@ def test_palette_and_photo_preview_reuse_private_image_fetch(monkeypatch):
     assert preview.status_code == 200, preview.text
     body = preview.json()
     assert body["background_confidence"] >= 0.55
-    assert 'color="#dc1428"' in body["svg"] and "#FFFFFF" not in body["svg"]
+    assert "#dc1428" in body["svg"].lower() and "#ffffff" not in body["svg"].lower()
     with Image.open(io.BytesIO(base64.b64decode(body["processed_preview_base64"]))) as processed:
         assert processed.format == "PNG"
 
@@ -983,7 +759,6 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
             "prompt": "차분한 패턴",
             "motif_ids": ["upload-a1b2c3d4e5f6"],
             "motifs": [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
-            "palette": {"mode": "fixed", "colors": ["#123", "#abcdef"]},
             "count": 3,
         },
     )
@@ -992,7 +767,6 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
     prompt, context = gemini.calls[0]
     assert prompt == "차분한 패턴"
     assert context["motifs"] == [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}]
-    assert context["palette_constraint"].colors == ["#112233", "#ABCDEF"]
 
 
 def test_ideas_endpoint_rejects_motif_context_order_mismatch(monkeypatch):

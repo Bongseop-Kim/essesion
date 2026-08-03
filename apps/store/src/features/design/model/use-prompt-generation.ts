@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 
-import { AUTO_DESIGN_PALETTE, type DesignPalette } from "./draft";
 import { type DesignErrorFeedback, parseDesignError } from "./errors";
 import { createOperationEpoch } from "./operation-epoch";
 import {
@@ -19,7 +18,7 @@ export type PromptGenerationOptions = {
 
 /**
  * 입력창 문장 하나로 디자인을 만들거나 고치는 흐름 전체 —
- * 초안(문장·색), 생성 요청, 경쟁 가드, 거절·오류 상태를 함께 소유한다.
+ * 초안 문장, 생성 요청, 경쟁 가드, 거절·오류 상태를 함께 소유한다.
  */
 export function usePromptGeneration({
   sessionId,
@@ -28,7 +27,6 @@ export function usePromptGeneration({
   blocked,
 }: PromptGenerationOptions) {
   const [prompt, setPrompt] = useState("");
-  const [palette, setPalette] = useState<DesignPalette>(AUTO_DESIGN_PALETTE);
   const [selectSignal, setSelectSignal] = useState(0);
   const epoch = useRef(createOperationEpoch()).current;
   // pending 가드로 제출은 한 번에 하나 — 진행 중인 요청의 epoch만 담는다.
@@ -44,10 +42,7 @@ export function usePromptGeneration({
     },
   });
 
-  const clearDraft = () => {
-    setPrompt("");
-    setPalette(AUTO_DESIGN_PALETTE);
-  };
+  const clearDraft = () => setPrompt("");
 
   /** 세션을 바꿀 때 — 진행 중이던 요청의 결과가 새 세션에 반영되지 않게 한다. */
   const reset = () => {
@@ -66,7 +61,6 @@ export function usePromptGeneration({
       const input: GenerateDesignInput = {
         sessionId,
         prompt: prompt.trim(),
-        palette,
       };
       operation.current = epoch.begin();
       const current = operation.current;
@@ -90,7 +84,6 @@ export function usePromptGeneration({
 
   return {
     prompt,
-    palette,
     selectSignal,
     pending,
     generating: mutation.isPending,
@@ -98,7 +91,6 @@ export function usePromptGeneration({
     /** 방금 적용한 편집의 자동 조정 안내 — 다음 문장을 쓰면 사라진다. */
     warnings: mutation.data?.warnings ?? [],
     error,
-    setPalette,
     reset,
     submit: () => void submit(),
     /** 문장을 고치면 이전 요청의 알림은 사라진다. */

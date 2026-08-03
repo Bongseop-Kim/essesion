@@ -6,7 +6,6 @@ from typing import cast
 from unittest.mock import AsyncMock
 
 from google import genai
-from worker.adapters import AdapterClientError
 from worker.adapters.gemini import AuthoredDesign, GeminiClient
 from worker.motifs import store
 from worker.motifs.normalize import normalize_motif_svg
@@ -24,11 +23,11 @@ async def _seed_dot(session) -> str:
 
 async def _seed(session, svg: str, subject: str) -> str:
     motif = normalize_motif_svg(svg, render_check=False)
-    upserted = await store.upsert_motif(
+    await store.upsert_motif(
         session, motif, facets={"subject": subject, "scope": "whole"}, source="seed"
     )
     await session.commit()
-    return upserted.id
+    return motif.id
 
 
 def test_import_strips_generator_boilerplate_but_keeps_painting_style():
@@ -82,6 +81,14 @@ async def test_motifs_generate_reuses_seeded(client, db_session):
     assert body["similarity"] == 1.0
 
 
+async def test_motifs_endpoints_reject_the_removed_style_hint(client):
+    # 문장이 모티프의 유일한 정체성이다 — 숨은 스타일 입력이 되살아나면 같은 문장의
+    # 생성 결과가 요청 맥락에 따라 갈라지므로 필드 자체를 계약으로 거절한다.
+    for path in ("/motifs/generate", "/motifs/candidates"):
+        resp = await client.post(path, json={"query": "dot", "style_hint": "line art"})
+        assert resp.status_code == 422, (path, resp.text)
+
+
 def _lattice_intent(motif_id: str) -> dict:
     return {
         "intent_version": 1,
@@ -104,7 +111,7 @@ def _lattice_intent(motif_id: str) -> dict:
                 "id": "m0",
                 "type": "motif",
                 "z_order": 1,
-                "params": {"motif_id": motif_id, "size_mm": 6.0, "color": "accent"},
+                "params": {"motif_id": motif_id, "size_mm": 6.0},
                 "placement": {"type": "lattice", "lattice": {"cell_w_mm": 12.0, "cell_h_mm": 12.0}},
             },
         ],
@@ -137,7 +144,6 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
                 "type": "motif",
                 "motif_index": 0,
                 "size_ratio": 0.12,
-                "color_indices": [1],
                 "placement": {
                     "type": "lattice",
                     "columns": 4,
@@ -187,7 +193,6 @@ async def test_prompt_generation_uses_authored_seed_without_override(app, client
             *,
             validate,
             motif_ids=(),
-            palette_constraint=None,
             **_kwargs,
         ):
             assert motif_ids == []
@@ -205,45 +210,18 @@ async def test_prompt_generation_uses_authored_seed_without_override(app, client
     assert response.json()["design"]["seed"] == 37
 
 
-async def test_motifs_candidates_falls_back_to_the_sentence_when_conversion_fails(
-    app, client, db_session
-):
-    """spec 변환은 검색을 막지 못한다 — 모델이 죽어도 문장 그대로 카탈로그를 찾는다."""
+async def test_motifs_candidates_searches_the_sentence_without_gemini(app, client, db_session):
+    """후보 검색은 사용자 문장을 그대로 쓰며 Gemini 변환에 의존하지 않는다."""
     mid = await _seed_dot(db_session)
 
-    class BrokenGemini:
+    class UnusedGemini:
         async def complete_model(self, *_args, **_kwargs):
-            raise AdapterClientError(
-                "down",
-                provider="gemini",
-                operation="generate_content",
-                reason_code="provider_5xx",
-            )
+            raise AssertionError("candidate search must not call Gemini")
 
-    app.state.adapters.gemini = BrokenGemini()
+    app.state.adapters.gemini = UnusedGemini()
     resp = await client.post("/motifs/candidates", json={"query": "dot", "top_k": 4})
     assert resp.status_code == 200, resp.text
     assert [candidate["motif_id"] for candidate in resp.json()["candidates"]] == [mid]
-
-
-async def test_motifs_candidates_searches_the_converted_spec(app, client, db_session):
-    mid = await _seed_dot(db_session)
-    seen: list[str] = []
-
-    class SpecGemini:
-        async def complete_model(self, prompt, schema, **_kwargs):
-            seen.append(prompt)
-            return schema.model_validate({"subject": "dot", "scope": "whole", "style": "flat"})
-
-    app.state.adapters.gemini = SpecGemini()
-    resp = await client.post(
-        "/motifs/candidates",
-        json={"query": "점무늬 하나 넣어줘", "top_k": 4, "style_hint": "minimal"},
-    )
-    assert resp.status_code == 200, resp.text
-    assert [candidate["motif_id"] for candidate in resp.json()["candidates"]] == [mid]
-    assert "점무늬 하나 넣어줘" in seen[0]
-    assert "minimal" in seen[0]
 
 
 async def test_motif_slot_replaces_the_layer_without_touching_a_model(client, db_session):

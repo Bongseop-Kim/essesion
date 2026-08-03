@@ -13,13 +13,12 @@ from worker.authoring.schema import (
     StripeLayerPlan,
     structural_fingerprint,
 )
-from worker.engine.constraints import PaletteConstraint
 from worker.engine.units import snap_angle, snap_spacing
 
 DEFAULT_TILE_MM = 48.0
 DEFAULT_DPI = 300
 PLAN_CONTRACT_VERSION = 3
-COMPILER_REVISION = "design-plan-v3.1"
+COMPILER_REVISION = "design-plan-v3.2"
 
 _DIRECTION_ANGLE: dict[PathDirection, float] = {
     "horizontal": 0.0,
@@ -37,7 +36,6 @@ class AuthoredDesign:
 
     intent: dict
     motif_resolutions: list[dict[str, object]] = field(default_factory=list)
-    motif_color_slots: dict[str, list[str]] = field(default_factory=dict)
     plan: dict | None = None
     structural_fingerprint: str | None = None
 
@@ -52,10 +50,6 @@ class PlanCompileError(ValueError):
 class _ResolvedMotifSource:
     motif_id: str
     resolution: dict[str, object] | None = None
-    # 카탈로그 메타데이터가 알려준 paint slot 수. 알 때만 color_indices 길이를
-    # 컴파일 단계에서 검증해 재시도 피드백으로 되돌린다 — 여기서 놓치면 해석 후
-    # 색 바인딩에서야 터져 요청 전체가 거부된다.
-    slot_count: int | None = None
 
 
 def _resolve_motif_sources(
@@ -126,7 +120,6 @@ def _resolve_motif_sources(
             if candidate in required_catalog_candidates:
                 verified_catalog_count += 1
             motif_id = str(candidate["motif_id"])
-            slot_count = candidate.get("slot_count")
             sources.append(
                 _ResolvedMotifSource(
                     motif_id=motif_id,
@@ -137,13 +130,6 @@ def _resolve_motif_sources(
                         "similarity": candidate.get("similarity"),
                         "match_type": candidate.get("match_type"),
                     },
-                    slot_count=(
-                        slot_count
-                        if isinstance(slot_count, int)
-                        and not isinstance(slot_count, bool)
-                        and slot_count > 0
-                        else None
-                    ),
                 )
             )
     required_inputs = set(range(1, len(motif_ids) + 1))
@@ -294,7 +280,6 @@ def compile_design_plan_v3(
     *,
     motif_ids: list[str] | None = None,
     catalog_candidates: list[dict[str, object]] | None = None,
-    palette_constraint: PaletteConstraint | None = None,
     tile_mm: float = DEFAULT_TILE_MM,
     dpi: int = DEFAULT_DPI,
     seed: int | None = None,
@@ -312,28 +297,6 @@ def compile_design_plan_v3(
         motif_ids=exact_ids,
         catalog_candidates=candidates,
     )
-
-    palette = palette_constraint or PaletteConstraint()
-    if palette.mode == "fixed" and plan.colors != palette.colors:
-        raise PlanCompileError("plan colors must exactly match the fixed palette")
-    if palette.mode == "fixed":
-        guaranteed_visible = {plan.ground_color_index}
-        for structure in plan.layers:
-            if structure.type == "stripe":
-                guaranteed_visible.update(band.color_index for band in structure.bands)
-            elif structure.color_indices is None:
-                raise PlanCompileError("fixed palette motif layers must declare color_indices")
-            else:
-                # Every motif has at least one paint slot. Additional indexes are used only
-                # when the resolved motif exposes more slots, so they cannot satisfy a fixed
-                # palette visibility guarantee by themselves.
-                guaranteed_visible.add(structure.color_indices[0])
-        missing = sorted(set(range(len(plan.colors))) - guaranteed_visible)
-        if missing:
-            raise PlanCompileError(
-                "fixed palette colors must all be guaranteed visible; missing color indexes: "
-                + ", ".join(str(index) for index in missing)
-            )
 
     slots_by_index = _slot_ids(plan)
     slots = [
@@ -353,7 +316,6 @@ def compile_design_plan_v3(
     stripe_index = 0
     motif_layer_index = 0
     motif_resolutions: list[dict[str, object]] = []
-    motif_color_slots: dict[str, list[str]] = {}
 
     for structure in plan.layers:
         if structure.type == "stripe":
@@ -382,33 +344,8 @@ def compile_design_plan_v3(
             continue
 
         source = sources[structure.motif_index]
-        if (
-            structure.color_indices is not None
-            and source.slot_count is not None
-            and len(structure.color_indices) != source.slot_count
-        ):
-            raise PlanCompileError(
-                f"motif layer for motif_index {structure.motif_index}: color_indices "
-                f"must contain exactly {source.slot_count} entries (slot_count is "
-                f"{source.slot_count}), or omit color_indices to keep the motif's "
-                "original colors"
-            )
         layer_id = f"motif_{motif_layer_index}"
         motif_layer_index += 1
-        colors = (
-            [slots_by_index[index] for index in structure.color_indices]
-            if structure.color_indices is not None
-            else [
-                next(
-                    (
-                        slot_id
-                        for index, slot_id in enumerate(slots_by_index)
-                        if index != plan.ground_color_index
-                    ),
-                    slots_by_index[plan.ground_color_index],
-                )
-            ]
-        )
         layers.append(
             {
                 "id": layer_id,
@@ -417,7 +354,6 @@ def compile_design_plan_v3(
                 "params": {
                     "motif_id": source.motif_id,
                     "size_mm": round(tile_mm * structure.size_ratio, 6),
-                    "color": colors[0],
                 },
                 "placement": _compile_placement(
                     structure.placement,
@@ -426,8 +362,6 @@ def compile_design_plan_v3(
                 ),
             }
         )
-        if structure.color_indices is not None:
-            motif_color_slots[layer_id] = colors
         if source.resolution is not None:
             motif_resolutions.append({"layer_id": layer_id, "scope": "whole", **source.resolution})
 
@@ -442,7 +376,6 @@ def compile_design_plan_v3(
             "layers": layers,
         },
         motif_resolutions=motif_resolutions,
-        motif_color_slots=motif_color_slots,
         plan=plan.model_dump(mode="json"),
         structural_fingerprint=structural_fingerprint(plan),
     )

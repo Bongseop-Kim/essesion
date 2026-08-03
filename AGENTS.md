@@ -59,6 +59,12 @@ uv run python apps/api/scripts/seed.py
 uv run python apps/worker/scripts/seed_motifs.py
 ```
 
+스토어 첫 진입 갤러리 시드 — `seed_motifs.py` 이후에 실행 (외부 API 없이 결정론 엔진으로 생성)
+
+```bash
+uv run python apps/worker/scripts/seed_design_examples.py
+```
+
 오소링 예시 시드 — Vertex ADC/GCP project 필요
 
 ```bash
@@ -83,6 +89,12 @@ docker compose exec -T db psql -U essesion -d essesion -c "select key, value fro
 
 ```bash
 docker compose exec -T db psql -U essesion -d essesion -c "select source, count(*) from motifs group by source"
+```
+
+갤러리 시드 확인
+
+```bash
+docker compose exec -T db psql -U essesion -d essesion -c "select ordinal, name from design_examples where published order by ordinal"
 ```
 
 ### 서버 실행

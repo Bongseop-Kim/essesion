@@ -1,6 +1,6 @@
 # worker 명세 1/3 — 결정론 SVG 엔진 (seamless-tile 추출)
 
-원본: `../seamless-tile`의 `app/engine/`, `app/render/{svg,sanitize}.py`, `app/validate/intent.py`. **결정론 계약: (intent, seed, colorway, registry_version)이 같으면 SVG 바이트 동일.** 전 경로 순수 함수 — 전역 random·내장 hash() 사용 금지. 수식·상수는 원문 그대로, 어기면 byte-identical 대조 테스트가 깨진다.
+원본: `../seamless-tile`의 `app/engine/`, `app/render/{svg,sanitize}.py`, `app/validate/intent.py`. **결정론 계약: (intent, seed, colorway, registry_version)이 같으면 SVG 바이트 동일.** 전 경로 순수 함수 — 전역 random·내장 hash() 사용 금지. 모티프 색 경로는 concrete-color symbol로 의도적으로 분기했으며 현재 essesion 골든이 기준선이다.
 
 관련 문서: [worker-motifs.md](./worker-motifs.md), [worker-pipeline.md](./worker-pipeline.md)
 
@@ -21,7 +21,7 @@
 레이어 공통: `id, type, params, z_order, opacity(0..1, 기본 1.0), clip?`. 종류:
 - **background**: params.color(슬롯 id)
 - **stripe**: params `{angle, period_mm(gt0), bands[1..256]}`, Band=`{offset_mm, width_mm(gt0), color}`
-- **motif**: params `{motif_id, size_mm(gt0), color|colors}` — **color(단색 슬롯)와 colors(멀티슬롯 매핑) 중 정확히 하나**. + placement?
+- **motif**: params `{motif_id, size_mm(gt0)}`. 색은 registry symbol의 concrete paint로 고정된다. + placement?
 
 Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 spec 정확히 하나(경합 spec 거부, path_following은 셋 다 없어야):
 - LatticeSpec: cell_w_mm/cell_h_mm(gt0), drop_fraction?(0<x<1), drop_axis ∈ {row, column}(기본 column), offset_x_mm/offset_y_mm(기본 0 — 격자 전체의 위상 이동, 두 모티프 슬롯을 엇갈리게 놓는 축)
@@ -43,8 +43,8 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 ```
 - W=H=tile_mm(fmt). pattern: `<pattern id="tile" patternUnits="userSpaceOnUse" width height>{content}</pattern>`. defs 비면 블록 생략.
 - **요소 순서**: layers를 `(z_order, id)`로 정렬 → fragment 순서. opacity≠1.0이면 `<g opacity="{fmt}">` 래핑. symbol_defs는 dict 삽입순(정렬 layer 순회 중 최초 등장 시 setdefault 1회).
-- **멀티컬러 `<use>`**: instance-major/slot-minor — 인스턴스마다 슬롯 심볼들을 color_slots 순으로. 단색은 `<use href="#motif-{id}" color="{c}" transform="{t}"/>`.
-- id: pattern `tile`, 단색 심볼 `motif-{id}`, 슬롯 심볼 `motif-{id}-s{k}`.
+- **모티프 `<use>`**: symbol은 최초 등장 시 한 번만 등록하고 각 인스턴스는 `<use href="#motif-{id}" transform="{t}"/>` 하나로 렌더한다. `color` 속성을 주입하지 않는다.
+- id: pattern `tile`, 모티프 심볼 `motif-{id}`.
 - **인스턴스 transform**: `translate(x y) rotate(deg) scale(size_mm/extent)` (+ anchor≠(0,0)이면 `translate(-ax -ay)`), extent = max(bbox 폭, 높이).
 - **수치 포매팅 `fmt(v)`** (byte-identical 핵심): `f"{float(v):.4f}"`(round-half-to-even) → rstrip("0").rstrip(".") → 빈/"-0"/"-"이면 "0".
 - **2MB 캡**: sanitize 재파싱 **전에** `len(doc.encode("utf-8")) > max_svg_bytes(2_000_000)` → ValueError → `design_invalid` 422.
@@ -66,8 +66,8 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 ## 4. compose_design — 디자인 1개 합성
 
 원본의 후보 팬아웃(layout 변이 × colorway × seed로 최대 8개)은 **폐기됐다**. 후보 선택 UI가
-없으므로 변주 축도 없다. 남은 계약은 `compose_design(intent, *, seed, colorway, motifs,
-palette_constraint) -> ComposedDesign` 하나다.
+없으므로 변주 축도 없다. 남은 계약은 `compose_design(intent, *, seed, colorway, motifs)
+-> ComposedDesign` 하나다.
 
 - **colorway 선택**: 요청이 지정하면 그것만. 미지정이면 원본 rank 1위와 같은 결과가 나오도록
   **distinct 해석색 수가 가장 적은 colorway, 동수면 id 순**을 고른다.
@@ -91,27 +91,25 @@ palette_constraint) -> ComposedDesign` 하나다.
 
 - Palette 검증: slot/colorway id 중복 금지, **`default` colorway 필수**, 각 colorway는 선언 슬롯 전부를 정확히 매핑(누락·미지 모두 에러).
 - 슬롯 hex는 프리뷰용 비권위 — 출력색은 항상 colorway 매핑 해석(`resolve_color(slot, cw?)`, cw 없으면 default).
-- 멀티컬러: `colors`의 키 집합 == motif.color_slots(전 슬롯 정확히 1회). 슬롯 심볼은 활성 토큰→currentColor, 나머지→none — `fill="sK"`/`stroke="sK"` **정확일치 치환**(닫는 따옴표 포함 — s1/s10 충돌 방지).
+- colorway는 background와 stripe slot만 해석한다. 모티프의 concrete paint는 colorway와 독립적이다.
 - `distinct_colors(cw)` = 해석색 집합(colorway 자동 선택 기준). 속성 삽입 시 html.escape.
 
 ## 7. repro 메타
 
 frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), registry_version, layout_id}`. HTTP 응답에는 미포함 — 생성 로그(`seamless_generation_logs.design`)에만 `{id, layout_id, source_fidelity("vector"), colorway_id, seed, svg, png_object_key, intent}` 단일 객체로 저장한다.
 
-## 7.1 구조화된 생성 제약
+## 7.1 생성 경계의 결정론 가드
 
-`POST /generate`는 프롬프트와 별도로 색 지정만 구조 계약으로 받는다. 크기·밀도·배치·방향을
-UI 노브로 받던 4축 설정은 전 계층에서 폐기됐다 — 그 축은 입력창 문장 → 구성
-patch(`worker-pipeline.md`)가 바꾼다. 모델은 unknown field를 거부한다.
+`POST /generate`는 구조화된 사용자 제약을 더 이상 받지 않는다. 크기·밀도·배치·방향을 UI
+노브로 받던 4축 설정과 색 지정(fixed palette)은 전 계층에서 폐기됐다 — 색을 포함한 그 축들은
+입력창 문장 → 구성 patch(`worker-pipeline.md`)가 바꾼다. 모델은 unknown field를 거부하므로
+옛 `palette` 필드를 보내면 422다.
 
-```json
-{"palette": {"mode": "fixed", "colors": ["#10243A", "#EFE6D4"]}}
-```
+경계에 남은 기계는 격자 겹침 클램프 하나뿐이다: 격자 배치 모티프의 `size_mm`이 셀의 1.15배를
+넘으면 상한으로 줄이고 경고를 남긴다(저작 모델이 크기와 행·열을 서로 모르는 필드로 내보내므로).
 
-- palette: `auto`는 colors가 없어야 한다. `fixed`는 중복 제거 후 2~5색이며 `#RGB`/`#RRGGBB`를 uppercase `#RRGGBB`로 정규화한다. 엔진이 사용 중인 palette slot을 요청 순서대로 결정적으로 치환하고 colorway를 `default` 하나로 고정한다. 요청색 전부가 실제 layer에서 사용될 slot 수가 없으면 422로 실패한다.
-- Gemini는 같은 색 제약을 semantic DesignPlan 힌트로도 받지만 권위 경계는 결정적 compiler와 엔진이다. compiler가 만든 intent에 제약을 적용한 뒤 다시 충족을 검사하며, 표현 불가능하거나 후단에서 유실되면 임의 fallback 없이 단계별 422다.
-- 격자 겹침 클램프는 품질 가드로 남는다: 격자 배치 모티프의 `size_mm`이 셀의 1.15배를 넘으면 상한으로 줄이고 경고를 남긴다(저작 모델이 크기와 행·열을 서로 모르는 필드로 내보내므로).
-- `seamless_generation_logs.intent`에는 `{design, palette, resolved_plan}`(+구성 patch 런은 `patch`, 모티프 슬롯 교체 런은 `motif_slot`)이 기록된다 — 전부 단수 키다.
+`seamless_generation_logs.intent`에는 `{design, resolved_plan}`(+구성 patch 런은 `patch`,
+모티프 슬롯 교체 런은 `motif_slot`)이 기록된다 — 전부 단수 키다.
 
 ## 8. 엔진 설정·상수
 
@@ -122,6 +120,6 @@ Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2
 ## 9. 재현 함정 (원본 코드가 명시한 것)
 
 1. `fmt`의 정확한 순서(.4f → 후행 0/점 제거 → -0 정규화)를 지킬 것.
-2. 멀티컬러 use 순서(instance-major/slot-minor)와 슬롯 토큰 정확일치 치환.
+2. 모티프 symbol은 한 번만 등록하고 모든 인스턴스가 같은 concrete-color symbol을 참조한다.
 3. sanitize는 검증만 하고 문자열을 재직렬화하지 않는다.
 4. 결정론은 동일한 Pillow·렌더러·에셋 버전이 전제다. Pillow는 `uv.lock`으로 고정되지만 librsvg 시스템 패키지 버전 고정은 남아 있다(ARCHITECTURE §7·§9.2).

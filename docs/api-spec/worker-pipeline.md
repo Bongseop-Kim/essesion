@@ -22,25 +22,17 @@
 - **weave 타일링**: `nx=max(1,round(w/tw))` 정수 복제 후 목표 크기로 LANCZOS 리사이즈(부분 크롭 금지 — seam 유지).
 - **texture 멀티플라이**: point LUT `v → clamp(255 - (255-v)·strength)` 후 `ImageChops.multiply(design, tex)`.
 - **세그멘테이션**: `sorted(slot_ids)`에 HSV 최대분산 라벨색 부여 → 라벨 colorway로 compose+rasterize → `quantize(dither=NONE)` → 슬롯 인덱스 P 이미지. material_map은 슬롯 마스크별 weave 합성(영역 disjoint — 순서 무관).
-- **motif thread inlay**(yarn_dyed): motif 마스크를 **3×3 타일링 후 대각 스캔, 중앙 crop**(경계 넘는 모티프의 실 위상 연속) + 실 드로잉은 3× 슈퍼샘플 후 LANCZOS 축소. 실 간격: `target=max(2.0, 0.70·dpi/25.4)`, `step=Fraction(gcd(w,h), max(1, round(gcd/target)))`(유리수 — 소수 타일서도 위상 불변), `width=max(1, min(ceil(step)-1, round(step·0.82)))`.
+- **motif thread inlay**(yarn_dyed): 가시 모티프 마스크는 **기하학**이다 — 팔레트 슬롯을 전부 검정, 모티프 심볼의 paint를 전부 흰색(`fill="none"`은 보존)으로 치환한 마스크 문서를 같은 z-order로 compose+rasterize한 뒤 검정 위에 알파 합성해 L 마스크로 쓴다(`render/motif_mask.py`, MASK_THRESHOLD로 이진화). 위 레이어의 오클루전은 z-order상 자연히 반영되고, 색 대비에는 의존하지 않는다 — 모티프 색이 바탕색·팔레트 색과 같아도 실루엣이 사라지거나 쪼개지지 않는다(모티프 색은 팔레트와 무관하게 고정되므로 렌더 픽셀 차이 기반 마스크는 성립하지 않는다). 마스크 문서는 내부 중간물이라 paint 치환이 디자인 SVG 결정론 계약을 건드리지 않는다. 마스크를 **3×3 타일링 후 대각 스캔, 중앙 crop**(경계 넘는 모티프의 실 위상 연속)하고 실 드로잉은 3× 슈퍼샘플 후 LANCZOS 축소한다. 실 색 소스는 전체 렌더라 모티프 고유색을 보존한다. 마스크가 비어도(모티프가 완전히 가려짐) relief 경로는 그대로 탄다 — 보이지 않는 레이어의 유무가 슬롯 경계 emboss를 켜고 끄지 않는다. 실 간격: `target=max(2.0, 0.70·dpi/25.4)`, `step=Fraction(gcd(w,h), max(1, round(gcd/target)))`(유리수 — 소수 타일서도 위상 불변), `width=max(1, min(ceil(step)-1, round(step·0.82)))`.
 - **relief(슬롯 경계 emboss)**: `d=max(1, round(0.17·dpi/25.4))`; rim = `difference(idx, offset(idx, ±d, ±d))` — **wrap-around offset이라 seam-safe**(blur 금지); weave 휘도로 변조; `k=min(0.6, 0.26·relief)` white/black blend 합성.
 - 출력: PNG `dpi=(dpi,dpi)`.
 
-### compose+rasterize 재실행 지점 (재설계 대상)
+### compose+rasterize 재실행 지점
 
-원본은 rasterize를 `_render_design`(디자인)과 `_segment`(라벨) 두 함수에서만 호출하지만, 최악 경로(yarn_dyed+motif+material_map)에서 **5회** 실행:
+- print: 전체 실색 1회.
+- yarn_dyed, 모티프 없음: 전체 실색 1회 + `material_map` 또는 relief가 필요할 때 라벨 1회.
+- yarn_dyed, 모티프 있음: 전체 실색 + base 실색 + 모티프 마스크 3회 + `material_map` 또는 relief가 필요할 때 base 라벨 1회.
 
-| # | 대상 intent | colorway |
-|---|---|---|
-| 1 | 전체 | 실제 |
-| 2 | 전체 | 라벨(세그) |
-| 3 | motif-only(호스트 opacity 0) | 라벨 |
-| 4 | base(모티프 제거) | 실제 |
-| 5 | base(모티프 제거) | 라벨 (material_map 시) |
-
-print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회.
-
-**재설계 지침(ARCHITECTURE §7 — 승계 금지)**: #1·#2는 이미 공유되고 있음. #3~#5는 서로 다른 SVG 문서라 단순 캐시로 못 줄인다 — **전체 intent 한 번의 세그멘테이션에서 motif/base 마스크를 파생**하는 구조로 바꿔 3회를 1~2회로 축소. 요청 내 중간 산출물(베이스 SVG·마스크 래스터)은 명시적으로 전달·재사용. 병목은 subprocess 래스터(full-tile×300dpi×5회)이지 Pillow 합성이 아님.
+최악 경로는 4회다. 마스크 렌더 1회는 색 대비 의존을 없앤 대가이며(모티프 색 고정 계약에서 픽셀 차이 마스크는 오답), 마스크와 base 라벨을 후속 합성에 재사용하므로 motif-only·슬롯 별칭 렌더는 없다.
 
 ## 3. weave 에셋
 
@@ -62,16 +54,16 @@ print=1회, yarn_dyed 모티프 없음=2회, +모티프=4회, +material_map=5회
 api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinity 없는 JSON이어야 한다. 세션 PATCH·generate·motif generate의 seed는 DB `BIGINT`와 같은 signed int64 범위로 제한해 워커/DB 호출 전에 422로 거부한다.
 
 **worker-generate** (1vCPU/1Gi, 동시성 높게, 외부 API 바운드):
-- `POST /generate` — 무세션 worker 계약. API가 부여한 필수 `run_id`와 함께 세 입력 중 하나를 받으며 별도 mode 필드는 두지 않는다: **최초 저작**(`prompt`와 선택적 exact `motif_ids` 최대 2개), **구성 수정**(`prompt` + `conversation_context`), `intent` 재렌더(새 seed 변형 또는 `motif_slot{slot,motif_id}` 모티프 슬롯 교체). 최초 저작은 `palette`와 선택된 private motif, 정확도 게이트를 통과한 공개 catalog hit만 쓰며 catalog miss에서 모티프를 생성하지 않는다. `motif_slot`은 `intent`와만 함께 올 수 있고 모델을 호출하지 않는다 — 슬롯의 `motif_id`만 결정적으로 바꾸고(빈 슬롯 2는 기존 모티프 레이어에서 같은 격자·반 칸 엇갈림으로 파생, 모티프가 0개면 기본 격자 한 장을 만든다), 카탈로그 기준으로 paint slot을 다시 바인딩한 뒤 재합성한다. 같은 입력은 byte-identical SVG다. `reference_images`와 `motif_provenance`는 이 계약에 없고 디자인 생성은 Recraft를 호출하지 않는다. 선택적 `session_id`·`user_id`는 로그 표식 전용이다 — worker가 `seamless_generation_logs`에 그대로 남겨 admin이 요청자·세션 턴과 상관하며, 과금·모티프 유입 provenance가 아니다. **응답은 원본과 달리 풍부하게**: 내부 서비스이므로 `design{id, layout_id, source_fidelity, colorway_id, seed, svg, png_object_key}` + `{generation_log_id, request_id, registry_version, engine_version, intent, plan, structural_fingerprint, warnings, note}` 반환 — api는 `generation_log_id == run_id`를 검증하고 공개 응답·assistant turn에는 `run_id`만 노출한다.
+- `POST /generate` — 무세션 worker 계약. API가 부여한 필수 `run_id`와 함께 세 입력 중 하나를 받으며 별도 mode 필드는 두지 않는다: **최초 저작**(`prompt`와 선택적 exact `motif_ids` 최대 2개), **구성 수정**(`prompt` + `conversation_context`), `intent` 재렌더(새 seed 변형 또는 `motif_slot{slot,motif_id}` 모티프 위치 교체). 최초 저작은 `palette`와 선택된 private motif, 정확도 게이트를 통과한 공개 catalog hit만 쓰며 catalog miss에서 모티프를 생성하지 않는다. `motif_slot`은 `intent`와만 함께 올 수 있고 모델을 호출하지 않는다 — 위치의 `motif_id`만 결정적으로 바꾸고(빈 위치 2는 기존 모티프 레이어에서 같은 격자·반 칸 엇갈림으로 파생, 모티프가 0개면 기본 격자 한 장을 만든다) concrete-color symbol로 재합성한다. 같은 입력은 byte-identical SVG다. `reference_images`와 `motif_provenance`는 이 계약에 없고 디자인 생성은 Recraft를 호출하지 않는다. 선택적 `session_id`·`user_id`는 로그 표식 전용이다 — worker가 `seamless_generation_logs`에 그대로 남겨 admin이 요청자·세션 턴과 상관하며, 과금·모티프 유입 provenance가 아니다. **응답은 원본과 달리 풍부하게**: 내부 서비스이므로 `design{id, layout_id, source_fidelity, colorway_id, seed, svg, png_object_key}` + `{generation_log_id, request_id, registry_version, engine_version, intent, plan, structural_fingerprint, warnings, note}` 반환 — api는 `generation_log_id == run_id`를 검증하고 공개 응답·assistant turn에는 `run_id`만 노출한다.
 - **구성 수정은 patch 계약이다**(`conversation_context{current_intent, history}`). 저작 모델은 plan을 다시 쓰지 않고 `engine.patch.DesignPatchV1`(배경색·줄무늬·배치·모티프 크기·팔레트 슬롯 + 고객 노출용 `note`) 하나만 채우며, 스키마에 모티프 정체성 필드가 없어 모티프 교체는 타입상 불가능하다. 적용은 결정론(`apply_patch`)이고 격자 셀·밴드·크기를 엔진 불변식 안으로 정규화하므로 자기수정 재시도 라운드가 없다(1콜). 예시 검색·모티프 해석·plan 스냅샷을 타지 않으므로 patch 런의 `plan`·`structural_fingerprint`는 null이고 스텝 복원 정본은 intent다.
 - 요청이 patch로 표현할 수 없으면(모티프 교체 등) worker는 **HTTP 200 `{status:"scope_rejected"}`**를 돌려준다. 디자인을 만들지 않았으므로 api는 `work_id` 멱등 환불로 과금을 되돌리고, 요청 턴을 지우고 `context_version`을 원복해 공개 응답 `200 {rejected:"motif"}`만 내린다 — 이력에 스텝이 남지 않는다.
 - `warnings`는 `[{code, message}]`다. 엔진·리졸버의 영문 진단 문자열은 로그·`diagnostics`의 정본으로 남기고, `worker.warnings.WARNING_MESSAGES`에 한글 문구가 있는 코드만 응답에 담는다(코드별 1건). 매핑에 없는 경고는 고객에게 노출하지 않는다.
 - 사용자 수정 가능한 422는 `{detail:{code,stage,message}}` 고정 계약이다. code는 `constraint_conflict|authoring_invalid|semantic_mismatch|intent_invalid|design_invalid`, stage는 각각 `constraints|authoring|authoring|intent|design`다. exact motif가 2개를 넘거나 strict request에 `reference_images` 같은 계약 밖 필드가 오면 worker 호출·과금 전에 일반 422로 거부한다. 원문 provider 오류는 노출하지 않고 code/stage별 한국어 메시지로 투영하며 과금 뒤 generate worker 실패는 기존과 같이 환불한다.
 - 프리뷰 PNG는 GCS `previews/{request_id}/{design_id}/{sha256(png)[:16]}.png`에 create-only 업로드(`if_generation_match=0`)한다(공개 assets 버킷, best-effort — 실패 시 key null+경고). 같은 내용의 기존 객체로 인한 412는 멱등 성공이며 덮어쓰지 않는다. 호출자가 `X-Request-ID`를 재사용해도 다른 PNG는 다른 키가 된다.
-- `POST /motifs/candidates` — 문장 → `MotifSpec` → 카탈로그 재사용 후보 나열(모델 1콜, Recraft 미호출 → 무과금). api의 `motifs/search`가 이걸 부른다. 여기서 "후보"는 카탈로그 매칭 후보이며 폐기된 디자인 후보와 무관하다. `POST /motifs/generate` — Recraft 생성 승인 실행. 예산 검사·차감은 **api가 세션 카운터(design_sessions.recraft_used)로 수행 후 호출**(worker는 검사 안 함, 세션당 3회).
-- `POST /motifs/import` — 모든 user SVG를 공통 sanitize/normalize/content-hash 경계로 처리하되 worker DB에는 쓰지 않고 `{motif_id,symbol,color_slots,bbox,anchor,preview_svg}`를 반환한다. API가 Motif+사용자 소유 링크를 하나의 transaction으로 저장한다. `POST /motifs/text-preview`와 `/motifs/photo-preview`는 각각 번들 폰트 path 변환, 제한적 로컬 배경 분리+VTracer 결과를 normalized standalone SVG로 만들고 같은 import 경계로 넘긴다. CPU 작업은 thread pool에서 실행한다.
-- `POST /palette/extract` — private image에서 2~5색을 결정적으로 추출하되 사진은 디자인 생성으로 전달하지 않는다. `POST /ideas` — 현재 prompt/exact motifs/palette를 Gemini에 전달해 3~4개 편집 초안만 반환하며 이미지·intent·generation log를 만들지 않는다. helper의 rate limit·무료 정책은 api 소유다.
-- resolve가 끝난 모티프 색은 provider 호출 없이 결정적으로 bind한다. 멀티슬롯은 일반 palette에서 plan 색 생략 시 원색을 보존하고, 명시 재색·fixed palette에서는 semantic slot-label rank를 쓰며, 라벨 없는 legacy는 DFS 위치+모듈로를 유지한다. 단일슬롯은 ground와 실제 HEX가 겹치지 않는 다음 팔레트 색을 고른다.
+- `POST /motifs/candidates` — 최대 200자의 문장을 그대로 카탈로그 검색에 사용해 재사용 후보를 나열한다(모델·Recraft 미호출 → 무과금). api의 `motifs/search`가 이걸 부른다. 여기서 "후보"는 카탈로그 매칭 후보이며 폐기된 디자인 후보와 무관하다. `POST /motifs/generate` — 같은 검색의 miss에서만 Recraft 생성 승인 실행. 예산 검사·차감은 **api가 세션 카운터(design_sessions.recraft_used)로 수행 후 호출**(worker는 검사 안 함, 세션당 3회).
+- `POST /motifs/import` — 모든 user SVG를 공통 sanitize/normalize/content-hash 경계로 처리하되 worker DB에는 쓰지 않고 `{motif_id,symbol,bbox,anchor,preview_svg}`를 반환한다. API가 Motif+사용자 소유 링크를 하나의 transaction으로 저장한다. `POST /motifs/text-preview`와 `/motifs/photo-preview`는 각각 번들 폰트 path 변환, 제한적 로컬 배경 분리+VTracer 결과를 concrete-color standalone SVG로 만들고 같은 import 경계로 넘긴다. CPU 작업은 thread pool에서 실행한다.
+- `POST /ideas` — 현재 prompt와 exact motifs를 Gemini에 전달해 3~4개 편집 초안만 반환하며 이미지·intent·generation log를 만들지 않는다. helper의 rate limit·무료 정책은 api 소유다.
+- resolve가 끝난 모티프는 concrete-color symbol을 그대로 사용한다. Plan·intent·구성 patch는 모티프 색을 bind하거나 재색하지 않는다.
 - seamless_generation_logs INSERT는 워커가 직접(원 동작 — system of record, SVG 재-export 근거). `diagnostics` JSONB에는 mode(`prompt|patch|variation|motif_slot`), 모델·prompt revision, 저작 시도, 적용한 patch, 단계별 시간, 모티프별 exact/catalog 결과와 실패 code/stage/provider/operation/reason/status를 저장한다. 디자인 생성 진단에는 Recraft 호출·참고 이미지 바이트 관측값이 없다. `scope_rejected`도 결과가 없는 시도이므로 `status=error, error_type=ScopeRejected` 한 행을 남긴다(과금은 api가 되돌린다). worker JSON 로그에도 같은 안전한 provider 식별 필드만 넣으며 provider 응답·인증 header·프롬프트 원문·내부 예외는 넣지 않는다.
 
 **worker-finalize** (2vCPU/4Gi, 동시성 1~2, dpi 상한 600 — 엔진 기본 300):

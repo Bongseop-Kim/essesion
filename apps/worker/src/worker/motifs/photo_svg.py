@@ -97,45 +97,6 @@ def decode_user_image(data: bytes, declared_type: str) -> Image.Image:
         raise ValueError("image could not be decoded") from exc
 
 
-def _opaque_rgb_sample(
-    image: Image.Image, *, max_pixels: int = 65_536
-) -> list[tuple[int, int, int]]:
-    pixels = cast(Sequence[RGBA], image.get_flattened_data())
-    stride = max(1, math.ceil(len(pixels) / max_pixels))
-    return [(r, g, b) for r, g, b, a in pixels[::stride] if a >= 16]
-
-
-def extract_palette(data: bytes, declared_type: str, color_count: int) -> list[str]:
-    if not 2 <= color_count <= 5:
-        raise ValueError("color_count must be between 2 and 5")
-    image = decode_user_image(data, declared_type)
-    image.thumbnail((256, 256), Image.Resampling.LANCZOS)
-    sample = _opaque_rgb_sample(image)
-    if len(sample) < 2:
-        raise ValueError("image does not contain enough visible pixels for a palette")
-    strip = Image.new("RGB", (len(sample), 1))
-    strip.putdata(sample)
-    quantized = strip.quantize(
-        colors=color_count,
-        method=Image.Quantize.MEDIANCUT,
-        dither=Image.Dither.NONE,
-    )
-    palette = cast(list[int], quantized.getpalette())
-    counts = cast(list[tuple[int, int]], quantized.getcolors(maxcolors=color_count) or [])
-    colors: list[tuple[int, str]] = []
-    for population, index in counts:
-        offset = index * 3
-        rgb = tuple(palette[offset : offset + 3])
-        colors.append((population, normalize_hex("#" + "".join(f"{c:02x}" for c in rgb))))
-    ordered: list[str] = []
-    for _population, color in sorted(colors, key=lambda item: (-item[0], item[1])):
-        if color not in ordered:
-            ordered.append(color)
-    if len(ordered) < 2:
-        raise ValueError("image does not contain at least two distinct representative colors")
-    return ordered[:color_count]
-
-
 def _border_indices(width: int, height: int) -> list[int]:
     indices = list(range(width))
     if height > 1:

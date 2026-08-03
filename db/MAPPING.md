@@ -1,6 +1,6 @@
 # 기존 → 새 스키마 매핑 표
 
-기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (베이스라인 `dadd999bf858`, 현재 head `6c4f2a9d1b7e`).
+기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (단일 베이스라인 `a3f1c05e7d24` = 현재 head).
 
 ## 1. 테이블 매핑
 
@@ -34,7 +34,7 @@
 | seamless_generation_logs | seamless_generation_logs | admin 로그 뷰어 + SVG 재-export system of record. 입력 타입은 `prompt\|intent`만 허용하고 참고 이미지 여부·바이트 컬럼은 두지 않는다 |
 | seamless_sessions | **design_sessions** (재설계) | thread_id(text PK)→id(uuid). status/seed/colorway/registry_version/current_intent 승계, user_id NOT NULL화. **예산 카운터 recraft_used 추가** — 프로세스-로컬 budget 대체(Postgres 공유 카운터, ARCHITECTURE §7). finalize는 세션 카운터 대신 계정당 24시간 쿼터(generation_jobs 카운트, worker-pipeline.md §5) — finalize_used 컬럼은 도입 후 제거됨 |
 | (없음) | **design_session_turns / design_turn_attachments** (신규) | API 소유 대화 이력. 첨부는 턴에서 사용한 concrete motif ID·이름·순서만 저장하며 사진/image/purpose 컬럼은 없다 |
-| (이전 개발 스키마) seamless_generation_attachments | — (드롭) | 디자인 참고 사진 레거시와 전용 staging image 행을 `6c4f2a9d1b7e`에서 삭제 |
+| (이전 개발 스키마) seamless_generation_attachments | — (드롭) | 디자인 참고 사진을 걷어내면서 제거 — 스쿼시된 베이스라인에는 처음부터 없다 |
 | **checkpoints / checkpoint_blobs / checkpoint_writes / checkpoint_migrations** | — (드롭) | LangGraph 미승계. 턴 이력은 **design_session_turns**(신규, session_id+seq unique)로 api가 소유 |
 | **ai_generation_logs** | — (드롭) | generate-tile 잔재 — seamless 워커가 대체 |
 | **design_chat_sessions / design_chat_messages** | — (드롭) | generate-tile 기반 /design 구현체 — /design은 신규 설계(보존 예외) |

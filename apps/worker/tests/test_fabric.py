@@ -1,8 +1,8 @@
 """fabric finalize 픽셀 결정론·seam·relief·모티프 인레이 (worker-pipeline.md §2·§5).
 
-원본 seamless-tile test_fabric의 명세를 재현하되 essesion 재설계(렌더 2~3회, 별칭 세그)를
-검증한다. 에셋 비의존을 위해 합성 64² 저주파 weave 7종을 `_weave_bytes` monkeypatch로
-주입한다(실 렌더는 rsvg-convert 필요 — 없으면 skip).
+원본 seamless-tile test_fabric의 명세를 재현하되 essesion 재설계(렌더 1~4회, 라벨 세그,
+기하학 모티프 마스크)를 검증한다. 에셋 비의존을 위해 합성 64² 저주파 weave 7종을
+`_weave_bytes` monkeypatch로 주입한다(실 렌더는 rsvg-convert 필요 — 없으면 skip).
 """
 
 import io
@@ -19,12 +19,26 @@ from worker.db import get_session
 from worker.engine.validate import validate_intent
 from worker.integrations import DryRunObjectStore
 from worker.main import create_app
-from worker.render import fabric, inlay, weave
+from worker.motifs.registry import MotifDef, register_motif
+from worker.render import fabric, inlay, motif_mask, weave
 from worker.render import segment as segment_mod
 
 from .intent_helpers import register_test_motifs
 
 register_test_motifs()
+
+# circle과 같은 원 geometry에 색만 다른 모티프 — 마스크의 색 비의존 고정용.
+# pale은 _low_contrast_intent의 ground와 Δ≤3, twin은 accent와 완전히 같은 색이다.
+for _motif_id, _fill in (("circle_pale", "#f2ede3"), ("circle_twin", "#8fb4c9")):
+    register_motif(
+        MotifDef(
+            id=_motif_id,
+            symbol=(
+                f'<symbol id="motif-{_motif_id}" overflow="visible">'
+                f'<circle cx="0" cy="0" r="0.5" fill="{_fill}"/></symbol>'
+            ),
+        )
+    )
 
 pytestmark = pytest.mark.skipif(
     which("rsvg-convert") is None and which("resvg") is None,
@@ -125,7 +139,7 @@ def _yarn_motif_intent(tile_mm=24, dpi=150, size_mm=6, phase_mm=0.0):
                 "id": "dots",
                 "type": "motif",
                 "z_order": 1,
-                "params": {"motif_id": "circle", "size_mm": size_mm, "color": "accent"},
+                "params": {"motif_id": "circle", "size_mm": size_mm},
                 "placement": {
                     "type": "lattice",
                     "phase_mm": phase_mm,
@@ -134,6 +148,55 @@ def _yarn_motif_intent(tile_mm=24, dpi=150, size_mm=6, phase_mm=0.0):
             },
         ],
     }
+
+
+def _low_contrast_intent(motif_id="circle", tile_mm=24, dpi=150):
+    """모티프 실루엣이 색으로는 안 보이는 배치.
+
+    ground(#f5efe4)는 circle_pale과 Δ≤3이고, accent 스트라이프(#8fb4c9)는 circle_twin과
+    완전히 같은 색이다. 격자 원은 스트라이프 경계를 가로지르므로 twin은 한 도형이 두
+    조각으로 갈라지는 재현이 된다.
+    """
+    return {
+        "intent_version": 1,
+        "canvas": {"tile_mm": tile_mm, "dpi": dpi},
+        "seed": 11,
+        "production": {"method": "yarn_dyed", "max_colors": 12},
+        "palette": {
+            "slots": [{"id": "ground", "hex": "#f5efe4"}, {"id": "accent", "hex": "#8fb4c9"}],
+        },
+        "colorways": [
+            {"id": "default", "name": "d", "mapping": {"ground": "#f5efe4", "accent": "#8fb4c9"}}
+        ],
+        "layers": [
+            {"id": "bg", "type": "background", "z_order": 0, "params": {"color": "ground"}},
+            {
+                "id": "stripe",
+                "type": "stripe",
+                "z_order": 1,
+                "params": {
+                    "angle": 0,
+                    "period_mm": 12,
+                    "bands": [{"offset_mm": 0, "width_mm": 6, "color": "accent"}],
+                },
+            },
+            {
+                "id": "dots",
+                "type": "motif",
+                "z_order": 2,
+                "params": {"motif_id": motif_id, "size_mm": 6},
+                "placement": {
+                    "type": "lattice",
+                    "lattice": {"cell_w_mm": 12, "cell_h_mm": 12},
+                },
+            },
+        ],
+    }
+
+
+def _coverage(intent):
+    result = validate_intent(intent)
+    return motif_mask.motif_coverage_mask(result.intent, result.palette, dpi=150, tile_mm=24)
 
 
 def _render(intent, **params):
@@ -216,9 +279,7 @@ def test_material_map_partial_falls_back_to_base(weaves):
     mapped = _img(_render(intent, weave="twill-0", material_map={"accent": "solid"}))
 
     result = validate_intent(intent)
-    seg = segment_mod.segment(
-        result.intent, result.palette, dpi=150, tile_mm=24, split_motifs=False
-    )
+    seg = segment_mod.segment(result.intent, result.palette, dpi=150, tile_mm=24)
     ground_mask = segment_mod.mask_for(seg.slot_index, seg.index_for["ground"])
     accent_mask = segment_mod.mask_for(seg.slot_index, seg.index_for["accent"])
 
@@ -292,12 +353,8 @@ def test_motif_thread_fixed_to_twill45(weaves):
     b = _img(_render(intent, weave="check", relief_strength=0.0))
 
     result = validate_intent(intent)
-    seg = segment_mod.segment(result.intent, result.palette, dpi=150, tile_mm=24, split_motifs=True)
-    thread: Image.Image | None = None
-    for mask in seg.motif_masks.values():
-        strand = inlay.motif_thread_mask(mask, dpi=150)
-        thread = strand if thread is None else ImageChops.lighter(thread, strand)
-    assert thread is not None
+    coverage = motif_mask.motif_coverage_mask(result.intent, result.palette, dpi=150, tile_mm=24)
+    thread = inlay.motif_thread_mask(coverage, dpi=150)
     solid_thread = thread.point([0] * 200 + [255] * 56)  # L 모드 LUT — v>=200 이진화
 
     # 가닥 내부는 base weave가 달라도 동일, base 영역(가닥 밖)은 달라야 한다
@@ -309,6 +366,57 @@ def test_motif_thread_fixed_to_twill45(weaves):
         < 1.0
     )
     assert _mean_abs(a, b) > 2.0
+
+
+def test_motif_mask_is_independent_of_motif_color(weaves):
+    """마스크는 기하학이다 — 같은 도형이면 모티프 색이 무엇이든 byte-identical.
+
+    (a) 모티프가 바탕과 거의 같은 색이면 마스크가 통째로 비고, (b) 팔레트 색과 겹치면
+    실루엣이 스트라이프 경계에서 잘려 한 도형이 두 조직으로 쪼개지던 회귀를 고정한다.
+    """
+    contrasting = _coverage(_low_contrast_intent("circle"))
+    pale = _coverage(_low_contrast_intent("circle_pale"))  # (a) ground와 Δ≤3
+    twin = _coverage(_low_contrast_intent("circle_twin"))  # (b) accent와 동일 색
+
+    assert contrasting.getbbox() is not None
+    assert pale.tobytes() == contrasting.tobytes()
+    assert twin.tobytes() == contrasting.tobytes()
+
+
+def test_occluded_motif_is_excluded_from_the_mask(weaves):
+    """z-order상 위 레이어에 가려진 모티프 픽셀은 마스크에서 빠진다(색 무관)."""
+    intent = _low_contrast_intent("circle")
+    visible = _coverage(intent)
+    intent["layers"][1]["z_order"] = 3  # 스트라이프를 모티프 위로
+    occluded = _coverage(intent)
+
+    assert occluded.getbbox() is not None
+    assert ImageStat.Stat(occluded).sum[0] < ImageStat.Stat(visible).sum[0]
+
+
+def test_low_contrast_motif_is_still_inlaid(weaves):
+    """ground와 Δ≤3인 모티프도 실 인레이가 남는다 — 통째로 증발하던 회귀 고정.
+
+    스트라이프를 빼 대비가 남는 영역이 하나도 없게 만든 배치다: 색 차 기반 마스크는
+    완전히 비어 yarn_dyed 출력이 모티프 없는 렌더와 byte-identical이 됐다.
+    """
+    intent = _low_contrast_intent("circle_pale")
+    intent["layers"] = [la for la in intent["layers"] if la["id"] != "stripe"]
+    without = dict(intent, layers=[la for la in intent["layers"] if la["type"] != "motif"])
+    # relief를 꺼서 두 경로의 유일한 차이가 실 인레이가 되게 한다.
+    with_motif = _img(_render(intent, weave="twill-0", relief_strength=0.0))
+    base_only = _img(_render(without, weave="twill-0", relief_strength=0.0))
+    assert _mean_abs(with_motif, base_only) > 1.0
+
+
+def test_fully_occluded_motif_keeps_slot_relief(weaves):
+    """마스크가 비어도 relief 경로는 그대로 — 안 보이는 레이어가 슬롯 경계 emboss를 끄면 안 된다."""
+    intent = _low_contrast_intent("circle")
+    intent["layers"][2]["z_order"] = -1  # 불투명 배경 아래로 — 모티프는 완전히 가려진다
+    assert _coverage(intent).getbbox() is None
+    assert _render(intent, weave="twill-0", relief_strength=0.6) != _render(
+        intent, weave="twill-0", relief_strength=0.0
+    )
 
 
 # --- 6. thread_period_width -------------------------------------------------
@@ -365,8 +473,11 @@ def test_rasterize_call_counts(weaves, monkeypatch):
     # yarn_dyed는 relief 기본값(0.45)이 켜져 있어 라벨 세그 1회가 추가된다
     assert count(_yarn_no_motif_intent(), weave="twill-0", relief_strength=0.0) == 1
     assert count(_yarn_no_motif_intent(), weave="twill-0") == 2  # 기본 relief > 0
-    assert count(_yarn_motif_intent(), weave="twill-45", relief_strength=0.0) == 2
-    assert count(_yarn_motif_intent(), weave="twill-45", material_map={"accent": "solid"}) == 3
+    # full 실색 + base 실색 + 모티프 기하 마스크
+    assert count(_yarn_motif_intent(), weave="twill-45", relief_strength=0.0) == 3
+    # 모티프 relief는 base 슬롯 경계를 위한 라벨 렌더를 한 번 더 사용한다.
+    assert count(_yarn_motif_intent(), weave="twill-45") == 4
+    assert count(_yarn_motif_intent(), weave="twill-45", material_map={"accent": "solid"}) == 4
 
 
 # --- 9. 게이트 거부 ---------------------------------------------------------

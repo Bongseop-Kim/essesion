@@ -44,8 +44,6 @@ from worker.api.schemas import (
     MotifGenerateRequest,
     MotifImportRequest,
     MotifImportResponse,
-    PaletteExtractRequest,
-    PaletteExtractResponse,
     PhotoMotifPreviewRequest,
     PhotoMotifPreviewResponse,
     PromotionEmbeddingRequest,
@@ -85,9 +83,8 @@ from worker.engine.patch import apply_patch, composition_snapshot, set_motif_slo
 from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
-from worker.motifs.labeler import SLOT_LABEL_RANK
 from worker.motifs.normalize import normalize_motif_svg
-from worker.motifs.photo_svg import extract_palette, photo_to_svg
+from worker.motifs.photo_svg import photo_to_svg
 from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import (
     MotifGenerationBudget,
@@ -95,7 +92,6 @@ from worker.motifs.resolver import (
     prompt_catalog_candidates,
     resolve_spec,
 )
-from worker.motifs.spec import motif_spec_from_sentence
 from worker.motifs.store import get_motifs
 from worker.motifs.text_svg import text_to_svg
 from worker.render.fabric import FabricError, render_fabric
@@ -206,7 +202,6 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                 if body.conversation_context is not None
                 else "prompt"
             ),
-            "fixed_palette": body.palette.mode == "fixed",
             "motif_resolutions": [],
         }
         try:
@@ -351,150 +346,6 @@ async def _load_single_image(item: ReferenceImageInput, settings) -> bytes:  # n
         return await _fetch_reference_bytes(item, settings, client)
 
 
-def _palette_slot_avoiding_ground(
-    chosen: str,
-    *,
-    ordered_slot_ids: list[str],
-    hex_by_id: dict[str, str],
-    ground_hex: str | None,
-) -> str:
-    """Return the next distinct palette slot, or preserve ``chosen`` for a degenerate palette."""
-
-    if ground_hex is None or hex_by_id.get(chosen, "").casefold() != ground_hex.casefold():
-        return chosen
-    if chosen in ordered_slot_ids:
-        start = ordered_slot_ids.index(chosen) + 1
-        candidates = ordered_slot_ids[start:] + ordered_slot_ids[:start]
-    else:
-        candidates = ordered_slot_ids
-    return next(
-        (
-            candidate
-            for candidate in candidates
-            if hex_by_id.get(candidate, "").casefold() != ground_hex.casefold()
-        ),
-        chosen,
-    )
-
-
-def _bind_resolved_motif_colors(
-    intents: list[dict[str, Any]],
-    catalog,  # noqa: ANN001
-    motif_color_plans: list[dict[str, list[str]]] | None = None,
-    *,
-    palette_mode: str = "auto",
-) -> list[str]:
-    """Purely bind resolved motif slots from plan, palette, and ingress metadata.
-
-    Returns layer ids whose planned recolor length was adapted to the resolved slot count.
-    """
-
-    adapted: list[str] = []
-    plans = motif_color_plans or []
-    for intent_index, intent in enumerate(intents):
-        planned_layers = plans[intent_index] if intent_index < len(plans) else {}
-        palette = intent.get("palette")
-        slots = palette.get("slots") if isinstance(palette, dict) else None
-        slot_ids = [
-            slot["id"]
-            for slot in slots or []
-            if isinstance(slot, dict) and isinstance(slot.get("id"), str)
-        ]
-        hex_by_id = {
-            slot["id"]: slot["hex"]
-            for slot in slots or []
-            if isinstance(slot, dict)
-            and isinstance(slot.get("id"), str)
-            and isinstance(slot.get("hex"), str)
-        }
-        background_slot = next(
-            (
-                layer.get("params", {}).get("color")
-                for layer in intent.get("layers", [])
-                if isinstance(layer, dict)
-                and layer.get("type") == "background"
-                and isinstance(layer.get("params"), dict)
-                and isinstance(layer["params"].get("color"), str)
-            ),
-            None,
-        )
-        ground_hex = hex_by_id.get(background_slot) if background_slot is not None else None
-        color_ids = [slot_id for slot_id in slot_ids if slot_id != background_slot] or slot_ids
-        if not color_ids:
-            continue
-        for layer in intent.get("layers", []):
-            if not isinstance(layer, dict) or layer.get("type") != "motif":
-                continue
-            params = layer.get("params")
-            motif_id = params.get("motif_id") if isinstance(params, dict) else None
-            motif = catalog.get(motif_id) if isinstance(motif_id, str) else None
-            if motif is None or not isinstance(params, dict):
-                continue
-            layer_id = layer.get("id")
-            planned_colors = planned_layers.get(layer_id) if isinstance(layer_id, str) else None
-            # 카탈로그 모티프의 recolor 길이는 컴파일 단계가 slot_count 메타데이터로 이미
-            # 강제한다. 여기 도달하는 불일치는 플랜 시점에 슬롯 수를 알 수 없던 생성/사진
-            # 모티프뿐이므로, 요청을 죽이지 않고 아래 모듈로 순환 배정으로 적응한다.
-            if planned_colors is not None and len(planned_colors) != len(motif.color_slots):
-                adapted.append(layer_id if isinstance(layer_id, str) else str(motif_id))
-            effective_colors = planned_colors or color_ids
-            if len(motif.color_slots) <= 1:
-                chosen = planned_colors[0] if planned_colors else color_ids[0]
-                chosen = _palette_slot_avoiding_ground(
-                    chosen,
-                    ordered_slot_ids=slot_ids,
-                    hex_by_id=hex_by_id,
-                    ground_hex=ground_hex,
-                )
-                params["color"] = chosen
-                params.pop("colors", None)
-                continue
-
-            if (
-                planned_colors is None
-                and palette_mode != "fixed"
-                and motif.slot_colors is not None
-                and len(motif.slot_colors) == len(motif.color_slots)
-            ):
-                params.pop("color", None)
-                params["colors"] = dict(zip(motif.color_slots, motif.slot_colors, strict=True))
-                continue
-
-            ordered_slots = list(motif.color_slots)
-            slot_parts = getattr(motif, "slot_parts", None)
-            has_valid_parts = (
-                slot_parts is not None
-                and len(slot_parts) == len(motif.color_slots)
-                and all(isinstance(part, str) and bool(part.strip()) for part in slot_parts)
-            )
-            if (
-                not has_valid_parts
-                and motif.slot_labels is not None
-                and len(motif.slot_labels) == len(motif.color_slots)
-                and all(label in SLOT_LABEL_RANK for label in motif.slot_labels)
-            ):
-                ordered_slots = [
-                    slot
-                    for _rank, _index, slot in sorted(
-                        (
-                            SLOT_LABEL_RANK[label],
-                            index,
-                            slot,
-                        )
-                        for index, (slot, label) in enumerate(
-                            zip(motif.color_slots, motif.slot_labels, strict=True)
-                        )
-                    )
-                ]
-            assignments = {
-                slot: effective_colors[index % len(effective_colors)]
-                for index, slot in enumerate(ordered_slots)
-            }
-            params.pop("color", None)
-            params["colors"] = {slot: assignments[slot] for slot in motif.color_slots}
-    return adapted
-
-
 @dataclass(frozen=True)
 class _GenerateOutcome:
     input_type: str
@@ -507,16 +358,6 @@ class _GenerateOutcome:
     structural_fingerprint: str | None
     # 구성 patch가 사용자 문장을 해석한 한 줄. 최초 저작은 None.
     note: str | None = None
-
-
-def _motif_prompt_slot_metadata(motif) -> dict[str, object]:  # noqa: ANN001
-    if motif is None:
-        return {}
-    metadata: dict[str, object] = {"slot_count": len(motif.color_slots)}
-    parts = getattr(motif, "slot_parts", None)
-    if parts is not None and len(parts) == len(motif.color_slots):
-        metadata["parts"] = list(parts)
-    return metadata
 
 
 async def _generate_from_intent(
@@ -537,17 +378,10 @@ async def _generate_from_intent(
                 slot=body.motif_slot.slot,
                 motif_id=body.motif_slot.motif_id,
             )
-        constrained_intent = apply_generation_constraints(
-            raw_intent,
-            palette=body.palette,
-            warnings=warnings,
-        )
+        constrained_intent = apply_generation_constraints(raw_intent, warnings=warnings)
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
     catalog = await get_motifs(session, iter_motif_ids(constrained_intent))
-    if body.motif_slot is not None:
-        # 새 모티프의 paint slot 수는 이전 모티프와 다를 수 있다 — 카탈로그 기준으로 재바인딩.
-        _bind_resolved_motif_colors([constrained_intent], catalog, palette_mode=body.palette.mode)
     compose_started = time.perf_counter()
     try:
         design = compose_design(
@@ -555,7 +389,6 @@ async def _generate_from_intent(
             seed=body.seed,
             colorway=effective_colorway,
             motifs=catalog or None,  # DB에 없으면 전역 registry 폴백(테스트/시드 경로)
-            palette_constraint=body.palette,
         )
     except IntentInvalid:
         _reject_generation(request, "intent_invalid", "intent")
@@ -573,7 +406,6 @@ async def _generate_from_intent(
         tile_mm=float(constrained_intent["canvas"]["tile_mm"]),
         intent_log={
             "design": constrained_intent,
-            "palette": body.palette.model_dump(),
             "resolved_plan": None,
             **({"motif_slot": body.motif_slot.model_dump()} if body.motif_slot is not None else {}),
         },
@@ -611,7 +443,6 @@ async def _generate_from_prompt(
         try:
             constrained = apply_generation_constraints(
                 intent_raw,
-                palette=body.palette,
                 warnings=constraint_warnings,
             )
         except ConstraintInvalid as exc:
@@ -619,10 +450,7 @@ async def _generate_from_prompt(
         intent_raw.clear()
         intent_raw.update(constrained)
         try:
-            # Authored motif IDs are provisional until resolver + DB catalog binding.
-            # An explicit empty catalog validates geometry/colors without accidentally
-            # consulting the process-global test registry for unresolved color slots.
-            validate_intent(intent_raw, repair=True, motifs={})
+            validate_intent(intent_raw, repair=True)
         except IntentInvalid as exc:
             return exc.errors
         used = iter_motif_ids(intent_raw)
@@ -637,14 +465,6 @@ async def _generate_from_prompt(
     author_prompt = body.prompt or (
         "Create a balanced necktie pattern using the supplied SVG motif."
     )
-    prompt_motifs = await get_motifs(session, body.motif_ids)
-    exact_motif_metadata = [
-        {
-            "catalog_ref": f"input_{index}",
-            **_motif_prompt_slot_metadata(prompt_motifs.get(motif_id)),
-        }
-        for index, motif_id in enumerate(body.motif_ids, start=1)
-    ]
     embedding = request_scoped(adapters.embedding)
     catalog_candidates: list[dict[str, object]] = []
     if body.prompt and not body.motif_ids:
@@ -686,9 +506,7 @@ async def _generate_from_prompt(
             author_prompt,
             validate=_validate,
             motif_ids=body.motif_ids,
-            exact_motif_metadata=exact_motif_metadata,
             catalog_candidates=catalog_candidates,
-            palette_constraint=body.palette,
             examples=prompt_examples,
             diagnostics=request.state.generation_diagnostics,
         )
@@ -724,14 +542,6 @@ async def _generate_from_prompt(
         _reject_generation(request, "intent_invalid", "intent")
 
     catalog = await get_motifs(session, iter_motif_ids(resolved_intent))
-    color_binding_adapted = _bind_resolved_motif_colors(
-        [resolved_intent],
-        catalog,
-        [authored.motif_color_slots],
-        palette_mode=body.palette.mode,
-    )
-    if color_binding_adapted:
-        request.state.generation_diagnostics["color_binding_adapted"] = color_binding_adapted
     compose_started = time.perf_counter()
     try:
         design = compose_design(
@@ -739,7 +549,6 @@ async def _generate_from_prompt(
             seed=body.seed,
             colorway=effective_colorway,
             motifs=catalog or None,
-            palette_constraint=body.palette,
         )
     except (IntentInvalid, AssertionError, ValueError):
         _reject_generation(request, "design_invalid", "design")
@@ -749,7 +558,6 @@ async def _generate_from_prompt(
         )
     intent_log: dict[str, Any] = {
         "design": resolved_intent,
-        "palette": body.palette.model_dump(),
         "resolved_plan": resolved_plan.model_dump(mode="json") if resolved_plan else None,
     }
     if authored.plan is not None:
@@ -809,7 +617,6 @@ async def _generate_from_patch(
             body.prompt,
             snapshot=composition_snapshot(context.current_intent),
             conversation_history=[item.model_dump(mode="json") for item in context.history],
-            palette_constraint=body.palette,
             diagnostics=request.state.generation_diagnostics,
         )
     except IntentInvalid as exc:
@@ -836,12 +643,8 @@ async def _generate_from_patch(
         return ScopeRejectedResponse()
 
     try:
-        patched = apply_patch(context.current_intent, patch, palette_constraint=body.palette)
-        constrained_intent = apply_generation_constraints(
-            patched,
-            palette=body.palette,
-            warnings=warnings,
-        )
+        patched = apply_patch(context.current_intent, patch)
+        constrained_intent = apply_generation_constraints(patched, warnings=warnings)
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
 
@@ -853,7 +656,6 @@ async def _generate_from_patch(
             seed=body.seed,
             colorway=effective_colorway,
             motifs=catalog or None,
-            palette_constraint=body.palette,
         )
     except IntentInvalid:
         _reject_generation(request, "intent_invalid", "intent")
@@ -870,7 +672,6 @@ async def _generate_from_patch(
         tile_mm=float(constrained_intent["canvas"]["tile_mm"]),
         intent_log={
             "design": constrained_intent,
-            "palette": body.palette.model_dump(),
             "resolved_plan": None,
             "patch": patch.model_dump(mode="json", exclude_none=True),
         },
@@ -891,9 +692,7 @@ async def generate(
     adapters = request.app.state.adapters
     registry_version = await registry_version_for(session)
     warnings: list[str] = []
-    if body.palette.mode == "fixed" and body.colorway not in (None, "default"):
-        _reject_generation(request, "constraint_conflict", "constraints")
-    effective_colorway = "default" if body.palette.mode == "fixed" else body.colorway
+    effective_colorway = body.colorway
 
     if body.intent is not None:
         outcome = await _generate_from_intent(
@@ -1020,15 +819,7 @@ async def compile_authoring_preview(
             tile_mm=body.tile_mm,
             seed=body.seed,
         )
-        _bind_resolved_motif_colors(
-            [prepared.design.intent],
-            prepared.motifs,
-            [prepared.design.motif_color_slots],
-        )
-        validated = validate_intent(
-            prepared.design.intent,
-            motifs=prepared.motifs,
-        )
+        validated = validate_intent(prepared.design.intent)
         assert_seamless_invariants(validated.intent)
         svg = compose(
             validated.intent,
@@ -1148,14 +939,11 @@ async def ensure_authoring_promotion_embedding(
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
-    """문장 → spec → 카탈로그 검색. Recraft 미호출이라 과금이 없다."""
+    """문장을 그대로 카탈로그에서 검색한다. Recraft 미호출이라 과금이 없다."""
     adapters = request.app.state.adapters
     registry_version = await registry_version_for(session)
-    spec = await motif_spec_from_sentence(
-        body.query,
-        gemini_client=adapters.gemini,
-        style_hint=body.style_hint,
-    )
+    # generate와 같은 spec을 써야 여기서 보여준 후보와 생성 경로의 재사용 판정이 일치한다.
+    spec = {"subject": body.query, "scope": "whole"}
     candidates = await present_candidates(
         session,
         spec,
@@ -1176,7 +964,6 @@ async def _normalize_preview_svg(svg: str, request: Request, *, id_prefix: str) 
         normalize_motif_svg,
         svg,
         id_prefix=id_prefix,
-        max_color_slots=settings.recraft_max_color_slots,
         max_aspect_ratio=settings.motif_max_aspect_ratio,
         edge_seam_tol=settings.motif_edge_seam_tol,
         render_check=settings.motif_render_check,
@@ -1194,23 +981,10 @@ async def suggest_ideas(body: IdeasRequest, request: Request) -> IdeasResponse:
             body.prompt,
             count=body.count,
             motifs=[motif.model_dump() for motif in body.motifs],
-            palette_constraint=body.palette,
         )
     except AdapterClientError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return IdeasResponse(ideas=ideas)
-
-
-@generate_router.post("/palette/extract", response_model=PaletteExtractResponse)
-async def palette_extract(body: PaletteExtractRequest, request: Request) -> PaletteExtractResponse:
-    data = await _load_single_image(body.image, request.app.state.settings)
-    try:
-        colors = await run_in_threadpool(
-            extract_palette, data, body.image.content_type, body.color_count
-        )
-    except (ValueError, TypeError, RecursionError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return PaletteExtractResponse(colors=colors)
 
 
 @generate_router.post("/motifs/text-preview", response_model=TextMotifPreviewResponse)
@@ -1264,7 +1038,6 @@ async def motif_import(body: MotifImportRequest, request: Request) -> MotifImpor
             normalize_motif_svg,
             body.svg,
             id_prefix="upload",
-            max_color_slots=settings.recraft_max_color_slots,
             max_aspect_ratio=settings.motif_max_aspect_ratio,
             edge_seam_tol=settings.motif_edge_seam_tol,
             render_check=settings.motif_render_check,
@@ -1276,7 +1049,6 @@ async def motif_import(body: MotifImportRequest, request: Request) -> MotifImpor
     return MotifImportResponse(
         motif_id=normalized.id,
         symbol=normalized.symbol,
-        color_slots=list(normalized.color_slots),
         bbox=normalized.bbox_mm,
         anchor=normalized.anchor,
         preview_svg=normalized.preview_svg,
@@ -1289,11 +1061,7 @@ async def motif_generate(
 ) -> dict[str, Any]:
     settings = request.app.state.settings
     adapters = request.app.state.adapters
-    spec = await motif_spec_from_sentence(
-        body.query,
-        gemini_client=adapters.gemini,
-        style_hint=body.style_hint,
-    )
+    spec = {"subject": body.query, "scope": "whole"}
     try:
         result = await resolve_spec(
             session,
@@ -1302,7 +1070,6 @@ async def motif_generate(
             embedding_client=adapters.embedding,
             settings=settings,
             seed=0,
-            gemini_client=adapters.gemini,
             provenance=(
                 body.motif_provenance.model_dump() if body.motif_provenance is not None else None
             ),

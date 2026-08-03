@@ -16,11 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuthGuard } from "@/features/auth";
-import { uploadDesignPhoto } from "@/features/design/api/attachments";
-import {
-  createDesignIdeas,
-  extractDesignPalette,
-} from "@/features/design/api/context-tools";
+import { createDesignIdeas } from "@/features/design/api/context-tools";
 import { designErrorMessage } from "@/features/design/model/errors";
 import { isDesignOnboardingComplete } from "@/features/design/model/onboarding";
 import {
@@ -327,7 +323,6 @@ export function DesignPage() {
           <ToolRail
             onExport={() => ensureAuth() && setOverlay("export")}
             onFinalize={() => ensureAuth() && setOverlay("finalize")}
-            onColors={() => setOverlay("colors")}
             onSessions={() => setOverlay("sessions")}
             onFinalized={() => setOverlay("finalized")}
             onNewSession={() => openSession(null, true)}
@@ -335,7 +330,6 @@ export function DesignPage() {
             canFinalize={
               hasDesign && !busy && !(quota !== null && quota.remaining <= 0)
             }
-            paletteFixed={editor.palette.mode === "fixed"}
             authenticated={authenticated}
             busy={busy}
           />
@@ -374,19 +368,12 @@ export function DesignPage() {
         historyCurrentRunId={history.currentRunId}
         onSelectStep={selectStep}
         motifs={motifs}
-        onExtractPalette={async (photo) => {
-          if (!ensureAuth()) throw new Error("로그인이 필요합니다.");
-          return extractDesignPalette(await uploadDesignPhoto(photo));
-        }}
-        palette={editor.palette}
-        onPaletteChange={editor.setPalette}
         prompt={editor.prompt}
         onPromptChange={editor.changePrompt}
         onRequestIdeas={async () =>
           createDesignIdeas({
             prompt: editor.prompt.trim(),
             userMotifIds: [],
-            palette: editor.palette,
           })
         }
         finalizeRemaining={quota?.remaining ?? null}

@@ -262,7 +262,6 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
                 "type": "motif",
                 "motif_index": 0,
                 "size_ratio": 0.18,
-                "color_indices": [1],
                 "placement": {
                     "type": "lattice",
                     "columns": 4,

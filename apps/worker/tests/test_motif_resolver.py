@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from worker.adapters import AdapterClientError
 from worker.config import Settings
 from worker.motifs import store
-from worker.motifs.labeler import SlotMetadata
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.resolver import (
     MotifGenerationBudget,
@@ -29,11 +28,6 @@ _SETTINGS = Settings(motif_render_check=False, motif_similarity_tau=0.84)
 _CLEAN = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
     '<circle cx="50" cy="50" r="30" fill="#ff0000"/></svg>'
-)
-_MULTI = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
-    '<circle cx="40" cy="50" r="25" fill="#112233"/>'
-    '<circle cx="65" cy="50" r="15" fill="#AABBCC"/></svg>'
 )
 
 
@@ -64,17 +58,16 @@ class _FakeRecraft:
     def __init__(self, svg: str = _CLEAN) -> None:
         self._svg = svg
         self.calls = 0
-        self.requests: list[tuple[tuple[str, ...], int | None]] = []
+        self.requests: list[tuple[str, int | None]] = []
 
     async def generate(
         self,
         prompt: str,
         *,
-        colors: tuple[str, ...] = (),
         seed: int | None = None,
     ) -> str:
         self.calls += 1
-        self.requests.append((colors, seed))
+        self.requests.append((prompt, seed))
         return self._svg
 
 
@@ -176,7 +169,7 @@ async def test_miss_generates_when_scope_empty(db_session):
 
 
 async def test_precommitted_upsert_survives_rollback_and_retry_skips_recraft(db_session):
-    """upsert 선커밋: 요청 롤백(색 바인딩 실패 등)에도 모티프가 남고 재시도는 무료 재사용."""
+    """upsert 선커밋: 이후 요청 롤백에도 모티프가 남고 재시도는 무료 재사용."""
     upsert_sessionmaker = async_sessionmaker(db_session.bind, expire_on_commit=False)
     recraft = _FakeRecraft()
     result = await resolve_spec(
@@ -208,51 +201,6 @@ async def test_precommitted_upsert_survives_rollback_and_retry_skips_recraft(db_
     assert retry.motif_id == result.motif_id
     assert retry.reused is True
     assert retry_recraft.calls == 0  # 선커밋된 모티프를 exact 매치로 재사용
-
-
-async def test_new_multislot_ingress_labels_once_and_catalog_hit_never_labels(
-    db_session,
-    monkeypatch,
-):
-    calls: list[tuple[str, ...]] = []
-
-    async def _label(_preview, colors, **_kwargs):
-        calls.append(colors)
-        return SlotMetadata(
-            labels=("primary", "detail"),
-            parts=("몸통", "윤곽"),
-        )
-
-    monkeypatch.setattr("worker.motifs.resolver.label_slots", _label)
-    recraft = _FakeRecraft(_MULTI)
-    first = await resolve_spec(
-        db_session,
-        {"subject": "new two color crest", "scope": "whole"},
-        recraft_client=recraft,
-        embedding_client=None,
-        gemini_client=object(),
-        settings=_SETTINGS,
-        seed=0,
-    )
-    await db_session.commit()
-    second = await resolve_spec(
-        db_session,
-        {"subject": "new two color crest", "scope": "whole"},
-        recraft_client=recraft,
-        embedding_client=None,
-        gemini_client=object(),
-        settings=_SETTINGS,
-        seed=0,
-    )
-
-    assert first.motif_id == second.motif_id
-    assert first.reused is False
-    assert second.reused is True
-    assert recraft.calls == 1
-    assert calls == [("#112233", "#aabbcc")]
-    stored = (await store.get_motifs(db_session, [first.motif_id]))[first.motif_id]
-    assert stored.slot_labels == ("primary", "detail")
-    assert stored.slot_parts == ("몸통", "윤곽")
 
 
 async def test_resolve_spec_honors_motif_generation_budget(db_session):
@@ -523,36 +471,6 @@ async def test_prompt_catalog_candidates_matches_korean_particle_form_without_em
 
     assert [candidate["motif_id"] for candidate in candidates] == ["recraft-pelican00001"]
     assert candidates[0]["match_type"] == "exact_token"
-
-
-async def test_prompt_catalog_candidates_exposes_ordered_slot_parts(db_session):
-    motif = NormalizedMotif(
-        id="recraft-pelicanparts",
-        symbol=(
-            '<symbol id="motif-recraft-pelicanparts"><path fill="s0"/><path fill="s1"/></symbol>'
-        ),
-        color_slots=("s0", "s1"),
-        slot_colors=("#FFFFFF", "#0066CC"),
-    )
-    await store.upsert_motif(
-        db_session,
-        motif,
-        facets={"subject": "pelican bicycle", "scope": "whole", "tags": ["펠리컨"]},
-        source="seed",
-        slot_labels=("primary", "secondary"),
-        slot_parts=("몸통", "자전거"),
-    )
-    await db_session.commit()
-
-    candidates = await prompt_catalog_candidates(
-        db_session,
-        "펠리컨을 반복해 주세요",
-        embedding_client=None,
-        tau=0.84,
-    )
-
-    assert candidates[0]["slot_count"] == 2
-    assert candidates[0]["parts"] == ["몸통", "자전거"]
 
 
 async def test_prompt_catalog_candidates_grounds_two_seeds_with_particles(db_session):
