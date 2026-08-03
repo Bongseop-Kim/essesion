@@ -12,7 +12,7 @@ from worker.motifs.embeddings import index_missing_embeddings
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.registry import MotifDef
 
-DIM = 3072
+DIM = 1536
 
 
 def _vec(*head: float) -> list[float]:
@@ -77,14 +77,14 @@ async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):
 async def test_nearest_by_embedding_uses_halfvec_distance(db_session):
     await store.upsert_motif(
         db_session,
-        _motif("recraft-vertex-near"),
+        _motif("recraft-embed-near"),
         facets={"scope": "whole"},
         embedding=_vec(1.0),
         status="approved",
     )
     await store.upsert_motif(
         db_session,
-        _motif("recraft-vertex-far"),
+        _motif("recraft-embed-far"),
         facets={"scope": "whole"},
         embedding=_vec(0.0, 1.0),
         status="approved",
@@ -93,7 +93,7 @@ async def test_nearest_by_embedding_uses_halfvec_distance(db_session):
 
     matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1)
 
-    assert matches[0].id == "recraft-vertex-near"
+    assert matches[0].id == "recraft-embed-near"
     assert matches[0].similarity == 1.0
 
 
@@ -242,8 +242,7 @@ async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(d
         def __init__(self):
             self.texts: list[str] = []
 
-        async def embed(self, text: str, *, task_type: str) -> list[float]:
-            assert task_type == "RETRIEVAL_DOCUMENT"
+        async def embed(self, text: str) -> list[float]:
             self.texts.append(text)
             return _vec(1.0)
 
@@ -267,7 +266,7 @@ async def test_pending_motif_stores_no_embedding_until_approved(db_session):
     await db_session.commit()
     row = await db_session.get(Motif, m.id)
     assert row is not None
-    assert row.embedding_vertex is None
+    assert row.embedding_openai is None
     assert await store.update_embedding_if_missing(db_session, m.id, _vec(1.0)) is False
 
     row.status = "approved"

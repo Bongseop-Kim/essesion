@@ -50,12 +50,6 @@ resource "google_project_iam_member" "worker_cloudsql" {
   member  = "serviceAccount:${each.value}"
 }
 
-resource "google_project_iam_member" "worker_vertex_ai" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${google_service_account.worker_generate.email}"
-}
-
 # Secret Manager 접근은 프로젝트 전체가 아니라 실제 컨테이너가 참조하는 secret 단위로 제한한다.
 resource "google_secret_manager_secret_iam_member" "database_url" {
   for_each = {
@@ -83,6 +77,7 @@ resource "google_secret_manager_secret_iam_member" "worker_generate_secrets" {
   for_each = toset([
     "sentry-dsn-worker",
     "recraft-api-key",
+    "openai-api-key",
   ])
   project   = var.project_id
   secret_id = google_secret_manager_secret.app[each.value].secret_id

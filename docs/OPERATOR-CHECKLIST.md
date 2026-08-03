@@ -62,7 +62,7 @@ openssl rand -base64 48 | gcloud secrets versions add session-secret --data-file
 openssl rand -base64 48 | gcloud secrets versions add edge-proxy-secret --data-file=- --project=essesion-staging
 ```
 수집값 대상: `toss-secret-key` `solapi-api-key` `solapi-api-secret`
-`google-client-secret` `kakao-client-secret` `openai-api-key` `gemini-api-key`
+`google-client-secret` `kakao-client-secret` `openai-api-key`
 `recraft-api-key` `sentry-dsn-api` `sentry-dsn-worker`. `db-password`·`database-url`은
 tofu가 생성·주입하므로 손대지 않는다.
 
@@ -107,7 +107,7 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
 3. `roles/run.invoker`가 있는 점검 계정으로 `worker_generate_url`과 `worker_finalize_url`의 비공개 `/readyz`를 identity token과 함께 호출해 둘 다 `database=ready`, `gcs_assets=real`인지 확인한다. 명령은 `infra/README.md`의 readiness 절차를 사용한다.
 4. 면제 경로가 아닌 동일 GET을 대조한다. `curl -fsS 'https://api.essesion.shop/products?limit=1'`은 200, `curl -sS -o /dev/null -w '%{http_code}' "$(tofu -chdir=infra output -raw api_url)/products?limit=1"`은 403이어야 한다. `/healthz`와 Google OIDC를 별도로 검증하는 `/batch/*`만 전역 edge 검사의 예외다.
 5. 배치 확인: `tofu -chdir=infra output -raw api_url`이 scheduler audience 형식(`https://api-<project#>.<region>.run.app`)과 일치하는지 대조 → `gcloud scheduler jobs run batch-cancel-stale-orders --location asia-northeast3` → api 로그 200 확인.
-6. 초기 관리자와 모티프 입력 (로컬에서 스테이징 DB로 — cloud-sql-proxy 등으로 `DATABASE_URL` 지정):
+6. 초기 관리자·모티프·저작 예시 입력 (로컬에서 스테이징 DB로 — cloud-sql-proxy 등으로 `DATABASE_URL`을 지정하고 Secret Manager의 `OPENAI_API_KEY`를 파일에 남기지 않고 주입):
    ```bash
    printf 'Admin email: '
    read -r BOOTSTRAP_ADMIN_EMAIL
@@ -119,8 +119,9 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
    unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
    uv run python apps/worker/scripts/seed_motifs.py
    uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
+   uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
    ```
-   인덱싱 출력이 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. `GCP_PROJECT_ID`/ADC 또는 확인 플래그가 없으면 인덱싱이 실행되지 않으며 `user_upload`은 대상이 아니다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
+   두 임베딩 출력이 각각 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. `OPENAI_API_KEY` 또는 확인 플래그가 없으면 외부 호출을 실행하지 않으며 motif 인덱싱은 `user_upload`을 제외한다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
 7. 외부 콘솔은 프록시 검증 후 처음부터 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - **Toss** 대시보드: 웹훅 URL → `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로 갱신
    - **Google·Kakao** 콘솔: redirect URI → `https://api.essesion.shop/auth/{provider}/callback`
@@ -147,8 +148,9 @@ Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐
 
 ## E. 스테이징 리허설
 
-1. 빈 스테이징 DB에 Alembic migrate job이 `f8c3b2a19d47` 단일 베이스라인을 적용했는지
-   확인한다. 이전 개발 revision이 발견되면 데이터 변환을 시도하지 말고 DB를 재생성한다.
+1. 빈 스테이징 DB에 Alembic migrate job이 베이스라인 `f8c3b2a19d47`과 OpenAI 전환
+   `6dbb8bb66939`를 순서대로 적용해 현재 head에 도달했는지 확인한다. 알 수 없는 개발
+   revision이 발견되면 데이터 변환을 시도하지 말고 DB를 재생성한다.
 2. 실제 Toss sandbox, Google/Kakao OAuth, Solapi, generate → finalize Cloud Tasks 흐름과
    주문·클레임 E2E를 실행한다. Apple/Naver는 구현·등록 전까지 완료로 판정하지 않는다.
 3. 상품 이미지 업로드와 finalize 메모리·지연을 실측해 dpi·인스턴스 상한을 확정한다.
@@ -160,6 +162,9 @@ Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐
    필드별 보존 목적·기간·접근 통제·분리 저장·만료 시 익명화/삭제
    배치를 privacy owner와 법률 검토자가 승인하고, 샘플 데이터로 purge/anonymization과
    복구 불가성을 검증하기 전에는 컷오버하지 않는다.
+5. OpenAI·Recraft에 전달하는 데이터 항목이 현재 개인정보처리방침과 일치하는지 확인하고,
+   Recraft 계정의 모델 학습 opt-out 또는 별도 DPA와 provider별 보존기간·예외를 privacy
+   owner와 법률 검토자가 승인하기 전에는 컷오버하지 않는다.
 
 ## F. 프로덕션 컷오버
 

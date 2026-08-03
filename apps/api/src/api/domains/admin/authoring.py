@@ -308,9 +308,9 @@ def _example_audit_state(row: AuthoringExample) -> dict[str, Any]:
         "structural_fingerprint": row.structural_fingerprint,
         "source_digest": row.source_digest,
         "embedding_model": row.embedding_model,
-        "embedding_vertex": (
-            [float(value) for value in row.embedding_vertex]
-            if row.embedding_vertex is not None
+        "embedding_openai": (
+            [float(value) for value in row.embedding_openai]
+            if row.embedding_openai is not None
             else None
         ),
     }
@@ -485,7 +485,7 @@ async def _approval_duplicate(
     session,
     *,
     structural_fingerprint: str,
-    embedding_vertex: Any,
+    embedding_openai: Any,
     embedding_model: str,
     family: str,
     motif_count: int,
@@ -501,14 +501,14 @@ async def _approval_duplicate(
     if exact_row is not None:
         return exact_row.example_id, 1.0
 
-    distance = AuthoringExample.embedding_vertex.cosine_distance(embedding_vertex)
+    distance = AuthoringExample.embedding_openai.cosine_distance(embedding_openai)
     semantic = select(AuthoringExample.example_id, distance).where(
         AuthoringExample.active.is_(True),
         AuthoringExample.contract_version == PLAN_CONTRACT_VERSION,
         AuthoringExample.embedding_model == embedding_model,
         AuthoringExample.family == family,
         AuthoringExample.motif_count == motif_count,
-        AuthoringExample.embedding_vertex.is_not(None),
+        AuthoringExample.embedding_openai.is_not(None),
     )
     if exclude_example_id is not None:
         semantic = semantic.where(AuthoringExample.id != exclude_example_id)
@@ -542,7 +542,7 @@ async def _approve_candidate(
         candidate.contract_version != PLAN_CONTRACT_VERSION
         or candidate.structural_fingerprint is None
         or candidate.embedding_model is None
-        or candidate.embedding_vertex is None
+        or candidate.embedding_openai is None
     ):
         raise ConflictError(
             "승격 후보의 계약 또는 임베딩이 현재 기준과 맞지 않습니다",
@@ -552,7 +552,7 @@ async def _approve_candidate(
     duplicate = await _approval_duplicate(
         session,
         structural_fingerprint=candidate.structural_fingerprint,
-        embedding_vertex=candidate.embedding_vertex,
+        embedding_openai=candidate.embedding_openai,
         embedding_model=candidate.embedding_model,
         family=candidate.family,
         motif_count=candidate.motif_count,
@@ -571,7 +571,7 @@ async def _approve_candidate(
         structural_fingerprint=candidate.structural_fingerprint,
         source_digest=candidate.source_digest,
         embedding_model=candidate.embedding_model,
-        embedding_vertex=candidate.embedding_vertex,
+        embedding_openai=candidate.embedding_openai,
         active=True,
         approved_at=now,
         approved_by=admin_id,
@@ -722,7 +722,7 @@ async def create_authoring_example(
         await _approval_duplicate(
             session,
             structural_fingerprint=prepared.structural_fingerprint,
-            embedding_vertex=prepared.embedding,
+            embedding_openai=prepared.embedding,
             embedding_model=prepared.embedding_model,
             family=prepared.family,
             motif_count=prepared.motif_count,
@@ -744,7 +744,7 @@ async def create_authoring_example(
         structural_fingerprint=prepared.structural_fingerprint,
         source_digest=prepared.source_digest,
         embedding_model=prepared.embedding_model,
-        embedding_vertex=prepared.embedding,
+        embedding_openai=prepared.embedding,
         active=False,
         approved_at=now,
         approved_by=admin.id,
@@ -867,7 +867,7 @@ async def update_authoring_example(
         await _approval_duplicate(
             session,
             structural_fingerprint=prepared.structural_fingerprint,
-            embedding_vertex=prepared.embedding,
+            embedding_openai=prepared.embedding,
             embedding_model=prepared.embedding_model,
             family=prepared.family,
             motif_count=prepared.motif_count,
@@ -886,7 +886,7 @@ async def update_authoring_example(
     row.structural_fingerprint = prepared.structural_fingerprint
     row.source_digest = prepared.source_digest
     row.embedding_model = prepared.embedding_model
-    row.embedding_vertex = prepared.embedding
+    row.embedding_openai = prepared.embedding
     row.approved_at = datetime.now(UTC)
     row.approved_by = admin.id
     record_operation(
@@ -1006,7 +1006,7 @@ async def set_authoring_example_activation(
     if body.active:
         if (
             row.contract_version != PLAN_CONTRACT_VERSION
-            or row.embedding_vertex is None
+            or row.embedding_openai is None
             or row.embedding_model != current_embedding_model
             or row.approved_at is None
         ):
@@ -1018,7 +1018,7 @@ async def set_authoring_example_activation(
         duplicate = await _approval_duplicate(
             session,
             structural_fingerprint=row.structural_fingerprint,
-            embedding_vertex=row.embedding_vertex,
+            embedding_openai=row.embedding_openai,
             embedding_model=row.embedding_model,
             family=row.family,
             motif_count=row.motif_count,

@@ -43,8 +43,8 @@ class CatalogMotifSource(_StrictModel):
 
 # Discriminated so a rejected plan yields a clean per-variant error (e.g. "poisson scatter does
 # not accept order or step") the authoring retry loop can act on — a plain union buries the real
-# cause under every sibling variant's errors. The provider schema strips oneOf/discriminator
-# separately (Vertex can't serve them); see _servable_json_schema in adapters/gemini.py.
+# cause under every sibling variant's errors. The provider schema converts oneOf/discriminator
+# separately while preserving supported bounds; see _strict_json_schema in adapters/llm.py.
 PlanMotifSource = Annotated[
     InputMotifSource | CatalogMotifSource,
     Field(discriminator="source"),
@@ -96,7 +96,7 @@ class LatticePlacementPlan(_StrictModel):
 
 
 # Scatter/path split by mode/kind so each variant's required fields are STRUCTURAL — enforced by
-# the JSON schema's `required` (and honored by Vertex constrained decoding), not by a post-parse
+# the JSON schema's `required` (and honored by strict constrained decoding), not by a post-parse
 # model_validator the provider schema cannot express. The authoring model was reliably omitting
 # count/order/wavelength on the combined all-optional shapes; disjoint variants make that
 # impossible. The remaining numeric relation (sateen step<order) is the only leftover validator.
@@ -283,7 +283,7 @@ def snapshot_resolved_plan(
     """Freeze surviving authored motif sources to the concrete IDs used by the engine.
 
     The stored value remains a valid ``DesignPlanV3`` by using ``catalog_ref`` as the
-    internal carrier.  Before it reaches Gemini, the adapter replaces these values
+    internal carrier.  Before it reaches the provider, the adapter replaces these values
     with request-local ``current_motif_N`` aliases, so private/content-hash IDs never
     enter provider context.  Optional motif layers that the resolver soft-dropped are
     pruned together with now-unused motif sources.

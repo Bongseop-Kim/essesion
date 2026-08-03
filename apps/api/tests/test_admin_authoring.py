@@ -10,8 +10,8 @@ from sqlalchemy import select
 
 from .factories import auth_headers, make_admin, make_user
 
-DIM = 3072
-MODEL = "test-embedding-3072"
+DIM = 1536
+MODEL = "test-embedding-1536"
 
 
 def _vec(value: float = 1.0) -> list[float]:
@@ -43,7 +43,7 @@ async def _candidate(
         structural_fingerprint=fingerprint,
         source_digest=uuid.uuid4().hex,
         embedding_model=MODEL,
-        embedding_vertex=_vec(),
+        embedding_openai=_vec(),
         status="pending",
         rule_reasons=["success", "finalized"],
     )
@@ -412,10 +412,10 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     assert update_log.before_data["state"]["structural_fingerprint"] == (
         "authored-solid-fingerprint"
     )
-    assert update_log.before_data["state"]["embedding_vertex"][0] == 1.0
+    assert update_log.before_data["state"]["embedding_openai"][0] == 1.0
     assert update_log.after_data["plan"] == plan
     assert update_log.after_data["structural_fingerprint"] == "authored-solid-fingerprint"
-    assert update_log.after_data["embedding_vertex"][0] == 1.0
+    assert update_log.after_data["embedding_openai"][0] == 1.0
 
     activated = await client.post(
         f"/admin/authoring/examples/{authored['id']}/activation",
@@ -480,7 +480,7 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
         structural_fingerprint="bootstrap-delete-guard",
         source_digest="bootstrap-delete-guard",
         embedding_model=MODEL,
-        embedding_vertex=_vec(0.5),
+        embedding_openai=_vec(0.5),
         active=False,
         approved_at=datetime.now(UTC),
     )
@@ -542,7 +542,7 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     assert delete_log.before_data["state"]["structural_fingerprint"] == (
         "authored-solid-fingerprint"
     )
-    assert delete_log.before_data["state"]["embedding_vertex"][0] == 1.0
+    assert delete_log.before_data["state"]["embedding_openai"][0] == 1.0
     assert delete_log.after_data == {"deleted": True}
     missing = await client.get(
         f"/admin/authoring/examples/{authored['id']}",

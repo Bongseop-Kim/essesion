@@ -8,7 +8,7 @@ admin은 별도로 intent와 Plan v3를 직접 작성하고 실제 타일을 확
 
 - provider 계약: `worker.authoring.schema.DesignPlansV3` (`plan_contract_version=3`)
 - compiler: `worker.authoring.compiler` (`compiler_revision=design-plan-v3.0`)
-- prompt: `design-plan-v3-rag-grounded`; Pydantic 모델을 Vertex `response_schema`로 전달
+- prompt: `design-plan-v3-rag-grounded`; Pydantic 스키마를 OpenAI strict `json_schema`로 전달
 - starter 입력: `apps/worker/src/worker/authoring/data/gallery-v1.json`
 - compiler 회귀 픽스처: `apps/worker/tests/golden/json/*.json`
 - 런타임 정본: `authoring_examples`에서 `active=true`이고 현재 contract·embedding model과
@@ -72,7 +72,7 @@ resolved motif와 engine intent는 예시에 복제하지 않는다. 잘못된 �
 2. 필요하면 기존 관리자 motif API에서 카탈로그 motif를 최대 2개 골라 `input_index`
    순서에 연결한다.
 3. worker의 `POST /authoring/compile-preview`가 Plan을 compile하고 기존 renderer로 SVG를
-   만든다. 이 경로는 Gemini, Recraft, embedding을 호출하지 않는다. source는 `input` 또는
+   만든다. 이 경로는 LLM, Recraft, embedding을 호출하지 않는다. source는 `input` 또는
    `catalog`만 허용하고 존재하지 않는 motif나 계약 밖 source는 검증 오류로 거부한다.
 4. 현재 입력으로 성공한 프리뷰가 있어야 저장할 수 있다.
 5. 저장 시 worker가 Plan을 `DesignPlanV3`로 검증하고 family, tags, fingerprint와 digest를
@@ -107,7 +107,7 @@ Plan/fingerprint/compiler/prompt revision을 제공한다. embedding vector 원�
 
 ## RAG 선택 계약
 
-query document는 사용자 prompt와 사용 가능한 motif slot 수를 순서대로 합친다. Vertex `RETRIEVAL_QUERY` embedding으로 현재 contract·embedding model의 active
+query document는 사용자 prompt와 사용 가능한 motif slot 수를 순서대로 합친다. OpenAI embedding으로 현재 contract·embedding model의 active
 시범만 cosine top-25로 읽고 다음 순서로 줄인다.
 
 1. motif 수가 맞지 않거나 Plan v3로 재검증되지 않는 행 제외
@@ -127,7 +127,7 @@ embedding/DB 오류나 빈 active 집합은 상태 코드만 진단에 남기고
 
 ## 평가와 추적
 
-실제 provider 평가 호출은 명시적 동의와 ADC/DB가 있을 때만 실행한다.
+실제 provider 평가 호출은 명시적 동의와 `OPENAI_API_KEY`·`DATABASE_URL`이 있을 때만 실행한다.
 
 ```bash
 uv run python apps/worker/scripts/eval_authoring.py \

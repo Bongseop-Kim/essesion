@@ -14,9 +14,9 @@ uv run pytest tests/                                              # 마이그레
 
 접속 URL은 `DATABASE_URL` env(기본 = compose 값).
 
-아직 배포 전이므로 과거 revision이나 개발 데이터는 변환하지 않는다. 이전 스키마가 남아 있으면 해당 DB를 사용하는 프로세스를 중지하고 `essesion` 데이터베이스를 drop/recreate한 뒤 `upgrade head`와 로컬 seed를 실행한다. 실행 중인 DB를 자동으로 삭제하는 스크립트는 두지 않는다.
+현재 리비전 체인은 42개 테이블 베이스라인 `f8c3b2a19d47` → OpenAI 임베딩 전환 `6dbb8bb66939`이며 후자가 현재 head다. 빈 DB와 베이스라인까지 적용된 DB 모두 `upgrade head`로 전진한다. OpenAI 전환은 기존 provider 벡터를 무효화하므로 적용 뒤 `index_motif_embeddings.py --confirm-live`와 `seed_authoring_examples.py --confirm-live`로 임베딩을 다시 만든다.
 
-같은 이유로 리비전은 **단일 베이스라인 하나**(`f8c3b2a19d47`)로 유지한다. 개발 중 쌓인 리비전은 새 revision id의 베이스라인으로 스쿼시하며(id를 재사용하면 오래된 DB가 조용히 드리프트한다), 스쿼시 뒤 기존 DB는 위 절차대로 재생성해야 한다. 첫 운영 배포 이후부터 리비전을 누적한다.
+main에 공개된 리비전은 운영 배포 전이라도 스쿼시·재작성하거나 id를 재사용하지 않는다. 실행 중인 DB를 자동 삭제하는 스크립트도 두지 않는다. 실제 운영 배포 이후에는 같은 원칙으로 새 리비전을 순서대로 누적한다.
 
 ## 규칙
 
@@ -25,7 +25,7 @@ uv run pytest tests/                                              # 마이그레
 - **PG enum은 user_role 하나로 봉인.** ① 후속 리비전에서 같은 enum 참조 시 `postgresql.ENUM(..., name="user_role", create_type=False)`, ② 값 추가는 autogenerate가 감지 못함 — 수동 `op.execute("ALTER TYPE user_role ADD VALUE ...")`, ③ 새 enum 추가 금지(text+CHECK 사용).
 - **DB 트리거·함수·뷰 금지** — 로직은 api로 (MAPPING.md §2). updated_at은 SQLAlchemy onupdate(raw SQL UPDATE는 갱신 안 됨을 전제).
 - **db/ 밑에 pytest 테스트 두지 말 것** — pytest importlib 모드가 더미 부모 모듈 `db`를 만들어 실제 패키지를 가린다. 테스트는 루트 `tests/`에.
-- pgvector는 베이스라인 리비전이 `CREATE EXTENSION`으로 활성화한다(로컬 compose·Cloud SQL 모두 지원). motif와 authoring 검색 임베딩은 Vertex AI 3072차원만 사용한다.
+- pgvector는 베이스라인 리비전이 `CREATE EXTENSION`으로 활성화한다(로컬 compose·Cloud SQL 모두 지원). motif와 authoring 검색 임베딩은 OpenAI text-embedding-3-large 1536차원만 사용한다.
 
 ## 3단계(api)에서 쓸 것
 

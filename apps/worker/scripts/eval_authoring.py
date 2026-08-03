@@ -1,10 +1,10 @@
 """Live authoring evaluation; never run implicitly in tests.
 
 Usage:
-  GCP_PROJECT_ID=... DATABASE_URL=... uv run python \
+  OPENAI_API_KEY=... DATABASE_URL=... uv run python \
     apps/worker/scripts/eval_authoring.py --confirm-live
 
-V3 reads the active database example set and exercises the same Vertex embedding + pgvector RAG
+V3 reads the active database example set and exercises the same OpenAI embedding + pgvector RAG
 path as the worker. The report contains aggregates and case IDs only; prompt text
 and provider responses are never printed or persisted.
 """
@@ -25,8 +25,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from worker.adapters import AdapterClientError
 from worker.adapters.embedding import DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL
-from worker.adapters.embedding import VertexEmbeddingClient
-from worker.adapters.gemini import DEFAULT_MODEL, GeminiClient
+from worker.adapters.embedding import OpenAIEmbeddingClient
+from worker.adapters.llm import DEFAULT_MODEL, LLMClient
 from worker.authoring.retrieval import retrieve_examples
 from worker.engine.validate import IntentInvalid, validate_intent
 
@@ -61,13 +61,13 @@ def _percentile(values: list[float], percentile: float) -> float | None:
 async def _evaluate_model(
     model: str,
     cases: list[EvalCase],
-    project: str,
+    api_key: str,
     *,
     session: AsyncSession,
-    embedding: VertexEmbeddingClient,
+    embedding: OpenAIEmbeddingClient,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
 ) -> dict[str, Any]:
-    client = GeminiClient(project, model)
+    client = LLMClient(api_key, model)
     latencies: list[float] = []
     attempts: list[int] = []
     failures: Counter[str] = Counter()
@@ -139,7 +139,7 @@ async def _evaluate_model(
 
 
 def _arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate live Gemini authoring contracts")
+    parser = argparse.ArgumentParser(description="Evaluate live LLM authoring contracts")
     parser.add_argument("--confirm-live", action="store_true", help="acknowledge paid API calls")
     parser.add_argument("--model", action="append", dest="models")
     parser.add_argument("--corpus", type=Path, default=DEFAULT_CORPUS)
@@ -152,9 +152,9 @@ async def _main() -> None:
     args = _arguments()
     if not args.confirm_live:
         raise SystemExit("Refusing live provider calls without --confirm-live")
-    project = os.environ.get("GCP_PROJECT_ID", "")
-    if not project:
-        raise SystemExit("GCP_PROJECT_ID is required")
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        raise SystemExit("OPENAI_API_KEY is required")
     raw_cases = json.loads(args.corpus.read_text(encoding="utf-8"))
     if not isinstance(raw_cases, list):
         raise SystemExit("corpus must be a JSON array")
@@ -169,7 +169,7 @@ async def _main() -> None:
         raise SystemExit("DATABASE_URL is required for RAG evaluation")
     engine = create_async_engine(database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    embedding = VertexEmbeddingClient(project, model=args.embedding_model)
+    embedding = OpenAIEmbeddingClient(api_key, args.embedding_model)
 
     results: list[dict[str, Any]] = []
     try:
@@ -179,7 +179,7 @@ async def _main() -> None:
                     await _evaluate_model(
                         model,
                         cases,
-                        project,
+                        api_key,
                         session=session,
                         embedding=embedding,
                         embedding_model=args.embedding_model,

@@ -33,18 +33,19 @@ class Settings(BaseSettings):
     finalize_lease_seconds: int = Field(default=960, ge=1)
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
 
-    gcp_project_id: str = ""
-    vertex_ai_location: str = "global"
-    gemini_model: str = "gemini-2.5-flash-lite"
-    gemini_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
-    embedding_model: str = "gemini-embedding-001"
-    embedding_output_dimensionality: int = Field(default=3072, ge=1)
+    # 빈 키 → LLM/임베딩 클라이언트 None(비활성). base_url은 테스트의 mock 주입 지점.
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-5.6-luna"
+    embedding_model: str = "text-embedding-3-large"
     recraft_api_key: str = ""
     recraft_model: str = "recraftv4_1_vector"
     recraft_style: str = ""
     recraft_size: str = "1024x1024"
     recraft_base_url: str = "https://external.api.recraft.ai/v1"
-    motif_similarity_tau: float = Field(default=0.84, ge=0.0, le=1.0)
+    # text-embedding-3-large 분포 기준(2026-08-03 재캘리브레이션): 정답 top-1 0.445~0.608,
+    # 무관 쿼리 ≤0.339 — 0.40이 둘을 가른다. gemini-embedding-001 시절 값은 0.84였다.
+    motif_similarity_tau: float = Field(default=0.40, ge=0.0, le=1.0)
     # One explicit motif-generation request may retry the suitability gate. Bound its actual
     # Recraft calls while catalog hits remain free.
     motif_generate_per_request_limit: int = Field(default=2, ge=1, le=8)

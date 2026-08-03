@@ -1,6 +1,6 @@
 # worker 명세 2/3 — 모티프 시스템 + 외부 API (seamless-tile 추출)
 
-원본: `app/motifs/`, `app/adapters/`. 모티프 검색 래더·content-hash·프롬프트는 기능 명세의 일부 — 원문 보존. DB 스키마는 새 모노레포의 `motifs` 테이블과 Vertex `vector(3072)` 한 종류만 사용한다.
+원본: `app/motifs/`, `app/adapters/`. 모티프 검색 래더·content-hash·프롬프트는 기능 명세의 일부 — 원문 보존. DB 스키마는 새 모노레포의 `motifs` 테이블과 OpenAI `vector(1536)` 한 종류만 사용한다.
 
 ## 1. 모티프 데이터 모델·정규화
 
@@ -45,26 +45,26 @@ User description: {query}
 - vectorize: 재프롬프트 없음(이미지 고정), 실패 시 해당 layer만 drop+경고. 입력 한도: 5MB/256~4096px/16M픽셀.
 - 캐시(결정론 freeze): spec canonical → motif_id, 이미지 sha256 → motif_id. (재구현: 프로세스-로컬 캐시 미승계 — content-hash id + DB upsert가 같은 멱등성 제공.)
 
-## 4. 임베딩 (Vertex AI)
+## 4. 임베딩 (OpenAI)
 
-- `gemini-embedding-001`, 3072차원, ADC + Google Gen AI SDK를 사용한다. 검색 query는 `RETRIEVAL_QUERY`, motif/authoring example 문서는 `RETRIEVAL_DOCUMENT` task type이며 요청 내 같은 `(text, task_type)`만 task memo로 합친다. 프로세스 전역 캐시는 없다.
+- `text-embedding-3-large`, `dimensions=1536`, API 키 + httpx 직접 호출을 사용한다. task type 개념은 없으며 요청 내 같은 text만 task memo로 합친다. 프로세스 전역 캐시는 없다.
 - **임베딩 텍스트**: `subject, description, style, view, expression, tags`의 비어 있지 않은 값을 순서대로 합친다. `scope`는 검색 필터·문서 모두에서 제외한다.
 - 미설정·호출 실패는 exact subject/tag token 검색만 남기는 fail-soft다. 관련성 근거 없이 카탈로그를 재사용하지 않는다.
-- 승인된 시드 공개 NULL 행은 `apps/worker/scripts/index_motif_embeddings.py --confirm-live`가 초기 인덱싱한다. GCP project/ADC·확인 플래그가 없으면 실행을 거부하고 `pending`·`rejected`·`user_upload`은 제외한다.
+- 승인된 시드 공개 NULL 행은 `apps/worker/scripts/index_motif_embeddings.py --confirm-live`가 초기 인덱싱한다. `OPENAI_API_KEY`·확인 플래그가 없으면 실행을 거부하고 `pending`·`rejected`·`user_upload`은 제외한다.
 
 ## 5. 디자인 catalog grounding과 명시적 생성
 
-디자인 `/generate`의 카탈로그 경로는 **원문 retrieval → 정확도 게이트 → Gemini grounding**에서 끝난다.
+디자인 `/generate`의 카탈로그 경로는 **원문 retrieval → 정확도 게이트 → LLM grounding**에서 끝난다.
 
 1. prompt 원문의 NFC/casefold token과 `status=approved` 공개 motif subject/tag의 완전 token 일치를 ID 순으로 모은다.
-2. 승인된 공개 카탈로그 전체 pgvector cosine top-5를 구하고 **τ=0.84** 이상만 더한다. 동점은 lowest ID다. `scope`는 필터로 사용하지 않고 `pending`·`rejected`·`user_upload`은 항상 제외한다.
-3. 후보는 실제 ID 없이 `catalog_ref`, subject, description, style로 Gemini에 제공한다. compiler만 ref→ID를 변환한다.
+2. 승인된 공개 카탈로그 전체 pgvector cosine top-5를 구하고 **τ=0.40** 이상만 더한다(text-embedding-3-large 분포 기준 재캘리브레이션). 동점은 lowest ID다. `scope`는 필터로 사용하지 않고 `pending`·`rejected`·`user_upload`은 항상 제외한다.
+3. 후보는 실제 ID 없이 `catalog_ref`, subject, description, style로 LLM에 제공한다. compiler만 ref→ID를 변환한다.
 4. 후보가 있는데 검증되지 않은 source를 만들거나 후보를 모두 무시한 plan은 거부한다. 한 번 재저작 후에도 같으면 `semantic_mismatch`다. 후보가 없으면 모티프 없이 계속하며 Recraft나 lowest-ID fallback을 호출하지 않는다.
 5. `variant_group = sha256(canonical_json({"v":2, "subject", "scope"}))[:16]`; catalog hit pool은 seed로 안정 선택한다.
 
 새 모티프 생성은 모티프 모달의 별도 계약이다. `POST /motifs/candidates`와 `POST /motifs/generate`는 `{query}`만 받고, 최대 200자의 `query`를 변환 없이 `{"subject": query, "scope": "whole"}`로 검색한다. 문장이 모티프의 유일한 입력이다 — 디자인 컨텍스트(플랜의 style 문구 등)를 숨은 힌트로 주입하지 않는다. 같은 문장은 재사용 판정과 생성 결과 모두에서 같은 모티프를 의미하며, 다른 스타일을 원하면 문장을 바꾼다("미니멀한 동백꽃"). `candidates`는 같은 신뢰도 게이트의 catalog hit만 반환하고 Recraft를 호출하지 않는다. 사용자가 `generate`를 명시적으로 선택한 뒤에만 `resolve_spec`이 miss에서 Recraft를 호출한다. 실제 provider 호출은 요청당 `motif_generate_per_request_limit`(기본 2)로 제한되고 API는 별도로 세션 예산 3회를 선차감·보상한다.
 
-Recraft 결과는 임베딩과 함께 `pending`으로 저장한다. 생성 요청은 반환된 ID를 직접 조회해 즉시 렌더할 수 있지만, 관리자 `POST /admin/motifs/{id}/review`가 `approved`로 바꾸기 전에는 다른 사용자의 lexical/pgvector 검색, Gemini grounding, variant pool, 임베딩 인덱싱·집계와 registry fingerprint에 포함되지 않는다. `rejected`도 같은 공개 제외 상태이고 행은 삭제하지 않는다. 관리자는 no-op을 제외하고 승인 회수(`approved→rejected`)를 포함한 모든 승인/거절 전이를 수행할 수 있다. 승인 전 같은 spec을 다시 요청하면 카탈로그 miss라 Recraft 비용이 다시 들 수 있으나 content-hash upsert는 행 중복을 만들지 않는다.
+Recraft 결과는 임베딩과 함께 `pending`으로 저장한다. 생성 요청은 반환된 ID를 직접 조회해 즉시 렌더할 수 있지만, 관리자 `POST /admin/motifs/{id}/review`가 `approved`로 바꾸기 전에는 다른 사용자의 lexical/pgvector 검색, LLM grounding, variant pool, 임베딩 인덱싱·집계와 registry fingerprint에 포함되지 않는다. `rejected`도 같은 공개 제외 상태이고 행은 삭제하지 않는다. 관리자는 no-op을 제외하고 승인 회수(`approved→rejected`)를 포함한 모든 승인/거절 전이를 수행할 수 있다. 승인 전 같은 spec을 다시 요청하면 카탈로그 miss라 Recraft 비용이 다시 들 수 있으나 content-hash upsert는 행 중복을 만들지 않는다.
 
 C-10 facet 휴리스틱은 비가시·제어 문자와 알려진 명령형 인젝션을 저장 전에 막는 1차 방어다. 이를 통과한 자유 텍스트도 곧바로 공개되지 않고 관리자 승인 게이트를 거치므로, 휴리스틱 하나만으로 전체 사용자 grounding 입력을 신뢰하지 않는다.
 
@@ -77,16 +77,16 @@ upsert한 미커밋 motif까지 전체 rollback하지 않으며, 쓰기 오류�
 
 Recraft miss가 신규 content-hash 행을 insert했을 때만 최초 유입 사용자·세션 provenance를 저장한다. content-hash hit는 기존 symbol과 provenance를 덮지 않는다.
 
-## 6. Gemini DesignPlan v3 저작
+## 6. LLM DesignPlan v3 저작 (OpenAI)
 
-- 모델 `gemini-2.5-flash-lite`, ADC + Google Gen AI SDK, temperature 0.7, `response_mime_type="application/json"`을 사용한다. v3는 Pydantic `DesignPlansV3` 타입 자체를 `response_schema`로 전달하고 SDK parsed 결과를 우선 사용한다. 429/503은 0.5/1/2s 지수 백오프로 최대 4회 재시도하고 그 외 provider 오류는 502급이다.
-- Gemini는 전체 엔진 intent를 직접 만들지 않는다. v3 structured output은 DesignPlanV3 한 객체, 2~8 HEX palette, 최대 2개 discriminated motif source(`input`/verified `catalog`), 최대 5개 stripe/motif layer와 normalized placement(lattice, Poisson/sateen scatter, closed straight/wave path, 고정 point template)만 가진다. engine ID·mm·SVG·임의 point 좌표는 schema 밖이다.
+- 모델 `gpt-5.6-luna`, API 키 + httpx `chat/completions` 직접 호출, `response_format={"type":"json_schema","strict":true}`를 사용한다. v3는 Pydantic `DesignPlanV3` 스키마를 strict 변환(`_strict_json_schema`)해 전달하고 응답 텍스트를 pydantic으로 재검한다. 429/500/502/503은 0.5/1/2s 지수 백오프로 최대 4회 재시도하고 그 외 provider 오류는 502급이다.
+- LLM은 전체 엔진 intent를 직접 만들지 않는다. v3 structured output은 DesignPlanV3 한 객체, 2~8 HEX palette, 최대 2개 discriminated motif source(`input`/verified `catalog`), 최대 5개 stripe/motif layer와 normalized placement(lattice, Poisson/sateen scatter, closed straight/wave path, 고정 point template)만 가진다. engine ID·mm·SVG·임의 point 좌표는 schema 밖이다.
 - worker compiler가 plan을 48mm/300dpi intent로 결정적으로 변환한다. palette/colorway/layer ID, tile-commensurate geometry와 concrete motif ID를 코드가 만들고 엔진 경계가 다시 검증한다.
-- exact private motif의 실제 ID는 Gemini에 전달하지 않고 1-based input 순번만 요구한다. 모든 exact input은 plan에 정확히 한 번 있어야 하고 verified catalog는 `catalog_ref`만 노출한다. compiler만 ref→ID를 변환한다. 모티프 색은 symbol에 고정되어 있어 Plan v3에는 모티프 색 필드가 없다.
+- exact private motif의 실제 ID는 LLM에 전달하지 않고 1-based input 순번만 요구한다. 모든 exact input은 plan에 정확히 한 번 있어야 하고 verified catalog는 `catalog_ref`만 노출한다. compiler만 ref→ID를 변환한다. 모티프 색은 symbol에 고정되어 있어 Plan v3에는 모티프 색 필드가 없다.
 - `gallery-v1`은 빈 DB용 소량 starter Plan v3 시드이며 골든 파일과 독립적이다. 컴파일러 회귀는 테스트 픽스처의 ID-파일명 규약으로 검증한다. 실제 RAG는 `authoring_examples`의 현재 contract·embedding model에 맞는 active 시범만 검색한다. query top-25를 motif 수/배치 제약으로 거른 상위 8개에서 family 다양성을 우선해 최대 3개를 prompt에 넣는다. retrieval 장애·빈 active 집합은 시범 없이 계속하는 fail-soft다.
 - 모든 요청은 Plan v3 저작 경로만 사용한다. contract/compiler/prompt/example revision, retrieval 상태·선택 ID/유사도, fingerprint는 generation diagnostics와 intent log에 남긴다.
 - live 평가는 `eval_authoring.py --confirm-live`의 label 30-case corpus로 schema/compiler 성공률, 구조 다양성, retrieval expected-family recall, 시도 수와 latency를 측정한다. prompt/provider 원문은 출력·저장하지 않고 CI는 유료 호출을 실행하지 않는다. 정본·동기화·승격 절차는 `docs/specs/authoring-plan-v3.md`다.
-- exact private motif id는 최대 2개 모두 compiler에 전달하되 Gemini에는 ID를 공개하지 않는다. compiler가 모든 exact motif를 intent에 넣고 worker가 누락을 검증한다. user-upload source는 exact id 조회로만 렌더되고 일반 facet/embedding/variant 검색 및 registry fingerprint에서 제외된다.
+- exact private motif id는 최대 2개 모두 compiler에 전달하되 LLM에는 ID를 공개하지 않는다. compiler가 모든 exact motif를 intent에 넣고 worker가 누락을 검증한다. user-upload source는 exact id 조회로만 렌더되고 일반 facet/embedding/variant 검색 및 registry fingerprint에서 제외된다.
 
 ### 6.1 모티프 색 불변 계약
 
@@ -114,7 +114,7 @@ resolver가 concrete motif ID를 확정한 뒤 intent는 `motif_id`와 `size_mm`
 
 ### 7.2 문맥 기반 아이디어
 
-`POST /ideas`는 기존 prompt, 최대 2개의 exact motif 문맥과 count(3 또는 4)를 받는다. worker 내부에서는 id/name 순서를 검증하지만 Gemini 프롬프트에는 ordinal과 human name만 보내고 private content-hash id는 공개하지 않는다. 이미지는 받거나 Gemini에 보내지 않는다. 결과는 서로 다른 180자 이하 문장 정확히 count개인 JSON만 수용하며 형식 오류는 한 번 constrained retry 후 502다.
+`POST /ideas`는 기존 prompt, 최대 2개의 exact motif 문맥과 count(3 또는 4)를 받는다. worker 내부에서는 id/name 순서를 검증하지만 LLM 프롬프트에는 ordinal과 human name만 보내고 private content-hash id는 공개하지 않는다. 이미지는 받거나 LLM에 보내지 않는다. 결과는 서로 다른 180자 이하 문장 정확히 count개인 JSON만 수용하며 형식 오류는 한 번 constrained retry 후 502다.
 
 이 경로는 intent·디자인·generation log를 만들지 않고 Recraft도 호출하지 않는다. 과금과 사용자별 rate limit은 API 경계가 소유하며 worker에는 토큰 차감 로직이 없다. 프론트가 provider를 직접 호출하지 않는다.
 
@@ -132,4 +132,4 @@ resolver가 concrete motif ID를 확정한 뒤 intent는 `motif_id`와 `size_mm`
 
 ## 10. 설정값
 
-gcp_project_id/vertex_ai_location, gemini_model/temperature(0.7), embedding_model/output_dimensionality(3072), motif_similarity_tau=0.84, motif_generate_per_request_limit=2, recraft_api_key/model/style("")/size/response_format(`b64_json` 고정)/base_url, motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True. 비로컬 generate worker는 GCP project/ADC와 Recraft secret을 사용하며 설정 누락을 가짜 성공으로 바꾸지 않는다.
+openai_api_key/base_url, llm_model(`gpt-5.6-luna`), embedding_model(`text-embedding-3-large`)/dimensions(1536), motif_similarity_tau=0.40(임베딩 모델 분포 기준 재캘리브레이션), motif_generate_per_request_limit=2, recraft_api_key/model/style("")/size/response_format(`b64_json` 고정)/base_url, motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True. 비로컬 generate worker는 OpenAI·Recraft secret을 사용하며 설정 누락을 가짜 성공으로 바꾸지 않는다.

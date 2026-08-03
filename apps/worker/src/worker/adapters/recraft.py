@@ -304,7 +304,7 @@ class RecraftHTTPClient:
             svg = _extract(resp.json())
         except httpx.HTTPStatusError as exc:
             raise RecraftError(
-                f"Recraft API HTTP {exc.response.status_code}: {exc.response.text[:500]}",
+                f"Recraft API HTTP {exc.response.status_code}",
                 provider="recraft",
                 operation="generate_motif",
                 reason_code=adapter_http_reason(exc.response.status_code),
@@ -390,7 +390,7 @@ async def generate_motif(
             raise
         except Exception as exc:  # 생성기 실패는 업스트림(502급)
             raise RecraftError(
-                f"Recraft generation failed: {exc}",
+                "Recraft generation failed",
                 provider="recraft",
                 operation="generate_motif",
                 reason_code="request_failed",
@@ -407,7 +407,7 @@ async def generate_motif(
             errors = [str(exc)]
             continue
     raise RecraftError(
-        f"Recraft motif failed the suitability/sanitize gate after retry: {errors}",
+        "Recraft motif failed the suitability/sanitize gate after retry",
         provider="recraft",
         operation="sanitize_motif",
         reason_code="suitability_gate_failed",

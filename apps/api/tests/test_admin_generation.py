@@ -194,7 +194,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
             status="success",
             diagnostics={
                 "mode": "patch",
-                "model": "gemini-2.5-flash-lite",
+                "model": "gpt-5.6-luna",
                 "authoring_attempts": 1,
                 "patch_axes": ["background", "placement"],
                 "resolved_count": 3,
@@ -322,7 +322,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
     assert "png_object_key" not in detail.text
     assert detail.json()["diagnostics"] == {
         "mode": "patch",
-        "model": "gemini-2.5-flash-lite",
+        "model": "gpt-5.6-luna",
         "prompt_revision": None,
         "patch_axes": ["background", "placement"],
         "authoring_attempts": 1,
@@ -484,7 +484,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
     )
     # 실패 로그도 워커가 FK를 채운다 — 상관 턴이 없어도 요청자는 드러난다
     provider_failure = SeamlessGenerationLog(
-        request_id="vertex-failure-request",
+        request_id="embedding-failure-request",
         session_id=design_session.id,
         user_id=owner.id,
         input_type="prompt",
@@ -494,7 +494,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         diagnostics={
             "failure_code": "provider_request_failed",
             "failure_stage": "motif_resolution",
-            "failure_provider": "vertex_embedding",
+            "failure_provider": "openai_embedding",
             "failure_operation": "embed",
             "failure_reason": "rate_limited",
             "failure_status_code": 429,
@@ -658,7 +658,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         headers=auth_headers(admin, settings),
     )
     assert failed_detail.status_code == 200
-    assert failed_detail.json()["error_summary"] == "Vertex AI 임베딩 생성 연동에 실패했습니다"
+    assert failed_detail.json()["error_summary"] == "OpenAI 임베딩 생성 연동에 실패했습니다"
     assert failed_detail.json()["diagnostics"]["failure_reason"] == "rate_limited"
     assert failed_detail.json()["token_accounting"] == {
         "matched": False,

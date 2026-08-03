@@ -1,136 +1,143 @@
-"""Vertex AI text embedding adapter using ADC and the official Google SDK."""
+"""OpenAI 텍스트 임베딩 어댑터 — httpx 직접 호출 (SDK 없음)."""
 
 from __future__ import annotations
 
 import asyncio
 from typing import Protocol
 
-from google import genai
-from google.genai import types
+import httpx
 
 from worker.adapters import AdapterClientError, adapter_http_reason
 
-DEFAULT_MODEL = "gemini-embedding-001"
-DEFAULT_DIMENSION = 3072
+DEFAULT_MODEL = "text-embedding-3-large"
+DEFAULT_DIMENSIONS = 1536
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
 
 class SupportsEmbed(Protocol):
     model: str
 
-    async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]: ...
+    async def embed(self, text: str) -> list[float]: ...
 
 
 class EmbeddingError(AdapterClientError):
-    """Vertex 임베딩 업스트림 실패. resolver는 이를 fail-soft로 처리한다."""
+    """임베딩 업스트림 실패. resolver는 이를 fail-soft로 처리한다."""
 
 
-class VertexEmbeddingClient:
+class OpenAIEmbeddingClient:
     def __init__(
         self,
-        project: str,
-        location: str = "global",
+        api_key: str,
         model: str = DEFAULT_MODEL,
         *,
-        output_dimensionality: int = DEFAULT_DIMENSION,
-        client: genai.Client | None = None,
+        dimensions: int = DEFAULT_DIMENSIONS,
+        base_url: str = DEFAULT_BASE_URL,
+        timeout: float = 60.0,
     ) -> None:
-        if not project and client is None:
+        if not api_key:
             raise EmbeddingError(
-                "VertexEmbeddingClient requires a GCP project",
-                provider="vertex_embedding",
+                "OpenAIEmbeddingClient requires a non-empty api_key",
+                provider="openai_embedding",
                 operation="embed",
                 reason_code="not_configured",
             )
         self.model = model
-        self.output_dimensionality = output_dimensionality
-        self._client = client or genai.Client(vertexai=True, project=project, location=location)
+        self.dimensions = dimensions
+        self._api_key = api_key
+        self._base_url = base_url.rstrip("/")
+        self._timeout = timeout
+        self._client: httpx.AsyncClient | None = None
 
-    async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
+    def _http(self) -> httpx.AsyncClient:
+        """지연 생성 공유 커넥션 풀 — 요청마다 열지 않는다, aclose가 닫는다."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self._timeout)
+        return self._client
+
+    async def embed(self, text: str) -> list[float]:
         try:
-            response = await self._client.aio.models.embed_content(
-                model=self.model,
-                contents=text,
-                config=types.EmbedContentConfig(
-                    task_type=task_type,
-                    output_dimensionality=self.output_dimensionality,
-                ),
+            response = await self._http().post(
+                f"{self._base_url}/embeddings",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json={"model": self.model, "input": text, "dimensions": self.dimensions},
             )
-        except Exception as exc:  # SDK exception classes vary by version.
-            status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
-            status = (
-                int(status) if isinstance(status, int | str) and str(status).isdigit() else None
-            )
-            reason = adapter_http_reason(status) if status is not None else "provider_error"
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
             raise EmbeddingError(
-                f"Vertex embedding request failed: {exc}",
-                provider="vertex_embedding",
+                f"OpenAI embedding HTTP {status}",
+                provider="openai_embedding",
                 operation="embed",
-                reason_code=reason,
+                reason_code=adapter_http_reason(status),
                 status_code=status,
             ) from exc
-        try:
-            embeddings = response.embeddings
-            if not embeddings or embeddings[0].values is None:
-                raise ValueError("missing embeddings")
-            values = embeddings[0].values
-            vector = list(values)
-        except (AttributeError, IndexError, TypeError, ValueError) as exc:
+        except httpx.TimeoutException as exc:
             raise EmbeddingError(
-                f"Vertex returned an unexpected embedding payload: {exc}",
-                provider="vertex_embedding",
+                f"OpenAI embedding request failed: {exc}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="timeout",
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise EmbeddingError(
+                f"OpenAI embedding request failed: {exc}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="transport_error",
+            ) from exc
+        try:
+            values = response.json()["data"][0]["embedding"]
+            vector = [float(value) for value in values]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise EmbeddingError(
+                "OpenAI returned an unexpected embedding payload",
+                provider="openai_embedding",
                 operation="embed",
                 reason_code="invalid_response",
             ) from exc
-        if len(vector) != self.output_dimensionality:
+        if len(vector) != self.dimensions:
             raise EmbeddingError(
-                "Vertex embedding dimension mismatch: "
-                f"expected {self.output_dimensionality}, got {len(vector)}",
-                provider="vertex_embedding",
+                "OpenAI embedding dimension mismatch: "
+                f"expected {self.dimensions}, got {len(vector)}",
+                provider="openai_embedding",
                 operation="embed",
                 reason_code="invalid_response",
             )
         return vector
 
     async def aclose(self) -> None:
-        close = getattr(self._client.aio, "aclose", None)
-        if close is not None:
-            await close()
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
 
 
 class RequestScopedEmbedding:
     def __init__(self, inner: SupportsEmbed) -> None:
         self._inner = inner
-        self._memo: dict[tuple[str, str], asyncio.Task[list[float]]] = {}
+        self._memo: dict[str, asyncio.Task[list[float]]] = {}
         self.model = inner.model
 
-    async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
-        key = (text, task_type)
-        if key not in self._memo:
-            self._memo[key] = asyncio.ensure_future(self._inner.embed(text, task_type=task_type))
-        return await self._memo[key]
+    async def embed(self, text: str) -> list[float]:
+        if text not in self._memo:
+            self._memo[text] = asyncio.ensure_future(self._inner.embed(text))
+        return await self._memo[text]
 
 
 def request_scoped(client: SupportsEmbed | None) -> RequestScopedEmbedding | None:
     return None if client is None else RequestScopedEmbedding(client)
 
 
-def build_embedding_client(settings) -> VertexEmbeddingClient | None:
-    project = getattr(settings, "gcp_project_id", "")
-    if not project:
+def build_embedding_client(settings) -> OpenAIEmbeddingClient | None:
+    api_key = getattr(settings, "openai_api_key", "")
+    if not api_key:
         return None
-    return VertexEmbeddingClient(
-        project,
-        getattr(settings, "vertex_ai_location", "global"),
+    return OpenAIEmbeddingClient(
+        api_key,
         getattr(settings, "embedding_model", DEFAULT_MODEL) or DEFAULT_MODEL,
-        output_dimensionality=getattr(
-            settings, "embedding_output_dimensionality", DEFAULT_DIMENSION
-        ),
+        base_url=getattr(settings, "openai_base_url", None) or DEFAULT_BASE_URL,
     )
 
 
-async def embed_query(
-    text: str, *, client: SupportsEmbed | None, task_type: str = "RETRIEVAL_QUERY"
-) -> list[float] | None:
+async def embed_query(text: str, *, client: SupportsEmbed | None) -> list[float] | None:
     if client is None:
         return None
-    return await client.embed(text, task_type=task_type)
+    return await client.embed(text)

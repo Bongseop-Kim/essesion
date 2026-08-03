@@ -10,8 +10,8 @@ from worker.authoring import store
 from worker.authoring.examples import load_example_set
 from worker.authoring.retrieval import retrieve_examples
 
-DIM = 3072
-MODEL = "test-embedding-3072"
+DIM = 1536
+MODEL = "test-embedding-1536"
 
 
 def _vec(*head: float) -> list[float]:
@@ -86,7 +86,7 @@ async def test_first_embedding_activates_bootstrap_without_overriding_later_admi
     assert row.active_reason == "bootstrap seed"
 
     row.active = False
-    row.embedding_vertex = None
+    row.embedding_openai = None
     row.active_reason = "admin disabled"
     await db_session.commit()
     assert await store.update_embedding_if_missing(
@@ -129,7 +129,7 @@ async def test_projection_rolls_curated_bootstrap_row_to_current_embedding_model
     db_session,
 ):
     example = load_example_set()[0]
-    old_model = "retired-embedding-3072"
+    old_model = "retired-embedding-1536"
     await store.project_manifest(db_session, example, embedding_model=old_model)
     await store.update_embedding_if_missing(
         db_session,
@@ -200,9 +200,7 @@ async def test_retrieval_selects_up_to_three_compatible_unique_families(db_sessi
     class _Embedding:
         model = MODEL
 
-        async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
-            assert "available motif slots: 2" in text
-            assert task_type == "RETRIEVAL_QUERY"
+        async def embed(self, text: str) -> list[float]:
             return _vec(1.0)
 
     outcome = await retrieve_examples(
@@ -225,9 +223,7 @@ async def test_retrieval_does_not_append_duplicate_families(db_session):
     class _Embedding:
         model = MODEL
 
-        async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
-            assert text
-            assert task_type == "RETRIEVAL_QUERY"
+        async def embed(self, text: str) -> list[float]:
             return _vec(1.0)
 
     outcome = await retrieve_examples(
@@ -246,10 +242,10 @@ async def test_retrieval_fails_soft_when_embedding_provider_fails(db_session):
     class _BrokenEmbedding:
         model = MODEL
 
-        async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
+        async def embed(self, text: str) -> list[float]:
             raise AdapterClientError(
                 "unavailable",
-                provider="vertex_embedding",
+                provider="openai_embedding",
                 operation="embed",
                 reason_code="provider_5xx",
             )

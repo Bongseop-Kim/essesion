@@ -80,7 +80,8 @@ export function PrivacyPolicyContent() {
             "토스페이먼츠: 결제 승인·취소 및 결제 관련 고객 지원",
             "Solapi: 휴대폰 인증과 서비스 알림 메시지 발송",
             "Google·Kakao: 소셜 로그인 인증",
-            "Google Gemini·OpenAI·Recraft: AI 디자인 기능에서 입력한 프롬프트·참조 이미지 처리",
+            "OpenAI: AI 디자인 저작·아이디어·텍스트 유사도 기능의 프롬프트와 관련 텍스트 처리",
+            "Recraft: 사용자가 명시적으로 요청한 새 모티프 생성 프롬프트 처리",
             "Google Analytics: 서비스 이용 통계 분석 (제6조 참조)",
           ]}
         />
@@ -94,9 +95,9 @@ export function PrivacyPolicyContent() {
         <PolicyList
           items={[
             "Cloudflare, Inc.(미국): 웹 콘텐츠 전송과 보안 프록시 운영을 위해 접속 기록(IP 주소, 브라우저·기기 정보)을 전 세계 엣지 서버에서 처리하며, 처리 목적 달성 또는 위탁 계약 종료 시 파기합니다. 연락처: privacyquestions@cloudflare.com",
-            "Google LLC(미국): 소셜 로그인 인증, Gemini API를 통한 AI 디자인 생성, Google Analytics를 통한 서비스 이용 통계 분석을 위해 계정 식별 정보, 프롬프트와 참조 이미지, 쿠키 기반 식별자와 서비스 이용 기록을 처리합니다. 소셜 로그인 계정 식별 정보는 위 제3조의 계정 보유기간 동안 인증에 이용되고, Gemini API에 입력한 프롬프트와 참조 이미지는 모델 학습에 사용되지 않고 부정 사용 감시 목적으로 최대 55일 보관 후 파기되며, Google Analytics 수집 정보는 수집일로부터 최대 14개월 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
-            "OpenAI, L.L.C.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. API 입력 데이터는 모델 학습에 사용되지 않으며, 부정 사용 감시 목적으로 최대 30일 보관 후 삭제됩니다. 연락처: privacy@openai.com",
-            "Recraft, Inc.(미국): AI 디자인 생성을 위해 프롬프트와 참조 이미지를 처리합니다. 입력 데이터는 결과 생성에만 사용되고 모델 학습에 사용되지 않으며, 결과 전달 후 저장하지 않습니다. 연락처: recraft.ai/legal/privacy",
+            "Google LLC(미국): 소셜 로그인 인증과 Google Analytics를 통한 서비스 이용 통계 분석을 위해 계정 식별 정보, 쿠키 기반 식별자와 서비스 이용 기록을 처리합니다. 소셜 로그인 계정 식별 정보는 위 제3조의 계정 보유기간 동안 인증에 이용되고, Google Analytics 수집 정보는 수집일로부터 최대 14개월 보관 후 파기됩니다. 연락처: policies.google.com/privacy",
+            "OpenAI, L.L.C.(미국): AI 디자인 저작·아이디어 생성과 텍스트 유사도 계산을 위해 사용자가 입력한 프롬프트와 서비스가 선택한 모티프·예시의 텍스트 정보를 처리하며, 이미지 파일은 전송하지 않습니다. API 입력·출력은 기본적으로 모델 학습에 사용되지 않습니다. 부정 사용 감시 로그는 원칙적으로 최대 30일 보관될 수 있으며 법령 준수·보안상 예외가 적용될 수 있습니다. 연락처: privacy@openai.com",
+            "Recraft, Inc.(미국): 사용자가 새 모티프 생성을 명시적으로 요청한 경우 해당 텍스트 프롬프트를 처리하며, 참조 이미지 파일은 전송하지 않습니다. 입력·출력은 Recraft의 개인정보처리방침에 따라 모델 개선에 사용될 수 있고 계정 설정에서 이를 거부할 수 있으며, 서비스 제공·법령 준수 등에 필요한 기간 보관될 수 있습니다. 연락처: recraft.ai/legal/privacy",
           ]}
         />
       </PolicySection>
@@ -155,7 +156,7 @@ export function PrivacyPolicyContent() {
           안내합니다.
         </Text>
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: 2026년 7월 17일</Text>
+          <Text textStyle="labelSm">시행일: 2026년 8월 4일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>

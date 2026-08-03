@@ -1,12 +1,10 @@
 """/motifs/* + /generate 모티프 경로 API 테스트 — 실컨테이너 (worker-motifs.md §3~§6)."""
 
 import json
-from types import SimpleNamespace
-from typing import cast
-from unittest.mock import AsyncMock
 
-from google import genai
-from worker.adapters.gemini import AuthoredDesign, GeminiClient
+import httpx
+import respx
+from worker.adapters.llm import AuthoredDesign, LLMClient
 from worker.motifs import store
 from worker.motifs.normalize import normalize_motif_svg
 
@@ -137,7 +135,8 @@ async def test_generate_renders_with_db_motif_catalog(client, db_session):
     assert body["registry_version"].startswith("0.1.0")
 
 
-async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
+@respx.mock
+async def test_prompt_path_end_to_end_with_llm(app, client, db_session):
     mid = await _seed_dot(db_session)
     design = {
         "colors": ["#FFFFFF", "#111111"],
@@ -157,26 +156,23 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
             }
         ],
     }
-    sdk = SimpleNamespace(
-        aio=SimpleNamespace(
-            models=SimpleNamespace(
-                generate_content=AsyncMock(
-                    return_value=SimpleNamespace(text=json.dumps(design), parsed=None)
-                )
-            )
+    route = respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200, json={"choices": [{"message": {"content": json.dumps(design)}}]}
         )
     )
-    app.state.adapters.gemini = GeminiClient("", client=cast(genai.Client, sdk))
-    resp = await client.post(
-        "/generate",
-        json={"run_id": _RUN_ID, "prompt": "dot pattern"},
-    )
-    generate_content = sdk.aio.models.generate_content
-    generate_content.assert_awaited_once()
-    awaited_call = generate_content.await_args
-    assert awaited_call is not None
-    contents = awaited_call.kwargs["contents"]
-    assert 'User description (JSON string): "dot pattern"' in contents[0].parts[-1].text
+    llm = LLMClient("test-key")
+    app.state.adapters.llm = llm
+    try:
+        resp = await client.post(
+            "/generate",
+            json={"run_id": _RUN_ID, "prompt": "dot pattern"},
+        )
+    finally:
+        await llm.aclose()
+    assert route.call_count == 1
+    payload = json.loads(route.calls.last.request.content)
+    assert 'User description (JSON string): "dot pattern"' in payload["messages"][-1]["content"]
     assert resp.status_code == 200, resp.text
     body = resp.json()
     # 시드 모티프로 재사용 해석됐는지 — 로그 intent의 motif_id가 치환됐는지 확인
@@ -190,7 +186,7 @@ async def test_prompt_generation_uses_authored_seed_without_override(app, client
     intent = _lattice_intent(mid)
     intent["seed"] = 37
 
-    class FakeGemini:
+    class FakeLLM:
         async def author_design(
             self,
             _prompt,
@@ -203,7 +199,7 @@ async def test_prompt_generation_uses_authored_seed_without_override(app, client
             assert validate(intent) is None
             return AuthoredDesign(intent=intent)
 
-    app.state.adapters.gemini = FakeGemini()
+    app.state.adapters.llm = FakeLLM()
 
     response = await client.post(
         "/generate",
@@ -214,15 +210,15 @@ async def test_prompt_generation_uses_authored_seed_without_override(app, client
     assert response.json()["design"]["seed"] == 37
 
 
-async def test_motifs_candidates_searches_the_sentence_without_gemini(app, client, db_session):
-    """후보 검색은 사용자 문장을 그대로 쓰며 Gemini 변환에 의존하지 않는다."""
+async def test_motifs_candidates_searches_the_sentence_without_llm(app, client, db_session):
+    """후보 검색은 사용자 문장을 그대로 쓰며 LLM 변환에 의존하지 않는다."""
     mid = await _seed_dot(db_session)
 
-    class UnusedGemini:
+    class UnusedLLM:
         async def complete_model(self, *_args, **_kwargs):
-            raise AssertionError("candidate search must not call Gemini")
+            raise AssertionError("candidate search must not call the LLM")
 
-    app.state.adapters.gemini = UnusedGemini()
+    app.state.adapters.llm = UnusedLLM()
     resp = await client.post("/motifs/candidates", json={"query": "dot", "top_k": 4})
     assert resp.status_code == 200, resp.text
     assert [candidate["motif_id"] for candidate in resp.json()["candidates"]] == [mid]

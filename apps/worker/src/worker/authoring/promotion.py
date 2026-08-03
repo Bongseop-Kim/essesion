@@ -218,7 +218,7 @@ async def _semantic_duplicate(
     embedding: list[float],
     embedding_model: str,
 ) -> _Duplicate | None:
-    example_distance = AuthoringExample.embedding_vertex.cosine_distance(embedding)
+    example_distance = AuthoringExample.embedding_openai.cosine_distance(embedding)
     example = (
         await session.execute(
             select(AuthoringExample.example_id, example_distance)
@@ -228,13 +228,13 @@ async def _semantic_duplicate(
                 AuthoringExample.embedding_model == embedding_model,
                 AuthoringExample.family == prepared.family,
                 AuthoringExample.motif_count == len(prepared.plan.motifs),
-                AuthoringExample.embedding_vertex.is_not(None),
+                AuthoringExample.embedding_openai.is_not(None),
             )
             .order_by(example_distance, AuthoringExample.example_id)
             .limit(1)
         )
     ).first()
-    candidate_distance = AuthoringPromotionCandidate.embedding_vertex.cosine_distance(embedding)
+    candidate_distance = AuthoringPromotionCandidate.embedding_openai.cosine_distance(embedding)
     candidate = (
         await session.execute(
             select(AuthoringPromotionCandidate.id, candidate_distance)
@@ -243,7 +243,7 @@ async def _semantic_duplicate(
                 AuthoringPromotionCandidate.embedding_model == embedding_model,
                 AuthoringPromotionCandidate.family == prepared.family,
                 AuthoringPromotionCandidate.motif_count == len(prepared.plan.motifs),
-                AuthoringPromotionCandidate.embedding_vertex.is_not(None),
+                AuthoringPromotionCandidate.embedding_openai.is_not(None),
             )
             .order_by(candidate_distance, AuthoringPromotionCandidate.id)
             .limit(1)
@@ -286,7 +286,7 @@ def _candidate_values(
         "structural_fingerprint": prepared.fingerprint,
         "source_digest": prepared.digest,
         "embedding_model": embedding_model,
-        "embedding_vertex": embedding,
+        "embedding_openai": embedding,
         "nearest_kind": duplicate.kind if duplicate else None,
         "nearest_id": duplicate.identifier if duplicate else None,
         "nearest_similarity": duplicate.similarity if duplicate else None,
@@ -312,7 +312,7 @@ async def _embed_one(
     prepared: _PreparedCandidate,
 ) -> list[float]:
     async with semaphore:
-        return await client.embed(prepared.document, task_type="RETRIEVAL_DOCUMENT")
+        return await client.embed(prepared.document)
 
 
 async def scan_promotion_candidates(
@@ -325,8 +325,8 @@ async def scan_promotion_candidates(
 
     if embedding_client is None:
         raise AdapterNotConfigured(
-            "Vertex embedding is not configured",
-            provider="vertex_embedding",
+            "OpenAI embedding is not configured",
+            provider="openai_embedding",
             operation="embed",
             reason_code="not_configured",
         )
@@ -435,8 +435,8 @@ async def ensure_candidate_embedding(
 
     if embedding_client is None:
         raise AdapterNotConfigured(
-            "Vertex embedding is not configured",
-            provider="vertex_embedding",
+            "OpenAI embedding is not configured",
+            provider="openai_embedding",
             operation="embed",
             reason_code="not_configured",
         )
@@ -447,7 +447,7 @@ async def ensure_candidate_embedding(
         raise ValueError("candidate_not_reviewable")
     if (
         candidate.embedding_model == embedding_client.model
-        and candidate.embedding_vertex is not None
+        and candidate.embedding_openai is not None
     ):
         return embedding_client.model
 
@@ -456,7 +456,7 @@ async def ensure_candidate_embedding(
         cast(AuthoringFamily, candidate.family),
         candidate.tags,
     )
-    embedding = await embedding_client.embed(document, task_type="RETRIEVAL_DOCUMENT")
+    embedding = await embedding_client.embed(document)
     candidate = await session.scalar(
         select(AuthoringPromotionCandidate)
         .where(AuthoringPromotionCandidate.id == candidate_id)
@@ -467,6 +467,6 @@ async def ensure_candidate_embedding(
     if candidate.status not in {"pending", "hold"}:
         raise ValueError("candidate_not_reviewable")
     candidate.embedding_model = embedding_client.model
-    candidate.embedding_vertex = embedding
+    candidate.embedding_openai = embedding
     await session.commit()
     return embedding_client.model

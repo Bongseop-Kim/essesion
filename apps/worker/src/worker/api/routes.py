@@ -25,7 +25,7 @@ from svg_safety import scrub_svg
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
-from worker.adapters.gemini import SemanticMismatch
+from worker.adapters.llm import SemanticMismatch
 from worker.api.schemas import (
     AuthoringCompilePreviewRequest,
     AuthoringCompilePreviewResponse,
@@ -426,12 +426,12 @@ async def _generate_from_prompt(
     registry_version: str,
     warnings: list[str],
 ) -> _GenerateOutcome:
-    gemini = adapters.gemini
-    if gemini is None:
+    llm = adapters.llm
+    if llm is None:
         exc = AdapterNotConfigured(
-            "Gemini 미구성 (intent 직접 전달 가능)",
-            provider="gemini",
-            operation="generate_content",
+            "OpenAI LLM 미구성 (intent 직접 전달 가능)",
+            provider="openai",
+            operation="chat_completions",
             reason_code="not_configured",
         )
         _record_adapter_failure(request, exc, stage="authoring")
@@ -502,7 +502,7 @@ async def _generate_from_prompt(
 
     authoring_started = time.perf_counter()
     try:
-        authored = await gemini.author_design(
+        authored = await llm.author_design(
             author_prompt,
             validate=_validate,
             motif_ids=body.motif_ids,
@@ -600,12 +600,12 @@ async def _generate_from_patch(
 
     context = body.conversation_context
     assert context is not None and body.prompt is not None
-    gemini = adapters.gemini
-    if gemini is None:
+    llm = adapters.llm
+    if llm is None:
         exc = AdapterNotConfigured(
-            "Gemini 미구성 (구성 수정은 저작 모델이 필요하다)",
-            provider="gemini",
-            operation="generate_content",
+            "OpenAI LLM 미구성 (구성 수정은 저작 모델이 필요하다)",
+            provider="openai",
+            operation="chat_completions",
             reason_code="not_configured",
         )
         _record_adapter_failure(request, exc, stage="authoring")
@@ -613,7 +613,7 @@ async def _generate_from_patch(
 
     authoring_started = time.perf_counter()
     try:
-        patch = await gemini.author_patch(
+        patch = await llm.author_patch(
             body.prompt,
             snapshot=composition_snapshot(context.current_intent),
             conversation_history=[item.model_dump(mode="json") for item in context.history],
@@ -855,8 +855,7 @@ async def prepare_authoring_example(
                 cast(str, analysis["retrieval_text"]),
                 cast(AuthoringFamily, analysis["family"]),
                 cast(list[str], analysis["tags"]),
-            ),
-            task_type="RETRIEVAL_DOCUMENT",
+            )
         )
     except AdapterClientError as exc:
         raise HTTPException(status_code=502, detail="authoring embedding failed") from exc
@@ -973,11 +972,11 @@ async def _normalize_preview_svg(svg: str, request: Request, *, id_prefix: str) 
 
 @generate_router.post("/ideas", response_model=IdeasResponse)
 async def suggest_ideas(body: IdeasRequest, request: Request) -> IdeasResponse:
-    gemini = request.app.state.adapters.gemini
-    if gemini is None:
-        raise HTTPException(status_code=503, detail="Gemini is not configured")
+    llm = request.app.state.adapters.llm
+    if llm is None:
+        raise HTTPException(status_code=503, detail="OpenAI LLM is not configured")
     try:
-        ideas = await gemini.suggest_ideas(
+        ideas = await llm.suggest_ideas(
             body.prompt,
             count=body.count,
             motifs=[motif.model_dump() for motif in body.motifs],

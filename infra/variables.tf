@@ -78,6 +78,7 @@ variable "app_secret_ids" {
     "naver-client-secret",
     "apple-private-key",
     "recraft-api-key",
+    "openai-api-key",
     "jwt-secret",
     "session-secret",
     "edge-proxy-secret",

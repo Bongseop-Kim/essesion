@@ -65,13 +65,13 @@ uv run python apps/worker/scripts/seed_motifs.py
 uv run python apps/worker/scripts/seed_design_examples.py
 ```
 
-오소링 예시 시드 — Vertex ADC/GCP project 필요
+오소링 예시 시드 — `OPENAI_API_KEY` 필요 (유료 호출)
 
 ```bash
 uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 ```
 
-모티프 벡터 검색 인덱스 — Vertex ADC/GCP project 필요
+모티프 벡터 검색 인덱스 — `OPENAI_API_KEY` 필요 (유료 호출)
 
 ```bash
 uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live

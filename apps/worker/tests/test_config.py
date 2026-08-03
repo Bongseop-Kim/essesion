@@ -71,12 +71,13 @@ def test_settings_validates_service_mode() -> None:
         _settings(service_mode="other")
 
 
-def test_settings_validates_gemini_temperature() -> None:
-    _settings(gemini_temperature=0.0)
-    _settings(gemini_temperature=2.0)
+def test_settings_default_openai_wiring() -> None:
+    settings = _settings()
 
-    with pytest.raises(ValidationError):
-        _settings(gemini_temperature=2.01)
+    assert settings.openai_api_key == ""  # 빈 키 → 클라이언트 None(비활성)
+    assert settings.openai_base_url == "https://api.openai.com/v1"
+    assert settings.llm_model == "gpt-5.6-luna"
+    assert settings.embedding_model == "text-embedding-3-large"
 
 
 def test_settings_validates_stripe_max_band_coverage() -> None:

@@ -63,7 +63,7 @@ tofu -chdir=infra apply -var-file=staging.tfvars
 ```bash
 printf '%s' '<값>' | gcloud secrets versions add toss-secret-key --data-file=- --project=essesion-staging
 # 수집한 기존 값: solapi-api-key solapi-api-secret google-client-secret kakao-client-secret
-#                 naver-client-secret recraft-api-key
+#                 naver-client-secret recraft-api-key openai-api-key
 #                 sentry-dsn-api sentry-dsn-worker
 # apple-private-key는 .p8 파일을 통째로: gcloud secrets versions add apple-private-key --data-file=<AuthKey.p8 경로>
 
@@ -154,7 +154,8 @@ curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audienc
 
 ### 공개 motif bootstrap
 
-migrate 뒤 공개 concrete-color motif를 시드하고 DB/ADC가 연결된 운영자 환경에서 임베딩한다.
+migrate 뒤 공개 concrete-color motif를 시드하고, 스테이징 `DATABASE_URL`과 Secret
+Manager에서 주입한 `OPENAI_API_KEY`가 있는 운영자 환경에서 임베딩한다.
 
 ```bash
 uv run python apps/worker/scripts/seed_motifs.py
@@ -162,13 +163,13 @@ uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
 ```
 
 인덱싱 출력의 `embedded=<전체>/<전체>`를 배포 기록에 남기고 admin Motif 상세에서
-symbol의 concrete paint 표본을 확인한다. 인덱싱은 `user_upload`을 제외하며 GCP
-project/ADC 또는 `--confirm-live`가 없으면 DB 갱신을 시작하지 않는다.
+symbol의 concrete paint 표본을 확인한다. 인덱싱은 `user_upload`을 제외하며
+`OPENAI_API_KEY` 또는 `--confirm-live`가 없으면 외부 호출과 DB 갱신을 시작하지 않는다.
 
 ### Plan v3 starter 시드·직접 저작·승격
 
-migrate와 공개 motif embedding이 끝난 뒤, DB/ADC가 연결된 운영자 환경에서
-`gallery-v1` starter 중 DB에 없는 시범만 넣고 누락 embedding을 만든다. 출력의
+migrate와 공개 motif embedding이 끝난 뒤, 같은 `DATABASE_URL`과 `OPENAI_API_KEY`가
+있는 운영자 환경에서 `gallery-v1` starter 중 DB에 없는 시범만 넣고 누락 embedding을 만든다. 출력의
 `embedded=<전체>/<전체> source=bootstrap`을 확인한 뒤 live 평가를 실행한다. 같은 ID가
 이미 있으면 DB에서 큐레이션한 내용과 활성 상태를 그대로 보존한다.
 

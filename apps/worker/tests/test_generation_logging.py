@@ -190,8 +190,8 @@ async def test_worker_records_safe_provider_failure_diagnostics(client, db_sessi
         "motif_resolutions": [],
         "failure_code": "provider_request_failed",
         "failure_stage": "authoring",
-        "failure_provider": "gemini",
-        "failure_operation": "generate_content",
+        "failure_provider": "openai",
+        "failure_operation": "chat_completions",
         "failure_reason": "not_configured",
         "failure_status_code": None,
     }

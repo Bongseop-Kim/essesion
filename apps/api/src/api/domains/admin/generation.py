@@ -636,9 +636,8 @@ def _error_projection(
         "ScopeRejected": "구성 수정으로 표현할 수 없는 요청이라 거절했습니다",
     }
     provider = {
-        "gemini": "Gemini",
+        "openai": "OpenAI",
         "openai_embedding": "OpenAI 임베딩",
-        "vertex_embedding": "Vertex AI 임베딩",
     }.get(diagnostics.failure_provider or "")
     if provider and safe_type in {
         "AdapterClientError",

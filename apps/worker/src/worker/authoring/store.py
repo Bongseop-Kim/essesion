@@ -71,12 +71,12 @@ async def update_embedding_if_missing(
             AuthoringExample.source == "bootstrap",
             or_(
                 AuthoringExample.embedding_model != embedding_model,
-                AuthoringExample.embedding_vertex.is_(None),
+                AuthoringExample.embedding_openai.is_(None),
             ),
         )
         .values(
             embedding_model=embedding_model,
-            embedding_vertex=embedding,
+            embedding_openai=embedding,
             approved_at=func.now(),
             active=case(
                 (AuthoringExample.active_updated_at.is_(None), True),
@@ -102,7 +102,7 @@ async def missing_embedding_ids(
             AuthoringExample.source == "bootstrap",
             or_(
                 AuthoringExample.embedding_model != embedding_model,
-                AuthoringExample.embedding_vertex.is_(None),
+                AuthoringExample.embedding_openai.is_(None),
             ),
         )
     )
@@ -117,7 +117,7 @@ async def embedding_counts(
     row = (
         await session.execute(
             select(
-                func.count().filter(AuthoringExample.embedding_vertex.is_not(None)),
+                func.count().filter(AuthoringExample.embedding_openai.is_not(None)),
                 func.count(),
             ).where(
                 AuthoringExample.source == "bootstrap",
@@ -135,7 +135,7 @@ async def nearest_examples(
     embedding_model: str,
     limit: int = 25,
 ) -> list[ExampleMatch]:
-    distance = AuthoringExample.embedding_vertex.cosine_distance(embedding)
+    distance = AuthoringExample.embedding_openai.cosine_distance(embedding)
     rows = (
         await session.execute(
             select(
@@ -149,7 +149,7 @@ async def nearest_examples(
                 AuthoringExample.active.is_(True),
                 AuthoringExample.contract_version == PLAN_CONTRACT_VERSION,
                 AuthoringExample.embedding_model == embedding_model,
-                AuthoringExample.embedding_vertex.is_not(None),
+                AuthoringExample.embedding_openai.is_not(None),
             )
             .order_by(distance.asc(), AuthoringExample.example_id.asc())
             .limit(limit)
