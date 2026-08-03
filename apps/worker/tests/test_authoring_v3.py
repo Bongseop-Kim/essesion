@@ -11,9 +11,7 @@ from worker.authoring.compiler import PlanCompileError, compile_design_plan_v3
 from worker.authoring.examples import _validate_example_set, load_example_set
 from worker.authoring.schema import (
     DesignPlanV3,
-    GenerateMotifSource,
     LatticePlacementPlan,
-    MotifLayerPlan,
     snapshot_resolved_plan,
     structural_fingerprint,
 )
@@ -39,7 +37,7 @@ def _motif_ids(intent: dict) -> list[str]:
     return result
 
 
-def _generate_plan(*, color_indices: list[int] | None = None) -> DesignPlanV3:
+def _input_plan(*, color_indices: list[int] | None = None) -> DesignPlanV3:
     layer = {
         "type": "motif",
         "motif_index": 0,
@@ -52,7 +50,7 @@ def _generate_plan(*, color_indices: list[int] | None = None) -> DesignPlanV3:
         {
             "colors": ["#10243A", "#EF8A7A"],
             "ground_color_index": 0,
-            "motifs": [{"source": "generate", "subject": " 펠리컨 "}],
+            "motifs": [{"source": "input", "input_index": 1}],
             "layers": [layer],
         }
     )
@@ -126,7 +124,7 @@ def test_lattice_half_drop_rounds_odd_drop_axis_count_up_to_close_the_torus():
     ceiling = LatticePlacementPlan(type="lattice", columns=15, rows=2, drop="half_column")
     assert ceiling.columns == 16
 
-    plan = _generate_plan()
+    plan = _input_plan()
     raw = plan.model_dump(mode="json")
     raw["layers"][0]["placement"] = {
         "type": "lattice",
@@ -134,7 +132,7 @@ def test_lattice_half_drop_rounds_odd_drop_axis_count_up_to_close_the_torus():
         "rows": 3,
         "drop": "half_column",
     }
-    design = compile_design_plan_v3(DesignPlanV3.model_validate(raw))
+    design = compile_design_plan_v3(DesignPlanV3.model_validate(raw), motif_ids=["pelican"])
     validate_intent(design.intent, repair=False, motifs={})
 
 
@@ -170,14 +168,14 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
     with pytest.raises(ValidationError, match="hosted path direction"):
         DesignPlanV3.model_validate(bad_host)
 
-    blank_reference = {
+    removed_source = {
         "colors": ["#000000", "#ffffff"],
         "ground_color_index": 0,
         "motifs": [
             {
                 "source": "reference",
                 "reference_image_index": 1,
-                "subject": "   ",
+                "subject": "flower",
             }
         ],
         "layers": [
@@ -194,8 +192,8 @@ def test_schema_rejects_invalid_indexes_blank_references_and_host_mismatch():
             }
         ],
     }
-    with pytest.raises(ValidationError, match="may not be blank"):
-        DesignPlanV3.model_validate(blank_reference)
+    with pytest.raises(ValidationError, match="Input tag"):
+        DesignPlanV3.model_validate(removed_source)
 
     duplicate_colors = json.loads(json.dumps(base))
     duplicate_colors["colors"][1] = duplicate_colors["colors"][0].lower()
@@ -260,46 +258,16 @@ def test_schema_and_compiler_support_two_alternating_motif_lanes():
         DesignPlanV3.model_validate(too_many)
 
 
-def test_generate_motif_source_is_discriminated_bounded_and_stripped():
-    plan = _generate_plan()
+@pytest.mark.parametrize("source", ["generate", "reference"])
+def test_schema_rejects_removed_motif_sources(source: str):
+    raw = _input_plan().model_dump(mode="json")
+    removed_motif: dict[str, object] = {"source": source, "subject": "pelican"}
+    if source == "reference":
+        removed_motif["reference_image_index"] = 1
+    raw["motifs"] = [removed_motif]
 
-    assert isinstance(plan.motifs[0], GenerateMotifSource)
-    assert plan.motifs[0].subject == "펠리컨"
-    assert plan.motifs[0].scope == "whole"
-    assert isinstance(plan.layers[0], MotifLayerPlan)
-    assert plan.layers[0].color_indices is None
-
-    too_long = plan.model_dump(mode="json")
-    too_long["motifs"][0]["subject"] = "x" * 81
-    with pytest.raises(ValidationError, match="80 characters"):
-        DesignPlanV3.model_validate(too_long)
-    too_long["motifs"][0]["subject"] = "pelican"
-    too_long["motifs"][0]["description"] = "x" * 161
-    with pytest.raises(ValidationError, match="160 characters"):
-        DesignPlanV3.model_validate(too_long)
-
-
-def test_generate_source_compiles_best_effort_only_without_catalog_grounding():
-    compiled = compile_design_plan_v3(_generate_plan())
-
-    assert compiled.motif_specs == [
-        {
-            "layer_id": "motif_0",
-            "subject": "펠리컨",
-            "scope": "whole",
-            "style": None,
-            "description": None,
-            "required": False,
-        }
-    ]
-    assert compiled.motif_color_slots == {}
-
-    with pytest.raises(PlanCompileError, match="verified catalog is empty") as caught:
-        compile_design_plan_v3(
-            _generate_plan(),
-            catalog_candidates=[{"catalog_ref": "catalog_1", "motif_id": "recraft-grounded"}],
-        )
-    assert caught.value.grounding is True
+    with pytest.raises(ValidationError, match="Input tag"):
+        DesignPlanV3.model_validate(raw)
 
 
 def test_fixed_palette_requires_explicit_motif_color_indices():
@@ -307,24 +275,25 @@ def test_fixed_palette_requires_explicit_motif_color_indices():
 
     with pytest.raises(PlanCompileError, match="must declare color_indices"):
         compile_design_plan_v3(
-            _generate_plan(),
+            _input_plan(),
+            motif_ids=["pelican"],
             palette_constraint=fixed,
         )
 
     compiled = compile_design_plan_v3(
-        _generate_plan(color_indices=[1]),
+        _input_plan(color_indices=[1]),
+        motif_ids=["pelican"],
         palette_constraint=fixed,
     )
     assert compiled.motif_color_slots == {"motif_0": ["color_1"]}
 
 
-def test_compiler_accepts_motif_free_plan_with_catalog_candidates_and_one_reference():
+def test_compiler_accepts_motif_free_plan_with_catalog_candidates():
     plan = load_example_set()[0].plan
 
     compiled = compile_design_plan_v3(
         plan,
         catalog_candidates=[{"catalog_ref": "candidate_1", "motif_id": "catalog-id"}],
-        reference_image_count=1,
     )
 
     assert compiled.plan is not None
@@ -348,26 +317,6 @@ def test_compiler_requires_each_exact_input_once():
 
 def test_compiler_rejects_duplicate_grounded_sources():
     raw = load_example_set()[20].plan.model_dump(mode="json")
-    raw["motifs"] = [
-        {
-            "source": "reference",
-            "reference_image_index": 1,
-            "subject": "flower",
-        },
-        {
-            "source": "reference",
-            "reference_image_index": 1,
-            "subject": "leaf",
-        },
-    ]
-    reference_plan = DesignPlanV3.model_validate(raw)
-    with pytest.raises(PlanCompileError, match="exactly once"):
-        compile_design_plan_v3(
-            reference_plan,
-            reference_motif_indexes={1},
-            reference_image_count=1,
-        )
-
     raw["motifs"] = [
         {"source": "catalog", "catalog_ref": "candidate_1"},
         {"source": "catalog", "catalog_ref": "candidate_1"},
@@ -530,16 +479,10 @@ def test_snapshot_resolved_plan_freezes_concrete_motif_identity():
     assert _motif_ids(recompiled.intent) == ["circle"]
 
 
-def test_snapshot_resolved_plan_prunes_soft_dropped_optional_motif():
+def test_compiler_never_emits_semantic_motif_placeholders():
     plan = load_example_set()[14].plan
-    compiled = compile_design_plan_v3(
-        plan,
-        motif_ids=["circle"],
-    )
-    resolved = json.loads(json.dumps(compiled.intent))
-    resolved["layers"] = [layer for layer in resolved["layers"] if layer["type"] != "motif"]
 
-    snapshot = snapshot_resolved_plan(plan, resolved)
+    compiled = compile_design_plan_v3(plan, motif_ids=["circle"])
 
-    assert snapshot.motifs == []
-    assert [layer.type for layer in snapshot.layers] == ["stripe"]
+    assert _motif_ids(compiled.intent) == ["circle"]
+    assert "semantic_" not in json.dumps(compiled.intent)

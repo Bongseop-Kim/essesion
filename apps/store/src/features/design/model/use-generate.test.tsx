@@ -80,7 +80,7 @@ describe("useGenerateDesign", () => {
     vi.clearAllMocks();
   });
 
-  it("문장·색 지정·참고 사진을 하나의 생성 요청으로 보낸다", async () => {
+  it("문장·색 지정만 생성 요청으로 보낸다", async () => {
     api.generate.mockResolvedValue({ data: generated });
     const queryClient = new QueryClient();
     const { result } = renderHook(
@@ -93,7 +93,6 @@ describe("useGenerateDesign", () => {
       outcome = await result.current.mutateAsync({
         sessionId: "session-a",
         prompt: "기하학 패턴",
-        referenceImages: [{ uploadId: "upload-a", purpose: "auto" }],
         palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
       });
     });
@@ -103,7 +102,6 @@ describe("useGenerateDesign", () => {
         session_id: "session-a",
         prompt: "기하학 패턴",
         palette: { mode: "fixed", colors: ["#112233", "#AABBCC"] },
-        reference_images: [{ upload_id: "upload-a", purpose: "auto" }],
         user_motif_ids: [],
       },
       throwOnError: true,

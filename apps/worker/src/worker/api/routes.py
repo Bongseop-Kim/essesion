@@ -15,7 +15,7 @@ from db.models.design import (
     FINALIZE_TEMPORARY_FAILURE_MESSAGE,
     GenerationJob,
 )
-from db.models.seamless import EMBEDDING_DIM, SeamlessGenerationAttachment, SeamlessGenerationLog
+from db.models.seamless import EMBEDDING_DIM, SeamlessGenerationLog
 from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
 from sqlalchemy import select
@@ -25,11 +25,7 @@ from svg_safety import scrub_svg
 
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
-from worker.adapters.gemini import (
-    ReferenceImage,
-    SemanticMismatch,
-    prepare_reference_image,
-)
+from worker.adapters.gemini import SemanticMismatch
 from worker.api.schemas import (
     AuthoringCompilePreviewRequest,
     AuthoringCompilePreviewResponse,
@@ -97,7 +93,6 @@ from worker.motifs.resolver import (
     MotifGenerationBudget,
     present_candidates,
     prompt_catalog_candidates,
-    resolve_motifs,
     resolve_spec,
 )
 from worker.motifs.spec import motif_spec_from_sentence
@@ -117,7 +112,6 @@ FINALIZE_INVALID_INPUT_MESSAGE = "finalize input is invalid"
 GENERATION_ERROR_MESSAGES = {
     "authoring_invalid": "the design plan could not be authored",
     "constraint_conflict": "the selected design constraints conflict",
-    "reference_invalid": "a reference image could not be used",
     "intent_invalid": "the design input is invalid",
     "design_invalid": "the design could not be composed",
     "semantic_mismatch": "the design plan did not match the requested subject",
@@ -212,7 +206,6 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                 if body.conversation_context is not None
                 else "prompt"
             ),
-            "reference_count": len(body.reference_images),
             "fixed_palette": body.palette.mode == "fixed",
             "motif_resolutions": [],
         }
@@ -232,22 +225,10 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                 log = SeamlessGenerationLog(
                     id=body.run_id,
                     request_id=request_id_var.get(),
-                    session_id=(
-                        body.motif_provenance.session_id if body.motif_provenance else None
-                    ),
-                    user_id=body.motif_provenance.user_id if body.motif_provenance else None,
-                    input_type=(
-                        "intent"
-                        if body.intent is not None
-                        else "reference_image"
-                        if body.reference_images
-                        else "prompt"
-                    ),
+                    session_id=body.session_id,
+                    user_id=body.user_id,
+                    input_type="intent" if body.intent is not None else "prompt",
                     prompt=body.prompt,
-                    has_reference_image=bool(body.reference_images),
-                    reference_image_bytes=(
-                        sum(item.size_bytes for item in body.reference_images) or None
-                    ),
                     colorway=body.colorway,
                     seed=body.seed,
                     warnings=[],
@@ -259,32 +240,12 @@ def _logged_generation(endpoint):  # noqa: ANN001 — FastAPI signature preserve
                     diagnostics=request.state.generation_diagnostics,
                 )
                 session.add(log)
-                await _persist_reference_attachments(session, log.id, body.reference_images)
                 await session.commit()
             except Exception:
                 logger.exception("generation error log persistence failed")
             raise
 
     return wrapped
-
-
-async def _persist_reference_attachments(
-    session: AsyncSession,
-    log_id: uuid.UUID,
-    reference_images: list[ReferenceImageInput],
-) -> None:
-    if not reference_images:
-        return
-    await session.flush()
-    for ordinal, item in enumerate(reference_images):
-        session.add(
-            SeamlessGenerationAttachment(
-                log_id=log_id,
-                image_id=item.image_id,
-                purpose=item.purpose,
-                ordinal=ordinal,
-            )
-        )
 
 
 def _generation_status(warnings: list[str]) -> str:
@@ -384,39 +345,9 @@ async def _fetch_reference_bytes(
     return data
 
 
-def _reference_image_client() -> httpx.AsyncClient:
-    # 외부 URL fetch 전용 — 리다이렉트 금지(SSRF 완화)·60s 상한을 한 곳에서 고정.
-    return httpx.AsyncClient(timeout=60.0, follow_redirects=False)
-
-
-async def _load_reference_image_items(
-    items: list[ReferenceImageInput], settings
-) -> list[ReferenceImage]:
-    prepared: list[ReferenceImage] = []
-    total = 0
-    async with _reference_image_client() as client:
-        for item in items:
-            data = await _fetch_reference_bytes(item, settings, client)
-            total += len(data)
-            if total > 50 * 1024 * 1024:
-                raise HTTPException(status_code=422, detail="reference images are too large")
-            try:
-                prepared.append(
-                    await run_in_threadpool(
-                        prepare_reference_image, data, item.content_type, item.purpose
-                    )
-                )
-            except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return prepared
-
-
-async def _load_reference_images(body: GenerateRequest, settings) -> list[ReferenceImage]:
-    return await _load_reference_image_items(body.reference_images, settings)
-
-
 async def _load_single_image(item: ReferenceImageInput, settings) -> bytes:  # noqa: ANN001
-    async with _reference_image_client() as client:
+    # 외부 URL fetch 전용 — 리다이렉트 금지(SSRF 완화)·60s 상한.
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=False) as client:
         return await _fetch_reference_bytes(item, settings, client)
 
 
@@ -663,7 +594,6 @@ async def _generate_from_prompt(
     registry_version: str,
     warnings: list[str],
 ) -> _GenerateOutcome:
-    input_type = "reference_image" if body.reference_images else "prompt"
     gemini = adapters.gemini
     if gemini is None:
         exc = AdapterNotConfigured(
@@ -704,12 +634,6 @@ async def _generate_from_prompt(
         warnings.extend(constraint_warnings)
         return None
 
-    try:
-        reference_images = await _load_reference_images(body, settings)
-    except HTTPException as exc:
-        if exc.status_code == 422:
-            _reject_generation(request, "reference_invalid", "reference")
-        raise
     author_prompt = body.prompt or (
         "Create a balanced necktie pattern using the supplied SVG motif."
     )
@@ -722,11 +646,8 @@ async def _generate_from_prompt(
         for index, motif_id in enumerate(body.motif_ids, start=1)
     ]
     embedding = request_scoped(adapters.embedding)
-    reference_capable_count = sum(
-        image.purpose in {"motif", "auto"} for image in body.reference_images
-    )
     catalog_candidates: list[dict[str, object]] = []
-    if body.prompt and not body.motif_ids and reference_capable_count < 2:
+    if body.prompt and not body.motif_ids:
         catalog_candidates = await prompt_catalog_candidates(
             session,
             body.prompt,
@@ -736,12 +657,8 @@ async def _generate_from_prompt(
         )
     request.state.generation_diagnostics["catalog_candidate_count"] = len(catalog_candidates)
     retrieval_started = time.perf_counter()
-    # 검증된 모티프 소스가 하나도 없는 요청에 모티프 예시를 보여주면 flash-lite가 예시의
-    # input/catalog 소스를 흉내 내 존재하지 않는 ref를 날조한다(재시도로도 회복 안 됨).
-    # generate 소스 경로는 예시 없이 지시문만으로 동작하므로 프롬프트 플로어를 두지 않는다.
-    available_motif_count = min(
-        2, len(body.motif_ids) + reference_capable_count + len(catalog_candidates)
-    )
+    # 사용 가능한 concrete source 수보다 모티프가 많은 예시는 저작 문맥에서 제외한다.
+    available_motif_count = min(2, len(body.motif_ids) + len(catalog_candidates))
     async with request.app.state.sessionmaker() as retrieval_session:
         retrieval = await retrieve_examples(
             retrieval_session,
@@ -768,7 +685,6 @@ async def _generate_from_prompt(
         authored = await gemini.author_design(
             author_prompt,
             validate=_validate,
-            reference_images=reference_images,
             motif_ids=body.motif_ids,
             exact_motif_metadata=exact_motif_metadata,
             catalog_candidates=catalog_candidates,
@@ -795,63 +711,8 @@ async def _generate_from_prompt(
             (time.perf_counter() - authoring_started) * 1000, 3
         )
 
-    resolution_trace = request.state.generation_diagnostics["motif_resolutions"]
-    resolution_started = time.perf_counter()
-    generation_budget = MotifGenerationBudget(settings.motif_generate_per_request_limit)
-    provenance = body.motif_provenance.model_dump() if body.motif_provenance is not None else None
-    try:
-        resolution_trace.extend(authored.motif_resolutions)
-        # Motif variant selection and composition must share one effective seed. With no
-        # request override, compose_design uses the authored seed.
-        effective_seed = body.seed if body.seed is not None else int(authored.intent.get("seed", 0))
-        resolved_intent = await resolve_motifs(
-            session,
-            authored.intent,
-            authored.motif_specs,
-            recraft_client=adapters.recraft,
-            embedding_client=embedding,
-            settings=settings,
-            seed=effective_seed,
-            gemini_client=gemini,
-            provenance=provenance,
-            generation_budget=generation_budget,
-            warnings=warnings,
-            trace=resolution_trace,
-            # 실패 롤백에도 과금된 모티프가 남도록 upsert만 전용 세션에서 선커밋
-            upsert_sessionmaker=request.app.state.sessionmaker,
-        )
-        if len(iter_motif_ids(resolved_intent)) > 2:
-            raise AdapterClientError(
-                "resolved design exceeds 2 distinct motifs",
-                provider="worker",
-                operation="resolve_motif",
-                reason_code="invalid_result",
-            )
-    except AdapterNotConfigured as exc:
-        _record_adapter_failure(
-            request,
-            exc,
-            stage="motif_resolution",
-            duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
-            emit_log=False,
-        )
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    except AdapterClientError as exc:
-        _record_adapter_failure(
-            request,
-            exc,
-            stage="motif_resolution",
-            duration_ms=round((time.perf_counter() - resolution_started) * 1000, 3),
-            emit_log=False,
-        )
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    finally:
-        request.state.generation_diagnostics["motif_resolution_ms"] = round(
-            (time.perf_counter() - resolution_started) * 1000, 3
-        )
-        # 실제 Recraft 과금 호출 수(게이트 재프롬프트 포함). 실패 요청은 모티프 upsert가
-        # 롤백돼 저장 모티프 수와 어긋나므로, 비용 추적은 이 값을 정본으로 집계한다.
-        request.state.generation_diagnostics["recraft_calls"] = generation_budget.used
+    request.state.generation_diagnostics["motif_resolutions"].extend(authored.motif_resolutions)
+    resolved_intent = authored.intent
 
     resolved_plan: DesignPlanV3 | None = None
     try:
@@ -871,7 +732,6 @@ async def _generate_from_prompt(
     )
     if color_binding_adapted:
         request.state.generation_diagnostics["color_binding_adapted"] = color_binding_adapted
-    registry_version = await registry_version_for(session)  # 풀이 생성으로 바뀌었을 수 있음
     compose_started = time.perf_counter()
     try:
         design = compose_design(
@@ -907,7 +767,7 @@ async def _generate_from_prompt(
             "structural_fingerprint": authored.structural_fingerprint,
         }
     return _GenerateOutcome(
-        input_type=input_type,
+        input_type="prompt",
         design=design,
         resolved_intent=resolved_intent,
         tile_mm=float(resolved_intent["canvas"]["tile_mm"]),
@@ -1081,12 +941,10 @@ async def generate(
     log = SeamlessGenerationLog(
         id=generation_log_id,
         request_id=request_id_var.get(),
-        session_id=body.motif_provenance.session_id if body.motif_provenance else None,
-        user_id=body.motif_provenance.user_id if body.motif_provenance else None,
+        session_id=body.session_id,
+        user_id=body.user_id,
         input_type=outcome.input_type,
         prompt=body.prompt,
-        has_reference_image=bool(body.reference_images),
-        reference_image_bytes=sum(item.size_bytes for item in body.reference_images) or None,
         colorway=body.colorway,
         seed=body.seed,
         engine_version=settings.engine_version,
@@ -1100,7 +958,6 @@ async def generate(
         diagnostics=request.state.generation_diagnostics,
     )
     session.add(log)
-    await _persist_reference_attachments(session, log.id, body.reference_images)
     await session.commit()
     return GenerateResponse(
         generation_log_id=generation_log_id,
@@ -1129,8 +986,8 @@ async def _log_scope_rejection(
             SeamlessGenerationLog(
                 id=body.run_id,
                 request_id=request_id_var.get(),
-                session_id=body.motif_provenance.session_id if body.motif_provenance else None,
-                user_id=body.motif_provenance.user_id if body.motif_provenance else None,
+                session_id=body.session_id,
+                user_id=body.user_id,
                 input_type="prompt",
                 prompt=body.prompt,
                 colorway=body.colorway,
@@ -1332,14 +1189,10 @@ async def suggest_ideas(body: IdeasRequest, request: Request) -> IdeasResponse:
     gemini = request.app.state.adapters.gemini
     if gemini is None:
         raise HTTPException(status_code=503, detail="Gemini is not configured")
-    references = await _load_reference_image_items(
-        body.reference_images, request.app.state.settings
-    )
     try:
         ideas = await gemini.suggest_ideas(
             body.prompt,
             count=body.count,
-            reference_images=references,
             motifs=[motif.model_dump() for motif in body.motifs],
             palette_constraint=body.palette,
         )

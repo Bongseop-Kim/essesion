@@ -64,7 +64,6 @@ const seamlessStats: SeamlessStatsOut = {
   success: 0,
   partial: 1,
   error: 0,
-  recraft_calls: 4,
   average_generate_ms: 100,
   average_render_ms: 25,
   as_of: "2026-07-12T01:00:00Z",
@@ -112,8 +111,7 @@ describe("SeamlessLogsPage", () => {
         }),
       ).getByText("부분 성공"),
     ).toBeTruthy();
-    expect(screen.getByText("Recraft 호출")).toBeTruthy();
-    expect(screen.getByText("4회")).toBeTruthy();
+    expect(screen.queryByText("Recraft 호출")).toBeNull();
     expect(api.seamlessOptions).toHaveBeenCalledWith({
       query: {
         status: undefined,

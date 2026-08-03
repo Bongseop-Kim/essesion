@@ -95,7 +95,7 @@ class UserMotif(CreatedAtMixin, Base):
 
 
 class DesignTurnAttachment(CreatedAtMixin, Base):
-    """생성 요청 턴에 사용한 비공개 사진 또는 정규화 모티프."""
+    """생성 요청 턴에 사용한 정규화 모티프."""
 
     __tablename__ = "design_turn_attachments"
 
@@ -103,27 +103,11 @@ class DesignTurnAttachment(CreatedAtMixin, Base):
     turn_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("design_session_turns.id", ondelete="CASCADE"), index=True
     )
-    kind: Mapped[str]
-    image_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("images.id", ondelete="SET NULL"))
-    motif_id: Mapped[str | None] = mapped_column(ForeignKey("motifs.id"))
-    purpose: Mapped[str | None]
+    motif_id: Mapped[str] = mapped_column(ForeignKey("motifs.id"))
     filename: Mapped[str]
     ordinal: Mapped[int]
 
-    __table_args__ = (
-        CheckConstraint("kind IN ('photo', 'svg')", name="kind"),
-        CheckConstraint(
-            "(kind = 'photo' AND purpose IS NOT NULL "
-            "AND purpose IN ('auto', 'color_mood', 'motif', 'composition')) "
-            "OR (kind = 'svg' AND purpose IS NULL)",
-            name="purpose",
-        ),
-        CheckConstraint(
-            "(image_id IS NOT NULL)::int + (motif_id IS NOT NULL)::int = 1",
-            name="exactly_one_target",
-        ),
-        UniqueConstraint("turn_id", "ordinal"),
-    )
+    __table_args__ = (UniqueConstraint("turn_id", "ordinal"),)
 
 
 class DesignExample(TimestampMixin, Base):

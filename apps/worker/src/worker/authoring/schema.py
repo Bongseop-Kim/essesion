@@ -41,42 +41,12 @@ class CatalogMotifSource(_StrictModel):
     catalog_ref: str = Field(min_length=1, max_length=40)
 
 
-class _DescribedMotifSource(_StrictModel):
-    subject: str = Field(min_length=1, max_length=80)
-    scope: Literal["whole", "partial"] = "whole"
-    style: str | None = Field(default=None, max_length=80)
-    description: str | None = Field(default=None, max_length=160)
-
-    @field_validator("subject")
-    @classmethod
-    def _strip_subject(cls, value: str) -> str:
-        clean = value.strip()
-        if not clean:
-            raise ValueError("motif subject may not be blank")
-        return clean
-
-    @field_validator("style", "description")
-    @classmethod
-    def _strip_optional_text(cls, value: str | None) -> str | None:
-        clean = value.strip() if value is not None else None
-        return clean or None
-
-
-class ReferenceMotifSource(_DescribedMotifSource):
-    source: Literal["reference"]
-    reference_image_index: int = Field(ge=1, le=5)
-
-
-class GenerateMotifSource(_DescribedMotifSource):
-    source: Literal["generate"]
-
-
 # Discriminated so a rejected plan yields a clean per-variant error (e.g. "poisson scatter does
 # not accept order or step") the authoring retry loop can act on — a plain union buries the real
 # cause under every sibling variant's errors. The provider schema strips oneOf/discriminator
 # separately (Vertex can't serve them); see _servable_json_schema in adapters/gemini.py.
 PlanMotifSource = Annotated[
-    InputMotifSource | CatalogMotifSource | ReferenceMotifSource | GenerateMotifSource,
+    InputMotifSource | CatalogMotifSource,
     Field(discriminator="source"),
 ]
 

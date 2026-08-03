@@ -4,13 +4,12 @@ ADC 기반 Google Gen AI SDK structured output을 사용한다. Pydantic 계약 
 schema로 전달한다. {429,503}만 0.5/1/2s 백오프 최대 4회. 모델은 엔진 스키마를 직접
 저작하지 않는다.
 
-참고 이미지는 검증·방향 보정·축소·메타데이터 제거 후 inline_data로 전달한다.
+이미지 입력이 필요한 모티프 분류 경로는 렌더한 PNG를 inline_data로 전달한다.
 """
 
 from __future__ import annotations
 
 import asyncio
-import io
 import json
 import re
 from collections.abc import Collection
@@ -19,7 +18,6 @@ from typing import Any, Literal, TypeVar
 
 from google import genai
 from google.genai import types
-from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ValidationError
 from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
@@ -45,8 +43,6 @@ _BASE_DELAY_S = 0.5
 # frequently produce a near-valid plan first, then fix it once the rejection errors are fed back.
 # 2 rounds left too many prompts failing; extra rounds cost a call only when a prompt is failing.
 _MAX_AUTHORING_ATTEMPTS = 4
-MAX_REFERENCE_IMAGE_PIXELS = 20_000_000
-MAX_REFERENCE_IMAGE_SIDE = 2_048
 # Per-request output ceiling (DoW guard). Generous for one structured plan; ideas are far smaller.
 # ponytail: single flat cap; split per call-site only if plans start truncating.
 MAX_OUTPUT_TOKENS = 8192
@@ -77,37 +73,6 @@ class SemanticMismatch(IntentInvalid):
 class ReferenceImage:
     data: bytes
     mime_type: str
-    purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto"
-
-
-def prepare_reference_image(
-    data: bytes,
-    declared_type: str,
-    purpose: Literal["auto", "color_mood", "motif", "composition"] = "auto",
-) -> ReferenceImage:
-    """검증된 업로드를 Gemini용으로 방향 보정·축소하고 메타데이터를 제거한다."""
-    if declared_type not in {"image/jpeg", "image/png", "image/webp"}:
-        raise ValueError("reference image type is not supported")
-    try:
-        with Image.open(io.BytesIO(data)) as source:
-            if source.width * source.height > MAX_REFERENCE_IMAGE_PIXELS:
-                raise ValueError("reference image has too many pixels")
-            expected_format = {
-                "image/jpeg": "JPEG",
-                "image/png": "PNG",
-                "image/webp": "WEBP",
-            }[declared_type]
-            if source.format != expected_format:
-                raise ValueError("reference image content does not match its type")
-            source.load()
-            image = ImageOps.exif_transpose(source).convert("RGB")
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
-        raise ValueError("reference image could not be decoded") from exc
-    image.thumbnail((MAX_REFERENCE_IMAGE_SIDE, MAX_REFERENCE_IMAGE_SIDE), Image.Resampling.LANCZOS)
-    output = io.BytesIO()
-    # Gemini 입력을 단일 안전 포맷으로 만들고 EXIF/ICC 등 원본 메타데이터를 버린다.
-    image.save(output, format="JPEG", quality=88, optimize=True)
-    return ReferenceImage(data=output.getvalue(), mime_type="image/jpeg", purpose=purpose)
 
 
 # ---- 파싱 헬퍼 ----
@@ -174,7 +139,6 @@ def _build_prompt(
     motif_ids: list[str] | None = None,
     exact_motif_metadata: list[dict[str, object]] | None = None,
     catalog_candidates: list[dict[str, object]] | None = None,
-    reference_images: list[ReferenceImage] | None = None,
     palette_constraint: PaletteConstraint | None = None,
     examples: list[dict[str, object]] | None = None,
 ) -> str:
@@ -186,8 +150,8 @@ def _build_prompt(
         "A stripe host index refers to the zero-based order among stripe layers. A motif index "
         "refers to the zero-based order in the motifs array.",
         # 서빙 스키마는 maxItems 등 개수 상한을 담을 수 없다(_UNSERVABLE_SCHEMA_KEYS) — 제약
-        # 디코딩이 막아주지 않으므로 문장으로 다시 말해준다. 특히 줄무늬 참고 사진이 오면
-        # 모델이 bands를 7~10개 만들어 재시도를 전부 소진하고 요청이 실패했다.
+        # 디코딩이 막아주지 않으므로 문장으로 다시 말해준다. 미세한 줄무늬 요청은 모델이
+        # bands를 7~10개 만들어 재시도를 전부 소진할 수 있다.
         "Per-plan count limits, which the response schema cannot express: 2 to 8 colors, at most "
         "2 motif sources, at most 5 layers, at most 4 bands per stripe layer, and at most 16 "
         "lattice rows or columns. Never exceed one: express finer repetition with a smaller "
@@ -212,11 +176,6 @@ def _build_prompt(
     ]
 
     exact_count = len(motif_ids or [])
-    motif_photo_indexes = sorted(
-        index
-        for index, image in enumerate(reference_images or [], start=1)
-        if image.purpose == "motif"
-    )
     if exact_count:
         lines += [
             "",
@@ -224,18 +183,6 @@ def _build_prompt(
             'source="input" with input_index 1..N, use every one in every plan, and never emit '
             "or guess its internal ID. Exact inputs cannot be combined with catalog motifs.",
         ]
-        if motif_photo_indexes:
-            # 정확 입력과 purpose=motif 사진이 함께 오면 모델이 사진을 통째로 빠뜨려
-            # "every motif reference photo must be represented exactly once"로 매번 실패했다.
-            # 필요한 소스 집합 전체와 총 개수를 한 줄로 못박아야 둘 다 선언한다.
-            photos = ", ".join(str(index) for index in motif_photo_indexes)
-            total = exact_count + len(motif_photo_indexes)
-            lines.append(
-                f"Image {photos} is also a motif source, so every plan's motifs array holds "
-                f'exactly {total} entries: the {exact_count} source="input" entries above plus '
-                f'{{"source": "reference", "reference_image_index": <image number>, "subject": '
-                f'"<what the image depicts>"}} for image {photos}. Dropping either kind is invalid.'
-            )
         if exact_motif_metadata:
             lines += [
                 "The input_N metadata aliases below correspond to input_index N. They are "
@@ -258,21 +205,11 @@ def _build_prompt(
             "Use at least one while a motif slot remains.",
             _untrusted_catalog_block(public_candidates),
         ]
-    elif (
-        not exact_count
-        # purpose=motif만 검증된 모티프 소스다. purpose=auto를 여기서 함께 제외하면 auto 사진
-        # 한 장짜리 요청에 모티프 소스 지침이 한 줄도 안 들어가, 모델이 source="input"
-        # (input_index 0)을 발명해 authoring_invalid로 실패했다.
-        and not any(image.purpose == "motif" for image in (reference_images or []))
-    ):
+    elif not exact_count:
         lines += [
             "",
-            "No verified motif source is available. Only when the user explicitly names a "
-            "concrete, individual shape subject to repeat as the tile motif may you declare "
-            'exactly one {"source":"generate","subject":"<verbatim words from the user>"} source. '
-            "The subject must come only from the user's original description. Mood, palette, "
-            "texture, or style language alone is not a motif subject: in that case set motifs "
-            "to [] and use only solid or stripe structure.",
+            "No verified motif source is available for this request. Set motifs to [] and use "
+            "only solid or stripe structure. Never invent an input_index or catalog_ref.",
         ]
 
     if palette_constraint is not None and palette_constraint.mode == "fixed":
@@ -286,46 +223,6 @@ def _build_prompt(
             "Additional motif color indexes do not count because the resolved motif may have "
             "only one paint slot.",
         ]
-
-    if reference_images:
-        role_instructions = {
-            "auto": "infer color/mood, motif form, or composition from context",
-            "color_mood": "use only palette, texture impression, and mood",
-            "motif": "declare this exact image once in every plan as a motif with "
-            'source="reference" and reference_image_index set to this image number '
-            "(not an input motif source)",
-            "composition": "use only spacing, rhythm, and composition",
-        }
-        lines += [
-            "",
-            "Attached images are numbered in image-part order. Explicit roles are binding:",
-            *[
-                f"- image {index}: purpose={image.purpose}; {role_instructions[image.purpose]}"
-                for index, image in enumerate(reference_images, start=1)
-            ],
-        ]
-        # "…만 사용"이라는 negative 역할은 프롬프트로 강제되지 않는다: 금지 문구를 명시해도
-        # 사진 속 형태가 모티프 subject로 새어 나온다(측정 4/4 vs 3/4 — 차이 없음). 이미지를
-        # 안 보내는 것은 해가 아니다(사진 이해가 이 기능의 값이다) — 지켜야 하는 계약은
-        # "명시된 텍스트 > 이미지 추론"이다: docs/plans/design-reference-text-precedence.md.
-        if not motif_ids and any(image.purpose in {"motif", "auto"} for image in reference_images):
-            lines += [
-                "",
-                'A reference motif is declared as {"source": "reference", '
-                '"reference_image_index": <image number>, "subject": "<what the image depicts>"}. '
-                'This request has no exact motif inputs, so source="input" is always invalid '
-                "here.",
-            ]
-            if any(image.purpose == "motif" for image in reference_images):
-                lines.append(
-                    "Declare every purpose=motif image exactly once this way in every plan."
-                )
-            if any(image.purpose == "auto" for image in reference_images):
-                lines.append(
-                    "A purpose=auto image may be declared this way when the photo's own shape is "
-                    "the repeating motif; otherwise take only its colors, mood, or composition "
-                    "and pick the motif source from the rules above."
-                )
 
     if examples:
         lines += [
@@ -408,7 +305,6 @@ def _build_ideas_prompt(
     prompt: str,
     *,
     count: int,
-    reference_images: list[ReferenceImage],
     motifs: list[dict[str, str]],
     palette_constraint: PaletteConstraint,
     errors: list[str] | None = None,
@@ -422,16 +318,6 @@ def _build_ideas_prompt(
         "Use the same language as the existing prompt; when it is empty, write Korean.",
         f"Existing editable prompt (JSON string): {json.dumps(prompt or '', ensure_ascii=False)}",
     ]
-    if reference_images:
-        lines += [
-            "",
-            "Attached photos are numbered in image-part order. Explicit purposes are binding; "
-            "only purpose=auto may be interpreted from context.",
-            *[
-                f"- image {index}: purpose={image.purpose}"
-                for index, image in enumerate(reference_images, start=1)
-            ],
-        ]
     if motifs:
         lines += [
             "",
@@ -519,10 +405,10 @@ def _servable_json_schema(model: type[BaseModel], *, without: Collection[str] = 
     """Serve a Vertex-compatible schema with unavailable motif variants withheld.
 
     ``without`` drops those ``$defs`` entries and every union branch referencing them. Prompt
-    text alone could not stop flash-lite from reaching for ``source="input"`` or an invented
-    ``catalog_ref`` whenever a photo was attached — the compiler has long carried corrective
-    retry feedback for both fixations. Withholding the variants keeps them out of constrained
-    decoding entirely, so the model can only pick a source this request can actually ground.
+    text alone cannot reliably stop flash-lite from reaching for ``source="input"`` or an
+    invented ``catalog_ref`` when that source is unavailable. Withholding the variants keeps
+    them out of constrained decoding entirely, so the model can only pick a source this request
+    can actually ground.
     """
 
     dropped = frozenset(without)
@@ -699,7 +585,6 @@ class GeminiClient:
         prompt: str,
         *,
         validate=None,
-        reference_images: list[ReferenceImage] | None = None,
         motif_ids: list[str] | None = None,
         exact_motif_metadata: list[dict[str, object]] | None = None,
         catalog_candidates: list[dict[str, object]] | None = None,
@@ -707,7 +592,7 @@ class GeminiClient:
         examples: list[dict[str, object]] | None = None,
         diagnostics: dict[str, object] | None = None,
     ) -> AuthoredDesign:
-        """Author one plan from a prompt, reference photos, and grounded motif sources."""
+        """Author one plan from a prompt and already-grounded motif sources."""
 
         sink = diagnostics if diagnostics is not None else {}
         sink.update(
@@ -719,20 +604,22 @@ class GeminiClient:
                 "authoring_mode": "initial",
             }
         )
-        references = reference_images or []
-        required_reference_indexes = {
-            index for index, image in enumerate(references, start=1) if image.purpose == "motif"
-        }
         errors: list[str] | None = None
         last_errors = ["model did not produce one valid plan"]
         last_attempt_grounding_failure = False
         public_catalog_available = bool(catalog_candidates)
         # 근거 없는 모티프 소스는 서빙 스키마에서 뺀다 — 사진이 붙으면 프롬프트 금지 문구로도
         # source="input"(input_index 0)이나 날조한 catalog_ref 고착이 풀리지 않았다.
-        withheld_source_variants = [
-            *([] if motif_ids else ["InputMotifSource"]),
-            *([] if catalog_candidates else ["CatalogMotifSource"]),
-        ]
+        # 둘 다 없으면 motifs=[]를 prompt로 강제한다. 두 variant를 모두 제거한 빈 union은
+        # Vertex 서빙 스키마가 받을 수 없으므로 이 경우에는 원형 스키마를 유지한다.
+        withheld_source_variants = (
+            [
+                *([] if motif_ids else ["InputMotifSource"]),
+                *([] if catalog_candidates else ["CatalogMotifSource"]),
+            ]
+            if motif_ids or catalog_candidates
+            else []
+        )
 
         for attempt in range(_MAX_AUTHORING_ATTEMPTS):
             sink["authoring_attempts"] = attempt + 1
@@ -743,14 +630,12 @@ class GeminiClient:
                     motif_ids=motif_ids,
                     exact_motif_metadata=exact_motif_metadata,
                     catalog_candidates=catalog_candidates,
-                    reference_images=references,
                     palette_constraint=palette_constraint,
                     examples=examples,
                 )
                 plan = await self.complete_model(
                     built_prompt,
                     DesignPlanV3,
-                    reference_images=references,
                     system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
                     without_schema_variants=withheld_source_variants,
                 )
@@ -772,8 +657,6 @@ class GeminiClient:
                     plan,
                     motif_ids=motif_ids,
                     catalog_candidates=catalog_candidates,
-                    reference_motif_indexes=required_reference_indexes,
-                    reference_image_count=len(references),
                     palette_constraint=palette_constraint,
                 )
             except PlanCompileError as exc:
@@ -841,13 +724,11 @@ class GeminiClient:
         prompt: str,
         *,
         count: Literal[3, 4],
-        reference_images: list[ReferenceImage] | None = None,
         motifs: list[dict[str, str]] | None = None,
         palette_constraint: PaletteConstraint | None = None,
     ) -> list[str]:
         """Return context-aware drafts only; this path never authors or stores an intent."""
 
-        references = reference_images or []
         motif_context = motifs or []
         palette = palette_constraint or PaletteConstraint()
         errors: list[str] | None = None
@@ -856,12 +737,10 @@ class GeminiClient:
                 _build_ideas_prompt(
                     prompt,
                     count=count,
-                    reference_images=references,
                     motifs=motif_context,
                     palette_constraint=palette,
                     errors=errors,
                 ),
-                reference_images=references,
             )
             try:
                 raw = json.loads(_strip_code_fence(text))

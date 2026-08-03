@@ -3,7 +3,6 @@ import {
   ArrowDownTrayIcon,
   BookmarkIcon,
   FolderOpenIcon,
-  PhotoIcon,
   PlusIcon,
   Squares2X2Icon,
   SwatchIcon,
@@ -13,16 +12,12 @@ import type { ReactNode } from "react";
 export type ToolRailProps = {
   onExport: () => void;
   onFinalize: () => void;
-  onPhotos: () => void;
   onColors: () => void;
   onSessions: () => void;
   onFinalized: () => void;
   onNewSession: () => void;
   canExport: boolean;
   canFinalize: boolean;
-  /** 참고 사진은 첫 디자인을 만들 때만 — 커밋된 디자인에는 서버가 422로 막는다. */
-  canAttachPhotos: boolean;
-  photosAttached: boolean;
   paletteFixed: boolean;
   authenticated: boolean;
   busy: boolean;
@@ -60,14 +55,6 @@ export function ToolRail(props: ToolRailProps) {
     },
   ];
   const tools: RailItem[] = [
-    {
-      key: "photos",
-      label: "참고 사진",
-      icon: <Icon svg={<PhotoIcon />} size={24} />,
-      onClick: props.onPhotos,
-      disabled: !props.canAttachPhotos,
-      active: props.photosAttached,
-    },
     {
       key: "colors",
       label: "색 지정",

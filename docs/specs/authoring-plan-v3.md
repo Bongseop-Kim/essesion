@@ -34,9 +34,9 @@ uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 아니며 ID만 유일하면 된다.
 
 Plan에는 normalized ratio와 제한된 enum/template만 둔다. engine layer ID, motif
-content-hash ID, mm, SVG와 임의 좌표는 compiler 뒤에만 존재한다. fixed palette,
-exact/private motif, 사진 purpose와 catalog grounding은 compiler와 최종 engine validation이
-다시 강제한다.
+content-hash ID, mm, SVG와 임의 좌표는 compiler 뒤에만 존재한다. motif source는
+exact/private `input` 또는 검증된 `catalog`뿐이며 fixed palette와 catalog grounding은 compiler와
+최종 engine validation이 다시 강제한다. 참고 이미지와 generate/reference source는 계약 밖이다.
 
 ## 생성 데이터 승격 후보
 
@@ -72,8 +72,8 @@ resolved motif와 engine intent는 예시에 복제하지 않는다. 잘못된 �
 2. 필요하면 기존 관리자 motif API에서 카탈로그 motif를 최대 2개 골라 `input_index`
    순서에 연결한다.
 3. worker의 `POST /authoring/compile-preview`가 Plan을 compile하고 기존 renderer로 SVG를
-   만든다. 이 경로는 Gemini, Recraft, embedding을 호출하지 않는다. 카탈로그에 없는
-   motif나 생성이 필요한 source의 layer는 경고와 함께 제외한다.
+   만든다. 이 경로는 Gemini, Recraft, embedding을 호출하지 않는다. source는 `input` 또는
+   `catalog`만 허용하고 존재하지 않는 motif나 계약 밖 source는 검증 오류로 거부한다.
 4. 현재 입력으로 성공한 프리뷰가 있어야 저장할 수 있다.
 5. 저장 시 worker가 Plan을 `DesignPlanV3`로 검증하고 family, tags, fingerprint와 digest를
    공용 helper로 산출한 뒤 현재 모델의 document embedding을 한 번 만든다. 새 행은

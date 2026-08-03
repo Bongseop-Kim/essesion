@@ -77,7 +77,7 @@ async def _evaluate_model(
     try:
         for case in cases:
             diagnostics: dict[str, object] = {}
-            motif_ids = [f"recraft-eval{i:011d}" for i in range(1, case.motif_count + 1)]
+            motif_ids = [f"input-eval{i:013d}" for i in range(1, case.motif_count + 1)]
             retrieval = await retrieve_examples(
                 session,
                 case.prompt,

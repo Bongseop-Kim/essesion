@@ -613,57 +613,6 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
     assert captured["top_k"] == 5
 
 
-def test_auto_references_fill_motif_capacity_without_catalog_lookup(monkeypatch):
-    async def unexpected_candidates(*_args, **_kwargs):
-        raise AssertionError("full reference capacity must skip catalog retrieval")
-
-    async def fake_retrieve(_session, _prompt, **kwargs):
-        assert kwargs["available_motif_count"] == 2
-        return RetrievalOutcome(status="empty", reason="no_examples")
-
-    class Gemini:
-        async def author_design(self, _prompt, *, validate, catalog_candidates, **_kwargs):
-            assert catalog_candidates == []
-            intent = mvp_intent()
-            assert validate(intent) is None
-            return AuthoredDesign(intent=intent)
-
-    async def fake_reference_images(_body, _settings):
-        return []
-
-    monkeypatch.setattr(routes, "prompt_catalog_candidates", unexpected_candidates)
-    monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
-    monkeypatch.setattr(routes, "_load_reference_images", fake_reference_images)
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=Gemini())
-
-    response = TestClient(app).post(
-        "/generate",
-        json={
-            "run_id": _RUN_ID,
-            "prompt": "두 참고 이미지로 패턴 만들기",
-            "reference_images": [
-                {
-                    "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
-                    "url": "https://storage.googleapis.example/private/reference-1.png",
-                    "content_type": "image/png",
-                    "size_bytes": 100,
-                    "purpose": "auto",
-                },
-                {
-                    "image_id": "d32696c5-cbd7-4182-9014-7bb6ee4d3d80",
-                    "url": "https://storage.googleapis.example/private/reference-2.png",
-                    "content_type": "image/png",
-                    "size_bytes": 100,
-                    "purpose": "auto",
-                },
-            ],
-        },
-    )
-
-    assert response.status_code == 200, response.text
-
-
 def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch):
     calls: list[str] = []
     retrieval_session = _FakeSession()
@@ -749,6 +698,27 @@ def _patch_request(prompt: str, intent: dict) -> dict:
     }
 
 
+def test_composition_patch_rejects_removed_photo_history_attachment(monkeypatch):
+    app = _configure_app(monkeypatch)
+    payload = _patch_request("바탕을 밝게", mvp_intent())
+    payload["conversation_context"]["history"][0]["attachments"] = [
+        {"kind": "photo", "filename": "legacy.png", "purpose": "color_mood"}
+    ]
+
+    response = TestClient(app).post("/generate", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == [
+        "body",
+        "conversation_context",
+        "history",
+        0,
+        "attachments",
+        0,
+        "kind",
+    ]
+
+
 def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
     gemini = _PatchGemini({"background": {"color": "#F5F0E6"}, "note": "바탕을 밝게 했어요."})
     app = _configure_app(monkeypatch)
@@ -796,46 +766,12 @@ def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):
     response = TestClient(app).post("/generate", json=payload)
 
     assert response.status_code == 422
-    assert "cannot include reference images or motif ids" in response.text
+    assert "cannot include motif ids" in response.text
 
 
-@respx.mock
-def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
-    class CapturingGemini:
-        def __init__(self):
-            self.calls = []
-
-        async def author_design(
-            self,
-            prompt,
-            *,
-            validate,
-            reference_images,
-            motif_ids,
-            palette_constraint,
-            **_kwargs,
-        ):
-            assert palette_constraint.mode == "auto"
-            self.calls.append((prompt, reference_images, motif_ids))
-            intent = mvp_intent()
-            assert validate(intent) is None
-            return AuthoredDesign(intent=intent)
-
-    raw = io.BytesIO()
-    Image.new("RGBA", (4, 3), (12, 34, 56, 128)).save(raw, format="PNG")
-    image_bytes = raw.getvalue()
-    image_id = "c21585b4-bac6-4071-8903-6aa5dd3c2c79"
-    image_url = "https://storage.googleapis.example/private/reference.png"
-    respx.get(image_url).mock(
-        return_value=httpx.Response(
-            200,
-            content=image_bytes,
-            headers={"Content-Type": "image/png"},
-        )
-    )
-    gemini = CapturingGemini()
+def test_generate_rejects_reference_images_as_extra_input(monkeypatch):
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=gemini)
+    app.state.adapters = Adapters(gemini=object())
 
     response = TestClient(app).post(
         "/generate",
@@ -844,48 +780,19 @@ def test_reference_photo_is_safely_prepared_and_sent_to_gemini(monkeypatch):
             "prompt": "사진의 색과 분위기를 참고한 패턴",
             "reference_images": [
                 {
-                    "image_id": image_id,
-                    "url": image_url,
+                    "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
+                    "url": "https://storage.googleapis.example/private/reference.png",
                     "content_type": "image/png",
-                    "size_bytes": len(image_bytes),
+                    "size_bytes": 100,
                     "purpose": "color_mood",
                 }
             ],
         },
     )
 
-    assert response.status_code == 200, response.text
-    assert len(gemini.calls) == 1
-    prompt, references, motif_ids = gemini.calls[0]
-    assert prompt == "사진의 색과 분위기를 참고한 패턴"
-    assert motif_ids == []
-    assert len(references) == 1
-    assert references[0].mime_type == "image/jpeg"
-    assert references[0].purpose == "color_mood"
-    assert references[0].data.startswith(b"\xff\xd8")
-
-
-def test_reference_photo_rejects_untrusted_url_before_fetch(monkeypatch):
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=object())
-    response = TestClient(app).post(
-        "/generate",
-        json={
-            "run_id": _RUN_ID,
-            "prompt": "reference",
-            "reference_images": [
-                {
-                    "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
-                    "url": "https://attacker.invalid/private.png",
-                    "content_type": "image/png",
-                    "size_bytes": 100,
-                }
-            ],
-        },
-    )
     assert response.status_code == 422
-    assert response.json()["detail"]["code"] == "reference_invalid"
-    assert response.json()["detail"]["stage"] == "reference"
+    assert response.json()["detail"][0]["type"] == "extra_forbidden"
+    assert response.json()["detail"][0]["loc"] == ["body", "reference_images"]
 
 
 def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
@@ -1031,7 +938,6 @@ def test_palette_and_photo_preview_reuse_private_image_fetch(monkeypatch):
     image_url = "https://storage.googleapis.example/private/motif-source.png"
     respx.get(image_url).mock(return_value=httpx.Response(200, content=image_bytes))
     image_input = {
-        "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
         "url": image_url,
         "content_type": "image/png",
         "size_bytes": len(image_bytes),

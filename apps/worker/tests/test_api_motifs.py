@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock
 from google import genai
 from worker.adapters import AdapterClientError
 from worker.adapters.gemini import AuthoredDesign, GeminiClient
-from worker.api import routes
 from worker.motifs import store
 from worker.motifs.normalize import normalize_motif_svg
 
@@ -176,9 +175,7 @@ async def test_prompt_path_end_to_end_with_gemini(app, client, db_session):
     assert motif_layer["params"]["motif_id"] == mid
 
 
-async def test_prompt_motif_resolution_uses_authored_seed_without_override(
-    app, client, db_session, monkeypatch
-):
+async def test_prompt_generation_uses_authored_seed_without_override(app, client, db_session):
     mid = await _seed_dot(db_session)
     intent = _lattice_intent(mid)
     intent["seed"] = 37
@@ -189,24 +186,15 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
             _prompt,
             *,
             validate,
-            reference_images=(),
             motif_ids=(),
             palette_constraint=None,
             **_kwargs,
         ):
-            assert reference_images == []
             assert motif_ids == []
             assert validate(intent) is None
             return AuthoredDesign(intent=intent)
 
-    seen: list[int] = []
-
-    async def capture_seed(_session, raw, _specs, **kwargs):
-        seen.append(kwargs["seed"])
-        return raw
-
     app.state.adapters.gemini = FakeGemini()
-    monkeypatch.setattr(routes, "resolve_motifs", capture_seed)
 
     response = await client.post(
         "/generate",
@@ -214,7 +202,6 @@ async def test_prompt_motif_resolution_uses_authored_seed_without_override(
     )
 
     assert response.status_code == 200, response.text
-    assert seen == [37]
     assert response.json()["design"]["seed"] == 37
 
 

@@ -3870,10 +3870,6 @@ export type DesignGenerateRequest = {
      */
     prompt?: string | null;
     /**
-     * Reference Images
-     */
-    reference_images?: Array<ReferenceImageRequest>;
-    /**
      * Seed
      */
     seed?: number | null;
@@ -3910,10 +3906,6 @@ export type DesignIdeasRequest = {
      * Prompt
      */
     prompt?: string;
-    /**
-     * Reference Images
-     */
-    reference_images?: Array<ReferenceImageRequest>;
     /**
      * User Motif Ids
      */
@@ -4084,21 +4076,9 @@ export type DesignTurnAttachmentOut = {
      */
     filename: string;
     /**
-     * Kind
-     */
-    kind: 'photo' | 'svg';
-    /**
      * Preview Svg
      */
-    preview_svg?: string | null;
-    /**
-     * Preview Url
-     */
-    preview_url?: string | null;
-    /**
-     * Purpose
-     */
-    purpose?: 'auto' | 'color_mood' | 'motif' | 'composition' | null;
+    preview_svg: string;
 };
 
 /**
@@ -4292,10 +4272,6 @@ export type GenerationDiagnosticsOut = {
      */
     model?: string | null;
     /**
-     * Motif Resolution Ms
-     */
-    motif_resolution_ms?: number | null;
-    /**
      * Motif Resolutions
      */
     motif_resolutions?: Array<MotifResolutionOut>;
@@ -4307,14 +4283,6 @@ export type GenerationDiagnosticsOut = {
      * Prompt Revision
      */
     prompt_revision?: string | null;
-    /**
-     * Recraft Calls
-     */
-    recraft_calls?: number | null;
-    /**
-     * Reference Count
-     */
-    reference_count?: number | null;
     /**
      * Render Ms
      */
@@ -6965,20 +6933,6 @@ export type ReferenceImageIn = {
 };
 
 /**
- * ReferenceImageRequest
- */
-export type ReferenceImageRequest = {
-    /**
-     * Purpose
-     */
-    purpose?: 'auto' | 'color_mood' | 'motif' | 'composition';
-    /**
-     * Upload Id
-     */
-    upload_id: string;
-};
-
-/**
  * ReformDataIn
  */
 export type ReformDataIn = {
@@ -7668,10 +7622,6 @@ export type SeamlessDetailOut = {
      */
     has_prompt: boolean;
     /**
-     * Has Reference Image
-     */
-    has_reference_image: boolean;
-    /**
      * Id
      */
     id: string;
@@ -7690,14 +7640,6 @@ export type SeamlessDetailOut = {
      * Prompt
      */
     prompt: string | null;
-    /**
-     * Reference Image Bytes
-     */
-    reference_image_bytes: number | null;
-    /**
-     * Reference Images
-     */
-    reference_images: Array<SeamlessReferenceImageOut>;
     /**
      * Registry Version
      */
@@ -7730,28 +7672,6 @@ export type SeamlessDetailOut = {
 };
 
 /**
- * SeamlessReferenceImageOut
- */
-export type SeamlessReferenceImageOut = {
-    /**
-     * Available
-     */
-    available: boolean;
-    /**
-     * Image Id
-     */
-    image_id: string;
-    /**
-     * Ordinal
-     */
-    ordinal: number;
-    /**
-     * Purpose
-     */
-    purpose: 'auto' | 'color_mood' | 'motif' | 'composition';
-};
-
-/**
  * SeamlessStatsOut
  */
 export type SeamlessStatsOut = {
@@ -7775,10 +7695,6 @@ export type SeamlessStatsOut = {
      * Partial
      */
     partial: number;
-    /**
-     * Recraft Calls
-     */
-    recraft_calls: number;
     /**
      * Success
      */
@@ -10048,40 +9964,6 @@ export type GetAdminSeamlessLogResponses = {
 };
 
 export type GetAdminSeamlessLogResponse = GetAdminSeamlessLogResponses[keyof GetAdminSeamlessLogResponses];
-
-export type CreateAdminSeamlessReferenceImageReadUrlData = {
-    body?: never;
-    path: {
-        /**
-         * Log Id
-         */
-        log_id: string;
-        /**
-         * Image Id
-         */
-        image_id: string;
-    };
-    query?: never;
-    url: '/admin/generation/seamless/{log_id}/reference-image/{image_id}/read-url';
-};
-
-export type CreateAdminSeamlessReferenceImageReadUrlErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateAdminSeamlessReferenceImageReadUrlError = CreateAdminSeamlessReferenceImageReadUrlErrors[keyof CreateAdminSeamlessReferenceImageReadUrlErrors];
-
-export type CreateAdminSeamlessReferenceImageReadUrlResponses = {
-    /**
-     * Successful Response
-     */
-    200: SignedReadUrlOut;
-};
-
-export type CreateAdminSeamlessReferenceImageReadUrlResponse = CreateAdminSeamlessReferenceImageReadUrlResponses[keyof CreateAdminSeamlessReferenceImageReadUrlResponses];
 
 export type ListAdminInquiriesData = {
     body?: never;

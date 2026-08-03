@@ -4,8 +4,7 @@ from decimal import Decimal
 import pytest
 from api.domains.admin.generation import finalize_duration_seconds
 from db.models.design import DesignSession, DesignSessionTurn, GenerationJob
-from db.models.images import Image
-from db.models.seamless import Motif, SeamlessGenerationAttachment, SeamlessGenerationLog
+from db.models.seamless import Motif, SeamlessGenerationLog
 from db.models.tokens import DesignToken
 
 from .factories import auth_headers, make_user
@@ -280,8 +279,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "error": 1,
     }
     assert stats.json()["average_render_ms"] == 2.5
-    # 성공 3회 + 실패(롤백) 2회 — 실패분 호출도 과금 합계에 포함돼야 한다.
-    assert stats.json()["recraft_calls"] == 5
+    assert "recraft_calls" not in stats.json()
 
     detail = await client.get(f"/admin/generation/seamless/{rows[0].id}", headers=headers)
     assert detail.status_code == 200
@@ -331,15 +329,12 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "mode": "patch",
         "model": "gemini-2.5-flash-lite",
         "prompt_revision": None,
-        "reference_count": 1,
         "fixed_palette": False,
         "patch_axes": ["background", "placement"],
         "authoring_attempts": 1,
         "catalog_candidate_count": None,
         "resolved_count": 3,
-        "recraft_calls": 3,
         "authoring_ms": None,
-        "motif_resolution_ms": None,
         "compose_ms": None,
         "render_ms": None,
         "failure_code": None,
@@ -884,162 +879,6 @@ async def test_motif_list_searches_fields_and_filters_kst_created_date(
     blank_search = await client.get("/admin/motifs", params={"q": "  "}, headers=headers)
     assert blank_search.status_code == 400
     assert blank_search.json()["code"] == "invalid_search"
-
-
-async def test_seamless_reference_image_is_relation_checked_and_never_exposes_object_key(
-    client, db_session, settings
-):
-    admin = await make_user(db_session, role="admin")
-    customer = await make_user(db_session)
-    log = SeamlessGenerationLog(
-        request_id="seamless-with-reference",
-        input_type="reference_image",
-        has_reference_image=True,
-        reference_image_bytes=1234,
-        warnings=[],
-        status="success",
-    )
-    db_session.add(log)
-    await db_session.flush()
-    image = Image(
-        object_key=f"uploads/design_reference/{log.id}/reference.png",
-        entity_type="design_reference",
-        entity_id=str(customer.id),
-        content_type="image/png",
-        size_bytes=1234,
-        upload_completed_at=datetime.now(UTC),
-    )
-    db_session.add(image)
-    await db_session.flush()
-    db_session.add(
-        SeamlessGenerationAttachment(log_id=log.id, image_id=image.id, purpose="auto", ordinal=0)
-    )
-    await db_session.commit()
-
-    headers = auth_headers(admin, settings)
-    detail = await client.get(f"/admin/generation/seamless/{log.id}", headers=headers)
-    assert detail.status_code == 200
-    assert detail.json()["reference_images"] == [
-        {
-            "image_id": str(image.id),
-            "purpose": "auto",
-            "ordinal": 0,
-            "available": True,
-        }
-    ]
-    assert image.object_key not in detail.text
-    assert "object_key" not in detail.text
-
-    path = f"/admin/generation/seamless/{log.id}/reference-image/{image.id}/read-url"
-    denied = await client.post(path, headers=auth_headers(customer, settings))
-    assert denied.status_code == 403
-
-    read_url = await client.post(path, headers=headers)
-    assert read_url.status_code == 200
-    assert read_url.json()["read_url"].endswith(image.object_key)
-
-    wrong_image = Image(
-        object_key="uploads/design_reference/unrelated/reference.png",
-        entity_type="design_reference",
-        entity_id="unrelated",
-        upload_completed_at=datetime.now(UTC),
-    )
-    db_session.add(wrong_image)
-    await db_session.commit()
-    wrong_relation = await client.post(
-        f"/admin/generation/seamless/{log.id}/reference-image/{wrong_image.id}/read-url",
-        headers=headers,
-    )
-    assert wrong_relation.status_code == 404
-
-    await db_session.delete(image)
-    await db_session.commit()
-    after_delete = await client.get(f"/admin/generation/seamless/{log.id}", headers=headers)
-    assert after_delete.json()["reference_images"] == []
-
-
-async def test_seamless_reference_image_requires_completed_matching_private_image(
-    client, db_session, settings
-):
-    admin = await make_user(db_session, role="admin")
-    headers = auth_headers(admin, settings)
-    now = datetime.now(UTC)
-
-    incomplete_log = SeamlessGenerationLog(
-        input_type="reference_image",
-        has_reference_image=True,
-        warnings=[],
-        status="success",
-    )
-    wrong_type_log = SeamlessGenerationLog(
-        input_type="reference_image",
-        has_reference_image=True,
-        warnings=[],
-        status="success",
-    )
-    expired_log = SeamlessGenerationLog(
-        input_type="reference_image",
-        has_reference_image=True,
-        warnings=[],
-        status="success",
-    )
-    db_session.add_all([incomplete_log, wrong_type_log, expired_log])
-    await db_session.flush()
-    incomplete = Image(
-        object_key=f"uploads/design_reference/{incomplete_log.id}/incomplete.png",
-        entity_type="design_reference",
-        entity_id=str(incomplete_log.id),
-        upload_completed_at=None,
-    )
-    wrong_type = Image(
-        object_key=f"uploads/design_reference/{wrong_type_log.id}/wrong-type.png",
-        entity_type="quote_request",
-        entity_id=str(wrong_type_log.id),
-        upload_completed_at=now,
-    )
-    expired = Image(
-        object_key=f"uploads/design_reference/{expired_log.id}/expired.png",
-        entity_type="design_reference",
-        entity_id=str(expired_log.id),
-        upload_completed_at=now,
-        expires_at=now - timedelta(seconds=1),
-    )
-    db_session.add_all([incomplete, wrong_type, expired])
-    await db_session.flush()
-    db_session.add_all(
-        [
-            SeamlessGenerationAttachment(
-                log_id=incomplete_log.id, image_id=incomplete.id, purpose="auto", ordinal=0
-            ),
-            SeamlessGenerationAttachment(
-                log_id=wrong_type_log.id, image_id=wrong_type.id, purpose="auto", ordinal=0
-            ),
-            SeamlessGenerationAttachment(
-                log_id=expired_log.id, image_id=expired.id, purpose="auto", ordinal=0
-            ),
-        ]
-    )
-    await db_session.commit()
-
-    for row, image in ((incomplete_log, incomplete), (wrong_type_log, wrong_type)):
-        detail = await client.get(f"/admin/generation/seamless/{row.id}", headers=headers)
-        assert detail.json()["reference_images"] == []
-        read_url = await client.post(
-            f"/admin/generation/seamless/{row.id}/reference-image/{image.id}/read-url",
-            headers=headers,
-        )
-        assert read_url.status_code == 404
-
-    expired_detail = await client.get(
-        f"/admin/generation/seamless/{expired_log.id}", headers=headers
-    )
-    assert expired_detail.json()["reference_images"][0]["available"] is False
-    expired_url = await client.post(
-        f"/admin/generation/seamless/{expired_log.id}/reference-image/{expired.id}/read-url",
-        headers=headers,
-    )
-    assert expired_url.status_code == 400
-    assert expired_url.json()["code"] == "image_expired"
 
 
 async def test_finalize_duration_uses_started_finished_timestamps(db_session):

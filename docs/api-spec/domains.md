@@ -83,7 +83,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 ## 11. 디자인(`/design`) 엔드포인트
 
-재설계 뒤의 현재 표면. 한 번의 생성이 디자인 1개를 만들고, 세션은 그 디자인들의 선형 이력(스텝)을 갖는다. 계약 상세는 [worker-pipeline.md](./worker-pipeline.md) §5, 과금은 [money.md](./money.md) §6.
+재설계 뒤의 현재 표면. 한 번의 생성이 디자인 1개를 만들고, 세션은 그 디자인들의 선형 이력(스텝)을 갖는다. 디자인 생성·아이디어 요청에는 `reference_images`가 없고 사진 업로드는 팔레트 추출 또는 모티프 모달의 로컬 사진→SVG 변환에만 쓴다. 디자인 생성 중에는 Recraft를 호출하지 않는다. 계약 상세는 [worker-pipeline.md](./worker-pipeline.md) §5, 과금은 [money.md](./money.md) §6.
 
 | 엔드포인트 | 역할 | 과금 |
 |---|---|---|

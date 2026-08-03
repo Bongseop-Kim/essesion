@@ -117,7 +117,7 @@
 | 항목 | 상태 | 비고 |
 |---|---|---|
 | 텍스트-as-모티프(glyph) | 구현 | 번들 Nanum Gothic/Myeongjo + fontTools의 결정론적 path-only SVG. `/motifs/text-preview` 결과도 공통 sanitize/normalize/import 경계를 통과 |
-| 참고 사진 purpose·업로드 하드닝 | 구현 | ordered purpose 바인딩, private GCS/SSRF·MIME·바이트·pixel 검증과 one-shot 이력 보존 |
+| 디자인 참고 사진 | 제거 | 디자인 생성·아이디어의 첨부 계약과 이력 저장을 삭제. private staged upload는 팔레트 추출과 사진→SVG 모티프에만 사용 |
 | 사진→SVG 모티프 | 구현 | Pillow의 제한적 border-connected 배경 분리 + CPU threadpool의 로컬 VTracer. low-confidence는 fail-closed이며 이 경로는 외부 provider에 이미지를 전송하지 않음 |
 | 완전한 대화형 SVG 편집 도구(swap_motif·Bezier 등) | 제외 | 현재 `/design` 범위에서 제외한 기능으로, 구현 완료로 표시하지 않음 |
 | 이름 붙인 저장 palette CRUD | 이연 | 작성 draft의 fixed palette는 구현. owner table·수명주기·공유 요구 없이 새 DB 도메인과 임의 저장 제한을 만들지 않음 |

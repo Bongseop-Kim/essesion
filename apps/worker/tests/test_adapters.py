@@ -18,7 +18,6 @@ from worker.adapters.gemini import (
     AUTHORING_SYSTEM_INSTRUCTION,
     PATCH_SYSTEM_INSTRUCTION,
     GeminiClient,
-    ReferenceImage,
     _build_patch_prompt,
     _build_prompt,
     _contract_feedback,
@@ -329,7 +328,7 @@ async def test_embedding_client_error_raises():
 # ---- Gemini ----
 
 
-async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
+async def test_gemini_ideas_use_motif_and_palette_context_and_retry_invalid_shape():
     valid = {
         "ideas": [
             "동백 모티프를 작은 격자로 반복하고 남색과 크림색을 사용해 보세요.",
@@ -338,14 +337,9 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
         ]
     }
     client, sdk = _gemini({"ideas": ["only one"]}, valid)
-    references = [
-        ReferenceImage(data=b"one", mime_type="image/jpeg", purpose="motif"),
-        ReferenceImage(data=b"two", mime_type="image/jpeg", purpose="composition"),
-    ]
     ideas = await client.suggest_ideas(
         "차분한 넥타이",
         count=3,
-        reference_images=references,
         motifs=[{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
         palette_constraint=PaletteConstraint(mode="fixed", colors=["#10243A", "#EFE6D4"]),
     )
@@ -353,10 +347,8 @@ async def test_gemini_ideas_use_full_ordered_context_and_retry_invalid_shape():
     assert ideas == valid["ideas"]
     assert len(sdk.models.generate_calls) == 2
     parts = sdk.models.generate_calls[0]["contents"][0].parts
-    assert [part.inline_data.data for part in parts[:-1]] == [b"one", b"two"]
+    assert len(parts) == 1
     context = parts[-1].text
-    assert "image 1: purpose=motif" in context
-    assert "image 2: purpose=composition" in context
     assert 'exact motif 1: name="동백"' in context
     assert "upload-a1b2c3d4e5f6" not in context
     assert "#10243A, #EFE6D4" in context
@@ -388,9 +380,8 @@ async def test_author_design_rejects_invalid_json_without_prose_fallback():
     assert len(sdk.models.generate_calls) == 4  # 모든 시도가 재시도됐고 salvage 경로가 없다
 
 
-def test_authoring_prompt_allows_generate_only_on_ungrounded_concrete_text_path():
+def test_authoring_prompt_requires_existing_motif_sources():
     ungrounded = _build_prompt("펠리컨 넥타이", errors=None)
-    mood_only = _build_prompt("차분한 파스텔", errors=None)
     grounded = _build_prompt(
         "펠리컨 넥타이",
         errors=None,
@@ -403,10 +394,9 @@ def test_authoring_prompt_allows_generate_only_on_ungrounded_concrete_text_path(
         ],
     )
 
-    assert '"source":"generate"' in ungrounded
-    assert "<verbatim words from the user>" in ungrounded
-    assert "Mood, palette, texture, or style language alone is not a motif subject" in mood_only
-    assert '"source":"generate"' not in grounded
+    assert "Set motifs to []" in ungrounded
+    assert "Never invent an input_index or catalog_ref" in ungrounded
+    assert '"source":"generate"' not in ungrounded
     assert "untrusted, user-generated catalog metadata" in grounded
 
 
@@ -478,56 +468,25 @@ def test_authoring_prompt_exposes_ordered_parts_for_public_current_and_exact_mot
     assert "input_N metadata aliases" in exact
 
 
-def test_authoring_prompt_states_motif_source_rules_for_an_auto_reference_photo():
-    # purpose=auto 사진 한 장만 붙은 요청에 모티프 소스 지침이 한 줄도 없어 모델이
-    # source="input"(input_index 0)을 발명해 authoring_invalid로 실패한 회귀.
-    auto = _build_prompt(
-        "이 사진을 참고해서 넥타이 패턴을 만들어줘",
-        errors=None,
-        reference_images=[ReferenceImage(data=b"one", mime_type="image/png", purpose="auto")],
-    )
-
-    assert 'source="input" is always invalid' in auto
-    assert '"source": "reference"' in auto
-    assert "No verified motif source is available" in auto
-    assert "purpose=auto image may be declared this way" in auto
-
-
 def test_served_schema_withholds_the_input_motif_variant_when_asked():
-    # 사진 첨부 요청에서 source="input" 고착이 프롬프트로 풀리지 않아, 정확 모티프 입력이
-    # 없을 때는 변형 자체를 서빙 스키마에서 뺀다.
     full = json.dumps(_servable_json_schema(DesignPlanV3))
-    pruned = json.dumps(
-        _servable_json_schema(DesignPlanV3, without=["InputMotifSource", "CatalogMotifSource"])
-    )
+    pruned = json.dumps(_servable_json_schema(DesignPlanV3, without=["InputMotifSource"]))
 
     assert "input_index" in full and "catalog_ref" in full
     assert "input_index" not in pruned
-    assert "catalog_ref" not in pruned
-    for kept in ("ReferenceMotifSource", "GenerateMotifSource"):
-        assert kept in pruned
+    assert "catalog_ref" in pruned
 
 
-def test_authoring_prompt_requires_both_exact_inputs_and_motif_photos():
-    # 라이브러리 모티프 1개 + purpose=motif 사진 1장 조합에서 모델이 사진을 통째로 빼먹어
-    # "every motif reference photo must be represented exactly once"로 매번 실패한 회귀.
-    combined = _build_prompt(
-        "네이비 바탕에 이 형태들을 배치",
-        errors=None,
-        motif_ids=["private-hash"],
-        exact_motif_metadata=[{"catalog_ref": "input_1", "slot_count": 1}],
-        reference_images=[ReferenceImage(data=b"one", mime_type="image/png", purpose="motif")],
-    )
-    exact_only = _build_prompt(
-        "네이비 바탕",
-        errors=None,
-        motif_ids=["private-hash"],
-        exact_motif_metadata=[{"catalog_ref": "input_1", "slot_count": 1}],
-    )
+async def test_author_design_without_motif_sources_serves_the_full_schema():
+    # motif_ids도 catalog_candidates도 없으면 빈 union이 생기므로 variant를 빼지 않는다.
+    examples = load_example_set()
+    client, sdk = _gemini(examples[1].plan.model_dump(mode="json"))
 
-    assert "Image 1 is also a motif source" in combined
-    assert "exactly 2 entries" in combined
-    assert "is also a motif source" not in exact_only
+    await client.author_design("남색 미니멀 스트라이프")
+
+    served = json.dumps(sdk.models.generate_calls[0]["config"].response_schema)
+    assert "input_index" in served
+    assert "catalog_ref" in served
 
 
 def test_authoring_prompt_states_the_count_limits_the_served_schema_drops():
@@ -783,7 +742,7 @@ def test_named_existing_color_reuses_role_references_without_swapping_palette():
         {
             "colors": ["#EFE6D4", "#000080", "#FFFFF0"],
             "ground_color_index": 0,
-            "motifs": [{"source": "generate", "subject": "dot"}],
+            "motifs": [{"source": "catalog", "catalog_ref": "dot"}],
             "layers": [
                 {
                     "type": "stripe",

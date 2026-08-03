@@ -1,14 +1,12 @@
-"""정확도 우선 모티프 검색·해석 래더 (worker-motifs.md §5).
+"""명시적 모티프 검색·생성용 정확도 우선 resolver (worker-motifs.md §5).
 
-흐름: 원문/semantic descriptor → 공개 카탈로그 전체 lexical+pgvector top-k →
-신뢰도 게이트 → generate-on-miss. scope는 검색 하드 필터로 사용하지 않는다.
-모든 hit은 variant_group 재사용 풀을 거쳐 seed 샘플링된다.
-프로세스-로컬 캐시는 두지 않는다 — content-hash upsert + 요청 스코프만이 상태.
+모티프 모달 요청에서 원문/semantic descriptor → 공개 카탈로그 lexical+pgvector top-k →
+신뢰도 게이트를 적용하고, 사용자가 생성을 승인한 경로만 miss에서 Recraft를 호출한다.
+디자인 `/generate`는 이 resolver의 generate-on-miss 경로를 사용하지 않는다.
 """
 
 from __future__ import annotations
 
-import copy
 import logging
 import math
 import re
@@ -24,7 +22,6 @@ from worker.adapters import AdapterClientError
 from worker.adapters.embedding import EmbeddingError, embed_query
 from worker.adapters.recraft import RecraftError, generate_motif
 from worker.engine import determinism
-from worker.engine.palette import is_hex_color
 from worker.motifs import store
 from worker.motifs.labeler import label_slots
 from worker.motifs.store import (
@@ -35,10 +32,6 @@ from worker.motifs.store import (
 
 logger = logging.getLogger(__name__)
 
-# glyph(텍스트-as-모티프)·vectorize(이미지) 파이프라인 미구현 — 해당 spec이 Recraft 생성
-# 래더로 흘러 subject 없는 프롬프트가 되지 않게 명시 거부한다 (spec §5·§7, 5단계에서 구현).
-UNSUPPORTED_SPEC_FIELDS = ("text", "source_image_index")
-
 # recraft 유입 facet 자유텍스트 — 임베딩·저장 전 살균할 필드 (scope는 whole/partial로 제약됨).
 _SCREENED_FACETS = ("subject", "description", "style", "view", "expression")
 
@@ -46,8 +39,7 @@ _SCREENED_FACETS = ("subject", "description", "style", "view", "expression")
 def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
     """관리자 게이트 없는 recraft 카탈로그 유입의 유일 자동 방어선 (C-10).
 
-    비가시·제어 문자를 제거한다. 이미지가 의도를 앵커하는 reference 경로는 명령형
-    인젝션 패턴을 로그로만 플래그하고, text generate 경로는 해당 레이어를 거부한다.
+    비가시·제어 문자를 제거하고 명령형 인젝션 패턴은 유입 전에 거부한다.
     """
     screened = dict(spec)
     for key in _SCREENED_FACETS:
@@ -443,10 +435,9 @@ async def resolve_spec(
     실패해도 과금된 Recraft 결과물이 카탈로그 자산으로 남아 재시도가 무료 재사용된다.
     """
     tau = settings.motif_similarity_tau
-    generate_origin = spec.get("reference_image_index") is None
     authored_spec = _screen_facets(
         {**spec, "scope": "whole"},
-        reject_suspicious=generate_origin,
+        reject_suspicious=True,
     )
     retrieval = await retrieve_catalog(
         session,
@@ -551,199 +542,3 @@ def _candidate_dict(meta: MotifMeta, similarity: float | None) -> dict:
         "description": meta.description,
         "source": meta.source,
     }
-
-
-async def resolve_motifs(
-    session: AsyncSession,
-    intent: dict,
-    motif_specs: list[dict],
-    *,
-    recraft_client,
-    embedding_client,
-    settings,
-    seed: int,
-    gemini_client=None,
-    provenance: dict | None = None,
-    generation_budget: MotifGenerationBudget | None = None,
-    warnings: list[str] | None = None,
-    trace: list[dict[str, object]] | None = None,
-    upsert_sessionmaker: async_sessionmaker[AsyncSession] | None = None,
-) -> dict:
-    """intent 사본의 각 모티프 레이어 params.motif_id를 해석해 반환 (§5 오케스트레이션).
-
-    레이어별 게이트 소진 시 그 layer drop(+host cascade, fixpoint). 전부 실패면
-    AdapterClientError(→502), 생존자 있으면 부분 성공(경고 append).
-    """
-    if not motif_specs:
-        return intent
-    sink = warnings if warnings is not None else []
-    resolved = copy.deepcopy(intent)
-    layers_by_id = {
-        layer.get("id"): layer for layer in resolved.get("layers", []) if isinstance(layer, dict)
-    }
-    attempted: set[str] = set()
-    failed: set[str] = set()
-    required_failed: set[str] = set()
-    soft_failed: set[str] = set()
-    reasons: dict[str, str] = {}
-    last_failure: AdapterClientError | None = None
-    request_budget = generation_budget or MotifGenerationBudget(
-        settings.motif_generate_per_request_limit
-    )
-    palette = intent.get("palette")
-    palette_slots = palette.get("slots") if isinstance(palette, dict) else None
-    colors = tuple(
-        slot["hex"]
-        for slot in palette_slots or ()
-        if isinstance(slot, dict) and isinstance(slot.get("hex"), str) and is_hex_color(slot["hex"])
-    )
-    for spec in motif_specs:
-        layer = layers_by_id.get(spec.get("layer_id"))
-        if layer is None or layer.get("type") != "motif":
-            continue
-        lid = str(layer.get("id"))
-        attempted.add(lid)
-        unsupported = [f for f in UNSUPPORTED_SPEC_FIELDS if spec.get(f) is not None]
-        if unsupported:
-            failed.add(lid)
-            if spec.get("required") is True:
-                required_failed.add(lid)
-            reasons[lid] = f"unsupported spec field(s) {', '.join(unsupported)} (not implemented)"
-            if trace is not None:
-                trace.append(
-                    {
-                        "layer_id": lid,
-                        "subject": spec.get("subject"),
-                        "scope": spec.get("scope"),
-                        "outcome": "dropped",
-                        "reason_code": "unsupported_spec",
-                    }
-                )
-            continue
-        try:
-            result = await resolve_spec(
-                session,
-                spec,
-                recraft_client=recraft_client,
-                embedding_client=embedding_client,
-                settings=settings,
-                seed=seed,
-                colors=colors,
-                gemini_client=gemini_client,
-                provenance=provenance,
-                generation_budget=request_budget,
-                upsert_sessionmaker=upsert_sessionmaker,
-            )
-        except AdapterClientError as exc:
-            last_failure = exc
-            failed.add(lid)
-            if spec.get("required") is True:
-                required_failed.add(lid)
-            if exc.reason_code == "motif_generation_budget_exhausted":
-                soft_failed.add(lid)
-                reasons[lid] = "request motif generation budget exhausted"
-            elif exc.reason_code == "unsafe_motif_facet":
-                soft_failed.add(lid)
-                reasons[lid] = "generated motif facet failed the safety screen"
-            else:
-                reasons[lid] = (
-                    f"Tier-1 gate exhausted ({spec.get('subject', '?')}/{spec.get('scope', '?')})"
-                )
-            failure = {
-                "layer_id": lid,
-                "subject": spec.get("subject"),
-                "scope": spec.get("scope"),
-                "outcome": "dropped",
-                "provider": exc.provider,
-                "operation": exc.operation,
-                "reason_code": exc.reason_code,
-                "status_code": exc.status_code,
-            }
-            if trace is not None:
-                trace.append(failure)
-            logger.warning(
-                "motif resolution provider call failed",
-                extra={
-                    "event": "provider_call_failed",
-                    "stage": "motif_resolution",
-                    "provider": exc.provider,
-                    "operation": exc.operation,
-                    "reason_code": exc.reason_code,
-                    "status_code": exc.status_code,
-                },
-            )
-            continue
-        layer.setdefault("params", {})["motif_id"] = result.motif_id
-        if trace is not None:
-            catalog_source = (
-                "reference_catalog"
-                if spec.get("reference_image_index") is not None
-                else "prompt_catalog"
-            )
-            trace.append(
-                {
-                    "layer_id": lid,
-                    "subject": result.subject or spec.get("subject"),
-                    "scope": "whole",
-                    "outcome": catalog_source if result.reused else "recraft",
-                    "motif_id": result.motif_id,
-                    "similarity": result.similarity,
-                    "match_type": result.match_type,
-                }
-            )
-
-    if required_failed:
-        raise AdapterClientError(
-            f"required motif spec(s) failed to resolve: {', '.join(sorted(required_failed))}",
-            provider=last_failure.provider if last_failure else "worker",
-            operation=last_failure.operation if last_failure else "resolve_motif",
-            reason_code=last_failure.reason_code if last_failure else "motif_resolution_failed",
-            status_code=last_failure.status_code if last_failure else None,
-        )
-    if not failed:
-        return resolved
-    if not (attempted - failed) and not (failed and failed <= soft_failed):
-        raise AdapterClientError(
-            f"all {len(attempted)} motif spec(s) failed to resolve",
-            provider=last_failure.provider if last_failure else "worker",
-            operation=last_failure.operation if last_failure else "resolve_motif",
-            reason_code=last_failure.reason_code if last_failure else "motif_resolution_failed",
-            status_code=last_failure.status_code if last_failure else None,
-        )
-
-    dropped = set(failed)
-    while True:
-        grew = False
-        for layer in resolved.get("layers", []):
-            lid = str(layer.get("id"))
-            if lid in dropped:
-                continue
-            host = (layer.get("placement") or {}).get("host_layer")
-            if host in dropped:
-                dropped.add(lid)
-                reasons[lid] = f"host_layer {host!r}"
-                grew = True
-        if not grew:
-            break
-
-    survivors = [
-        layer for layer in resolved.get("layers", []) if str(layer.get("id")) not in dropped
-    ]
-    if not survivors:
-        raise AdapterClientError(
-            "motif drop cascade left no composable layers",
-            provider=last_failure.provider if last_failure else "worker",
-            operation=last_failure.operation if last_failure else "resolve_motif",
-            reason_code=last_failure.reason_code if last_failure else "motif_resolution_failed",
-            status_code=last_failure.status_code if last_failure else None,
-        )
-    for layer in resolved.get("layers", []):
-        lid = str(layer.get("id"))
-        if lid not in dropped:
-            continue
-        if lid in failed:
-            sink.append(f"motif layer {lid!r} dropped — {reasons[lid]}")
-        else:
-            sink.append(f"layer {lid!r} dropped because its {reasons[lid]} was dropped")
-    resolved["layers"] = survivors
-    return resolved

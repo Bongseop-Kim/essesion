@@ -7142,14 +7142,6 @@
             ],
             "title": "Prompt"
           },
-          "reference_images": {
-            "items": {
-              "$ref": "#/components/schemas/ReferenceImageRequest"
-            },
-            "maxItems": 5,
-            "title": "Reference Images",
-            "type": "array"
-          },
           "seed": {
             "anyOf": [
               {
@@ -7223,14 +7215,6 @@
             "maxLength": 4000,
             "title": "Prompt",
             "type": "string"
-          },
-          "reference_images": {
-            "items": {
-              "$ref": "#/components/schemas/ReferenceImageRequest"
-            },
-            "maxItems": 5,
-            "title": "Reference Images",
-            "type": "array"
           },
           "user_motif_ids": {
             "items": {
@@ -7539,57 +7523,14 @@
             "title": "Filename",
             "type": "string"
           },
-          "kind": {
-            "enum": [
-              "photo",
-              "svg"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
           "preview_svg": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Preview Svg"
-          },
-          "preview_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Preview Url"
-          },
-          "purpose": {
-            "anyOf": [
-              {
-                "enum": [
-                  "auto",
-                  "color_mood",
-                  "motif",
-                  "composition"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Purpose"
+            "title": "Preview Svg",
+            "type": "string"
           }
         },
         "required": [
-          "kind",
-          "filename"
+          "filename",
+          "preview_svg"
         ],
         "title": "DesignTurnAttachmentOut",
         "type": "object"
@@ -7988,17 +7929,6 @@
             ],
             "title": "Model"
           },
-          "motif_resolution_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Motif Resolution Ms"
-          },
           "motif_resolutions": {
             "items": {
               "$ref": "#/components/schemas/MotifResolutionOut"
@@ -8023,28 +7953,6 @@
               }
             ],
             "title": "Prompt Revision"
-          },
-          "recraft_calls": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recraft Calls"
-          },
-          "reference_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference Count"
           },
           "render_ms": {
             "anyOf": [
@@ -12802,32 +12710,6 @@
         "title": "ReferenceImageIn",
         "type": "object"
       },
-      "ReferenceImageRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "purpose": {
-            "default": "auto",
-            "enum": [
-              "auto",
-              "color_mood",
-              "motif",
-              "composition"
-            ],
-            "title": "Purpose",
-            "type": "string"
-          },
-          "upload_id": {
-            "format": "uuid",
-            "title": "Upload Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "upload_id"
-        ],
-        "title": "ReferenceImageRequest",
-        "type": "object"
-      },
       "ReformDataIn": {
         "additionalProperties": false,
         "properties": {
@@ -14080,10 +13962,6 @@
             "title": "Has Prompt",
             "type": "boolean"
           },
-          "has_reference_image": {
-            "title": "Has Reference Image",
-            "type": "boolean"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -14118,24 +13996,6 @@
               }
             ],
             "title": "Prompt"
-          },
-          "reference_image_bytes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reference Image Bytes"
-          },
-          "reference_images": {
-            "items": {
-              "$ref": "#/components/schemas/SeamlessReferenceImageOut"
-            },
-            "title": "Reference Images",
-            "type": "array"
           },
           "registry_version": {
             "anyOf": [
@@ -14223,9 +14083,6 @@
           "has_prompt",
           "prompt",
           "intent",
-          "has_reference_image",
-          "reference_image_bytes",
-          "reference_images",
           "seed",
           "warning_groups",
           "diagnostics",
@@ -14234,41 +14091,6 @@
           "design"
         ],
         "title": "SeamlessDetailOut",
-        "type": "object"
-      },
-      "SeamlessReferenceImageOut": {
-        "properties": {
-          "available": {
-            "title": "Available",
-            "type": "boolean"
-          },
-          "image_id": {
-            "format": "uuid",
-            "title": "Image Id",
-            "type": "string"
-          },
-          "ordinal": {
-            "title": "Ordinal",
-            "type": "integer"
-          },
-          "purpose": {
-            "enum": [
-              "auto",
-              "color_mood",
-              "motif",
-              "composition"
-            ],
-            "title": "Purpose",
-            "type": "string"
-          }
-        },
-        "required": [
-          "image_id",
-          "purpose",
-          "ordinal",
-          "available"
-        ],
-        "title": "SeamlessReferenceImageOut",
         "type": "object"
       },
       "SeamlessStatsOut": {
@@ -14308,10 +14130,6 @@
             "title": "Partial",
             "type": "integer"
           },
-          "recraft_calls": {
-            "title": "Recraft Calls",
-            "type": "integer"
-          },
           "success": {
             "title": "Success",
             "type": "integer"
@@ -14326,7 +14144,6 @@
           "success",
           "partial",
           "error",
-          "recraft_calls",
           "average_generate_ms",
           "average_render_ms",
           "as_of"
@@ -18852,64 +18669,6 @@
           }
         ],
         "summary": "Get Admin Seamless Log",
-        "tags": [
-          "admin-generation"
-        ]
-      }
-    },
-    "/admin/generation/seamless/{log_id}/reference-image/{image_id}/read-url": {
-      "post": {
-        "operationId": "create_admin_seamless_reference_image_read_url",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "log_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Log Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "image_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Image Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SignedReadUrlOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Admin Seamless Reference Image Read Url",
         "tags": [
           "admin-generation"
         ]
@@ -23509,7 +23268,7 @@
     },
     "/design/sessions/{session_id}": {
       "delete": {
-        "description": "세션과 턴 이력을 삭제한다.\n\nfinalize 결과물(generation_jobs)은 세션과 독립적인 사용자 소유 산출물이라\n남긴다(FK SET NULL) — 완성본 정리는 DELETE /design/jobs/{job_id}로.",
+        "description": "세션과 턴 이력을 삭제한다. finalize 결과물은 독립 소유라 남긴다.",
         "operationId": "delete_design_session",
         "parameters": [
           {

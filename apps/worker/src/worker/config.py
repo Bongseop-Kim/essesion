@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     recraft_max_color_slots: int = Field(default=6, ge=1)
 
     motif_similarity_tau: float = Field(default=0.84, ge=0.0, le=1.0)
-    # One authoring request can contain up to four plans. Cap actual Recraft provider calls
-    # across all plans (including suitability-gate retries), while catalog hits remain free.
+    # One explicit motif-generation request may retry the suitability gate. Bound its actual
+    # Recraft calls while catalog hits remain free.
     motif_generate_per_request_limit: int = Field(default=2, ge=1, le=8)
     motif_max_aspect_ratio: float = Field(default=20.0, gt=1.0, allow_inf_nan=False)
     motif_edge_seam_tol: float = Field(default=2.0, gt=0.0, allow_inf_nan=False)
