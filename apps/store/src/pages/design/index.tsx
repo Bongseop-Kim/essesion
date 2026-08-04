@@ -372,7 +372,8 @@ export function DesignPage() {
         activeSessionId={sessionId}
         onSelectSession={(id) => openSession(id, false)}
         onSessionDeleted={(id) => {
-          if (sessionId === id) openSession(null, false);
+          // fresh=true — 삭제 직후 다른 세션이 자동 선택되지 않고 빈 캔버스로 남는다.
+          if (sessionId === id) openSession(null, true);
         }}
         onOnboardingComplete={() => setOverlay(null)}
         historyCells={history.cells}

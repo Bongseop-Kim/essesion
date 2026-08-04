@@ -22,7 +22,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MouseEvent } from "react";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import {
   formatDateTime,
@@ -298,6 +298,21 @@ export function MotifDetailPage() {
                   value: formatIdentifier(motif.variant_group),
                 },
                 { label: "생성일", value: formatDateTime(motif.created_at) },
+                {
+                  // Recraft 생성은 별도 generation log를 남기지 않는다 — 세션 상관은 이 두 값뿐.
+                  label: "최초 요청자",
+                  value: motif.ingested_user_id ? (
+                    <Link to={`/customers/${motif.ingested_user_id}`}>
+                      고객 관리로 이동
+                    </Link>
+                  ) : (
+                    "확인 불가"
+                  ),
+                },
+                {
+                  label: "최초 요청 세션",
+                  value: formatIdentifier(motif.ingested_session_id),
+                },
                 {
                   label: "bbox",
                   value: motif.bbox.length === 4 ? motif.bbox.join(", ") : "-",

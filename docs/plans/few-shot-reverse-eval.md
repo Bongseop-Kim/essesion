@@ -60,6 +60,9 @@ A는 상한이 낮다 — 지문은 모티프 선언까지 해시하므로 P2(�
    `structural_fingerprint`·`intent`·`plan`·`warnings`·`design.svg`를 케이스별로 저장.
 3. **P2 25건 실행** — `motif_ids` 없이 같은 프롬프트. 추가로 `intent`의 motif id를
    `select id, subject from motifs where id = any(...)`로 조회해 `expected_motif_subjects`와 대조.
+   여기에 실사용 프롬프트 1건을 P2 입력으로 더한다 — E2E S3b에서 lattice가 격자는 냈지만
+   페이즐리 모티프를 잃은 케이스(`docs/reviews/design-flow-e2e-2026-08-04.md` 발견 6).
+   lattice 4건과 같은 기준으로 등급·이탈 단계를 매긴다.
 4. **leave-one-out 8건** — 대표 예시 비활성 후 P1 재실행, 등급 변화 기록, 원복.
 5. **시각 대조** — 생성 SVG와 골든 SVG를 worker `/export`로 PNG화해 나란히 저장. 육안은 패밀리
    대표 8건, 나머지는 파일로 남긴다.

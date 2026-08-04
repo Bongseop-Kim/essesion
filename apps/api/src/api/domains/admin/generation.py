@@ -283,6 +283,10 @@ class MotifDetailOut(MotifSummaryOut):
     description: str | None
     tags: list[str]
     anchor: list[float]
+    # 첫 Recraft 유입 시점의 요청자·세션 — motif 생성은 별도 generation log를 남기지 않으므로
+    # 이 두 값이 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
+    ingested_user_id: uuid.UUID | None
+    ingested_session_id: uuid.UUID | None
 
 
 class MotifReviewRequest(BaseModel):
@@ -1132,6 +1136,8 @@ def _motif_detail(row: Motif) -> MotifDetailOut:
         description=_safe_metadata(row.description, limit=500),
         tags=[safe for tag in row.tags if (safe := _safe_metadata(tag, limit=80))],
         anchor=_number_list(row.anchor, size=2),
+        ingested_user_id=row.ingested_user_id,
+        ingested_session_id=row.ingested_session_id,
     )
 
 

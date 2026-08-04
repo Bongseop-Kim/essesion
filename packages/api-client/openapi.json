@@ -9336,6 +9336,30 @@
             "title": "Id",
             "type": "string"
           },
+          "ingested_session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingested Session Id"
+          },
+          "ingested_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingested User Id"
+          },
           "reviewed_at": {
             "anyOf": [
               {
@@ -9461,7 +9485,9 @@
           "svg_status",
           "description",
           "tags",
-          "anchor"
+          "anchor",
+          "ingested_user_id",
+          "ingested_session_id"
         ],
         "title": "MotifDetailOut",
         "type": "object"

@@ -111,5 +111,8 @@ export function designTokenBalanceQueryOptions(authenticated: boolean) {
   return {
     ...getTokenBalanceOptions(),
     enabled: authenticated,
+    // 금액 표시 — admin이 단가를 바꾸면 탭 복귀 즉시 따라가야 한다.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   };
 }

@@ -16,6 +16,7 @@ from decimal import Decimal
 
 from api.config import get_settings
 from api.db import build_engine
+from api.domains.auth.service import grant_initial_tokens
 from api.security import password_hasher
 from db.models.auth import User
 from db.models.commerce import (
@@ -32,6 +33,7 @@ from db.models.commerce import (
     UserCoupon,
 )
 from db.models.images import Image
+from db.models.tokens import DesignToken
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -135,6 +137,17 @@ async def _ensure_user(session, email: str, name: str, role: str, password: str)
         User(email=email, name=name, role=role, password_hash=password_hasher.hash(password))
     )
     print(f"  user: {email} ({role})")
+
+
+async def _ensure_initial_tokens(session) -> None:
+    """시드 고객에게 가입 지급분을 넣는다 — 가입 경로를 타지 않아 원장이 비어 있다."""
+    customer_id = await session.scalar(select(User.id).where(User.email == "customer@local"))
+    if customer_id is None:
+        return
+    if await session.scalar(select(DesignToken.id).where(DesignToken.user_id == customer_id)):
+        return
+    await grant_initial_tokens(session, customer_id)
+    print(f"  design tokens: customer@local ← {ADMIN_SETTINGS['design_token_initial_grant']}")
 
 
 async def _ensure_test_coupon(session) -> None:
@@ -493,6 +506,8 @@ async def main() -> None:
                     )
                 print(f"  product: {product_data['code']}")
 
+        # admin_settings 이후 — grant_initial_tokens가 design_token_initial_grant를 읽는다.
+        await _ensure_initial_tokens(session)
         await _ensure_test_coupon(session)
         await _ensure_admin_smoke_order(session)
         await _ensure_content_visibility_orders(session)

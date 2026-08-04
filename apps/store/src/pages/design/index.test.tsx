@@ -35,6 +35,7 @@ const api = vi.hoisted(() => ({
   activateMotif: vi.fn(),
   importMotif: vi.fn(),
   startFromExample: vi.fn(),
+  deleteSession: vi.fn(),
 }));
 
 vi.mock("@essesion/api-client", async (importOriginal) => {
@@ -49,6 +50,7 @@ vi.mock("@essesion/api-client", async (importOriginal) => {
     activateMotif: api.activateMotif,
     importUserMotif: api.importMotif,
     createDesignSessionFromExample: api.startFromExample,
+    deleteDesignSession: api.deleteSession,
   };
 });
 
@@ -119,7 +121,9 @@ const turns = [
 vi.mock("@/features/design/model/queries", () => ({
   designSessionsQueryOptions: (authenticated: boolean) => ({
     queryKey: ["page-design-sessions"],
-    queryFn: async () => [{ id: "session-1" }],
+    queryFn: async () => [
+      { id: "session-1", created_at: "2026-07-31T00:00:00Z", status: "active" },
+    ],
     enabled: authenticated,
   }),
   designSessionQueryKey: (sessionId: string) => [
@@ -366,6 +370,36 @@ describe("DesignPage canvas shell", () => {
       finish({ data: { rejected: "motif" } });
     });
     await waitFor(() => expect(disabled(input)).toBe(false));
+    queryClient.clear();
+  });
+
+  it("온보딩을 닫기로 끝내도 다시 뜨지 않는다", async () => {
+    localStorage.removeItem(DESIGN_ONBOARDING_KEY);
+    const queryClient = renderPage();
+
+    await waitForDialog("AI 디자인 시작하기");
+    // 마지막 `디자인 시작하기`가 아니라 우상단 X로 나가도 "봤음"이어야 한다.
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+
+    await waitFor(() => expect(openDialogs()).toEqual([]));
+    expect(localStorage.getItem(DESIGN_ONBOARDING_KEY)).toBe("1");
+    queryClient.clear();
+  });
+
+  it("현재 세션을 지우면 다른 세션을 자동으로 열지 않는다", async () => {
+    api.deleteSession.mockResolvedValue({ data: null });
+    const queryClient = renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "내 디자인" }));
+    await waitForDialog("내 디자인");
+    fireEvent.click(screen.getByRole("button", { name: /세션 삭제$/ }));
+
+    await waitForDialog("이 디자인을 삭제할까요?");
+    fireEvent.click(screen.getByRole("button", { name: "삭제" }));
+
+    await waitFor(() => expect(api.deleteSession).toHaveBeenCalled());
+    // 목록에 그 세션이 아직 남아 보여도 캔버스는 빈 상태로 남는다.
+    await screen.findByText("아직 만든 디자인이 없어요");
     queryClient.clear();
   });
 
