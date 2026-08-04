@@ -32,17 +32,6 @@ ALLOWED_PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 REVIEW_PHOTO_UPLOAD_TTL = timedelta(hours=24)
 
 
-def _assets_bucket(request: Request) -> str:
-    bucket = assets_bucket_name(request.app.state.settings)
-    if bucket is None:
-        raise DomainError(
-            "후기 사진 저장소를 사용할 수 없습니다",
-            code="review_photos_unavailable",
-            status=503,
-        )
-    return bucket
-
-
 @router.post("", response_model=ReviewOut, status_code=201)
 async def create_review(
     body: ReviewCreateRequest, session: SessionDep, user: CurrentUser, request: Request
@@ -105,7 +94,7 @@ async def create_review_photo_upload_url(
         object_key,
         body.content_type,
         max_size_bytes=MAX_REVIEW_PHOTO_BYTES,
-        bucket_name=_assets_bucket(request),
+        bucket_name=assets_bucket_name(request.app.state.settings),
         create_only=True,
     )
     await session.commit()
@@ -118,7 +107,6 @@ async def create_review_photo_upload_url(
             "x-goog-if-generation-match": "0",
         },
         expires_at=expires_at,
-        upload_required=request.app.state.gcs.upload_required,
     )
 
 
@@ -152,17 +140,16 @@ async def complete_review_photo_upload(
         raise DomainError("유효하지 않은 후기 사진입니다", code="invalid_review_photo", status=409)
 
     metadata = await request.app.state.gcs.object_metadata(
-        image.object_key, bucket_name=_assets_bucket(request)
+        image.object_key, bucket_name=assets_bucket_name(request.app.state.settings)
     )
-    if request.app.state.gcs.upload_required:
-        if metadata is None:
-            raise DomainError("업로드된 후기 사진을 찾을 수 없습니다", code="upload_not_found")
-        if not 0 < metadata.size_bytes <= MAX_REVIEW_PHOTO_BYTES:
-            raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
-        if metadata.content_type != image.content_type:
-            raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
-        if metadata.size_bytes != image.size_bytes:
-            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+    if metadata is None:
+        raise DomainError("업로드된 후기 사진을 찾을 수 없습니다", code="upload_not_found")
+    if not 0 < metadata.size_bytes <= MAX_REVIEW_PHOTO_BYTES:
+        raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+    if metadata.content_type != image.content_type:
+        raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+    if metadata.size_bytes != image.size_bytes:
+        raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
     image.upload_completed_at = now
     await session.commit()
     return ReviewPhotoUploadCompleteOut(upload_id=image.id, completed_at=now)

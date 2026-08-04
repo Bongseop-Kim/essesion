@@ -58,10 +58,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 database = "ready"
             except Exception:
                 database = "unavailable"
-        capabilities = {
-            "database": database,
-            "gcs_assets": application.state.object_store.capability_mode,
-        }
+        # object store는 빠지면 build_object_store가 기동을 중단시키므로 노출하지 않는다.
+        capabilities = {"database": database}
         ready = all(mode not in {"unavailable"} for mode in capabilities.values())
         return JSONResponse(
             status_code=200 if ready else 503,

@@ -21,8 +21,8 @@ from api.domains.design.router import (
 )
 from api.domains.tokens import ledger
 from api.errors import UpstreamError, WorkerRequestError
-from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata, public_asset_url
-from api.integrations.tasks import DryRunTaskQueue
+from api.integrations.gcs import GcsObjectMetadata, public_asset_url
+from api.integrations.tasks import InlineTaskQueue
 from db.models.design import (
     FINALIZE_CANCELED_MESSAGE,
     FINALIZE_STALE_MESSAGE,
@@ -39,6 +39,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from .factories import auth_headers, make_token_refund_claim, make_user, seed_setting
+from .fakes import FakeGcsClient, FakeTaskQueue, simulate_uploads
 
 _WORKER_FABRIC_ASSETS = Path(__file__).parents[2] / "worker/src/worker/render/assets/fabric"
 
@@ -184,6 +185,13 @@ class FakeWorker:
 
     async def finalize_job(self, job_id):
         self.finalize_jobs.append(job_id)
+        if self.sessionmaker is not None:
+            async with self.sessionmaker() as session:
+                job = await session.get(GenerationJob, uuid.UUID(job_id))
+                if job is not None:
+                    job.status = "succeeded"
+                    job.result = {"object_key": f"fabric/{job_id}.png"}
+                    await session.commit()
         return {"status": "succeeded"}
 
     async def export(self, payload):
@@ -425,6 +433,7 @@ async def test_session_reports_current_motifs_including_catalog(client, db_sessi
 
 async def test_generate_and_finalize_job(client, app, db_session, settings):
     app.state.worker = FakeWorker(app.state.sessionmaker)
+    app.state.tasks = InlineTaskQueue(app.state.worker)  # type: ignore[arg-type]
     user = await make_user(db_session)
     await _fund(db_session, user)
     await _seed_finalize_limit(db_session)
@@ -472,8 +481,9 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
         headers=headers,
     )
     assert job.status_code == 201
-    assert job.json()["status"] == "queued"
+    assert job.json()["status"] == "succeeded"
     assert job.json()["params"]["run_id"] == generated.json()["run_id"]
+    assert app.state.worker.finalize_jobs == [job.json()["id"]]
 
     fetched = await client.get(f"/design/jobs/{job.json()['id']}", headers=headers)
     assert fetched.json()["kind"] == "finalize"
@@ -905,6 +915,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
     user_motif = UserMotif(user_id=owner.id, motif_id=motif.id, name="원형 문양")
     db_session.add(user_motif)
     await db_session.commit()
+    await simulate_uploads(app)
     owner_headers = auth_headers(owner, settings)
 
     text_preview = await client.post(
@@ -1132,7 +1143,7 @@ async def test_finalize_dispatch_failure_marks_job_failed_and_frees_quota_slot(
 
     # 현재 포인터가 바뀌어도 원래 실패 job의 pair+intent로 재시도하며,
     # failed job은 쿼터 카운트에서 빠져 한도 1에서도 성공한다.
-    app.state.tasks = DryRunTaskQueue()
+    app.state.tasks = FakeTaskQueue()
     retry = await client.post(
         f"/design/sessions/{design_session['id']}/finalize",
         json=job.params,
@@ -1347,7 +1358,7 @@ async def test_delete_job_removes_row_and_result_object(client, app, db_session,
     db_session.expire_all()
     # 삭제된 행은 24시간 쿼터 카운트에서 빠진다 — 의도된 정책 (router docstring)
     assert await db_session.get(GenerationJob, job_id) is None
-    assert app.state.gcs.deleted_from == [("test-project-assets", "fabric/delete-me.png")]
+    assert app.state.gcs.deleted_from == [("dev-assets", "fabric/delete-me.png")]
 
 
 async def test_delete_job_rejects_active_and_skips_object_cleanup_without_result(
@@ -1794,11 +1805,14 @@ async def test_generate_rejects_client_supplied_intent(client, app, db_session, 
 
 
 def test_public_asset_url_uses_project_bucket_and_quotes_key():
-    settings = Settings(env="test", gcs_assets_bucket="configured-assets", gcs_emulator_host="")
+    settings = Settings(
+        env="staging",
+        public_api_origin="https://api.example.com",
+        gcs_assets_bucket="configured-assets",
+    )
     assert public_asset_url(settings, "fabric/a b#.png") == (
         "https://storage.googleapis.com/configured-assets/fabric/a%20b%23.png"
     )
-    assert public_asset_url(settings, "") is None
 
 
 async def test_list_generation_jobs_filters_owner_kind_status_session_and_paginates(
@@ -1957,7 +1971,7 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     assert staged_order_image is not None
     assert staged_order_image.entity_type == "custom_order_upload"
     assert staged_order_image.upload_completed_at is not None
-    assert app.state.gcs.copied == [("test-project-assets", "fabric/result.png", destination)]
+    assert app.state.gcs.copied == [("dev-assets", "fabric/result.png", destination)]
 
     repeated = await client.post(f"/design/jobs/{job.id}/order-reference", headers=headers)
     assert repeated.status_code == 200
@@ -1966,7 +1980,7 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     assert repeated_destination.endswith(".png")
     assert repeated_destination != destination
     assert app.state.gcs.copied[-1] == (
-        "test-project-assets",
+        "dev-assets",
         "fabric/result.png",
         repeated_destination,
     )
@@ -1997,9 +2011,7 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
 async def test_design_order_reference_deletes_copy_when_validation_fails(
     client, app, db_session, settings
 ):
-    class InvalidMetadataGcs(DryRunGcsClient):
-        upload_required = True
-
+    class InvalidMetadataGcs(FakeGcsClient):
         async def object_metadata(self, object_key, *, bucket_name=None):
             return GcsObjectMetadata(size_bytes=0, content_type="image/png")
 

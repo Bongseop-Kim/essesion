@@ -53,7 +53,9 @@ async def test_batch_requires_token(client):
     assert (await client.post("/batch/auto-confirm-orders", headers=bad)).status_code == 401
 
 
-async def test_nonlocal_batch_auth_never_falls_back_to_default_shared_secret(settings):
+async def test_nonlocal_batch_auth_never_falls_back_to_default_shared_secret(
+    settings, fake_integrations
+):
     from api.main import create_app
     from httpx import ASGITransport, AsyncClient
 

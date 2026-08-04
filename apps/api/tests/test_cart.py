@@ -13,6 +13,7 @@ from .factories import (
     make_user_coupon,
     seed_pricing,
 )
+from .fakes import simulate_uploads
 
 REFORM_CONSTANTS = {
     "REFORM_AUTOMATIC_COST": 16000,
@@ -216,7 +217,9 @@ async def test_product_with_options_requires_an_option(client, db_session, setti
     assert order.json()["code"] == "option_required"
 
 
-async def test_guest_reform_image_is_claimed_and_expired_on_remove(client, db_session, settings):
+async def test_guest_reform_image_is_claimed_and_expired_on_remove(
+    app, client, db_session, settings
+):
     user = await make_user(db_session)
     await seed_pricing(db_session, REFORM_CONSTANTS, category="reform")
     issued = (
@@ -225,6 +228,7 @@ async def test_guest_reform_image_is_claimed_and_expired_on_remove(client, db_se
             json={"filename": "tie.png", "content_type": "image/png", "size_bytes": 100},
         )
     ).json()
+    await simulate_uploads(app)
     completed = await client.post(
         "/images/reform-uploads",
         json={

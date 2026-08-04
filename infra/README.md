@@ -137,13 +137,13 @@ uv run python apps/api/scripts/bootstrap_admin.py revoke-sessions
 
 배포 확인은 `/healthz`가 아니라 공개 프록시의 `https://api.essesion.shop/readyz`를 사용한다.
 Cloud Run `run.app` 직통 `/readyz`는 exact edge header 없이 403이다. API 응답에서
-`database=ready`, `toss/gcs/gcs_assets/solapi/finalize_tasks=real`, `worker=ready`,
+`database=ready`, `toss/solapi/finalize_tasks=real`, `worker=ready`,
 `batch_auth=oidc`, `oauth_google/oauth_kakao/auth_secrets/edge_proxy=ready`를 모두 확인한다.
 하나라도 `unavailable`이면 503이다. Toss·GCS mutation은 503으로 차단되고 Solapi 알림은
 가짜 성공으로 바뀌지 않고 outbox `failed`로 남는다.
 
 두 worker는 비공개 서비스이므로 `roles/run.invoker`가 있는 점검 계정으로 각각 직접
-readiness를 확인한다. 두 응답 모두 `database=ready`, `gcs_assets=real`이어야 한다.
+readiness를 확인한다. 두 응답 모두 `database=ready`여야 한다.
 
 ```bash
 GENERATE_URL="$(tofu -chdir=infra output -raw worker_generate_url)"

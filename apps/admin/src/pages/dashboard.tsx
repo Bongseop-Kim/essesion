@@ -50,8 +50,6 @@ type OrderType = (typeof ORDER_TYPES)[number]["value"];
 
 const CAPABILITY_LABELS = {
   toss: "Toss 결제",
-  gcs: "GCS 비공개 이미지",
-  gcs_assets: "GCS 공개 에셋",
   solapi: "Solapi 알림",
   worker: "이미지 생성 Worker",
   finalize_tasks: "Finalize 작업 큐",

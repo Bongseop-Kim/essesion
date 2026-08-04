@@ -83,18 +83,15 @@ async def _staged_reference_images(
             raise DomainError("만료되거나 삭제된 견적 이미지입니다", code="quote_image_expired")
 
         metadata = await gcs.object_metadata(object_key)
-        if gcs.upload_required:
-            if metadata is None:
-                raise DomainError(
-                    "업로드된 견적 이미지를 찾을 수 없습니다", code="upload_not_found"
-                )
-            if not 0 < metadata.size_bytes <= MAX_REFERENCE_IMAGE_BYTES:
-                raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
-            if metadata.content_type != image.content_type:
-                raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
-            if image.size_bytes is not None and metadata.size_bytes != image.size_bytes:
-                raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
-            image.size_bytes = metadata.size_bytes
+        if metadata is None:
+            raise DomainError("업로드된 견적 이미지를 찾을 수 없습니다", code="upload_not_found")
+        if not 0 < metadata.size_bytes <= MAX_REFERENCE_IMAGE_BYTES:
+            raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+        if metadata.content_type != image.content_type:
+            raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+        if image.size_bytes is not None and metadata.size_bytes != image.size_bytes:
+            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+        image.size_bytes = metadata.size_bytes
         image.upload_completed_at = now
         ordered.append(image)
     return ordered

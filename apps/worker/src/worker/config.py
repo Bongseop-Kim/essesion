@@ -12,8 +12,7 @@ class Settings(BaseSettings):
     service_mode: Literal["all", "generate", "finalize"] = "all"
     database_url: str = "postgresql+asyncpg://essesion:essesion@localhost:5432/essesion"
     gcs_bucket: str = ""
-    # 로컬 GCS 에뮬레이터(docker compose의 fake-gcs-server) origin — local/test 전용.
-    # api의 gcs_emulator_host와 같은 값이어야 api가 산출물 URL을 서빙할 수 있다.
+    # local/test에서 둘 다 비우면 builder가 localhost:4443/dev-assets를 사용한다.
     gcs_emulator_host: str = ""
     db_pool_size: int = Field(default=2, ge=1, le=20)
     # 모티프 upsert 선커밋(resolver)이 요청 중 짧게 커넥션 1개를 더 쓴다 — 동시 생성 대비 여유.

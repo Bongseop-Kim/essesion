@@ -1,11 +1,12 @@
 import uuid
 from datetime import UTC, datetime
 
-from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata
+from api.integrations.gcs import GcsObjectMetadata
 from db.models.images import Image
 from sqlalchemy import select
 
 from .factories import auth_headers, make_admin, make_product, make_user
+from .fakes import FakeGcsClient, simulate_uploads
 
 
 def product_body(*, name: str = "관리자 상품", options: list[dict] | None = None) -> dict:
@@ -23,7 +24,7 @@ def product_body(*, name: str = "관리자 상품", options: list[dict] | None =
 
 
 async def issue_product_image(
-    client, headers, *, kind: str = "primary", complete: bool = True
+    app, client, headers, *, kind: str = "primary", complete: bool = True
 ) -> dict:
     issued = await client.post(
         "/admin/products/images/upload-url",
@@ -36,10 +37,10 @@ async def issue_product_image(
         headers=headers,
     )
     assert issued.status_code == 200, issued.text
-    assert issued.json()["upload_required"] is False
     assert issued.json()["required_headers"]["x-goog-if-generation-match"] == "0"
     if not complete:
         return issued.json()
+    await simulate_uploads(app)
     completed = await client.post(
         f"/admin/products/images/{issued.json()['upload_id']}/complete",
         headers=headers,
@@ -48,8 +49,8 @@ async def issue_product_image(
     return completed.json()
 
 
-async def create_product(client, headers, **kwargs) -> dict:
-    primary = await issue_product_image(client, headers)
+async def create_product(app, client, headers, **kwargs) -> dict:
+    primary = await issue_product_image(app, client, headers)
     body = product_body(**kwargs)
     body["image_upload_id"] = primary["upload_id"]
     response = await client.post("/admin/products", json=body, headers=headers)
@@ -57,11 +58,11 @@ async def create_product(client, headers, **kwargs) -> dict:
     return response.json()
 
 
-async def test_manager_can_create_and_update_products(client, db_session, settings):
+async def test_manager_can_create_and_update_products(app, client, db_session, settings):
     manager = await make_user(db_session, role="manager")
     headers = auth_headers(manager, settings)
 
-    created = await create_product(client, headers, name="매니저 등록 상품")
+    created = await create_product(app, client, headers, name="매니저 등록 상품")
     updated = await client.patch(
         f"/admin/products/{created['id']}",
         json={
@@ -75,11 +76,14 @@ async def test_manager_can_create_and_update_products(client, db_session, settin
     assert updated.json()["name"] == "매니저 수정 상품"
 
 
-async def test_admin_product_list_is_paged_and_detail_has_options(client, db_session, settings):
+async def test_admin_product_list_is_paged_and_detail_has_options(
+    app, client, db_session, settings
+):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
-    await create_product(client, headers, name="네이비 관리자 상품")
+    await create_product(app, client, headers, name="네이비 관리자 상품")
     target = await create_product(
+        app,
         client,
         headers,
         name="블랙 관리자 상품",
@@ -103,7 +107,9 @@ async def test_admin_product_list_is_paged_and_detail_has_options(client, db_ses
     assert detail.json()["options"][0]["name"] == "L"
 
 
-async def test_admin_product_list_filters_search_and_kst_created_date(client, db_session, settings):
+async def test_admin_product_list_filters_search_and_kst_created_date(
+    app, client, db_session, settings
+):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
     previous = await make_product(db_session, name="이전 상품")
@@ -160,11 +166,12 @@ async def test_admin_product_list_filters_search_and_kst_created_date(client, db
 
 
 async def test_option_stock_total_is_unlimited_when_any_option_is_unlimited(
-    client, db_session, settings
+    app, client, db_session, settings
 ):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
     product = await create_product(
+        app,
         client,
         headers,
         options=[
@@ -177,10 +184,11 @@ async def test_option_stock_total_is_unlimited_when_any_option_is_unlimited(
     assert product["option_stock_total"] is None
 
 
-async def test_product_update_preserves_option_ids(client, db_session, settings):
+async def test_product_update_preserves_option_ids(app, client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
     created = await create_product(
+        app,
         client,
         headers,
         options=[
@@ -223,10 +231,13 @@ async def test_product_update_preserves_option_ids(client, db_session, settings)
     assert updated["stock"] is None
 
 
-async def test_duplicate_option_names_roll_back_product_and_options(client, db_session, settings):
+async def test_duplicate_option_names_roll_back_product_and_options(
+    app, client, db_session, settings
+):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
     created = await create_product(
+        app,
         client,
         headers,
         name="롤백 전 상품",
@@ -256,10 +267,11 @@ async def test_duplicate_option_names_roll_back_product_and_options(client, db_s
     assert sorted(option["name"] for option in detail.json()["options"]) == ["L", "M"]
 
 
-async def test_negative_product_and_option_prices_are_mapped(client, db_session, settings):
+async def test_negative_product_and_option_prices_are_mapped(app, client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
     created = await create_product(
+        app,
         client,
         headers,
         options=[{"name": "L", "additional_price": 1000, "stock": 3}],
@@ -289,10 +301,10 @@ async def test_negative_product_and_option_prices_are_mapped(client, db_session,
     assert detail.json()["options"][0]["additional_price"] == 1000
 
 
-async def test_product_update_rejects_stale_expected_updated_at(client, db_session, settings):
+async def test_product_update_rejects_stale_expected_updated_at(app, client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
-    created = await create_product(client, headers, name="원본 이름")
+    created = await create_product(app, client, headers, name="원본 이름")
 
     first = await client.patch(
         f"/admin/products/{created['id']}",
@@ -315,13 +327,13 @@ async def test_product_update_rejects_stale_expected_updated_at(client, db_sessi
 
 
 async def test_product_images_are_signed_completed_and_linked_atomically(
-    client, db_session, settings
+    app, client, db_session, settings
 ):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
-    primary = await issue_product_image(client, headers)
-    detail_one = await issue_product_image(client, headers, kind="detail")
-    detail_two = await issue_product_image(client, headers, kind="detail")
+    primary = await issue_product_image(app, client, headers)
+    detail_one = await issue_product_image(app, client, headers, kind="detail")
+    detail_two = await issue_product_image(app, client, headers, kind="detail")
 
     body = product_body(name="이미지 연결 상품")
     body.update(
@@ -361,11 +373,13 @@ async def test_product_images_are_signed_completed_and_linked_atomically(
     )
 
 
-async def test_product_detail_image_ids_support_retain_add_and_remove(client, db_session, settings):
+async def test_product_detail_image_ids_support_retain_add_and_remove(
+    app, client, db_session, settings
+):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
-    primary = await issue_product_image(client, headers)
-    retained = await issue_product_image(client, headers, kind="detail")
+    primary = await issue_product_image(app, client, headers)
+    retained = await issue_product_image(app, client, headers, kind="detail")
     body = product_body()
     body.update(
         {
@@ -376,7 +390,7 @@ async def test_product_detail_image_ids_support_retain_add_and_remove(client, db
     created_response = await client.post("/admin/products", json=body, headers=headers)
     assert created_response.status_code == 201, created_response.text
     created = created_response.json()
-    added = await issue_product_image(client, headers, kind="detail")
+    added = await issue_product_image(app, client, headers, kind="detail")
 
     add_response = await client.patch(
         f"/admin/products/{created['id']}",
@@ -415,14 +429,14 @@ async def test_product_detail_image_ids_support_retain_add_and_remove(client, db
 
 
 async def test_product_image_contract_rejects_arbitrary_unfinished_and_foreign_images(
-    client, db_session, settings
+    app, client, db_session, settings
 ):
     admin = await make_admin(db_session)
     other_admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
     other_headers = auth_headers(other_admin, settings)
 
-    completed = await issue_product_image(client, headers)
+    completed = await issue_product_image(app, client, headers)
     arbitrary = product_body()
     arbitrary.update(
         {
@@ -433,7 +447,7 @@ async def test_product_image_contract_rejects_arbitrary_unfinished_and_foreign_i
     arbitrary_response = await client.post("/admin/products", json=arbitrary, headers=headers)
     assert arbitrary_response.status_code == 422
 
-    unfinished = await issue_product_image(client, headers, complete=False)
+    unfinished = await issue_product_image(app, client, headers, complete=False)
     unfinished_body = product_body()
     unfinished_body["image_upload_id"] = unfinished["upload_id"]
     unfinished_response = await client.post(
@@ -442,7 +456,7 @@ async def test_product_image_contract_rejects_arbitrary_unfinished_and_foreign_i
     assert unfinished_response.status_code == 409
     assert unfinished_response.json()["code"] == "product_image_not_completed"
 
-    foreign = await issue_product_image(client, other_headers)
+    foreign = await issue_product_image(app, client, other_headers)
     foreign_body = product_body()
     foreign_body["image_upload_id"] = foreign["upload_id"]
     foreign_response = await client.post("/admin/products", json=foreign_body, headers=headers)
@@ -455,7 +469,7 @@ async def test_deleted_product_upload_is_cleaned_from_assets_bucket(
 ):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
-    issued = await issue_product_image(client, headers, complete=False)
+    issued = await issue_product_image(app, client, headers, complete=False)
     deleted = await client.delete(f"/admin/products/images/{issued['upload_id']}", headers=headers)
     assert deleted.status_code == 204
 
@@ -465,25 +479,24 @@ async def test_deleted_product_upload_is_cleaned_from_assets_bucket(
     )
     assert cleanup.status_code == 200
     assert cleanup.json()["processed"] == 1
-    assert app.state.gcs.deleted_from == [("dry-run-assets", app.state.gcs.deleted[0])]
+    assert app.state.gcs.deleted_from == [("dev-assets", app.state.gcs.deleted[0])]
 
 
 async def test_product_upload_completion_verifies_assets_object_metadata(
     app, client, db_session, settings
 ):
-    class MetadataGcs(DryRunGcsClient):
-        upload_required = True
+    class MetadataGcs(FakeGcsClient):
+        """조회 대상 버킷까지 기록하는 대역 — assets 버킷으로 조회하는지 검증한다."""
 
         def __init__(self) -> None:
             super().__init__()
-            self.metadata: GcsObjectMetadata | None = None
             self.metadata_bucket: str | None = None
 
         async def object_metadata(
             self, object_key: str, *, bucket_name: str | None = None
         ) -> GcsObjectMetadata | None:
             self.metadata_bucket = bucket_name
-            return self.metadata
+            return await super().object_metadata(object_key, bucket_name=bucket_name)
 
     gcs = MetadataGcs()
     app.state.gcs = gcs
@@ -500,19 +513,21 @@ async def test_product_upload_completion_verifies_assets_object_metadata(
         headers=headers,
     )
     assert issued.status_code == 200, issued.text
-    assert issued.json()["upload_required"] is True
     upload_id = issued.json()["upload_id"]
+    staged = await db_session.get(Image, uuid.UUID(upload_id))
+    assert staged is not None
+    key = staged.object_key
 
     missing = await client.post(f"/admin/products/images/{upload_id}/complete", headers=headers)
     assert missing.status_code == 400
     assert missing.json()["code"] == "upload_not_found"
 
-    gcs.metadata = GcsObjectMetadata(size_bytes=101, content_type="image/png")
+    gcs.metadata[key] = GcsObjectMetadata(size_bytes=101, content_type="image/png")
     mismatched = await client.post(f"/admin/products/images/{upload_id}/complete", headers=headers)
     assert mismatched.status_code == 422
     assert mismatched.json()["code"] == "invalid_product_image_size"
 
-    gcs.metadata = GcsObjectMetadata(size_bytes=100, content_type="image/png")
+    gcs.metadata[key] = GcsObjectMetadata(size_bytes=100, content_type="image/png")
     completed = await client.post(f"/admin/products/images/{upload_id}/complete", headers=headers)
     assert completed.status_code == 200, completed.text
-    assert gcs.metadata_bucket == "dry-run-assets"
+    assert gcs.metadata_bucket == "dev-assets"

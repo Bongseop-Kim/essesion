@@ -10,17 +10,19 @@ from .factories import (
     make_product,
     make_user,
 )
+from .fakes import simulate_uploads
 
 BATCH_HEADERS = {"Authorization": "Bearer test-batch-token"}
 
 
-async def _staged_photo(client, headers, *, complete=True):
+async def _staged_photo(app, client, headers, *, complete=True):
     issued = await client.post(
         "/reviews/photo-uploads",
         json={"filename": "tie.jpg", "content_type": "image/jpeg", "size_bytes": 1234},
         headers=headers,
     )
     assert issued.status_code == 200, issued.text
+    await simulate_uploads(app)
     if complete:
         completed = await client.post(
             f"/reviews/photo-uploads/{issued.json()['upload_id']}/complete",
@@ -232,14 +234,13 @@ async def test_review_photo_upload_link_and_public_list(app, client, db_session,
     order, item, product = await _sale_order_item(db_session, owner)
     headers = auth_headers(owner, settings)
 
-    # DryRun에서도 발급은 assets 버킷 대상 서명 URL 계약을 유지한다.
+    # 테스트 object store에서도 assets 버킷 대상 URL 계약을 유지한다.
     issued = await client.post(
         "/reviews/photo-uploads",
         json={"filename": "tie.jpg", "content_type": "image/jpeg", "size_bytes": 1234},
         headers=headers,
     )
     assert issued.status_code == 200, issued.text
-    assert issued.json()["upload_required"] is False
     assert issued.json()["required_headers"]["Content-Type"] == "image/jpeg"
     upload_id = issued.json()["upload_id"]
 
@@ -266,6 +267,7 @@ async def test_review_photo_upload_link_and_public_list(app, client, db_session,
     assert incomplete.status_code == 409
     assert incomplete.json()["code"] == "review_photo_incomplete"
 
+    await simulate_uploads(app)
     completed = await client.post(f"/reviews/photo-uploads/{upload_id}/complete", headers=headers)
     assert completed.status_code == 200
 
@@ -282,7 +284,7 @@ async def test_review_photo_upload_link_and_public_list(app, client, db_session,
     )
     assert created.status_code == 201, created.text
     assert [photo["upload_id"] for photo in created.json()["photos"]] == [upload_id]
-    assert created.json()["photos"][0]["url"].startswith("https://")
+    assert created.json()["photos"][0]["url"].startswith("http://localhost:4443/dev-assets/")
 
     # 공개 목록·단건 조회에 사진 URL 동봉
     listed = await client.get("/reviews", params={"product_id": product.id})
@@ -298,7 +300,7 @@ async def test_review_photo_upload_link_and_public_list(app, client, db_session,
     assert image.expires_at is None
 
 
-async def test_review_photo_validation_guards(client, db_session, settings):
+async def test_review_photo_validation_guards(app, client, db_session, settings):
     owner = await make_user(db_session)
     other = await make_user(db_session)
     order, item, _ = await _sale_order_item(db_session, owner)
@@ -320,7 +322,7 @@ async def test_review_photo_validation_guards(client, db_session, settings):
     assert anonymous.status_code == 401
 
     # 타인 스테이징 사용 → 소유권 충돌
-    theirs = await _staged_photo(client, auth_headers(other, settings))
+    theirs = await _staged_photo(app, client, auth_headers(other, settings))
     stolen = await client.post("/reviews", json=_create_body([theirs]), headers=headers)
     assert stolen.status_code == 409
     assert stolen.json()["code"] == "ownership_conflict"
@@ -329,7 +331,7 @@ async def test_review_photo_validation_guards(client, db_session, settings):
     assert unknown.status_code == 409
     assert unknown.json()["code"] == "invalid_review_photo"
 
-    mine = await _staged_photo(client, headers)
+    mine = await _staged_photo(app, client, headers)
     duplicated = await client.post("/reviews", json=_create_body([mine, mine]), headers=headers)
     assert duplicated.status_code == 422
     assert duplicated.json()["code"] == "duplicate_review_photo"
@@ -365,7 +367,7 @@ async def test_review_photo_replace_and_delete_cleanup(app, client, db_session, 
     order = await make_order(db_session, owner, order_type="repair", status="수선완료")
     headers = auth_headers(owner, settings)
 
-    first = await _staged_photo(client, headers)
+    first = await _staged_photo(app, client, headers)
     created = await client.post(
         "/reviews",
         json={
@@ -380,7 +382,7 @@ async def test_review_photo_replace_and_delete_cleanup(app, client, db_session, 
     review_id = created.json()["id"]
 
     # 사진 교체 — 제외된 기존 사진은 만료돼 cleanup 대상이 된다.
-    second = await _staged_photo(client, headers)
+    second = await _staged_photo(app, client, headers)
     replaced = await client.patch(
         f"/reviews/{review_id}",
         json={"photo_upload_ids": [second]},
@@ -404,7 +406,7 @@ async def test_review_photo_replace_and_delete_cleanup(app, client, db_session, 
     # cleanup 배치는 후기 사진을 assets 버킷에서 삭제한다.
     swept = await client.post("/batch/cleanup-images", headers=BATCH_HEADERS)
     assert swept.status_code == 200
-    assert ("dry-run-assets", first_image.object_key) in app.state.gcs.deleted_from
+    assert ("dev-assets", first_image.object_key) in app.state.gcs.deleted_from
 
     # 후기 삭제 시 남은 사진도 만료된다.
     deleted = await client.delete(f"/reviews/{review_id}", headers=headers)

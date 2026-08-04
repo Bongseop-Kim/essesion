@@ -5,7 +5,7 @@ source_fidelity/colorway_id/seed/svg/png_object_key), 프리뷰는 GCS object ke
 응답 캐시(원본의 2 테스트)는 essesion 미구현이라 제외.
 
 픽스처: create_app() + get_session 페이크 세션 오버라이드 + rasterize_svg monkeypatch +
-app.state.object_store = DryRunObjectStore(). lifespan은 돌지 않으므로 state를 직접 주입.
+app.state.object_store = FakeObjectStore(). lifespan은 돌지 않으므로 state를 직접 주입.
 """
 
 import asyncio
@@ -26,12 +26,12 @@ from worker.api import routes
 from worker.authoring.retrieval import RetrievalOutcome
 from worker.db import get_session
 from worker.engine.patch import DesignPatchV1
-from worker.integrations import DryRunObjectStore
 from worker.main import create_app
 from worker.motifs.registry import get_motif
 from worker.render.raster import RasterError
 from worker.warnings import WARNING_MESSAGES, customer_warnings
 
+from .conftest import FakeObjectStore
 from .intent_helpers import mvp_intent, register_test_motifs
 
 register_test_motifs()
@@ -88,8 +88,8 @@ class _FakeSession:
 
 def _configure_app(monkeypatch, *, raster_ok: bool = True):
     app = create_app()
-    app.state.object_store = DryRunObjectStore()  # lifespan 미실행 — 직접 주입
-    app.state.adapters = Adapters()  # 어댑터 미구성(DryRun)
+    app.state.object_store = FakeObjectStore()  # lifespan 미실행 — 직접 주입
+    app.state.adapters = Adapters()  # 외부 어댑터 미구성
 
     def _raster(svg, **kwargs):
         if not raster_ok:
@@ -216,8 +216,6 @@ def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
 
 def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeypatch):
     class FailingObjectStore:
-        capability_mode = "real"
-
         async def upload_bytes(self, *_args, **_kwargs):
             raise RuntimeError("storage unavailable")
 
@@ -368,7 +366,7 @@ def test_request_schema_rejects_unknown_fields(client):
 
 
 def test_prompt_only_without_llm_returns_503(client):
-    # prompt 경로는 구현됐지만 LLM 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
+    # prompt 경로는 구현됐지만 LLM 미구성이면 503 — intent 직접 경로는 계속 동작.
     resp = client.post("/generate", json={"run_id": _RUN_ID, "prompt": "navy paisley tie"})
     assert resp.status_code == 503
 

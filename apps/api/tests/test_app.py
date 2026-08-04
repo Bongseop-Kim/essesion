@@ -2,7 +2,7 @@ from api.main import create_app
 from httpx import ASGITransport, AsyncClient
 
 
-async def test_nonlocal_readyz_checks_database(settings):
+async def test_nonlocal_readyz_checks_database(settings, fake_integrations):
     application = create_app(
         settings.model_copy(
             update={

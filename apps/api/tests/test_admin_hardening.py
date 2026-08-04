@@ -1,5 +1,6 @@
 import asyncio
 import uuid
+from typing import cast
 
 import pytest
 from api.config import Settings
@@ -9,14 +10,11 @@ from api.domains.auth.rate_limit import (
     request_client_ip,
 )
 from api.errors import RateLimitedError, ServiceUnavailableError
-from api.integrations.gcs import (
-    UnavailableGcsClient,
-    assets_capability_mode,
-    build_gcs_client,
-)
+from api.integrations.gcs import assets_bucket_name, build_gcs_client
 from api.integrations.solapi import UnavailableSolapiClient, build_solapi_client
-from api.integrations.tasks import UnavailableTaskQueue, build_task_queue
+from api.integrations.tasks import InlineTaskQueue, build_task_queue
 from api.integrations.toss import UnavailableTossClient, build_toss_client
+from api.integrations.worker import WorkerClient
 from api.main import create_app
 from fastapi import Request
 from fastapi.testclient import TestClient
@@ -27,6 +25,15 @@ from pydantic_settings import SettingsConfigDict
 class _TestSettings(Settings):
     model_config = SettingsConfigDict(env_file=None)
     public_api_origin: str = "https://api.essesion.shop"
+
+
+class _FakeWorker:
+    def __init__(self) -> None:
+        self.job_ids: list[str] = []
+
+    async def finalize_job(self, job_id: str) -> dict[str, str]:
+        self.job_ids.append(job_id)
+        return {"status": "succeeded"}
 
 
 def test_auth_rate_limiter_expires_and_bounds_keys():
@@ -54,7 +61,7 @@ def test_recent_key_cache_expires_and_bounds_keys():
     assert cache.contains("c", now=11) is True
 
 
-def test_client_ip_trusts_only_authenticated_cloudflare_header():
+def test_client_ip_trusts_only_authenticated_cloudflare_header(fake_integrations):
     application = create_app(_TestSettings(env="staging", edge_proxy_secret="edge-test-secret"))
 
     @application.get("/_test/client-ip")
@@ -97,7 +104,7 @@ def test_client_ip_trusts_only_authenticated_cloudflare_header():
     assert invalid_ip["resolved"] == invalid_ip["connected"]
 
 
-def test_nonlocal_session_cookie_is_secure():
+def test_nonlocal_session_cookie_is_secure(fake_integrations):
     application = create_app(_TestSettings(env="staging", edge_proxy_secret="edge-test-secret"))
 
     @application.get("/_test/session")
@@ -143,7 +150,7 @@ def test_request_id_context_security_headers_and_unhandled_error():
     assert "frame-ancestors 'none'" in failed.headers["content-security-policy"]
 
 
-def test_nonlocal_missing_toss_and_gcs_are_unavailable_and_not_ready():
+def test_nonlocal_missing_storage_or_tasks_prevents_startup():
     settings = _TestSettings(
         env="staging",
         database_url="postgresql+asyncpg://essesion:essesion@127.0.0.1:1/essesion",
@@ -152,77 +159,36 @@ def test_nonlocal_missing_toss_and_gcs_are_unavailable_and_not_ready():
         gcs_upload_bucket="",
     )
     toss = build_toss_client(settings)
-    gcs = build_gcs_client(settings)
     solapi = build_solapi_client(settings)
-    tasks = build_task_queue(settings)
     assert isinstance(toss, UnavailableTossClient)
-    assert isinstance(gcs, UnavailableGcsClient)
     assert isinstance(solapi, UnavailableSolapiClient)
-    assert isinstance(tasks, UnavailableTaskQueue)
 
     with pytest.raises(ServiceUnavailableError) as toss_error:
         asyncio.run(toss.confirm("payment-key", "order-id", 1000))
     assert toss_error.value.code == "toss_unavailable"
-    with pytest.raises(ServiceUnavailableError) as gcs_error:
-        asyncio.run(gcs.signed_read_url("private/object"))
-    assert gcs_error.value.code == "gcs_unavailable"
-    with pytest.raises(ServiceUnavailableError) as tasks_error:
-        asyncio.run(tasks.enqueue_finalize(uuid.uuid4()))
-    assert tasks_error.value.code == "finalize_tasks_unavailable"
     assert asyncio.run(solapi.send_sms("01000000000", "test")) is False
 
+    with pytest.raises(RuntimeError, match="GCS_UPLOAD_BUCKET"):
+        build_gcs_client(settings)
+    with pytest.raises(RuntimeError, match="Cloud Tasks"):
+        build_task_queue(settings, cast(WorkerClient, _FakeWorker()))
+
     application = create_app(settings)
-    with TestClient(application) as client:
-        direct_ready = client.get("/readyz")
-        ready = client.get(
-            "/readyz",
-            headers={
-                "X-Request-ID": "ready-rid",
-                "X-Essesion-Edge-Secret": "edge-test-secret",
-            },
-        )
-        health = client.get("/healthz")
-        batch = client.post("/batch/cancel-stale-orders")
-        ordinary = client.post("/auth/login", json={})
-    assert ready.status_code == 503
-    assert direct_ready.status_code == 403
-    assert ready.json() == {
-        "status": "not_ready",
-        "capabilities": {
-            "toss": "unavailable",
-            "gcs": "unavailable",
-            "gcs_assets": "unavailable",
-            "solapi": "unavailable",
-            "worker": "unavailable",
-            "finalize_tasks": "unavailable",
-            "batch_auth": "unavailable",
-            "oauth_google": "unavailable",
-            "oauth_kakao": "unavailable",
-            "oauth_naver": "unavailable",
-            "oauth_apple": "unavailable",
-            "auth_secrets": "unavailable",
-            "edge_proxy": "ready",
-            "database": "unavailable",
-        },
-    }
-    assert ready.headers["x-request-id"] == "ready-rid"
-    assert health.status_code == 200
-    assert batch.status_code == 503
-    assert ordinary.status_code == 403
+    with pytest.raises(RuntimeError, match="GCS_UPLOAD_BUCKET"):
+        with TestClient(application):
+            pass
 
 
-def test_local_missing_toss_and_gcs_remain_dry_run_ready():
+def test_local_missing_provider_and_storage_settings_uses_local_defaults():
     application = create_app(_TestSettings(env="local", toss_secret_key="", gcs_upload_bucket=""))
     with TestClient(application) as client:
         ready = client.get("/readyz")
     assert ready.status_code == 200
     assert ready.json()["capabilities"] == {
         "toss": "dry_run",
-        "gcs": "dry_run",
-        "gcs_assets": "dry_run",
         "solapi": "dry_run",
         "worker": "local",
-        "finalize_tasks": "dry_run",
+        "finalize_tasks": "inline",
         "batch_auth": "shared_secret",
         "oauth_google": "optional",
         "oauth_kakao": "optional",
@@ -234,16 +200,26 @@ def test_local_missing_toss_and_gcs_remain_dry_run_ready():
     }
 
 
-def test_local_real_private_gcs_without_assets_bucket_is_not_ready():
+def test_local_private_gcs_without_assets_bucket_uses_fixed_assets_default():
     settings = _TestSettings(
         env="local",
         gcs_upload_bucket="private-uploads",
         gcs_assets_bucket="",
     )
-    assert assets_capability_mode(settings) == "unavailable"
+    assert assets_bucket_name(settings) == "dev-assets"
 
 
-def test_nonlocal_ordinary_http_requires_exact_trusted_edge_header():
+def test_local_task_queue_awaits_worker_inline():
+    worker = _FakeWorker()
+    queue = build_task_queue(_TestSettings(env="local"), cast(WorkerClient, worker))
+    job_id = uuid.uuid4()
+
+    assert isinstance(queue, InlineTaskQueue)
+    asyncio.run(queue.enqueue_finalize(job_id))
+    assert worker.job_ids == [str(job_id)]
+
+
+def test_nonlocal_ordinary_http_requires_exact_trusted_edge_header(fake_integrations):
     settings = _TestSettings(
         env="staging",
         edge_proxy_secret="edge-test-secret",

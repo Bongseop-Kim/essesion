@@ -30,7 +30,7 @@ description: 브라우저에서 UI·플로우를 확인/검증할 때 사용하�
 | admin | http://localhost:3001 (strictPort) | `pnpm --filter admin dev` |
 | api | http://localhost:8000 | `uv run uvicorn api.main:app --reload` |
 
-api 없이 프론트만 띄우면 데이터 호출이 실패하므로, 플로우 검증 시 api(+DB: `docker compose up -d` → alembic → seed)를 먼저 확인한다. 시크릿 없으면 Toss/Solapi/GCS는 DryRun이므로 결제 플로우도 로컬에서 끝까지 진행 가능하다.
+api 없이 프론트만 띄우면 데이터 호출이 실패하므로, 플로우 검증 시 api·worker(+DB/GCS: `docker compose up -d` → alembic → seed)를 먼저 확인한다. 시크릿이 없으면 Toss/Solapi는 DryRun이고, GCS는 fake-gcs-server, finalize는 로컬 worker 직접 호출을 기본으로 사용한다.
 
 ## 시드 계정 (id/pw 로그인은 테스트 전용)
 

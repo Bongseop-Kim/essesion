@@ -184,7 +184,7 @@ cp apps/admin/.env.example apps/admin/.env
 ### 2. PostgreSQL과 스키마
 
 ```bash
-docker compose up -d
+docker compose up -d --wait
 uv run alembic -c db/alembic.ini upgrade head
 uv run python apps/api/scripts/seed.py
 ```
@@ -200,7 +200,7 @@ pnpm --filter store dev
 pnpm --filter admin dev
 ```
 
-로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 `docker compose up -d`에 포함된 fake-gcs-server가 대신합니다 — `.env`에 `GCS_EMULATOR_HOST`와 버킷명(`.env.example` 참고)을 설정하면 api·worker가 실제 GCS 클라이언트 경로로 업로드·서빙까지 로컬에서 끝까지 동작하고, 비우면 DryRun(no-op)입니다. 자연어 authoring과 벡터 검색에는 `OPENAI_API_KEY`가 필요하고(비우면 해당 경로 503/스킵), catalog miss에서 새 motif를 만들려면 Recraft 키가 필요합니다. 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. Cloud Tasks 없이 finalize 전체 흐름을 확인하려면 로컬 `.env`에 `WORKER_FINALIZE_INLINE=true`를 설정합니다.
+로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 별도 설정 없이 `docker compose up -d`의 fake-gcs-server(`localhost:4443`, `dev-uploads`/`dev-assets`)를 사용하고, finalize는 Cloud Tasks 대신 로컬 worker 호출이 끝날 때까지 기다립니다. 자연어 authoring과 벡터 검색에는 `OPENAI_API_KEY`가 필요하고(비우면 해당 경로 503/스킵), catalog miss에서 새 motif를 만들려면 Recraft 키가 필요합니다. 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. 배포 환경은 GCS 버킷이나 Cloud Tasks 설정이 빠지면 기동하지 않습니다.
 
 ## 검증
 
@@ -230,7 +230,7 @@ pnpm test:e2e
 - Store·Admin·API·worker·DB 마이그레이션 구현
 - Supabase 신규 런타임 의존 제거와 OpenAPI client 전환
 - 로컬 통합 테스트·브라우저 smoke·CI/CD·OpenTofu 구성
-- Google·Kakao OAuth 코드 경로, 결제·문자·GCS의 local DryRun 경계
+- Google·Kakao OAuth 코드 경로, 결제·문자 local DryRun과 GCS 로컬 에뮬레이터 경계
 
 실제 공개 전 남은 작업:
 

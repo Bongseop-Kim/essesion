@@ -4,7 +4,7 @@ import {
   registerReformUpload,
 } from "@essesion/api-client";
 
-import { putIfRequired, validateImageFile } from "@/shared/lib/upload";
+import { putIssued, validateImageFile } from "@/shared/lib/upload";
 
 export { IMAGE_ACCEPT as REFORM_IMAGE_ACCEPT } from "@/shared/lib/upload";
 
@@ -20,7 +20,7 @@ export async function uploadReformImage(file: File): Promise<ReformImageIn> {
   });
   if (!issued.data) throw new Error("이미지 업로드를 준비하지 못했습니다.");
 
-  await putIfRequired(issued.data, file);
+  await putIssued(issued.data, file);
 
   const completed = await registerReformUpload({
     body: {

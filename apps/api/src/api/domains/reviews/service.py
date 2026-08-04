@@ -47,11 +47,9 @@ def _photo_outs(review: Review, settings: Settings) -> list[ReviewPhotoOut]:
             continue
         object_key = entry.get("object_key")
         upload_id = entry.get("upload_id")
-        if not isinstance(object_key, str) or not isinstance(upload_id, str):
+        if not isinstance(object_key, str) or not object_key or not isinstance(upload_id, str):
             continue
         url = public_asset_url(settings, object_key)
-        if url is None:
-            continue
         photos.append(ReviewPhotoOut(upload_id=uuid.UUID(upload_id), url=url))
     return photos
 

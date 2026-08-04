@@ -1671,18 +1671,17 @@ async def _resolve_staged_reference_image(
             code="invalid_design_reference",
             status=409,
         )
-    if request.app.state.gcs.upload_required:
-        metadata = await request.app.state.gcs.object_metadata(image.object_key)
-        if (
-            metadata is None
-            or metadata.content_type != image.content_type
-            or metadata.size_bytes != image.size_bytes
-        ):
-            raise DomainError(
-                "업로드 이미지를 확인하지 못했습니다",
-                code="invalid_design_reference",
-                status=409,
-            )
+    metadata = await request.app.state.gcs.object_metadata(image.object_key)
+    if (
+        metadata is None
+        or metadata.content_type != image.content_type
+        or metadata.size_bytes != image.size_bytes
+    ):
+        raise DomainError(
+            "업로드 이미지를 확인하지 못했습니다",
+            code="invalid_design_reference",
+            status=409,
+        )
     return image
 
 
@@ -1943,22 +1942,21 @@ async def create_finalize_job(
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    if request.app.state.settings.worker_finalize_inline:
-        await request.app.state.worker.finalize_job(str(job.id))
+    try:
+        await request.app.state.tasks.enqueue_finalize(job.id)
+        # 로컬 inline은 요청 안에서 워커가 job을 끝냈다 — 최종 상태를 반환한다.
         await session.refresh(job)
-    else:
-        try:
-            await request.app.state.tasks.enqueue_finalize(job.id)
-        except Exception as exc:
-            dispatch_failed = await _fail_finalize_dispatch(session, job.id)
-            if not dispatch_failed:
-                # create 응답만 유실된 사이 task가 queued를 이미 claim했다. 이 경우
-                # 전달은 성공한 것이므로 502로 거짓 보고하지 않는다.
-                await session.refresh(job)
-                return _generation_job_out(job, request.app.state.settings)
-            if isinstance(exc, DomainError):
-                raise
-            raise UpstreamError("finalize 작업을 전달하지 못했습니다") from exc
+    except Exception as exc:
+        dispatch_failed = await _fail_finalize_dispatch(session, job.id)
+        if not dispatch_failed:
+            # 워커/task가 queued를 이미 claim했다 — Cloud Tasks면 create 응답만 유실된
+            # 경우고, inline이면 생성 자체가 실패한 경우다. 둘 다 전달은 성공한 것이므로
+            # 502로 거짓 보고하지 않고 job의 실제 상태를 돌려준다.
+            await session.refresh(job)
+            return _generation_job_out(job, request.app.state.settings)
+        if isinstance(exc, DomainError):
+            raise
+        raise UpstreamError("finalize 작업을 전달하지 못했습니다") from exc
     return _generation_job_out(job, request.app.state.settings)
 
 
@@ -2103,18 +2101,11 @@ async def delete_generation_job(
         and object_key.startswith("fabric/")
         and ".." not in object_key.split("/")
     ):
-        source_bucket = assets_bucket_name(settings)
-        if source_bucket is None and request.app.state.gcs.upload_required:
-            logger.error(
-                "assets 버킷 미설정 — 삭제한 finalize 산출물을 정리하지 못했습니다: %s",
-                object_key,
-            )
-        else:
-            deleted = await request.app.state.gcs.delete_object(
-                object_key, bucket_name=source_bucket
-            )
-            if not deleted:
-                logger.error("삭제한 finalize 잡의 산출물 정리 실패: %s", object_key)
+        deleted = await request.app.state.gcs.delete_object(
+            object_key, bucket_name=assets_bucket_name(settings)
+        )
+        if not deleted:
+            logger.error("삭제한 finalize 잡의 산출물 정리 실패: %s", object_key)
 
 
 @router.post(
@@ -2144,16 +2135,10 @@ async def create_design_order_reference(
     ):
         raise ConflictError("주문에 사용할 수 있는 완성 디자인이 아닙니다")
     source_bucket = assets_bucket_name(settings)
-    if request.app.state.gcs.upload_required and source_bucket is None:
-        raise DomainError(
-            "공개 생성물 버킷이 설정되지 않았습니다",
-            code="asset_bucket_not_configured",
-            status=503,
-        )
 
     destination_key = f"uploads/{kind}/design-{job.id}-{uuid.uuid4().hex}.png"
     copied = await request.app.state.gcs.copy_from_bucket(
-        source_bucket or "dry-run-assets",
+        source_bucket,
         source_key,
         destination_key,
     )
@@ -2172,20 +2157,19 @@ async def create_design_order_reference(
             )
         else:
             metadata = await request.app.state.gcs.object_metadata(destination_key)
-            if request.app.state.gcs.upload_required:
-                if metadata is None:
-                    raise UpstreamError("복사된 주문 참고 이미지를 확인하지 못했습니다")
-                if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
-                    raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
-                if metadata.content_type != "image/png":
-                    raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+            if metadata is None:
+                raise UpstreamError("복사된 주문 참고 이미지를 확인하지 못했습니다")
+            if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
+                raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+            if metadata.content_type != "image/png":
+                raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
             staged_image = Image(
                 object_key=destination_key,
                 entity_type=order_upload_entity_type(kind),
                 entity_id=destination_key,
                 uploaded_by=user.id,
                 content_type="image/png",
-                size_bytes=metadata.size_bytes if metadata is not None else 1,
+                size_bytes=metadata.size_bytes,
                 upload_completed_at=datetime.now(UTC),
                 expires_at=datetime.now(UTC) + timedelta(hours=24),
             )
@@ -2209,12 +2193,13 @@ async def create_design_order_reference(
 
 
 def _job_object_key(job: GenerationJob) -> str | None:
-    return job.result.get("object_key") if isinstance(job.result, dict) else None
+    key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    return key if isinstance(key, str) and key else None
 
 
 def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # noqa: ANN001
     object_key = _job_object_key(job)
-    result_url = public_asset_url(settings, object_key) if isinstance(object_key, str) else None
+    result_url = public_asset_url(settings, object_key) if object_key else None
     return GenerationJobOut(
         id=job.id,
         session_id=job.session_id,

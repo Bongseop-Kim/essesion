@@ -55,7 +55,6 @@ class UploadUrlResponse(BaseModel):
     upload_id: uuid.UUID
     upload_url: str
     required_headers: dict[str, str]
-    upload_required: bool
 
 
 class ReformUploadUrlRequest(BaseModel):
@@ -70,7 +69,6 @@ class ReformUploadUrlResponse(BaseModel):
     required_headers: dict[str, str]
     claim_token: str | None
     expires_at: datetime
-    upload_required: bool
 
 
 class UploadRegisterRequest(BaseModel):
@@ -169,7 +167,6 @@ async def create_upload_url(
             "x-goog-if-generation-match": "0",
             "x-goog-content-length-range": f"1,{MAX_ORDER_IMAGE_BYTES}",
         },
-        upload_required=request.app.state.gcs.upload_required,
     )
 
 
@@ -233,13 +230,12 @@ async def complete_design_reference_upload(
             "유효하지 않은 참고 이미지입니다", code="invalid_design_image", status=409
         )
     metadata = await request.app.state.gcs.object_metadata(image.object_key)
-    if request.app.state.gcs.upload_required:
-        if metadata is None:
-            raise DomainError("업로드된 이미지를 찾을 수 없습니다", code="upload_not_found")
-        if metadata.content_type != image.content_type:
-            raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
-        if metadata.size_bytes != image.size_bytes:
-            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+    if metadata is None:
+        raise DomainError("업로드된 이미지를 찾을 수 없습니다", code="upload_not_found")
+    if metadata.content_type != image.content_type:
+        raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+    if metadata.size_bytes != image.size_bytes:
+        raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
     image.upload_completed_at = now
     await session.commit()
     return DesignReferenceUploadOut(
@@ -295,7 +291,6 @@ async def create_reform_upload_url(
         },
         claim_token=raw_token,
         expires_at=expires_at,
-        upload_required=request.app.state.gcs.upload_required,
     )
 
 
@@ -334,20 +329,15 @@ async def register_reform_upload(
             image.claim_token_hash = None
 
     metadata = await request.app.state.gcs.object_metadata(body.object_key)
-    if request.app.state.gcs.upload_required:
-        if metadata is None:
-            raise DomainError("업로드된 수선 사진을 찾을 수 없습니다", code="upload_not_found")
-        if not 0 < metadata.size_bytes <= MAX_REFORM_IMAGE_BYTES:
-            raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
-        if metadata.content_type != image.content_type:
-            raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
-        if metadata.size_bytes != image.size_bytes or body.size_bytes != image.size_bytes:
-            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
-        image.size_bytes = metadata.size_bytes
-    else:
-        if body.size_bytes != image.size_bytes:
-            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
-        image.size_bytes = body.size_bytes
+    if metadata is None:
+        raise DomainError("업로드된 수선 사진을 찾을 수 없습니다", code="upload_not_found")
+    if not 0 < metadata.size_bytes <= MAX_REFORM_IMAGE_BYTES:
+        raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+    if metadata.content_type != image.content_type:
+        raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+    if metadata.size_bytes != image.size_bytes or body.size_bytes != image.size_bytes:
+        raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+    image.size_bytes = metadata.size_bytes
     image.upload_completed_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(image)
@@ -415,16 +405,15 @@ async def register_repair_shipping_upload(
     if image.size_bytes is None or not 0 < image.size_bytes <= MAX_ORDER_IMAGE_BYTES:
         raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
 
-    if request.app.state.gcs.upload_required:
-        metadata = await request.app.state.gcs.object_metadata(image.object_key)
-        if metadata is None:
-            raise DomainError("업로드된 수선 배송 사진을 찾을 수 없습니다", code="upload_not_found")
-        if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
-            raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
-        if metadata.content_type != image.content_type:
-            raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
-        if metadata.size_bytes != image.size_bytes:
-            raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
+    metadata = await request.app.state.gcs.object_metadata(image.object_key)
+    if metadata is None:
+        raise DomainError("업로드된 수선 배송 사진을 찾을 수 없습니다", code="upload_not_found")
+    if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
+        raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+    if metadata.content_type != image.content_type:
+        raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+    if metadata.size_bytes != image.size_bytes:
+        raise DomainError("이미지 크기가 일치하지 않습니다", code="invalid_image_size")
 
     image.upload_completed_at = datetime.now(UTC)
     await session.commit()

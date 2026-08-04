@@ -2,7 +2,7 @@
 
 import uuid
 
-from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata
+from api.integrations.gcs import GcsObjectMetadata
 from db.models.commerce import Claim, OrderItem
 from db.models.images import Image
 from sqlalchemy import select
@@ -15,6 +15,7 @@ from .factories import (
     make_user,
     seed_pricing,
 )
+from .fakes import FakeGcsClient, simulate_uploads
 
 CUSTOM_PRICING = {
     "START_COST": 100,
@@ -33,20 +34,7 @@ CUSTOM_PRICING = {
 }
 
 
-class _MetadataGcs(DryRunGcsClient):
-    upload_required = True
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.metadata: dict[str, GcsObjectMetadata] = {}
-
-    async def object_metadata(
-        self, object_key: str, *, bucket_name: str | None = None
-    ) -> GcsObjectMetadata | None:
-        return self.metadata.get(object_key)
-
-
-async def _issue_order_image(client, headers, *, kind: str = "custom_order") -> dict:
+async def _issue_order_image(app, client, headers, *, kind="custom_order", simulate=True) -> dict:
     response = await client.post(
         "/images/upload-url",
         json={
@@ -59,6 +47,8 @@ async def _issue_order_image(client, headers, *, kind: str = "custom_order") -> 
     )
     assert response.status_code == 200, response.text
     assert response.json()["upload_id"] is not None
+    if simulate:
+        await simulate_uploads(app)
     return response.json()
 
 
@@ -75,7 +65,9 @@ def _custom_body(address_id, upload_ids: list[str]) -> dict:
     }
 
 
-async def test_order_accepts_only_owned_completed_staged_upload_ids(client, db_session, settings):
+async def test_order_accepts_only_owned_completed_staged_upload_ids(
+    app, client, db_session, settings
+):
     owner = await make_user(db_session)
     owner_address = await make_address(db_session, owner)
     other = await make_user(db_session)
@@ -84,7 +76,7 @@ async def test_order_accepts_only_owned_completed_staged_upload_ids(client, db_s
     owner_headers = auth_headers(owner, settings)
     other_headers = auth_headers(other, settings)
 
-    issued = await _issue_order_image(client, owner_headers)
+    issued = await _issue_order_image(app, client, owner_headers)
     upload_id = issued["upload_id"]
 
     incomplete = await client.post(
@@ -160,13 +152,13 @@ async def test_order_accepts_only_owned_completed_staged_upload_ids(client, db_s
 async def test_order_upload_completion_and_creation_revalidate_gcs_metadata(
     app, client, db_session, settings
 ):
-    gcs = _MetadataGcs()
+    gcs = FakeGcsClient()
     app.state.gcs = gcs
     user = await make_user(db_session)
     address = await make_address(db_session, user)
     await seed_pricing(db_session, CUSTOM_PRICING)
     headers = auth_headers(user, settings)
-    issued = await _issue_order_image(client, headers)
+    issued = await _issue_order_image(app, client, headers, simulate=False)
     upload_id = issued["upload_id"]
     object_key = issued["object_key"]
 
@@ -207,7 +199,7 @@ async def test_order_upload_completion_and_creation_revalidate_gcs_metadata(
 
 
 async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation(
-    client, db_session, settings
+    app, client, db_session, settings
 ):
     customer = await make_user(db_session)
     other = await make_user(db_session)
@@ -217,7 +209,7 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
     customer_headers = auth_headers(customer, settings)
     other_headers = auth_headers(other, settings)
     admin_headers = auth_headers(admin, settings)
-    issued = await _issue_order_image(client, customer_headers)
+    issued = await _issue_order_image(app, client, customer_headers)
     upload_id = issued["upload_id"]
     object_key = issued["object_key"]
     assert (await _complete_order_image(client, customer_headers, upload_id)).status_code == 200

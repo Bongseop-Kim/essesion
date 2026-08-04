@@ -5,7 +5,7 @@ const api = vi.hoisted(() => ({
   registerRepairShippingUpload: vi.fn(),
 }));
 const upload = vi.hoisted(() => ({
-  putIfRequired: vi.fn(),
+  putIssued: vi.fn(),
   validateImageFile: vi.fn(),
 }));
 
@@ -34,7 +34,6 @@ it("파일 크기와 발급 헤더·upload id를 완료 요청까지 보존한�
       upload_id: "upload-1",
       object_key: "uploads/repair_shipping_upload/photo.png",
       upload_url: "https://upload.invalid/signed",
-      upload_required: true,
       required_headers: requiredHeaders,
     },
   });
@@ -53,11 +52,10 @@ it("파일 크기와 발급 헤더·upload id를 완료 요청까지 보존한�
       size_bytes: file.size,
     },
   });
-  expect(upload.putIfRequired).toHaveBeenCalledWith(
+  expect(upload.putIssued).toHaveBeenCalledWith(
     expect.objectContaining({
       upload_url: "https://upload.invalid/signed",
       required_headers: requiredHeaders,
-      upload_required: true,
     }),
     file,
     "사진을 업로드하지 못했습니다.",

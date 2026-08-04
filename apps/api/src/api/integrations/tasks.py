@@ -7,7 +7,7 @@ from typing import Protocol
 from starlette.concurrency import run_in_threadpool
 
 from api.config import Settings
-from api.errors import ServiceUnavailableError
+from api.integrations.worker import WorkerClient
 
 logger = logging.getLogger(__name__)
 FINALIZE_DISPATCH_DEADLINE = "910s"
@@ -19,21 +19,15 @@ class TaskQueue(Protocol):
     async def enqueue_finalize(self, job_id: uuid.UUID) -> str | None: ...
 
 
-class DryRunTaskQueue:
-    capability_mode = "dry_run"
+class InlineTaskQueue:
+    capability_mode = "inline"
+
+    def __init__(self, worker_client: WorkerClient):
+        self._worker_client = worker_client
 
     async def enqueue_finalize(self, job_id: uuid.UUID) -> str | None:
-        logger.info("DRYRUN cloud tasks finalize enqueue: %s", job_id)
+        await self._worker_client.finalize_job(str(job_id))
         return None
-
-
-class UnavailableTaskQueue:
-    capability_mode = "unavailable"
-
-    async def enqueue_finalize(self, job_id: uuid.UUID) -> str | None:
-        raise ServiceUnavailableError(
-            "finalize 작업 큐를 사용할 수 없습니다.", code="finalize_tasks_unavailable"
-        )
 
 
 class CloudTasksRestQueue:
@@ -99,15 +93,14 @@ class CloudTasksRestQueue:
         return await run_in_threadpool(_post)
 
 
-def build_task_queue(settings: Settings) -> TaskQueue:
+def build_task_queue(settings: Settings, worker_client: WorkerClient) -> TaskQueue:
+    if settings.env in ("local", "test"):
+        # GCP 설정이 채워져 있어도 로컬·테스트가 실제 큐를 건드리지 않게 env를 먼저 본다.
+        return InlineTaskQueue(worker_client)
     if (
         settings.gcp_project_id
         and settings.worker_finalize_url
         and settings.cloud_tasks_oidc_service_account
     ):
         return CloudTasksRestQueue(settings)
-    if settings.env in ("local", "test"):
-        logger.warning("Cloud Tasks 설정 없음 — DryRun task queue로 동작")
-        return DryRunTaskQueue()
-    logger.error("Cloud Tasks 설정 없음 — finalize task capability unavailable")
-    return UnavailableTaskQueue()
+    raise RuntimeError("Cloud Tasks configuration is required outside local/test")

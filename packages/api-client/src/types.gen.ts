@@ -97,14 +97,6 @@ export type AdminCapabilitiesOut = {
      */
     finalize_tasks: string;
     /**
-     * Gcs
-     */
-    gcs: string;
-    /**
-     * Gcs Assets
-     */
-    gcs_assets: string;
-    /**
      * Oauth Apple
      */
     oauth_apple: string;
@@ -1523,10 +1515,6 @@ export type AdminProductImageUploadOut = {
      * Upload Id
      */
     upload_id: string;
-    /**
-     * Upload Required
-     */
-    upload_required: boolean;
     /**
      * Upload Url
      */
@@ -7037,10 +7025,6 @@ export type ReformUploadUrlResponse = {
         [key: string]: string;
     };
     /**
-     * Upload Required
-     */
-    upload_required: boolean;
-    /**
      * Upload Url
      */
     upload_url: string;
@@ -7395,10 +7379,6 @@ export type ReviewPhotoUploadOut = {
      * Upload Id
      */
     upload_id: string;
-    /**
-     * Upload Required
-     */
-    upload_required: boolean;
     /**
      * Upload Url
      */
@@ -8144,10 +8124,6 @@ export type UploadUrlResponse = {
      * Upload Id
      */
     upload_id: string;
-    /**
-     * Upload Required
-     */
-    upload_required: boolean;
     /**
      * Upload Url
      */

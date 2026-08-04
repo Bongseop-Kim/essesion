@@ -26,6 +26,13 @@ class _TestSettings(Settings):
     model_config = SettingsConfigDict(env_file=None)  # 개발자 로컬 .env 오염 차단
 
 
+class FakeObjectStore:
+    """업로드를 no-op으로 통과시키는 대역 — lifespan 미실행 테스트가 state에 직접 주입한다."""
+
+    async def upload_bytes(self, object_key: str, data: bytes, content_type: str) -> str:
+        return object_key
+
+
 @pytest.fixture(scope="session")
 def pg_url() -> Iterator[str]:
     with migrated_postgres() as url:
@@ -34,7 +41,7 @@ def pg_url() -> Iterator[str]:
 
 @pytest.fixture
 def settings(pg_url: str) -> Settings:
-    # 시크릿은 비워 둔다(DryRun) — 어댑터가 필요한 테스트는 respx로 목킹하거나 클라이언트를 주입.
+    # provider 키는 비워 둔다 — 필요한 테스트는 respx나 명시적 클라이언트를 사용한다.
     return _TestSettings(database_url=pg_url, motif_render_check=False)
 
 

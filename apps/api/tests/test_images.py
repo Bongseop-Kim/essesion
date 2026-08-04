@@ -2,29 +2,17 @@
 
 from datetime import UTC, datetime, timedelta
 
-from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata
+from api.integrations.gcs import GcsObjectMetadata
 from db.models.images import Image
 from sqlalchemy import select
 
 from .factories import auth_headers, make_user
+from .fakes import FakeGcsClient, simulate_uploads
 
 BATCH_HEADERS = {"Authorization": "Bearer test-batch-token"}
 
 
-class _MetadataGcs(DryRunGcsClient):
-    upload_required = True
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.metadata: dict[str, GcsObjectMetadata] = {}
-
-    async def object_metadata(
-        self, object_key: str, *, bucket_name: str | None = None
-    ) -> GcsObjectMetadata | None:
-        return self.metadata.get(object_key)
-
-
-class _FailOneDeleteGcs(DryRunGcsClient):
+class _FailOneDeleteGcs(FakeGcsClient):
     def __init__(self, failed_key: str) -> None:
         super().__init__()
         self.failed_key = failed_key
@@ -65,7 +53,7 @@ async def test_upload_url_validates_type(client, db_session, settings):
     body = res.json()
     assert body["object_key"].startswith("uploads/repair_shipping_upload/")
     assert body["upload_id"]
-    assert body["upload_url"].startswith("https://")  # DryRun URL
+    assert body["upload_url"].startswith("https://")
     assert body["required_headers"] == {
         "Content-Type": "image/png",
         "x-goog-if-generation-match": "0",
@@ -115,7 +103,7 @@ async def test_upload_url_validates_type(client, db_session, settings):
 async def test_design_reference_completion_verifies_metadata_and_owner(
     app, client, db_session, settings
 ):
-    gcs = _MetadataGcs()
+    gcs = FakeGcsClient()
     app.state.gcs = gcs
     owner = await make_user(db_session)
     other = await make_user(db_session)
@@ -160,7 +148,7 @@ async def test_design_reference_completion_verifies_metadata_and_owner(
 async def test_repair_shipping_completion_verifies_issued_object_metadata(
     app, client, db_session, settings
 ):
-    gcs = _MetadataGcs()
+    gcs = FakeGcsClient()
     app.state.gcs = gcs
     owner = await make_user(db_session)
     other = await make_user(db_session)
@@ -262,7 +250,7 @@ async def test_repair_shipping_completion_rejects_foreign_prefix(client, db_sess
     assert response.json()["code"] == "invalid_repair_shipping_image"
 
 
-async def test_reform_upload_register_upsert_and_ownership(client, db_session, settings):
+async def test_reform_upload_register_upsert_and_ownership(app, client, db_session, settings):
     owner = await make_user(db_session)
     other = await make_user(db_session)
     issued = await client.post(
@@ -277,6 +265,7 @@ async def test_reform_upload_register_upsert_and_ownership(client, db_session, s
     assert issued.json()["required_headers"]["x-goog-content-length-range"].endswith(
         str(10 * 1024 * 1024)
     )
+    await simulate_uploads(app)
 
     first = await client.post(
         "/images/reform-uploads",
