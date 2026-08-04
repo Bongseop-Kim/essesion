@@ -79,21 +79,14 @@ async def retrieve_examples(
     except Exception as exc:
         return RetrievalOutcome(status="retrieval_error", reason=exc.__class__.__name__)
 
-    compatible = [
+    # 유사도 순 그대로 상위 3건. 패밀리별 1건 제한을 두던 예전 규칙은 같은 패밀리 안에서
+    # subtype만 다른 정답 예시(하프드롭·wave·guard band 등)를 버려 역설계 검토에서 재현
+    # 실패 6건을 만들었다 — docs/reviews/design-family-reverse-eval-2026-08-04.md.
+    selected = [
         match
         for match in matches
         if _compatible(match, available_motif_count=available_motif_count)
-    ][:8]
-    if not compatible:
+    ][:3]
+    if not selected:
         return RetrievalOutcome(status="index_empty")
-
-    selected: list[store.ExampleMatch] = []
-    selected_families: set[str] = set()
-    for match in compatible:
-        if match.family in selected_families:
-            continue
-        selected.append(match)
-        selected_families.add(match.family)
-        if len(selected) == 3:
-            break
     return RetrievalOutcome(status="ok", examples=tuple(selected))

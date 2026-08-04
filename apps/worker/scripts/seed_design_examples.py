@@ -67,8 +67,8 @@ CURATED: tuple[CuratedExample, ...] = (
     ),
     CuratedExample(
         example_id="gallery_06_motif_lattice_block",
-        name="엇갈린 격자",
-        caption="열마다 반 칸씩 밀린 사선 격자",
+        name="정규 격자",
+        caption="어긋남 없이 규칙적으로 반복되는 격자",
         motif_subjects=("bee",),
     ),
     CuratedExample(
@@ -86,14 +86,15 @@ CURATED: tuple[CuratedExample, ...] = (
     CuratedExample(
         example_id="gallery_17_stripe_motif_guard_bands",
         name="가드 밴드 앵커",
-        caption="이중 핀스트라이프 사이에 뜬 엠블럼",
+        caption="가드 밴드 두 줄이 감싼 중심 레인 위의 엠블럼",
         motif_subjects=("anchor",),
     ),
     CuratedExample(
         example_id="gallery_21_motif_lattice_bee_circle",
         name="도트와 격자 듀오",
         caption="작은 점 격자 위에 얹은 큰 모티프",
-        motif_subjects=("bee", "circle"),
+        # 순서 = 플랜의 input 슬롯 순서: 1번이 작은 점 격자, 2번이 큰 격자 모티프.
+        motif_subjects=("circle", "bee"),
     ),
 )
 

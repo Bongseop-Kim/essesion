@@ -25,6 +25,39 @@ def _golden(example) -> dict:  # noqa: ANN001
     return json.loads((GOLDEN_DIR / filename).read_text(encoding="utf-8"))
 
 
+def _geometry(intent: dict) -> object:
+    """Layer geometry of an engine intent, free of naming and encoding differences.
+
+    Bands keep only their gaps: plan offsets must sit inside [0, period), so two goldens
+    (17, 18) are only expressible as a translated band set. Palette slot names, an explicit
+    zero rotation, the derived poisson count, and the stripe layer id carry no geometry.
+    """
+
+    shapes: list[dict] = []
+    for layer in intent["layers"]:
+        params = layer["params"]
+        if layer["type"] == "stripe":
+            offsets = [band["offset_mm"] for band in params["bands"]]
+            shapes.append(
+                {
+                    "angle": params["angle"],
+                    "period_mm": params["period_mm"],
+                    "widths": [band["width_mm"] for band in params["bands"]],
+                    "gaps": [b - a for a, b in zip(offsets, offsets[1:], strict=False)],
+                }
+            )
+        elif layer["type"] == "motif":
+            placement = json.loads(json.dumps(layer["placement"]))
+            if placement.get("fixed_rotation_deg") == 0:
+                del placement["fixed_rotation_deg"]
+            if "scatter" in placement:
+                placement["scatter"].pop("count", None)
+            if "host_layer" in placement:
+                placement["host_layer"] = "stripe"
+            shapes.append({"size_mm": params["size_mm"], "placement": placement})
+    return json.loads(json.dumps(shapes), parse_float=lambda raw: round(float(raw), 3))
+
+
 def _motif_ids(intent: dict) -> list[str]:
     result: list[str] = []
     for layer in intent["layers"]:
@@ -100,6 +133,9 @@ def test_all_gallery_plans_compile_deterministically_to_valid_engine_intents():
         assert first.plan == example.plan.model_dump(mode="json")
         assert first.structural_fingerprint == structural_fingerprint(example.plan)
         assert _motif_ids(first.intent) == motif_ids
+        # 예시는 골든 25건의 정답지다 — 지오메트리가 벌어지면 프롬프트가 요구하는 구조와
+        # RAG가 보여주는 구조가 달라져 역설계 재현이 원리적으로 불가능해진다.
+        assert _geometry(first.intent) == _geometry(golden), example.example_id
         validate_intent(first.intent, repair=False)
         compiled_placements.update(
             layer["placement"]["type"]

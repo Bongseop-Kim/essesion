@@ -217,7 +217,9 @@ async def test_retrieval_selects_up_to_three_compatible_unique_families(db_sessi
     assert [item["rank"] for item in outcome.diagnostics()] == [1, 2, 3]
 
 
-async def test_retrieval_does_not_append_duplicate_families(db_session):
+async def test_retrieval_keeps_same_family_subtypes_instead_of_one_per_family(db_session):
+    # 같은 패밀리 안에서 subtype만 다른 예시(좁은/폭 다른 스트라이프)를 유사도 순으로 함께
+    # 넘겨야 한다 — 패밀리별 1건 제한은 정답 예시를 버렸다.
     await _project(db_session, (1, 2, 5))
 
     class _Embedding:
@@ -235,7 +237,7 @@ async def test_retrieval_does_not_append_duplicate_families(db_session):
     )
 
     assert outcome.status == "ok"
-    assert [example.family for example in outcome.examples] == ["stripe", "lattice"]
+    assert [example.family for example in outcome.examples] == ["stripe", "stripe", "lattice"]
 
 
 async def test_retrieval_fails_soft_when_embedding_provider_fails(db_session):
