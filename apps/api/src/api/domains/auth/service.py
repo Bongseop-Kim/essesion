@@ -156,8 +156,8 @@ async def revoke_all_refresh_tokens(
     )
 
 
-async def grant_initial_tokens(session: AsyncSession, user_id: uuid.UUID) -> None:
-    """신규 가입 토큰 — typed admin 설정을 그대로 적용한다."""
+async def grant_initial_tokens(session: AsyncSession, user_id: uuid.UUID) -> int:
+    """신규 가입 토큰 — typed admin 설정을 그대로 적용하고, 지급한 수량을 돌려준다."""
     value = await session.scalar(
         select(AdminSetting.value).where(AdminSetting.key == "design_token_initial_grant")
     )
@@ -176,7 +176,7 @@ async def grant_initial_tokens(session: AsyncSession, user_id: uuid.UUID) -> Non
         )
     amount = int(clean)
     if amount == 0:
-        return
+        return 0
     session.add(
         DesignToken(
             user_id=user_id,
@@ -186,6 +186,7 @@ async def grant_initial_tokens(session: AsyncSession, user_id: uuid.UUID) -> Non
             description="신규 가입 토큰 지급",
         )
     )
+    return amount
 
 
 async def ensure_oauth_user(

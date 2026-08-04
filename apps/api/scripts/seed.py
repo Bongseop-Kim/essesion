@@ -146,8 +146,10 @@ async def _ensure_initial_tokens(session) -> None:
         return
     if await session.scalar(select(DesignToken.id).where(DesignToken.user_id == customer_id)):
         return
-    await grant_initial_tokens(session, customer_id)
-    print(f"  design tokens: customer@local ← {ADMIN_SETTINGS['design_token_initial_grant']}")
+    # 설정은 on_conflict_do_nothing이라 DB에 다른 값이 남아 있을 수 있다 — 실제 지급분을 찍는다.
+    granted = await grant_initial_tokens(session, customer_id)
+    if granted:
+        print(f"  design tokens: customer@local ← {granted}")
 
 
 async def _ensure_test_coupon(session) -> None:

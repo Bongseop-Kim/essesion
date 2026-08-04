@@ -46,7 +46,7 @@ _MAX_AUTHORING_ATTEMPTS = 4
 # Per-request output ceiling (DoW guard). Generous for one structured plan; ideas are far smaller.
 # ponytail: single flat cap; split per call-site only if plans start truncating.
 MAX_OUTPUT_TOKENS = 8192
-AUTHORING_PROMPT_REVISION = "design-plan-v3-example-parameter-reuse-v8-openai-v1"
+AUTHORING_PROMPT_REVISION = "design-plan-v3-example-parameter-reuse-v9-openai-v1"
 AUTHORING_SYSTEM_INSTRUCTION = (
     "You author normalized, production-safe plans for a deterministic seamless textile "
     "compiler. Follow the response schema exactly. Never output engine JSON, SVG, millimetres, "
@@ -192,6 +192,10 @@ def _build_prompt(
             "motif sources, which must come from the inputs or catalog block above. Do not "
             "re-derive a ratio an example already provides; invent ratios only when no example "
             "matches the request.",
+            "An example may declare fewer motifs than the motif requirements above demand. Then "
+            "keep its geometry and add one layer per remaining required motif, reusing that "
+            "example's placement numbers; never drop a required motif to match an example's "
+            "layer count.",
         ]
         for example in examples:
             payload = {

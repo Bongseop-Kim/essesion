@@ -15,6 +15,9 @@ from worker.authoring.schema import (
     snapshot_resolved_plan,
     structural_fingerprint,
 )
+from worker.config import get_settings
+from worker.engine.intent import ScatterSpec
+from worker.engine.placement import scatter_target_count
 from worker.engine.validate import validate_intent
 
 GOLDEN_DIR = Path(__file__).parent / "golden/json"
@@ -29,10 +32,15 @@ def _geometry(intent: dict) -> object:
     """Layer geometry of an engine intent, free of naming and encoding differences.
 
     Bands keep only their gaps: plan offsets must sit inside [0, period), so two goldens
-    (17, 18) are only expressible as a translated band set. Palette slot names, an explicit
-    zero rotation, the derived poisson count, and the stripe layer id carry no geometry.
+    (17, 18) are only expressible as a translated band set. Palette slot names and an explicit
+    zero rotation carry no geometry. Layer id spelling doesn't either, so a host reference is
+    compared as the ordinal of the stripe layer it points at; a scatter count is compared as the
+    instance total the engine lands on, since goldens may omit it and let the engine derive it.
     """
 
+    cap = get_settings().max_placement_instances
+    tile_mm = intent["canvas"]["tile_mm"]
+    stripe_ids = [layer["id"] for layer in intent["layers"] if layer["type"] == "stripe"]
     shapes: list[dict] = []
     for layer in intent["layers"]:
         params = layer["params"]
@@ -50,10 +58,12 @@ def _geometry(intent: dict) -> object:
             placement = json.loads(json.dumps(layer["placement"]))
             if placement.get("fixed_rotation_deg") == 0:
                 del placement["fixed_rotation_deg"]
-            if "scatter" in placement:
-                placement["scatter"].pop("count", None)
+            if (scatter := placement.get("scatter")) is not None:
+                scatter["count"] = scatter_target_count(
+                    ScatterSpec.model_validate(scatter), tile_mm, cap
+                )
             if "host_layer" in placement:
-                placement["host_layer"] = "stripe"
+                placement["host_layer"] = stripe_ids.index(placement["host_layer"])
             shapes.append({"size_mm": params["size_mm"], "placement": placement})
     return json.loads(json.dumps(shapes), parse_float=lambda raw: round(float(raw), 3))
 
