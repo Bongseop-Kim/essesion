@@ -75,7 +75,7 @@ React clients → generated OpenAPI client → FastAPI domain API
 - LangGraph나 범용 workflow framework를 유지하지 않는다. 현재 필요한 세션 전이는 일반 테이블과 명시적 API로 충분하다.
 - 모든 작업을 비동기화하지 않는다. 사용자가 결과를 기다리는 generate와 작은 export는 동기 경로가 더 단순하다.
 - 기존 운영 데이터 전체를 한 번에 자동 이관한다고 약속하지 않는다.
-- 로컬 인프라는 PostgreSQL 17 + pgvector와 fake-gcs-server(파일 스토리지) 둘만 실행한다. 그 밖의 GCP·Cloudflare 서비스는 에뮬레이터 없이 DryRun/fail-closed로 다룬다.
+- 로컬 인프라는 PostgreSQL 17 + pgvector와 fake-gcs-server(파일 스토리지) 둘만 실행한다. Toss·Solapi는 로컬 DryRun, finalize는 worker 직접 호출로 대체하고 나머지 GCP·Cloudflare 경계는 fail-closed로 다룬다.
 - 스테이징 지표 없이 성급하게 resvg로 렌더러를 교체하거나 리소스 값을 최적화하지 않는다.
 
 ---
@@ -369,7 +369,7 @@ sequenceDiagram
 | GitHub Actions → GCP | repository ID·ref·workflow 조건이 있는 WIF |
 | Runtime → Secret | 서비스별 Secret Manager IAM |
 
-비로컬 환경은 필수 secret·audience·provider 설정이 없을 때 로컬 token이나 DryRun으로 조용히 폴백하지 않는다. `/readyz`를 503으로 만들거나 해당 mutation을 차단한다.
+비로컬 환경은 필수 secret·audience·provider 설정이 없을 때 로컬 token이나 DryRun으로 조용히 폴백하지 않는다. GCS·Cloud Tasks 필수 설정 누락은 기동을 중단하고, 그 밖의 provider 누락은 `/readyz`를 503으로 만들거나 해당 mutation을 차단한다.
 
 ### 5.4 검증 방식
 
@@ -424,6 +424,7 @@ private uploads bucket
 - worker 결과 키는 content hash를 포함하고 `if_generation_match=0`으로 생성한다. precondition 412는 동일 content-derived key의 선행 업로드로 보고 성공 처리하며 기존 객체를 다시 읽어 byte 비교하지 않는다. create-only 조건은 기존 객체 덮어쓰기를 막는다.
 - finalize 결과를 주문/견적 첨부로 사용할 때 API가 public assets에서 private uploads로 create-only 복사한다.
 - 현재 공개 asset URL은 GCS 직접 주소다. 별도 Cloudflare image cache proxy는 향후 선택지이며 구현 완료로 간주하지 않는다.
+- local/test는 설정이 비어 있으면 `http://localhost:4443`의 `dev-uploads`·`dev-assets`를 사용한다. 비로컬 환경은 두 버킷 중 하나라도 빠지면 기동하지 않는다.
 
 ### 6.4 미배포 스키마 초기화 정책
 
@@ -620,6 +621,7 @@ sequenceDiagram
 ```
 
 - task create 응답이 유실되어도 같은 이름으로 재시도하며 409 `ALREADY_EXISTS`를 전달 성공으로 본다.
+- local/test는 Cloud Tasks 대신 API가 worker의 finalize 경로를 직접 await한다. 비로컬 환경은 Cloud Tasks 필수 설정이 빠지면 기동하지 않는다.
 - worker가 이미 claim한 ambiguous enqueue는 환불/실패로 되돌리지 않는다.
 - API가 전달 실패와 budget 보상을 확정한 job에 늦은 task가 도착하면 실행하지 않고 ACK한다.
 - 960초 lease와 attempt 조건부 terminal write로 오래된 worker가 새 결과를 덮지 못한다.
@@ -723,7 +725,7 @@ flowchart LR
 
 Admin에는 현재 Sentry client가 없다. “전 프론트 구간 Sentry 통일”을 현재 완료 상태로 보지 않는다.
 
-API readiness는 Toss·Solapi·GCS·worker·Tasks·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. worker readiness도 OpenAI LLM·임베딩·Recraft 상태를 조회하지 않는다.
+API readiness는 Toss·Solapi·worker·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. GCS·Tasks는 배포 설정 누락 시 readiness 이전에 기동을 중단한다. worker readiness도 OpenAI LLM·임베딩·Recraft 상태를 조회하지 않는다.
 
 Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 generate turn과 연결한다. 되돌리기(`activate` 턴)와 finalize는 같은 `run_id` 등가 매칭으로 상관하고, 후속 재생성도 기존 turn/job을 읽어 투영하며 별도 이벤트 테이블을 만들지 않는다.
 
@@ -799,7 +801,7 @@ resvg 판정 근거는 [렌더 동등성 리뷰](./docs/reviews/resvg-parity.md)
 
 | 위험/미완 | 현재 완화 | 완료 조건 |
 |---|---|---|
-| 실제 GCP/Cloudflare 미개통 | IaC·workflow·dry-run 검증 | 스테이징 apply와 proxy/direct smoke |
+| 실제 GCP/Cloudflare 미개통 | IaC·workflow·로컬 에뮬레이터 검증 | 스테이징 apply와 proxy/direct smoke |
 | Toss·OAuth·Solapi 실연동 미검증 | local DryRun과 adapter 테스트 | provider sandbox E2E |
 | Cloud Tasks OIDC 미검증 | audience/deadline/IAM 코드와 테스트 | 실제 queue→worker 전달·retry 관찰 |
 | Sentry DSN 미주입 | DSN 없으면 no-op | store/api/worker 프로젝트 생성·이벤트 확인 |

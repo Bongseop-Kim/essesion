@@ -100,7 +100,7 @@
 - 수용: 신규 테스트 전부 통과 + 골든 27세트 불변.
 
 **R14. 문서·명명 정정**
-- `adapters/__init__.py` docstring: Gemini/Recraft 미구성은 "DryRun"이 아니라 503, 임베딩만 소프트 스킵, 진짜 DryRun은 GCS — 로 정정.
+- `adapters/__init__.py` docstring: Recraft/LLM 미구성은 503, 임베딩만 소프트 스킵, GCS는 로컬 에뮬레이터·배포 필수 설정으로 정정.
 - api `KNOWN_WEAVES` 하드코딩: 워커 `render/assets/fabric/*` stem과 수동 동기화 중 — 최소한 양쪽에 상호 참조 주석, 가능하면 워커 응답으로 단일 소스화(5단계로 이연 가능).
 - 수용: 문서 리뷰 통과(코드 변경 없는 항목).
 

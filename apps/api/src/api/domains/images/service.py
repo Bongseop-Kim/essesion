@@ -52,8 +52,6 @@ def _validate_staged_image(image: Image, user: User, kind: OrderImageKind) -> No
 
 
 async def _verify_object_metadata(image: Image, gcs: GcsClient) -> None:
-    if not gcs.upload_required:
-        return
     metadata = await gcs.object_metadata(image.object_key)
     if metadata is None:
         raise DomainError("업로드된 주문 이미지를 찾을 수 없습니다", code="upload_not_found")

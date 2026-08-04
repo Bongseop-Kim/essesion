@@ -14,6 +14,7 @@ from .factories import (
     make_product,
     make_user,
 )
+from .fakes import simulate_uploads
 
 
 def _quote_body(address, *, object_key: str | None = None) -> dict:
@@ -29,7 +30,7 @@ def _quote_body(address, *, object_key: str | None = None) -> dict:
     }
 
 
-async def _issue_quote_image(client, headers) -> str:
+async def _issue_quote_image(app, client, headers) -> str:
     response = await client.post(
         "/images/upload-url",
         json={
@@ -41,11 +42,12 @@ async def _issue_quote_image(client, headers) -> str:
         headers=headers,
     )
     assert response.status_code == 200, response.text
+    await simulate_uploads(app)
     return response.json()["object_key"]
 
 
 async def test_admin_quote_page_detail_snapshot_stale_audit_and_signed_read(
-    client, db_session, settings
+    app, client, db_session, settings
 ):
     customer = await make_user(
         db_session,
@@ -57,7 +59,7 @@ async def test_admin_quote_page_detail_snapshot_stale_audit_and_signed_read(
     address = await make_address(db_session, customer)
     customer_headers = auth_headers(customer, settings)
     admin_headers = auth_headers(admin, settings)
-    object_key = await _issue_quote_image(client, customer_headers)
+    object_key = await _issue_quote_image(app, client, customer_headers)
 
     created = await client.post(
         "/quotes",

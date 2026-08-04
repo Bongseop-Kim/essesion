@@ -85,7 +85,6 @@ class AdminProductImageUploadOut(BaseModel):
     upload_url: str
     required_headers: dict[str, str]
     expires_at: datetime
-    upload_required: bool
 
 
 class AdminProductImageCompleteOut(BaseModel):
@@ -146,31 +145,6 @@ PRODUCT_LINK_TYPES = {
 }
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
-
-
-def _assets_bucket(request: Request) -> str:
-    settings = request.app.state.settings
-    if settings.gcs_assets_bucket:
-        return settings.gcs_assets_bucket
-    if settings.env in ("local", "test") and request.app.state.gcs.capability_mode == "dry_run":
-        # cleanup_images·public_asset_url이 쓰는 assets 버킷명과 일치해야 한다
-        return assets_bucket_name(settings) or "dry-run-assets"
-    raise DomainError(
-        "상품 이미지 저장소를 사용할 수 없습니다",
-        code="product_assets_unavailable",
-        status=503,
-    )
-
-
-def _public_asset_url(settings, object_key: str) -> str:  # noqa: ANN001 — app state Settings
-    url = public_asset_url(settings, object_key)
-    if url is None:
-        raise DomainError(
-            "상품 이미지 공개 주소가 설정되지 않았습니다",
-            code="product_assets_unavailable",
-            status=503,
-        )
-    return url
 
 
 def _product_filters(
@@ -652,7 +626,7 @@ async def create_admin_product_image_upload_url(
         object_key,
         body.content_type,
         max_size_bytes=MAX_PRODUCT_IMAGE_BYTES,
-        bucket_name=_assets_bucket(request),
+        bucket_name=assets_bucket_name(request.app.state.settings),
         create_only=True,
     )
     await session.commit()
@@ -665,7 +639,6 @@ async def create_admin_product_image_upload_url(
             "x-goog-if-generation-match": "0",
         },
         expires_at=expires_at,
-        upload_required=request.app.state.gcs.upload_required,
     )
 
 
@@ -713,39 +686,38 @@ async def complete_admin_product_image_upload(
 
     metadata = await request.app.state.gcs.object_metadata(
         image.object_key,
-        bucket_name=_assets_bucket(request),
+        bucket_name=assets_bucket_name(request.app.state.settings),
     )
-    if request.app.state.gcs.upload_required:
-        if metadata is None:
-            raise DomainError(
-                "업로드된 상품 이미지를 찾을 수 없습니다",
-                code="upload_not_found",
-            )
-        if not 0 < metadata.size_bytes <= MAX_PRODUCT_IMAGE_BYTES:
-            raise DomainError(
-                "상품 이미지는 10MB 이하여야 합니다",
-                code="product_image_too_large",
-                status=422,
-            )
-        if metadata.content_type != image.content_type:
-            raise DomainError(
-                "상품 이미지 형식이 일치하지 않습니다",
-                code="invalid_product_image_type",
-                status=422,
-            )
-        if metadata.size_bytes != image.size_bytes:
-            raise DomainError(
-                "상품 이미지 크기가 일치하지 않습니다",
-                code="invalid_product_image_size",
-                status=422,
-            )
+    if metadata is None:
+        raise DomainError(
+            "업로드된 상품 이미지를 찾을 수 없습니다",
+            code="upload_not_found",
+        )
+    if not 0 < metadata.size_bytes <= MAX_PRODUCT_IMAGE_BYTES:
+        raise DomainError(
+            "상품 이미지는 10MB 이하여야 합니다",
+            code="product_image_too_large",
+            status=422,
+        )
+    if metadata.content_type != image.content_type:
+        raise DomainError(
+            "상품 이미지 형식이 일치하지 않습니다",
+            code="invalid_product_image_type",
+            status=422,
+        )
+    if metadata.size_bytes != image.size_bytes:
+        raise DomainError(
+            "상품 이미지 크기가 일치하지 않습니다",
+            code="invalid_product_image_size",
+            status=422,
+        )
     image.upload_completed_at = now
     await session.commit()
     kind = cast(ProductImageKind, upload_types[image.entity_type])
     return AdminProductImageCompleteOut(
         upload_id=image.id,
         kind=kind,
-        public_url=_public_asset_url(request.app.state.settings, image.object_key),
+        public_url=public_asset_url(request.app.state.settings, image.object_key),
         content_type=image.content_type,
         size_bytes=image.size_bytes,
         completed_at=now,
@@ -823,9 +795,9 @@ async def admin_create_product(
             }
         )
         product_values["name"] = _validate_product_name(body.name)
-        product_values["image"] = _public_asset_url(request.app.state.settings, primary.object_key)
+        product_values["image"] = public_asset_url(request.app.state.settings, primary.object_key)
         product_values["detail_images"] = [
-            _public_asset_url(request.app.state.settings, image.object_key) for image in details
+            public_asset_url(request.app.state.settings, image.object_key) for image in details
         ] or None
         product = Product(**product_values, code=code)
         session.add(product)
@@ -901,10 +873,10 @@ async def admin_update_product(
             setattr(product, field, value)
 
         if primary is not None:
-            product.image = _public_asset_url(request.app.state.settings, primary.object_key)
+            product.image = public_asset_url(request.app.state.settings, primary.object_key)
         if detail_refs is not None and details is not None:
             product.detail_images = [
-                _public_asset_url(request.app.state.settings, image.object_key) for image in details
+                public_asset_url(request.app.state.settings, image.object_key) for image in details
             ] or None
         await _link_product_images(session, product, primary=primary, details=details)
 

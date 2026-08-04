@@ -32,7 +32,7 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 Postgres 17+pgvector :5432, fake-gcs-server :4443
 
 ```bash
-docker compose up -d
+docker compose up -d --wait
 ```
 
 의존성 설치
@@ -111,7 +111,7 @@ admin
 pnpm --filter admin dev
 ```
 
-api :8000 — 시크릿 없으면 Toss/Solapi는 DryRun, GCS는 `.env`의 `GCS_EMULATOR_HOST`로 fake-gcs-server 사용
+api :8000 — Toss/Solapi 키가 없으면 로컬 DryRun. GCS와 finalize는 별도 설정 없이 fake-gcs-server와 로컬 worker 사용
 
 ```bash
 uv run uvicorn api.main:app --reload
@@ -137,7 +137,7 @@ JS 빌드·타입체크·테스트
 pnpm turbo build typecheck test
 ```
 
-Python 테스트
+Python 테스트 — fake-gcs-server(`docker compose up -d --wait gcs`)가 떠 있어야 한다
 
 ```bash
 uv run pytest

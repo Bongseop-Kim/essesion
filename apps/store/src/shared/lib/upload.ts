@@ -16,37 +16,17 @@ export function validateImageFile(
 // 최대 10MB를 느린 모바일 회선으로 올릴 여유
 const UPLOAD_TIMEOUT_MS = 120_000;
 
-export async function putToSignedUrl(
-  url: string,
-  headers: HeadersInit | undefined,
+/** 서명 URL 발급 응답을 그대로 GCS로 PUT한다(모든 업로드 플로우 공통 단계). */
+export async function putIssued(
+  issued: { upload_url: string; required_headers?: HeadersInit },
   file: File,
   uploadError = "이미지를 업로드하지 못했습니다.",
 ): Promise<void> {
-  const response = await fetch(url, {
+  const response = await fetch(issued.upload_url, {
     method: "PUT",
-    headers,
+    headers: issued.required_headers,
     body: file,
     signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(uploadError);
-}
-
-/** 서명 URL 발급 응답이 업로드를 요구할 때만 GCS로 PUT한다(모든 업로드 플로우 공통 단계). */
-export async function putIfRequired(
-  issued: {
-    upload_required: boolean;
-    upload_url: string;
-    required_headers?: HeadersInit;
-  },
-  file: File,
-  uploadError?: string,
-): Promise<void> {
-  if (issued.upload_required) {
-    await putToSignedUrl(
-      issued.upload_url,
-      issued.required_headers,
-      file,
-      uploadError,
-    );
-  }
 }

@@ -17,12 +17,12 @@ from PIL import Image, ImageChops, ImageStat
 from worker.config import get_settings
 from worker.db import get_session
 from worker.engine.validate import validate_intent
-from worker.integrations import DryRunObjectStore
 from worker.main import create_app
 from worker.motifs.registry import MotifDef, register_motif
 from worker.render import fabric, inlay, motif_mask, weave
 from worker.render import segment as segment_mod
 
+from .conftest import FakeObjectStore
 from .intent_helpers import register_test_motifs
 
 register_test_motifs()
@@ -528,7 +528,7 @@ class _FakeFinalizeSession:
 
 def _finalize_app(monkeypatch, job):
     app = create_app()
-    app.state.object_store = DryRunObjectStore()
+    app.state.object_store = FakeObjectStore()
 
     async def _session():
         yield _FakeFinalizeSession(job)

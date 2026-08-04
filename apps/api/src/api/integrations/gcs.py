@@ -3,64 +3,60 @@
 고객 첨부는 비공개 업로드 버킷에서 signed read를 사용하고, 상품 이미지는 공개
 assets 버킷에 직접 업로드한다. 서명은 IAM signBlob(네트워크), 메타데이터 조회와
 삭제는 blocking IO라 threadpool로 실행한다.
-로컬은 gcs_emulator_host(docker compose의 fake-gcs-server)를 지정하면 같은
+로컬은 별도 설정 없이 docker compose의 fake-gcs-server를 사용해 같은
 RealGcsClient 경로를 탄다 — 서명만 생략하고 에뮬레이터가 서명을 검증하지 않는
-URL을 발급한다. 버킷 미설정 시 local/test는 DryRun(no-op), 그 밖의 환경은
-가짜 URL을 반환하지 않고 capability unavailable(503)로 실패한다.
+URL을 발급한다. 배포 환경에서 버킷이 빠지면 기동을 중단한다.
 """
 
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Never, Protocol
+from typing import Protocol
 from urllib.parse import quote
 
 from starlette.concurrency import run_in_threadpool
 
 from api.config import Settings
-from api.errors import ServiceUnavailableError
 
 logger = logging.getLogger(__name__)
 
 UPLOAD_URL_TTL = timedelta(minutes=15)
 READ_URL_TTL = timedelta(minutes=15)
+# worker(worker/integrations.py)·docker-compose.yml과 같은 값이어야 한다 — 포트를 바꾸면 세 곳 모두.
+LOCAL_GCS_EMULATOR_HOST = "http://localhost:4443"
+LOCAL_UPLOAD_BUCKET = "dev-uploads"
+LOCAL_ASSETS_BUCKET = "dev-assets"
 
 
-def assets_bucket_name(settings: Settings) -> str | None:
-    """Return the configured public-assets bucket without guessing in deployed envs."""
+def _emulator_host(settings: Settings) -> str:
+    """local/test는 항상 에뮬레이터를 경유한다 — 배포 환경은 실 GCS."""
+
+    if settings.env not in ("local", "test"):
+        return ""
+    return settings.gcs_emulator_host or LOCAL_GCS_EMULATOR_HOST
+
+
+def assets_bucket_name(settings: Settings) -> str:
+    """Return the configured bucket or the fixed local emulator bucket."""
 
     if settings.gcs_assets_bucket:
         return settings.gcs_assets_bucket
-    if settings.env in ("local", "test") and not settings.gcs_upload_bucket:
-        if settings.gcp_project_id:
-            return f"{settings.gcp_project_id}-assets"
-        return "dry-run-assets"
-    return None
+    if settings.env in ("local", "test"):
+        return LOCAL_ASSETS_BUCKET
+    raise RuntimeError("GCS_ASSETS_BUCKET is required outside local/test")
 
 
-def assets_capability_mode(settings: Settings) -> str:
-    if settings.gcs_assets_bucket:
-        return "real"
-    if settings.env in ("local", "test") and not settings.gcs_upload_bucket:
-        return "dry_run"
-    return "unavailable"
-
-
-def public_asset_url(settings: Settings, object_key: str) -> str | None:
+def public_asset_url(settings: Settings, object_key: str) -> str:
     """Build one canonical public URL from the configured assets origin."""
 
-    if not object_key:
-        return None
+    bucket = assets_bucket_name(settings)
+    emulator_host = _emulator_host(settings)
     if settings.gcs_assets_public_base_url:
         base_url = settings.gcs_assets_public_base_url.rstrip("/")
-    elif settings.gcs_emulator_host and (bucket := assets_bucket_name(settings)):
-        base_url = f"{settings.gcs_emulator_host.rstrip('/')}/{bucket}"
-    elif bucket := assets_bucket_name(settings):
-        base_url = f"https://storage.googleapis.com/{bucket}"
-    elif settings.env in ("local", "test") and not settings.gcs_upload_bucket:
-        base_url = "https://storage.googleapis.example/public"
+    elif emulator_host:
+        base_url = f"{emulator_host.rstrip('/')}/{bucket}"
     else:
-        return None
+        base_url = f"https://storage.googleapis.com/{bucket}"
     return f"{base_url}/{quote(object_key, safe='/')}"
 
 
@@ -71,9 +67,6 @@ class GcsObjectMetadata:
 
 
 class GcsClient(Protocol):
-    upload_required: bool
-    capability_mode: str
-
     async def signed_upload_url(
         self,
         object_key: str,
@@ -98,9 +91,6 @@ class GcsClient(Protocol):
 
 
 class RealGcsClient:
-    upload_required = True
-    capability_mode = "real"
-
     def __init__(self, bucket_name: str, emulator_host: str = ""):
         from google.cloud import storage
 
@@ -239,103 +229,16 @@ class RealGcsClient:
             return False
 
 
-class DryRunGcsClient:
-    upload_required = False
-    capability_mode = "dry_run"
-
-    def __init__(self) -> None:
-        self.deleted: list[str] = []
-        self.deleted_from: list[tuple[str | None, str]] = []
-        self.copied: list[tuple[str, str, str]] = []
-
-    async def signed_upload_url(
-        self,
-        object_key: str,
-        content_type: str,
-        *,
-        max_size_bytes: int | None = None,
-        bucket_name: str | None = None,
-        create_only: bool = False,
-    ) -> str:
-        logger.info("DRYRUN gcs signed url: %s (%s)", object_key, content_type)
-        if bucket_name:
-            return f"https://storage.googleapis.example/dry-run/{bucket_name}/{object_key}"
-        return f"https://storage.googleapis.example/dry-run/{object_key}"
-
-    async def signed_read_url(self, object_key: str) -> str:
-        logger.info("DRYRUN gcs read url: %s", object_key)
-        return f"https://storage.googleapis.example/dry-run/{object_key}"
-
-    async def delete_object(self, object_key: str, *, bucket_name: str | None = None) -> bool:
-        logger.info("DRYRUN gcs delete: %s", object_key)
-        self.deleted.append(object_key)
-        self.deleted_from.append((bucket_name, object_key))
-        return True
-
-    async def object_metadata(
-        self, object_key: str, *, bucket_name: str | None = None
-    ) -> GcsObjectMetadata | None:
-        return None
-
-    async def copy_from_bucket(
-        self, source_bucket: str, source_key: str, destination_key: str
-    ) -> bool:
-        logger.info(
-            "DRYRUN gcs copy: gs://%s/%s -> %s",
-            source_bucket,
-            source_key,
-            destination_key,
-        )
-        self.copied.append((source_bucket, source_key, destination_key))
-        return True
-
-
-class UnavailableGcsClient:
-    upload_required = True
-    capability_mode = "unavailable"
-
-    @staticmethod
-    def _raise() -> Never:
-        raise ServiceUnavailableError(
-            "파일 저장 기능을 사용할 수 없습니다.", code="gcs_unavailable"
-        )
-
-    async def signed_upload_url(
-        self,
-        object_key: str,
-        content_type: str,
-        *,
-        max_size_bytes: int | None = None,
-        bucket_name: str | None = None,
-        create_only: bool = False,
-    ) -> str:
-        self._raise()
-
-    async def signed_read_url(self, object_key: str) -> str:
-        self._raise()
-
-    async def delete_object(self, object_key: str, *, bucket_name: str | None = None) -> bool:
-        self._raise()
-
-    async def object_metadata(
-        self, object_key: str, *, bucket_name: str | None = None
-    ) -> GcsObjectMetadata | None:
-        self._raise()
-
-    async def copy_from_bucket(
-        self, source_bucket: str, source_key: str, destination_key: str
-    ) -> bool:
-        self._raise()
-
-
 def build_gcs_client(settings: Settings) -> GcsClient:
+    """업로드·assets 버킷을 기동 시점에 한 번 검증한다 — 요청 중에는 던지지 않는다."""
+
     if settings.gcs_emulator_host and settings.env not in ("local", "test"):
         # 서명·인가가 없는 에뮬레이터 경로가 배포 환경에 섞이지 않도록 fail-closed
         raise RuntimeError("GCS_EMULATOR_HOST는 local/test 전용입니다")
-    if settings.gcs_upload_bucket:
-        return RealGcsClient(settings.gcs_upload_bucket, emulator_host=settings.gcs_emulator_host)
-    if settings.env in ("local", "test"):
-        logger.warning("GCS_UPLOAD_BUCKET 없음 — local/test DryRun GCS 클라이언트로 동작")
-        return DryRunGcsClient()
-    logger.error("GCS_UPLOAD_BUCKET 없음 — GCS capability unavailable")
-    return UnavailableGcsClient()
+    if settings.env not in ("local", "test") and not settings.gcs_upload_bucket:
+        raise RuntimeError("GCS_UPLOAD_BUCKET is required outside local/test")
+    assets_bucket_name(settings)  # 배포 환경에서 assets 버킷이 빠지면 여기서 기동 중단
+    return RealGcsClient(
+        settings.gcs_upload_bucket or LOCAL_UPLOAD_BUCKET,
+        emulator_host=_emulator_host(settings),
+    )

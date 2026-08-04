@@ -36,15 +36,13 @@ export async function uploadProductImage(
     },
     throwOnError: true,
   });
-  if (issued.data.upload_required) {
-    const response = await fetch(issued.data.upload_url, {
-      method: "PUT",
-      headers: issued.data.required_headers,
-      body: file,
-      signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
-    });
-    if (!response.ok) throw new Error("상품 이미지를 업로드하지 못했습니다.");
-  }
+  const response = await fetch(issued.data.upload_url, {
+    method: "PUT",
+    headers: issued.data.required_headers,
+    body: file,
+    signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error("상품 이미지를 업로드하지 못했습니다.");
   const completed = await completeAdminProductImageUpload({
     path: { upload_id: issued.data.upload_id },
     throwOnError: true,

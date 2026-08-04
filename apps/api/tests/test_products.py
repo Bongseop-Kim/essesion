@@ -1,7 +1,8 @@
 from .factories import auth_headers, make_admin, make_product, make_user
+from .fakes import simulate_uploads
 
 
-async def _primary_upload_id(client, headers) -> str:  # noqa: ANN001
+async def _primary_upload_id(app, client, headers) -> str:  # noqa: ANN001
     issued = await client.post(
         "/admin/products/images/upload-url",
         json={
@@ -14,6 +15,7 @@ async def _primary_upload_id(client, headers) -> str:  # noqa: ANN001
     )
     assert issued.status_code == 200, issued.text
     upload_id = issued.json()["upload_id"]
+    await simulate_uploads(app)
     completed = await client.post(f"/admin/products/images/{upload_id}/complete", headers=headers)
     assert completed.status_code == 200, completed.text
     return upload_id
@@ -97,7 +99,7 @@ async def test_list_products_searches_name_with_literal_wildcards(client, db_ses
     assert [p["name"] for p in literal.json()] == ["Navy_100% Tie"]
 
 
-async def test_admin_create_product_auto_code(client, db_session, settings):
+async def test_admin_create_product_auto_code(app, client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
 
@@ -112,12 +114,12 @@ async def test_admin_create_product_auto_code(client, db_session, settings):
     }
     first = await client.post(
         "/admin/products",
-        json={**body, "image_upload_id": await _primary_upload_id(client, headers)},
+        json={**body, "image_upload_id": await _primary_upload_id(app, client, headers)},
         headers=headers,
     )
     second = await client.post(
         "/admin/products",
-        json={**body, "image_upload_id": await _primary_upload_id(client, headers)},
+        json={**body, "image_upload_id": await _primary_upload_id(app, client, headers)},
         headers=headers,
     )
     assert first.status_code == 201 and second.status_code == 201
@@ -126,7 +128,7 @@ async def test_admin_create_product_auto_code(client, db_session, settings):
     assert code2.endswith("-002")
 
 
-async def test_admin_product_update_forces_product_stock_null(client, db_session, settings):
+async def test_admin_product_update_forces_product_stock_null(app, client, db_session, settings):
     admin = await make_admin(db_session)
     headers = auth_headers(admin, settings)
     created = await client.post(
@@ -140,7 +142,7 @@ async def test_admin_product_update_forces_product_stock_null(client, db_session
             "pattern": "solid",
             "material": "silk",
             "info": "테스트",
-            "image_upload_id": await _primary_upload_id(client, headers),
+            "image_upload_id": await _primary_upload_id(app, client, headers),
         },
         headers=headers,
     )

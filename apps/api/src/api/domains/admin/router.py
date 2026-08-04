@@ -32,8 +32,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 class AdminCapabilitiesOut(BaseModel):
     toss: str
-    gcs: str
-    gcs_assets: str
     solapi: str
     worker: str
     finalize_tasks: str

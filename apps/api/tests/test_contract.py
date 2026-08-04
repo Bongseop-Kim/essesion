@@ -15,6 +15,7 @@ from hypothesis import settings as hypothesis_settings
 from schemathesis.checks import not_a_server_error
 
 from .factories import auth_headers, make_admin
+from .fakes import FakeGcsClient, FakeTaskQueue
 
 OPENAPI_JSON = Path(__file__).parents[3] / "packages/api-client/openapi.json"
 schema = schemathesis.openapi.from_path(OPENAPI_JSON)
@@ -24,14 +25,18 @@ _ctx: dict[str, Any] = {}
 
 
 @pytest.fixture
-async def contract_app(app, db_session, settings):
+async def contract_app(app, db_session, settings, monkeypatch):
     from api.integrations.toss import DryRunTossClient
 
     admin = await make_admin(db_session)
-    # Schemathesis의 ASGI transport가 lifespan을 다시 열어 클라이언트를 재구성하므로
-    # 현재 state뿐 아니라 lifespan closure가 참조하는 설정도 DryRun으로 고정한다.
+    # Schemathesis의 ASGI transport가 lifespan을 다시 열어 클라이언트를 재구성한다.
+    # 외부 provider와 저장소/큐는 명시적 테스트 fake로 고정한다.
     settings.toss_secret_key = ""
     app.state.toss = DryRunTossClient()
+    app.state.gcs = FakeGcsClient()
+    app.state.tasks = FakeTaskQueue()
+    monkeypatch.setattr("api.main.build_gcs_client", lambda _settings: FakeGcsClient())
+    monkeypatch.setattr("api.main.build_task_queue", lambda _settings, _worker: FakeTaskQueue())
     _ctx.update(app=app, headers=auth_headers(admin, settings))
     yield
     _ctx.clear()

@@ -5,7 +5,7 @@ import type {
 } from "@essesion/api-client";
 import { completeOrderImage, createUploadUrl } from "@essesion/api-client";
 
-import { putIfRequired, validateImageFile } from "@/shared/lib/upload";
+import { putIssued, validateImageFile } from "@/shared/lib/upload";
 
 export { IMAGE_ACCEPT as CUSTOM_IMAGE_ACCEPT } from "@/shared/lib/upload";
 
@@ -36,7 +36,7 @@ export async function uploadOrderImage(
     },
   });
   if (!issued.data) throw new Error("이미지 업로드를 준비하지 못했습니다.");
-  await putIfRequired(issued.data, file);
+  await putIssued(issued.data, file);
   if (kind !== "quote_request") {
     if (!issued.data.upload_id)
       throw new Error("이미지 업로드 식별자를 확인하지 못했습니다.");

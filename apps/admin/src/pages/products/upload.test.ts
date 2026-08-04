@@ -43,7 +43,6 @@ describe("uploadProductImage", () => {
           "x-goog-if-generation-match": "0",
         },
         expires_at: "2026-07-13T01:00:00Z",
-        upload_required: true,
       },
     });
     const file = new File(["image"], "product.webp", {
@@ -74,24 +73,25 @@ describe("uploadProductImage", () => {
     });
   });
 
-  it("DryRun에서는 PUT을 생략해도 완료·관계 ID 계약을 유지한다", async () => {
-    const fetch = vi.spyOn(globalThis, "fetch");
+  it("PUT이 실패하면 완료 API를 호출하지 않는다", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 403 }),
+    );
     api.issue.mockResolvedValue({
       data: {
         upload_id: "00000000-0000-4000-8000-000000000101",
-        upload_url: "https://storage.example/dry-run",
+        upload_url: "https://storage.example/signed",
         required_headers: { "Content-Type": "image/webp" },
         expires_at: "2026-07-13T01:00:00Z",
-        upload_required: false,
       },
     });
     const file = new File(["image"], "product.webp", {
       type: "image/webp",
     });
 
-    await uploadProductImage(file, "detail");
-
-    expect(fetch).not.toHaveBeenCalled();
+    await expect(uploadProductImage(file, "detail")).rejects.toThrow(
+      "상품 이미지를 업로드하지 못했습니다.",
+    );
     expect(api.issue).toHaveBeenCalledWith({
       body: {
         kind: "detail",
@@ -101,6 +101,6 @@ describe("uploadProductImage", () => {
       },
       throwOnError: true,
     });
-    expect(api.complete).toHaveBeenCalledTimes(1);
+    expect(api.complete).not.toHaveBeenCalled();
   });
 });

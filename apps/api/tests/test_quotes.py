@@ -3,11 +3,12 @@
 from datetime import UTC, datetime, timedelta
 
 from api.domains.quotes.service import MAX_REFERENCE_IMAGE_BYTES
-from api.integrations.gcs import DryRunGcsClient, GcsObjectMetadata
+from api.integrations.gcs import GcsObjectMetadata
 from db.models.images import Image
 from sqlalchemy import select
 
 from .factories import auth_headers, make_address, make_admin, make_user
+from .fakes import FakeGcsClient, simulate_uploads
 
 
 def _quote_body(address, **overrides):
@@ -24,7 +25,7 @@ def _quote_body(address, **overrides):
     return body
 
 
-async def _issue_quote_image(client, headers) -> str:
+async def _issue_quote_image(app, client, headers, *, simulate=True) -> str:
     response = await client.post(
         "/images/upload-url",
         json={
@@ -36,23 +37,12 @@ async def _issue_quote_image(client, headers) -> str:
         headers=headers,
     )
     assert response.status_code == 200, response.text
+    if simulate:
+        await simulate_uploads(app)
     return response.json()["object_key"]
 
 
-class _MetadataGcs(DryRunGcsClient):
-    upload_required = True
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.metadata: dict[str, GcsObjectMetadata] = {}
-
-    async def object_metadata(
-        self, object_key: str, *, bucket_name: str | None = None
-    ) -> GcsObjectMetadata | None:
-        return self.metadata.get(object_key)
-
-
-async def test_create_quote_and_validation(client, db_session, settings):
+async def test_create_quote_and_validation(app, client, db_session, settings):
     user = await make_user(db_session)
     address = await make_address(db_session, user)
     headers = auth_headers(user, settings)
@@ -73,7 +63,7 @@ async def test_create_quote_and_validation(client, db_session, settings):
     )
     assert too_many_images.status_code == 422
 
-    object_key = await _issue_quote_image(client, headers)
+    object_key = await _issue_quote_image(app, client, headers)
     res = await client.post(
         "/quotes",
         json=_quote_body(address, reference_images=[{"object_key": object_key}]),
@@ -110,13 +100,13 @@ async def test_create_quote_and_validation(client, db_session, settings):
     assert expired.json()["code"] == "image_expired"
 
 
-async def test_quote_rejects_unissued_and_foreign_images(client, db_session, settings):
+async def test_quote_rejects_unissued_and_foreign_images(app, client, db_session, settings):
     owner = await make_user(db_session)
     other = await make_user(db_session)
     other_address = await make_address(db_session, other)
     owner_headers = auth_headers(owner, settings)
     other_headers = auth_headers(other, settings)
-    object_key = await _issue_quote_image(client, owner_headers)
+    object_key = await _issue_quote_image(app, client, owner_headers)
 
     foreign = await client.post(
         "/quotes",
@@ -155,11 +145,11 @@ async def test_quote_rejects_unissued_and_foreign_images(client, db_session, set
 
 
 async def test_quote_requires_uploaded_object_metadata(client, app, db_session, settings):
-    app.state.gcs = _MetadataGcs()
+    app.state.gcs = FakeGcsClient()
     user = await make_user(db_session)
     address = await make_address(db_session, user)
     headers = auth_headers(user, settings)
-    object_key = await _issue_quote_image(client, headers)
+    object_key = await _issue_quote_image(app, client, headers, simulate=False)
     body = _quote_body(address, reference_images=[{"object_key": object_key}])
 
     missing = await client.post("/quotes", json=body, headers=headers)
@@ -185,11 +175,11 @@ async def test_quote_requires_uploaded_object_metadata(client, app, db_session, 
 async def test_quote_rejects_duplicate_expired_and_oversized_images(
     client, app, db_session, settings
 ):
-    app.state.gcs = _MetadataGcs()
+    app.state.gcs = FakeGcsClient()
     user = await make_user(db_session)
     address = await make_address(db_session, user)
     headers = auth_headers(user, settings)
-    object_key = await _issue_quote_image(client, headers)
+    object_key = await _issue_quote_image(app, client, headers)
 
     duplicate = await client.post(
         "/quotes",
@@ -229,12 +219,12 @@ async def test_quote_rejects_duplicate_expired_and_oversized_images(
     assert oversized.json()["code"] == "image_too_large"
 
 
-async def test_admin_quote_transition_and_image_expiry(client, db_session, settings):
+async def test_admin_quote_transition_and_image_expiry(app, client, db_session, settings):
     user = await make_user(db_session)
     admin = await make_admin(db_session)
     address = await make_address(db_session, user)
     user_headers = auth_headers(user, settings)
-    object_key = await _issue_quote_image(client, user_headers)
+    object_key = await _issue_quote_image(app, client, user_headers)
     quote_id = (
         await client.post(
             "/quotes",

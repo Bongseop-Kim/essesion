@@ -5,7 +5,7 @@ const api = vi.hoisted(() => ({
   createUploadUrl: vi.fn(),
 }));
 const uploads = vi.hoisted(() => ({
-  putIfRequired: vi.fn(),
+  putIssued: vi.fn(),
   validateImageFile: vi.fn(),
 }));
 
@@ -38,7 +38,6 @@ describe("uploadOrderImage", () => {
           "Content-Type": "image/png",
           "x-goog-if-generation-match": "0",
         },
-        upload_required: true,
       },
     });
     api.completeOrderImage.mockResolvedValue({
@@ -48,14 +47,13 @@ describe("uploadOrderImage", () => {
     await expect(uploadOrderImage(file, "custom_order")).resolves.toEqual({
       upload_id: "89dc3b35-9ca2-4b18-a0e0-02a099d76a23",
     });
-    expect(uploads.putIfRequired).toHaveBeenCalledWith(
+    expect(uploads.putIssued).toHaveBeenCalledWith(
       expect.objectContaining({
         upload_url: "https://upload.test/signed",
         required_headers: {
           "Content-Type": "image/png",
           "x-goog-if-generation-match": "0",
         },
-        upload_required: true,
       }),
       file,
     );
@@ -69,9 +67,8 @@ describe("uploadOrderImage", () => {
       data: {
         object_key: "uploads/quote_request/private.png",
         upload_id: "807af2cf-c9f4-4d33-b9d6-8be054e63292",
-        upload_url: "dry-run://upload",
+        upload_url: "https://storage.example/test-upload",
         required_headers: {},
-        upload_required: false,
       },
     });
 
@@ -86,9 +83,8 @@ describe("uploadOrderImage", () => {
       data: {
         object_key: "uploads/custom_order/private.png",
         upload_id: null,
-        upload_url: "dry-run://upload",
+        upload_url: "https://storage.example/test-upload",
         required_headers: {},
-        upload_required: false,
       },
     });
 

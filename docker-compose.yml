@@ -11,7 +11,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  # GCS 대체 — api·worker가 GCS_EMULATOR_HOST로 붙어 실제 GCS 클라이언트 경로를 탄다.
+  # GCS 대체 — local/test api·worker의 기본값이 이 서버와 dev-* 버킷을 사용한다.
   # cors-headers는 브라우저 직접 PUT(putToSignedUrl)의 preflight에 필요.
   gcs:
     image: fsouza/fake-gcs-server:1.55.0
@@ -27,6 +27,12 @@ services:
         -cors-headers content-type,x-goog-if-generation-match,x-goog-content-length-range
     volumes:
       - gcsdata:/data
+    # `up -d --wait`가 리스닝까지 기다리도록 — CI에서 테스트가 먼저 붙는 레이스 방지
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4443/storage/v1/b?project=local"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
 
 volumes:
   pgdata:

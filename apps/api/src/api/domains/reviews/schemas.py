@@ -50,7 +50,6 @@ class ReviewPhotoUploadOut(BaseModel):
     upload_url: str
     required_headers: dict[str, str]
     expires_at: datetime
-    upload_required: bool
 
 
 class ReviewPhotoUploadCompleteOut(BaseModel):

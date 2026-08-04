@@ -1,13 +1,11 @@
-"""GCS 에뮬레이터(fake-gcs-server) 모드 — 로컬에서 RealGcsClient가 서명 없이 동작.
+"""로컬 GCS 기본값 — fake-gcs-server 실경로와 배포 fail-fast 계약."""
 
-에뮬레이터 자체는 docker compose로 뜨므로 여기서는 네트워크 없이 검증 가능한
-계약만 다룬다: 클라이언트 선택, URL 형태, 배포 환경 fail-closed.
-"""
+import uuid
 
+import httpx
 import pytest
 from api.config import Settings
 from api.integrations.gcs import (
-    DryRunGcsClient,
     RealGcsClient,
     build_gcs_client,
     public_asset_url,
@@ -32,18 +30,27 @@ def _emulator_settings(**overrides) -> Settings:
 def test_build_gcs_client_selects_real_client_against_emulator():
     client = build_gcs_client(_emulator_settings())
     assert isinstance(client, RealGcsClient)
-    assert client.capability_mode == "real"
-    # 에뮬레이터 host만 있고 버킷이 없으면 예전처럼 DryRun
-    assert isinstance(
-        build_gcs_client(_TestSettings(env="local", gcs_emulator_host="http://localhost:4443")),
-        DryRunGcsClient,
-    )
+    assert isinstance(build_gcs_client(_TestSettings(env="local")), RealGcsClient)
 
 
 def test_emulator_host_is_rejected_outside_local():
     with pytest.raises(RuntimeError):
         build_gcs_client(
             _emulator_settings(env="staging", public_api_origin="https://api.example.com")
+        )
+
+
+def test_nonlocal_missing_buckets_fail_fast():
+    settings = _TestSettings(env="staging", public_api_origin="https://api.example.com")
+    with pytest.raises(RuntimeError, match="GCS_UPLOAD_BUCKET"):
+        build_gcs_client(settings)
+    with pytest.raises(RuntimeError, match="GCS_ASSETS_BUCKET"):
+        build_gcs_client(
+            _TestSettings(
+                env="staging",
+                public_api_origin="https://api.example.com",
+                gcs_upload_bucket="uploads",
+            )
         )
 
 
@@ -65,6 +72,23 @@ async def test_emulator_urls_skip_signing():
     assert read_url == "http://localhost:4443/dev-uploads/uploads/a/b.png"
 
 
+async def test_default_local_client_round_trips_through_emulator():
+    client = build_gcs_client(_TestSettings(env="test"))
+    object_key = f"uploads/test/{uuid.uuid4()}.txt"
+    upload_url = await client.signed_upload_url(object_key, "text/plain", create_only=True)
+
+    async with httpx.AsyncClient() as http:
+        uploaded = await http.put(
+            upload_url,
+            content=b"emulator",
+            headers={"Content-Type": "text/plain"},
+        )
+    assert uploaded.status_code < 300
+    assert await client.object_metadata(object_key) is not None
+    assert await client.delete_object(object_key)
+    assert await client.object_metadata(object_key) is None
+
+
 def test_public_asset_url_points_at_emulator_assets_bucket():
     url = public_asset_url(_emulator_settings(), "fabric/abc.png")
     assert url == "http://localhost:4443/dev-assets/fabric/abc.png"
@@ -74,3 +98,7 @@ def test_public_asset_url_points_at_emulator_assets_bucket():
         "fabric/abc.png",
     )
     assert overridden == "https://assets.example.com/fabric/abc.png"
+
+    assert public_asset_url(_TestSettings(env="local"), "fabric/default.png") == (
+        "http://localhost:4443/dev-assets/fabric/default.png"
+    )

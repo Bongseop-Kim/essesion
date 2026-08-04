@@ -57,7 +57,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 ## 7. 견적 (quotes)
 
-- 생성: 100 ≤ quantity ≤ 10,000, options는 object(UTF-8 compact JSON 10KB 제한), contact_method ∈ {email, phone}, contact_name(최대 100자)/value(최대 320자) 필수, business_name 최대 200자, additional_notes 최대 500자, 배송지 본인 소유. reference_images는 최대 5개이며 object_key는 최대 1,024자, `kind=quote_request` 서명 URL 발급 시 생성한 본인 소유 스테이징 행만 허용한다. 발급 단계에서 선언 크기와 10MiB PUT 상한을 서명하고, 생성 시 GCS metadata(존재·MIME·실제 크기)를 선언값과 대조한 뒤 중복 INSERT 없이 `quote_request`로 재연결한다(DryRun은 발급된 스테이징 행을 업로드 증명으로 사용). `QUO-` 채번. status='요청'. 접수 알림톡(수신 조건 4종): `[ESSE SION] 견적 요청이 접수되었습니다.\n담당자가 순차적으로 연락드리겠습니다.`
+- 생성: 100 ≤ quantity ≤ 10,000, options는 object(UTF-8 compact JSON 10KB 제한), contact_method ∈ {email, phone}, contact_name(최대 100자)/value(최대 320자) 필수, business_name 최대 200자, additional_notes 최대 500자, 배송지 본인 소유. reference_images는 최대 5개이며 object_key는 최대 1,024자, `kind=quote_request` 서명 URL 발급 시 생성한 본인 소유 스테이징 행만 허용한다. 발급 단계에서 선언 크기와 10MiB PUT 상한을 서명하고, 생성 시 GCS metadata(존재·MIME·실제 크기)를 선언값과 대조한 뒤 중복 INSERT 없이 `quote_request`로 재연결한다. `QUO-` 채번. status='요청'. 접수 알림톡(수신 조건 4종): `[ESSE SION] 견적 요청이 접수되었습니다.\n담당자가 순차적으로 연락드리겠습니다.`
 - admin 전이: 요청→{견적발송,종료}, 견적발송→{협의중,종료}, 협의중→{확정,종료}. quoted_amount ≥ 0. quoted_amount/quote_conditions/admin_memo는 부분 갱신(coalesce). 로그 기록.
 - **확정·종료 진입 시** 해당 견적 이미지 `expires_at = now()+90일`(기존 NULL만) — 구 트리거를 api 로직으로.
 

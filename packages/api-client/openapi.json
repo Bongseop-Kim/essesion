@@ -137,14 +137,6 @@
             "title": "Finalize Tasks",
             "type": "string"
           },
-          "gcs": {
-            "title": "Gcs",
-            "type": "string"
-          },
-          "gcs_assets": {
-            "title": "Gcs Assets",
-            "type": "string"
-          },
           "oauth_apple": {
             "title": "Oauth Apple",
             "type": "string"
@@ -176,8 +168,6 @@
         },
         "required": [
           "toss",
-          "gcs",
-          "gcs_assets",
           "solapi",
           "worker",
           "finalize_tasks",
@@ -2792,10 +2782,6 @@
             "title": "Upload Id",
             "type": "string"
           },
-          "upload_required": {
-            "title": "Upload Required",
-            "type": "boolean"
-          },
           "upload_url": {
             "title": "Upload Url",
             "type": "string"
@@ -2805,8 +2791,7 @@
           "upload_id",
           "upload_url",
           "required_headers",
-          "expires_at",
-          "upload_required"
+          "expires_at"
         ],
         "title": "AdminProductImageUploadOut",
         "type": "object"
@@ -12896,10 +12881,6 @@
             "title": "Required Headers",
             "type": "object"
           },
-          "upload_required": {
-            "title": "Upload Required",
-            "type": "boolean"
-          },
           "upload_url": {
             "title": "Upload Url",
             "type": "string"
@@ -12910,8 +12891,7 @@
           "upload_url",
           "required_headers",
           "claim_token",
-          "expires_at",
-          "upload_required"
+          "expires_at"
         ],
         "title": "ReformUploadUrlResponse",
         "type": "object"
@@ -13516,10 +13496,6 @@
             "title": "Upload Id",
             "type": "string"
           },
-          "upload_required": {
-            "title": "Upload Required",
-            "type": "boolean"
-          },
           "upload_url": {
             "title": "Upload Url",
             "type": "string"
@@ -13529,8 +13505,7 @@
           "upload_id",
           "upload_url",
           "required_headers",
-          "expires_at",
-          "upload_required"
+          "expires_at"
         ],
         "title": "ReviewPhotoUploadOut",
         "type": "object"
@@ -14902,10 +14877,6 @@
             "title": "Upload Id",
             "type": "string"
           },
-          "upload_required": {
-            "title": "Upload Required",
-            "type": "boolean"
-          },
           "upload_url": {
             "title": "Upload Url",
             "type": "string"
@@ -14915,8 +14886,7 @@
           "object_key",
           "upload_id",
           "upload_url",
-          "required_headers",
-          "upload_required"
+          "required_headers"
         ],
         "title": "UploadUrlResponse",
         "type": "object"

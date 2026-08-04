@@ -16,6 +16,7 @@ from .factories import (
     make_user_coupon,
     seed_pricing,
 )
+from .fakes import simulate_uploads
 
 REFORM_CONSTANTS = {
     "REFORM_AUTOMATIC_COST": 5000,
@@ -370,7 +371,7 @@ async def test_custom_calculate_rules(client, db_session):
         }
 
 
-async def test_custom_order_creates_with_remainder(client, db_session, settings):
+async def test_custom_order_creates_with_remainder(app, client, db_session, settings):
     user = await make_user(db_session)
     address = await make_address(db_session, user)
     await seed_pricing(
@@ -403,6 +404,7 @@ async def test_custom_order_creates_with_remainder(client, db_session, settings)
         headers=headers,
     )
     upload_id = issued.json()["upload_id"]
+    await simulate_uploads(app)
     completed = await client.post(f"/images/order-uploads/{upload_id}/complete", headers=headers)
     assert completed.status_code == 200, completed.text
 

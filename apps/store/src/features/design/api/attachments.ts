@@ -5,7 +5,7 @@ import {
   type UserMotifOut,
 } from "@essesion/api-client";
 
-import { putToSignedUrl, validateImageFile } from "@/shared/lib/upload";
+import { putIssued, validateImageFile } from "@/shared/lib/upload";
 
 export { IMAGE_ACCEPT as DESIGN_PHOTO_ACCEPT } from "@/shared/lib/upload";
 
@@ -24,14 +24,7 @@ export async function uploadDesignPhoto(file: File): Promise<string> {
     },
     throwOnError: true,
   });
-  if (issued.data.upload_required) {
-    await putToSignedUrl(
-      issued.data.upload_url,
-      issued.data.required_headers,
-      file,
-      "사진을 업로드하지 못했습니다.",
-    );
-  }
+  await putIssued(issued.data, file, "사진을 업로드하지 못했습니다.");
   const completed = await completeDesignReferenceUpload({
     path: { upload_id: issued.data.upload_id },
     throwOnError: true,

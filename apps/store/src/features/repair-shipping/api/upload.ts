@@ -3,7 +3,7 @@ import {
   registerRepairShippingUpload,
 } from "@essesion/api-client";
 
-import { putIfRequired, validateImageFile } from "@/shared/lib/upload";
+import { putIssued, validateImageFile } from "@/shared/lib/upload";
 
 export { IMAGE_ACCEPT as REPAIR_PHOTO_ACCEPT } from "@/shared/lib/upload";
 
@@ -21,7 +21,7 @@ export async function uploadRepairShippingPhoto(file: File): Promise<string> {
   });
   if (!issued.data) throw new Error("사진 업로드를 준비하지 못했습니다.");
 
-  await putIfRequired(issued.data, file, "사진을 업로드하지 못했습니다.");
+  await putIssued(issued.data, file, "사진을 업로드하지 못했습니다.");
 
   const registered = await registerRepairShippingUpload({
     body: { upload_id: issued.data.upload_id },

@@ -1,4 +1,4 @@
-"""전 필드 default — 시크릿 없이 import 가능해야 한다(OpenAPI export·로컬 dry-run 전제).
+"""전 필드 default — 시크릿 없이 import 가능해야 한다(OpenAPI export·로컬 실행 전제).
 
 시크릿 실값은 로컬 .env / 스테이징 Secret Manager. 시크릿 커밋 금지.
 """
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     apple_key_id: str = ""
     apple_private_key: str = ""  # Sign in with Apple .p8 PEM — 개행은 \n 이스케이프 허용
 
-    # 외부 연동 — 비어 있으면 local/test만 DryRun, 그 밖의 환경은 unavailable
+    # 외부 provider — 비어 있으면 local/test만 로컬 대체, 그 밖의 환경은 unavailable
     toss_secret_key: str = ""
     solapi_api_key: str = ""
     solapi_api_secret: str = ""
@@ -74,12 +74,10 @@ class Settings(BaseSettings):
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §6)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
     gcs_assets_public_base_url: str = ""  # Cloudflare asset proxy 사용 시 override
-    # 로컬 GCS 에뮬레이터(docker compose의 fake-gcs-server) origin — local/test 전용.
-    # 설정하면 RealGcsClient가 서명 없이 이 호스트로 업로드·서빙 URL을 발급한다.
+    # local/test에서 비우면 builder가 docker compose의 fake-gcs-server를 사용한다.
     gcs_emulator_host: str = ""
     worker_base_url: str = "http://localhost:8001"
     worker_timeout_seconds: float = 180.0
-    worker_finalize_inline: bool = False
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
     worker_finalize_oidc_audience: str = ""
     # finalize 상한은 계정당 24시간 쿼터 — admin_settings 'design_finalize_daily_limit'

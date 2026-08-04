@@ -66,8 +66,6 @@ const summary: DashboardSummaryOut = {
 
 const capabilities: AdminCapabilitiesOut = {
   toss: "real",
-  gcs: "real",
-  gcs_assets: "real",
   solapi: "real",
   worker: "real",
   finalize_tasks: "real",

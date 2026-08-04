@@ -10,7 +10,7 @@ def test_healthz():
     assert "x-request-id" in res.headers
 
 
-def test_local_readyz_bypasses_external_database_and_uses_dry_run_store():
+def test_local_readyz_bypasses_database_and_uses_emulator_store():
     application = create_app(Settings(_env_file=None))  # type: ignore[call-arg]
     with TestClient(application) as client:
         response = client.get("/readyz")
@@ -18,7 +18,7 @@ def test_local_readyz_bypasses_external_database_and_uses_dry_run_store():
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
-        "capabilities": {"database": "bypassed", "gcs_assets": "dry_run"},
+        "capabilities": {"database": "bypassed"},
     }
 
 
