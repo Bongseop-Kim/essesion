@@ -29,7 +29,7 @@
 - [ ] 수치·배열 바운드를 포함한 OpenAI strict schema로 `eval_authoring.py --confirm-live` 30건 재평가 → compile 30/30, retrieval 30/30 및 재시도·p95를 2026-08-03 기준선과 비교
 - [ ] 모티프 모달의 Recraft V4.1 vector 스테이징 스모크 → 한국어 원문 subject와 `random_seed` 수용, 별도 style/design context 미주입, gradient·텍스트·복잡도 게이트 거부율 기록. V4.1에서 지원하지 않는 `negative_prompt`·`controls.no_text`가 전송되지 않는지 함께 확인한다(V2/V3 호환 경로만 조건부 전송). 생성 SVG의 원본 색상이 저장·검색·디자인 배치까지 유지되는지, 디자인 생성의 catalog miss에서는 Recraft 호출·예산 변화가 없는지도 확인
 - [ ] Recraft 모티프 승인 게이트 스테이징 리허설 → 신규 행이 `pending`이고 요청 세션의 ID 직접 렌더는 유지되는지, 다른 사용자 검색·grounding·variant 풀과 registry fingerprint에서는 빠지는지 확인. admin 승인 시 즉시 노출·fingerprint 변경, 거절/승인 회수 시 즉시 제외, manager mutation 403을 함께 검증
-- [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(첫 생성 → 구성 수정 → 모티프 검색·명시적 생성·교체 → 이력 되돌리기 → finalize 큐 → 결과 수신) — *로컬 fake-gcs + inline finalize의 예시→실사화→완성본 조회는 2026-08-04 통과. 모티프 언급→부분 적용/무과금 거절→검색어 프리필·피커 강조는 같은 날 worker/API/store 경계 테스트를 통과했다. 스테이징 Cloud Tasks 경로와 전체 시나리오는 남음.*
+- [ ] E2E: 소셜 로그인 4종 / 주문·결제·클레임 / 생성(첫 생성 → 구성 수정 → 모티프 검색·명시적 생성·교체 → 이력 되돌리기 → finalize 큐 → 결과 수신) — *로컬 전체 디자인 플로우를 2026-08-04 Aside로 실행했다(`docs/reviews/design-flow-e2e-2026-08-04.md`). Recraft 1회·inline finalize는 성공했고, 온보딩 닫힘 유지·현재 세션 삭제 후 빈 캔버스·motif generation 로그 누락 회귀가 남았다. 스테이징 Cloud Tasks 경로와 소셜 로그인 4종·주문·결제·클레임 전체 시나리오도 남음.*
 - [ ] 디자인 첫 진입 예시 큐레이션 — *기본 6종은 `apps/worker/scripts/seed_design_examples.py`(외부 API 없이 gallery-v1 플랜을 결정론 컴파일)가 게시 상태로 시드한다. 그 위에 실제 run을 `/admin/design-examples`에서 run ID로 등록·게시해 큐레이션을 보강한다. 게시 예시가 0건이면 store `/design` 첫 진입이 기존 빈 상태 문구로 폴백한다(비로그인 포함).*
 - [ ] finalize 메모리·지연 실측 → 리소스·dpi 상한 조정
 - [ ] OpenAI·Recraft 국외 처리 문구와 실제 전송 항목 검토 → Recraft 계정의 모델 학습 opt-out 또는 별도 DPA, provider별 보존기간·예외를 privacy owner와 법률 검토자가 확인
