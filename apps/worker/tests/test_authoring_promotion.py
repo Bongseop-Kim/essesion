@@ -11,16 +11,15 @@ from worker.authoring.compiler import COMPILER_REVISION, PLAN_CONTRACT_VERSION
 from worker.authoring.examples import load_example_set
 from worker.authoring.promotion import scan_promotion_candidates
 
-DIM = 3072
-MODEL = "test-embedding-3072"
+DIM = 1536
+MODEL = "test-embedding-1536"
 
 
 class _Embedding:
     model = MODEL
 
-    async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
+    async def embed(self, text: str) -> list[float]:
         assert text.strip()
-        assert task_type == "RETRIEVAL_DOCUMENT"
         return [1.0] + [0.0] * (DIM - 1)
 
 

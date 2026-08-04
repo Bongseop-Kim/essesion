@@ -227,7 +227,7 @@ def normalize_requested_named_colors(
         if not available and not stripe_slots and ground_color_index not in used:
             available = [ground_color_index]
         if not available:
-            # 저작 루프(gemini.author_design)가 이 문장을 피드백으로 받아 재저작한다 —
+            # 저작 루프(llm.author_design)가 이 문장을 피드백으로 받아 재저작한다 —
             # 조용히 넘기면 요청한 지명색이 없는 플랜이 그대로 성공으로 나간다.
             raise ValueError(f"plan has no visible slot available for named color {name}")
         closest = min(available, key=lambda index: _color_distance(colors[index], target))

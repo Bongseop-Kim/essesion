@@ -1,7 +1,7 @@
 """자유텍스트 facet 유입 게이트 — 임베딩·프롬프트로 들어가기 전 살균.
 
 recraft 모티프 facet(subject/description/style/view/expression/tags)은 관리자 게이트
-없이 cross-user 카탈로그가 되고, 다른 사용자의 Gemini 프롬프트에 주입된다. 저장·임베딩
+없이 cross-user 카탈로그가 되고, 다른 사용자의 LLM 프롬프트에 주입된다. 저장·임베딩
 전 살균과 호환 문자 정규화 기반 사전검사를 거치고, 모델 호출자는 별도의 데이터 경계와
 상위 수준 지시로 facet을 명령이 아닌 비신뢰 데이터로 취급해야 한다.
 

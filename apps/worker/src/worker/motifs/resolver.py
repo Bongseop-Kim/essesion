@@ -183,7 +183,7 @@ def _cosine(a: list[float], b: list[float]) -> float:
 _HANGUL_RE = re.compile(r"[가-힣]")
 
 # 한국어 명사 뒤 조사(격·보조사). 우리 사용자는 전부 한국인이라 "펠리컨을/꿀벌을/원으로"처럼
-# 조사를 붙여 쓰는데, seed 모티프는 임베딩이 없어(embedding_vertex NULL) 카탈로그 grounding이
+# 조사를 붙여 쓰는데, seed 모티프는 임베딩이 없어(embedding_openai NULL) 카탈로그 grounding이
 # lexical exact-token만 된다 → 조사가 붙으면 "펠리컨을" ≠ 태그 "펠리컨"으로 조용히 miss한다.
 # 아래 목록으로 토큰 끝의 조사 1개만 떼어 어간 토큰을 추가한다(원문 토큰은 보존).
 # 오매칭 방지 가드: (1) 한글 토큰에만, (2) 목록에 정확히 일치하는 접미사만, 가장 긴 것 우선,
@@ -343,7 +343,7 @@ async def prompt_catalog_candidates(
     tau: float,
     top_k: int = 5,
 ) -> list[dict[str, object]]:
-    """Gemini grounding용 후보. provider에는 실제 motif ID 대신 catalog_ref만 전달한다."""
+    """LLM grounding용 후보. provider에는 실제 motif ID 대신 catalog_ref만 전달한다."""
     retrieval = await retrieve_catalog(
         session,
         prompt,
@@ -493,7 +493,7 @@ async def present_candidates(
     *,
     embedding_client,
     top_k: int,
-    tau: float = 0.84,
+    tau: float = 0.40,
 ) -> list[dict]:
     """게이트 UI용 read-only 후보. 같은 정확도 게이트를 쓰며 Recraft는 호출하지 않는다."""
     retrieval = await retrieve_catalog(

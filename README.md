@@ -16,7 +16,7 @@ ESSE SION은 기존 커머스 프론트엔드 **YeongSeon**과 독립 이미지 
 
 - 프론트엔드는 DB를 알지 못하며 OpenAPI에서 생성한 `packages/api-client`로만 통신합니다.
 - 인증·인가·주문·결제·토큰 과금은 FastAPI `api`가 단일 소유합니다.
-- Gemini가 자연어를 intent·motif spec으로 구조화하고 resolver가 catalog 재사용 또는 Recraft 생성을 결정합니다. concrete motif ID가 확정된 뒤의 배치·합성·seam은 결정론적 Python 엔진이 담당합니다.
+- OpenAI LLM이 자연어를 intent·motif spec으로 구조화하고 resolver가 catalog 재사용 또는 Recraft 생성을 결정합니다. concrete motif ID가 확정된 뒤의 배치·합성·seam은 결정론적 Python 엔진이 담당합니다.
 - 즉시 응답이 필요한 generate와 무거운 fabric finalize를 별도 Cloud Run 서비스로 분리합니다.
 - Supabase 런타임 의존성을 제거하고 PostgreSQL·GCS·GCP IAM 경계로 재설계했습니다.
 
@@ -92,7 +92,7 @@ flowchart TB
     Generate --> Public
     Finalize --> Public
 
-    Generate -.-> AI[Gemini · optional OpenAI · Recraft]
+    Generate -.-> AI[OpenAI LLM·임베딩 · Recraft]
     API -.-> External[Toss Payments · Solapi]
 ```
 
@@ -133,7 +133,7 @@ flowchart TB
 | Frontend | React 19, TypeScript 6, Vite 8, React Router 8, TanStack Query 5, Zustand, Zod, Tailwind CSS 4 |
 | Design system | `packages/shared`, semantic tokens, dependency-free primitives/components, Vitest drift guards |
 | API | Python 3.13, FastAPI, Pydantic, SQLAlchemy 2 async, asyncpg, Authlib, JWT/Argon2 |
-| Image pipeline | Deterministic Python engine, Pillow, librsvg, pgvector, Gemini, optional OpenAI embeddings, Recraft |
+| Image pipeline | Deterministic Python engine, Pillow, librsvg, pgvector, OpenAI LLM/embeddings, Recraft |
 | Data | PostgreSQL 17 + pgvector, Alembic, testcontainers |
 | Cloud | Cloudflare Workers, Cloud Run, Cloud Tasks, Cloud Scheduler, Cloud SQL, GCS, Secret Manager |
 | Tooling | pnpm 10, Turborepo 2, uv, mise, Biome, Ruff, Pyright, Playwright, Schemathesis |
@@ -200,7 +200,7 @@ pnpm --filter store dev
 pnpm --filter admin dev
 ```
 
-로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 `docker compose up -d`에 포함된 fake-gcs-server가 대신합니다 — `.env`에 `GCS_EMULATOR_HOST`와 버킷명(`.env.example` 참고)을 설정하면 api·worker가 실제 GCS 클라이언트 경로로 업로드·서빙까지 로컬에서 끝까지 동작하고, 비우면 DryRun(no-op)입니다. 자연어 authoring에는 Gemini 키가 필요하고 OpenAI embedding은 선택 사항이며, catalog miss에서 새 motif를 만들려면 Recraft 키가 필요합니다. 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. Cloud Tasks 없이 finalize 전체 흐름을 확인하려면 로컬 `.env`에 `WORKER_FINALIZE_INLINE=true`를 설정합니다.
+로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 `docker compose up -d`에 포함된 fake-gcs-server가 대신합니다 — `.env`에 `GCS_EMULATOR_HOST`와 버킷명(`.env.example` 참고)을 설정하면 api·worker가 실제 GCS 클라이언트 경로로 업로드·서빙까지 로컬에서 끝까지 동작하고, 비우면 DryRun(no-op)입니다. 자연어 authoring과 벡터 검색에는 `OPENAI_API_KEY`가 필요하고(비우면 해당 경로 503/스킵), catalog miss에서 새 motif를 만들려면 Recraft 키가 필요합니다. 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. Cloud Tasks 없이 finalize 전체 흐름을 확인하려면 로컬 `.env`에 `WORKER_FINALIZE_INLINE=true`를 설정합니다.
 
 ## 검증
 

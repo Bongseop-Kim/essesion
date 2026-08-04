@@ -1,4 +1,4 @@
-"""Seed missing gallery-v1 starter examples and create their Vertex embeddings.
+"""Seed missing gallery-v1 starter examples and create their OpenAI embeddings.
 
 Usage:
   uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
@@ -21,7 +21,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument(
         "--confirm-live",
         action="store_true",
-        help="Vertex embedding 과금 호출과 DB 갱신에 동의합니다.",
+        help="OpenAI 임베딩 과금 호출과 DB 갱신에 동의합니다.",
     )
     return parser.parse_args()
 
@@ -30,7 +30,7 @@ async def _run() -> tuple[int, int, int, int]:
     settings = get_settings()
     client = build_embedding_client(settings)
     if client is None:
-        raise SystemExit("GCP_PROJECT_ID가 없어 예시 임베딩을 생성할 수 없습니다.")
+        raise SystemExit("OPENAI_API_KEY가 없어 예시 임베딩을 생성할 수 없습니다.")
     engine: AsyncEngine | None = None
     inserted = 0
     embedded_now = 0
@@ -56,9 +56,7 @@ async def _run() -> tuple[int, int, int, int]:
             for example in examples:
                 if example.example_id not in missing:
                     continue
-                embedding = await client.embed(
-                    example.embedding_document(), task_type="RETRIEVAL_DOCUMENT"
-                )
+                embedding = await client.embed(example.embedding_document())
                 if len(embedding) != EMBEDDING_DIM:
                     raise ValueError(
                         f"embedding dimension mismatch for {example.example_id}: "

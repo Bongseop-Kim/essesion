@@ -18,7 +18,7 @@ async def index_missing_embeddings(session: AsyncSession, client) -> int:  # noq
             expression=motif.expression,
             tags=motif.tags,
         )
-        embedding = await client.embed(text, task_type="RETRIEVAL_DOCUMENT")
+        embedding = await client.embed(text)
         if len(embedding) != EMBEDDING_DIM:
             raise ValueError(
                 f"embedding dimension mismatch for {motif.id}: "

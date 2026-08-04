@@ -48,11 +48,10 @@ locals {
     },
   )
 
+  # worker는 GCP_PROJECT_ID를 읽지 않는다 — GCS 클라이언트는 ADC 메타데이터로 프로젝트를 추론.
   worker_plain_env = {
-    ENV                = "staging"
-    GCS_BUCKET         = google_storage_bucket.assets.name
-    GCP_PROJECT_ID     = var.project_id
-    VERTEX_AI_LOCATION = "global"
+    ENV        = "staging"
+    GCS_BUCKET = google_storage_bucket.assets.name
   }
 
   # 같은 이미지를 배포하되 HTTP 표면은 역할별로 닫는다. all은 로컬 개발 전용 기본값.
@@ -64,9 +63,11 @@ locals {
     SENTRY_DSN   = google_secret_manager_secret.app["sentry-dsn-worker"].secret_id
   }
 
-  # 외부 API 키는 generate만 — finalize는 로컬 Pillow 연산뿐(최소 권한)
+  # 외부 API 키는 generate만 — finalize는 로컬 Pillow 연산뿐(최소 권한).
+  # 저작·임베딩 라우트(generate_router)는 전부 generate 서비스에만 있다(routes.py).
   worker_generate_secret_env = merge(local.worker_secret_env, {
     RECRAFT_API_KEY = google_secret_manager_secret.app["recraft-api-key"].secret_id
+    OPENAI_API_KEY  = google_secret_manager_secret.app["openai-api-key"].secret_id
   })
 }
 

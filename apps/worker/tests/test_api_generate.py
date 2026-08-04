@@ -21,7 +21,7 @@ import respx
 from fastapi.testclient import TestClient
 from PIL import Image
 from worker.adapters import Adapters
-from worker.adapters.gemini import AuthoredDesign
+from worker.adapters.llm import AuthoredDesign
 from worker.api import routes
 from worker.authoring.retrieval import RetrievalOutcome
 from worker.db import get_session
@@ -293,11 +293,11 @@ def test_intent_path_compose_failure_returns_design_invalid(client):
 
 
 def test_prompt_path_compose_failure_returns_design_invalid(monkeypatch):
-    # Gemini가 _validate를 통과하는 intent를 반환해도 compose_design이 거부하면 design_invalid.
+    # LLM이 _validate를 통과하는 intent를 반환해도 compose_design이 거부하면 design_invalid.
     async def fake_candidates(*_args, **_kwargs):
         return []
 
-    class GroundedGemini:
+    class GroundedLLM:
         async def author_design(self, _prompt, **_kwargs):
             return AuthoredDesign(intent=mvp_intent())
 
@@ -306,7 +306,7 @@ def test_prompt_path_compose_failure_returns_design_invalid(monkeypatch):
 
     monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=GroundedGemini())
+    app.state.adapters = Adapters(llm=GroundedLLM())
     monkeypatch.setattr(routes, "compose_design", broken_compose)
 
     resp = TestClient(app).post("/generate", json={"run_id": _RUN_ID, "prompt": "chess pattern"})
@@ -367,13 +367,13 @@ def test_request_schema_rejects_unknown_fields(client):
     assert "extra_forbidden" in response.text
 
 
-def test_prompt_only_without_gemini_returns_503(client):
-    # prompt 경로는 구현됐지만 Gemini 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
+def test_prompt_only_without_llm_returns_503(client):
+    # prompt 경로는 구현됐지만 LLM 미구성(DryRun)이면 503 — intent 직접 경로는 계속 동작.
     resp = client.post("/generate", json={"run_id": _RUN_ID, "prompt": "navy paisley tie"})
     assert resp.status_code == 503
 
 
-def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatch):
+def test_prompt_uses_raw_text_catalog_candidates_for_llm_grounding(monkeypatch):
     captured = {}
     catalog = [
         {
@@ -396,14 +396,14 @@ def test_prompt_uses_raw_text_catalog_candidates_for_gemini_grounding(monkeypatc
         )
         return catalog
 
-    class GroundedGemini:
+    class GroundedLLM:
         async def author_design(self, _prompt, *, catalog_candidates, **_kwargs):
             assert catalog_candidates == catalog
             return AuthoredDesign(intent=mvp_intent())
 
     monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=GroundedGemini())
+    app.state.adapters = Adapters(llm=GroundedLLM())
 
     response = TestClient(app).post(
         "/generate",
@@ -427,7 +427,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
         assert kwargs["available_motif_count"] == 0
         return RetrievalOutcome(status="retrieval_error", reason="ProgrammingError")
 
-    class Gemini:
+    class LLM:
         async def author_design(self, _prompt, *, validate, examples, diagnostics, **_kwargs):
             calls.append("author")
             assert examples == []
@@ -448,7 +448,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
     monkeypatch.setattr(routes, "retrieve_examples", fake_retrieve)
     app = _configure_app(monkeypatch)
 
-    app.state.adapters = Adapters(gemini=Gemini())
+    app.state.adapters = Adapters(llm=LLM())
 
     @asynccontextmanager
     async def _retrieval_sessionmaker():
@@ -464,7 +464,7 @@ def test_prompt_retrieval_error_uses_isolated_session_and_falls_back(monkeypatch
     assert calls == ["retrieve", "author"]
 
 
-class _PatchGemini:
+class _PatchLLM:
     """author_patch만 구현 — 구성 수정은 모티프 해석·예시 검색을 전혀 타지 않는다."""
 
     def __init__(self, patch: dict) -> None:
@@ -521,9 +521,9 @@ def test_composition_patch_rejects_removed_photo_history_attachment(monkeypatch)
 
 
 def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
-    gemini = _PatchGemini({"background": {"color": "#F5F0E6"}, "note": "바탕을 밝게 했어요."})
+    llm = _PatchLLM({"background": {"color": "#F5F0E6"}, "note": "바탕을 밝게 했어요."})
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=gemini)
+    app.state.adapters = Adapters(llm=llm)
     intent = mvp_intent()
 
     response = TestClient(app).post("/generate", json=_patch_request("바탕을 밝게", intent))
@@ -541,14 +541,14 @@ def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
         if layer["type"] == "motif"
     ] == ["circle", "bee"]
     # 모델에게는 모티프 정체성이 아니라 구성 스냅샷만 간다.
-    assert "circle" not in json.dumps(gemini.snapshots[0])
-    assert gemini.histories[0][0]["user_prompt"] == "네이비 스트라이프로 만들어줘"
+    assert "circle" not in json.dumps(llm.snapshots[0])
+    assert llm.histories[0][0]["user_prompt"] == "네이비 스트라이프로 만들어줘"
 
 
 def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch):
-    gemini = _PatchGemini({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
+    llm = _PatchLLM({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=gemini)
+    app.state.adapters = Adapters(llm=llm)
 
     response = TestClient(app).post(
         "/generate", json=_patch_request("벌을 나비로 바꿔줘", mvp_intent())
@@ -560,7 +560,7 @@ def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch)
 
 def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=_PatchGemini({"note": "x"}))
+    app.state.adapters = Adapters(llm=_PatchLLM({"note": "x"}))
     payload = _patch_request("이 사진처럼", mvp_intent())
     payload["motif_ids"] = ["circle"]
 
@@ -572,7 +572,7 @@ def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):
 
 def test_generate_rejects_reference_images_as_extra_input(monkeypatch):
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=object())
+    app.state.adapters = Adapters(llm=object())
 
     response = TestClient(app).post(
         "/generate",
@@ -600,7 +600,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
     async def render_catalog(_session, _ids):
         return {"circle": get_motif("circle"), "bee": get_motif("bee")}
 
-    class ExactMotifGemini:
+    class ExactMotifLLM:
         async def author_design(
             self,
             _prompt,
@@ -616,7 +616,7 @@ def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):
 
     monkeypatch.setattr(routes, "get_motifs", render_catalog)
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=ExactMotifGemini())
+    app.state.adapters = Adapters(llm=ExactMotifLLM())
     client = TestClient(app)
 
     accepted = client.post("/generate", json={"run_id": _RUN_ID, "motif_ids": ["circle", "bee"]})
@@ -742,7 +742,7 @@ def test_photo_preview_fetches_the_private_image(monkeypatch):
 
 
 def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(monkeypatch):
-    class FakeGemini:
+    class FakeLLM:
         def __init__(self):
             self.calls = []
 
@@ -750,9 +750,9 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
             self.calls.append((prompt, context))
             return ["아이디어 하나", "아이디어 둘", "아이디어 셋"]
 
-    gemini = FakeGemini()
+    llm = FakeLLM()
     app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(gemini=gemini)
+    app.state.adapters = Adapters(llm=llm)
     response = TestClient(app).post(
         "/ideas",
         json={
@@ -764,7 +764,7 @@ def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(mon
     )
     assert response.status_code == 200, response.text
     assert response.json() == {"ideas": ["아이디어 하나", "아이디어 둘", "아이디어 셋"]}
-    prompt, context = gemini.calls[0]
+    prompt, context = llm.calls[0]
     assert prompt == "차분한 패턴"
     assert context["motifs"] == [{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}]
 

@@ -23,8 +23,8 @@ from worker.motifs.resolver import (
     resolve_spec,
 )
 
-DIM = 3072
-_SETTINGS = Settings(motif_render_check=False, motif_similarity_tau=0.84)
+DIM = 1536
+_SETTINGS = Settings(motif_render_check=False, motif_similarity_tau=0.40)
 _CLEAN = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
     '<circle cx="50" cy="50" r="30" fill="#ff0000"/></svg>'
@@ -48,8 +48,7 @@ class _FakeEmbed:
         self._vec = vec
         self.calls = 0
 
-    async def embed(self, text: str, *, task_type: str) -> list[float]:
-        assert task_type == "RETRIEVAL_QUERY"
+    async def embed(self, text: str) -> list[float]:
         self.calls += 1
         return self._vec
 
@@ -333,6 +332,65 @@ async def test_variant_pool_seed_is_deterministic(db_session):
     assert first in {"recraft-pool00000001", "recraft-pool00000002"}
 
 
+@pytest.mark.parametrize(
+    ("similarity", "reused"),
+    [(0.40, True), (0.3999, False)],  # 게이트는 similarity < τ 배제 — 정확히 τ면 재사용
+)
+async def test_resolve_spec_tau_gate_boundary(db_session, monkeypatch, similarity, reused):
+    await _seed(
+        db_session, "recraft-boundary0001", subject="alpha", scope="whole", embedding=_vec(1.0)
+    )
+
+    async def _nearest(session, vec, top_k=1):
+        return [
+            store.MotifMatch(id="recraft-boundary0001", variant_group=None, similarity=similarity)
+        ]
+
+    monkeypatch.setattr(store, "nearest_by_embedding", _nearest)
+    recraft = _FakeRecraft()
+    result = await resolve_spec(
+        db_session,
+        {"subject": "unrelated", "scope": "whole", "description": "no lexical overlap"},
+        recraft_client=recraft,
+        embedding_client=_FakeEmbed(_vec(1.0)),
+        settings=_SETTINGS,
+        seed=0,
+    )
+    assert result.reused is reused
+    if reused:
+        assert result.motif_id == "recraft-boundary0001"
+        assert result.similarity == similarity
+        assert recraft.calls == 0
+    else:
+        assert recraft.calls == 1
+
+
+async def test_present_candidates_default_tau_gate_boundary(db_session, monkeypatch):
+    # 명시 tau 없이 기본 게이트(0.40)가 적용된다 — 정확히 τ는 통과, 바로 아래는 배제.
+    await _seed(
+        db_session, "recraft-attau0000001", subject="alpha", scope="whole", embedding=_vec(1.0)
+    )
+    await _seed(
+        db_session, "recraft-belowtau0001", subject="beta", scope="whole", embedding=_vec(1.0)
+    )
+
+    async def _nearest(session, vec, top_k=1):
+        return [
+            store.MotifMatch(id="recraft-attau0000001", variant_group=None, similarity=0.40),
+            store.MotifMatch(id="recraft-belowtau0001", variant_group=None, similarity=0.3999),
+        ]
+
+    monkeypatch.setattr(store, "nearest_by_embedding", _nearest)
+    candidates = await present_candidates(
+        db_session,
+        {"subject": "unrelated", "description": "no lexical overlap"},
+        embedding_client=_FakeEmbed(_vec(1.0)),
+        top_k=5,
+    )
+    assert [c["motif_id"] for c in candidates] == ["recraft-attau0000001"]
+    assert candidates[0]["similarity"] == 0.40
+
+
 async def test_present_candidates_never_calls_recraft(db_session):
     await _seed(db_session, "recraft-cand00000001", subject="dot", scope="whole", style="flat")
     await _seed(db_session, "recraft-cand00000002", subject="dot", scope="whole")
@@ -473,7 +531,7 @@ async def test_prompt_catalog_candidates_matches_korean_particle_form_without_em
         db_session,
         "펠리컨을 격자로 반복해 주세요",
         embedding_client=None,  # seed는 임베딩이 없음 — lexical 경로만으로 잡혀야 한다
-        tau=0.84,
+        tau=0.40,
     )
 
     assert [candidate["motif_id"] for candidate in candidates] == ["recraft-pelican00001"]
@@ -496,7 +554,7 @@ async def test_prompt_catalog_candidates_grounds_two_seeds_with_particles(db_ses
         db_session,
         "꿀벌과 원을 함께 흩뿌려 주세요",
         embedding_client=None,
-        tau=0.84,
+        tau=0.40,
     )
 
     matched = {candidate["motif_id"] for candidate in candidates}
@@ -511,12 +569,12 @@ async def test_prompt_catalog_candidates_homograph_adverb_does_not_ground(db_ses
     )
 
     adverb = await prompt_catalog_candidates(
-        db_session, "무늬를 새로 만들어 주세요", embedding_client=None, tau=0.84
+        db_session, "무늬를 새로 만들어 주세요", embedding_client=None, tau=0.40
     )
     assert adverb == []
 
     named = await prompt_catalog_candidates(
-        db_session, "새를 대각 경로로 늘어놓아 주세요", embedding_client=None, tau=0.84
+        db_session, "새를 대각 경로로 늘어놓아 주세요", embedding_client=None, tau=0.40
     )
     assert [c["motif_id"] for c in named] == ["recraft-bird00000001"]
 
@@ -535,7 +593,7 @@ async def test_prompt_catalog_candidates_colloquial_conjunction_grounds_both(db_
     )
 
     candidates = await prompt_catalog_candidates(
-        db_session, "꿀벌이랑 원을 촘촘하게 배치해 주세요", embedding_client=None, tau=0.84
+        db_session, "꿀벌이랑 원을 촘촘하게 배치해 주세요", embedding_client=None, tau=0.40
     )
     assert {c["motif_id"] for c in candidates} == {"recraft-bee00000001", "recraft-circle00001"}
 
@@ -551,7 +609,7 @@ async def test_prompt_catalog_candidates_counter_does_not_ground_dog(db_session)
         db_session,
         "밴드를 두 개의 얇은 줄로 나눠 주세요",
         embedding_client=None,
-        tau=0.84,
+        tau=0.40,
     )
     assert counting == []
 
@@ -559,7 +617,7 @@ async def test_prompt_catalog_candidates_counter_does_not_ground_dog(db_session)
         db_session,
         "강아지를 촘촘한 격자로 배치해 주세요",
         embedding_client=None,
-        tau=0.84,
+        tau=0.40,
     )
     assert [c["motif_id"] for c in named] == ["recraft-dog00000001"]
 
@@ -578,7 +636,7 @@ async def test_prompt_catalog_candidates_particle_strip_does_not_overmatch(db_se
         db_session,
         "정원을 가꾸는 듯한 무늬로 채워 주세요",
         embedding_client=None,
-        tau=0.84,
+        tau=0.40,
     )
 
     assert candidates == []
@@ -604,7 +662,7 @@ async def test_prompt_catalog_candidates_find_chess_by_exact_token_without_embed
         db_session,
         "chess 패턴 디자인해주세요",
         embedding_client=None,
-        tau=0.84,
+        tau=0.40,
     )
 
     assert [candidate["motif_id"] for candidate in candidates] == ["recraft-chess0000001"]

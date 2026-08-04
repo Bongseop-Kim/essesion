@@ -42,7 +42,7 @@ const log: SeamlessDetailOut = {
   warning_groups: [],
   diagnostics: {
     mode: "prompt",
-    model: "gemini-2.5-flash-lite",
+    model: "gpt-5.6-luna",
     prompt_revision: null,
     patch_axes: [],
     authoring_attempts: 1,
@@ -219,7 +219,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("모티프 레이어 2개를 제외했습니다")).toBeTruthy();
     expect(screen.getByText("CMYK 색역 확인이 필요한 색상 6개")).toBeTruthy();
     expect(screen.getByText("생성 진단")).toBeTruthy();
-    expect(screen.getByText("gemini-2.5-flash-lite")).toBeTruthy();
+    expect(screen.getByText("gpt-5.6-luna")).toBeTruthy();
     expect(screen.queryByText("Recraft 호출")).toBeNull();
     expect(
       screen.getByText(/생성 실패가 아니라 인쇄 전 색상 확인/),
@@ -268,7 +268,7 @@ describe("SeamlessLogDetailPage", () => {
         authoring_ms: 121,
         compose_ms: 18,
         render_ms: 9,
-        failure_provider: "vertex_embedding",
+        failure_provider: "openai_embedding",
         failure_operation: "embed",
         failure_reason: "rate_limited",
         failure_status_code: 429,
@@ -311,7 +311,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("저작 121ms · 합성 18ms · 렌더 9ms")).toBeTruthy();
     expect(screen.getByText("구성 수정")).toBeTruthy();
     expect(screen.getByText("바탕색 · 무늬 크기")).toBeTruthy();
-    expect(screen.getByText("Vertex AI 임베딩 · embed")).toBeTruthy();
+    expect(screen.getByText("OpenAI 임베딩 · embed")).toBeTruthy();
     expect(screen.getByText("요청 한도 초과 (429)")).toBeTruthy();
     expect(
       screen.getByText(/OpenAI 임베딩: 요청 한도 초과 \(429\)/),

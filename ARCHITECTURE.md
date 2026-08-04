@@ -131,7 +131,7 @@ flowchart TB
         Finalize --> Assets
     end
 
-    Generate -.-> Gemini[Gemini]
+    Generate -.-> LLM[OpenAI LLM]
     Generate -.-> Embedding[OpenAI Embeddings]
     Generate -.->|명시적 motif generate만| Recraft[Recraft Vector]
     API -.-> Toss[Toss Payments]
@@ -386,10 +386,10 @@ sequenceDiagram
 
 - `db/src/db/models/`의 SQLAlchemy 모델이 스키마 source of truth다.
 - 모든 변경은 Alembic revision으로 만들고 `alembic check`로 모델 drift를 검증한다.
-- 미배포 단계이므로 리비전 체인을 누적하지 않고 단일 베이스라인으로 유지한다. 현재 스키마는 42개 모델 테이블을 만드는 베이스라인 `f8c3b2a19d47` 하나이며 빈 PostgreSQL에서 upgrade, `alembic check`, downgrade를 검증한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
+- 미배포 단계이므로 리비전 체인을 최소로 유지한다. 현재 스키마는 42개 모델 테이블을 만드는 베이스라인 `f8c3b2a19d47`과 OpenAI 임베딩 전환 `6dbb8bb66939`이며 빈 PostgreSQL에서 upgrade, `alembic check`, downgrade를 검증한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
 - PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 사용한다.
 - DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다. updated timestamp와 도메인 규칙은 서비스 계층이 소유한다.
-- 공개 motif와 authoring example 검색은 Vertex AI `gemini-embedding-001`의 pgvector `vector(3072)`만 사용한다.
+- 공개 motif와 authoring example 검색은 OpenAI `text-embedding-3-large`(dimensions=1536)의 pgvector `vector(1536)`만 사용한다.
 
 ### 6.2 데이터 그룹
 
@@ -446,11 +446,11 @@ private uploads bucket
 
 ```mermaid
 flowchart LR
-    Prompt[자연어 prompt] --> Author[Gemini authoring]
+    Prompt[자연어 prompt] --> Author[LLM authoring]
     Starter[gallery starter<br/>소량 Plan v3] --> Active[(DB active RAG examples)]
     Studio[관리자 저작·프리뷰] --> Active
     Promote[생성 결과 승격] --> Active
-    Prompt --> Retrieve[Vertex embedding + pgvector RAG]
+    Prompt --> Retrieve[OpenAI embedding + pgvector RAG]
     Active --> Retrieve
     Retrieve -->|호환 후보 중 최대 3개| Author
     UserInput[SVG / 텍스트 / 사진] -->|path·vectorize + sanitize·normalize·content hash| PrivateMotif[소유자 exact 모티프]
@@ -465,7 +465,7 @@ flowchart LR
     Pending -->|관리자 승인| Catalog
     Pending -->|요청 세션 exact ID| PrivateMotif
     Catalog --> PrivateMotif
-    Edit[입력창 문장] -->|Gemini 구성 patch| Patch[typed DesignPatchV1]
+    Edit[입력창 문장] -->|LLM 구성 patch| Patch[typed DesignPatchV1]
     Patch -->|deterministic apply_patch| Intent
     Intent --> Validate[Validation]
     Validate --> Placement[Placement]
@@ -476,15 +476,15 @@ flowchart LR
     Seam --> Fabric[Fabric finalize]
 ```
 
-Gemini는 텍스트에서 엔진 intent가 아니라 schema-constrained `DesignPlanV3` 하나를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개의 이미 존재하는 motif source(`input | catalog`)와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. Pydantic 모델 자체를 Vertex `response_schema`로 넘기고, 결정적 compiler가 모든 source를 concrete motif ID로 확정한 48mm/300dpi intent를 만든다. exact input과 verified catalog에는 실제 ID 대신 요청 한정 alias만 노출한다. 모티프 도안과 색은 이미 저장된 symbol의 불변 데이터라 Plan·intent에 색 바인딩 필드가 없다. Plan의 색은 배경과 스트라이프에만 쓰인다. 저작 결과가 검증을 통과하지 못하면 검증 오류와 함께 다시 저작한다.
+LLM(OpenAI)은 텍스트에서 엔진 intent가 아니라 schema-constrained `DesignPlanV3` 하나를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개의 이미 존재하는 motif source(`input | catalog`)와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. Pydantic 스키마를 OpenAI strict `json_schema`로 넘기고, 결정적 compiler가 모든 source를 concrete motif ID로 확정한 48mm/300dpi intent를 만든다. exact input과 verified catalog에는 실제 ID 대신 요청 한정 alias만 노출한다. 모티프 도안과 색은 이미 저장된 symbol의 불변 데이터라 Plan·intent에 색 바인딩 필드가 없다. Plan의 색은 배경과 스트라이프에만 쓰인다. 저작 결과가 검증을 통과하지 못하면 검증 오류와 함께 다시 저작한다.
 
-`gallery-v1` Plan v3 manifest는 빈 DB를 위한 소량 starter 입력일 뿐 운영 셋의 정본이나 골든 목록이 아니다. 시드는 같은 ID가 이미 있으면 건너뛰어 DB에서 큐레이션한 행을 덮어쓰지 않으며, 운영 셋 전체의 정본은 bootstrap·관리자 직접 저작(`authored`)·생성 승격(`promoted`)을 함께 보관하는 `authoring_examples`다. 런타임은 그중 `active=true`인 현재 contract·embedding model 행만 읽는다. Vertex `RETRIEVAL_QUERY`와 pgvector cosine 결과를 motif 수로 거른 뒤 상위 8개에서 family가 겹치지 않는 시범을 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 시범 없이 typed schema 경로를 계속한다.
+`gallery-v1` Plan v3 manifest는 빈 DB를 위한 소량 starter 입력일 뿐 운영 셋의 정본이나 골든 목록이 아니다. 시드는 같은 ID가 이미 있으면 건너뛰어 DB에서 큐레이션한 행을 덮어쓰지 않으며, 운영 셋 전체의 정본은 bootstrap·관리자 직접 저작(`authored`)·생성 승격(`promoted`)을 함께 보관하는 `authoring_examples`다. 런타임은 그중 `active=true`인 현재 contract·embedding model 행만 읽는다. OpenAI 임베딩과 pgvector cosine 결과를 motif 수로 거른 뒤 상위 8개에서 family가 겹치지 않는 시범을 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 시범 없이 typed schema 경로를 계속한다.
 
 모든 생성 요청은 Plan v3 경로만 사용한다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 generation diagnostics/intent log에 남긴다. 매일 성공·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 후보 선택이 없어졌으므로 실사화가 유일한 품질 신호다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 시범이 되며, 문제 시범은 `active=false`로 즉시 제외한다. 관리자는 별도로 intent와 Plan v3를 작성하고 카탈로그 motif만 사용하는 무-LLM 타일 프리뷰를 확인한 뒤 `authored` 시범을 비활성 상태로 저장·편집·삭제할 수 있다. bootstrap/promoted 행의 Plan 본문은 읽기 전용이다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
 
 디자인 생성은 Recraft를 호출하지 않는다. 사용자가 고른 모티프와 정확도 게이트를 통과한 **승인된** 공개 카탈로그 hit만 사용할 수 있고, 카탈로그 miss면 모티프를 새로 만들지 않은 채 단색·스트라이프 구조로 계속한다. 새 모티프는 모티프 모달의 명시적 `motifs/generate`에서만 Recraft로 SVG를 생성·정규화하고 세션 예산을 사용한다. 이 결과는 `pending`으로 저장되어 요청 세션에서는 exact ID로 즉시 쓸 수 있지만, 관리자가 승인하기 전에는 다른 사용자의 검색·grounding·variant 풀에 들어가지 않는다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 소유권을 확인한 exact motif로 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
 
-사진 업로드는 모티프 모달의 사진→SVG 경로에만 쓴다. API는 소유권·완료 상태·MIME·바이트를 확인한 비공개 GCS 객체만 받고, worker는 allowlist signed URL을 redirect 없이 읽어 10MB·20M pixel 상한을 적용한다. 배경 분리·vectorize는 Pillow+VTracer CPU threadpool 안에서 처리하며 사진 바이트를 Gemini에 보내지 않는다. 아이디어 API도 prompt와 exact motif의 순번·사용자 지정 이름만 Gemini에 전달하고 content-hash ID나 이미지는 보내지 않는다.
+사진 업로드는 모티프 모달의 사진→SVG 경로에만 쓴다. API는 소유권·완료 상태·MIME·바이트를 확인한 비공개 GCS 객체만 받고, worker는 allowlist signed URL을 redirect 없이 읽어 10MB·20M pixel 상한을 적용한다. 배경 분리·vectorize는 Pillow+VTracer CPU threadpool 안에서 처리하며 사진 바이트를 LLM에 보내지 않는다. 아이디어 API도 prompt와 exact motif의 순번·사용자 지정 이름만 LLM에 전달하고 content-hash ID나 이미지는 보내지 않는다.
 
 사용자 SVG는 worker의 기존 SVG 안전 경계와 normalize를 통과하며 계정당 100개까지 보관한다. 텍스트는 동봉 OFL font와 FontTools로 결정적 path를 만든다. 한 생성에서 최종 motif는 최대 2개이고, 생성 턴 첨부는 사용한 정규화 motif ID와 이름만 보관한다. 사용자 모티프는 일반 retrieval·embedding 검색·registry fingerprint에서 제외되어 다른 계정 요청에 노출되지 않는다. 서버가 활성 스텝에서 복원한 intent의 private motif ID도 현재 사용자의 라이브러리 링크 또는 같은 소유자·같은 세션의 과거 모티프 첨부 이력에 한정해 허용하여, 라이브러리 삭제 뒤 기존 스텝·finalize는 유지하면서 교차 사용자·교차 세션 참조를 막는다.
 
@@ -530,7 +530,7 @@ intent version
 
 1. 디자인 첫 생성에 사용자가 고른 private motif가 있으면 그 exact ID가 슬롯을 먼저 사용하고, 프롬프트 기반 공개 카탈로그 모티프는 추가하지 않는다.
 2. 남은 슬롯이 있는 prompt 요청은 `user_upload`을 제외한 `status=approved` 공개 카탈로그에서 subject/tag 완전 토큰 일치와 pgvector cosine top-5를 합친다. `scope`는 검색 하드 필터가 아니다.
-3. exact token 또는 similarity `τ=0.84` 이상만 Gemini에 ID 없는 `catalog_ref` 후보로 제공한다. Gemini가 검증된 후보를 무시하면 한 번 constrained retry 후 `semantic_mismatch`로 실패한다. 후보가 없으면 모티프 없이 계속하며 lowest-ID fallback이나 자동 생성은 없다.
+3. exact token 또는 similarity `τ=0.40`(text-embedding-3-large 분포 재캘리브레이션) 이상만 LLM에 ID 없는 `catalog_ref` 후보로 제공한다. LLM이 검증된 후보를 무시하면 한 번 constrained retry 후 `semantic_mismatch`로 실패한다. 후보가 없으면 모티프 없이 계속하며 lowest-ID fallback이나 자동 생성은 없다.
 4. 사용자가 모티프 모달에서 `motifs/generate`를 명시적으로 실행할 때만 최대 200자의 문장을 그대로 `subject`로 검색하고, 같은 검색 게이트의 miss에서 Recraft를 호출한다. 별도 `style_hint`나 디자인 컨텍스트는 주입하지 않는다. 세션당 3회 예산을 쓰며 디자인 토큰은 차감하지 않는다.
 5. hit의 variant group은 seed로 안정 선택한다. 새 SVG는 `scope=whole`, `status=pending`으로 sanitize·content-hash upsert하고 content-hash 충돌 시 기존 facet·유입 출처·검토 상태를 덮지 않는다. 새 Recraft 행에만 최초 유입 사용자·디자인 세션을 nullable provenance로 기록하며 사용자 또는 세션 삭제 시 FK는 `SET NULL`이다. 관리자는 pending/approved/rejected 사이에서 no-op을 제외한 전이를 수행하고 검토 시각·관리자를 기록한다.
 
@@ -578,7 +578,7 @@ sequenceDiagram
 
 커밋된 디자인이 없는 첫 생성만 `DesignPlanV3`를 저작한다. 이미 디자인이 있으면 입력창 문장은 **구성 patch**(`DesignPatchV1`)로만 해석한다 — 바탕색·줄무늬·배치·무늬 크기·무늬 색·팔레트 6축뿐이고 모티프 정체성 필드는 스키마에 없다. 모델이 무늬를 바꾸는 것이 타입상 불가능하므로 "요청하지 않은 걸 건드렸는지"를 사후에 추측해 되돌리는 preserve 가드가 필요 없고, 적용(`apply_patch`)은 엔진 불변식을 깨지 않는 결정론이다. patch로 표현할 수 없는 요청은 `scope_rejected`로 끝나고 과금·이력·문맥이 요청 전과 같다.
 
-활성화 시 plan의 motif source는 실제 렌더에 사용한 concrete motif ID로 동결한다. API→worker 문맥에는 이 정본을 보내지만 Gemini 직전에는 `current_motif_N` 요청 로컬 alias로 치환하며 SVG, private motif ID, 과거 응답, provider 오류 원문은 모델 문맥에 넣지 않는다. 구성 patch 경로는 여기서 한 단계 더 좁혀 모티프 정체성이 빠진 구성 스냅샷만 보낸다. 과거 assistant 문맥은 semantic plan에서 만든 짧은 구조 설명과 사용한 모티프 이름만 포함한다.
+활성화 시 plan의 motif source는 실제 렌더에 사용한 concrete motif ID로 동결한다. API→worker 문맥에는 이 정본을 보내지만 LLM 직전에는 `current_motif_N` 요청 로컬 alias로 치환하며 SVG, private motif ID, 과거 응답, provider 오류 원문은 모델 문맥에 넣지 않는다. 구성 patch 경로는 여기서 한 단계 더 좁혀 모티프 정체성이 빠진 구성 스냅샷만 보낸다. 과거 assistant 문맥은 semantic plan에서 만든 짧은 구조 설명과 사용한 모티프 이름만 포함한다.
 
 세션은 외부 worker 호출 전에 `active_generation_id`와 시작 시각, 사용자 턴, 토큰 차감을 한 트랜잭션으로 커밋한다. active run이 있으면 동시 요청을 거부하고 DB lock을 외부 호출 동안 유지하지 않는다. finalize job과 같은 명시적 stale window가 지난 run만 회수해 멱등 환불·assistant error turn을 남긴다. 성공·실패의 늦은 응답은 run ID와 세션 상태가 일치할 때만 active 상태를 끝낼 수 있다.
 
@@ -716,14 +716,14 @@ flowchart LR
 | `/healthz` | 프로세스 기동·event loop 생존 | Cloud Run startup/liveness가 재시작 판단 |
 | `/readyz` | API의 DB ping·연동 설정 capability, worker의 DB·GCS 확인 | 공개 uptime/deploy smoke가 503 판단, 프로세스는 재시작하지 않음 |
 | request ID | browser/API/worker 요청 상관관계 | 구조화 로그와 응답 header에 전파 |
-| 디자인 생성 provider 진단 | Gemini·Vertex embedding의 stage/provider/operation/reason/status/duration | 원문 prompt·provider 응답·인증 header 없이 worker JSON 로그와 `seamless_generation_logs.diagnostics`에 기록. 명시적 모티프 생성의 Recraft 진단은 worker JSON 로그에만 기록 |
+| 디자인 생성 provider 진단 | OpenAI LLM·임베딩의 stage/provider/operation/reason/status/duration | 원문 prompt·provider 응답·인증 header 없이 worker JSON 로그와 `seamless_generation_logs.diagnostics`에 기록. 명시적 모티프 생성의 Recraft 진단은 worker JSON 로그에만 기록 |
 | Sentry | 예외 추적 | store·api·worker instrumentation 구현, 프로젝트/DSN은 스테이징 전 주입 |
 | Budget alert | 비용 50/90/100% | OpenTofu 선언, 실제 apply 후 활성화 |
 | Uptime check | Cloudflare 경유 `/readyz` | OpenTofu 선언, 실제 apply 후 활성화 |
 
 Admin에는 현재 Sentry client가 없다. “전 프론트 구간 Sentry 통일”을 현재 완료 상태로 보지 않는다.
 
-API readiness는 Toss·Solapi·GCS·worker·Tasks·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. worker readiness도 Gemini·Vertex embedding·Recraft 상태를 조회하지 않는다.
+API readiness는 Toss·Solapi·GCS·worker·Tasks·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. worker readiness도 OpenAI LLM·임베딩·Recraft 상태를 조회하지 않는다.
 
 Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 generate turn과 연결한다. 되돌리기(`activate` 턴)와 finalize는 같은 `run_id` 등가 매칭으로 상관하고, 후속 재생성도 기존 turn/job을 읽어 투영하며 별도 이벤트 테이블을 만들지 않는다.
 

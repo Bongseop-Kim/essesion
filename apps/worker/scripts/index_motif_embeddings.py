@@ -1,4 +1,4 @@
-"""공개 motif의 Vertex AI embedding 인덱스를 구성한다.
+"""공개 motif의 OpenAI embedding 인덱스를 구성한다.
 
 실행:
   uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
@@ -20,7 +20,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--confirm-live",
         action="store_true",
-        help="Vertex AI 과금 호출과 DB 갱신을 명시적으로 승인합니다.",
+        help="OpenAI 임베딩 과금 호출과 DB 갱신을 명시적으로 승인합니다.",
     )
     return parser.parse_args()
 
@@ -29,7 +29,7 @@ async def _run() -> tuple[int, int, int]:
     settings = get_settings()
     client = build_embedding_client(settings)
     if client is None:
-        raise SystemExit("GCP_PROJECT_ID가 없어 Vertex 인덱싱을 실행할 수 없습니다.")
+        raise SystemExit("OPENAI_API_KEY가 없어 임베딩 인덱싱을 실행할 수 없습니다.")
     engine = build_engine(settings)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     try:

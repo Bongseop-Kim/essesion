@@ -3,25 +3,23 @@
 import asyncio
 import base64
 import json
-from types import SimpleNamespace
-from typing import cast
+import traceback
 
 import httpx
 import pytest
 import respx
-from google import genai
 from pydantic import ValidationError
 from svg_safety import parse_svg_tree
 from worker.adapters import AdapterClientError, AdapterNotConfigured
-from worker.adapters.embedding import EmbeddingError, VertexEmbeddingClient, embed_query
-from worker.adapters.gemini import (
+from worker.adapters.embedding import EmbeddingError, OpenAIEmbeddingClient, embed_query
+from worker.adapters.llm import (
     AUTHORING_SYSTEM_INSTRUCTION,
     PATCH_SYSTEM_INSTRUCTION,
-    GeminiClient,
+    LLMClient,
     _build_patch_prompt,
     _build_prompt,
     _contract_feedback,
-    _servable_json_schema,
+    _strict_json_schema,
 )
 from worker.adapters.named_colors import (
     normalize_requested_named_colors,
@@ -40,63 +38,42 @@ from worker.config import Settings
 from worker.engine.validate import IntentInvalid
 
 _SETTINGS = Settings(motif_render_check=False)
+_CHAT_URL = "https://api.openai.com/v1/chat/completions"
+_EMBED_URL = "https://api.openai.com/v1/embeddings"
 
 
-class _SDKError(Exception):
-    def __init__(self, code: int) -> None:
-        super().__init__(f"provider status {code}")
-        self.code = code
+def _chat_response(payload: dict | str) -> httpx.Response:
+    content = payload if isinstance(payload, str) else json.dumps(payload)
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
 
 
-class _FakeModels:
-    def __init__(
-        self,
-        *,
-        generation: list[dict | Exception] | None = None,
-        embedding: list[float] | Exception | None = None,
-    ) -> None:
-        self.generation = list(generation or [])
-        self.embedding = embedding
-        self.generate_calls: list[dict] = []
-        self.embed_calls: list[dict] = []
-
-    async def generate_content(self, **kwargs):  # noqa: ANN003, ANN202
-        self.generate_calls.append(kwargs)
-        item = self.generation.pop(0)
-        if isinstance(item, Exception):
-            raise item
-        return SimpleNamespace(text=json.dumps(item), parsed=None)
-
-    async def embed_content(self, **kwargs):  # noqa: ANN003, ANN202
-        self.embed_calls.append(kwargs)
-        if isinstance(self.embedding, Exception):
-            raise self.embedding
-        return SimpleNamespace(embeddings=[SimpleNamespace(values=self.embedding)])
+def _mock_chat(*items: dict | str | httpx.Response) -> respx.Route:
+    responses = [
+        item if isinstance(item, httpx.Response) else _chat_response(item) for item in items
+    ]
+    return respx.post(_CHAT_URL).mock(side_effect=responses)
 
 
-class _FakeAio:
-    def __init__(self, models: _FakeModels) -> None:
-        self.models = models
-        self.closed = False
-
-    async def aclose(self) -> None:
-        self.closed = True
+def _request_payload(route: respx.Route, index: int = 0) -> dict:
+    return json.loads(route.calls[index].request.content)
 
 
-class _FakeSDK:
-    def __init__(
-        self,
-        *,
-        generation: list[dict | Exception] | None = None,
-        embedding: list[float] | Exception | None = None,
-    ) -> None:
-        self.models = _FakeModels(generation=generation, embedding=embedding)
-        self.aio = _FakeAio(self.models)
+def _user_prompt(route: respx.Route, index: int = 0) -> str:
+    return _request_payload(route, index)["messages"][-1]["content"]
 
 
-def _gemini(*responses: dict | Exception) -> tuple[GeminiClient, _FakeSDK]:
-    sdk = _FakeSDK(generation=list(responses))
-    return GeminiClient("", client=cast(genai.Client, sdk)), sdk
+@pytest.fixture
+async def llm():
+    client = LLMClient("test-key")
+    yield client
+    await client.aclose()
+
+
+@pytest.fixture
+async def embedding_client():
+    client = OpenAIEmbeddingClient("test-key", dimensions=3)
+    yield client
+    await client.aclose()
 
 
 def _svg(inner: str, viewbox: str = "0 0 100 100") -> str:
@@ -246,6 +223,23 @@ async def test_generate_motif_unconfigured_raises():
         await generate_motif({"subject": "dot", "scope": "whole"}, client=None, settings=_SETTINGS)
 
 
+async def test_generate_motif_does_not_chain_client_exception_into_serialized_error():
+    # 생성기 예외 메시지(키·토큰 등)가 __cause__ 체인을 타고 traceback 직렬화에 노출되면 안 된다.
+    secret = "sk-super-secret-key"
+
+    class _Boom:
+        async def generate(self, prompt: str, *, seed: int | None = None) -> str:
+            raise RuntimeError(f"auth header was Bearer {secret}")
+
+    with pytest.raises(RecraftError) as caught:
+        await generate_motif(
+            {"subject": "dot", "scope": "whole"}, client=_Boom(), settings=_SETTINGS
+        )
+    assert caught.value.reason_code == "request_failed"
+    assert caught.value.__cause__ is None
+    assert secret not in "".join(traceback.format_exception(caught.value))
+
+
 @respx.mock
 async def test_recraft_http_uses_inline_b64_and_never_fetches_response_url():
     encoded = base64.b64encode(_CLEAN.encode()).decode()
@@ -299,16 +293,18 @@ async def test_recraft_http_rejects_invalid_base64():
     )
     client = RecraftHTTPClient("k")
     try:
-        with pytest.raises(RecraftError, match="invalid base64"):
+        with pytest.raises(RecraftError, match="malformed response") as caught:
             await client.generate("dot")
+        assert "invalid base64" in str(caught.value.__cause__)
     finally:
         await client.aclose()
 
 
 @respx.mock
 async def test_recraft_http_error_exposes_safe_metadata():
+    secret = "provider-secret-detail"
     respx.post("https://external.api.recraft.ai/v1/images/generations").mock(
-        return_value=httpx.Response(429, text="provider detail")
+        return_value=httpx.Response(429, text=secret)
     )
     client = RecraftHTTPClient("k")
     try:
@@ -318,6 +314,8 @@ async def test_recraft_http_error_exposes_safe_metadata():
         assert caught.value.operation == "generate_motif"
         assert caught.value.reason_code == "rate_limited"
         assert caught.value.status_code == 429
+        assert secret not in str(caught.value)
+        assert secret not in "".join(traceback.format_exception(caught.value))
     finally:
         await client.aclose()
 
@@ -330,8 +328,9 @@ async def test_recraft_http_rejects_svg_over_byte_ceiling():
     )
     client = RecraftHTTPClient("k", max_svg_bytes=len(_CLEAN.encode()) - 1)
     try:
-        with pytest.raises(RecraftError, match="max_svg_bytes"):
+        with pytest.raises(RecraftError, match="malformed response") as caught:
             await client.generate("dot")
+        assert "max_svg_bytes" in str(caught.value.__cause__)
     finally:
         await client.aclose()
 
@@ -343,34 +342,72 @@ async def test_embed_query_none_client_returns_none():
     assert await embed_query("anything", client=None) is None
 
 
-async def test_embedding_client_posts_and_parses():
-    sdk = _FakeSDK(embedding=[0.1, 0.2, 0.3])
-    client = VertexEmbeddingClient(
-        "",
-        client=cast(genai.Client, sdk),
-        output_dimensionality=3,
+@respx.mock
+async def test_embedding_client_posts_and_parses(embedding_client):
+    route = respx.post(_EMBED_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"embedding": [0.1, 0.2, 0.3]}]})
     )
-    assert await client.embed("dot") == [0.1, 0.2, 0.3]
-    call = sdk.models.embed_calls[0]
-    assert call["model"] == "gemini-embedding-001"
-    assert call["contents"] == "dot"
-    assert call["config"].task_type == "RETRIEVAL_QUERY"
+    assert await embedding_client.embed("dot") == [0.1, 0.2, 0.3]
+    payload = json.loads(route.calls.last.request.content)
+    assert payload == {"model": "text-embedding-3-large", "input": "dot", "dimensions": 3}
+    assert route.calls.last.request.headers["Authorization"] == "Bearer test-key"
 
 
-async def test_embedding_client_error_raises():
-    sdk = _FakeSDK(embedding=_SDKError(500))
+@respx.mock
+async def test_embedding_client_error_raises_after_exhausted_retries(embedding_client, monkeypatch):
+    async def _sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("worker.adapters.embedding.asyncio.sleep", _sleep)
+    secret = "provider-secret-detail"
+    route = respx.post(_EMBED_URL).mock(return_value=httpx.Response(500, text=secret))
     with pytest.raises(EmbeddingError) as caught:
-        await VertexEmbeddingClient("", client=cast(genai.Client, sdk)).embed("dot")
-    assert caught.value.provider == "vertex_embedding"
+        await embedding_client.embed("dot")
+    assert route.call_count == 4  # _MAX_ATTEMPTS
+    assert caught.value.provider == "openai_embedding"
     assert caught.value.operation == "embed"
     assert caught.value.reason_code == "provider_5xx"
     assert caught.value.status_code == 500
+    assert secret not in str(caught.value)
+    assert secret not in "".join(traceback.format_exception(caught.value))
 
 
-# ---- Gemini ----
+@respx.mock
+async def test_embedding_client_retries_transient_status_then_succeeds(
+    embedding_client, monkeypatch
+):
+    delays: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        delays.append(seconds)
+
+    monkeypatch.setattr("worker.adapters.embedding.asyncio.sleep", _sleep)
+    route = respx.post(_EMBED_URL).mock(
+        side_effect=[
+            httpx.Response(429, text="slow down"),
+            httpx.Response(200, json={"data": [{"embedding": [0.1, 0.2, 0.3]}]}),
+        ]
+    )
+    assert await embedding_client.embed("dot") == [0.1, 0.2, 0.3]
+    assert route.call_count == 2
+    assert delays == [0.5]
 
 
-async def test_gemini_ideas_use_motif_context_and_retry_invalid_shape():
+@respx.mock
+async def test_embedding_client_rejects_dimension_mismatch(embedding_client):
+    # dimensions 요청 파라미터가 무시된 응답은 저장 전에 거부한다 — vector(1536) 계약.
+    respx.post(_EMBED_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"embedding": [0.1, 0.2]}]})
+    )
+    with pytest.raises(EmbeddingError, match="dimension mismatch"):
+        await embedding_client.embed("dot")
+
+
+# ---- LLM (OpenAI chat/completions) ----
+
+
+@respx.mock
+async def test_llm_ideas_use_motif_context_and_retry_invalid_shape(llm):
     valid = {
         "ideas": [
             "동백 모티프를 작은 격자로 반복하고 남색과 크림색을 사용해 보세요.",
@@ -378,23 +415,24 @@ async def test_gemini_ideas_use_motif_context_and_retry_invalid_shape():
             "동백 실루엣을 대각선으로 배치해 경쾌한 흐름을 표현해 보세요.",
         ]
     }
-    client, sdk = _gemini({"ideas": ["only one"]}, valid)
-    ideas = await client.suggest_ideas(
+    route = _mock_chat({"ideas": ["only one"]}, valid)
+    ideas = await llm.suggest_ideas(
         "차분한 넥타이",
         count=3,
         motifs=[{"motif_id": "upload-a1b2c3d4e5f6", "name": "동백"}],
     )
 
     assert ideas == valid["ideas"]
-    assert len(sdk.models.generate_calls) == 2
-    parts = sdk.models.generate_calls[0]["contents"][0].parts
-    assert len(parts) == 1
-    context = parts[-1].text
+    assert route.call_count == 2
+    payload = _request_payload(route)
+    assert payload["response_format"] == {"type": "json_object"}
+    context = payload["messages"][-1]["content"]
     assert 'exact motif 1: name="동백"' in context
     assert "upload-a1b2c3d4e5f6" not in context
 
 
-async def test_author_design_retries_when_the_single_plan_breaks_the_contract():
+@respx.mock
+async def test_author_design_retries_when_the_single_plan_breaks_the_contract(llm):
     examples = load_example_set()
     stripe = examples[1].plan.model_dump(mode="json")
     broken = json.loads(json.dumps(stripe))
@@ -404,20 +442,20 @@ async def test_author_design_retries_when_the_single_plan_breaks_the_contract():
     # stripe coverage 계약 위반 — 살릴 다른 플랜이 없으므로 재시도로만 회복한다
     broken["layers"][stripe_index]["bands"][0]["width_ratio"] = 0.9
 
-    client, sdk = _gemini(broken, stripe)
-    design = await client.author_design("남색 미니멀 스트라이프")
+    route = _mock_chat(broken, stripe)
+    design = await llm.author_design("남색 미니멀 스트라이프")
 
     assert design.plan is not None
-    assert len(sdk.models.generate_calls) == 2
+    assert route.call_count == 2
 
 
-async def test_author_design_rejects_invalid_json_without_prose_fallback():
+@respx.mock
+async def test_author_design_rejects_invalid_json_without_prose_fallback(llm):
     # 불변식: 재검(pydantic) 실패 시 프로즈 파싱 fallback 금지 — 재시도 후 거부만.
-    responses = [{"not_a_plan": "wrong shape"}] * 4  # _MAX_AUTHORING_ATTEMPTS
-    client, sdk = _gemini(*responses)
+    route = _mock_chat(*([{"not_a_plan": "wrong shape"}] * 4))  # _MAX_AUTHORING_ATTEMPTS
     with pytest.raises(IntentInvalid):
-        await client.author_design("dots")
-    assert len(sdk.models.generate_calls) == 4  # 모든 시도가 재시도됐고 salvage 경로가 없다
+        await llm.author_design("dots")
+    assert route.call_count == 4  # 모든 시도가 재시도됐고 salvage 경로가 없다
 
 
 def test_authoring_prompt_requires_existing_motif_sources():
@@ -500,33 +538,33 @@ def test_authoring_prompt_omits_color_slot_metadata_and_private_ids():
         assert "private-content-hash" not in prompt
 
 
-def test_served_schema_withholds_the_input_motif_variant_when_asked():
-    full = json.dumps(_servable_json_schema(DesignPlanV3))
-    pruned = json.dumps(_servable_json_schema(DesignPlanV3, without=["InputMotifSource"]))
+def test_strict_schema_withholds_the_input_motif_variant_when_asked():
+    full = json.dumps(_strict_json_schema(DesignPlanV3))
+    pruned = json.dumps(_strict_json_schema(DesignPlanV3, without=["InputMotifSource"]))
 
     assert "input_index" in full and "catalog_ref" in full
     assert "input_index" not in pruned
     assert "catalog_ref" in pruned
 
 
-async def test_author_design_without_motif_sources_serves_the_full_schema():
+@respx.mock
+async def test_author_design_without_motif_sources_serves_the_full_schema(llm):
     # motif_ids도 catalog_candidates도 없으면 빈 union이 생기므로 variant를 빼지 않는다.
     examples = load_example_set()
-    client, sdk = _gemini(examples[1].plan.model_dump(mode="json"))
+    route = _mock_chat(examples[1].plan.model_dump(mode="json"))
 
-    await client.author_design("남색 미니멀 스트라이프")
+    await llm.author_design("남색 미니멀 스트라이프")
 
-    served = json.dumps(sdk.models.generate_calls[0]["config"].response_schema)
+    served = json.dumps(_request_payload(route)["response_format"]["json_schema"]["schema"])
     assert "input_index" in served
     assert "catalog_ref" in served
 
 
-def test_authoring_prompt_states_the_count_limits_the_served_schema_drops():
-    # 서빙 스키마에서 maxItems가 제거되므로 개수 상한은 문장으로만 전달된다.
+def test_authoring_prompt_leaves_supported_count_limits_to_the_schema():
     prompt = _build_prompt("네이비 사선 줄무늬", errors=None)
 
-    assert "at most 4 bands per stripe layer" in prompt
-    assert "at most 5 layers" in prompt
+    assert "Per-plan count limits" not in prompt
+    assert "Relations the response schema also cannot express" in prompt
 
     feedback = _contract_feedback(
         "DesignPlanV3",
@@ -564,7 +602,8 @@ def _bands_validation_error() -> ValidationError:
     raise AssertionError("10 bands must be rejected")
 
 
-async def test_authoring_feedback_translates_contract_errors_to_plan_language():
+@respx.mock
+async def test_authoring_feedback_translates_contract_errors_to_plan_language(llm):
     # A5 회귀: 선언한 모티프를 레이어에서 쓰지 않는 응답에 pydantic 원문 덤프 대신
     # plan 필드 언어 피드백을 되돌려준다.
     raw = load_example_set()[5].plan.model_dump(mode="json")
@@ -578,58 +617,117 @@ async def test_authoring_feedback_translates_contract_errors_to_plan_language():
             "bands": [{"offset_ratio": 0.0, "width_ratio": 0.1, "color_index": 0}],
         }
     ]
-    client, sdk = _gemini(*([stripe_only] * 4))
+    route = _mock_chat(*([stripe_only] * 4))
 
     with pytest.raises(IntentInvalid):
-        await client.author_design(
+        await llm.author_design(
             "얇은 대각 스트라이프 두 줄과 별 모티프",
             catalog_candidates=[{"catalog_ref": "cand_1", "motif_id": "circle", "subject": "star"}],
         )
 
-    retry_prompt = sdk.models.generate_calls[1]["contents"][0].parts[-1].text
+    retry_prompt = _user_prompt(route, 1)
     assert "keep every declared motif in layers" in retry_prompt
     assert "input_value" not in retry_prompt
     assert "errors.pydantic.dev" not in retry_prompt
 
 
-async def test_gemini_non_retryable_raises(monkeypatch):
-    monkeypatch.setattr("worker.adapters.gemini.asyncio.sleep", lambda s: _noop())
-    client, _ = _gemini(_SDKError(400))
+@respx.mock
+async def test_llm_non_retryable_raises(llm):
+    secret = "provider-secret-detail"
+    route = _mock_chat(httpx.Response(400, text=secret))
     with pytest.raises(AdapterClientError) as caught:
-        await client.author_design("dots")
-    assert caught.value.provider == "gemini"
-    assert caught.value.operation == "generate_content"
+        await llm.author_design("dots")
+    assert route.call_count == 1
+    assert caught.value.provider == "openai"
+    assert caught.value.operation == "chat_completions"
     assert caught.value.reason_code == "provider_4xx"
     assert caught.value.status_code == 400
+    assert secret not in str(caught.value)
+    assert secret not in "".join(traceback.format_exception(caught.value))
 
 
-async def _noop() -> None:
-    return None
+@respx.mock
+async def test_llm_refusal_does_not_expose_provider_text(llm):
+    secret = "provider-secret-refusal"
+    respx.post(_CHAT_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": None, "refusal": secret}}]},
+        )
+    )
+
+    with pytest.raises(AdapterClientError) as caught:
+        await llm.author_design("dots")
+
+    assert caught.value.reason_code == "invalid_response"
+    assert secret not in str(caught.value)
 
 
-async def test_gemini_uses_typed_schema_and_few_shot_examples():
+@respx.mock
+async def test_llm_retries_transient_statuses_then_succeeds(llm, monkeypatch):
+    delays: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        delays.append(seconds)
+
+    monkeypatch.setattr("worker.adapters.llm.asyncio.sleep", _sleep)
+    examples = load_example_set()
+    route = _mock_chat(
+        httpx.Response(429, text="slow down"),
+        httpx.Response(503, text="unavailable"),
+        examples[1].plan.model_dump(mode="json"),
+    )
+
+    design = await llm.author_design("남색 미니멀 스트라이프")
+
+    assert design.plan is not None
+    assert route.call_count == 3
+    assert delays == [0.5, 1.0]
+
+
+@respx.mock
+async def test_llm_exhausted_retries_expose_safe_metadata(llm, monkeypatch):
+    async def _sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("worker.adapters.llm.asyncio.sleep", _sleep)
+    route = _mock_chat(*([httpx.Response(429, text="slow down")] * 4))
+    with pytest.raises(AdapterClientError) as caught:
+        await llm.author_design("dots")
+    assert route.call_count == 4  # _MAX_ATTEMPTS
+    assert caught.value.reason_code == "rate_limited"
+    assert caught.value.status_code == 429
+
+
+@respx.mock
+async def test_llm_uses_strict_schema_and_few_shot_examples(llm):
     examples = load_example_set()
     stripe_a = examples[1]
     stripe_b = examples[2]
-    client, sdk = _gemini(stripe_a.plan.model_dump(mode="json"))
+    route = _mock_chat(stripe_a.plan.model_dump(mode="json"))
     diagnostics: dict[str, object] = {}
 
-    design = await client.author_design(
+    design = await llm.author_design(
         "굵기가 다른 대각 스트라이프",
         examples=[stripe_a.prompt_example(), stripe_b.prompt_example()],
         diagnostics=diagnostics,
     )
 
     assert design.structural_fingerprint == diagnostics["structural_fingerprint"]
-    assert len(sdk.models.generate_calls) == 1
-    first_call = sdk.models.generate_calls[0]
-    config = first_call["config"]
-    # Must use the ENFORCED response_schema path — response_json_schema is only a hint that Vertex
-    # ignores for nested schemas, letting the model invent enum values and fail every plan.
-    assert config.response_json_schema is None
-    assert config.response_schema is not None
-    assert first_call["config"].system_instruction == AUTHORING_SYSTEM_INSTRUCTION
-    prompt = first_call["contents"][0].parts[-1].text
+    assert route.call_count == 1
+    payload = _request_payload(route)
+    # Must use the ENFORCED strict json_schema path — prompt-only JSON lets the model invent
+    # enum values and fail every plan.
+    response_format = payload["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["schema"]["type"] == "object"
+    assert payload["max_completion_tokens"] == 8192
+    assert payload["messages"][0] == {
+        "role": "system",
+        "content": AUTHORING_SYSTEM_INSTRUCTION,
+    }
+    prompt = payload["messages"][-1]["content"]
     assert "Create exactly one seamless textile plan." in prompt
     assert stripe_a.example_id in prompt
     assert "tile_mm" not in prompt
@@ -655,13 +753,14 @@ _SNAPSHOT = {
 }
 
 
-async def test_author_patch_asks_for_one_narrow_edit_without_motif_identity():
-    client, sdk = _gemini(
+@respx.mock
+async def test_author_patch_asks_for_one_narrow_edit_without_motif_identity(llm):
+    route = _mock_chat(
         {"palette": {"slots": [{"id": "ground", "hex": "#F5F0E6"}]}, "note": "바탕을 밝게 했어요."}
     )
     diagnostics: dict[str, object] = {}
 
-    patch = await client.author_patch(
+    patch = await llm.author_patch(
         "바탕을 좀 더 밝게",
         snapshot=_SNAPSHOT,
         conversation_history=[
@@ -673,21 +772,22 @@ async def test_author_patch_asks_for_one_narrow_edit_without_motif_identity():
     assert patch.has_changes and not patch.out_of_scope
     assert patch.note == "바탕을 밝게 했어요."
     # patch 스키마는 자기수정 라운드가 필요 없다 — 한 번만 호출한다.
-    assert len(sdk.models.generate_calls) == 1
+    assert route.call_count == 1
     assert diagnostics["authoring_mode"] == "patch"
     assert diagnostics["authoring_attempts"] == 1
-    call = sdk.models.generate_calls[0]
-    assert call["config"].system_instruction == PATCH_SYSTEM_INSTRUCTION
-    assert call["config"].response_schema is not None
-    prompt = call["contents"][0].parts[-1].text
+    payload = _request_payload(route)
+    assert payload["messages"][0] == {"role": "system", "content": PATCH_SYSTEM_INSTRUCTION}
+    assert payload["response_format"]["type"] == "json_schema"
+    prompt = payload["messages"][-1]["content"]
     assert "네이비 스트라이프" in prompt
     assert "motif_id" not in prompt and "catalog_ref" not in prompt
 
 
-async def test_author_patch_marks_a_motif_request_out_of_scope():
-    client, _ = _gemini({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
+@respx.mock
+async def test_author_patch_marks_a_motif_request_out_of_scope(llm):
+    _mock_chat({"out_of_scope": True, "note": "무늬는 여기서 바꿀 수 없어요."})
 
-    patch = await client.author_patch("벌을 나비로 바꿔줘", snapshot=_SNAPSHOT)
+    patch = await llm.author_patch("벌을 나비로 바꿔줘", snapshot=_SNAPSHOT)
 
     assert patch.out_of_scope and not patch.has_changes
 
@@ -701,32 +801,34 @@ def test_patch_prompt_states_the_motif_boundary():
     assert "source=" not in prompt
 
 
-async def test_initial_authoring_normalizes_wrong_named_ground_color():
+@respx.mock
+async def test_initial_authoring_normalizes_wrong_named_ground_color(llm):
     examples = load_example_set()
     wrong_stripe = examples[1].plan.model_dump(mode="json")
     wrong_stripe["colors"][0] = "#4F77A8"
-    client, sdk = _gemini(wrong_stripe)
+    route = _mock_chat(wrong_stripe)
 
-    design = await client.author_design("짙은 네이비 바탕의 미니멀 스트라이프")
+    design = await llm.author_design("짙은 네이비 바탕의 미니멀 스트라이프")
 
-    assert len(sdk.models.generate_calls) == 1
+    assert route.call_count == 1
     assert design.plan is not None
     assert design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
 
 
+@respx.mock
 @pytest.mark.parametrize("prompt", ["네이비 없이", "네이비는 빼줘", "without navy"])
-async def test_initial_authoring_does_not_require_excluded_named_color(prompt: str):
+async def test_initial_authoring_does_not_require_excluded_named_color(llm, prompt: str):
     examples = load_example_set()
     plan = (
         examples[0]
         .plan.model_copy(update={"colors": ["#222222", *examples[0].plan.colors[1:]]})
         .model_dump(mode="json")
     )
-    client, sdk = _gemini(plan)
+    route = _mock_chat(plan)
 
-    design = await client.author_design(prompt)
+    design = await llm.author_design(prompt)
 
-    assert len(sdk.models.generate_calls) == 1
+    assert route.call_count == 1
     assert design.plan is not None and "#000080" not in design.plan["colors"]
 
 
@@ -921,34 +1023,53 @@ def test_named_color_on_motif_layer_keeps_fixed_artwork_and_palette():
     assert normalized == current
 
 
-def test_servable_schema_is_loosened_for_vertex_enforcement():
-    # The provider schema keeps structure (types, enums, required) so constrained decoding forces
-    # valid tags/fields, but drops what Vertex's types.Schema cannot serve: value/length/array
-    # bounds, and oneOf/discriminator (converted to anyOf). pydantic re-checks bounds post-parse.
-    schema_text = json.dumps(_servable_json_schema(DesignPlanV3))
+def test_strict_schema_meets_openai_strict_requirements():
+    # 프로바이더 스키마는 구조(types·enums·required)를 유지해 constrained decoding이 유효한
+    # 태그·필드와 지원되는 수치·배열 바운드를 강제한다. strict가 못 받는 문자열 길이·
+    # default는 벗기고 oneOf/discriminator는 anyOf로 변환한다.
+    schema = _strict_json_schema(DesignPlanV3)
+    schema_text = json.dumps(schema)
     assert '"layers"' in schema_text
-    for banned in ("minimum", "maximum", "exclusiveMinimum", "maxItems", "minItems", "oneOf"):
+    for supported in ("minimum", "maximum", "exclusiveMinimum", "maxItems", "minItems"):
+        assert supported in schema_text, supported
+    for banned in ("minLength", "maxLength", "oneOf"):
         assert banned not in schema_text, banned
     assert "discriminator" not in schema_text
+    assert '"default"' not in schema_text
     assert "anyOf" in schema_text
+
+    def check_objects(node: object) -> None:
+        if isinstance(node, dict):
+            if node.get("type") == "object" and isinstance(node.get("properties"), dict):
+                assert node["additionalProperties"] is False
+                assert sorted(node["required"]) == sorted(node["properties"])
+            for value in node.values():
+                check_objects(value)
+        elif isinstance(node, list):
+            for value in node:
+                check_objects(value)
+
+    check_objects(schema)
 
 
 async def test_clients_reuse_and_close_http_pool():
-    # HTTP/SDK clients are reused and lifespan teardown closes every provider.
+    # HTTP clients are reused and lifespan teardown closes every provider.
     from worker.adapters import Adapters
 
-    gemini_sdk = _FakeSDK()
-    embedding_sdk = _FakeSDK()
-    gemini = GeminiClient("", client=cast(genai.Client, gemini_sdk))
+    llm = LLMClient("k")
     recraft = RecraftHTTPClient("k")
-    embed = VertexEmbeddingClient("", client=cast(genai.Client, embedding_sdk))
-    pool = recraft._http()
-    assert recraft._http() is pool
+    embed = OpenAIEmbeddingClient("k")
+    recraft_pool = recraft._http()
+    llm_pool = llm._http()
+    embed_pool = embed._http()
+    assert recraft._http() is recraft_pool
+    assert llm._http() is llm_pool
+    assert embed._http() is embed_pool
 
-    await Adapters(embedding=embed, recraft=recraft, gemini=gemini).aclose()
-    assert pool.is_closed
-    assert gemini_sdk.aio.closed
-    assert embedding_sdk.aio.closed
+    await Adapters(embedding=embed, recraft=recraft, llm=llm).aclose()
+    assert recraft_pool.is_closed
+    assert llm_pool.is_closed
+    assert embed_pool.is_closed
 
 
 async def test_request_scoped_embedding_memoizes():
@@ -958,8 +1079,7 @@ async def test_request_scoped_embedding_memoizes():
         model = "test"
         calls = 0
 
-        async def embed(self, text: str, *, task_type: str = "RETRIEVAL_QUERY") -> list[float]:
-            assert task_type == "RETRIEVAL_QUERY"
+        async def embed(self, text: str) -> list[float]:
             self.calls += 1
             return [1.0]
 

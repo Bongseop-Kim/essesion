@@ -1,6 +1,6 @@
 # 기존 → 새 스키마 매핑 표
 
-기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (단일 베이스라인 `f8c3b2a19d47` = 현재 head).
+기존 도메인 의미를 검토하고 "재설계가 기능 개편으로 번지는 것"을 막기 위한 설계 기록(CHECKLIST 2단계). 실행 가능한 데이터 이관 계약은 아니다. 기존 = YeongSeon Supabase(`supabase/schemas` + migrations), 새 = `db/src/db/models` (베이스라인 `f8c3b2a19d47` → OpenAI 임베딩 전환 `6dbb8bb66939` = 현재 head).
 
 ## 1. 테이블 매핑
 
@@ -30,7 +30,7 @@
 | design_tokens | design_tokens | 동일 — 원장 의미(amount±, type, token_class, 만료) 보존. work_id = 생성 작업 멱등 키(구 ai_generation_logs.work_id FK였으나 대상 드롭 → FK 없는 text 유지) |
 | token_purchases | token_purchases | 동일 |
 | images | **images** (재설계) | url·file_id·folder(ImageKit) → object_key(GCS 업로드 버킷). 2단계 삭제·expires_at·부분 unique 유지. 비회원 수선 업로드를 위해 claim_token_hash/content_type/size_bytes/upload_completed_at 추가, 미귀속·장바구니 제거 이미지는 24시간 후 정리. 디자인 staged upload는 팔레트 추출과 사진→SVG 모티프에만 쓰며 생성 첨부로 귀속하지 않는다. 견적 종료 시 90일 만료 트리거 → api 로직 |
-| motifs | motifs | 도메인 의미 유지. Vertex AI `vector(3072)` 한 컬럼과 halfvec HNSW 검색 인덱스를 사용. extensions.vector → public vector |
+| motifs | motifs | 도메인 의미 유지. OpenAI `vector(1536)` 한 컬럼과 컬럼 직접 HNSW(vector_cosine_ops) 검색 인덱스를 사용. extensions.vector → public vector |
 | seamless_generation_logs | seamless_generation_logs | admin 로그 뷰어 + SVG 재-export system of record. 입력 타입은 `prompt\|intent`만 허용하고 참고 이미지 여부·바이트 컬럼은 두지 않는다 |
 | seamless_sessions | **design_sessions** (재설계) | thread_id(text PK)→id(uuid). status/seed/colorway/registry_version/current_intent 승계, user_id NOT NULL화. **예산 카운터 recraft_used 추가** — 프로세스-로컬 budget 대체(Postgres 공유 카운터, ARCHITECTURE §7). finalize는 세션 카운터 대신 계정당 24시간 쿼터(generation_jobs 카운트, worker-pipeline.md §5) — finalize_used 컬럼은 도입 후 제거됨 |
 | (없음) | **design_session_turns / design_turn_attachments** (신규) | API 소유 대화 이력. 첨부는 턴에서 사용한 concrete motif ID·이름·순서만 저장하며 사진/image/purpose 컬럼은 없다 |

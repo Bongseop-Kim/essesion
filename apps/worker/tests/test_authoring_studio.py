@@ -107,7 +107,7 @@ async def test_compile_preview_uses_catalog_without_generation_adapters(
     assert response.status_code == 200, response.text
     assert response.json()["svg"].startswith("<svg")
     assert response.json()["warnings"] == []
-    assert app.state.adapters.gemini is None
+    assert app.state.adapters.llm is None
     assert app.state.adapters.recraft is None
 
 
@@ -290,10 +290,10 @@ async def test_prepare_derives_metadata_and_embedding_once_at_authoring(app, cli
         model = "studio-embedding"
 
         def __init__(self) -> None:
-            self.calls: list[tuple[str, str]] = []
+            self.calls: list[str] = []
 
-        async def embed(self, text: str, *, task_type: str) -> list[float]:
-            self.calls.append((text, task_type))
+        async def embed(self, text: str) -> list[float]:
+            self.calls.append(text)
             return [1.0] + [0.0] * (EMBEDDING_DIM - 1)
 
     embedding = _Embedding()
@@ -313,7 +313,7 @@ async def test_prepare_derives_metadata_and_embedding_once_at_authoring(app, cli
     assert prepared["motif_count"] == 0
     assert prepared["embedding_model"] == embedding.model
     assert len(prepared["embedding"]) == EMBEDDING_DIM
-    assert embedding.calls == [("차분한 단색 넥타이 패턴, solid, solid", "RETRIEVAL_DOCUMENT")]
+    assert embedding.calls == ["차분한 단색 넥타이 패턴, solid, solid"]
     current_model = await client.post(
         "/authoring/examples/embedding-model",
         json={},
@@ -338,10 +338,10 @@ async def test_prepare_maps_embedding_adapter_errors_to_bad_gateway(app, client)
     class _Embedding:
         model = "studio-embedding"
 
-        async def embed(self, text: str, *, task_type: str) -> list[float]:
+        async def embed(self, text: str) -> list[float]:
             raise AdapterClientError(
                 "unavailable",
-                provider="vertex_embedding",
+                provider="openai_embedding",
                 operation="embed",
                 reason_code="provider_5xx",
             )
@@ -361,7 +361,7 @@ async def test_prepare_maps_wrong_embedding_dimension_to_bad_gateway(app, client
     class _Embedding:
         model = "studio-embedding"
 
-        async def embed(self, text: str, *, task_type: str) -> list[float]:
+        async def embed(self, text: str) -> list[float]:
             return [1.0]
 
     app.state.adapters.embedding = _Embedding()

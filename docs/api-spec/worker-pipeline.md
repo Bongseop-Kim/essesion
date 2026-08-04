@@ -62,7 +62,7 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 - 프리뷰 PNG는 GCS `previews/{request_id}/{design_id}/{sha256(png)[:16]}.png`에 create-only 업로드(`if_generation_match=0`)한다(공개 assets 버킷, best-effort — 실패 시 key null+경고). 같은 내용의 기존 객체로 인한 412는 멱등 성공이며 덮어쓰지 않는다. 호출자가 `X-Request-ID`를 재사용해도 다른 PNG는 다른 키가 된다.
 - `POST /motifs/candidates` — 최대 200자의 문장을 그대로 카탈로그 검색에 사용해 재사용 후보를 나열한다(모델·Recraft 미호출 → 무과금). api의 `motifs/search`가 이걸 부른다. 여기서 "후보"는 카탈로그 매칭 후보이며 폐기된 디자인 후보와 무관하다. `POST /motifs/generate` — 같은 검색의 miss에서만 Recraft 생성 승인 실행. 예산 검사·차감은 **api가 세션 카운터(design_sessions.recraft_used)로 수행 후 호출**(worker는 검사 안 함, 세션당 3회).
 - `POST /motifs/import` — 모든 user SVG를 공통 sanitize/normalize/content-hash 경계로 처리하되 worker DB에는 쓰지 않고 `{motif_id,symbol,bbox,anchor,preview_svg}`를 반환한다. API가 Motif+사용자 소유 링크를 하나의 transaction으로 저장한다. `POST /motifs/text-preview`와 `/motifs/photo-preview`는 각각 번들 폰트 path 변환, 제한적 로컬 배경 분리+VTracer 결과를 concrete-color standalone SVG로 만들고 같은 import 경계로 넘긴다. CPU 작업은 thread pool에서 실행한다.
-- `POST /ideas` — 현재 prompt와 exact motifs를 Gemini에 전달해 3~4개 편집 초안만 반환하며 이미지·intent·generation log를 만들지 않는다. helper의 rate limit·무료 정책은 api 소유다.
+- `POST /ideas` — 현재 prompt와 exact motifs를 LLM에 전달해 3~4개 편집 초안만 반환하며 이미지·intent·generation log를 만들지 않는다. helper의 rate limit·무료 정책은 api 소유다.
 - resolve가 끝난 모티프는 concrete-color symbol을 그대로 사용한다. Plan·intent·구성 patch는 모티프 색을 bind하거나 재색하지 않는다.
 - seamless_generation_logs INSERT는 워커가 직접(원 동작 — system of record, SVG 재-export 근거). `diagnostics` JSONB에는 mode(`prompt|patch|variation|motif_slot`), 모델·prompt revision, 저작 시도, 적용한 patch, 단계별 시간, 모티프별 exact/catalog 결과와 실패 code/stage/provider/operation/reason/status를 저장한다. 디자인 생성 진단에는 Recraft 호출·참고 이미지 바이트 관측값이 없다. `scope_rejected`도 결과가 없는 시도이므로 `status=error, error_type=ScopeRejected` 한 행을 남긴다(과금은 api가 되돌린다). worker JSON 로그에도 같은 안전한 provider 식별 필드만 넣으며 provider 응답·인증 header·프롬프트 원문·내부 예외는 넣지 않는다.
 
@@ -89,6 +89,6 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 
 결정론: test_determinism(바이트 동일·프로세스 교차), test_variant_sampling(% pool), test_registry_fingerprint, test_text_motif(폰트 파이프라인 결정론), test_fabric(픽셀 결정론·seam·relief·inlay).
 엔진: test_composition(2MB 캡), test_candidates(다양화 — 미승계), test_colorway, test_lattice, test_scatter, test_point_set, test_placement_path, test_wave, test_angle_snap, test_seamless, test_seamless_mvp(size>tile 거부), test_primitives, test_intent, test_render_svg, test_geometry, test_example_tile(오프라인 E2E).
-모티프·어댑터: test_motif_gate, test_motif_facets, test_motif_resolver, test_motif_pool, test_motif_store(+_pg, live opt-in), test_recraft_client/gate/intake, test_embedding, test_gemini_retry, test_adapters, test_multi_image_chat, test_multicolor, test_retrieval_eval(τ 보정).
+모티프·어댑터: test_motif_gate, test_motif_facets, test_motif_resolver, test_motif_pool, test_motif_store(+_pg, live opt-in), test_recraft_client/gate/intake, test_embedding, test_llm_retry, test_adapters, test_multicolor, test_retrieval_eval(τ 보정).
 API·기타: test_api_generate(슬림 계약·캐시·오류 매핑), test_api_export, test_sanitize, test_health, test_config. (세션 3종 — test_sessions/test_session_persistence/test_time_travel — 은 미승계 범위.)
 픽스처: tests/fixtures/recraft_samples/*.svg 3개(pig face flat, honeybee top, pelican bicycle side — 재구현 결정: 원본 8종 대신 원하는 스타일의 커스텀 샘플로 교체), motif_eval/{embeddings,labelset}.json — 재구현 레포로 복사해 대조에 사용.

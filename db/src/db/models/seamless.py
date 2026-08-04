@@ -1,8 +1,8 @@
 """seamless 엔진 데이터 — 워커가 사용 (motifs 검색·생성 로그 기록).
 
 motifs.id는 content-hash(recraft-<sha256 12자>) — ON CONFLICT DO NOTHING이 곧 멱등성.
-임베딩은 Vertex AI gemini-embedding-001의 vector(3072)에 저장하며, 검색은
-halfvec(3072) expression HNSW 인덱스를 사용한다.
+임베딩은 OpenAI text-embedding-3-large(dimensions=1536)를 vector(1536)에 저장하며,
+검색은 컬럼 직접 HNSW(vector_cosine_ops) 인덱스를 사용한다.
 """
 
 import uuid
@@ -18,7 +18,6 @@ from sqlalchemy import (
     Index,
     Integer,
     Text,
-    literal_column,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, REAL
@@ -26,7 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from db.models.base import Base, CreatedAtMixin, TimestampMixin, uuid_pk
 
-EMBEDDING_DIM = 3072
+EMBEDDING_DIM = 1536
 AUTHORING_EXAMPLE_FAMILIES = (
     "solid",
     "stripe",
@@ -61,7 +60,7 @@ class Motif(CreatedAtMixin, Base):
     style: Mapped[str | None]
     description: Mapped[str | None]
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
-    embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+    embedding_openai: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     source: Mapped[str] = mapped_column(server_default="recraft")
     variant_group: Mapped[str | None]
     status: Mapped[str] = mapped_column(server_default="pending")
@@ -74,10 +73,10 @@ class Motif(CreatedAtMixin, Base):
         CheckConstraint("scope IS NULL OR scope IN ('whole', 'partial')", name="scope"),
         CheckConstraint("status IN ('pending', 'approved', 'rejected')", name="status"),
         Index(
-            "ix_motifs_embedding_vertex_halfvec_hnsw",
-            literal_column("(embedding_vertex::halfvec(3072))").label("embedding_vertex_halfvec"),
+            "ix_motifs_embedding_openai_hnsw",
+            "embedding_openai",
             postgresql_using="hnsw",
-            postgresql_ops={"embedding_vertex_halfvec": "halfvec_cosine_ops"},
+            postgresql_ops={"embedding_openai": "vector_cosine_ops"},
         ),
     )
 
@@ -100,7 +99,7 @@ class AuthoringExample(TimestampMixin, Base):
     structural_fingerprint: Mapped[str]
     source_digest: Mapped[str]
     embedding_model: Mapped[str]
-    embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+    embedding_openai: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     active: Mapped[bool] = mapped_column(server_default=text("false"))
     approved_at: Mapped[datetime | None]
     approved_by: Mapped[uuid.UUID | None] = mapped_column(
@@ -125,7 +124,7 @@ class AuthoringExample(TimestampMixin, Base):
             name="family",
         ),
         CheckConstraint(
-            "NOT active OR (embedding_vertex IS NOT NULL AND approved_at IS NOT NULL)",
+            "NOT active OR (embedding_openai IS NOT NULL AND approved_at IS NOT NULL)",
             name="active_ready",
         ),
         Index("ix_authoring_examples_active_family", "active", "family"),
@@ -161,7 +160,7 @@ class AuthoringPromotionCandidate(TimestampMixin, Base):
     structural_fingerprint: Mapped[str | None]
     source_digest: Mapped[str]
     embedding_model: Mapped[str | None]
-    embedding_vertex: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+    embedding_openai: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     nearest_kind: Mapped[str | None]
     nearest_id: Mapped[str | None]
     nearest_similarity: Mapped[float | None] = mapped_column(REAL)
@@ -194,9 +193,12 @@ class AuthoringPromotionCandidate(TimestampMixin, Base):
             "nearest_similarity IS NULL OR nearest_similarity BETWEEN -1 AND 1",
             name="nearest_similarity",
         ),
+        # approved는 terminal이라 제외 — 임베딩 모델 이관 시 승인 이력 행의 벡터가
+        # 무효화(NULL)돼도 감사 기록을 지우지 않고 남길 수 있어야 한다. 승인 시점 검증은
+        # api의 _approve_candidate와 worker의 ensure_candidate_embedding이 강제한다.
         CheckConstraint(
-            "status NOT IN ('pending', 'hold', 'approved') OR "
-            "(embedding_model IS NOT NULL AND embedding_vertex IS NOT NULL "
+            "status NOT IN ('pending', 'hold') OR "
+            "(embedding_model IS NOT NULL AND embedding_openai IS NOT NULL "
             "AND structural_fingerprint IS NOT NULL)",
             name="reviewable_ready",
         ),
