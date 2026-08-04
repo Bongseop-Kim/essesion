@@ -22,6 +22,19 @@ _REPLACEMENT_SUBJECT = re.compile(
 _KOREAN_FLOWER_SUBJECT = re.compile(
     r"(?P<subject>[가-힣A-Za-z0-9_-]{1,40}꽃)(?:은|는|이|가|을|를|로|으로)?"
 )
+_COLOR_WORDS = (
+    r"네이비|남색|navy|버건디|burgundy|아이보리|ivory|금색|골드|gold|빨강|빨간|red|"
+    r"파랑|파란|하늘|blue|초록|녹색|green|노랑|노란|yellow|검정|검은|black|흰|하양|white|"
+    r"회색|gray|grey|분홍|핑크|pink|보라|purple|주황|오렌지|orange|갈색|브라운|brown|"
+    r"베이지|beige|은색|실버|silver"
+)
+# 모티프 색은 정책상 고정이다 — 색만 바꾸라는 요청은 피커에 안내할 게 없으니 거절 알림으로 끝낸다.
+# ponytail: 어휘~색 사이 6자 창으로 좁게 본다. "모티프 대신 배경을 네이비로"처럼 사이에 다른
+# 대상이 끼면 오탐할 수 있고, 그때는 창을 좁히기보다 대상 어휘 파싱이 필요하다.
+_MOTIF_COLOR_CHANGE = re.compile(
+    rf"(?:{_MOTIF_WORDS.pattern})[^.!?\n]{{0,6}}?(?:{_COLOR_WORDS})(?:색|상)?\s*(?:으)?로",
+    re.IGNORECASE,
+)
 
 
 def _subject(prompt: str) -> str | None:
@@ -44,6 +57,8 @@ def detect_motif_intent(
 ) -> dict[str, object] | None:
     """Return a picker hint only when the request demonstrably went unhandled."""
 
+    if _MOTIF_COLOR_CHANGE.search(prompt):
+        return None
     if llm_out_of_scope:
         reason = "motif_change"
     # 첫 저작이 모티프 레이어 없이 끝났는데 문장은 모티프를 말했다 — 카탈로그 miss다.

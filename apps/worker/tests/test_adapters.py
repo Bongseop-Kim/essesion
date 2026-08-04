@@ -1004,6 +1004,17 @@ def test_motif_intent_needs_evidence_not_only_vocabulary(prompt: str):
     assert detect_motif_intent(prompt) is None
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    ["모티프는 네이비로 바꿔줘", "모티프 색을 빨간색으로 바꿔줘", "무늬를 골드로 변경"],
+)
+def test_motif_color_request_gets_no_picker_signal(prompt: str):
+    # 모티프 색은 고정이라 피커가 답이 아니다 — 색 문제를 모티프 안내로 바꾸지 않는다.
+    assert detect_motif_intent(prompt, llm_out_of_scope=True) is None
+    # 색 어휘가 없는 모티프 교체는 그대로 안내한다.
+    assert detect_motif_intent("모티프를 벚꽃으로 바꿔줘", llm_out_of_scope=True) is not None
+
+
 def test_motif_intent_keeps_the_subject_empty_when_it_is_not_a_noun():
     # "잔잔한"처럼 수식어를 검색어로 채우면 0건 검색이 된다 — 일반 안내로 떨어뜨린다.
     signal = detect_motif_intent("잔잔한 무늬로 부탁해요", motif_missing=True)

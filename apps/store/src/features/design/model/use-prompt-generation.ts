@@ -15,7 +15,8 @@ export type PromptGenerationOptions = {
   onSessionChange: (sessionId: string) => void;
   /** 되돌리기·모티프 교체처럼 같은 세션을 만지는 다른 요청이 진행 중인지 */
   blocked: boolean;
-  onMotifIntent?: (intent: MotifIntentOut) => void;
+  /** 피커 안내 sidecar — `rejected` 알림을 대신하므로 필수다. */
+  onMotifIntent: (intent: MotifIntentOut) => void;
 };
 
 /**
@@ -70,7 +71,7 @@ export function usePromptGeneration({
       const result = await mutation.mutateAsync(input);
       if (!epoch.isCurrent(current)) return;
       onSessionChange(result.sessionId);
-      if (result.motifIntent) onMotifIntent?.(result.motifIntent);
+      if (result.motifIntent) onMotifIntent(result.motifIntent);
       // 거절은 문장을 남기고 전체 선택만 한다 — 무엇이 거절됐는지 보이면서 다음 입력이 덮어쓴다.
       if (result.rejected) setSelectSignal((signal) => signal + 1);
       else clearDraft();
