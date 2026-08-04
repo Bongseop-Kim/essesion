@@ -356,6 +356,14 @@ class DesignWarningOut(BaseModel):
     message: str = Field(min_length=1, max_length=200)
 
 
+class MotifIntentOut(BaseModel):
+    """현재 응답에서만 소비하는 모티프 피커 안내 sidecar."""
+
+    detected: Literal[True] = True
+    subject: str | None = Field(default=None, max_length=200)
+    reason: Literal["motif_mention", "motif_change"]
+
+
 class DesignGenerateOut(BaseModel):
     run_id: uuid.UUID
     request_id: str
@@ -365,12 +373,14 @@ class DesignGenerateOut(BaseModel):
     warnings: list[DesignWarningOut] = []
     # 입력창 문장을 어떻게 해석했는지 한 줄. 최초 생성은 null.
     note: str | None = None
+    motif_intent: MotifIntentOut | None = None
 
 
 class DesignGenerateRejectedOut(BaseModel):
-    """구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤)."""
+    """구성 수정으로 표현할 수 없는 요청 — 토큰·턴 없이 끝나고 피커 안내만 붙는다."""
 
     rejected: Literal["motif"]
+    motif_intent: MotifIntentOut | None = None
 
 
 class WorkerDesignOut(DesignOut):
@@ -388,6 +398,7 @@ class WorkerDesignGenerateOut(BaseModel):
     design: WorkerDesignOut
     warnings: list[DesignWarningOut] = Field(default_factory=list)
     note: str | None = Field(default=None, max_length=200)
+    motif_intent: MotifIntentOut | None = None
 
 
 class DesignStepActivateRequest(StrictModel):
@@ -1403,6 +1414,7 @@ async def _finish_generation_success(
         design=DesignOut.model_validate(out.design.model_dump()),
         warnings=out.warnings,
         note=out.note,
+        motif_intent=out.motif_intent,
     )
     # 구성 수정은 워커가 해석 한 줄(note)을 준다 — 이력·다음 문장의 문맥이 된다.
     summary = summary or out.note or _short_design_description(out.plan)
@@ -1601,6 +1613,12 @@ async def _dispatch_generation(
     try:
         response = await request.app.state.worker.generate(payload)
         if isinstance(response, dict) and response.get("status") == "scope_rejected":
+            try:
+                rejected = DesignGenerateRejectedOut(
+                    rejected="motif", motif_intent=response.get("motif_intent")
+                )
+            except ValidationError as exc:
+                raise UpstreamError("이미지 워커 응답 형식이 올바르지 않습니다") from exc
             await _undo_generation(
                 session=session,
                 user_id=user_id,
@@ -1608,7 +1626,7 @@ async def _dispatch_generation(
                 run_id=run_id,
                 charge_cost=charge_cost,
             )
-            return DesignGenerateRejectedOut(rejected="motif")
+            return rejected
         try:
             out = WorkerDesignGenerateOut.model_validate(response)
         except ValidationError as exc:

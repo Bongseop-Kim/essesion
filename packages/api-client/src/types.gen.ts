@@ -3810,6 +3810,7 @@ export type DesignGenerateOut = {
      * Engine Version
      */
     engine_version: string;
+    motif_intent?: MotifIntentOut | null;
     /**
      * Note
      */
@@ -3835,9 +3836,10 @@ export type DesignGenerateOut = {
 /**
  * DesignGenerateRejectedOut
  *
- * 구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤).
+ * 구성 수정으로 표현할 수 없는 요청 — 토큰·턴 없이 끝나고 피커 안내만 붙는다.
  */
 export type DesignGenerateRejectedOut = {
+    motif_intent?: MotifIntentOut | null;
     /**
      * Rejected
      */
@@ -5141,6 +5143,26 @@ export type MotifGenerateRequest = {
      * Prompt
      */
     prompt: string;
+};
+
+/**
+ * MotifIntentOut
+ *
+ * 현재 응답에서만 소비하는 모티프 피커 안내 sidecar.
+ */
+export type MotifIntentOut = {
+    /**
+     * Detected
+     */
+    detected?: true;
+    /**
+     * Reason
+     */
+    reason: 'motif_mention' | 'motif_change';
+    /**
+     * Subject
+     */
+    subject?: string | null;
 };
 
 /**

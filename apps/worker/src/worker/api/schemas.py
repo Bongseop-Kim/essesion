@@ -175,6 +175,14 @@ class GenerationWarning(BaseModel):
     message: str
 
 
+class MotifIntentSignal(BaseModel):
+    """모티프 피커로 넘길 일회성 힌트. 디자인 세션 정본에는 저장하지 않는다."""
+
+    detected: Literal[True] = True
+    subject: str | None = Field(default=None, max_length=200)
+    reason: Literal["motif_mention", "motif_change"]
+
+
 class GenerateResponse(BaseModel):
     generation_log_id: uuid.UUID
     request_id: str
@@ -187,12 +195,14 @@ class GenerateResponse(BaseModel):
     warnings: list[GenerationWarning] = []
     # 구성 patch가 사용자 문장을 어떻게 해석했는지 한 줄 (고객 노출용). 최초 저작은 null.
     note: str | None = None
+    motif_intent: MotifIntentSignal | None = None
 
 
 class ScopeRejectedResponse(BaseModel):
     """구성 patch로 표현할 수 없는 요청 — 아무것도 만들지 않았고 과금도 없다(HTTP 200)."""
 
     status: Literal["scope_rejected"] = "scope_rejected"
+    motif_intent: MotifIntentSignal | None = None
 
 
 class ExportRequest(StrictRequest):

@@ -26,7 +26,7 @@ import {
   PencilSquareIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
   DESIGN_PHOTO_ACCEPT,
@@ -59,6 +59,8 @@ export type MotifPanelProps = {
   recraftRemaining: number | null;
   /** SVG를 넣는 중인 슬롯 — 썸네일 자리에 진행 표시 */
   pendingSlot: 1 | 2 | null;
+  /** 값이 증가할 때 피커 위치를 한 번 강조한다. */
+  hintSignal?: number;
   disabled?: boolean;
 };
 
@@ -75,6 +77,7 @@ export function MotifPanel({
   onAddPhoto,
   recraftRemaining,
   pendingSlot,
+  hintSignal = 0,
   disabled = false,
 }: MotifPanelProps) {
   const slots = [1, 2] as const;
@@ -82,6 +85,14 @@ export function MotifPanel({
   const photoInput = useRef<HTMLInputElement>(null);
   // 파일 선택창은 슬롯을 모른다 — 어느 슬롯이 열었는지 여기에 적어 둔다.
   const fileSlot = useRef<1 | 2>(1);
+  const [highlighted, setHighlighted] = useState(false);
+
+  useEffect(() => {
+    if (hintSignal === 0) return;
+    setHighlighted(true);
+    const timeout = window.setTimeout(() => setHighlighted(false), 1_600);
+    return () => window.clearTimeout(timeout);
+  }, [hintSignal]);
 
   const pickFile = (kind: "svg" | "photo", slot: 1 | 2) => {
     fileSlot.current = slot;
@@ -90,6 +101,11 @@ export function MotifPanel({
 
   return (
     <VStack
+      role="region"
+      aria-label="모티프 선택"
+      position="relative"
+      className="motif-panel-hint"
+      data-highlighted={highlighted}
       alignItems="stretch"
       gap="x3"
       width={{ base: 60, md: 152 }}

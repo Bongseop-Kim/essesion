@@ -21,6 +21,7 @@ from worker.adapters.llm import (
     _contract_feedback,
     _strict_json_schema,
 )
+from worker.adapters.motif_intent import detect_motif_intent
 from worker.adapters.named_colors import (
     normalize_requested_named_colors,
     requested_named_colors,
@@ -816,6 +817,47 @@ async def test_initial_authoring_normalizes_wrong_named_ground_color(llm):
 
 
 @respx.mock
+async def test_initial_authoring_retries_before_dropping_an_unplaceable_named_color(llm):
+    plan = {
+        "colors": ["#EFE6D4", "#123456"],
+        "ground_color_index": 0,
+        "motifs": [],
+        "layers": [],
+    }
+    route = _mock_chat(*([plan] * 4))
+
+    design = await llm.author_design("네이비와 아이보리 동백꽃")
+
+    # 아이보리를 놓을 슬롯이 없어 마지막 시도까지 재저작을 요구한다 — 조용히 버리지 않는다.
+    assert route.call_count == 4
+    assert design.plan is not None
+    assert design.plan["colors"][design.plan["ground_color_index"]] == "#000080"
+    assert design.unassigned_named_colors == ["ivory"]
+    # 문장이 모티프를 말했는데 저작 결과에 모티프 레이어가 없다 — 피커가 다음 행동이다.
+    assert design.motif_intent == {
+        "detected": True,
+        "subject": "동백꽃",
+        "reason": "motif_mention",
+    }
+
+
+@respx.mock
+async def test_initial_authoring_with_a_grounded_motif_returns_no_picker_signal(llm):
+    raw = load_example_set()[5].plan.model_dump(mode="json")
+    raw["motifs"] = [{"source": "catalog", "catalog_ref": "cand_1"}]
+    route = _mock_chat(DesignPlanV3.model_validate(raw).model_dump(mode="json"))
+
+    design = await llm.author_design(
+        "동백꽃 무늬 패턴 만들어줘",
+        catalog_candidates=[{"catalog_ref": "cand_1", "motif_id": "circle", "subject": "camellia"}],
+    )
+
+    assert route.call_count == 1
+    # 카탈로그가 모티프를 맞췄으니 안내할 것이 없다 — 정상 첫 생성에서 피커를 열지 않는다.
+    assert design.motif_intent is None
+
+
+@respx.mock
 @pytest.mark.parametrize("prompt", ["네이비 없이", "네이비는 빼줘", "without navy"])
 async def test_initial_authoring_does_not_require_excluded_named_color(llm, prompt: str):
     examples = load_example_set()
@@ -915,6 +957,69 @@ def test_named_color_without_a_visible_slot_goes_back_to_the_authoring_loop():
             "use navy only for the background and preserve ivory accents",
             motif_only,
         )
+
+
+def test_named_color_without_a_visible_slot_can_be_reported_for_partial_authoring():
+    plan = DesignPlanV3.model_validate(
+        {
+            "colors": ["#EFE6D4", "#123456"],
+            "ground_color_index": 0,
+            "motifs": [],
+            "layers": [],
+        }
+    )
+    unassigned: list[str] = []
+
+    normalized = normalize_requested_named_colors(
+        "네이비와 아이보리",
+        plan,
+        unassigned=unassigned,
+    )
+
+    assert normalized.colors[normalized.ground_color_index] == "#000080"
+    assert unassigned == ["ivory"]
+
+
+def test_motif_intent_uses_raw_replacement_subject_without_translation():
+    signal = detect_motif_intent("벌을 나비로 바꿔줘", llm_out_of_scope=True)
+
+    assert signal == {
+        "detected": True,
+        "subject": "나비",
+        "reason": "motif_change",
+    }
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        # 줄무늬·배치·크기는 지원하는 구성 축이다 — 처리한 요청에서 피커를 열지 않는다.
+        "줄무늬를 없애줘",
+        "도형을 크게",
+        "잔잔한 무늬로 부탁해요",
+        "따뜻한 겨울 느낌의 패턴 만들어줘",
+    ],
+)
+def test_motif_intent_needs_evidence_not_only_vocabulary(prompt: str):
+    assert detect_motif_intent(prompt) is None
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    ["모티프는 네이비로 바꿔줘", "모티프 색을 빨간색으로 바꿔줘", "무늬를 골드로 변경"],
+)
+def test_motif_color_request_gets_no_picker_signal(prompt: str):
+    # 모티프 색은 고정이라 피커가 답이 아니다 — 색 문제를 모티프 안내로 바꾸지 않는다.
+    assert detect_motif_intent(prompt, llm_out_of_scope=True) is None
+    # 색 어휘가 없는 모티프 교체는 그대로 안내한다.
+    assert detect_motif_intent("모티프를 벚꽃으로 바꿔줘", llm_out_of_scope=True) is not None
+
+
+def test_motif_intent_keeps_the_subject_empty_when_it_is_not_a_noun():
+    # "잔잔한"처럼 수식어를 검색어로 채우면 0건 검색이 된다 — 일반 안내로 떨어뜨린다.
+    signal = detect_motif_intent("잔잔한 무늬로 부탁해요", motif_missing=True)
+
+    assert signal is not None and signal["subject"] is None
 
 
 def test_named_existing_color_reuses_role_references_without_swapping_palette():

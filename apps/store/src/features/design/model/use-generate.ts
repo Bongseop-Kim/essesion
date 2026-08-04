@@ -1,9 +1,11 @@
 import {
   createDesignSession,
   type DesignGenerateOut,
+  type DesignGenerateRejectedOut,
   type DesignOut,
   type DesignWarningOut,
   generateDesign,
+  type MotifIntentOut,
 } from "@essesion/api-client";
 import {
   getTokenBalanceQueryKey,
@@ -36,6 +38,8 @@ export type GenerateDesignResult = {
    * 진단이라 쓸 수 없다 — 고객 문구는 이 응답에만 있다.
    */
   warnings: readonly DesignWarningOut[];
+  /** 모티프 피커로 넘기고 버리는 현재 응답의 힌트. */
+  motifIntent: MotifIntentOut | null;
 };
 
 export class StaleDesignOperationError extends Error {
@@ -105,6 +109,10 @@ export function useGenerateDesign(options?: {
           rejected,
           design: out?.design ?? null,
           warnings: out?.warnings ?? [],
+          // 성공·거절 응답이 같은 이름으로 싣는다.
+          motifIntent:
+            (response as DesignGenerateRejectedOut | undefined)?.motif_intent ??
+            null,
         };
       } finally {
         clearPendingDesign({

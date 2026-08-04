@@ -89,6 +89,7 @@ export function DesignPage() {
   const [historyCollapsed, setHistoryCollapsed] = useState(() =>
     isPanelCollapsed(HISTORY_CARD_COLLAPSED_KEY),
   );
+  const [motifHintSignal, setMotifHintSignal] = useState(0);
   const [pending, setPending] = useState(() => readPendingDesign());
 
   const sessionsQuery = useQuery(designSessionsQueryOptions(authenticated));
@@ -139,6 +140,15 @@ export function DesignPage() {
     onSessionChange: (id) => {
       setSessionId(id);
       setFreshSession(false);
+    },
+    onMotifIntent: (intent) => {
+      setCollapsed(false);
+      setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, false);
+      motifs.openSlot(1, "search");
+      if (intent.subject) motifs.setQuery(intent.subject);
+      setMotifHintSignal((signal) => signal + 1);
+      const named = intent.subject ? `‘${intent.subject}’ ` : "";
+      snackbar(`${named}모티프는 왼쪽에서 찾거나 만들 수 있어요.`);
     },
   });
   const exporter = useDesignExport({
@@ -302,6 +312,7 @@ export function DesignPage() {
               }}
               recraftRemaining={sessionQuery.data?.recraft_remaining ?? null}
               pendingSlot={motifs.pendingSlot}
+              hintSignal={motifHintSignal}
               disabled={busy || !hasDesign}
             />
             <HistoryCard

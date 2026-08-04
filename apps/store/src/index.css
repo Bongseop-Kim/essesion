@@ -80,6 +80,23 @@
   transform: translateY(calc(var(--spacing-x14) / -2));
 }
 
+/* 위치만 알리는 강조 — 이동 모션이 없어 prefers-reduced-motion 분기가 필요 없다. */
+.motif-panel-hint::after {
+  position: absolute;
+  inset: calc(var(--spacing-x1) * -1);
+  pointer-events: none;
+  content: "";
+  border: 2px solid var(--color-stroke-brand);
+  border-radius: var(--radius-r4);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-exit);
+}
+
+.motif-panel-hint[data-highlighted="true"]::after {
+  opacity: 1;
+  transition: opacity var(--duration-normal) var(--ease-enter);
+}
+
 @media (min-width: 768px) {
   .login-page-content {
     transform: translateY(calc(var(--spacing-x16) / -2));

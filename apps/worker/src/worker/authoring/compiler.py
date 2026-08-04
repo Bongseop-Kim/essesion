@@ -38,6 +38,9 @@ class AuthoredDesign:
     motif_resolutions: list[dict[str, object]] = field(default_factory=list)
     plan: dict | None = None
     structural_fingerprint: str | None = None
+    motif_intent: dict[str, object] | None = None
+    # 보이는 슬롯이 없어 반영하지 못한 지명색 — 호출자가 고객 경고 1건으로 바꾼다.
+    unassigned_named_colors: list[str] = field(default_factory=list)
 
 
 class PlanCompileError(ValueError):

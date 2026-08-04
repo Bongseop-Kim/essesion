@@ -30,8 +30,9 @@ export type CanvasNoticeLayerProps = {
 const REJECTED_NOTICE =
   "그림을 바꾸는 건 왼쪽 모티프에서 할 수 있어요. 토큰은 쓰지 않았어요.";
 
-/** 알림 우선순위: 범위 밖 거절·오류(빨강) 먼저, 자동 조정 경고(노랑)가 뒤에. */
+/** 알림 우선순위: 안내 못 한 거절·오류(빨강) 먼저, 자동 조정 경고(노랑)가 뒤에. */
 export function designNotices(input: {
+  /** 거절됐는데 피커로 안내할 시그널도 없었던 경우 — 조용히 끝나지 않게 한다. */
   rejected: boolean;
   errorMessage?: string | null;
   warnings: readonly { code: string; message: string }[];

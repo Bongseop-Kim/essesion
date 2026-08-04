@@ -13,6 +13,7 @@ import asyncio
 import json
 import re
 from collections.abc import Collection
+from dataclasses import replace
 from typing import Any, Literal, TypeVar
 
 import httpx
@@ -20,6 +21,7 @@ from pydantic import BaseModel, ValidationError
 from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
 from worker.adapters import AdapterClientError, adapter_http_reason
+from worker.adapters.motif_intent import detect_motif_intent
 from worker.adapters.named_colors import normalize_requested_named_colors
 from worker.authoring.compiler import (
     COMPILER_REVISION,
@@ -206,8 +208,9 @@ def _build_patch_prompt(
         "band colors, motif placement (arrangement, density, rotation), motif size, and palette "
         "slot colors.",
         "Which shape repeats — the motif itself — is NOT in this schema and cannot be changed, "
-        "added, or removed here. If that is what the request asks for, set out_of_scope to true "
-        "and leave every axis null.",
+        "added, or removed here. If the request asks for that, set out_of_scope to true. Still "
+        "set every other axis the same request asks to change — a request that mixes a motif "
+        "change with a supported change keeps the supported part.",
         "Set only the axes the latest request asks to change; leave every other axis null. A null "
         "axis keeps the current value exactly.",
         "Colors are hex strings. `palette.slots` recolors an existing slot by its id — use the "
@@ -565,6 +568,7 @@ class LLMClient:
 
         for attempt in range(_MAX_AUTHORING_ATTEMPTS):
             sink["authoring_attempts"] = attempt + 1
+            unassigned_named_colors: list[str] = []
             try:
                 built_prompt = _build_prompt(
                     prompt,
@@ -579,7 +583,15 @@ class LLMClient:
                     system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
                     without_schema_variants=withheld_source_variants,
                 )
-                plan = normalize_requested_named_colors(prompt, plan)
+                plan = normalize_requested_named_colors(
+                    prompt,
+                    plan,
+                    # 마지막 시도에서만 관용한다 — 앞선 시도는 raise로 재저작 피드백을 받아
+                    # 요청한 색을 살릴 기회를 갖는다.
+                    unassigned=(
+                        unassigned_named_colors if attempt == _MAX_AUTHORING_ATTEMPTS - 1 else None
+                    ),
+                )
             except (TypeError, ValueError, ValidationError) as exc:
                 last_errors = _contract_feedback("DesignPlanV3", exc)
                 last_attempt_grounding_failure = False
@@ -605,7 +617,14 @@ class LLMClient:
                     errors = last_errors[:6]
                     continue
             sink["structural_fingerprint"] = design.structural_fingerprint
-            return design
+            motif_intent = detect_motif_intent(prompt, motif_missing=not plan.motifs)
+            if motif_intent is not None:
+                sink["motif_intent"] = motif_intent
+            return replace(
+                design,
+                motif_intent=motif_intent,
+                unassigned_named_colors=unassigned_named_colors,
+            )
 
         if public_catalog_available and last_attempt_grounding_failure:
             raise SemanticMismatch(last_errors)
