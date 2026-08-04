@@ -589,9 +589,7 @@ class LLMClient:
                     # 마지막 시도에서만 관용한다 — 앞선 시도는 raise로 재저작 피드백을 받아
                     # 요청한 색을 살릴 기회를 갖는다.
                     unassigned=(
-                        unassigned_named_colors
-                        if attempt == _MAX_AUTHORING_ATTEMPTS - 1
-                        else None
+                        unassigned_named_colors if attempt == _MAX_AUTHORING_ATTEMPTS - 1 else None
                     ),
                 )
             except (TypeError, ValueError, ValidationError) as exc:

@@ -785,9 +785,7 @@ async def generate(
         warnings=[GenerationWarning(**item) for item in customer_warnings(warnings)],
         note=outcome.note,
         motif_intent=(
-            MotifIntentSignal.model_validate(outcome.motif_intent)
-            if outcome.motif_intent
-            else None
+            MotifIntentSignal.model_validate(outcome.motif_intent) if outcome.motif_intent else None
         ),
     )
 
