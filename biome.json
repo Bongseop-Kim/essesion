@@ -13,6 +13,7 @@
       "!packages/api-client/openapi.json",
       "!apps/worker/scripts/motif_assets",
       "!apps/worker/src/worker/assets",
+      "!apps/worker/src/worker/authoring/data",
       "!apps/worker/src/worker/render/assets",
       "!apps/worker/tests/golden",
       "!apps/worker/tests/fixtures"
