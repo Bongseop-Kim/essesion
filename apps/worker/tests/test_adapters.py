@@ -223,6 +223,23 @@ async def test_generate_motif_unconfigured_raises():
         await generate_motif({"subject": "dot", "scope": "whole"}, client=None, settings=_SETTINGS)
 
 
+async def test_generate_motif_does_not_chain_client_exception_into_serialized_error():
+    # 생성기 예외 메시지(키·토큰 등)가 __cause__ 체인을 타고 traceback 직렬화에 노출되면 안 된다.
+    secret = "sk-super-secret-key"
+
+    class _Boom:
+        async def generate(self, prompt: str, *, seed: int | None = None) -> str:
+            raise RuntimeError(f"auth header was Bearer {secret}")
+
+    with pytest.raises(RecraftError) as caught:
+        await generate_motif(
+            {"subject": "dot", "scope": "whole"}, client=_Boom(), settings=_SETTINGS
+        )
+    assert caught.value.reason_code == "request_failed"
+    assert caught.value.__cause__ is None
+    assert secret not in "".join(traceback.format_exception(caught.value))
+
+
 @respx.mock
 async def test_recraft_http_uses_inline_b64_and_never_fetches_response_url():
     encoded = base64.b64encode(_CLEAN.encode()).decode()
@@ -276,8 +293,9 @@ async def test_recraft_http_rejects_invalid_base64():
     )
     client = RecraftHTTPClient("k")
     try:
-        with pytest.raises(RecraftError, match="invalid base64"):
+        with pytest.raises(RecraftError, match="malformed response") as caught:
             await client.generate("dot")
+        assert "invalid base64" in str(caught.value.__cause__)
     finally:
         await client.aclose()
 
@@ -310,8 +328,9 @@ async def test_recraft_http_rejects_svg_over_byte_ceiling():
     )
     client = RecraftHTTPClient("k", max_svg_bytes=len(_CLEAN.encode()) - 1)
     try:
-        with pytest.raises(RecraftError, match="max_svg_bytes"):
+        with pytest.raises(RecraftError, match="malformed response") as caught:
             await client.generate("dot")
+        assert "max_svg_bytes" in str(caught.value.__cause__)
     finally:
         await client.aclose()
 
@@ -335,17 +354,43 @@ async def test_embedding_client_posts_and_parses(embedding_client):
 
 
 @respx.mock
-async def test_embedding_client_error_raises(embedding_client):
+async def test_embedding_client_error_raises_after_exhausted_retries(embedding_client, monkeypatch):
+    async def _sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("worker.adapters.embedding.asyncio.sleep", _sleep)
     secret = "provider-secret-detail"
-    respx.post(_EMBED_URL).mock(return_value=httpx.Response(500, text=secret))
+    route = respx.post(_EMBED_URL).mock(return_value=httpx.Response(500, text=secret))
     with pytest.raises(EmbeddingError) as caught:
         await embedding_client.embed("dot")
+    assert route.call_count == 4  # _MAX_ATTEMPTS
     assert caught.value.provider == "openai_embedding"
     assert caught.value.operation == "embed"
     assert caught.value.reason_code == "provider_5xx"
     assert caught.value.status_code == 500
     assert secret not in str(caught.value)
     assert secret not in "".join(traceback.format_exception(caught.value))
+
+
+@respx.mock
+async def test_embedding_client_retries_transient_status_then_succeeds(
+    embedding_client, monkeypatch
+):
+    delays: list[float] = []
+
+    async def _sleep(seconds: float) -> None:
+        delays.append(seconds)
+
+    monkeypatch.setattr("worker.adapters.embedding.asyncio.sleep", _sleep)
+    route = respx.post(_EMBED_URL).mock(
+        side_effect=[
+            httpx.Response(429, text="slow down"),
+            httpx.Response(200, json={"data": [{"embedding": [0.1, 0.2, 0.3]}]}),
+        ]
+    )
+    assert await embedding_client.embed("dot") == [0.1, 0.2, 0.3]
+    assert route.call_count == 2
+    assert delays == [0.5]
 
 
 @respx.mock

@@ -102,6 +102,11 @@ def downgrade() -> None:
             "embedding_vertex", pgvector.sqlalchemy.Vector(dim=OLD_EMBEDDING_DIM), nullable=True
         ),
     )
+    # upgrade 이후 쌓인 pending/hold는 embedding_vertex가 NULL이라 복원 제약을 위반한다 —
+    # upgrade와 같은 근거로 삭제해 원본 로그의 후보 배제를 풀고 다음 scan이 재생성하게 한다.
+    op.execute(
+        "DELETE FROM authoring_promotion_candidates WHERE status IN ('pending', 'hold')"
+    )
     # 구 제약은 approved에도 임베딩을 요구한다 — 벡터가 사라진 approved 행은 invalid로 강등.
     op.execute(
         "UPDATE authoring_promotion_candidates SET status = 'invalid' WHERE status = 'approved'"

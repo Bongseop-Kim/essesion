@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 import re
 import xml.etree.ElementTree as ET
 
@@ -23,6 +24,8 @@ import svg_safety as sanitize
 from worker.adapters import AdapterClientError, AdapterNotConfigured, adapter_http_reason
 from worker.motifs import geometry as geom
 from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg, rgb_to_hex
+
+logger = logging.getLogger(__name__)
 
 _GRADIENT_TAGS = {"lineargradient", "radialgradient"}
 _DROP_TAGS = {"filter", "clippath", "mask", "title", "desc", "metadata", "text", "tspan"}
@@ -312,21 +315,21 @@ class RecraftHTTPClient:
             ) from exc
         except httpx.TimeoutException as exc:
             raise RecraftError(
-                f"Recraft API request failed: {exc}",
+                "Recraft API request timed out",
                 provider="recraft",
                 operation="generate_motif",
                 reason_code="timeout",
             ) from exc
         except httpx.HTTPError as exc:
             raise RecraftError(
-                f"Recraft API request failed: {exc}",
+                "Recraft API transport error",
                 provider="recraft",
                 operation="generate_motif",
                 reason_code="transport_error",
             ) from exc
         except (KeyError, IndexError, ValueError, TypeError) as exc:
             raise RecraftError(
-                f"Recraft API request failed: {exc}",
+                "Recraft API returned a malformed response",
                 provider="recraft",
                 operation="generate_motif",
                 reason_code="invalid_response",
@@ -388,13 +391,14 @@ async def generate_motif(
             )
         except RecraftError:
             raise
-        except Exception as exc:  # 생성기 실패는 업스트림(502급)
+        except Exception:  # 생성기 실패는 업스트림(502급) — 원문은 서버 로그에만, 체인 금지
+            logger.exception("Recraft generation failed")
             raise RecraftError(
                 "Recraft generation failed",
                 provider="recraft",
                 operation="generate_motif",
                 reason_code="request_failed",
-            ) from exc
+            ) from None
         try:
             flat = gate_recraft_svg(raw)
             return normalize_motif_svg(

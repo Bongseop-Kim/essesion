@@ -13,6 +13,11 @@ DEFAULT_MODEL = "text-embedding-3-large"
 DEFAULT_DIMENSIONS = 1536
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
+# llm._chat과 동일한 일시 오류 재시도 정책
+_RETRYABLE = frozenset({429, 500, 502, 503})
+_MAX_ATTEMPTS = 4
+_BASE_DELAY_S = 0.5
+
 
 class SupportsEmbed(Protocol):
     model: str
@@ -55,12 +60,34 @@ class OpenAIEmbeddingClient:
         return self._client
 
     async def embed(self, text: str) -> list[float]:
+        response: httpx.Response | None = None
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                response = await self._http().post(
+                    f"{self._base_url}/embeddings",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json={"model": self.model, "input": text, "dimensions": self.dimensions},
+                )
+            except httpx.TimeoutException as exc:
+                raise EmbeddingError(
+                    "OpenAI embedding request timed out",
+                    provider="openai_embedding",
+                    operation="embed",
+                    reason_code="timeout",
+                ) from exc
+            except httpx.HTTPError as exc:
+                raise EmbeddingError(
+                    "OpenAI embedding transport error",
+                    provider="openai_embedding",
+                    operation="embed",
+                    reason_code="transport_error",
+                ) from exc
+            if response.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
+                await asyncio.sleep(_BASE_DELAY_S * 2**attempt)
+                continue
+            break
+        assert response is not None  # 루프는 예외 또는 break로만 끝난다
         try:
-            response = await self._http().post(
-                f"{self._base_url}/embeddings",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json={"model": self.model, "input": text, "dimensions": self.dimensions},
-            )
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
@@ -70,20 +97,6 @@ class OpenAIEmbeddingClient:
                 operation="embed",
                 reason_code=adapter_http_reason(status),
                 status_code=status,
-            ) from exc
-        except httpx.TimeoutException as exc:
-            raise EmbeddingError(
-                f"OpenAI embedding request failed: {exc}",
-                provider="openai_embedding",
-                operation="embed",
-                reason_code="timeout",
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise EmbeddingError(
-                f"OpenAI embedding request failed: {exc}",
-                provider="openai_embedding",
-                operation="embed",
-                reason_code="transport_error",
             ) from exc
         try:
             values = response.json()["data"][0]["embedding"]
