@@ -2193,7 +2193,8 @@ async def create_design_order_reference(
 
 
 def _job_object_key(job: GenerationJob) -> str | None:
-    return job.result.get("object_key") if isinstance(job.result, dict) else None
+    key = job.result.get("object_key") if isinstance(job.result, dict) else None
+    return key if isinstance(key, str) and key else None
 
 
 def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # noqa: ANN001

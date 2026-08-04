@@ -94,12 +94,13 @@ class CloudTasksRestQueue:
 
 
 def build_task_queue(settings: Settings, worker_client: WorkerClient) -> TaskQueue:
+    if settings.env in ("local", "test"):
+        # GCP 설정이 채워져 있어도 로컬·테스트가 실제 큐를 건드리지 않게 env를 먼저 본다.
+        return InlineTaskQueue(worker_client)
     if (
         settings.gcp_project_id
         and settings.worker_finalize_url
         and settings.cloud_tasks_oidc_service_account
     ):
         return CloudTasksRestQueue(settings)
-    if settings.env in ("local", "test"):
-        return InlineTaskQueue(worker_client)
     raise RuntimeError("Cloud Tasks configuration is required outside local/test")

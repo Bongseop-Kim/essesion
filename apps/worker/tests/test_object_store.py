@@ -2,7 +2,12 @@
 
 import pytest
 from worker.config import Settings
-from worker.integrations import GcsObjectStore, build_object_store
+from worker.integrations import (
+    LOCAL_ASSETS_BUCKET,
+    LOCAL_GCS_EMULATOR_HOST,
+    GcsObjectStore,
+    build_object_store,
+)
 
 
 def _settings(**overrides) -> Settings:
@@ -10,11 +15,17 @@ def _settings(**overrides) -> Settings:
 
 
 def test_build_object_store_uses_emulator_with_or_without_explicit_settings():
-    store = build_object_store(
-        _settings(gcs_bucket="dev-assets", gcs_emulator_host="http://localhost:4443")
+    explicit = build_object_store(
+        _settings(gcs_bucket=LOCAL_ASSETS_BUCKET, gcs_emulator_host=LOCAL_GCS_EMULATOR_HOST)
     )
-    assert isinstance(store, GcsObjectStore)
-    assert isinstance(build_object_store(_settings()), GcsObjectStore)
+    default = build_object_store(_settings())
+    for store in (explicit, default):
+        assert isinstance(store, GcsObjectStore)
+        bucket = store._bucket  # noqa: SLF001
+        assert bucket.name == LOCAL_ASSETS_BUCKET
+        connection = bucket.client._connection  # noqa: SLF001
+        assert connection is not None
+        assert connection.API_BASE_URL == LOCAL_GCS_EMULATOR_HOST
 
 
 def test_emulator_host_is_rejected_outside_local():
