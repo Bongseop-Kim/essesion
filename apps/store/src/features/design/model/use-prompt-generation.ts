@@ -1,3 +1,4 @@
+import type { MotifIntentOut } from "@essesion/api-client";
 import { useRef, useState } from "react";
 
 import { type DesignErrorFeedback, parseDesignError } from "./errors";
@@ -14,6 +15,7 @@ export type PromptGenerationOptions = {
   onSessionChange: (sessionId: string) => void;
   /** 되돌리기·모티프 교체처럼 같은 세션을 만지는 다른 요청이 진행 중인지 */
   blocked: boolean;
+  onMotifIntent?: (intent: MotifIntentOut) => void;
 };
 
 /**
@@ -25,6 +27,7 @@ export function usePromptGeneration({
   ensureAuth,
   onSessionChange,
   blocked,
+  onMotifIntent,
 }: PromptGenerationOptions) {
   const [prompt, setPrompt] = useState("");
   const [selectSignal, setSelectSignal] = useState(0);
@@ -67,6 +70,7 @@ export function usePromptGeneration({
       const result = await mutation.mutateAsync(input);
       if (!epoch.isCurrent(current)) return;
       onSessionChange(result.sessionId);
+      if (result.motifIntent) onMotifIntent?.(result.motifIntent);
       // 거절은 문장을 남기고 전체 선택만 한다 — 무엇이 거절됐는지 보이면서 다음 입력이 덮어쓴다.
       if (result.rejected) setSelectSignal((signal) => signal + 1);
       else clearDraft();
@@ -87,7 +91,8 @@ export function usePromptGeneration({
     selectSignal,
     pending,
     generating: mutation.isPending,
-    rejected: mutation.data?.rejected === true,
+    /** 거절됐고 피커 안내 시그널도 없었다 — 이때만 상단 알림으로 알린다. */
+    rejected: mutation.data?.rejected === true && !mutation.data.motifIntent,
     /** 방금 적용한 편집의 자동 조정 안내 — 다음 문장을 쓰면 사라진다. */
     warnings: mutation.data?.warnings ?? [],
     error,

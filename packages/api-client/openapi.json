@@ -7039,6 +7039,16 @@
             "title": "Engine Version",
             "type": "string"
           },
+          "motif_intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MotifIntentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "note": {
             "anyOf": [
               {
@@ -7083,8 +7093,18 @@
         "type": "object"
       },
       "DesignGenerateRejectedOut": {
-        "description": "구성 수정으로 표현할 수 없는 요청 — 토큰 미사용, 턴 미생성, 상단 알림만(빨강 톤).",
+        "description": "구성 수정으로 표현할 수 없는 요청 — 토큰·턴 없이 끝나고 피커 안내만 붙는다.",
         "properties": {
+          "motif_intent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MotifIntentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rejected": {
             "const": "motif",
             "title": "Rejected",
@@ -9487,6 +9507,42 @@
           "prompt"
         ],
         "title": "MotifGenerateRequest",
+        "type": "object"
+      },
+      "MotifIntentOut": {
+        "description": "현재 응답에서만 소비하는 모티프 피커 안내 sidecar.",
+        "properties": {
+          "detected": {
+            "const": true,
+            "default": true,
+            "title": "Detected",
+            "type": "boolean"
+          },
+          "reason": {
+            "enum": [
+              "motif_mention",
+              "motif_change"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "MotifIntentOut",
         "type": "object"
       },
       "MotifPreviewOut": {

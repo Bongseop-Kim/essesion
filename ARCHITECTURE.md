@@ -2,7 +2,7 @@
 
 > YeongSeon 커머스와 seamless-tile 엔진을 통합 재구현한 현재 시스템의 **as-built architecture** 문서다. 구현된 코드, 배포 가능한 구성, 아직 외부 개통이 필요한 항목을 구분한다.
 
-최종 갱신: 2026-08-03
+최종 갱신: 2026-08-04
 
 ## 0. 요약과 불변 원칙
 
@@ -18,7 +18,7 @@ React clients → generated OpenAPI client → FastAPI domain API
 
 | 구분 | 상태 | 의미 |
 |---|---|---|
-| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 | 빌드, 타입 검사, 1,415개 Python/Vitest 테스트 통과 |
+| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 | 빌드, 타입 검사, 1,713개 Python/Vitest 테스트 통과 |
 | OpenAPI·CI/CD·OpenTofu | 구현 완료 | codegen drift, deploy 순서, IAM·리소스 선언 검증 완료 |
 | GCP·Cloudflare 스테이징 | **미개통** | 실제 `tofu apply`, DNS, WAF, Secret Manager 값 주입 필요 |
 | 외부 provider 리허설 | **미완료** | Toss·Solapi·OAuth redirect·Cloud Tasks OIDC·Sentry 실연동 필요 |
@@ -468,6 +468,9 @@ flowchart LR
     Catalog --> PrivateMotif
     Edit[입력창 문장] -->|LLM 구성 patch| Patch[typed DesignPatchV1]
     Patch -->|deterministic apply_patch| Intent
+    Prompt --> MotifSignal[모티프 언급 sidecar]
+    Edit --> MotifSignal
+    MotifSignal -.-> Picker[store 모티프 피커]
     Intent --> Validate[Validation]
     Validate --> Placement[Placement]
     Placement --> Compose[SVG composition]
@@ -478,6 +481,8 @@ flowchart LR
 ```
 
 LLM(OpenAI)은 텍스트에서 엔진 intent가 아니라 schema-constrained `DesignPlanV3` 하나를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개의 이미 존재하는 motif source(`input | catalog`)와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. Pydantic 스키마를 OpenAI strict `json_schema`로 넘기고, 결정적 compiler가 모든 source를 concrete motif ID로 확정한 48mm/300dpi intent를 만든다. exact input과 verified catalog에는 실제 ID 대신 요청 한정 alias만 노출한다. 모티프 도안과 색은 이미 저장된 symbol의 불변 데이터라 Plan·intent에 색 바인딩 필드가 없다. Plan의 색은 배경과 스트라이프에만 쓰인다. 저작 결과가 검증을 통과하지 못하면 검증 오류와 함께 다시 저작한다.
+
+디자인 문장에서 모티프를 요청했는데 처리하지 못한 경우는 Plan 계약을 확장하지 않고 응답 sidecar `motif_intent{detected,subject,reason}`로 분리한다. 판단 근거는 **처리하지 못했다는 증거**뿐이다 — patch의 `out_of_scope`(`motif_change`), 또는 첫 저작이 모티프 레이어 없이 끝났는데 문장이 모티프를 말한 경우(`motif_mention`, 카탈로그가 맞추지 못한 상황). 어휘만으로는 켜지 않는다: 카탈로그로 해결된 정상 첫 생성이나 줄무늬·배치처럼 지원 축으로 처리한 편집에서 피커를 열면 안내가 아니라 방해다. 별도 모델 호출은 없다. `subject`는 번역하지 않은 사용자 원문의 명사 조각(교체 대상, `…꽃`)이며 수식어까지 집으면 0건 검색이 되므로 확신이 없으면 null로 두고 store가 일반 문구로 안내한다. sidecar는 현재 HTTP 응답에서만 소비하고 세션 정본·턴 payload에는 저장하지 않는다. 보이는 슬롯이 없는 지명색은 마지막 저작 시도까지 재저작을 요구하고, 그래도 자리가 없으면 가능한 색만 반영한 뒤 `named_color_unplaced` 경고(노랑)로 알린다 — 색 문제를 모티프 안내로 바꾸지 않는다.
 
 `gallery-v1` Plan v3 manifest는 빈 DB를 위한 소량 starter 입력일 뿐 운영 셋의 정본이나 골든 목록이 아니다. 시드는 같은 ID가 이미 있으면 건너뛰어 DB에서 큐레이션한 행을 덮어쓰지 않으며, 운영 셋 전체의 정본은 bootstrap·관리자 직접 저작(`authored`)·생성 승격(`promoted`)을 함께 보관하는 `authoring_examples`다. 런타임은 그중 `active=true`인 현재 contract·embedding model 행만 읽는다. OpenAI 임베딩과 pgvector cosine 결과를 motif 수로 거른 뒤 상위 8개에서 family가 겹치지 않는 시범을 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 시범 없이 typed schema 경로를 계속한다.
 
@@ -563,9 +568,10 @@ sequenceDiagram
     W->>DB: public motif catalog search
     W->>W: 첫 생성은 plan authoring, 이후는 구성 patch → intent validation → compose → SVG → preview
     W->>G: design/content-hash create-only upload
-    W-->>A: design + resolved plan + warnings
+    W-->>A: design + resolved plan + warnings + optional motif_intent
     A->>DB: assistant turn·새 스텝 활성화·active run 해제 commit
-    A-->>S: 디자인 1개
+    A-->>S: 디자인 1개 + optional motif_intent
+    S-->>U: 검색어 prefill + 모티프 피커 강조·안내
     U->>S: 이력 썸네일로 과거 스텝 되돌리기
     S->>A: POST /design/sessions/{id}/steps/activate
     A->>DB: 해당 run의 intent + resolved plan 원자 commit
@@ -577,7 +583,7 @@ sequenceDiagram
 
 한 번의 생성은 디자인 1개를 만들고, 세션은 그 디자인들의 선형 이력(스텝)을 갖는다. 성공한 생성은 같은 트랜잭션에서 그 스텝을 정본으로 자동 활성화해 세션 문맥을 최신 결과로 전진시킨다. `current_intent`는 byte-identical 재현을 위한 렌더 정본이고 `current_plan`은 대화 의미 정본인 `DesignPlanV3`다(patch 런에서는 null이며 모티프 생성의 style hint가 읽는다). `steps/activate`는 같은 세션의 과거 run을 대상으로 generation log에서 intent·plan·seed·colorway를 복원해 원자 커밋하고 `context_version`을 증가시킨다. 편집 포인터만 옮기므로 이후 스텝은 그대로 남고, 그 상태에서 지시하면 번호가 이어붙는다 — 분기 트리 UI도 세션 복제 경로도 없다. 실패 턴은 같은 세션의 다음 모델 문맥에 들어가지 않는다. `/design/generate`는 클라이언트 intent를 받지 않고 소유 세션의 정본과 최근 성공 턴 최대 6쌍을 서버에서 구성한다.
 
-커밋된 디자인이 없는 첫 생성만 `DesignPlanV3`를 저작한다. 이미 디자인이 있으면 입력창 문장은 **구성 patch**(`DesignPatchV1`)로만 해석한다 — 바탕색·줄무늬·배치·무늬 크기·무늬 색·팔레트 6축뿐이고 모티프 정체성 필드는 스키마에 없다. 모델이 무늬를 바꾸는 것이 타입상 불가능하므로 "요청하지 않은 걸 건드렸는지"를 사후에 추측해 되돌리는 preserve 가드가 필요 없고, 적용(`apply_patch`)은 엔진 불변식을 깨지 않는 결정론이다. patch로 표현할 수 없는 요청은 `scope_rejected`로 끝나고 과금·이력·문맥이 요청 전과 같다.
+커밋된 디자인이 없는 첫 생성만 `DesignPlanV3`를 저작한다. 이미 디자인이 있으면 입력창 문장은 **구성 patch**(`DesignPatchV1`)로만 해석한다 — 바탕색·줄무늬·배치·무늬 크기·팔레트 5축뿐이고 모티프 정체성 필드는 스키마에 없다. 모델이 무늬를 바꾸는 것이 타입상 불가능하므로 "요청하지 않은 걸 건드렸는지"를 사후에 추측해 되돌리는 preserve 가드가 필요 없고, 적용(`apply_patch`)은 엔진 불변식을 깨지 않는 결정론이다. 모티프 요청과 표현 가능한 구성 수정이 섞이면 구성만 적용하고(과금은 편집 1회) 성공 응답에 `motif_intent`를 포함한다 — patch 프롬프트도 "지원 축은 적용하고 나머지만 `out_of_scope`"로 지시한다. 순수 모티프 요청은 `scope_rejected`와 같은 sidecar로 끝나 과금·이력·문맥이 요청 전과 같고, store는 오류로 취급하지 않고 피커를 펼쳐 검색어를 채우고 짧게 강조한다. 안내할 sidecar가 없는 거절은 조용히 끝내지 않고 기존 빨강 알림 1건으로 알린다.
 
 활성화 시 plan의 motif source는 실제 렌더에 사용한 concrete motif ID로 동결한다. API→worker 문맥에는 이 정본을 보내지만 LLM 직전에는 `current_motif_N` 요청 로컬 alias로 치환하며 SVG, private motif ID, 과거 응답, provider 오류 원문은 모델 문맥에 넣지 않는다. 구성 patch 경로는 여기서 한 단계 더 좁혀 모티프 정체성이 빠진 구성 스냅샷만 보낸다. 과거 assistant 문맥은 semantic plan에서 만든 짧은 구조 설명과 사용한 모티프 이름만 포함한다.
 

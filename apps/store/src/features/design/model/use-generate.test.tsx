@@ -109,12 +109,22 @@ describe("useGenerateDesign", () => {
       rejected: false,
       design,
       warnings: [],
+      motifIntent: null,
     });
     queryClient.clear();
   });
 
   it("범위 밖 거절은 오류가 아니라 rejected 결과로 돌아온다", async () => {
-    api.generate.mockResolvedValue({ data: { rejected: "motif" } });
+    api.generate.mockResolvedValue({
+      data: {
+        rejected: "motif",
+        motif_intent: {
+          detected: true,
+          subject: "나비",
+          reason: "motif_change",
+        },
+      },
+    });
     const queryClient = new QueryClient();
     const { result } = renderHook(
       () => useGenerateDesign({ onSessionReady: () => true }),
@@ -134,6 +144,46 @@ describe("useGenerateDesign", () => {
       rejected: true,
       design: null,
       warnings: [],
+      motifIntent: {
+        detected: true,
+        subject: "나비",
+        reason: "motif_change",
+      },
+    });
+    queryClient.clear();
+  });
+
+  it("부분 적용 성공 응답의 모티프 힌트를 그대로 돌려준다", async () => {
+    api.generate.mockResolvedValue({
+      data: {
+        ...generated,
+        motif_intent: {
+          detected: true,
+          subject: "동백꽃",
+          reason: "motif_mention",
+        },
+      },
+    });
+    const queryClient = new QueryClient();
+    const { result } = renderHook(
+      () => useGenerateDesign({ onSessionReady: () => true }),
+      { wrapper: queryWrapper(queryClient) },
+    );
+
+    let outcome!: Awaited<ReturnType<typeof result.current.mutateAsync>>;
+    await act(async () => {
+      outcome = await result.current.mutateAsync({
+        sessionId: "session-a",
+        prompt: "네이비 바탕과 동백꽃",
+      });
+    });
+
+    expect(outcome.rejected).toBe(false);
+    expect(outcome.design).toEqual(design);
+    expect(outcome.motifIntent).toEqual({
+      detected: true,
+      subject: "동백꽃",
+      reason: "motif_mention",
     });
     queryClient.clear();
   });

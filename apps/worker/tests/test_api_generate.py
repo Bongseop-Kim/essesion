@@ -166,6 +166,7 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
         "widths reduced to keep the background visible",
         "motif size 9.0mm (lattice cell 8.0mm)",
         "another color is outside CMYK gamut",  # 중복 코드는 첫 건만
+        "named color ivory has no visible slot",
         "engine did something unmapped",  # 문구 없는 진단은 내려보내지 않는다
     ]
 
@@ -178,6 +179,7 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
         "spacing_snapped",
         "stripe_coverage_reduced",
         "motif_size_clamped",
+        "named_color_unplaced",
     ]
     assert [item["message"] for item in warnings] == [
         WARNING_MESSAGES[item["code"]] for item in warnings
@@ -314,6 +316,27 @@ def test_prompt_path_compose_failure_returns_design_invalid(monkeypatch):
         "stage": "design",
         "message": "the design could not be composed",
     }
+
+
+def test_unplaceable_named_color_becomes_a_customer_warning(monkeypatch):
+    # 마지막 시도까지 자리를 못 찾은 지명색은 조용히 사라지지 않고 노랑 경고 1건이 된다.
+    async def fake_candidates(*_args, **_kwargs):
+        return []
+
+    class PartialLLM:
+        async def author_design(self, _prompt, **_kwargs):
+            return AuthoredDesign(intent=mvp_intent(), unassigned_named_colors=["ivory"])
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(llm=PartialLLM())
+
+    resp = TestClient(app).post(
+        "/generate", json={"run_id": _RUN_ID, "prompt": "네이비와 아이보리"}
+    )
+
+    assert resp.status_code == 200, resp.text
+    assert [w for w in resp.json()["warnings"] if w["code"] == "named_color_unplaced"]
 
 
 def test_error_response_echoes_request_id_header(client):
@@ -553,7 +576,41 @@ def test_out_of_scope_patch_returns_scope_rejected_without_a_design(monkeypatch)
     )
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"status": "scope_rejected"}
+    assert response.json() == {
+        "status": "scope_rejected",
+        "motif_intent": {
+            "detected": True,
+            "subject": "나비",
+            "reason": "motif_change",
+        },
+    }
+
+
+def test_motif_patch_applies_supported_axes_and_returns_picker_signal(monkeypatch):
+    llm = _PatchLLM(
+        {
+            "background": {"color": "#F5F0E6"},
+            "out_of_scope": True,
+            "note": "바탕만 밝게 했어요.",
+        }
+    )
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(llm=llm)
+
+    response = TestClient(app).post(
+        "/generate",
+        json=_patch_request("바탕을 밝게 하고 벌을 나비로 바꿔줘", mvp_intent()),
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    slots = {slot["id"]: slot["hex"] for slot in body["intent"]["palette"]["slots"]}
+    assert slots["ground"] == "#F5F0E6"
+    assert body["motif_intent"] == {
+        "detected": True,
+        "subject": "나비",
+        "reason": "motif_change",
+    }
 
 
 def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):

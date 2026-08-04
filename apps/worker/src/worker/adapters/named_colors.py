@@ -95,8 +95,13 @@ def requested_named_colors(prompt: str) -> list[tuple[str, str, list[re.Match[st
 def normalize_requested_named_colors(
     prompt: str,
     plan: DesignPlanV3,
+    *,
+    unassigned: list[str] | None = None,
 ) -> DesignPlanV3:
-    """Apply the small supported named-color vocabulary to existing PlanV3 slots."""
+    """Apply the small supported named-color vocabulary to existing PlanV3 slots.
+
+    ``unassigned``가 주어지면 자리 없는 색을 거기에 적고 나머지만 반영한다(기본은 raise).
+    """
 
     requested = requested_named_colors(prompt)
     if not requested:
@@ -213,6 +218,9 @@ def normalize_requested_named_colors(
             if not available and not stripe_slots and ground_color_index not in used:
                 available = [ground_color_index]
             if not available:
+                if unassigned is not None:
+                    unassigned.append(name)
+                    continue
                 raise ValueError(f"named color {name} is not referenced by a visible layer")
             closest = min(available, key=lambda index: _color_distance(colors[index], target))
             if role_is_ground:
@@ -227,8 +235,10 @@ def normalize_requested_named_colors(
         if not available and not stripe_slots and ground_color_index not in used:
             available = [ground_color_index]
         if not available:
-            # 저작 루프(llm.author_design)가 이 문장을 피드백으로 받아 재저작한다 —
-            # 조용히 넘기면 요청한 지명색이 없는 플랜이 그대로 성공으로 나간다.
+            # 저작 루프는 이 문장을 피드백으로 받아 재저작한다 — 마지막 시도만 관용한다.
+            if unassigned is not None:
+                unassigned.append(name)
+                continue
             raise ValueError(f"plan has no visible slot available for named color {name}")
         closest = min(available, key=lambda index: _color_distance(colors[index], target))
         colors[closest] = target

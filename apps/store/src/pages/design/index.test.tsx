@@ -288,8 +288,17 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
-  it("범위 밖 거절은 문장을 남기고 전체 선택하며 빨강 알림만 띄운다", async () => {
-    api.generate.mockResolvedValue({ data: { rejected: "motif" } });
+  it("모티프 시그널은 문장을 남기고 피커를 강조하며 검색어를 채운다", async () => {
+    api.generate.mockResolvedValue({
+      data: {
+        rejected: "motif",
+        motif_intent: {
+          detected: true,
+          subject: "나비",
+          reason: "motif_change",
+        },
+      },
+    });
     const select = vi.spyOn(HTMLInputElement.prototype, "select");
     const queryClient = renderPage();
 
@@ -297,14 +306,34 @@ describe("DesignPage canvas shell", () => {
     fireEvent.change(input, { target: { value: "벌을 나비로 바꿔줘" } });
     fireEvent.click(screen.getByRole("button", { name: "디자인에 적용" }));
 
-    await screen.findByText(/그림을 바꾸는 건 왼쪽 .*모티프/);
+    const panel = await screen.findByRole("region", { name: "모티프 선택" });
+    await waitFor(() => expect(panel.dataset.highlighted).toBe("true"));
     expect((input as HTMLInputElement).value).toBe("벌을 나비로 바꿔줘");
     expect(select).toHaveBeenCalled();
+    expect(screen.queryByText(/그림을 바꾸는 건 왼쪽 .*모티프/)).toBeNull();
+
+    pickSource(screen.getByRole("button", { name: "벌 바꾸기" }), 1, /^탐색/);
+    await waitForDialog("탐색");
+    expect(
+      (screen.getByLabelText("어떤 그림을 넣을지") as HTMLInputElement).value,
+    ).toBe("나비");
     // 거절은 이력에 스텝을 남기지 않는다.
     expect(
       screen.queryByRole("button", { name: "3번째 디자인으로 되돌리기" }),
     ).toBeNull();
     select.mockRestore();
+    queryClient.clear();
+  });
+
+  it("안내할 시그널이 없는 거절은 상단 알림으로 알린다", async () => {
+    api.generate.mockResolvedValue({ data: { rejected: "motif" } });
+    const queryClient = renderPage();
+
+    const input = await screen.findByLabelText("무엇을 바꿀까요?");
+    fireEvent.change(input, { target: { value: "이걸 예쁘게 해줘" } });
+    fireEvent.click(screen.getByRole("button", { name: "디자인에 적용" }));
+
+    await screen.findByText(/그림을 바꾸는 건 왼쪽 .*모티프/);
     queryClient.clear();
   });
 

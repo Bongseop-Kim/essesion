@@ -26,6 +26,7 @@ from svg_safety import scrub_svg
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import request_scoped
 from worker.adapters.llm import SemanticMismatch
+from worker.adapters.motif_intent import detect_motif_intent
 from worker.api.schemas import (
     AuthoringCompilePreviewRequest,
     AuthoringCompilePreviewResponse,
@@ -44,6 +45,7 @@ from worker.api.schemas import (
     MotifGenerateRequest,
     MotifImportRequest,
     MotifImportResponse,
+    MotifIntentSignal,
     PhotoMotifPreviewRequest,
     PhotoMotifPreviewResponse,
     PromotionEmbeddingRequest,
@@ -358,6 +360,7 @@ class _GenerateOutcome:
     structural_fingerprint: str | None
     # 구성 patch가 사용자 문장을 해석한 한 줄. 최초 저작은 None.
     note: str | None = None
+    motif_intent: dict[str, object] | None = None
 
 
 async def _generate_from_intent(
@@ -530,6 +533,10 @@ async def _generate_from_prompt(
         )
 
     request.state.generation_diagnostics["motif_resolutions"].extend(authored.motif_resolutions)
+    # 자리를 못 찾은 지명색은 조용히 버리지 않고 고객 경고 1건으로 내린다.
+    warnings.extend(
+        f"named color {name} has no visible slot" for name in authored.unassigned_named_colors
+    )
     resolved_intent = authored.intent
 
     resolved_plan: DesignPlanV3 | None = None
@@ -583,6 +590,7 @@ async def _generate_from_prompt(
         registry_version=registry_version,
         plan=resolved_plan.model_dump(mode="json") if resolved_plan else None,
         structural_fingerprint=(structural_fingerprint(resolved_plan) if resolved_plan else None),
+        motif_intent=authored.motif_intent,
     )
 
 
@@ -636,11 +644,16 @@ async def _generate_from_patch(
         )
 
     request.state.generation_diagnostics["patch_axes"] = patch.changed_axes
-    if patch.out_of_scope or not patch.has_changes:
+    motif_intent = detect_motif_intent(body.prompt, llm_out_of_scope=patch.out_of_scope)
+    if motif_intent is not None:
+        request.state.generation_diagnostics["motif_intent"] = motif_intent
+    if not patch.has_changes:
         # 아무것도 만들지 않았다 — api가 과금을 되돌리고 턴도 남기지 않는다.
         request.state.generation_diagnostics["failure_code"] = "scope_rejected"
         request.state.generation_diagnostics["failure_stage"] = "authoring"
-        return ScopeRejectedResponse()
+        return ScopeRejectedResponse(
+            motif_intent=MotifIntentSignal.model_validate(motif_intent) if motif_intent else None
+        )
 
     try:
         patched = apply_patch(context.current_intent, patch)
@@ -679,6 +692,7 @@ async def _generate_from_patch(
         plan=None,
         structural_fingerprint=None,
         note=patch.note,
+        motif_intent=motif_intent,
     )
 
 
@@ -770,6 +784,11 @@ async def generate(
         # 진단 문자열은 로그에만 남기고 응답에는 고객 문구가 있는 경고만 내린다.
         warnings=[GenerationWarning(**item) for item in customer_warnings(warnings)],
         note=outcome.note,
+        motif_intent=(
+            MotifIntentSignal.model_validate(outcome.motif_intent)
+            if outcome.motif_intent
+            else None
+        ),
     )
 
 

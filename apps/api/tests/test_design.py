@@ -1651,14 +1651,21 @@ async def test_composition_edit_charges_the_edit_cost_not_the_generate_cost(
 async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(
     client, app, db_session, settings
 ):
-    # "벌을 나비로 바꿔줘" — 구성 patch로 표현할 수 없는 요청. 상단 알림 1건으로 끝나야
-    # 하므로 잔액·이력·context_version이 요청 전과 완전히 같아야 한다.
+    # "벌을 나비로 바꿔줘" — 구성 patch로 표현할 수 없는 요청. 피커 안내만 하고
+    # 잔액·이력·context_version은 요청 전과 완전히 같아야 한다.
     class RejectingWorker(FakeWorker):
         async def generate(self, payload):
             if payload.get("conversation_context") is None:
                 return await super().generate(payload)
             self.generate_payloads.append(payload)
-            return {"status": "scope_rejected"}
+            return {
+                "status": "scope_rejected",
+                "motif_intent": {
+                    "detected": True,
+                    "subject": "나비",
+                    "reason": "motif_change",
+                },
+            }
 
     worker = RejectingWorker(app.state.sessionmaker)
     app.state.worker = worker
@@ -1684,7 +1691,14 @@ async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(
     )
 
     assert rejected.status_code == 200, rejected.text
-    assert rejected.json() == {"rejected": "motif"}
+    assert rejected.json() == {
+        "rejected": "motif",
+        "motif_intent": {
+            "detected": True,
+            "subject": "나비",
+            "reason": "motif_change",
+        },
+    }
     assert await ledger.get_balance(db_session, user.id) == balance_before
     after = (await client.get(f"/design/sessions/{session_id}", headers=headers)).json()
     assert after["context_version"] == before["context_version"]
@@ -1700,6 +1714,44 @@ async def test_scope_rejected_edit_costs_nothing_and_leaves_no_turn(
         headers=headers,
     )
     assert retried.status_code == 200, retried.text
+
+
+async def test_supported_edit_returns_worker_motif_signal(client, app, db_session, settings):
+    class SignalingWorker(FakeWorker):
+        async def generate(self, payload):
+            response = await super().generate(payload)
+            if payload.get("conversation_context") is not None:
+                response["motif_intent"] = {
+                    "detected": True,
+                    "subject": "나비",
+                    "reason": "motif_change",
+                }
+            return response
+
+    app.state.worker = SignalingWorker(app.state.sessionmaker)
+    user = await make_user(db_session)
+    await _fund(db_session, user)
+    headers = auth_headers(user, settings)
+    session_id = (await client.post("/design/sessions", headers=headers)).json()["id"]
+    first = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "꿀벌 패턴"},
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+
+    edited = await client.post(
+        "/design/generate",
+        json={"session_id": session_id, "prompt": "바탕을 밝게 하고 벌을 나비로 바꿔줘"},
+        headers=headers,
+    )
+
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["motif_intent"] == {
+        "detected": True,
+        "subject": "나비",
+        "reason": "motif_change",
+    }
 
 
 async def test_activate_accepts_past_run_within_session_only(client, app, db_session, settings):

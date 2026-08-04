@@ -18,6 +18,7 @@ _CODES: tuple[tuple[str, str], ...] = (
     ("outside CMYK gamut", "color_out_of_gamut"),
     ("preview upload skipped", "preview_unavailable"),
     (" dropped", "motif_dropped"),
+    ("has no visible slot", "named_color_unplaced"),
 )
 
 WARNING_MESSAGES: dict[str, str] = {
@@ -27,6 +28,7 @@ WARNING_MESSAGES: dict[str, str] = {
     "color_out_of_gamut": "이 색은 실제 인쇄에서 조금 다르게 보일 수 있어요.",
     "preview_unavailable": "미리보기 이미지는 저장하지 못했어요. 디자인은 그대로예요.",
     "motif_dropped": "쓸 수 없는 무늬가 있어 그 부분은 빼고 만들었어요.",
+    "named_color_unplaced": "요청한 색 중 일부는 넣을 자리가 없어 빼고 만들었어요.",
 }
 
 
