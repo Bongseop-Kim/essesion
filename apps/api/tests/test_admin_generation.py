@@ -694,6 +694,7 @@ async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
             subject="pelican",
             scope="whole",
             source="seed",
+            ingested_user_id=admin.id,
         )
     )
     await db_session.commit()
@@ -701,6 +702,9 @@ async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
     response = await client.get("/admin/motifs/motif-fixed-colors", headers=headers)
     assert response.status_code == 200
     body = response.json()
+    # Recraft 유입 출처는 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
+    assert body["ingested_user_id"] == str(admin.id)
+    assert body["ingested_session_id"] is None
     assert body["svg_status"] == "safe"
     assert body["status"] == "pending"
     assert body["reviewed_at"] is None

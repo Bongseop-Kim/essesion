@@ -5071,6 +5071,14 @@ export type MotifDetailOut = {
      */
     id: string;
     /**
+     * Ingested Session Id
+     */
+    ingested_session_id: string | null;
+    /**
+     * Ingested User Id
+     */
+    ingested_user_id: string | null;
+    /**
      * Reviewed At
      */
     reviewed_at: string | null;

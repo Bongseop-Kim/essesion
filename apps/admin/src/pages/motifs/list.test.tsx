@@ -80,6 +80,8 @@ const detail: MotifDetailOut = {
   description: "정면 동백꽃 모티프",
   tags: ["flower", "camellia"],
   anchor: [12, 12],
+  ingested_user_id: null,
+  ingested_session_id: null,
 };
 
 const createObjectURL = vi.fn(() => "blob:motif-preview");
@@ -311,6 +313,8 @@ describe("MotifDetailPage", () => {
       "검토 시각",
       "변형 그룹",
       "생성일",
+      "최초 요청자",
+      "최초 요청 세션",
       "bbox",
       "anchor",
     ]);
