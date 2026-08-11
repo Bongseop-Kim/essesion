@@ -62,8 +62,8 @@ store 전역 기본은 `shared/lib/query-client.ts`에서 `refetchOnWindowFocus:
 
 ## 범위 제외
 
-- **WARN 1 (scatter/lattice 모티프 의미 보존)** — LLM 저작 품질 문제로 8/4에 평가 플랜으로
-  이관되어 추적 중. 이 플랜에서는 다루지 않는다.
+- **WARN 1 (scatter/lattice 모티프 의미 보존)** — 카탈로그 소재 공백 + 침묵 실패 문제로
+  별도 플랜 `docs/plans/design-motif-semantic-preservation.md`에서 다룬다.
 
 ## 검증
 
