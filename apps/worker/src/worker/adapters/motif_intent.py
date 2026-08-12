@@ -71,9 +71,7 @@ def detect_motif_intent(
     if llm_out_of_scope:
         reason = "motif_change"
     # 첫 저작이 모티프 레이어 없이 끝났는데 문장은 모티프를 말했다 — 카탈로그 miss다.
-    elif motif_missing and (
-        _MOTIF_WORDS.search(prompt) or _MATERIAL_WORDS.search(prompt)
-    ):
+    elif motif_missing and (_MOTIF_WORDS.search(prompt) or _MATERIAL_WORDS.search(prompt)):
         reason = "motif_mention"
     else:
         return None

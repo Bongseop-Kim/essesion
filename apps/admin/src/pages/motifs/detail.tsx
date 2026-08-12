@@ -391,14 +391,8 @@ export function MotifDetailPage() {
       </HStack>
 
       <Grid columns={{ base: 1, lg: 2 }} gap="x5" alignItems="start">
-        <MotifMetadataForm
-          motif={motif}
-          onUpdated={updateCachedMotif}
-        />
-        <MotifReviewActions
-          motif={motif}
-          onUpdated={updateCachedMotif}
-        />
+        <MotifMetadataForm motif={motif} onUpdated={updateCachedMotif} />
+        <MotifReviewActions motif={motif} onUpdated={updateCachedMotif} />
       </Grid>
 
       <AdminCard title="Motif 상세">
