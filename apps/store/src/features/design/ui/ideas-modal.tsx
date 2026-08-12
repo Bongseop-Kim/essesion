@@ -31,13 +31,16 @@ export function IdeasModal({
   onApply,
 }: IdeasModalProps) {
   const requestRef = useRef(onRequest);
-  requestRef.current = onRequest;
   const requestSequence = useRef(0);
   const [ideas, setIdeas] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    requestRef.current = onRequest;
+  }, [onRequest]);
 
   const load = useCallback(async () => {
     const sequence = ++requestSequence.current;

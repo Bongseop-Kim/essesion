@@ -12,7 +12,10 @@ export function useAdminListUrlState(options: AdminListQueryOptions = {}) {
   const [params, setParams] = useSearchParams();
   const query = parseAdminListQuery(params, options);
   const latestQuery = useRef(query);
-  latestQuery.current = query;
+
+  useEffect(() => {
+    latestQuery.current = query;
+  }, [query]);
 
   const replaceQuery = useCallback(
     (changes: Partial<AdminListQuery>) => {

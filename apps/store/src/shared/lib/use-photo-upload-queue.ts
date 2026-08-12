@@ -33,10 +33,13 @@ export function usePhotoUploadQueue<T>({
   const [pendingCount, setPendingCount] = useState(0);
   // 비동기 완료 시점의 최신 photos를 참조하기 위한 미러
   const photosRef = useRef(photos);
-  photosRef.current = photos;
   const mountedRef = useRef(true);
   const getPreviewRef = useRef(getPreview);
-  getPreviewRef.current = getPreview;
+
+  useEffect(() => {
+    photosRef.current = photos;
+    getPreviewRef.current = getPreview;
+  }, [getPreview, photos]);
 
   useEffect(() => {
     onUploadingChange?.(pendingCount > 0);

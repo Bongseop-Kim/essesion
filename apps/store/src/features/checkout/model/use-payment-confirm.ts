@@ -29,9 +29,12 @@ export function usePaymentConfirm<T>(
   const [data, setData] = useState<T | null>(null);
   const started = useRef(false);
   const handler = useRef(onConfirmed);
-  handler.current = onConfirmed;
   const terminalFailureHandler = useRef(options.onTerminalFailure);
-  terminalFailureHandler.current = options.onTerminalFailure;
+
+  useEffect(() => {
+    handler.current = onConfirmed;
+    terminalFailureHandler.current = options.onTerminalFailure;
+  }, [onConfirmed, options.onTerminalFailure]);
 
   const retry = useCallback(async () => {
     if (!valid || !paymentKey || !orderId) return;
