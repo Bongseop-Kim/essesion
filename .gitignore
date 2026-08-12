@@ -14,6 +14,7 @@ __pycache__/
 gha-creds-*.json
 playwright-report/
 test-results/
+.gc-artifacts/
 scratch/
 .terraform/
 *.tfstate*

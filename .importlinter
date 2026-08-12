@@ -1,0 +1,50 @@
+[importlinter]
+root_packages =
+    api
+    worker
+    db
+    obs
+    svg_safety
+
+[importlinter:contract:api-no-worker]
+name = API must call worker through HTTP, never import worker internals
+type = forbidden
+source_modules =
+    api
+forbidden_modules =
+    worker
+
+[importlinter:contract:worker-no-api]
+name = Worker owns image computation only and must not import API domains
+type = forbidden
+source_modules =
+    worker
+forbidden_modules =
+    api
+
+[importlinter:contract:db-lower-layer]
+name = DB models are a lower layer and must not import API or worker
+type = forbidden
+source_modules =
+    db
+forbidden_modules =
+    api
+    worker
+
+[importlinter:contract:obs-lower-layer]
+name = Observability library must not import application packages
+type = forbidden
+source_modules =
+    obs
+forbidden_modules =
+    api
+    worker
+
+[importlinter:contract:svg-safety-lower-layer]
+name = SVG safety library must not import application packages
+type = forbidden
+source_modules =
+    svg_safety
+forbidden_modules =
+    api
+    worker

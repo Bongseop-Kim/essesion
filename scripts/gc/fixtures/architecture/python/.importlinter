@@ -1,0 +1,12 @@
+[importlinter]
+root_packages =
+    api_fixture
+    worker_fixture
+
+[importlinter:contract:fixture]
+name = Fixture API must not import worker
+type = forbidden
+source_modules =
+    api_fixture
+forbidden_modules =
+    worker_fixture
