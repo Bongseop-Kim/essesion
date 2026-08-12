@@ -65,7 +65,11 @@ export function usePhotoUploadQueue<T>({
     await mapWithConcurrency(accepted, 2, async (file) => {
       try {
         const item = await upload(file);
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) {
+          const preview = getPreviewRef.current(item);
+          if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
+          return;
+        }
         const next = [...photosRef.current, item];
         photosRef.current = next;
         onChange(next);

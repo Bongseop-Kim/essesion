@@ -35,6 +35,7 @@ import { AdminCard } from "../../shared/ui/admin-card";
 import { NumberField } from "../../shared/ui/number-field";
 
 type ItemDraft = {
+  clientId: string;
   quantity: string;
   hasAutomatic: boolean;
   mechanism: "zipper" | "string";
@@ -61,19 +62,28 @@ export type ManualOrderDraft = {
   items: ItemDraft[];
 };
 
-const emptyItemDraft: ItemDraft = {
-  quantity: "1",
-  hasAutomatic: false,
-  mechanism: "zipper",
-  turnKnot: false,
-  dimple: false,
-  totalLengthCm: "",
-  hasWidth: false,
-  targetWidthCm: "",
-  hasRestoration: false,
-  restorationMemo: "",
-  note: "",
-};
+let nextItemDraftId = 0;
+
+function createItemDraft(
+  values: Partial<Omit<ItemDraft, "clientId">> = {},
+): ItemDraft {
+  nextItemDraftId += 1;
+  return {
+    clientId: `manual-order-item-${nextItemDraftId}`,
+    quantity: "1",
+    hasAutomatic: false,
+    mechanism: "zipper",
+    turnKnot: false,
+    dimple: false,
+    totalLengthCm: "",
+    hasWidth: false,
+    targetWidthCm: "",
+    hasRestoration: false,
+    restorationMemo: "",
+    note: "",
+    ...values,
+  };
+}
 
 export const emptyManualOrderDraft: ManualOrderDraft = {
   orderDate: "",
@@ -85,7 +95,7 @@ export const emptyManualOrderDraft: ManualOrderDraft = {
   isReceived: false,
   isPaid: false,
   isConfirmed: false,
-  items: [emptyItemDraft],
+  items: [createItemDraft()],
 };
 
 export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
@@ -99,21 +109,23 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
     isReceived: order.is_received,
     isPaid: order.is_paid,
     isConfirmed: order.is_confirmed,
-    items: order.items.map((item) => ({
-      quantity: String(item.quantity),
-      hasAutomatic: item.automatic != null,
-      mechanism: item.automatic?.mechanism ?? "zipper",
-      turnKnot: item.automatic?.turn_knot ?? false,
-      dimple: item.automatic?.dimple ?? false,
-      totalLengthCm:
-        item.automatic == null ? "" : String(item.automatic.total_length_cm),
-      hasWidth: item.width != null,
-      targetWidthCm:
-        item.width == null ? "" : String(item.width.target_width_cm),
-      hasRestoration: item.restoration != null,
-      restorationMemo: item.restoration?.memo ?? "",
-      note: item.note ?? "",
-    })),
+    items: order.items.map((item) =>
+      createItemDraft({
+        quantity: String(item.quantity),
+        hasAutomatic: item.automatic != null,
+        mechanism: item.automatic?.mechanism ?? "zipper",
+        turnKnot: item.automatic?.turn_knot ?? false,
+        dimple: item.automatic?.dimple ?? false,
+        totalLengthCm:
+          item.automatic == null ? "" : String(item.automatic.total_length_cm),
+        hasWidth: item.width != null,
+        targetWidthCm:
+          item.width == null ? "" : String(item.width.target_width_cm),
+        hasRestoration: item.restoration != null,
+        restorationMemo: item.restoration?.memo ?? "",
+        note: item.note ?? "",
+      }),
+    ),
   };
 }
 
@@ -435,7 +447,7 @@ export function ManualOrderForm({
                 : {};
               return (
                 <Box
-                  key={index}
+                  key={item.clientId}
                   borderWidth={1}
                   borderColor="stroke.neutral"
                   borderRadius="r2"
@@ -662,7 +674,7 @@ export function ManualOrderForm({
                 onClick={() =>
                   setDraft((current) => ({
                     ...current,
-                    items: [...current.items, emptyItemDraft],
+                    items: [...current.items, createItemDraft()],
                   }))
                 }
               >

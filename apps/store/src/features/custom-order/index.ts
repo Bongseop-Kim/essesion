@@ -4,7 +4,6 @@ export {
   clearCustomOrderDraftAttachments,
   clearCustomOrderFormDraft,
   parseCustomOrderDraft,
-  parseCustomOrderFormDraft,
   readCustomOrderFormDraft,
   restoreCustomOrderFormDraft,
   saveCustomOrderFormDraft,

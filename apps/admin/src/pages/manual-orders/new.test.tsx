@@ -107,6 +107,24 @@ describe("ManualOrderNewPage", () => {
     ).toBe(true);
   });
 
+  it("앞 품목을 삭제해도 뒤 품목의 입력 DOM을 유지한다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "품목 추가" }));
+    const notes = screen.getAllByLabelText("특이사항");
+    const secondNote = notes[1]!;
+    await user.type(notes[0]!, "첫 품목");
+    await user.type(secondNote, "둘째 품목");
+
+    await user.click(screen.getAllByRole("button", { name: "삭제" })[0]!);
+
+    expect(screen.getByLabelText("특이사항")).toBe(secondNote);
+    expect(
+      (screen.getByLabelText("특이사항") as HTMLTextAreaElement).value,
+    ).toBe("둘째 품목");
+  });
+
   it("필수값이 없으면 제출을 차단한다", async () => {
     const user = userEvent.setup();
     renderPage();

@@ -14,7 +14,7 @@ export const PATCH_AXIS_LABELS: Readonly<Record<string, string>> = {
   palette: "팔레트",
 };
 
-export const INPUT_TYPE_LABELS: Readonly<Record<string, string>> = {
+const INPUT_TYPE_LABELS: Readonly<Record<string, string>> = {
   intent: "구조화된 디자인 의도",
   prompt: "텍스트 프롬프트",
 };

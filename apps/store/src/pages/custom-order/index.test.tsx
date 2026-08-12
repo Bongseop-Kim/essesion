@@ -157,7 +157,8 @@ describe("CustomOrderPage", () => {
     const BrowserURL = URL;
     class ObjectURL extends BrowserURL {}
     ObjectURL.createObjectURL = createObjectURL;
-    ObjectURL.revokeObjectURL = vi.fn();
+    const revokeObjectURL = vi.fn();
+    ObjectURL.revokeObjectURL = revokeObjectURL;
     vi.stubGlobal("URL", ObjectURL);
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -193,7 +194,8 @@ describe("CustomOrderPage", () => {
         screen.getAllByRole("button", { name: "duplicate.png 삭제" }),
       ).toHaveLength(1),
     );
-    expect(createObjectURL.mock.calls.at(-1)?.[0]).toBe(first);
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:second");
     queryClient.clear();
   });
 });
