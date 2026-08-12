@@ -83,7 +83,10 @@ export function ProductForm({
   const draftRef = useRef(draft);
   const mounted = useRef(true);
   const discardedUploadIds = useRef(new Set<string>());
-  draftRef.current = draft;
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   const discardStagedImage = (image: ProductImageDraft | null | undefined) => {
     const uploadId = image?.staged ? image.uploadId : null;

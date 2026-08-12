@@ -155,7 +155,10 @@ export function useCheckoutPayment<T>({
   const submitting = useRef(false);
   const currentOwner = useRef(ownerUserId);
   const mounted = useRef(true);
-  currentOwner.current = ownerUserId;
+
+  useEffect(() => {
+    currentOwner.current = ownerUserId;
+  }, [ownerUserId]);
 
   useEffect(() => {
     mounted.current = true;
