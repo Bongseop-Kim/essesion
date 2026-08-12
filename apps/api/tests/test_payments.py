@@ -2,7 +2,7 @@
 
 import asyncio
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 
 import respx
 from api.domains.auth.rate_limit import AuthRateLimiter
@@ -125,6 +125,69 @@ async def test_confirm_success_and_idempotency(client, db_session, settings):
 
 
 @respx.mock
+async def test_confirm_is_idempotent_after_repair_shipment_advances_status(
+    client, db_session, settings
+):
+    """결제 직후 상태에서 더 전진해도 success URL 새로고침(재confirm)은 200 DONE."""
+    route = respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
+    user = await make_user(db_session)
+    order = await make_order(db_session, user, order_type="repair", status="대기중")
+    headers = auth_headers(user, settings)
+    body = {
+        "payment_key": "repair-key-abcdefgh",
+        "payment_group_id": str(order.payment_group_id),
+        "amount": order.total_price,
+    }
+
+    res = await client.post("/payments/confirm", json=body, headers=headers)
+    assert res.status_code == 200, res.text
+    assert res.json()["orders"][0]["status"] == "발송대기"
+
+    # 성공 화면이 발송을 자동 등록해 발송대기→발송중으로 전진한다 — 새로고침 재confirm의 실제 조건
+    shipped = await client.post(
+        f"/orders/{order.id}/repair-tracking",
+        json={"courier_company": "cj", "tracking_number": "12345"},
+        headers=headers,
+    )
+    assert shipped.status_code == 200, shipped.text
+    assert shipped.json()["status"] == "발송중"
+
+    again = await client.post("/payments/confirm", json=body, headers=headers)
+    assert again.status_code == 200, again.text
+    assert again.json()["orders"][0]["status"] == "발송중"  # 전진한 현재 상태를 그대로 돌려준다
+    assert route.call_count == 1
+
+    wrong_key = await client.post(
+        "/payments/confirm",
+        json={**body, "payment_key": "other-key-abcdefgh"},
+        headers=headers,
+    )
+    assert wrong_key.status_code == 409
+    assert wrong_key.json()["code"] == "payment_key_mismatch"
+    assert route.call_count == 1
+
+
+@respx.mock
+async def test_confirm_rejects_unpaid_canceled_order(client, db_session, settings):
+    """paid_at 없는 주문은 결제 대상이 아니다 — 멱등 판정 확대가 not_payable을 잠식하지 않는다."""
+    user = await make_user(db_session)
+    order = await make_order(db_session, user, status="취소")
+
+    res = await client.post(
+        "/payments/confirm",
+        json={
+            "payment_key": "canceled-key-abcdefgh",
+            "payment_group_id": str(order.payment_group_id),
+            "amount": order.total_price,
+        },
+        headers=auth_headers(user, settings),
+    )
+    assert res.status_code == 409
+    assert res.json()["code"] == "not_payable"
+    assert len(respx.calls) == 0
+
+
+@respx.mock
 async def test_confirm_rejects_mixed_group_before_mutating_orders(client, db_session, settings):
     """일부만 결제후 상태인 그룹은 성공으로 오인하거나 나머지를 결제중으로 변경하지 않는다."""
     from sqlalchemy import update as sa_update
@@ -138,7 +201,12 @@ async def test_confirm_rejects_mixed_group_before_mutating_orders(client, db_ses
     await db_session.execute(
         sa_update(Order)
         .where(Order.id == first_id)
-        .values(status="진행중", payment_key="existing-key-abcdefgh")
+        .values(
+            status="진행중",
+            payment_key="existing-key-abcdefgh",
+            # 결제 적용 여부의 판정 기준 — 확정된 주문은 항상 paid_at을 가진다
+            paid_at=datetime.now(UTC),
+        )
     )
     await db_session.execute(
         sa_update(Order).where(Order.id == second_id).values(payment_group_id=group_id)

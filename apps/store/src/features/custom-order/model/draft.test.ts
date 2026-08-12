@@ -3,10 +3,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
-  clearCustomOrderFormDraft,
+  clearCustomOrderDraftAttachments,
   parseCustomOrderDraft,
   parseCustomOrderFormDraft,
   readCustomOrderFormDraft,
+  restoreCustomOrderFormDraft,
   saveCustomOrderFormDraft,
 } from "./draft";
 import { DEFAULT_CUSTOM_ORDER_OPTIONS, DEFAULT_QUOTE_CONTACT } from "./options";
@@ -15,6 +16,11 @@ describe("custom order draft", () => {
   const formDraft = {
     options: DEFAULT_CUSTOM_ORDER_OPTIONS,
     contact: DEFAULT_QUOTE_CONTACT,
+  };
+  /** 실제로 입력이 있는 초안 — 기본값 초안은 저장되지 않는다 */
+  const editedDraft = {
+    ...formDraft,
+    options: { ...formDraft.options, tieWidth: 8 },
   };
 
   beforeEach(() => sessionStorage.clear());
@@ -84,17 +90,79 @@ describe("custom order draft", () => {
     expect(readCustomOrderFormDraft(null)).toEqual(anonymousDraft);
   });
 
-  it("로그인 복귀 draft는 해당 계정으로 인계하고 익명 사본을 제거한다", () => {
+  it("기본값 그대로인 초안은 저장하지 않고 기존 키를 지운다", () => {
+    saveCustomOrderFormDraft(null, editedDraft);
+    expect(readCustomOrderFormDraft(null)).toEqual(editedDraft);
+
     saveCustomOrderFormDraft(null, formDraft);
-    const loginDraft = {
+
+    expect(readCustomOrderFormDraft(null)).toBeNull();
+  });
+
+  it("익명 초안을 로그인 계정으로 이관하고 익명 키를 지운다", () => {
+    saveCustomOrderFormDraft(null, editedDraft);
+    saveCustomOrderFormDraft("user-a", {
       ...formDraft,
-      contact: { ...formDraft.contact, contactName: "logged-in" },
-    };
+      contact: { ...formDraft.contact, contactName: "before-login" },
+    });
 
-    saveCustomOrderFormDraft("user-a", loginDraft);
-    clearCustomOrderFormDraft(null);
+    expect(restoreCustomOrderFormDraft("user-a")).toEqual({
+      draft: editedDraft,
+      hadAttachments: false,
+    });
 
-    expect(readCustomOrderFormDraft("user-a")).toEqual(loginDraft);
+    // 익명 초안이 계정 초안을 덮고, 익명 사본은 남지 않는다
+    expect(readCustomOrderFormDraft("user-a")).toEqual(editedDraft);
+    expect(readCustomOrderFormDraft(null)).toBeNull();
+    // 다시 호출해도(StrictMode 이중 렌더) 같은 초안을 돌려준다
+    expect(restoreCustomOrderFormDraft("user-a")).toEqual({
+      draft: editedDraft,
+      hadAttachments: false,
+    });
+  });
+
+  it("익명 초안이 없으면 계정 초안을 그대로 복원한다", () => {
+    saveCustomOrderFormDraft("user-a", editedDraft);
+
+    expect(restoreCustomOrderFormDraft("user-a")).toEqual({
+      draft: editedDraft,
+      hadAttachments: false,
+    });
+    expect(restoreCustomOrderFormDraft("user-b")).toBeNull();
+  });
+
+  it("첨부 플래그는 이관까지 살아남고 안내 후에만 지워진다", () => {
+    saveCustomOrderFormDraft(null, editedDraft, { hadAttachments: true });
+    expect(restoreCustomOrderFormDraft(null)).toEqual({
+      draft: editedDraft,
+      hadAttachments: true,
+    });
+
+    // 400ms 자동저장은 플래그를 건드리지 않는다
+    saveCustomOrderFormDraft(null, editedDraft);
+    expect(restoreCustomOrderFormDraft("user-a")).toEqual({
+      draft: editedDraft,
+      hadAttachments: true,
+    });
+
+    clearCustomOrderDraftAttachments("user-a");
+
+    expect(restoreCustomOrderFormDraft("user-a")).toEqual({
+      draft: editedDraft,
+      hadAttachments: false,
+    });
+  });
+
+  it("첨부만 있었던 기본값 초안도 재첨부 안내를 위해 남긴다", () => {
+    saveCustomOrderFormDraft(null, formDraft, { hadAttachments: true });
+    expect(restoreCustomOrderFormDraft(null)).toEqual({
+      draft: formDraft,
+      hadAttachments: true,
+    });
+
+    clearCustomOrderDraftAttachments(null);
+
+    // 안내를 끝내면 남길 이유가 없다
     expect(readCustomOrderFormDraft(null)).toBeNull();
   });
 });

@@ -37,6 +37,7 @@ const CLAIM_STATUSES = [
   "재발송",
   "완료",
   "거부",
+  "취소",
 ] as const;
 
 const CLAIM_SORTS = [

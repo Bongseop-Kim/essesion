@@ -365,6 +365,10 @@ export function useMotifSearch({
       await queryClient.invalidateQueries({
         queryKey: listUserMotifsQueryKey(),
       });
+      // 생성은 항상 예산을 소모한다 — 남은 횟수 표시를 서버 값으로 갱신.
+      await queryClient.invalidateQueries({
+        queryKey: designSessionQueryKey(sessionId),
+      });
     } catch (cause) {
       // 예산 소진이면 서버가 진실 — 세션을 다시 읽어 입력이 스스로 잠긴다.
       if (parseDesignError(cause).code === "recraft_budget_exhausted") {

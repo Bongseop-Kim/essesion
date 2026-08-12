@@ -123,7 +123,8 @@ describe("payment success pending boundary", () => {
     savePending("user-b", "group-b", "cart-b");
     saveCustomOrderFormDraft("user-a", {
       options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-      contact: DEFAULT_QUOTE_CONTACT,
+      // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
+      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
     });
     saveCustomOrderFormDraft("user-b", {
       options: DEFAULT_CUSTOM_ORDER_OPTIONS,
@@ -158,7 +159,8 @@ describe("payment success pending boundary", () => {
     savePending("user-b", "group-b", "product:1:base");
     saveCustomOrderFormDraft("user-a", {
       options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-      contact: DEFAULT_QUOTE_CONTACT,
+      // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
+      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
     });
     saveCustomOrderFormDraft("user-b", {
       options: DEFAULT_CUSTOM_ORDER_OPTIONS,
@@ -189,7 +191,8 @@ describe("payment success pending boundary", () => {
     savePending("user-a", "group-a", "cart-a");
     saveCustomOrderFormDraft("user-a", {
       options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-      contact: DEFAULT_QUOTE_CONTACT,
+      // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
+      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
     });
     renderPage();
 
@@ -233,7 +236,8 @@ describe("payment success pending boundary", () => {
     savePending("user-b", "group-b", "product:1:base");
     saveCustomOrderFormDraft("user-a", {
       options: DEFAULT_CUSTOM_ORDER_OPTIONS,
-      contact: DEFAULT_QUOTE_CONTACT,
+      // 기본값 그대로인 초안은 저장되지 않으므로 실제 입력이 있는 초안으로 둔다
+      contact: { ...DEFAULT_QUOTE_CONTACT, contactName: "account-a" },
     });
     saveCustomOrderFormDraft("user-b", {
       options: DEFAULT_CUSTOM_ORDER_OPTIONS,

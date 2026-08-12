@@ -729,7 +729,6 @@ async def import_user_motif(
             source="user_upload",
             # ponytail: 비공개(user_upload)라 게이트 무관 — pending 큐 오염 방지용 approved.
             status="approved",
-            variant_group=None,
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )
@@ -2264,8 +2263,6 @@ class MotifGenerateRequest(StrictModel):
 
 class MotifGenerateOut(BaseModel):
     request_id: str
-    # 래더 히트로 카탈로그를 재사용했으면 true — 예산은 환급된다.
-    reused: bool
     motif: MotifResultOut
     # 내 모티프에 남겼는지 — 한도(100개)를 넘으면 생성만 되고 저장은 건너뛴다.
     saved: bool
@@ -2287,7 +2284,6 @@ class WorkerMotifCandidatesOut(BaseModel):
 class WorkerMotifGenerateOut(BaseModel):
     request_id: str
     motif_id: str
-    reused: bool
 
 
 async def _motif_results(
@@ -2374,7 +2370,7 @@ async def generate_motif(
     ensure_owner(design_session, user)
     assert design_session is not None
     # 예산 선차감(조건부 UPDATE — finalize와 동일 패턴) 후 커밋 — Recraft가 수십 초라
-    # 행 잠금을 들고 있지 않는다. 워커 실패·래더 재사용(reused)이면 보상 환급.
+    # 행 잠금을 들고 있지 않는다. 워커 실패면 보상 환급.
     budget = request.app.state.settings.design_recraft_budget
     claimed = await session.execute(
         update(DesignSession)
@@ -2443,9 +2439,6 @@ async def _dispatch_motif_generation(
     except Exception:
         await _release_recraft_budget(session, session_id)
         raise
-    if out.reused:
-        # 래더 히트 — Recraft 미호출이므로 예산 환급 (멱등 재호출이 예산을 태우지 않게)
-        await _release_recraft_budget(session, session_id)
     results = await _motif_results(
         session, [out.motif_id], user_id=user_id, allow_ids=(out.motif_id,)
     )
@@ -2457,9 +2450,7 @@ async def _dispatch_motif_generation(
         motif_id=out.motif_id,
         name=name or results[0].name or "만든 모티프",
     )
-    return MotifGenerateOut(
-        request_id=out.request_id, reused=out.reused, motif=results[0], saved=saved
-    )
+    return MotifGenerateOut(request_id=out.request_id, motif=results[0], saved=saved)
 
 
 @router.post("/design/sessions/{session_id}/motifs/activate", response_model=DesignGenerateOut)

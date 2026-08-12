@@ -19,6 +19,7 @@ _CODES: tuple[tuple[str, str], ...] = (
     ("preview upload skipped", "preview_unavailable"),
     (" dropped", "motif_dropped"),
     ("has no visible slot", "named_color_unplaced"),
+    ("grounded only approximately", "motif_approximate_match"),
 )
 
 WARNING_MESSAGES: dict[str, str] = {
@@ -29,6 +30,10 @@ WARNING_MESSAGES: dict[str, str] = {
     "preview_unavailable": "미리보기 이미지는 저장하지 못했어요. 디자인은 그대로예요.",
     "motif_dropped": "쓸 수 없는 무늬가 있어 그 부분은 빼고 만들었어요.",
     "named_color_unplaced": "요청한 색 중 일부는 넣을 자리가 없어 빼고 만들었어요.",
+    "motif_approximate_match": (
+        "요청하신 그림과 꼭 맞는 무늬가 없어 비슷한 그림으로 만들었어요. "
+        "왼쪽 모티프에서 바꿀 수 있어요."
+    ),
 }
 
 

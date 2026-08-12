@@ -48,6 +48,7 @@ import {
   type CustomOrderSectionId,
   CustomOrderServiceGuide,
   type CustomOrderValidationError,
+  clearCustomOrderDraftAttachments,
   clearCustomOrderFormDraft,
   customOrderApiOptions,
   customOrderSummary,
@@ -55,9 +56,8 @@ import {
   DEFAULT_QUOTE_CONTACT,
   invalidCustomOrderSection,
   MAX_CUSTOM_ORDER_QUANTITY,
-  parseCustomOrderFormDraft,
   type QuoteContact,
-  readCustomOrderFormDraft,
+  restoreCustomOrderFormDraft,
   saveCustomOrderFormDraft,
   TIE_WIDTH_ERROR,
   uploadOrderImage,
@@ -74,8 +74,6 @@ import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
 import { SummaryCard } from "@/shared/ui/summary-card";
-
-type LoginDraft = Pick<CustomOrderDraft, "options" | "contact">;
 
 const QUANTITY_PRESETS = [4, 8, 12, 20, 50, 100] as const;
 const MAX_IMAGES = 5;
@@ -114,27 +112,24 @@ function CustomOrderPageContent({
   const user = useSession((state) =>
     state.status === "authenticated" ? state.user : null,
   );
-  const loginDraft = useMemo(
-    () => readLoginDraft(location.state),
-    [location.state],
-  );
+  // 익명 초안 이관까지 함께 처리한다 — draftOwnerId가 확정된 뒤 마운트당 한 번만 실행되고,
+  // 다시 호출돼도(StrictMode 이중 렌더) 같은 초안을 돌려준다.
   const restored = useMemo(
     () =>
-      loginDraft ??
-      (draftOwnerId === undefined
+      draftOwnerId === undefined
         ? null
-        : readCustomOrderFormDraft(draftOwnerId)),
-    [draftOwnerId, loginDraft],
+        : restoreCustomOrderFormDraft(draftOwnerId),
+    [draftOwnerId],
   );
   const initialDesigns = useMemo(
     () => readDesignJobs(location.state),
     [location.state],
   );
   const [options, setOptions] = useState<CustomOrderOptions>(
-    restored?.options ?? DEFAULT_CUSTOM_ORDER_OPTIONS,
+    restored?.draft.options ?? DEFAULT_CUSTOM_ORDER_OPTIONS,
   );
   const [contact, setContact] = useState<QuoteContact>(
-    restored?.contact ?? DEFAULT_QUOTE_CONTACT,
+    restored?.draft.contact ?? DEFAULT_QUOTE_CONTACT,
   );
   const [files, setFiles] = useState<File[]>([]);
   const [selectedDesigns, setSelectedDesigns] = useState<GenerationJobOut[]>(
@@ -154,6 +149,7 @@ function CustomOrderPageContent({
   const contactNameRef = useRef<HTMLInputElement>(null);
   const contactValueRef = useRef<HTMLInputElement>(null);
   const profileDefaultsApplied = useRef(false);
+  const attachmentHintShown = useRef(false);
   const wasQuoteMode = useRef(options.quantity >= 100);
   const previewUrls = useMemo(
     () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -199,22 +195,19 @@ function CustomOrderPageContent({
       setAddress(addressesQuery.data[0]);
   }, [address, addressesQuery.data]);
 
+  // 첨부는 storage로 옮길 수 없다 — 복원된 초안이 첨부와 함께 저장됐으면 한 번만 안내한다
   useEffect(() => {
-    if (!loginDraft || !draftOwnerId) return;
-    saveCustomOrderFormDraft(draftOwnerId, loginDraft);
-    clearCustomOrderFormDraft(null);
-    navigate(`${location.pathname}${location.search}`, {
-      replace: true,
-      state: withoutLoginDraft(location.state),
-    });
-  }, [
-    draftOwnerId,
-    location.pathname,
-    location.search,
-    location.state,
-    loginDraft,
-    navigate,
-  ]);
+    if (
+      draftOwnerId === undefined ||
+      !restored?.hadAttachments ||
+      attachmentHintShown.current
+    ) {
+      return;
+    }
+    attachmentHintShown.current = true;
+    snackbar("참고 이미지를 다시 첨부해 주세요.");
+    clearCustomOrderDraftAttachments(draftOwnerId);
+  }, [draftOwnerId, restored]);
 
   useEffect(() => {
     if (draftOwnerId === undefined) return;
@@ -293,15 +286,25 @@ function CustomOrderPageContent({
     return true;
   };
 
+  const hasAttachments = files.length > 0 || selectedDesigns.length > 0;
+
+  // 로그인으로 흐름이 끊기기 전에 현재 입력을 익명 키에 남긴다 — 로그인 뒤 어느 경로로
+  // 돌아와도 /custom-order 진입 시 계정 키로 이관된다. 파일 선택이 차단된 경우
+  // 선택 자체는 state에 못 들어가므로 pendingAttachment로 첨부 의도를 함께 남긴다.
+  const saveDraftBeforeLogin = (pendingAttachment = false) => {
+    if (draftOwnerId !== null) return;
+    saveCustomOrderFormDraft(
+      null,
+      { options, contact },
+      { hadAttachments: hasAttachments || pendingAttachment },
+    );
+  };
+
   const requestSubmit = () => {
     if (!validate()) return;
-    if (
-      !requireAuth({
-        path: "/custom-order",
-        state: { customOrderDraft: { options, contact } satisfies LoginDraft },
-      })
-    ) {
-      if (files.length > 0 || selectedDesigns.length > 0)
+    if (!requireAuth({ path: "/custom-order" })) {
+      saveDraftBeforeLogin();
+      if (hasAttachments)
         snackbar("로그인 후 참고 이미지를 다시 첨부해 주세요.");
       return;
     }
@@ -984,17 +987,8 @@ function CustomOrderPageContent({
                 max={MAX_IMAGES}
                 accept={CUSTOM_IMAGE_ACCEPT}
                 onAddFiles={(selected) => {
-                  if (
-                    !requireAuth({
-                      path: "/custom-order",
-                      state: {
-                        customOrderDraft: {
-                          options,
-                          contact,
-                        } satisfies LoginDraft,
-                      },
-                    })
-                  ) {
+                  if (!requireAuth({ path: "/custom-order" })) {
+                    saveDraftBeforeLogin(selected.length > 0);
                     return;
                   }
                   setFiles((current) =>
@@ -1104,18 +1098,6 @@ function focusSection(section: CustomOrderSectionId) {
   document
     .getElementById(`custom-order-${section}`)
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function readLoginDraft(state: unknown): LoginDraft | null {
-  if (!hasStateKey(state, "customOrderDraft")) return null;
-  return parseCustomOrderFormDraft(state.customOrderDraft);
-}
-
-function withoutLoginDraft(state: unknown): unknown {
-  if (!state || typeof state !== "object" || Array.isArray(state)) return state;
-  const next = { ...(state as Record<string, unknown>) };
-  delete next.customOrderDraft;
-  return Object.keys(next).length > 0 ? next : null;
 }
 
 function readDesignJobs(state: unknown): GenerationJobOut[] {

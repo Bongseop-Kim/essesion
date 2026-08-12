@@ -5115,10 +5115,6 @@ export type MotifDetailOut = {
      */
     tags: Array<string>;
     /**
-     * Variant Group
-     */
-    variant_group: string | null;
-    /**
      * View
      */
     view: string | null;
@@ -5133,10 +5129,6 @@ export type MotifGenerateOut = {
      * Request Id
      */
     request_id: string;
-    /**
-     * Reused
-     */
-    reused: boolean;
     /**
      * Saved
      */
@@ -5351,10 +5343,6 @@ export type MotifSummaryOut = {
      * Symbol
      */
     symbol: string | null;
-    /**
-     * Variant Group
-     */
-    variant_group: string | null;
     /**
      * View
      */
@@ -8704,7 +8692,7 @@ export type AdminListClaimsV2Data = {
         /**
          * Status
          */
-        status?: 'all' | '접수' | '처리중' | '수거요청' | '수거완료' | '재발송' | '완료' | '거부';
+        status?: 'all' | '접수' | '처리중' | '수거요청' | '수거완료' | '재발송' | '완료' | '거부' | '취소';
         /**
          * Start Date
          */

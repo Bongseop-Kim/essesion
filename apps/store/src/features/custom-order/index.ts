@@ -1,9 +1,12 @@
 export { CUSTOM_IMAGE_ACCEPT, uploadOrderImage } from "./api/upload";
+export type { CustomOrderDraftEntry } from "./model/draft";
 export {
+  clearCustomOrderDraftAttachments,
   clearCustomOrderFormDraft,
   parseCustomOrderDraft,
   parseCustomOrderFormDraft,
   readCustomOrderFormDraft,
+  restoreCustomOrderFormDraft,
   saveCustomOrderFormDraft,
 } from "./model/draft";
 export type {

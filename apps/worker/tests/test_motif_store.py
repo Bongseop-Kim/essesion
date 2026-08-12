@@ -116,27 +116,6 @@ async def test_nearest_excludes_null_embedding(db_session):
     assert matches[0].id == "recraft-hasembedding0"
 
 
-async def test_variant_pool_returns_members_ordered(db_session):
-    vg = store.variant_group_key("flower", "whole")
-    await store.upsert_motif(
-        db_session,
-        _motif("recraft-vg2"),
-        facets={"scope": "whole"},
-        variant_group=vg,
-        status="approved",
-    )
-    await store.upsert_motif(
-        db_session,
-        _motif("recraft-vg1"),
-        facets={"scope": "whole"},
-        variant_group=vg,
-        status="approved",
-    )
-    await db_session.commit()
-    pool = await store.find_variant_pool(db_session, vg)
-    assert [m.id for m in pool] == ["recraft-vg1", "recraft-vg2"]
-
-
 async def test_user_upload_is_only_available_by_explicit_id(db_session):
     uploaded = _motif("upload-a1b2c3d4e5f6")
     await store.upsert_motif(
@@ -154,7 +133,6 @@ async def test_user_upload_is_only_available_by_explicit_id(db_session):
 
 
 async def test_catalog_queries_only_expose_approved_motifs(db_session):
-    variant_group = store.variant_group_key("gate", "whole")
     rows = [
         ("recraft-gate-approved", "approved", _vec(1.0)),
         ("recraft-gate-unembedded", "approved", None),
@@ -167,7 +145,6 @@ async def test_catalog_queries_only_expose_approved_motifs(db_session):
             _motif(motif_id),
             facets={"subject": "gate", "scope": "whole"},
             embedding=embedding,
-            variant_group=variant_group,
             status=status,
         )
     await db_session.commit()
@@ -177,9 +154,6 @@ async def test_catalog_queries_only_expose_approved_motifs(db_session):
     assert [
         row.id for row in await store.nearest_by_embedding(db_session, _vec(1.0), top_k=10)
     ] == ["recraft-gate-approved"]
-    assert {
-        row.id for row in await store.find_variant_pool(db_session, variant_group)
-    } == approved_ids
     assert [row.id for row in await store.missing_embedding_documents(db_session)] == [
         "recraft-gate-unembedded"
     ]

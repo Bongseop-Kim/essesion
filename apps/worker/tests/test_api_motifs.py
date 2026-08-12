@@ -67,20 +67,33 @@ async def test_motifs_candidates_returns_seeded(client, db_session):
     assert body["candidates"][0]["scope"] == "whole"
 
 
-async def test_motifs_generate_503_when_unconfigured_and_miss(client):
-    # 빈 DB → miss → Recraft 미구성 → 503.
+async def test_motifs_generate_503_when_unconfigured(client):
+    # generate는 항상 생성 → Recraft 미구성이면 무조건 503.
     resp = await client.post("/motifs/generate", json={"query": "novel"})
     assert resp.status_code == 503
 
 
-async def test_motifs_generate_reuses_seeded(client, db_session):
+async def test_motifs_generate_never_reuses_catalog(app, client, db_session):
+    # 카탈로그에 같은 문장의 exact hit가 있어도 재사용하지 않고 새 pending 모티프를 만든다.
     mid = await _seed_dot(db_session)
+
+    class FakeRecraft:
+        calls = 0
+
+        async def generate(self, prompt, *, seed=None):
+            FakeRecraft.calls += 1
+            return (
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+                '<rect x="20" y="20" width="60" height="60" fill="#00ff00"/></svg>'
+            )
+
+    app.state.adapters.recraft = FakeRecraft()
     resp = await client.post("/motifs/generate", json={"query": "dot"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["motif_id"] == mid
-    assert body["reused"] is True
-    assert body["similarity"] == 1.0
+    assert FakeRecraft.calls == 1
+    assert body["motif_id"] != mid
+    assert set(body) == {"request_id", "motif_id"}
 
 
 async def test_motifs_endpoints_reject_the_removed_style_hint(client):

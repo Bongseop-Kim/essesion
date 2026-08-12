@@ -2516,9 +2516,8 @@ _CATALOG_MOTIF_ID = "seed-bee-catalog"
 class MotifWorker(FakeWorker):
     """모티프 검색·생성 워커 스텁 — 문장 하나를 받아 카탈로그 id로 답한다."""
 
-    def __init__(self, *, sessionmaker=None, reused=False, fail=False, motif_id=_CATALOG_MOTIF_ID):
+    def __init__(self, *, sessionmaker=None, fail=False, motif_id=_CATALOG_MOTIF_ID):
         super().__init__(sessionmaker)
-        self.reused = reused
         self.fail = fail
         self.motif_id = motif_id
         self.motif_calls = []
@@ -2541,8 +2540,6 @@ class MotifWorker(FakeWorker):
         return {
             "request_id": "rid-worker",
             "motif_id": self.motif_id,
-            "reused": self.reused,
-            "similarity": None if not self.reused else 1.0,
         }
 
 
@@ -2655,8 +2652,8 @@ async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_s
 
 
 async def test_motif_generate_budget_exhaustion(client, app, db_session, settings):
-    """생성(reused=False) 3회 후 4회째 409 — 조건부 UPDATE 예산."""
-    app.state.worker = MotifWorker(reused=False)
+    """생성 3회 후 4회째 409 — 조건부 UPDATE 예산."""
+    app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
@@ -2682,9 +2679,11 @@ async def test_motif_generate_budget_exhaustion(client, app, db_session, setting
     assert blocked.json()["code"] == "recraft_budget_exhausted"
 
 
-async def test_motif_generate_reused_refunds_budget(client, app, db_session, settings):
-    """래더 히트(reused=True)는 Recraft 미호출 — 예산 원복."""
-    app.state.worker = MotifWorker(reused=True)
+async def test_motif_generate_always_charges_budget_and_passes_provenance(
+    client, app, db_session, settings
+):
+    """생성은 항상 예산을 소모한다 — 재사용 환급 경로는 없다."""
+    app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
@@ -2695,18 +2694,18 @@ async def test_motif_generate_reused_refunds_budget(client, app, db_session, set
         json={"prompt": "꿀벌 한 마리"},
         headers=headers,
     )
-    assert res.status_code == 200 and res.json()["reused"] is True
+    assert res.status_code == 200
     assert res.json()["motif"]["motif_id"] == _CATALOG_MOTIF_ID
     assert app.state.worker.motif_calls[-1][1] == {
         "query": "꿀벌 한 마리",
         "motif_provenance": {"user_id": str(user.id), "session_id": sid},
     }
-    assert await _session_recraft_used(client, headers, sid) == 0
+    assert await _session_recraft_used(client, headers, sid) == 1
 
 
 async def test_motif_generate_saves_to_user_library_idempotently(client, app, db_session, settings):
     """적용하지 않아도 내 모티프에 남는다 — 같은 모티프를 다시 만들어도 링크는 하나."""
-    app.state.worker = MotifWorker(reused=False)
+    app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
@@ -2739,7 +2738,7 @@ async def test_motif_generate_saves_to_user_library_idempotently(client, app, db
 
 async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_session, settings):
     """내 모티프가 가득 차면 저장만 건너뛴다 — 예산을 쓴 생성을 실패로 되돌리지 않는다."""
-    app.state.worker = MotifWorker(reused=False)
+    app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
     filler_ids = [f"seed-filler-{index:03d}" for index in range(100)]

@@ -62,7 +62,6 @@ class Motif(CreatedAtMixin, Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     embedding_openai: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     source: Mapped[str] = mapped_column(server_default="recraft")
-    variant_group: Mapped[str | None]
     status: Mapped[str] = mapped_column(server_default="pending")
     reviewed_at: Mapped[datetime | None]
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(

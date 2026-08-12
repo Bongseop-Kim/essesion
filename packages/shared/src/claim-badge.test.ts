@@ -25,4 +25,11 @@ describe("claimBadge", () => {
       tone: "neutral",
     });
   });
+
+  it("고객 취소를 거부와 다른 라벨로 표시한다", () => {
+    expect(claimBadge({ type: "token_refund", status: "취소" })).toEqual({
+      label: "토큰 환불 취소",
+      tone: "neutral",
+    });
+  });
 });

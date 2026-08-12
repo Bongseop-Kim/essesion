@@ -83,9 +83,11 @@ export function LoginPage() {
     },
   });
 
-  // 이미 로그인한 방문자는 홈으로 보낸다. 현재 로그인 mutation은 onSuccess의
-  // 장바구니 동기화와 원래 목적지 이동까지 끝날 때까지 pending을 유지한다.
-  if (status === "authenticated" && !login.isPending) {
+  // 이미 로그인한 방문자는 홈으로 보낸다. isSuccess 제외가 중요하다 — onSuccess의
+  // navigate(목적지)가 lazy 라우트면 청크 로드 동안 이 컴포넌트가 mount된 채
+  // isPending이 false로 바뀌는데, 그때 이 Navigate가 목적지 이동과 경합해
+  // 홈으로 덮어써 버린다(로그인 후 홈 이동 버그의 원인).
+  if (status === "authenticated" && !login.isPending && !login.isSuccess) {
     return <Navigate to="/" replace />;
   }
 

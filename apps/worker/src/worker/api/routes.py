@@ -533,6 +533,13 @@ async def _generate_from_prompt(
         )
 
     request.state.generation_diagnostics["motif_resolutions"].extend(authored.motif_resolutions)
+    # 카탈로그에 없는 소재가 이웃으로 대체됐으면 조용히 넘기지 않고 고객 경고 1건으로 내린다.
+    warnings.extend(
+        "motif grounded only approximately"
+        for resolution in authored.motif_resolutions
+        if resolution.get("outcome") == "prompt_catalog"
+        and resolution.get("match_type") == "embedding"
+    )
     # 자리를 못 찾은 지명색은 조용히 버리지 않고 고객 경고 1건으로 내린다.
     warnings.extend(
         f"named color {name} has no visible slot" for name in authored.unassigned_named_colors
@@ -1079,11 +1086,10 @@ async def motif_generate(
     adapters = request.app.state.adapters
     spec = {"subject": body.query, "scope": "whole"}
     try:
-        result = await resolve_spec(
+        motif_id = await resolve_spec(
             session,
             spec,
             recraft_client=adapters.recraft,
-            embedding_client=adapters.embedding,
             settings=settings,
             seed=0,
             provenance=(
@@ -1100,9 +1106,7 @@ async def motif_generate(
     await session.commit()
     return {
         "request_id": request_id_var.get(),
-        "motif_id": result.motif_id,
-        "reused": result.reused,
-        "similarity": result.similarity,
+        "motif_id": motif_id,
     }
 
 

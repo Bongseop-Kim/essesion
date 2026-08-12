@@ -548,7 +548,9 @@ export function OrderFormPage() {
                   {shipEnabled ? (
                     <RepairShipmentFields
                       state={shipForm}
-                      onChange={setShipForm}
+                      onChange={(patch) =>
+                        setShipForm((form) => ({ ...form, ...patch }))
+                      }
                       onUploadingChange={setPhotosUploading}
                     />
                   ) : null}

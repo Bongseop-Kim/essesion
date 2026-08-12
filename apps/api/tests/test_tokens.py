@@ -349,6 +349,69 @@ async def test_refund_request_blocked_after_use(client, db_session, settings):
     assert res.status_code == 400 and res.json()["detail"] == "tokens_used_after_order"
 
 
+# ORM 객체(order·user) 대신 값을 받는다 — expire_all() 뒤 만료된 속성 접근은
+# async 세션에서 동기 lazy-load(MissingGreenlet)로 터진다.
+async def _request_refund(client, headers: dict, order_id: str) -> str:
+    res = await client.post(
+        "/tokens/refund-requests",
+        json={"order_id": order_id},
+        headers=headers,
+    )
+    assert res.status_code == 201, res.text
+    return res.json()["claim_id"]
+
+
+async def test_refund_request_cancel_records_cancel_status(client, db_session, settings):
+    """고객 취소는 관리자 거부와 구분되는 '취소'로 남고, 재신청을 막지 않는다."""
+    from db.models.commerce import Claim, ClaimStatusLog
+
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    order = await _completed_token_order(client, db_session, settings, user)
+    order_id = str(order.id)
+    claim_id = await _request_refund(client, headers, order_id)
+
+    cancelled = await client.post(f"/tokens/refund-requests/{claim_id}/cancel", headers=headers)
+    assert cancelled.status_code == 204, cancelled.text
+
+    db_session.expire_all()
+    claim = await db_session.scalar(select(Claim).where(Claim.id == uuid.UUID(claim_id)))
+    assert claim is not None
+    assert claim.status == "취소"  # 결제 감사 추적 때문에 행은 남는다
+    log = await db_session.scalar(select(ClaimStatusLog).where(ClaimStatusLog.claim_id == claim.id))
+    assert log is not None
+    assert (log.previous_status, log.new_status) == ("접수", "취소")
+    assert log.memo == "고객 환불 요청 취소"
+
+    # 취소된 요청은 중복으로 잡히지 않는다 — 같은 주문으로 재신청할 수 있다.
+    reapplied = await _request_refund(client, headers, order_id)
+    assert reapplied != claim_id
+
+
+async def test_cancelled_refund_is_listed_under_cancel_filter(client, db_session, settings):
+    """취소 건은 관리자 목록의 거부 필터가 아니라 취소 필터에 잡히고, 만질 액션이 없다."""
+    from .factories import make_admin
+
+    admin = await make_admin(db_session)
+    user = await make_user(db_session)
+    order = await _completed_token_order(client, db_session, settings, user)
+    claim_id = await _request_refund(client, auth_headers(user, settings), str(order.id))
+    cancelled = await client.post(
+        f"/tokens/refund-requests/{claim_id}/cancel", headers=auth_headers(user, settings)
+    )
+    assert cancelled.status_code == 204, cancelled.text
+
+    admin_headers = auth_headers(admin, settings)
+    rejected = await client.get("/admin/claims", params={"status": "거부"}, headers=admin_headers)
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["items"] == []
+
+    listed = await client.get("/admin/claims", params={"status": "취소"}, headers=admin_headers)
+    assert listed.status_code == 200, listed.text
+    assert [item["id"] for item in listed.json()["items"]] == [claim_id]
+    assert listed.json()["items"][0]["admin_actions"] == []
+
+
 @respx.mock
 async def test_refund_approve_cancels_payment_and_order(client, db_session, settings):
     cancel_route = respx.post(

@@ -9445,17 +9445,6 @@
             "title": "Tags",
             "type": "array"
           },
-          "variant_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Variant Group"
-          },
           "view": {
             "anyOf": [
               {
@@ -9476,7 +9465,6 @@
           "expression",
           "style",
           "source",
-          "variant_group",
           "status",
           "reviewed_at",
           "created_at",
@@ -9501,10 +9489,6 @@
             "title": "Request Id",
             "type": "string"
           },
-          "reused": {
-            "title": "Reused",
-            "type": "boolean"
-          },
           "saved": {
             "title": "Saved",
             "type": "boolean"
@@ -9512,7 +9496,6 @@
         },
         "required": [
           "request_id",
-          "reused",
           "motif",
           "saved"
         ],
@@ -9936,17 +9919,6 @@
             ],
             "title": "Symbol"
           },
-          "variant_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Variant Group"
-          },
           "view": {
             "anyOf": [
               {
@@ -9967,7 +9939,6 @@
           "expression",
           "style",
           "source",
-          "variant_group",
           "status",
           "reviewed_at",
           "created_at",
@@ -16014,7 +15985,8 @@
                 "수거완료",
                 "재발송",
                 "완료",
-                "거부"
+                "거부",
+                "취소"
               ],
               "title": "Status",
               "type": "string"

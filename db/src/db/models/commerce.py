@@ -343,12 +343,15 @@ class Claim(TimestampMixin, Base):
 
     __table_args__ = (
         CheckConstraint("type IN ('cancel', 'return', 'exchange', 'token_refund')", name="type"),
+        # '취소'는 고객이 스스로 접은 요청 — 일반 클레임은 행을 지우지만 token_refund는
+        # 결제 감사 추적 때문에 행을 남겨야 해서 관리자 '거부'와 상태로 구분한다.
         CheckConstraint(
-            "status IN ('접수', '처리중', '수거요청', '수거완료', '재발송', '완료', '거부')",
+            "status IN ('접수', '처리중', '수거요청', '수거완료', '재발송', "
+            "'완료', '거부', '취소')",
             name="status",
         ),
         CheckConstraint("quantity > 0", name="quantity"),
-        # 아이템·타입당 활성(거부 제외) 클레임 1개
+        # 아이템·타입당 활성(거부·취소 제외) 클레임 1개
         Index(
             "uq_claims_active_per_item",
             "order_item_id",
@@ -358,7 +361,7 @@ class Claim(TimestampMixin, Base):
                 "status IN ('접수', '처리중', '수거요청', '수거완료', '재발송', '완료')"
             ),
         ),
-        # 주문당 진행 중(완료·거부 제외) 클레임 1개
+        # 주문당 진행 중(완료·거부·취소 제외) 클레임 1개
         Index(
             "uq_claims_single_active_per_order",
             "order_id",

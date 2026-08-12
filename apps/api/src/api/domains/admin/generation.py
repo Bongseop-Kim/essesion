@@ -270,7 +270,6 @@ class MotifSummaryOut(BaseModel):
     expression: str | None
     style: str | None
     source: str
-    variant_group: str | None
     status: MotifStatus
     reviewed_at: datetime | None
     created_at: datetime
@@ -1058,7 +1057,6 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
         expression=_safe_metadata(row.expression),
         style=_safe_metadata(row.style),
         source=_safe_token(row.source) or "unknown",
-        variant_group=_safe_token(row.variant_group),
         status=cast("MotifStatus", row.status),
         reviewed_at=row.reviewed_at,
         created_at=row.created_at,

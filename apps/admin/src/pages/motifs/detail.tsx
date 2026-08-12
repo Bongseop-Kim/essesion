@@ -293,10 +293,6 @@ export function MotifDetailPage() {
                       ? "-"
                       : formatDateTime(motif.reviewed_at),
                 },
-                {
-                  label: "변형 그룹",
-                  value: formatIdentifier(motif.variant_group),
-                },
                 { label: "생성일", value: formatDateTime(motif.created_at) },
                 {
                   // Recraft 생성은 별도 generation log를 남기지 않는다 — 세션 상관은 이 두 값뿐.

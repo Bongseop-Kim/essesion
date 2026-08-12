@@ -154,14 +154,15 @@ vi.mock("@/features/design/model/queries", () => ({
     initialPageParam: 0,
     getNextPageParam: () => undefined,
   }),
-  designTokenBalanceQueryOptions: () => ({
+}));
+
+// 잔액·예시는 shared/lib/live-queries의 래퍼를 그대로 쓴다 — 래퍼가 감싸는 raw 옵션만 바꾼다.
+vi.mock("@essesion/api-client/query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
+  getTokenBalanceOptions: () => ({
     queryKey: ["page-design-balance"],
     queryFn: async () => ({ total: 455, generate_cost: 5, edit_cost: 2 }),
   }),
-}));
-
-vi.mock("@essesion/api-client/query", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
   listDesignExamplesOptions: () => ({
     queryKey: ["page-design-examples"],
     queryFn: async () => examples,
@@ -551,7 +552,6 @@ describe("DesignPage canvas shell", () => {
     api.generateMotif.mockResolvedValue({
       data: {
         request_id: "req-1",
-        reused: false,
         saved: true,
         motif: {
           motif_id: "recraft-bee",

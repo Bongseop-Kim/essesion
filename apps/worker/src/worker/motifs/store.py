@@ -7,7 +7,6 @@ facet 정규화(NFC+strip+casefold)를 동일하게 적용한다.
 
 from __future__ import annotations
 
-import json
 import unicodedata
 import uuid
 from collections.abc import Iterable
@@ -20,12 +19,8 @@ from sqlalchemy import CursorResult, delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from worker.engine.determinism import stable_digest
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.registry import BBox, MotifDef
-
-VARIANT_GROUP_VERSION = 2
-VARIANT_GROUP_LEN = 16
 
 USER_UPLOAD_SOURCE = "user_upload"
 APPROVED_STATUS = "approved"
@@ -52,23 +47,11 @@ def embedding_document(
     return ", ".join(value.strip() for value in segments if value and value.strip())
 
 
-def variant_group_key(subject: str | None, scope: str | None) -> str:
-    """(subject, scope) 풀 키 = sha256_hex(canonical({v, subject, scope}))[:16] (§5.6)."""
-    payload = {
-        "v": VARIANT_GROUP_VERSION,
-        "subject": normalize_facet(subject),
-        "scope": normalize_facet(scope),
-    }
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return stable_digest(canonical, VARIANT_GROUP_LEN)
-
-
 @dataclass(frozen=True)
 class MotifMeta:
     """symbol/embedding 없는 공개 검색 후보."""
 
     id: str
-    variant_group: str | None
     subject: str | None
     scope: str | None
     view: str | None
@@ -84,7 +67,6 @@ class MotifMatch:
     """임베딩 코사인 최근접 결과."""
 
     id: str
-    variant_group: str | None
     similarity: float
 
 
@@ -97,14 +79,6 @@ class MotifEmbeddingDocument:
     view: str | None
     expression: str | None
     tags: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class PoolMember:
-    """variant pool 멤버 — τ 스코핑에 embedding 필요."""
-
-    id: str
-    embedding: list[float] | None
 
 
 def _bbox_tuple(value: object) -> BBox:
@@ -125,7 +99,6 @@ async def upsert_motif(
     embedding: list[float] | None = None,
     source: str = "recraft",
     status: str = "pending",
-    variant_group: str | None = None,
     ingested_user_id: uuid.UUID | None = None,
     ingested_session_id: uuid.UUID | None = None,
 ) -> None:
@@ -158,7 +131,6 @@ async def upsert_motif(
         "tags": list(facets.get("tags") or []),
         "source": source,
         "status": status,
-        "variant_group": variant_group,
         "embedding_openai": embedding,
     }
     await session.execute(
@@ -189,7 +161,6 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
         await session.execute(
             select(
                 Motif.id,
-                Motif.variant_group,
                 Motif.subject,
                 Motif.scope,
                 Motif.view,
@@ -209,15 +180,14 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
     return [
         MotifMeta(
             id=row[0],
-            variant_group=row[1],
-            subject=row[2],
-            scope=row[3],
-            view=row[4],
-            expression=row[5],
-            style=row[6],
-            description=row[7],
-            tags=tuple(row[8] or ()),
-            source=row[9],
+            subject=row[1],
+            scope=row[2],
+            view=row[3],
+            expression=row[4],
+            style=row[5],
+            description=row[6],
+            tags=tuple(row[7] or ()),
+            source=row[8],
         )
         for row in rows
     ]
@@ -233,7 +203,7 @@ async def nearest_by_embedding(
     distance = column.cosine_distance(vec)
     rows = (
         await session.execute(
-            select(Motif.id, Motif.variant_group, distance.label("distance"))
+            select(Motif.id, distance.label("distance"))
             .where(
                 column.is_not(None),
                 Motif.source != USER_UPLOAD_SOURCE,
@@ -243,9 +213,7 @@ async def nearest_by_embedding(
             .limit(top_k)
         )
     ).all()
-    return [
-        MotifMatch(id=row[0], variant_group=row[1], similarity=1.0 - float(row[2])) for row in rows
-    ]
+    return [MotifMatch(id=row[0], similarity=1.0 - float(row[1])) for row in rows]
 
 
 async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbeddingDocument]:
@@ -314,25 +282,6 @@ async def public_embedding_counts(session: AsyncSession) -> tuple[int, int]:
         )
     ).one()
     return int(embedded), int(total)
-
-
-async def find_variant_pool(session: AsyncSession, variant_group: str) -> list[PoolMember]:
-    """variant_group 샘플링 풀(id + embedding), ORDER BY id. 빈 리스트면 풀 없음."""
-    rows = (
-        await session.execute(
-            select(Motif.id, Motif.embedding_openai)
-            .where(
-                Motif.variant_group == variant_group,
-                Motif.source != USER_UPLOAD_SOURCE,
-                Motif.status == APPROVED_STATUS,
-            )
-            .order_by(Motif.id)
-        )
-    ).all()
-    return [
-        PoolMember(id=row[0], embedding=list(row[1]) if row[1] is not None else None)
-        for row in rows
-    ]
 
 
 async def approved_motif_ids(session: AsyncSession) -> list[str]:

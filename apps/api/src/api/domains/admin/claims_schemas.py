@@ -22,6 +22,7 @@ ClaimStatusFilter = Literal[
     "재발송",
     "완료",
     "거부",
+    "취소",
 ]
 ClaimSort = Literal["created_at", "updated_at", "claim_number", "status"]
 IncidentTypeFilter = Literal[

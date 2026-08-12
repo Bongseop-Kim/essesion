@@ -157,22 +157,23 @@ async def confirm_payment(
     if any(o.user_id != user.id for o in orders):
         raise ForbiddenError()
 
-    post_map = {o.id: await _post_status(session, o) for o in orders}
     total = sum(o.total_price for o in orders)
     if total != body.amount:
         raise DomainError("Amount mismatch", code="amount_mismatch")
 
-    # 멱등 사전체크 — 전부 결제후 상태면 Toss 호출 없이 DONE.
-    # 단, 다른 콜백이 같은 group id를 가져와 성공으로 오인하지 않게
-    # 최초 확정에 저장한 payment key까지 같아야 한다.
-    if all(o.status == post_map[o.id] for o in orders):
+    # 멱등 사전체크 — 전부 결제 적용됨(paid_at 보유)이면 Toss 호출 없이 DONE.
+    # 판정 기준은 "결제후 상태 일치"가 아니라 paid_at이다: 결제 직후 상태에서
+    # 더 전진한 주문(발송 자동 등록·admin 진행)도 success URL 새로고침에 같은
+    # 응답을 줘야 한다. 단, 다른 콜백이 같은 group id를 가져와 성공으로 오인하지
+    # 않게 최초 확정에 저장한 payment key까지 같아야 한다.
+    if all(o.paid_at is not None for o in orders):
         if any(o.payment_key != body.payment_key for o in orders):
             raise ConflictError(
                 "기존 결제 시도와 결제키가 일치하지 않습니다",
                 code="payment_key_mismatch",
             )
         return await _done_response(session, orders)
-    if any(o.status == post_map[o.id] for o in orders):
+    if any(o.paid_at is not None for o in orders):
         raise ConflictError(
             "주문 그룹의 결제 상태 대사가 필요합니다",
             code="payment_reconciliation_required",
@@ -200,19 +201,20 @@ async def confirm_payment(
             "결제 결과 대사가 필요한 주문입니다",
             code="payment_reconciliation_required",
         )
-    post_map = {o.id: await _post_status(session, o) for o in orders}
-    if all(order.status == post_map[order.id] for order in orders):
+    if all(order.paid_at is not None for order in orders):
         if any(order.payment_key != body.payment_key for order in orders):
             raise ConflictError(
                 "기존 결제 시도와 결제키가 일치하지 않습니다",
                 code="payment_key_mismatch",
             )
         return await _done_response(session, orders)
-    if any(order.status == post_map[order.id] for order in orders):
+    if any(order.paid_at is not None for order in orders):
         raise ConflictError(
             "주문 그룹의 결제 상태 대사가 필요합니다",
             code="payment_reconciliation_required",
         )
+    # 확정 시 기록할 결제후 상태 — lock으로 상태가 고정된 뒤 계산한다.
+    post_map = {o.id: await _post_status(session, o) for o in orders}
     for order in orders:
         if order.status == "대기중":
             log_status(session, order, "결제중", changed_by=user.id, memo="payment lock")

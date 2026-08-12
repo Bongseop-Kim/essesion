@@ -1015,6 +1015,45 @@ def test_motif_color_request_gets_no_picker_signal(prompt: str):
     assert detect_motif_intent("모티프를 벚꽃으로 바꿔줘", llm_out_of_scope=True) is not None
 
 
+@pytest.mark.parametrize(
+    ("prompt", "subject"),
+    [
+        # e2e-02 D3b — 카탈로그에 paisley가 없어 무늬 없는 격자가 나온 케이스.
+        ("잔잔한 네이비 페이즐리를 작은 격자로 반복", "페이즐리"),
+        ("다마스크 무늬로 고급스럽게", "다마스크"),
+        ("아가일 패턴으로 만들어줘", "아가일"),
+        ("헤링본 느낌으로 채워줘", "헤링본"),
+        ("navy paisley tie", "paisley"),
+        ("herringbone texture please", "herringbone"),
+    ],
+)
+def test_textile_material_words_open_the_picker_with_the_search_term(prompt: str, subject: str):
+    # 소재 이름은 그 단어 자체가 검색어다 — 피커가 검색어를 채운 채 열리게 subject로 돌려준다.
+    assert detect_motif_intent(prompt, motif_missing=True) == {
+        "detected": True,
+        "subject": subject,
+        "reason": "motif_mention",
+    }
+
+
+def test_material_word_yields_to_the_replacement_target():
+    # "페이즐리를 나비로 바꿔"에서 사용자가 원하는 검색어는 교체 대상(나비)이다.
+    signal = detect_motif_intent("페이즐리를 나비로 바꿔줘", llm_out_of_scope=True)
+
+    assert signal is not None and signal["subject"] == "나비"
+
+
+@pytest.mark.parametrize("prompt", ["굵은 대각선 줄무늬로 시원하게", "줄무늬를 두 줄로 넣어줘"])
+def test_structure_axis_words_stay_out_of_the_material_vocabulary(prompt: str):
+    # 줄무늬는 지원하는 구성 축이다 — 소재 어휘가 늘어도 처리한 요청에 피커를 열지 않는다.
+    assert detect_motif_intent(prompt, motif_missing=True) is None
+
+
+def test_material_color_change_still_gets_no_picker_signal():
+    # 모티프 색은 고정이라 색 요청은 소재 어휘에서도 피커로 넘기지 않는다.
+    assert detect_motif_intent("페이즐리를 네이비로 바꿔줘", llm_out_of_scope=True) is None
+
+
 def test_motif_intent_keeps_the_subject_empty_when_it_is_not_a_noun():
     # "잔잔한"처럼 수식어를 검색어로 채우면 0건 검색이 된다 — 일반 안내로 떨어뜨린다.
     signal = detect_motif_intent("잔잔한 무늬로 부탁해요", motif_missing=True)

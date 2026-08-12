@@ -98,8 +98,7 @@ _KO_TAGS: dict[str, list[str]] = {
     "worm": ["지렁이", "벌레"],
 }
 
-# 단색(single fill) 벡터 도형 — 각기 다른 geometry라 content-hash id가 서로 다르지만
-# (subject, scope)가 같아 variant_group은 공유된다(풀 시연).
+# 단색(single fill) 벡터 도형 — 각기 다른 geometry라 content-hash id가 서로 다르다.
 _SEEDS: list[tuple[str, str, str]] = [
     (
         "flower",
@@ -161,8 +160,7 @@ _ASSET_DIR = pathlib.Path(__file__).parent / "motif_assets"
 def _all_seeds() -> list[tuple[str, str, str, list[str], str]]:
     """(subject, style, description, tags, raw_svg) — 인라인 데모 + 에셋 글리프.
 
-    에셋 subject = 파일명 첫 토큰 — `cat-head`·`cat-space`가 `cat`으로 묶여
-    variant pool을 이룬다(leaf/flower는 인라인 시드 풀에 합류).
+    에셋 subject = 파일명 첫 토큰 — `cat-head`·`cat-space`가 검색에서 `cat`으로 잡힌다.
     """
     seeds = [
         (subject, "flat", desc, [subject, *_KO_TAGS.get(subject, [])], svg)
@@ -202,7 +200,6 @@ async def seed_motifs() -> tuple[int, int]:
                 },
                 source="seed",
                 status="approved",
-                variant_group=store.variant_group_key(subject, "whole"),
             )
             # upsert는 ON CONFLICT DO NOTHING이라 기존 행 tags를 갱신하지 않는다.
             # 한글 tag 백필을 위해 시드 행 tags는 의도값으로 명시 재기록한다(멱등).
