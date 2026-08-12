@@ -14,8 +14,6 @@ async def index_missing_embeddings(session: AsyncSession, client) -> int:  # noq
             subject=motif.subject,
             description=motif.description,
             style=motif.style,
-            view=motif.view,
-            expression=motif.expression,
             tags=motif.tags,
         )
         embedding = await client.embed(text)

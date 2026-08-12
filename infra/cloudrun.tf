@@ -66,8 +66,7 @@ locals {
   # 외부 API 키는 generate만 — finalize는 로컬 Pillow 연산뿐(최소 권한).
   # 저작·임베딩 라우트(generate_router)는 전부 generate 서비스에만 있다(routes.py).
   worker_generate_secret_env = merge(local.worker_secret_env, {
-    RECRAFT_API_KEY = google_secret_manager_secret.app["recraft-api-key"].secret_id
-    OPENAI_API_KEY  = google_secret_manager_secret.app["openai-api-key"].secret_id
+    OPENAI_API_KEY = google_secret_manager_secret.app["openai-api-key"].secret_id
   })
 }
 
@@ -212,7 +211,7 @@ resource "google_cloud_run_v2_service" "worker_generate" {
 
   template {
     service_account = google_service_account.worker_generate.email
-    timeout         = "300s" # Recraft 120s 재시도 감안
+    timeout         = "300s" # GPT Image 생성·재시도와 로컬 벡터화 상한
     # 각 request가 preview raster를 최대 2개 병렬 실행하므로 1Gi 인스턴스의 총량도 제한.
     max_instance_request_concurrency = 2
 

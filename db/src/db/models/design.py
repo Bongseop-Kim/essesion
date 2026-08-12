@@ -1,7 +1,7 @@
 """디자인 세션·잡 — LangGraph checkpoint 대체, api 소유 (ARCHITECTURE §2).
 
 - 세션 상태(턴 이력·선택·게이트)는 api가 일반 테이블로 소유, 워커는 stateless.
-- recraft 예산은 프로세스-로컬 카운터 대신 Postgres 공유 카운터(recraft_used)
+- 모티프 생성 예산은 프로세스-로컬 카운터 대신 Postgres 공유 카운터(motif_generation_used)
   — 인스턴스 수와 무관하게 동작 (ARCHITECTURE §7).
 - finalize 제한은 세션 카운터가 아니라 계정당 24시간 윈도우 쿼터 —
   generation_jobs 행을 직접 센다 (api/domains/design/quota.py).
@@ -45,11 +45,11 @@ class DesignSession(TimestampMixin, Base):
     context_version: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     active_generation_id: Mapped[uuid.UUID | None]
     active_generation_started_at: Mapped[datetime | None]
-    recraft_used: Mapped[int] = mapped_column(server_default=text("0"))
+    motif_generation_used: Mapped[int] = mapped_column(server_default=text("0"))
 
     __table_args__ = (
         CheckConstraint("status IN ('active', 'finalized')", name="status"),
-        CheckConstraint("recraft_used >= 0", name="recraft_used"),
+        CheckConstraint("motif_generation_used >= 0", name="motif_generation_used"),
         CheckConstraint("context_version >= 0", name="context_version"),
         CheckConstraint(
             "(active_generation_id IS NULL) = (active_generation_started_at IS NULL)",

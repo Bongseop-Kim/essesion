@@ -4,7 +4,6 @@ import type {
 } from "@essesion/api-client";
 import {
   cancelTokenRefundMutation,
-  getTokenBalanceOptions,
   getTokenBalanceQueryKey,
   listMyClaimsQueryKey,
   listRefundableTokenOrdersOptions,
@@ -47,6 +46,7 @@ import {
   offsetPageParam,
   useInfiniteScrollSentinel,
 } from "@/shared/lib/infinite-scroll";
+import { tokenBalanceQueryOptions } from "@/shared/lib/live-queries";
 import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
@@ -76,7 +76,7 @@ export function TokenHistoryPage() {
     null,
   );
 
-  const balanceQuery = useQuery(getTokenBalanceOptions());
+  const balanceQuery = useQuery(tokenBalanceQueryOptions());
   const refundableQuery = useQuery(listRefundableTokenOrdersOptions());
   const historyOptions = useMemo(
     () => ({

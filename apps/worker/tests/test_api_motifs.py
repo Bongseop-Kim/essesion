@@ -1,9 +1,11 @@
 """/motifs/* + /generate 모티프 경로 API 테스트 — 실컨테이너 (worker-motifs.md §3~§6)."""
 
+import io
 import json
 
 import httpx
 import respx
+from PIL import Image
 from worker.adapters.llm import AuthoredDesign, LLMClient
 from worker.motifs import store
 from worker.motifs.normalize import normalize_motif_svg
@@ -15,12 +17,22 @@ _CIRCLE = (
 _RUN_ID = "11111111-1111-4111-8111-111111111111"
 
 
+def _generated_png() -> bytes:
+    image = Image.new("RGB", (64, 64), "white")
+    for y in range(16, 48):
+        for x in range(16, 48):
+            image.putpixel((x, y), (20, 220, 80))
+    output = io.BytesIO()
+    image.save(output, "PNG")
+    return output.getvalue()
+
+
 async def _seed_dot(session) -> str:
     return await _seed(session, _CIRCLE, "dot")
 
 
 async def _seed(session, svg: str, subject: str) -> str:
-    motif = normalize_motif_svg(svg, render_check=False)
+    motif = normalize_motif_svg(svg, id_prefix="seed", render_check=False)
     await store.upsert_motif(
         session,
         motif,
@@ -33,24 +45,24 @@ async def _seed(session, svg: str, subject: str) -> str:
 
 
 def test_import_strips_generator_boilerplate_but_keeps_painting_style():
-    # Recraft가 내보내는 SVG는 preserveAspectRatio/style/version/<metadata>를 항상 달고 나와
+    # 외부 생성기가 내보내는 SVG는 preserveAspectRatio/style/version/<metadata>를 달고 나와
     # allowlist 거부로 우리 출력물조차 다시 임포트할 수 없었다. 무해한 것만 떼어낸다.
     noisy = (
         '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 100 100"'
         ' preserveAspectRatio="none" style="display: block;">'
-        "<metadata><recraft-signature>x</recraft-signature></metadata>"
+        "<metadata><generator-signature>x</generator-signature></metadata>"
         "<title>t</title><desc>d</desc>"
         '<circle cx="50" cy="50" r="30" fill="#ff0000"/></svg>'
     )
 
     assert (
-        normalize_motif_svg(noisy, render_check=False).id
-        == normalize_motif_svg(_CIRCLE, render_check=False).id
+        normalize_motif_svg(noisy, id_prefix="fixture", render_check=False).id
+        == normalize_motif_svg(_CIRCLE, id_prefix="fixture", render_check=False).id
     )
 
     painting = _CIRCLE.replace('<circle cx="50"', '<circle style="fill:url(#x)" cx="50"')
     try:
-        normalize_motif_svg(painting, render_check=False)
+        normalize_motif_svg(painting, id_prefix="fixture", render_check=False)
     except ValueError as exc:
         assert "style" in str(exc)
     else:
@@ -67,20 +79,30 @@ async def test_motifs_candidates_returns_seeded(client, db_session):
     assert body["candidates"][0]["scope"] == "whole"
 
 
-async def test_motifs_generate_503_when_unconfigured_and_miss(client):
-    # 빈 DB → miss → Recraft 미구성 → 503.
+async def test_motifs_generate_503_when_unconfigured(client):
+    # generate는 항상 생성 → GPT Image 미구성이면 무조건 503.
     resp = await client.post("/motifs/generate", json={"query": "novel"})
     assert resp.status_code == 503
 
 
-async def test_motifs_generate_reuses_seeded(client, db_session):
+async def test_motifs_generate_never_reuses_catalog(app, client, db_session):
+    # 카탈로그에 같은 문장의 exact hit가 있어도 재사용하지 않고 새 pending 모티프를 만든다.
     mid = await _seed_dot(db_session)
+
+    class FakeGPTImage:
+        calls = 0
+
+        async def generate(self, prompt, *, seed=None):
+            FakeGPTImage.calls += 1
+            return _generated_png()
+
+    app.state.adapters.gpt_image = FakeGPTImage()
     resp = await client.post("/motifs/generate", json={"query": "dot"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["motif_id"] == mid
-    assert body["reused"] is True
-    assert body["similarity"] == 1.0
+    assert FakeGPTImage.calls == 1
+    assert body["motif_id"] != mid
+    assert set(body) == {"request_id", "motif_id"}
 
 
 async def test_motifs_endpoints_reject_the_removed_style_hint(client):

@@ -32,7 +32,7 @@ async def _staged_photo(app, client, headers, *, complete=True):
     return issued.json()["upload_id"]
 
 
-async def _sale_order_item(db_session, user, *, status="배송완료"):
+async def _sale_order_item(db_session, user, *, status="완료"):
     product = await make_product(db_session)
     order = await make_order(db_session, user, status=status)
     item = OrderItem(
@@ -89,7 +89,7 @@ async def test_review_creation_guards_order_status_and_target(client, db_session
     assert wrong_item.status_code == 409
     assert wrong_item.json()["code"] == "invalid_review_target"
 
-    service_order = await make_order(db_session, owner, order_type="repair", status="수선완료")
+    service_order = await make_order(db_session, owner, order_type="repair", status="완료")
     service_with_item = await client.post(
         "/reviews",
         json={
@@ -105,12 +105,33 @@ async def test_review_creation_guards_order_status_and_target(client, db_session
 
 async def test_review_public_list_average_masking_and_order_action(client, db_session, settings):
     first_user = await make_user(db_session, name="김영선")
-    first_order, first_item, product = await _sale_order_item(db_session, first_user)
+    first_order, first_item, product = await _sale_order_item(
+        db_session, first_user, status="배송완료"
+    )
     before = await client.get(
         f"/orders/{first_order.id}", headers=auth_headers(first_user, settings)
     )
-    assert "write_review" in before.json()["customer_actions"]
+    assert "write_review" not in before.json()["customer_actions"]
     assert before.json()["items"][0]["review_id"] is None
+    not_confirmed = await client.post(
+        "/reviews",
+        json={
+            "order_id": str(first_order.id),
+            "order_item_id": str(first_item.id),
+            "rating": 5,
+            "content": "아직 구매확정 전",
+        },
+        headers=auth_headers(first_user, settings),
+    )
+    assert not_confirmed.status_code == 409
+    assert not_confirmed.json()["code"] == "review_not_allowed"
+
+    first_order.status = "완료"
+    await db_session.commit()
+    confirmed = await client.get(
+        f"/orders/{first_order.id}", headers=auth_headers(first_user, settings)
+    )
+    assert "write_review" in confirmed.json()["customer_actions"]
 
     first = await client.post(
         "/reviews",
@@ -184,7 +205,7 @@ async def test_review_public_list_average_masking_and_order_action(client, db_se
 
 async def test_service_review_update_delete_and_admin_filter(client, db_session, settings):
     owner = await make_user(db_session, name="박고객")
-    order = await make_order(db_session, owner, order_type="sample", status="제작완료")
+    order = await make_order(db_session, owner, order_type="sample", status="완료")
     headers = auth_headers(owner, settings)
     created = await client.post(
         "/reviews",
@@ -347,7 +368,7 @@ async def test_review_photo_validation_guards(app, client, db_session, settings)
     assert created.status_code == 201
 
     # 다른 후기에 이미 링크된 사진 재사용 → 409
-    service_order = await make_order(db_session, owner, order_type="repair", status="수선완료")
+    service_order = await make_order(db_session, owner, order_type="repair", status="완료")
     reused = await client.post(
         "/reviews",
         json={
@@ -364,7 +385,7 @@ async def test_review_photo_validation_guards(app, client, db_session, settings)
 
 async def test_review_photo_replace_and_delete_cleanup(app, client, db_session, settings):
     owner = await make_user(db_session)
-    order = await make_order(db_session, owner, order_type="repair", status="수선완료")
+    order = await make_order(db_session, owner, order_type="repair", status="완료")
     headers = auth_headers(owner, settings)
 
     first = await _staged_photo(app, client, headers)

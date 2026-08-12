@@ -1,6 +1,6 @@
 """디자인 세션·선택 문맥 — 상태는 api 소유(LangGraph 대체), worker는 stateless.
 
-recraft 예산은 Postgres 공유 카운터(recraft_used) — 인스턴스 수와 무관하게 동작
+모티프 생성 예산은 Postgres 공유 카운터(motif_generation_used) — 인스턴스 수와 무관하게 동작
 (ARCHITECTURE §7). finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션
 카운터·건당 환불 없음. 선택한 intent+plan만 선형 문맥으로 커밋한다.
 """
@@ -131,16 +131,16 @@ class DesignSessionOut(ORMModel):
     context_version: int
     active_generation_id: uuid.UUID | None
     active_generation_started_at: datetime | None
-    recraft_used: int
+    motif_generation_used: int
     created_at: datetime
     updated_at: datetime
     # 목록 전용 — 마지막 generate_request 턴의 프롬프트 (세션 구분용 요약)
     last_prompt: str | None = None
     # 단건 GET 전용 — 계정 쿼터 (목록은 null, 설정 부재 시에도 null)
     finalize_quota: FinalizeQuotaOut | None = None
-    # 단건 GET·스텝 이동 전용 — 남은 모티프 생성 횟수(예산 - recraft_used). 목록은 null.
+    # 단건 GET·스텝 이동 전용 — 남은 모티프 생성 횟수(예산 - motif_generation_used). 목록은 null.
     # 상한은 서버 설정이라 프론트가 계산할 수 없다 — 유료 행의 "N번 더 가능"이 이 값을 쓴다.
-    recraft_remaining: int | None = None
+    motif_generation_remaining: int | None = None
     # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
 
@@ -253,8 +253,6 @@ def _is_supported_text_motif_character(character: str) -> bool:
 class PhotoMotifPreviewRequest(StrictModel):
     upload_id: uuid.UUID
     remove_background: bool = True
-    simplification: Literal["low", "medium", "high"] = "medium"
-    color_count: int = Field(4, ge=1, le=6)
 
 
 class MotifPreviewOut(BaseModel):
@@ -568,12 +566,16 @@ def _user_motif_out(link: UserMotif, motif: Motif) -> UserMotifOut:
 async def _design_session_out(
     session: SessionDep,
     design_session: DesignSession,
-    recraft_budget: int,
+    motif_generation_budget: int,
 ) -> DesignSessionOut:
     """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2) + 남은 생성 횟수."""
 
     out = DesignSessionOut.model_validate(design_session).model_copy(
-        update={"recraft_remaining": max(recraft_budget - design_session.recraft_used, 0)}
+        update={
+            "motif_generation_remaining": max(
+                motif_generation_budget - design_session.motif_generation_used, 0
+            )
+        }
     )
     motif_ids = _intent_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
     if not motif_ids:
@@ -721,15 +723,12 @@ async def import_user_motif(
             anchor=list(worker_out.anchor),
             subject="user upload",
             scope="whole",
-            view=None,
-            expression=None,
             style=None,
             description=None,
             tags=[],
             source="user_upload",
             # ponytail: 비공개(user_upload)라 게이트 무관 — pending 큐 오염 방지용 approved.
             status="approved",
-            variant_group=None,
         )
         .on_conflict_do_nothing(index_elements=["id"])
     )
@@ -823,7 +822,9 @@ async def get_design_session(
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
-    out = await _design_session_out(session, design_session, settings.design_recraft_budget)
+    out = await _design_session_out(
+        session, design_session, settings.design_motif_generation_budget
+    )
     # 표시용 쿼터 — 설정 행이 없으면 null로 둔다(페이지를 깨지 않음). 소유자 검증
     # 이후에 계산해 authz 403/404 순서를 보존한다.
     limit = await load_finalize_limit(session)
@@ -1132,7 +1133,9 @@ async def activate_design_step(
     )
     await session.commit()
     await session.refresh(design_session)
-    return await _design_session_out(session, design_session, settings.design_recraft_budget)
+    return await _design_session_out(
+        session, design_session, settings.design_motif_generation_budget
+    )
 
 
 async def _resolve_design_run(
@@ -2237,7 +2240,7 @@ def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # no
 # ---- 모티프 프록시 — worker는 OIDC 프라이빗이라 api가 인증·예산을 얹어 중계 ----
 #
 # 모티프는 목록이 아니라 문장으로 찾고, 없으면 문장으로 만든다. 찾기·교체는 무료고
-# 만들기만 세션 Recraft 예산을 쓴다. worker는 문장을 그대로 검색·생성 입력으로 쓴다.
+# 만들기만 세션 모티프 생성 예산을 쓴다. worker는 문장을 그대로 검색·생성 입력으로 쓴다.
 
 
 class MotifSearchRequest(StrictModel):
@@ -2264,8 +2267,6 @@ class MotifGenerateRequest(StrictModel):
 
 class MotifGenerateOut(BaseModel):
     request_id: str
-    # 래더 히트로 카탈로그를 재사용했으면 true — 예산은 환급된다.
-    reused: bool
     motif: MotifResultOut
     # 내 모티프에 남겼는지 — 한도(100개)를 넘으면 생성만 되고 저장은 건너뛴다.
     saved: bool
@@ -2287,7 +2288,6 @@ class WorkerMotifCandidatesOut(BaseModel):
 class WorkerMotifGenerateOut(BaseModel):
     request_id: str
     motif_id: str
-    reused: bool
 
 
 async def _motif_results(
@@ -2341,7 +2341,7 @@ async def search_motifs(
     session: SessionDep,
     user: CurrentUser,
 ) -> MotifSearchOut:
-    """문장으로 카탈로그를 찾는다 — 워커가 Recraft를 호출하지 않으므로 무과금."""
+    """문장으로 카탈로그를 찾는다 — 워커가 이미지를 생성하지 않으므로 무과금."""
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
@@ -2373,16 +2373,18 @@ async def generate_motif(
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
-    # 예산 선차감(조건부 UPDATE — finalize와 동일 패턴) 후 커밋 — Recraft가 수십 초라
-    # 행 잠금을 들고 있지 않는다. 워커 실패·래더 재사용(reused)이면 보상 환급.
-    budget = request.app.state.settings.design_recraft_budget
+    # 예산 선차감(조건부 UPDATE — finalize와 동일 패턴) 후 커밋 — 이미지 생성이 길어
+    # 행 잠금을 들고 있지 않는다. 워커 실패면 보상 환급.
+    budget = request.app.state.settings.design_motif_generation_budget
     claimed = await session.execute(
         update(DesignSession)
-        .where(DesignSession.id == session_id, DesignSession.recraft_used < budget)
-        .values(recraft_used=DesignSession.recraft_used + 1)
+        .where(DesignSession.id == session_id, DesignSession.motif_generation_used < budget)
+        .values(motif_generation_used=DesignSession.motif_generation_used + 1)
     )
     if cast("CursorResult[Any]", claimed).rowcount == 0:
-        raise ConflictError("모티프 생성 예산을 모두 사용했습니다", code="recraft_budget_exhausted")
+        raise ConflictError(
+            "모티프 생성 예산을 모두 사용했습니다", code="motif_generation_budget_exhausted"
+        )
     await session.commit()
 
     payload: dict[str, Any] = {
@@ -2433,19 +2435,16 @@ async def _dispatch_motif_generation(
     user_id: uuid.UUID,
     name: str,
 ) -> MotifGenerateOut:
-    """클라이언트가 끊겨도 선차감한 Recraft 예산을 정합하게 되돌린다 — 생성과 같은 기계."""
+    """클라이언트가 끊겨도 선차감한 모티프 생성 예산을 정합하게 되돌린다."""
     try:
         response = await request.app.state.worker.motif_generate(payload)
         out = WorkerMotifGenerateOut.model_validate(response)
     except ValidationError as exc:
-        await _release_recraft_budget(session, session_id)
+        await _release_motif_generation_budget(session, session_id)
         raise UpstreamError("모티프 생성 워커 응답 형식이 올바르지 않습니다") from exc
     except Exception:
-        await _release_recraft_budget(session, session_id)
+        await _release_motif_generation_budget(session, session_id)
         raise
-    if out.reused:
-        # 래더 히트 — Recraft 미호출이므로 예산 환급 (멱등 재호출이 예산을 태우지 않게)
-        await _release_recraft_budget(session, session_id)
     results = await _motif_results(
         session, [out.motif_id], user_id=user_id, allow_ids=(out.motif_id,)
     )
@@ -2457,9 +2456,7 @@ async def _dispatch_motif_generation(
         motif_id=out.motif_id,
         name=name or results[0].name or "만든 모티프",
     )
-    return MotifGenerateOut(
-        request_id=out.request_id, reused=out.reused, motif=results[0], saved=saved
-    )
+    return MotifGenerateOut(request_id=out.request_id, motif=results[0], saved=saved)
 
 
 @router.post("/design/sessions/{session_id}/motifs/activate", response_model=DesignGenerateOut)
@@ -2586,11 +2583,11 @@ async def _dispatch_motif_activation(
         raise UpstreamError("모티프를 바꾸지 못했습니다") from exc
 
 
-async def _release_recraft_budget(session: SessionDep, session_id: uuid.UUID) -> None:
+async def _release_motif_generation_budget(session: SessionDep, session_id: uuid.UUID) -> None:
     await session.execute(
         update(DesignSession)
         .where(DesignSession.id == session_id)
-        .values(recraft_used=func.greatest(DesignSession.recraft_used - 1, 0))
+        .values(motif_generation_used=func.greatest(DesignSession.motif_generation_used - 1, 0))
     )
     await session.commit()
 

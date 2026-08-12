@@ -1,8 +1,5 @@
 import type { TokenPlan } from "@essesion/api-client";
-import {
-  getTokenBalanceOptions,
-  getTokenPlansOptions,
-} from "@essesion/api-client/query";
+import { getTokenPlansOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Badge,
@@ -25,6 +22,7 @@ import {
   tokenPlanLabel,
 } from "@/features/token-purchase";
 import { krw } from "@/pages/shop/constants";
+import { tokenBalanceQueryOptions } from "@/shared/lib/live-queries";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
@@ -33,10 +31,7 @@ export function TokenPurchasePage() {
   const { requireAuth } = useAuthGuard();
   const authenticated = useSession((state) => state.status) === "authenticated";
   const plansQuery = useQuery(getTokenPlansOptions());
-  const balanceQuery = useQuery({
-    ...getTokenBalanceOptions(),
-    enabled: authenticated,
-  });
+  const balanceQuery = useQuery(tokenBalanceQueryOptions(authenticated));
   const [selectedPlanKey, setSelectedPlanKey] = useState<string | null>(null);
 
   const selectPlan = (plan: TokenPlan) => {

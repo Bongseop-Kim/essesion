@@ -16,7 +16,7 @@ ESSE SION은 기존 커머스 프론트엔드 **YeongSeon**과 독립 이미지 
 
 - 프론트엔드는 DB를 알지 못하며 OpenAPI에서 생성한 `packages/api-client`로만 통신합니다.
 - 인증·인가·주문·결제·토큰 과금은 FastAPI `api`가 단일 소유합니다.
-- OpenAI LLM이 자연어를 intent·motif spec으로 구조화하고 resolver가 catalog 재사용 또는 Recraft 생성을 결정합니다. concrete motif ID가 확정된 뒤의 배치·합성·seam은 결정론적 Python 엔진이 담당합니다.
+- OpenAI LLM이 자연어를 typed design plan으로 구조화하고, 사용자가 명시적으로 요청한 새 모티프만 GPT Image 2 low와 로컬 VTracer로 생성합니다. concrete motif ID가 확정된 뒤의 배치·합성·seam은 결정론적 Python 엔진이 담당합니다.
 - 즉시 응답이 필요한 generate와 무거운 fabric finalize를 별도 Cloud Run 서비스로 분리합니다.
 - Supabase 런타임 의존성을 제거하고 PostgreSQL·GCS·GCP IAM 경계로 재설계했습니다.
 
@@ -65,7 +65,7 @@ flowchart LR
 
 - `prompt → intent → motif resolution → deterministic SVG` 파이프라인
 - lattice·path-following·scatter·point-set 배치와 torus 좌표계
-- scope·exact match·선택적 pgvector 유사도 검색으로 catalog를 우선 재사용하고, 유효 후보가 없거나 유사도 기준에 못 미치면 Recraft로 생성
+- exact token·pgvector 유사도 검색으로 승인된 catalog를 재사용하고, 모티프 모달의 명시적 요청만 GPT Image 2 low → 로컬 VTracer medium으로 생성
 - Pillow + librsvg 기반 preview·PNG/TIFF export·직조 질감 합성
 - content hash와 create-only 업로드를 통한 재시도 안전성
 
@@ -92,7 +92,7 @@ flowchart TB
     Generate --> Public
     Finalize --> Public
 
-    Generate -.-> AI[OpenAI LLM·임베딩 · Recraft]
+    Generate -.-> AI[OpenAI LLM·임베딩 · GPT Image]
     API -.-> External[Toss Payments · Solapi]
 ```
 
@@ -133,7 +133,7 @@ flowchart TB
 | Frontend | React 19, TypeScript 6, Vite 8, React Router 8, TanStack Query 5, Zustand, Zod, Tailwind CSS 4 |
 | Design system | `packages/shared`, semantic tokens, dependency-free primitives/components, Vitest drift guards |
 | API | Python 3.13, FastAPI, Pydantic, SQLAlchemy 2 async, asyncpg, Authlib, JWT/Argon2 |
-| Image pipeline | Deterministic Python engine, Pillow, librsvg, pgvector, OpenAI LLM/embeddings, Recraft |
+| Image pipeline | Deterministic Python engine, Pillow, librsvg, pgvector, OpenAI LLM/embeddings, GPT Image |
 | Data | PostgreSQL 17 + pgvector, Alembic, testcontainers |
 | Cloud | Cloudflare Workers, Cloud Run, Cloud Tasks, Cloud Scheduler, Cloud SQL, GCS, Secret Manager |
 | Tooling | pnpm 10, Turborepo 2, uv, mise, Biome, Ruff, Pyright, Playwright, Schemathesis |
@@ -200,7 +200,7 @@ pnpm --filter store dev
 pnpm --filter admin dev
 ```
 
-로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 별도 설정 없이 `docker compose up -d`의 fake-gcs-server(`localhost:4443`, `dev-uploads`/`dev-assets`)를 사용하고, finalize는 Cloud Tasks 대신 로컬 worker 호출이 끝날 때까지 기다립니다. 자연어 authoring과 벡터 검색에는 `OPENAI_API_KEY`가 필요하고(비우면 해당 경로 503/스킵), catalog miss에서 새 motif를 만들려면 Recraft 키가 필요합니다. 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. 배포 환경은 GCS 버킷이나 Cloud Tasks 설정이 빠지면 기동하지 않습니다.
+로컬에서 Toss·Solapi 자격증명이 없으면 API는 해당 연동을 DryRun으로 실행합니다. 파일 스토리지는 별도 설정 없이 `docker compose up -d`의 fake-gcs-server(`localhost:4443`, `dev-uploads`/`dev-assets`)를 사용하고, finalize는 Cloud Tasks 대신 로컬 worker 호출이 끝날 때까지 기다립니다. 자연어 authoring, 벡터 검색과 명시적 GPT Image 모티프 생성에는 `OPENAI_API_KEY`가 필요합니다(비우면 해당 경로 503/스킵). 결정론 엔진과 골든 테스트는 외부 호출 없이 검증할 수 있습니다. 배포 환경은 GCS 버킷이나 Cloud Tasks 설정이 빠지면 기동하지 않습니다.
 
 ## 검증
 

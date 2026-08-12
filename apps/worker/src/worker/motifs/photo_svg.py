@@ -15,13 +15,14 @@ import xml.etree.ElementTree as ET
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import cast
 
 import vtracer
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 from svg_safety import ALLOWED_ATTRS, ALLOWED_TAGS, parse_svg_tree
 
 from worker.engine.constraints import normalize_hex
+from worker.engine.palette import hex_to_rgb
 from worker.motifs.normalize import (
     MAX_MOTIF_NODES,
     MAX_MOTIF_PATH_COMMANDS,
@@ -39,37 +40,15 @@ MAX_PROCESSED_PREVIEW_BYTES = 2_000_000
 
 _PATH_COMMANDS = frozenset("MmLlHhVvCcSsQqTtAaZz")
 RGBA = tuple[int, int, int, int]
-_SIMPLIFICATION = {
-    "low": {
-        "filter_speckle": 2,
-        "color_precision": 8,
-        "layer_difference": 8,
-        "corner_threshold": 50,
-        "length_threshold": 3.5,
-        "max_iterations": 10,
-        "splice_threshold": 40,
-        "path_precision": 3,
-    },
-    "medium": {
-        "filter_speckle": 4,
-        "color_precision": 6,
-        "layer_difference": 16,
-        "corner_threshold": 60,
-        "length_threshold": 4.0,
-        "max_iterations": 10,
-        "splice_threshold": 45,
-        "path_precision": 3,
-    },
-    "high": {
-        "filter_speckle": 8,
-        "color_precision": 4,
-        "layer_difference": 32,
-        "corner_threshold": 75,
-        "length_threshold": 6.0,
-        "max_iterations": 8,
-        "splice_threshold": 60,
-        "path_precision": 2,
-    },
+_VTRACER_MEDIUM_PARAMS = {
+    "filter_speckle": 4,
+    "color_precision": 6,
+    "layer_difference": 16,
+    "corner_threshold": 60,
+    "length_threshold": 4.0,
+    "max_iterations": 10,
+    "splice_threshold": 45,
+    "path_precision": 3,
 }
 
 
@@ -107,7 +86,7 @@ def _border_indices(width: int, height: int) -> list[int]:
     return indices
 
 
-def _remove_flat_border_background(image: Image.Image) -> tuple[Image.Image, float]:
+def remove_flat_border_background(image: Image.Image) -> tuple[Image.Image, float]:
     width, height = image.size
     pixels = list(cast(Sequence[RGBA], image.get_flattened_data()))
     total = width * height
@@ -181,15 +160,41 @@ def _remove_flat_border_background(image: Image.Image) -> tuple[Image.Image, flo
     return separated, confidence
 
 
-def _quantize(image: Image.Image, color_count: int) -> Image.Image:
-    alpha = image.getchannel("A")
-    quantized = image.convert("RGB").quantize(
-        colors=color_count,
-        method=Image.Quantize.MEDIANCUT,
-        dither=Image.Dither.NONE,
+def threshold_alpha(image: Image.Image, threshold: int = 255) -> Image.Image:
+    """Make alpha binary, treating anti-aliased semi-transparent pixels as background."""
+    if not 1 <= threshold <= 255:
+        raise ValueError("alpha threshold must be between 1 and 255")
+    output = image.convert("RGBA")
+    alpha_lut = [255 if value >= threshold else 0 for value in range(256)]
+    output.putalpha(output.getchannel("A").point(alpha_lut))
+    return output
+
+
+def quantize_intermediate_colors(image: Image.Image) -> Image.Image:
+    """Merge nearby raster colors without imposing a motif palette-size limit."""
+    source = Image.new("RGBA", image.size, (255, 255, 255, 0))
+    source.alpha_composite(image.convert("RGBA"))
+    pixels = cast(Sequence[RGBA], source.get_flattened_data())
+
+    def quantize_channel(value: int) -> int:
+        # Sixteen evenly spaced values retain distinct flat fills while collapsing small
+        # raster variations introduced around otherwise solid generated shapes.
+        return min(255, ((value + 8) // 17) * 17)
+
+    output = Image.new("RGBA", source.size)
+    output.putdata(
+        [
+            (
+                quantize_channel(pixel[0]),
+                quantize_channel(pixel[1]),
+                quantize_channel(pixel[2]),
+                pixel[3],
+            )
+            if pixel[3] > 0
+            else (255, 255, 255, 0)
+            for pixel in pixels
+        ]
     )
-    output = quantized.convert("RGBA")
-    output.putalpha(alpha)
     return output
 
 
@@ -205,7 +210,7 @@ def _preview_png(image: Image.Image) -> bytes:
     raise ValueError(f"processed preview exceeds {MAX_PROCESSED_PREVIEW_BYTES} bytes")
 
 
-def _canonicalize_vtracer_svg(raw_svg: str, width: int, height: int) -> str:
+def canonicalize_vtracer_svg(raw_svg: str, width: int, height: int) -> str:
     if len(raw_svg.encode("utf-8")) > MAX_VECTOR_SVG_BYTES:
         raise ValueError(f"vectorized SVG exceeds {MAX_VECTOR_SVG_BYTES} bytes")
     root = parse_svg_tree(raw_svg)
@@ -256,48 +261,53 @@ def _canonicalize_vtracer_svg(raw_svg: str, width: int, height: int) -> str:
     return svg
 
 
+def trace_quantized_image(image: Image.Image) -> str:
+    """Trace a quantized RGBA image and enforce the shared SVG complexity budget."""
+    pixels = list(cast(Sequence[RGBA], image.get_flattened_data()))
+    palette = sorted({pixel[:3] for pixel in pixels if pixel[3] > 0})
+    if not palette:
+        raise ValueError("quantized image has no visible colors")
+    raw_svg = vtracer.convert_pixels_to_svg(
+        pixels,
+        image.size,
+        colormode="color",
+        hierarchical="stacked",
+        mode="spline",
+        **_VTRACER_MEDIUM_PARAMS,
+    )
+    svg = canonicalize_vtracer_svg(raw_svg, *image.size)
+    root = parse_svg_tree(svg)
+    for element in root.iter():
+        for key, value in element.attrib.items():
+            if key.rsplit("}", 1)[-1] not in {"fill", "stroke"} or not value.startswith("#"):
+                continue
+            traced = hex_to_rgb(normalize_hex(value))
+            nearest = min(
+                palette,
+                key=lambda color: sum(
+                    (channel - target) ** 2 for channel, target in zip(color, traced, strict=True)
+                ),
+            )
+            element.set(key, "#" + "".join(f"{channel:02X}" for channel in nearest))
+    return ET.tostring(root, encoding="unicode")
+
+
 def photo_to_svg(
     data: bytes,
     declared_type: str,
     *,
     remove_background: bool,
-    simplification: Literal["low", "medium", "high"],
-    color_count: int,
 ) -> PhotoMotifResult:
-    if not 1 <= color_count <= 6:
-        raise ValueError("color_count must be between 1 and 6")
     image = decode_user_image(data, declared_type)
     image.thumbnail((MAX_VECTOR_SIDE, MAX_VECTOR_SIDE), Image.Resampling.LANCZOS)
     confidence: float | None = None
     warnings: list[str] = []
     if remove_background:
-        image, confidence = _remove_flat_border_background(image)
+        image, confidence = remove_flat_border_background(image)
         warnings.append("automatic separation is limited to flat border-connected backgrounds")
-    image = _quantize(image, color_count)
+    image = quantize_intermediate_colors(image)
     preview = _preview_png(image)
-    params = _SIMPLIFICATION[simplification]
-    raw_svg = vtracer.convert_pixels_to_svg(
-        list(cast(Sequence[RGBA], image.get_flattened_data())),
-        image.size,
-        colormode="color",
-        hierarchical="stacked",
-        mode="spline",
-        **params,
-    )
-    svg = _canonicalize_vtracer_svg(raw_svg, *image.size)
-    # Pre-quantization is the user-visible color cap. Fail rather than silently accepting a
-    # vectorizer version that synthesizes extra colors.
-    root = parse_svg_tree(svg)
-    vector_colors = {
-        normalize_hex(value)
-        for element in root.iter()
-        for key, value in element.attrib.items()
-        if key.rsplit("}", 1)[-1] in {"fill", "stroke"} and value.startswith("#")
-    }
-    if len(vector_colors) > color_count:
-        raise ValueError(
-            f"vectorizer produced {len(vector_colors)} colors after a {color_count}-color cap"
-        )
+    svg = trace_quantized_image(image)
     return PhotoMotifResult(
         svg=svg,
         processed_preview_base64=base64.b64encode(preview).decode("ascii"),

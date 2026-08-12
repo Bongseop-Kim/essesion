@@ -208,7 +208,7 @@ def test_json_formatter_emits_only_safe_provider_metadata():
         (),
         None,
     )
-    record.provider = "recraft"
+    record.provider = "openai_image"
     record.operation = "generate_motif"
     record.reason_code = "rate_limited"
     record.status_code = 429
@@ -217,7 +217,7 @@ def test_json_formatter_emits_only_safe_provider_metadata():
 
     payload = json.loads(JsonFormatter().format(record))
 
-    assert payload["provider"] == "recraft"
+    assert payload["provider"] == "openai_image"
     assert payload["operation"] == "generate_motif"
     assert payload["reason_code"] == "rate_limited"
     assert payload["status_code"] == 429

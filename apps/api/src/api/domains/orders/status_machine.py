@@ -114,7 +114,7 @@ CLAIM_CANCEL_ACTION_FROM: dict[str, set[str]] = {
 CLAIM_RETURN_EXCHANGE_ACTION_FROM: dict[str, set[str]] = {
     "sale": {"배송중", "배송완료"},
 }
-REVIEWABLE_STATUSES = {"완료", "배송완료", "제작완료", "수선완료"}
+REVIEWABLE_STATUSES = {"완료"}
 
 
 def customer_actions(

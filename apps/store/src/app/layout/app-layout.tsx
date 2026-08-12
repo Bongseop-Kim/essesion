@@ -74,6 +74,13 @@ function StoreHeader() {
   const renderLink: HeaderProps["renderLink"] = (item, props) => (
     <Link key={item.key ?? item.href} to={item.href} {...props} />
   );
+  // 로그인 뒤 원래 보던 화면으로 돌아온다 — /login의 fallback(state.from)이 소화한다
+  const goToLogin = () => {
+    const from = `${location.pathname}${location.search}`;
+    navigate("/login", {
+      state: location.pathname === "/login" ? undefined : { from },
+    });
+  };
 
   return (
     <Header
@@ -112,7 +119,7 @@ function StoreHeader() {
               type="button"
               variant="neutralOutline"
               size="small"
-              onClick={() => navigate("/login")}
+              onClick={goToLogin}
             >
               로그인
             </ActionButton>
@@ -137,7 +144,10 @@ function StoreHeader() {
             size="medium"
             iconOnly
             aria-label={authed ? "마이페이지" : "로그인"}
-            onClick={() => navigate(authed ? "/my-page" : "/login")}
+            onClick={() => {
+              if (authed) navigate("/my-page");
+              else goToLogin();
+            }}
           >
             <Icon svg={<UserIcon />} size={20} />
           </ActionButton>
@@ -150,7 +160,8 @@ function StoreHeader() {
           size="large"
           onClick={() => {
             closeMenu();
-            navigate(authed ? "/my-page" : "/login");
+            if (authed) navigate("/my-page");
+            else goToLogin();
           }}
         >
           {authed ? "마이페이지" : "로그인"}

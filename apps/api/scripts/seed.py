@@ -9,14 +9,21 @@
 """
 
 import asyncio
+import base64
 import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
+import httpx
 from api.config import get_settings
 from api.db import build_engine
 from api.domains.auth.service import grant_initial_tokens
+from api.integrations.gcs import (
+    assets_bucket_name,
+    build_gcs_client,
+    public_asset_url,
+)
 from api.security import password_hasher
 from db.models.auth import User
 from db.models.commerce import (
@@ -94,32 +101,48 @@ PRICING: dict[str, tuple[int, str]] = {
     "token_plan_pro_amount": (1000, "token"),
 }
 
+PRODUCT_VARIANTS = [
+    ("3F-SEED-001", "네이비 솔리드 쓰리폴드", 39000, "3fold", "navy", "solid", "silk"),
+    ("3F-SEED-002", "와인 스트라이프 쓰리폴드", 42000, "3fold", "wine", "stripe", "silk"),
+    ("3F-SEED-003", "그레이 체크 쓰리폴드", 36000, "3fold", "gray", "check", "cotton"),
+    ("3F-SEED-004", "블루 도트 쓰리폴드", 38000, "3fold", "blue", "dot", "polyester"),
+    ("SF-SEED-001", "블랙 솔리드 스포데라토", 45000, "sfolderato", "black", "solid", "silk"),
+    ("SF-SEED-002", "실버 페이즐리 스포데라토", 47000, "sfolderato", "silver", "paisley", "silk"),
+    ("SF-SEED-003", "베이지 체크 스포데라토", 41000, "sfolderato", "beige", "check", "wool"),
+    ("KN-SEED-001", "브라운 니트 타이", 29000, "knit", "brown", "solid", "wool"),
+    ("KN-SEED-002", "네이비 니트 타이", 31000, "knit", "navy", "stripe", "silk"),
+    ("KN-SEED-003", "와인 니트 타이", 30000, "knit", "wine", "dot", "cotton"),
+    ("KN-SEED-004", "그레이 니트 타이", 32000, "knit", "gray", "check", "polyester"),
+    ("BT-SEED-001", "블랙 솔리드 보타이", 27000, "bowtie", "black", "solid", "silk"),
+    ("BT-SEED-002", "네이비 도트 보타이", 28000, "bowtie", "navy", "dot", "cotton"),
+    ("BT-SEED-003", "와인 페이즐리 보타이", 30000, "bowtie", "wine", "paisley", "wool"),
+]
+
 PRODUCTS = [
     {
-        "code": "3F-SEED-001",
-        "name": "네이비 솔리드 쓰리폴드",
-        "price": 39000,
-        "image": "https://placehold.co/600x600",
-        "category": "3fold",
-        "color": "navy",
-        "pattern": "solid",
-        "material": "silk",
+        "code": code,
+        "name": name,
+        "price": price,
+        "image": "",
+        "category": category,
+        "color": color,
+        "pattern": pattern,
+        "material": material,
         "info": "시드 상품",
-        "options": [("일반", 0, None), ("롱", 5000, 10)],
-    },
-    {
-        "code": "KN-SEED-001",
-        "name": "브라운 니트 타이",
-        "price": 29000,
-        "image": "https://placehold.co/600x600",
-        "category": "knit",
-        "color": "brown",
-        "pattern": "solid",
-        "material": "wool",
-        "info": "시드 상품",
-        "options": [],
-    },
+        "options": (
+            [("일반", 0, None), ("롱", 5000, 10)]
+            if code == "3F-SEED-001"
+            else [("일반", 0, 3)]
+            if code == "3F-SEED-002"
+            else []
+        ),
+    }
+    for code, name, price, category, color, pattern, material in PRODUCT_VARIANTS
 ]
+
+PLACEHOLDER_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
 
 TEST_COUPON_NAME = "local-cart-test-5000"
 ADMIN_SMOKE_ORDER_NUMBER = "E2E-ADMIN-001"
@@ -150,6 +173,45 @@ async def _ensure_initial_tokens(session) -> None:
     granted = await grant_initial_tokens(session, customer_id)
     if granted:
         print(f"  design tokens: customer@local ← {granted}")
+
+
+async def _ensure_product_image(session, gcs, settings, product: Product) -> None:
+    assert product.code is not None
+    image = await session.scalar(
+        select(Image)
+        .where(
+            Image.entity_type == "product_primary",
+            Image.entity_id == str(product.id),
+            Image.deleted_at.is_(None),
+        )
+        .order_by(Image.created_at, Image.id)
+    )
+    if image is None:
+        object_key = f"products/seed/{product.code.lower()}.png"
+        upload_url = await gcs.signed_upload_url(
+            object_key,
+            "image/png",
+            bucket_name=assets_bucket_name(settings),
+        )
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.put(
+                upload_url,
+                content=PLACEHOLDER_PNG,
+                headers={"Content-Type": "image/png"},
+            )
+        response.raise_for_status()
+        image = Image(
+            object_key=object_key,
+            entity_type="product_primary",
+            entity_id=str(product.id),
+            content_type="image/png",
+            size_bytes=len(PLACEHOLDER_PNG),
+            original_filename=f"{product.code.lower()}.png",
+            upload_completed_at=datetime.now(timezone.utc),
+        )
+        session.add(image)
+        print(f"  product image: {product.code}")
+    product.image = public_asset_url(settings, image.object_key)
 
 
 async def _ensure_test_coupon(session) -> None:
@@ -455,6 +517,7 @@ async def main() -> None:
             "seed.py는 local/test 전용입니다. 운영 관리자는 bootstrap_admin.py를 사용하세요."
         )
     engine = build_engine(settings)
+    gcs = build_gcs_client(settings)
     maker = async_sessionmaker(engine, expire_on_commit=False)
     async with maker() as session:
         await _ensure_user(
@@ -507,6 +570,9 @@ async def main() -> None:
                         )
                     )
                 print(f"  product: {product_data['code']}")
+            else:
+                product = existing
+            await _ensure_product_image(session, gcs, settings, product)
 
         # admin_settings 이후 — grant_initial_tokens가 design_token_initial_grant를 읽는다.
         await _ensure_initial_tokens(session)

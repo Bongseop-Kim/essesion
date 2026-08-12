@@ -1,6 +1,6 @@
 """SVG geometry bbox 파서 경계 테스트 — 원본 tests/test_geometry.py 이식.
 
-normalize의 tight-bbox 프레이밍과 Recraft 게이트의 전면 배경 감지가 이 파서에 의존한다.
+normalize의 tight-bbox 프레이밍이 이 파서에 의존한다.
 Bezier/arc 경계는 안전한 과대평가(제어점/반지름 박스)다.
 """
 

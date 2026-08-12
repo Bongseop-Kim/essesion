@@ -198,7 +198,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "authoring_attempts": 1,
                 "patch_axes": ["background", "placement"],
                 "resolved_count": 3,
-                "recraft_calls": 3,
+                "legacy_provider_calls": 3,
                 "reference_count": 1,
             },
         ),
@@ -226,7 +226,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "failure_code": "authoring_invalid",
                 "failure_stage": "authoring",
                 "model": "customer-secret@test.local",
-                "recraft_calls": 2,
+                "legacy_provider_calls": 2,
             },
         ),
     ]
@@ -275,7 +275,7 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "error": 1,
     }
     assert stats.json()["average_render_ms"] == 2.5
-    assert "recraft_calls" not in stats.json()
+    assert "legacy_provider_calls" not in stats.json()
 
     detail = await client.get(f"/admin/generation/seamless/{rows[0].id}", headers=headers)
     assert detail.status_code == 200
@@ -463,7 +463,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
                     "subject": "triangle",
                     "scope": "partial",
                     "outcome": "dropped",
-                    "provider": "recraft",
+                    "provider": "openai_image",
                     "operation": "generate_motif",
                     "reason_code": "rate_limited",
                     "status_code": 429,
@@ -622,7 +622,7 @@ async def test_seamless_detail_groups_warning_causes_and_links_session_outcome(
         "motif_id": None,
         "similarity": None,
         "match_type": None,
-        "provider": "recraft",
+        "provider": "openai_image",
         "operation": "generate_motif",
         "reason_code": "rate_limited",
         "status_code": 429,
@@ -702,7 +702,7 @@ async def test_motif_detail_returns_concrete_symbol_without_slot_metadata(
     response = await client.get("/admin/motifs/motif-fixed-colors", headers=headers)
     assert response.status_code == 200
     body = response.json()
-    # Recraft 유입 출처는 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
+    # GPT Image 유입 출처는 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
     assert body["ingested_user_id"] == str(admin.id)
     assert body["ingested_session_id"] is None
     assert body["svg_status"] == "safe"
@@ -725,7 +725,7 @@ async def test_motif_review_requires_admin_and_allows_reversal(client, db_sessio
         anchor=[0.5, 0.5],
         subject="review gate",
         scope="whole",
-        source="recraft",
+        source="gpt_image",
     )
     db_session.add(motif)
     await db_session.commit()
@@ -797,6 +797,93 @@ async def test_motif_review_requires_admin_and_allows_reversal(client, db_sessio
     )
     assert upload_review.status_code == 409
     assert upload_review.json()["code"] == "invalid_motif_transition"
+
+
+async def test_motif_metadata_edit_requires_admin_and_invalidates_embedding(
+    client, db_session, settings
+):
+    admin = await make_user(db_session, role="admin")
+    manager = await make_user(db_session, role="manager")
+    motif = Motif(
+        id="motif-metadata-edit",
+        symbol='<symbol id="motif-metadata-edit"/>',
+        bbox=[0, 0, 1, 1],
+        anchor=[0.5, 0.5],
+        subject="old subject",
+        scope="whole",
+        description="old description",
+        tags=["old"],
+        style="outline",
+        embedding_openai=[1.0] + [0.0] * 1535,
+        source="seed",
+        status="approved",
+    )
+    db_session.add(motif)
+    await db_session.commit()
+    path = f"/admin/motifs/{motif.id}"
+
+    assert (
+        await client.patch(
+            path,
+            json={"subject": "manager edit"},
+            headers=auth_headers(manager, settings),
+        )
+    ).status_code == 403
+    assert (
+        await client.patch(
+            path,
+            json={"scope": "partial"},
+            headers=auth_headers(admin, settings),
+        )
+    ).status_code == 422
+    empty = await client.patch(path, json={}, headers=auth_headers(admin, settings))
+    assert empty.status_code == 400
+    assert empty.json()["code"] == "empty_motif_update"
+
+    updated = await client.patch(
+        path,
+        json={
+            "subject": "N" * 170,
+            "description": "푸른 원형 꽃잎 모티프",
+            "tags": ["꽃", "flower", "꽃"],
+            "style": "flat",
+        },
+        headers=auth_headers(admin, settings),
+    )
+    assert updated.status_code == 200
+    assert updated.json()["subject"] == "N" * 160
+    assert updated.json()["description"] == "푸른 원형 꽃잎 모티프"
+    assert updated.json()["tags"] == ["꽃", "flower"]
+    assert updated.json()["style"] == "flat"
+    await db_session.refresh(motif)
+    assert motif.embedding_openai is None
+
+    motif.embedding_openai = [1.0] + [0.0] * 1535
+    await db_session.commit()
+    unchanged = await client.patch(
+        path,
+        json={"style": "flat"},
+        headers=auth_headers(admin, settings),
+    )
+    assert unchanged.status_code == 200
+    await db_session.refresh(motif)
+    assert motif.embedding_openai is not None
+
+    unsafe = await client.patch(
+        path,
+        json={"description": "contact secret@example.com"},
+        headers=auth_headers(admin, settings),
+    )
+    assert unsafe.status_code == 400
+    assert unsafe.json()["code"] == "invalid_motif_metadata"
+
+    empty_tag = await client.patch(
+        path,
+        json={"tags": [""]},
+        headers=auth_headers(admin, settings),
+    )
+    assert empty_tag.status_code == 400
+    assert empty_tag.json()["code"] == "invalid_motif_metadata"
 
 
 async def test_motif_list_searches_fields_and_filters_kst_created_date(

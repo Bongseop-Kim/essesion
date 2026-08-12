@@ -86,7 +86,7 @@ const columns: readonly AdminTableColumn<MotifSummaryOut>[] = [
     key: "metadata",
     header: "메타데이터",
     render: (motif) =>
-      [motif.scope, motif.view, motif.expression, motif.style]
+      [motif.scope, motif.style]
         .filter((value) => value !== null)
         .join(" · ") || "-",
   },
@@ -153,7 +153,7 @@ export function MotifsPage() {
     <VStack gap="x6" alignItems="stretch">
       <RouteHeading
         title="Motif SVG"
-        description="Recraft Motif의 공개 카탈로그 반영 여부를 검토하고 안전한 SVG와 메타데이터를 확인합니다."
+        description="AI 생성 Motif의 공개 카탈로그 반영 여부를 검토하고 안전한 SVG와 메타데이터를 확인합니다."
       />
 
       <PaginatedAdminTableCard

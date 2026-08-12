@@ -83,6 +83,6 @@ def test_compose_design_is_deterministic():
 
 def test_unknown_motif_rejected():
     intent = json.loads((GOLDEN / "json" / "21_motif_lattice_bee_circle.json").read_text())
-    intent["layers"][1]["params"]["motif_id"] = "recraft-000000000000"
+    intent["layers"][1]["params"]["motif_id"] = "fixture-000000000000"
     with pytest.raises(ValueError, match="unknown motif"):
         generate(intent)

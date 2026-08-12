@@ -1,42 +1,36 @@
-"""명시적 모티프 검색·생성용 정확도 우선 resolver (worker-motifs.md §5).
+"""모티프 카탈로그 검색·명시적 생성 (worker-motifs.md §5).
 
-모티프 모달 요청에서 원문/semantic descriptor → 공개 카탈로그 lexical+pgvector top-k →
-신뢰도 게이트를 적용하고, 사용자가 생성을 승인한 경로만 miss에서 Recraft를 호출한다.
-디자인 `/generate`는 이 resolver의 generate-on-miss 경로를 사용하지 않는다.
+검색(candidates·grounding)은 공개 카탈로그 lexical+pgvector top-k에 신뢰도 게이트를
+적용한다. 생성(`resolve_spec`)은 카탈로그 확인 없이 항상 GPT Image를 호출한다 — 비슷한
+모티프 확인은 검색 단계가 이미 눈에 보이게 수행하며, 숨은 재사용 판정은 두지 않는다.
 """
 
 from __future__ import annotations
 
 import logging
-import math
 import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
 from worker.adapters import AdapterClientError
 from worker.adapters.embedding import EmbeddingError, embed_query
-from worker.adapters.recraft import RecraftError, generate_motif
-from worker.engine import determinism
+from worker.adapters.gpt_image import GPTImageError, generate_motif
 from worker.motifs import store
-from worker.motifs.store import (
-    MotifMeta,
-    facets_from_spec,
-    variant_group_key,
-)
+from worker.motifs.store import MotifMeta, facets_from_spec
 
 logger = logging.getLogger(__name__)
 
-# recraft 유입 facet 자유텍스트 — 임베딩·저장 전 살균할 필드 (scope는 whole/partial로 제약됨).
-_SCREENED_FACETS = ("subject", "description", "style", "view", "expression")
+# 생성 유입 facet 자유텍스트 — 임베딩·저장 전 살균할 필드 (scope는 whole/partial로 제약됨).
+_SCREENED_FACETS = ("subject", "description", "style")
 
 
 def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
-    """Recraft pending 유입의 1차 자동 방어선 (C-10).
+    """GPT Image pending 유입의 1차 자동 방어선 (C-10).
 
     비가시·제어 문자를 제거하고 명령형 인젝션 패턴은 저장 전에 거부한다. 통과한 행도
     관리자 승인 전에는 공개 카탈로그에 들어가지 않는다.
@@ -78,30 +72,15 @@ def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
 
 
 @dataclass(frozen=True)
-class ResolveResult:
-    motif_id: str
-    reused: bool
-    similarity: float | None
-    subject: str | None = None
-    match_type: str | None = None
-
-
-@dataclass(frozen=True)
 class CatalogMatch:
     meta: MotifMeta
     similarity: float
     match_type: str
 
 
-@dataclass(frozen=True)
-class CatalogRetrieval:
-    matches: list[CatalogMatch]
-    query_vec: list[float] | None
-
-
 @dataclass
 class MotifGenerationBudget:
-    """Request-scoped cap over actual Recraft calls, including suitability retries."""
+    """Request-scoped cap over actual image calls, including suitability retries."""
 
     limit: int
     used: int = 0
@@ -114,7 +93,7 @@ class MotifGenerationBudget:
 
 
 @dataclass(frozen=True)
-class _BudgetedRecraftClient:
+class _BudgetedImageClient:
     client: object
     budget: MotifGenerationBudget
 
@@ -123,9 +102,9 @@ class _BudgetedRecraftClient:
         prompt: str,
         *,
         seed: int | None = None,
-    ) -> str:
+    ) -> bytes:
         if not self.budget.reserve():
-            raise RecraftError(
+            raise GPTImageError(
                 "request motif generation budget exhausted",
                 provider="worker",
                 operation="resolve_motif",
@@ -166,18 +145,8 @@ def descriptor_text(spec: dict) -> str:
         subject=spec.get("subject"),
         description=spec.get("description"),
         style=spec.get("style"),
-        view=spec.get("view"),
-        expression=spec.get("expression"),
         tags=spec.get("tags") or (),
     )
-
-
-def _cosine(a: list[float], b: list[float]) -> float:
-    na = math.sqrt(sum(x * x for x in a))
-    nb = math.sqrt(sum(y * y for y in b))
-    if na == 0.0 or nb == 0.0:
-        return 0.0
-    return sum(x * y for x, y in zip(a, b, strict=False)) / (na * nb)
 
 
 _HANGUL_RE = re.compile(r"[가-힣]")
@@ -293,11 +262,11 @@ async def retrieve_catalog(
     embedding_client,
     tau: float,
     top_k: int = 5,
-) -> CatalogRetrieval:
+) -> list[CatalogMatch]:
     """공개 카탈로그에서 exact token 또는 τ 이상 vector 결과만 반환한다."""
     catalog = await _read_or(lambda: store.find_catalog(session), [], session, "find_catalog")
     if not catalog or not text.strip():
-        return CatalogRetrieval([], None)
+        return []
 
     by_id = {meta.id: meta for meta in catalog}
     ranked: list[CatalogMatch] = []
@@ -308,7 +277,7 @@ async def retrieve_catalog(
             ranked.append(CatalogMatch(meta, 1.0, "exact_token"))
             seen.add(meta.id)
             if len(ranked) >= top_k:
-                return CatalogRetrieval(ranked, None)
+                return ranked
 
     try:
         query_vec = await embed_query(text, client=embedding_client)
@@ -332,7 +301,7 @@ async def retrieve_catalog(
             seen.add(meta.id)
             if len(ranked) >= top_k:
                 break
-    return CatalogRetrieval(ranked, query_vec)
+    return ranked
 
 
 async def prompt_catalog_candidates(
@@ -344,7 +313,7 @@ async def prompt_catalog_candidates(
     top_k: int = 5,
 ) -> list[dict[str, object]]:
     """LLM grounding용 후보. provider에는 실제 motif ID 대신 catalog_ref만 전달한다."""
-    retrieval = await retrieve_catalog(
+    matches = await retrieve_catalog(
         session,
         prompt,
         embedding_client=embedding_client,
@@ -358,133 +327,77 @@ async def prompt_catalog_candidates(
             "subject": match.meta.subject,
             "description": match.meta.description,
             "style": match.meta.style,
-            "view": match.meta.view,
-            "expression": match.meta.expression,
             "scope": match.meta.scope,
             "tags": list(match.meta.tags),
             "similarity": match.similarity,
             "match_type": match.match_type,
         }
-        for index, match in enumerate(retrieval.matches, start=1)
+        for index, match in enumerate(matches, start=1)
     ]
-
-
-async def _select_variant(
-    session: AsyncSession,
-    variant_group: str | None,
-    seed: int,
-    fallback_id: str,
-    query_vec: list[float] | None,
-    tau: float,
-) -> str:
-    """그룹 재사용 풀에서 seed 샘플 하나, 없으면 fallback_id.
-
-    query_vec이 있으면 τ 미만의 비교가능 멤버는 배제(fallback·임베딩 없는 멤버는 항상 유지) —
-    (subject, scope)만 공유하는 의미 다른 형제가 매치 대신 뽑히지 않게.
-    """
-    if not variant_group:
-        return fallback_id
-    members = await _read_or(
-        lambda: store.find_variant_pool(session, variant_group),
-        [],
-        session,
-        "find_variant_pool",
-    )
-    if query_vec is None:
-        pool = [m.id for m in members]
-    else:
-        pool = [
-            m.id
-            for m in members
-            if m.id == fallback_id
-            or not m.embedding
-            or len(m.embedding) != len(query_vec)
-            or _cosine(m.embedding, query_vec) >= tau
-        ]
-    if not pool:
-        return fallback_id
-    return determinism.select_variant(pool, variant_group, seed)
 
 
 async def resolve_spec(
     session: AsyncSession,
     spec: dict,
     *,
-    recraft_client,
-    embedding_client,
+    gpt_image_client,
     settings,
     seed: int,
     provenance: dict | None = None,
     generation_budget: MotifGenerationBudget | None = None,
-    upsert_sessionmaker: async_sessionmaker[AsyncSession] | None = None,
-) -> ResolveResult:
-    """단일 spec 해석 래더. 래더 히트면 reused=True(Recraft 스킵), miss면 generate 후 upsert.
+    motif_tagging_client=None,
+) -> str:
+    """스크리닝 통과 spec을 무조건 GPT Image로 생성해 pending upsert — motif id 반환.
 
-    upsert_sessionmaker가 있으면 upsert를 전용 세션에서 즉시 커밋한다 — 이후 요청이
-    실패해도 현재 생성 세션이 직접 참조할 pending 결과는 남는다. 승인 전 재요청은 공개
-    카탈로그 miss이므로 Recraft를 다시 호출할 수 있다.
+    카탈로그 재사용 판정은 하지 않는다. 같은 문장 재요청도 새 변형을 만들며,
+    (subject, scope)가 같은 모티프가 쌓이는 것은 변형 풀 확충이다 — 품질·중복은
+    admin 승인 게이트가 거른다. content-hash upsert라 byte-identical 결과는 행을
+    중복시키지 않는다.
     """
-    tau = settings.motif_similarity_tau
     authored_spec = _screen_facets(
         {**spec, "scope": "whole"},
         reject_suspicious=True,
     )
-    retrieval = await retrieve_catalog(
-        session,
-        descriptor_text(authored_spec),
-        embedding_client=embedding_client,
-        tau=tau,
-    )
-    if retrieval.matches:
-        match = retrieval.matches[0]
-        selected = await _select_variant(
-            session,
-            match.meta.variant_group,
-            seed,
-            match.meta.id,
-            retrieval.query_vec,
-            tau,
-        )
-        return ResolveResult(
-            selected,
-            reused=True,
-            similarity=match.similarity,
-            subject=match.meta.subject,
-            match_type=match.match_type,
-        )
-
-    # 신뢰도 게이트 miss → Recraft 생성. 자동 저작 모티프는 whole로 저장한다.
-    effective_recraft = recraft_client
-    if recraft_client is not None and generation_budget is not None:
-        effective_recraft = _BudgetedRecraftClient(recraft_client, generation_budget)
+    effective_client = gpt_image_client
+    if gpt_image_client is not None and generation_budget is not None:
+        effective_client = _BudgetedImageClient(gpt_image_client, generation_budget)
     normalized = await generate_motif(
         authored_spec,
-        client=effective_recraft,
+        client=effective_client,
         settings=settings,
         seed=seed,
     )
-
-    kwargs: dict = dict(
-        facets=facets_from_spec(authored_spec),
-        source="recraft",
-        variant_group=variant_group_key(authored_spec.get("subject"), "whole"),
+    facets = facets_from_spec(authored_spec)
+    if motif_tagging_client is not None:
+        try:
+            tagged = await motif_tagging_client.tag(
+                normalized.preview_svg,
+                subject=authored_spec.get("subject"),
+            )
+            enriched = _screen_facets(
+                {
+                    **authored_spec,
+                    "description": tagged.description,
+                    "tags": tagged.search_tags(),
+                    "style": tagged.style,
+                },
+                reject_suspicious=True,
+            )
+            facets = facets_from_spec(enriched)
+        except (AdapterClientError, TypeError, ValueError):
+            logger.warning(
+                "motif vision tagging failed — authored metadata retained",
+                exc_info=True,
+            )
+    await store.upsert_motif(
+        session,
+        normalized,
+        facets=facets,
+        source="gpt_image",
         ingested_user_id=_provenance_uuid(provenance, "user_id"),
         ingested_session_id=_provenance_uuid(provenance, "session_id"),
     )
-    if upsert_sessionmaker is None:
-        await store.upsert_motif(session, normalized, **kwargs)
-    else:
-        # 전용 세션 = 독립 트랜잭션 — 이후 요청이 실패해도 pending 결과와 직접 참조가 남는다.
-        async with upsert_sessionmaker() as upsert_session:
-            await store.upsert_motif(upsert_session, normalized, **kwargs)
-            await upsert_session.commit()
-    return ResolveResult(
-        normalized.id,
-        reused=False,
-        similarity=None,
-        subject=authored_spec.get("subject"),
-        match_type="recraft",
-    )
+    return normalized.id
 
 
 async def present_candidates(
@@ -495,15 +408,15 @@ async def present_candidates(
     top_k: int,
     tau: float = 0.40,
 ) -> list[dict]:
-    """게이트 UI용 read-only 후보. 같은 정확도 게이트를 쓰며 Recraft는 호출하지 않는다."""
-    retrieval = await retrieve_catalog(
+    """게이트 UI용 read-only 후보. 같은 정확도 게이트를 쓰며 이미지는 생성하지 않는다."""
+    matches = await retrieve_catalog(
         session,
         descriptor_text(spec),
         embedding_client=embedding_client,
         tau=tau,
         top_k=top_k,
     )
-    return [_candidate_dict(match.meta, round(match.similarity, 4)) for match in retrieval.matches]
+    return [_candidate_dict(match.meta, round(match.similarity, 4)) for match in matches]
 
 
 def _candidate_dict(meta: MotifMeta, similarity: float | None) -> dict:
@@ -512,7 +425,6 @@ def _candidate_dict(meta: MotifMeta, similarity: float | None) -> dict:
         "similarity": similarity,
         "subject": meta.subject,
         "scope": meta.scope,
-        "view": meta.view,
         "style": meta.style,
         "description": meta.description,
         "source": meta.source,

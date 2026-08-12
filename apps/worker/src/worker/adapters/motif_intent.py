@@ -13,6 +13,13 @@ _MOTIF_WORDS = re.compile(
     r"(?:모티프|(?<!줄)무늬|도형|형태|로고|아이콘|꽃)|\b(?:motif|shape|logo|icon)\b",
     re.IGNORECASE,
 )
+# 텍스타일 단골 소재 — 위 어휘와 달리 단어 자체가 검색어라서 _subject가 그대로 돌려준다.
+# 구성 축과 겹치는 말(줄무늬·체크 같은 배치·분할 표현)은 넣지 않는다: 처리한 요청에
+# 피커를 띄우게 된다.
+_MATERIAL_WORDS_PATTERN = (
+    r"페이즐리|다마스크|아가일|헤링본|\b(?:paisley|damask|argyle|herringbone)\b"
+)
+_MATERIAL_WORDS = re.compile(rf"(?P<subject>{_MATERIAL_WORDS_PATTERN})", re.IGNORECASE)
 # subject는 검색창에 그대로 들어간다 — 수식어를 집으면 0건 검색이라 명사 조각만 뽑는다.
 _REPLACEMENT_SUBJECT = re.compile(
     r"(?P<subject>[가-힣A-Za-z0-9_-]{1,40})(?:으)?로\s*"
@@ -32,13 +39,15 @@ _COLOR_WORDS = (
 # ponytail: 어휘~색 사이 6자 창으로 좁게 본다. "모티프 대신 배경을 네이비로"처럼 사이에 다른
 # 대상이 끼면 오탐할 수 있고, 그때는 창을 좁히기보다 대상 어휘 파싱이 필요하다.
 _MOTIF_COLOR_CHANGE = re.compile(
-    rf"(?:{_MOTIF_WORDS.pattern})[^.!?\n]{{0,6}}?(?:{_COLOR_WORDS})(?:색|상)?\s*(?:으)?로",
+    rf"(?:{_MOTIF_WORDS.pattern}|{_MATERIAL_WORDS_PATTERN})"
+    rf"[^.!?\n]{{0,6}}?(?:{_COLOR_WORDS})(?:색|상)?\s*(?:으)?로",
     re.IGNORECASE,
 )
 
 
 def _subject(prompt: str) -> str | None:
-    for pattern in (_REPLACEMENT_SUBJECT, _KOREAN_FLOWER_SUBJECT):
+    # 소재 이름은 마지막에 본다 — "페이즐리를 나비로 바꿔"는 교체 대상(나비)이 검색어다.
+    for pattern in (_REPLACEMENT_SUBJECT, _KOREAN_FLOWER_SUBJECT, _MATERIAL_WORDS):
         match = pattern.search(prompt)
         if match is None:
             continue
@@ -62,7 +71,7 @@ def detect_motif_intent(
     if llm_out_of_scope:
         reason = "motif_change"
     # 첫 저작이 모티프 레이어 없이 끝났는데 문장은 모티프를 말했다 — 카탈로그 miss다.
-    elif motif_missing and _MOTIF_WORDS.search(prompt):
+    elif motif_missing and (_MOTIF_WORDS.search(prompt) or _MATERIAL_WORDS.search(prompt)):
         reason = "motif_mention"
     else:
         return None

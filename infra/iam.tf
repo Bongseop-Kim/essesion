@@ -76,7 +76,6 @@ resource "google_secret_manager_secret_iam_member" "api_secrets" {
 resource "google_secret_manager_secret_iam_member" "worker_generate_secrets" {
   for_each = toset([
     "sentry-dsn-worker",
-    "recraft-api-key",
     "openai-api-key",
   ])
   project   = var.project_id

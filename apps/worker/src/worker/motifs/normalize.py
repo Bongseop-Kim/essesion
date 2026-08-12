@@ -1,4 +1,4 @@
-"""authored/Recraft SVG → 모티프 인테이크 계약 정규화 (worker-motifs.md §1·§2).
+"""SVG → 모티프 인테이크 계약 정규화 (worker-motifs.md §1·§2).
 
 파이프라인: allowlist 파싱·검증 → 프레임 검증 → 루트 presentation 래핑 → paint 정규화
 → tight bbox 프레이밍 → `<g>` 래핑 + content-hash id → (선택) render gate.
@@ -69,7 +69,7 @@ def _tag(el: ET.Element) -> str:
 
 
 # 렌더에 아무 영향이 없는 편집기·생성기 boilerplate. 허용 목록(svg_safety)을 넓히는 대신
-# 인테이크에서 떼어낸다 — Recraft가 내보내는 SVG는 항상 이 넷을 달고 나오므로, 그대로
+# 인테이크에서 떼어낸다 — 외부 생성기가 흔히 붙이는 이 넷을 그대로 두면
 # 거부하면 우리 자신의 출력물조차 모티프로 다시 못 들여온다.
 _INERT_TAGS = frozenset({"metadata", "title", "desc"})
 _INERT_ATTRS = frozenset({"version", "preserveAspectRatio", "space", "xml:space"})
@@ -308,12 +308,12 @@ def _render_gate(motif: NormalizedMotif, *, edge_seam_tol: float) -> None:
 def normalize_motif_svg(
     raw_svg: str,
     *,
-    id_prefix: str = "recraft",
+    id_prefix: str,
     max_aspect_ratio: float = 20.0,
     edge_seam_tol: float = 2.0,
     render_check: bool = True,
 ) -> NormalizedMotif:
-    """authored/Recraft SVG를 모티프 인테이크 계약으로 정규화 (worker-motifs.md §1)."""
+    """SVG를 모티프 인테이크 계약으로 정규화 (worker-motifs.md §1)."""
     if len(raw_svg.encode("utf-8")) > MAX_MOTIF_SVG_BYTES:
         raise ValueError(f"motif SVG exceeds {MAX_MOTIF_SVG_BYTES} bytes")
     root = sanitize.parse_svg_tree(raw_svg)

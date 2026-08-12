@@ -5,11 +5,14 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from svg_safety import parse_svg_tree
 from worker.motifs.normalize import normalize_motif_svg
 from worker.motifs.photo_svg import (
-    _canonicalize_vtracer_svg,
+    canonicalize_vtracer_svg,
     decode_user_image,
     photo_to_svg,
+    quantize_intermediate_colors,
+    threshold_alpha,
 )
 from worker.motifs.text_svg import normalize_text_motif_input, text_to_svg
 
@@ -20,6 +23,27 @@ def _simple_photo(*, flat: bool = False) -> bytes:
         for y in range(16, 48):
             for x in range(16, 48):
                 image.putpixel((x, y), (220, 20, 40))
+    output = io.BytesIO()
+    image.save(output, "PNG")
+    return output.getvalue()
+
+
+def _multicolor_photo() -> bytes:
+    image = Image.new("RGB", (128, 128), "white")
+    colors = [
+        (255, 0, 0),
+        (255, 136, 0),
+        (255, 255, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+        (85, 0, 136),
+        (153, 0, 204),
+        (0, 0, 0),
+    ]
+    for index, color in enumerate(colors):
+        for y in range(32, 96):
+            for x in range(24 + index * 10, 34 + index * 10):
+                image.putpixel((x, y), color)
     output = io.BytesIO()
     image.save(output, "PNG")
     return output.getvalue()
@@ -87,20 +111,16 @@ def test_photo_vectorization_removes_flat_border_and_returns_png_preview():
         _simple_photo(),
         "image/png",
         remove_background=True,
-        simplification="medium",
-        color_count=2,
     )
     assert result.background_confidence is not None and result.background_confidence >= 0.55
     assert "<path" in result.svg
-    assert "#DC1428" in result.svg
+    assert "#DD1122" in result.svg
     assert "#FFFFFF" not in result.svg
     assert result.warnings
     repeated = photo_to_svg(
         _simple_photo(),
         "image/png",
         remove_background=True,
-        simplification="medium",
-        color_count=2,
     )
     assert result == repeated
     first = normalize_motif_svg(result.svg, id_prefix="upload", render_check=False)
@@ -121,25 +141,104 @@ def test_photo_vectorization_can_keep_background_and_flat_removal_fails_closed()
         _simple_photo(),
         "image/png",
         remove_background=False,
-        simplification="high",
-        color_count=2,
     )
     assert kept.background_confidence is None
-    assert "#FFFFFF" in kept.svg and "#DC1428" in kept.svg
+    assert "#FFFFFF" in kept.svg and "#DD1122" in kept.svg
 
     with pytest.raises(ValueError, match="empty or frame-filling"):
         photo_to_svg(
             _simple_photo(flat=True),
             "image/png",
             remove_background=True,
-            simplification="medium",
-            color_count=2,
         )
+
+
+def test_photo_vectorization_preserves_a_legitimate_eight_color_motif():
+    result = photo_to_svg(
+        _multicolor_photo(),
+        "image/png",
+        remove_background=True,
+    )
+
+    fills = {
+        value.lower()
+        for element in parse_svg_tree(result.svg).iter()
+        if (value := element.get("fill")) is not None and value.startswith("#")
+    }
+
+    assert len(fills) == 8
 
 
 def test_photo_mime_is_verified_from_bytes():
     with pytest.raises(ValueError, match="does not match"):
         decode_user_image(_simple_photo(), "image/jpeg")
+
+
+def test_alpha_threshold_drops_semitransparent_antialiasing():
+    image = Image.new("RGBA", (3, 1))
+    image.putdata([(1, 2, 3, 0), (1, 2, 3, 254), (1, 2, 3, 255)])
+
+    assert list(threshold_alpha(image).getchannel("A").get_flattened_data()) == [0, 0, 255]
+
+
+def test_intermediate_color_quantization_ignores_hidden_rgb():
+    white_hidden = Image.new("RGBA", (32, 32), (255, 255, 255, 0))
+    black_hidden = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    for image in (white_hidden, black_hidden):
+        for y in range(8, 24):
+            for x in range(8, 16):
+                image.putpixel((x, y), (220, 20, 40, 255))
+            for x in range(16, 24):
+                image.putpixel((x, y), (20, 120, 60, 255))
+
+    first = quantize_intermediate_colors(white_hidden)
+    second = quantize_intermediate_colors(black_hidden)
+
+    assert first.tobytes() == second.tobytes()
+
+
+def test_generated_motif_quantization_keeps_more_than_six_distinct_flat_colors():
+    image = Image.new("RGBA", (8, 1), (255, 255, 255, 0))
+    colors = [
+        (255, 0, 0, 255),
+        (255, 136, 0, 255),
+        (255, 255, 0, 255),
+        (0, 255, 0, 255),
+        (0, 0, 255, 255),
+        (85, 0, 136, 255),
+        (153, 0, 204, 255),
+        (0, 0, 0, 255),
+    ]
+    image.putdata(colors)
+
+    quantized = quantize_intermediate_colors(image)
+    visible = {
+        pixel[:3]
+        for pixel in quantized.get_flattened_data()
+        if isinstance(pixel, tuple) and pixel[3] > 0
+    }
+
+    assert len(visible) == len(colors)
+
+
+def test_generated_motif_quantization_only_merges_nearby_intermediate_colors():
+    image = Image.new("RGBA", (3, 1))
+    image.putdata(
+        [
+            (100, 100, 100, 255),
+            (105, 105, 105, 255),
+            (220, 20, 40, 255),
+        ]
+    )
+
+    quantized = quantize_intermediate_colors(image)
+    visible = {
+        pixel[:3]
+        for pixel in quantized.get_flattened_data()
+        if isinstance(pixel, tuple) and pixel[3] > 0
+    }
+
+    assert len(visible) == 2
 
 
 def test_photo_pixel_cap_fails_before_decode(monkeypatch):
@@ -165,25 +264,29 @@ def test_photo_pixel_cap_fails_before_decode(monkeypatch):
 def test_vector_svg_structural_caps_fail_closed(monkeypatch, limit_name, limit, svg, message):
     monkeypatch.setattr(f"worker.motifs.photo_svg.{limit_name}", limit)
     with pytest.raises(ValueError, match=message):
-        _canonicalize_vtracer_svg(svg, 1, 1)
+        canonicalize_vtracer_svg(svg, 1, 1)
 
 
-def test_photo_vectorizer_color_cap_fails_closed(monkeypatch):
+def test_photo_vectorizer_snaps_synthesized_colors_back_to_quantized_palette(monkeypatch):
     monkeypatch.setattr(
         "worker.motifs.photo_svg.vtracer.convert_pixels_to_svg",
         lambda *_args, **_kwargs: (
             '<svg><path fill="#112233" d="M0 0L1 0L1 1Z"/>'
-            '<path fill="#445566" d="M0 0L0 1L1 1Z"/></svg>'
+            '<path fill="#F0F0F0" d="M0 0L0 1L1 1Z"/></svg>'
         ),
     )
-    with pytest.raises(ValueError, match="2 colors after a 1-color cap"):
-        photo_to_svg(
-            _simple_photo(),
-            "image/png",
-            remove_background=False,
-            simplification="medium",
-            color_count=1,
-        )
+    result = photo_to_svg(
+        _simple_photo(),
+        "image/png",
+        remove_background=False,
+    )
+
+    fills = {
+        value
+        for element in parse_svg_tree(result.svg).iter()
+        if (value := element.get("fill")) is not None
+    }
+    assert fills == {"#DD1122", "#FFFFFF"}
 
 
 def test_multicolor_standalone_preview_preserves_paints_and_identity():

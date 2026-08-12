@@ -4020,13 +4020,13 @@ export type DesignSessionOut = {
      */
     last_prompt?: string | null;
     /**
-     * Recraft Remaining
+     * Motif Generation Remaining
      */
-    recraft_remaining?: number | null;
+    motif_generation_remaining?: number | null;
     /**
-     * Recraft Used
+     * Motif Generation Used
      */
-    recraft_used: number;
+    motif_generation_used: number;
     /**
      * Registry Version
      */
@@ -5063,10 +5063,6 @@ export type MotifDetailOut = {
      */
     description: string | null;
     /**
-     * Expression
-     */
-    expression: string | null;
-    /**
      * Id
      */
     id: string;
@@ -5114,14 +5110,6 @@ export type MotifDetailOut = {
      * Tags
      */
     tags: Array<string>;
-    /**
-     * Variant Group
-     */
-    variant_group: string | null;
-    /**
-     * View
-     */
-    view: string | null;
 };
 
 /**
@@ -5133,10 +5121,6 @@ export type MotifGenerateOut = {
      * Request Id
      */
     request_id: string;
-    /**
-     * Reused
-     */
-    reused: boolean;
     /**
      * Saved
      */
@@ -5312,10 +5296,6 @@ export type MotifSummaryOut = {
      */
     created_at: string;
     /**
-     * Expression
-     */
-    expression: string | null;
-    /**
      * Id
      */
     id: string;
@@ -5351,14 +5331,28 @@ export type MotifSummaryOut = {
      * Symbol
      */
     symbol: string | null;
+};
+
+/**
+ * MotifUpdateRequest
+ */
+export type MotifUpdateRequest = {
     /**
-     * Variant Group
+     * Description
      */
-    variant_group: string | null;
+    description?: string | null;
     /**
-     * View
+     * Style
      */
-    view: string | null;
+    style?: 'flat' | 'outline' | null;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+    /**
+     * Tags
+     */
+    tags?: Array<string> | null;
 };
 
 /**
@@ -6457,17 +6451,9 @@ export type PhoneVerifyRequest = {
  */
 export type PhotoMotifPreviewRequest = {
     /**
-     * Color Count
-     */
-    color_count?: number;
-    /**
      * Remove Background
      */
     remove_background?: boolean;
-    /**
-     * Simplification
-     */
-    simplification?: 'low' | 'medium' | 'high';
     /**
      * Upload Id
      */
@@ -8704,7 +8690,7 @@ export type AdminListClaimsV2Data = {
         /**
          * Status
          */
-        status?: 'all' | '접수' | '처리중' | '수거요청' | '수거완료' | '재발송' | '완료' | '거부';
+        status?: 'all' | '접수' | '처리중' | '수거요청' | '수거완료' | '재발송' | '완료' | '거부' | '취소';
         /**
          * Start Date
          */
@@ -10312,6 +10298,36 @@ export type GetAdminMotifResponses = {
 };
 
 export type GetAdminMotifResponse = GetAdminMotifResponses[keyof GetAdminMotifResponses];
+
+export type UpdateAdminMotifData = {
+    body: MotifUpdateRequest;
+    path: {
+        /**
+         * Motif Id
+         */
+        motif_id: string;
+    };
+    query?: never;
+    url: '/admin/motifs/{motif_id}';
+};
+
+export type UpdateAdminMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAdminMotifError = UpdateAdminMotifErrors[keyof UpdateAdminMotifErrors];
+
+export type UpdateAdminMotifResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifDetailOut;
+};
+
+export type UpdateAdminMotifResponse = UpdateAdminMotifResponses[keyof UpdateAdminMotifResponses];
 
 export type ReviewAdminMotifData = {
     body: MotifReviewRequest;

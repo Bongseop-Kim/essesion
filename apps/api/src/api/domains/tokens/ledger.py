@@ -528,7 +528,8 @@ async def request_refund(session: AsyncSession, user: User, order_id: uuid.UUID)
             exists().where(
                 Claim.order_id == order.id,
                 Claim.type == "token_refund",
-                Claim.status != "거부",
+                # 종료된 요청은 재신청을 막지 않는다 — 관리자 거부와 고객 취소 둘 다.
+                Claim.status.notin_(("거부", "취소")),
             )
         )
     )
@@ -591,12 +592,13 @@ async def cancel_refund_request(session: AsyncSession, user: User, claim_id: uui
             claim_id=claim.id,
             changed_by=user.id,
             previous_status=claim.status,
-            new_status="거부",
+            new_status="취소",
             memo="고객 환불 요청 취소",
             request_id=request_id_var.get() or None,
         )
     )
-    claim.status = "거부"
+    # 관리자 '거부'와 구분되는 종료 상태 — 행은 결제 감사 추적 때문에 남긴다.
+    claim.status = "취소"
     await session.commit()
 
 

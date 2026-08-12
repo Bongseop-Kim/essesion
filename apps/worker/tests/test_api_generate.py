@@ -167,6 +167,7 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
         "motif size 9.0mm (lattice cell 8.0mm)",
         "another color is outside CMYK gamut",  # 중복 코드는 첫 건만
         "named color ivory has no visible slot",
+        "motif flower grounded only approximately (similarity 0.4652 < 0.55)",
         "engine did something unmapped",  # 문구 없는 진단은 내려보내지 않는다
     ]
 
@@ -180,6 +181,7 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
         "stripe_coverage_reduced",
         "motif_size_clamped",
         "named_color_unplaced",
+        "motif_approximate_match",
     ]
     assert [item["message"] for item in warnings] == [
         WARNING_MESSAGES[item["code"]] for item in warnings
@@ -337,6 +339,50 @@ def test_unplaceable_named_color_becomes_a_customer_warning(monkeypatch):
 
     assert resp.status_code == 200, resp.text
     assert [w for w in resp.json()["warnings"] if w["code"] == "named_color_unplaced"]
+
+
+def _prompt_app_with_resolution(monkeypatch, resolution: dict):
+    async def fake_candidates(*_args, **_kwargs):
+        return []
+
+    class GroundedLLM:
+        async def author_design(self, _prompt, **_kwargs):
+            return AuthoredDesign(intent=mvp_intent(), motif_resolutions=[resolution])
+
+    monkeypatch.setattr(routes, "prompt_catalog_candidates", fake_candidates)
+    app = _configure_app(monkeypatch)
+    app.state.adapters = Adapters(llm=GroundedLLM())
+    return app
+
+
+def test_approximate_catalog_grounding_becomes_a_customer_warning(monkeypatch):
+    # 카탈로그에 없는 소재("동백꽃")가 이웃(flower)으로 대체된 실제 로그값 — grounding은
+    # 성공으로 끝나 조용히 넘어가던 자리다. 거절하지 않고 경고 1건과 함께 디자인을 준다.
+    app = _prompt_app_with_resolution(
+        monkeypatch,
+        {
+            "layer_id": "motif_0",
+            "scope": "whole",
+            "outcome": "prompt_catalog",
+            "motif_id": "fixture-d78441294bd9",
+            "subject": "flower",
+            "similarity": 0.4652039545088913,
+            "match_type": "embedding",
+        },
+    )
+
+    resp = TestClient(app).post(
+        "/generate",
+        json={"run_id": _RUN_ID, "prompt": "크림색 배경에 동백꽃을 듬성듬성 배치"},
+    )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert [w["message"] for w in body["warnings"] if w["code"] == "motif_approximate_match"] == [
+        WARNING_MESSAGES["motif_approximate_match"]
+    ]
+    # 경고는 안내다 — 디자인은 그대로 나오고 과금(토큰 차감)도 유지된다.
+    assert body["design"]["svg"]
 
 
 def test_error_response_echoes_request_id_header(client):
@@ -784,16 +830,24 @@ def test_photo_preview_fetches_the_private_image(monkeypatch):
         json={
             "image": image_input,
             "remove_background": True,
-            "simplification": "medium",
-            "color_count": 2,
         },
     )
     assert preview.status_code == 200, preview.text
     body = preview.json()
     assert body["background_confidence"] >= 0.55
-    assert "#dc1428" in body["svg"].lower() and "#ffffff" not in body["svg"].lower()
+    assert "#dd1122" in body["svg"].lower() and "#ffffff" not in body["svg"].lower()
     with Image.open(io.BytesIO(base64.b64decode(body["processed_preview_base64"]))) as processed:
         assert processed.format == "PNG"
+
+    removed_options = client.post(
+        "/motifs/photo-preview",
+        json={
+            "image": image_input,
+            "color_count": 2,
+            "simplification": "low",
+        },
+    )
+    assert removed_options.status_code == 422
 
 
 def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(monkeypatch):

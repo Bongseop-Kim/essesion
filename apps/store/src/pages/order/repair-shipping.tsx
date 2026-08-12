@@ -146,7 +146,7 @@ export function RepairShippingPage() {
           {confirmedShipment ? (
             <RepairShipmentFields
               state={form}
-              onChange={setForm}
+              onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
               onUploadingChange={setUploading}
               disabled={submit.isPending}
             />

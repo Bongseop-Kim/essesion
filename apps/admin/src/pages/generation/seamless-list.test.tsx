@@ -111,7 +111,7 @@ describe("SeamlessLogsPage", () => {
         }),
       ).getByText("부분 성공"),
     ).toBeTruthy();
-    expect(screen.queryByText("Recraft 호출")).toBeNull();
+    expect(screen.queryByText("GPT Image 호출")).toBeNull();
     expect(api.seamlessOptions).toHaveBeenCalledWith({
       query: {
         status: undefined,

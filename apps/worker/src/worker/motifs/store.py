@@ -7,7 +7,6 @@ facet 정규화(NFC+strip+casefold)를 동일하게 적용한다.
 
 from __future__ import annotations
 
-import json
 import unicodedata
 import uuid
 from collections.abc import Iterable
@@ -20,12 +19,8 @@ from sqlalchemy import CursorResult, delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from worker.engine.determinism import stable_digest
 from worker.motifs.normalize import NormalizedMotif
 from worker.motifs.registry import BBox, MotifDef
-
-VARIANT_GROUP_VERSION = 2
-VARIANT_GROUP_LEN = 16
 
 USER_UPLOAD_SOURCE = "user_upload"
 APPROVED_STATUS = "approved"
@@ -43,24 +38,11 @@ def embedding_document(
     subject: str | None = None,
     description: str | None = None,
     style: str | None = None,
-    view: str | None = None,
-    expression: str | None = None,
     tags: Iterable[str] = (),
 ) -> str:
     """검색·초기 인덱싱이 공유하는 임베딩 문서. scope는 의미 검색에서 제외한다."""
-    segments = [subject, description, style, view, expression, *tags]
+    segments = [subject, description, style, *tags]
     return ", ".join(value.strip() for value in segments if value and value.strip())
-
-
-def variant_group_key(subject: str | None, scope: str | None) -> str:
-    """(subject, scope) 풀 키 = sha256_hex(canonical({v, subject, scope}))[:16] (§5.6)."""
-    payload = {
-        "v": VARIANT_GROUP_VERSION,
-        "subject": normalize_facet(subject),
-        "scope": normalize_facet(scope),
-    }
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return stable_digest(canonical, VARIANT_GROUP_LEN)
 
 
 @dataclass(frozen=True)
@@ -68,11 +50,8 @@ class MotifMeta:
     """symbol/embedding 없는 공개 검색 후보."""
 
     id: str
-    variant_group: str | None
     subject: str | None
     scope: str | None
-    view: str | None
-    expression: str | None
     style: str | None
     description: str | None
     tags: tuple[str, ...] = ()
@@ -84,7 +63,6 @@ class MotifMatch:
     """임베딩 코사인 최근접 결과."""
 
     id: str
-    variant_group: str | None
     similarity: float
 
 
@@ -94,17 +72,7 @@ class MotifEmbeddingDocument:
     subject: str | None
     description: str | None
     style: str | None
-    view: str | None
-    expression: str | None
     tags: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class PoolMember:
-    """variant pool 멤버 — τ 스코핑에 embedding 필요."""
-
-    id: str
-    embedding: list[float] | None
 
 
 def _bbox_tuple(value: object) -> BBox:
@@ -123,16 +91,15 @@ async def upsert_motif(
     *,
     facets: dict,
     embedding: list[float] | None = None,
-    source: str = "recraft",
+    source: str,
     status: str = "pending",
-    variant_group: str | None = None,
     ingested_user_id: uuid.UUID | None = None,
     ingested_session_id: uuid.UUID | None = None,
 ) -> None:
     """정규화 모티프를 content-hash id로 멱등 저장한다(id는 호출자가 이미 갖고 있다).
 
     scope는 정규화해 저장(하드 필터가 정규 형태로 비교). commit은 호출자(라우트/시드) 소관.
-    Recraft 기본 상태는 pending이고 신뢰된 시드만 approved를 명시한다. 기존
+    생성 모티프 기본 상태는 pending이고 신뢰된 시드만 approved를 명시한다. 기존
     geometry/facet/provenance/status는 절대 덮지 않는다.
     """
     scope = normalize_facet(facets.get("scope")) or None
@@ -151,14 +118,11 @@ async def upsert_motif(
         "anchor": list(normalized.anchor),
         "subject": facets.get("subject"),
         "scope": scope,
-        "view": facets.get("view"),
-        "expression": facets.get("expression"),
         "style": facets.get("style"),
         "description": facets.get("description"),
         "tags": list(facets.get("tags") or []),
         "source": source,
         "status": status,
-        "variant_group": variant_group,
         "embedding_openai": embedding,
     }
     await session.execute(
@@ -189,11 +153,8 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
         await session.execute(
             select(
                 Motif.id,
-                Motif.variant_group,
                 Motif.subject,
                 Motif.scope,
-                Motif.view,
-                Motif.expression,
                 Motif.style,
                 Motif.description,
                 Motif.tags,
@@ -209,15 +170,12 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
     return [
         MotifMeta(
             id=row[0],
-            variant_group=row[1],
-            subject=row[2],
-            scope=row[3],
-            view=row[4],
-            expression=row[5],
-            style=row[6],
-            description=row[7],
-            tags=tuple(row[8] or ()),
-            source=row[9],
+            subject=row[1],
+            scope=row[2],
+            style=row[3],
+            description=row[4],
+            tags=tuple(row[5] or ()),
+            source=row[6],
         )
         for row in rows
     ]
@@ -233,7 +191,7 @@ async def nearest_by_embedding(
     distance = column.cosine_distance(vec)
     rows = (
         await session.execute(
-            select(Motif.id, Motif.variant_group, distance.label("distance"))
+            select(Motif.id, distance.label("distance"))
             .where(
                 column.is_not(None),
                 Motif.source != USER_UPLOAD_SOURCE,
@@ -243,9 +201,7 @@ async def nearest_by_embedding(
             .limit(top_k)
         )
     ).all()
-    return [
-        MotifMatch(id=row[0], variant_group=row[1], similarity=1.0 - float(row[2])) for row in rows
-    ]
+    return [MotifMatch(id=row[0], similarity=1.0 - float(row[1])) for row in rows]
 
 
 async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbeddingDocument]:
@@ -257,8 +213,6 @@ async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbedd
                 Motif.subject,
                 Motif.description,
                 Motif.style,
-                Motif.view,
-                Motif.expression,
                 Motif.tags,
             )
             .where(
@@ -275,12 +229,47 @@ async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbedd
             subject=row[1],
             description=row[2],
             style=row[3],
-            view=row[4],
-            expression=row[5],
-            tags=tuple(row[6] or ()),
+            tags=tuple(row[4] or ()),
         )
         for row in rows
     ]
+
+
+async def missing_tagging_documents(session: AsyncSession) -> list[Motif]:
+    """설명이 없는 공개 계열 모티프를 안정 순서로 읽는다(user_upload 제외)."""
+    return list(
+        await session.scalars(
+            select(Motif)
+            .where(Motif.source != USER_UPLOAD_SOURCE, Motif.description.is_(None))
+            .order_by(Motif.id)
+        )
+    )
+
+
+async def update_tags_if_missing(
+    session: AsyncSession,
+    motif_id: str,
+    *,
+    description: str,
+    tags: Iterable[str],
+    style: str,
+) -> bool:
+    """태깅 미완료 공개 계열 행만 갱신하고 기존 검색 임베딩을 무효화한다."""
+    result = await session.execute(
+        update(Motif)
+        .where(
+            Motif.id == motif_id,
+            Motif.source != USER_UPLOAD_SOURCE,
+            Motif.description.is_(None),
+        )
+        .values(
+            description=description,
+            tags=list(tags),
+            style=style,
+            embedding_openai=None,
+        )
+    )
+    return bool(cast("CursorResult[Any]", result).rowcount)
 
 
 async def update_embedding_if_missing(
@@ -314,25 +303,6 @@ async def public_embedding_counts(session: AsyncSession) -> tuple[int, int]:
         )
     ).one()
     return int(embedded), int(total)
-
-
-async def find_variant_pool(session: AsyncSession, variant_group: str) -> list[PoolMember]:
-    """variant_group 샘플링 풀(id + embedding), ORDER BY id. 빈 리스트면 풀 없음."""
-    rows = (
-        await session.execute(
-            select(Motif.id, Motif.embedding_openai)
-            .where(
-                Motif.variant_group == variant_group,
-                Motif.source != USER_UPLOAD_SOURCE,
-                Motif.status == APPROVED_STATUS,
-            )
-            .order_by(Motif.id)
-        )
-    ).all()
-    return [
-        PoolMember(id=row[0], embedding=list(row[1]) if row[1] is not None else None)
-        for row in rows
-    ]
 
 
 async def approved_motif_ids(session: AsyncSession) -> list[str]:
@@ -381,8 +351,6 @@ def facets_from_spec(spec: dict) -> dict:
     return {
         "subject": normalize_facet(spec.get("subject")) or None,
         "scope": normalize_facet(spec.get("scope")) or None,
-        "view": spec.get("view"),
-        "expression": spec.get("expression"),
         "style": spec.get("style"),
         "description": spec.get("description"),
         "tags": spec.get("tags") or [],

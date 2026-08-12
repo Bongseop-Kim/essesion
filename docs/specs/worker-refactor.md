@@ -26,9 +26,9 @@
 ### P0 — 기능·보안
 
 **R1. 미지원 motif spec 오라우팅 방어**
-- 당시 상태(2026-07-07): `motifs/resolver.py`에 `text`/`source_image_index` spec 분기가 없어, Gemini가 해당 spec을 방출하면 Recraft 생성 래더로 흘러 `subject: None` 프롬프트로 진입했다. 이 리팩토링 당시에는 glyph·vectorize가 아직 5단계 과제였다.
+- 당시 상태(2026-07-07): `motifs/resolver.py`에 `text`/`source_image_index` spec 분기가 없어, Gemini가 해당 spec을 방출하면 당시 외부 벡터 생성 래더로 흘러 `subject: None` 프롬프트로 진입했다. 이 리팩토링 당시에는 glyph·vectorize가 아직 5단계 과제였다.
 - 당시 목표: resolver 진입 시 `text` 또는 `source_image_index`를 가진 spec은 **명시적으로 거부**(해당 spec만 실패 처리 + 경고, 요청 전체는 계속) — 전용 입력 경계가 생기기 전까지의 가드였다.
-- 수용: 해당 spec 포함 요청 테스트에서 Recraft 호출 0회, warnings에 사유 포함.
+- 수용: 해당 spec 포함 요청 테스트에서 외부 생성 호출 0회, warnings에 사유 포함.
 
 **R2. config 검증 복원**
 - 현재: `config.py`에 pydantic `Field` 제약이 전무(import조차 없음). `motif_similarity_tau` 범위 밖, `motif_max_aspect_ratio` nan/inf, DoS 가드(`max_svg_bytes`·`max_placement_instances`) 0 이하가 무검증 통과. 원본은 전부 Field로 강제하고 test_config.py로 핀.
@@ -49,7 +49,7 @@
 
 **R5. 어댑터 HTTP 클라이언트 수명 정리**
 - 현재: `adapters/gemini.py`가 재시도 루프 **안**에서 `httpx.AsyncClient`를 매 시도 생성(연결 풀 폐기). `Adapters.aclose()`와 각 어댑터 `aclose`가 전부 no-op — lifespan 정리 배선이 죽어 있음.
-- 목표: 어댑터 생성 시 클라이언트 1개(풀) 보유, `aclose`에서 실제로 닫기. Recraft·Embedding도 동일 패턴 점검.
+- 목표: 어댑터 생성 시 클라이언트 1개(풀) 보유, `aclose`에서 실제로 닫기. GPT Image·Embedding도 동일 패턴 점검.
 - 수용: 재시도 백오프 계약(429/503·4회·0.5/1/2s) 기존 테스트 그대로 통과, aclose 후 클라이언트 closed 상태 검증.
 
 **R6. 후보 프리뷰 렌더 병렬화**
@@ -81,9 +81,9 @@
 
 **R11. 죽은 코드·죽은 심(seam) 정리** — 전부 삭제(5단계에서 필요 시 재도입):
 - `engine/units.py`의 `nearest_dpi`(사용처 0 — `validate.py`가 동일 로직 인라인 중이므로 **호출로 교체 후 유지**하거나 삭제 중 택일, 중복만 해소).
-- `adapters/recraft.py`의 `vectorize`·`_VECTORIZE_PATH`(호출자 0).
+- 당시 벡터 생성 adapter의 `vectorize`·`_VECTORIZE_PATH`(호출자 0).
 - `adapters/gemini.py` `complete(images=...)` 파라미터(수신만 하고 body 미반영).
-- orphan 픽스처: `tests/fixtures/recraft_samples/`·`tests/fixtures/motif_eval/` — 단 R15에서 parity 테스트가 사용하게 되면 유지.
+- orphan 픽스처: `tests/fixtures/provider_samples/`·`tests/fixtures/motif_eval/` — 단 R15에서 parity 테스트가 사용하게 되면 유지.
 - `motifs/registry.py`의 테스트 폴백 전역(`_REGISTRY`/`register_motif` 등) 프로덕션 경로와 분리 여부 검토.
 - 수용: `ruff`·`pyright` 통과, grep으로 잔존 참조 0.
 
@@ -94,13 +94,13 @@
 
 **R13. 테스트 커버리지 보강 (원본 대비 공백)**
 - 래스터 seam 가드: 원본 `validate/seamless.py`의 `edge_seam`/`tiling_seam`을 테스트 유틸로 이관, 대표 골든 일부에 렌더-후 이음새 회귀 테스트.
-- normalize→motif_id parity: `recraft_samples` 픽스처 3종을 재정규화해 원본과 같은 motif_id가 나오는지 검증(스펙 §2 "같은 입력→같은 id" 계약의 핵심 검증 — 현재 0건).
+- normalize→motif_id parity: `provider_samples` 픽스처 3종을 재정규화해 원본과 같은 motif_id가 나오는지 검증(스펙 §2 "같은 입력→같은 id" 계약의 핵심 검증 — 현재 0건).
 - geometry 경계: 원본 test_geometry.py의 arc/bezier/reflected-control/transform 테스트 포팅.
 - 엔진 엣지 케이스: snap_angle·snap_spacing·poisson torus_dist·candidates de-dup 타이브레이크 등 골든 미커버 항목 — 로직이 원본과 동일하므로 원본 테스트 대부분 재사용 가능.
 - 수용: 신규 테스트 전부 통과 + 골든 27세트 불변.
 
 **R14. 문서·명명 정정**
-- `adapters/__init__.py` docstring: Recraft/LLM 미구성은 503, 임베딩만 소프트 스킵, GCS는 로컬 에뮬레이터·배포 필수 설정으로 정정.
+- `adapters/__init__.py` docstring: GPT Image/LLM 미구성은 503, 임베딩만 소프트 스킵, GCS는 로컬 에뮬레이터·배포 필수 설정으로 정정.
 - api `KNOWN_WEAVES` 하드코딩: 워커 `render/assets/fabric/*` stem과 수동 동기화 중 — 최소한 양쪽에 상호 참조 주석, 가능하면 워커 응답으로 단일 소스화(5단계로 이연 가능).
 - 수용: 문서 리뷰 통과(코드 변경 없는 항목).
 

@@ -1,6 +1,6 @@
 """테스트용 모티프 등록 + MVP intent — 원본 seamless-tile tests의 명세 재현.
 
-circle/bee는 더 이상 내장 built-in이 아니므로(골든은 recraft-* id 사용) 엔진의
+circle/bee는 더 이상 내장 built-in이 아니므로(골든은 fixture-* id 사용) 엔진의
 seamless/composition/determinism 기계를 고정 geometry로 검증하기 위해 TEST fixture로
 동일 id·geometry를 등록한다. import 시점에 등록(결정론 subprocess 테스트가 pytest
 없이 직접 import) — register_motif는 덮어쓰기라 재-import에 안전.

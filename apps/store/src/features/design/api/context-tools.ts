@@ -34,15 +34,11 @@ export async function previewTextMotif(input: {
 export async function previewPhotoMotif(input: {
   uploadId: string;
   removeBackground: boolean;
-  simplification: "low" | "medium" | "high";
-  colorCount: number;
 }) {
   const response = await previewPhotoMotifRequest({
     body: {
       upload_id: input.uploadId,
       remove_background: input.removeBackground,
-      simplification: input.simplification,
-      color_count: input.colorCount,
     },
     throwOnError: true,
   });

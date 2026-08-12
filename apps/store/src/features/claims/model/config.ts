@@ -88,6 +88,8 @@ export function claimStatusTone(
 ): "neutral" | "positive" | "critical" | "warning" | "informative" {
   if (status === "완료") return "positive";
   if (status === "거부") return "critical";
+  // 고객이 스스로 접은 요청 — 반려가 아니므로 경고색을 쓰지 않는다.
+  if (status === "취소") return "neutral";
   if (status === "접수") return "warning";
   if (["처리중", "수거요청", "수거완료", "재발송"].includes(status)) {
     return "informative";

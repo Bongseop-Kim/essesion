@@ -69,8 +69,8 @@ const session = {
   current_motifs: [
     { motif_id: "catalog-bee", name: "벌", preview_svg: "<svg id='bee'/>" },
   ],
-  recraft_used: 1,
-  recraft_remaining: 2,
+  motif_generation_used: 1,
+  motif_generation_remaining: 2,
   context_version: 4,
   active_generation_id: null,
   active_generation_started_at: null,
@@ -154,14 +154,15 @@ vi.mock("@/features/design/model/queries", () => ({
     initialPageParam: 0,
     getNextPageParam: () => undefined,
   }),
-  designTokenBalanceQueryOptions: () => ({
+}));
+
+// 잔액·예시는 shared/lib/live-queries의 래퍼를 그대로 쓴다 — 래퍼가 감싸는 raw 옵션만 바꾼다.
+vi.mock("@essesion/api-client/query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
+  getTokenBalanceOptions: () => ({
     queryKey: ["page-design-balance"],
     queryFn: async () => ({ total: 455, generate_cost: 5, edit_cost: 2 }),
   }),
-}));
-
-vi.mock("@essesion/api-client/query", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
   listDesignExamplesOptions: () => ({
     queryKey: ["page-design-examples"],
     queryFn: async () => examples,
@@ -551,10 +552,9 @@ describe("DesignPage canvas shell", () => {
     api.generateMotif.mockResolvedValue({
       data: {
         request_id: "req-1",
-        reused: false,
         saved: true,
         motif: {
-          motif_id: "recraft-bee",
+          motif_id: "fixture-bee",
           name: "작은 벌",
           preview_svg: "<svg/>",
         },
@@ -590,7 +590,7 @@ describe("DesignPage canvas shell", () => {
     await waitFor(() =>
       expect(api.activateMotif).toHaveBeenCalledWith({
         path: { session_id: "session-1" },
-        body: { slot: 1, motif_id: "recraft-bee" },
+        body: { slot: 1, motif_id: "fixture-bee" },
         throwOnError: true,
       }),
     );
@@ -598,7 +598,10 @@ describe("DesignPage canvas shell", () => {
   });
 
   it("생성 예산이 없으면 메뉴의 AI 생성만 잠긴다", async () => {
-    sessionOverride = { recraft_remaining: 0, recraft_used: 3 };
+    sessionOverride = {
+      motif_generation_remaining: 0,
+      motif_generation_used: 3,
+    };
     const queryClient = renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));

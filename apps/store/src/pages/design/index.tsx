@@ -1,5 +1,4 @@
 import type { DesignExampleOut } from "@essesion/api-client";
-import { listDesignExamplesOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Box,
@@ -32,7 +31,6 @@ import {
 import {
   designSessionQueryOptions,
   designSessionsQueryOptions,
-  designTokenBalanceQueryOptions,
   designTurnsQueryOptions,
 } from "@/features/design/model/queries";
 import { readDesignHistory } from "@/features/design/model/steps";
@@ -64,6 +62,10 @@ import {
 } from "@/features/design/ui/token-pill";
 import { ToolRail } from "@/features/design/ui/tool-rail";
 import { ViewToggle } from "@/features/design/ui/view-toggle";
+import {
+  designExamplesQueryOptions,
+  tokenBalanceQueryOptions,
+} from "@/shared/lib/live-queries";
 import { useSession } from "@/shared/store/session";
 
 const DESCRIPTION =
@@ -99,9 +101,9 @@ export function DesignPage() {
   const turnsQuery = useQuery(
     designTurnsQueryOptions({ sessionId, authenticated }),
   );
-  const balanceQuery = useQuery(designTokenBalanceQueryOptions(authenticated));
+  const balanceQuery = useQuery(tokenBalanceQueryOptions(authenticated));
   // 첫 진입 갤러리 — 공개 조회라 비로그인에도 뜬다.
-  const examplesQuery = useQuery(listDesignExamplesOptions());
+  const examplesQuery = useQuery(designExamplesQueryOptions());
 
   const history = useMemo(
     () => readDesignHistory(turnsQuery.data),
@@ -126,7 +128,8 @@ export function DesignPage() {
   const motifs = useMotifSearch({
     sessionId,
     currentMotifs: motifSlots,
-    recraftRemaining: sessionQuery.data?.recraft_remaining ?? null,
+    motifGenerationRemaining:
+      sessionQuery.data?.motif_generation_remaining ?? null,
     onDone: (name) => {
       setOverlay(null);
       snackbar(`‘${name}’ 모티프로 바꿨어요.`);
@@ -310,7 +313,9 @@ export function DesignPage() {
                 void motifs.addPhotoFile(file);
                 setOverlay("motifs");
               }}
-              recraftRemaining={sessionQuery.data?.recraft_remaining ?? null}
+              motifGenerationRemaining={
+                sessionQuery.data?.motif_generation_remaining ?? null
+              }
               pendingSlot={motifs.pendingSlot}
               hintSignal={motifHintSignal}
               disabled={busy || !hasDesign}

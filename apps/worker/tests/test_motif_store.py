@@ -28,10 +28,14 @@ def _motif(mid: str) -> NormalizedMotif:
     )
 
 
+async def _upsert(session, motif, *, source="seed", **kwargs) -> None:
+    await store.upsert_motif(session, motif, source=source, **kwargs)
+
+
 async def test_upsert_is_idempotent(db_session):
-    m = _motif("recraft-aaaaaaaaaaaa")
-    await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
-    await store.upsert_motif(db_session, m, facets={"subject": "dot", "scope": "whole"})
+    m = _motif("fixture-aaaaaaaaaaaa")
+    await _upsert(db_session, m, facets={"subject": "dot", "scope": "whole"})
+    await _upsert(db_session, m, facets={"subject": "dot", "scope": "whole"})
     await db_session.commit()
     row = await db_session.get(Motif, m.id)
     assert row is not None
@@ -40,10 +44,10 @@ async def test_upsert_is_idempotent(db_session):
 
 
 async def test_get_motifs_converts_bbox_and_anchor_to_tuples(db_session):
-    await store.upsert_motif(db_session, _motif("recraft-bbbbbbbbbbbb"), facets={"scope": "whole"})
+    await _upsert(db_session, _motif("fixture-bbbbbbbbbbbb"), facets={"scope": "whole"})
     await db_session.commit()
-    got = await store.get_motifs(db_session, ["recraft-bbbbbbbbbbbb"])
-    md = got["recraft-bbbbbbbbbbbb"]
+    got = await store.get_motifs(db_session, ["fixture-bbbbbbbbbbbb"])
+    md = got["fixture-bbbbbbbbbbbb"]
     assert isinstance(md, MotifDef)
     assert md.bbox_mm == (-0.5, -0.5, 0.5, 0.5)
     assert md.anchor == (0.0, 0.0)
@@ -54,37 +58,37 @@ async def test_get_motifs_empty_ids_returns_empty(db_session):
 
 
 async def test_nearest_by_embedding_tie_breaks_on_lowest_id(db_session):
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-000000000002"),
+        _motif("fixture-000000000002"),
         facets={"scope": "whole"},
         embedding=_vec(1.0),
         status="approved",
     )
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-000000000001"),
+        _motif("fixture-000000000001"),
         facets={"scope": "whole"},
         embedding=_vec(1.0),
         status="approved",
     )
     await db_session.commit()
     matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1)
-    assert matches[0].id == "recraft-000000000001"  # 동점 → lowest id
+    assert matches[0].id == "fixture-000000000001"  # 동점 → lowest id
     assert matches[0].similarity == 1.0
 
 
 async def test_nearest_by_embedding_uses_halfvec_distance(db_session):
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-embed-near"),
+        _motif("fixture-embed-near"),
         facets={"scope": "whole"},
         embedding=_vec(1.0),
         status="approved",
     )
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-embed-far"),
+        _motif("fixture-embed-far"),
         facets={"scope": "whole"},
         embedding=_vec(0.0, 1.0),
         status="approved",
@@ -93,53 +97,32 @@ async def test_nearest_by_embedding_uses_halfvec_distance(db_session):
 
     matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1)
 
-    assert matches[0].id == "recraft-embed-near"
+    assert matches[0].id == "fixture-embed-near"
     assert matches[0].similarity == 1.0
 
 
 async def test_nearest_excludes_null_embedding(db_session):
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-nullembeddin"),
+        _motif("fixture-nullembeddin"),
         facets={"scope": "whole"},
         status="approved",
     )
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-hasembedding0"),
+        _motif("fixture-hasembedding0"),
         facets={"scope": "whole"},
         embedding=_vec(1.0),
         status="approved",
     )
     await db_session.commit()
     matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=1)
-    assert matches[0].id == "recraft-hasembedding0"
-
-
-async def test_variant_pool_returns_members_ordered(db_session):
-    vg = store.variant_group_key("flower", "whole")
-    await store.upsert_motif(
-        db_session,
-        _motif("recraft-vg2"),
-        facets={"scope": "whole"},
-        variant_group=vg,
-        status="approved",
-    )
-    await store.upsert_motif(
-        db_session,
-        _motif("recraft-vg1"),
-        facets={"scope": "whole"},
-        variant_group=vg,
-        status="approved",
-    )
-    await db_session.commit()
-    pool = await store.find_variant_pool(db_session, vg)
-    assert [m.id for m in pool] == ["recraft-vg1", "recraft-vg2"]
+    assert matches[0].id == "fixture-hasembedding0"
 
 
 async def test_user_upload_is_only_available_by_explicit_id(db_session):
     uploaded = _motif("upload-a1b2c3d4e5f6")
-    await store.upsert_motif(
+    await _upsert(
         db_session,
         uploaded,
         facets={"subject": "private", "scope": "whole"},
@@ -154,34 +137,29 @@ async def test_user_upload_is_only_available_by_explicit_id(db_session):
 
 
 async def test_catalog_queries_only_expose_approved_motifs(db_session):
-    variant_group = store.variant_group_key("gate", "whole")
     rows = [
-        ("recraft-gate-approved", "approved", _vec(1.0)),
-        ("recraft-gate-unembedded", "approved", None),
-        ("recraft-gate-pending", "pending", _vec(1.0)),
-        ("recraft-gate-rejected", "rejected", _vec(1.0)),
+        ("fixture-gate-approved", "approved", _vec(1.0)),
+        ("fixture-gate-unembedded", "approved", None),
+        ("fixture-gate-pending", "pending", _vec(1.0)),
+        ("fixture-gate-rejected", "rejected", _vec(1.0)),
     ]
     for motif_id, status, embedding in rows:
-        await store.upsert_motif(
+        await _upsert(
             db_session,
             _motif(motif_id),
             facets={"subject": "gate", "scope": "whole"},
             embedding=embedding,
-            variant_group=variant_group,
             status=status,
         )
     await db_session.commit()
 
-    approved_ids = {"recraft-gate-approved", "recraft-gate-unembedded"}
+    approved_ids = {"fixture-gate-approved", "fixture-gate-unembedded"}
     assert {row.id for row in await store.find_catalog(db_session)} == approved_ids
     assert [
         row.id for row in await store.nearest_by_embedding(db_session, _vec(1.0), top_k=10)
-    ] == ["recraft-gate-approved"]
-    assert {
-        row.id for row in await store.find_variant_pool(db_session, variant_group)
-    } == approved_ids
+    ] == ["fixture-gate-approved"]
     assert [row.id for row in await store.missing_embedding_documents(db_session)] == [
-        "recraft-gate-unembedded"
+        "fixture-gate-unembedded"
     ]
     assert await store.public_embedding_counts(db_session) == (1, 2)
     assert set(await store.approved_motif_ids(db_session)) == approved_ids
@@ -191,16 +169,16 @@ async def test_catalog_queries_only_expose_approved_motifs(db_session):
 
 
 async def test_global_nearest_does_not_filter_partial_scope(db_session):
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-partialmatch"),
+        _motif("fixture-partialmatch"),
         facets={"scope": "partial"},
         embedding=_vec(1.0),
         status="approved",
     )
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-wholemiss000"),
+        _motif("fixture-wholemiss000"),
         facets={"scope": "whole"},
         embedding=_vec(0.0, 1.0),
         status="approved",
@@ -208,13 +186,13 @@ async def test_global_nearest_does_not_filter_partial_scope(db_session):
     await db_session.commit()
 
     matches = await store.nearest_by_embedding(db_session, _vec(1.0), top_k=2)
-    assert matches[0].id == "recraft-partialmatch"
+    assert matches[0].id == "fixture-partialmatch"
 
 
 async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(db_session):
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-public-null"),
+        _motif("fixture-public-null"),
         facets={
             "subject": "chess",
             "scope": "whole",
@@ -223,14 +201,14 @@ async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(d
         },
         status="approved",
     )
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-public-done"),
+        _motif("fixture-public-done"),
         facets={"subject": "flower", "scope": "whole"},
         embedding=_vec(0.0, 1.0),
         status="approved",
     )
-    await store.upsert_motif(
+    await _upsert(
         db_session,
         _motif("upload-private-null"),
         facets={"subject": "private", "scope": "whole"},
@@ -256,8 +234,8 @@ async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(d
 
 async def test_pending_motif_stores_no_embedding_until_approved(db_session):
     """승인 전 embedding 저장 금지 — 승인 후 인덱서가 DOCUMENT 임베딩을 채울 수 있어야 한다."""
-    m = _motif("recraft-pendingembed")
-    await store.upsert_motif(
+    m = _motif("fixture-pendingembed")
+    await _upsert(
         db_session,
         m,
         facets={"subject": "owl", "scope": "whole"},
@@ -280,12 +258,12 @@ async def test_pending_motif_stores_no_embedding_until_approved(db_session):
 async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):
     """에셋 수정으로 생긴 시드 고아만 지우고, 현재 시드·user_upload·참조 행은 남긴다."""
     for mid, source in [
-        ("recraft-seedcurrent0", "seed"),
-        ("recraft-seedstale000", "seed"),
-        ("recraft-seedfaved00", "seed"),
+        ("fixture-seedcurrent0", "seed"),
+        ("fixture-seedstale000", "seed"),
+        ("fixture-seedfaved00", "seed"),
         ("upload-keepme00000", store.USER_UPLOAD_SOURCE),
     ]:
-        await store.upsert_motif(
+        await _upsert(
             db_session,
             _motif(mid),
             facets={"scope": "whole"},
@@ -293,22 +271,22 @@ async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):
             status="approved" if source == "seed" else "pending",
         )
     user_id = await db_session.scalar(text("insert into users (name) values ('t') returning id"))
-    db_session.add(UserMotif(user_id=user_id, motif_id="recraft-seedfaved00", name="fav"))
+    db_session.add(UserMotif(user_id=user_id, motif_id="fixture-seedfaved00", name="fav"))
     await db_session.commit()
 
-    assert await store.prune_stale_seeds(db_session, ["recraft-seedcurrent0"]) == 1
+    assert await store.prune_stale_seeds(db_session, ["fixture-seedcurrent0"]) == 1
     await db_session.commit()
     assert await store.approved_motif_ids(db_session) == [
-        "recraft-seedcurrent0",
-        "recraft-seedfaved00",
+        "fixture-seedcurrent0",
+        "fixture-seedfaved00",
     ]
 
 
 async def test_prune_stale_seeds_empty_set_deletes_nothing(db_session):
     """빈 시드 집합은 no-op — 빈 notin_이 참으로 평가돼 전체 삭제되는 사고 방지."""
-    await store.upsert_motif(
+    await _upsert(
         db_session,
-        _motif("recraft-seedonly0000"),
+        _motif("fixture-seedonly0000"),
         facets={"scope": "whole"},
         source="seed",
         status="approved",
@@ -317,4 +295,4 @@ async def test_prune_stale_seeds_empty_set_deletes_nothing(db_session):
 
     assert await store.prune_stale_seeds(db_session, []) == 0
     await db_session.commit()
-    assert await store.approved_motif_ids(db_session) == ["recraft-seedonly0000"]
+    assert await store.approved_motif_ids(db_session) == ["fixture-seedonly0000"]

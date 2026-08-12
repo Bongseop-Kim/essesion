@@ -1,9 +1,9 @@
 """외부 API 어댑터 배선 (worker-motifs.md §3·§4·§6).
 
 공유 에러 타입은 여기서 정의한다(하위 모듈이 순환 없이 import). `build_adapters`는
-설정에서 임베딩·Recraft·LLM 클라이언트를 만든다 — 키 미설정 시 해당 클라이언트는
+설정에서 임베딩·GPT Image·LLM·Motif 비전 태깅 클라이언트를 만든다 — 키 미설정 시 클라이언트는
 None(비활성). 비활성의 의미는 어댑터마다 다르다: 임베딩만 소프트 skip(유사도 단계
-생략), Recraft/LLM은 요청 시 503(AdapterNotConfigured). GCS ObjectStore는 로컬에서
+생략), GPT Image/LLM은 요청 시 503(AdapterNotConfigured). GCS ObjectStore는 로컬에서
 fake-gcs-server를 사용하고 배포 환경에서는 필수 설정이 빠지면 기동을 중단한다.
 """
 
@@ -48,11 +48,12 @@ class Adapters:
     """요청 핸들러가 쓰는 어댑터 묶음 — 미구성 클라이언트는 None."""
 
     embedding: object | None = None
-    recraft: object | None = None
+    gpt_image: object | None = None
     llm: object | None = None
+    motif_tagging: object | None = None
 
     async def aclose(self) -> None:
-        for client in (self.embedding, self.recraft, self.llm):
+        for client in (self.embedding, self.gpt_image, self.llm, self.motif_tagging):
             close = getattr(client, "aclose", None)
             if close is not None:
                 await close()
@@ -61,11 +62,13 @@ class Adapters:
 def build_adapters(settings) -> Adapters:
     """설정 → Adapters. 순환 방지를 위해 하위 모듈을 함수 안에서 import."""
     from worker.adapters.embedding import build_embedding_client
+    from worker.adapters.gpt_image import build_gpt_image_client
     from worker.adapters.llm import build_llm_client
-    from worker.adapters.recraft import build_recraft_client
+    from worker.adapters.motif_tagging import build_motif_tagging_client
 
     return Adapters(
         embedding=build_embedding_client(settings),
-        recraft=build_recraft_client(settings),
+        gpt_image=build_gpt_image_client(settings),
         llm=build_llm_client(settings),
+        motif_tagging=build_motif_tagging_client(settings),
     )

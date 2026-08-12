@@ -533,6 +533,13 @@ async def _generate_from_prompt(
         )
 
     request.state.generation_diagnostics["motif_resolutions"].extend(authored.motif_resolutions)
+    # 카탈로그에 없는 소재가 이웃으로 대체됐으면 조용히 넘기지 않고 고객 경고 1건으로 내린다.
+    warnings.extend(
+        "motif grounded only approximately"
+        for resolution in authored.motif_resolutions
+        if resolution.get("outcome") == "prompt_catalog"
+        and resolution.get("match_type") == "embedding"
+    )
     # 자리를 못 찾은 지명색은 조용히 버리지 않고 고객 경고 1건으로 내린다.
     warnings.extend(
         f"named color {name} has no visible slot" for name in authored.unassigned_named_colors
@@ -955,7 +962,7 @@ async def ensure_authoring_promotion_embedding(
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
-    """문장을 그대로 카탈로그에서 검색한다. Recraft 미호출이라 과금이 없다."""
+    """문장을 그대로 카탈로그에서 검색한다. 이미지 생성 미호출이라 과금이 없다."""
     adapters = request.app.state.adapters
     registry_version = await registry_version_for(session)
     # generate와 같은 spec을 써야 여기서 보여준 후보와 생성 경로의 재사용 판정이 일치한다.
@@ -1032,8 +1039,6 @@ async def photo_motif_preview(
             data,
             body.image.content_type,
             remove_background=body.remove_background,
-            simplification=body.simplification,
-            color_count=body.color_count,
         )
         svg = await _normalize_preview_svg(result.svg, request, id_prefix="photo-preview")
     except (ValueError, TypeError, RecursionError) as exc:
@@ -1079,17 +1084,17 @@ async def motif_generate(
     adapters = request.app.state.adapters
     spec = {"subject": body.query, "scope": "whole"}
     try:
-        result = await resolve_spec(
+        motif_id = await resolve_spec(
             session,
             spec,
-            recraft_client=adapters.recraft,
-            embedding_client=adapters.embedding,
+            gpt_image_client=adapters.gpt_image,
             settings=settings,
             seed=0,
             provenance=(
                 body.motif_provenance.model_dump() if body.motif_provenance is not None else None
             ),
             generation_budget=MotifGenerationBudget(settings.motif_generate_per_request_limit),
+            motif_tagging_client=adapters.motif_tagging,
         )
     except AdapterNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -1100,9 +1105,7 @@ async def motif_generate(
     await session.commit()
     return {
         "request_id": request_id_var.get(),
-        "motif_id": result.motif_id,
-        "reused": result.reused,
-        "similarity": result.similarity,
+        "motif_id": motif_id,
     }
 
 
