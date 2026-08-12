@@ -128,7 +128,8 @@ export function DesignPage() {
   const motifs = useMotifSearch({
     sessionId,
     currentMotifs: motifSlots,
-    recraftRemaining: sessionQuery.data?.recraft_remaining ?? null,
+    motifGenerationRemaining:
+      sessionQuery.data?.motif_generation_remaining ?? null,
     onDone: (name) => {
       setOverlay(null);
       snackbar(`‘${name}’ 모티프로 바꿨어요.`);
@@ -312,7 +313,9 @@ export function DesignPage() {
                 void motifs.addPhotoFile(file);
                 setOverlay("motifs");
               }}
-              recraftRemaining={sessionQuery.data?.recraft_remaining ?? null}
+              motifGenerationRemaining={
+                sessionQuery.data?.motif_generation_remaining ?? null
+              }
               pendingSlot={motifs.pendingSlot}
               hintSignal={motifHintSignal}
               disabled={busy || !hasDesign}

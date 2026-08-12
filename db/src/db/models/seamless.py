@@ -1,6 +1,6 @@
 """seamless 엔진 데이터 — 워커가 사용 (motifs 검색·생성 로그 기록).
 
-motifs.id는 content-hash(recraft-<sha256 12자>) — ON CONFLICT DO NOTHING이 곧 멱등성.
+motifs.id는 ingress별 prefix를 붙인 content-hash — ON CONFLICT DO NOTHING이 곧 멱등성.
 임베딩은 OpenAI text-embedding-3-large(dimensions=1536)를 vector(1536)에 저장하며,
 검색은 컬럼 직접 HNSW(vector_cosine_ops) 인덱스를 사용한다.
 """
@@ -43,8 +43,8 @@ class Motif(CreatedAtMixin, Base):
 
     id: Mapped[str] = mapped_column(primary_key=True)  # content-hash
     symbol: Mapped[str]
-    # First Recraft ingress provenance. Catalog reuse never rewrites these values; account/session
-    # deletion nulls them instead of blocking privacy cleanup.
+    # First generated-motif ingress provenance. Catalog reuse never rewrites these values;
+    # account/session deletion nulls them instead of blocking privacy cleanup.
     ingested_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -55,13 +55,11 @@ class Motif(CreatedAtMixin, Base):
     anchor: Mapped[dict[str, Any]]
     subject: Mapped[str | None]
     scope: Mapped[str | None]
-    view: Mapped[str | None]
-    expression: Mapped[str | None]
     style: Mapped[str | None]
     description: Mapped[str | None]
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'::text[]"))
     embedding_openai: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
-    source: Mapped[str] = mapped_column(server_default="recraft")
+    source: Mapped[str]
     status: Mapped[str] = mapped_column(server_default="pending")
     reviewed_at: Mapped[datetime | None]
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(

@@ -1,9 +1,4 @@
-"""GPT Image 2 motif pilot adapter: raster generation -> shared VTracer gate.
-
-This module is intentionally not wired into the runtime resolver. GPT Image 2 currently returns
-opaque images, so the existing bounded flat-border separator establishes alpha locally before
-the same quantization, VTracer, and motif normalization budgets used by photo imports.
-"""
+"""GPT Image 2 motif adapter: raster generation -> bounded local VTracer normalization."""
 
 from __future__ import annotations
 
@@ -12,7 +7,6 @@ import base64
 import binascii
 import logging
 import xml.etree.ElementTree as ET
-from typing import Literal
 
 import httpx
 import svg_safety as sanitize
@@ -23,7 +17,7 @@ from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg
 from worker.motifs.photo_svg import (
     MAX_VECTOR_SIDE,
     decode_user_image,
-    quantize_image,
+    quantize_intermediate_colors,
     remove_flat_border_background,
     threshold_alpha,
     trace_quantized_image,
@@ -35,8 +29,6 @@ DEFAULT_MODEL = "gpt-image-2"
 DEFAULT_QUALITY = "low"
 DEFAULT_SIZE = "1024x1024"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_SIMPLIFICATION: Literal["low", "medium"] = "medium"
-DEFAULT_COLOR_COUNT = 6
 MAX_PNG_BYTES = 10_000_000
 
 _API_PATH = "/images/generations"
@@ -52,10 +44,12 @@ class GPTImageError(AdapterClientError):
 
 def _build_gpt_image_prompt(spec: dict, *, errors: list[str] | None = None) -> str:
     lines = [
-        "Create one isolated logo-like motif as a clean flat-color illustration.",
+        "Create one isolated motif as a clean flat-color illustration.",
         "Place exactly one centered object on a plain pure-white canvas.",
         "Keep at least 10% clear whitespace on every side between the object and canvas edge.",
         "Use crisp flat solid shapes with a clear silhouette and no shadows or shading.",
+        "Use as many distinct solid colors as the subject naturally requires; do not limit the "
+        "palette.",
         "Do not include text, letters, gradients, patterns, tiles, repetitions, borders, or "
         "background scenery.",
         f"User description: {spec.get('subject')}",
@@ -109,7 +103,7 @@ class GPTImageHTTPClient:
         return self._client
 
     async def generate(self, prompt: str, *, seed: int | None = None) -> bytes:
-        # GPT Image has no seed parameter. Keep the argument only for parity with Recraft.
+        # GPT Image has no seed parameter; the resolver interface still passes one.
         del seed
         payload = {
             "model": self._model,
@@ -225,20 +219,14 @@ def vectorize_png_motif(
     png: bytes,
     *,
     settings,
-    simplification: Literal["low", "medium"] = DEFAULT_SIMPLIFICATION,
-    color_count: int = DEFAULT_COLOR_COUNT,
 ) -> NormalizedMotif:
-    """Apply the pilot's fixed raster-to-vector pipeline to one generated PNG."""
+    """Apply the fixed raster-to-vector pipeline to one generated PNG."""
     image = decode_user_image(png, "image/png")
     image.thumbnail((MAX_VECTOR_SIDE, MAX_VECTOR_SIDE), Image.Resampling.LANCZOS)
     image, _confidence = remove_flat_border_background(image)
     image = threshold_alpha(image)
-    image = quantize_image(image, color_count)
-    svg = trace_quantized_image(
-        image,
-        simplification=simplification,
-        color_count=color_count,
-    )
+    image = quantize_intermediate_colors(image)
+    svg = trace_quantized_image(image)
     svg = _preserve_canvas_frame(svg)
     return normalize_motif_svg(
         svg,
@@ -255,7 +243,6 @@ async def generate_motif(
     client,
     settings,
     seed: int | None = None,
-    simplification: Literal["low", "medium"] = DEFAULT_SIMPLIFICATION,
 ) -> NormalizedMotif:
     """Generate and gate one GPT Image motif, with one gate-triggered regeneration."""
     if client is None:
@@ -281,11 +268,7 @@ async def generate_motif(
                 reason_code="request_failed",
             ) from None
         try:
-            return vectorize_png_motif(
-                png,
-                settings=settings,
-                simplification=simplification,
-            )
+            return vectorize_png_motif(png, settings=settings)
         except (sanitize.SanitizeError, ValueError) as exc:
             errors = [str(exc)]
     raise GPTImageError(

@@ -7436,7 +7436,7 @@
             ],
             "title": "Last Prompt"
           },
-          "recraft_remaining": {
+          "motif_generation_remaining": {
             "anyOf": [
               {
                 "type": "integer"
@@ -7445,10 +7445,10 @@
                 "type": "null"
               }
             ],
-            "title": "Recraft Remaining"
+            "title": "Motif Generation Remaining"
           },
-          "recraft_used": {
-            "title": "Recraft Used",
+          "motif_generation_used": {
+            "title": "Motif Generation Used",
             "type": "integer"
           },
           "registry_version": {
@@ -7494,7 +7494,7 @@
           "context_version",
           "active_generation_id",
           "active_generation_started_at",
-          "recraft_used",
+          "motif_generation_used",
           "created_at",
           "updated_at"
         ],
@@ -9321,17 +9321,6 @@
             ],
             "title": "Description"
           },
-          "expression": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expression"
-          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -9444,25 +9433,12 @@
             },
             "title": "Tags",
             "type": "array"
-          },
-          "view": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "View"
           }
         },
         "required": [
           "id",
           "subject",
           "scope",
-          "view",
-          "expression",
           "style",
           "source",
           "status",
@@ -9826,17 +9802,6 @@
             "title": "Created At",
             "type": "string"
           },
-          "expression": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expression"
-          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -9918,25 +9883,12 @@
               }
             ],
             "title": "Symbol"
-          },
-          "view": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "View"
           }
         },
         "required": [
           "id",
           "subject",
           "scope",
-          "view",
-          "expression",
           "style",
           "source",
           "status",
@@ -9947,6 +9899,65 @@
           "svg_status"
         ],
         "title": "MotifSummaryOut",
+        "type": "object"
+      },
+      "MotifUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "enum": [
+                  "flat",
+                  "outline"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 24,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "title": "MotifUpdateRequest",
         "type": "object"
       },
       "NotificationPreferencesRequest": {
@@ -11903,27 +11914,10 @@
       "PhotoMotifPreviewRequest": {
         "additionalProperties": false,
         "properties": {
-          "color_count": {
-            "default": 4,
-            "maximum": 6.0,
-            "minimum": 1.0,
-            "title": "Color Count",
-            "type": "integer"
-          },
           "remove_background": {
             "default": true,
             "title": "Remove Background",
             "type": "boolean"
-          },
-          "simplification": {
-            "default": "medium",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ],
-            "title": "Simplification",
-            "type": "string"
           },
           "upload_id": {
             "format": "uuid",
@@ -19415,6 +19409,61 @@
         "tags": [
           "admin-generation"
         ]
+      },
+      "patch": {
+        "operationId": "update_admin_motif",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "motif_id",
+            "required": true,
+            "schema": {
+              "title": "Motif Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MotifUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MotifDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Admin Motif",
+        "tags": [
+          "admin-generation"
+        ]
       }
     },
     "/admin/motifs/{motif_id}/review": {
@@ -23480,7 +23529,7 @@
     },
     "/design/sessions/{session_id}/motifs/search": {
       "post": {
-        "description": "문장으로 카탈로그를 찾는다 — 워커가 Recraft를 호출하지 않으므로 무과금.",
+        "description": "문장으로 카탈로그를 찾는다 — 워커가 이미지를 생성하지 않으므로 무과금.",
         "operationId": "search_motifs",
         "parameters": [
           {

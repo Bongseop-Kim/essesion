@@ -364,7 +364,7 @@ def test_approximate_catalog_grounding_becomes_a_customer_warning(monkeypatch):
             "layer_id": "motif_0",
             "scope": "whole",
             "outcome": "prompt_catalog",
-            "motif_id": "recraft-d78441294bd9",
+            "motif_id": "fixture-d78441294bd9",
             "subject": "flower",
             "similarity": 0.4652039545088913,
             "match_type": "embedding",
@@ -830,16 +830,24 @@ def test_photo_preview_fetches_the_private_image(monkeypatch):
         json={
             "image": image_input,
             "remove_background": True,
-            "simplification": "medium",
-            "color_count": 2,
         },
     )
     assert preview.status_code == 200, preview.text
     body = preview.json()
     assert body["background_confidence"] >= 0.55
-    assert "#dc1428" in body["svg"].lower() and "#ffffff" not in body["svg"].lower()
+    assert "#dd1122" in body["svg"].lower() and "#ffffff" not in body["svg"].lower()
     with Image.open(io.BytesIO(base64.b64decode(body["processed_preview_base64"]))) as processed:
         assert processed.format == "PNG"
+
+    removed_options = client.post(
+        "/motifs/photo-preview",
+        json={
+            "image": image_input,
+            "color_count": 2,
+            "simplification": "low",
+        },
+    )
+    assert removed_options.status_code == 422
 
 
 def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(monkeypatch):

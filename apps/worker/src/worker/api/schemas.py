@@ -218,7 +218,7 @@ class FinalizeTaskRequest(StrictRequest):
 
 
 class MotifQuery(StrictRequest):
-    """Recraft/검색에 그대로 전달할 문장(C-10: 자유텍스트 길이 제한)."""
+    """이미지 생성/검색에 그대로 전달할 문장(C-10: 자유텍스트 길이 제한)."""
 
     query: str = Field(min_length=1, max_length=MAX_MOTIF_QUERY_LENGTH)
 
@@ -264,8 +264,6 @@ class TextMotifPreviewResponse(BaseModel):
 class PhotoMotifPreviewRequest(StrictRequest):
     image: ReferenceImageInput
     remove_background: bool = True
-    simplification: Literal["low", "medium", "high"] = "medium"
-    color_count: int = Field(default=4, ge=1, le=6)
 
 
 class PhotoMotifPreviewResponse(BaseModel):

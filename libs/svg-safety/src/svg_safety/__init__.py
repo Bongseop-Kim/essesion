@@ -150,7 +150,7 @@ def _parse(svg: str) -> ET.Element:
 def parse_svg_tree(svg: str) -> ET.Element:
     """공개 파서 — 하드닝 파싱 후 네임스페이스를 지역명으로 축약 (모티프 정규화용).
 
-    normalize/Recraft 게이트는 geometry 측정·allowlist 검사에 지역 태그명이 필요하므로
+    normalize 게이트는 geometry 측정·allowlist 검사에 지역 태그명이 필요하므로
     `{ns}tag`를 지역명으로 접는다. 지역명이 충돌하는 네임스페이스 속성(xlink:href + href
     등)은 fail-closed로 거부 — 안전한 형제 뒤에 위험한 값을 숨기지 못하게.
     `_parse`의 DTD/entity 가드(XXE·billion-laughs 차단)를 그대로 재사용한다.

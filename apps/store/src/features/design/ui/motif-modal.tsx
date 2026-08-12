@@ -75,7 +75,8 @@ const HEADERS: Record<
   },
   photo: {
     title: "사진에서 따오기",
-    hint: (slot) => `사진에서 배경만 지워 슬롯 ${slot}에 넣어요.`,
+    hint: (slot) =>
+      `사진에서 배경을 지우고 색면을 정리해 슬롯 ${slot}에 넣어요.`,
     size: "small",
   },
 };
@@ -485,7 +486,7 @@ function PhotoBody({ state }: { state: MotifSearchState }) {
             <ComparePane label="배경 제거" src={svgToDataUri(photo.svg)} />
           </Grid>
           <Text textStyle="captionSm" color="fg.neutral-subtle" align="center">
-            배경만 지웠어요 · 색과 모양은 사진 그대로예요
+            배경을 지우고 가까운 중간색을 정리했어요
           </Text>
           <WarningText warnings={state.warnings} />
         </VStack>

@@ -962,7 +962,7 @@ async def ensure_authoring_promotion_embedding(
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
-    """문장을 그대로 카탈로그에서 검색한다. Recraft 미호출이라 과금이 없다."""
+    """문장을 그대로 카탈로그에서 검색한다. 이미지 생성 미호출이라 과금이 없다."""
     adapters = request.app.state.adapters
     registry_version = await registry_version_for(session)
     # generate와 같은 spec을 써야 여기서 보여준 후보와 생성 경로의 재사용 판정이 일치한다.
@@ -1039,8 +1039,6 @@ async def photo_motif_preview(
             data,
             body.image.content_type,
             remove_background=body.remove_background,
-            simplification=body.simplification,
-            color_count=body.color_count,
         )
         svg = await _normalize_preview_svg(result.svg, request, id_prefix="photo-preview")
     except (ValueError, TypeError, RecursionError) as exc:
@@ -1089,13 +1087,14 @@ async def motif_generate(
         motif_id = await resolve_spec(
             session,
             spec,
-            recraft_client=adapters.recraft,
+            gpt_image_client=adapters.gpt_image,
             settings=settings,
             seed=0,
             provenance=(
                 body.motif_provenance.model_dump() if body.motif_provenance is not None else None
             ),
             generation_budget=MotifGenerationBudget(settings.motif_generate_per_request_limit),
+            motif_tagging_client=adapters.motif_tagging,
         )
     except AdapterNotConfigured as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

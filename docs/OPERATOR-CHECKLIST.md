@@ -63,7 +63,7 @@ openssl rand -base64 48 | gcloud secrets versions add edge-proxy-secret --data-f
 ```
 수집값 대상: `toss-secret-key` `solapi-api-key` `solapi-api-secret`
 `google-client-secret` `kakao-client-secret` `openai-api-key`
-`recraft-api-key` `sentry-dsn-api` `sentry-dsn-worker`. `db-password`·`database-url`은
+`sentry-dsn-api` `sentry-dsn-worker`. `db-password`·`database-url`은
 tofu가 생성·주입하므로 손대지 않는다.
 
 ### A4. tofu 전체 apply
@@ -118,10 +118,11 @@ gh variable set VITE_SENTRY_ENVIRONMENT -b staging
    uv run python apps/api/scripts/bootstrap_admin.py create
    unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
    uv run python apps/worker/scripts/seed_motifs.py
+   uv run python apps/worker/scripts/backfill_motif_tags.py --confirm-live
    uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
    uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
    ```
-   두 임베딩 출력이 각각 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. `OPENAI_API_KEY` 또는 확인 플래그가 없으면 외부 호출을 실행하지 않으며 motif 인덱싱은 `user_upload`을 제외한다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
+   두 임베딩 출력이 각각 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서 symbol의 concrete paint와 자동 태그 표본을 확인한다. `OPENAI_API_KEY` 또는 확인 플래그가 없으면 외부 호출을 실행하지 않으며 태깅·motif 인덱싱은 `user_upload`을 제외한다. `apps/api/scripts/seed.py`는 local/test 전용이다. `create`는 이미 admin 계정이 있으면 실패한다. 유출·분실 시 같은 환경 변수 방식으로 `reset-password`, 비밀번호 변경 없이 강제 로그아웃할 때 이메일만 지정해 `revoke-sessions`를 실행한다. 두 명령은 admin refresh session만 폐기한다.
 7. 외부 콘솔은 프록시 검증 후 처음부터 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - **Toss** 대시보드: 웹훅 URL → `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로 갱신
    - **Google·Kakao** 콘솔: redirect URI → `https://api.essesion.shop/auth/{provider}/callback`
@@ -148,22 +149,22 @@ Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐
 
 ## E. 스테이징 리허설
 
-1. 빈 스테이징 DB에 Alembic migrate job이 베이스라인 `f8c3b2a19d47`과 OpenAI 전환
-   `6dbb8bb66939`를 순서대로 적용해 현재 head에 도달했는지 확인한다. 알 수 없는 개발
+1. 빈 스테이징 DB에 Alembic migrate job이 베이스라인 `f8c3b2a19d47`에서 순차 리비전을
+   적용해 현재 head `b9e4f61a2c73`에 도달했는지 확인한다. 알 수 없는 개발
    revision이 발견되면 데이터 변환을 시도하지 말고 DB를 재생성한다.
 2. 실제 Toss sandbox, Google/Kakao OAuth, Solapi, generate → finalize Cloud Tasks 흐름과
    주문·클레임 E2E를 실행한다. Apple/Naver는 구현·등록 전까지 완료로 판정하지 않는다.
 3. 상품 이미지 업로드와 finalize 메모리·지연을 실측해 dpi·인스턴스 상한을 확정한다.
 4. **production 차단 게이트**: 회원 탈퇴 뒤에도 주문 snapshot, 주문 item/claim/refund JSON,
    견적·문의·수선 배송 정보, 이미지·디자인 prompt/job payload, 관리자 로그에 역사성
-   개인정보가 남는다. seamless 생성 로그에는 사용자 FK가 없고, 공개 Recraft motif의
+   개인정보가 남는다. seamless 생성 로그에는 사용자 FK가 없고, 공개 GPT Image motif의
    최초 유입 사용자·세션 provenance는 nullable이며 회원·세션 삭제 시 `SET NULL`되므로
    소유권이나 영구 사용자별 회수 수단이 아니다. 공개 preview도 같은 한계가 있다.
    필드별 보존 목적·기간·접근 통제·분리 저장·만료 시 익명화/삭제
    배치를 privacy owner와 법률 검토자가 승인하고, 샘플 데이터로 purge/anonymization과
    복구 불가성을 검증하기 전에는 컷오버하지 않는다.
-5. OpenAI·Recraft에 전달하는 데이터 항목이 현재 개인정보처리방침과 일치하는지 확인하고,
-   Recraft 계정의 모델 학습 opt-out 또는 별도 DPA와 provider별 보존기간·예외를 privacy
+5. OpenAI에 전달하는 디자인 저작·임베딩·명시적 모티프 생성 데이터가 현재 개인정보처리방침과 일치하는지 확인하고,
+   OpenAI 계정의 모델 학습 정책 또는 별도 DPA와 provider 보존기간·예외를 privacy
    owner와 법률 검토자가 승인하기 전에는 컷오버하지 않는다.
 
 ## F. 프로덕션 컷오버

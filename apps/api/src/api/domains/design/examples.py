@@ -165,7 +165,9 @@ async def create_design_session_from_example(
     )
     await session.commit()
     await session.refresh(design_session)
-    return await _design_session_out(session, design_session, settings.design_recraft_budget)
+    return await _design_session_out(
+        session, design_session, settings.design_motif_generation_budget
+    )
 
 
 def _admin_out(example: DesignExample, preview_svg: str) -> AdminDesignExampleOut:

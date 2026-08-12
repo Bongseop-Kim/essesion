@@ -88,6 +88,7 @@ def _motif(motif_id: str, color: str = "#213547") -> Motif:
         bbox=[-0.5, -0.5, 0.5, 0.5],
         anchor=[0.0, 0.0],
         subject="preview motif",
+        source="seed",
         status="approved",
     )
 
@@ -108,7 +109,7 @@ async def test_compile_preview_uses_catalog_without_generation_adapters(
     assert response.json()["svg"].startswith("<svg")
     assert response.json()["warnings"] == []
     assert app.state.adapters.llm is None
-    assert app.state.adapters.recraft is None
+    assert app.state.adapters.gpt_image is None
 
 
 async def test_compile_preview_renders_requested_plan_without_layout_variants(app, client):

@@ -38,12 +38,10 @@ def embedding_document(
     subject: str | None = None,
     description: str | None = None,
     style: str | None = None,
-    view: str | None = None,
-    expression: str | None = None,
     tags: Iterable[str] = (),
 ) -> str:
     """검색·초기 인덱싱이 공유하는 임베딩 문서. scope는 의미 검색에서 제외한다."""
-    segments = [subject, description, style, view, expression, *tags]
+    segments = [subject, description, style, *tags]
     return ", ".join(value.strip() for value in segments if value and value.strip())
 
 
@@ -54,8 +52,6 @@ class MotifMeta:
     id: str
     subject: str | None
     scope: str | None
-    view: str | None
-    expression: str | None
     style: str | None
     description: str | None
     tags: tuple[str, ...] = ()
@@ -76,8 +72,6 @@ class MotifEmbeddingDocument:
     subject: str | None
     description: str | None
     style: str | None
-    view: str | None
-    expression: str | None
     tags: tuple[str, ...]
 
 
@@ -97,7 +91,7 @@ async def upsert_motif(
     *,
     facets: dict,
     embedding: list[float] | None = None,
-    source: str = "recraft",
+    source: str,
     status: str = "pending",
     ingested_user_id: uuid.UUID | None = None,
     ingested_session_id: uuid.UUID | None = None,
@@ -105,7 +99,7 @@ async def upsert_motif(
     """정규화 모티프를 content-hash id로 멱등 저장한다(id는 호출자가 이미 갖고 있다).
 
     scope는 정규화해 저장(하드 필터가 정규 형태로 비교). commit은 호출자(라우트/시드) 소관.
-    Recraft 기본 상태는 pending이고 신뢰된 시드만 approved를 명시한다. 기존
+    생성 모티프 기본 상태는 pending이고 신뢰된 시드만 approved를 명시한다. 기존
     geometry/facet/provenance/status는 절대 덮지 않는다.
     """
     scope = normalize_facet(facets.get("scope")) or None
@@ -124,8 +118,6 @@ async def upsert_motif(
         "anchor": list(normalized.anchor),
         "subject": facets.get("subject"),
         "scope": scope,
-        "view": facets.get("view"),
-        "expression": facets.get("expression"),
         "style": facets.get("style"),
         "description": facets.get("description"),
         "tags": list(facets.get("tags") or []),
@@ -163,8 +155,6 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
                 Motif.id,
                 Motif.subject,
                 Motif.scope,
-                Motif.view,
-                Motif.expression,
                 Motif.style,
                 Motif.description,
                 Motif.tags,
@@ -182,12 +172,10 @@ async def find_catalog(session: AsyncSession) -> list[MotifMeta]:
             id=row[0],
             subject=row[1],
             scope=row[2],
-            view=row[3],
-            expression=row[4],
-            style=row[5],
-            description=row[6],
-            tags=tuple(row[7] or ()),
-            source=row[8],
+            style=row[3],
+            description=row[4],
+            tags=tuple(row[5] or ()),
+            source=row[6],
         )
         for row in rows
     ]
@@ -225,8 +213,6 @@ async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbedd
                 Motif.subject,
                 Motif.description,
                 Motif.style,
-                Motif.view,
-                Motif.expression,
                 Motif.tags,
             )
             .where(
@@ -243,12 +229,47 @@ async def missing_embedding_documents(session: AsyncSession) -> list[MotifEmbedd
             subject=row[1],
             description=row[2],
             style=row[3],
-            view=row[4],
-            expression=row[5],
-            tags=tuple(row[6] or ()),
+            tags=tuple(row[4] or ()),
         )
         for row in rows
     ]
+
+
+async def missing_tagging_documents(session: AsyncSession) -> list[Motif]:
+    """설명이 없는 공개 계열 모티프를 안정 순서로 읽는다(user_upload 제외)."""
+    return list(
+        await session.scalars(
+            select(Motif)
+            .where(Motif.source != USER_UPLOAD_SOURCE, Motif.description.is_(None))
+            .order_by(Motif.id)
+        )
+    )
+
+
+async def update_tags_if_missing(
+    session: AsyncSession,
+    motif_id: str,
+    *,
+    description: str,
+    tags: Iterable[str],
+    style: str,
+) -> bool:
+    """태깅 미완료 공개 계열 행만 갱신하고 기존 검색 임베딩을 무효화한다."""
+    result = await session.execute(
+        update(Motif)
+        .where(
+            Motif.id == motif_id,
+            Motif.source != USER_UPLOAD_SOURCE,
+            Motif.description.is_(None),
+        )
+        .values(
+            description=description,
+            tags=list(tags),
+            style=style,
+            embedding_openai=None,
+        )
+    )
+    return bool(cast("CursorResult[Any]", result).rowcount)
 
 
 async def update_embedding_if_missing(
@@ -330,8 +351,6 @@ def facets_from_spec(spec: dict) -> dict:
     return {
         "subject": normalize_facet(spec.get("subject")) or None,
         "scope": normalize_facet(spec.get("scope")) or None,
-        "view": spec.get("view"),
-        "expression": spec.get("expression"),
         "style": spec.get("style"),
         "description": spec.get("description"),
         "tags": spec.get("tags") or [],

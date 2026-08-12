@@ -220,7 +220,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("CMYK 색역 확인이 필요한 색상 6개")).toBeTruthy();
     expect(screen.getByText("생성 진단")).toBeTruthy();
     expect(screen.getByText("gpt-5.6-luna")).toBeTruthy();
-    expect(screen.queryByText("Recraft 호출")).toBeNull();
+    expect(screen.queryByText("GPT Image 호출")).toBeNull();
     expect(
       screen.getByText(/생성 실패가 아니라 인쇄 전 색상 확인/),
     ).toBeTruthy();

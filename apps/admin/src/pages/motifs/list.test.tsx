@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   list: vi.fn(),
   detail: vi.fn(),
   review: vi.fn(),
+  update: vi.fn(),
   listOptions: vi.fn(),
   detailOptions: vi.fn(),
 }));
@@ -36,6 +37,7 @@ vi.mock("@essesion/api-client/query", () => ({
   ],
   listAdminMotifsQueryKey: () => ["motifs"],
   reviewAdminMotifMutation: () => ({ mutationFn: api.review }),
+  updateAdminMotifMutation: () => ({ mutationFn: api.update }),
 }));
 
 vi.mock("../../shared/session/admin-session", () => ({
@@ -56,9 +58,7 @@ const page: PageMotifSummaryOut = {
       id: "motif-1",
       subject: "동백꽃",
       scope: "whole",
-      view: "front",
-      expression: "flat",
-      style: "line",
+      style: "outline",
       source: "registry",
       status: "pending",
       reviewed_at: null,
@@ -106,6 +106,7 @@ describe("MotifsPage", () => {
       status: "approved",
       reviewed_at: "2026-08-03T08:00:00Z",
     });
+    api.update.mockResolvedValue(detail);
   });
 
   it("scope 필터와 페이지를 생성 클라이언트에 전달한다", async () => {
@@ -266,6 +267,7 @@ describe("MotifDetailPage", () => {
       status: "approved",
       reviewed_at: "2026-08-03T08:00:00Z",
     });
+    api.update.mockResolvedValue(detail);
   });
 
   it("safe symbol을 Blob 이미지로 표현한다", async () => {
@@ -285,9 +287,7 @@ describe("MotifDetailPage", () => {
       path: { motif_id: "motif-1" },
     });
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    await waitFor(() =>
-      expect(screen.getByText("정면 동백꽃 모티프")).toBeTruthy(),
-    );
+    await screen.findByRole("heading", { name: "검색 메타데이터" });
   });
 
   it("모티프 메타데이터 행 집합을 그대로 노출한다", async () => {
@@ -298,14 +298,12 @@ describe("MotifDetailPage", () => {
       { entry: "/motifs/motif-1" },
     );
 
-    await screen.findByText("정면 동백꽃 모티프");
+    await screen.findByRole("heading", { name: "검색 메타데이터" });
     expect(
       Array.from(container.querySelectorAll("dt"), (node) => node.textContent),
     ).toEqual([
       "주제",
       "범위",
-      "뷰",
-      "표현",
       "스타일",
       "소스",
       "검토 상태",
@@ -318,6 +316,36 @@ describe("MotifDetailPage", () => {
     ]);
   });
 
+  it("관리자가 검색 메타데이터를 수정한다", async () => {
+    const user = userEvent.setup();
+    renderAdminPage(
+      <Routes>
+        <Route path="/motifs/:motifId" element={<MotifDetailPage />} />
+      </Routes>,
+      { entry: "/motifs/motif-1" },
+    );
+    await screen.findByRole("heading", { name: "검색 메타데이터" });
+
+    await user.clear(screen.getByLabelText("주제"));
+    await user.type(screen.getByLabelText("주제"), "붉은 동백");
+    await user.clear(screen.getByLabelText("태그"));
+    await user.type(screen.getByLabelText("태그"), "꽃, flower, red");
+    await user.click(screen.getByRole("radio", { name: "플랫" }));
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() =>
+      expect(api.update.mock.calls[0]?.[0]).toEqual({
+        path: { motif_id: "motif-1" },
+        body: {
+          subject: "붉은 동백",
+          description: "정면 동백꽃 모티프",
+          tags: ["꽃", "flower", "red"],
+          style: "flat",
+        },
+      }),
+    );
+  });
+
   it("승인 확인 후 생성 클라이언트로 검토 상태를 변경한다", async () => {
     const user = userEvent.setup();
     renderAdminPage(
@@ -326,7 +354,7 @@ describe("MotifDetailPage", () => {
       </Routes>,
       { entry: "/motifs/motif-1" },
     );
-    await screen.findByText("정면 동백꽃 모티프");
+    await screen.findByRole("heading", { name: "검색 메타데이터" });
 
     await user.click(screen.getByRole("button", { name: "승인" }));
     const dialog = await screen.findByRole("alertdialog");

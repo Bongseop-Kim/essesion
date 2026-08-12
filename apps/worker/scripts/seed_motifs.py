@@ -187,7 +187,7 @@ async def seed_motifs() -> tuple[int, int]:
     seeded_ids: list[str] = []
     async with sessionmaker() as session:
         for subject, style, description, tags, svg in _all_seeds():
-            normalized = normalize_motif_svg(svg, render_check=False)
+            normalized = normalize_motif_svg(svg, id_prefix="seed", render_check=False)
             await store.upsert_motif(
                 session,
                 normalized,

@@ -56,7 +56,7 @@ export type MotifPanelProps = {
   /** 사진은 파일이 먼저, 확인 모달이 나중 */
   onAddPhoto: (slot: 1 | 2, file: File) => void;
   /** 남은 생성 횟수 — 유일한 유료 항목의 배지·잠금 */
-  recraftRemaining: number | null;
+  motifGenerationRemaining: number | null;
   /** SVG를 넣는 중인 슬롯 — 썸네일 자리에 진행 표시 */
   pendingSlot: 1 | 2 | null;
   /** 값이 증가할 때 피커 위치를 한 번 강조한다. */
@@ -75,7 +75,7 @@ export function MotifPanel({
   onPickSource,
   onAddSvg,
   onAddPhoto,
-  recraftRemaining,
+  motifGenerationRemaining,
   pendingSlot,
   hintSignal = 0,
   disabled = false,
@@ -161,7 +161,7 @@ export function MotifPanel({
             motif={motifs[slot - 1]}
             disabled={disabled}
             pending={pendingSlot === slot}
-            recraftRemaining={recraftRemaining}
+            motifGenerationRemaining={motifGenerationRemaining}
             onPickSource={onPickSource}
             onPickFile={pickFile}
           />
@@ -215,7 +215,7 @@ function MiniChip({ motif }: { motif: MotifPanelSlot | undefined }) {
 
 type SlotMenuProps = {
   slot: 1 | 2;
-  recraftRemaining: number | null;
+  motifGenerationRemaining: number | null;
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
   onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
   children: MenuTriggerProps["children"];
@@ -248,12 +248,13 @@ function MenuGroup({
 /** 슬롯 하나의 소스 목록. 빈 슬롯·미리보기·편집 버튼이 모두 이 메뉴를 연다. */
 function SlotMenu({
   slot,
-  recraftRemaining,
+  motifGenerationRemaining,
   onPickSource,
   onPickFile,
   children,
 }: SlotMenuProps) {
-  const exhausted = recraftRemaining !== null && recraftRemaining <= 0;
+  const exhausted =
+    motifGenerationRemaining !== null && motifGenerationRemaining <= 0;
   return (
     <MenuRoot>
       <MenuTrigger>{children}</MenuTrigger>
@@ -282,9 +283,9 @@ function SlotMenu({
             description={
               exhausted
                 ? "이번 디자인에서 더 만들 수 없어요"
-                : recraftRemaining === null
+                : motifGenerationRemaining === null
                   ? "문장 그대로 새로 만들어요"
-                  : `문장 그대로 새로 만들어요 · ${recraftRemaining}번 남음`
+                  : `문장 그대로 새로 만들어요 · ${motifGenerationRemaining}번 남음`
             }
             disabled={exhausted}
             onClick={() => onPickSource(slot, "generate")}
@@ -298,7 +299,7 @@ function SlotMenu({
           <MenuItem
             prefixIcon={<Icon svg={<CameraIcon />} size={20} />}
             label="사진에서 따오기"
-            description="사진에서 배경만 지워요"
+            description="사진에서 배경을 지우고 색면을 정리해요"
             onClick={() => onPickFile("photo", slot)}
           />
           <MenuItem
@@ -318,7 +319,7 @@ function MotifSlotView({
   motif,
   disabled,
   pending,
-  recraftRemaining,
+  motifGenerationRemaining,
   onPickSource,
   onPickFile,
 }: {
@@ -326,11 +327,11 @@ function MotifSlotView({
   motif: MotifPanelSlot | undefined;
   disabled: boolean;
   pending: boolean;
-  recraftRemaining: number | null;
+  motifGenerationRemaining: number | null;
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
   onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
 }) {
-  const menu = { slot, recraftRemaining, onPickSource, onPickFile };
+  const menu = { slot, motifGenerationRemaining, onPickSource, onPickFile };
 
   if (pending) {
     return (

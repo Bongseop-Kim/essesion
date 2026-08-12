@@ -97,7 +97,7 @@
    "type": "motif",
    "z_order": 2,
    "params": {
-    "motif_id": "recraft-033b3870e911",
+    "motif_id": "fixture-033b3870e911",
     "size_mm": 6.0
    },
    "placement": {

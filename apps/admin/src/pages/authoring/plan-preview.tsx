@@ -79,7 +79,7 @@ export function PlanPreviewCard({
   return (
     <AdminCard
       title="프리뷰"
-      description="바꾸면 바로 다시 그립니다. LLM·Recraft 없이 Plan과 카탈로그 모티프만으로 렌더합니다."
+      description="바꾸면 바로 다시 그립니다. 외부 모델 호출 없이 Plan과 카탈로그 모티프만으로 렌더합니다."
       action={
         <SegmentedControl
           value={previewMode}

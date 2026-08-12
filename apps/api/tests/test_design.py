@@ -1,4 +1,4 @@
-"""디자인 세션 골격 — 턴 seq 직렬화·recraft 카운터·finalize 쿼터·generate 과금."""
+"""디자인 세션 골격 — 턴 seq 직렬화·모티프 생성 카운터·finalize 쿼터·generate 과금."""
 
 import asyncio
 import base64
@@ -263,7 +263,7 @@ async def test_session_lifecycle_and_turns(client, db_session, settings):
 
     session = (await client.post("/design/sessions", headers=headers)).json()
     assert session["status"] == "active"
-    assert session["recraft_used"] == 0
+    assert session["motif_generation_used"] == 0
     # 계정 쿼터는 단건 GET 전용 — 생성/목록 응답과 설정 부재 시에는 null
     assert session["finalize_quota"] is None
 
@@ -428,7 +428,7 @@ async def test_session_reports_current_motifs_including_catalog(client, db_sessi
     # 목록 응답은 N+1을 피해 빈 배열로 둔다. 남은 생성 횟수도 단건 전용이다.
     listed = (await client.get("/design/sessions", headers=headers)).json()
     assert listed[0]["current_motifs"] == []
-    assert listed[0]["recraft_remaining"] is None
+    assert listed[0]["motif_generation_remaining"] is None
 
 
 async def test_generate_and_finalize_job(client, app, db_session, settings):
@@ -933,8 +933,6 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         json={
             "upload_id": str(photo.id),
             "remove_background": True,
-            "simplification": "high",
-            "color_count": 3,
         },
         headers=owner_headers,
     )
@@ -960,6 +958,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         "content_type",
         "size_bytes",
     }
+    assert set(worker.photo_preview_payloads[-1]) == {"image", "remove_background"}
     idea_payload = worker.idea_payloads[-1]
     assert "reference_images" not in idea_payload
     assert idea_payload["motif_ids"] == [motif.id]
@@ -967,6 +966,17 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
     assert "palette" not in idea_payload
     assert await db_session.scalar(select(func.count()).select_from(DesignSessionTurn)) == 0
     assert await ledger.get_balance(db_session, owner.id) == {"total": 0, "paid": 0, "bonus": 0}
+
+    removed_photo_options = await client.post(
+        "/design/motifs/photo-preview",
+        json={
+            "upload_id": str(photo.id),
+            "color_count": 3,
+            "simplification": "low",
+        },
+        headers=owner_headers,
+    )
+    assert removed_photo_options.status_code == 422
 
     removed_reference = await client.post(
         "/design/ideas",
@@ -981,7 +991,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
 
     response = await client.post(
         "/design/motifs/photo-preview",
-        json={"upload_id": str(photo.id), "color_count": 3},
+        json={"upload_id": str(photo.id)},
         headers=auth_headers(other, settings),
     )
     assert response.status_code == 409
@@ -2508,7 +2518,7 @@ async def test_generate_refund_pending_has_specific_error(client, app, db_sessio
     assert worker.generate_payloads == []
 
 
-# ---- 모티프 문장 경로 + recraft 예산 (P5) ----
+# ---- 모티프 문장 경로 + 생성 예산 (P5) ----
 
 _CATALOG_MOTIF_ID = "seed-bee-catalog"
 
@@ -2584,23 +2594,25 @@ async def test_seed_inputs_reject_outside_signed_int64_before_db_or_worker(
     assert persisted is not None
     await db_session.refresh(persisted)
     assert persisted.seed is None
-    assert persisted.recraft_used == 0
+    assert persisted.motif_generation_used == 0
     assert worker.generate_payloads == []
     assert worker.motif_calls == []
 
 
-async def _session_recraft_used(client, headers, sid):
-    return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()["recraft_used"]
-
-
-async def _session_recraft_remaining(client, headers, sid):
+async def _session_motif_generation_used(client, headers, sid):
     return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()[
-        "recraft_remaining"
+        "motif_generation_used"
+    ]
+
+
+async def _session_motif_generation_remaining(client, headers, sid):
+    return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()[
+        "motif_generation_remaining"
     ]
 
 
 async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_session, settings):
-    """문장 하나 → 최대 4개 카드. Recraft 미호출이라 예산은 그대로다."""
+    """문장 하나 → 최대 4개 카드. 이미지 생성 미호출이라 예산은 그대로다."""
     worker = MotifWorker()
     app.state.worker = worker
     await _seed_catalog_motif(db_session)
@@ -2648,7 +2660,7 @@ async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_s
         "query": "꿀벌 한 마리",
         "top_k": 4,
     }
-    assert await _session_recraft_used(client, headers, sid) == 0
+    assert await _session_motif_generation_used(client, headers, sid) == 0
 
 
 async def test_motif_generate_budget_exhaustion(client, app, db_session, settings):
@@ -2661,7 +2673,7 @@ async def test_motif_generate_budget_exhaustion(client, app, db_session, setting
     body = {"prompt": "꿀벌 한 마리"}
 
     # 상한은 서버 설정이라 store가 계산할 수 없다 — 남은 횟수를 세션이 알려준다.
-    assert await _session_recraft_remaining(client, headers, sid) == 3
+    assert await _session_motif_generation_remaining(client, headers, sid) == 3
 
     for _ in range(3):
         res = await client.post(
@@ -2669,14 +2681,14 @@ async def test_motif_generate_budget_exhaustion(client, app, db_session, setting
         )
         assert res.status_code == 200, res.text
         assert res.json()["motif"]["preview_svg"]
-    assert await _session_recraft_used(client, headers, sid) == 3
-    assert await _session_recraft_remaining(client, headers, sid) == 0
+    assert await _session_motif_generation_used(client, headers, sid) == 3
+    assert await _session_motif_generation_remaining(client, headers, sid) == 0
 
     blocked = await client.post(
         f"/design/sessions/{sid}/motifs/generate", json=body, headers=headers
     )
     assert blocked.status_code == 409
-    assert blocked.json()["code"] == "recraft_budget_exhausted"
+    assert blocked.json()["code"] == "motif_generation_budget_exhausted"
 
 
 async def test_motif_generate_always_charges_budget_and_passes_provenance(
@@ -2700,7 +2712,7 @@ async def test_motif_generate_always_charges_budget_and_passes_provenance(
         "query": "꿀벌 한 마리",
         "motif_provenance": {"user_id": str(user.id), "session_id": sid},
     }
-    assert await _session_recraft_used(client, headers, sid) == 1
+    assert await _session_motif_generation_used(client, headers, sid) == 1
 
 
 async def test_motif_generate_saves_to_user_library_idempotently(client, app, db_session, settings):
@@ -2773,7 +2785,7 @@ async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_
     assert res.status_code == 200, res.text
     assert res.json()["saved"] is False
     assert res.json()["motif"]["motif_id"] == _CATALOG_MOTIF_ID
-    assert await _session_recraft_used(client, headers, sid) == 1
+    assert await _session_motif_generation_used(client, headers, sid) == 1
 
 
 async def test_motif_generate_worker_failure_refunds_budget(client, app, db_session, settings):
@@ -2788,7 +2800,7 @@ async def test_motif_generate_worker_failure_refunds_budget(client, app, db_sess
         headers=headers,
     )
     assert res.status_code == 502
-    assert await _session_recraft_used(client, headers, sid) == 0
+    assert await _session_motif_generation_used(client, headers, sid) == 0
 
 
 async def test_motif_activate_swaps_the_slot_for_free_and_appends_a_step(

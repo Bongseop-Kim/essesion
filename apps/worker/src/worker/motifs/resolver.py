@@ -1,7 +1,7 @@
 """모티프 카탈로그 검색·명시적 생성 (worker-motifs.md §5).
 
 검색(candidates·grounding)은 공개 카탈로그 lexical+pgvector top-k에 신뢰도 게이트를
-적용한다. 생성(`resolve_spec`)은 카탈로그 확인 없이 항상 Recraft를 호출한다 — 비슷한
+적용한다. 생성(`resolve_spec`)은 카탈로그 확인 없이 항상 GPT Image를 호출한다 — 비슷한
 모티프 확인은 검색 단계가 이미 눈에 보이게 수행하며, 숨은 재사용 판정은 두지 않는다.
 """
 
@@ -19,18 +19,18 @@ from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
 from worker.adapters import AdapterClientError
 from worker.adapters.embedding import EmbeddingError, embed_query
-from worker.adapters.recraft import RecraftError, generate_motif
+from worker.adapters.gpt_image import GPTImageError, generate_motif
 from worker.motifs import store
 from worker.motifs.store import MotifMeta, facets_from_spec
 
 logger = logging.getLogger(__name__)
 
-# recraft 유입 facet 자유텍스트 — 임베딩·저장 전 살균할 필드 (scope는 whole/partial로 제약됨).
-_SCREENED_FACETS = ("subject", "description", "style", "view", "expression")
+# 생성 유입 facet 자유텍스트 — 임베딩·저장 전 살균할 필드 (scope는 whole/partial로 제약됨).
+_SCREENED_FACETS = ("subject", "description", "style")
 
 
 def _screen_facets(spec: dict, *, reject_suspicious: bool = False) -> dict:
-    """Recraft pending 유입의 1차 자동 방어선 (C-10).
+    """GPT Image pending 유입의 1차 자동 방어선 (C-10).
 
     비가시·제어 문자를 제거하고 명령형 인젝션 패턴은 저장 전에 거부한다. 통과한 행도
     관리자 승인 전에는 공개 카탈로그에 들어가지 않는다.
@@ -80,7 +80,7 @@ class CatalogMatch:
 
 @dataclass
 class MotifGenerationBudget:
-    """Request-scoped cap over actual Recraft calls, including suitability retries."""
+    """Request-scoped cap over actual image calls, including suitability retries."""
 
     limit: int
     used: int = 0
@@ -93,7 +93,7 @@ class MotifGenerationBudget:
 
 
 @dataclass(frozen=True)
-class _BudgetedRecraftClient:
+class _BudgetedImageClient:
     client: object
     budget: MotifGenerationBudget
 
@@ -102,9 +102,9 @@ class _BudgetedRecraftClient:
         prompt: str,
         *,
         seed: int | None = None,
-    ) -> str:
+    ) -> bytes:
         if not self.budget.reserve():
-            raise RecraftError(
+            raise GPTImageError(
                 "request motif generation budget exhausted",
                 provider="worker",
                 operation="resolve_motif",
@@ -145,8 +145,6 @@ def descriptor_text(spec: dict) -> str:
         subject=spec.get("subject"),
         description=spec.get("description"),
         style=spec.get("style"),
-        view=spec.get("view"),
-        expression=spec.get("expression"),
         tags=spec.get("tags") or (),
     )
 
@@ -329,8 +327,6 @@ async def prompt_catalog_candidates(
             "subject": match.meta.subject,
             "description": match.meta.description,
             "style": match.meta.style,
-            "view": match.meta.view,
-            "expression": match.meta.expression,
             "scope": match.meta.scope,
             "tags": list(match.meta.tags),
             "similarity": match.similarity,
@@ -344,13 +340,14 @@ async def resolve_spec(
     session: AsyncSession,
     spec: dict,
     *,
-    recraft_client,
+    gpt_image_client,
     settings,
     seed: int,
     provenance: dict | None = None,
     generation_budget: MotifGenerationBudget | None = None,
+    motif_tagging_client=None,
 ) -> str:
-    """스크리닝 통과 spec을 무조건 Recraft로 생성해 pending upsert — motif id 반환.
+    """스크리닝 통과 spec을 무조건 GPT Image로 생성해 pending upsert — motif id 반환.
 
     카탈로그 재사용 판정은 하지 않는다. 같은 문장 재요청도 새 변형을 만들며,
     (subject, scope)가 같은 모티프가 쌓이는 것은 변형 풀 확충이다 — 품질·중복은
@@ -361,20 +358,42 @@ async def resolve_spec(
         {**spec, "scope": "whole"},
         reject_suspicious=True,
     )
-    effective_recraft = recraft_client
-    if recraft_client is not None and generation_budget is not None:
-        effective_recraft = _BudgetedRecraftClient(recraft_client, generation_budget)
+    effective_client = gpt_image_client
+    if gpt_image_client is not None and generation_budget is not None:
+        effective_client = _BudgetedImageClient(gpt_image_client, generation_budget)
     normalized = await generate_motif(
         authored_spec,
-        client=effective_recraft,
+        client=effective_client,
         settings=settings,
         seed=seed,
     )
+    facets = facets_from_spec(authored_spec)
+    if motif_tagging_client is not None:
+        try:
+            tagged = await motif_tagging_client.tag(
+                normalized.preview_svg,
+                subject=authored_spec.get("subject"),
+            )
+            enriched = _screen_facets(
+                {
+                    **authored_spec,
+                    "description": tagged.description,
+                    "tags": tagged.search_tags(),
+                    "style": tagged.style,
+                },
+                reject_suspicious=True,
+            )
+            facets = facets_from_spec(enriched)
+        except (AdapterClientError, TypeError, ValueError):
+            logger.warning(
+                "motif vision tagging failed — authored metadata retained",
+                exc_info=True,
+            )
     await store.upsert_motif(
         session,
         normalized,
-        facets=facets_from_spec(authored_spec),
-        source="recraft",
+        facets=facets,
+        source="gpt_image",
         ingested_user_id=_provenance_uuid(provenance, "user_id"),
         ingested_session_id=_provenance_uuid(provenance, "session_id"),
     )
@@ -389,7 +408,7 @@ async def present_candidates(
     top_k: int,
     tau: float = 0.40,
 ) -> list[dict]:
-    """게이트 UI용 read-only 후보. 같은 정확도 게이트를 쓰며 Recraft는 호출하지 않는다."""
+    """게이트 UI용 read-only 후보. 같은 정확도 게이트를 쓰며 이미지는 생성하지 않는다."""
     matches = await retrieve_catalog(
         session,
         descriptor_text(spec),
@@ -406,7 +425,6 @@ def _candidate_dict(meta: MotifMeta, similarity: float | None) -> dict:
         "similarity": similarity,
         "subject": meta.subject,
         "scope": meta.scope,
-        "view": meta.view,
         "style": meta.style,
         "description": meta.description,
         "source": meta.source,

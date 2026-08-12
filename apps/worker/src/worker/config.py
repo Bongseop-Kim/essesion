@@ -37,16 +37,11 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     llm_model: str = "gpt-5.6-luna"
     embedding_model: str = "text-embedding-3-large"
-    recraft_api_key: str = ""
-    recraft_model: str = "recraftv4_1_vector"
-    recraft_style: str = ""
-    recraft_size: str = "1024x1024"
-    recraft_base_url: str = "https://external.api.recraft.ai/v1"
     # text-embedding-3-large 분포 기준(2026-08-03 재캘리브레이션): 정답 top-1 0.445~0.608,
     # 무관 쿼리 ≤0.339 — 0.40이 둘을 가른다. gemini-embedding-001 시절 값은 0.84였다.
     motif_similarity_tau: float = Field(default=0.40, ge=0.0, le=1.0)
     # One explicit motif-generation request may retry the suitability gate. Bound its actual
-    # Recraft calls while catalog hits remain free.
+    # GPT Image calls while catalog hits remain free.
     motif_generate_per_request_limit: int = Field(default=2, ge=1, le=8)
     motif_max_aspect_ratio: float = Field(default=20.0, gt=1.0, allow_inf_nan=False)
     motif_edge_seam_tol: float = Field(default=2.0, gt=0.0, allow_inf_nan=False)

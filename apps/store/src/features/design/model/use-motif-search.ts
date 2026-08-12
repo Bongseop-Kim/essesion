@@ -51,7 +51,7 @@ export type MotifSearchInput = {
     previewSvg: string;
   }[];
   /** 남은 생성 횟수(세션 예산). null이면 아직 모른다 — 문구에서 횟수를 뺀다 */
-  recraftRemaining: number | null;
+  motifGenerationRemaining: number | null;
   /** 교체 성공 — 페이지가 모달을 닫고 결과를 알린다 */
   onDone: (name: string) => void;
   /** 모달 밖(SVG 직행)의 결과 알림 — Callout 자리가 없어 snackbar로만 말한다 */
@@ -65,7 +65,7 @@ export type MotifSearchInput = {
 export function useMotifSearch({
   sessionId,
   currentMotifs,
-  recraftRemaining,
+  motifGenerationRemaining,
   onDone,
   notify,
 }: MotifSearchInput) {
@@ -246,7 +246,7 @@ export function useMotifSearch({
     }
   };
 
-  /** 사진은 배경 제거만 한다 — 색·모양은 사진 그대로라 단순화 옵션을 두지 않는다. */
+  /** 사진은 생성 모티프와 같은 중간색 정리·VTracer medium 경로를 사용한다. */
   const addPhotoFile = async (file: File) => {
     if (!sessionId || busy) return;
     clearPhoto();
@@ -265,8 +265,6 @@ export function useMotifSearch({
       const preview = await previewPhotoMotif({
         uploadId,
         removeBackground: true,
-        simplification: "low",
-        colorCount: 6,
       });
       setPhotoResult((previous) =>
         previous?.sourceUrl === sourceUrl
@@ -371,7 +369,9 @@ export function useMotifSearch({
       });
     } catch (cause) {
       // 예산 소진이면 서버가 진실 — 세션을 다시 읽어 입력이 스스로 잠긴다.
-      if (parseDesignError(cause).code === "recraft_budget_exhausted") {
+      if (
+        parseDesignError(cause).code === "motif_generation_budget_exhausted"
+      ) {
         await queryClient.invalidateQueries({
           queryKey: designSessionQueryKey(sessionId),
         });
@@ -449,8 +449,9 @@ export function useMotifSearch({
     /** 디자인을 실제로 바꾸는 중 — 이력의 대기 칸과 입력창 잠금은 이것만 본다. */
     replacing: busy === "confirm" || activate.isPending || pendingSlot !== null,
     /** 유료 경로 상태 — 남은 횟수를 모르면 null, 0이면 잠긴다. */
-    remaining: recraftRemaining,
-    exhausted: recraftRemaining !== null && recraftRemaining <= 0,
+    remaining: motifGenerationRemaining,
+    exhausted:
+      motifGenerationRemaining !== null && motifGenerationRemaining <= 0,
   };
 }
 

@@ -1,6 +1,6 @@
 """OpenAI 디자인 계획 어댑터: prompt → typed plan → deterministic intent.
 
-recraft 어댑터와 동일하게 httpx로 chat/completions를 직접 호출한다(SDK 없음).
+이미지 어댑터와 동일하게 httpx로 chat/completions를 직접 호출한다(SDK 없음).
 structured output은 strict json_schema로 강제한다 — flash-lite에서 constrained
 decoding이 grounding에 load-bearing이었음이 실측된 상태라, 모델이 바뀌어도 하드
 보장을 유지한다. {429,500,502,503}만 0.5/1/2s 백오프 최대 4회. 모델은 엔진 스키마를
@@ -82,7 +82,7 @@ def _strip_code_fence(text: str) -> str:
     return match.group("body").strip() if match else s
 
 
-_CATALOG_TEXT_FIELDS = ("subject", "description", "style", "view", "expression", "scope")
+_CATALOG_TEXT_FIELDS = ("subject", "description", "style", "scope")
 
 
 def _safe_catalog_text(value: object) -> str | None:

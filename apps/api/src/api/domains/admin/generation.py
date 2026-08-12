@@ -27,6 +27,7 @@ from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.schemas import Page
 from api.errors import ConflictError, DomainError, NotFoundError
 from api.integrations.gcs import public_asset_url
+from api.schemas import StrictModel
 
 router = APIRouter(prefix="/admin", tags=["admin-generation"])
 
@@ -266,8 +267,6 @@ class MotifSummaryOut(BaseModel):
     id: str
     subject: str | None
     scope: str | None
-    view: str | None
-    expression: str | None
     style: str | None
     source: str
     status: MotifStatus
@@ -282,7 +281,7 @@ class MotifDetailOut(MotifSummaryOut):
     description: str | None
     tags: list[str]
     anchor: list[float]
-    # 첫 Recraft 유입 시점의 요청자·세션 — motif 생성은 별도 generation log를 남기지 않으므로
+    # 첫 GPT Image 유입 시점의 요청자·세션 — motif 생성은 별도 generation log를 남기지 않으므로
     # 이 두 값이 admin에서 세션 상관을 볼 수 있는 유일한 경로다.
     ingested_user_id: uuid.UUID | None
     ingested_session_id: uuid.UUID | None
@@ -290,6 +289,13 @@ class MotifDetailOut(MotifSummaryOut):
 
 class MotifReviewRequest(BaseModel):
     status: Literal["approved", "rejected"]
+
+
+class MotifUpdateRequest(StrictModel):
+    subject: str | None = None
+    description: str | None = None
+    tags: list[str] | None = Field(default=None, max_length=24)
+    style: Literal["flat", "outline"] | None = None
 
 
 def _validate_range(start: datetime | None, end: datetime | None) -> None:
@@ -320,6 +326,18 @@ def _safe_metadata(value: Any, *, limit: int = 160) -> str | None:
     if not clean or _EMAIL.search(clean) or _PHONE.search(clean) or _URL_OR_PATH.search(clean):
         return None
     return clean
+
+
+def _editable_metadata(value: str | None, *, limit: int) -> str | None:
+    if value is None:
+        return None
+    safe = _safe_metadata(value, limit=limit)
+    if safe is None:
+        raise DomainError(
+            "Motif 메타데이터 형식이 올바르지 않습니다",
+            code="invalid_motif_metadata",
+        )
+    return safe
 
 
 def _safe_intent_value(value: Any, *, key: str | None = None, depth: int = 0) -> Any:
@@ -1053,8 +1071,6 @@ def _motif_summary(row: Motif) -> MotifSummaryOut:
         id=row.id,
         subject=_safe_metadata(row.subject),
         scope=_safe_token(row.scope),
-        view=_safe_metadata(row.view),
-        expression=_safe_metadata(row.expression),
         style=_safe_metadata(row.style),
         source=_safe_token(row.source) or "unknown",
         status=cast("MotifStatus", row.status),
@@ -1124,6 +1140,46 @@ async def get_admin_motif(motif_id: str, session: SessionDep, admin: AdminUser) 
     row = await session.get(Motif, motif_id)
     if row is None:
         raise NotFoundError("Motif를 찾을 수 없습니다")
+    return _motif_detail(row)
+
+
+@router.patch("/motifs/{motif_id}", response_model=MotifDetailOut)
+async def update_admin_motif(
+    motif_id: str,
+    body: MotifUpdateRequest,
+    session: SessionDep,
+    admin: AdminOnly,
+) -> MotifDetailOut:
+    if not body.model_fields_set:
+        raise DomainError(
+            "변경할 Motif 메타데이터를 입력해 주세요",
+            code="empty_motif_update",
+        )
+    row = await session.scalar(select(Motif).where(Motif.id == motif_id).with_for_update())
+    if row is None:
+        raise NotFoundError("Motif를 찾을 수 없습니다")
+
+    values: dict[str, Any] = {}
+    if "subject" in body.model_fields_set:
+        values["subject"] = _editable_metadata(body.subject, limit=160)
+    if "description" in body.model_fields_set:
+        values["description"] = _editable_metadata(body.description, limit=500)
+    if "tags" in body.model_fields_set:
+        clean_tags: list[str] = []
+        for tag in body.tags or []:
+            clean = cast(str, _editable_metadata(tag, limit=80))
+            if clean not in clean_tags:
+                clean_tags.append(clean)
+        values["tags"] = clean_tags
+    if "style" in body.model_fields_set:
+        values["style"] = body.style
+
+    changed = any(getattr(row, field) != value for field, value in values.items())
+    if changed:
+        for field, value in values.items():
+            setattr(row, field, value)
+        row.embedding_openai = None
+        await session.commit()
     return _motif_detail(row)
 
 

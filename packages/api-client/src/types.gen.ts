@@ -4020,13 +4020,13 @@ export type DesignSessionOut = {
      */
     last_prompt?: string | null;
     /**
-     * Recraft Remaining
+     * Motif Generation Remaining
      */
-    recraft_remaining?: number | null;
+    motif_generation_remaining?: number | null;
     /**
-     * Recraft Used
+     * Motif Generation Used
      */
-    recraft_used: number;
+    motif_generation_used: number;
     /**
      * Registry Version
      */
@@ -5063,10 +5063,6 @@ export type MotifDetailOut = {
      */
     description: string | null;
     /**
-     * Expression
-     */
-    expression: string | null;
-    /**
      * Id
      */
     id: string;
@@ -5114,10 +5110,6 @@ export type MotifDetailOut = {
      * Tags
      */
     tags: Array<string>;
-    /**
-     * View
-     */
-    view: string | null;
 };
 
 /**
@@ -5304,10 +5296,6 @@ export type MotifSummaryOut = {
      */
     created_at: string;
     /**
-     * Expression
-     */
-    expression: string | null;
-    /**
      * Id
      */
     id: string;
@@ -5343,10 +5331,28 @@ export type MotifSummaryOut = {
      * Symbol
      */
     symbol: string | null;
+};
+
+/**
+ * MotifUpdateRequest
+ */
+export type MotifUpdateRequest = {
     /**
-     * View
+     * Description
      */
-    view: string | null;
+    description?: string | null;
+    /**
+     * Style
+     */
+    style?: 'flat' | 'outline' | null;
+    /**
+     * Subject
+     */
+    subject?: string | null;
+    /**
+     * Tags
+     */
+    tags?: Array<string> | null;
 };
 
 /**
@@ -6445,17 +6451,9 @@ export type PhoneVerifyRequest = {
  */
 export type PhotoMotifPreviewRequest = {
     /**
-     * Color Count
-     */
-    color_count?: number;
-    /**
      * Remove Background
      */
     remove_background?: boolean;
-    /**
-     * Simplification
-     */
-    simplification?: 'low' | 'medium' | 'high';
     /**
      * Upload Id
      */
@@ -10300,6 +10298,36 @@ export type GetAdminMotifResponses = {
 };
 
 export type GetAdminMotifResponse = GetAdminMotifResponses[keyof GetAdminMotifResponses];
+
+export type UpdateAdminMotifData = {
+    body: MotifUpdateRequest;
+    path: {
+        /**
+         * Motif Id
+         */
+        motif_id: string;
+    };
+    query?: never;
+    url: '/admin/motifs/{motif_id}';
+};
+
+export type UpdateAdminMotifErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAdminMotifError = UpdateAdminMotifErrors[keyof UpdateAdminMotifErrors];
+
+export type UpdateAdminMotifResponses = {
+    /**
+     * Successful Response
+     */
+    200: MotifDetailOut;
+};
+
+export type UpdateAdminMotifResponse = UpdateAdminMotifResponses[keyof UpdateAdminMotifResponses];
 
 export type ReviewAdminMotifData = {
     body: MotifReviewRequest;

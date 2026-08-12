@@ -65,6 +65,12 @@ uv run python apps/worker/scripts/seed_motifs.py
 uv run python apps/worker/scripts/seed_design_examples.py
 ```
 
+기존 모티프 메타데이터 백필 — `OPENAI_API_KEY` 필요 (유료 호출, `user_upload` 제외)
+
+```bash
+uv run python apps/worker/scripts/backfill_motif_tags.py --confirm-live
+```
+
 모티프 벡터 검색 인덱스 — `OPENAI_API_KEY` 필요 (유료 호출)
 
 ```bash
@@ -139,8 +145,11 @@ pnpm turbo build typecheck test
 
 Python 테스트 — fake-gcs-server(`docker compose up -d --wait gcs`)가 떠 있어야 한다
 
+> **전체 스위트를 로컬에서 돌리지 말 것** — 전체는 CI(`ci.yml`)가 돌린다. 로컬에서는 수정한 도메인의 테스트 파일·디렉토리만 지정해 실행하고, 실패 재확인은 `--lf`. 전체 실행이 꼭 필요하면(머지 직전 등) `uv run pytest -n auto`로 병렬.
+
 ```bash
-uv run pytest
+uv run pytest apps/worker/tests/test_resolver.py   # 예: 수정한 부분만
+uv run pytest --lf                                 # 직전 실패만 재실행
 ```
 
 Python 린트

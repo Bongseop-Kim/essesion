@@ -32,7 +32,8 @@
 - `candidates`·`addCandidate` 삭제 → `MotifCard`는 `motifId`를 항상 가지므로 `svg`·`key` 필드도 사라졌다.
 - `addSvgFile(slot, file)`: 읽기 → import → activate를 한 번에. 진행 중 `pendingSlot` 노출, 결과는 snackbar.
 - `addPhotoFile(file)`: 파일 행(이름·용량·objectURL)을 먼저 세우고 배경 제거 결과(`svg`)를 뒤에 채운다.
-  파라미터는 `removeBackground: true, simplification: "low", colorCount: 6` 고정.
+  파라미터는 `removeBackground: true`로 고정. 색상 수·단순화 옵션은 없고 GPT Image 생성과
+  같은 가변 팔레트 중간색 정리·VTracer medium 경로를 사용한다.
 - `generate()`는 activate하지 않고 `generated`(+`saved`)를 들고 있다가 `applyGenerated()`가 교체한다.
 - `addText()`는 검색어 재사용을 끊고 자체 `text`·`fontId`·`fontWeight`를 갖는다. 글꼴·굵기 변경은
   결과가 있을 때 즉시 재렌더(무료·결정적이라 확인 버튼 없음).

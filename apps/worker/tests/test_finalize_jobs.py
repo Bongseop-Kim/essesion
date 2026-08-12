@@ -120,7 +120,7 @@ async def test_finalize_task_rejects_non_finalize_job(client, db_session):
 def _golden_motif_intent() -> tuple[dict, str, dict]:
     """골든 06 intent와 그 모티프 정의 — DB 카탈로그 경로 검증용."""
     intent = json.loads((GOLDEN / "json/06_motif_lattice_block.json").read_text())
-    motif_id = "recraft-832977800421"
+    motif_id = "fixture-832977800421"
     spec = json.loads((GOLDEN / "motifs.json").read_text())[motif_id]
     return intent, motif_id, spec
 
@@ -134,6 +134,7 @@ async def test_finalize_loads_db_backed_motifs(client, db_session):
             symbol=spec["symbol"],
             bbox=list(spec["bbox_mm"]),
             anchor=list(spec["anchor"]),
+            source="seed",
         )
     )
     await db_session.commit()
@@ -151,7 +152,7 @@ async def test_finalize_loads_db_backed_motifs(client, db_session):
 
 async def test_finalize_unknown_motif_is_permanent_failure(client, db_session):
     intent, _motif_id, _spec = _golden_motif_intent()
-    intent["layers"][1]["params"]["motif_id"] = "recraft-missing-000000000000"
+    intent["layers"][1]["params"]["motif_id"] = "fixture-missing-000000000000"
     job = await _job(db_session, status="queued", attempts=0)
     job.params = {"intent": intent, "dpi": 96, "production_method": "print"}
     await db_session.commit()

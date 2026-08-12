@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import cast
 
 import vtracer
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
@@ -39,39 +39,16 @@ MAX_VECTOR_SVG_BYTES = MAX_MOTIF_SVG_BYTES
 MAX_PROCESSED_PREVIEW_BYTES = 2_000_000
 
 _PATH_COMMANDS = frozenset("MmLlHhVvCcSsQqTtAaZz")
-RGB = tuple[int, int, int]
 RGBA = tuple[int, int, int, int]
-SIMPLIFICATION_PRESETS = {
-    "low": {
-        "filter_speckle": 2,
-        "color_precision": 8,
-        "layer_difference": 8,
-        "corner_threshold": 50,
-        "length_threshold": 3.5,
-        "max_iterations": 10,
-        "splice_threshold": 40,
-        "path_precision": 3,
-    },
-    "medium": {
-        "filter_speckle": 4,
-        "color_precision": 6,
-        "layer_difference": 16,
-        "corner_threshold": 60,
-        "length_threshold": 4.0,
-        "max_iterations": 10,
-        "splice_threshold": 45,
-        "path_precision": 3,
-    },
-    "high": {
-        "filter_speckle": 8,
-        "color_precision": 4,
-        "layer_difference": 32,
-        "corner_threshold": 75,
-        "length_threshold": 6.0,
-        "max_iterations": 8,
-        "splice_threshold": 60,
-        "path_precision": 2,
-    },
+_VTRACER_MEDIUM_PARAMS = {
+    "filter_speckle": 4,
+    "color_precision": 6,
+    "layer_difference": 16,
+    "corner_threshold": 60,
+    "length_threshold": 4.0,
+    "max_iterations": 10,
+    "splice_threshold": 45,
+    "path_precision": 3,
 }
 
 
@@ -193,35 +170,31 @@ def threshold_alpha(image: Image.Image, threshold: int = 255) -> Image.Image:
     return output
 
 
-def quantize_image(image: Image.Image, color_count: int) -> Image.Image:
-    # Fully transparent pixels still carry RGB values. Build the palette from visible pixels only
-    # so an invisible background neither pollutes nor consumes one of the requested color slots.
+def quantize_intermediate_colors(image: Image.Image) -> Image.Image:
+    """Merge nearby raster colors without imposing a motif palette-size limit."""
     source = Image.new("RGBA", image.size, (255, 255, 255, 0))
     source.alpha_composite(image.convert("RGBA"))
-    alpha = source.getchannel("A")
     pixels = cast(Sequence[RGBA], source.get_flattened_data())
-    visible = [cast(RGB, pixel[:3]) for pixel in pixels if pixel[3] > 0]
-    if not visible:
-        return source
 
-    foreground = Image.new("RGB", (len(visible), 1))
-    foreground.putdata(visible)
-    reduced = foreground.quantize(
-        colors=color_count,
-        method=Image.Quantize.MEDIANCUT,
-        dither=Image.Dither.NONE,
+    def quantize_channel(value: int) -> int:
+        # Sixteen evenly spaced values retain distinct flat fills while collapsing small
+        # raster variations introduced around otherwise solid generated shapes.
+        return min(255, ((value + 8) // 17) * 17)
+
+    output = Image.new("RGBA", source.size)
+    output.putdata(
+        [
+            (
+                quantize_channel(pixel[0]),
+                quantize_channel(pixel[1]),
+                quantize_channel(pixel[2]),
+                pixel[3],
+            )
+            if pixel[3] > 0
+            else (255, 255, 255, 0)
+            for pixel in pixels
+        ]
     )
-    colors = sorted(set(cast(Sequence[RGB], reduced.convert("RGB").get_flattened_data())))
-    fixed_palette = Image.new("P", (1, 1))
-    fixed_palette.putpalette(
-        [channel for index in range(256) for channel in colors[index % len(colors)]]
-    )
-    quantized = source.convert("RGB").quantize(
-        palette=fixed_palette,
-        dither=Image.Dither.NONE,
-    )
-    output = quantized.convert("RGBA")
-    output.putalpha(alpha)
     return output
 
 
@@ -288,31 +261,19 @@ def canonicalize_vtracer_svg(raw_svg: str, width: int, height: int) -> str:
     return svg
 
 
-def trace_quantized_image(
-    image: Image.Image,
-    *,
-    simplification: Literal["low", "medium", "high"],
-    color_count: int,
-) -> str:
+def trace_quantized_image(image: Image.Image) -> str:
     """Trace a quantized RGBA image and enforce the shared SVG complexity budget."""
-    if not 1 <= color_count <= 6:
-        raise ValueError("color_count must be between 1 and 6")
     pixels = list(cast(Sequence[RGBA], image.get_flattened_data()))
     palette = sorted({pixel[:3] for pixel in pixels if pixel[3] > 0})
     if not palette:
         raise ValueError("quantized image has no visible colors")
-    if len(palette) > color_count:
-        raise ValueError(
-            f"quantized image has {len(palette)} visible colors after a {color_count}-color cap"
-        )
-    params = SIMPLIFICATION_PRESETS[simplification]
     raw_svg = vtracer.convert_pixels_to_svg(
         pixels,
         image.size,
         colormode="color",
         hierarchical="stacked",
         mode="spline",
-        **params,
+        **_VTRACER_MEDIUM_PARAMS,
     )
     svg = canonicalize_vtracer_svg(raw_svg, *image.size)
     root = parse_svg_tree(svg)
@@ -336,11 +297,7 @@ def photo_to_svg(
     declared_type: str,
     *,
     remove_background: bool,
-    simplification: Literal["low", "medium", "high"],
-    color_count: int,
 ) -> PhotoMotifResult:
-    if not 1 <= color_count <= 6:
-        raise ValueError("color_count must be between 1 and 6")
     image = decode_user_image(data, declared_type)
     image.thumbnail((MAX_VECTOR_SIDE, MAX_VECTOR_SIDE), Image.Resampling.LANCZOS)
     confidence: float | None = None
@@ -348,9 +305,9 @@ def photo_to_svg(
     if remove_background:
         image, confidence = remove_flat_border_background(image)
         warnings.append("automatic separation is limited to flat border-connected backgrounds")
-    image = quantize_image(image, color_count)
+    image = quantize_intermediate_colors(image)
     preview = _preview_png(image)
-    svg = trace_quantized_image(image, simplification=simplification, color_count=color_count)
+    svg = trace_quantized_image(image)
     return PhotoMotifResult(
         svg=svg,
         processed_preview_base64=base64.b64encode(preview).decode("ascii"),

@@ -116,7 +116,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("embedding_vertex", pgvector.sqlalchemy.Vector(dim=3072), nullable=True),
-        sa.Column("source", sa.Text(), server_default="recraft", nullable=False),
+        sa.Column("source", sa.Text(), nullable=False),
         sa.Column("variant_group", sa.Text(), nullable=True),
         sa.Column("status", sa.Text(), server_default="pending", nullable=False),
         sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
@@ -474,7 +474,9 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             nullable=True,
         ),
-        sa.Column("recraft_used", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column(
+            "motif_generation_used", sa.Integer(), server_default=sa.text("0"), nullable=False
+        ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -495,7 +497,9 @@ def upgrade() -> None:
             name=op.f("ck_design_sessions_active_generation_pair"),
         ),
         sa.CheckConstraint("context_version >= 0", name=op.f("ck_design_sessions_context_version")),
-        sa.CheckConstraint("recraft_used >= 0", name=op.f("ck_design_sessions_recraft_used")),
+        sa.CheckConstraint(
+            "motif_generation_used >= 0", name=op.f("ck_design_sessions_motif_generation_used")
+        ),
         sa.ForeignKeyConstraint(
             ["user_id"], ["users.id"], name=op.f("fk_design_sessions_user_id_users")
         ),
