@@ -1,0 +1,33 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": ["uv", "wrangler"],
+  "ignoreDependencies": ["dependency-cruiser", "jscpd", "react-doctor"],
+  "ignoreFiles": [
+    "dependency-cruiser.config.mjs",
+    "scripts/gc/check-docs.mjs",
+    "scripts/gc/check-module-roots.mjs",
+    "scripts/gc/fixtures/**"
+  ],
+  "ignoreWorkspaces": ["packages/api-client"],
+  "workspaces": {
+    "apps/admin": {
+      "entry": ["src/main.tsx", "vite.config.ts", "vitest.config.ts"],
+      "ignoreDependencies": ["tailwindcss"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "vite": false
+    },
+    "apps/store": {
+      "entry": ["src/main.tsx", "vite.config.ts", "vitest.config.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "vite": false
+    },
+    "packages/shared": {
+      "entry": ["src/index.ts", "src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "infra/cloudflare/api-proxy": {
+      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    }
+  }
+}
