@@ -14,8 +14,8 @@ import { useControllableState } from "./internal/use-controllable-state";
 type AccordionVariant = "inline" | "separated";
 
 type AccordionContextValue = {
-  openValues: string[];
-  toggle: (value: string) => void;
+  openValues: readonly string[];
+  setItemOpen: (value: string, open: boolean) => void;
   variant: AccordionVariant;
   idPrefix: string;
 };
@@ -23,36 +23,41 @@ type AccordionContextValue = {
 const AccordionContext = createContext<AccordionContextValue | null>(null);
 
 function useAccordionContext() {
-  const ctx = use(AccordionContext);
-  if (!ctx) {
+  const context = use(AccordionContext);
+  if (context === null) {
     throw new Error(
       "Accordion 하위 컴포넌트는 <Accordion> 안에서만 사용할 수 있습니다.",
     );
   }
-  return ctx;
+  return context;
 }
 
-const AccordionItemContext = createContext<string | null>(null);
+type AccordionItemContextValue = {
+  value: string;
+  open: boolean;
+};
 
-function useAccordionItemValue() {
-  const value = use(AccordionItemContext);
-  if (value === null) {
+const AccordionItemContext = createContext<AccordionItemContextValue | null>(
+  null,
+);
+
+function useAccordionItemContext() {
+  const context = use(AccordionItemContext);
+  if (context === null) {
     throw new Error(
       "AccordionTrigger·AccordionContent는 <AccordionItem> 안에서만 사용할 수 있습니다.",
     );
   }
-  return value;
+  return context;
 }
 
-function toArray(value: string[] | string | undefined): string[] | undefined {
-  if (value === undefined) return undefined;
+function values(value: string[] | string | undefined) {
+  if (value === undefined) return [];
   return Array.isArray(value) ? value : [value];
 }
 
 export type AccordionProps = {
   type?: "single" | "multiple";
-  /** single일 때 열린 항목을 다시 눌러 전부 닫기 허용 (기본 true) */
-  collapsible?: boolean;
   value?: string[] | string;
   defaultValue?: string[] | string;
   onValueChange?: (value: string[]) => void;
@@ -61,10 +66,9 @@ export type AccordionProps = {
   className?: string;
 };
 
-/** 접이식 목록 — 내부 상태는 열린 value의 string[]로 정규화. */
+/** 네이티브 details/summary 기반 접이식 목록. */
 export function Accordion({
   type = "single",
-  collapsible = true,
   value,
   defaultValue,
   onValueChange,
@@ -73,31 +77,30 @@ export function Accordion({
   className,
 }: AccordionProps) {
   const idPrefix = useId();
-  const [openValues, setOpenValues] = useControllableState<string[]>({
-    value: toArray(value),
-    defaultValue: toArray(defaultValue) ?? [],
+  const [openValues, setOpenValues] = useControllableState({
+    value: value === undefined ? undefined : values(value),
+    defaultValue: values(defaultValue),
     onChange: onValueChange,
   });
-
-  function toggle(itemValue: string) {
-    const isOpen = openValues.includes(itemValue);
-    if (type === "single") {
-      if (isOpen) {
-        setOpenValues(collapsible ? [] : openValues);
-      } else {
-        setOpenValues([itemValue]);
-      }
+  const setItemOpen = (itemValue: string, open: boolean) => {
+    if (open === openValues.includes(itemValue)) return;
+    if (open) {
+      setOpenValues(
+        type === "single" ? [itemValue] : [...openValues, itemValue],
+      );
       return;
     }
-    setOpenValues(
-      isOpen
-        ? openValues.filter((v) => v !== itemValue)
-        : [...openValues, itemValue],
-    );
-  }
-
+    setOpenValues(openValues.filter((item) => item !== itemValue));
+  };
   return (
-    <AccordionContext value={{ openValues, toggle, variant, idPrefix }}>
+    <AccordionContext
+      value={{
+        openValues,
+        setItemOpen,
+        variant,
+        idPrefix,
+      }}
+    >
       <div
         className={cn(
           variant === "separated" && "flex flex-col gap-x3",
@@ -115,101 +118,89 @@ export type AccordionItemProps = {
   children: ReactNode;
 };
 
-/** 접이식 항목 — 자기 value를 하위에 제공. */
 export function AccordionItem({ value, children }: AccordionItemProps) {
-  const { variant } = useAccordionContext();
+  const { openValues, setItemOpen, variant } = useAccordionContext();
+  const open = openValues.includes(value);
   return (
-    <AccordionItemContext value={value}>
-      <div
-        className={
+    <AccordionItemContext value={{ value, open }}>
+      <details
+        open={open}
+        onToggle={(event) => setItemOpen(value, event.currentTarget.open)}
+        className={cn(
+          "group",
           variant === "inline"
             ? "border-b border-stroke-neutral-weak"
-            : "rounded-r3 border border-stroke-neutral-weak"
-        }
+            : "rounded-r3 border border-stroke-neutral-weak",
+        )}
       >
         {children}
-      </div>
+      </details>
     </AccordionItemContext>
   );
 }
 
-export type AccordionTriggerProps = ComponentPropsWithRef<"button">;
+export type AccordionTriggerProps = Omit<
+  ComponentPropsWithRef<"summary">,
+  "aria-disabled"
+> & {
+  disabled?: boolean;
+};
 
-/** 접이식 항목 헤더 버튼 — h3로 감싸고 셰브론 회전. */
 export function AccordionTrigger({
   children,
   className,
+  disabled = false,
   onClick,
   ...props
 }: AccordionTriggerProps) {
-  const { openValues, toggle, idPrefix } = useAccordionContext();
-  const value = useAccordionItemValue();
-  const open = openValues.includes(value);
+  const { idPrefix } = useAccordionContext();
+  const { value, open } = useAccordionItemContext();
   return (
-    <h3 className="m-0">
-      <button
-        type="button"
-        id={`${idPrefix}-${value}-trigger`}
-        aria-expanded={open}
-        aria-controls={`${idPrefix}-${value}-content`}
-        onClick={(event) => {
-          onClick?.(event);
-          toggle(value);
-        }}
-        className={cn(
-          "flex w-full items-center justify-between gap-x2 px-x4 py-x4 text-left text-t5 font-medium transition-colors duration-(--duration-fast) ease-standard hover:bg-bg-neutral-weak",
-          focusRingInset,
-          className,
-        )}
-        {...props}
-      >
-        {children}
-        <ChevronDownGlyph
-          className={cn(
-            "size-4 shrink-0 text-fg-neutral-muted transition-transform duration-(--duration-normal) ease-standard",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-    </h3>
+    // Expose summary's implicit button role consistently to DOM accessibility tools.
+    // biome-ignore lint/a11y/useSemanticElements: summary provides native disclosure behavior
+    <summary
+      id={`${idPrefix}-${value}-trigger`}
+      role="button"
+      aria-controls={`${idPrefix}-${value}-content`}
+      aria-expanded={open}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : undefined}
+      onClick={(event) => {
+        onClick?.(event);
+        if (disabled) event.preventDefault();
+      }}
+      className={cn(
+        "flex w-full cursor-pointer list-none items-center justify-between gap-x2 px-x4 py-x4 text-left text-t5 font-medium marker:hidden hover:bg-bg-neutral-weak aria-disabled:cursor-default aria-disabled:text-fg-disabled",
+        focusRingInset,
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronDownGlyph className="size-4 shrink-0 text-fg-neutral-muted group-open:rotate-180" />
+    </summary>
   );
 }
 
 export type AccordionContentProps = ComponentPropsWithRef<"section">;
 
-/** 접이식 본문 — grid-template-rows 0fr↔1fr 높이 애니메이션. 닫혀도 DOM 유지. */
 export function AccordionContent({
   children,
   className,
-  style,
   ...props
 }: AccordionContentProps) {
-  const { openValues, idPrefix } = useAccordionContext();
-  const value = useAccordionItemValue();
-  const open = openValues.includes(value);
+  const { idPrefix } = useAccordionContext();
+  const { value, open } = useAccordionItemContext();
   return (
-    <div
-      className="grid"
-      style={{
-        gridTemplateRows: open ? "1fr" : "0fr",
-        transition:
-          "grid-template-rows var(--duration-normal) var(--ease-standard)",
-      }}
+    <section
+      id={`${idPrefix}-${value}-content`}
+      aria-labelledby={`${idPrefix}-${value}-trigger`}
+      aria-hidden={open ? undefined : true}
+      inert={open ? undefined : true}
+      className={cn("px-x4 pb-x4 text-t4 text-fg-neutral-muted", className)}
+      {...props}
     >
-      <div className="min-h-0 overflow-hidden">
-        {/* aria-labelledby가 있는 section은 암묵적 region 랜드마크 */}
-        <section
-          id={`${idPrefix}-${value}-content`}
-          aria-labelledby={`${idPrefix}-${value}-trigger`}
-          aria-hidden={open ? undefined : true}
-          inert={open ? undefined : true}
-          className={cn("px-x4 pb-x4 text-t4 text-fg-neutral-muted", className)}
-          style={style}
-          {...props}
-        >
-          {children}
-        </section>
-      </div>
-    </div>
+      {children}
+    </section>
   );
 }

@@ -18,10 +18,9 @@ export type CompactFilterToolbarProps = {
   secondaryFilterCount?: number;
   secondaryTitle?: ReactNode;
   secondaryDescription?: ReactNode;
-  onOpenSecondaryFilters?: () => void;
+  onResetSecondaryFilters?: () => void;
   /** false를 반환하면 유효성 오류를 고칠 수 있도록 패널을 유지한다. */
   onApplySecondaryFilters?: () => false | undefined;
-  onCancelSecondaryFilters?: () => void;
 };
 
 /** 목록 카드 안에 두는 핵심 필터 행. 보조 필터의 초안 상태는 소비자가 소유한다. */
@@ -31,9 +30,8 @@ export function CompactFilterToolbar({
   secondaryFilterCount = 0,
   secondaryTitle = "상세 필터",
   secondaryDescription,
-  onOpenSecondaryFilters,
+  onResetSecondaryFilters,
   onApplySecondaryFilters,
-  onCancelSecondaryFilters,
 }: CompactFilterToolbarProps) {
   const [isOpen, setOpen] = useState(false);
   const breakpoint = useBreakpoint();
@@ -41,11 +39,11 @@ export function CompactFilterToolbar({
   const hasPrimaryControls = primaryControls != null;
 
   const openFilters = () => {
-    onOpenSecondaryFilters?.();
+    onResetSecondaryFilters?.();
     setOpen(true);
   };
   const cancelFilters = () => {
-    onCancelSecondaryFilters?.();
+    onResetSecondaryFilters?.();
     setOpen(false);
   };
   const applyFilters = () => {

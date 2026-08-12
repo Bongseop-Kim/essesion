@@ -8,7 +8,7 @@ export type FilePreview = {
 };
 
 function createFilePreview(file: File): FilePreview {
-  // oxlint-disable-next-line react-doctor/no-create-object-url-without-revoke -- removeFile and the unmount cleanup call this resource's revoke callback.
+  // removeFile and the unmount cleanup call this resource's revoke callback.
   const url = URL.createObjectURL(file);
   return {
     id: url,

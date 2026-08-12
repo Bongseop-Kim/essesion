@@ -176,11 +176,7 @@ export function ManualOrdersPage() {
               secondaryFilterCount={Number(
                 parsed.from !== undefined || parsed.to !== undefined,
               )}
-              onOpenSecondaryFilters={() => {
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
-              }}
-              onCancelSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftFrom(parsed.from);
                 setDraftTo(parsed.to);
               }}

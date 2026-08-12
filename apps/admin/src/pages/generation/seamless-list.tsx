@@ -265,12 +265,7 @@ export function SeamlessLogsPage() {
         }
         secondaryTitle="Seamless 상세 필터"
         secondaryDescription="상태와 조회 기간을 한 번에 적용합니다."
-        onOpenSecondaryFilters={() => {
-          setDraftStatus(status);
-          setDraftFrom(parsed.from);
-          setDraftTo(parsed.to);
-        }}
-        onCancelSecondaryFilters={() => {
+        onResetSecondaryFilters={() => {
           setDraftStatus(status);
           setDraftFrom(parsed.from);
           setDraftTo(parsed.to);

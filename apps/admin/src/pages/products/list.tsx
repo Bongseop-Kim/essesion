@@ -392,7 +392,7 @@ export function ProductsPage() {
               }
               secondaryTitle="상품 상세 필터"
               secondaryDescription="카테고리·색상·패턴·소재·등록일을 한 번에 적용합니다."
-              onOpenSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftCategory(category);
                 setDraftColor(color);
                 setDraftPattern(pattern);
@@ -410,14 +410,6 @@ export function ProductsPage() {
                   to: draftTo,
                   page: undefined,
                 });
-              }}
-              onCancelSecondaryFilters={() => {
-                setDraftCategory(category);
-                setDraftColor(color);
-                setDraftPattern(pattern);
-                setDraftMaterial(material);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
               }}
             />
             <AppliedFilterBar

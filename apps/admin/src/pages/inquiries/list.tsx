@@ -235,7 +235,7 @@ export function InquiriesPage() {
               }
               secondaryTitle="문의 상세 필터"
               secondaryDescription="답변 상태, 문의 분류, 문의일을 한 번에 적용합니다."
-              onOpenSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftCategory(category);
                 setDraftFrom(parsed.from);
@@ -249,12 +249,6 @@ export function InquiriesPage() {
                   to: draftTo,
                   page: 1,
                 });
-              }}
-              onCancelSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftCategory(category);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
               }}
             />
             <AppliedFilterBar

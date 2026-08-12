@@ -255,7 +255,7 @@ export function ReviewsPage() {
                 Number(orderType !== "all") + Number(rating !== "all")
               }
               secondaryTitle="후기 필터"
-              onOpenSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftOrderType(orderType);
                 setDraftRating(rating);
               }}
@@ -266,10 +266,6 @@ export function ReviewsPage() {
                   page: 1,
                 });
                 return undefined;
-              }}
-              onCancelSecondaryFilters={() => {
-                setDraftOrderType(orderType);
-                setDraftRating(rating);
               }}
             />
             <AppliedFilterBar

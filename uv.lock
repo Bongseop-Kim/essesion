@@ -22,7 +22,6 @@ dev = [
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "ruff", specifier = ">=0.12" },
-    { name = "vulture", specifier = "==2.16" },
 ]
 
 [[package]]
@@ -1902,15 +1901,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/45/15/cebd3926b023eb52f43286e5773d2bb9f4516817bf8d7b6352277d7c5149/vtracer-0.6.15-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:11b69b8b813951eb6e5e000bd3170f43f407449815af5f6b3a7140202ceea71e", size = 1285855, upload-time = "2026-03-23T15:37:39.248Z" },
     { url = "https://files.pythonhosted.org/packages/fb/28/7a7211a4b2fef3438a914a7f1f457b1dad2c0c2c1379385278563ca06f36/vtracer-0.6.15-cp314-cp314-win_amd64.whl", hash = "sha256:acc2a26607d32ca46824cb8bd87c5a4e6c031d921d55fdbec8c0f13e7e684958", size = 842764, upload-time = "2026-03-23T15:37:18.554Z" },
     { url = "https://files.pythonhosted.org/packages/89/c0/f4e7bb0b931f55ad91b0b372e99c55cef8132360b8d1864d13dcfa7ad4f4/vtracer-0.6.15-cp314-cp314-win_arm64.whl", hash = "sha256:64e2aabc5d019593e7ab2bec42b3437d32e1ec494be0fbd37b5806fe18a60d6d", size = 793126, upload-time = "2026-03-23T15:37:29.837Z" },
-]
-
-[[package]]
-name = "vulture"
-version = "2.16"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/66/3e/4d08c5903b2c0c70cad583c170cc4a663fc6a61e2ad00b711fcda61358cd/vulture-2.16.tar.gz", hash = "sha256:f8d9f6e2af03011664a3c6c240c9765b3f392917d3135fddca6d6a68d359f717", size = 52680, upload-time = "2026-03-25T14:41:27.141Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/be/f935130312330614811dae2ea9df3f395f6d63889eb6c2e68c14507152ee/vulture-2.16-py3-none-any.whl", hash = "sha256:6e0f1c312cef1c87856957e5c2ca9608834a7c794c2180477f30bf0e4cc58eee", size = 26993, upload-time = "2026-03-25T14:41:26.21Z" },
 ]
 
 [[package]]

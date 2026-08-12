@@ -208,7 +208,7 @@ export function CouponsPage() {
               }
               secondaryTitle="쿠폰 필터"
               secondaryDescription="활성 상태와 등록일을 한 번에 적용합니다."
-              onOpenSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftFrom(parsed.from);
                 setDraftTo(parsed.to);
@@ -220,11 +220,6 @@ export function CouponsPage() {
                   to: draftTo,
                   page: 1,
                 });
-              }}
-              onCancelSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
               }}
             />
             <AppliedFilterBar

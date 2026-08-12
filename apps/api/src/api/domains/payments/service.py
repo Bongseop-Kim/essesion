@@ -763,6 +763,9 @@ async def _record_webhook_incident(
     observed_amount: object,
     provider_status: str,
     details: dict[str, Any] | None = None,
+    operation_scope: str = "webhook",
+    operation_discriminator: str | None = None,
+    fingerprint_incident_type: bool = True,
 ) -> None:
     """자동 대사 불가 상태를 ACK 전에 관리자 queue에 멱등 기록한다."""
 
@@ -779,13 +782,15 @@ async def _record_webhook_incident(
         # payment_incidents._sanitize가 키 이름 기준으로 재귀 마스킹한다.
         "lookup_payment_key": payment_key,
     }
-    evidence_fingerprint = json.dumps(
-        {
-            "incident_type": incident_type,
-            "expected_amount": expected_amount,
-            "observed_amount": observed,
-            "details": incident_details,
-        },
+    evidence = {
+        "expected_amount": expected_amount,
+        "observed_amount": observed,
+        "details": incident_details,
+    }
+    if fingerprint_incident_type:
+        evidence["incident_type"] = incident_type
+    fingerprint = json.dumps(
+        evidence,
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
@@ -793,10 +798,8 @@ async def _record_webhook_incident(
     operation_id = str(
         uuid.uuid5(
             uuid.NAMESPACE_URL,
-            (
-                f"essesion:webhook:{representative.payment_group_id}:"
-                f"{payment_key}:{phase}:{evidence_fingerprint}"
-            ),
+            f"essesion:{operation_scope}:{representative.payment_group_id}:"
+            f"{payment_key}:{operation_discriminator or phase}:{fingerprint}",
         )
     )
     await session.execute(
@@ -1037,56 +1040,26 @@ async def _record_webhook_cancel_mismatch(
 ) -> None:
     """CANCELED 자동 반영을 막은 불일치를 관리자 대사 queue에 멱등 기록한다."""
 
-    representative = next(
-        (order for order in orders if order.payment_key == payment_key), orders[0]
-    )
-    observed = _non_negative_int(observed_amount)
-    incident_details = {
-        "phase": "webhook_cancel_verification_failed",
-        "payment_group_id": str(representative.payment_group_id),
-        "lookup_payment_key": payment_key,
-        "reason": reason,
-        "provider_payment_key_matches_lookup": provider_key_matches,
-        "stored_payment_keys_match_lookup": stored_keys_match,
-        "provider_status": "CANCELED",
-    }
-    evidence_fingerprint = json.dumps(
-        {
-            "expected_amount": expected_amount,
-            "observed_amount": observed,
-            "details": incident_details,
+    await _record_webhook_incident(
+        session,
+        orders=orders,
+        payment_key=payment_key,
+        # CANCELED 검증 실패는 confirm 금액 대사와 의미가 다르다. 자동 복구 대상이
+        # 아닌 mixed_state로 남기고 세부 원인은 details.reason으로 구분한다.
+        incident_type="mixed_state",
+        phase="webhook_cancel_verification_failed",
+        expected_amount=expected_amount,
+        observed_amount=observed_amount,
+        provider_status="CANCELED",
+        details={
+            "reason": reason,
+            "provider_payment_key_matches_lookup": provider_key_matches,
+            "stored_payment_keys_match_lookup": stored_keys_match,
         },
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
+        operation_scope="webhook-cancel",
+        operation_discriminator=reason,
+        fingerprint_incident_type=False,
     )
-    operation_id = str(
-        uuid.uuid5(
-            uuid.NAMESPACE_URL,
-            (
-                f"essesion:webhook-cancel:{representative.payment_group_id}:"
-                f"{payment_key}:{reason}:{evidence_fingerprint}"
-            ),
-        )
-    )
-    await session.execute(
-        pg_insert(PaymentIncident)
-        .values(
-            operation_id=operation_id,
-            # CANCELED 검증 실패는 confirm 금액 대사와 의미가 다르다. 자동 복구 대상이
-            # 아닌 mixed_state로 남기고 세부 원인은 details.reason으로 구분한다.
-            incident_type="mixed_state",
-            status="open",
-            request_id=request_id_var.get() or "unknown",
-            actor_id=None,
-            order_id=representative.id,
-            expected_amount=expected_amount,
-            observed_amount=observed,
-            details=incident_details,
-        )
-        .on_conflict_do_nothing(index_elements=[PaymentIncident.operation_id])
-    )
-    await session.commit()
 
 
 async def _claw_back_purchased_tokens(session: AsyncSession, order: Order) -> None:

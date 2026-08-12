@@ -36,7 +36,7 @@ export function TechnicalDetails({
   };
 
   return (
-    <Accordion type="single" collapsible variant="separated">
+    <Accordion type="single" variant="separated">
       <AccordionItem value="technical-details">
         <AccordionTrigger>{title}</AccordionTrigger>
         <AccordionContent>

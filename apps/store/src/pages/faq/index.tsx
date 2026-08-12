@@ -48,7 +48,7 @@ export function FaqPage() {
                 {pricingStatus}
               </Text>
             ) : null}
-            <Accordion type="single" collapsible>
+            <Accordion type="single">
               {VISIBLE_FAQS.map((faq) => (
                 <AccordionItem key={faq.id} value={faq.id}>
                   <AccordionTrigger>

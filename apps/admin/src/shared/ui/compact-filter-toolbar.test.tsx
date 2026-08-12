@@ -56,17 +56,15 @@ describe("CompactFilterToolbar", () => {
 
   it("활성 개수를 표시하고 보조 필터를 적용한다", async () => {
     const user = userEvent.setup();
-    const onOpen = vi.fn();
+    const onReset = vi.fn();
     const onApply = vi.fn();
-    const onCancel = vi.fn();
     render(
       <CompactFilterToolbar
         primaryControls={<Text>주문 검색</Text>}
         secondaryFilters={<Text>조회 기간</Text>}
         secondaryFilterCount={2}
-        onOpenSecondaryFilters={onOpen}
+        onResetSecondaryFilters={onReset}
         onApplySecondaryFilters={onApply}
-        onCancelSecondaryFilters={onCancel}
       />,
     );
 
@@ -75,7 +73,7 @@ describe("CompactFilterToolbar", () => {
 
     await user.click(trigger);
 
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onReset).toHaveBeenCalledTimes(1);
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByRole("dialog", { name: "상세 필터" })).toBeTruthy();
     expect(screen.getByText("조회 기간")).toBeTruthy();
@@ -83,18 +81,18 @@ describe("CompactFilterToolbar", () => {
     await user.click(screen.getByRole("button", { name: "필터 적용" }));
 
     expect(onApply).toHaveBeenCalledTimes(1);
-    expect(onCancel).not.toHaveBeenCalled();
+    expect(onReset).toHaveBeenCalledTimes(1);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("취소하면 초안 폐기 콜백을 실행한다", async () => {
     const user = userEvent.setup();
-    const onCancel = vi.fn();
+    const onReset = vi.fn();
     render(
       <CompactFilterToolbar
         primaryControls={<Text>고객 검색</Text>}
         secondaryFilters={<Text>가입 기간</Text>}
-        onCancelSecondaryFilters={onCancel}
+        onResetSecondaryFilters={onReset}
       />,
     );
 
@@ -102,7 +100,7 @@ describe("CompactFilterToolbar", () => {
     await user.click(trigger);
     await user.click(screen.getByRole("button", { name: "취소" }));
 
-    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onReset).toHaveBeenCalledTimes(2);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
