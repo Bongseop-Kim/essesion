@@ -2,16 +2,26 @@
 
 import asyncio
 import base64
+import io
 import json
 import traceback
 
 import httpx
 import pytest
 import respx
+from PIL import Image
 from pydantic import ValidationError
 from svg_safety import parse_svg_tree
 from worker.adapters import AdapterClientError, AdapterNotConfigured
 from worker.adapters.embedding import EmbeddingError, OpenAIEmbeddingClient, embed_query
+from worker.adapters.gpt_image import (
+    GPTImageError,
+    GPTImageHTTPClient,
+    _build_gpt_image_prompt,
+)
+from worker.adapters.gpt_image import (
+    generate_motif as generate_gpt_image_motif,
+)
 from worker.adapters.llm import (
     AUTHORING_SYSTEM_INSTRUCTION,
     PATCH_SYSTEM_INSTRUCTION,
@@ -41,6 +51,7 @@ from worker.engine.validate import IntentInvalid
 _SETTINGS = Settings(motif_render_check=False)
 _CHAT_URL = "https://api.openai.com/v1/chat/completions"
 _EMBED_URL = "https://api.openai.com/v1/embeddings"
+_IMAGE_URL = "https://api.openai.com/v1/images/generations"
 
 
 def _chat_response(payload: dict | str) -> httpx.Response:
@@ -239,6 +250,152 @@ async def test_generate_motif_does_not_chain_client_exception_into_serialized_er
     assert caught.value.reason_code == "request_failed"
     assert caught.value.__cause__ is None
     assert secret not in "".join(traceback.format_exception(caught.value))
+
+
+# ---- GPT Image pilot adapter ----
+
+
+def _gpt_png(*, empty: bool = False) -> bytes:
+    image = Image.new("RGB", (64, 64), "white")
+    if not empty:
+        for y in range(16, 48):
+            for x in range(16, 48):
+                image.putpixel((x, y), (220, 20, 40))
+    output = io.BytesIO()
+    image.save(output, "PNG")
+    return output.getvalue()
+
+
+class _FakeGPTImage:
+    def __init__(self, images: list[bytes]) -> None:
+        self._images = list(images)
+        self.requests: list[tuple[str, int | None]] = []
+
+    async def generate(self, prompt: str, *, seed: int | None = None) -> bytes:
+        self.requests.append((prompt, seed))
+        return self._images.pop(0)
+
+
+async def test_gpt_image_generate_motif_first_try_uses_shared_vector_gate():
+    client = _FakeGPTImage([_gpt_png()])
+
+    motif = await generate_gpt_image_motif(
+        {"subject": "red square"}, client=client, settings=_SETTINGS, seed=7
+    )
+
+    assert motif.id.startswith("gpt-image-")
+    assert len(client.requests) == 1
+    assert "User description: red square" in client.requests[0][0]
+    assert "plain pure-white canvas" in client.requests[0][0]
+    assert "at least 10% clear whitespace on every side" in client.requests[0][0]
+    assert client.requests[0][1] == 7
+    root = parse_svg_tree(motif.preview_svg)
+    assert root.get("viewBox") == "0 0 64 64"
+    assert any(
+        element.tag.rsplit("}", 1)[-1] == "rect"
+        and element.get("fill") == "none"
+        and element.get("stroke") == "none"
+        for element in root
+    )
+
+
+async def test_gpt_image_generate_motif_reprompts_once_after_gate_failure():
+    client = _FakeGPTImage([_gpt_png(empty=True), _gpt_png()])
+
+    motif = await generate_gpt_image_motif(
+        {"subject": "red square"}, client=client, settings=_SETTINGS
+    )
+
+    assert motif.id.startswith("gpt-image-")
+    assert len(client.requests) == 2
+    assert "previous image was rejected" in client.requests[1][0]
+    assert "empty or frame-filling" in client.requests[1][0]
+
+
+async def test_gpt_image_generate_motif_fails_after_two_gate_failures():
+    client = _FakeGPTImage([_gpt_png(empty=True), _gpt_png(empty=True)])
+
+    with pytest.raises(GPTImageError) as caught:
+        await generate_gpt_image_motif({"subject": "empty"}, client=client, settings=_SETTINGS)
+
+    assert caught.value.reason_code == "suitability_gate_failed"
+    assert len(client.requests) == 2
+
+
+async def test_gpt_image_generate_motif_unconfigured_raises():
+    with pytest.raises(AdapterNotConfigured):
+        await generate_gpt_image_motif({"subject": "dot"}, client=None, settings=_SETTINGS)
+
+
+def test_gpt_image_retry_prompt_clamps_gate_error():
+    prompt = _build_gpt_image_prompt({"subject": "dot"}, errors=["x" * 1000])
+
+    assert "x" * 160 in prompt
+    assert "x" * 161 not in prompt
+
+
+@respx.mock
+async def test_gpt_image_http_posts_supported_gpt_image_2_fields_and_parses_png():
+    png = _gpt_png()
+    route = respx.post(_IMAGE_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={"data": [{"b64_json": base64.b64encode(png).decode("ascii")}]},
+        )
+    )
+    client = GPTImageHTTPClient("k")
+    try:
+        assert await client.generate("dot", seed=123) == png
+        payload = json.loads(route.calls.last.request.content)
+        assert payload == {
+            "model": "gpt-image-2",
+            "prompt": "dot",
+            "quality": "low",
+            "size": "1024x1024",
+            "n": 1,
+        }
+    finally:
+        await client.aclose()
+
+
+@respx.mock
+async def test_gpt_image_http_retries_transient_status(monkeypatch):
+    png = _gpt_png()
+    route = respx.post(_IMAGE_URL).mock(
+        side_effect=[
+            httpx.Response(429),
+            httpx.Response(
+                200,
+                json={"data": [{"b64_json": base64.b64encode(png).decode("ascii")}]},
+            ),
+        ]
+    )
+
+    async def _sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("worker.adapters.gpt_image.asyncio.sleep", _sleep)
+    client = GPTImageHTTPClient("k")
+    try:
+        assert await client.generate("dot") == png
+        assert route.call_count == 2
+    finally:
+        await client.aclose()
+
+
+@respx.mock
+async def test_gpt_image_http_rejects_invalid_base64_without_leaking_payload():
+    respx.post(_IMAGE_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"b64_json": "not base64!"}]})
+    )
+    client = GPTImageHTTPClient("k")
+    try:
+        with pytest.raises(GPTImageError, match="malformed response") as caught:
+            await client.generate("dot")
+        assert caught.value.reason_code == "invalid_response"
+        assert "not base64" not in str(caught.value)
+    finally:
+        await client.aclose()
 
 
 @respx.mock

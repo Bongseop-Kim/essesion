@@ -5,11 +5,14 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from svg_safety import parse_svg_tree
 from worker.motifs.normalize import normalize_motif_svg
 from worker.motifs.photo_svg import (
-    _canonicalize_vtracer_svg,
+    canonicalize_vtracer_svg,
     decode_user_image,
     photo_to_svg,
+    quantize_image,
+    threshold_alpha,
 )
 from worker.motifs.text_svg import normalize_text_motif_input, text_to_svg
 
@@ -142,6 +145,54 @@ def test_photo_mime_is_verified_from_bytes():
         decode_user_image(_simple_photo(), "image/jpeg")
 
 
+def test_alpha_threshold_drops_semitransparent_antialiasing():
+    image = Image.new("RGBA", (3, 1))
+    image.putdata([(1, 2, 3, 0), (1, 2, 3, 254), (1, 2, 3, 255)])
+
+    assert list(threshold_alpha(image).getchannel("A").get_flattened_data()) == [0, 0, 255]
+
+
+def test_quantization_ignores_rgb_hidden_beneath_fully_transparent_pixels():
+    white_hidden = Image.new("RGBA", (32, 32), (255, 255, 255, 0))
+    black_hidden = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    for image in (white_hidden, black_hidden):
+        for y in range(8, 24):
+            for x in range(8, 16):
+                image.putpixel((x, y), (220, 20, 40, 255))
+            for x in range(16, 24):
+                image.putpixel((x, y), (20, 120, 60, 255))
+
+    first = quantize_image(white_hidden, 3)
+    second = quantize_image(black_hidden, 3)
+
+    assert first.tobytes() == second.tobytes()
+
+
+def test_quantization_reserves_the_full_color_budget_for_visible_pixels():
+    image = Image.new("RGBA", (128, 128), (255, 255, 255, 0))
+    colors = [
+        (220, 20, 40, 255),
+        (20, 120, 60, 255),
+        (20, 60, 180, 255),
+        (240, 180, 20, 255),
+        (130, 50, 180, 255),
+        (20, 160, 170, 255),
+    ]
+    for index, color in enumerate(colors):
+        for y in range(16, 32):
+            for x in range(16 + index * 16, 32 + index * 16):
+                image.putpixel((x, y), color)
+
+    quantized = quantize_image(image, 6)
+    visible = {
+        pixel[:3]
+        for pixel in quantized.get_flattened_data()
+        if isinstance(pixel, tuple) and pixel[3] > 0
+    }
+
+    assert visible == {color[:3] for color in colors}
+
+
 def test_photo_pixel_cap_fails_before_decode(monkeypatch):
     monkeypatch.setattr("worker.motifs.photo_svg.MAX_PHOTO_PIXELS", 1_000)
     with pytest.raises(ValueError, match="too many pixels"):
@@ -165,10 +216,10 @@ def test_photo_pixel_cap_fails_before_decode(monkeypatch):
 def test_vector_svg_structural_caps_fail_closed(monkeypatch, limit_name, limit, svg, message):
     monkeypatch.setattr(f"worker.motifs.photo_svg.{limit_name}", limit)
     with pytest.raises(ValueError, match=message):
-        _canonicalize_vtracer_svg(svg, 1, 1)
+        canonicalize_vtracer_svg(svg, 1, 1)
 
 
-def test_photo_vectorizer_color_cap_fails_closed(monkeypatch):
+def test_photo_vectorizer_snaps_synthesized_colors_back_to_quantized_palette(monkeypatch):
     monkeypatch.setattr(
         "worker.motifs.photo_svg.vtracer.convert_pixels_to_svg",
         lambda *_args, **_kwargs: (
@@ -176,14 +227,20 @@ def test_photo_vectorizer_color_cap_fails_closed(monkeypatch):
             '<path fill="#445566" d="M0 0L0 1L1 1Z"/></svg>'
         ),
     )
-    with pytest.raises(ValueError, match="2 colors after a 1-color cap"):
-        photo_to_svg(
-            _simple_photo(),
-            "image/png",
-            remove_background=False,
-            simplification="medium",
-            color_count=1,
-        )
+    result = photo_to_svg(
+        _simple_photo(),
+        "image/png",
+        remove_background=False,
+        simplification="medium",
+        color_count=1,
+    )
+
+    fills = {
+        value
+        for element in parse_svg_tree(result.svg).iter()
+        if (value := element.get("fill")) is not None
+    }
+    assert len(fills) == 1
 
 
 def test_multicolor_standalone_preview_preserves_paints_and_identity():
