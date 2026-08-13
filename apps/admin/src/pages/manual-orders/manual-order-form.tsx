@@ -9,8 +9,10 @@ import {
   Box,
   Callout,
   Checkbox,
+  canonicalizePhoneNumber,
   Grid,
   HStack,
+  PhoneField,
   SegmentedControl,
   SegmentedControlItem,
   Text,
@@ -182,7 +184,9 @@ function validateDraft(draft: ManualOrderDraft): DraftErrors {
   if (draft.customerName.trim() === "") {
     errors.customerName = "이름을 입력해 주세요.";
   }
-  if (draft.phone.trim() === "") errors.phone = "휴대폰 번호를 입력해 주세요.";
+  if (!/^01\d{8,9}$/.test(canonicalizePhoneNumber(draft.phone))) {
+    errors.phone = "올바른 휴대폰 번호를 입력해 주세요.";
+  }
   if (nonNegativeInteger(draft.amount) === undefined) {
     errors.amount = "0 이상의 정수를 입력해 주세요.";
   }
@@ -228,7 +232,7 @@ export function manualOrderDraftBody(
   return {
     order_date: draft.orderDate,
     customer_name: draft.customerName.trim(),
-    phone: draft.phone.trim(),
+    phone: canonicalizePhoneNumber(draft.phone),
     address: optionalText(draft.address),
     amount: Number(draft.amount),
     shipping_fee: Number(draft.shippingFee),
@@ -364,14 +368,13 @@ export function ManualOrderForm({
                   update("customerName", event.currentTarget.value)
                 }
               />
-              <TextField
+              <PhoneField
                 label="휴대폰"
                 required
-                maxLength={20}
                 value={draft.phone}
                 errorMessage={attempted ? errors.phone : undefined}
                 disabled={pending}
-                onChange={(event) => update("phone", event.currentTarget.value)}
+                onValueChange={(value) => update("phone", value)}
               />
               <TextField
                 label="주소"
@@ -385,6 +388,7 @@ export function ManualOrderForm({
               <NumberField
                 label="금액"
                 suffix="원"
+                groupThousands
                 required
                 value={draft.amount}
                 errorMessage={attempted ? errors.amount : undefined}
@@ -394,6 +398,7 @@ export function ManualOrderForm({
               <NumberField
                 label="택배비"
                 suffix="원"
+                groupThousands
                 value={draft.shippingFee}
                 errorMessage={attempted ? errors.shippingFee : undefined}
                 disabled={pending}

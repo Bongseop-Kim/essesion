@@ -103,6 +103,14 @@ export {
 } from "./components/menu";
 export type { ModalProps } from "./components/modal";
 export { Modal } from "./components/modal";
+export type { PhoneFieldProps } from "./components/phone-field";
+export {
+  canonicalizePhoneNumber,
+  formatPhoneInput,
+  formatPhoneNumber,
+  normalizePhoneNumber,
+  PhoneField,
+} from "./components/phone-field";
 export type { ProgressCircleProps } from "./components/progress-circle";
 export { ProgressCircle } from "./components/progress-circle";
 export type {

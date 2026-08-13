@@ -112,6 +112,7 @@ export function AddressFormModal({
         <VStack gap="x4" alignItems="stretch">
           <AddressFormFields
             register={form.register}
+            control={form.control}
             errors={form.formState.errors}
             setValue={form.setValue}
           />

@@ -10,6 +10,7 @@ import {
   Badge,
   Box,
   ContentPlaceholder,
+  formatPhoneNumber,
   HStack,
   Skeleton,
   snackbar,
@@ -184,7 +185,7 @@ export function ManualOrderDetailPage() {
           items={[
             { label: "날짜", value: formatDate(order.order_date) },
             { label: "이름", value: order.customer_name },
-            { label: "휴대폰", value: order.phone },
+            { label: "휴대폰", value: formatPhoneNumber(order.phone) },
             {
               label: "주소",
               value:

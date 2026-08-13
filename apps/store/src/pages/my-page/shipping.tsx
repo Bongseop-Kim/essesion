@@ -11,6 +11,7 @@ import {
   Badge,
   Box,
   ContentPlaceholder,
+  formatPhoneNumber,
   HStack,
   Skeleton,
   snackbar,
@@ -165,7 +166,9 @@ export function ShippingPage() {
                         </Text>
                         {address.is_default ? <Badge>기본</Badge> : null}
                       </HStack>
-                      <Text textStyle="bodySm">{address.recipient_phone}</Text>
+                      <Text textStyle="bodySm">
+                        {formatPhoneNumber(address.recipient_phone)}
+                      </Text>
                       <Text textStyle="bodySm" color="fg.neutral-muted">
                         ({address.postal_code}) {address.address}{" "}
                         {address.address_detail ?? ""}

@@ -4,6 +4,7 @@ import {
   Badge,
   Box,
   ContentPlaceholder,
+  formatPhoneNumber,
   HStack,
   List,
   ListHeader,
@@ -126,7 +127,9 @@ export function MyPage() {
                 {me.email ?? "이메일 정보 없음"}
               </Text>
               <Text textStyle="bodySm" color="fg.neutral-muted">
-                {me.phone ?? "휴대폰 번호를 등록해 주세요."}
+                {me.phone
+                  ? formatPhoneNumber(me.phone)
+                  : "휴대폰 번호를 등록해 주세요."}
               </Text>
             </VStack>
           </Box>

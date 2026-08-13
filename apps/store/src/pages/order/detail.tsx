@@ -24,6 +24,7 @@ import {
   claimBadge,
   Divider,
   decodeOrderItemContent,
+  formatPhoneNumber,
   Grid,
   HStack,
   ImageFrame,
@@ -230,7 +231,9 @@ export function OrderDetailPage() {
               />
               <InfoRow
                 label="연락처"
-                value={order.shipping_address.recipient_phone}
+                value={formatPhoneNumber(
+                  order.shipping_address.recipient_phone,
+                )}
               />
               <InfoRow
                 label="주소"
@@ -260,7 +263,7 @@ export function OrderDetailPage() {
               </Text>
               <InfoRow
                 label="수거 대상"
-                value={`${order.repair_pickup.recipient_name} · ${order.repair_pickup.recipient_phone}`}
+                value={`${order.repair_pickup.recipient_name} · ${formatPhoneNumber(order.repair_pickup.recipient_phone)}`}
               />
               <InfoRow
                 label="수거지"

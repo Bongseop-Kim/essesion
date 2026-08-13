@@ -2,7 +2,6 @@
 
 import hashlib
 import hmac
-import re
 import secrets
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -14,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.deps import lock_active_user
 from api.errors import DomainError, RateLimitedError, UpstreamError
 from api.integrations.solapi import SolapiClient
+from api.phone_numbers import normalize_mobile_phone
 
-PHONE_PATTERN = re.compile(r"^01[0-9]{8,9}$")
 KST = ZoneInfo("Asia/Seoul")
 RESEND_INTERVAL_SECONDS = 60
 DAILY_LIMIT = 5
@@ -24,10 +23,10 @@ MAX_VERIFY_ATTEMPTS = 5
 
 
 def normalize_phone(phone: str) -> str:
-    normalized = phone.replace("-", "")
-    if not PHONE_PATTERN.fullmatch(normalized):
-        raise DomainError("유효하지 않은 휴대폰 번호입니다", code="invalid_phone")
-    return normalized
+    try:
+        return normalize_mobile_phone(phone)
+    except ValueError as exc:
+        raise DomainError("유효하지 않은 휴대폰 번호입니다", code="invalid_phone") from exc
 
 
 def _code_digest(secret: str, user_id, phone: str, code: str) -> str:  # noqa: ANN001 — UUID

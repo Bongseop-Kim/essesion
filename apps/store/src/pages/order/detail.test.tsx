@@ -259,7 +259,7 @@ describe("OrderDetailPage", () => {
     expect(await screen.findByText("자동 타이 방식")).toBeTruthy();
     expect(screen.getByText("175cm")).toBeTruthy();
     expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
-    expect(screen.getByText("수거 고객 · 01012345678")).toBeTruthy();
+    expect(screen.getByText("수거 고객 · 010-1234-5678")).toBeTruthy();
     expect(screen.getByText("송장 분실")).toBeTruthy();
     expect(screen.getByText("송장을 분실했습니다.")).toBeTruthy();
 

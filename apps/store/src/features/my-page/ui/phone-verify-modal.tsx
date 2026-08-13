@@ -9,6 +9,8 @@ import {
   Box,
   HStack,
   Modal,
+  normalizePhoneNumber,
+  PhoneField,
   snackbar,
   Text,
   TextField,
@@ -56,7 +58,7 @@ export function PhoneVerifyModal({
     return () => window.clearTimeout(timer);
   }, [cooldown]);
 
-  const normalizedPhone = phone.replace(/\D/g, "");
+  const normalizedPhone = normalizePhoneNumber(phone);
   const canSend = PHONE_PATTERN.test(normalizedPhone) && cooldown === 0;
   const canVerify = sent && /^\d{6}$/.test(code);
 
@@ -116,14 +118,11 @@ export function PhoneVerifyModal({
       <VStack gap="x4" alignItems="stretch">
         <HStack gap="x2" align="flex-end">
           <Box flexGrow minWidth={0}>
-            <TextField
+            <PhoneField
               label="휴대폰 번호"
-              inputMode="numeric"
-              autoComplete="tel"
-              placeholder="01012345678"
               value={phone}
-              onChange={(event) => {
-                setPhone(event.currentTarget.value);
+              onValueChange={(value) => {
+                setPhone(value);
                 setSent(false);
                 setCode("");
               }}

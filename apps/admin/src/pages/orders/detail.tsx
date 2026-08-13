@@ -23,6 +23,7 @@ import {
   Callout,
   ContentPlaceholder,
   decodeOrderItemContent,
+  formatPhoneNumber,
   HStack,
   Skeleton,
   snackbar,
@@ -653,7 +654,11 @@ export function OrderDetailPage() {
                   },
                   {
                     label: "전화번호",
-                    value: formatIdentifier(data.customer.phone),
+                    value: formatIdentifier(
+                      data.customer.phone
+                        ? formatPhoneNumber(data.customer.phone)
+                        : null,
+                    ),
                   },
                   // 결제 금액이 어떻게 계산됐는지 읽히도록 원금 − 할인 + 배송비 순서로 나열
                   { label: "원금", value: formatMoney(data.original_price) },
@@ -693,7 +698,9 @@ export function OrderDetailPage() {
                       ? [
                           {
                             label: "수령인 연락처",
-                            value: data.shipping_address.recipient_phone,
+                            value: formatPhoneNumber(
+                              data.shipping_address.recipient_phone,
+                            ),
                           },
                         ]
                       : []),
@@ -746,7 +753,7 @@ export function OrderDetailPage() {
                     items={[
                       {
                         label: "수거 대상",
-                        value: `${data.repair_pickup.recipient_name} · ${data.repair_pickup.recipient_phone}`,
+                        value: `${data.repair_pickup.recipient_name} · ${formatPhoneNumber(data.repair_pickup.recipient_phone)}`,
                       },
                       {
                         label: "수거지",

@@ -10,6 +10,7 @@ import {
   Badge,
   Callout,
   ContentPlaceholder,
+  formatPhoneNumber,
   HStack,
   Skeleton,
   snackbar,
@@ -177,7 +178,11 @@ export function InquiryDetailPage() {
             { label: "이메일", value: formatIdentifier(data.customer?.email) },
             {
               label: "전화번호",
-              value: formatIdentifier(data.customer?.phone),
+              value: formatIdentifier(
+                data.customer?.phone
+                  ? formatPhoneNumber(data.customer.phone)
+                  : null,
+              ),
             },
             {
               label: "관련 상품",

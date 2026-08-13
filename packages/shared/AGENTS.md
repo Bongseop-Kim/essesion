@@ -70,6 +70,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 |---|---|---|
 | Field | 앱 커스텀 컨트롤에 label·description·errorMessage + `aria-describedby` 배선 | TextField/FieldButton 등 내장 컨트롤은 자체 처리(중복 래핑 X) |
 | TextField | 한 줄 텍스트 입력(prefix/suffix) | 여러 줄은 TextAreaField |
+| PhoneField | admin·store의 국내 휴대폰 입력 — 숫자만 상태로 전달하고 `010-0000-0000` 형태로 자동 표시 | 앱별 마스킹 재구현, 하이픈 포함 값을 그대로 저장 |
 | TextAreaField | 여러 줄 텍스트 입력(`rows`) | — |
 | Checkbox | 다중/비배타 선택 · 약관 동의 · 부모-자식 옵션 | 즉시 반영(→Switch), 단일 배타(→RadioGroup) |
 | RadioGroup / RadioGroupItem | 소수 옵션의 배타적 **단일 선택**(vertical/horizontal) | 옵션 많음(→SelectBox/ListPicker), 다중(→Checkbox), 불리언 즉시(→Switch) |

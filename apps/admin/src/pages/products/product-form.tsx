@@ -434,6 +434,7 @@ export function ProductForm({
             <NumberField
               label="기본 가격"
               suffix="원"
+              groupThousands
               required
               value={draft.price}
               errorMessage={attempted ? errors.price : undefined}
@@ -561,6 +562,7 @@ export function ProductForm({
                         <NumberField
                           label="추가 금액"
                           suffix="원"
+                          groupThousands
                           required
                           value={option.additionalPrice}
                           errorMessage={

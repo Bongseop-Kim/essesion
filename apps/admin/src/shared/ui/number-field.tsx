@@ -8,14 +8,42 @@ export type NumberFieldProps = Omit<
   value: string;
   onValueChange: (value: string) => void;
   allowNegative?: boolean;
+  groupThousands?: boolean;
 };
+
+const groupedInteger = new Intl.NumberFormat("ko-KR", {
+  maximumFractionDigits: 0,
+});
+
+export function formatGroupedInteger(value: string) {
+  if (value === "" || value === "-") return value;
+  const numeric = Number(value);
+  return Number.isSafeInteger(numeric) ? groupedInteger.format(numeric) : value;
+}
 
 export function NumberField({
   value,
   onValueChange,
   allowNegative = false,
+  groupThousands = false,
   ...props
 }: NumberFieldProps) {
+  if (groupThousands) {
+    return (
+      <TextField
+        {...props}
+        type="text"
+        inputMode="numeric"
+        value={formatGroupedInteger(value)}
+        onChange={(event) => {
+          const digits = event.currentTarget.value.replace(/\D/g, "");
+          const normalized = digits.replace(/^0+(?=\d)/, "");
+          event.currentTarget.value = formatGroupedInteger(normalized);
+          onValueChange(normalized);
+        }}
+      />
+    );
+  }
   return (
     <TextField
       {...props}

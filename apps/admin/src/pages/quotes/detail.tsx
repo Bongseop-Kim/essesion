@@ -14,6 +14,7 @@ import {
   AlertDialog,
   Callout,
   ContentPlaceholder,
+  formatPhoneNumber,
   HStack,
   Skeleton,
   snackbar,
@@ -395,6 +396,7 @@ export function QuoteDetailPage() {
               <NumberField
                 label="견적 금액"
                 suffix="원"
+                groupThousands
                 value={amount}
                 errorMessage={validationError}
                 onValueChange={setAmount}
@@ -481,7 +483,11 @@ export function QuoteDetailPage() {
                   { label: "담당자", value: data.contact_name },
                   {
                     label: "연락 방법",
-                    value: `${data.contact_method} · ${data.contact_value}`,
+                    value: `${data.contact_method} · ${
+                      data.contact_method === "phone"
+                        ? formatPhoneNumber(data.contact_value)
+                        : data.contact_value
+                    }`,
                   },
                   { label: "요청일", value: formatDateTime(data.created_at) },
                   { label: "수정일", value: formatDateTime(data.updated_at) },
@@ -494,7 +500,7 @@ export function QuoteDetailPage() {
                   items={[
                     {
                       label: "받는 분",
-                      value: `${address.recipient_name} · ${address.recipient_phone}`,
+                      value: `${address.recipient_name} · ${formatPhoneNumber(address.recipient_phone)}`,
                     },
                     {
                       label: "주소",

@@ -15,13 +15,14 @@ from db.models.commerce import (
 from db.models.design import DesignSession, GenerationJob
 from db.models.tokens import DesignToken, TokenPurchase
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import USER_LOCK, SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, ensure_owner, lock_active_user
 from api.domains.auth.schemas import MeResponse
+from api.phone_numbers import normalize_mobile_phone
 from api.schemas import ORMModel
 
 router = APIRouter(tags=["users"])
@@ -50,6 +51,11 @@ class ShippingAddressIn(BaseModel):
     is_default: bool = False
     delivery_memo: str | None = None
     delivery_request: str | None = None
+
+    @field_validator("recipient_phone")
+    @classmethod
+    def normalize_recipient_phone(cls, value: str) -> str:
+        return normalize_mobile_phone(value)
 
 
 class ShippingAddressOut(ORMModel):

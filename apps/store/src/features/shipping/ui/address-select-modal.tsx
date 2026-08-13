@@ -47,6 +47,7 @@ export function AddressSelectModal({
     creating || (!addressesQuery.isPending && addresses.length === 0);
   const upsert = useMutation(upsertAddressMutation());
   const {
+    control,
     register,
     handleSubmit,
     setValue,
@@ -153,6 +154,7 @@ export function AddressSelectModal({
         <form onSubmit={save}>
           <VStack gap="x4" alignItems="stretch">
             <AddressFormFields
+              control={control}
               register={register}
               errors={errors}
               setValue={setValue}

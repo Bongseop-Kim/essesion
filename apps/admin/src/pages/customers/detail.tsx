@@ -17,6 +17,7 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
+  formatPhoneNumber,
   Grid,
   HStack,
   Modal,
@@ -454,7 +455,9 @@ export function CustomerDetailPage() {
                   { label: "이메일", value: formatIdentifier(customer.email) },
                   {
                     label: "전화번호",
-                    value: formatIdentifier(customer.phone),
+                    value: formatIdentifier(
+                      customer.phone ? formatPhoneNumber(customer.phone) : null,
+                    ),
                   },
                   {
                     label: "전화 인증",

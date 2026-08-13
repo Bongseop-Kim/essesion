@@ -288,6 +288,7 @@ export function PricingPage() {
                       label={pricingLabel(item.key)}
                       description={`현재 ${formatPricingAmount(item)}`}
                       suffix={item.unit}
+                      groupThousands={item.unit === "원"}
                       value={draft[item.key] ?? String(item.amount)}
                       disabled={mutation.isPending}
                       onValueChange={(value) => {
