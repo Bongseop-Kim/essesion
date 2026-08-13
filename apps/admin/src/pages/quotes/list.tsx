@@ -188,7 +188,6 @@ export function QuotesPage() {
                     }
                   />
                   <DateRangeFilters
-                    presentation="inline"
                     from={draftFrom}
                     to={draftTo}
                     onFromChange={setDraftFrom}

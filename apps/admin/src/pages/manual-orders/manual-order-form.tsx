@@ -9,7 +9,6 @@ import {
   Box,
   Callout,
   Checkbox,
-  DatePicker,
   Grid,
   HStack,
   SegmentedControl,
@@ -343,13 +342,16 @@ export function ManualOrderForm({
         >
           <VStack gap="x5" alignItems="stretch">
             <Grid columns={{ base: 1, md: 2 }} gap="x4">
-              <DatePicker
+              <TextField
+                type="date"
                 label="날짜"
                 required
                 value={draft.orderDate}
                 errorMessage={attempted ? errors.orderDate : undefined}
                 disabled={pending}
-                onValueChange={(value) => update("orderDate", value)}
+                onChange={(event) =>
+                  update("orderDate", event.currentTarget.value)
+                }
               />
               <TextField
                 label="이름"

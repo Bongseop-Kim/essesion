@@ -54,3 +54,15 @@ E2E 1건도 통과했다.
 `pnpm typecheck`, 공개 로컬 환경값을 둔 `pnpm build`, `pnpm architecture:check`, 수정한
 Python 파일의 Ruff·Pyright를 통과했다. shared/admin/store 대상 테스트 27개와 API 대상 테스트
 4개도 통과했다. 사용자 여정이나 API 계약은 바뀌지 않아 브라우저 E2E는 생략했다.
+
+## 잔여 감사 적용 (2026-08-13)
+
+- 모든 호출이 같은 모드이던 날짜 범위 필터의 분기와 `DatePicker` 위임 컴포넌트를 제거했다.
+- 단일 사용 cart Promise queue와 design operation epoch를 각 호출부의 작은 상태값으로 합쳤다.
+- admin/store 루트 앱 래퍼, 미사용 glyph 4개, worker client 생성 래퍼를 제거했다.
+- 수선 주소 문자열 formatter와 제거된 Zustand의 catalog 선언을 정리했다.
+
+코드는 237줄 순감축했다. `pnpm lint`, `pnpm typecheck`, 공개 로컬 환경값을 둔
+`pnpm build`, `pnpm architecture:check`, 수정한 Python 파일의 Ruff·Pyright를 통과했다.
+admin/store 대상 테스트 23개와 API 앱 테스트 1개도 통과했다. 동작 변화 없는 리팩터링이고
+해당 경로가 단위·통합 테스트로 검증돼 브라우저 E2E는 생략했다.

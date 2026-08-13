@@ -1,11 +1,4 @@
-import {
-  Chip,
-  DatePicker,
-  HStack,
-  Text,
-  TextField,
-  VStack,
-} from "@essesion/shared";
+import { Chip, HStack, Text, TextField, VStack } from "@essesion/shared";
 
 const QUICK_PERIODS = [7, 30, 90] as const;
 
@@ -33,8 +26,6 @@ type DateRangeFiltersProps = {
   to?: string;
   onFromChange: (value: string | undefined) => void;
   onToChange: (value: string | undefined) => void;
-  /** dialog 안에서는 중첩 overlay를 피하도록 네이티브 날짜 필드로 표시한다. */
-  presentation?: "picker" | "inline";
 };
 
 export function DateRangeFilters({
@@ -42,7 +33,6 @@ export function DateRangeFilters({
   to,
   onFromChange,
   onToChange,
-  presentation = "picker",
 }: DateRangeFiltersProps) {
   const changeFrom = (value: string) => {
     const next = value || undefined;
@@ -55,73 +45,54 @@ export function DateRangeFilters({
     onToChange(next);
   };
 
-  if (presentation === "inline") {
-    const today = kstToday();
-    return (
-      <VStack gap="x3" alignItems="stretch">
-        <Text textStyle="labelSm">기간</Text>
-        <HStack gap="x2" wrap>
-          <Chip
-            size="small"
-            selected={from === undefined && to === undefined}
-            onClick={() => {
-              onFromChange(undefined);
-              onToChange(undefined);
-            }}
-          >
-            전체
-          </Chip>
-          {QUICK_PERIODS.map((days) => {
-            const start = periodStart(today, days);
-            return (
-              <Chip
-                key={days}
-                size="small"
-                selected={from === start && to === today}
-                onClick={() => {
-                  onFromChange(start);
-                  onToChange(today);
-                }}
-              >
-                최근 {days}일
-              </Chip>
-            );
-          })}
-        </HStack>
-        <HStack gap="x3" align="flex-end" wrap>
-          <TextField
-            type="date"
-            label="시작일 (KST)"
-            value={from ?? ""}
-            max={to}
-            onChange={(event) => changeFrom(event.currentTarget.value)}
-          />
-          <TextField
-            type="date"
-            label="종료일 (KST)"
-            value={to ?? ""}
-            min={from}
-            onChange={(event) => changeTo(event.currentTarget.value)}
-          />
-        </HStack>
-      </VStack>
-    );
-  }
-
+  const today = kstToday();
   return (
-    <>
-      <DatePicker
-        label="시작일 (KST)"
-        value={from ?? ""}
-        max={to}
-        onValueChange={changeFrom}
-      />
-      <DatePicker
-        label="종료일 (KST)"
-        value={to ?? ""}
-        min={from}
-        onValueChange={changeTo}
-      />
-    </>
+    <VStack gap="x3" alignItems="stretch">
+      <Text textStyle="labelSm">기간</Text>
+      <HStack gap="x2" wrap>
+        <Chip
+          size="small"
+          selected={from === undefined && to === undefined}
+          onClick={() => {
+            onFromChange(undefined);
+            onToChange(undefined);
+          }}
+        >
+          전체
+        </Chip>
+        {QUICK_PERIODS.map((days) => {
+          const start = periodStart(today, days);
+          return (
+            <Chip
+              key={days}
+              size="small"
+              selected={from === start && to === today}
+              onClick={() => {
+                onFromChange(start);
+                onToChange(today);
+              }}
+            >
+              최근 {days}일
+            </Chip>
+          );
+        })}
+      </HStack>
+      <HStack gap="x3" align="flex-end" wrap>
+        <TextField
+          type="date"
+          label="시작일 (KST)"
+          value={from ?? ""}
+          max={to}
+          onChange={(event) => changeFrom(event.currentTarget.value)}
+        />
+        <TextField
+          type="date"
+          label="종료일 (KST)"
+          value={to ?? ""}
+          min={from}
+          onChange={(event) => changeTo(event.currentTarget.value)}
+        />
+      </HStack>
+    </VStack>
   );
 }

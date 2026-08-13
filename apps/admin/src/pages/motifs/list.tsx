@@ -224,7 +224,6 @@ export function MotifsPage() {
                     }
                   />
                   <DateRangeFilters
-                    presentation="inline"
                     from={draftFrom}
                     to={draftTo}
                     onFromChange={setDraftFrom}

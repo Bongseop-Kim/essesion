@@ -218,7 +218,7 @@ export function MenuItem({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
-        event.currentTarget.closest<HTMLElement>("[popover]")?.hidePopover();
+        event.currentTarget.closest<HTMLElement>("[popover]")?.hidePopover?.();
       }}
       className={cn(
         "flex w-full items-center gap-x2 rounded-r3 px-x2 py-x3 text-left text-t4 outline-none transition-colors duration-(--duration-fast) ease-standard hover:bg-bg-neutral-weak focus:bg-bg-neutral-weak disabled:text-fg-disabled",

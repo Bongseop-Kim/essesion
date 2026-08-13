@@ -13,7 +13,6 @@ describe("DateRangeFilters", () => {
     const onToChange = vi.fn();
     render(
       <DateRangeFilters
-        presentation="inline"
         from="2026-07-01"
         to="2026-07-15"
         onFromChange={onFromChange}
@@ -41,7 +40,6 @@ describe("DateRangeFilters", () => {
     const onToChange = vi.fn();
     render(
       <DateRangeFilters
-        presentation="inline"
         from="2026-07-10"
         to="2026-07-20"
         onFromChange={onFromChange}

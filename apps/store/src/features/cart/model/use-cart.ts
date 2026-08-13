@@ -38,9 +38,17 @@ import {
   guestCartQueryKey,
   setGuestCartItems,
 } from "./storage";
-import { createCartUpdateQueue } from "./update-queue";
 
-const cartUpdateQueue = createCartUpdateQueue();
+let cartUpdateTail = Promise.resolve();
+
+function enqueueCartUpdate<T>(task: () => Promise<T>) {
+  const result = cartUpdateTail.then(task);
+  cartUpdateTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 const activeGuestSyncs = new Map<string, Promise<boolean>>();
 
 type CartSession =
@@ -101,7 +109,7 @@ export function syncGuestCartToAccount(queryClient: QueryClient) {
   const active = activeGuestSyncs.get(key);
   if (active) return active;
 
-  const syncing = cartUpdateQueue.enqueue(async () => {
+  const syncing = enqueueCartUpdate(async () => {
     if (!isCurrentCartSession(session)) return false;
     const { data: serverItems } = await getCartRequest({
       headers: cartAuthorization(session),
@@ -257,7 +265,7 @@ export function useCartActions() {
   ) => {
     const session = captureCartSession();
     if (!session) return;
-    return cartUpdateQueue.enqueue(async () => {
+    return enqueueCartUpdate(async () => {
       if (!isCurrentCartSession(session)) return;
       const previous = await readInputs(session);
       if (!isCurrentCartSession(session)) return;
@@ -280,7 +288,7 @@ export function useCartActions() {
   const currentInputs = async () => {
     const session = captureCartSession();
     if (!session) return [];
-    return cartUpdateQueue.enqueue(async () => {
+    return enqueueCartUpdate(async () => {
       if (!isCurrentCartSession(session)) return [];
       return readInputs(session);
     });

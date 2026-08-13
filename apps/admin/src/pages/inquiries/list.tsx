@@ -219,7 +219,6 @@ export function InquiriesPage() {
                     }
                   />
                   <DateRangeFilters
-                    presentation="inline"
                     from={draftFrom}
                     to={draftTo}
                     onFromChange={setDraftFrom}

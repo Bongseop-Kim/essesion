@@ -47,8 +47,6 @@ export type { ChipProps } from "./components/chip";
 export { Chip } from "./components/chip";
 export type { ContentPlaceholderProps } from "./components/content-placeholder";
 export { ContentPlaceholder } from "./components/content-placeholder";
-export type { DatePickerProps } from "./components/date-picker";
-export { DatePicker } from "./components/date-picker";
 export type { DividerProps } from "./components/divider";
 export { Divider } from "./components/divider";
 export type { FieldProps } from "./components/field";

@@ -15,11 +15,11 @@ import {
   ActionButton,
   Callout,
   ContentPlaceholder,
-  DatePicker,
   Grid,
   HStack,
   Skeleton,
   Text,
+  TextField,
   VStack,
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -322,17 +322,21 @@ export function DashboardPage() {
 
       <AdminCard title="조회 기준">
         <HStack gap="x3" align="flex-end" wrap>
-          <DatePicker
+          <TextField
+            type="date"
             label="시작일 (KST)"
             value={startDate}
             max={endDate}
-            onValueChange={(value) => updateFilter("from", value)}
+            onChange={(event) =>
+              updateFilter("from", event.currentTarget.value)
+            }
           />
-          <DatePicker
+          <TextField
+            type="date"
             label="종료일 (KST)"
             value={endDate}
             min={startDate}
-            onValueChange={(value) => updateFilter("to", value)}
+            onChange={(event) => updateFilter("to", event.currentTarget.value)}
           />
           <FilterSelect
             label="주문 유형"

@@ -165,7 +165,6 @@ export function ManualOrdersPage() {
               secondaryFilters={
                 <VStack gap="x4" alignItems="stretch">
                   <DateRangeFilters
-                    presentation="inline"
                     from={draftFrom}
                     to={draftTo}
                     onFromChange={setDraftFrom}
