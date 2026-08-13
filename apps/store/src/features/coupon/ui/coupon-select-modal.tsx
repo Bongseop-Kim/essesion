@@ -4,8 +4,8 @@ import {
   Box,
   ContentPlaceholder,
   HStack,
+  Modal,
   ProgressCircle,
-  ResponsiveModal,
   SelectBox,
   SelectBoxItem,
 } from "@essesion/shared";
@@ -45,7 +45,7 @@ export function CouponSelectModal({
       : (coupons.find((coupon) => coupon.id === selectedCouponId) ?? null);
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="쿠폰 선택"
@@ -99,7 +99,7 @@ export function CouponSelectModal({
           ))}
         </SelectBox>
       )}
-    </ResponsiveModal>
+    </Modal>
   );
 }
 

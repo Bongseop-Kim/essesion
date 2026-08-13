@@ -40,3 +40,17 @@
 `pnpm architecture:check`, `pnpm typecheck`, 공개 로컬 환경값을 둔 `pnpm build`, Ruff,
 Pyright를 통과했다. shared 65개, store 216개, 수정한 worker 영역 99개 테스트와 store 결제
 E2E 1건도 통과했다.
+
+## 전체 감사 마무리 (2026-08-13)
+
+- 커스텀 날짜 달력과 숫자 스테퍼를 네이티브 `date`·`number` 입력으로 대체했다.
+- 모바일 시트/중앙 모달 구현을 반응형 `Modal` 하나로 합치고 `ResponsiveModal`, `BottomSheet`, 드래그 훅을 제거했다.
+- 메뉴와 도움말의 좌표 계산·resize/scroll 구독을 네이티브 Popover와 CSS anchor positioning으로 대체했다.
+- store 세션에서 Zustand를 제거하고 React `useSyncExternalStore` 기반의 작은 외부 저장소만 남겼다.
+- 단일 구현뿐이던 admin session adapter를 직접 함수 경계로 바꿨다.
+- 사용되지 않은 GCS 공개 URL override와 CI 진단용 JSON/hash 포맷을 제거했다.
+
+58개 파일에서 317줄을 추가하고 1,554줄을 삭제해 1,237줄 순감축했다. `pnpm lint`,
+`pnpm typecheck`, 공개 로컬 환경값을 둔 `pnpm build`, `pnpm architecture:check`, 수정한
+Python 파일의 Ruff·Pyright를 통과했다. shared/admin/store 대상 테스트 27개와 API 대상 테스트
+4개도 통과했다. 사용자 여정이나 API 계약은 바뀌지 않아 브라우저 E2E는 생략했다.

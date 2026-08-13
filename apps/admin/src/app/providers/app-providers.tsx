@@ -2,17 +2,13 @@ import { SnackbarHost } from "@essesion/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useCallback, useState } from "react";
 
-import {
-  type AdminSessionAdapter,
-  AdminSessionProvider,
-} from "../../shared/session/admin-session";
+import { AdminSessionProvider } from "../../shared/session/admin-session";
 
 export type AppProvidersProps = {
-  sessionAdapter: AdminSessionAdapter;
   children: ReactNode;
 };
 
-export function AppProviders({ sessionAdapter, children }: AppProvidersProps) {
+export function AppProviders({ children }: AppProvidersProps) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -29,10 +25,7 @@ export function AppProviders({ sessionAdapter, children }: AppProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AdminSessionProvider
-        adapter={sessionAdapter}
-        clearSensitiveCache={clearSensitiveCache}
-      >
+      <AdminSessionProvider clearSensitiveCache={clearSensitiveCache}>
         {children}
         <SnackbarHost />
       </AdminSessionProvider>

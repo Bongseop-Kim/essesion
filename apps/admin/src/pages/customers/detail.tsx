@@ -19,7 +19,7 @@ import {
   ContentPlaceholder,
   Grid,
   HStack,
-  ResponsiveModal,
+  Modal,
   snackbar,
   TabContent,
   TabList,
@@ -632,7 +632,7 @@ export function CustomerDetailPage() {
       </Tabs>
 
       {adjustmentOpen && (
-        <ResponsiveModal
+        <Modal
           open={adjustmentOpen}
           onOpenChange={(open) => {
             if (open) setAdjustmentOpen(true);
@@ -827,7 +827,7 @@ export function CustomerDetailPage() {
               description="입력한 조정 수량과 처리 사유가 사라집니다."
             />
           )}
-        </ResponsiveModal>
+        </Modal>
       )}
     </VStack>
   );

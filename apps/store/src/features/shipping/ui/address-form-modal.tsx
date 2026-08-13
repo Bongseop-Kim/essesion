@@ -8,7 +8,7 @@ import {
   Box,
   Checkbox,
   ListPicker,
-  ResponsiveModal,
+  Modal,
   snackbar,
   TextAreaField,
   VStack,
@@ -90,7 +90,7 @@ export function AddressFormModal({
   });
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title={address ? "배송지 수정" : "새 배송지 등록"}
@@ -154,6 +154,6 @@ export function AddressFormModal({
           />
         </VStack>
       </form>
-    </ResponsiveModal>
+    </Modal>
   );
 }

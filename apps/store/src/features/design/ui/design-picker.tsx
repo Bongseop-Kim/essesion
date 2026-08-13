@@ -10,7 +10,7 @@ import {
   Grid,
   Icon,
   ImageFrame,
-  ResponsiveModal,
+  Modal,
   Skeleton,
   Text,
   VStack,
@@ -75,7 +75,7 @@ export function DesignPicker({
         disabled={disabled || status === "loading"}
         onClick={handleOpen}
       />
-      <ResponsiveModal
+      <Modal
         open={open}
         onOpenChange={setOpen}
         title="내 AI 디자인"
@@ -199,7 +199,7 @@ export function DesignPicker({
             </Grid>
           )}
         </VStack>
-      </ResponsiveModal>
+      </Modal>
     </>
   );
 }

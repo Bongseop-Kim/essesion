@@ -13,8 +13,8 @@ import { VStack } from "./stack";
 import { Text } from "./text";
 
 const sizes = {
-  small: "max-w-100", // 400px — 짧은 폼·확인성 콘텐츠
-  medium: "max-w-140", // 560px — 필터·상세 폼 (기본)
+  small: "md:max-w-100", // 400px — 짧은 폼·확인성 콘텐츠
+  medium: "md:max-w-140", // 560px — 필터·상세 폼 (기본)
 };
 
 export type ModalProps = {
@@ -31,8 +31,7 @@ export type ModalProps = {
   children?: ReactNode;
 };
 
-/* 범용 중앙 모달 — AlertDialog와 달리 임의 콘텐츠를 담고 light-dismiss(바깥 클릭)로 닫힌다.
-   모바일에서는 BottomSheet가 대응 쌍 — 자동 전환은 ResponsiveModal (overlay.md). */
+/* 모바일은 하단, md 이상은 중앙에 놓이는 단일 반응형 dialog. */
 export function Modal({
   open,
   defaultOpen = false,
@@ -73,11 +72,11 @@ export function Modal({
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       className={cn(
-        "m-auto w-full overflow-hidden rounded-r5",
+        "m-0 mx-auto mt-auto w-full max-w-full overflow-hidden rounded-t-r6 md:m-auto md:rounded-r5",
         overlaySurface,
-        "transition duration-(--duration-slow) ease-enter",
-        "starting:open:scale-95 starting:open:opacity-0",
-        "data-closing:scale-95 data-closing:opacity-0 data-closing:duration-(--duration-normal) data-closing:ease-exit",
+        "transition duration-(--duration-normal) ease-enter",
+        "starting:open:translate-y-full md:starting:open:translate-y-0 md:starting:open:scale-95 md:starting:open:opacity-0",
+        "data-closing:translate-y-full data-closing:opacity-0 data-closing:ease-exit md:data-closing:translate-y-0 md:data-closing:scale-95",
         overlayBackdrop,
         sizes[size],
       )}

@@ -1,12 +1,12 @@
 import type { MeResponse } from "@essesion/api-client";
-import { create } from "zustand";
+import { useSyncExternalStore } from "react";
 
 import { queryClient } from "@/shared/lib/query-client";
 
 /** loading: 부트스트랩(리프레시 시도) 중 · authenticated · anonymous */
 type SessionStatus = "loading" | "authenticated" | "anonymous";
 
-interface SessionState {
+export interface SessionState {
   status: SessionStatus;
   /** 액세스 토큰은 메모리에만 둔다(localStorage 금지 — XSS). refresh는 httpOnly 쿠키. */
   accessToken: string | null;
@@ -24,38 +24,72 @@ function clearPreviousUserCache(
   if (previous?.id && previous.id !== next?.id) queryClient.removeQueries();
 }
 
-export const useSession = create<SessionState>((set, get) => ({
+type Listener = () => void;
+type Selector<T> = (state: SessionState) => T;
+
+const listeners = new Set<Listener>();
+const update = (partial: Partial<SessionState>) => {
+  state = { ...state, ...partial };
+  for (const listener of listeners) listener();
+};
+
+let state: SessionState = {
   status: "loading",
   accessToken: null,
   user: null,
-  setAccessToken: (accessToken) =>
-    set((state) => {
-      if (!accessToken) {
-        return { accessToken: null, user: null, status: "anonymous" };
-      }
-      if (state.accessToken === accessToken) return { accessToken };
-      return { accessToken, status: "loading" };
-    }),
-  completeAuthentication: (user, expectedToken) => {
-    const current = get();
-    if (current.accessToken !== expectedToken) return false;
-    clearPreviousUserCache(current.user, user);
-    set({ user, status: "authenticated" });
+  setAccessToken(accessToken) {
+    if (!accessToken) {
+      update({ accessToken: null, user: null, status: "anonymous" });
+    } else if (state.accessToken !== accessToken) {
+      update({ accessToken, status: "loading" });
+    }
+  },
+  completeAuthentication(user, expectedToken) {
+    if (state.accessToken !== expectedToken) return false;
+    clearPreviousUserCache(state.user, user);
+    update({ user, status: "authenticated" });
     return true;
   },
-  setUser: (user) => {
-    clearPreviousUserCache(get().user, user);
-    set({ user });
+  setUser(user) {
+    clearPreviousUserCache(state.user, user);
+    update({ user });
   },
-  clear: () => {
-    const current = get();
+  clear() {
     if (
-      current.status === "authenticated" ||
-      current.accessToken !== null ||
-      current.user !== null
+      state.status === "authenticated" ||
+      state.accessToken !== null ||
+      state.user !== null
     ) {
       queryClient.removeQueries();
     }
-    set({ accessToken: null, user: null, status: "anonymous" });
+    update({ accessToken: null, user: null, status: "anonymous" });
   },
-}));
+};
+
+function subscribe(listener: Listener) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+type SessionStore = {
+  <T>(selector: Selector<T>): T;
+  getState: () => SessionState;
+  setState: (partial: Partial<SessionState>) => void;
+  subscribe: (listener: Listener) => () => void;
+};
+
+export const useSession: SessionStore = Object.assign(
+  <T>(selector: Selector<T>) =>
+    useSyncExternalStore(
+      subscribe,
+      () => selector(state),
+      () => selector(state),
+    ),
+  {
+    getState: () => state,
+    setState: update,
+    subscribe,
+  },
+);

@@ -14,26 +14,13 @@ export async function pickOption(
   await user.click(within(dialog).getByRole("button", { name: option }));
 }
 
-/** DatePicker: 트리거 클릭 → 해·달 이동 → 날짜 클릭. iso = "YYYY-MM-DD" */
+/** 네이티브 날짜 입력에 YYYY-MM-DD 값을 넣는다. */
 export async function pickDate(
   user: User,
   label: string | RegExp,
   iso: string,
 ) {
-  await user.click(screen.getByRole("button", { name: label }));
-  const dialog = await screen.findByRole("dialog", { name: label });
-  const shown = within(dialog).getByText(/^\d+년 \d+월$/).textContent ?? "";
-  const [year = 0, month = 0] = shown.match(/\d+/g)?.map(Number) ?? [];
-  let delta =
-    (Number(iso.slice(0, 4)) - year) * 12 + (Number(iso.slice(5, 7)) - month);
-  const step = (name: string) =>
-    user.click(within(dialog).getByRole("button", { name }));
-  for (; Math.abs(delta) >= 12; delta -= Math.sign(delta) * 12)
-    await step(delta > 0 ? "다음 해" : "이전 해");
-  for (; delta !== 0; delta -= Math.sign(delta))
-    await step(delta > 0 ? "다음 달" : "이전 달");
-  const dayName = new Intl.DateTimeFormat("ko-KR", {
-    dateStyle: "medium",
-  }).format(new Date(`${iso}T00:00`));
-  await user.click(within(dialog).getByRole("button", { name: dayName }));
+  const input = screen.getByLabelText(label);
+  await user.clear(input);
+  await user.type(input, iso);
 }

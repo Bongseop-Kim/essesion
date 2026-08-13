@@ -41,19 +41,11 @@ function dispatchToggle(element: Element, newState: "open" | "closed") {
   fireEvent(element, event);
 }
 
-function renderMenu({
-  onOpenChange,
-  triggerOnClick,
-}: {
-  onOpenChange?: (open: boolean) => void;
-  triggerOnClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-} = {}) {
+function renderMenu() {
   return render(
-    <MenuRoot onOpenChange={onOpenChange}>
+    <MenuRoot>
       <MenuTrigger>
-        <button type="button" onClick={triggerOnClick}>
-          열기
-        </button>
+        <button type="button">열기</button>
       </MenuTrigger>
       <MenuContent aria-label="테스트 메뉴">
         <MenuItem label="추가" />
@@ -65,42 +57,22 @@ function renderMenu({
 }
 
 describe("MenuTrigger", () => {
-  it("자식 버튼에 aria를 배선하고 클릭으로 토글한다", () => {
-    const onOpenChange = vi.fn();
-    renderMenu({ onOpenChange });
+  it("자식 버튼을 네이티브 popover 트리거로 배선한다", () => {
+    renderMenu();
     const trigger = screen.getByRole("button", { name: "열기" });
     const content = screen.getByRole("menu", { hidden: true });
 
     expect(trigger).toHaveProperty("tagName", "BUTTON");
     expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(trigger.getAttribute("aria-controls")).toBe(content.id);
-
-    fireEvent.click(trigger);
-    expect(onOpenChange).toHaveBeenLastCalledWith(true);
-    expect(trigger.getAttribute("aria-expanded")).toBe("true");
-
-    fireEvent.click(trigger);
-    expect(onOpenChange).toHaveBeenLastCalledWith(false);
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
-  });
-
-  it("자식 onClick이 preventDefault하면 열리지 않는다", () => {
-    const onOpenChange = vi.fn();
-    renderMenu({
-      onOpenChange,
-      triggerOnClick: (event) => event.preventDefault(),
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "열기" }));
-    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(trigger.getAttribute("popovertarget")).toBe(content.id);
   });
 });
 
 describe("MenuItem", () => {
   it("checked 항목을 라디오 메뉴 항목으로 노출한다", () => {
     render(
-      <MenuRoot defaultOpen>
+      <MenuRoot>
         <MenuTrigger>
           <button type="button">열기</button>
         </MenuTrigger>
@@ -123,11 +95,11 @@ describe("MenuItem", () => {
     ).toBe("true");
   });
 
-  it("클릭 시 onClick 후 메뉴를 닫고, disabled 항목은 무반응이다", () => {
-    const onOpenChange = vi.fn();
+  it("클릭 시 onClick 후 네이티브 popover를 닫는다", () => {
     const onAdd = vi.fn();
+    const hidePopover = vi.spyOn(HTMLElement.prototype, "hidePopover");
     render(
-      <MenuRoot defaultOpen onOpenChange={onOpenChange}>
+      <MenuRoot>
         <MenuTrigger>
           <button type="button">열기</button>
         </MenuTrigger>
@@ -140,23 +112,18 @@ describe("MenuItem", () => {
 
     fireEvent.click(screen.getByRole("menuitem", { name: "추가" }));
     expect(onAdd).toHaveBeenCalledTimes(1);
-    expect(onOpenChange).toHaveBeenLastCalledWith(false);
-
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "수정", hidden: true }),
-    );
-    expect(onOpenChange).toHaveBeenCalledTimes(1);
+    expect(hidePopover).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("MenuContent", () => {
   it("화살표 키로 활성 항목을 순환하고 disabled를 건너뛴다", async () => {
     renderMenu();
-    fireEvent.click(screen.getByRole("button", { name: "열기" }));
-    const content = screen.getByRole("menu");
+    const content = screen.getByRole("menu", { hidden: true });
     const add = screen.getByRole("menuitem", { name: "추가" });
     const remove = screen.getByRole("menuitem", { name: "삭제" });
 
+    dispatchToggle(content, "open");
     await waitFor(() => expect(document.activeElement).toBe(add));
     fireEvent.keyDown(content, { key: "ArrowDown" });
     expect(document.activeElement).toBe(remove);
@@ -168,18 +135,5 @@ describe("MenuContent", () => {
     expect(document.activeElement).toBe(add);
     fireEvent.keyDown(content, { key: "End" });
     expect(document.activeElement).toBe(remove);
-  });
-
-  it("네이티브 light-dismiss(toggle closed)를 상태에 동기화하고 트리거로 포커스를 복원한다", () => {
-    const onOpenChange = vi.fn();
-    renderMenu({ onOpenChange });
-    const trigger = screen.getByRole("button", { name: "열기" });
-    fireEvent.click(trigger);
-    const content = screen.getByRole("menu");
-
-    dispatchToggle(content, "closed");
-    expect(onOpenChange).toHaveBeenLastCalledWith(false);
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
-    expect(document.activeElement).toBe(trigger);
   });
 });

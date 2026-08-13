@@ -3,8 +3,8 @@ import {
   Box,
   Callout,
   HStack,
+  Modal,
   ProgressCircle,
-  ResponsiveModal,
   SelectBox,
   SelectBoxItem,
   Text,
@@ -89,7 +89,7 @@ export function IdeasModal({
   };
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="아이디어 받기"
@@ -192,6 +192,6 @@ export function IdeasModal({
           description="입력창에 적용한 뒤 보내기 버튼을 눌러야 디자인 생성이 시작돼요."
         />
       </VStack>
-    </ResponsiveModal>
+    </Modal>
   );
 }

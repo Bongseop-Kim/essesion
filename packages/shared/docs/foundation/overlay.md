@@ -6,8 +6,8 @@
 
 1. 사용자의 진행을 **멈추고 결정·확인**을 받아야 한다 → **AlertDialog**
 2. 결과·상태를 방해 없이 알리고 **수 초 뒤 사라져도** 된다 → **Snackbar**
-3. 현재 문맥 위에서 **임시 작업·콘텐츠**(폼·필터·상세) → **ResponsiveModal**
-   (모바일 = BottomSheet, md 이상 = 중앙 Modal 자동 전환 — essesion 기본 패턴)
+3. 현재 문맥 위에서 **임시 작업·콘텐츠**(폼·필터·상세) → **Modal**
+   (단일 dialog가 모바일 하단, md 이상 중앙으로 CSS 전환 — essesion 기본 패턴)
    — 그 내용이 "액션 목록"이면 → **Menu**
 4. **트리거 요소에 붙는** 짧은 보조 설명 → **HelpBubble**
 5. **트리거 요소에 붙는** 소형 선택지/명령 목록 → **Menu** — 모바일 포함 브레이크포인트 무관
@@ -24,7 +24,7 @@ dismissible(X 버튼)은 **한 번만 전달해도 되는 정보에만** — 경
 | 사용자의 응답·결정이 필요 | AlertDialog |
 | 계속 보여야 하는 정보 | Callout |
 | 페이지 수준 공지 | 해당 페이지의 인라인 상태 행 |
-| 긴 내용·여러 액션 | BottomSheet |
+| 긴 내용·여러 액션 | Modal |
 
 Snackbar는 방금 한 액션의 **낮은 심각도 결과**(저장됨·삭제됨·복사됨) 전용. 보조 액션은 최대 1개, 구체적 동사 라벨("되돌리기"). 화면당 1개 표시 + 큐, 기본 4초, hover/focus 시 일시정지.
 
@@ -35,14 +35,14 @@ HelpBubble은 기본 최대 너비를 두지 않는다. 호출부가 내용과 �
 | 모델 | 컴포넌트 | 규칙 |
 |---|---|---|
 | 명시적 전용 | AlertDialog | 버튼·Esc만. 바깥 클릭 무시 — 실수로 결정을 건너뛰지 못하게 |
-| light-dismiss | Modal · BottomSheet · SidePanel · Menu · HelpBubble | 바깥 탭 + Esc(+시트는 스와이프·드래그). 중요한 폼이 든 Modal/BottomSheet는 `showCloseButton` 권장 |
+| light-dismiss | Modal · SidePanel · Menu · HelpBubble | 바깥 탭 + Esc. 중요한 폼이 든 Modal은 `showCloseButton` 권장 |
 | 자동 소멸 | Snackbar | 4초 타이머, 상호작용 시 일시정지 |
 | 인라인 상주 | Callout · 페이지 상태 행 | 오버레이 아님. dismiss 버튼만(선택적) |
 
 ## 반응형 매핑
 
-모바일 하단 시트 ↔ 데스크톱 대응 쌍:
-- **임시 작업·콘텐츠 = BottomSheet ↔ Modal** — **`ResponsiveModal`이 md 기준 자동 전환**(열림 상태를 래퍼가 소유해 열려 있는 동안 브레이크포인트를 넘어도 유지). essesion 기본 패턴.
+모바일 하단 ↔ 데스크톱 중앙 대응:
+- **임시 작업·콘텐츠 = Modal** — 단일 dialog가 md 기준 CSS로 위치만 바꾼다.
 - **액션 목록 = Menu** — 브레이크포인트 무관(모바일 포함).
 - SidePanel은 측면 맥락 유지가 중요한 admin 화면에서만 직접 사용.
 

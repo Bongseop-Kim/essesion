@@ -3,7 +3,7 @@ import {
   Box,
   Callout,
   HStack,
-  ResponsiveModal,
+  Modal,
   SelectBox,
   SelectBoxItem,
   Text,
@@ -125,7 +125,7 @@ export function FinalizeDialog({
   const resetAtLabel = formatResetAt(resetAt);
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="실사화"
@@ -225,6 +225,6 @@ export function FinalizeDialog({
           실사화 이미지는 300 DPI로 생성돼요.
         </Text>
       </VStack>
-    </ResponsiveModal>
+    </Modal>
   );
 }

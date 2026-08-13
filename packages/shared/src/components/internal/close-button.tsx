@@ -8,7 +8,7 @@ export type CloseButtonProps = ComponentPropsWithRef<"button"> & {
   label?: string;
 };
 
-/** 오버레이 공용 원형 닫기 버튼 (BottomSheet·SidePanel·Callout 등) */
+/** 오버레이 공용 원형 닫기 버튼. */
 export function CloseButton({
   label = "닫기",
   className,

@@ -3,7 +3,7 @@ import {
   Box,
   HStack,
   Icon,
-  ResponsiveModal,
+  Modal,
   Text,
   VStack,
 } from "@essesion/shared";
@@ -61,7 +61,7 @@ export function OnboardingDialog({
   };
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="AI 디자인 시작하기"
@@ -134,6 +134,6 @@ export function OnboardingDialog({
           ))}
         </HStack>
       </VStack>
-    </ResponsiveModal>
+    </Modal>
   );
 }

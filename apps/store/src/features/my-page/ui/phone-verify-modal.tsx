@@ -8,7 +8,7 @@ import {
   ActionButton,
   Box,
   HStack,
-  ResponsiveModal,
+  Modal,
   snackbar,
   Text,
   TextField,
@@ -91,7 +91,7 @@ export function PhoneVerifyModal({
   };
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="휴대폰 인증"
@@ -156,6 +156,6 @@ export function PhoneVerifyModal({
           인증번호는 5분 동안 유효하며, 재전송은 60초 후 가능합니다.
         </Text>
       </VStack>
-    </ResponsiveModal>
+    </Modal>
   );
 }

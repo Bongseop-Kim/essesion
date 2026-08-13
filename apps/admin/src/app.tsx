@@ -3,19 +3,11 @@ import { RouterProvider } from "react-router";
 
 import { AppProviders } from "./app/providers/app-providers";
 import { createAdminBrowserRouter } from "./app/router/router";
-import type { AdminSessionAdapter } from "./shared/session/admin-session";
-import { apiAdminSessionAdapter } from "./shared/session/api-admin-session-adapter";
 
-export type AdminAppProps = {
-  sessionAdapter?: AdminSessionAdapter;
-};
-
-export function AdminApp({
-  sessionAdapter = apiAdminSessionAdapter,
-}: AdminAppProps) {
+export function AdminApp() {
   const [router] = useState(createAdminBrowserRouter);
   return (
-    <AppProviders sessionAdapter={sessionAdapter}>
+    <AppProviders>
       <RouterProvider router={router} />
     </AppProviders>
   );

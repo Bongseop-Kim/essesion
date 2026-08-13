@@ -21,8 +21,7 @@
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",
     "react-router": "catalog:",
-    "zod": "catalog:",
-    "zustand": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@essesion/tsconfig": "workspace:*",

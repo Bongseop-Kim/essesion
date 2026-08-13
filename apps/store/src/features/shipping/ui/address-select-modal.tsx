@@ -9,7 +9,7 @@ import {
   Box,
   ContentPlaceholder,
   HStack,
-  ResponsiveModal,
+  Modal,
   SelectBox,
   SelectBoxItem,
   Skeleton,
@@ -87,7 +87,7 @@ export function AddressSelectModal({
   });
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       title={showForm ? "새 배송지" : "배송지 선택"}
@@ -182,6 +182,6 @@ export function AddressSelectModal({
           ))}
         </SelectBox>
       )}
-    </ResponsiveModal>
+    </Modal>
   );
 }

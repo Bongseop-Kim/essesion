@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, join, relative, resolve } from "node:path";
 
@@ -7,21 +6,8 @@ const root = resolve(import.meta.dirname, "../..");
 const markdownLink = /!?\[[^\]]*\]\(([^)]+)\)/g;
 const diagnostics = [];
 
-function id(rule, path, _line, target) {
-  return createHash("sha256")
-    .update([rule, path, target].join("\0"))
-    .digest("hex");
-}
-
-function add(rule, path, line, target, message, guidance) {
-  diagnostics.push({
-    id: id(rule, path, line, target),
-    rule,
-    path,
-    line,
-    message,
-    guidance,
-  });
+function add(_rule, path, line, _target, message, _guidance) {
+  diagnostics.push(`${path}:${line}: ${message}`);
 }
 
 function markdownFiles(directory) {
@@ -147,7 +133,7 @@ for (const plan of plans.filter((name) => name.endsWith(".md"))) {
   }
 }
 
-diagnostics.sort((left, right) => left.id.localeCompare(right.id));
-process.stdout.write(`${JSON.stringify({ version: "1", diagnostics })}\n`);
+diagnostics.sort();
+for (const diagnostic of diagnostics) console.error(diagnostic);
 if (process.argv.includes("--check") && diagnostics.length > 0)
   process.exitCode = 1;

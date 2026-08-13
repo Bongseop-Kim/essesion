@@ -77,8 +77,8 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | SegmentedControl / SegmentedControlItem | 현재 화면의 콘텐츠를 즉시 필터/전환(2–4개 세그먼트) | 페이지 이동(→Tabs), 5개+ (→Radio/Select) |
 | SelectBox / SelectBoxItem | 설명·비교가 필요한 테두리 카드형 옵션(제출로 확정, `multiple`·`columns`) | 가벼운 키워드 필터(→Chip), 클릭 즉시 액션 |
 | FieldButton | 입력창처럼 보이는 트리거 — 피커/선택 다이얼로그를 연다(값+셰브론 표시) | 직접 텍스트 입력(→TextField) |
-| DatePicker | `YYYY-MM-DD` 날짜 단일 선택(min/max, 오늘·지우기 포함). 모바일 BottomSheet ↔ PC Modal | 앱 로컬 달력·raw `input[type=date]` 재구현 |
-| ListPicker | 오버레이 목록에서 **단일 선택**(FieldButton+ResponsiveModal+List 조합) | 옵션 2–3개면 SelectBox/RadioGroup 먼저 |
+| DatePicker | `YYYY-MM-DD` 날짜 단일 선택. 네이티브 `input[type=date]`에 Field 스타일만 적용 | 앱 로컬 달력 재구현 |
+| ListPicker | 오버레이 목록에서 **단일 선택**(FieldButton+Modal+List 조합) | 옵션 2–3개면 SelectBox/RadioGroup 먼저 |
 | AttachmentDisplayField | 이미지 첨부 필드 — 썸네일 표시·제거, `onAddFiles` 지정 시 남은 슬롯에 파일 선택 타일 노출. `max=1`은 선택 후 추가 타일·카운터 숨김 | raw file TextField와 별도 썸네일 UI 조합 |
 
 ### 내비게이션
@@ -86,7 +86,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Tabs / TabList / TabTrigger / TabContent | 한 화면에서 탭 단위로 콘텐츠 분리/전환(Line 스타일). `triggerLayout` hug(기본)/fill | 같은 화면 콘텐츠 조작·필터(→SegmentedControl) |
-| Menu (Root/Trigger/Content/Item) | **트리거 요소에 붙는** 선택지/명령 목록. 모바일에서도 같은 컴포넌트를 사용 | 긴 목록·폼(→ResponsiveModal) |
+| Menu (Root/Trigger/Content/Item) | **트리거 요소에 붙는** 선택지/명령 목록. 모바일에서도 같은 컴포넌트를 사용 | 긴 목록·폼(→Modal) |
 | HelpBubbleTrigger | 버튼을 클릭해 여는 짧은 보조 설명. 여러 문장·모바일 탭·명시적 닫기가 필요한 도움말 | 명령 목록(→Menu), 상주 안내(→Callout), hover 전용 Tooltip |
 
 ### 스크롤 (규칙 10)
@@ -100,9 +100,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | AlertDialog | 진행 차단 확인(1–2버튼) · 파괴적 결정 — **바깥 클릭으로 안 닫힘** | 단순 결과 알림(→Snackbar) |
-| Modal | 일반 중앙 모달(바깥 클릭으로 닫힘, small/medium) | 모바일 포함이면 ResponsiveModal 기본 |
-| ResponsiveModal | **임시 작업·폼·상세의 기본 패턴** — 모바일 BottomSheet ↔ PC Modal 자동 전환 | — |
-| BottomSheet | 모바일 하단에서 올라오는 시트(현재 맥락 유지). 중요 플로우는 `showCloseButton` | 콘텐츠가 화면 90%↑면 전용 페이지 |
+| Modal | **임시 작업·폼·상세의 기본 패턴** — 바깥 클릭으로 닫히며 모바일 하단 ↔ PC 중앙으로 CSS 전환 | 콘텐츠가 화면 90%↑면 전용 페이지 |
 | SidePanel | 측면에서 슬라이드되는 패널(admin 보조 작업·맥락 유지, Header 모바일 메뉴) | — |
 | Snackbar (`snackbar()` / SnackbarHost) | 수 초 뒤 사라지는 결과 알림. SnackbarHost는 앱 루트에 1회 마운트 | 입력 필요·지속 경고(→AlertDialog / Callout). 동시 2개+ |
 
@@ -141,7 +139,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 필요 | 사용 |
 |---|---|
 | 진행 차단 + 확인 1–2버튼 | AlertDialog (바깥 클릭으로 안 닫힘) |
-| 임시 작업·폼·상세 (기본 패턴) | **ResponsiveModal** — 모바일 BottomSheet ↔ PC 중앙 Modal 자동 전환 |
+| 임시 작업·폼·상세 (기본 패턴) | **Modal** — 단일 dialog가 모바일 하단 ↔ PC 중앙으로 CSS 전환 |
 | 액션 목록 | Menu — 모바일·데스크톱 공통 |
 | 트리거 기준 짧은 보조 설명 | HelpBubbleTrigger |
 | 측면 맥락 유지 보조 작업(admin) | SidePanel |

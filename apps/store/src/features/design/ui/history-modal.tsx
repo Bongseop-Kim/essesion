@@ -1,12 +1,4 @@
-import {
-  Box,
-  Flex,
-  Grid,
-  Icon,
-  ResponsiveModal,
-  Text,
-  VStack,
-} from "@essesion/shared";
+import { Box, Flex, Grid, Icon, Modal, Text, VStack } from "@essesion/shared";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
 import type {
@@ -33,7 +25,7 @@ export function HistoryModal({
   onSelect,
 }: HistoryModalProps) {
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="편집 이력"
@@ -58,7 +50,7 @@ export function HistoryModal({
           ),
         )}
       </Grid>
-    </ResponsiveModal>
+    </Modal>
   );
 }
 

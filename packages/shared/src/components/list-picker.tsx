@@ -5,7 +5,7 @@ import { FieldButton } from "./field-button";
 import { CheckGlyph } from "./internal/glyphs";
 import { useControllableState } from "./internal/use-controllable-state";
 import { List, ListItem } from "./list";
-import { ResponsiveModal } from "./responsive-modal";
+import { Modal } from "./modal";
 
 export type ListPickerOption = {
   value: string;
@@ -29,8 +29,7 @@ export type ListPickerProps = {
   title?: ReactNode;
 };
 
-/* 목록에서 하나를 고르는 피커 — FieldButton(트리거) + ResponsiveModal(모바일 시트↔PC 모달)
-   + List(옵션). 선택 즉시 닫힌다. 옵션이 2~3개뿐이면 SelectBox/RadioGroup을 먼저 검토(overlay.md). */
+/* 목록에서 하나를 고르는 피커 — FieldButton + 반응형 Modal + List. */
 export function ListPicker({
   options,
   value,
@@ -67,7 +66,7 @@ export function ListPicker({
         aria-expanded={open}
         onClick={() => setOpen(true)}
       />
-      <ResponsiveModal
+      <Modal
         open={open}
         onOpenChange={setOpen}
         title={pickerTitle}
@@ -94,7 +93,7 @@ export function ListPicker({
             />
           ))}
         </List>
-      </ResponsiveModal>
+      </Modal>
     </>
   );
 }

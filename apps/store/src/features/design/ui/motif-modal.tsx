@@ -14,8 +14,8 @@ import {
   MenuItem,
   MenuRoot,
   MenuTrigger,
+  Modal,
   ProgressCircle,
-  ResponsiveModal,
   SegmentedControl,
   SegmentedControlItem,
   Skeleton,
@@ -103,7 +103,7 @@ export function MotifModal({
   const header = HEADERS[state.source];
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={(next) => {
         if (!next && state.working) return;
@@ -130,7 +130,7 @@ export function MotifModal({
       ) : (
         <PhotoBody state={state} />
       )}
-    </ResponsiveModal>
+    </Modal>
   );
 }
 

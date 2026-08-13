@@ -23,7 +23,7 @@ import {
   HStack,
   Icon,
   ImageFrame,
-  ResponsiveModal,
+  Modal,
   SelectBox,
   SelectBoxItem,
   Skeleton,
@@ -822,7 +822,7 @@ function OptionModal({
     selectedOption(product, optionId)?.stock ?? product?.stock ?? null;
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="옵션 변경"
@@ -889,7 +889,7 @@ function OptionModal({
           />
         </HStack>
       </VStack>
-    </ResponsiveModal>
+    </Modal>
   );
 }
 
