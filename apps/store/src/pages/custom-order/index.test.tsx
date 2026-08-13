@@ -17,7 +17,7 @@ const auth = vi.hoisted(() => ({
   requireAuth: vi.fn(() => false),
 }));
 
-vi.mock("@/features/auth", () => ({
+vi.mock("@/features/auth/ui/auth-guard-provider", () => ({
   useAuthGuard: () => ({ requireAuth: auth.requireAuth }),
 }));
 
@@ -25,26 +25,23 @@ vi.mock("@/features/design/ui/design-picker", () => ({
   DesignPicker: () => null,
 }));
 
-vi.mock("@/features/custom-order", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/features/custom-order")>();
-  return {
-    ...actual,
-    useCustomQuote: () => ({
-      data: { total_cost: 100_000, sewing_cost: 60_000, fabric_cost: 40_000 },
-      isCurrent: true,
-      isError: false,
-      refetch: vi.fn(),
-    }),
-  };
-});
+vi.mock("@/features/custom-order/model/use-custom-quote", () => ({
+  useCustomQuote: () => ({
+    data: { total_cost: 100_000, sewing_cost: 60_000, fabric_cost: 40_000 },
+    isCurrent: true,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
 
+import {
+  readCustomOrderFormDraft,
+  saveCustomOrderFormDraft,
+} from "@/features/custom-order/model/draft";
 import {
   DEFAULT_CUSTOM_ORDER_OPTIONS,
   DEFAULT_QUOTE_CONTACT,
-  readCustomOrderFormDraft,
-  saveCustomOrderFormDraft,
-} from "@/features/custom-order";
+} from "@/features/custom-order/model/options";
 import { useSession } from "@/shared/store/session";
 
 import { CustomOrderPage } from "./index";
@@ -157,7 +154,8 @@ describe("CustomOrderPage", () => {
     const BrowserURL = URL;
     class ObjectURL extends BrowserURL {}
     ObjectURL.createObjectURL = createObjectURL;
-    ObjectURL.revokeObjectURL = vi.fn();
+    const revokeObjectURL = vi.fn();
+    ObjectURL.revokeObjectURL = revokeObjectURL;
     vi.stubGlobal("URL", ObjectURL);
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -193,7 +191,8 @@ describe("CustomOrderPage", () => {
         screen.getAllByRole("button", { name: "duplicate.png 삭제" }),
       ).toHaveLength(1),
     );
-    expect(createObjectURL.mock.calls.at(-1)?.[0]).toBe(first);
+    expect(createObjectURL).toHaveBeenCalledTimes(2);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:second");
     queryClient.clear();
   });
 });

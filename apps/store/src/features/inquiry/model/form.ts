@@ -27,7 +27,7 @@ export const inquiryFormSchema = z
 
 export type InquiryFormValues = z.input<typeof inquiryFormSchema>;
 
-export const DEFAULT_INQUIRY_FORM_VALUES: InquiryFormValues = {
+const DEFAULT_INQUIRY_FORM_VALUES: InquiryFormValues = {
   category: "일반",
   title: "",
   content: "",

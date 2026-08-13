@@ -174,8 +174,7 @@ export function FewShotCandidatesPage() {
               secondaryFilterCount={Number(parsed.status !== undefined)}
               secondaryTitle="few-shot 후보 필터"
               secondaryDescription="검토 상태를 골라 한 번에 적용합니다."
-              onOpenSecondaryFilters={() => setDraftStatus(status)}
-              onCancelSecondaryFilters={() => setDraftStatus(status)}
+              onResetSecondaryFilters={() => setDraftStatus(status)}
               onApplySecondaryFilters={() => {
                 replaceQuery({
                   status:

@@ -18,14 +18,16 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
 
-import { customOrderSummary } from "@/features/custom-order";
+import { customOrderSummary } from "@/features/custom-order/model/options";
 import {
   formatQuoteAmount,
   quoteContactMethodLabel,
+  quoteRequestStatusTone,
+} from "@/features/quote-request/model/config";
+import {
   quoteCustomOrderOptions,
   quoteReferenceImageKeys,
-  quoteRequestStatusTone,
-} from "@/features/quote-request";
+} from "@/features/quote-request/model/snapshot";
 import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";

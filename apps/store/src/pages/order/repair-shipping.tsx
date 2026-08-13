@@ -18,17 +18,17 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
-import { orderStatusTone } from "@/features/orders";
+import { orderStatusTone } from "@/features/orders/model/display";
+import { submitRepairShipment } from "@/features/repair-shipping/api/submit";
 import {
   isRepairShipmentDraft,
-  RepairInboundAddress,
   type RepairShipmentDraft,
-  RepairShipmentFields,
   shipmentDraftFromForm,
   shipmentFormFromDraft,
   shipmentInvalidReason,
-  submitRepairShipment,
-} from "@/features/repair-shipping";
+} from "@/features/repair-shipping/model/shipment";
+import { RepairInboundAddress } from "@/features/repair-shipping/ui/repair-inbound-address";
+import { RepairShipmentFields } from "@/features/repair-shipping/ui/repair-shipment-fields";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function RepairShippingPage() {

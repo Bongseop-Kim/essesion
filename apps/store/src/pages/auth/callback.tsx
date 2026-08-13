@@ -5,7 +5,7 @@ import { useNavigate } from "react-router";
 
 import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
 import { takeAuthReturn } from "@/features/auth/model/return-after-login";
-import { syncGuestCartToAccount } from "@/features/cart";
+import { syncGuestCartToAccount } from "@/features/cart/model/use-cart";
 import { trackEvent } from "@/shared/lib/analytics";
 
 /**

@@ -54,7 +54,7 @@ vi.mock("@essesion/api-client", async (importOriginal) => {
   };
 });
 
-vi.mock("@/features/auth", () => ({
+vi.mock("@/features/auth/ui/auth-guard-provider", () => ({
   useAuthGuard: () => ({ requireAuth: () => true }),
 }));
 

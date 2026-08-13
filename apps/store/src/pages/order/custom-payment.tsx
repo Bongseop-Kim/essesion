@@ -2,13 +2,13 @@ import { createCustomOrderMutation } from "@essesion/api-client/query";
 import { useMutation } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router";
 
-import { OrderPaymentPage } from "@/features/checkout";
+import { OrderPaymentPage } from "@/features/checkout/ui/order-payment-page";
+import { parseCustomOrderDraft } from "@/features/custom-order/model/draft";
 import {
   type CustomOrderDraft,
   customOrderApiOptions,
   customOrderSummary,
-  parseCustomOrderDraft,
-} from "@/features/custom-order";
+} from "@/features/custom-order/model/options";
 import { hasStateKey } from "@/shared/lib/guards";
 
 export function CustomPaymentPage() {

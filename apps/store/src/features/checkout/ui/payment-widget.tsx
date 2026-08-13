@@ -86,7 +86,8 @@ export function PaymentWidget({
         if (cancelled) return;
         const widgets = tossPayments.widgets({ customerKey });
         widgetsRef.current = widgets;
-        await widgets.setAmount({ currency: "KRW", value: amount });
+        let syncedAmount = amountRef.current;
+        await widgets.setAmount({ currency: "KRW", value: syncedAmount });
         await Promise.all([
           widgets.renderPaymentMethods({ selector: `#payment-method-${id}` }),
           widgets.renderAgreement({
@@ -94,6 +95,10 @@ export function PaymentWidget({
             variantKey: "AGREEMENT",
           }),
         ]);
+        while (!cancelled && syncedAmount !== amountRef.current) {
+          syncedAmount = amountRef.current;
+          await widgets.setAmount({ currency: "KRW", value: syncedAmount });
+        }
         if (!cancelled) setReady(true);
       } catch {
         if (!cancelled) setError(true);

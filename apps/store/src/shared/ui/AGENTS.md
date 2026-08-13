@@ -75,7 +75,6 @@
 | 컴포넌트 | 사용할 때 | 사용하지 않을 때 |
 |---|---|---|
 | `SummaryCard` | 주문·결제 사이드바에서 라벨/금액 행과 최종 합계를 표현 | 데이터 조회·할인 계산·일반 정보 카드 |
-| `PaymentActionBar` | 결제 예정 금액을 포함한 단일 결제 CTA를 `ContentLayout.actionBar`에 배치 | 일반 저장/다음 버튼·복수 액션 |
 
 ### SummaryCard
 
@@ -84,11 +83,8 @@
 - 할인처럼 의미 있는 값만 `tone="informative"`로 강조한다.
 - 데이터 표나 범용 카드가 필요하면 shared의 `Box`·`Grid`·`List`를 사용한다.
 
-### PaymentActionBar
-
-- `amount`, `disabled`, `loading`, `helperText`만으로 결제 CTA 상태를 표현한다.
-- 배송지·약관·결제 위젯 준비 여부 판단은 호출 페이지가 소유한다.
-- 결제 처리 중에는 `loading`, 결제 불가 조건에는 `disabled`를 사용하며 별도 중복 클릭 로직을 넣지 않는다.
+- 결제 CTA는 실제 사용처인 `CheckoutShell`이 `ContentLayout.actionBar`에 직접 배치한다.
+- 배송지·약관·결제 위젯 준비 여부와 `disabled`·`loading` 상태도 `CheckoutShell`이 소유한다.
 - 화면당 핵심 CTA 1개 규칙을 지킨다.
 
 ## 추가 규칙

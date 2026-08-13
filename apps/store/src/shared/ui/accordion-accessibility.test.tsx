@@ -1,9 +1,14 @@
+// @vitest-environment jsdom
+
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@essesion/shared";
+import { render as renderDom, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -21,19 +26,46 @@ describe("Accordion accessibility", () => {
     );
   }
 
-  it("removes collapsed interactive content from focus and the accessibility tree", () => {
+  it("uses native details/summary disclosure semantics", () => {
     const html = render();
 
-    expect(html).toContain('aria-hidden="true"');
-    expect(html).toContain('inert=""');
+    expect(html).toContain("<details");
+    expect(html).toContain("<summary");
+    expect(html).not.toContain(" open");
   });
 
-  it("keeps expanded content interactive", () => {
+  it("marks the default item open", () => {
     const html = render("details");
-    const section = html.match(/<section[^>]*>/)?.[0];
+    const details = html.match(/<details[^>]*>/)?.[0];
 
-    expect(section).toBeDefined();
-    expect(section).not.toContain("aria-hidden");
-    expect(section).not.toContain("inert");
+    expect(details).toContain("open");
+  });
+
+  it("keeps a controlled multiple accordion in sync with native toggles", async () => {
+    const user = userEvent.setup();
+    function ControlledAccordion() {
+      const [value, setValue] = useState<string[]>([]);
+      return (
+        <Accordion type="multiple" value={value} onValueChange={setValue}>
+          <AccordionItem value="first">
+            <AccordionTrigger>첫째</AccordionTrigger>
+            <AccordionContent>첫째 내용</AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="second">
+            <AccordionTrigger>둘째</AccordionTrigger>
+            <AccordionContent>둘째 내용</AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      );
+    }
+
+    renderDom(<ControlledAccordion />);
+    await user.click(screen.getByText("첫째"));
+    await user.click(screen.getByText("둘째"));
+
+    await waitFor(() => {
+      expect(screen.getByText("첫째").closest("details")?.open).toBe(true);
+      expect(screen.getByText("둘째").closest("details")?.open).toBe(true);
+    });
   });
 });

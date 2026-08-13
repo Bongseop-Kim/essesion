@@ -234,7 +234,6 @@ export function ReviewFormModal({
               label="후기 내용"
               required
               rows={7}
-              autoResize
               maxLength={1000}
               value={content}
               description={`${content.length}/1,000자`}

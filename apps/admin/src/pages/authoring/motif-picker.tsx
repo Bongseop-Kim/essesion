@@ -19,7 +19,7 @@ import { useDeferredValue, useState } from "react";
 /** 서버 계약(DesignPlanV3)의 모티프 개수 상한 */
 const MAX_MOTIFS = 2;
 
-export function motifLabel(motif: MotifSummaryOut) {
+function motifLabel(motif: MotifSummaryOut) {
   return motif.subject?.trim() || motif.id;
 }
 

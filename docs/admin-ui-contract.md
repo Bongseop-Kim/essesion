@@ -16,7 +16,7 @@ This contract is the implementation and review baseline for admin-only navigatio
 - A sortable header owns one button and reports `aria-sort` on its `th`. Sorting always adds the stable server-side `id` tie-breaker.
 - A row itself is never clickable. The primary identifier cell contains an explicit detail link; every row action names its target.
 - Numeric, money, quantity, and date columns use tabular numbers. Lower-priority columns hide before the table requires horizontal movement.
-- The table container has `min-width: 0`. Remaining horizontal overflow is provided only by `ScrollFog direction="horizontal"` as documented in [`docs/foundation/scroll.md`](foundation/scroll.md). Its region is focusable and has a purpose-specific accessible name.
+- The table container has `min-width: 0`. Remaining horizontal overflow is provided only by `ScrollFog` as documented in [`docs/foundation/scroll.md`](foundation/scroll.md). Its region is focusable and has a purpose-specific accessible name.
 - Loading, first-use empty, filtered empty, error, and background refetch are distinct states. `aria-busy` and a polite live region announce result updates while stale rows remain non-actionable.
 
 ## Pagination and filters

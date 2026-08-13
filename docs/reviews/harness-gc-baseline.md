@@ -1,5 +1,9 @@
 # 하네스 GC 기준선 리뷰
 
+> 상태: 2026-08-12 과설계 감사에서 보고 전용 GC 하네스를 제거했다. 아래 센서 명령과
+> 기준선은 당시 검증 기록이며 현재 실행 명령이 아니다. 확정적 구조 검사는
+> `pnpm architecture:check`에 남아 있다.
+
 ## 결과
 
 Phase 0의 결정적 계측과 Phase 2의 구조 기준선을 만들었다. 센서는 리포트 전용 기준선과
@@ -78,6 +82,33 @@ pnpm architecture:check
 ## 남은 운영 gate
 
 - 주간 workflow가 실제로 두 번 실행된 뒤 artifact 비교와 실행 시간 회귀를 확인한다.
-- unused export 삭제는 별도 단일 관심사 PR에서 사람이 후보를 승인한 뒤 시작한다.
+- 첫 unused-export 상환을 단일 관심사 PR로 검증하고 merge 뒤 감소를 확인한다.
 - 자동머지는 사용하지 않는다.
 - 뮤테이션 테스트는 첫 수동 GC PR 검증 뒤 돈·인가·결정론 변경 파일 하나로 파일럿한다.
+
+## 첫 현재 상태 상환
+
+현재 센서 결과를 코드에서 다시 검토해 Knip의 `unused exports` 한 종류만 상환했다. 앱 내부에서만
+쓰는 심볼의 불필요한 `export`와 사용되지 않는 조회 옵션 함수 하나를 제거했다. 공유 디자인 시스템의
+공개 타입과 Vulture의 프레임워크 동적 항목은 건드리지 않았다.
+
+- Knip: 38 → 22
+- unused exports: 15 → 0
+- React Doctor: warning 192 → 190, error 0 유지
+- 언마운트 뒤 완료된 사진 업로드가 만든 blob URL을 해제하도록 업로드 큐를 수정하고 회귀 테스트를
+  추가했다.
+- 현재 검토된 Knip·React Doctor finding ID와 metric으로 기준선을 갱신해 제거 항목의 재유입을 신규
+  finding으로 탐지한다.
+
+## React Doctor Bugs 상환
+
+`Bugs` 60건을 코드와 호출 경로로 트리아지하고 확정 결함 4건을 상환했다.
+
+- 주문 첨부의 render 중 object URL 생성 2건을 파일 선택 시점 resource 생성과 제거·unmount 해제로
+  변경했다.
+- 결제 위젯 초기화 중 금액이 바뀌는 race를 최신 금액 동기화 후 ready를 여는 방식으로 수정했다.
+- 수기 주문 편집 목록의 index key를 UI 전용 stable ID로 교체했다.
+- React Doctor: warning 190 → 183, error 0 유지, `Bugs` 60 → 56.
+- jscpd TS: 160 → 159 clones. 신규 finding은 모든 센서에서 0건이다.
+- 관련 회귀 테스트, admin/store typecheck, 저장소 lint와 mock Toss Playwright 주문·결제 경로를
+  통과했고 현재 finding ID로 기준선을 갱신했다(실 Toss 호출 0회).

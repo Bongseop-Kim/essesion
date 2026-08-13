@@ -30,24 +30,28 @@ import {
 } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
-import { useCartActions, useCartItems } from "@/features/cart";
-import { InquirySection } from "@/features/inquiry";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
+import { useCartActions, useCartItems } from "@/features/cart/model/use-cart";
+import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
+import { uploadReformImage } from "@/features/reform/api/upload";
 import {
   calculateReformCost,
   createReformTie,
   type ReformFormValues,
-  ReformHeightGuide,
-  ReformServiceGuide,
-  ReformSettingsModal,
-  type ReformSettingsValues,
   type ReformTieForm,
   reformDataFromForm,
   reformFormFromData,
-  TieItemForm,
-  uploadReformImage,
-} from "@/features/reform";
-import { ReviewListSection } from "@/features/reviews";
+} from "@/features/reform/model/reform";
+import {
+  ReformSettingsModal,
+  type ReformSettingsValues,
+} from "@/features/reform/ui/bulk-apply-modal";
+import {
+  ReformHeightGuide,
+  ReformServiceGuide,
+} from "@/features/reform/ui/reform-service-guide";
+import { TieItemForm } from "@/features/reform/ui/tie-item-form";
+import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import { mapWithConcurrency } from "@/shared/lib/async";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";

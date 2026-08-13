@@ -1233,14 +1233,11 @@ async def _build_conversation_context(
         summary = assistant_payload.get("summary")
         if not isinstance(prompt, str) or not prompt or not isinstance(summary, str) or not summary:
             continue
-        # 워커 계약은 {filename}뿐 — 참고 사진 시절의 kind:"photo"·purpose가 남은
-        # 과거 턴 payload를 그대로 보내면 StrictRequest가 422로 거부한다.
         attachment_refs = user_payload.get("attachment_refs")
         attachments = [
             {"filename": ref["filename"]}
             for ref in (attachment_refs if isinstance(attachment_refs, list) else [])
             if isinstance(ref, dict)
-            and ref.get("kind", "svg") == "svg"
             and isinstance(ref.get("filename"), str)
             and 1 <= len(ref["filename"]) <= 255  # 워커 filename 계약: min 1, max 255
         ]

@@ -8,7 +8,7 @@ export type NoticeItem = {
   published_at: string;
 };
 
-export const NOTICE_DATA = [
+const NOTICE_DATA = [
   {
     id: "service-rebuild",
     category: "서비스",

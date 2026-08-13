@@ -16,25 +16,24 @@ const confirmHarness = vi.hoisted(() => ({
   onConfirmed: null as ConfirmedHandler | null,
 }));
 
-vi.mock("@/features/checkout", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/features/checkout")>();
-  return {
-    ...actual,
-    usePaymentConfirm: (onConfirmed: ConfirmedHandler) => {
-      confirmHarness.onConfirmed = onConfirmed;
-      return {
-        valid: true,
-        confirmed: false,
-        failed: false,
-        data: null,
-        isPending: true,
-        retry: vi.fn(),
-      };
-    },
-  };
-});
+vi.mock("@/features/checkout/model/use-payment-confirm", () => ({
+  usePaymentConfirm: (onConfirmed: ConfirmedHandler) => {
+    confirmHarness.onConfirmed = onConfirmed;
+    return {
+      valid: true,
+      confirmed: false,
+      failed: false,
+      data: null,
+      isPending: true,
+      retry: vi.fn(),
+    };
+  },
+}));
 
-import { CHECKOUT_PENDING_KEY, readPendingCheckout } from "@/features/checkout";
+import {
+  CHECKOUT_PENDING_KEY,
+  readPendingCheckout,
+} from "@/features/checkout/model/use-checkout-payment";
 import { useSession } from "@/shared/store/session";
 
 import { TokenPurchaseSuccessPage } from "./success";

@@ -243,13 +243,7 @@ export function IncidentsPage() {
               }
               secondaryTitle="결제 이상 필터"
               secondaryDescription="상태, 이상 유형, 조회 기간을 한 번에 적용합니다."
-              onOpenSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftIncidentType(incidentType);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
-              }}
-              onCancelSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftIncidentType(incidentType);
                 setDraftFrom(parsed.from);

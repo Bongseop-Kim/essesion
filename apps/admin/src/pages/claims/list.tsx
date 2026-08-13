@@ -240,13 +240,7 @@ export function ClaimsPage() {
                 Number(parsed.from !== undefined) +
                 Number(parsed.to !== undefined)
               }
-              onOpenSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftClaimType(claimType);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
-              }}
-              onCancelSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftClaimType(claimType);
                 setDraftFrom(parsed.from);

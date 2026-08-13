@@ -35,27 +35,25 @@ import { ShoppingBagIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useAuthGuard } from "@/features/auth";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import {
   cartItemBlockingReason,
   productUnitPrice,
   selectedOption,
-  useCartActions,
-  useCartItems,
-} from "@/features/cart";
-import {
-  CouponSelectModal,
-  couponDiscount,
-  couponLabel,
-} from "@/features/coupon";
+} from "@/features/cart/model/items";
+import { useCartActions, useCartItems } from "@/features/cart/model/use-cart";
+import { couponDiscount, couponLabel } from "@/features/coupon/model/discount";
+import { CouponSelectModal } from "@/features/coupon/ui/coupon-select-modal";
 import {
   calculateReformDataCost,
-  ReformSettingsModal,
-  type ReformSettingsValues,
   reformDataFromForm,
   reformFormFromData,
   reformServiceLabel,
-} from "@/features/reform";
+} from "@/features/reform/model/reform";
+import {
+  ReformSettingsModal,
+  type ReformSettingsValues,
+} from "@/features/reform/ui/bulk-apply-modal";
 import { krw, optionDescription, optionLabel } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";

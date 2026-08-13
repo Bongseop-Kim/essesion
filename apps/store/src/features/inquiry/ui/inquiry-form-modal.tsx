@@ -155,7 +155,7 @@ export function InquiryFormModal({
         <VStack gap="x5" alignItems="stretch">
           <VStack gap="x2" alignItems="stretch">
             <Text textStyle="labelSm">문의 유형</Text>
-            <ScrollFog direction="horizontal">
+            <ScrollFog>
               <HStack gap="x2">
                 {INQUIRY_CATEGORY_VALUES.map((value) => (
                   <Chip
@@ -286,7 +286,6 @@ export function InquiryFormModal({
             description={`${content.length}/5,000자`}
             maxLength={5000}
             rows={7}
-            autoResize
             placeholder="문의 내용을 자세히 입력해 주세요."
             errorMessage={form.formState.errors.content?.message}
             disabled={isSaving}

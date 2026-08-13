@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 
 import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
-import { useCartAuthSync } from "@/features/cart";
+import { useCartAuthSync } from "@/features/cart/model/use-cart";
 import { clearStoreSession } from "@/shared/lib/api-client";
 
 /**

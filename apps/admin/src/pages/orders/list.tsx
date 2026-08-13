@@ -258,13 +258,7 @@ export function OrdersPage() {
                 Number(parsed.from !== undefined) +
                 Number(parsed.to !== undefined)
               }
-              onOpenSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftOrderType(orderType);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
-              }}
-              onCancelSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftOrderType(orderType);
                 setDraftFrom(parsed.from);

@@ -75,7 +75,7 @@ export function usePaymentConfirm<T>(
   };
 }
 
-export function isTerminalPaymentFailure(error: unknown) {
+function isTerminalPaymentFailure(error: unknown) {
   if (!error || typeof error !== "object" || !("code" in error)) return false;
   const code = String((error as { code: unknown }).code);
   return (

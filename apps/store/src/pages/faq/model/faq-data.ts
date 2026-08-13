@@ -7,7 +7,7 @@ export type FaqItem = {
   is_visible: boolean;
 };
 
-export const FAQ_DATA = [
+const FAQ_DATA = [
   {
     id: "shipping-tracking",
     category: "배송",

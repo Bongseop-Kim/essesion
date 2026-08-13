@@ -1,21 +1,23 @@
 import {
   Box,
-  Breadcrumb,
-  type BreadcrumbItem,
   Divider,
   Grid,
+  HStack,
+  Icon,
   LayoutContent,
   SnackbarAvoidOverlap,
+  Text,
   useBreakpoint,
   VStack,
 } from "@essesion/shared";
+import { ChevronRightIcon } from "@heroicons/react/24/outline";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 export type ContentLayoutProps = {
   children: ReactNode;
   /** 상단 브레드크럼 — 마지막 항목이 현재 페이지. */
-  breadcrumbs?: BreadcrumbItem[];
+  breadcrumbs?: { href?: string; label: string; key?: string }[];
   /** 우측 요약/결제 컬럼 — PC 1/3 sticky · 모바일 본문 아래로 스택. */
   sidebar?: ReactNode;
   /** 주문·결제 CTA — PC 사이드바 하단 · 모바일 하단 고정바. */
@@ -40,10 +42,39 @@ export function ContentLayout({
   const isDesktop = bp === "lg" || bp === "xl";
 
   const crumbs = breadcrumbs ? (
-    <Breadcrumb
-      items={breadcrumbs}
-      renderLink={(item, props) => <Link to={item.href ?? "#"} {...props} />}
-    />
+    <HStack as="nav" aria-label="탐색 경로" gap="x1" py="x3">
+      {breadcrumbs.map((item, index) => {
+        const isLast = index === breadcrumbs.length - 1;
+        const linkable = item.href !== undefined && !isLast;
+        return (
+          <HStack as="span" key={item.key ?? item.href ?? item.label} gap="x1">
+            {index > 0 ? (
+              <Icon
+                svg={<ChevronRightIcon />}
+                size={12}
+                color="fg.neutral-muted"
+              />
+            ) : null}
+            {linkable ? (
+              <Link
+                to={item.href ?? "#"}
+                className="rounded-r1 text-t3 text-fg-neutral-muted transition-colors duration-(--duration-fast) ease-standard hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <Text
+                textStyle="caption"
+                color={isLast ? "fg.neutral" : "fg.neutral-muted"}
+                aria-current={isLast ? "page" : undefined}
+              >
+                {item.label}
+              </Text>
+            )}
+          </HStack>
+        );
+      })}
+    </HStack>
   ) : null;
 
   if (isDesktop) {

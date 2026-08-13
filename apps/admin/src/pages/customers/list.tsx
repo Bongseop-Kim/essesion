@@ -248,12 +248,7 @@ export function CustomersPage() {
                 Number(parsed.to !== undefined)
               }
               secondaryTitle="고객 필터"
-              onOpenSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
-              }}
-              onCancelSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftFrom(parsed.from);
                 setDraftTo(parsed.to);

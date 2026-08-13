@@ -131,9 +131,9 @@ const completed = new Set(
     .filter((name) => name.endsWith(".md"))
     .map((name) => name.replace(/\.md$/, "")),
 );
-for (const plan of readdirSync(join(root, "docs/plans")).filter((name) =>
-  name.endsWith(".md"),
-)) {
+const plansDirectory = join(root, "docs/plans");
+const plans = existsSync(plansDirectory) ? readdirSync(plansDirectory) : [];
+for (const plan of plans.filter((name) => name.endsWith(".md"))) {
   const stem = plan.replace(/\.md$/, "");
   if (completed.has(stem)) {
     add(

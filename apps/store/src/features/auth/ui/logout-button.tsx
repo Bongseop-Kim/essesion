@@ -1,12 +1,16 @@
+import { logoutMutation } from "@essesion/api-client/query";
 import {
   ActionButton,
   type ActionButtonProps,
   AlertDialog,
+  snackbar,
 } from "@essesion/shared";
+import { useMutation } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 
-import { useLogout } from "@/features/auth/model/use-logout";
+import { clearStoreSession } from "@/shared/lib/api-client";
 
 type LogoutButtonProps = Pick<
   ActionButtonProps,
@@ -23,7 +27,15 @@ export function LogoutButton({
   children = "로그아웃",
 }: LogoutButtonProps) {
   const [open, setOpen] = useState(false);
-  const { logout, isPending } = useLogout();
+  const navigate = useNavigate();
+  const logout = useMutation({
+    ...logoutMutation(),
+    onSettled: () => {
+      clearStoreSession(true);
+      snackbar("로그아웃되었습니다.");
+      navigate("/", { replace: true });
+    },
+  });
 
   return (
     <>
@@ -42,8 +54,8 @@ export function LogoutButton({
         description="로그아웃하시겠어요?"
         primaryActionProps={{
           children: "로그아웃",
-          loading: isPending,
-          onClick: logout,
+          loading: logout.isPending,
+          onClick: () => logout.mutate({}),
         }}
         secondaryActionProps={{ children: "취소" }}
       />

@@ -39,17 +39,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import {
   CUSTOM_IMAGE_ACCEPT,
+  uploadOrderImage,
+} from "@/features/custom-order/api/upload";
+import {
+  clearCustomOrderDraftAttachments,
+  clearCustomOrderFormDraft,
+  restoreCustomOrderFormDraft,
+  saveCustomOrderFormDraft,
+} from "@/features/custom-order/model/draft";
+import {
   type CustomOrderDraft,
   type CustomOrderFieldId,
   type CustomOrderOptions,
   type CustomOrderSectionId,
-  CustomOrderServiceGuide,
   type CustomOrderValidationError,
-  clearCustomOrderDraftAttachments,
-  clearCustomOrderFormDraft,
   customOrderApiOptions,
   customOrderSummary,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
@@ -57,19 +63,19 @@ import {
   invalidCustomOrderSection,
   MAX_CUSTOM_ORDER_QUANTITY,
   type QuoteContact,
-  restoreCustomOrderFormDraft,
-  saveCustomOrderFormDraft,
   TIE_WIDTH_ERROR,
-  uploadOrderImage,
-  useCustomQuote,
-} from "@/features/custom-order";
+} from "@/features/custom-order/model/options";
+import { useCustomQuote } from "@/features/custom-order/model/use-custom-quote";
+import { CustomOrderServiceGuide } from "@/features/custom-order/ui/custom-order-service-guide";
 import { DesignPicker } from "@/features/design/ui/design-picker";
-import { InquirySection } from "@/features/inquiry";
-import { ReviewListSection } from "@/features/reviews";
-import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
+import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
+import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
+import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
+import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/pages/shop/constants";
 import { trackEvent } from "@/shared/lib/analytics";
 import { hasStateKey } from "@/shared/lib/guards";
+import { useFilePreviews } from "@/shared/lib/use-file-previews";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
@@ -79,10 +85,6 @@ const QUANTITY_PRESETS = [4, 8, 12, 20, 50, 100] as const;
 const MAX_IMAGES = 5;
 const DESCRIPTION =
   "수량, 원단, 봉제 방식과 마감 사양을 선택하고 맞춤 넥타이 제작 비용을 확인하세요.";
-
-function attachmentFileId(file: File, index: number) {
-  return `${index}-${file.name}-${file.size}-${file.lastModified}`;
-}
 
 export function CustomOrderPage() {
   const status = useSession((state) => state.status);
@@ -131,7 +133,12 @@ function CustomOrderPageContent({
   const [contact, setContact] = useState<QuoteContact>(
     restored?.draft.contact ?? DEFAULT_QUOTE_CONTACT,
   );
-  const [files, setFiles] = useState<File[]>([]);
+  const {
+    previews: previewUrls,
+    addFiles: addPreviewFiles,
+    removeFile: removePreviewFile,
+  } = useFilePreviews(MAX_IMAGES);
+  const files = previewUrls.map(({ file }) => file);
   const [selectedDesigns, setSelectedDesigns] = useState<GenerationJobOut[]>(
     () => initialDesigns.slice(0, 1),
   );
@@ -151,10 +158,6 @@ function CustomOrderPageContent({
   const profileDefaultsApplied = useRef(false);
   const attachmentHintShown = useRef(false);
   const wasQuoteMode = useRef(options.quantity >= 100);
-  const previewUrls = useMemo(
-    () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
-    [files],
-  );
   const attachmentItems = useMemo(
     () => [
       ...selectedDesigns.map((job, index) => ({
@@ -162,8 +165,8 @@ function CustomOrderPageContent({
         src: job.result_url ?? "",
         alt: `AI 완성 디자인 ${index + 1}`,
       })),
-      ...previewUrls.map(({ file, url }, index) => ({
-        id: `file:${attachmentFileId(file, index)}`,
+      ...previewUrls.map(({ id, file, url }) => ({
+        id: `file:${id}`,
         src: url,
         alt: file.name,
       })),
@@ -182,13 +185,6 @@ function CustomOrderPageContent({
   );
   const calculation = useCustomQuote(quotePayload);
   const amount = calculation.data ?? null;
-
-  useEffect(
-    () => () => {
-      for (const preview of previewUrls) URL.revokeObjectURL(preview.url);
-    },
-    [previewUrls],
-  );
 
   useEffect(() => {
     if (!address && addressesQuery.data?.[0])
@@ -991,12 +987,7 @@ function CustomOrderPageContent({
                     saveDraftBeforeLogin(selected.length > 0);
                     return;
                   }
-                  setFiles((current) =>
-                    [...current, ...selected].slice(
-                      0,
-                      MAX_IMAGES - selectedDesigns.length,
-                    ),
-                  );
+                  addPreviewFiles(selected, selectedDesigns.length);
                 }}
                 onRemove={(id) => {
                   if (id.startsWith("design:")) {
@@ -1007,14 +998,7 @@ function CustomOrderPageContent({
                     return;
                   }
                   const fileId = id.slice("file:".length);
-                  const index = previewUrls.findIndex(
-                    ({ file }, candidate) =>
-                      attachmentFileId(file, candidate) === fileId,
-                  );
-                  if (index >= 0)
-                    setFiles((current) =>
-                      current.filter((_, candidate) => candidate !== index),
-                    );
+                  removePreviewFile(fileId);
                 }}
               />
               <TextAreaField

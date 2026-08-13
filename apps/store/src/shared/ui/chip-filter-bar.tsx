@@ -11,7 +11,7 @@ export function ChipFilterBar<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <ScrollFog direction="horizontal">
+    <ScrollFog>
       <HStack gap="x2">
         {filters.map((option) => (
           <Chip

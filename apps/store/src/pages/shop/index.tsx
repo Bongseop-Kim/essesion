@@ -17,7 +17,10 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 
-import { ProductCard, ProductCardSkeleton } from "@/entities/product";
+import {
+  ProductCard,
+  ProductCardSkeleton,
+} from "@/entities/product/ui/product-card";
 import {
   offsetPageParam,
   useInfiniteScrollSentinel,
@@ -109,7 +112,7 @@ export function ShopPage() {
         <VStack gap="x4">
           <HStack gap="x3" wrap="nowrap">
             <Box flex={1} minWidth={0}>
-              <ScrollFog direction="horizontal">
+              <ScrollFog>
                 <HStack gap="x2" wrap="nowrap">
                   <FilterPickerSlot>
                     <ListPicker

@@ -10,14 +10,12 @@ import {
 import { cn } from "../cn";
 
 export type ScrollFogProps = ComponentPropsWithRef<"div"> & {
-  direction?: "vertical" | "horizontal";
   /** fog 길이(px) */
   size?: number;
 };
 
 /** 스크롤 여지가 있는 쪽 가장자리를 알파 마스크로 페이드 — 색이 아니라 마스크라 배경 무관. */
 export function ScrollFog({
-  direction = "vertical",
   size = 20,
   className,
   style,
@@ -41,16 +39,13 @@ export function ScrollFog({
   const update = useCallback(() => {
     const el = innerRef.current;
     if (!el) return;
-    const scrollPos = direction === "vertical" ? el.scrollTop : el.scrollLeft;
-    const maxScroll =
-      direction === "vertical"
-        ? el.scrollHeight - el.clientHeight
-        : el.scrollWidth - el.clientWidth;
+    const scrollPos = el.scrollLeft;
+    const maxScroll = el.scrollWidth - el.clientWidth;
     const next = { start: scrollPos > 1, end: scrollPos < maxScroll - 1 };
     setEdges((prev) =>
       prev.start === next.start && prev.end === next.end ? prev : next,
     );
-  }, [direction]);
+  }, []);
 
   useEffect(() => {
     update();
@@ -77,12 +72,11 @@ export function ScrollFog({
     };
   }, [update]);
 
-  const axis = direction === "vertical" ? "to bottom" : "to right";
   const stops = [
     edges.start ? `transparent, black ${size}px` : "black",
     edges.end ? `black calc(100% - ${size}px), transparent` : "black",
   ].join(", ");
-  const mask = `linear-gradient(${axis}, ${stops})`;
+  const mask = `linear-gradient(to right, ${stops})`;
 
   const fogStyle: CSSProperties = {
     maskImage: mask,
@@ -93,12 +87,7 @@ export function ScrollFog({
   return (
     <div
       ref={setRef}
-      className={cn(
-        direction === "vertical"
-          ? "overflow-y-auto"
-          : "overflow-x-auto scrollbar-none",
-        className,
-      )}
+      className={cn("overflow-x-auto scrollbar-none", className)}
       style={fogStyle}
       onScroll={(e) => {
         update();

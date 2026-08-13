@@ -34,7 +34,7 @@ const STARTER_PLAN = {
 
 /* ponytail: Plan 검증은 서버(DesignPlanV3)에 맡기고 여기서는 JSON 파싱만 본다.
    피커로 스키마를 미러링하면 enum·범위가 늘 때마다 화면이 뒤처진다 */
-export function parsePlan(
+function parsePlan(
   text: string,
 ): { plan: Record<string, unknown> } | { error: string } {
   try {

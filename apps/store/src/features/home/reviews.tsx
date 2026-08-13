@@ -1,11 +1,4 @@
-import {
-  Avatar,
-  Flex,
-  HStack,
-  ScrollFog,
-  Text,
-  VStack,
-} from "@essesion/shared";
+import { Flex, HStack, ScrollFog, Text, VStack } from "@essesion/shared";
 
 import { Section, SectionHeader } from "./section";
 
@@ -31,7 +24,7 @@ export function Reviews() {
   return (
     <Section>
       <SectionHeader title="먼저 써본 분들 이야기" />
-      <ScrollFog direction="horizontal" className="snap-x snap-mandatory">
+      <ScrollFog className="snap-x snap-mandatory">
         <Flex gap="x3" pt="x1" align="stretch">
           {REVIEWS.map((r) => (
             <VStack
@@ -54,7 +47,17 @@ export function Reviews() {
                 {r.q}
               </Text>
               <HStack gap="x2_5">
-                <Avatar name={r.nm} size={36} />
+                <Flex
+                  as="span"
+                  align="center"
+                  justify="center"
+                  className="size-9 shrink-0 rounded-full border border-stroke-neutral-weak bg-bg-neutral-weak"
+                  aria-hidden="true"
+                >
+                  <Text as="span" textStyle="labelSm" color="fg.neutral-subtle">
+                    {Array.from(r.nm)[0]}
+                  </Text>
+                </Flex>
                 <VStack gap="x0_5">
                   <Text textStyle="labelSm" color="fg.neutral">
                     {r.nm}

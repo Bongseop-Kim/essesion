@@ -1,7 +1,4 @@
-import type {
-  GenerationJobOut,
-  ListGenerationJobsData,
-} from "@essesion/api-client";
+import type { GenerationJobOut } from "@essesion/api-client";
 import {
   getDesignSessionOptions,
   getDesignSessionQueryKey,
@@ -11,10 +8,8 @@ import {
   listDesignTurnsOptions,
   listDesignTurnsQueryKey,
   listGenerationJobsInfiniteOptions,
-  listGenerationJobsOptions,
 } from "@essesion/api-client/query";
 
-export type GenerationJobFilters = NonNullable<ListGenerationJobsData["query"]>;
 export const FINALIZED_JOBS_PAGE_SIZE = 20;
 
 export function designSessionsQueryOptions(authenticated: boolean) {
@@ -53,19 +48,6 @@ export function designTurnsQueryOptions({
   return {
     ...listDesignTurnsOptions({ path: { session_id: sessionId ?? "" } }),
     enabled: authenticated && !!sessionId,
-  };
-}
-
-export function generationJobsQueryOptions({
-  filters,
-  authenticated,
-}: {
-  authenticated: boolean;
-  filters?: GenerationJobFilters;
-}) {
-  return {
-    ...listGenerationJobsOptions(filters ? { query: filters } : undefined),
-    enabled: authenticated,
   };
 }
 

@@ -187,7 +187,7 @@ flowchart TB
 
 | 영역 | 선택 | 선택 이유 |
 |---|---|---|
-| JS workspace | pnpm 10 + Turborepo 2 | store/admin/shared/api-client의 동일 태스크 오케스트레이션과 catalog 버전 공유 |
+| JS workspace | pnpm 10 workspaces | store/admin/shared/api-client의 재귀 태스크 실행과 catalog 버전 공유 |
 | Frontend | React 19, Vite 8, React Router 8, TanStack Query 5 | CSR 커머스와 명시적 서버 상태/라우트 경계 |
 | UI | Tailwind CSS 4 + `packages/shared` | semantic token과 공용 primitive를 앱 간 단일 정본으로 유지 |
 | Python workspace | Python 3.13 + uv | api·worker·DB·공용 라이브러리 lockfile 설치 |

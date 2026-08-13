@@ -240,7 +240,7 @@ export function MotifsPage() {
               }
               secondaryTitle="Motif 필터"
               secondaryDescription="검토 상태와 Motif 범위, 생성일을 한 번에 적용합니다."
-              onOpenSecondaryFilters={() => {
+              onResetSecondaryFilters={() => {
                 setDraftStatus(status);
                 setDraftScope(scope);
                 setDraftFrom(parsed.from);
@@ -255,12 +255,6 @@ export function MotifsPage() {
                   to: draftTo,
                   page: 1,
                 });
-              }}
-              onCancelSecondaryFilters={() => {
-                setDraftStatus(status);
-                setDraftScope(scope);
-                setDraftFrom(parsed.from);
-                setDraftTo(parsed.to);
               }}
             />
             <AppliedFilterBar

@@ -31,8 +31,11 @@ import {
   claimReasonLabel,
   claimStatusTone,
   claimTypeLabel,
-} from "@/features/claims";
-import { courierLabel, courierTrackingUrl } from "@/features/repair-shipping";
+} from "@/features/claims/model/config";
+import {
+  courierLabel,
+  courierTrackingUrl,
+} from "@/features/repair-shipping/model/couriers";
 import { krw } from "@/pages/shop/constants";
 import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";

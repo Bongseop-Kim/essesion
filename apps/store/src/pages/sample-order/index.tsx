@@ -15,24 +15,28 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
-import { CUSTOM_IMAGE_ACCEPT, uploadOrderImage } from "@/features/custom-order";
-import { InquirySection } from "@/features/inquiry";
-import { ReviewListSection } from "@/features/reviews";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
+import {
+  CUSTOM_IMAGE_ACCEPT,
+  uploadOrderImage,
+} from "@/features/custom-order/api/upload";
+import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
+import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import {
   DEFAULT_SAMPLE_ORDER_OPTIONS,
   type SampleOrderDraft,
   type SampleOrderOptions,
-  SampleOrderServiceGuide,
   sampleFabricLabel,
   sampleOrderApiOptions,
   sampleTypeLabel,
-} from "@/features/sample-order";
+} from "@/features/sample-order/model/options";
+import { SampleOrderServiceGuide } from "@/features/sample-order/ui/sample-order-service-guide";
 import { krw } from "@/pages/shop/constants";
 import { hasStateKey } from "@/shared/lib/guards";
+import { useFilePreviews } from "@/shared/lib/use-file-previews";
 import { PageMeta } from "@/shared/seo/page-meta";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { StickySectionNav } from "@/shared/ui/sticky-section-nav";
@@ -48,7 +52,8 @@ export function SampleOrderPage() {
   const [options, setOptions] = useState<SampleOrderOptions>(
     restored ?? DEFAULT_SAMPLE_ORDER_OPTIONS,
   );
-  const [files, setFiles] = useState<File[]>([]);
+  const { previews, addFiles, removeFile } = useFilePreviews(MAX_IMAGES);
+  const files = previews.map(({ file }) => file);
   const [submitting, setSubmitting] = useState(false);
   // key와 fn이 같은 옵션을 공유하도록 한 번만 계산한다. fabric/tie/interlining 등
   // 모든 API 옵션이 key에 들어가야 값 변경 시 재계산된다(그렇지 않으면 staleTime 동안 캐시).
@@ -72,18 +77,6 @@ export function SampleOrderPage() {
     },
   });
   const totalCost = calculation.data?.total_cost ?? null;
-  const previews = useMemo(
-    () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
-    [files],
-  );
-
-  useEffect(
-    () => () => {
-      for (const preview of previews) URL.revokeObjectURL(preview.url);
-    },
-    [previews],
-  );
-
   const update = <K extends keyof SampleOrderOptions>(
     key: K,
     value: SampleOrderOptions[K],
@@ -314,27 +307,15 @@ export function SampleOrderPage() {
               <AttachmentDisplayField
                 label="참고 이미지"
                 description="JPG, PNG, WebP · 파일당 10MB 이하"
-                items={previews.map(({ file, url }, index) => ({
-                  id: `${file.name}-${index}`,
+                items={previews.map(({ id, file, url }) => ({
+                  id,
                   src: url,
                   alt: file.name,
                 }))}
                 max={MAX_IMAGES}
                 accept={CUSTOM_IMAGE_ACCEPT}
-                onAddFiles={(selected) =>
-                  setFiles((current) =>
-                    [...current, ...selected].slice(0, MAX_IMAGES),
-                  )
-                }
-                onRemove={(id) => {
-                  const index = previews.findIndex(
-                    ({ file }, candidate) => `${file.name}-${candidate}` === id,
-                  );
-                  if (index >= 0)
-                    setFiles((current) =>
-                      current.filter((_, candidate) => candidate !== index),
-                    );
-                }}
+                onAddFiles={addFiles}
+                onRemove={removeFile}
               />
               <TextAreaField
                 label="추가 요청사항"

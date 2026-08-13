@@ -51,7 +51,7 @@ export function Lookbook() {
 
       {/* 모바일 — 가로 스냅 스크롤 */}
       <Box display={{ base: "block", md: "none" }} pt="x1">
-        <ScrollFog direction="horizontal" className="snap-x snap-mandatory">
+        <ScrollFog className="snap-x snap-mandatory">
           <Flex gap="x2">
             {ITEMS.map((it) => (
               <Box

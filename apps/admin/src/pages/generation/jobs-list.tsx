@@ -321,15 +321,7 @@ export function GenerationJobsPage() {
         }
         secondaryTitle="생성 작업 필터"
         secondaryDescription="상태, 작업 단계, 사용자 ID, 조회 기간을 한 번에 적용합니다."
-        onOpenSecondaryFilters={() => {
-          setDraftStatus(status);
-          setDraftKind(kind);
-          setUserInput(userId ?? "");
-          setUserError(undefined);
-          setDraftFrom(parsed.from);
-          setDraftTo(parsed.to);
-        }}
-        onCancelSecondaryFilters={() => {
+        onResetSecondaryFilters={() => {
           setDraftStatus(status);
           setDraftKind(kind);
           setUserInput(userId ?? "");

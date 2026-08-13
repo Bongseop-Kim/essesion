@@ -84,9 +84,7 @@ export function clearPendingCheckout(key: string, ownerUserId: string | null) {
 
 export type PaymentOwnerState = "current" | "loading" | "different";
 
-export function paymentOwnerState(
-  ownerUserId: string | null,
-): PaymentOwnerState {
+function paymentOwnerState(ownerUserId: string | null): PaymentOwnerState {
   const session = useSession.getState();
   if (session.status === "loading") return "loading";
   return session.status === "authenticated" &&

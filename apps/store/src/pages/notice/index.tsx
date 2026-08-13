@@ -51,7 +51,7 @@ export function NoticePage() {
                 {pricingStatus}
               </Text>
             ) : null}
-            <Accordion type="single" collapsible>
+            <Accordion type="single">
               {notices.map((notice) => (
                 <AccordionItem key={notice.id} value={notice.id}>
                   <AccordionTrigger>

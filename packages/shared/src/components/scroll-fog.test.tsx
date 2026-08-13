@@ -27,7 +27,7 @@ describe("ScrollFog", () => {
   it("direct child resize를 관찰해 스크롤 끝 fog를 다시 계산한다", () => {
     let scrollWidth = 100;
     const { getByTestId } = render(
-      <ScrollFog direction="horizontal" data-testid="fog">
+      <ScrollFog data-testid="fog">
         <span data-testid="content">내용</span>
       </ScrollFog>,
     );

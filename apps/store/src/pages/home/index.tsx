@@ -1,13 +1,11 @@
 import { Box, Text } from "@essesion/shared";
 
-import {
-  CaseSection,
-  Hero,
-  Lookbook,
-  Partners,
-  PopularProducts,
-  Reviews,
-} from "@/features/home";
+import { CaseSection } from "@/features/home/case-section";
+import { Hero } from "@/features/home/hero";
+import { Lookbook } from "@/features/home/lookbook";
+import { Partners } from "@/features/home/partners";
+import { PopularProducts } from "@/features/home/popular-products";
+import { Reviews } from "@/features/home/reviews";
 
 const DESCRIPTION =
   "영선산업은 맞춤 넥타이 제작, 단체 넥타이, 샘플 주문, 넥타이 수선·리폼을 운영합니다. 상호명은 ESSE SION입니다.";

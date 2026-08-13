@@ -2,13 +2,13 @@ import { createSampleOrderMutation } from "@essesion/api-client/query";
 import { useMutation } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router";
 
-import { OrderPaymentPage } from "@/features/checkout";
+import { OrderPaymentPage } from "@/features/checkout/ui/order-payment-page";
 import {
   readSampleOrderDraft,
   sampleFabricLabel,
   sampleOrderApiOptions,
   sampleTypeLabel,
-} from "@/features/sample-order";
+} from "@/features/sample-order/model/options";
 
 export function SamplePaymentPage() {
   const location = useLocation();

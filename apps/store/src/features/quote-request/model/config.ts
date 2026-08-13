@@ -1,6 +1,6 @@
 import { krw } from "@/shared/lib/format";
 
-export const QUOTE_REQUEST_STATUSES = [
+const QUOTE_REQUEST_STATUSES = [
   "요청",
   "견적발송",
   "협의중",

@@ -17,9 +17,9 @@ import {
   clearPendingCheckout,
   onTerminalPaymentFailure,
   readPendingCheckout,
-  usePaymentConfirm,
   waitForSettledPaymentOwner,
-} from "@/features/checkout";
+} from "@/features/checkout/model/use-checkout-payment";
+import { usePaymentConfirm } from "@/features/checkout/model/use-payment-confirm";
 import { krw } from "@/pages/shop/constants";
 import { trackEvent } from "@/shared/lib/analytics";
 import { useSession } from "@/shared/store/session";

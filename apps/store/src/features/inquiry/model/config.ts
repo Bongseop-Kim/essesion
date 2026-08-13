@@ -16,7 +16,7 @@ export type InquiryPrefill = {
   productId: number | null;
 };
 
-export function isInquiryCategory(value: string): value is InquiryCategory {
+function isInquiryCategory(value: string): value is InquiryCategory {
   return INQUIRY_CATEGORY_VALUES.some((category) => category === value);
 }
 
