@@ -19,8 +19,7 @@ import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import type { AdminTableColumn } from "../../widgets/admin-table/admin-table";
 import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-admin-table-card";
 
-/** 검토 대기가 기본 화면이므로 URL에 status가 없으면 pending으로 본다. */
-const DEFAULT_STATUS = "pending";
+const DEFAULT_STATUS = "all";
 const CANDIDATE_STATUS_LABELS = {
   pending: "검토 대기",
   hold: "보류",

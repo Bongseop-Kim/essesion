@@ -21,7 +21,7 @@
 
 ## 5. 프론트
 
-- [ ] Cloudflare Workers 배포(Vite build + Wrangler Static Assets) 및 DNS 확인 — *2026-08-13 네이티브 입력·Popover·단일 Modal 전환과 잔여 과설계 제거, 원화 입력 천 단위 표기와 휴대폰 입력·조회 표준화를 로컬 검증 완료. 실제 배포와 DNS 확인만 남음.*
+- [ ] Cloudflare Workers 배포(Vite build + Wrangler Static Assets) 및 DNS 확인 — *2026-08-13 네이티브 입력·Popover·단일 Modal 전환과 잔여 과설계 제거, 원화 입력 천 단위 표기와 휴대폰 입력·조회 표준화, 관리자 생성·에셋 목록의 기본 전체 조회와 검색·사이드 필터 정렬, 디자인 예시 등록 전용 페이지 분리를 로컬 검증 완료. 실제 배포와 DNS 확인만 남음.*
 
 ## 6. 리허설 (스테이징)
 

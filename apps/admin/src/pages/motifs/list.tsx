@@ -22,7 +22,7 @@ import { PaginatedAdminTableCard } from "../../widgets/admin-table/paginated-adm
 import { motifPreviewDocument } from "./detail";
 
 const SCOPES = ["whole", "partial"] as const;
-const DEFAULT_STATUS = "pending";
+const DEFAULT_STATUS = "all";
 const MOTIF_STATUS_LABELS = {
   pending: "검토 대기",
   approved: "승인",
