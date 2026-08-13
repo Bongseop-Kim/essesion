@@ -27,3 +27,16 @@
 검증은 `pnpm lint`, `pnpm architecture:check`, `pnpm typecheck`, 공개 로컬 환경값을 둔
 `pnpm build`, store 216개·shared 65개 테스트, design 문맥 통합 테스트, Ruff, Pyright를
 통과했다.
+
+## 추가 감사 적용 (2026-08-13)
+
+- 네이버·Apple 로그인 구현과 계약은 변경하지 않았다.
+- shared 폼·스크롤·AlertDialog·Divider의 실제로 쓰이지 않는 옵션을 제거했다.
+- 단일 사용 Breadcrumb·Footer·PaymentActionBar와 로그아웃 훅을 실제 사용처에 합쳤다.
+- worker의 미사용 preview concurrency 설정과 엄격 스키마 검사를 반복하던 테스트 4개를 제거했다.
+- `.turbo`, `scratch`, `playwright-report`, `test-results` 345MB를 복구 가능한 휴지통 폴더로 이동했다.
+
+전체 변경은 270줄 순감축했다. `pnpm lint`,
+`pnpm architecture:check`, `pnpm typecheck`, 공개 로컬 환경값을 둔 `pnpm build`, Ruff,
+Pyright를 통과했다. shared 65개, store 216개, 수정한 worker 영역 99개 테스트와 store 결제
+E2E 1건도 통과했다.

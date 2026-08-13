@@ -2,15 +2,13 @@ import {
   ActionButton,
   Box,
   Divider,
-  Footer,
-  FooterLink,
-  FooterSection,
   Grid,
   Header,
   type HeaderProps,
   HStack,
   Icon,
   Layout,
+  LayoutContent,
   SnackbarHost,
   Text,
   VStack,
@@ -57,14 +55,27 @@ function StoreFooterLink({
   children: ReactNode;
 }) {
   return (
-    <FooterLink
-      href={href}
-      renderLink={({ href: to, ...props }) => (
-        <Link to={to ?? "#"} {...props} />
-      )}
+    <Link
+      to={href}
+      className="text-t4 font-medium text-fg-neutral-muted transition-colors duration-(--duration-fast) ease-standard hover:text-fg-neutral focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
     >
       {children}
-    </FooterLink>
+    </Link>
+  );
+}
+
+function StoreFooterSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <VStack gap="x3" alignItems="start">
+      <Text textStyle="labelSm">{title}</Text>
+      {children}
+    </VStack>
   );
 }
 
@@ -174,57 +185,64 @@ function StoreHeader() {
 
 function StoreFooter() {
   return (
-    <Footer>
-      <VStack gap="x8">
-        <Grid columns={{ base: 2, sm: 3 }} gap="x8">
-          <FooterSection title="서비스">
-            {STORE_NAV_ITEMS.map((item) => (
-              <StoreFooterLink key={item.href} href={item.href}>
-                {item.label}
-              </StoreFooterLink>
-            ))}
-          </FooterSection>
-          <FooterSection title="고객지원">
-            {SUPPORT_LINKS.map((item) => (
-              <StoreFooterLink key={item.href} href={item.href}>
-                {item.label}
-              </StoreFooterLink>
-            ))}
-          </FooterSection>
-          <FooterSection title="정책">
-            {POLICY_LINKS.map((item) => (
-              <StoreFooterLink key={item.href} href={item.href}>
-                {item.label}
-              </StoreFooterLink>
-            ))}
-          </FooterSection>
-        </Grid>
+    <Box
+      as="footer"
+      bg="bg.layer-basement"
+      py="x10"
+      className="border-t border-stroke-neutral-weak"
+    >
+      <LayoutContent flexGrow={0}>
+        <VStack gap="x8">
+          <Grid columns={{ base: 2, sm: 3 }} gap="x8">
+            <StoreFooterSection title="서비스">
+              {STORE_NAV_ITEMS.map((item) => (
+                <StoreFooterLink key={item.href} href={item.href}>
+                  {item.label}
+                </StoreFooterLink>
+              ))}
+            </StoreFooterSection>
+            <StoreFooterSection title="고객지원">
+              {SUPPORT_LINKS.map((item) => (
+                <StoreFooterLink key={item.href} href={item.href}>
+                  {item.label}
+                </StoreFooterLink>
+              ))}
+            </StoreFooterSection>
+            <StoreFooterSection title="정책">
+              {POLICY_LINKS.map((item) => (
+                <StoreFooterLink key={item.href} href={item.href}>
+                  {item.label}
+                </StoreFooterLink>
+              ))}
+            </StoreFooterSection>
+          </Grid>
 
-        <VStack gap="x4">
-          <Divider />
-          <VStack gap="x1">
-            <Text as="p" textStyle="caption" color="fg.neutral-muted">
-              회사명: 영선산업 | 상호명: ESSE SION | 대표: 김영선
-            </Text>
-            <Text as="p" textStyle="caption" color="fg.neutral-muted">
-              주소: 대전광역시 동구 우암로246번길 9-16 (가양동) 영선산업
-            </Text>
-            <Text as="p" textStyle="caption" color="fg.neutral-muted">
-              통신판매업 번호: 2017-대전동구-0353 | 전화번호: 042-626-9055
-            </Text>
-            <Text as="p" textStyle="caption" color="fg.neutral-muted">
-              이메일: biblecookie@naver.com
-            </Text>
-            <Text as="p" textStyle="caption" color="fg.neutral-muted">
-              호스팅사업자: 영선산업 | 사업자등록번호: 305-26-32033
-            </Text>
-            <Text as="p" textStyle="caption" color="fg.neutral-muted" pt="x2">
-              © 2026 영선산업. All rights reserved.
-            </Text>
+          <VStack gap="x4">
+            <Divider />
+            <VStack gap="x1">
+              <Text as="p" textStyle="caption" color="fg.neutral-muted">
+                회사명: 영선산업 | 상호명: ESSE SION | 대표: 김영선
+              </Text>
+              <Text as="p" textStyle="caption" color="fg.neutral-muted">
+                주소: 대전광역시 동구 우암로246번길 9-16 (가양동) 영선산업
+              </Text>
+              <Text as="p" textStyle="caption" color="fg.neutral-muted">
+                통신판매업 번호: 2017-대전동구-0353 | 전화번호: 042-626-9055
+              </Text>
+              <Text as="p" textStyle="caption" color="fg.neutral-muted">
+                이메일: biblecookie@naver.com
+              </Text>
+              <Text as="p" textStyle="caption" color="fg.neutral-muted">
+                호스팅사업자: 영선산업 | 사업자등록번호: 305-26-32033
+              </Text>
+              <Text as="p" textStyle="caption" color="fg.neutral-muted" pt="x2">
+                © 2026 영선산업. All rights reserved.
+              </Text>
+            </VStack>
           </VStack>
         </VStack>
-      </VStack>
-    </Footer>
+      </LayoutContent>
+    </Box>
   );
 }
 

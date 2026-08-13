@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     max_tile_mm: float = Field(default=2000.0, gt=0.0, allow_inf_nan=False)
     max_svg_bytes: int = Field(default=2_000_000, ge=1)
     max_placement_instances: int = Field(default=50_000, ge=1)
-    preview_render_concurrency: int = Field(default=2, ge=1, le=8)
     # Cloud Run finalize timeout is 900s. A lease must outlive one healthy request so a
     # retry cannot execute the same job concurrently; Cloud Tasks retries span this value.
     finalize_lease_seconds: int = Field(default=960, ge=1)

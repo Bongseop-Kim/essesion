@@ -65,13 +65,6 @@ def test_mvp_intent_is_valid():
     assert result.warnings == []
 
 
-def test_removed_top_level_arrangement_field_is_rejected():
-    intent = mvp_intent()
-    intent["sym" + "metry"] = {"kind": "removed"}
-    with pytest.raises(IntentInvalid):
-        validate_intent(intent)
-
-
 def test_bare_lane_on_multi_band_stripe_normalized_to_band0():
     # LLM이 다중 밴드 stripe에 bare lane("center")을 낸다 — 밴드는 네임스페이스(b0.center...)라
     # repair 없으면 compose 심층(unknown lane)에서 모든 후보가 드롭 → 불투명 500. band 0으로 정규화.

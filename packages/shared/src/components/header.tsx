@@ -125,7 +125,7 @@ export function Header({
 
               {showDesktopNavigation && (
                 <Box display={{ base: "none", md: "block" }} minWidth={0}>
-                  <ScrollFog direction="horizontal">
+                  <ScrollFog>
                     <HStack as="div" gap="x1" minWidth={0}>
                       {navItems.map((item) => {
                         const active = isActivePath(activePathname, item.href);

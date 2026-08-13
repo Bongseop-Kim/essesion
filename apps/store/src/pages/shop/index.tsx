@@ -112,7 +112,7 @@ export function ShopPage() {
         <VStack gap="x4">
           <HStack gap="x3" wrap="nowrap">
             <Box flex={1} minWidth={0}>
-              <ScrollFog direction="horizontal">
+              <ScrollFog>
                 <HStack gap="x2" wrap="nowrap">
                   <FilterPickerSlot>
                     <ListPicker

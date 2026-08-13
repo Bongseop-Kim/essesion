@@ -1,8 +1,7 @@
-import { VStack } from "@essesion/shared";
+import { ActionButton, Box, Text, VStack } from "@essesion/shared";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
-
+import { krw } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
-import { PaymentActionBar } from "@/shared/ui/payment-action-bar";
 
 import { PaymentWidget, type PaymentWidgetHandle } from "./payment-widget";
 
@@ -47,13 +46,24 @@ export function CheckoutShell({
         </VStack>
       }
       actionBar={
-        <PaymentActionBar
-          amount={amount}
-          disabled={payDisabled || !widgetReady}
-          loading={payLoading}
-          helperText={helperText}
-          onClick={() => onPay(widgetRef.current)}
-        />
+        <VStack gap="x2" alignItems="stretch">
+          {helperText ? (
+            <Text textStyle="caption" color="fg.neutral-muted" align="center">
+              {helperText}
+            </Text>
+          ) : null}
+          <Box
+            as={ActionButton}
+            type="button"
+            size="large"
+            width="full"
+            disabled={payDisabled || !widgetReady}
+            loading={payLoading}
+            onClick={() => onPay(widgetRef.current)}
+          >
+            {krw.format(amount)}원 결제하기
+          </Box>
+        </VStack>
       }
     >
       {children}

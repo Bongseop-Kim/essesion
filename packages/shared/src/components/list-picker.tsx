@@ -24,7 +24,6 @@ export type ListPickerProps = {
   description?: ReactNode;
   errorMessage?: ReactNode;
   placeholder?: ReactNode;
-  size?: "medium" | "large";
   disabled?: boolean;
   /** 피커 제목 — 기본 label */
   title?: ReactNode;
@@ -41,7 +40,6 @@ export function ListPicker({
   description,
   errorMessage,
   placeholder = "선택",
-  size = "medium",
   disabled,
   title,
 }: ListPickerProps) {
@@ -59,7 +57,6 @@ export function ListPicker({
   return (
     <>
       <FieldButton
-        size={size}
         label={label}
         description={description}
         errorMessage={errorMessage}

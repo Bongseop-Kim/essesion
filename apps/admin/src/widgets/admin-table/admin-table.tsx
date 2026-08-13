@@ -131,7 +131,6 @@ export function AdminTable<Row>({
         {resultMessage}
       </Text>
       <ScrollFog
-        direction="horizontal"
         role="region"
         tabIndex={0}
         aria-label={`${label} 표 가로 스크롤 영역`}

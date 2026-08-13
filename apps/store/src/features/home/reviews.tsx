@@ -24,7 +24,7 @@ export function Reviews() {
   return (
     <Section>
       <SectionHeader title="먼저 써본 분들 이야기" />
-      <ScrollFog direction="horizontal" className="snap-x snap-mandatory">
+      <ScrollFog className="snap-x snap-mandatory">
         <Flex gap="x3" pt="x1" align="stretch">
           {REVIEWS.map((r) => (
             <VStack

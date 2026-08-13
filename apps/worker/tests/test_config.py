@@ -42,7 +42,6 @@ def test_settings_validates_resource_ceilings() -> None:
         max_placement_instances=1,
         max_svg_bytes=1,
         preview_dpi=1200,
-        preview_render_concurrency=8,
         finalize_lease_seconds=1,
         motif_generate_per_request_limit=8,
     )
@@ -53,8 +52,6 @@ def test_settings_validates_resource_ceilings() -> None:
         _settings(max_svg_bytes=0)
     with pytest.raises(ValidationError):
         _settings(preview_dpi=1201)
-    with pytest.raises(ValidationError):
-        _settings(preview_render_concurrency=9)
     with pytest.raises(ValidationError):
         _settings(finalize_lease_seconds=0)
     with pytest.raises(ValidationError):

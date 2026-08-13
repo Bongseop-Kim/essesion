@@ -566,27 +566,6 @@ def _patch_request(prompt: str, intent: dict) -> dict:
     }
 
 
-def test_composition_patch_rejects_removed_photo_history_attachment(monkeypatch):
-    app = _configure_app(monkeypatch)
-    payload = _patch_request("바탕을 밝게", mvp_intent())
-    payload["conversation_context"]["history"][0]["attachments"] = [
-        {"kind": "photo", "filename": "legacy.png", "purpose": "color_mood"}
-    ]
-
-    response = TestClient(app).post("/generate", json=payload)
-
-    assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"] == [
-        "body",
-        "conversation_context",
-        "history",
-        0,
-        "attachments",
-        0,
-        "kind",
-    ]
-
-
 def test_composition_patch_edits_only_the_requested_axis(monkeypatch):
     llm = _PatchLLM({"background": {"color": "#F5F0E6"}, "note": "바탕을 밝게 했어요."})
     app = _configure_app(monkeypatch)
@@ -669,32 +648,6 @@ def test_composition_patch_rejects_motif_inputs_in_the_contract(monkeypatch):
 
     assert response.status_code == 422
     assert "cannot include motif ids" in response.text
-
-
-def test_generate_rejects_reference_images_as_extra_input(monkeypatch):
-    app = _configure_app(monkeypatch)
-    app.state.adapters = Adapters(llm=object())
-
-    response = TestClient(app).post(
-        "/generate",
-        json={
-            "run_id": _RUN_ID,
-            "prompt": "사진의 색과 분위기를 참고한 패턴",
-            "reference_images": [
-                {
-                    "image_id": "c21585b4-bac6-4071-8903-6aa5dd3c2c79",
-                    "url": "https://storage.googleapis.example/private/reference.png",
-                    "content_type": "image/png",
-                    "size_bytes": 100,
-                    "purpose": "color_mood",
-                }
-            ],
-        },
-    )
-
-    assert response.status_code == 422
-    assert response.json()["detail"][0]["type"] == "extra_forbidden"
-    assert response.json()["detail"][0]["loc"] == ["body", "reference_images"]
 
 
 def test_generate_accepts_at_most_two_explicit_motifs(monkeypatch):

@@ -39,12 +39,6 @@ export type { BadgeProps } from "./components/badge";
 export { Badge } from "./components/badge";
 export type { BoxProps } from "./components/box";
 export { Box } from "./components/box";
-export type {
-  BreadcrumbItem,
-  BreadcrumbLinkProps,
-  BreadcrumbProps,
-} from "./components/breadcrumb";
-export { Breadcrumb } from "./components/breadcrumb";
 export type { CalloutProps } from "./components/callout";
 export { Callout } from "./components/callout";
 export type { CheckboxProps } from "./components/checkbox";
@@ -65,8 +59,6 @@ export type { FlexProps } from "./components/flex";
 export { Flex } from "./components/flex";
 export type { FloatPlacement, FloatProps } from "./components/float";
 export { Float } from "./components/float";
-export type { FooterLinkProps, FooterSectionProps } from "./components/footer";
-export { Footer, FooterLink, FooterSection } from "./components/footer";
 export type { GridProps } from "./components/grid";
 export { Grid } from "./components/grid";
 export type {

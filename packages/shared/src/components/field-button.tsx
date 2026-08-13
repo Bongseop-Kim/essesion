@@ -6,23 +6,17 @@ import { Flex } from "./flex";
 import { ChevronDownGlyph } from "./internal/glyphs";
 import { Text } from "./text";
 
-type FrameSize = "medium" | "large";
-
 /* TextField의 frame과 동일 치수·테두리 규칙. 포커스는 outline 기법(레이아웃 시프트 방지),
    입력 계열이므로 focus-visible 링은 파란 링이 아니라 stroke.brand. */
 const frameBase =
   "flex w-full items-center gap-x2 border border-stroke-neutral-weak bg-bg-layer-default text-left transition-colors duration-(--duration-fast) ease-standard focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-1 focus-visible:outline-stroke-focus-ring";
 
-const sizes: Record<FrameSize, string> = {
-  medium: "h-10 rounded-r2 px-x3_5 text-t4",
-  large: "h-13 rounded-r3 px-x4 text-t5",
-};
+const frameSize = "h-10 rounded-r2 px-x3_5 text-t4";
 
 export type FieldButtonProps = Omit<
   ComponentPropsWithRef<"button">,
   "value"
 > & {
-  size?: FrameSize;
   label?: ReactNode;
   description?: ReactNode;
   errorMessage?: ReactNode;
@@ -35,13 +29,11 @@ export type FieldButtonProps = Omit<
 };
 
 function FieldButtonControl({
-  size,
   placeholder,
   value,
   suffix,
   buttonProps,
 }: {
-  size: FrameSize;
   placeholder?: ReactNode;
   value?: ReactNode;
   suffix?: ReactNode;
@@ -64,7 +56,7 @@ function FieldButtonControl({
       aria-describedby={field?.describedBy ?? buttonProps["aria-describedby"]}
       className={cn(
         frameBase,
-        sizes[size],
+        frameSize,
         // errorMessage 존재 시 상시 표시 (state.md 폼 필드 규칙)
         invalid &&
           "outline outline-2 -outline-offset-1 outline-stroke-critical",
@@ -75,7 +67,7 @@ function FieldButtonControl({
     >
       <Text
         as="span"
-        textStyle={size === "large" ? "body" : "bodySm"}
+        textStyle="bodySm"
         color={
           disabled ? "fg.disabled" : hasValue ? "fg.neutral" : "fg.placeholder"
         }
@@ -93,7 +85,6 @@ function FieldButtonControl({
 }
 
 export function FieldButton({
-  size = "medium",
   label,
   description,
   errorMessage,
@@ -104,7 +95,6 @@ export function FieldButton({
 }: FieldButtonProps) {
   const control = (
     <FieldButtonControl
-      size={size}
       placeholder={placeholder}
       value={value}
       suffix={suffix}

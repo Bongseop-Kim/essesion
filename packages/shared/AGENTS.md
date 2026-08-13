@@ -17,7 +17,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 7. **반응형** — 프리미티브 prop은 `ResponsiveValue`(`p={{ base: "x4", md: "x8" }}`), Tailwind 쪽은 `md:` variant. 브레이크포인트: sm 480 / md 768 / lg 1280 / xl 1440.
 8. **같은 속성을 prop과 className 양쪽에 설정 금지** — 프리미티브는 inline style로 렌더하므로 항상 className을 이긴다. 탈출구는 `style` prop(최후순위, resolved보다 나중에 병합).
 9. **`theme.css`의 `@theme static`을 제거하지 말 것** — 제거하면 프리미티브가 참조하는 CSS 변수가 tree-shake되어 조용히 무스타일이 된다(드리프트 가드 테스트 + 빌드 후 dist grep이 방어선).
-10. **가로 스크롤은 `ScrollFog direction="horizontal"`만 사용** — 가로 scrollbar는 항상 숨긴다. 스크롤 가능 여부는 fog edge로 전달한다. `overflowX="auto|scroll"`·`overflow-x-auto|scroll` 직접 사용 금지(`pnpm lint`가 차단). 세로 스크롤은 모달·시트·패널·긴 목록에서 상황별로 허용하되, PC는 필요하면 scrollbar 표시, 모바일은 공간이 좁으면 `ScrollFog`/시트 패턴으로 edge hint를 우선한다. 상세: `docs/foundation/scroll.md`.
+10. **가로 스크롤은 `ScrollFog`만 사용** — 가로 scrollbar는 항상 숨긴다. 스크롤 가능 여부는 fog edge로 전달한다. `overflowX="auto|scroll"`·`overflow-x-auto|scroll` 직접 사용 금지(`pnpm lint`가 차단). 세로 스크롤은 모달·시트·패널·긴 목록에서 상황별로 허용한다. 상세: `docs/foundation/scroll.md`.
 
 ## textStyle 10종
 
@@ -56,7 +56,6 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 |---|---|---|
 | Layout / LayoutContent | 앱 루트 세로 컬럼(Layout) + 밀도별 최대폭·반응형 거터 콘텐츠 컨테이너(LayoutContent: `density` low 720 / medium 1280 / high 무제한) | 페이지 폭·좌우 거터를 임의 값으로 재작성 |
 | Header | 상단 스티키 바(브랜드+주요 nav, 모바일은 우측 슬라이드 메뉴). 링크는 앱이 `renderLink`로 | 앱마다 헤더 재구현 |
-| Footer / FooterSection / FooterLink | 하단 푸터 바(구획=FooterSection, 링크=FooterLink) | — |
 
 ### 버튼
 
@@ -70,8 +69,8 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Field | 앱 커스텀 컨트롤에 label·description·errorMessage + `aria-describedby` 배선 | TextField/FieldButton 등 내장 컨트롤은 자체 처리(중복 래핑 X) |
-| TextField | 한 줄 텍스트 입력(prefix/suffix, medium/large) | 여러 줄은 TextAreaField |
-| TextAreaField | 여러 줄 텍스트 입력(`rows`·`autoResize`) | — |
+| TextField | 한 줄 텍스트 입력(prefix/suffix) | 여러 줄은 TextAreaField |
+| TextAreaField | 여러 줄 텍스트 입력(`rows`) | — |
 | Checkbox | 다중/비배타 선택 · 약관 동의 · 부모-자식 옵션 | 즉시 반영(→Switch), 단일 배타(→RadioGroup) |
 | RadioGroup / RadioGroupItem | 소수 옵션의 배타적 **단일 선택**(vertical/horizontal) | 옵션 많음(→SelectBox/ListPicker), 다중(→Checkbox), 불리언 즉시(→Switch) |
 | Switch | **즉시 반영**되는 on/off | 저장/확인 단계가 필요(→Checkbox) |
@@ -89,13 +88,12 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | Tabs / TabList / TabTrigger / TabContent | 한 화면에서 탭 단위로 콘텐츠 분리/전환(Line 스타일). `triggerLayout` hug(기본)/fill | 같은 화면 콘텐츠 조작·필터(→SegmentedControl) |
 | Menu (Root/Trigger/Content/Item) | **트리거 요소에 붙는** 선택지/명령 목록. 모바일에서도 같은 컴포넌트를 사용 | 긴 목록·폼(→ResponsiveModal) |
 | HelpBubbleTrigger | 버튼을 클릭해 여는 짧은 보조 설명. 여러 문장·모바일 탭·명시적 닫기가 필요한 도움말 | 명령 목록(→Menu), 상주 안내(→Callout), hover 전용 Tooltip |
-| Breadcrumb | 페이지 경로 표시(마지막=현재 페이지). 라우팅은 `renderLink` | 단일 뎁스 페이지 |
 
 ### 스크롤 (규칙 10)
 
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
-| ScrollFog | 스크롤 여지가 있는 가장자리를 알파 마스크로 페이드. **가로 스크롤은 항상 이걸로**(`direction="horizontal"`, scrollbar 숨김) | `overflowX:auto/scroll`·`overflow-x-*` 직접(`pnpm lint`가 차단) |
+| ScrollFog | 가로 스크롤 여지가 있는 가장자리를 알파 마스크로 페이드하고 scrollbar를 숨김 | `overflowX:auto/scroll`·`overflow-x-*` 직접(`pnpm lint`가 차단) |
 
 ### 오버레이 (상세 결정 트리: 아래 "오버레이·피드백 선택" 표 — 필독)
 

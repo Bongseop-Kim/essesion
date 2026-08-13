@@ -12,38 +12,31 @@ import { Text } from "./text";
 
 export type AlertDialogProps = {
   open?: boolean;
-  defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   title: ReactNode;
   description?: ReactNode;
   primaryActionProps: ActionButtonProps;
   secondaryActionProps?: ActionButtonProps;
-  actionLayout?: "row" | "column";
-  closeOnEscape?: boolean;
 };
 
 /* 파괴적·중요 결정을 요구하는 모달. 네이티브 <dialog>+showModal 기반이며
    백드롭 클릭으로 닫히지 않는다(lightDismiss: false) — 명시적 선택만 허용. */
 export function AlertDialog({
   open,
-  defaultOpen = false,
   onOpenChange,
   title,
   description,
   primaryActionProps,
   secondaryActionProps,
-  actionLayout = "row",
-  closeOnEscape = true,
 }: AlertDialogProps) {
   const [isOpen, setOpen] = useControllableState({
     value: open,
-    defaultValue: defaultOpen,
+    defaultValue: false,
     onChange: onOpenChange,
   });
   const { dialogProps } = useDialog({
     open: isOpen,
     onClose: () => setOpen(false),
-    closeOnEscape,
     lightDismiss: false,
   });
 
@@ -70,8 +63,6 @@ export function AlertDialog({
       onClick={runAction(actionProps)}
     />
   );
-
-  const isColumn = actionLayout === "column";
 
   return (
     <dialog
@@ -111,28 +102,11 @@ export function AlertDialog({
           </Text>
         ) : null}
       </VStack>
-      <Flex
-        direction={isColumn ? "column" : "row"}
-        gap="x2"
-        px="x5"
-        pt="x4"
-        pb="x5"
-      >
-        {isColumn ? (
-          <>
-            {renderAction(primaryActionProps, "brandSolid")}
-            {secondaryActionProps
-              ? renderAction(secondaryActionProps, "neutralWeak")
-              : null}
-          </>
-        ) : (
-          <>
-            {secondaryActionProps
-              ? renderAction(secondaryActionProps, "neutralWeak", "flex-1")
-              : null}
-            {renderAction(primaryActionProps, "brandSolid", "flex-1")}
-          </>
-        )}
+      <Flex direction="row" gap="x2" px="x5" pt="x4" pb="x5">
+        {secondaryActionProps
+          ? renderAction(secondaryActionProps, "neutralWeak", "flex-1")
+          : null}
+        {renderAction(primaryActionProps, "brandSolid", "flex-1")}
       </Flex>
     </dialog>
   );

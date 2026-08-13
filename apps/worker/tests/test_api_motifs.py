@@ -105,14 +105,6 @@ async def test_motifs_generate_never_reuses_catalog(app, client, db_session):
     assert set(body) == {"request_id", "motif_id"}
 
 
-async def test_motifs_endpoints_reject_the_removed_style_hint(client):
-    # 문장이 모티프의 유일한 정체성이다 — 숨은 스타일 입력이 되살아나면 같은 문장의
-    # 생성 결과가 요청 맥락에 따라 갈라지므로 필드 자체를 계약으로 거절한다.
-    for path in ("/motifs/generate", "/motifs/candidates"):
-        resp = await client.post(path, json={"query": "dot", "style_hint": "line art"})
-        assert resp.status_code == 422, (path, resp.text)
-
-
 def _lattice_intent(motif_id: str) -> dict:
     return {
         "intent_version": 1,
