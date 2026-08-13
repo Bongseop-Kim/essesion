@@ -15,7 +15,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 
-import { LogoutButton } from "@/features/auth";
+import { LogoutButton } from "@/features/auth/ui/logout-button";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function MyPage() {

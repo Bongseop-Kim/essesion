@@ -11,23 +11,23 @@ import {
 } from "@essesion/shared";
 import { useRef } from "react";
 import { useNavigate } from "react-router";
-import { useCartActions } from "@/features/cart";
+import { useCartActions } from "@/features/cart/model/use-cart";
 import {
   CHECKOUT_PENDING_KEY,
   clearPendingCheckout,
   onTerminalPaymentFailure,
   type PendingCheckout,
   readPendingCheckout,
-  usePaymentConfirm,
   waitForSettledPaymentOwner,
-} from "@/features/checkout";
-import { clearCustomOrderFormDraft } from "@/features/custom-order";
+} from "@/features/checkout/model/use-checkout-payment";
+import { usePaymentConfirm } from "@/features/checkout/model/use-payment-confirm";
+import { clearCustomOrderFormDraft } from "@/features/custom-order/model/draft";
+import { submitRepairShipment } from "@/features/repair-shipping/api/submit";
+import { planRepairOutcome } from "@/features/repair-shipping/model/post-confirm";
 import {
   isRepairShipmentDraft,
-  planRepairOutcome,
   type RepairShipmentDraft,
-  submitRepairShipment,
-} from "@/features/repair-shipping";
+} from "@/features/repair-shipping/model/shipment";
 import { trackEvent } from "@/shared/lib/analytics";
 import { useSession } from "@/shared/store/session";
 import { ResultEmoji } from "@/shared/ui/result-emoji";

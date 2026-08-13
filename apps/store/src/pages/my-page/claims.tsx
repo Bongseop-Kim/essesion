@@ -20,7 +20,7 @@ import {
   claimReasonLabel,
   claimStatusTone,
   claimTypeLabel,
-} from "@/features/claims";
+} from "@/features/claims/model/config";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
 import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";
 import { ContentLayout } from "@/shared/ui/content-layout";

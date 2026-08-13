@@ -19,7 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { PhoneVerifyModal } from "@/features/my-page";
+import { PhoneVerifyModal } from "@/features/my-page/ui/phone-verify-modal";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 

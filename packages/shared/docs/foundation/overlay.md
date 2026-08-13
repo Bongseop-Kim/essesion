@@ -13,17 +13,7 @@
 5. **트리거 요소에 붙는** 소형 선택지/명령 목록 → **Menu** — 모바일 포함 브레이크포인트 무관
 6. 측면 맥락 유지가 중요한 **넓은 보조 작업**(admin 상세·설정) → **SidePanel** — 그 외 데스크톱 보조 작업은 Modal이 기본
 7. 특정 섹션에 **상주하는 안내·경고** → **Callout**
-8. **페이지 전체 범위**의 공지(페이지당 1개) → **PageBanner**
-
-## Callout vs PageBanner
-
-| | Callout | PageBanner |
-|---|---|---|
-| 위치 | 관련 콘텐츠 옆 인라인 | 페이지 최상단 |
-| 너비 | 부모 콘텐츠 폭 | 화면 전체 폭 |
-| 용도 | 해당 섹션에 관한 팁·안내·주의 | 페이지·시스템 수준 상태·공지 |
-| 범위 | 섹션(로컬) | 페이지(글로벌) |
-| 개수 | 여러 개 가능 | **페이지당 1개**, sticky는 앱 레벨 |
+8. **페이지 전체 범위**의 공지(페이지당 1개) → 해당 페이지에서 Flex·Text·ActionButton 조립
 
 dismissible(X 버튼)은 **한 번만 전달해도 되는 정보에만** — 경고·오류에 금지, 닫은 뒤 재노출 금지.
 
@@ -33,7 +23,7 @@ dismissible(X 버튼)은 **한 번만 전달해도 되는 정보에만** — 경
 |---|---|
 | 사용자의 응답·결정이 필요 | AlertDialog |
 | 계속 보여야 하는 정보 | Callout |
-| 페이지 수준 공지 | PageBanner |
+| 페이지 수준 공지 | 해당 페이지의 인라인 상태 행 |
 | 긴 내용·여러 액션 | BottomSheet |
 
 Snackbar는 방금 한 액션의 **낮은 심각도 결과**(저장됨·삭제됨·복사됨) 전용. 보조 액션은 최대 1개, 구체적 동사 라벨("되돌리기"). 화면당 1개 표시 + 큐, 기본 4초, hover/focus 시 일시정지.
@@ -47,7 +37,7 @@ HelpBubble은 기본 최대 너비를 두지 않는다. 호출부가 내용과 �
 | 명시적 전용 | AlertDialog | 버튼·Esc만. 바깥 클릭 무시 — 실수로 결정을 건너뛰지 못하게 |
 | light-dismiss | Modal · BottomSheet · SidePanel · Menu · HelpBubble | 바깥 탭 + Esc(+시트는 스와이프·드래그). 중요한 폼이 든 Modal/BottomSheet는 `showCloseButton` 권장 |
 | 자동 소멸 | Snackbar | 4초 타이머, 상호작용 시 일시정지 |
-| 인라인 상주 | Callout · PageBanner | 오버레이 아님. dismiss 버튼만(선택적) |
+| 인라인 상주 | Callout · 페이지 상태 행 | 오버레이 아님. dismiss 버튼만(선택적) |
 
 ## 반응형 매핑
 

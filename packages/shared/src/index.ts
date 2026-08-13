@@ -35,8 +35,6 @@ export type {
   AttachmentItem,
 } from "./components/attachment-display-field";
 export { AttachmentDisplayField } from "./components/attachment-display-field";
-export type { AvatarProps } from "./components/avatar";
-export { Avatar } from "./components/avatar";
 export type { BadgeProps } from "./components/badge";
 export { Badge } from "./components/badge";
 export type { BoxProps } from "./components/box";
@@ -113,8 +111,6 @@ export {
   MenuRoot,
   MenuTrigger,
 } from "./components/menu";
-export type { PageBannerProps } from "./components/page-banner";
-export { PageBanner } from "./components/page-banner";
 export type { ProgressCircleProps } from "./components/progress-circle";
 export { ProgressCircle } from "./components/progress-circle";
 export type {

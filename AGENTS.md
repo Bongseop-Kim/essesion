@@ -140,7 +140,7 @@ pnpm lint
 JS 빌드·타입체크·테스트
 
 ```bash
-pnpm turbo build typecheck test
+pnpm build && pnpm typecheck && pnpm test
 ```
 
 Python 테스트 — fake-gcs-server(`docker compose up -d --wait gcs`)가 떠 있어야 한다

@@ -14,13 +14,10 @@ import {
 } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
 import { type ComponentProps, useEffect, useState } from "react";
-
-import {
-  CouponSelectModal,
-  couponDiscount,
-  couponLabel,
-} from "@/features/coupon";
-import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
+import { couponDiscount, couponLabel } from "@/features/coupon/model/discount";
+import { CouponSelectModal } from "@/features/coupon/ui/coupon-select-modal";
+import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
+import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/shared/lib/format";
 import { useSession } from "@/shared/store/session";
 import { SummaryCard } from "@/shared/ui/summary-card";

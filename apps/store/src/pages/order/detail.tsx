@@ -37,27 +37,26 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
-
-import {
-  ClaimFormModal,
-  ClaimItemActions,
-  type ClaimType,
-  claimItemTitle,
-  TokenRefundSection,
-} from "@/features/claims";
+import { type ClaimType, claimItemTitle } from "@/features/claims/model/config";
+import { ClaimFormModal } from "@/features/claims/ui/claim-form-modal";
+import { ClaimItemActions } from "@/features/claims/ui/claim-item-actions";
+import { TokenRefundSection } from "@/features/claims/ui/token-refund-section";
 import {
   canRegisterRepairShipment,
   orderStatusTone,
   orderTypeLabel,
-} from "@/features/orders";
-import { reformServiceLabel } from "@/features/reform";
+} from "@/features/orders/model/display";
+import { reformServiceLabel } from "@/features/reform/model/reform";
 import {
   courierLabel,
   courierTrackingUrl,
-  RepairInboundAddress,
-} from "@/features/repair-shipping";
-import { ReviewFormModal, type ReviewTarget } from "@/features/reviews";
-import { deliveryRequestLabel } from "@/features/shipping";
+} from "@/features/repair-shipping/model/couriers";
+import { RepairInboundAddress } from "@/features/repair-shipping/ui/repair-inbound-address";
+import {
+  ReviewFormModal,
+  type ReviewTarget,
+} from "@/features/reviews/ui/review-form-modal";
+import { deliveryRequestLabel } from "@/features/shipping/model/delivery-request";
 import { krw } from "@/pages/shop/constants";
 import { formatDate } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";

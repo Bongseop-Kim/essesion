@@ -25,7 +25,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      - run: pnpm turbo build typecheck test
+      - run: pnpm build && pnpm typecheck && pnpm test
 
   architecture:
     runs-on: ubuntu-latest

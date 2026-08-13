@@ -27,15 +27,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
-
 import {
-  InquiryFormModal,
   type InquiryPrefill,
   inquiryStatusTone,
   isInquiryEditable,
   parseInquiryPrefill,
   summarizeInquiries,
-} from "@/features/inquiry";
+} from "@/features/inquiry/model/config";
+import { InquiryFormModal } from "@/features/inquiry/ui/inquiry-form-modal";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
 import { formatDateTime } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";

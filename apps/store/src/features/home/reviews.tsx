@@ -1,11 +1,4 @@
-import {
-  Avatar,
-  Flex,
-  HStack,
-  ScrollFog,
-  Text,
-  VStack,
-} from "@essesion/shared";
+import { Flex, HStack, ScrollFog, Text, VStack } from "@essesion/shared";
 
 import { Section, SectionHeader } from "./section";
 
@@ -54,7 +47,17 @@ export function Reviews() {
                 {r.q}
               </Text>
               <HStack gap="x2_5">
-                <Avatar name={r.nm} size={36} />
+                <Flex
+                  as="span"
+                  align="center"
+                  justify="center"
+                  className="size-9 shrink-0 rounded-full border border-stroke-neutral-weak bg-bg-neutral-weak"
+                  aria-hidden="true"
+                >
+                  <Text as="span" textStyle="labelSm" color="fg.neutral-subtle">
+                    {Array.from(r.nm)[0]}
+                  </Text>
+                </Flex>
                 <VStack gap="x0_5">
                   <Text textStyle="labelSm" color="fg.neutral">
                     {r.nm}

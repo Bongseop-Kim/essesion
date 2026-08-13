@@ -20,7 +20,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useLocation } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import { formatDate } from "@/shared/lib/format";
 import type { InquiryCategory } from "../model/config";
 import { inquiryStatusTone } from "../model/config";

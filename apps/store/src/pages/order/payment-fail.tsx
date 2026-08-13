@@ -1,7 +1,10 @@
 import { ActionButton } from "@essesion/shared";
 import { useNavigate } from "react-router";
 
-import { CHECKOUT_PENDING_KEY, readPendingCheckout } from "@/features/checkout";
+import {
+  CHECKOUT_PENDING_KEY,
+  readPendingCheckout,
+} from "@/features/checkout/model/use-checkout-payment";
 import { useSession } from "@/shared/store/session";
 import { PaymentFailResult } from "@/shared/ui/payment-fail-result";
 

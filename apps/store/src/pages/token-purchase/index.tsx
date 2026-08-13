@@ -16,11 +16,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import {
   type TokenPurchaseDraft,
   tokenPlanLabel,
-} from "@/features/token-purchase";
+} from "@/features/token-purchase/model/config";
 import { krw } from "@/pages/shop/constants";
 import { tokenBalanceQueryOptions } from "@/shared/lib/live-queries";
 import { useSession } from "@/shared/store/session";

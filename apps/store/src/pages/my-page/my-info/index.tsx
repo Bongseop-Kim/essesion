@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { z } from "zod";
 
-import { PhoneVerifyModal } from "@/features/my-page";
+import { PhoneVerifyModal } from "@/features/my-page/ui/phone-verify-modal";
 import { useZodForm } from "@/shared/lib/form";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";

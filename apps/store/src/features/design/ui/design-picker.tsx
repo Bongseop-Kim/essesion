@@ -23,7 +23,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { useAuthGuard } from "@/features/auth";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import { formatDateTime } from "@/shared/lib/format";
 import { useSession } from "@/shared/store/session";
 

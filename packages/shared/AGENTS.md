@@ -106,21 +106,19 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | ResponsiveModal | **임시 작업·폼·상세의 기본 패턴** — 모바일 BottomSheet ↔ PC Modal 자동 전환 | — |
 | BottomSheet | 모바일 하단에서 올라오는 시트(현재 맥락 유지). 중요 플로우는 `showCloseButton` | 콘텐츠가 화면 90%↑면 전용 페이지 |
 | SidePanel | 측면에서 슬라이드되는 패널(admin 보조 작업·맥락 유지, Header 모바일 메뉴) | — |
-| Snackbar (`snackbar()` / SnackbarHost) | 수 초 뒤 사라지는 결과 알림. SnackbarHost는 앱 루트에 1회 마운트 | 입력 필요·지속 경고(→AlertDialog / Callout / PageBanner). 동시 2개+ |
+| Snackbar (`snackbar()` / SnackbarHost) | 수 초 뒤 사라지는 결과 알림. SnackbarHost는 앱 루트에 1회 마운트 | 입력 필요·지속 경고(→AlertDialog / Callout). 동시 2개+ |
 
 ### 인라인 피드백
 
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
-| Callout | 섹션에 상주하는 안내 블록(tone 5종: neutral/informative/positive/warning/critical, `onClick`=actionable·`onDismiss`=dismissible). **절제해 사용** — 조건 충족 시에만 나타나 조치·주의가 필요한 메시지가 기본, 상주 안내는 결제·환불 제약 같은 필수 고지에 한정 | warning/critical에 dismissible(경고는 닫기 X). 페이지 전체 공지(→PageBanner), 사라지는 알림(→Snackbar), 빈 상태·조회 실패(→ContentPlaceholder), 데이터 콘텐츠 표시(메모·주소 등 → 일반 레이아웃+Text), 폼 도움말·스펙 안내(→Field description·caption Text), 같은 뷰에 상시 2개+ 쌓기(가장 중요한 1개만 남기고 강등) |
-| PageBanner | **페이지당 1개** 전체 폭 공지(top/bottom, variant weak/solid × tone) | 페이지당 2개+, 섹션 국소 안내(→Callout) |
+| Callout | 섹션에 상주하는 안내 블록(tone 5종: neutral/informative/positive/warning/critical, `onClick`=actionable·`onDismiss`=dismissible). **절제해 사용** — 조건 충족 시에만 나타나 조치·주의가 필요한 메시지가 기본, 상주 안내는 결제·환불 제약 같은 필수 고지에 한정 | warning/critical에 dismissible(경고는 닫기 X). 페이지 전체 공지는 해당 페이지에서 Flex·Text·ActionButton으로 조립, 사라지는 알림(→Snackbar), 빈 상태·조회 실패(→ContentPlaceholder), 데이터 콘텐츠 표시(메모·주소 등 → 일반 레이아웃+Text), 폼 도움말·스펙 안내(→Field description·caption Text), 같은 뷰에 상시 2개+ 쌓기(가장 중요한 1개만 남기고 강등) |
 
 ### 디스플레이
 
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
 | Badge | 정적 상태/속성 텍스트 태그(2–3단어, non-interactive) | 클릭 유도·CTA(→Chip/ActionButton). 객체당 3개+ |
-| Avatar | 원형 사용자 아이덴티티 이미지(`name` 이니셜 → 기본 실루엣 폴백) | 비-사용자·장식 이미지(→ImageFrame/Icon) |
 | TagGroup / Tag | 인라인 메타데이터 나열(기본 `·` 구분) — 카테고리·속성 | — |
 | Divider | 섹션/그룹 사이 구분선(`inset` 여백, orientation) | 반복 목록(자연 구분 있음). 장식용이면 `as="div"` |
 | Skeleton | **형태를 아는 초기 로딩**(목록·카드·상세 본문·프로필) — 실제 콘텐츠와 같은 형태·크기로 배치해 레이아웃 시프트 방지. 카드 옆에 `XxxSkeleton`으로 함께 export | ProgressCircle과 같은 화면 동시 노출. 형태를 못 그리는 대기(→ProgressCircle) |
@@ -151,7 +149,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | 측면 맥락 유지 보조 작업(admin) | SidePanel |
 | 수 초 뒤 사라지는 결과 알림 | `snackbar()` — SnackbarHost를 앱 루트에 1회 마운트 |
 | 섹션 상주 안내 | Callout |
-| 페이지 전체 공지(페이지당 1개) | PageBanner |
+| 페이지 전체 공지(페이지당 1개) | 해당 페이지에서 Flex · Text · ActionButton 조립 |
 
 - 모달 위 모달 금지. dialog/popover 요소에 display 클래스 금지(overlay.md 구현 계약).
 - theme.css 추가는 **토큰과 문서 수준 규칙**(body 스크롤 잠금 등)만 — 컴포넌트 룩 CSS 금지.

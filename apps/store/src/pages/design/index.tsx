@@ -3,8 +3,8 @@ import {
   ActionButton,
   Box,
   type DesignPreviewMode,
+  Flex,
   Icon,
-  PageBanner,
   snackbar,
   Text,
   VStack,
@@ -14,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import { createDesignIdeas } from "@/features/design/api/context-tools";
 import { designErrorMessage } from "@/features/design/model/errors";
 import { isDesignOnboardingComplete } from "@/features/design/model/onboarding";
@@ -225,18 +225,37 @@ export function DesignPage() {
         AI 넥타이 디자인
       </Text>
       {pending ? (
-        <PageBanner
-          tone="informative"
-          title="진행 중이던 생성이 있어요"
-          description="디자인을 열면 서버에 저장된 결과를 확인할 수 있어요."
-          actionLabel="열기"
-          onAction={() => {
-            if (!ensureAuth()) return;
-            openSession(pending.sessionId, false);
-            clearPendingDesign();
-            setPending(null);
-          }}
-        />
+        <Flex
+          align="center"
+          gap="x2"
+          width="full"
+          minHeight="x10"
+          px="x4"
+          py="x2_5"
+          className="bg-bg-informative-weak text-fg-informative"
+        >
+          <Flex minWidth={0} flex={1} wrap align="baseline" gap="x1_5">
+            <Text as="span" textStyle="bodySm" className="font-bold">
+              진행 중이던 생성이 있어요
+            </Text>
+            <Text as="span" textStyle="bodySm">
+              디자인을 열면 서버에 저장된 결과를 확인할 수 있어요.
+            </Text>
+          </Flex>
+          <ActionButton
+            variant="ghost"
+            size="xsmall"
+            className="shrink-0 underline underline-offset-2"
+            onClick={() => {
+              if (!ensureAuth()) return;
+              openSession(pending.sessionId, false);
+              clearPendingDesign();
+              setPending(null);
+            }}
+          >
+            열기
+          </ActionButton>
+        </Flex>
       ) : null}
 
       <DesignCanvas

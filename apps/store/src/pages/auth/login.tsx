@@ -15,12 +15,15 @@ import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { z } from "zod";
 
-import { AUTH_PROVIDERS, type AuthProviderId } from "@/features/auth";
+import {
+  AUTH_PROVIDERS,
+  type AuthProviderId,
+} from "@/features/auth/model/providers";
 import {
   saveAuthReturnIfEmpty,
   takeAuthReturn,
 } from "@/features/auth/model/return-after-login";
-import { syncGuestCartToAccount } from "@/features/cart";
+import { syncGuestCartToAccount } from "@/features/cart/model/use-cart";
 import { API_BASE_URL } from "@/shared/config/env";
 import { trackEvent } from "@/shared/lib/analytics";
 import {

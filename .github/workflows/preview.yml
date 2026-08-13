@@ -30,7 +30,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm turbo build
+      - run: pnpm build
       - name: Reject local or placeholder frontend endpoints
         run: |
           if grep -R -E 'http://localhost|api\.example\.invalid' apps/store/dist apps/admin/dist; then

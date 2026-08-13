@@ -38,33 +38,27 @@ import { Navigate, useLocation } from "react-router";
 import {
   cartItemBlockingReason,
   productUnitPrice,
-  useCartActions,
-  useCartItems,
-} from "@/features/cart";
+} from "@/features/cart/model/items";
+import { useCartActions, useCartItems } from "@/features/cart/model/use-cart";
 import {
   CHECKOUT_PENDING_KEY,
-  CheckoutShell,
   readPendingCheckout,
   useCheckoutPayment,
-} from "@/features/checkout";
-import {
-  CouponSelectModal,
-  couponDiscount,
-  couponLabel,
-} from "@/features/coupon";
-import { reformServiceLabel } from "@/features/reform";
+} from "@/features/checkout/model/use-checkout-payment";
+import { CheckoutShell } from "@/features/checkout/ui/checkout-shell";
+import { couponDiscount, couponLabel } from "@/features/coupon/model/discount";
+import { CouponSelectModal } from "@/features/coupon/ui/coupon-select-modal";
+import { reformServiceLabel } from "@/features/reform/model/reform";
 import {
   isRepairShipmentDraft,
-  RepairShipmentFields,
   shipmentDraftFromForm,
   shipmentFormFromDraft,
   shipmentInvalidReason,
-} from "@/features/repair-shipping";
-import {
-  AddressSelectModal,
-  ShippingAddressCard,
-  useDaumPostcode,
-} from "@/features/shipping";
+} from "@/features/repair-shipping/model/shipment";
+import { RepairShipmentFields } from "@/features/repair-shipping/ui/repair-shipment-fields";
+import { useDaumPostcode } from "@/features/shipping/model/use-daum-postcode";
+import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
+import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/pages/shop/constants";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";

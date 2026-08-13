@@ -19,8 +19,8 @@ import {
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-
-import { AddressFormModal, deliveryRequestLabel } from "@/features/shipping";
+import { deliveryRequestLabel } from "@/features/shipping/model/delivery-request";
+import { AddressFormModal } from "@/features/shipping/ui/address-form-modal";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
 export function ShippingPage() {

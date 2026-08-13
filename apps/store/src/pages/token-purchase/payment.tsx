@@ -6,13 +6,13 @@ import { z } from "zod";
 
 import {
   CHECKOUT_PENDING_KEY,
-  CheckoutShell,
   useCheckoutPayment,
-} from "@/features/checkout";
+} from "@/features/checkout/model/use-checkout-payment";
+import { CheckoutShell } from "@/features/checkout/ui/checkout-shell";
 import {
   type TokenPurchaseDraft,
   tokenPlanLabel,
-} from "@/features/token-purchase";
+} from "@/features/token-purchase/model/config";
 import { krw } from "@/pages/shop/constants";
 import { hasStateKey } from "@/shared/lib/guards";
 import { useSession } from "@/shared/store/session";

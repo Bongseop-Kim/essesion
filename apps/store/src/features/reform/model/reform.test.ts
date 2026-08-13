@@ -1,7 +1,7 @@
 import type { ReformPricingOut } from "@essesion/api-client";
 import { describe, expect, it } from "vitest";
 
-import { upsertReformCartItems } from "@/features/cart";
+import { upsertReformCartItems } from "@/features/cart/model/items";
 import {
   calculateReformCost,
   type ReformTieForm,

@@ -18,19 +18,22 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
-import { CUSTOM_IMAGE_ACCEPT, uploadOrderImage } from "@/features/custom-order";
-import { InquirySection } from "@/features/inquiry";
-import { ReviewListSection } from "@/features/reviews";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
+import {
+  CUSTOM_IMAGE_ACCEPT,
+  uploadOrderImage,
+} from "@/features/custom-order/api/upload";
+import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
+import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
 import {
   DEFAULT_SAMPLE_ORDER_OPTIONS,
   type SampleOrderDraft,
   type SampleOrderOptions,
-  SampleOrderServiceGuide,
   sampleFabricLabel,
   sampleOrderApiOptions,
   sampleTypeLabel,
-} from "@/features/sample-order";
+} from "@/features/sample-order/model/options";
+import { SampleOrderServiceGuide } from "@/features/sample-order/ui/sample-order-service-guide";
 import { krw } from "@/pages/shop/constants";
 import { hasStateKey } from "@/shared/lib/guards";
 import { useFilePreviews } from "@/shared/lib/use-file-previews";

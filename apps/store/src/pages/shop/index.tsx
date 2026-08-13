@@ -17,7 +17,10 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 
-import { ProductCard, ProductCardSkeleton } from "@/entities/product";
+import {
+  ProductCard,
+  ProductCardSkeleton,
+} from "@/entities/product/ui/product-card";
 import {
   offsetPageParam,
   useInfiniteScrollSentinel,

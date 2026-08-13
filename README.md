@@ -136,7 +136,7 @@ flowchart TB
 | Image pipeline | Deterministic Python engine, Pillow, librsvg, pgvector, OpenAI LLM/embeddings, GPT Image |
 | Data | PostgreSQL 17 + pgvector, Alembic, testcontainers |
 | Cloud | Cloudflare Workers, Cloud Run, Cloud Tasks, Cloud Scheduler, Cloud SQL, GCS, Secret Manager |
-| Tooling | pnpm 10, Turborepo 2, uv, mise, Biome, Ruff, Pyright, Playwright, Schemathesis |
+| Tooling | pnpm 10 workspaces, uv, mise, Biome, Ruff, Pyright, Playwright, Schemathesis |
 | Delivery | GitHub Actions, OpenTofu, Workload Identity Federation, Artifact Registry |
 
 ## 모노레포 구조
@@ -209,7 +209,7 @@ pnpm --filter admin dev
 ```bash
 pnpm codegen
 pnpm lint
-pnpm turbo build typecheck test
+pnpm build && pnpm typecheck && pnpm test
 
 uv run pytest
 uv run ruff check .

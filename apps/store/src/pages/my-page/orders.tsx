@@ -15,7 +15,10 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { orderStatusTone, orderTypeLabel } from "@/features/orders";
+import {
+  orderStatusTone,
+  orderTypeLabel,
+} from "@/features/orders/model/display";
 import { krw } from "@/pages/shop/constants";
 import { groupByCreatedDate } from "@/shared/lib/date-groups";
 import { ChipFilterBar } from "@/shared/ui/chip-filter-bar";

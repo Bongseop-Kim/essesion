@@ -39,17 +39,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import { useAuthGuard } from "@/features/auth";
+import { useAuthGuard } from "@/features/auth/ui/auth-guard-provider";
 import {
   CUSTOM_IMAGE_ACCEPT,
+  uploadOrderImage,
+} from "@/features/custom-order/api/upload";
+import {
+  clearCustomOrderDraftAttachments,
+  clearCustomOrderFormDraft,
+  restoreCustomOrderFormDraft,
+  saveCustomOrderFormDraft,
+} from "@/features/custom-order/model/draft";
+import {
   type CustomOrderDraft,
   type CustomOrderFieldId,
   type CustomOrderOptions,
   type CustomOrderSectionId,
-  CustomOrderServiceGuide,
   type CustomOrderValidationError,
-  clearCustomOrderDraftAttachments,
-  clearCustomOrderFormDraft,
   customOrderApiOptions,
   customOrderSummary,
   DEFAULT_CUSTOM_ORDER_OPTIONS,
@@ -57,16 +63,15 @@ import {
   invalidCustomOrderSection,
   MAX_CUSTOM_ORDER_QUANTITY,
   type QuoteContact,
-  restoreCustomOrderFormDraft,
-  saveCustomOrderFormDraft,
   TIE_WIDTH_ERROR,
-  uploadOrderImage,
-  useCustomQuote,
-} from "@/features/custom-order";
+} from "@/features/custom-order/model/options";
+import { useCustomQuote } from "@/features/custom-order/model/use-custom-quote";
+import { CustomOrderServiceGuide } from "@/features/custom-order/ui/custom-order-service-guide";
 import { DesignPicker } from "@/features/design/ui/design-picker";
-import { InquirySection } from "@/features/inquiry";
-import { ReviewListSection } from "@/features/reviews";
-import { AddressSelectModal, ShippingAddressCard } from "@/features/shipping";
+import { InquirySection } from "@/features/inquiry/ui/inquiry-section";
+import { ReviewListSection } from "@/features/reviews/ui/review-list-section";
+import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
+import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/pages/shop/constants";
 import { trackEvent } from "@/shared/lib/analytics";
 import { hasStateKey } from "@/shared/lib/guards";

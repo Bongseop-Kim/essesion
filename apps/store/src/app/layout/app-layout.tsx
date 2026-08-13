@@ -23,7 +23,8 @@ import {
 import { type ReactNode, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
-import { AuthGuardProvider, LogoutButton } from "@/features/auth";
+import { AuthGuardProvider } from "@/features/auth/ui/auth-guard-provider";
+import { LogoutButton } from "@/features/auth/ui/logout-button";
 import { trackPageView } from "@/shared/lib/analytics";
 import { useSession } from "@/shared/store/session";
 

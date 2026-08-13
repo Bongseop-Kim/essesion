@@ -2,7 +2,10 @@ import { listProductsOptions } from "@essesion/api-client/query";
 import { ContentPlaceholder, Grid } from "@essesion/shared";
 import { useQuery } from "@tanstack/react-query";
 
-import { ProductCard, ProductCardSkeleton } from "@/entities/product";
+import {
+  ProductCard,
+  ProductCardSkeleton,
+} from "@/entities/product/ui/product-card";
 import { Section, SectionHeader } from "./section";
 
 /** 인기 상품 4개 — 서버 정렬(sort=popular). 원본 "지금 가장 많이 찾는 넥타이". */
