@@ -55,11 +55,16 @@ printf '%s' '<값>' | gcloud secrets versions add '<시크릿ID>' --data-file=- 
 # apple-private-key만 .p8 파일을 통째로
 gcloud secrets versions add apple-private-key --data-file='<AuthKey.p8 경로>' --project=ysindustry
 
-# 새 환경마다 독립적으로 생성하는 값
-openssl rand -base64 48 | gcloud secrets versions add jwt-secret --data-file=- --project=ysindustry
-openssl rand -base64 48 | gcloud secrets versions add session-secret --data-file=- --project=ysindustry
-openssl rand -base64 48 | gcloud secrets versions add edge-proxy-secret --data-file=- --project=ysindustry
+# 새 환경마다 독립적으로 생성하는 값 — tr -d '\n' 필수 (아래 주의 참조)
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets versions add jwt-secret --data-file=- --project=ysindustry
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets versions add session-secret --data-file=- --project=ysindustry
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets versions add edge-proxy-secret --data-file=- --project=ysindustry
 ```
+
+**끝 개행 주의** — `openssl rand`는 출력 끝에 개행을 붙이고 Secret Manager는 그것까지 값으로 저장한다.
+Cloud Run은 개행을 포함한 원본을 env에 넣지만 `wrangler secret put`은 파이프 입력의 개행을 잘라내므로,
+`edge-proxy-secret`처럼 **두 시스템이 같은 값을 비교하는 시크릿은 개행 하나로 전부 403이 된다**
+(api `EdgeProxyMiddleware`의 `compare_digest`). 붙여넣기로 넣을 때도 끝에 빈 줄이 없어야 한다.
 
 `db-password`·`database-url`은 tofu가 생성·주입하므로 손대지 않는다.
 `naver-client-secret`·`apple-private-key`도 `cloudrun.tf`가 `version="latest"`로 참조하므로
@@ -155,11 +160,16 @@ curl -fsS 'https://api.essesion.shop/readyz'
 curl -fsS 'https://api.essesion.shop/products?limit=1'
 curl -sS -o /dev/null -w '%{http_code}\n' "$(tofu -chdir=infra output -raw api_url)/products?limit=1"   # 403
 
-# 두 worker는 비공개 — roles/run.invoker 계정으로 직접 확인 (둘 다 database=ready)
+# 두 worker는 비공개 — 둘 다 database=ready 확인.
+# --audiences는 서비스 계정 자격증명에서만 동작한다. 운영자 단말(사용자 계정)은 run.invoker를 가진
+# SA를 임퍼소네이션해야 하고, 그러려면 자신에게 roles/iam.serviceAccountTokenCreator가 필요하다.
+SA=run-api@ysindustry.iam.gserviceaccount.com
 GENERATE_URL="$(tofu -chdir=infra output -raw worker_generate_url)"
 FINALIZE_URL="$(tofu -chdir=infra output -raw worker_finalize_url)"
-curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences="$GENERATE_URL")" "$GENERATE_URL/readyz"
-curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token --audiences="$FINALIZE_URL")" "$FINALIZE_URL/readyz"
+for u in "$GENERATE_URL" "$FINALIZE_URL"; do
+  curl -fsS -H "Authorization: Bearer $(gcloud auth print-identity-token \
+    --impersonate-service-account="$SA" --audiences="$u" --include-email)" "$u/readyz"
+done
 ```
 
 api `/readyz`에서 `database=ready`, `toss/solapi/finalize_tasks=real`, `worker=ready`,
