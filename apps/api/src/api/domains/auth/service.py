@@ -25,7 +25,9 @@ _DUMMY_HASH = password_hasher.hash("dummy-password-for-timing")
 
 
 async def login_with_password(session: AsyncSession, email: str, password: str) -> User:
-    user = await session.scalar(select(User).where(User.email == email))
+    # 계정 생성·비밀번호 재설정은 email을 strip().lower()로 저장한다(auth/admin_ops.py).
+    # 로그인만 정확히 일치를 요구하면 대문자·공백 한 글자에 멀쩡한 계정이 401이 된다.
+    user = await session.scalar(select(User).where(User.email == email.strip().lower()))
     stored = user.password_hash if user and user.password_hash else _DUMMY_HASH
     ok = await run_in_threadpool(password_hasher.verify, password, stored)
     if user is None or user.password_hash is None or not ok:

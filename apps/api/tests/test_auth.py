@@ -1245,3 +1245,22 @@ async def test_phone_send_uses_alimtalk_when_template_configured(app, client, db
     assert sent[0]["type"] == "ATA"
     assert sent[0]["template_id"] == "KA01TP-PHONE-CODE-TEST"
     assert "인증번호는 [" in sent[0]["text"]  # 알림톡 실패 시 SMS 대체 문구
+
+
+@pytest.mark.parametrize(
+    "typed",
+    ["A@test.local", " a@test.local ", "A@TEST.LOCAL"],
+)
+async def test_login_normalizes_email_like_account_creation(client, db_session, typed):
+    """계정 생성은 strip().lower()로 저장한다 — 로그인만 정확히 일치를 요구하면 안 된다."""
+    await make_user(db_session, email="a@test.local", password="pw-1234")
+    res = await client.post("/auth/login", json={"email": typed, "password": "pw-1234"})
+    assert res.status_code == 200
+
+
+async def test_admin_login_normalizes_email(client, db_session):
+    await make_user(db_session, email="root@test.local", password="pw-1234", role="admin")
+    res = await client.post(
+        "/auth/admin/login", json={"email": " Root@Test.Local ", "password": "pw-1234"}
+    )
+    assert res.status_code == 200
