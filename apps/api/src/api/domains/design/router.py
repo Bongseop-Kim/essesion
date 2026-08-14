@@ -2471,19 +2471,18 @@ async def _dispatch_motif_generation(
     try:
         response = await request.app.state.worker.motif_generate(payload)
         out = WorkerMotifGenerateOut.model_validate(response)
+        results = await _motif_results(
+            session, [out.motif_id], user_id=user_id, allow_ids=(out.motif_id,)
+        )
+        if not results:
+            # 사용자에게 아무것도 남지 않은 실패다 — provider 비용은 우리가 부담한다.
+            raise UpstreamError("생성한 모티프를 카탈로그에서 찾을 수 없습니다")
     except ValidationError as exc:
         await _release()
         raise UpstreamError("모티프 생성 워커 응답 형식이 올바르지 않습니다") from exc
     except Exception:
         await _release()
         raise
-    results = await _motif_results(
-        session, [out.motif_id], user_id=user_id, allow_ids=(out.motif_id,)
-    )
-    if not results:
-        # 사용자에게 아무것도 남지 않은 실패다 — provider 비용은 우리가 부담한다.
-        await _release()
-        raise UpstreamError("생성한 모티프를 카탈로그에서 찾을 수 없습니다")
     saved = await _save_generated_motif(
         session,
         user_id=user_id,

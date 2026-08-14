@@ -134,7 +134,7 @@ flowchart TB
 - Toss webhook과 OAuth callback의 외부 등록 주소는 `api.essesion.shop`만 사용한다.
 - Admin mutation은 JWT role뿐 아니라 허용된 exact Origin을 검사하고 응답을 `no-store`로 제한한다.
 - worker는 `roles/run.invoker`와 audience가 맞는 Google OIDC token만 수신한다.
-- `/design/ideas`는 API 인스턴스 내 인증 사용자별 60초 6회 제한이다. 이는 **전역 quota가 아니므로** 프로덕션은 Cloudflare에서 같은 경로의 IP rate limit을 추가한다. 두 제한은 defense-in-depth이지 과금 quota가 아니다.
+- `/design/ideas`는 API 인스턴스 내 인증 사용자별 60초 6회 제한이다. 레이트리밋 시행 지점은 여기 하나뿐이고 edge 규칙은 두지 않는다(근거: `docs/reviews/cloudflare-waf-rate-limits-2026-08-14.md`). 인스턴스별 제한이라 **전역 quota가 아니다** — 과금 quota는 토큰 원장이 담당한다.
 
 ### 1.4 Supabase 대체 관계
 
