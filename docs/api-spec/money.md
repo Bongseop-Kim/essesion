@@ -1,6 +1,6 @@
-# 돈 경로 동작 명세 (YeongSeon 추출 — 구현 기준)
+# 돈 경로 동작 명세 — 주문·결제·토큰
 
-원본: YeongSeon `supabase/schemas/{93,95,98,99}_functions_*.sql`, `supabase/functions/{create-order,create-custom-order,create-sample-order,confirm-payment,cancel-token-payment}`. 기능 개편 금지 — 이 명세와 동작이 달라지면 버그다. 숫자·상태 문자열·수식은 원문 그대로.
+주문 생성 3종·결제 확인·토큰 원장의 **동작 정본**이다. 기능 개편 금지 — 구현이 이 명세와 달라지면 버그다. 숫자·상태 문자열·수식을 바꾸려면 이 문서를 먼저 고칠 것.
 
 결제 프로바이더는 Toss Payments다. 프론트 successUrl 콜백의 confirm이 주 경로이며,
 현재 구현은 상태 복구용 조회 검증 웹훅도 함께 사용한다(§7 자동 대사 참고).

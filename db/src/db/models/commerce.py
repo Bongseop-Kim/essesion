@@ -1,6 +1,6 @@
-"""커머스 도메인 — 기존 구조·상태값(한국어 text+CHECK) 보존, FK만 users로 재지정.
+"""커머스 도메인 — 상태값은 한국어 text + named CHECK.
 
-정리 원칙 (MAPPING.md §1):
+정리 원칙:
 - 유저 소유 임시 데이터(배송지·장바구니·찜)는 ondelete CASCADE,
   돈·이력 데이터(주문·클레임·견적)는 NO ACTION — 탈퇴는 api가 명시 처리.
 - 채번(ORD|CLM|QUO-YYYYMMDD-NNN)·상태 전이·집계는 api 소유(unique 제약만 DB).

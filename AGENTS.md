@@ -12,16 +12,11 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 
 ## 대원칙 (위반 금지)
 
-- 기존 코드 이식 금지 — 전부 새로 작성. 단 기능 명세("무엇을 하는가")는 기존과 동일하게 재현하되, 작업 전 기능·성능·유지보수 관점의 개선점이나 더 적합한 도구가 있으면 실행 전에 제안할 것.
-- 스키마는 기존 검토 후 재설계하되 도메인·데이터 의미는 보존. 스키마 변경은 Alembic(`db/`) 경유만 — DDL 직접 실행 금지.
+- 동작 명세는 `docs/api-spec/`이 정본 — 돈 경로·worker 계약은 명세와 달라지면 버그다. 개편이 필요하면 실행 전에 제안하고 명세를 함께 갱신할 것.
+- 스키마 변경은 Alembic(`db/`) 경유만 — DDL 직접 실행 금지. 설계 의도는 `db/README.md`.
 - 프론트에서 supabase-js 금지 — 서버 통신은 `packages/api-client`(OpenAPI 생성물)만 사용.
 - api 스펙 변경 시 api-client를 재생성해 함께 커밋 (CI가 드리프트 검사).
 - 시크릿 커밋 금지 — GCP는 Secret Manager, 로컬은 `.env`.
-
-## 참고 레포 (읽기 전용, 코드 복사 금지)
-
-- `../YeongSeon` — 기능 명세의 원본 (라우트·엣지펑션이 기능 목록).
-- `../seamless-tile` — 워커의 동작 기준선. 같은 intent+seed → byte-identical SVG 계약과 기존 테스트 50+개를 대조 기준으로 사용.
 
 ## 명령어
 

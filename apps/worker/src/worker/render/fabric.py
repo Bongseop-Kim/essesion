@@ -1,8 +1,8 @@
 """fabric finalize — print(균일 weave) + yarn_dyed(영역별 weave·모티프 실 인레이·relief).
 
-결정론: 동일 입력 → byte-identical PNG(Pillow·렌더러·에셋 핀 전제). 원본 seamless-tile의
-기능 명세를 재현하되 compose+rasterize 호출 수를 최소화하도록 재설계했다
-(worker-pipeline.md §2 "compose+rasterize 재실행 지점" — 승계 금지):
+결정론: 동일 입력 → byte-identical PNG(Pillow·렌더러·에셋 핀 전제). compose+rasterize
+호출 수를 최소로 유지하는 것이 계약이다
+(worker-pipeline.md §2 "compose+rasterize 재실행 지점"):
 
     print                     : 1회 (실색 디자인)
     yarn_dyed, 모티프 없음     : 1회 + (material_map ∨ relief>0 시) 라벨 1회

@@ -2040,8 +2040,8 @@ export const listRefundableTokenOrders = <ThrowOnError extends boolean = false>(
  *
  * 탈퇴 — 보존 이력 없으면 하드 삭제(CASCADE), 있으면 비활성화 + 개인정보 익명화.
  *
- * (구 delete-account는 auth.users 삭제 + 전체 CASCADE — 새 스키마는 주문·클레임
- * 이력이 NO ACTION이므로 이력 보존을 위해 소프트 처리. MAPPING.md §1)
+ * 주문·클레임 이력은 FK가 NO ACTION이므로 하드 삭제가 불가능하다 — 이력이 남은
+ * 계정은 소프트 처리한다.
  */
 export const deleteAccount = <ThrowOnError extends boolean = false>(options?: Options<DeleteAccountData, ThrowOnError>): RequestResult<DeleteAccountResponses, unknown, ThrowOnError> => (options?.client ?? client).delete<DeleteAccountResponses, unknown, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }],

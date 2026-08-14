@@ -1,6 +1,6 @@
-# worker 명세 2/3 — 모티프 시스템 + 외부 API (seamless-tile 추출)
+# worker 명세 2/3 — 모티프 시스템 + 외부 API
 
-원본: `app/motifs/`, `app/adapters/`. 모티프 검색·content-hash·프롬프트는 기능 명세의 일부 — 원문 보존. DB 스키마는 새 모노레포의 `motifs` 테이블과 OpenAI `vector(1536)` 한 종류만 사용한다.
+모티프 검색·content-hash·프롬프트는 동작 명세의 일부 — 임의로 바꾸지 말 것. 저장은 `motifs` 테이블과 OpenAI `vector(1536)` 한 종류만 사용한다.
 
 > 개정 2026-08-12: 생성 경로의 "같은 문장 = 재사용 판정" 계약과 variant_group 풀을 폐기
 > (`docs/plans/motif-generate-always-create.md`). 생성은 항상 생성하고, catalog hit는

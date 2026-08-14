@@ -1,4 +1,4 @@
-"""디자인 토큰 원장·구매 — 과금 로직(잔액 계산·차감·환불)은 api 소유 (MAPPING.md §3)."""
+"""디자인 토큰 원장·구매 — 과금 로직(잔액 계산·차감·환불)은 api 소유."""
 
 import uuid
 from datetime import datetime
