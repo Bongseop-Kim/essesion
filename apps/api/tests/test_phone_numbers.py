@@ -1,7 +1,7 @@
 from datetime import date
 
 import pytest
-from api.domains.admin.manual_orders import ManualOrderCreateRequest
+from api.domains.admin.manual_orders import ManualOrderCreateRequest, ManualOrderItem
 from api.domains.orders.schemas import RepairPickupIn
 from api.domains.users.router import ShippingAddressIn
 from api.phone_numbers import normalize_mobile_phone
@@ -44,13 +44,15 @@ def test_phone_write_models_store_canonical_digits() -> None:
         phone="010-1234-5678",
         amount=10_000,
         items=[
-            {
-                "quantity": 1,
-                "automatic": {
-                    "mechanism": "zipper",
-                    "total_length_cm": 145,
-                },
-            }
+            ManualOrderItem.model_validate(
+                {
+                    "quantity": 1,
+                    "automatic": {
+                        "mechanism": "zipper",
+                        "total_length_cm": 145,
+                    },
+                }
+            )
         ],
     )
 
