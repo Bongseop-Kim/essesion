@@ -147,12 +147,33 @@ SOLAPI_TEMPLATE_PAYMENT_DONE = "KA01TP260401050136256mqRqb0difkp"
 템플릿 변수명 일치와 정보성/광고성 구분은 실제 발송 때만 드러난다
 ([alimtalk-templates](./alimtalk-templates-2026-08-14.md)) — E-2에서 실제 번호로 2종 수신 확인이 필요하다.
 
-## production.tfvars 소재 불명 — 선행 위험
+## production.tfvars 재구성 — 드리프트 해소
 
-위 드리프트보다 이게 더 크다. `*.tfvars`는 gitignore라 레포에 없고 이 머신에도 없다. 그런데 그
-파일이 **인프라 설정의 정본**이다(origin·CORS·OAuth client id·Solapi 값 전부). 분실 상태면
-다음 인프라 변경 때 전체를 다시 만들어야 하고, 그 과정에서 위 드리프트도 조용히 사라진다.
-이관 원본 접속 정보가 문서에 없는 것과 같은 종류의 공백이다.
+원본이 다른 환경에 있어 이 머신에서 새로 만들기로 했다. 살아 있는 인프라에서 역산했다:
+
+| 값 | 출처 |
+|---|---|
+| `project_id` | `ysindustry` |
+| `billing_account` | `gcloud billing projects describe` |
+| `alert_email` | 기존 monitoring notification channel |
+| `api_extra_env` 17개 | Cloud Run api의 plain env에서, 모듈이 직접 넣는 것을 제외 |
+
+제외 기준은 `cloudrun.tf`의 `api_plain_env`다 — `ENV`·`GCS_*`·`GCP_*`·`CLOUD_TASKS_*`·
+`WORKER_*`·`BATCH_*`는 모듈이 리소스 속성에서 채우고, `PUBLIC_API_ORIGIN`은 `api_extra_env`
+**뒤에** merge되어 항상 `var.public_api_origin`이 이긴다. 시크릿 12종은 Secret Manager 참조라
+애초에 대상이 아니다.
+
+**검증은 `tofu plan`의 no-change로 했다.** 값 하나라도 틀렸으면 그 리소스가 diff로 떴을 것이다.
+
+```
+No changes. Your infrastructure matches the configuration.
+```
+
+부수효과로 위 Solapi 드리프트가 해소됐다 — 재구성한 tfvars에 두 템플릿 ID가 들어 있어 plan이
+그것들을 제거하려 들지 않았고, 이제 IaC가 값을 소유한다.
+
+남은 위험은 줄었지만 사라지진 않았다. tfvars는 여전히 gitignore라 이 머신 한 곳에만 있다 —
+사본 보관이 필요하다(`CHECKLIST` 1장).
 
 ## 남은 것
 

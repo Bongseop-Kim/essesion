@@ -5,8 +5,7 @@
 
 ## 1. 인프라 개통
 
-- [ ] `production.tfvars` 소재 확인·백업 — gitignore라 레포에 없고 작업 머신에도 없다. 인프라 설정의 정본(origin·CORS·OAuth client id·Solapi)이라 분실하면 다음 apply 때 전체를 다시 만들어야 한다
-- [ ] Solapi 템플릿 2종 IaC 반영 — `SOLAPI_TEMPLATE_PHONE_CODE`·`SOLAPI_TEMPLATE_PAYMENT_DONE`는 `gcloud run services update`로 직접 넣은 드리프트 상태다. tfvars 복구 시 `api_extra_env`에 함께 넣지 않으면 apply가 지운다 *([기록](./reviews/production-bootstrap-2026-08-15.md))*
+- [ ] `production.tfvars` 백업 — 2026-08-15 작업 머신에서 재구성했고 `tofu plan`이 no-change다. 다만 gitignore라 여전히 이 머신 한 곳에만 있다. 분실하면 또 역산해야 하므로 안전한 곳에 사본을 둘 것
 - [ ] 네이버·Apple 자리표시자 교체 — `naver-client-secret`과 `NAVER_CLIENT_ID`, Apple `.p8`는 콘솔 등록 후 실제 값으로. 비우면 `/readyz`가 503이라 자리표시자로 채워둔 상태다
 
 ## 2. Production 외부 연동·운영 검증
