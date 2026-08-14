@@ -1,5 +1,6 @@
 // api.<domain> → Cloud Run api 프록시 (ARCHITECTURE §1)
-// WAF·레이트리밋·봇 차단은 Cloudflare 대시보드 규칙이 담당 — 여기는 origin 전달만.
+// 레이트리밋은 api 내장 리미터가 담당하고 edge 규칙은 두지 않는다 — 여기는 origin 전달만.
+// (근거: docs/reviews/cloudflare-waf-rate-limits-2026-08-14.md)
 export default {
   async fetch(
     req: Request,

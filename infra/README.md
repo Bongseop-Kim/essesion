@@ -120,13 +120,9 @@ pnpm -C infra/cloudflare/api-proxy exec wrangler deploy \
   --var "ORIGIN:$(tofu -chdir=infra output -raw api_url)"
 ```
 
-4. 대시보드 Security: `api.essesion.shop`에 관리형 WAF + 기본 레이트리밋 1개(예: IP당 100req/min). 아래는 별도 IP 한도를 둔다.
-
-| 경로 | 한도 |
-|---|---|
-| `POST /auth/login` · `POST /auth/phone/verify` · `POST /payments/webhook` | 별도 IP 한도 |
-| `POST /images/reform-upload-url` (익명 수선 이미지) | IP당 60req/hour |
-| `POST /design/ideas` (무과금 helper) | api의 사용자별 6회/60초와 **별개로** IP 한도 |
+4. 대시보드 Security 규칙은 두지 않는다 — 레이트리밋은 api 내장 리미터
+   (`apps/api/src/api/domains/auth/rate_limit.py`)가 담당하고, zone이 Free 플랜이라 edge 규칙으로는
+   같은 한도를 표현할 수 없다. 판단 근거는 [기록](../docs/reviews/cloudflare-waf-rate-limits-2026-08-14.md).
 
 5. Toss 웹훅과 OAuth redirect URI는 처음부터 `https://api.essesion.shop` 기준으로만 등록한다. Cloud Run `run.app` URL을 외부 콘솔에 등록하지 않는다.
 6. 프론트 배포 뒤 `apps/store`·`apps/admin`의 고정 custom-domain route 연결을 확인한다.

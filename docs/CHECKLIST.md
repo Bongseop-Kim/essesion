@@ -5,7 +5,6 @@
 
 ## 1. 인프라 개통
 
-- [ ] Cloudflare 보안 규칙 — WAF·레이트리밋. 공개 오픈 전 필수: [플랜](./plans/cloudflare-waf-rate-limits.md)
 - [ ] 네이버·Apple 자리표시자 교체 — `naver-client-secret`과 `NAVER_CLIENT_ID`, Apple `.p8`는 콘솔 등록 후 실제 값으로. 비우면 `/readyz`가 503이라 자리표시자로 채워둔 상태다
 
 ## 2. 스키마

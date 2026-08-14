@@ -1,9 +1,14 @@
 """단일 인스턴스 in-memory rate limit과 trusted-edge client IP 해석.
 
-Cloudflare rate limit이 최종 외곽 방어선이며, 이 구현은 로컬과 Cloud Run 단일
-인스턴스에서 비정상 반복을 빠르게 차단하는 보조선이다. 키 수를 제한해 메모리가
-요청자 수에 비례해 무한히 늘지 않게 한다.
+레이트리밋의 **유일한** 지점이다 — Cloudflare edge에는 규칙을 두지 않는다(zone이 Free
+플랜이라 필요한 한도를 표현할 수 없고, 여기서 이미 같은 값을 강제한다. 근거는
+docs/reviews/cloudflare-waf-rate-limits-2026-08-14.md). 키 수를 제한해 메모리가 요청자
+수에 비례해 무한히 늘지 않게 한다.
 """
+
+# ponytail: 카운터가 인스턴스 로컬이라 Cloud Run이 N개로 스케일아웃하면 유효 한도가 N배가
+# 된다. 계정이 시드·관리자로만 생성돼 표면적이 작은 지금은 무해하다. 공개 회원가입을 열거나
+# 인스턴스가 상시 2개 이상이 되면 공유 카운터로 올릴 것(Redis INCR 또는 Postgres upsert).
 
 import hashlib
 import hmac
