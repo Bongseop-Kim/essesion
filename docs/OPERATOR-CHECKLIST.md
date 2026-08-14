@@ -11,8 +11,8 @@
 | A1 | GCP 프로젝트 생성·청구 연결·tfstate 버킷 ([명령](../infra/README.md#부트스트랩)) | 사용자(gcloud) | 버킷 생성 성공. 예산 알림을 위해 실행 계정에 **Billing Account Administrator/Costs Manager** 필요 |
 | A2 | `production.tfvars` 작성 → 1차 target apply | 사용자(tofu) | 시크릿 컨테이너·Cloud SQL 사용자 생성 |
 | A3 | Sentry 프로젝트 3개 생성 → **전 시크릿 값 주입** ([명령](../infra/README.md#시크릿-값-주입)) | 사용자 | `gcloud secrets versions list`로 **13개 전부** 버전 ≥1. 하나라도 비면 A4의 서비스 리비전이 기동 실패 |
-| A4 | 전체 apply | 사용자(tofu) | Cloud Run 3서비스 + migrate job, Cloud SQL(PITR), Cloud Tasks, **Scheduler 배치 5종**, GCS, IAM/WIF, 예산 알림 + uptime check 생성 |
-| A5 | Cloudflare zone·api 프록시 **선개통** ([순서](../infra/README.md#cloudflare--api-프록시-선개통)) | 사용자(wrangler) | 프록시 배포 완료 + WAF·레이트리밋 설정. **이 단계를 건너뛰고 API를 배포하지 않는다** |
+| A4 | 전체 apply | 사용자(tofu) | Cloud Run 3서비스 + migrate job, Cloud SQL(PITR), Cloud Tasks, **Scheduler 배치 5종**, GCS, IAM/WIF, 예산 알림 + uptime check 생성. GCP가 보낸 알림 채널 **인증 메일을 클릭**해야 예산·uptime 알림이 실제로 도착한다 |
+| A5 | Cloudflare zone·api 프록시 **선개통** ([순서](../infra/README.md#cloudflare--api-프록시-선개통)) | 사용자(wrangler `login` 또는 `CLOUDFLARE_API_TOKEN`) | 프록시 배포 완료 + WAF·레이트리밋 설정. **이 단계를 건너뛰고 API를 배포하지 않는다** — deploy 워크플로우 마지막 스텝이 공개 `/readyz` 200을 요구하므로, 프록시 없이 main에 머지하면 migrate와 Cloud Run 3서비스 배포가 **이미 끝난 뒤** 워크플로우만 실패한다 |
 | A6 | GitHub vars/secrets 설정 ([명령](../infra/README.md#github-actions-연결-apply-후-1회)) | 사용자(gh) | `VITE_*` **5개** 전부 설정. Renovate GitHub App 설치가 아직이면 이때 함께 |
 
 **A2 주의** — `public_api_origin`은 `https://api.essesion.shop`으로 유지한다. `api_extra_env`에는
@@ -29,10 +29,14 @@
    GCS 버킷·Cloud Tasks 값 누락은 capability가 아니라 **revision 기동 실패**로 드러나므로 Cloud Run 로그를 먼저 본다.
 3. **배치** — `api_url`이 scheduler audience 형식(`https://api-<project#>.<region>.run.app`)과 일치하는지 대조 →
    `batch-cancel-stale-orders` 수동 실행 → api 로그 200. 불일치하면 배치 5종이 전원 401로 조용히 실패한다.
-4. **초기 데이터** ([명령](../infra/README.md#초기-관리자-bootstrap세션-복구), [시드](../infra/README.md#production-데이터-시드)) —
-   관리자 생성 → motif 시드 → 태그 백필 → 임베딩 → authoring starter.
-   두 임베딩 출력이 각각 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서
-   symbol의 concrete paint와 자동 태그 표본을 확인한다.
+   대조가 필요한 것은 **첫 apply 직후 1회**뿐이다 — 이후에는 `scheduler.tf`의 `check` 블록이 plan/apply에서 자동으로 잡는다.
+4. **초기 데이터** — 먼저 [운영자 단말 DB 접속](../infra/README.md#운영자-단말에서-db-접속)을
+   연결한다(`database-url` 시크릿은 Cloud Run 전용 소켓 DSN이라 단말에서 그대로 못 쓴다).
+   [관리자 생성](../infra/README.md#초기-관리자-bootstrap세션-복구) → [시드](../infra/README.md#production-데이터-시드):
+   motif → design examples(첫 진입 갤러리) → 임베딩 → authoring starter → eval.
+   `backfill_motif_tags.py`는 production에서 돌리지 않는다(백필할 기존 데이터 없음, 유료 호출).
+   임베딩 출력이 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서
+   symbol의 concrete paint 표본을 확인한다.
 5. **외부 콘솔 등록** — 프록시 검증 후 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - Toss: 웹훅 `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로
    - Google·Kakao·Apple: redirect URI `https://api.essesion.shop/auth/{provider}/callback`. Apple은 Services ID + `.p8` 키 등록이 선행이며 Return URL이 POST 콜백이다. **네이버는 이후 일정** — 등록 전까지 store가 "준비 중"으로 게이팅한다(`AUTH_PROVIDERS[].comingSoon`)
@@ -65,7 +69,7 @@
 ## E. Production 외부 연동·데이터 검증
 
 1. 빈 production DB에 migrate job이 베이스라인 `f8c3b2a19d47`부터 현재 head `c7a8d2f1b604`까지
-   순차 적용했는지 확인한다. 알 수 없는 개발 revision이 발견되면 변환을 시도하지 말고 DB를 재생성한다.
+   순차 적용했는지 [DB 접속](../infra/README.md#운영자-단말에서-db-접속) 후 확인한다. 알 수 없는 개발 revision이 발견되면 변환을 시도하지 말고 DB를 재생성한다.
 2. 실제 Toss sandbox, 소셜 로그인, Solapi, generate → finalize Cloud Tasks 흐름과 주문·클레임 E2E.
    Apple은 코드가 이미 있으므로 **콘솔 등록 완료 + 실제 로그인 성공**으로 판정한다.
    네이버를 열 때는 콘솔 등록 + `naver-client-*` 시크릿 주입 후 `providers.ts`의 `comingSoon`을 지운다.

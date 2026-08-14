@@ -161,10 +161,26 @@ api `/readyz`에서 `database=ready`, `toss/solapi/finalize_tasks=real`, `worker
 모두 확인한다. 하나라도 `unavailable`이면 503이다. Toss·GCS mutation은 503으로 차단되고 Solapi
 알림은 가짜 성공으로 바뀌지 않고 outbox `failed`로 남는다.
 
+## 운영자 단말에서 DB 접속
+
+아래 bootstrap·시드·마이그레이션 확인은 전부 운영자 단말이 production DB에 붙어야 한다.
+`database-url` 시크릿은 Cloud Run 전용 유닉스 소켓 DSN(`?host=/cloudsql/...`)이라 단말에서
+그대로 쓸 수 없고, 인스턴스에 authorized network도 없다. **cloud-sql-proxy가 유일한 경로다.**
+
+```bash
+cloud-sql-proxy "$(tofu -chdir=infra output -raw db_connection_name)" &   # 127.0.0.1:5432
+DB_PASSWORD="$(gcloud secrets versions access latest --secret=db-password --project=essesion-production)"
+export DATABASE_URL="postgresql+asyncpg://app:$DB_PASSWORD@127.0.0.1:5432/essesion"
+unset DB_PASSWORD   # DSN에만 남기고 별도 변수로 보관하지 않는다
+```
+
+실행 계정에 `roles/cloudsql.client`가 필요하다(프로젝트 생성자는 owner로 이미 충족).
+작업이 끝나면 프록시를 내리고(`kill %1`) `DATABASE_URL`을 `unset`한다.
+
 ## 초기 관리자 bootstrap·세션 복구
 
-`apps/api/scripts/seed.py`는 local/test 전용이다. production 관리자는 migrate 완료 후 DB에
-연결할 수 있는 운영자 단말에서 아래 일회성 명령으로 만든다. 비밀번호는 명령행 인자나 저장
+`apps/api/scripts/seed.py`는 local/test 전용이다. production 관리자는 migrate 완료 후 위
+[DB 접속](#운영자-단말에서-db-접속)을 연결한 단말에서 아래 일회성 명령으로 만든다. 비밀번호는 명령행 인자나 저장
 파일에 남기지 않고 임시 환경 변수로만 전달한다.
 
 ```bash
@@ -189,16 +205,21 @@ uv run python apps/api/scripts/bootstrap_admin.py revoke-sessions
 
 ## Production 데이터 시드
 
-production `DATABASE_URL`과 Secret Manager에서 주입한 `OPENAI_API_KEY`가 있는 운영자 환경에서
-migrate 뒤 **순서대로** 실행한다. 전부 멱등이며, 같은 ID가 이미 있으면 DB에서 큐레이션한
-내용과 활성 상태를 보존한다.
+[DB 접속](#운영자-단말에서-db-접속)을 연결하고 `OPENAI_API_KEY`를
+Secret Manager에서 주입한 운영자 환경에서 migrate 뒤 **순서대로** 실행한다. 전부 멱등이며,
+같은 ID가 이미 있으면 DB에서 큐레이션한 내용과 활성 상태를 보존한다.
 
 ```bash
 uv run python apps/worker/scripts/seed_motifs.py
+uv run python apps/worker/scripts/seed_design_examples.py            # 무과금 — 결정론 엔진, 외부 호출 없음
 uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
 uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 uv run python apps/worker/scripts/eval_authoring.py --confirm-live
 ```
+
+`seed_design_examples.py`는 store 첫 진입 갤러리다. 빠뜨려도 장애는 아니지만 갤러리 섹션이
+통째로 비어 배포된다. `backfill_motif_tags.py`는 **production에서 실행하지 않는다** — 새 DB에는
+백필할 기존 모티프가 없고 유료 호출만 발생한다.
 
 인덱싱 출력의 `embedded=<전체>/<전체>`와 starter 시드의 `source=bootstrap`을 배포 기록에 남기고,
 admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. 인덱싱은 `user_upload`을 제외하며
