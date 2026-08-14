@@ -7,7 +7,7 @@ import {
   HStack,
   Icon,
   ImageFrame,
-  ResponsiveModal,
+  Modal,
   Skeleton,
   Text,
   VStack,
@@ -66,7 +66,7 @@ export function FinalizedListModal({
   onDelete,
 }: FinalizedListModalProps) {
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="내 완성본"
@@ -185,7 +185,7 @@ export function FinalizedListModal({
           ) : null}
         </Grid>
       )}
-    </ResponsiveModal>
+    </Modal>
   );
 }
 

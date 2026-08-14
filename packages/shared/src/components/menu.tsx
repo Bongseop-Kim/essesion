@@ -1,36 +1,25 @@
 import {
   type ComponentPropsWithRef,
+  type CSSProperties,
   cloneElement,
   createContext,
   type KeyboardEvent,
-  type MouseEvent,
   type ReactElement,
   type ReactNode,
   type Ref,
-  type RefObject,
   use,
-  useCallback,
-  useEffect,
   useId,
   useRef,
-  useState,
 } from "react";
 
 import { cn } from "../cn";
-import {
-  type AnchoredPlacement,
-  type AnchoredPosition,
-  positionAnchored,
-} from "./internal/anchored-position";
 import { CheckGlyph } from "./internal/glyphs";
 import { mergeRefs } from "./internal/merge-refs";
-import { useControllableState } from "./internal/use-controllable-state";
 import { VStack } from "./stack";
 
+export type AnchoredPlacement = "top" | "bottom";
+
 type MenuContextValue = {
-  open: boolean;
-  setOpen: (open: boolean) => void;
-  triggerRef: RefObject<HTMLElement | null>;
   contentId: string;
   placement: AnchoredPlacement;
   gutter: number;
@@ -49,9 +38,6 @@ function useMenuContext() {
 }
 
 export type MenuRootProps = {
-  open?: boolean;
-  defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
   /** MenuTrigger 기준 배치. */
   placement?: AnchoredPlacement;
   /** 앵커와 메뉴 면 사이 간격(px). */
@@ -61,32 +47,14 @@ export type MenuRootProps = {
 
 /** 앵커드 메뉴 — 의존성 0, 네이티브 Popover API 기반. */
 export function MenuRoot({
-  open,
-  defaultOpen = false,
-  onOpenChange,
   placement = "bottom",
   gutter = 4,
   children,
 }: MenuRootProps) {
-  const [isOpen, setOpen] = useControllableState({
-    value: open,
-    defaultValue: defaultOpen,
-    onChange: onOpenChange,
-  });
-  const triggerRef = useRef<HTMLElement | null>(null);
   const contentId = useId();
 
   return (
-    <MenuContext
-      value={{
-        open: isOpen,
-        setOpen,
-        triggerRef,
-        contentId,
-        placement,
-        gutter,
-      }}
-    >
+    <MenuContext value={{ contentId, placement, gutter }}>
       {children}
     </MenuContext>
   );
@@ -102,11 +70,10 @@ export type MenuTriggerProps = {
 
 /** 자식 엘리먼트를 메뉴 트리거로 배선 — aria-haspopup/expanded/controls + 클릭 토글. */
 export function MenuTrigger({ children, ref }: MenuTriggerProps) {
-  const { open, setOpen, triggerRef, contentId } = useMenuContext();
+  const { contentId } = useMenuContext();
 
   const childProps = children.props;
   const mergeRef = mergeRefs(
-    triggerRef,
     childProps.ref as Ref<HTMLElement> | undefined,
     ref,
   );
@@ -114,12 +81,8 @@ export function MenuTrigger({ children, ref }: MenuTriggerProps) {
   return cloneElement(children, {
     ref: mergeRef as Ref<HTMLButtonElement>,
     "aria-haspopup": "menu",
-    "aria-expanded": open,
     "aria-controls": contentId,
-    onClick: (event: MouseEvent<HTMLButtonElement>) => {
-      childProps.onClick?.(event);
-      if (!event.defaultPrevented) setOpen(!open);
-    },
+    popoverTarget: contentId,
   });
 }
 
@@ -128,7 +91,12 @@ export type MenuContentProps = Omit<
   "id" | "popover" | "role"
 >;
 
-/** 떠 있는 메뉴 면 — popover=auto로 top-layer에 렌더, 앵커 기준 fixed 좌표(flip·slide). */
+type AnchorStyle = CSSProperties & {
+  positionArea: AnchoredPlacement;
+  positionTryFallbacks: string;
+};
+
+/** 떠 있는 메뉴 면 — 네이티브 popover와 CSS anchor positioning을 사용한다. */
 export function MenuContent({
   children,
   className,
@@ -138,70 +106,10 @@ export function MenuContent({
   ref,
   ...props
 }: MenuContentProps) {
-  const { open, setOpen, triggerRef, contentId, placement, gutter } =
-    useMenuContext();
+  const { contentId, placement, gutter } = useMenuContext();
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<AnchoredPosition | null>(null);
 
   const mergeRef = mergeRefs(contentRef, ref);
-
-  const updatePosition = useCallback(() => {
-    const reference = triggerRef.current;
-    const content = contentRef.current;
-    if (!reference || !content) return;
-    const rect = reference.getBoundingClientRect();
-    setPosition(
-      positionAnchored(
-        {
-          top: rect.top,
-          right: rect.right,
-          bottom: rect.bottom,
-          left: rect.left,
-          width: rect.width,
-          height: rect.height,
-        },
-        { width: content.offsetWidth, height: content.offsetHeight },
-        { width: window.innerWidth, height: window.innerHeight },
-        { placement, gutter, overflowPadding: 8 },
-      ),
-    );
-  }, [triggerRef, placement, gutter]);
-
-  // showPopover/hidePopover 동기화 + 열릴 때 포지셔닝·첫 항목 포커스·리스너
-  useEffect(() => {
-    const content = contentRef.current;
-    if (!content) return;
-    if (!open) {
-      setPosition(null);
-      try {
-        content.hidePopover();
-      } catch {
-        // 이미 닫혀 있으면 무시
-      }
-      return;
-    }
-    try {
-      content.showPopover();
-    } catch {
-      // 이미 열려 있으면 무시
-    }
-    const first = content.querySelector<HTMLElement>(
-      '[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])',
-    );
-    // Native Popover may restore trigger focus at the end of the opening task.
-    // Position and move focus once the menu has entered the top layer.
-    const frame = requestAnimationFrame(() => {
-      updatePosition();
-      first?.focus();
-    });
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [open, updatePosition]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     onKeyDown?.(event);
@@ -238,7 +146,6 @@ export function MenuContent({
       role="menu"
       popover="auto"
       onKeyDown={handleKeyDown}
-      // 네이티브 light-dismiss/Esc → 상태 동기화, 메뉴 안에 포커스가 있었으면 트리거로 복원
       onToggle={(event) => {
         onToggle?.(event);
         if (event.defaultPrevented) return;
@@ -250,28 +157,22 @@ export function MenuContent({
               )
               ?.focus();
           });
-          return;
         }
-        const active = document.activeElement;
-        const focusWasInside =
-          !active ||
-          active === document.body ||
-          contentRef.current?.contains(active);
-        setOpen(false);
-        if (focusWasInside) triggerRef.current?.focus();
       }}
       className={cn(
         // seed 기하: 패널 r5, 항목 하이라이트는 좌우 x2 인셋(px-x2) — 항목 px-x2와 합쳐 텍스트는 가장자리에서 x4.
         // 주의: 이 요소에 display 클래스(flex 등) 금지 — UA의 [popover] display:none을 덮어써 항상 보이게 됨
         "fixed m-0 min-w-60 rounded-r5 border border-stroke-neutral-weak bg-bg-layer-floating px-x2 py-x2 shadow-s2",
-        position == null && "invisible",
         className,
       )}
-      style={{
-        ...style,
-        top: position?.top ?? 0,
-        left: position?.left ?? 0,
-      }}
+      style={
+        {
+          ...style,
+          positionArea: placement,
+          positionTryFallbacks: "flip-block",
+          margin: gutter,
+        } as AnchorStyle
+      }
     >
       {/* gap-x0_5: 인접 항목의 하이라이트(포커스+호버)가 맞붙지 않게 2px 분리 */}
       <VStack gap="x0_5" alignItems="stretch">
@@ -304,7 +205,6 @@ export function MenuItem({
   onClick,
   ...props
 }: MenuItemProps) {
-  const { setOpen } = useMenuContext();
   const selectionProps =
     checked === undefined
       ? ({ role: "menuitem" } as const)
@@ -318,7 +218,7 @@ export function MenuItem({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
-        setOpen(false);
+        event.currentTarget.closest<HTMLElement>("[popover]")?.hidePopover?.();
       }}
       className={cn(
         "flex w-full items-center gap-x2 rounded-r3 px-x2 py-x3 text-left text-t4 outline-none transition-colors duration-(--duration-fast) ease-standard hover:bg-bg-neutral-weak focus:bg-bg-neutral-weak disabled:text-fg-disabled",

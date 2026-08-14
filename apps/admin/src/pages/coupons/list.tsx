@@ -193,7 +193,6 @@ export function CouponsPage() {
                     }
                   />
                   <DateRangeFilters
-                    presentation="inline"
                     from={draftFrom}
                     to={draftTo}
                     onFromChange={setDraftFrom}

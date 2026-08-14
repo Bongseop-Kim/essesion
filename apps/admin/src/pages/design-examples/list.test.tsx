@@ -1,6 +1,7 @@
 import type { AdminDesignExampleOut } from "@essesion/api-client";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderAdminPage } from "../../test/render-admin-page";
@@ -24,6 +25,7 @@ vi.mock("@essesion/api-client/query", () => ({
 }));
 
 import { DesignExamplesPage } from "./list";
+import { DesignExampleNewPage } from "./new";
 
 const RUN_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -37,6 +39,15 @@ const example: AdminDesignExampleOut = {
   preview_svg: "<svg/>",
 };
 
+const publishedExample: AdminDesignExampleOut = {
+  ...example,
+  id: "example-2",
+  run_id: "22222222-2222-4222-8222-222222222222",
+  name: "정규 격자",
+  caption: "규칙적인 반복",
+  published: true,
+};
+
 describe("DesignExamplesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,11 +59,10 @@ describe("DesignExamplesPage", () => {
 
   it("run ID로 예시를 등록한다", async () => {
     const user = userEvent.setup();
-    renderAdminPage(<DesignExamplesPage />);
-    await screen.findByRole("switch", { name: "미드나잇 웨이브 게시" });
+    renderAdminPage(<DesignExampleNewPage />);
 
     // 필수 표시(*)가 라벨 텍스트에 붙는다.
-    await user.type(screen.getByLabelText(/run ID/), RUN_ID);
+    await user.type(screen.getByLabelText(/^run ID/), RUN_ID);
     await user.type(screen.getByLabelText(/갤러리 이름/), "미드나잇 웨이브");
     await user.type(
       screen.getByLabelText("카드 설명"),
@@ -71,6 +81,29 @@ describe("DesignExamplesPage", () => {
         },
       }),
     );
+  });
+
+  it("목록의 예시 등록 버튼에서 전용 등록 화면으로 이동한다", async () => {
+    const user = userEvent.setup();
+    renderAdminPage(
+      <Routes>
+        <Route path="/design-examples" element={<DesignExamplesPage />} />
+        <Route path="/design-examples/new" element={<DesignExampleNewPage />} />
+      </Routes>,
+      { entry: "/design-examples" },
+    );
+    await screen.findByRole("switch", { name: "미드나잇 웨이브 게시" });
+
+    expect(screen.queryByLabelText(/^run ID/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "예시 등록" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "디자인 예시 등록",
+        level: 1,
+      }),
+    ).toBeTruthy();
+    expect(screen.getByLabelText(/^run ID/)).toBeTruthy();
   });
 
   it("게시 스위치는 즉시, 순서는 포커스를 잃을 때만 저장한다", async () => {
@@ -118,5 +151,30 @@ describe("DesignExamplesPage", () => {
         path: { example_id: "example-1" },
       }),
     );
+  });
+
+  it("통합 검색 하나와 사이드 패널의 게시 상태로 목록을 필터링한다", async () => {
+    const user = userEvent.setup();
+    api.list.mockResolvedValue([example, publishedExample]);
+    renderAdminPage(<DesignExamplesPage />);
+    await screen.findByRole("switch", { name: "정규 격자 게시" });
+
+    await user.type(screen.getByLabelText("이름·설명·run ID 검색"), "정규");
+    await user.click(screen.getByRole("button", { name: "검색" }));
+
+    expect(
+      screen.queryByRole("switch", { name: "미드나잇 웨이브 게시" }),
+    ).toBeNull();
+    expect(screen.getByRole("switch", { name: "정규 격자 게시" })).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "검색 초기화" }));
+    await user.click(screen.getByRole("button", { name: "필터" }));
+    await user.click(screen.getByRole("radio", { name: "비게시" }));
+    await user.click(screen.getByRole("button", { name: "필터 적용" }));
+
+    expect(
+      screen.getByRole("switch", { name: "미드나잇 웨이브 게시" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("switch", { name: "정규 격자 게시" })).toBeNull();
   });
 });

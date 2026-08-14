@@ -6,7 +6,7 @@ import {
   ContentPlaceholder,
   FieldButton,
   HStack,
-  ResponsiveModal,
+  Modal,
   SelectBox,
   SelectBoxItem,
   Skeleton,
@@ -23,7 +23,7 @@ function motifLabel(motif: MotifSummaryOut) {
   return motif.subject?.trim() || motif.id;
 }
 
-/* FieldButton(트리거) + ResponsiveModal(모바일 시트↔PC 모달) + SelectBox 다중 선택.
+/* FieldButton(트리거) + Modal(모바일 시트↔PC 모달) + SelectBox 다중 선택.
    ListPicker는 단일 선택 전용이라 최대 2개 다중 선택에는 쓸 수 없어 같은 레시피로 조합했다. */
 export function MotifPicker({
   value,
@@ -85,7 +85,7 @@ export function MotifPicker({
         }}
       />
       {open && (
-        <ResponsiveModal
+        <Modal
           open
           onOpenChange={setOpen}
           title="모티프 선택"
@@ -172,7 +172,7 @@ export function MotifPicker({
               )}
             </Box>
           </VStack>
-        </ResponsiveModal>
+        </Modal>
       )}
     </>
   );

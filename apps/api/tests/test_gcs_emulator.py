@@ -92,12 +92,6 @@ async def test_default_local_client_round_trips_through_emulator():
 def test_public_asset_url_points_at_emulator_assets_bucket():
     url = public_asset_url(_emulator_settings(), "fabric/abc.png")
     assert url == "http://localhost:4443/dev-assets/fabric/abc.png"
-    # 명시적 override(Cloudflare asset proxy 등)가 항상 이긴다
-    overridden = public_asset_url(
-        _emulator_settings(gcs_assets_public_base_url="https://assets.example.com"),
-        "fabric/abc.png",
-    )
-    assert overridden == "https://assets.example.com/fabric/abc.png"
 
     assert public_asset_url(_TestSettings(env="local"), "fabric/default.png") == (
         "http://localhost:4443/dev-assets/fabric/default.png"

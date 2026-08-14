@@ -7,10 +7,7 @@ import {
   VStack,
 } from "@essesion/shared";
 
-import {
-  REPAIR_INBOUND_ADDRESS,
-  repairInboundAddressText,
-} from "../model/inbound-address";
+import { REPAIR_INBOUND_ADDRESS } from "../model/inbound-address";
 
 type RepairInboundAddressProps = {
   onRegisterShipment?: () => void;
@@ -21,7 +18,9 @@ export function RepairInboundAddress({
 }: RepairInboundAddressProps) {
   const copyAddress = async () => {
     try {
-      await navigator.clipboard.writeText(repairInboundAddressText());
+      await navigator.clipboard.writeText(
+        Object.values(REPAIR_INBOUND_ADDRESS).join(" / "),
+      );
       snackbar("수선품 보낼 주소를 복사했습니다.");
     } catch {
       snackbar("주소를 복사하지 못했습니다. 직접 선택해 복사해 주세요.");

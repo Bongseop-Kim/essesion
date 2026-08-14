@@ -3,7 +3,7 @@ import type {
   PageAdminCustomerSummaryOut,
 } from "@essesion/api-client";
 import { listAdminCustomers, searchAdminCustomers } from "@essesion/api-client";
-import { Text, VStack } from "@essesion/shared";
+import { formatPhoneNumber, Text, VStack } from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -52,7 +52,8 @@ const columns: readonly AdminTableColumn<AdminCustomerSummaryOut>[] = [
   {
     key: "phone",
     header: "전화번호",
-    render: (customer) => customer.phone ?? "-",
+    render: (customer) =>
+      customer.phone ? formatPhoneNumber(customer.phone) : "-",
   },
   {
     key: "status",
@@ -234,7 +235,6 @@ export function CustomersPage() {
                     }
                   />
                   <DateRangeFilters
-                    presentation="inline"
                     from={draftFrom}
                     to={draftTo}
                     onFromChange={setDraftFrom}

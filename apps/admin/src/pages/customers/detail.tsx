@@ -17,9 +17,10 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
+  formatPhoneNumber,
   Grid,
   HStack,
-  ResponsiveModal,
+  Modal,
   snackbar,
   TabContent,
   TabList,
@@ -454,7 +455,9 @@ export function CustomerDetailPage() {
                   { label: "이메일", value: formatIdentifier(customer.email) },
                   {
                     label: "전화번호",
-                    value: formatIdentifier(customer.phone),
+                    value: formatIdentifier(
+                      customer.phone ? formatPhoneNumber(customer.phone) : null,
+                    ),
                   },
                   {
                     label: "전화 인증",
@@ -632,7 +635,7 @@ export function CustomerDetailPage() {
       </Tabs>
 
       {adjustmentOpen && (
-        <ResponsiveModal
+        <Modal
           open={adjustmentOpen}
           onOpenChange={(open) => {
             if (open) setAdjustmentOpen(true);
@@ -827,7 +830,7 @@ export function CustomerDetailPage() {
               description="입력한 조정 수량과 처리 사유가 사라집니다."
             />
           )}
-        </ResponsiveModal>
+        </Modal>
       )}
     </VStack>
   );

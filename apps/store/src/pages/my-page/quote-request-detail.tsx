@@ -7,6 +7,7 @@ import {
   Box,
   ContentPlaceholder,
   Divider,
+  formatPhoneNumber,
   Grid,
   HStack,
   ImageFrame,
@@ -210,7 +211,13 @@ export function QuoteRequestDetailPage() {
                     label: "연락 방법",
                     value: quoteContactMethodLabel(quote.contact_method),
                   },
-                  { label: "연락처", value: quote.contact_value },
+                  {
+                    label: "연락처",
+                    value:
+                      quote.contact_method === "phone"
+                        ? formatPhoneNumber(quote.contact_value)
+                        : quote.contact_value,
+                  },
                 ]}
               />
             </DetailSection>

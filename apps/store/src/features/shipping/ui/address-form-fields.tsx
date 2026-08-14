@@ -1,16 +1,20 @@
 import {
   ActionButton,
   Box,
+  canonicalizePhoneNumber,
   HStack,
+  PhoneField,
   snackbar,
   TextField,
   VStack,
 } from "@essesion/shared";
 import type {
+  Control,
   FieldErrors,
   UseFormRegister,
   UseFormSetValue,
 } from "react-hook-form";
+import { Controller } from "react-hook-form";
 import { z } from "zod";
 
 import { useDaumPostcode } from "../model/use-daum-postcode";
@@ -21,7 +25,11 @@ export const addressFormSchema = z.object({
   recipient_phone: z
     .string()
     .trim()
-    .regex(/^01\d{8,9}$/, "휴대폰 번호를 숫자만 입력해 주세요."),
+    .transform(canonicalizePhoneNumber)
+    .refine(
+      (value) => /^01\d{8,9}$/.test(value),
+      "올바른 휴대폰 번호를 입력해 주세요.",
+    ),
   postal_code: z.string().trim().min(1, "우편번호를 검색해 주세요."),
   address: z.string().trim().min(1, "주소를 검색해 주세요."),
   address_detail: z.string(),
@@ -45,10 +53,12 @@ export const addressFormDefaultValues: AddressFormValues = {
 
 export function AddressFormFields({
   register,
+  control,
   errors,
   setValue,
 }: {
   register: UseFormRegister<AddressFormValues>;
+  control: Control<AddressFormValues>;
   errors: FieldErrors<AddressFormValues>;
   setValue: UseFormSetValue<AddressFormValues>;
 }) {
@@ -62,13 +72,19 @@ export function AddressFormFields({
         errorMessage={errors.recipient_name?.message}
         {...register("recipient_name")}
       />
-      <TextField
-        label="휴대폰 번호"
-        inputMode="numeric"
-        autoComplete="tel"
-        placeholder="01012345678"
-        errorMessage={errors.recipient_phone?.message}
-        {...register("recipient_phone")}
+      <Controller
+        control={control}
+        name="recipient_phone"
+        render={({ field }) => (
+          <PhoneField
+            ref={field.ref}
+            label="휴대폰 번호"
+            value={field.value}
+            errorMessage={errors.recipient_phone?.message}
+            onBlur={field.onBlur}
+            onValueChange={field.onChange}
+          />
+        )}
       />
       <HStack gap="x2" align="flex-end">
         <Box flexGrow minWidth={0}>

@@ -131,10 +131,10 @@ describe("admin API session coordination", () => {
       error: new Error("role lookup failed"),
       response: new Response(null, { status: 500 }),
     });
-    const sessionApi = await import("../session/api-admin-session-adapter");
+    const sessionApi = await import("../session/api-admin-session");
 
     await expect(
-      sessionApi.apiAdminSessionAdapter.login({
+      sessionApi.loginAdminSession({
         email: "admin@test.local",
         password: "password",
       }),

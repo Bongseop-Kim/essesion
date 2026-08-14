@@ -16,8 +16,8 @@ import {
   Field,
   HStack,
   ImageFrame,
+  Modal,
   Rating,
-  ResponsiveModal,
   Skeleton,
   snackbar,
   Text,
@@ -198,7 +198,7 @@ export function ReviewFormModal({
 
   return (
     <>
-      <ResponsiveModal
+      <Modal
         open={open}
         onOpenChange={onOpenChange}
         title={existing ? "작성한 후기" : "후기 작성"}
@@ -297,7 +297,7 @@ export function ReviewFormModal({
             </HStack>
           </VStack>
         ) : null}
-      </ResponsiveModal>
+      </Modal>
 
       <AlertDialog
         open={deleteOpen}

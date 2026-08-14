@@ -1,12 +1,23 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { describe, expect, it, vi } from "vitest";
-import type {
-  AdminSession,
-  AdminSessionAdapter,
-} from "../../shared/session/admin-session";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AdminSession } from "../../shared/session/admin-session";
 import { AppProviders } from "../providers/app-providers";
 import { adminRouteObjects } from "./router";
+
+const sessionMocks = vi.hoisted(() => ({
+  bootstrap: vi.fn(),
+  login: vi.fn(),
+  logout: vi.fn(),
+  subscribe: vi.fn(() => vi.fn()),
+}));
+
+vi.mock("../../shared/session/api-admin-session", () => ({
+  bootstrapAdminSession: sessionMocks.bootstrap,
+  loginAdminSession: sessionMocks.login,
+  logoutAdminSession: sessionMocks.logout,
+  subscribeAdminSession: sessionMocks.subscribe,
+}));
 
 const adminSession: AdminSession = {
   userId: "admin-1",
@@ -14,20 +25,19 @@ const adminSession: AdminSession = {
   role: "admin",
 };
 
-function readySessionAdapter(): AdminSessionAdapter {
-  return {
-    bootstrap: vi.fn(async () => adminSession),
-    login: vi.fn(async () => adminSession),
-    logout: vi.fn(async () => undefined),
-  };
-}
+beforeEach(() => {
+  sessionMocks.bootstrap.mockReset().mockResolvedValue(adminSession);
+  sessionMocks.login.mockReset().mockResolvedValue(adminSession);
+  sessionMocks.logout.mockReset().mockResolvedValue(undefined);
+  sessionMocks.subscribe.mockClear();
+});
 
-function renderRoute(path: string, adapter = readySessionAdapter()) {
+function renderRoute(path: string) {
   const router = createMemoryRouter(adminRouteObjects, {
     initialEntries: [path],
   });
   render(
-    <AppProviders sessionAdapter={adapter}>
+    <AppProviders>
       <RouterProvider router={router} />
     </AppProviders>,
   );
@@ -46,12 +56,8 @@ describe("admin router", () => {
   });
 
   it("익명 세션은 로그인으로 복귀 경로를 전달한다", async () => {
-    const adapter: AdminSessionAdapter = {
-      bootstrap: vi.fn(async () => null),
-      login: vi.fn(async () => adminSession),
-      logout: vi.fn(async () => undefined),
-    };
-    const router = renderRoute("/claims?page=2", adapter);
+    sessionMocks.bootstrap.mockResolvedValueOnce(null);
+    const router = renderRoute("/claims?page=2");
 
     await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
     expect(router.state.location.state).toEqual({ from: "/claims?page=2" });

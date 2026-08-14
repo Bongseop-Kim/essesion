@@ -3,6 +3,7 @@ import {
   ActionButton,
   Badge,
   Box,
+  formatPhoneNumber,
   HStack,
   Text,
   VStack,
@@ -40,7 +41,8 @@ export function ShippingAddressCard({
           {address ? (
             <VStack gap="x1">
               <Text textStyle="label">
-                {address.recipient_name} · {address.recipient_phone}
+                {address.recipient_name} ·{" "}
+                {formatPhoneNumber(address.recipient_phone)}
               </Text>
               <Text textStyle="bodySm" color="fg.neutral-muted">
                 ({address.postal_code}) {address.address}{" "}

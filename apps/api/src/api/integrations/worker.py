@@ -191,7 +191,3 @@ def _worker_rejection(res: httpx.Response) -> WorkerRequestError:
             stage=_WORKER_REJECTION_STAGES[code],
         )
     return WorkerRequestError()
-
-
-def build_worker_client(settings: Settings) -> WorkerClient:
-    return WorkerClient(settings)

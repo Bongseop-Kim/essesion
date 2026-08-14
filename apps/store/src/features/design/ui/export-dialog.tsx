@@ -3,7 +3,7 @@ import {
   Box,
   Chip,
   HStack,
-  ResponsiveModal,
+  Modal,
   SelectBox,
   SelectBoxItem,
   Text,
@@ -53,7 +53,7 @@ export function ExportDialog({
   };
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="디자인 내려받기"
@@ -157,6 +157,6 @@ export function ExportDialog({
           </Text>
         </VStack>
       </Box>
-    </ResponsiveModal>
+    </Modal>
   );
 }

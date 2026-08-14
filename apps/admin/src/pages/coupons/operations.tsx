@@ -11,6 +11,7 @@ import {
   AlertDialog,
   Callout,
   Checkbox,
+  formatPhoneNumber,
   HStack,
   snackbar,
   Text,
@@ -161,7 +162,8 @@ export function CouponOperations({
       key: "phone",
       header: "전화번호",
       visibility: "medium",
-      render: (customer) => customer.phone ?? "-",
+      render: (customer) =>
+        customer.phone ? formatPhoneNumber(customer.phone) : "-",
     },
     {
       key: "created_at",

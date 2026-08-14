@@ -8,9 +8,9 @@ import {
 import {
   ActionButton,
   Callout,
+  Modal,
   RadioGroup,
   RadioGroupItem,
-  ResponsiveModal,
   snackbar,
   Text,
   TextAreaField,
@@ -75,7 +75,7 @@ export function ClaimFormModal({
   });
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title={`${config.label} 요청`}
@@ -161,6 +161,6 @@ export function ClaimFormModal({
           </VStack>
         </Callout>
       </VStack>
-    </ResponsiveModal>
+    </Modal>
   );
 }

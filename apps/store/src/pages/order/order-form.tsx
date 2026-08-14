@@ -20,10 +20,12 @@ import {
   Callout,
   Checkbox,
   ContentPlaceholder,
+  canonicalizePhoneNumber,
   Divider,
   Grid,
   HStack,
   ImageFrame,
+  PhoneField,
   RadioGroup,
   RadioGroupItem,
   Skeleton,
@@ -159,7 +161,7 @@ export function OrderFormPage() {
       method: "pickup",
       pickup: {
         recipient_name: pickupName.trim(),
-        recipient_phone: pickupPhone.trim(),
+        recipient_phone: canonicalizePhoneNumber(pickupPhone),
         postal_code: pickupPostalCode.trim() || null,
         address: pickupAddress.trim(),
         detail_address: pickupDetailAddress.trim() || null,
@@ -312,7 +314,7 @@ export function OrderFormPage() {
     hasReformItems &&
     repairMethod === "pickup" &&
     (!repairShipping?.pickup?.recipient_name.trim() ||
-      !repairShipping.pickup.recipient_phone.trim() ||
+      !/^01\d{8,9}$/.test(repairShipping.pickup.recipient_phone) ||
       !repairShipping.pickup.address.trim());
   const shipInvalidReason =
     hasReformItems && repairMethod === "direct" && shipEnabled
@@ -473,13 +475,11 @@ export function OrderFormPage() {
                           setPickupName(event.currentTarget.value)
                         }
                       />
-                      <TextField
+                      <PhoneField
                         label="연락처"
                         required
                         value={pickupPhone}
-                        onChange={(event) =>
-                          setPickupPhone(event.currentTarget.value)
-                        }
+                        onValueChange={setPickupPhone}
                       />
                       <HStack gap="x2" align="flex-end">
                         <Box flexGrow minWidth={0}>

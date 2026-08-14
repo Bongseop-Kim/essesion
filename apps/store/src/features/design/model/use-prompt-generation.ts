@@ -2,7 +2,6 @@ import type { MotifIntentOut } from "@essesion/api-client";
 import { useRef, useState } from "react";
 
 import { type DesignErrorFeedback, parseDesignError } from "./errors";
-import { createOperationEpoch } from "./operation-epoch";
 import {
   type GenerateDesignInput,
   StaleDesignOperationError,
@@ -32,7 +31,7 @@ export function usePromptGeneration({
 }: PromptGenerationOptions) {
   const [prompt, setPrompt] = useState("");
   const [selectSignal, setSelectSignal] = useState(0);
-  const epoch = useRef(createOperationEpoch()).current;
+  const epoch = useRef(0);
   // pending 가드로 제출은 한 번에 하나 — 진행 중인 요청의 epoch만 담는다.
   const operation = useRef(0);
   // state 기반 pending은 같은 tick의 중복 호출을 못 막는다 — ref로 즉시 잠근다.
@@ -40,7 +39,7 @@ export function usePromptGeneration({
 
   const mutation = useGenerateDesign({
     onSessionReady: (readySessionId) => {
-      if (!epoch.isCurrent(operation.current)) return false;
+      if (operation.current !== epoch.current) return false;
       onSessionChange(readySessionId);
       return true;
     },
@@ -50,7 +49,7 @@ export function usePromptGeneration({
 
   /** 세션을 바꿀 때 — 진행 중이던 요청의 결과가 새 세션에 반영되지 않게 한다. */
   const reset = () => {
-    epoch.invalidate();
+    epoch.current += 1;
     mutation.reset();
     clearDraft();
   };
@@ -66,10 +65,10 @@ export function usePromptGeneration({
         sessionId,
         prompt: prompt.trim(),
       };
-      operation.current = epoch.begin();
+      operation.current = ++epoch.current;
       const current = operation.current;
       const result = await mutation.mutateAsync(input);
-      if (!epoch.isCurrent(current)) return;
+      if (current !== epoch.current) return;
       onSessionChange(result.sessionId);
       if (result.motifIntent) onMotifIntent(result.motifIntent);
       // 거절은 문장을 남기고 전체 선택만 한다 — 무엇이 거절됐는지 보이면서 다음 입력이 덮어쓴다.

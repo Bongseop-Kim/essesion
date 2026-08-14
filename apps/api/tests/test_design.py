@@ -1817,7 +1817,6 @@ async def test_list_generation_jobs_filters_owner_kind_status_session_and_pagina
 ):
     settings.gcp_project_id = "test-project"
     settings.gcs_assets_bucket = "configured-assets"
-    settings.gcs_assets_public_base_url = "https://cdn.example.test/assets/"
     owner = await make_user(db_session)
     other = await make_user(db_session)
     owner_session_a = DesignSession(user_id=owner.id)
@@ -1892,7 +1891,9 @@ async def test_list_generation_jobs_filters_owner_kind_status_session_and_pagina
         str(newer.id),
         str(older.id),
     ]
-    assert all_jobs[2]["result_url"] == ("https://cdn.example.test/assets/fabric/newer%20file.png")
+    assert all_jobs[2]["result_url"] == (
+        "http://localhost:4443/configured-assets/fabric/newer%20file.png"
+    )
 
     succeeded_jobs = (await client.get("/design/jobs?status=succeeded", headers=headers)).json()
     assert [job["id"] for job in succeeded_jobs] == [

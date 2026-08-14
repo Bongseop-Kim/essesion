@@ -21,6 +21,7 @@ import {
   Box,
   Callout,
   ContentPlaceholder,
+  formatPhoneNumber,
   Grid,
   HStack,
   ImageFrame,
@@ -424,7 +425,7 @@ export function ClaimDetailPage() {
           },
           {
             label: "수령인",
-            value: `${shippingAddress.recipient_name} · ${shippingAddress.recipient_phone}`,
+            value: `${shippingAddress.recipient_name} · ${formatPhoneNumber(shippingAddress.recipient_phone)}`,
           },
         ]
       : []),
@@ -686,7 +687,11 @@ export function ClaimDetailPage() {
                   },
                   {
                     label: "전화번호",
-                    value: formatIdentifier(data.customer.phone),
+                    value: formatIdentifier(
+                      data.customer.phone
+                        ? formatPhoneNumber(data.customer.phone)
+                        : null,
+                    ),
                   },
                   { label: "주문 상태", value: data.order.status },
                   { label: "주문 유형", value: data.order.order_type },
@@ -817,7 +822,7 @@ export function ClaimDetailPage() {
                           },
                           {
                             label: "수거 대상",
-                            value: `${repairPickup.recipient_name} · ${repairPickup.recipient_phone}`,
+                            value: `${repairPickup.recipient_name} · ${formatPhoneNumber(repairPickup.recipient_phone)}`,
                           },
                           {
                             label: "수거 비용",

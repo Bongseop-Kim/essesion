@@ -1,6 +1,13 @@
 import type { ManualOrderOut } from "@essesion/api-client";
 import { listManualOrdersOptions } from "@essesion/api-client/query";
-import { ActionButton, Badge, HStack, Text, VStack } from "@essesion/shared";
+import {
+  ActionButton,
+  Badge,
+  formatPhoneNumber,
+  HStack,
+  Text,
+  VStack,
+} from "@essesion/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -48,7 +55,7 @@ const columns: readonly AdminTableColumn<ManualOrderOut>[] = [
       <VStack gap="x0_5">
         <Link to={`/manual-orders/${order.id}`}>{order.customer_name}</Link>
         <Text textStyle="caption" color="fg.neutral-muted">
-          {order.phone}
+          {formatPhoneNumber(order.phone)}
         </Text>
       </VStack>
     ),
@@ -165,7 +172,6 @@ export function ManualOrdersPage() {
               secondaryFilters={
                 <VStack gap="x4" alignItems="stretch">
                   <DateRangeFilters
-                    presentation="inline"
                     from={draftFrom}
                     to={draftTo}
                     onFromChange={setDraftFrom}

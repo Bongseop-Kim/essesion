@@ -44,6 +44,12 @@ describe("ManualOrderNewPage", () => {
     await user.type(screen.getByLabelText(/휴대폰/), "01012345678");
     await user.type(screen.getByLabelText("주소"), "서울시 중구 테스트로 1");
     await user.type(screen.getByLabelText(/금액/), "30000");
+    expect((screen.getByLabelText(/휴대폰/) as HTMLInputElement).value).toBe(
+      "010-1234-5678",
+    );
+    expect((screen.getByLabelText(/금액/) as HTMLInputElement).value).toBe(
+      "30,000",
+    );
     await user.click(screen.getByRole("checkbox", { name: "접수" }));
 
     await user.click(screen.getByRole("checkbox", { name: "자동수선" }));

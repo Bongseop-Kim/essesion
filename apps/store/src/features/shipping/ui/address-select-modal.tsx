@@ -9,7 +9,7 @@ import {
   Box,
   ContentPlaceholder,
   HStack,
-  ResponsiveModal,
+  Modal,
   SelectBox,
   SelectBoxItem,
   Skeleton,
@@ -47,6 +47,7 @@ export function AddressSelectModal({
     creating || (!addressesQuery.isPending && addresses.length === 0);
   const upsert = useMutation(upsertAddressMutation());
   const {
+    control,
     register,
     handleSubmit,
     setValue,
@@ -87,7 +88,7 @@ export function AddressSelectModal({
   });
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       title={showForm ? "새 배송지" : "배송지 선택"}
@@ -153,6 +154,7 @@ export function AddressSelectModal({
         <form onSubmit={save}>
           <VStack gap="x4" alignItems="stretch">
             <AddressFormFields
+              control={control}
               register={register}
               errors={errors}
               setValue={setValue}
@@ -182,6 +184,6 @@ export function AddressSelectModal({
           ))}
         </SelectBox>
       )}
-    </ResponsiveModal>
+    </Modal>
   );
 }

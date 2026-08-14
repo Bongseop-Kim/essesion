@@ -51,9 +51,7 @@ def public_asset_url(settings: Settings, object_key: str) -> str:
 
     bucket = assets_bucket_name(settings)
     emulator_host = _emulator_host(settings)
-    if settings.gcs_assets_public_base_url:
-        base_url = settings.gcs_assets_public_base_url.rstrip("/")
-    elif emulator_host:
+    if emulator_host:
         base_url = f"{emulator_host.rstrip('/')}/{bucket}"
     else:
         base_url = f"https://storage.googleapis.com/{bucket}"

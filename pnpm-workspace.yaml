@@ -35,4 +35,3 @@ catalog:
   vitest: ^4.1.10
   wrangler: ^4.107.0
   zod: ^4.4.3
-  zustand: ^5.0.14

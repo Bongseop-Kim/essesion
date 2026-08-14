@@ -15,7 +15,6 @@ async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_sessio
     owner = await make_user(db_session, email="owner-secret@test.local")
     app.state.settings.gcp_project_id = "test-project"
     app.state.settings.gcs_assets_bucket = "configured-assets"
-    app.state.settings.gcs_assets_public_base_url = "https://cdn.example.test/assets/"
     now = datetime.now(UTC)
     succeeded = GenerationJob(
         user_id=owner.id,
@@ -98,7 +97,9 @@ async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_sessio
         "dpi": 300,
         "weave": "twill-45",
     }
-    assert body["result_url"] == ("https://cdn.example.test/assets/fabric/0123456789abcdef.png")
+    assert body["result_url"] == (
+        "http://localhost:4443/configured-assets/fabric/0123456789abcdef.png"
+    )
     assert str(owner.id) not in detail.text
     assert "owner-secret@test.local" not in detail.text
 

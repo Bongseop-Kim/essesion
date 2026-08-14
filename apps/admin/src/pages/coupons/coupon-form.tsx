@@ -3,7 +3,6 @@ import {
   ActionButton,
   AlertDialog,
   Callout,
-  DatePicker,
   Grid,
   HStack,
   RadioGroup,
@@ -249,6 +248,7 @@ export function CouponDefinitionForm({
                 draft.discountType === "percentage" ? "할인율" : "할인 금액"
               }
               suffix={draft.discountType === "percentage" ? "%" : "원"}
+              groupThousands={draft.discountType === "fixed"}
               required
               value={draft.discountValue}
               errorMessage={attempted ? errors.discountValue : undefined}
@@ -260,31 +260,38 @@ export function CouponDefinitionForm({
                 label="최대 할인액"
                 placeholder="비워 두면 제한 없음"
                 suffix="원"
+                groupThousands
                 value={draft.maxDiscountAmount}
                 errorMessage={attempted ? errors.maxDiscountAmount : undefined}
                 disabled={pending}
                 onValueChange={(value) => update("maxDiscountAmount", value)}
               />
             ) : (
-              <DatePicker
+              <TextField
+                type="date"
                 label="만료일 (KST)"
                 required
                 value={draft.expiryDate}
                 errorMessage={attempted ? errors.expiryDate : undefined}
                 disabled={pending}
-                onValueChange={(value) => update("expiryDate", value)}
+                onChange={(event) =>
+                  update("expiryDate", event.currentTarget.value)
+                }
               />
             )}
           </Grid>
 
           {draft.discountType === "percentage" && (
-            <DatePicker
+            <TextField
+              type="date"
               label="만료일 (KST)"
               required
               value={draft.expiryDate}
               errorMessage={attempted ? errors.expiryDate : undefined}
               disabled={pending}
-              onValueChange={(value) => update("expiryDate", value)}
+              onChange={(event) =>
+                update("expiryDate", event.currentTarget.value)
+              }
             />
           )}
 

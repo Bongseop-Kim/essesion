@@ -18,7 +18,7 @@ import {
   Field,
   HStack,
   ImageFrame,
-  ResponsiveModal,
+  Modal,
   ScrollFog,
   Skeleton,
   snackbar,
@@ -128,7 +128,7 @@ export function InquiryFormModal({
   };
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title={inquiry ? "1:1 문의 수정" : "1:1 문의하기"}
@@ -293,7 +293,7 @@ export function InquiryFormModal({
           />
         </VStack>
       </form>
-    </ResponsiveModal>
+    </Modal>
   );
 }
 

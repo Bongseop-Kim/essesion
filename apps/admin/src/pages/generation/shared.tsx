@@ -208,7 +208,6 @@ export function PeriodFilters({
       to={to}
       onFromChange={onFromChange}
       onToChange={onToChange}
-      presentation="inline"
     />
   );
 }

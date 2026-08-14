@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from db.models.commerce import ManualOrder
 from fastapi import APIRouter, Query
-from pydantic import AwareDatetime, BaseModel, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, or_, select
 
 from api.db import SessionDep
@@ -14,6 +14,7 @@ from api.deps import AdminUser
 from api.domains.admin.schemas import Page
 from api.domains.reform.schemas import RestorationReform, WidthReform
 from api.errors import ConflictError, NotFoundError
+from api.phone_numbers import normalize_mobile_phone
 from api.schemas import StrictModel
 
 router = APIRouter(prefix="/admin/manual-orders", tags=["admin-manual-orders"])
@@ -63,6 +64,11 @@ class ManualOrderCreateRequest(BaseModel):
     is_paid: bool = False
     is_confirmed: bool = False
     items: list[ManualOrderItem] = Field(min_length=1, max_length=50)
+
+    @field_validator("phone")
+    @classmethod
+    def normalize_phone(cls, value: str) -> str:
+        return normalize_mobile_phone(value)
 
 
 class ManualOrderUpdateRequest(ManualOrderCreateRequest):

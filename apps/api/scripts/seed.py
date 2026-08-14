@@ -129,6 +129,7 @@ PRODUCTS = [
         "pattern": pattern,
         "material": material,
         "info": "시드 상품",
+        "option_label": "길이" if code in {"3F-SEED-001", "3F-SEED-002"} else None,
         "options": (
             [("일반", 0, None), ("롱", 5000, 10)]
             if code == "3F-SEED-001"
@@ -139,6 +140,12 @@ PRODUCTS = [
     }
     for code, name, price, category, color, pattern, material in PRODUCT_VARIANTS
 ]
+
+
+def _backfill_option_label(product: Product, option_label: str | None) -> None:
+    if option_label and not (product.option_label or "").strip():
+        product.option_label = option_label
+
 
 PLACEHOLDER_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -572,6 +579,7 @@ async def main() -> None:
                 print(f"  product: {product_data['code']}")
             else:
                 product = existing
+                _backfill_option_label(product, product_data["option_label"])
             await _ensure_product_image(session, gcs, settings, product)
 
         # admin_settings 이후 — grant_initial_tokens가 design_token_initial_grant를 읽는다.

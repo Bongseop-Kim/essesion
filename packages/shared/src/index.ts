@@ -47,8 +47,6 @@ export type { ChipProps } from "./components/chip";
 export { Chip } from "./components/chip";
 export type { ContentPlaceholderProps } from "./components/content-placeholder";
 export { ContentPlaceholder } from "./components/content-placeholder";
-export type { DatePickerProps } from "./components/date-picker";
-export { DatePicker } from "./components/date-picker";
 export type { DividerProps } from "./components/divider";
 export { Divider } from "./components/divider";
 export type { FieldProps } from "./components/field";
@@ -77,7 +75,6 @@ export type { IconProps } from "./components/icon";
 export { Icon } from "./components/icon";
 export type { ImageFrameProps } from "./components/image-frame";
 export { ImageFrame } from "./components/image-frame";
-export type { AnchoredPlacement } from "./components/internal/anchored-position";
 export type { LayoutContentProps } from "./components/layout";
 export { Layout, LayoutContent } from "./components/layout";
 export type {
@@ -92,6 +89,7 @@ export type {
 } from "./components/list-picker";
 export { ListPicker } from "./components/list-picker";
 export type {
+  AnchoredPlacement,
   MenuContentProps,
   MenuItemProps,
   MenuRootProps,
@@ -103,6 +101,16 @@ export {
   MenuRoot,
   MenuTrigger,
 } from "./components/menu";
+export type { ModalProps } from "./components/modal";
+export { Modal } from "./components/modal";
+export type { PhoneFieldProps } from "./components/phone-field";
+export {
+  canonicalizePhoneNumber,
+  formatPhoneInput,
+  formatPhoneNumber,
+  normalizePhoneNumber,
+  PhoneField,
+} from "./components/phone-field";
 export type { ProgressCircleProps } from "./components/progress-circle";
 export { ProgressCircle } from "./components/progress-circle";
 export type {
@@ -112,8 +120,6 @@ export type {
 export { RadioGroup, RadioGroupItem } from "./components/radio-group";
 export type { RatingProps } from "./components/rating";
 export { Rating } from "./components/rating";
-export type { ResponsiveModalProps } from "./components/responsive-modal";
-export { ResponsiveModal } from "./components/responsive-modal";
 export type { ResultSectionProps } from "./components/result-section";
 export { ResultSection } from "./components/result-section";
 export type { ScrollFogProps } from "./components/scroll-fog";

@@ -1,6 +1,5 @@
 import type { AdminDesignExampleOut } from "@essesion/api-client";
 import {
-  createAdminDesignExampleMutation,
   deleteAdminDesignExampleMutation,
   listAdminDesignExamplesOptions,
   listAdminDesignExamplesQueryKey,
@@ -15,20 +14,32 @@ import {
   Switch,
   snackbar,
   Text,
-  TextField,
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 
 import { getErrorMessage } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
+import { AppliedFilterBar } from "../../shared/ui/applied-filter-bar";
+import { CompactFilterToolbar } from "../../shared/ui/compact-filter-toolbar";
+import { FilterSelect } from "../../shared/ui/filter-select";
 import { NumberField } from "../../shared/ui/number-field";
 import { RouteHeading } from "../../shared/ui/route-heading";
+import { SubmittedMemorySearch } from "../../shared/ui/submitted-memory-search";
 import {
   AdminTable,
   type AdminTableColumn,
 } from "../../widgets/admin-table/admin-table";
+
+const PUBLISHED_LABELS = {
+  all: "전체",
+  published: "게시",
+  unpublished: "비게시",
+} as const;
+
+type PublishedFilter = keyof typeof PUBLISHED_LABELS;
 
 /** 순서는 타자마다 저장하지 않는다 — 포커스를 잃을 때 바뀐 값만 PATCH한다. */
 function OrdinalCell({
@@ -59,33 +70,34 @@ function OrdinalCell({
 }
 
 export function DesignExamplesPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery(listAdminDesignExamplesOptions());
-  const [runId, setRunId] = useState("");
-  const [name, setName] = useState("");
-  const [caption, setCaption] = useState("");
-  const [ordinal, setOrdinal] = useState("");
+  const [search, setSearch] = useState<string>();
+  const [searchResetKey, setSearchResetKey] = useState(0);
+  const [published, setPublished] = useState<PublishedFilter>("all");
+  const [draftPublished, setDraftPublished] =
+    useState<PublishedFilter>(published);
   const [deleteTarget, setDeleteTarget] =
     useState<AdminDesignExampleOut | null>(null);
+
+  const keyword = search?.toLocaleLowerCase("ko-KR");
+  const filteredExamples = query.data?.filter((example) => {
+    const matchesSearch =
+      keyword === undefined ||
+      [example.name, example.caption, example.run_id]
+        .filter((value): value is string => value !== null)
+        .some((value) => value.toLocaleLowerCase("ko-KR").includes(keyword));
+    const matchesPublished =
+      published === "all" || example.published === (published === "published");
+    return matchesSearch && matchesPublished;
+  });
 
   const refresh = () =>
     queryClient.invalidateQueries({
       queryKey: listAdminDesignExamplesQueryKey(),
     });
 
-  const create = useMutation({
-    ...createAdminDesignExampleMutation(),
-    onSuccess: async () => {
-      setRunId("");
-      setName("");
-      setCaption("");
-      setOrdinal("");
-      snackbar("예시를 등록했습니다. 게시하면 첫 진입 갤러리에 노출됩니다.");
-      await refresh();
-    },
-    onError: (error) =>
-      snackbar(getErrorMessage(error, "예시를 등록하지 못했습니다.")),
-  });
   const update = useMutation({
     ...updateAdminDesignExampleMutation(),
     onSuccess: refresh,
@@ -189,76 +201,15 @@ export function DesignExamplesPage() {
 
   return (
     <VStack gap="x6" alignItems="stretch">
-      <RouteHeading
-        title="디자인 예시"
-        description="store 디자인 첫 진입 갤러리에 노출할 디자인을 큐레이션합니다. 고객이 고르면 토큰 없이 그 디자인에서 세션이 시작됩니다."
-      />
-
-      <AdminCard
-        title="예시 등록"
-        description="Seamless 로그에서 run ID를 복사해 등록합니다. 사용자가 올린 모티프를 쓰는 run은 등록할 수 없습니다."
-      >
-        <VStack
-          as="form"
-          gap="x4"
-          alignItems="stretch"
-          onSubmit={(event: React.FormEvent) => {
-            event.preventDefault();
-            create.mutate({
-              body: {
-                run_id: runId.trim(),
-                name: name.trim(),
-                caption: caption.trim() || null,
-                ordinal: Number(ordinal || 0),
-              },
-            });
-          }}
-        >
-          <HStack gap="x3" align="flex-start" wrap>
-            <Box flex={1} minWidth={280}>
-              <TextField
-                label="run ID"
-                placeholder="00000000-0000-0000-0000-000000000000"
-                value={runId}
-                onChange={(event) => setRunId(event.target.value)}
-                required
-              />
-            </Box>
-            <Box flex={1} minWidth={200}>
-              <TextField
-                label="갤러리 이름"
-                placeholder="미드나잇 웨이브"
-                maxLength={100}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-            </Box>
-            <Box flex={1} minWidth={200}>
-              <TextField
-                label="카드 설명"
-                description="카드 라벨 둘째 줄. 비우면 이름만 나옵니다."
-                placeholder="네이비 · 대각 스트라이프"
-                maxLength={60}
-                value={caption}
-                onChange={(event) => setCaption(event.target.value)}
-              />
-            </Box>
-            <Box width={140}>
-              <NumberField
-                label="노출 순서"
-                value={ordinal}
-                onValueChange={setOrdinal}
-              />
-            </Box>
-          </HStack>
-          <Box>
-            <ActionButton type="submit" loading={create.isPending}>
-              비게시로 등록
-            </ActionButton>
-          </Box>
-        </VStack>
-      </AdminCard>
+      <HStack justify="space-between" align="flex-start" gap="x4" wrap>
+        <RouteHeading
+          title="디자인 예시"
+          description="store 디자인 첫 진입 갤러리에 노출할 디자인을 큐레이션합니다. 고객이 고르면 토큰 없이 그 디자인에서 세션이 시작됩니다."
+        />
+        <ActionButton onClick={() => navigate("/design-examples/new")}>
+          예시 등록
+        </ActionButton>
+      </HStack>
 
       <AdminCard
         title="등록된 예시"
@@ -274,18 +225,74 @@ export function DesignExamplesPage() {
           </ActionButton>
         }
       >
-        <AdminTable
-          label="디자인 예시 목록"
-          columns={columns}
-          rows={query.data}
-          getRowKey={(row) => row.id}
-          status={
-            query.isLoading ? "loading" : query.isError ? "error" : "success"
-          }
-          onRetry={() => void query.refetch()}
-          emptyTitle="등록된 예시가 없습니다"
-          emptyDescription="Seamless 로그에서 run ID를 복사해 등록해 주세요."
-        />
+        <VStack gap="x4" alignItems="stretch">
+          <CompactFilterToolbar
+            primaryControls={
+              <SubmittedMemorySearch
+                label="이름·설명·run ID 검색"
+                placeholder="2자 이상 입력"
+                maxLength={100}
+                resetKey={searchResetKey}
+                onSubmit={setSearch}
+              />
+            }
+            secondaryFilters={
+              <FilterSelect
+                label="게시 상태"
+                presentation="inline"
+                value={draftPublished}
+                options={Object.entries(PUBLISHED_LABELS).map(
+                  ([value, label]) => ({ value, label }),
+                )}
+                onValueChange={(value) =>
+                  setDraftPublished(value as PublishedFilter)
+                }
+              />
+            }
+            secondaryFilterCount={Number(published !== "all")}
+            secondaryTitle="디자인 예시 필터"
+            secondaryDescription="게시 상태를 골라 적용합니다."
+            onResetSecondaryFilters={() => setDraftPublished(published)}
+            onApplySecondaryFilters={() => {
+              setPublished(draftPublished);
+              return undefined;
+            }}
+          />
+          <AppliedFilterBar
+            filters={[
+              search !== undefined && {
+                key: "search",
+                label: `검색: ${search}`,
+                onRemove: () => {
+                  setSearch(undefined);
+                  setSearchResetKey((current) => current + 1);
+                },
+              },
+              published !== "all" && {
+                key: "published",
+                label: `게시 상태: ${PUBLISHED_LABELS[published]}`,
+                onRemove: () => setPublished("all"),
+              },
+            ]}
+            onReset={() => {
+              setSearch(undefined);
+              setSearchResetKey((current) => current + 1);
+              setPublished("all");
+            }}
+          />
+          <AdminTable
+            label="디자인 예시 목록"
+            columns={columns}
+            rows={filteredExamples}
+            getRowKey={(row) => row.id}
+            status={
+              query.isLoading ? "loading" : query.isError ? "error" : "success"
+            }
+            onRetry={() => void query.refetch()}
+            emptyTitle="조건에 맞는 디자인 예시가 없습니다"
+            emptyDescription="검색어나 게시 상태를 바꿔 다시 확인해 주세요."
+          />
+        </VStack>
       </AdminCard>
 
       <AlertDialog

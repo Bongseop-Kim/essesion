@@ -9,6 +9,7 @@ import {
   Box,
   ContentPlaceholder,
   Divider,
+  formatPhoneNumber,
   HStack,
   List,
   ListItem,
@@ -138,7 +139,9 @@ export function MyInfoPage() {
                         </Badge>
                       </HStack>
                       <Text textStyle="body" color="fg.neutral-muted">
-                        {meQuery.data.phone ?? "등록된 휴대폰 번호가 없습니다."}
+                        {meQuery.data.phone
+                          ? formatPhoneNumber(meQuery.data.phone)
+                          : "등록된 휴대폰 번호가 없습니다."}
                       </Text>
                     </VStack>
                     <ActionButton

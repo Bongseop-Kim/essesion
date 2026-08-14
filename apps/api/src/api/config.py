@@ -73,7 +73,6 @@ class Settings(BaseSettings):
     solapi_template_quote_received: str = ""
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §6)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
-    gcs_assets_public_base_url: str = ""  # Cloudflare asset proxy 사용 시 override
     # local/test에서 비우면 builder가 docker compose의 fake-gcs-server를 사용한다.
     gcs_emulator_host: str = ""
     worker_base_url: str = "http://localhost:8001"

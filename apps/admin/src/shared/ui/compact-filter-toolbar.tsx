@@ -4,7 +4,7 @@ import {
   Flex,
   HStack,
   Icon,
-  ResponsiveModal,
+  Modal,
   SidePanel,
   useBreakpoint,
 } from "@essesion/shared";
@@ -106,9 +106,9 @@ export function CompactFilterToolbar({
         isDesktop ? (
           <SidePanel {...overlayProps}>{secondaryFilters}</SidePanel>
         ) : (
-          <ResponsiveModal {...overlayProps} showCloseButton>
+          <Modal {...overlayProps} showCloseButton>
             {secondaryFilters}
-          </ResponsiveModal>
+          </Modal>
         )
       ) : null}
     </>

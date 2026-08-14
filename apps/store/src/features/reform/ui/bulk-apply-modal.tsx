@@ -4,9 +4,9 @@ import {
   Checkbox,
   Field,
   HStack,
+  Modal,
   RadioGroup,
   RadioGroupItem,
-  ResponsiveModal,
   TextAreaField,
   TextField,
   VStack,
@@ -106,7 +106,7 @@ export function ReformSettingsModal({
   };
 
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title={title}
@@ -256,7 +256,7 @@ export function ReformSettingsModal({
           </VStack>
         </VStack>
       </Field>
-    </ResponsiveModal>
+    </Modal>
   );
 }
 

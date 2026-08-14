@@ -325,6 +325,15 @@ const pageRoutes: RouteObject[] = [
     },
   },
   {
+    path: "design-examples/new",
+    lazy: async () => {
+      const { DesignExampleNewPage } = await import(
+        "../../pages/design-examples/new"
+      );
+      return { Component: DesignExampleNewPage };
+    },
+  },
+  {
     path: "motifs/:motifId",
     lazy: async () => {
       const { MotifDetailPage } = await import("../../pages/motifs/detail");

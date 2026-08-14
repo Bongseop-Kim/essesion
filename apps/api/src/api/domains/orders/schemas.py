@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal
 from pydantic import AfterValidator, BaseModel, Field, field_validator
 
 from api.domains.reform.schemas import ReformDataIn
+from api.phone_numbers import normalize_mobile_phone
 from api.schemas import ORMModel
 
 MAX_ORDER_ITEMS = 50
@@ -53,6 +54,11 @@ class RepairPickupIn(BaseModel):
     address: str = Field(max_length=500)
     postal_code: str | None = Field(default=None, max_length=20)
     detail_address: str | None = Field(default=None, max_length=500)
+
+    @field_validator("recipient_phone")
+    @classmethod
+    def normalize_recipient_phone(cls, value: str) -> str:
+        return normalize_mobile_phone(value)
 
 
 class RepairShippingIn(BaseModel):

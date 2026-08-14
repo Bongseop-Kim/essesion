@@ -9,6 +9,13 @@ import {
   useState,
 } from "react";
 
+import {
+  bootstrapAdminSession,
+  loginAdminSession,
+  logoutAdminSession,
+  subscribeAdminSession,
+} from "./api-admin-session";
+
 export type AdminRole = "admin" | "manager";
 
 export type AdminSession = {
@@ -20,13 +27,6 @@ export type AdminSession = {
 export type AdminCredentials = {
   email: string;
   password: string;
-};
-
-export type AdminSessionAdapter = {
-  bootstrap: (signal: AbortSignal) => Promise<AdminSession | null>;
-  login: (credentials: AdminCredentials) => Promise<AdminSession>;
-  logout: () => Promise<void>;
-  subscribe?: (onInvalidated: () => void) => () => void;
 };
 
 type AdminSessionState =
@@ -47,13 +47,11 @@ const AdminSessionContext = createContext<AdminSessionContextValue | null>(
 );
 
 export type AdminSessionProviderProps = {
-  adapter: AdminSessionAdapter;
   clearSensitiveCache: () => void;
   children: ReactNode;
 };
 
 export function AdminSessionProvider({
-  adapter,
   clearSensitiveCache,
   children,
 }: AdminSessionProviderProps) {
@@ -63,8 +61,7 @@ export function AdminSessionProvider({
   useEffect(() => {
     const controller = new AbortController();
     setState({ status: "loading" });
-    void adapter
-      .bootstrap(controller.signal)
+    void bootstrapAdminSession(controller.signal)
       .then((session) => {
         if (controller.signal.aborted) return;
         if (session === null) {
@@ -81,14 +78,14 @@ export function AdminSessionProvider({
       });
 
     return () => controller.abort();
-  }, [adapter, bootstrapAttempt, clearSensitiveCache]);
+  }, [bootstrapAttempt, clearSensitiveCache]);
 
   useEffect(() => {
-    return adapter.subscribe?.(() => {
+    return subscribeAdminSession(() => {
       clearSensitiveCache();
       setState({ status: "anonymous" });
     });
-  }, [adapter, clearSensitiveCache]);
+  }, [clearSensitiveCache]);
 
   const retryBootstrap = useCallback(() => {
     setBootstrapAttempt((attempt) => attempt + 1);
@@ -98,7 +95,7 @@ export function AdminSessionProvider({
     async (credentials: AdminCredentials) => {
       setState({ status: "loading" });
       try {
-        const session = await adapter.login(credentials);
+        const session = await loginAdminSession(credentials);
         setState({ status: "authenticated", session });
       } catch (error) {
         clearSensitiveCache();
@@ -106,17 +103,17 @@ export function AdminSessionProvider({
         throw error;
       }
     },
-    [adapter, clearSensitiveCache],
+    [clearSensitiveCache],
   );
 
   const logout = useCallback(async () => {
     try {
-      await adapter.logout();
+      await logoutAdminSession();
     } finally {
       clearSensitiveCache();
       setState({ status: "anonymous" });
     }
-  }, [adapter, clearSensitiveCache]);
+  }, [clearSensitiveCache]);
 
   const value = useMemo(
     () => ({ state, retryBootstrap, login, logout }),

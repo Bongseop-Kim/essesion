@@ -117,7 +117,7 @@ describe("MotifsPage", () => {
     ).toBeTruthy();
     expect(api.listOptions).toHaveBeenCalledWith({
       query: {
-        status: "pending",
+        status: "all",
         scope: "whole",
         q: undefined,
         start_date: undefined,
@@ -235,7 +235,7 @@ describe("MotifsPage", () => {
     );
   });
 
-  it("검토 대기를 기본 조회하고 상태 필터를 적용한다", async () => {
+  it("전체 상태를 기본 조회하고 상태 필터를 적용한다", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("table", { name: "Motif 목록" });

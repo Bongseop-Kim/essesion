@@ -5,7 +5,7 @@ import {
   ContentPlaceholder,
   HStack,
   Icon,
-  ResponsiveModal,
+  Modal,
   Skeleton,
   Text,
   VStack,
@@ -63,7 +63,7 @@ export function SessionListModal({
   onRetry,
 }: SessionListModalProps) {
   return (
-    <ResponsiveModal
+    <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="내 디자인"
@@ -157,7 +157,7 @@ export function SessionListModal({
           })}
         </VStack>
       )}
-    </ResponsiveModal>
+    </Modal>
   );
 }
 
