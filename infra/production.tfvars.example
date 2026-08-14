@@ -1,7 +1,7 @@
 # cp production.tfvars.example production.tfvars 후 채우기 (tfvars는 gitignore)
-project_id        = "essesion-production"
+project_id        = "ysindustry"
 billing_account   = "XXXXXX-XXXXXX-XXXXXX"
-alert_email       = "biblecookie@naver.com"
+alert_email       = "<알림 수신 이메일>"
 public_api_origin = "https://api.essesion.shop"
 
 # 비시크릿 운영 env — 첫 apply부터 공개 Cloudflare 도메인으로 설정 (시크릿은 gcloud 주입, README)

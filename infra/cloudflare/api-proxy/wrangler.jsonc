@@ -2,10 +2,12 @@
   "name": "essesion-api-proxy",
   "main": "src/index.ts",
   "compatibility_date": "2026-07-01",
+  // custom_domain — wrangler가 DNS 레코드와 인증서까지 만든다. 일반 route는 DNS를
+  // 만들어주지 않아 별도 더미 레코드가 필요하다(store·admin과 같은 방식으로 통일).
   "routes": [
     {
-      "pattern": "api.essesion.shop/*",
-      "zone_name": "essesion.shop"
+      "pattern": "api.essesion.shop",
+      "custom_domain": true
     }
   ]
 }

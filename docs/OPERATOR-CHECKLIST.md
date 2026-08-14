@@ -27,9 +27,9 @@
 2. **Readiness** ([명령](../infra/README.md#readiness-확인)) — api `/readyz` 200 + 전 capability `ready/real/oidc`,
    두 worker 비공개 `/readyz`가 `database=ready`, 공개 `/products` 200 · `run.app` 직통 403.
    GCS 버킷·Cloud Tasks 값 누락은 capability가 아니라 **revision 기동 실패**로 드러나므로 Cloud Run 로그를 먼저 본다.
-3. **배치** — `api_url`이 scheduler audience 형식(`https://api-<project#>.<region>.run.app`)과 일치하는지 대조 →
-   `batch-cancel-stale-orders` 수동 실행 → api 로그 200. 불일치하면 배치 5종이 전원 401로 조용히 실패한다.
-   대조가 필요한 것은 **첫 apply 직후 1회**뿐이다 — 이후에는 `scheduler.tf`의 `check` 블록이 plan/apply에서 자동으로 잡는다.
+3. **배치** — `batch-cancel-stale-orders` 수동 실행 → api 로그 200. 401이면 배치 5종이 전원 조용히 실패하는 상태다.
+   audience는 scheduler와 api env가 같은 `local.batch_audience`를 쓰므로 **실제 run.app URL과 달라도 정상**이다
+   (api는 자기 URL이 아니라 설정 문자열로 검증 — `deps.verify_batch_token`). URL 대조는 필요 없다.
 4. **초기 데이터** — 먼저 [운영자 단말 DB 접속](../infra/README.md#운영자-단말에서-db-접속)을
    연결한다(`database-url` 시크릿은 Cloud Run 전용 소켓 DSN이라 단말에서 그대로 못 쓴다).
    [관리자 생성](../infra/README.md#초기-관리자-bootstrap세션-복구) → [시드](../infra/README.md#production-데이터-시드):

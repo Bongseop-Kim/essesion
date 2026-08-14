@@ -7,19 +7,22 @@
 
 ## 부트스트랩
 
-```bash
-# 1. 프로젝트 + 청구 연결
-gcloud projects create essesion-production
-gcloud billing projects link essesion-production --billing-account=XXXXXX-XXXXXX-XXXXXX
+프로젝트는 `ysindustry`(번호 801310318969, asia-northeast3), tofu 상태 버킷은 `gs://essesion-tfstate`.
+**둘 다 이미 존재하므로 1·2는 재개통 때만 실행한다.**
 
-# 2. tofu 상태 버킷 (tofu 밖에서 생성 — 닭·달걀)
-gcloud storage buckets create gs://essesion-production-tfstate \
-  --project=essesion-production --location=asia-northeast3 --uniform-bucket-level-access
+```bash
+# 1. 프로젝트 + 청구 연결 (완료 — 청구 계정 01ECA7-E30675-76BBED)
+gcloud projects create ysindustry
+gcloud billing projects link ysindustry --billing-account=XXXXXX-XXXXXX-XXXXXX
+
+# 2. tofu 상태 버킷 (완료 — tofu 밖에서 생성. 닭·달걀)
+gcloud storage buckets create gs://essesion-tfstate \
+  --project=ysindustry --location=asia-northeast3 --uniform-bucket-level-access
 
 # 3. 변수 채우고 init
 brew install opentofu
 cp infra/production.tfvars.example infra/production.tfvars   # 값 채우기
-tofu -chdir=infra init -backend-config="bucket=essesion-production-tfstate"
+tofu -chdir=infra init -backend-config="bucket=essesion-tfstate"
 
 # 3-1. 시크릿 컨테이너·DB 먼저 (시크릿 버전이 없으면 서비스 리비전이 기동 실패한다)
 tofu -chdir=infra apply -var-file=production.tfvars \
@@ -44,18 +47,18 @@ tofu -chdir=infra apply -var-file=production.tfvars
 
 ```bash
 # 외부에서 발급받아 수집하는 값 — 각 시크릿마다 따로 실행
-printf '%s' '<값>' | gcloud secrets versions add <시크릿ID> --data-file=- --project=essesion-production
+printf '%s' '<값>' | gcloud secrets versions add <시크릿ID> --data-file=- --project=ysindustry
 #   toss-secret-key  solapi-api-key  solapi-api-secret  openai-api-key
 #   google-client-secret  kakao-client-secret  naver-client-secret
 #   sentry-dsn-api  sentry-dsn-worker
 
 # apple-private-key만 .p8 파일을 통째로
-gcloud secrets versions add apple-private-key --data-file=<AuthKey.p8 경로> --project=essesion-production
+gcloud secrets versions add apple-private-key --data-file=<AuthKey.p8 경로> --project=ysindustry
 
 # 새 환경마다 독립적으로 생성하는 값
-openssl rand -base64 48 | gcloud secrets versions add jwt-secret --data-file=- --project=essesion-production
-openssl rand -base64 48 | gcloud secrets versions add session-secret --data-file=- --project=essesion-production
-openssl rand -base64 48 | gcloud secrets versions add edge-proxy-secret --data-file=- --project=essesion-production
+openssl rand -base64 48 | gcloud secrets versions add jwt-secret --data-file=- --project=ysindustry
+openssl rand -base64 48 | gcloud secrets versions add session-secret --data-file=- --project=ysindustry
+openssl rand -base64 48 | gcloud secrets versions add edge-proxy-secret --data-file=- --project=ysindustry
 ```
 
 `db-password`·`database-url`은 tofu가 생성·주입하므로 손대지 않는다.
@@ -66,7 +69,7 @@ openssl rand -base64 48 | gcloud secrets versions add edge-proxy-secret --data-f
 
 ```bash
 tofu -chdir=infra output   # wif_provider, deployer_sa, api_url 확인
-gh variable set GCP_PROJECT_ID -b essesion-production
+gh variable set GCP_PROJECT_ID -b ysindustry
 gh variable set GCP_REGION -b asia-northeast3
 gh variable set GCP_WIF_PROVIDER -b "$(tofu -chdir=infra output -raw wif_provider)"
 gh variable set GCP_DEPLOYER_SA -b "$(tofu -chdir=infra output -raw deployer_sa)"
@@ -98,11 +101,14 @@ edge 헤더를 필수로 검사하며 `/healthz`와 자체 OIDC를 검증하는 
 2. edge secret 주입 — 값을 파일·셸 기록·커밋에 남기지 않도록 파이프로 전달한다.
 
 ```bash
-gcloud secrets versions access latest --secret=edge-proxy-secret --project=essesion-production \
+gcloud secrets versions access latest --secret=edge-proxy-secret --project=ysindustry \
   | pnpm -C infra/cloudflare/api-proxy exec wrangler secret put EDGE_SHARED_SECRET
 ```
 
-3. 첫 API 이미지 배포 전에 프록시를 선배포한다. `api.essesion.shop/*` route는 `api-proxy/wrangler.jsonc`에 고정돼 있고, Cloud Run URL은 파일에 저장하지 않고 배포 시 `ORIGIN`으로 주입한다.
+3. 첫 API 이미지 배포 전에 프록시를 선배포한다. `api.essesion.shop`은 `api-proxy/wrangler.jsonc`에
+   **custom_domain**으로 고정돼 있어 wrangler가 DNS 레코드와 인증서까지 만든다(일반 route는 DNS를
+   만들지 않아 더미 레코드가 따로 필요하다 — store·admin과 같은 방식으로 통일). Cloud Run URL은
+   파일에 저장하지 않고 배포 시 `ORIGIN`으로 주입한다. DNS 전파에 1~2분 걸린다.
 
 ```bash
 pnpm -C infra/cloudflare/api-proxy exec wrangler deploy \
@@ -169,7 +175,7 @@ api `/readyz`에서 `database=ready`, `toss/solapi/finalize_tasks=real`, `worker
 
 ```bash
 cloud-sql-proxy "$(tofu -chdir=infra output -raw db_connection_name)" &   # 127.0.0.1:5432
-DB_PASSWORD="$(gcloud secrets versions access latest --secret=db-password --project=essesion-production)"
+DB_PASSWORD="$(gcloud secrets versions access latest --secret=db-password --project=ysindustry)"
 export DATABASE_URL="postgresql+asyncpg://app:$DB_PASSWORD@127.0.0.1:5432/essesion"
 unset DB_PASSWORD   # DSN에만 남기고 별도 변수로 보관하지 않는다
 ```
@@ -236,9 +242,12 @@ apply 시 잡 **5종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).
 api의 검증 env(`BATCH_OIDC_AUDIENCE`, `BATCH_INVOKER_EMAIL`)는 tofu가 주입하므로 수동 조치가 없다.
 로컬 개발은 `batch_token` 폴백.
 
-**apply 후 확인 (audience 불일치 = 배치 전원 401 조용한 실패)**:
+토큰 audience는 scheduler와 api env가 같은 `local.batch_audience`를 쓴다. api는 자기 URL이 아니라
+그 문자열로 검증하므로(`deps.verify_batch_token`) **실제 `api_url`과 달라도 정상**이다 — Cloud Run이
+배정하는 URL 형식은 프로젝트마다 다르다. 대조하지 말고 실제 호출로 확인한다.
+
+**apply 후 확인 (401 = 배치 전원 조용한 실패)**:
 
 ```bash
-tofu -chdir=infra output -raw api_url   # scheduler.tf의 batch_audience와 일치해야 함
 gcloud scheduler jobs run batch-cancel-stale-orders --location asia-northeast3   # api 로그에서 200 확인
 ```

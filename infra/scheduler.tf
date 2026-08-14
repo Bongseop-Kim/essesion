@@ -3,10 +3,11 @@
 # audience + email 클레임(scheduler SA)을 직접 검증한다 (api deps.verify_batch_token).
 
 locals {
-  # api 서비스 env(BATCH_OIDC_AUDIENCE)와 문자열이 정확히 일치해야 한다.
-  # google_cloud_run_v2_service.api.uri를 api env에서 참조하면 자기참조 순환이라
-  # 결정적 URL(https://<service>-<project#>.<region>.run.app)로 고정.
-  # apply 후 `tofu output api_url`과 일치하는지 대조할 것 (README).
+  # scheduler가 발급하는 토큰의 audience이자 api 서비스 env(BATCH_OIDC_AUDIENCE) 값 —
+  # 둘 다 이 local을 쓰므로 구성상 항상 일치한다. api는 자기 URL이 아니라 이 문자열로
+  # 토큰을 검증하므로(deps.verify_batch_token) 실제 run.app URL과 같을 필요는 없다.
+  # 값을 바꾸면 scheduler와 api 리비전이 함께 갱신되는 동안만 401이 난다.
+  # (api env에서 google_cloud_run_v2_service.api.uri를 참조하면 자기참조 순환이라 불가.)
   batch_audience = "https://api-${data.google_project.this.number}.${var.region}.run.app"
 
   batch_jobs = {
@@ -42,12 +43,7 @@ resource "google_cloud_scheduler_job" "batch" {
   depends_on = [google_project_service.apis]
 }
 
-# batch_audience(위 local)는 api.uri와 정확히 일치해야 OIDC audience 검증이 통과한다.
-# 손으로 `tofu output`을 대조하던 절차를 plan/apply 시 자동 경고로 바꾼다 — region·run.app
-# URL 포맷 변화 시 조용히 깨지지 않게. (첫 apply엔 api.uri가 unknown이라 스킵, 이후부터 검증.)
-check "batch_audience_matches_api_uri" {
-  assert {
-    condition     = local.batch_audience == google_cloud_run_v2_service.api.uri
-    error_message = "batch_audience(${local.batch_audience})가 api 서비스 URI와 다릅니다 — scheduler.tf의 batch_audience 구성을 실제 api.uri에 맞추세요."
-  }
-}
+# scheduler가 호출하는 주소는 api.uri, 토큰의 audience는 batch_audience로 서로 다르다 —
+# 둘이 같은지 검사하지 않는다. api를 Cloud Run IAM(invoker)으로 잠그는 날에는 Google이
+# audience=서비스 URL인 토큰을 요구하므로 그때 batch_audience를 api.uri에 맞춰야 한다.
+# 지금은 api가 공개(allUsers)라 앱 검증(deps.verify_batch_token)만으로 충분하다.
