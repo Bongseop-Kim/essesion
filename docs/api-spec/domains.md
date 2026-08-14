@@ -14,13 +14,13 @@
 검증 (verify):
 - 최신 미사용(verified=false) 레코드 1건. 없으면 `인증번호를 다시 요청해주세요`, 만료 `인증번호가 만료되었습니다`, 불일치(**timing-safe 비교**) `인증번호가 일치하지 않습니다`.
 - 성공: verified=true + **users.phone=정규화폰 + phone_verified=true** 갱신.
-- 원문에 시도 횟수 락아웃 없음(발급 제한+5분 만료가 방어) — 동일 유지.
+- 원문에 없던 **시도 횟수 락아웃 추가**: 검증 5회 실패(`MAX_VERIFY_ATTEMPTS`)면 `locked_at`을 찍고 해당 레코드를 잠근다 → `인증번호 시도 횟수를 초과했습니다. 새 인증번호를 요청해주세요.` 발급 제한과 5분 만료는 그대로.
 
 Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10초. 헤더 `Authorization: HMAC-SHA256 apiKey=.., date=<ISO now>, salt=<uuid>, signature=HMAC_SHA256(secret, date+salt) hex`. SMS body `{message:{to, from, text, type:"SMS"}}`. 알림톡 `type:"ATA"` + `kakaoOptions:{pfId, templateId, variables, disableSms:false}`(실패 시 SMS 자동 대체, text=fallback). 실패는 throw 없이 false.
 
 ## 2. 인증·프로필
 
-- 소셜: **Google, Kakao만 활성**(원문도 동일 — naver/apple 버튼 비활성). scope: kakao `profile_nickname account_email`, google `openid email`.
+- 소셜 **4종 구현**(`SUPPORTED_PROVIDERS = google, kakao, naver, apple`). Apple은 `POST /auth/apple/callback` + client-secret JWT 생성 경로를 포함한다. 미등록 provider는 `/readyz`의 `oauth_*` capability로 드러난다. scope: kakao `profile_nickname account_email`, google `openid email`.
 - 유저 생성 시 name 우선순위: 소셜 `name` → `full_name` → `nickname` → 이메일 로컬파트 → `'사용자'`. role은 항상 customer. 초기 토큰 지급(money.md §6, 실가입자만).
 - 관리자 로그인: **이메일/비밀번호 전용**, role ∈ {admin, manager} 아니면 거부(`관리자 권한이 없습니다.`).
 - 프로필 본인 수정 허용 필드: name, phone, birth, marketing_kakao_sms_consent만. phone_verified/notification_*/role은 전용 엔드포인트·관리자만.
@@ -107,4 +107,4 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 ## 12. 에러 메시지 계약
 
-기존 P0001 한국어 메시지는 프론트 노출 문자열 — 그대로 보존(detail 필드). 대표: `유효하지 않은 휴대폰 번호입니다`, `1분 후 재전송 가능합니다`, `오늘 인증 시도 횟수를 초과했습니다`, `인증번호가 만료되었습니다`, `인증번호가 일치하지 않습니다`, `현재 주문 상태에서는 취소할 수 없습니다`, `활성 클레임이 있는 주문은 주문 상태를 직접 변경할 수 없습니다`, `롤백 시 사유 입력 필수`, `접수 상태에서만 클레임을 취소할 수 있습니다`, `발송대기 상태에서만 송장번호를 등록할 수 있습니다`, `딤플은 자동 봉제(AUTO)에서만 선택 가능합니다`, `관리자 권한이 없습니다.` 등 — 각 도메인 구현 시 원문 사용.
+기존 P0001 한국어 메시지는 프론트 노출 문자열 — 그대로 보존(detail 필드). 대표: `유효하지 않은 휴대폰 번호입니다`, `1분 후 재전송 가능합니다`, `오늘 인증 시도 횟수를 초과했습니다`, `인증번호가 만료되었습니다`, `인증번호가 일치하지 않습니다`, `인증번호 시도 횟수를 초과했습니다. 새 인증번호를 요청해주세요.`, `현재 주문 상태에서는 취소할 수 없습니다`, `활성 클레임이 있는 주문은 주문 상태를 직접 변경할 수 없습니다`, `롤백 시 사유 입력 필수`, `접수 상태에서만 클레임을 취소할 수 있습니다`, `발송대기 상태에서만 송장번호를 등록할 수 있습니다`, `딤플은 자동 봉제(AUTO)에서만 선택 가능합니다`, `관리자 권한이 없습니다.` 등 — 각 도메인 구현 시 원문 사용.

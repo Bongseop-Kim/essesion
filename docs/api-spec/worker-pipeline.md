@@ -1,6 +1,6 @@
 # worker 명세 3/3 — 래스터화·finalize·API 표면·재구현 계약 (seamless-tile 추출)
 
-원본: `app/render/{raster,fabric}.py`, `app/api/`, `app/main.py`. §5부터는 새 아키텍처(ARCHITECTURE §2·§7)에 맞춘 **재구현 결정사항** — 원본과 의도적으로 다른 부분을 명시한다.
+원본: `app/render/{raster,fabric}.py`, `app/api/`, `app/main.py`. §5부터는 새 아키텍처(ARCHITECTURE §1·§6)에 맞춘 **재구현 결정사항** — 원본과 의도적으로 다른 부분을 명시한다.
 
 ## 1. 래스터화
 
@@ -8,7 +8,7 @@
   - rsvg-convert: `-w {W} -h {H} -f png -` / resvg: `-w {W} -h {H} - -c`
 - 픽셀: `mm_to_px = round(mm/25.4·dpi)`, `max(1, ...)`. **상한 20,000px**(초과 RasterError).
 - 항상 Pillow로 재인코딩해 물리 DPI 스탬프: PNG `dpi=(dpi,dpi)`, TIFF `compression="tiff_lzw"`.
-- **재구현 판정**: resvg 파이썬 바인딩은 형상·색은 같지만 경계 AA의 byte parity를 충족하지 못했다. 따라서 librsvg(`rsvg-convert`) 서브프로세스를 기준선으로 유지한다(ARCHITECTURE §9.1, `docs/reviews/resvg-parity.md`). renderer 버전 고정은 finalize 결정론을 위한 남은 운영 항목이다.
+- **재구현 판정**: resvg 파이썬 바인딩은 형상·색은 같지만 경계 AA의 byte parity를 충족하지 못했다. 따라서 librsvg(`rsvg-convert`) 서브프로세스를 기준선으로 유지한다(ARCHITECTURE §8.1, `docs/reviews/resvg-parity.md`). renderer 버전 고정은 finalize 결정론을 위한 남은 운영 항목이다.
 
 ## 2. fabric finalize 파이프라인
 
@@ -16,7 +16,7 @@
 
 상수: TEXTURE_STRENGTH=2.4, RELIEF_STRENGTH=0.45, RELIEF_MM=0.17, RELIEF_RIM_MIN=0.25, MOTIF_WEAVE="twill-45", THREAD_PERIOD_MM=0.70, THREAD_FILL=0.82, THREAD_AA_SCALE=3, MASK_THRESHOLD=24, THREAD_RELIEF_MM=0.04, THREAD_SHADE_K=0.23.
 
-게이트: method ∈ {print, yarn_dyed}; weave는 에셋 디렉토리 stem 목록에 존재; colorway 존재; **print는 twill-* weave만 + material_map 거부**; dpi ≤ max_dpi(1200); strength/relief 음수 거부. relief는 yarn_dyed에서만.
+게이트: method ∈ {print, yarn_dyed}; weave는 에셋 디렉토리 stem 목록에 존재; colorway 존재; **print는 twill-* weave만 + material_map 거부**; dpi ≤ max_dpi(600); strength/relief 음수 거부. relief는 yarn_dyed에서만.
 
 핵심 연산:
 - **weave 타일링**: `nx=max(1,round(w/tw))` 정수 복제 후 목표 크기로 LANCZOS 리사이즈(부분 크롭 금지 — seam 유지).
@@ -43,7 +43,7 @@
 - `GET /api/v1/health`, `GET /api/v1/palettes`(프리셋 mono/navy/earth/pastel).
 - `POST /api/v1/generate`: 입력 `{prompt?, reference_image?(≤12M chars), images?(≤8, 합 24M), canvas?, palette?, intent?, colorway?, seed?, session_id?, from_checkpoint?}` — 우선순위 intent > images > reference_image > prompt, 전부 없으면 422. **응답은 슬림**: 결과 배열 + warnings — svg·repro는 generation_logs에만. 원본의 결과 팬아웃(요청당 N개)과 그 개수 파라미터는 **미승계**다 — 재구현은 요청 1건 = 디자인 1개다(§5).
 - `POST /api/v1/finalize`: `{intent, colorway_id?, production_method?, weave="twill-45", material_map?, dpi?, texture_strength?, relief_strength?}` → `{request_id, image_url?, warnings}`. 업로드 키 `fabric/{sha256(png)[:16]}.png`(content-addressed, create-only).
-- `POST /api/v1/export`: `{svg(≤2M), format: png|tiff, dpi=300, width_mm(gt0), height_mm?}` → 바이너리. 클라이언트 SVG는 **scrub**(재직렬화 — 엔진 출력과 달리 신뢰 불가). 400: dpi>1200, mm>2000, px>20000.
+- `POST /api/v1/export`: `{svg(≤2M), format: png|tiff, dpi=300, width_mm(gt0), height_mm?}` → 바이너리. 클라이언트 SVG는 **scrub**(재직렬화 — 엔진 출력과 달리 신뢰 불가). 400: dpi>600, mm>2000, px>20000.
 - 세션 라우트(LangGraph): propose→select→commit→finalize, motif_candidates interrupt 게이트, confirm(generate_motif 승인/finalize), budget(motif generation 3/finalize 10). **재구현에서 세션 계층 전체 미승계** — 세션은 api 소유(design_sessions/turns), 게이트·모티프 생성 예산 의미는 api가 재현. finalize는 세션 예산 대신 계정당 24시간 쿼터로 대체(§5).
 - 미들웨어: X-Request-ID(정규화: 비허용문자→`-`, 128자 캡), 인증 없음, CORS 없음. 에러 body `{detail, request_id}`.
 
@@ -75,7 +75,7 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 - `POST /export` — 동기(작고 빠름), generate 서비스에 두는 것도 가능하나 CPU 바운드이므로 finalize 서비스 소속.
 - finalize 제한·잡 생성·상태 조회는 api 소유. 제한은 세션 예산이 아니라 **계정당 24시간 윈도우 쿼터**: 생성 시 계정의 최근 24시간 finalize job 수(failed/canceled 제외)를 세어 admin_settings `design_finalize_daily_limit`(기본 10)와 비교하고, 동시 요청은 계정 단위 advisory lock으로 직렬화한다(api/domains/design/quota.py). 실패·취소·삭제된 job은 카운트에서 빠지므로 **건당 환불이 없다** — canceled 전이(사용자 취소·stale 회수)는 상태 변경만 한다.
 
-**DB 접근**: 워커는 motifs(R/W)·seamless_generation_logs(W)·generation_jobs(W, finalize만). SQLAlchemy async + essesion-db 모델 재사용(원본 psycopg 동기 → 스택 통일, ARCHITECTURE §3). 세션·과금 테이블은 api 전용.
+**DB 접근**: 워커는 motifs(R/W)·seamless_generation_logs(W)·generation_jobs(W, finalize만). SQLAlchemy async + essesion-db 모델 재사용(원본 psycopg 동기 → 스택 통일, ARCHITECTURE §2). 세션·과금 테이블은 api 전용.
 
 **과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등). worker는 과금을 모른다. 확정된 단가: 첫 생성 = `admin_settings.design_token_cost_openai_render_standard`, 구성 수정(patch) = `admin_settings.design_edit_cost`, 모티프 검색·교체 = 0(세션 모티프 생성 예산 3회만 쓰는 모티프 생성도 0), `scope_rejected`는 멱등 환불.
 

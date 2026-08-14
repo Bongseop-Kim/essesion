@@ -1,20 +1,24 @@
 # worker 리팩토링 명세 — seamless-tile 대조 점검 후속
 
+> **완료 회고** — R1~R15는 전부 구현 완료이거나 대상 개념이 폐기돼 소멸했다. 현재 계약은
+> [worker-engine](../api-spec/worker-engine.md)·[worker-motifs](../api-spec/worker-motifs.md)·[worker-pipeline](../api-spec/worker-pipeline.md)이 정본이며,
+> 이 문서는 결정 경위 기록으로만 남긴다.
+
 - 근거: 2026-07-07 apps/worker ↔ seamless-tile 서브시스템 전수 대조(엔진·모티프·어댑터·렌더·API 표면 5개 축)
-- 기준 문서: [worker-engine.md](../api-spec/worker-engine.md) · [worker-motifs.md](../api-spec/worker-motifs.md) · [worker-pipeline.md](../api-spec/worker-pipeline.md) · ARCHITECTURE §2·§7
+- 기준 문서: [worker-engine.md](../api-spec/worker-engine.md) · [worker-motifs.md](../api-spec/worker-motifs.md) · [worker-pipeline.md](../api-spec/worker-pipeline.md) · ARCHITECTURE §1·§6
 
 ## 대조 결과 요약 (변경 없음 확정 항목)
 
 재구현의 핵심 계약은 보존·개선이 확인됐다. 아래는 **리팩토링 대상이 아니다**:
 
-- 결정론 계약(같은 intent+seed → byte-identical SVG): 골든 27세트 + PYTHONHASHSEED 교차 테스트로 검증됨.
-- pgvector 재설계(in-memory 3층 캐시 → DB 단일 진실원 + 요청별 `MotifCatalog`): ARCHITECTURE §7 부합.
+- 결정론 계약(같은 intent+seed → byte-identical SVG): 골든 25세트 + PYTHONHASHSEED 교차 테스트로 검증됨.
+- pgvector 재설계(in-memory 3층 캐시 → DB 단일 진실원 + 요청별 `MotifCatalog`): ARCHITECTURE §6 부합.
 - yarn_dyed 재설계(별칭 슬롯 단일 렌더, 래스터 5회→2~3회): §2 지침대로 구현, 호출 횟수 테스트로 강제됨.
 - DI 구조(`Adapters` dataclass·`app.state`), 관측성(libs/obs), 과금 경계(워커에 과금 로직 0건).
 
 ## 불변 제약 (전 항목 공통)
 
-- **골든 27세트 byte-identical 유지** — 모든 변경 후 `test_gallery_goldens_byte_identical` 통과. SVG 출력 경로(fmt·정렬·조립)는 건드리지 않는다.
+- **골든 25세트 byte-identical 유지** — 모든 변경 후 `test_gallery_goldens_byte_identical` 통과. SVG 출력 경로(fmt·정렬·조립)는 건드리지 않는다.
 - 과금·예산 로직은 api에만. 워커는 생성·렌더만.
 - api 스펙(OpenAPI) 변경 시 `pnpm codegen` 재생성물을 같은 커밋에.
 - 스키마 변경 없음(이 리팩토링은 DDL 무관).
@@ -36,19 +40,19 @@
 - 수용: 원본 test_config.py 대응 테스트 포팅, 경계값·nan/inf 거부 확인.
 
 **R3. sanitize XML 파서 하드닝**
-- 현재: defusedxml 의존성을 제거하고 stdlib `ET` + 문자열 사전검사(`"<!DOCTYPE" in svg.upper() or "<!ENTITY"`, `render/sanitize.py:123`)로 대체. stdlib ET는 내부 엔티티를 확장하므로 billion-laughs 방어가 이 한 줄에 전적으로 의존한다(현재는 fail-closed지만 단일 방어선).
+- 현재: defusedxml 의존성을 제거하고 stdlib `ET` + 문자열 사전검사(`"<!DOCTYPE" in svg.upper() or "<!ENTITY"`, `libs/svg-safety`)로 대체. stdlib ET는 내부 엔티티를 확장하므로 billion-laughs 방어가 이 한 줄에 전적으로 의존한다(현재는 fail-closed지만 단일 방어선).
 - 목표: `defusedxml.ElementTree.fromstring` 재도입(원본 방식, 감사된 파서 레벨 방어). 문자열 사전검사는 보조로 유지해도 무방.
 - 수용: DOCTYPE/ENTITY/billion-laughs 다중 페이로드 거부 테스트. allowlist(태그·속성·색·href)는 현행 유지 — 원본과 바이트 동일함이 확인됐으므로 변경 금지.
 
 **R4. `/export` 배선 완결**
-- 현재: 워커에 `/export` 구현이 있으나(`worker/api/routes.py`) api의 `WorkerClient`에 export 메서드·api 라우트가 없어 도달 불가한 죽은 표면. export는 워커 범위로 명시됨(ARCHITECTURE §4).
+- 현재: 워커에 `/export` 구현이 있으나(`worker/api/routes.py`) api의 `WorkerClient`에 export 메서드·api 라우트가 없어 도달 불가한 죽은 표면. export는 워커 범위로 명시됨(ARCHITECTURE §3).
 - 목표: api에 export 라우트(소유자 인가 — 본인 세션/디자인만) + `WorkerClient.export` 추가. 토큰 과금 없음(이미 생성된 디자인의 형식 변환 — 과금 정책 변경은 5단계 /design 기획에서 재검토).
 - 수용: api→worker export E2E 테스트(실 Postgres 인가 테스트 포함), `pnpm codegen` 드리프트 0.
 
 ### P1 — 견고성·성능
 
 **R5. 어댑터 HTTP 클라이언트 수명 정리**
-- 현재: `adapters/gemini.py`가 재시도 루프 **안**에서 `httpx.AsyncClient`를 매 시도 생성(연결 풀 폐기). `Adapters.aclose()`와 각 어댑터 `aclose`가 전부 no-op — lifespan 정리 배선이 죽어 있음.
+- 현재: `adapters/llm.py`(당시 gemini)가 재시도 루프 **안**에서 `httpx.AsyncClient`를 매 시도 생성(연결 풀 폐기). `Adapters.aclose()`와 각 어댑터 `aclose`가 전부 no-op — lifespan 정리 배선이 죽어 있음.
 - 목표: 어댑터 생성 시 클라이언트 1개(풀) 보유, `aclose`에서 실제로 닫기. GPT Image·Embedding도 동일 패턴 점검.
 - 수용: 재시도 백오프 계약(429/503·4회·0.5/1/2s) 기존 테스트 그대로 통과, aclose 후 클라이언트 closed 상태 검증.
 
@@ -82,7 +86,7 @@
 **R11. 죽은 코드·죽은 심(seam) 정리** — 전부 삭제(5단계에서 필요 시 재도입):
 - `engine/units.py`의 `nearest_dpi`(사용처 0 — `validate.py`가 동일 로직 인라인 중이므로 **호출로 교체 후 유지**하거나 삭제 중 택일, 중복만 해소).
 - 당시 벡터 생성 adapter의 `vectorize`·`_VECTORIZE_PATH`(호출자 0).
-- `adapters/gemini.py` `complete(images=...)` 파라미터(수신만 하고 body 미반영).
+- `adapters/llm.py`(당시 gemini) `complete(images=...)` 파라미터(수신만 하고 body 미반영).
 - orphan 픽스처: `tests/fixtures/provider_samples/`·`tests/fixtures/motif_eval/` — 단 R15에서 parity 테스트가 사용하게 되면 유지.
 - `motifs/registry.py`의 테스트 폴백 전역(`_REGISTRY`/`register_motif` 등) 프로덕션 경로와 분리 여부 검토.
 - 수용: `ruff`·`pyright` 통과, grep으로 잔존 참조 0.
@@ -97,7 +101,7 @@
 - normalize→motif_id parity: `provider_samples` 픽스처 3종을 재정규화해 원본과 같은 motif_id가 나오는지 검증(스펙 §2 "같은 입력→같은 id" 계약의 핵심 검증 — 현재 0건).
 - geometry 경계: 원본 test_geometry.py의 arc/bezier/reflected-control/transform 테스트 포팅.
 - 엔진 엣지 케이스: snap_angle·snap_spacing·poisson torus_dist·candidates de-dup 타이브레이크 등 골든 미커버 항목 — 로직이 원본과 동일하므로 원본 테스트 대부분 재사용 가능.
-- 수용: 신규 테스트 전부 통과 + 골든 27세트 불변.
+- 수용: 신규 테스트 전부 통과 + 골든 25세트 불변.
 
 **R14. 문서·명명 정정**
 - `adapters/__init__.py` docstring: GPT Image/LLM 미구성은 503, 임베딩만 소프트 스킵, GCS는 로컬 에뮬레이터·배포 필수 설정으로 정정.

@@ -6,9 +6,9 @@ admin은 별도로 intent와 Plan v3를 직접 작성하고 실제 타일을 확
 
 ## 저작 계약과 런타임 정본
 
-- provider 계약: `worker.authoring.schema.DesignPlansV3` (`plan_contract_version=3`)
-- compiler: `worker.authoring.compiler` (`compiler_revision=design-plan-v3.0`)
-- prompt: `design-plan-v3-rag-grounded`; Pydantic 스키마를 OpenAI strict `json_schema`로 전달
+- provider 계약: `worker.authoring.schema.DesignPlanV3` (`plan_contract_version=3`)
+- compiler: `worker.authoring.compiler` (`compiler_revision=design-plan-v3.2`)
+- prompt: `design-plan-v3-example-parameter-reuse-v9-openai-v1`(`AUTHORING_PROMPT_REVISION`); Pydantic 스키마를 OpenAI strict `json_schema`로 전달
 - starter 입력: `apps/worker/src/worker/authoring/data/gallery-v1.json`
 - compiler 회귀 픽스처: `apps/worker/tests/golden/json/*.json`
 - 런타임 정본: `authoring_examples`에서 `active=true`이고 현재 contract·embedding model과
@@ -111,9 +111,11 @@ query document는 사용자 prompt와 사용 가능한 motif slot 수를 순서�
 시범만 cosine top-25로 읽고 다음 순서로 줄인다.
 
 1. motif 수가 맞지 않거나 Plan v3로 재검증되지 않는 행 제외
-2. 상위 8개만 후보로 유지
-3. 서로 다른 family를 먼저 뽑고 부족할 때 rank 순으로 보충
-4. 최대 3개의 normalized Plan만 prompt에 포함
+2. 남은 행에서 **유사도 순 그대로 상위 3개**의 normalized Plan만 prompt에 포함
+
+상위 8개 컷과 family 다양성 우선 규칙은 폐기됐다 — 같은 family에서 subtype만 다른 정답 예시
+(하프드롭·wave·guard band)를 버려 역재현 검토에서 실패 6건을 만들었다
+([근거](../reviews/design-family-reverse-eval-2026-08-04.md)).
 
 embedding/DB 오류나 빈 active 집합은 상태 코드만 진단에 남기고 few-shot 없이 typed schema
 경로를 계속한다. provider에게 golden engine JSON, 내부 motif ID, SVG 또는 embedding을

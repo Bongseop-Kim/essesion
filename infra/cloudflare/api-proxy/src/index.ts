@@ -1,4 +1,4 @@
-// api.<domain> → Cloud Run api 프록시 (ARCHITECTURE §2)
+// api.<domain> → Cloud Run api 프록시 (ARCHITECTURE §1)
 // WAF·레이트리밋·봇 차단은 Cloudflare 대시보드 규칙이 담당 — 여기는 origin 전달만.
 export default {
   async fetch(

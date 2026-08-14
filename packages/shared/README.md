@@ -1,6 +1,6 @@
 # @essesion/shared
 
-admin·store 공용 디자인 시스템 + 유틸. DTO는 `packages/api-client` 생성물이 대체하므로 여기 두지 않는다 (ARCHITECTURE §4).
+admin·store 공용 디자인 시스템 + 유틸. DTO는 `packages/api-client` 생성물이 대체하므로 여기 두지 않는다 (ARCHITECTURE §3).
 
 **UI 작업 전 `AGENTS.md`(하네스 규칙) 필독. 심화 문서는 `docs/foundation/`, 토큰 값 사전은 `docs/foundation/design-token-reference.md`.**
 

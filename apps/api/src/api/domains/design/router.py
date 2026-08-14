@@ -1,7 +1,7 @@
 """디자인 세션·선택 문맥 — 상태는 api 소유(LangGraph 대체), worker는 stateless.
 
 모티프 생성 예산은 Postgres 공유 카운터(motif_generation_used) — 인스턴스 수와 무관하게 동작
-(ARCHITECTURE §7). finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션
+(ARCHITECTURE §6). finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션
 카운터·건당 환불 없음. 선택한 intent+plan만 선형 문맥으로 커밋한다.
 """
 

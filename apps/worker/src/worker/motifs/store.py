@@ -1,6 +1,6 @@
 """모티프 영속 계층 — async SQLAlchemy over `motifs` (pgvector) (worker-motifs.md §1·§5).
 
-프로세스-로컬 in-memory 레지스트리는 두지 않는다(ARCHITECTURE §7): 요청 세션이 진실의
+프로세스-로컬 in-memory 레지스트리는 두지 않는다(ARCHITECTURE §6): 요청 세션이 진실의
 원천이고, content-hash PK + ON CONFLICT DO NOTHING이 곧 멱등성이다. 검색·저장 양쪽에서
 facet 정규화(NFC+strip+casefold)를 동일하게 적용한다.
 """

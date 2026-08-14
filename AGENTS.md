@@ -20,12 +20,12 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 
 ## 참고 레포 (읽기 전용, 코드 복사 금지)
 
-- `../git/YeongSeon` — 기능 명세의 원본 (라우트·엣지펑션이 기능 목록).
-- `../git/seamless-tile` — 워커의 동작 기준선. 같은 intent+seed → byte-identical SVG 계약과 기존 테스트 50+개를 대조 기준으로 사용.
+- `../YeongSeon` — 기능 명세의 원본 (라우트·엣지펑션이 기능 목록).
+- `../seamless-tile` — 워커의 동작 기준선. 같은 intent+seed → byte-identical SVG 계약과 기존 테스트 50+개를 대조 기준으로 사용.
 
 ## 명령어
 
-> 서버 실행 전 반드시 이미 떠 있는지 확인할 것 — 사용자가 보통 store(3000)·api(8000)·worker(8001)·DB를 미리 띄워두고 작업한다. `lsof -i :<port>` 또는 curl로 확인 후, 없을 때만 실행.
+> 서버 실행 전 반드시 이미 떠 있는지 확인할 것 — 사용자가 보통 store(3000)·admin(3001)·api(8000)·worker(8001)·DB를 미리 띄워두고 작업한다. `lsof -i :<port>` 또는 curl로 확인 후, 없을 때만 실행.
 
 ### 로컬 부트스트랩 (순서대로)
 
@@ -111,7 +111,7 @@ store :3000
 pnpm --filter store dev
 ```
 
-admin
+admin :3001
 
 ```bash
 pnpm --filter admin dev
@@ -135,6 +135,12 @@ JS 린트 (Biome, 레포 전체)
 
 ```bash
 pnpm lint
+```
+
+아키텍처 gate — 모듈 경계(dependency-cruiser·import-linter)와 문서 링크. CI의 독립 job이므로 문서·구조를 건드렸으면 반드시 실행
+
+```bash
+pnpm architecture:check
 ```
 
 JS 빌드·타입체크·테스트
@@ -167,7 +173,7 @@ uv run pyright
 ### 그 외
 
 - **api 스펙 변경 시**: `pnpm codegen` 후 생성물(packages/api-client)을 같은 커밋에 — CI codegen-drift가 검사
-- 배포: main 푸시 → `.github/workflows/deploy.yml`이 wrangler(프론트)·Cloud Run(api·worker) 배포. 선행 조건과 인프라 부트스트랩은 `infra/README.md`
+- 배포: main 푸시 → **CI 성공** → `.github/workflows/deploy.yml`(`workflow_run` 트리거)이 wrangler(프론트)·Cloud Run(api·worker) 배포. 선행 조건과 인프라 부트스트랩은 `infra/README.md`
 
 ## 도메인 규칙
 

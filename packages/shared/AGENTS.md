@@ -17,7 +17,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 7. **반응형** — 프리미티브 prop은 `ResponsiveValue`(`p={{ base: "x4", md: "x8" }}`), Tailwind 쪽은 `md:` variant. 브레이크포인트: sm 480 / md 768 / lg 1280 / xl 1440.
 8. **같은 속성을 prop과 className 양쪽에 설정 금지** — 프리미티브는 inline style로 렌더하므로 항상 className을 이긴다. 탈출구는 `style` prop(최후순위, resolved보다 나중에 병합).
 9. **`theme.css`의 `@theme static`을 제거하지 말 것** — 제거하면 프리미티브가 참조하는 CSS 변수가 tree-shake되어 조용히 무스타일이 된다(드리프트 가드 테스트 + 빌드 후 dist grep이 방어선).
-10. **가로 스크롤은 `ScrollFog`만 사용** — 가로 scrollbar는 항상 숨긴다. 스크롤 가능 여부는 fog edge로 전달한다. `overflowX="auto|scroll"`·`overflow-x-auto|scroll` 직접 사용 금지(`pnpm lint`가 차단). 세로 스크롤은 모달·시트·패널·긴 목록에서 상황별로 허용한다. 상세: `docs/foundation/scroll.md`.
+10. **가로 스크롤은 `ScrollFog`만 사용** — 가로 scrollbar는 항상 숨긴다. 스크롤 가능 여부는 fog edge로 전달한다. `overflowX="auto|scroll"`·`overflow-x-auto|scroll` 직접 사용 금지(`pnpm lint`가 차단). 세로 스크롤은 모달·시트·패널·긴 목록에서 상황별로 허용한다. 상세: `docs/foundation/scroll.md`(이 패키지 기준).
 
 ## textStyle 10종
 
@@ -61,7 +61,7 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 
 | 컴포넌트 | 트리거 | 피하기 / 대신 |
 |---|---|---|
-| ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `kakao`/`naver`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
+| ActionButton | **액션 실행**(제출·저장·이동·삭제·CTA). variant: `brandSolid`=핵심 CTA(화면당 1개) · `neutralWeak`=대부분의 액션 · `neutralOutline`=보조 · `criticalSolid`=되돌릴 수 없는 작업 · `ghost`=최소 강조 · `kakao`/`naver`/`apple`=소셜 로그인 전용 | 정보/선택 표시(→Chip/Badge). 한 줄에 4개+ 나열, Solid+Outline 혼용 |
 | Chip | pill 선택/토글 — 필터·옵션·추천·태그 선택(단일/다중), 탭 대체 | 액션 실행(→ActionButton), 정적 정보(→Badge) |
 
 ### 폼 (컨트롤 라벨·설명·에러는 Field가 배선)
@@ -121,6 +121,8 @@ admin·store의 모든 UI는 이 규칙을 따른다. 근거·수치는 `docs/fo
 | ProgressCircle | **형태 없는 대기** — 라우트 가드·세션 부트스트랩, 버튼 인라인 로딩, "더 보기"·무한스크롤 추가 로딩(size 16/24/40) | 형태를 아는 초기 로딩(→Skeleton) |
 | AspectRatio | 고정 비율 컨테이너로 프레이밍 — 자식은 `absolute inset-0`/`size-full` | 폴백이 필요한 이미지(→ImageFrame) |
 | ImageFrame | **모든 콘텐츠 이미지**(상품·업로드) — 비율 프레임+라운드, 누락/실패 시 실루엣 폴백. 오버레이는 children, `fill`로 부모 채움 | raw `<img>`. 장식/배경 이미지(→CSS background-image) |
+| Rating | 별점 표시·입력(0~5, 0.1 단위 부분 채움). `onChange` 없으면 읽기 전용 | 별 아이콘 직접 조합 |
+| TieCanvas | 디자인 SVG를 넥타이 실루엣(`tie`) 또는 타일 반복(`repeat`)으로 미리보기. 소비 앱의 `public/images/tie.svg`·`tie-shadow.png` 필요 | 마스크·그림자 기하를 앱에서 재현 |
 
 ### 콘텐츠
 

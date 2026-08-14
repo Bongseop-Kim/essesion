@@ -1,8 +1,8 @@
-"""디자인 세션·잡 — LangGraph checkpoint 대체, api 소유 (ARCHITECTURE §2).
+"""디자인 세션·잡 — LangGraph checkpoint 대체, api 소유 (ARCHITECTURE §1).
 
 - 세션 상태(턴 이력·선택·게이트)는 api가 일반 테이블로 소유, 워커는 stateless.
 - 모티프 생성 예산은 프로세스-로컬 카운터 대신 Postgres 공유 카운터(motif_generation_used)
-  — 인스턴스 수와 무관하게 동작 (ARCHITECTURE §7).
+  — 인스턴스 수와 무관하게 동작 (ARCHITECTURE §6).
 - finalize 제한은 세션 카운터가 아니라 계정당 24시간 윈도우 쿼터 —
   generation_jobs 행을 직접 센다 (api/domains/design/quota.py).
 - generation_jobs = finalize/export 비동기 잡(Cloud Tasks) 상태 폴링용.

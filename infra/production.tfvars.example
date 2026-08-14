@@ -1,5 +1,5 @@
-# cp staging.tfvars.example staging.tfvars 후 채우기 (tfvars는 gitignore)
-project_id        = "essesion-staging"
+# cp production.tfvars.example production.tfvars 후 채우기 (tfvars는 gitignore)
+project_id        = "essesion-production"
 billing_account   = "XXXXXX-XXXXXX-XXXXXX"
 alert_email       = "biblecookie@naver.com"
 public_api_origin = "https://api.essesion.shop"

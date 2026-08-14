@@ -4,7 +4,7 @@
 성립한다. 풀은 가변 DB 상태이므로 정적 상수로는 추적 불가 — 요청 시점에 정렬된 모티프
 id를 지문화해 stamp와 풀이 원자적으로 함께 움직이게 한다.
 
-프로세스-로컬 memo는 두지 않는다(ARCHITECTURE §7): 요청당 한 번 경량 id 스캔.
+프로세스-로컬 memo는 두지 않는다(ARCHITECTURE §6): 요청당 한 번 경량 id 스캔.
 """
 
 from __future__ import annotations

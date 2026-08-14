@@ -9,6 +9,9 @@ export const AUTH_PROVIDERS: {
   label: string;
   logoSrc: string;
   variant: ActionButtonProps["variant"];
+  /** provider 콘솔 등록 전이면 안내 문구. 버튼은 두되 누르면 이 문구만 띄운다
+   *  (api 코드 경로는 4종 모두 이미 있다 — 남은 건 콘솔 등록뿐). */
+  comingSoon?: string;
 }[] = [
   {
     id: "kakao",
@@ -21,6 +24,7 @@ export const AUTH_PROVIDERS: {
     label: "네이버로 계속하기",
     logoSrc: "/icons/naver.svg",
     variant: "naver",
+    comingSoon: "네이버 로그인은 준비 중입니다.",
   },
   {
     id: "google",

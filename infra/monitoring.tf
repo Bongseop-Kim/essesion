@@ -1,4 +1,4 @@
-# "죽었는데 몰랐다"와 "요금 폭탄"을 막는 최소 장치 (ARCHITECTURE §2)
+# "죽었는데 몰랐다"와 "요금 폭탄"을 막는 최소 장치 (ARCHITECTURE §1)
 
 resource "google_monitoring_notification_channel" "email" {
   display_name = "essesion alerts"

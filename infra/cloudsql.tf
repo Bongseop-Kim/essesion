@@ -9,7 +9,7 @@ resource "google_sql_database_instance" "main" {
 
     backup_configuration {
       enabled                        = true
-      point_in_time_recovery_enabled = true # 생성 시점부터 PITR (ARCHITECTURE §6)
+      point_in_time_recovery_enabled = true # 생성 시점부터 PITR (ARCHITECTURE §5)
     }
 
     ip_configuration {

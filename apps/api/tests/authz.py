@@ -1,7 +1,7 @@
 """인가 403 매트릭스 레지스트리 — 도메인 구현 시 여기 케이스를 추가한다.
 
 실행은 test_authz.py. 각 케이스마다 실DB에서: 익명 401 / 타인 403 / 소유자·관리자
-는 인가 통과(401·403이 아님)를 일괄 검증한다. mock 금지(ARCHITECTURE §5).
+는 인가 통과(401·403이 아님)를 일괄 검증한다. mock 금지(ARCHITECTURE §4).
 """
 
 from collections.abc import Awaitable, Callable
