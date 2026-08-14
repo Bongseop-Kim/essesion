@@ -6,7 +6,7 @@
 |---|---|---|
 | `app.essesion.shop` | `apps/store` | wrangler custom domain (`wrangler.jsonc`에 고정) |
 | `admin.essesion.shop` | `apps/admin` | 동일 |
-| `api.essesion.shop` | Cloud Run api | **`api-proxy` 워커** — WAF·레이트리밋·봇 차단·DDoS 방어 |
+| `api.essesion.shop` | Cloud Run api | **`api-proxy` 워커** — origin 전달 + edge secret 주입, Cloudflare 기본 DDoS 방어 |
 
 `api-proxy`(`api-proxy/src/index.ts`)는 요청에 `EDGE_SHARED_SECRET` 헤더를 덮어써서 Cloud Run
 origin으로 넘긴다. 비로컬 api는 일반 HTTP 전체에서 이 헤더를 검사하므로 `run.app` 직접 호출과

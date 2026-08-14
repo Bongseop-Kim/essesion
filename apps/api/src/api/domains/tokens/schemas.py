@@ -17,6 +17,8 @@ class TokenBalance(BaseModel):
     generate_cost: int
     # 이미 만든 디자인을 문장으로 고치는 1회 단가 (patch)
     edit_cost: int
+    # 새 모티프를 이미지 provider로 만드는 1회 단가
+    motif_generate_cost: int
 
 
 class TokenPlan(BaseModel):

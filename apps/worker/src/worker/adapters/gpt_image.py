@@ -12,7 +12,12 @@ import httpx
 import svg_safety as sanitize
 from PIL import Image
 
-from worker.adapters import AdapterClientError, AdapterNotConfigured, adapter_http_reason
+from worker.adapters import (
+    AdapterClientError,
+    AdapterNotConfigured,
+    adapter_http_reason,
+    log_provider_usage,
+)
 from worker.motifs.normalize import NormalizedMotif, normalize_motif_svg
 from worker.motifs.photo_svg import (
     MAX_VECTOR_SIDE,
@@ -150,7 +155,14 @@ class GPTImageHTTPClient:
         assert response is not None
 
         try:
-            encoded = response.json()["data"][0]["b64_json"]
+            body = response.json()
+            log_provider_usage(
+                body,
+                provider="openai_image",
+                operation="generate_motif",
+                model=self._model,
+            )
+            encoded = body["data"][0]["b64_json"]
             if not isinstance(encoded, str):
                 raise ValueError("OpenAI image b64_json must be a string")
             encoded_bytes = encoded.encode("ascii")

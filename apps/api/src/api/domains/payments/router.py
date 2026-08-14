@@ -18,7 +18,14 @@ router = APIRouter(tags=["payments"])
 async def confirm_payment(
     body: PaymentConfirmRequest, session: SessionDep, user: CurrentUser, request: Request
 ) -> PaymentConfirmResponse:
-    return await service.confirm_payment(session, user, request.app.state.toss, body)
+    return await service.confirm_payment(
+        session,
+        user,
+        request.app.state.toss,
+        body,
+        solapi=request.app.state.solapi,
+        settings=request.app.state.settings,
+    )
 
 
 @router.post("/payments/webhook", response_model=WebhookResult)
@@ -38,7 +45,13 @@ async def toss_webhook(
     if payment_key is not None and invalid_keys.contains(payment_key):
         return WebhookResult(handled=False, reason="payment_not_found")
 
-    result = await service.reconcile_from_webhook(session, request.app.state.toss, payment_key)
+    result = await service.reconcile_from_webhook(
+        session,
+        request.app.state.toss,
+        payment_key,
+        solapi=request.app.state.solapi,
+        settings=request.app.state.settings,
+    )
     if payment_key is not None and result.get("reason") == "payment_not_found":
         invalid_keys.add(payment_key)
     return WebhookResult(**result)

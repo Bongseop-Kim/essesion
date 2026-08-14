@@ -41,6 +41,7 @@ async def send_verification(
     solapi: SolapiClient,
     *,
     secret: str,
+    template_id: str = "",
 ) -> None:
     normalized = normalize_phone(phone)
     await lock_active_user(session, user)
@@ -71,8 +72,13 @@ async def send_verification(
     session.add(verification)
     await session.commit()
 
-    sent = await solapi.send_sms(
-        normalized, f"[ESSE SION] 인증번호는 [{code}]입니다. 5분 내에 입력해주세요."
+    # 알림톡(ATA)은 실패 시 solapi가 SMS로 자동 대체한다(solapi.py disableSms=False).
+    # template_id가 없으면 SMS로 보낸다 — 설정 누락이 인증을 막으면 안 된다.
+    text = f"[ESSE SION] 인증번호는 [{code}]입니다. 5분 내에 입력해주세요."
+    sent = (
+        await solapi.send_alimtalk(normalized, template_id, {"#{인증번호}": code}, text)
+        if template_id
+        else await solapi.send_sms(normalized, text)
     )
     if not sent:
         # 발송 실패 — 방금 레코드 삭제(일일 카운트·재전송 대기 미소모)

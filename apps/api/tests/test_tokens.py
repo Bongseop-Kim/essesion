@@ -17,6 +17,7 @@ from .factories import auth_headers, make_order, make_user, seed_pricing, seed_s
 
 COST_SETTING = ("design_token_cost_openai_render_standard", "5")
 EDIT_COST_SETTING = ("design_edit_cost", "2")
+MOTIF_COST_SETTING = ("design_motif_generate_cost", "3")
 
 
 def _grant(user_id, amount, token_class="free", **kw):
@@ -153,6 +154,7 @@ async def test_expired_tokens_excluded_from_balance(db_session):
 async def test_balance_endpoint_includes_generate_and_edit_costs(client, db_session, settings):
     await seed_setting(db_session, *COST_SETTING)
     await seed_setting(db_session, *EDIT_COST_SETTING)
+    await seed_setting(db_session, *MOTIF_COST_SETTING)
     user = await make_user(db_session)
 
     response = await client.get("/tokens/balance", headers=auth_headers(user, settings))
@@ -164,6 +166,7 @@ async def test_balance_endpoint_includes_generate_and_edit_costs(client, db_sess
         "bonus": 0,
         "generate_cost": 5,
         "edit_cost": 2,
+        "motif_generate_cost": 3,
     }
 
 

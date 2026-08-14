@@ -1,6 +1,6 @@
 # db — 스키마 단일 소유처 (essesion-db)
 
-SQLAlchemy 모델(`src/db/models/`)이 스키마의 source of truth, 변경은 Alembic 리비전 경유만 — DDL 직접 실행 금지 (AGENTS.md 대원칙). 기존 스키마와의 대응은 [MAPPING.md](./MAPPING.md).
+SQLAlchemy 모델(`src/db/models/`)이 스키마의 source of truth, 변경은 Alembic 리비전 경유만 — DDL 직접 실행 금지 (AGENTS.md 대원칙).
 
 ## 명령어 (레포 루트 기준)
 
@@ -23,9 +23,20 @@ main에 공개된 리비전은 운영 배포 전이라도 스쿼시·재작성�
 - **모델 변경 → 같은 커밋에 리비전 생성.** `tests/test_migrations.py`의 `alembic check`가 드리프트를 CI에서 잡는다.
 - **CheckConstraint는 반드시 name 지정** — naming_convention이 `ck_<table>_<name>`으로 렌더링하며, 무명이면 autogenerate가 실패한다.
 - **PG enum은 user_role 하나로 봉인.** ① 후속 리비전에서 같은 enum 참조 시 `postgresql.ENUM(..., name="user_role", create_type=False)`, ② 값 추가는 autogenerate가 감지 못함 — 수동 `op.execute("ALTER TYPE user_role ADD VALUE ...")`, ③ 새 enum 추가 금지(text+CHECK 사용).
-- **DB 트리거·함수·뷰 금지** — 로직은 api로 (MAPPING.md §4). updated_at은 SQLAlchemy onupdate(raw SQL UPDATE는 갱신 안 됨을 전제).
+- **DB 트리거·함수·뷰 금지** — 채번·원장·인가·통계 전부 api 소유. updated_at은 SQLAlchemy onupdate(raw SQL UPDATE는 갱신 안 됨을 전제).
 - **db/ 밑에 pytest 테스트 두지 말 것** — pytest importlib 모드가 더미 부모 모듈 `db`를 만들어 실제 패키지를 가린다. 테스트는 루트 `tests/`에.
 - pgvector는 베이스라인 리비전이 `CREATE EXTENSION`으로 활성화한다(로컬 compose·Cloud SQL 모두 지원). motif와 authoring 검색 임베딩은 OpenAI text-embedding-3-large 1536차원만 사용한다.
+
+## 의도적 설계 — 모델 코드만 봐선 안 보이는 것
+
+- **users.email은 nullable + 부분 unique** — 카카오 로그인이 이메일 미동의를 허용한다. NOT NULL로 되돌리지 말 것.
+- **부분 unique·부분 인덱스는 전부 의도된 것** — claims 2종(아이템·타입당 활성 1건 / 주문당 진행중 1건), images(2단계 삭제 + `expires_at`, 미귀속 업로드는 24시간 후 정리), orders 3종(`/batch/*` 스케줄러의 스캔 대상). 전체 unique로 바꾸면 정상 재접수가 막힌다.
+- **users 삭제 시 이력 테이블은 NO ACTION** — 주문·클레임·견적·토큰 원장은 CASCADE 대상이 아니다. 탈퇴는 이력이 있으면 `is_active=false` + 개인정보 익명화, 없으면 하드 삭제 (api users).
+- **design_tokens.work_id는 FK 없는 text** — 생성 작업 멱등 키로만 쓴다.
+
+## 초기화 정책
+
+운영에 배포된 적 없는 스키마이므로 데이터 변환 경로를 두지 않는다. 개발 DB는 drop/recreate 후 베이스라인→head, 운영은 빈 DB를 head까지 올린 뒤 관리자·설정·공개 motif·authoring example을 시드로 초기 입력한다(루트 AGENTS.md 부트스트랩 순서).
 
 ## 테스트 헬퍼
 

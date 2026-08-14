@@ -45,6 +45,7 @@ _WORKER_FABRIC_ASSETS = Path(__file__).parents[2] / "worker/src/worker/render/as
 
 TOKEN_COST = ("design_token_cost_openai_render_standard", "5")
 EDIT_COST = ("design_edit_cost", "2")
+MOTIF_COST = ("design_motif_generate_cost", "3")
 FINALIZE_LIMIT_KEY = "design_finalize_daily_limit"
 
 
@@ -103,6 +104,7 @@ async def _fund(db_session, user, amount=30):
     """generate 과금 전제 — 비용 설정 + 잔액 지급."""
     await seed_setting(db_session, *TOKEN_COST)
     await seed_setting(db_session, *EDIT_COST)
+    await seed_setting(db_session, *MOTIF_COST)
     db_session.add(DesignToken(user_id=user.id, amount=amount, type="grant", token_class="free"))
     await db_session.commit()
 
@@ -2604,6 +2606,7 @@ async def test_motif_generate_budget_exhaustion(client, app, db_session, setting
     app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
+    await _fund(db_session, user)
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
     body = {"prompt": "꿀벌 한 마리"}
@@ -2634,6 +2637,7 @@ async def test_motif_generate_always_charges_budget_and_passes_provenance(
     app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
+    await _fund(db_session, user)
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
 
@@ -2644,6 +2648,9 @@ async def test_motif_generate_always_charges_budget_and_passes_provenance(
     )
     assert res.status_code == 200
     assert res.json()["motif"]["motif_id"] == _CATALOG_MOTIF_ID
+    # 이미지 provider를 부르는 유일한 경로 — 단가만큼 줄어야 한다 (money.md §6).
+    balance = (await client.get("/tokens/balance", headers=headers)).json()
+    assert balance["total"] == 27
     assert app.state.worker.motif_calls[-1][1] == {
         "query": "꿀벌 한 마리",
         "motif_provenance": {"user_id": str(user.id), "session_id": sid},
@@ -2656,6 +2663,7 @@ async def test_motif_generate_saves_to_user_library_idempotently(client, app, db
     app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
+    await _fund(db_session, user)
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
 
@@ -2709,6 +2717,7 @@ async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_
         for index, motif_id in enumerate(filler_ids)
     )
     await db_session.commit()
+    await _fund(db_session, user)
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
 
@@ -2724,9 +2733,12 @@ async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_
     assert await _session_motif_generation_used(client, headers, sid) == 1
 
 
-async def test_motif_generate_worker_failure_refunds_budget(client, app, db_session, settings):
+async def test_motif_generate_worker_failure_refunds_budget_and_tokens(
+    client, app, db_session, settings
+):
     app.state.worker = MotifWorker(fail=True)
     user = await make_user(db_session)
+    await _fund(db_session, user)
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
 
@@ -2737,6 +2749,31 @@ async def test_motif_generate_worker_failure_refunds_budget(client, app, db_sess
     )
     assert res.status_code == 502
     assert await _session_motif_generation_used(client, headers, sid) == 0
+    balance = (await client.get("/tokens/balance", headers=headers)).json()
+    assert balance["total"] == 30
+
+
+async def test_motif_generate_without_tokens_keeps_the_session_budget(
+    client, app, db_session, settings
+):
+    """과금 실패는 예산을 쓰지 않는다 — 선차감과 차감이 같은 트랜잭션이라 롤백이 둘을 되돌린다."""
+    app.state.worker = MotifWorker()
+    await _seed_catalog_motif(db_session)
+    user = await make_user(db_session)
+    await _fund(db_session, user, amount=2)  # 단가 3 미달
+    headers = auth_headers(user, settings)
+    sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
+
+    res = await client.post(
+        f"/design/sessions/{sid}/motifs/generate",
+        json={"prompt": "꿀벌 한 마리"},
+        headers=headers,
+    )
+
+    assert res.status_code == 400, res.text
+    assert res.json()["code"] == "insufficient_tokens"
+    assert await _session_motif_generation_used(client, headers, sid) == 0
+    assert app.state.worker.motif_calls == []
 
 
 async def test_motif_activate_swaps_the_slot_for_free_and_appends_a_step(

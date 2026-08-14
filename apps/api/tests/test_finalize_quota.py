@@ -167,6 +167,7 @@ async def test_admin_can_adjust_limit_and_rejects_invalid_values(client, db_sess
     await seed_setting(db_session, "design_token_initial_grant", "30")
     await seed_setting(db_session, "design_token_cost_openai_render_standard", "5")
     await seed_setting(db_session, "design_edit_cost", "2")
+    await seed_setting(db_session, "design_motif_generate_cost", "3")
     await _seed_limit(db_session, 0)
     admin_headers = auth_headers(admin, settings)
     user_headers = auth_headers(user, settings)

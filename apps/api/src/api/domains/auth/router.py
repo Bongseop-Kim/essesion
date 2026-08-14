@@ -225,6 +225,7 @@ async def send_phone_verification(
         body.phone,
         request.app.state.solapi,
         secret=settings.session_secret,
+        template_id=settings.solapi_template_phone_code,
     )
     return MessageResponse(message="인증번호가 발송되었습니다")
 

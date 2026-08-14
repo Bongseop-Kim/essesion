@@ -1,6 +1,6 @@
-# 돈 경로 동작 명세 (YeongSeon 추출 — 구현 기준)
+# 돈 경로 동작 명세 — 주문·결제·토큰
 
-원본: YeongSeon `supabase/schemas/{93,95,98,99}_functions_*.sql`, `supabase/functions/{create-order,create-custom-order,create-sample-order,confirm-payment,cancel-token-payment}`. 기능 개편 금지 — 이 명세와 동작이 달라지면 버그다. 숫자·상태 문자열·수식은 원문 그대로.
+주문 생성 3종·결제 확인·토큰 원장의 **동작 정본**이다. 기능 개편 금지 — 구현이 이 명세와 달라지면 버그다. 숫자·상태 문자열·수식을 바꾸려면 이 문서를 먼저 고칠 것.
 
 결제 프로바이더는 Toss Payments다. 프론트 successUrl 콜백의 confirm이 주 경로이며,
 현재 구현은 상태 복구용 조회 검증 웹훅도 함께 사용한다(§7 자동 대사 참고).
@@ -87,12 +87,24 @@
 
 ## 6. 토큰 원장·플랜·환불
 
-- **플랜**: pricing_constants `token_plan_{starter|popular|pro}_{price|amount}` 6키 (DB가 소스).
+- **플랜**: pricing_constants `token_plan_{starter|popular|pro}_{price|amount}` 6키 (DB가 소스). 스케일은 **1토큰 ≈ 1원**(starter 기준)이고 볼륨 할인은 보너스 토큰으로 드러난다.
+  | 플랜 | 가격 | 토큰 | 보너스 | 토큰당 | 생성 가능 |
+  |---|---|---|---|---|---|
+  | starter | 2,500원 | 2,500 | — | 1.00원 | 100회 |
+  | popular | 6,500원 | 7,500 | +15% | 0.87원 | 300회 |
+  | pro | 18,000원 | 25,000 | +39% | 0.72원 | 1,000회 |
 - **토큰 주문 생성**: 플랜 검증 → `TKN-` 채번 → orders(order_type='token', 배송지 NULL, total=price) + order_items(item_type='token', item_data={plan_key, token_amount}).
-- **차감 (use)**: 비용 = 호출자가 지정한 `cost_key`의 admin_settings 값. 디자인 첫 생성은 `design_token_cost_openai_render_standard`(현행 5), 이미 만든 디자인의 구성 수정(patch)은 `design_edit_cost`(현행 2) — 수정은 flash-lite 1콜뿐이라 단가를 분리했다. 두 키 모두 관리자 설정 화면에서 1~1000으로 바꿀 수 있고 0이면 생성이 503이다. 디자인 생성은 이미지 생성 provider를 호출하거나 모티프 생성 예산을 소비하지 않는다. 모티프 검색·교체는 무과금이고 사용자가 모티프 모달에서 명시적으로 실행한 모티프 생성만 토큰 0 + 세션 모티프 생성 예산 3회를 쓴다. 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus/free(work_id `{work}_use_bonus`·`_use_bonus_0`·`_use_free`·`_use_free_0`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리하고, 재차감 여부는 이 다섯 키의 존재로 판정한다.
+- **차감 (use)**: 비용 = 호출자가 지정한 `cost_key`의 admin_settings 값. 단가는 provider 원가에 비례시키지 않는다 — 원가는 결제액의 6~20%로 가격을 지배하지 않고, 디자인 생성은 넥타이 주문(상품 27,000~47,000원 / 맞춤 50,000원+)을 만드는 퍼널이라 생성 1회 마진은 주문 1건의 1/500~1/2,000이다. 기준은 ① 고객이 산수 없이 이해하는 단위 ② 생성 횟수 최대화 ③ 원가는 두 가지 검사로만 쓴다: **평균 원가 ≤ pro 순수령의 25%**, **최악 원가 < pro 순수령**(단일 요청 적자 없음).
+  | 액션 | 설정 키 | 현행 | 평균 원가 | pro 순수령 | 평균 원가율 |
+  |---|---|---|---|---|---|
+  | 디자인 첫 생성 | `design_token_cost_openai_render_standard` | 25 | 1.0~2.3원 | 15.8원 | 6~15% |
+  | 구성 수정(patch) | `design_edit_cost` | 12 | 1.0원 | 7.6원 | 13% |
+  | 새 모티프 생성 | `design_motif_generate_cost` | 100 | 12.4원 | 63.1원 | 20% |
+  순수령은 표기가에서 VAT 10%와 카드 수수료 3.3%를 뺀 값이며(토큰당 starter 0.876 / popular 0.759 / **pro 0.631원** — 여유가 가장 적은 pro로 검사한다), 원가에는 provider 요금과 **Cloud Run 요청 시간**을 함께 넣는다(요청 기반 과금이라 LLM 대기 시간도 청구된다). 세 키 모두 관리자 설정 화면에서 1~1000으로 바꿀 수 있고 0이면 해당 요청이 503이다. 5/2/0이던 초기값은 첫 생성이 후보 이미지를 여러 장 굽던 시절의 잔재였다.
+  - **이미지 생성 손익 가드**: 모티프 생성은 유일하게 이미지 provider를 호출하는 경로다. 평균 12.4원(1.3장×8.4원 + 태깅 0.5원 + CPU 1.0원), 최악 19.4원(2장 + CPU 60s). 100토큰이면 pro 최악에서도 43.7원이 남는다. 이 계산을 뒤집는 것 3종: ① `adapters/gpt_image.py`의 `DEFAULT_QUALITY="low"` — `medium`은 장당 74원이라 요청당 최악 150원으로 확실한 적자이며 단가를 약 400토큰으로 함께 올려야 한다 ② worker `motif_generate_per_request_limit`(기본 2) — 올리면 최악 원가가 비례해 커진다 ③ gpt-image-2는 token-based billing이라 장당 단가가 프롬프트 길이에 따라 변동한다(`provider_usage` 로그 `operation=generate_motif` 50건으로 실측 교체할 것). 디자인 생성은 이미지 생성 provider를 호출하거나 모티프 생성 예산을 소비하지 않는다. 모티프 검색·교체는 무과금이고, 사용자가 모티프 모달에서 명시적으로 실행한 모티프 생성만 `design_motif_generate_cost` + 세션 모티프 생성 예산 3회를 쓴다 — 예산 선차감과 토큰 차감은 같은 트랜잭션이라 과금 실패(잔액 부족·환불 심사 중)면 예산도 쓰이지 않고, 워커 실패·결과 조회 실패면 둘 다 되돌린다(work_id `motif_generate_{run_id.hex}`). 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus/free(work_id `{work}_use_bonus`·`_use_bonus_0`·`_use_free`·`_use_free_0`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리하고, 재차감 여부는 이 다섯 키의 존재로 판정한다.
 - **실패 환불 (refund)**: 내부 전용. 실제 차감 행마다 class·source_order_id·expires_at을 보존한 양수 반전 행을 INSERT한다. work_id는 각 `{work}_use_*_refund`로 필수 멱등. 토큰 환불 클레임 승인 경로는 class별로 `refund_{claim_id}_paid`·`refund_{claim_id}_bonus`를 쓴다.
-- **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합. `GET /tokens/balance`는 여기에 `generate_cost`·`edit_cost`를 실어 store 토큰 pill이 두 단가를 그대로 보여준다.
-- **가입 지급**: 신규 유저 생성 시(소셜 가입) admin_settings `design_token_initial_grant`(기본 30), type='grant', class='free', **만료 없음**.
+- **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합. `GET /tokens/balance`는 여기에 `generate_cost`·`edit_cost`·`motif_generate_cost`를 실어 store 토큰 pill이 세 단가를 그대로 보여주고, 모티프 생성 버튼도 누르는 자리에 단가를 표기한다.
+- **가입 지급**: 신규 유저 생성 시(소셜 가입) admin_settings `design_token_initial_grant`(기본 750 = 생성 30회 체험), type='grant', class='free', **만료 없음**.
 - **admin 지급/회수**: amount≠0, description 필수, 음수면 잔액 검증(유저 lock). type='admin', class='paid'.
 - **환불 요청 (고객)**: 조건 = ①본인 완료(status='완료') 토큰 주문 ②paid 지급분 존재·미만료 ③**가장 최근 완료 토큰 주문일 것** ④지급 이후 type='use' 내역 없음 ⑤중복 요청 없음(거부 제외). refund_amount = total_price 전액. claims INSERT: type='token_refund', status='접수', claim_number=`TKR-...`, refund_data=`{paid_token_amount, bonus_token_amount:0, refund_amount}`.
 - **환불 취소 (고객)**: 접수 상태만 → '거부'로 전환.

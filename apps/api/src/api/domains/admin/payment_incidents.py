@@ -6,6 +6,7 @@ from db.models.commerce import Claim, Order, PaymentIncident
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import Settings
 from api.domains.admin.claims_schemas import (
     IncidentAdminAction,
     IncidentSort,
@@ -18,6 +19,7 @@ from api.domains.admin.helpers import kst_day_bounds
 from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.schemas import Page, SortDirection
 from api.errors import ConflictError, DomainError, NotFoundError
+from api.integrations.solapi import SolapiClient
 from api.integrations.toss import TossClient
 
 DEFAULT_PAGE_LIMIT = 20
@@ -351,6 +353,8 @@ async def _reconcile_domain_state(
     *,
     actor_id: uuid.UUID,
     provider_status: str | None,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> tuple[bool, str]:
     if incident.incident_type == "partial_cancel":
         return False, "reconciliation_not_supported"
@@ -400,6 +404,8 @@ async def _reconcile_domain_state(
             group_id=order.payment_group_id,
             payment_key=payment_key,
             actor_id=actor_id,
+            solapi=solapi,
+            settings=settings,
         )
     claim = await session.get(Claim, incident.claim_id) if incident.claim_id else None
     if claim is not None and claim.type == "token_refund":
@@ -420,6 +426,8 @@ async def reconcile_incident(
     incident_id: uuid.UUID,
     *,
     actor_id: uuid.UUID,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> PaymentIncident:
     incident = await session.get(PaymentIncident, incident_id)
     if incident is None:
@@ -479,6 +487,8 @@ async def reconcile_incident(
                 provider_status=(
                     payment.get("status") if isinstance(payment.get("status"), str) else None
                 ),
+                solapi=solapi,
+                settings=settings,
             )
         except Exception as exc:
             await session.rollback()

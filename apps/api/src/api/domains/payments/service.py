@@ -32,6 +32,7 @@ from sqlalchemy import CursorResult, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.config import Settings
 from api.db import USER_LOCK, advisory_xact_lock
 from api.domains.orders.service import (
     log_status,
@@ -49,6 +50,7 @@ from api.domains.payments.schemas import (
     PaymentConfirmResponse,
 )
 from api.errors import ConflictError, DomainError, ForbiddenError, NotFoundError, UpstreamError
+from api.integrations.solapi import SolapiClient
 from api.integrations.toss import TossClient
 from api.pricing import get_pricing_constants
 
@@ -73,6 +75,11 @@ SAMPLE_FOLLOWUP_COUPON = {
         "sample_discount_fabric_and_sewing_yarn_dyed",
     ),
 }
+
+
+PAYMENT_DONE_FALLBACK = (
+    "[ESSE SION] 주문이 완료되었습니다.\n주문번호 {order_number} / 결제금액 {amount}원"
+)
 
 
 def mask_payment_key(payment_key: str) -> str:
@@ -147,7 +154,13 @@ async def _done_response(session: AsyncSession, orders: list[Order]) -> PaymentC
 
 
 async def confirm_payment(
-    session: AsyncSession, user: User, toss: TossClient, body: PaymentConfirmRequest
+    session: AsyncSession,
+    user: User,
+    toss: TossClient,
+    body: PaymentConfirmRequest,
+    *,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> PaymentConfirmResponse:
     if body.amount <= 0:
         raise DomainError("Invalid amount", code="invalid_amount")
@@ -271,6 +284,8 @@ async def confirm_payment(
                     post_map,
                     total,
                     operation_id=operation_id,
+                    solapi=solapi,
+                    settings=settings,
                 )
             except Exception as exc:
                 await persist_payment_operation_outcome(
@@ -337,6 +352,8 @@ async def confirm_payment(
             body.payment_group_id,
             post_map,
             operation_id=operation_id,
+            solapi=solapi,
+            settings=settings,
         )
     except Exception as exc:
         logger.critical(
@@ -368,6 +385,8 @@ async def _recover_already_processed(
     total: int,
     *,
     operation_id: uuid.UUID,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> PaymentConfirmResponse | None:
     """이미 승인된 결제의 재확정 — 조회 API로 진위·금액을 검증한 뒤 DB만 확정."""
     lookup = await toss.get_payment(body.payment_key)
@@ -390,6 +409,8 @@ async def _recover_already_processed(
         body.payment_group_id,
         post_map,
         operation_id=operation_id,
+        solapi=solapi,
+        settings=settings,
     )
 
 
@@ -401,6 +422,8 @@ async def _confirm(
     post_map: dict[uuid.UUID, str],
     *,
     operation_id: uuid.UUID | None = None,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> PaymentConfirmResponse:
     orders = await _group_orders(session, group_id, for_update=True)
     if all(o.status == post_map[o.id] for o in orders):
@@ -423,6 +446,8 @@ async def _confirm(
         post_map,
         actor_id,
         operation_id=operation_id,
+        solapi=solapi,
+        settings=settings,
     )
     return PaymentConfirmResponse(orders=confirmed, token_amount=total_tokens)
 
@@ -433,6 +458,8 @@ async def reconcile_confirmed_payment(
     group_id: uuid.UUID,
     payment_key: str,
     actor_id: uuid.UUID,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> tuple[bool, str]:
     """Toss 조회 검증을 마친 호출자만 쓰는 결제 확정 DB 반영 경로."""
     orders = await _group_orders(session, group_id, for_update=True)
@@ -449,7 +476,9 @@ async def reconcile_confirmed_payment(
     if not all(order.status == "결제중" for order in orders):
         await session.commit()
         return False, "mixed_order_state"
-    await _apply_confirmation(session, orders, payment_key, post_map, actor_id)
+    await _apply_confirmation(
+        session, orders, payment_key, post_map, actor_id, solapi=solapi, settings=settings
+    )
     return True, "applied"
 
 
@@ -532,6 +561,42 @@ async def confirmed_payment_is_consistent(
     )
 
 
+async def _notify_payment_done(
+    session: AsyncSession,
+    solapi: SolapiClient | None,
+    settings: Settings | None,
+    orders: list[Order],
+) -> None:
+    """결제 확정 알림톡 — best-effort. 실패·미설정은 로그만 남기고 결제에 영향을 주지 않는다.
+
+    solapi/settings가 None인 호출자(알림이 필요 없는 경로·테스트)는 그냥 건너뛴다.
+    """
+    if solapi is None or settings is None or not settings.solapi_template_payment_done:
+        return
+    user = await session.get(User, orders[0].user_id)  # 그룹은 생성 구조상 단일 유저
+    if user is None or not (
+        user.notification_consent
+        and user.notification_enabled
+        and user.phone_verified
+        and user.phone
+    ):
+        return
+    order_number = orders[0].order_number  # 묶음 결제는 대표 주문 1건 기준
+    amount = f"{sum(order.total_price for order in orders):,}"
+    try:
+        sent = await solapi.send_alimtalk(
+            user.phone,
+            settings.solapi_template_payment_done,
+            {"#{주문번호}": order_number, "#{결제금액}": amount},
+            PAYMENT_DONE_FALLBACK.format(order_number=order_number, amount=amount),
+        )
+    except Exception:
+        logger.exception("결제완료 알림톡 발송 예외: order_number=%s", order_number)
+        return
+    if not sent:
+        logger.warning("결제완료 알림톡 발송 실패: order_number=%s", order_number)
+
+
 async def _apply_confirmation(
     session: AsyncSession,
     orders: list[Order],
@@ -540,6 +605,8 @@ async def _apply_confirmation(
     actor_id: uuid.UUID | None,
     *,
     operation_id: uuid.UUID | None = None,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> tuple[list[ConfirmedOrder], int | None]:
     """결제중 → 결제후 상태 + 부수효과(토큰 지급·샘플 쿠폰·쿠폰 사용확정). 커밋 포함.
 
@@ -600,6 +667,10 @@ async def _apply_confirmation(
             observed_amount=sum(order.total_price for order in orders),
         )
     await session.commit()
+    # 커밋 뒤에 보낸다 — solapi 호출(최대 10초)이 FOR UPDATE로 잠긴 주문 row를 붙잡으면 안 된다.
+    # 여기가 paid_at을 쓰는 유일한 지점이라 정상 confirm·웹훅 대사·관리자 대사가 한 번에 커버되고,
+    # 위의 "결제중" 가드가 구조적으로 주문당 1회만 통과시키므로 재발송 방지 코드가 따로 필요 없다.
+    await _notify_payment_done(session, solapi, settings, orders)
     return confirmed, total_tokens
 
 
@@ -821,7 +892,12 @@ async def _record_webhook_incident(
 
 
 async def reconcile_from_webhook(
-    session: AsyncSession, toss: TossClient, payment_key: str | None
+    session: AsyncSession,
+    toss: TossClient,
+    payment_key: str | None,
+    *,
+    solapi: SolapiClient | None = None,
+    settings: Settings | None = None,
 ) -> dict:
     """Toss 상태 변경 통지 → 조회 재검증 → DB↔Toss 불일치 교정.
 
@@ -956,7 +1032,13 @@ async def reconcile_from_webhook(
             )
             return {"handled": False, "reason": "amount_mismatch"}
         confirmed, _ = await _apply_confirmation(
-            session, orders, payment_key, post_map, actor_id=None
+            session,
+            orders,
+            payment_key,
+            post_map,
+            actor_id=None,
+            solapi=solapi,
+            settings=settings,
         )
         logger.warning("웹훅 대사: 멈춘 결제 확정 payment_group_id=%s", group_id)
         return {"handled": True, "action": "confirmed", "orders": len(confirmed)}

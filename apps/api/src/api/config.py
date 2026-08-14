@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     solapi_template_claim_done: str = ""
     solapi_template_claim_rejected: str = ""
     solapi_template_quote_received: str = ""
+    solapi_template_phone_code: str = ""  # 비면 인증번호를 알림톡 대신 평문 SMS로 보낸다
+    solapi_template_payment_done: str = ""  # 비면 결제완료 알림을 건너뛴다
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §5)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
     # local/test에서 비우면 builder가 docker compose의 fake-gcs-server를 사용한다.

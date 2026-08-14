@@ -158,6 +158,8 @@ async def admin_reconcile_payment_incident(
         request.app.state.toss,
         incident_id,
         actor_id=admin.id,
+        solapi=request.app.state.solapi,
+        settings=request.app.state.settings,
     )
     return await payment_incidents.get_incident_detail(session, incident_id, actor_role=admin.role)
 

@@ -65,6 +65,7 @@ SettingKey = Literal[
     "default_courier_company",
     "design_edit_cost",
     "design_finalize_daily_limit",
+    "design_motif_generate_cost",
     "design_token_cost_openai_render_standard",
     "design_token_initial_grant",
 ]
@@ -73,6 +74,7 @@ SETTING_KEYS: tuple[str, ...] = get_args(SettingKey)
 _COST_RANGE = (1, 1_000, "토큰 단가는 1에서 1000 사이 정수여야 합니다")
 _INT_SETTING_RANGES = {
     "design_edit_cost": _COST_RANGE,
+    "design_motif_generate_cost": _COST_RANGE,
     "design_token_cost_openai_render_standard": _COST_RANGE,
     "design_token_initial_grant": (
         0,

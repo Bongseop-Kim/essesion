@@ -7,7 +7,7 @@ from typing import Protocol
 
 import httpx
 
-from worker.adapters import AdapterClientError, adapter_http_reason
+from worker.adapters import AdapterClientError, adapter_http_reason, log_provider_usage
 
 DEFAULT_MODEL = "text-embedding-3-large"
 DEFAULT_DIMENSIONS = 1536
@@ -99,7 +99,14 @@ class OpenAIEmbeddingClient:
                 status_code=status,
             ) from exc
         try:
-            values = response.json()["data"][0]["embedding"]
+            body = response.json()
+            log_provider_usage(
+                body,
+                provider="openai_embedding",
+                operation="embed",
+                model=self.model,
+            )
+            values = body["data"][0]["embedding"]
             vector = [float(value) for value in values]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise EmbeddingError(

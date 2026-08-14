@@ -37,8 +37,10 @@ from api.pricing import get_admin_setting, get_pricing_constants
 logger = logging.getLogger(__name__)
 
 TOKEN_COST_SETTING = "design_token_cost_openai_render_standard"
-# 구성 수정(patch)은 flash-lite 1콜뿐이라 첫 생성과 단가를 분리한다 (money.md §6).
+# 구성 수정(patch)은 LLM 1콜뿐이라 첫 생성과 단가를 분리한다 (money.md §6).
 DESIGN_EDIT_COST_SETTING = "design_edit_cost"
+# 모티프 생성만 이미지 provider를 호출한다 — 실측 원가가 첫 생성의 6~11배라 별도 단가 (money.md §6).
+MOTIF_GENERATE_COST_SETTING = "design_motif_generate_cost"
 PLAN_KEYS = ("starter", "popular", "pro")
 TOKEN_DEBIT_ORDER = ("paid", "bonus", "free")
 

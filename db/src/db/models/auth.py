@@ -1,4 +1,4 @@
-"""사용자·인증 — auth.users + profiles 병합 재설계 (MAPPING.md §1)."""
+"""사용자·인증 — 계정·프로필을 users 한 테이블로 둔다 (제약 의도는 db/README.md)."""
 
 import uuid
 from datetime import date, datetime

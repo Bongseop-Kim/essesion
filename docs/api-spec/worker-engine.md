@@ -1,6 +1,6 @@
-# worker 명세 1/3 — 결정론 SVG 엔진 (seamless-tile 추출)
+# worker 명세 1/3 — 결정론 SVG 엔진
 
-원본: `../seamless-tile`의 `app/engine/`, `app/render/{svg,sanitize}.py`, `app/validate/intent.py`. **결정론 계약: (intent, seed, colorway, registry_version)이 같으면 SVG 바이트 동일.** 전 경로 순수 함수 — 전역 random·내장 hash() 사용 금지. 모티프 색 경로는 concrete-color symbol로 의도적으로 분기했으며 현재 essesion 골든이 기준선이다.
+**결정론 계약: (intent, seed, colorway, registry_version)이 같으면 SVG 바이트 동일.** 전 경로 순수 함수 — 전역 random·내장 hash() 사용 금지. 기준선은 `apps/worker/tests/golden/`의 커밋된 골든이다.
 
 관련 문서: [worker-motifs.md](./worker-motifs.md), [worker-pipeline.md](./worker-pipeline.md)
 

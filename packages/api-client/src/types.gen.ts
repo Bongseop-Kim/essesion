@@ -2016,7 +2016,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -7742,7 +7742,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Value
      */
@@ -7925,6 +7925,10 @@ export type TokenBalance = {
      * Generate Cost
      */
     generate_cost: number;
+    /**
+     * Motif Generate Cost
+     */
+    motif_generate_cost: number;
     /**
      * Paid
      */

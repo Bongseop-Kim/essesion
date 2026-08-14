@@ -12,7 +12,7 @@
 | A2 | `production.tfvars` 작성 → 1차 target apply | 사용자(tofu) | 시크릿 컨테이너·Cloud SQL 사용자 생성 |
 | A3 | Sentry 프로젝트 3개 생성 → **전 시크릿 값 주입** ([명령](../infra/README.md#시크릿-값-주입)) | 사용자 | `gcloud secrets versions list`로 **13개 전부** 버전 ≥1. 하나라도 비면 A4의 서비스 리비전이 기동 실패 |
 | A4 | 전체 apply | 사용자(tofu) | Cloud Run 3서비스 + migrate job, Cloud SQL(PITR), Cloud Tasks, **Scheduler 배치 5종**, GCS, IAM/WIF, 예산 알림 + uptime check 생성. 알림 채널은 **실제 메일 도착으로** 판정한다(A5 전까지 uptime check가 실패해 알림이 오므로 그것으로 확인된다). 수신함에 아무것도 없으면 GCP 인증 메일을 확인 |
-| A5 | Cloudflare zone·api 프록시 **선개통** ([순서](../infra/README.md#cloudflare--api-프록시-선개통)) | 사용자(wrangler `login` 또는 `CLOUDFLARE_API_TOKEN`) | 프록시 배포 완료 + WAF·레이트리밋 설정. **이 단계를 건너뛰고 API를 배포하지 않는다** — deploy 워크플로우 마지막 스텝이 공개 `/readyz` 200을 요구하므로, 프록시 없이 main에 머지하면 migrate와 Cloud Run 3서비스 배포가 **이미 끝난 뒤** 워크플로우만 실패한다 |
+| A5 | Cloudflare zone·api 프록시 **선개통** ([순서](../infra/README.md#cloudflare--api-프록시-선개통)) | 사용자(wrangler `login` 또는 `CLOUDFLARE_API_TOKEN`) | 프록시 배포 완료(레이트리밋은 api 내장 리미터가 담당 — edge 규칙 없음, [기록](reviews/cloudflare-waf-rate-limits-2026-08-14.md)). **이 단계를 건너뛰고 API를 배포하지 않는다** — deploy 워크플로우 마지막 스텝이 공개 `/readyz` 200을 요구하므로, 프록시 없이 main에 머지하면 migrate와 Cloud Run 3서비스 배포가 **이미 끝난 뒤** 워크플로우만 실패한다 |
 | A6 | GitHub vars/secrets 설정 ([명령](../infra/README.md#github-actions-연결-apply-후-1회)) | 사용자(gh) | `VITE_*` **5개** 전부 설정. Renovate GitHub App 설치가 아직이면 이때 함께 |
 
 **A2 주의** — `public_api_origin`은 `https://api.essesion.shop`으로 유지한다. `api_extra_env`에는
@@ -40,7 +40,9 @@
 5. **외부 콘솔 등록** — 프록시 검증 후 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - Toss: 웹훅 `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로
    - Google·Kakao·Apple: redirect URI `https://api.essesion.shop/auth/{provider}/callback`. Apple은 Services ID + `.p8` 키 등록이 선행이며 Return URL이 POST 콜백이다. **네이버는 이후 일정** — 등록 전까지 store가 "준비 중"으로 게이팅한다(`AUTH_PROVIDERS[].comingSoon`)
-   - Solapi 발신번호·PF ID·템플릿 3종은 `production.tfvars`의 `api_extra_env`로
+   - Solapi 발신번호·PF ID·템플릿 5종(클레임 완료·클레임 거부·견적요청접수·인증번호·결제완료)은
+     `production.tfvars`의 `api_extra_env`로. 인증번호는 템플릿이 비면 평문 SMS로, 결제완료는
+     비면 미발송으로 조용히 떨어진다 — `/readyz`가 잡아주지 않으니 값 존재를 눈으로 확인한다.
 
 ## C. 프론트 route 확인
 

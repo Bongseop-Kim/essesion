@@ -143,8 +143,10 @@ jobs:
           ) {
             throw new Error("API proxy origin must be an origin-only Cloud Run URL");
           }
+          // .jsonc — wrangler는 주석을 허용하므로 줄 주석을 걷어내고 파싱한다.
           const config = JSON.parse(
-            readFileSync("infra/cloudflare/api-proxy/wrangler.jsonc", "utf8"),
+            readFileSync("infra/cloudflare/api-proxy/wrangler.jsonc", "utf8")
+              .replace(/^\s*\/\/.*$/gm, ""),
           );
           const route = config.routes?.find(
             ({ pattern, custom_domain }) =>

@@ -240,7 +240,7 @@ pnpm test:e2e
 | [docs/CHECKLIST.md](./docs/CHECKLIST.md) | 남은 작업 진행 상태 |
 | [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md) | 개통 순서와 통과 판정 |
 | [infra/README.md](./infra/README.md) | 개통 명령 정본 (gcloud·tofu·wrangler·시드) |
-| [db/MAPPING.md](./db/MAPPING.md) | 기존 Supabase 도메인 ↔ 새 PostgreSQL 모델 |
+| [db/README.md](./db/README.md) | 스키마 규칙·마이그레이션·설계 의도 |
 | [docs/api-spec/](./docs/api-spec/domains.md) | 도메인·돈 경로·worker 엔진/파이프라인/모티프 계약 |
 | [docs/admin-ui-contract.md](./docs/admin-ui-contract.md) | admin 접근성·레이아웃 계약 |
 | [packages/shared/AGENTS.md](./packages/shared/AGENTS.md) | 디자인 시스템 사용 규칙 |

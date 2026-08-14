@@ -9,7 +9,28 @@ fake-gcs-server를 사용하고 배포 환경에서는 필수 설정이 빠지�
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+
+
+def log_provider_usage(body: object, *, provider: str, operation: str, model: str) -> None:
+    """provider 응답의 `usage`를 그대로 로그에 남긴다 — 토큰 단가 실측의 유일한 근거.
+
+    ponytail: 필드명 정규화 없이 dict 원문 — provider가 필드를 바꾸거나 늘려도(images는
+    input_tokens, chat은 prompt_tokens) 코드 수정 없이 실측에 잡힌다. DB 집계 테이블은
+    로그 기반 집계로 부족해지면 그때.
+    """
+    usage = body.get("usage") if isinstance(body, dict) else None
+    if isinstance(usage, dict):
+        logger.info(
+            "provider_usage provider=%s operation=%s model=%s usage=%s",
+            provider,
+            operation,
+            model,
+            usage,
+        )
 
 
 class AdapterClientError(RuntimeError):

@@ -1,4 +1,4 @@
-"""골든 픽스처 로더 — 원본 seamless-tile 엔진에서 추출한 채점표 (plan 0번)."""
+"""골든 픽스처 로더 — 결정론 계약의 채점표 (docs/api-spec/worker-pipeline.md §6)."""
 
 import json
 from pathlib import Path
@@ -9,7 +9,7 @@ GOLDEN = Path(__file__).parent / "golden"
 
 
 def register_golden_motifs() -> None:
-    """골든 intent들이 참조하는 모티프 정의(원본 등록 결과 덤프)를 레지스트리에 등록."""
+    """골든 intent들이 참조하는 모티프 정의 덤프를 레지스트리에 등록."""
     dump = json.loads((GOLDEN / "motifs.json").read_text())
     for motif_id, spec in dump.items():
         register_motif(

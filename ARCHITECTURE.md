@@ -134,14 +134,14 @@ flowchart TB
 - Toss webhook과 OAuth callback의 외부 등록 주소는 `api.essesion.shop`만 사용한다.
 - Admin mutation은 JWT role뿐 아니라 허용된 exact Origin을 검사하고 응답을 `no-store`로 제한한다.
 - worker는 `roles/run.invoker`와 audience가 맞는 Google OIDC token만 수신한다.
-- `/design/ideas`는 API 인스턴스 내 인증 사용자별 60초 6회 제한이다. 이는 **전역 quota가 아니므로** 프로덕션은 Cloudflare에서 같은 경로의 IP rate limit을 추가한다. 두 제한은 defense-in-depth이지 과금 quota가 아니다.
+- `/design/ideas`는 API 인스턴스 내 인증 사용자별 60초 6회 제한이다. 레이트리밋 시행 지점은 여기 하나뿐이고 edge 규칙은 두지 않는다(근거: `docs/reviews/cloudflare-waf-rate-limits-2026-08-14.md`). 인스턴스별 제한이라 **전역 quota가 아니다** — 과금 quota는 토큰 원장이 담당한다.
 
 ### 1.4 Supabase 대체 관계
 
 새 런타임에 Supabase SDK 의존은 없다. GoTrue → FastAPI JWT + OAuth 4종, RLS → API 서비스 계층
 인가 행렬, DB 함수·Edge Functions → API 트랜잭션, Storage → GCS 2버킷, generate-tile → 결정론
 worker, LangGraph checkpoint → `design_sessions`/`design_session_turns`/`generation_jobs`.
-기능·테이블 단위 매핑은 [db/MAPPING.md](./db/MAPPING.md)가 정본이다.
+테이블·제약의 정본은 `db/src/db/models/`이며, 코드만으로 드러나지 않는 설계 의도는 [db/README.md](./db/README.md)에 있다.
 
 ---
 
@@ -558,7 +558,7 @@ DNS 원복 한 줄만으로 rollback runbook을 완료 처리하지 않는다. t
 | 진행 상태 | [docs/CHECKLIST.md](./docs/CHECKLIST.md) |
 | 개통 순서·판정 | [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md) |
 | 개통 명령 | [infra/README.md](./infra/README.md) |
-| 기존→새 스키마 | [db/MAPPING.md](./db/MAPPING.md) |
+| 스키마·마이그레이션 | [db/README.md](./db/README.md) |
 | 도메인 동작·엔드포인트 | [docs/api-spec/domains.md](./docs/api-spec/domains.md) |
 | 주문·결제·토큰 | [docs/api-spec/money.md](./docs/api-spec/money.md) |
 | worker 엔진 | [docs/api-spec/worker-engine.md](./docs/api-spec/worker-engine.md) |

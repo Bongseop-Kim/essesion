@@ -1,6 +1,6 @@
-# worker 명세 3/3 — 래스터화·finalize·API 표면·재구현 계약 (seamless-tile 추출)
+# worker 명세 3/3 — 래스터화·finalize·API 표면
 
-원본: `app/render/{raster,fabric}.py`, `app/api/`, `app/main.py`. §5부터는 새 아키텍처(ARCHITECTURE §1·§6)에 맞춘 **재구현 결정사항** — 원본과 의도적으로 다른 부분을 명시한다.
+§5부터는 아키텍처 통합에 따른 **결정사항**(ARCHITECTURE §1·§6) — 소유권 경계와 과금 위치를 명시한다.
 
 ## 1. 래스터화
 
@@ -38,7 +38,7 @@
 
 `assets/fabric/*.png` (RGB): check, herringbone, jacquard, pindot, solid, twill-0 (1254²), twill-45 (2512², 기본+MOTIF_WEAVE). 파일명 stem으로 동적 발견(하드코딩 없음). print 허용 = `startswith("twill")`. 에셋은 결정론 입력 — 재구현 레포에 그대로 복사(이식 금지 대상은 코드지 에셋·계약이 아님) + 버전 관리.
 
-## 4. 원본 API 표면 (참고 — 재구현 계약은 §5)
+## 4. API 표면 (소유권·인증 경계는 §5)
 
 - `GET /api/v1/health`, `GET /api/v1/palettes`(프리셋 mono/navy/earth/pastel).
 - `POST /api/v1/generate`: 입력 `{prompt?, reference_image?(≤12M chars), images?(≤8, 합 24M), canvas?, palette?, intent?, colorway?, seed?, session_id?, from_checkpoint?}` — 우선순위 intent > images > reference_image > prompt, 전부 없으면 422. **응답은 슬림**: 결과 배열 + warnings — svg·repro는 generation_logs에만. 원본의 결과 팬아웃(요청당 N개)과 그 개수 파라미터는 **미승계**다 — 재구현은 요청 1건 = 디자인 1개다(§5).
@@ -47,7 +47,7 @@
 - 세션 라우트(LangGraph): propose→select→commit→finalize, motif_candidates interrupt 게이트, confirm(generate_motif 승인/finalize), budget(motif generation 3/finalize 10). **재구현에서 세션 계층 전체 미승계** — 세션은 api 소유(design_sessions/turns), 게이트·모티프 생성 예산 의미는 api가 재현. finalize는 세션 예산 대신 계정당 24시간 쿼터로 대체(§5).
 - 미들웨어: X-Request-ID(정규화: 비허용문자→`-`, 128자 캡), 인증 없음, CORS 없음. 에러 body `{detail, request_id}`.
 
-## 5. 재구현 계약 — 새 아키텍처의 worker (의도적 차이)
+## 5. worker 소유권 계약
 
 **공통**: 한 코드베이스(apps/worker), 두 Cloud Run 서비스. stateless — 응답 캐시(generate_cache)·in-flight 락·fingerprint 메모 외 프로세스-로컬 상태 미승계(멱등이라 재계산 안전). obs(request_id·JSON 로깅·Sentry) 승계, api가 준 X-Request-ID 전파. 앱 인증 없음 → **경계 인증으로 대체**: generate=api OIDC, finalize=Cloud Tasks OIDC(`/tasks/finalize`)+api OIDC(`/export`). `SERVICE_MODE`가 각 이미지의 라우터 표면을 분리하며 둘 다 Cloud Run IAM상 비공개다.
 
@@ -79,18 +79,11 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 
 **과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등). worker는 과금을 모른다. 확정된 단가: 첫 생성 = `admin_settings.design_token_cost_openai_render_standard`, 구성 수정(patch) = `admin_settings.design_edit_cost`, 모티프 검색·교체 = 0(세션 모티프 생성 예산 3회만 쓰는 모티프 생성도 0), `scope_rejected`는 멱등 환불.
 
-## 6. 결정론 대조 테스트 전략
+## 6. 결정론 회귀 테스트
 
-- 원본 tests 44파일이 명세 역할(아래 인벤토리). 재구현 테스트는 **같은 입력 → 같은 SVG 바이트**를 두 층으로 검증:
-  1. 원본의 런타임 동치 테스트 이식: 동일 입력 2회, PYTHONHASHSEED 0/1/12345 서브프로세스 교차 바이트 동일, colorway 변경 시 바이트 변경, repro 메타 전파, clone 순서 안정.
-  2. **골든 대조(신규)**: 원본 seamless-tile을 로컬에서 돌려 대표 intent 세트(gallery/json 25세트 활용)의 SVG를 골든으로 추출·커밋 → 재구현 출력과 바이트 비교. 원본엔 골든 파일이 없으므로 이 추출이 4단계 첫 작업.
-- fabric은 픽셀 결정론(동일 입력 2회 바이트 동일 + seam 임계값) — Pillow·렌더러 핀 전제. 원본처럼 합성 weave(64²) monkeypatch로 에셋 비의존 테스트.
-- resvg 동등성 판정: 골든 intent 세트를 rsvg-convert와 resvg로 각각 래스터 → 픽셀 diff 허용치(완전 일치 우선, 불일치 시 librsvg 폴백 확정).
+결정론 계약은 두 층으로 지킨다.
 
-### 원본 테스트 인벤토리(대조 기준 카탈로그)
+1. **골든 대조** — `apps/worker/tests/golden/`(intent 25세트 + SVG 27개 + 참조 모티프 덤프)이 채점표다. `golden_helpers.py`가 로드하며 엔진 출력과 바이트 비교한다. **엔진 변경으로 골든이 깨지면 골든을 덮어쓰기 전에 의도한 변경인지 판정할 것** — 무단 재생성은 계약 파기다.
+2. **런타임 동치** — 동일 입력 2회, PYTHONHASHSEED 0/1/12345 서브프로세스 교차 바이트 동일, colorway 변경 시 바이트 변경, repro 메타 전파, clone 순서 안정.
 
-결정론: test_determinism(바이트 동일·프로세스 교차), test_variant_sampling(% pool), test_registry_fingerprint, test_text_motif(폰트 파이프라인 결정론), test_fabric(픽셀 결정론·seam·relief·inlay).
-엔진: test_composition(2MB 캡), test_candidates(다양화 — 미승계), test_colorway, test_lattice, test_scatter, test_point_set, test_placement_path, test_wave, test_angle_snap, test_seamless, test_seamless_mvp(size>tile 거부), test_primitives, test_intent, test_render_svg, test_geometry, test_example_tile(오프라인 E2E).
-모티프·어댑터: test_motif_gate, test_motif_facets, test_motif_resolver, test_motif_pool, test_motif_store(+_pg, live opt-in), test_gpt_image_client/gate/intake, test_embedding, test_llm_retry, test_adapters, test_multicolor, test_retrieval_eval(τ 보정).
-API·기타: test_api_generate(슬림 계약·캐시·오류 매핑), test_api_export, test_sanitize, test_health, test_config. (세션 3종 — test_sessions/test_session_persistence/test_time_travel — 은 미승계 범위.)
-픽스처: tests/fixtures/provider_samples/*.svg 3개(pig face flat, honeybee top, pelican bicycle side — 재구현 결정: 원본 8종 대신 원하는 스타일의 커스텀 샘플로 교체), motif_eval/{embeddings,labelset}.json — 재구현 레포로 복사해 대조에 사용.
+fabric은 픽셀 결정론(동일 입력 2회 바이트 동일 + seam 임계값) — Pillow·렌더러 핀 전제. 합성 weave(64²) monkeypatch로 에셋 비의존 테스트. 래스터라이저를 교체할 때는 골든 intent 세트를 양쪽으로 래스터해 픽셀 diff로 판정한다(완전 일치 우선, 불일치 시 librsvg 폴백).

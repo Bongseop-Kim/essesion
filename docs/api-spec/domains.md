@@ -1,6 +1,6 @@
-# 도메인 동작 명세 (YeongSeon 추출 — 구현 기준)
+# 도메인 동작 명세 — 인증·장바구니·클레임·견적·이미지
 
-원본: YeongSeon `supabase/schemas/{91_utils,92_cart,94_claims,96_quotes,97_admin,11_shipping,86_design_tokens,88_images,10_profiles}.sql`, `supabase/functions/{send-phone-verification,verify-phone,delete-account,notify-claim,create-quote-request}`, `apps/store` 인증 플로우. 돈 경로는 [money.md](./money.md).
+인증·배송지·장바구니·클레임·견적·이미지·admin 도메인의 **동작 정본**이다. 구현이 이 명세와 달라지면 버그다. 돈 경로는 [money.md](./money.md).
 
 ## 1. 휴대폰 인증
 
@@ -29,7 +29,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 ## 3. 탈퇴 (delete-account)
 
 - 원문: auth.users 하드 삭제 + FK CASCADE. images.uploaded_by는 SET NULL(레코드·스토리지 잔존 → 정리 배치 소관).
-- 새 스키마: users 삭제 시 CASCADE는 배송지·장바구니·찜·인증·알림로그·identity·refresh. **주문·클레임·견적·토큰 등 이력은 NO ACTION** — 탈퇴 시 이력이 있으면: is_active=false 소프트 비활성 + 개인정보 필드 익명화, 이력 없으면 하드 삭제. (스키마 재설계에 따른 명시 처리 — MAPPING.md §1)
+- 새 스키마: users 삭제 시 CASCADE는 배송지·장바구니·찜·인증·알림로그·identity·refresh. **주문·클레임·견적·토큰 등 이력은 NO ACTION** — 탈퇴 시 이력이 있으면: is_active=false 소프트 비활성 + 개인정보 필드 익명화, 이력 없으면 하드 삭제.
 
 ## 4. 클레임
 

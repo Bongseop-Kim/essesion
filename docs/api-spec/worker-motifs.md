@@ -1,6 +1,6 @@
-# worker 명세 2/3 — 모티프 시스템 + 외부 API (seamless-tile 추출)
+# worker 명세 2/3 — 모티프 시스템 + 외부 API
 
-원본: `app/motifs/`, `app/adapters/`. 모티프 검색·content-hash·프롬프트는 기능 명세의 일부 — 원문 보존. DB 스키마는 새 모노레포의 `motifs` 테이블과 OpenAI `vector(1536)` 한 종류만 사용한다.
+모티프 검색·content-hash·프롬프트는 동작 명세의 일부 — 임의로 바꾸지 말 것. 저장은 `motifs` 테이블과 OpenAI `vector(1536)` 한 종류만 사용한다.
 
 > 개정 2026-08-12: 생성 경로의 "같은 문장 = 재사용 판정" 계약과 variant_group 풀을 폐기
 > (`docs/plans/motif-generate-always-create.md`). 생성은 항상 생성하고, catalog hit는
@@ -66,7 +66,7 @@ User description: {query}
 3. 후보는 실제 ID 없이 `catalog_ref`, subject, description, style로 LLM에 제공한다. compiler만 ref→ID를 변환한다.
 4. 후보가 있는데 검증되지 않은 source를 만들거나 후보를 모두 무시한 plan은 거부한다. 한 번 재저작 후에도 같으면 `semantic_mismatch`다. 후보가 없으면 모티프 없이 계속하며 GPT Image나 lowest-ID fallback을 호출하지 않는다.
 
-새 모티프 생성은 모티프 모달의 별도 계약이다. `POST /motifs/candidates`와 `POST /motifs/generate`는 `{query}`만 받고, 최대 200자의 `query`를 변환 없이 `{"subject": query, "scope": "whole"}`로 다룬다. 문장이 모티프의 유일한 입력이다 — 디자인 컨텍스트(플랜의 style 문구 등)를 숨은 힌트로 주입하지 않는다. `candidates`는 위와 같은 신뢰도 게이트의 catalog hit만 반환하고 GPT Image를 호출하지 않는다 — 비슷한 모티프 확인은 이 보이는 검색 단계가 수행한다. 사용자가 `generate`를 명시적으로 선택하면 `resolve_spec`이 카탈로그 확인 없이 **항상** GPT Image를 호출한다(숨은 재사용 판정 없음). 같은 문장 재클릭도 새 변형을 만들며, (subject, scope)가 같은 모티프가 쌓이는 것은 변형 풀 확충이다 — 품질·중복은 admin 승인 게이트가 거른다. 실제 provider 호출은 요청당 `motif_generate_per_request_limit`(기본 2)로 제한되고 API는 별도로 세션 예산 3회를 선차감하며 워커 실패 시에만 환급한다.
+새 모티프 생성은 모티프 모달의 별도 계약이다. `POST /motifs/candidates`와 `POST /motifs/generate`는 `{query}`만 받고, 최대 200자의 `query`를 변환 없이 `{"subject": query, "scope": "whole"}`로 다룬다. 문장이 모티프의 유일한 입력이다 — 디자인 컨텍스트(플랜의 style 문구 등)를 숨은 힌트로 주입하지 않는다. `candidates`는 위와 같은 신뢰도 게이트의 catalog hit만 반환하고 GPT Image를 호출하지 않는다 — 비슷한 모티프 확인은 이 보이는 검색 단계가 수행한다. 사용자가 `generate`를 명시적으로 선택하면 `resolve_spec`이 카탈로그 확인 없이 **항상** GPT Image를 호출한다(숨은 재사용 판정 없음). 같은 문장 재클릭도 새 변형을 만들며, (subject, scope)가 같은 모티프가 쌓이는 것은 변형 풀 확충이다 — 품질·중복은 admin 승인 게이트가 거른다. 실제 provider 호출은 요청당 `motif_generate_per_request_limit`(기본 2)로 제한되고 API는 별도로 세션 예산 3회와 `design_motif_generate_cost` 토큰을 같은 트랜잭션에서 선차감하며 워커 실패 시에만 환급한다(money.md §6).
 
 정규화가 끝난 GPT Image 결과는 같은 OpenAI 키·LLM 모델의 비전 호출 한 번으로 `description`, 한·영 `tags`, `style(flat|outline)`을 만들고 기존 facet 살균을 통과시킨다. 실패하거나 의심스러운 출력이면 subject만으로 저장하는 fail-soft다. 결과는 `pending`으로 저장하며, 관리자 `POST /admin/motifs/{id}/review`가 `approved`로 바꾸기 전에는 다른 사용자의 lexical/pgvector 검색, LLM grounding, 임베딩 인덱싱·집계와 registry fingerprint에 포함되지 않는다. `PATCH /admin/motifs/{id}`는 admin만 subject/description/tags/style을 보정할 수 있고 실제 변경 시 임베딩을 NULL로 무효화한다. 같은 spec 재요청은 매번 GPT Image 비용이 들지만 byte-identical 결과의 content-hash upsert는 행 중복을 만들지 않는다.
 

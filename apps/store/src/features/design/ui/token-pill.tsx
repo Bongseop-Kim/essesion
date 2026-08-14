@@ -17,6 +17,7 @@ export type TokenPillProps = {
   balance: number | null;
   generateCost: number | null;
   editCost: number | null;
+  motifGenerateCost: number | null;
   onPurchase: () => void;
 };
 
@@ -25,6 +26,7 @@ export function TokenPill({
   balance,
   generateCost,
   editCost,
+  motifGenerateCost,
   onPurchase,
 }: TokenPillProps) {
   return (
@@ -57,7 +59,7 @@ export function TokenPill({
           <Text textStyle="labelSm">잔액 {format(balance)}토큰</Text>
           <Text textStyle="captionSm" color="fg.neutral-subtle">
             처음 만들기 1회 {format(generateCost)}토큰 · 고치기 1회{" "}
-            {format(editCost)}토큰
+            {format(editCost)}토큰 · 새 무늬 1회 {format(motifGenerateCost)}토큰
           </Text>
         </VStack>
         <MenuItem

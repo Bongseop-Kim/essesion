@@ -3,8 +3,8 @@
 - naming_convention으로 제약명을 고정한다 — alembic autogenerate 안정화의 전제.
   CheckConstraint는 **반드시 name을 지정**할 것 (`ck_<table>_<name>`으로 렌더링).
 - updated_at은 onupdate(앱 레벨)로만 갱신된다 — 모든 쓰기가 SQLAlchemy(api) 경유
-  전제이며 raw SQL UPDATE는 갱신하지 않는다. DB 트리거는 두지 않는다(기존 트리거
-  로직은 api로 이동 — db/MAPPING.md).
+  전제이며 raw SQL UPDATE는 갱신하지 않는다. DB 트리거·함수·뷰는 두지 않는다 — 채번·
+  원장·인가·통계 전부 api 소유(db/README.md).
 """
 
 import uuid
