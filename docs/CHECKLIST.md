@@ -5,11 +5,9 @@
 
 ## 1. 인프라 개통
 
-- [ ] OpenTofu apply — 단일 production GCP 프로젝트: Cloud Run×3, Cloud Tasks, Cloud SQL(PITR), GCS, Artifact Registry, IAM, WIF *(리소스 선언 완료, 실제 apply만 남음)*
-- [ ] Cloudflare 서브도메인(app/admin/api) + API 프록시 개통 — 첫 API 배포 전 필수
-- [ ] Sentry 프로젝트(api·worker·store) 생성 및 DSN 주입
-- [ ] Secret Manager 13개 시크릿 값 주입 — 하나라도 비면 api 리비전이 기동 실패
-- [ ] GCP 예산 알림 + uptime check *(tofu apply에 포함)*
+- [ ] Cloudflare 보안 규칙 — WAF·레이트리밋. 공개 오픈 전 필수: [플랜](./plans/cloudflare-waf-rate-limits.md)
+- [ ] 예산·uptime 알림 이메일 인증 — GCP가 보낸 확인 메일을 클릭해야 알림이 도착한다
+- [ ] 네이버·Apple 자리표시자 교체 — `naver-client-secret`과 `NAVER_CLIENT_ID`, Apple `.p8`는 콘솔 등록 후 실제 값으로. 비우면 `/readyz`가 503이라 자리표시자로 채워둔 상태다
 
 ## 2. 스키마
 
@@ -23,7 +21,7 @@
 
 ## 4. Production 외부 연동·운영 검증
 
-- [ ] 초기 데이터 입력 — 관리자 → `seed_motifs.py` → `backfill_motif_tags.py --confirm-live` → `index_motif_embeddings.py --confirm-live` → `seed_authoring_examples.py --confirm-live`. motif/example `embedded=total`과 admin 표본의 SVG 색상·자동 태그 검증
+- [ ] 초기 데이터 입력 — 관리자 → `seed_motifs.py` → `seed_design_examples.py` → `index_motif_embeddings.py --confirm-live` → `seed_authoring_examples.py --confirm-live`. motif/example `embedded=total`과 admin 표본의 SVG 색상 검증. `backfill_motif_tags.py`는 production 미실행(백필할 기존 데이터 없음)
 - [ ] `eval_authoring.py --confirm-live` 30건 재평가 → compile 30/30, retrieval 30/30 및 재시도·p95를 2026-08-03 기준선과 비교 *(로컬 역재현 25건은 통과: [design-family-reverse-eval](./reviews/design-family-reverse-eval-2026-08-04.md))*
 - [ ] 모티프 모달 GPT Image 2 low + VTracer medium production 스모크 — 한국어 원문 subject만 전달, 사방 10% 여백·원본 캔버스 비율·플랫 색면·가변 색상·SVG 복잡도 예산. 사진 업로드도 같은 경로로 다색 모티프를 보존하는지, 디자인 생성의 catalog miss에서 GPT Image 호출·예산 변화가 없는지 확인
 - [ ] GPT Image 모티프 승인 게이트 검증 — 신규 행이 `source=gpt_image`·`pending`이고 요청 세션의 ID 직접 렌더만 유지, 타 사용자 검색·grounding·registry fingerprint에서 제외. 승인 시 즉시 노출·fingerprint 변경, 거절/회수 시 즉시 제외, manager mutation 403
