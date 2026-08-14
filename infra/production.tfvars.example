@@ -21,6 +21,9 @@ public_api_origin = "https://api.essesion.shop"
 #   SOLAPI_TEMPLATE_CLAIM_DONE = "..."
 #   SOLAPI_TEMPLATE_CLAIM_REJECTED = "..."
 #   SOLAPI_TEMPLATE_QUOTE_RECEIVED = "..."
+#   # 아래 2개는 /readyz의 solapi capability가 보지 않는다 — 비어도 초록불이다.
+#   SOLAPI_TEMPLATE_PHONE_CODE = "..."     # 비면 인증번호가 알림톡 대신 평문 SMS로 나간다
+#   SOLAPI_TEMPLATE_PAYMENT_DONE = "..."   # 비면 결제완료 알림이 로그도 없이 미발송된다
 # }
 
 # Plan v3는 단일 런타임 경로이며 별도 배포 mode가 없다.

@@ -33,16 +33,27 @@
 4. **초기 데이터** — 먼저 [운영자 단말 DB 접속](../infra/README.md#운영자-단말에서-db-접속)을
    연결한다(`database-url` 시크릿은 Cloud Run 전용 소켓 DSN이라 단말에서 그대로 못 쓴다).
    [관리자 생성](../infra/README.md#초기-관리자-bootstrap세션-복구) → [시드](../infra/README.md#production-데이터-시드):
-   motif → design examples(첫 진입 갤러리) → 임베딩 → authoring starter → eval.
+   **seed-config**(설정·가격 초기행) → motif → design examples(첫 진입 갤러리) → 임베딩 → authoring starter → eval.
+   `seed-config`가 첫 순서인 이유는 관리자 화면이 **기존 행 수정만** 지원하기 때문이다 — 빠뜨리면
+   설정·가격을 화면에서 만들 수 없고 `/admin/settings` 503과 `pricing_not_configured`로 막힌다.
+   상품은 이와 별개로 admin `/products`에서 직접 등록한다.
    `backfill_motif_tags.py`는 production에서 돌리지 않는다(백필할 기존 데이터 없음, 유료 호출).
    임베딩 출력이 `embedded=<total>/<total>`인지 배포 기록에 남기고, admin Motif 상세에서
    symbol의 concrete paint 표본을 확인한다.
 5. **외부 콘솔 등록** — 프록시 검증 후 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
+   컷오버(F-2)는 **재확인**이지 등록이 아니다 — 소셜 로그인이 유일한 가입 경로라 redirect URI가
+   없으면 새 store에 아무도 로그인하지 못하므로 등록은 여기서 끝낸다.
+   redirect URI는 콘솔에 **추가**되므로 기존 등록을 지우지 않아도 병행되지만, Toss 웹훅은 보통
+   상점당 단일 값이라 **교체**다. 같은 상점을 쓰는 다른 서비스가 살아 있다면 그쪽 통지가 끊기므로
+   교체 전에 확인할 것(2026-08-15 기준 기존 YeongSeon은 실사용 없음으로 확인).
    - Toss: 웹훅 `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로
    - Google·Kakao·Apple: redirect URI `https://api.essesion.shop/auth/{provider}/callback`. Apple은 Services ID + `.p8` 키 등록이 선행이며 Return URL이 POST 콜백이다. **네이버는 이후 일정** — 등록 전까지 store가 "준비 중"으로 게이팅한다(`AUTH_PROVIDERS[].comingSoon`)
    - Solapi 발신번호·PF ID·템플릿 5종(클레임 완료·클레임 거부·견적요청접수·인증번호·결제완료)은
-     `production.tfvars`의 `api_extra_env`로. 인증번호는 템플릿이 비면 평문 SMS로, 결제완료는
-     비면 미발송으로 조용히 떨어진다 — `/readyz`가 잡아주지 않으니 값 존재를 눈으로 확인한다.
+     `production.tfvars`의 `api_extra_env`로. `/readyz`의 solapi capability는 **7개만** 본다
+     (key·secret·발신번호·PF ID·클레임 2종·견적요청접수 — `integrations/solapi.py`). 인증번호와
+     결제완료 템플릿은 그 7개에 없어서 **비어 있어도 `real`로 초록불**이고, 인증번호는 평문 SMS로
+     폴백, 결제완료는 로그도 없이 미발송된다(`payments/service.py` early return).
+     `/readyz`가 잡아주지 않으니 이 둘만은 값 존재를 눈으로 확인한다.
 
 ## C. 프론트 route 확인
 
