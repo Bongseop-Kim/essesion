@@ -66,11 +66,25 @@ ESSE SION에서 주문 완료를 안내드립니다.
 
 ## 2. 결제완료
 
-`apps/api/src/api/domains/payments/service.py:149 confirm_payment`의 성공 종료 직전에 발송한다.
+훅은 `confirm_payment`가 아니라 **`_apply_confirmation`**(`payments/service.py:602`의
+`await session.commit()` 직전)에 둔다. `paid_at`을 쓰는 유일한 지점이라 결제 확정 3경로가 한 곳에서
+잡힌다:
 
-- 멱등 사전체크(`all(o.paid_at is not None)`)로 돌아오는 경로에서는 **보내지 않는다** — successUrl
-  새로고침마다 알림톡이 재발송되는 것을 막는다. 최초 확정 경로에서만 1회.
+| 경로 | 언제 |
+|---|---|
+| `confirm_payment` | 정상 successUrl 콜백 |
+| `reconcile_from_webhook` DONE (`service.py:958`) | 콜백이 끊긴 결제 — **알림톡이 가장 필요한 케이스** |
+| `reconcile_confirmed_payment` (`service.py:452`) | 관리자 대사 |
+
+`confirm_payment`에만 걸면 뒤 2개가 빠진다. 돈은 받고 주문은 확정됐는데 유저는 통보를 못 받는다.
+
+- **멱등은 공짜다.** `_apply_confirmation`은 `status != "결제중"`이면 던진다(`service.py:554`) —
+  구조상 주문당 1회만 통과하므로 successUrl 새로고침 재발송 방지에 별도 코드가 필요 없다.
+- 웹훅·대사 경로에는 `user` 객체가 없다. `orders[0].user_id`로 User를 한 번 로드한다
+  (그룹은 생성 구조상 단일 유저 — `service.py:580` 주석).
 - `user.phone`이 없거나 `phone_verified`가 아니면 건너뛴다.
+- **order_type 5종(`sale`·`custom`·`repair`·`token`·`sample`) 전부 발송한다.** 토큰 구매도
+  `TKN-YYYYMMDD-NNN` 주문번호가 붙은 주문이라 템플릿 문구가 어긋나지 않는다.
 - 결제 그룹에 주문이 여러 건이면 대표 주문 1건의 주문번호 + 그룹 결제금액 합계로 보낸다.
 
 ## 전달 신뢰성 — outbox를 새로 만들지 않는다
@@ -87,5 +101,6 @@ ESSE SION에서 주문 완료를 안내드립니다.
 ## 검증
 
 - `apps/api/tests/`에 단위 테스트: 템플릿 ID 미설정 시 건너뛰기(인증번호는 SMS 폴백), 결제 멱등
-  재호출 시 재발송 없음. 발송 클라이언트는 `DryRunSolapiClient`로 확인한다.
+  재호출 시 재발송 없음, 웹훅 대사 확정에도 발송됨, `phone_verified=False`면 미발송.
+  발송 클라이언트는 `DryRunSolapiClient`로 확인한다.
 - production 검증은 실제 번호로 2종 수신 확인(OPERATOR-CHECKLIST E2와 함께).
