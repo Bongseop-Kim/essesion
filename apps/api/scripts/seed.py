@@ -146,6 +146,7 @@ def _backfill_option_label(product: Product, option_label: str | None) -> None:
     if option_label and not (product.option_label or "").strip():
         product.option_label = option_label
 
+
 PLACEHOLDER_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
