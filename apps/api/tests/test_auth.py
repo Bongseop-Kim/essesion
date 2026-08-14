@@ -1228,3 +1228,20 @@ async def test_admin_login_and_refresh_rate_limits_are_separate(app, client):
     assert (await client.post("/auth/admin/refresh")).status_code == 401
     limited_refresh = await client.post("/auth/admin/refresh")
     assert limited_refresh.status_code == 429
+
+
+async def test_phone_send_uses_alimtalk_when_template_configured(app, client, db_session, settings):
+    """템플릿이 설정되면 ATA로 보낸다 — 미설정이면 기존 SMS 경로(다른 테스트가 커버)."""
+    settings.solapi_template_phone_code = "KA01TP-PHONE-CODE-TEST"
+    user = await make_user(db_session)
+
+    res = await client.post(
+        "/auth/phone/send", json={"phone": "01055556666"}, headers=auth_headers(user, settings)
+    )
+
+    assert res.status_code == 202
+    sent = app.state.solapi.sent
+    assert len(sent) == 1
+    assert sent[0]["type"] == "ATA"
+    assert sent[0]["template_id"] == "KA01TP-PHONE-CODE-TEST"
+    assert "인증번호는 [" in sent[0]["text"]  # 알림톡 실패 시 SMS 대체 문구

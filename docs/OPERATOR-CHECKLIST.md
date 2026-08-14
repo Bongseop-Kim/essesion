@@ -40,7 +40,9 @@
 5. **외부 콘솔 등록** — 프록시 검증 후 공개 API 도메인만 등록한다. Cloud Run URL은 등록하지 않는다.
    - Toss: 웹훅 `https://api.essesion.shop/payments/webhook`, successUrl 콜백 경로
    - Google·Kakao·Apple: redirect URI `https://api.essesion.shop/auth/{provider}/callback`. Apple은 Services ID + `.p8` 키 등록이 선행이며 Return URL이 POST 콜백이다. **네이버는 이후 일정** — 등록 전까지 store가 "준비 중"으로 게이팅한다(`AUTH_PROVIDERS[].comingSoon`)
-   - Solapi 발신번호·PF ID·템플릿 3종은 `production.tfvars`의 `api_extra_env`로
+   - Solapi 발신번호·PF ID·템플릿 5종(클레임 완료·클레임 거부·견적요청접수·인증번호·결제완료)은
+     `production.tfvars`의 `api_extra_env`로. 인증번호는 템플릿이 비면 평문 SMS로, 결제완료는
+     비면 미발송으로 조용히 떨어진다 — `/readyz`가 잡아주지 않으니 값 존재를 눈으로 확인한다.
 
 ## C. 프론트 route 확인
 

@@ -1317,3 +1317,101 @@ async def test_toss_payment_key_is_encoded_as_one_path_segment():
     assert get_route.calls[0].request.url.query == b""
     assert cancel_route.calls[0].request.url.query == b""
     assert get_route.calls[1].request.url.raw_path == b"/v1/payments/%2E%2E"
+
+
+# ---- 결제완료 알림톡 (docs/plans 이관: alimtalk-templates-2) ----
+
+PAYMENT_DONE_TEMPLATE = "KA01TP-PAYMENT-DONE-TEST"
+
+
+def _alimtalk_sent(app) -> list[dict]:
+    return [m for m in app.state.solapi.sent if m.get("template_id") == PAYMENT_DONE_TEMPLATE]
+
+
+async def _notifiable_user(db_session, settings):
+    settings.solapi_template_payment_done = PAYMENT_DONE_TEMPLATE
+    user = await make_user(db_session, phone="01099998888")
+    user.phone_verified = True
+    user.notification_consent = True
+    await db_session.commit()
+    return user
+
+
+@respx.mock
+async def test_confirm_sends_payment_done_alimtalk_once(app, client, db_session, settings):
+    """최초 확정에서만 1회 — successUrl 새로고침(멱등 재호출)에 재발송하지 않는다."""
+    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
+    user = await _notifiable_user(db_session, settings)
+    created = await _create_sale_order(client, db_session, settings, user)
+    body = {
+        "payment_key": "toss-key-notify01",
+        "payment_group_id": created["payment_group_id"],
+        "amount": created["total_amount"],
+    }
+    headers = auth_headers(user, settings)
+
+    assert (await client.post("/payments/confirm", json=body, headers=headers)).status_code == 200
+
+    sent = _alimtalk_sent(app)
+    assert len(sent) == 1
+    assert sent[0]["to"] == "01099998888"
+    assert created["orders"][0]["order_number"] in sent[0]["text"]
+    assert f"{created['total_amount']:,}" in sent[0]["text"]
+
+    assert (await client.post("/payments/confirm", json=body, headers=headers)).status_code == 200
+    assert len(_alimtalk_sent(app)) == 1
+
+
+@respx.mock
+async def test_confirm_skips_payment_done_alimtalk_when_phone_unverified(
+    app, client, db_session, settings
+):
+    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
+    settings.solapi_template_payment_done = PAYMENT_DONE_TEMPLATE
+    user = await make_user(db_session)  # phone 없음 · 미인증
+    created = await _create_sale_order(client, db_session, settings, user)
+
+    res = await client.post(
+        "/payments/confirm",
+        json={
+            "payment_key": "toss-key-notify02",
+            "payment_group_id": created["payment_group_id"],
+            "amount": created["total_amount"],
+        },
+        headers=auth_headers(user, settings),
+    )
+
+    assert res.status_code == 200
+    assert _alimtalk_sent(app) == []
+
+
+@respx.mock
+async def test_webhook_confirm_sends_payment_done_alimtalk(app, client, db_session, settings):
+    """콜백이 끊겨 웹훅 대사로 확정된 결제도 알림을 받는다 — 유저가 결제 여부를 모르는 경로."""
+    from sqlalchemy import update as sa_update
+
+    user = await _notifiable_user(db_session, settings)
+    created = await _create_sale_order(client, db_session, settings, user)
+    group_id = created["payment_group_id"]
+    await db_session.execute(
+        sa_update(Order).where(Order.payment_group_id == group_id).values(status="결제중")
+    )
+    await db_session.commit()
+    respx.get(f"{TOSS_PAYMENTS}/webhook-notify-key").mock(
+        return_value=Response(
+            200,
+            json={
+                "paymentKey": "webhook-notify-key",
+                "status": "DONE",
+                "orderId": group_id,
+                "totalAmount": created["total_amount"],
+            },
+        )
+    )
+
+    res = await client.post(
+        "/payments/webhook", json={"data": {"paymentKey": "webhook-notify-key"}}
+    )
+
+    assert res.json()["action"] == "confirmed"
+    assert len(_alimtalk_sent(app)) == 1
