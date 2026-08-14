@@ -73,6 +73,7 @@ export type DesignOverlaysProps = {
   onPromptChange: (prompt: string) => void;
   onRequestIdeas: () => Promise<string[]>;
   finalizeRemaining: number | null;
+  motifGenerateCost: number | null;
   finalizeResetAt: string | null;
   onFinalize: (value: FinalizeDialogValue) => void;
   finalizeLoading: boolean;
@@ -102,6 +103,7 @@ export function DesignOverlays({
   onPromptChange,
   onRequestIdeas,
   finalizeRemaining,
+  motifGenerateCost,
   finalizeResetAt,
   onFinalize,
   finalizeLoading,
@@ -213,6 +215,7 @@ export function DesignOverlays({
         open={overlay === "motifs"}
         onOpenChange={change("motifs")}
         state={motifs}
+        motifGenerateCost={motifGenerateCost}
         onDeleteMotif={(motif) =>
           requestDelete({ kind: "motif", id: motif.id, name: motif.name })
         }

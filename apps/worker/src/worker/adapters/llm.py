@@ -20,7 +20,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 from svg_safety import is_suspicious_facet_text, sanitize_facet_text
 
-from worker.adapters import AdapterClientError, adapter_http_reason
+from worker.adapters import AdapterClientError, adapter_http_reason, log_provider_usage
 from worker.adapters.motif_intent import detect_motif_intent
 from worker.adapters.named_colors import normalize_requested_named_colors
 from worker.authoring.compiler import (
@@ -431,6 +431,7 @@ class LLMClient:
         *,
         system_instruction: str | None = None,
         response_format: dict | None = None,
+        usage_operation: str = "chat",
     ) -> str:
         messages: list[dict[str, str]] = []
         if system_instruction:
@@ -481,7 +482,14 @@ class LLMClient:
         assert response is not None  # 루프는 예외 또는 break로만 끝난다
 
         try:
-            message = response.json()["choices"][0]["message"]
+            body = response.json()
+            log_provider_usage(
+                body,
+                provider="openai",
+                operation=usage_operation,
+                model=self._model,
+            )
+            message = body["choices"][0]["message"]
             refusal = message.get("refusal")
             text = message.get("content")
         except (KeyError, IndexError, TypeError, ValueError) as exc:
@@ -513,11 +521,13 @@ class LLMClient:
         *,
         system_instruction: str | None = None,
         response_format: dict | None = None,
+        usage_operation: str = "chat",
     ) -> str:
         return await self._chat(
             prompt,
             system_instruction=system_instruction,
             response_format=response_format,
+            usage_operation=usage_operation,
         )
 
     async def complete_model(
@@ -527,10 +537,12 @@ class LLMClient:
         *,
         system_instruction: str | None = None,
         without_schema_variants: Collection[str] = (),
+        usage_operation: str = "chat",
     ) -> _ModelT:
         text = await self._chat(
             prompt,
             system_instruction=system_instruction,
+            usage_operation=usage_operation,
             response_format={
                 "type": "json_schema",
                 "json_schema": {
@@ -597,6 +609,7 @@ class LLMClient:
                     DesignPlanV3,
                     system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
                     without_schema_variants=withheld_source_variants,
+                    usage_operation="author_design",
                 )
                 plan = normalize_requested_named_colors(
                     prompt,
@@ -678,6 +691,7 @@ class LLMClient:
                 built_prompt,
                 DesignPatchV1,
                 system_instruction=PATCH_SYSTEM_INSTRUCTION,
+                usage_operation="author_patch",
             )
         except (TypeError, ValueError, ValidationError) as exc:
             raise IntentInvalid(_contract_feedback("DesignPatchV1", exc)) from exc
@@ -704,6 +718,7 @@ class LLMClient:
                     errors=errors,
                 ),
                 response_format={"type": "json_object"},
+                usage_operation="suggest_ideas",
             )
             try:
                 raw = json.loads(_strip_code_fence(text))

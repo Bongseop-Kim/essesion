@@ -161,7 +161,12 @@ vi.mock("@essesion/api-client/query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
   getTokenBalanceOptions: () => ({
     queryKey: ["page-design-balance"],
-    queryFn: async () => ({ total: 455, generate_cost: 5, edit_cost: 2 }),
+    queryFn: async () => ({
+      total: 455,
+      generate_cost: 3,
+      edit_cost: 1,
+      motif_generate_cost: 3,
+    }),
   }),
   listDesignExamplesOptions: () => ({
     queryKey: ["page-design-examples"],
@@ -571,7 +576,7 @@ describe("DesignPage canvas shell", () => {
     fireEvent.change(screen.getByLabelText("새로 만들 그림"), {
       target: { value: "아주 작은 벌" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "이 문장으로 만들기" }));
+    fireEvent.click(screen.getByRole("button", { name: /이 문장으로 만들기/ }));
 
     await waitFor(() =>
       expect(api.generateMotif).toHaveBeenCalledWith({

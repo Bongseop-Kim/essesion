@@ -46,6 +46,8 @@ export type MotifModalProps = {
   state: MotifSearchState;
   /** 내 모티프 카드 삭제 — 확인 다이얼로그는 오버레이 레이어가 소유한다. */
   onDeleteMotif: (motif: { id: string; name: string }) => void;
+  /** 새 모티프 1회 단가 — 누르는 자리에서 과금액을 보여준다(money.md §6). */
+  motifGenerateCost: number | null;
 };
 
 /** 소스 하나 = 화면 하나. 다른 방법으로 바꾸려면 닫고 슬롯을 다시 누른다. */
@@ -99,6 +101,7 @@ export function MotifModal({
   onOpenChange,
   state,
   onDeleteMotif,
+  motifGenerateCost,
 }: MotifModalProps) {
   const header = HEADERS[state.source];
 
@@ -114,7 +117,13 @@ export function MotifModal({
       size={header.size}
       showCloseButton={!state.working}
       closeOnEscape={!state.working}
-      footer={<ModalFooter state={state} onClose={() => onOpenChange(false)} />}
+      footer={
+        <ModalFooter
+          state={state}
+          motifGenerateCost={motifGenerateCost}
+          onClose={() => onOpenChange(false)}
+        />
+      }
     >
       {state.source === "search" ? (
         <SearchBody state={state} />
@@ -136,9 +145,11 @@ export function MotifModal({
 
 function ModalFooter({
   state,
+  motifGenerateCost,
   onClose,
 }: {
   state: MotifSearchState;
+  motifGenerateCost: number | null;
   onClose: () => void;
 }) {
   if (state.source === "search" || state.source === "library") {
@@ -156,6 +167,7 @@ function ModalFooter({
     );
   }
   if (state.source === "generate") {
+    const cost = motifGenerateCost == null ? "" : ` · ${motifGenerateCost}토큰`;
     if (!state.generated) {
       return (
         <Box
@@ -166,7 +178,7 @@ function ModalFooter({
           disabled={!state.generatePrompt.trim() || state.exhausted}
           onClick={() => void state.generate()}
         >
-          이 문장으로 만들기
+          이 문장으로 만들기{cost}
         </Box>
       );
     }
@@ -182,8 +194,8 @@ function ModalFooter({
           onClick={() => void state.generate()}
         >
           {state.remaining === null
-            ? "다시 만들기"
-            : `다시 만들기 · ${state.remaining}번`}
+            ? `다시 만들기${cost}`
+            : `다시 만들기${cost} · ${state.remaining}번 남음`}
         </Box>
         <Box
           as={ActionButton}

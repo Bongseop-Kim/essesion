@@ -76,7 +76,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     description:
       "빈 캔버스에서 디자인을 처음 만들 때 1회 차감하는 토큰입니다. 실패한 요청은 자동 환불됩니다.",
     scope: "이후의 새 생성 요청",
-    defaultValue: "5개",
+    defaultValue: "25개",
     inputLabel: "토큰 수량",
     unit: "개",
     max: 1_000,
@@ -94,7 +94,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     description:
       "이미 만든 디자인을 문장으로 고칠 때 1회 차감하는 토큰입니다. 범위 밖 요청은 차감하지 않습니다.",
     scope: "이후의 새 구성 수정 요청",
-    defaultValue: "2개",
+    defaultValue: "12개",
     inputLabel: "토큰 수량",
     unit: "개",
     max: 1_000,
@@ -107,11 +107,29 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
         "store 토큰 잔액 상세에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
     },
   },
+  design_motif_generate_cost: {
+    title: "새 모티프 생성 단가",
+    description:
+      "모티프 모달에서 문장으로 새 그림을 만들 때 1회 차감하는 토큰입니다. 세 단가 중 실제 원가가 가장 높은 경로입니다. 실패한 요청은 자동 환불됩니다.",
+    scope: "이후의 새 모티프 생성 요청",
+    defaultValue: "100개",
+    inputLabel: "토큰 수량",
+    unit: "개",
+    max: 1_000,
+    min: 1,
+    impact:
+      "이후의 새 모티프 생성 요청부터 즉시 적용됩니다. store 잔액 안내와 생성 버튼에도 이 값이 그대로 표기됩니다.",
+    editWarning: {
+      title: "손익이 걸린 단가입니다",
+      description:
+        "세 단가 중 유일하게 이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. store 토큰 잔액 상세와 모티프 생성 버튼에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+    },
+  },
   design_token_initial_grant: {
     title: "신규 사용자 초기 토큰",
     description: "관리자가 새 계정을 만들 때 최초 지급하는 디자인 토큰입니다.",
     scope: "변경 후 생성되는 신규 계정",
-    defaultValue: "30개",
+    defaultValue: "750개",
     inputLabel: "토큰 수량",
     unit: "개",
     max: 100_000,

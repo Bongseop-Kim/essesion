@@ -47,10 +47,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 ADMIN_SETTINGS = {
     "default_courier_company": "롯데택배",
-    "design_token_initial_grant": "30",
-    "design_token_cost_openai_render_standard": "5",
-    # 구성 수정은 flash-lite 1콜뿐이라 첫 생성보다 싸다 (6단계 미결 M1 확정).
-    "design_edit_cost": "2",
+    # 1토큰 ≈ 1원 스케일. 단가 산정 근거·손익 가드는 money.md §6이 정본이다.
+    "design_token_initial_grant": "750",  # 생성 30회 체험
+    "design_token_cost_openai_render_standard": "25",
+    "design_edit_cost": "12",
+    "design_motif_generate_cost": "100",
     "design_finalize_daily_limit": "10",
 }
 
@@ -92,13 +93,13 @@ PRICING: dict[str, tuple[int, str]] = {
     "sample_discount_fabric_yarn_dyed": (40000, "sample_discount"),
     "sample_discount_fabric_and_sewing_printing": (50000, "sample_discount"),
     "sample_discount_fabric_and_sewing_yarn_dyed": (60000, "sample_discount"),
-    # token plans
+    # token plans — 볼륨 할인은 보너스 토큰으로 드러난다 (money.md §6 표).
     "token_plan_starter_price": (2500, "token"),
-    "token_plan_starter_amount": (100, "token"),
+    "token_plan_starter_amount": (2500, "token"),
     "token_plan_popular_price": (6500, "token"),
-    "token_plan_popular_amount": (300, "token"),
+    "token_plan_popular_amount": (7500, "token"),
     "token_plan_pro_price": (18000, "token"),
-    "token_plan_pro_amount": (1000, "token"),
+    "token_plan_pro_amount": (25000, "token"),
 }
 
 PRODUCT_VARIANTS = [
@@ -538,11 +539,12 @@ async def main() -> None:
             session, "customer@local", "로컬고객", "customer", "customer-local-password"
         )
 
+        # PRICING과 같은 do_update — 단가만 옛 값에 남으면 플랜 수량과 어긋난다.
         for key, value in ADMIN_SETTINGS.items():
             await session.execute(
                 pg_insert(AdminSetting)
                 .values(key=key, value=value)
-                .on_conflict_do_nothing(index_elements=[AdminSetting.key])
+                .on_conflict_do_update(index_elements=[AdminSetting.key], set_={"value": value})
             )
         for key, (amount, category) in PRICING.items():
             await session.execute(

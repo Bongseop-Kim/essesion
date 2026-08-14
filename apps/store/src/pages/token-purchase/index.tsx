@@ -26,6 +26,13 @@ import { tokenBalanceQueryOptions } from "@/shared/lib/live-queries";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
+/** 응답 내 가장 비싼 토큰당 단가를 기준선으로 각 플랜의 보너스 비율(%)을 낸다. */
+export function bonusPercent(plan: TokenPlan, plans: readonly TokenPlan[]) {
+  const rate = (item: TokenPlan) => item.price / item.token_amount;
+  const baseline = Math.max(...plans.map(rate));
+  return Math.round((baseline / rate(plan) - 1) * 100);
+}
+
 export function TokenPurchasePage() {
   const navigate = useNavigate();
   const { requireAuth } = useAuthGuard();
@@ -33,6 +40,7 @@ export function TokenPurchasePage() {
   const plansQuery = useQuery(getTokenPlansOptions());
   const balanceQuery = useQuery(tokenBalanceQueryOptions(authenticated));
   const [selectedPlanKey, setSelectedPlanKey] = useState<string | null>(null);
+  const balance = balanceQuery.data;
 
   const selectPlan = (plan: TokenPlan) => {
     setSelectedPlanKey(plan.plan_key);
@@ -81,9 +89,14 @@ export function TokenPurchasePage() {
             )}
           </VStack>
 
+          {/* 단가는 관리자가 바꿀 수 있어 상수로 박지 않고 잔액 응답 값을 쓴다. */}
           <Callout
             title="토큰 사용 안내"
-            description="구매 토큰은 결제일로부터 1년간 사용할 수 있습니다. 생성 방식에 따라 단계별 차감량이 달라질 수 있습니다."
+            description={`구매 토큰은 결제일로부터 1년간 사용할 수 있습니다.${
+              balance
+                ? ` 처음 만들기 ${krw.format(balance.generate_cost)}토큰, 고치기 ${krw.format(balance.edit_cost)}토큰, 새 무늬 만들기 ${krw.format(balance.motif_generate_cost)}토큰을 씁니다.`
+                : ""
+            }`}
           />
 
           {plansQuery.isPending ? (
@@ -112,6 +125,7 @@ export function TokenPurchasePage() {
                 <PlanCard
                   key={plan.plan_key}
                   plan={plan}
+                  bonus={bonusPercent(plan, plansQuery.data)}
                   selected={selectedPlanKey === plan.plan_key}
                   onSelect={() => selectPlan(plan)}
                 />
@@ -131,10 +145,12 @@ export function TokenPurchasePage() {
 
 function PlanCard({
   plan,
+  bonus,
   selected,
   onSelect,
 }: {
   plan: TokenPlan;
+  bonus: number;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -162,6 +178,11 @@ function PlanCard({
           <Text textStyle="body" color="fg.neutral-muted">
             {krw.format(plan.price)}원
           </Text>
+          {bonus >= 1 ? (
+            <Text textStyle="caption" color="fg.positive">
+              보너스 +{bonus}%
+            </Text>
+          ) : null}
         </VStack>
         <Box mt="auto">
           <Box

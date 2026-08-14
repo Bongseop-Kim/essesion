@@ -3775,6 +3775,7 @@
               "default_courier_company",
               "design_edit_cost",
               "design_finalize_daily_limit",
+              "design_motif_generate_cost",
               "design_token_cost_openai_render_standard",
               "design_token_initial_grant"
             ],
@@ -14264,6 +14265,7 @@
               "default_courier_company",
               "design_edit_cost",
               "design_finalize_daily_limit",
+              "design_motif_generate_cost",
               "design_token_cost_openai_render_standard",
               "design_token_initial_grant"
             ],
@@ -14290,7 +14292,7 @@
             "items": {
               "$ref": "#/components/schemas/SettingUpdateItem"
             },
-            "maxItems": 5,
+            "maxItems": 6,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -14572,6 +14574,10 @@
             "title": "Generate Cost",
             "type": "integer"
           },
+          "motif_generate_cost": {
+            "title": "Motif Generate Cost",
+            "type": "integer"
+          },
           "paid": {
             "title": "Paid",
             "type": "integer"
@@ -14586,7 +14592,8 @@
           "paid",
           "bonus",
           "generate_cost",
-          "edit_cost"
+          "edit_cost",
+          "motif_generate_cost"
         ],
         "title": "TokenBalance",
         "type": "object"

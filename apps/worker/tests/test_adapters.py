@@ -4,6 +4,7 @@ import asyncio
 import base64
 import io
 import json
+import logging
 import traceback
 
 import httpx
@@ -12,7 +13,7 @@ import respx
 from PIL import Image
 from pydantic import ValidationError
 from svg_safety import parse_svg_tree
-from worker.adapters import AdapterClientError, AdapterNotConfigured
+from worker.adapters import AdapterClientError, AdapterNotConfigured, log_provider_usage
 from worker.adapters.embedding import EmbeddingError, OpenAIEmbeddingClient, embed_query
 from worker.adapters.gpt_image import (
     GPTImageError,
@@ -1267,3 +1268,26 @@ async def test_request_scoped_embedding_memoizes():
     await asyncio.gather(wrapped.embed("ant"), wrapped.embed("ant"))
     assert inner.calls == 3  # 동시 호출도 진행 중 task를 공유해 1회
     assert request_scoped(None) is None  # 미구성은 그대로 통과
+
+
+@respx.mock
+async def test_provider_usage_is_logged_per_operation(llm, caplog):
+    """토큰 원가 실측의 유일한 근거 — usage가 로그로 나가지 않으면 단가를 검증할 수 없다."""
+    respx.post(_CHAT_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "{}"}}],
+                "usage": {"prompt_tokens": 3300, "completion_tokens": 210},
+            },
+        )
+    )
+    with caplog.at_level(logging.INFO, logger="worker.adapters"):
+        await llm.complete("hi", usage_operation="author_design")
+        # usage 없는 응답은 로그도 남기지 않고 예외도 내지 않는다
+        log_provider_usage({"data": []}, provider="openai_image", operation="x", model="y")
+    lines = [record.getMessage() for record in caplog.records if "provider_usage" in record.message]
+    assert len(lines) == 1
+    assert "operation=author_design" in lines[0]
+    assert "'prompt_tokens': 3300" in lines[0]
+    assert "'completion_tokens': 210" in lines[0]

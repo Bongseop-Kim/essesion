@@ -291,6 +291,9 @@ export function DesignPage() {
                 balance={balanceQuery.data?.total ?? null}
                 generateCost={balanceQuery.data?.generate_cost ?? null}
                 editCost={balanceQuery.data?.edit_cost ?? null}
+                motifGenerateCost={
+                  balanceQuery.data?.motif_generate_cost ?? null
+                }
                 onPurchase={() => navigate("/token/purchase")}
               />
             ) : (
@@ -413,6 +416,7 @@ export function DesignPage() {
           })
         }
         finalizeRemaining={quota?.remaining ?? null}
+        motifGenerateCost={balanceQuery.data?.motif_generate_cost ?? null}
         finalizeResetAt={quota?.reset_at ?? null}
         onFinalize={finalize.submit}
         finalizeLoading={finalize.loading}

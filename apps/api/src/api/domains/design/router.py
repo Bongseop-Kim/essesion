@@ -2370,6 +2370,8 @@ async def generate_motif(
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
+    # USER 락을 먼저 잡는다 — 생성 경로(_start_generation)와 같은 순서라야 교착이 없다.
+    await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     # 예산 선차감(조건부 UPDATE — finalize와 동일 패턴) 후 커밋 — 이미지 생성이 길어
     # 행 잠금을 들고 있지 않는다. 워커 실패면 보상 환급.
     budget = request.app.state.settings.design_motif_generation_budget
@@ -2382,6 +2384,24 @@ async def generate_motif(
         raise ConflictError(
             "모티프 생성 예산을 모두 사용했습니다", code="motif_generation_budget_exhausted"
         )
+    run_id = uuid.uuid4()
+    work_id = f"motif_generate_{run_id.hex}"
+    charge = await ledger.use_tokens(
+        session,
+        user.id,
+        work_id,
+        cost_key=ledger.MOTIF_GENERATE_COST_SETTING,
+        commit=False,
+    )
+    if not charge.success:
+        # 롤백이 예산 선차감까지 되돌린다 — 과금 실패는 예산을 쓰지 않은 것으로 본다.
+        await session.rollback()
+        detail = (
+            "환불 심사 중에는 모티프를 만들 수 없습니다"
+            if charge.error == "refund_pending"
+            else "디자인 토큰이 부족합니다"
+        )
+        raise DomainError(detail, code=charge.error or "insufficient_tokens")
     await session.commit()
 
     payload: dict[str, Any] = {
@@ -2396,6 +2416,8 @@ async def generate_motif(
             session_id=session_id,
             user_id=user.id,
             name=body.prompt.strip()[:100],
+            charge_work_id=work_id,
+            charge_cost=charge.cost,
         )
     )
 
@@ -2431,21 +2453,36 @@ async def _dispatch_motif_generation(
     session_id: uuid.UUID,
     user_id: uuid.UUID,
     name: str,
+    charge_work_id: str,
+    charge_cost: int,
 ) -> MotifGenerateOut:
-    """클라이언트가 끊겨도 선차감한 모티프 생성 예산을 정합하게 되돌린다."""
+    """클라이언트가 끊겨도 선차감한 예산·토큰을 정합하게 되돌린다."""
+
+    async def _release() -> None:
+        await ledger.refund_failed_generation(
+            session,
+            user_id,
+            charge_cost,
+            charge_work_id,
+            commit=False,
+        )
+        await _release_motif_generation_budget(session, session_id)
+
     try:
         response = await request.app.state.worker.motif_generate(payload)
         out = WorkerMotifGenerateOut.model_validate(response)
     except ValidationError as exc:
-        await _release_motif_generation_budget(session, session_id)
+        await _release()
         raise UpstreamError("모티프 생성 워커 응답 형식이 올바르지 않습니다") from exc
     except Exception:
-        await _release_motif_generation_budget(session, session_id)
+        await _release()
         raise
     results = await _motif_results(
         session, [out.motif_id], user_id=user_id, allow_ids=(out.motif_id,)
     )
     if not results:
+        # 사용자에게 아무것도 남지 않은 실패다 — provider 비용은 우리가 부담한다.
+        await _release()
         raise UpstreamError("생성한 모티프를 카탈로그에서 찾을 수 없습니다")
     saved = await _save_generated_motif(
         session,

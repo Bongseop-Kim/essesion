@@ -11,7 +11,7 @@ from typing import Annotated, Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from worker.adapters import AdapterClientError, adapter_http_reason
+from worker.adapters import AdapterClientError, adapter_http_reason, log_provider_usage
 from worker.render.raster import RasterError, rasterize_svg
 
 DEFAULT_MODEL = "gpt-5.6-luna"
@@ -195,7 +195,14 @@ class OpenAIMotifTaggingClient:
                 status_code=status,
             ) from exc
         try:
-            message = response.json()["choices"][0]["message"]
+            body = response.json()
+            log_provider_usage(
+                body,
+                provider="openai",
+                operation="tag_motif",
+                model=self.model,
+            )
+            message = body["choices"][0]["message"]
             if message.get("refusal"):
                 raise MotifTaggingError(
                     "OpenAI refused motif tagging",

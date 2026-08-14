@@ -452,6 +452,7 @@ async def test_pricing_and_settings_are_allowlisted_atomic_and_admin_only(
     await _ensure_setting(db_session, "design_token_initial_grant", "30")
     await _ensure_setting(db_session, "design_token_cost_openai_render_standard", "5")
     await _ensure_setting(db_session, "design_edit_cost", "2")
+    await _ensure_setting(db_session, "design_motif_generate_cost", "3")
     admin_headers = auth_headers(admin, settings)
 
     pricing = await client.get("/admin/pricing", headers=admin_headers)
