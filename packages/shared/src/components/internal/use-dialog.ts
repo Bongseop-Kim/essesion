@@ -43,6 +43,18 @@ export function useDialog({
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const closingTimer = useRef<number | undefined>(undefined);
   const pointerDownOnBackdrop = useRef(false);
+  const focusBeforeOpen = useRef<HTMLElement | null>(null);
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(closingTimer.current);
+      const focusTarget = focusBeforeOpen.current;
+      if (focusTarget?.isConnected) {
+        queueMicrotask(() => focusTarget.focus());
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -52,6 +64,10 @@ export function useDialog({
       window.clearTimeout(closingTimer.current);
       dialog.removeAttribute("data-closing");
       if (!dialog.open) {
+        focusBeforeOpen.current =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
         // 스크롤 잠금 중 레이아웃 시프트는 theme.css의 scrollbar-gutter가 방지
         dialog.showModal();
       }
@@ -61,12 +77,14 @@ export function useDialog({
     if (!dialog.open) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       dialog.close();
+      focusBeforeOpen.current?.focus();
       return;
     }
     dialog.setAttribute("data-closing", "");
     closingTimer.current = window.setTimeout(() => {
       dialog.removeAttribute("data-closing");
       dialog.close();
+      focusBeforeOpen.current?.focus();
     }, exitDuration + 50);
     return () => window.clearTimeout(closingTimer.current);
   }, [open, exitDuration]);
@@ -85,6 +103,7 @@ export function useDialog({
       },
       onClose: () => {
         dialogRef.current?.removeAttribute("data-closing");
+        focusBeforeOpen.current?.focus();
         // 지연 close(이미 open=false)에서는 no-op, 강제 close에서는 재동기화
         if (open) onClose();
       },

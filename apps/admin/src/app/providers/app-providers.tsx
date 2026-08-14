@@ -13,7 +13,11 @@ export function AppProviders({ children }: AppProvidersProps) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { refetchOnWindowFocus: true, retry: 1, staleTime: 30_000 },
+          queries: {
+            refetchOnWindowFocus: "always",
+            retry: 1,
+            staleTime: 30_000,
+          },
           mutations: { retry: false },
         },
       }),

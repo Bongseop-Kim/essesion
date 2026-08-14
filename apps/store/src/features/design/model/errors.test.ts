@@ -54,16 +54,17 @@ describe("parseDesignError", () => {
     ).toBe(DESIGN_ERROR_MESSAGES.refund_pending);
   });
 
-  it("helper 요청은 API detail과 일반 Error 메시지를 보존한다", () => {
+  it("helper 요청은 API detail만 보존하고 네트워크 원문은 숨긴다", () => {
     expect(
       designErrorMessage(
         { code: "user_motif_limit", detail: "내 모티프는 최대 100개입니다." },
         "폴백",
       ),
     ).toBe("내 모티프는 최대 100개입니다.");
-    expect(designErrorMessage(new Error("네트워크 오류"), "폴백")).toBe(
-      "네트워크 오류",
+    expect(designErrorMessage(new Error("Failed to fetch"), "폴백")).toBe(
+      "폴백",
     );
+    expect(designErrorMessage("Failed to fetch", "폴백")).toBe("폴백");
     expect(designErrorMessage({ detail: [] }, "폴백")).toBe("폴백");
   });
 });

@@ -150,7 +150,7 @@ Admin A~J와 Playwright smoke는 2026-07-12 로컬 출시 검증으로 완료됐
 ## E. 스테이징 리허설
 
 1. 빈 스테이징 DB에 Alembic migrate job이 베이스라인 `f8c3b2a19d47`에서 순차 리비전을
-   적용해 현재 head `b9e4f61a2c73`에 도달했는지 확인한다. 알 수 없는 개발
+   적용해 현재 head `c7a8d2f1b604`에 도달했는지 확인한다. 알 수 없는 개발
    revision이 발견되면 데이터 변환을 시도하지 말고 DB를 재생성한다.
 2. 실제 Toss sandbox, Google/Kakao OAuth, Solapi, generate → finalize Cloud Tasks 흐름과
    주문·클레임 E2E를 실행한다. Apple/Naver는 구현·등록 전까지 완료로 판정하지 않는다.

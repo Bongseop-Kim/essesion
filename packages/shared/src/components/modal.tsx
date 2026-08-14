@@ -68,6 +68,9 @@ export function Modal({
   return (
     <dialog
       {...dialogProps}
+      // biome-ignore lint/a11y/noRedundantRoles: Aside와 일부 접근성 트리에서 native dialog의 암시적 role이 누락된다.
+      role="dialog"
+      aria-modal="true"
       aria-label={ariaLabel}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
