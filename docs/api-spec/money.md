@@ -8,7 +8,7 @@
 ## 1. 채번
 
 - `ORD-YYYYMMDD-NNN`(주문), `TKN-YYYYMMDD-NNN`(토큰 주문), `CLM-YYYYMMDD-NNN`(클레임), `QUO-YYYYMMDD-NNN`(견적). NNN = 당일 max+1, lpad 3자리.
-- 직렬화: `pg_advisory_xact_lock(hashtext(prefix||date))` (ORD는 date만). 트랜잭션 내에서만 유효.
+- 직렬화: 전 prefix 공통 `advisory_xact_lock("num:{prefix}:{date}")` (`api/numbering.py`). 트랜잭션 내에서만 유효.
 - 상품 코드: `{3F|SF|KN|BT|XX}-YYYYMMDD-NNN` (카테고리 3fold/sfolderato/knit/bowtie 매핑, 코드 미지정 시 자동).
 - 토큰 환불 클레임 번호는 별도: `TKR-YYYYMMDDHH24MISS-<uuid 앞 4자>`.
 
@@ -89,8 +89,8 @@
 
 - **플랜**: pricing_constants `token_plan_{starter|popular|pro}_{price|amount}` 6키 (DB가 소스).
 - **토큰 주문 생성**: 플랜 검증 → `TKN-` 채번 → orders(order_type='token', 배송지 NULL, total=price) + order_items(item_type='token', item_data={plan_key, token_amount}).
-- **차감 (use)**: 비용 = 호출자가 지정한 `cost_key`의 admin_settings 값. 디자인 첫 생성은 `design_token_cost_openai_render_standard`(현행 5), 이미 만든 디자인의 구성 수정(patch)은 `design_edit_cost`(현행 2) — 수정은 flash-lite 1콜뿐이라 단가를 분리했다. 두 키 모두 관리자 설정 화면에서 1~1000으로 바꿀 수 있고 0이면 생성이 503이다. 디자인 생성은 이미지 생성 provider를 호출하거나 모티프 생성 예산을 소비하지 않는다. 모티프 검색·교체는 무과금이고 사용자가 모티프 모달에서 명시적으로 실행한 모티프 생성만 토큰 0 + 세션 모티프 생성 예산 3회를 쓴다. 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus(work_id `{work}_use_bonus`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리한다.
-- **실패 환불 (refund)**: 내부 전용. 실제 차감 행마다 class·source_order_id·expires_at을 보존한 양수 반전 행을 INSERT한다. work_id는 각 `{work}_use_*_refund`로 필수 멱등.
+- **차감 (use)**: 비용 = 호출자가 지정한 `cost_key`의 admin_settings 값. 디자인 첫 생성은 `design_token_cost_openai_render_standard`(현행 5), 이미 만든 디자인의 구성 수정(patch)은 `design_edit_cost`(현행 2) — 수정은 flash-lite 1콜뿐이라 단가를 분리했다. 두 키 모두 관리자 설정 화면에서 1~1000으로 바꿀 수 있고 0이면 생성이 503이다. 디자인 생성은 이미지 생성 provider를 호출하거나 모티프 생성 예산을 소비하지 않는다. 모티프 검색·교체는 무과금이고 사용자가 모티프 모달에서 명시적으로 실행한 모티프 생성만 토큰 0 + 세션 모티프 생성 예산 3회를 쓴다. 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus/free(work_id `{work}_use_bonus`·`_use_bonus_0`·`_use_free`·`_use_free_0`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리하고, 재차감 여부는 이 다섯 키의 존재로 판정한다.
+- **실패 환불 (refund)**: 내부 전용. 실제 차감 행마다 class·source_order_id·expires_at을 보존한 양수 반전 행을 INSERT한다. work_id는 각 `{work}_use_*_refund`로 필수 멱등. 토큰 환불 클레임 승인 경로는 class별로 `refund_{claim_id}_paid`·`refund_{claim_id}_bonus`를 쓴다.
 - **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합. `GET /tokens/balance`는 여기에 `generate_cost`·`edit_cost`를 실어 store 토큰 pill이 두 단가를 그대로 보여준다.
 - **가입 지급**: 신규 유저 생성 시(소셜 가입) admin_settings `design_token_initial_grant`(기본 30), type='grant', class='free', **만료 없음**.
 - **admin 지급/회수**: amount≠0, description 필수, 음수면 잔액 검증(유저 lock). type='admin', class='paid'.
@@ -136,4 +136,4 @@
 - **repair 발송 확인 단순화 (원문과 의도적 차이 — UX 재검토로 결정)**: 결제 후 고객에게 필수로 받는 것은 "발송했다"는 확인뿐. 송장번호·사진은 선택 증빙(송장 있으면 발송중, 없으면 발송확인중 — 두 상태는 유지), no_tracking의 reason(quick/overseas/lost)은 선택화(원문은 필수). tracking 영수증에도 memo 허용. 고객이 아무 확인 없이 보낸 실물이 입고되면 관리자가 `발송대기→접수` 강제 전이(원문 전이표에는 없던 추가).
 - **자동 대사 2겹 추가 (원문에 없던 보강 — 제품 관점 재검토로 결정)**:
   - confirm 재시도가 `ALREADY_PROCESSED_PAYMENT`를 받으면 실패(→unlock→stale 취소 = "돈 받고 주문 취소") 대신 **조회 API로 상태·orderId·금액 검증 후 DB 확정**.
-  - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 토큰 회수는 결제 그룹의 user id를 먼저 조회·정렬해 `USER_LOCK`을 잡은 뒤 order row를 잠그므로 `use_tokens`와 직렬화되고, 환불 경로의 공통 잠금 순서(USER → order)를 지킨다. 입력 `paymentKey`는 최대 200자이며, Toss 조회에서 4xx로 확인된 키는 인스턴스별 bounded TTL cache로 짧게 억제한다. IP 제한과 이 cache는 Cloud Run 인스턴스 내부 보조선이고, 전체 트래픽 제한은 Cloudflare WAF가 담당한다. 취소 동기화 전에는 조회 응답·저장 `paymentKey`와 총액이 모두 일치해야 한다. 부분취소·혼합상태·식별자/금액불일치는 자동 교정하지 않고 open `mixed_state` incident와 critical 로그로 남긴다(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL 등록은 스테이징 개통(4단계) 때.
+  - `POST /payments/webhook`(공개): Toss 상태 변경 통지 수신. **페이로드 불신 — 조회 API 재검증**(Toss 공식 권장, Stripe식 HMAC 서명은 미제공) 후 불일치만 교정: 멈춘 '결제중' 확정 / 대시보드 직접 취소 동기화(+토큰 주문 지급분 회수, work_id `webhook_cancel_{order_id}` 멱등). 토큰 회수는 결제 그룹의 user id를 먼저 조회·정렬해 `USER_LOCK`을 잡은 뒤 order row를 잠그므로 `use_tokens`와 직렬화되고, 환불 경로의 공통 잠금 순서(USER → order)를 지킨다. 입력 `paymentKey`는 최대 200자이며, Toss 조회에서 4xx로 확인된 키는 인스턴스별 bounded TTL cache로 짧게 억제한다. IP 제한과 이 cache는 Cloud Run 인스턴스 내부 보조선이고, 전체 트래픽 제한은 Cloudflare WAF가 담당한다. 취소 동기화 전에는 조회 응답·저장 `paymentKey`와 총액이 모두 일치해야 한다. 부분취소·혼합상태·식별자/금액불일치는 자동 교정하지 않고 open `mixed_state` incident와 critical 로그로 남긴다(수동). 사용확정된 쿠폰 복원도 수동 정책. 조회 5xx만 5xx 응답으로 Toss 재시도 유도 — 그 외는 200 ack. 대시보드 웹훅 URL은 production 공개 API 도메인으로 등록한다.

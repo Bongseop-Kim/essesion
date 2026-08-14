@@ -12,7 +12,7 @@
 - **즉시 조치 권고 (2)**: F1 flaky 테스트 수정, F11 인가 매트릭스 누락 행 3개 추가
 - **4단계 착수 전 결정 (2)**: F2 마이그레이션 배포 경로, F3 Cloud Scheduler IaC
 - **계획된 미완 재확인 (4)**: F4 토큰 과금 연동, F6 모티프 registry, F7 batch OIDC, F10 워커 음성 경로 테스트(우선순위 재조정 권고 포함)
-- **문서 보정 (3)**: F4 CHECKLIST 주석, F5 폰트 요건, F8·F9 ARCHITECTURE §4 표
+- **문서 보정 (3)**: F4 CHECKLIST 주석, F5 폰트 요건, F8·F9 ARCHITECTURE §3 표
 
 ---
 
@@ -43,7 +43,7 @@
 
 ### F2 — 배포 파이프라인에 `alembic upgrade` 경로 없음 【분류: 설계 갭 — 4단계 착수 전 결정 필요】
 
-`.github/workflows/deploy.yml`과 `infra/README.md` 어디에도 `alembic`/`migrat*` 언급이 없다(grep 0건). ARCHITECTURE §4는 `db/`를 "스키마 단일 소유처"로 규정하지만, 스테이징/프로덕션에 리비전을 적용하는 운영 경로(배포 잡 스텝, Cloud Run job, 수동 절차 문서 중 무엇인지)가 미정. CHECKLIST 2단계의 "스테이징 적용은 4단계 tofu apply 후"가 방법까지는 정하지 않았다. **권고**: 4단계 배포 설계 시 결정하고 `infra/README.md`에 명시.
+`.github/workflows/deploy.yml`과 `infra/README.md` 어디에도 `alembic`/`migrat*` 언급이 없다(grep 0건). ARCHITECTURE §3는 `db/`를 "스키마 단일 소유처"로 규정하지만, 스테이징/프로덕션에 리비전을 적용하는 운영 경로(배포 잡 스텝, Cloud Run job, 수동 절차 문서 중 무엇인지)가 미정. CHECKLIST 2단계의 "스테이징 적용은 4단계 tofu apply 후"가 방법까지는 정하지 않았다. **권고**: 4단계 배포 설계 시 결정하고 `infra/README.md`에 명시.
 
 ### F3 — Cloud Scheduler 리소스가 IaC에 없음 【분류: 설계 갭(IaC 누락) — 4단계에서 해소 필요】
 
@@ -55,7 +55,7 @@
 
 ### F5 — NotoSansCJKkr 폰트 미번들 【분류: 문서 갱신 사안 (위반 아님)】
 
-ARCHITECTURE §7은 "번들 폰트(NotoSansCJKkr)"를 컨테이너 요건으로 명시하나 worker Dockerfile에 폰트가 없다. 단, 확인 결과 **현 구현은 텍스트를 렌더링할 수 없다**: 엔진은 `<text>`를 생성하지 않고, 외부 SVG를 받는 export 경로도 `render/sanitize.py:10`의 `ALLOWED_TAGS`에 `text`가 없어 원천 차단된다. 즉 폰트가 필요 없는 구조. **권고**: ARCHITECTURE §7의 폰트 요건을 "텍스트 렌더링 도입 시"조건부로 갱신하거나, 향후 모티프/라벨에 텍스트가 들어올 계획이면 그때 Dockerfile에 추가.
+ARCHITECTURE §6은 "번들 폰트(NotoSansCJKkr)"를 컨테이너 요건으로 명시하나 worker Dockerfile에 폰트가 없다. 단, 확인 결과 **현 구현은 텍스트를 렌더링할 수 없다**: 엔진은 `<text>`를 생성하지 않고, 외부 SVG를 받는 export 경로도 `render/sanitize.py:10`의 `ALLOWED_TAGS`에 `text`가 없어 원천 차단된다. 즉 폰트가 필요 없는 구조. **권고**: ARCHITECTURE §6의 폰트 요건을 "텍스트 렌더링 도입 시"조건부로 갱신하거나, 향후 모티프/라벨에 텍스트가 들어올 계획이면 그때 Dockerfile에 추가.
 
 ### F6 — 모티프 인메모리 `_REGISTRY` 전역 【분류: 계획된 미완 — 위험도 낮음】
 
@@ -72,7 +72,7 @@ ARCHITECTURE §7은 "번들 폰트(NotoSansCJKkr)"를 컨테이너 요건으로 
 ### B1 — db/MAPPING.md ↔ 실제 모델 【정합】
 
 - **테이블 33종 1:1 완전 일치**: 모델(`db/src/db/models/*.py`의 `__tablename__`) 33개 = MAPPING §1 비드롭 테이블 33개 = 베이스라인 리비전(`db/migrations/versions/20260706_a658f96021f4_baseline.py`)의 `op.create_table` 33개. 문서에만/코드에만 있는 테이블 없음.
-- **드롭 선언 대상 클린**: `ai_generation_logs`, LangGraph checkpoint 4종, `design_chat_*`, `design_generations/variants`, 뷰 19종 전부 모델·리비전에 부재. 베이스라인의 `op.execute`는 `CREATE EXTENSION vector`·`DROP TYPE user_role` 2건뿐(뷰 생성 없음) — ARCHITECTURE §6 "애초에 만들지 않는다" 준수.
+- **드롭 선언 대상 클린**: `ai_generation_logs`, LangGraph checkpoint 4종, `design_chat_*`, `design_generations/variants`, 뷰 19종 전부 모델·리비전에 부재. 베이스라인의 `op.execute`는 `CREATE EXTENSION vector`·`DROP TYPE user_role` 2건뿐(뷰 생성 없음) — ARCHITECTURE §5 "애초에 만들지 않는다" 준수.
 - **돈 경로 DB함수→api 이전 표본 6/6 실재**: 주문/토큰/클레임/견적 번호 채번(advisory lock, `api/numbering.py:15-17`), 토큰 원장(만료 필터·유료 우선, `tokens/ledger.py`), 결제 lock/confirm/웹훅 멱등(`payments/service.py`), 주문 생성 3종 트랜잭션(`orders/service.py:272,524,605`), 가입 시 초기 토큰 지급(`auth/service.py:108-154`), 토큰 주문·환불(`tokens/ledger.py:217,441-476`).
 
 ### B5 — YeongSeon Edge Functions ↔ api 라우터 【정합, 사소 2건】
@@ -81,7 +81,7 @@ ARCHITECTURE §7은 "번들 폰트(NotoSansCJKkr)"를 컨테이너 요건으로 
 
 | 발견 | 분류 |
 |---|---|
-| **F8** — `cancel-token-payment`의 새 소유자가 ARCHITECTURE §4 표에는 `api payments`로 적혀 있으나 실제 Toss 취소 로직은 `tokens/ledger.py:441-476`(admin 환불 승인)에 있음. `db/MAPPING.md` §2와는 일치 — ARCHITECTURE §4 표만 어긋남 | 문서 불일치(사소) — ARCHITECTURE §4 표 갱신 권고 |
+| **F8** — `cancel-token-payment`의 새 소유자가 ARCHITECTURE §3 표에는 `api payments`로 적혀 있으나 실제 Toss 취소 로직은 `tokens/ledger.py:441-476`(admin 환불 승인)에 있음. `db/MAPPING.md` §2와는 일치 — ARCHITECTURE §3 표만 어긋남 | 문서 불일치(사소) — ARCHITECTURE §3 표 갱신 권고 |
 | **F9** — 엣지펑션 개수 표기: ARCHITECTURE "15종" vs MAPPING §2 "13종" (generate-tile 서브펑션 포함 여부 계수 차이) | 사소 — 필요 시 각주 통일 |
 
 ### B2 — 인가 매트릭스 커버리지 【부분 — F11】
@@ -117,7 +117,7 @@ money.md §5(confirm 8조항)·§6(환불 승인 4조항)·§9(자동 대사 2�
 | 구분 | 수량 | 내용 |
 |---|---|---|
 | 골든/별도 테스트로 커버 | ~59 | placement·compose·candidates·seamless·multicolor의 happy-path 출력(골든 25 intent 번들) + health |
-| 설계상 드롭 (이식 불필요) | 46 | LangGraph 세션 3파일 — ARCHITECTURE §2 "세션 상태는 api 소유" 근거. 단 **api 쪽 세션 테스트로의 이관 여부는 5단계 /design 설계 시 결정 필요** |
+| 설계상 드롭 (이식 불필요) | 46 | LangGraph 세션 3파일 — ARCHITECTURE §1 "세션 상태는 api 소유" 근거. 단 **api 쪽 세션 테스트로의 이관 여부는 5단계 /design 설계 시 결정 필요** |
 | **이식 필요 — 즉시 가능 (기능 구현됨)** | **~206** | intent validate 거부 36 · placement 불변식 40 · **sanitize 보안 14** · api_generate 계약 17 · config 8 · seamless seam 검사 12 · colorway 11 · angle_snap 수학 13 · export 4 등 |
 | 이식 필요 — 기능 선행 (미구현) | ~261 | pgvector 모티프 110 · Recraft/LLM/텍스트 118 · geometry/gate 18 · yarn_dyed fabric ~15 — CHECKLIST §4 잔여 항목과 정확히 일치 |
 
@@ -133,10 +133,10 @@ money.md §5(confirm 8조항)·§6(환불 승인 4조항)·§9(자동 대사 2�
 | F2 | 배포 파이프라인에 `alembic upgrade` 경로 없음 | 설계 갭 | ✅ **IaC 준비** — Cloud Run job `migrate`(infra/cloudrun.tf) + deploy.yml 스텝(푸시 후·배포 전 execute --wait). apply는 4단계 |
 | F3 | Cloud Scheduler 리소스 IaC·문서 부재 (배치 3종 호출 주체 없음) | 설계 갭(IaC 누락) | ✅ **IaC 준비** — `infra/scheduler.tf` 잡 3종(KST, OIDC) + scheduler SA. apply는 4단계 |
 | F4 | 토큰 과금(`use_tokens`) generate 경로 미연동 + CHECKLIST 3단계 표기 모호 | 계획된 미완 + 문서 불일치 | ✅ **주석 보정** — CHECKLIST 45·59행. 연동 자체는 4단계 |
-| F5 | NotoSansCJKkr 미번들 — 단 현 구현은 텍스트 렌더 불가 구조라 불필요 | 문서 갱신 사안 | ✅ **문서 갱신** — ARCHITECTURE §7 조건부화 |
+| F5 | NotoSansCJKkr 미번들 — 단 현 구현은 텍스트 렌더 불가 구조라 불필요 | 문서 갱신 사안 | ✅ **문서 갱신** — ARCHITECTURE §6 조건부화 |
 | F6 | 모티프 인메모리 `_REGISTRY` (프로덕션 채움 경로 없음, /motifs/* 501) | 계획된 미완(저위험) | 유지 — pgvector store 구현 시 제거 |
 | F7 | 배치 인증 공유 시크릿 batch_token | 계획된 미완 | ✅ **구현** — OIDC 검증(audience+email 클레임) + 로컬 폴백 compare_digest (deps.py, 테스트 4건) |
-| F8 | `cancel-token-payment` 소유자: ARCHITECTURE §4 표(payments) ≠ 실제(tokens/ledger) | 문서 불일치(사소) | ✅ **문서 갱신** — §4 표 정정 |
+| F8 | `cancel-token-payment` 소유자: ARCHITECTURE §3 표(payments) ≠ 실제(tokens/ledger) | 문서 불일치(사소) | ✅ **문서 갱신** — §4 표 정정 |
 | F9 | 엣지펑션 계수 15종 vs 13종 표기 차이 | 사소 | ✅ **각주 통일** — §1.1 |
 | F10 | 워커 음성 경로 테스트 공백 — 특히 sanitize 보안 0건. 이식 잔여 ~467(즉시 가능 ~206) | 계획된 미완(우선순위 재조정 권고) | 🔶 **우선 3묶음 이식**(sanitize·validate·generate API — 아래 B1~B3 버그 수정 동반). 나머지는 4단계 잔여 |
 | F11 | 인가 매트릭스 누락 행 — 클레임 DELETE(완전), design jobs, admin token-refunds approve 등 | 테스트 커버리지 갭 | ✅ **수정** — OWNER 2행 + ADMIN 4행 추가. images 409는 재확인 결과 기존 `test_images.py:34`가 이미 커버(점검 판정 정정) |

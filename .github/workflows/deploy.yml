@@ -1,4 +1,4 @@
-# 스테이징 배포 — 선행: tofu apply(infra/README.md) + GitHub vars/secrets 설정
+# production 배포 — 선행: tofu apply(infra/README.md) + GitHub vars/secrets 설정
 # vars: GCP_PROJECT_ID, GCP_REGION, GCP_WIF_PROVIDER, GCP_DEPLOYER_SA,
 #       CLOUDFLARE_ACCOUNT_ID, VITE_API_BASE_URL, VITE_TOSS_CLIENT_KEY,
 #       VITE_SENTRY_DSN, VITE_SENTRY_ENVIRONMENT, VITE_GA_MEASUREMENT_ID
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-staging
+  group: deploy-production
   cancel-in-progress: false
 
 env:
@@ -89,8 +89,14 @@ jobs:
 
   frontend:
     needs: backend
+    # VITE_*는 빌드 시점 값 — 하나라도 비면 그 기능이 조용히 꺼진 채 배포된다. 배포 자체를 스킵한다.
     if: >-
       vars.CLOUDFLARE_ACCOUNT_ID != '' &&
+      vars.VITE_API_BASE_URL != '' &&
+      vars.VITE_TOSS_CLIENT_KEY != '' &&
+      vars.VITE_SENTRY_DSN != '' &&
+      vars.VITE_SENTRY_ENVIRONMENT != '' &&
+      vars.VITE_GA_MEASUREMENT_ID != '' &&
       needs.backend.result == 'success'
     runs-on: ubuntu-latest
     env:
@@ -115,7 +121,8 @@ jobs:
       - run: pnpm build
       - name: Reject local or placeholder frontend endpoints
         run: |
-          if grep -R -E 'http://localhost|api\.example\.invalid' apps/store/dist apps/admin/dist; then
+          # 포트까지 붙여야 한다 — 맨 http://localhost는 react-router 내부 더미 base URL과 오탐한다.
+          if grep -R -E 'http://localhost:[0-9]+|api\.example\.invalid' apps/store/dist apps/admin/dist; then
             echo 'frontend build contains a non-deployable endpoint' >&2
             exit 1
           fi
@@ -140,8 +147,8 @@ jobs:
             readFileSync("infra/cloudflare/api-proxy/wrangler.jsonc", "utf8"),
           );
           const route = config.routes?.find(
-            ({ pattern, zone_name }) =>
-              pattern === "api.essesion.shop/*" && zone_name === "essesion.shop",
+            ({ pattern, custom_domain }) =>
+              pattern === "api.essesion.shop" && custom_domain === true,
           );
           if (!route) {
             throw new Error("API proxy route for api.essesion.shop is missing");

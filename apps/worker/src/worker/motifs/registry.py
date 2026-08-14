@@ -1,7 +1,7 @@
 """모티프 정의와 카탈로그 조회 (worker-motifs.md §1).
 
 프로덕션 소스는 DB(motifs, pgvector) — 요청 초입에서 store.get_motifs로 조회한
-`MotifCatalog`(불변 Mapping)를 엔진에 명시 인자로 전달한다(ARCHITECTURE §7
+`MotifCatalog`(불변 Mapping)를 엔진에 명시 인자로 전달한다(ARCHITECTURE §6
 프로세스-로컬 상태 금지). 아래 전역 `_REGISTRY`는 catalog 미전달 시의 폴백으로,
 골든/단위 테스트 전용이다.
 """

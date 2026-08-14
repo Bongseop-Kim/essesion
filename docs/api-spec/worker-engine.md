@@ -81,11 +81,10 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 
 ## 5. 결정론 장치
 
-- `seeded_rng(seed)=random.Random(seed)` — 소비처는 scatter poisson뿐.
+- RNG는 요청 seed로 만든 지역 `random.Random(seed)`뿐이다(`placement.py`의 scatter poisson에서 인라인 생성). 전역 RNG·시간·프로세스 hash 미사용.
 - `stable_hash(text) = int(sha256(text).hexdigest(), 16)` (전체 digest). 내장 hash() 금지.
-- `select_variant(pool_ids, variant_group, seed) = sorted(pool_ids)[stable_hash(f"{group}:{seed}") % len(pool)]`.
 - PYTHONHASHSEED 독립: 모든 순회는 정렬 or 삽입순 dict. 대조 테스트가 hashseed 0/1/12345 서브프로세스 바이트 동일을 검증.
-- effective seed: 요청 seed(override) 없으면 intent.seed — **모티프 variant group 선택과 compose가 같은 seed를 봐야 함**.
+- effective seed: 요청 seed(override) 없으면 intent.seed. compose 전 경로가 같은 seed를 본다.
 
 ## 6. colorway
 
@@ -113,7 +112,7 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 
 ## 8. 엔진 설정·상수
 
-Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2000.0, max_dpi=1200, stripe_max_band_coverage=0.75, preview_dpi=192, fabric_dpi=300, generate_cache_size=0(재구현에서 미승계 — stateless), motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True.
+Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2000.0, max_dpi=600, stripe_max_band_coverage=0.75, preview_dpi=192, fabric_dpi=300, generate_cache_size=0(재구현에서 미승계 — stateless), motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True.
 
 상수: ENGINE_VERSION="0.1.0", REGISTRY_VERSION="0.1.0", ALLOWED_DPI=(150,300,600), DEFAULT_DPI=300, MM_PER_INCH=25.4, MAX_LANE_PERIOD_TILES=16(각도 스냅 분모 캡), mm_to_px=`round(mm/25.4·dpi)`.
 
@@ -122,4 +121,4 @@ Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2
 1. `fmt`의 정확한 순서(.4f → 후행 0/점 제거 → -0 정규화)를 지킬 것.
 2. 모티프 symbol은 한 번만 등록하고 모든 인스턴스가 같은 concrete-color symbol을 참조한다.
 3. sanitize는 검증만 하고 문자열을 재직렬화하지 않는다.
-4. 결정론은 동일한 Pillow·렌더러·에셋 버전이 전제다. Pillow는 `uv.lock`으로 고정되지만 librsvg 시스템 패키지 버전 고정은 남아 있다(ARCHITECTURE §7·§9.2).
+4. 결정론은 동일한 Pillow·렌더러·에셋 버전이 전제다. Pillow는 `uv.lock`으로 고정되지만 librsvg 시스템 패키지 버전 고정은 남아 있다(ARCHITECTURE §6·§8.2).

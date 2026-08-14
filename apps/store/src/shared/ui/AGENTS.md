@@ -75,6 +75,12 @@
 | 컴포넌트 | 사용할 때 | 사용하지 않을 때 |
 |---|---|---|
 | `SummaryCard` | 주문·결제 사이드바에서 라벨/금액 행과 최종 합계를 표현 | 데이터 조회·할인 계산·일반 정보 카드 |
+| `InfoRow` | label·value 한 줄 — 주문·클레임·토큰 상세의 공통 정보 행 | 편집 가능한 폼 필드 |
+| `QuantityStepper` | −/값/+ 수량 스테퍼(1 이상, `max` 지정 시 상한) | 임의 숫자 입력(→ native `input`) |
+| `ChipFilterBar` | 가로 스크롤 칩 필터 행 — 목록 화면의 유형/상태 필터 | 다중 선택·복합 필터 패널 |
+| `StickySectionNav` | 긴 페이지의 스티키 섹션 앵커 네비 | 라우트 전환 탭 |
+| `PolicyDocument` / `PolicySection` / `PolicyList` / `PolicyInfoBox` + `policyBodyProps` | 약관 3개 페이지가 공유하는 정책 본문 블록 | 임의 리치 텍스트 |
+| `PaymentFailResult` | Toss 결제 실패 결과 화면 — code/message 쿼리 파싱, 액션은 페이지가 전달 | 일반 오류 표시(→shared) |
 
 ### SummaryCard
 

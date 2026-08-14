@@ -10,10 +10,14 @@ function add(_rule, path, line, _target, message, _guidance) {
   diagnostics.push(`${path}:${line}: ${message}`);
 }
 
+// ponytail: 이름 기반 스킵 — 벤더 디렉토리에 검사할 문서가 없다
+const skipped = new Set([".terraform", "node_modules", "dist"]);
+
 function markdownFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) return markdownFiles(path);
+    if (entry.isDirectory())
+      return skipped.has(entry.name) ? [] : markdownFiles(path);
     return extname(entry.name) === ".md" ? [path] : [];
   });
 }
@@ -21,7 +25,10 @@ function markdownFiles(directory) {
 const files = [
   join(root, "AGENTS.md"),
   join(root, "ARCHITECTURE.md"),
+  join(root, "README.md"),
   ...markdownFiles(join(root, "docs")),
+  ...markdownFiles(join(root, "infra")),
+  ...markdownFiles(join(root, "db")),
 ];
 for (const file of files) {
   const relativeFile = relative(root, file);

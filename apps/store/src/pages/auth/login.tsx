@@ -152,7 +152,9 @@ export function LoginPage() {
               key={p.id}
               variant={p.variant}
               size="large"
-              onClick={() => startOAuth(p.id)}
+              onClick={() =>
+                p.comingSoon ? snackbar(p.comingSoon) : startOAuth(p.id)
+              }
             >
               <img src={p.logoSrc} width={18} height={18} alt="" />
               {p.label}

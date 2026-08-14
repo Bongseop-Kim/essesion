@@ -1,4 +1,4 @@
-"""관측 골격 (ARCHITECTURE §2): JSON 구조화 로깅(Cloud Logging 자동 파싱) +
+"""관측 골격 (ARCHITECTURE §1): JSON 구조화 로깅(Cloud Logging 자동 파싱) +
 request_id 전파(api→worker 추적) + Sentry(DSN 있을 때만)."""
 
 import json

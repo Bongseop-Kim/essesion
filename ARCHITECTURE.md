@@ -1,12 +1,13 @@
 # ARCHITECTURE — ESSE SION
 
-> YeongSeon 커머스와 seamless-tile 엔진을 통합 재구현한 현재 시스템의 **as-built architecture** 문서다. 구현된 코드, 배포 가능한 구성, 아직 외부 개통이 필요한 항목을 구분한다.
+> YeongSeon 커머스와 seamless-tile 엔진을 통합 재구현한 현재 시스템의 **as-built architecture** 문서다.
+> 시스템 경계와 설계 결정이 여기 있고, 정확한 필드·금액 공식·운영 명령은 [§8.3 설계 정본](#83-설계-정본)의 문서를 우선한다.
 
-최종 갱신: 2026-08-04
+최종 갱신: 2026-08-14
 
 ## 0. 요약과 불변 원칙
 
-ESSE SION은 고객용 커머스, 운영자 도구, 주문·결제 API, 결정론적 textile 엔진을 하나의 모노레포에서 운영하도록 재설계한 시스템이다. 핵심 경계는 다음과 같다.
+고객용 커머스, 운영자 도구, 주문·결제 API, 결정론적 textile 엔진을 하나의 모노레포에서 운영한다.
 
 ```text
 React clients → generated OpenAPI client → FastAPI domain API
@@ -16,13 +17,15 @@ React clients → generated OpenAPI client → FastAPI domain API
 
 ### 구현 상태
 
-| 구분 | 상태 | 의미 |
-|---|---|---|
-| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 | 빌드, 타입 검사, 1,713개 Python/Vitest 테스트 통과 |
-| OpenAPI·CI/CD·OpenTofu | 구현 완료 | codegen drift, deploy 순서, IAM·리소스 선언 검증 완료 |
-| GCP·Cloudflare 스테이징 | **미개통** | 실제 `tofu apply`, DNS, WAF, Secret Manager 값 주입 필요 |
-| 외부 provider 리허설 | **미완료** | Toss·Solapi·OAuth redirect·Cloud Tasks OIDC·Sentry 실연동 필요 |
-| 운영 데이터 이관·컷오버 | **미완료** | 변환 검증, 개인정보 정책 승인, rollback rehearsal 필요 |
+| 구분 | 상태 |
+|---|---|
+| Store·Admin·API·worker·DB | 구현·로컬 검증 완료 |
+| OpenAPI·CI/CD·OpenTofu | 구현 완료 (codegen drift, deploy 순서, IAM·리소스 선언 검증) |
+| GCP·Cloudflare production | **미개통** — `tofu apply`, DNS, WAF, Secret Manager 값 주입 필요 |
+| 외부 provider 실연동 | **미완료** — Toss·Solapi·OAuth redirect·Cloud Tasks OIDC·Sentry |
+| 운영 데이터 이관·컷오버 | **미완료** — 변환 검증, 개인정보 정책 승인, rollback rehearsal |
+
+정확한 테스트·계약 수치는 CI가 정본이다. 이 문서는 고정 수치를 싣지 않는다.
 
 ### 불변 원칙
 
@@ -37,52 +40,20 @@ React clients → generated OpenAPI client → FastAPI domain API
 | 인가 테스트에 mock 금지 | 실제 PostgreSQL testcontainer에서 익명·타인·소유자·관리자 행렬 검증 |
 | 비밀값 커밋 금지 | 클라우드는 Secret Manager, 로컬은 `.env` 사용 |
 
-### 범위
+### 범위와 경계
 
 - 기존 상품·장바구니·주문·수선·맞춤/샘플·클레임·문의·견적·쿠폰·토큰 도메인의 의미를 보존한다.
-- 기존 `generate-tile` 경로는 제거하고 `/design`을 seamless 엔진의 세션·스텝·export·finalize 흐름으로 새로 설계한다.
-- 운영 데이터 이관은 사용자와 이미지까지 자동 보존한다고 가정하지 않는다. 현재 스크립트가 구현한 사용자 독립 데이터와, 외부 결정이 필요한 사용자 종속 데이터를 구분한다.
-- 프로덕션 공개, 실제 provider 자격증명 연결, 법률·개인정보 정책 승인은 이 문서의 코드 구현 범위와 별도 gate다.
+- 기존 `generate-tile`을 제거하고 `/design`을 seamless 엔진의 세션·스텝·export·finalize 흐름으로 새로 설계한다.
+- 로컬 인프라는 PostgreSQL 17 + pgvector와 fake-gcs-server 둘만 실행한다. 나머지 GCP·Cloudflare 경계는 fail-closed다.
+- **별도 staging 프로젝트를 두지 않는다.** 로컬은 코드·도메인 검증, 단일 production 프로젝트는 클라우드 런타임과 운영 데이터를 소유한다.
+- 운영 데이터 이관은 사용자와 이미지까지 자동 보존한다고 가정하지 않는다.
+- 프로덕션 공개, provider 자격증명 연결, 법률·개인정보 승인은 코드 구현과 별도 gate다.
 
 ---
 
-## 1. 문제와 설계 목표
+## 1. 런타임·배포 아키텍처
 
-### 1.1 Before → After
-
-| 기존 구조 | 새 구조 |
-|---|---|
-| 프론트가 Supabase Auth·DB·Storage·RPC에 직접 접근 | 모든 서버 통신을 생성 OpenAPI client → FastAPI로 통일 |
-| RLS·DB 함수·Edge Function에 비즈니스 규칙 분산 | 서비스 계층과 명시적 트랜잭션으로 API에 집중 |
-| 커머스와 이미지 서비스가 별도 저장소·배포 단위 | pnpm + uv workspace를 가진 단일 모노레포 |
-| 이미지 세션·락·캐시가 프로세스 메모리에 의존 | API가 세션을 DB에 소유하고 worker는 stateless 계산 수행 |
-| generate와 무거운 finalize가 같은 동기 요청 모델 | 동기 generate / Cloud Tasks 비동기 finalize 분리 |
-| 단일 Storage 의미에 공개/개인 파일 혼재 | public assets / private uploads 버킷 분리 |
-| prompt에서 최종 이미지까지 AI 결과에 의존 | LLM authoring과 결정론적 SVG 엔진을 분리 |
-
-### 1.2 설계 목표
-
-1. 커머스의 돈·권한·상태 변경을 한 트랜잭션 경계에서 설명할 수 있어야 한다.
-2. 자연어 입력은 유연하되 승인된 intent 이후 결과는 재현 가능해야 한다.
-3. 인스턴스가 수평 확장되거나 요청이 재시도되어도 정확성이 달라지지 않아야 한다.
-4. 프론트와 API의 타입 계약이 수작업 DTO 없이 같은 OpenAPI에서 파생되어야 한다.
-5. 로컬은 외부 자격증명 없이 핵심 도메인을 검증할 수 있고, 비로컬 환경은 설정 누락 시 fail-closed해야 한다.
-6. 배포 가능한 상태와 실제 개통 상태를 구분해 운영 준비도를 과장하지 않아야 한다.
-
-### 1.3 비목표
-
-- worker 안에서 GPU 모델을 직접 추론하지 않는다. AI 호출은 외부 provider adapter를 사용한다.
-- LangGraph나 범용 workflow framework를 유지하지 않는다. 현재 필요한 세션 전이는 일반 테이블과 명시적 API로 충분하다.
-- 모든 작업을 비동기화하지 않는다. 사용자가 결과를 기다리는 generate와 작은 export는 동기 경로가 더 단순하다.
-- 기존 운영 데이터 전체를 한 번에 자동 이관한다고 약속하지 않는다.
-- 로컬 인프라는 PostgreSQL 17 + pgvector와 fake-gcs-server(파일 스토리지) 둘만 실행한다. Toss·Solapi는 로컬 DryRun, finalize는 worker 직접 호출로 대체하고 나머지 GCP·Cloudflare 경계는 fail-closed로 다룬다.
-- 스테이징 지표 없이 성급하게 resvg로 렌더러를 교체하거나 리소스 값을 최적화하지 않는다.
-
----
-
-## 2. 런타임·배포 아키텍처
-
-### 2.1 컨테이너 구성
+### 1.1 컨테이너 구성
 
 ```mermaid
 flowchart TB
@@ -138,97 +109,90 @@ flowchart TB
     API -.-> Solapi[Solapi]
 ```
 
-### 2.2 서비스 책임
+### 1.2 서비스 책임
 
 | 서비스 | 배포 단위 | 책임 | 외부 노출 |
 |---|---|---|---|
 | `store` | Cloudflare Workers Static Assets | 고객 커머스·디자인 UI | 공개 |
 | `admin` | Cloudflare Workers Static Assets | 운영·복구·콘텐츠 관리 UI | 공개 URL, 로그인/역할 gate |
-| API proxy | Cloudflare Worker | API origin 고정, edge secret 덮어쓰기, 보안 헤더/WAF 경계 | 공개 |
-| `api` | Cloud Run | Auth, 인가, 도메인 CRUD, 주문·결제·토큰, 디자인 세션·잡 | Cloudflare를 통해 공개 |
-| `worker-generate` | Cloud Run | prompt authoring, 구성 patch, catalog grounding, 명시적 motif 생성, 디자인 SVG/preview | IAM private, API만 호출 |
-| `worker-finalize` | Cloud Run | fabric finalize, PNG/TIFF export, task 소비 | IAM private, API/Cloud Tasks만 호출 |
-| `migrate` | Cloud Run Job | 배포 전 Alembic upgrade | 운영 파이프라인 내부 |
+| API proxy | Cloudflare Worker | API origin 고정, edge secret 덮어쓰기, WAF 경계 | 공개 |
+| `api` | Cloud Run | Auth, 인가, 도메인 CRUD, 주문·결제·토큰, 디자인 세션·잡 | Cloudflare 경유 공개 |
+| `worker-generate` | Cloud Run | prompt authoring, 구성 patch, catalog grounding, 명시적 motif 생성, 디자인 SVG/preview | IAM private, API만 |
+| `worker-finalize` | Cloud Run | fabric finalize, PNG/TIFF export, task 소비 | IAM private, API/Cloud Tasks만 |
+| `migrate` | Cloud Run Job | 배포 전 Alembic upgrade | 파이프라인 내부 |
 
-두 worker 서비스는 같은 `apps/worker` 이미지에서 `SERVICE_MODE=generate|finalize`로 라우트 표면을 나눈다. 코드 중복 없이 IAM, timeout, CPU·메모리, 동시성을 독립 조정하기 위한 선택이다.
+두 worker는 같은 `apps/worker` 이미지에서 `SERVICE_MODE=generate|finalize`로 라우트 표면을 나눈다.
+코드 중복 없이 IAM·timeout·CPU/메모리·동시성을 독립 조정하기 위한 선택이다.
 
-프론트는 Cloudflare Vite 플러그인을 사용하지 않는다. 일반 Vite build 결과를 각 앱의 `wrangler.jsonc`로 Workers Static Assets에 배포한다.
+프론트는 Cloudflare Vite 플러그인을 쓰지 않는다. 일반 Vite build 결과를 각 앱의 `wrangler.jsonc`로 배포한다.
 
-### 2.3 트래픽과 공개 경계
+### 1.3 트래픽과 공개 경계
 
 - 비로컬 일반 API 요청은 Cloudflare proxy가 덮어쓰는 **정확한 edge secret** 없이는 403이다.
-- 예외는 프로세스 liveness용 `/healthz`와 Google OIDC로 별도 검증하는 `/batch/*`다.
-- `/readyz`는 예외가 아니다. 공개 Cloudflare 경로에서는 secret이 주입되어 응답하지만 `run.app` 직통은 403이어야 한다.
-- Toss webhook과 OAuth callback의 외부 등록 주소는 `api.essesion.shop`만 사용하고 `run.app` URL을 노출하지 않는다.
+- 예외는 프로세스 liveness용 `/healthz`와 Google OIDC로 별도 검증하는 `/batch/*`뿐이다.
+- `/readyz`는 예외가 아니다. 공개 경로에서는 응답하지만 `run.app` 직통은 403이어야 한다.
+- Toss webhook과 OAuth callback의 외부 등록 주소는 `api.essesion.shop`만 사용한다.
 - Admin mutation은 JWT role뿐 아니라 허용된 exact Origin을 검사하고 응답을 `no-store`로 제한한다.
 - worker는 `roles/run.invoker`와 audience가 맞는 Google OIDC token만 수신한다.
-- `/design/ideas`는 API 인스턴스 내에서 인증 사용자별 60초에 6회를 제한한다. 이 메모리 제한은 수평 확장 전체의 전역 quota가 아니므로, 프로덕션은 Cloudflare에서 같은 경로의 IP 기반 rate limit과 WAF를 추가한다. 두 제한은 defense-in-depth이지 사용자별 정확한 전역 호출량을 보증하는 과금 quota가 아니다.
+- `/design/ideas`는 API 인스턴스 내 인증 사용자별 60초 6회 제한이다. 이는 **전역 quota가 아니므로** 프로덕션은 Cloudflare에서 같은 경로의 IP rate limit을 추가한다. 두 제한은 defense-in-depth이지 과금 quota가 아니다.
 
-### 2.4 Supabase 대체 관계
+### 1.4 Supabase 대체 관계
 
-| 기존 역할 | 현재 소유자 |
-|---|---|
-| GoTrue Auth | FastAPI JWT(access + rotating refresh), Google·Kakao OAuth |
-| RLS | API 서비스 계층의 공개/소유자/관리자 인가 행렬 |
-| 직접 테이블 쿼리 | 생성 OpenAPI client → API 도메인 서비스 |
-| DB 함수·Edge Functions | API 트랜잭션과 provider integration |
-| Storage | GCS public assets + private uploads |
-| generate-tile | deterministic seamless worker |
-| LangGraph checkpoint | `design_sessions`, `design_session_turns`, `generation_jobs` |
-| Realtime | 기존 미사용이므로 대체 없음 |
-
-새 런타임에는 Supabase SDK 의존이 없다. 단, 컷오버 전 데이터 변환 스크립트는 읽기 원본으로 기존 Supabase DSN을 사용할 수 있으며 기존 프로젝트 해지는 프로덕션 안정화 이후다.
+새 런타임에 Supabase SDK 의존은 없다. GoTrue → FastAPI JWT + OAuth 4종, RLS → API 서비스 계층
+인가 행렬, DB 함수·Edge Functions → API 트랜잭션, Storage → GCS 2버킷, generate-tile → 결정론
+worker, LangGraph checkpoint → `design_sessions`/`design_session_turns`/`generation_jobs`.
+기능·테이블 단위 매핑은 [db/MAPPING.md](./db/MAPPING.md)가 정본이다.
 
 ---
 
-## 3. 기술 선택과 리소스 모델
+## 2. 기술 선택과 리소스 모델
 
-### 3.1 실제 구현 스택
+### 2.1 스택
 
 | 영역 | 선택 | 선택 이유 |
 |---|---|---|
-| JS workspace | pnpm 10 workspaces | store/admin/shared/api-client의 재귀 태스크 실행과 catalog 버전 공유 |
+| JS workspace | pnpm 10 workspaces | 재귀 태스크 실행과 catalog 버전 공유 |
 | Frontend | React 19, Vite 8, React Router 8, TanStack Query 5 | CSR 커머스와 명시적 서버 상태/라우트 경계 |
-| UI | Tailwind CSS 4 + `packages/shared` | semantic token과 공용 primitive를 앱 간 단일 정본으로 유지 |
+| UI | Tailwind CSS 4 + `packages/shared` | semantic token과 공용 primitive를 앱 간 단일 정본으로 |
 | Python workspace | Python 3.13 + uv | api·worker·DB·공용 라이브러리 lockfile 설치 |
 | Server | FastAPI + SQLAlchemy 2 async + asyncpg | OpenAPI 생성과 비동기 DB/provider I/O |
 | Schema | Alembic | 모델과 revision의 리뷰 가능한 변경 이력 |
-| DB | PostgreSQL 17 + pgvector | 트랜잭션 커머스와 motif vector search를 한 저장소에서 처리 |
+| DB | PostgreSQL 17 + pgvector | 트랜잭션 커머스와 motif vector search를 한 저장소에서 |
 | API codegen | Hey API | fetch SDK와 TanStack Query options를 OpenAPI에서 동시 생성 |
 | Raster | librsvg subprocess + Pillow | 기존 골든과의 렌더 기준선, fabric 합성 |
-| IaC | OpenTofu | GCP 리소스, IAM, monitoring, scheduler를 코드로 선언 |
+| IaC | OpenTofu | GCP 리소스·IAM·monitoring·scheduler 선언 |
 | Delivery | GitHub Actions + WIF | 장기 GCP key 없이 CI 성공 SHA만 배포 |
 
-Cloud SQL 접속에는 `cloud-sql-python-connector`를 사용하지 않는다. Cloud Run에 Cloud SQL volume을 `/cloudsql`로 mount하고 asyncpg가 Unix socket URL로 접속한다.
+Cloud SQL 접속에 `cloud-sql-python-connector`를 쓰지 않는다. Cloud Run에 Cloud SQL volume을
+`/cloudsql`로 mount하고 asyncpg가 Unix socket URL로 접속한다. 설치 재현성은 `pnpm-lock.yaml`과 `uv.lock`이 보장한다.
 
-의존성 선언은 호환 범위를 가질 수 있지만 실제 설치 재현성은 `pnpm-lock.yaml`과 `uv.lock`이 보장한다.
+### 2.2 Cloud Run 리소스
 
-### 3.2 Cloud Run 리소스
-
-| 서비스 | CPU / Memory | Request concurrency | Timeout | Scaling |
+| 서비스 | CPU / Memory | Concurrency | Timeout | Scaling |
 |---|---:|---:|---:|---|
 | `api` | 1 vCPU / 512 MiB | 20 | platform default | min=`api_min_instances`, max=10 |
 | `worker-generate` | 1 vCPU / 1 GiB | 2 | 300s | min=0, max=10 |
 | `worker-finalize` | 2 vCPU / 4 GiB | 2 | 900s | min=0, max=5 |
 
-- 스테이징의 `api_min_instances` 기본값은 0이다. 프로덕션에서는 첫 로그인·API 요청의 cold start를 줄이기 위해 1을 적용할 계획이다.
-- generate는 외부 API 대기가 크지만 요청당 preview 렌더를 최대 2개 병렬 수행하므로 인스턴스 concurrency도 2로 제한한다.
-- finalize 메모리는 DPI 제곱에 비례한다. 초기 상한은 600 DPI, request timeout은 900초, DB lease는 960초다.
-- worker 둘은 scale-to-zero한다. 리소스 변경은 스테이징의 latency·RSS·OOM 지표를 근거로 한다.
+- `api_min_instances` 기본값은 비용을 위해 0이다. cold start가 실제 사업 지표를 훼손할 때만 1로 올린다.
+- generate는 외부 API 대기가 크지만 요청당 preview 렌더를 최대 2개 병렬 수행하므로 concurrency도 2다.
+- finalize 메모리는 DPI 제곱에 비례한다. dpi 상한 600, request timeout 900초, DB lease 960초.
+- worker 둘은 scale-to-zero한다. 리소스 변경은 production의 latency·RSS·OOM 지표를 근거로 한다.
 
-### 3.3 툴체인과 품질 gate
+### 2.3 툴체인과 품질 gate
 
 - Node 22, pnpm 10, Python 3.13, uv는 `mise.toml`로 맞춘다.
-- TypeScript는 Biome + `tsc`, Python은 Ruff + Pyright를 사용한다.
-- Vitest는 UI/모델, pytest는 API/worker/DB, Playwright는 돈 경로와 admin smoke를 검증한다.
+- TypeScript는 Biome + `tsc`, Python은 Ruff + Pyright.
+- Vitest는 UI/모델, pytest는 API/worker/DB, Playwright는 돈 경로와 admin smoke.
 - Schemathesis가 OpenAPI 계약을 퍼징하고, codegen job이 생성물 drift를 검사한다.
+- `pnpm architecture:check`가 모듈 경계(dependency-cruiser·import-linter)와 문서 링크를 검사한다.
 - testcontainers가 실제 PostgreSQL 17 + pgvector에서 인가·migration·동시성 계약을 검증한다.
 
 ---
 
-## 4. 모노레포 소유권과 도메인 경계
+## 3. 모노레포 소유권과 도메인 경계
 
-### 4.1 저장소 구조
+### 3.1 저장소 구조
 
 ```text
 essesion/
@@ -244,36 +208,26 @@ essesion/
 ├── libs/
 │   ├── obs/               # request ID·구조화 로그·Sentry 골격
 │   └── svg-safety/        # SVG parsing/sanitize 공용 경계
-├── db/                    # 모델·Alembic·이관 스크립트
+├── db/                    # 모델·Alembic
 ├── infra/                 # OpenTofu·Cloudflare proxy
+├── scripts/               # 아키텍처·문서 gate 하네스
+├── tests/                 # 저장소 수준 테스트(migration 등)
 ├── e2e/                   # Playwright smoke
 └── docs/                  # 도메인 명세·감사·운영 runbook
 ```
 
-### 4.2 허용 의존 방향
+### 3.2 허용 의존 방향
 
-```mermaid
-flowchart LR
-    Store --> Client[api-client]
-    Admin --> Client
-    Store --> Shared[shared UI]
-    Admin --> Shared
-    Client -. generated from .-> API[api OpenAPI]
-    API --> DB[db models]
-    API --> Obs[libs/obs]
-    API --> Safety[libs/svg-safety]
-    Worker --> DB
-    Worker --> Obs
-    Worker --> Safety
-```
+`store`·`admin` → `api-client` + `shared` / `api`·`worker` → `db` + `libs/obs` + `libs/svg-safety`.
+`api-client`는 api의 OpenAPI에서 생성된다. 이 방향은 `pnpm architecture:check`가 강제한다.
 
 - `store`와 `admin`은 API 내부 모델이나 DB 패키지를 import하지 않는다.
 - DTO는 `packages/shared`가 아니라 생성된 `api-client`가 소유한다.
 - `api`는 worker 엔진 코드를 import하지 않고 HTTP 계약으로 호출한다.
 - `worker`는 주문·결제·토큰 원장을 수정하지 않는다.
-- DB 함수·트리거·뷰에 애플리케이션 규칙을 숨기지 않는다. 규칙은 API 서비스와 테스트에 둔다.
+- DB 함수·트리거·뷰에 애플리케이션 규칙을 숨기지 않는다.
 
-### 4.3 도메인 소유자
+### 3.3 도메인 소유자
 
 | 도메인 | 소유자 | 주요 경계 |
 |---|---|---|
@@ -288,22 +242,7 @@ flowchart LR
 | Motif catalog | worker + API + PostgreSQL | worker의 검색·normalize·content identity, API의 private user motif 소유권·원자 저장 |
 | UI system | `packages/shared` | token, primitive, component, accessibility contract |
 
-### 4.4 기존 기능 → 새 소유자 이관
-
-| 기존 위치 | 기능 | 새 소유자 |
-|---|---|---|
-| `supabase-js` 직접 쿼리 | 상품·장바구니·주문·클레임·배송지·문의·견적·토큰·마이페이지 CRUD | `api` 도메인 모듈; RLS 의미는 서비스 인가로 재현 |
-| Edge Function `create-order`·`create-custom-order`·`create-sample-order` | 주문 생성 3종 | `api` orders |
-| Edge Function `confirm-payment` | Toss 결제 확정 | `api` payments; provider 재조회와 멱등 대사 포함 |
-| Edge Function `cancel-token-payment` | 토큰 구매 환불 | `api` tokens; 관리자 승인 시 Toss cancel과 원장 반영 |
-| Edge Function `create-quote-request`·`notify-claim` | 견적 생성·클레임 알림 | `api` quotes·claims |
-| Edge Function `send-phone-verification`·`verify-phone` | 휴대폰 인증 | `api` auth + Solapi |
-| Edge Function `imagekit-auth`·`delete-account`·`cleanup-expired-images` | 업로드 인증·탈퇴·정리 | ImageKit 제거 후 GCS signed URL; `api` 탈퇴; Scheduler → API batch |
-| Edge Function `generate-tile` 계열 | AI 원단 이미지 생성·토큰 과금 | 생성은 seamless worker로 대체; 과금·잔액은 `api` 소유 |
-| seamless-tile | intent·compose·finalize·export | 재작성한 `worker`; 세션·잡 상태는 `api` |
-| Supabase Storage | 생성물·고객 업로드 | GCS public assets / private uploads |
-
-### 4.5 주문·결제 흐름
+### 3.4 주문·결제 흐름
 
 ```mermaid
 sequenceDiagram
@@ -328,38 +267,41 @@ sequenceDiagram
     A->>DB: 동일 사실이면 no-op, 불일치면 incident
 ```
 
-결제 callback과 webhook은 전달 사실이 아니라 provider 조회 결과, 저장된 payment key, 결제 그룹, 총액을 함께 검증한다. advisory lock과 일관된 row-lock 순서로 취소·토큰 회수·일반 사용의 경쟁을 직렬화한다. 상세 계약은 [돈 경로 명세](./docs/api-spec/money.md)가 정본이다.
+결제 callback과 webhook은 전달 사실이 아니라 provider 조회 결과, 저장된 payment key, 결제 그룹,
+총액을 함께 검증한다. advisory lock과 일관된 row-lock 순서로 취소·토큰 회수·일반 사용의 경쟁을
+직렬화한다. 상세 계약은 [돈 경로 명세](./docs/api-spec/money.md)가 정본이다.
 
 ---
 
-## 5. 인증·인가와 신뢰 경계
+## 4. 인증·인가와 신뢰 경계
 
-### 5.1 고객·관리자 인증
+### 4.1 인증
 
 - access JWT는 짧게 유지하고 refresh token은 불투명 난수의 SHA-256만 DB에 저장한다.
 - refresh token은 사용할 때마다 회전한다. 이미 사용한 token이 재등장하면 같은 사용자·같은 세션 종류(store/admin)의 활성 refresh token을 모두 폐기한다.
-- 비밀번호 계정은 Argon2id를 사용하며 공개 회원가입이 없다. 로컬 seed·운영자 bootstrap 계정 용도다.
-- 고객 UI의 소셜 로그인은 현재 **Google·Kakao** 코드 경로가 구현되어 있다.
-- Apple·Naver는 provider 등록·callback·E2E가 남아 있어 현재 지원 완료로 보지 않는다.
+- 비밀번호 계정은 Argon2id를 사용하며 **공개 회원가입이 없다**. 로컬 seed·운영자 bootstrap 용도다.
+- 소셜 로그인은 **Google·Kakao·Naver·Apple 4종이 모두 구현**되어 있다(`SUPPORTED_PROVIDERS`). Apple은 `.p8` 키로 서명한 ES256 client_secret JWT와 `response_mode=form_post` 크로스사이트 POST 콜백을 쓰므로 세션 쿠키가 비로컬에서 `SameSite=None`이다.
+- 콘솔 등록이 끝나지 않은 provider는 store가 `AUTH_PROVIDERS[].comingSoon` 문구로 게이팅해 OAuth로 보내지 않는다(현재 네이버). 서버 쪽 설정 상태는 `/readyz`의 `oauth_*` capability로 드러난다.
 - OAuth 이메일 계정 연결은 provider가 검증한 이메일만 허용한다.
 - 운영 컷오버 시 기존 Supabase 세션은 이관하지 않고 전원 재로그인한다.
 
-### 5.2 인가 규칙
+### 4.2 인가 규칙
 
 | 리소스 | 익명 | 소유자 | 타인 | 관리자 |
 |---|---:|---:|---:|---:|
 | 상품·옵션 공개 조회 | 허용 | 허용 | 허용 | 허용 |
 | 찜/좋아요 공개 조회 | 허용 | 허용 | 허용 | 허용 |
 | 개인 장바구니·배송지·주문·클레임·문의·견적·토큰·디자인 | 401 | 허용 | 403/404 | 역할에 따라 허용 |
-| 관리자 mutation | 거부 | 거부 | 거부 | admin/manager capability에 따라 허용 |
+| 관리자 mutation | 거부 | 거부 | 거부 | admin/manager capability에 따라 |
 
-사용자가 탈퇴하는 트랜잭션과 모든 인증 mutation은 같은 사용자 advisory lock 순서를 사용한다. 삭제 직전의 stale 세션이 개인정보나 주문을 새로 만들지 못하도록 lock 아래에서 사용자 활성 상태를 다시 읽는다.
+탈퇴 트랜잭션과 모든 인증 mutation은 같은 사용자 advisory lock 순서를 쓴다. 삭제 직전의 stale
+세션이 개인정보나 주문을 새로 만들지 못하도록 lock 아래에서 사용자 활성 상태를 다시 읽는다.
 
-### 5.3 신뢰 경계
+### 4.3 신뢰 경계
 
 | 경계 | 인증/검증 |
 |---|---|
-| Browser → Cloudflare | TLS, CSP·보안 헤더, 개통 시 rate limit/WAF 정책 |
+| Browser → Cloudflare | TLS, CSP·보안 헤더, rate limit/WAF |
 | Cloudflare → API | proxy가 덮어쓰는 exact edge secret |
 | Customer → API domain | JWT + owner check |
 | Admin → API domain | JWT role/capability + exact Origin |
@@ -369,81 +311,72 @@ sequenceDiagram
 | GitHub Actions → GCP | repository ID·ref·workflow 조건이 있는 WIF |
 | Runtime → Secret | 서비스별 Secret Manager IAM |
 
-비로컬 환경은 필수 secret·audience·provider 설정이 없을 때 로컬 token이나 DryRun으로 조용히 폴백하지 않는다. GCS·Cloud Tasks 필수 설정 누락은 기동을 중단하고, 그 밖의 provider 누락은 `/readyz`를 503으로 만들거나 해당 mutation을 차단한다.
+비로컬 환경은 필수 secret·audience·provider 설정이 없을 때 로컬 token이나 DryRun으로 조용히
+폴백하지 않는다. GCS·Cloud Tasks 누락은 기동을 중단하고, 그 밖의 provider 누락은 `/readyz`를
+503으로 만들거나 해당 mutation을 차단한다.
 
-### 5.4 검증 방식
-
-- 인가 matrix는 실제 pgvector PostgreSQL testcontainer를 사용한다.
-- 익명 401, 타인 403/404, owner 성공, admin 성공을 도메인별 테이블 주도 테스트로 유지한다.
-- refresh 재사용, OAuth unique race, 휴대폰 인증 실패 횟수·row lock, 탈퇴 경쟁을 회귀 테스트한다.
-- raw provider key·민감 incident payload는 관리자 응답에서도 redaction한다.
+검증은 실제 pgvector PostgreSQL testcontainer로 한다 — 익명 401, 타인 403/404, owner·admin 성공을
+도메인별 테이블 주도 테스트로 유지하고, refresh 재사용·OAuth unique race·휴대폰 인증 시도 제한과
+row lock·탈퇴 경쟁을 회귀 테스트한다. raw provider key와 민감 incident payload는 관리자 응답에서도 redaction한다.
 
 ---
 
-## 6. 데이터·스토리지·이관
+## 5. 데이터·스토리지
 
-### 6.1 스키마 소유권
+### 5.1 스키마 소유권
 
 - `db/src/db/models/`의 SQLAlchemy 모델이 스키마 source of truth다.
 - 모든 변경은 Alembic revision으로 만들고 `alembic check`로 모델 drift를 검증한다.
-- 미배포 단계이므로 리비전 체인을 최소로 유지한다. 현재 스키마는 42개 모델 테이블을 만드는 베이스라인 `f8c3b2a19d47`에서 순차 리비전을 거쳐 head `c7a8d2f1b604`에 도달하며 빈 PostgreSQL에서 upgrade, `alembic check`, downgrade를 검증한다. 이 수치는 구현 스냅샷이며 설계 불변값은 아니다.
-- PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 사용한다.
-- DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다. updated timestamp와 도메인 규칙은 서비스 계층이 소유한다.
-- 공개 motif와 authoring example 검색은 OpenAI `text-embedding-3-large`(dimensions=1536)의 pgvector `vector(1536)`만 사용한다.
+- 미배포 단계이므로 리비전 체인을 최소로 유지한다. 베이스라인 `f8c3b2a19d47`에서 순차 리비전을 거쳐 head `c7a8d2f1b604`에 도달하며, 빈 PostgreSQL에서 upgrade·`alembic check`·downgrade를 검증한다.
+- PostgreSQL enum은 `user_role`만 유지하고 나머지 상태는 text + named CHECK constraint를 쓴다.
+- DB 함수·비즈니스 트리거·애플리케이션 뷰를 두지 않는다.
+- 공개 motif와 authoring example 검색은 OpenAI `text-embedding-3-large`(dimensions=1536)의 pgvector `vector(1536)`만 쓴다.
 
-### 6.2 데이터 그룹
+### 5.2 데이터 그룹
 
 | 그룹 | 예시 | 일관성 전략 |
 |---|---|---|
 | Identity | users, refresh sessions, phone verifications | unique + rotation/reuse detection |
 | Commerce | products, options, cart, coupons, orders, items | row lock + advisory lock + server pricing |
-| Money | payments, incidents, token ledger/purchases | append/compensation + provider reconciliation |
+| Money | orders의 payment key/group, payment incidents, token ledger/purchases | append/compensation + provider reconciliation |
 | Support | claims, inquiries, quotes, repair shipping | owner/admin workflow + snapshots |
 | Design | sessions, turns/attachments, generation logs/jobs, motifs/user motifs | API state ownership + worker lease/attempt |
-| Operations | settings, outbox, audit-oriented records | bounded batch + retry cursor |
+| Operations | settings, outbox, admin operation logs | bounded batch + retry cursor |
 
-### 6.3 GCS 분리
+### 5.3 GCS 분리
 
 ```text
 public assets bucket
-├── products/...       # 공개 상품 이미지
-├── previews/...       # 디자인 preview
-└── fabric/...         # finalize 결과
+├── products/...                          # 공개 상품 이미지
+├── previews/{request_id}/{design_id}/...  # 디자인 preview
+└── fabric/...                            # finalize 결과
 
 private uploads bucket
-├── uploads/reform_upload/...
-├── uploads/repair_shipping_upload/...
-├── uploads/design_reference/...
-├── uploads/sample_order/...
-├── uploads/quote_request/...
-└── uploads/custom_order/...
+└── uploads/{reform_upload|repair_shipping_upload|design_reference|sample_order|quote_request|custom_order}/...
 ```
 
 - public assets는 URL로 조회 가능하고 worker는 `objectCreator`만 가진다.
 - private uploads에는 public viewer grant가 없다. API가 짧은 signed URL을 발급하고 완료 시 크기·형식·소유권·실제 객체를 검증한다.
-- worker 결과 키는 content hash를 포함하고 `if_generation_match=0`으로 생성한다. precondition 412는 동일 content-derived key의 선행 업로드로 보고 성공 처리하며 기존 객체를 다시 읽어 byte 비교하지 않는다. create-only 조건은 기존 객체 덮어쓰기를 막는다.
-- finalize 결과를 주문/견적 첨부로 사용할 때 API가 public assets에서 private uploads로 create-only 복사한다.
-- 현재 공개 asset URL은 GCS 직접 주소다. 별도 Cloudflare image cache proxy는 향후 선택지이며 구현 완료로 간주하지 않는다.
-- local/test는 설정이 비어 있으면 `http://localhost:4443`의 `dev-uploads`·`dev-assets`를 사용한다. 비로컬 환경은 두 버킷 중 하나라도 빠지면 기동하지 않는다.
+- worker 결과 키는 content hash를 포함하고 `if_generation_match=0`으로 생성한다. precondition 412는 동일 content-derived key의 선행 업로드로 보고 성공 처리한다.
+- finalize 결과를 주문/견적 첨부로 쓸 때 API가 public assets에서 private uploads로 create-only 복사한다.
+- 공개 asset URL은 GCS 직접 주소다. Cloudflare image cache proxy는 향후 선택지이며 구현 완료가 아니다.
+- local/test는 설정이 비면 `http://localhost:4443`의 `dev-uploads`·`dev-assets`를 쓴다. 비로컬은 두 버킷 중 하나라도 빠지면 기동하지 않는다.
 
-### 6.4 미배포 스키마 초기화 정책
+### 5.4 초기화·백업
 
-아직 외부 환경에 배포하지 않았으므로 이전 개발 데이터에 대한 단계적 호환 경로를 유지하지 않는다. 이전 개발 스키마가 남은 환경은 애플리케이션을 중지한 뒤 해당 데이터베이스를 drop/recreate하고 Alembic baseline부터 현재 head까지 적용한다. 테이블·컬럼별 수동 변환이나 과거 데이터 보존은 시도하지 않는다.
-
-스테이징과 프로덕션은 빈 Cloud SQL을 현재 Alembic head까지 올리고 관리자·공개 motif·authoring example을 초기 입력한다. provider credential은 Secret Manager에 넣고 JWT/session/edge secret은 환경별로 새로 생성한다. `db/MAPPING.md`는 기존 도메인 의미를 검토한 설계 기록이며 실행 가능한 이관 계약이 아니다.
-
-### 6.5 백업·보존
+아직 외부 배포가 없으므로 이전 개발 데이터의 단계적 호환 경로를 유지하지 않는다. 이전 스키마가
+남은 환경은 애플리케이션을 중지하고 DB를 drop/recreate한 뒤 baseline부터 head까지 적용한다.
+production은 빈 Cloud SQL을 head까지 올리고 관리자·공개 motif·authoring example을 초기 입력한다.
 
 - Cloud SQL 선언은 자동 백업, PITR, deletion protection을 포함한다.
 - migration job은 자동 재시도하지 않는다. 실패 시 서비스 배포를 중단하고 사람이 원인을 판단한다.
-- 회원 탈퇴 후 주문 snapshot·클레임·견적·문의·디자인 prompt·로그·GCS·백업에 남는 역사성 개인정보의 보존 목적과 TTL은 아직 privacy owner/법률 승인이 필요하다.
-- 필드별 익명화·purge와 복구 불가성 검증은 프로덕션 cutover gate다.
+- 회원 탈퇴 후 주문 snapshot·클레임·견적·문의·디자인 prompt·로그·GCS·백업에 남는 역사성 개인정보의 보존 목적과 TTL은 privacy owner/법률 승인이 필요하다. 필드별 익명화·purge와 복구 불가성 검증은 **컷오버 차단 gate**다.
 
 ---
 
-## 7. 결정론적 worker와 이미지 파이프라인
+## 6. 결정론적 worker
 
-### 7.1 AI와 엔진의 경계
+### 6.1 AI와 엔진의 경계
 
 ```mermaid
 flowchart LR
@@ -454,8 +387,8 @@ flowchart LR
     Prompt --> Retrieve[OpenAI embedding + pgvector RAG]
     Active --> Retrieve
     Retrieve -->|호환 후보 중 최대 3개| Author
-    UserInput[SVG / 텍스트 / 사진] -->|path·vectorize + sanitize·normalize·content hash| PrivateMotif[소유자 exact 모티프]
-    PrivateMotif -->|소유권 확인 + request-local input alias| Author
+    UserInput[SVG / 텍스트 / 사진] -->|sanitize·normalize·content hash| PrivateMotif[소유자 exact 모티프]
+    PrivateMotif -->|소유권 확인 + request-local alias| Author
     Retrieve -->|검증된 catalog_ref| Author
     Author --> Plan[typed DesignPlanV3<br/>input 또는 catalog]
     Plan -->|deterministic compiler<br/>concrete motif ID| Intent[resolved intent]
@@ -481,311 +414,108 @@ flowchart LR
     Seam --> Fabric[Fabric finalize]
 ```
 
-LLM(OpenAI)은 텍스트에서 엔진 intent가 아니라 schema-constrained `DesignPlanV3` 하나를 작성한다. Plan v3는 palette index, normalized ratio, 최대 2개의 이미 존재하는 motif source(`input | catalog`)와 stripe/lattice/scatter/path/point template만 표현하며 engine ID·mm·SVG·임의 point 좌표는 알지 못한다. Pydantic 스키마를 OpenAI strict `json_schema`로 넘기고, 결정적 compiler가 모든 source를 concrete motif ID로 확정한 48mm/300dpi intent를 만든다. exact input과 verified catalog에는 실제 ID 대신 요청 한정 alias만 노출한다. 모티프 도안과 색은 이미 저장된 symbol의 불변 데이터라 Plan·intent에 색 바인딩 필드가 없다. Plan의 색은 배경과 스트라이프에만 쓰인다. 저작 결과가 검증을 통과하지 못하면 검증 오류와 함께 다시 저작한다.
+경계를 규정하는 사실은 다음 넷이다. 나머지 계약은 §7.3의 정본 문서에 있다.
 
-디자인 문장에서 모티프를 요청했는데 처리하지 못한 경우는 Plan 계약을 확장하지 않고 응답 sidecar `motif_intent{detected,subject,reason}`로 분리한다. 판단 근거는 **처리하지 못했다는 증거**뿐이다 — patch의 `out_of_scope`(`motif_change`), 또는 첫 저작이 모티프 레이어 없이 끝났는데 문장이 모티프를 말한 경우(`motif_mention`, 카탈로그가 맞추지 못한 상황). 어휘만으로는 켜지 않는다: 카탈로그로 해결된 정상 첫 생성이나 줄무늬·배치처럼 지원 축으로 처리한 편집에서 피커를 열면 안내가 아니라 방해다. 별도 모델 호출은 없다. `subject`는 번역하지 않은 사용자 원문의 명사 조각(교체 대상, `…꽃`)이며 수식어까지 집으면 0건 검색이 되므로 확신이 없으면 null로 두고 store가 일반 문구로 안내한다. sidecar는 현재 HTTP 응답에서만 소비하고 세션 정본·턴 payload에는 저장하지 않는다. 보이는 슬롯이 없는 지명색은 마지막 저작 시도까지 재저작을 요구하고, 그래도 자리가 없으면 가능한 색만 반영한 뒤 `named_color_unplaced` 경고(노랑)로 알린다 — 색 문제를 모티프 안내로 바꾸지 않는다.
+1. **LLM은 engine intent를 쓰지 않는다.** schema-constrained `DesignPlanV3` 하나만 작성하고, 결정적 compiler가 모든 motif source를 concrete ID로 확정해 intent를 만든다. exact input과 verified catalog에는 실제 ID 대신 요청 한정 alias만 노출한다.
+2. **디자인 생성은 GPT Image를 호출하지 않는다.** 새 모티프는 모티프 모달의 명시적 `motifs/generate`에서만 만든다. catalog miss면 모티프 없이 단색·스트라이프 구조로 계속한다.
+3. **모티프 색은 저장 시점에 확정된 불변 데이터다.** 색을 포함한 geometry가 content-hash identity 입력이므로 같은 도형이라도 색이 다르면 다른 motif ID다. Plan·intent·patch·finalize 어느 경로도 symbol의 색을 다시 배정하지 않는다.
+4. **구조화된 사용자 제약은 없다.** 크기·밀도·배치·방향·색 지정은 모두 폐기됐고, 입력창 문장을 좁은 구성 patch(`engine/patch.py`)로 바꿔 결정적으로 적용한다.
 
-`gallery-v1` Plan v3 manifest는 빈 DB를 위한 소량 starter 입력일 뿐 운영 셋의 정본이나 골든 목록이 아니다. 시드는 같은 ID가 이미 있으면 건너뛰어 DB에서 큐레이션한 행을 덮어쓰지 않으며, 운영 셋 전체의 정본은 bootstrap·관리자 직접 저작(`authored`)·생성 승격(`promoted`)을 함께 보관하는 `authoring_examples`다. 런타임은 그중 `active=true`인 현재 contract·embedding model 행만 읽는다. OpenAI 임베딩과 pgvector cosine 결과를 motif 수로 거른 뒤 상위 8개에서 family가 겹치지 않는 시범을 우선해 최대 3개만 prompt에 넣는다. embedding/DB 장애나 빈 active 집합은 요청을 실패시키지 않고 시범 없이 typed schema 경로를 계속한다.
+### 6.2 결정론 계약
 
-모든 생성 요청은 Plan v3 경로만 사용한다. 계약·compiler·prompt revision, 선택 example ID/유사도, structural fingerprint와 오류 유형은 generation diagnostics/intent log에 남긴다. 매일 성공·finalize된 결과를 승격 후보로 선별하고 fingerprint와 vector similarity로 중복 제거한다. 후보 선택이 없어졌으므로 실사화가 유일한 품질 신호다. 관리자가 승인하면 현재 embedding을 확인해 즉시 active RAG 시범이 되며, 문제 시범은 `active=false`로 즉시 제외한다. 관리자는 별도로 intent와 Plan v3를 작성하고 카탈로그 motif만 사용하는 무-LLM 타일 프리뷰를 확인한 뒤 `authored` 시범을 비활성 상태로 저장·편집·삭제할 수 있다. bootstrap/promoted 행의 Plan 본문은 읽기 전용이다. 상세 절차는 `docs/specs/authoring-plan-v3.md`다.
-
-디자인 생성은 GPT Image를 호출하지 않는다. 사용자가 고른 모티프와 정확도 게이트를 통과한 **승인된** 공개 카탈로그 hit만 사용할 수 있고, 카탈로그 miss면 모티프를 새로 만들지 않은 채 단색·스트라이프 구조로 계속한다. 새 모티프는 모티프 모달의 명시적 `motifs/generate`에서만 GPT Image 2 low로 PNG를 만들고 로컬 VTracer medium으로 SVG를 정규화해 세션 예산을 사용한다. 이 결과는 `pending`으로 저장되어 요청 세션에서는 exact ID로 즉시 쓸 수 있지만, 관리자가 승인하기 전에는 다른 사용자의 검색·grounding에 들어가지 않는다. 사용자가 SVG, 텍스트 path 또는 로컬 사진 vectorize로 만든 모티프는 소유권을 확인한 exact motif로 사용한다. concrete motif ID가 확정된 뒤의 validation, 배치, 합성, seam 보장에는 생성형 모델의 판단이 들어가지 않는다.
-
-사진 업로드는 모티프 모달의 사진→SVG 경로에만 쓴다. API는 소유권·완료 상태·MIME·바이트를 확인한 비공개 GCS 객체만 받고, worker는 allowlist signed URL을 redirect 없이 읽어 10MB·20M pixel 상한을 적용한다. 배경 분리·vectorize는 Pillow+VTracer CPU threadpool 안에서 처리하며 사진 바이트를 LLM에 보내지 않는다. 아이디어 API도 prompt와 exact motif의 순번·사용자 지정 이름만 LLM에 전달하고 content-hash ID나 이미지는 보내지 않는다.
-
-사용자 SVG는 worker의 기존 SVG 안전 경계와 normalize를 통과하며 계정당 100개까지 보관한다. 텍스트는 동봉 OFL font와 FontTools로 결정적 path를 만든다. 한 생성에서 최종 motif는 최대 2개이고, 생성 턴 첨부는 사용한 정규화 motif ID와 이름만 보관한다. 사용자 모티프는 일반 retrieval·embedding 검색·registry fingerprint에서 제외되어 다른 계정 요청에 노출되지 않는다. 서버가 활성 스텝에서 복원한 intent의 private motif ID도 현재 사용자의 라이브러리 링크 또는 같은 소유자·같은 세션의 과거 모티프 첨부 이력에 한정해 허용하여, 라이브러리 삭제 뒤 기존 스텝·finalize는 유지하면서 교차 사용자·교차 세션 참조를 막는다.
-
-구조화된 사용자 제약은 남아 있지 않다. 크기·밀도·배치·방향 4축 설정과 색 지정(fixed palette)은 모두 폐기됐다 — 색을 포함한 그 축들은 입력창 문장을 좁은 구성 patch로 바꿔 결정적으로 적용한다(`engine/patch.py`). 생성 경계에 남은 결정론 기계는 격자 겹침 클램프 하나뿐이다. 상세 계약과 상한은 `docs/api-spec/worker-engine.md` §7.1이 설명한다.
-
-### 7.2 결정론 계약
-
-byte-identical SVG의 재현 단위는 단순한 `(prompt, seed)`가 아니다.
+byte-identical SVG의 재현 단위는 `(prompt, seed)`가 아니다.
 
 ```text
-intent version
-+ resolved intent
-+ seed
-+ colorway
-+ engine version
-+ motif registry/pool fingerprint
+intent version + resolved intent + seed + colorway
++ engine version + motif registry/pool fingerprint
 → byte-identical SVG
 ```
 
-- prompt authoring은 의도적으로 탐색적이며 동일 문장이 다른 유효 intent를 만들 수 있다.
-- RNG는 요청 seed에서 만든 지역 `random.Random`만 사용한다.
-- layer, motif pool 순서를 안정 정렬하고 canonical JSON/hash를 사용한다.
-- scatter 배치도 seed의 순수 함수이며 전역 RNG·시간·프로세스 hash에 의존하지 않는다.
-- 25개 검수 intent 전체를 골든 테스트하고 대표 seed 변형을 별도로 검증한다. 대표 compose는 `PYTHONHASHSEED=0/1/12345` 서브프로세스에서 byte 동일성을 교차 검증한다.
-- finalize PNG의 byte 동일성은 intent, colorway, production method, weave, material map, DPI, texture/relief strength와 동일한 renderer·Pillow·fabric asset 버전에서 성립한다. 현재 Pillow는 lockfile로 고정되지만 container의 librsvg 패키지는 별도 버전 고정이 남아 있다.
+- prompt authoring은 의도적으로 탐색적이며 같은 문장이 다른 유효 intent를 만들 수 있다. 결정론은 **intent 확정 이후**에만 성립한다.
+- RNG는 요청 seed에서 만든 지역 `random.Random`만 쓴다. 전역 RNG·시간·프로세스 hash에 의존하지 않는다.
+- layer와 motif pool 순서를 안정 정렬하고 canonical JSON/hash를 쓴다.
+- 25개 검수 intent 전체를 골든 테스트하고, 대표 compose는 `PYTHONHASHSEED=0/1/12345` 서브프로세스에서 byte 동일성을 교차 검증한다.
+- finalize PNG의 byte 동일성은 intent·colorway·production method·weave·material map·DPI·strength가 같고 renderer·Pillow·fabric asset 버전이 같을 때 성립한다. Pillow는 lockfile로 고정되지만 **container의 librsvg 패키지 버전 고정은 남아 있다**.
+- seamless는 사후 보정이 아니다. 경계를 넘는 motif를 반대편에 clone하고 대각선을 tile 경계에서 닫히는 slope로 snap한다. raster seam metric은 이 구조의 회귀 guard이며 blur로 경계를 감추지 않는다.
 
-### 7.3 배치와 seamless 보장
+### 6.3 계약 정본
 
-| placement | 방식 |
+| 주제 | 정본 |
 |---|---|
-| `lattice` | tile을 나누는 cell과 half-drop/brick offset을 torus에 열거 |
-| `path_following` | 닫히는 직선·wave 경로의 실제 주기에 맞춰 motif 간격 배분 |
-| `scatter` | seeded Poisson 또는 sateen 배치를 torus 거리로 계산 |
-| `point_set` | 검증된 좌표를 tile 크기로 wrap |
-
-- 대각선은 tile 경계에서 닫히는 slope로 snap한다.
-- 구조화 방향 설정은 optional `fixed_rotation_deg`로 motif instance에 적용한다. 값이 없으면 canonical layout을 사용한다.
-- 경계를 넘는 motif는 반대편에 clone해 양쪽 픽셀이 연결되게 한다.
-- `<symbol>`에 geometry를 한 번 정의하고 `<use>`로 인스턴스를 배치한다.
-- raster seam metric은 사후 보정이 아니라 이 구조의 회귀 guard다. blur로 경계를 감추지 않는다.
-
-### 7.4 Motif 검색·명시적 생성
-
-1. 디자인 첫 생성에 사용자가 고른 private motif가 있으면 그 exact ID가 슬롯을 먼저 사용하고, 프롬프트 기반 공개 카탈로그 모티프는 추가하지 않는다.
-2. 남은 슬롯이 있는 prompt 요청은 `user_upload`을 제외한 `status=approved` 공개 카탈로그에서 subject/tag 완전 토큰 일치와 pgvector cosine top-5를 합친다. `scope`는 검색 하드 필터가 아니다.
-3. exact token 또는 similarity `τ=0.40`(text-embedding-3-large 분포 재캘리브레이션) 이상만 LLM에 ID 없는 `catalog_ref` 후보로 제공한다. LLM이 검증된 후보를 무시하면 한 번 constrained retry 후 `semantic_mismatch`로 실패한다. 후보가 없으면 모티프 없이 계속하며 lowest-ID fallback이나 자동 생성은 없다.
-4. 사용자가 모티프 모달에서 `motifs/generate`를 명시적으로 실행할 때만 최대 200자의 문장을 그대로 `subject`로 삼아, 검색 결과와 무관하게 GPT Image를 호출한다. 별도 `style_hint`나 디자인 컨텍스트는 주입하지 않는다. 세션당 3회 예산을 쓰며 디자인 토큰은 차감하지 않는다.
-5. 정규화된 새 SVG는 비전 모델로 한 번 태깅해 `description`, 한·영 `tags`, `style(flat|outline)`을 만들고 동일 facet 살균을 거쳐 `scope=whole`, `status=pending`으로 content-hash upsert한다. 태깅 실패·안전성 거부는 생성 실패로 전파하지 않고 subject만 보존한다. content-hash 충돌 시 기존 facet·유입 출처·검토 상태를 덮지 않는다. 새 GPT Image 행에만 최초 유입 사용자·디자인 세션을 nullable provenance로 기록하며 사용자 또는 세션 삭제 시 FK는 `SET NULL`이다. 관리자는 메타데이터를 보정하고 pending/approved/rejected 사이에서 no-op을 제외한 전이를 수행한다.
-
-승인된 공개 카탈로그의 임베딩 문서는 `subject, description, style, tags` 순서로 만들며 scope를 제외한다. `seed_motifs.py`는 신뢰된 행을 `approved`로 넣고, 기존 설명 없는 공개 계열 행은 `backfill_motif_tags.py --confirm-live`로 태깅한 뒤 `index_motif_embeddings.py --confirm-live`를 실행한다. 태깅 또는 admin 메타데이터 편집은 기존 임베딩을 NULL로 무효화하며 registry fingerprint는 승인된 ID 집합만 보므로 바뀌지 않는다. `pending`·`rejected`·`user_upload`은 인덱싱·검색·fingerprint에서 제외한다. ID 직접 조회는 검토 상태를 필터하지 않아 기존 세션의 불변 참조를 보존한다.
-
-외부 URL을 다시 다운로드하지 않으므로 motif generation 경로에 SSRF 가능한 2차 fetch가 없다. resolver의 선택적 조회 실패는 savepoint 안에서만 롤백해 앞선 정상 write를 보존한다.
-
-모티프의 fill/stroke 색은 생성·업로드 정규화 시 concrete paint로 확정한다. `currentColor`/`inherit`는 문서의 `color` 상속값(없으면 `#111111`)으로 구체화하고 hex 표기를 정규화한다. 이 색을 포함한 geometry가 content-hash identity 입력이므로 같은 도형이라도 색이 다르면 다른 motif ID다. 이후 Plan, intent, 구성 patch, fabric finalize 어느 경로도 symbol의 색을 다시 배정하지 않는다. GPT Image에는 사용자 문장을 그대로 넣고 `gpt-image-2`, `low`, `1024x1024`, `n=1`만 사용한다. prompt에서 그라데이션·음영 없는 플랫 색면을 요구하되 색 수는 제한하지 않는다. 생성 PNG는 border-connected 배경 제거와 alpha 이진화, 가까운 중간색을 합치는 채널 정밀도 양자화, VTracer medium, 팔레트 snap을 거친다. 따라서 팔레트 크기는 모티프에 따라 달라진다. 투명 canvas frame을 보존해 10% 여백과 원본 캔버스 내 비율이 tight-bbox 정규화에서 사라지지 않게 한다.
-
-### 7.5 Generate 흐름
-
-```mermaid
-sequenceDiagram
-    actor U as Customer
-    participant S as Store
-    participant A as API
-    participant DB as PostgreSQL
-    participant W as worker-generate
-    participant G as GCS assets
-
-    U->>S: prompt + 모티프(≤2) + 색상
-    S->>A: SVG/텍스트/사진 모티프 preview·저장 요청
-    A->>W: private sanitize·normalize·content identity
-    W-->>A: 정규화 SVG와 identity
-    A->>DB: owner lock 안에서 Motif + UserMotif 원자 저장
-    S->>A: POST /design/generate (session_id 필수)
-    A->>DB: 세션 lock·active run guard, user turn + 토큰 차감 commit
-    A->>W: OIDC generate + 활성 스텝 문맥 + exact motif ids + constraints
-    W->>DB: public motif catalog search
-    W->>W: 첫 생성은 plan authoring, 이후는 구성 patch → intent validation → compose → SVG → preview
-    W->>G: design/content-hash create-only upload
-    W-->>A: design + resolved plan + warnings + optional motif_intent
-    A->>DB: assistant turn·새 스텝 활성화·active run 해제 commit
-    A-->>S: 디자인 1개 + optional motif_intent
-    S-->>U: 검색어 prefill + 모티프 피커 강조·안내
-    U->>S: 이력 썸네일로 과거 스텝 되돌리기
-    S->>A: POST /design/sessions/{id}/steps/activate
-    A->>DB: 해당 run의 intent + resolved plan 원자 commit
-
-    Note over A,DB: worker 실패 시 원래 차감 bucket을 멱등 보상
-```
-
-생성 비용은 API가 먼저 차감하고, 실패 시 실제 차감 행의 class·원천 주문·만료를 뒤집는 보상 행을 추가한다. 임의의 paid token을 새로 만들지 않는다. API는 worker raw exception을 공개하지 않고 안정된 오류 코드로 변환한다. 일반 prompt 생성이 성공하면 사용한 프롬프트·모티프·palette 작성 상태를 해제하고 턴 이력에 남긴다. 실패한 요청은 작성 상태를 유지해 같은 입력으로 재시도할 수 있다. 첫 생성과 구성 수정은 `admin_settings`의 서로 다른 단가(`design_token_cost_openai_render_standard` / `design_edit_cost`)로 과금한다.
-
-한 번의 생성은 디자인 1개를 만들고, 세션은 그 디자인들의 선형 이력(스텝)을 갖는다. 성공한 생성은 같은 트랜잭션에서 그 스텝을 정본으로 자동 활성화해 세션 문맥을 최신 결과로 전진시킨다. `current_intent`는 byte-identical 재현을 위한 렌더 정본이고 `current_plan`은 대화 의미 정본인 `DesignPlanV3`다(patch 런에서는 null이며 모티프 생성의 style hint가 읽는다). `steps/activate`는 같은 세션의 과거 run을 대상으로 generation log에서 intent·plan·seed·colorway를 복원해 원자 커밋하고 `context_version`을 증가시킨다. 편집 포인터만 옮기므로 이후 스텝은 그대로 남고, 그 상태에서 지시하면 번호가 이어붙는다 — 분기 트리 UI도 세션 복제 경로도 없다. 실패 턴은 같은 세션의 다음 모델 문맥에 들어가지 않는다. `/design/generate`는 클라이언트 intent를 받지 않고 소유 세션의 정본과 최근 성공 턴 최대 6쌍을 서버에서 구성한다.
-
-커밋된 디자인이 없는 첫 생성만 `DesignPlanV3`를 저작한다. 이미 디자인이 있으면 입력창 문장은 **구성 patch**(`DesignPatchV1`)로만 해석한다 — 바탕색·줄무늬·배치·무늬 크기·팔레트 5축뿐이고 모티프 정체성 필드는 스키마에 없다. 모델이 무늬를 바꾸는 것이 타입상 불가능하므로 "요청하지 않은 걸 건드렸는지"를 사후에 추측해 되돌리는 preserve 가드가 필요 없고, 적용(`apply_patch`)은 엔진 불변식을 깨지 않는 결정론이다. 모티프 요청과 표현 가능한 구성 수정이 섞이면 구성만 적용하고(과금은 편집 1회) 성공 응답에 `motif_intent`를 포함한다 — patch 프롬프트도 "지원 축은 적용하고 나머지만 `out_of_scope`"로 지시한다. 순수 모티프 요청은 `scope_rejected`와 같은 sidecar로 끝나 과금·이력·문맥이 요청 전과 같고, store는 오류로 취급하지 않고 피커를 펼쳐 검색어를 채우고 짧게 강조한다. 안내할 sidecar가 없는 거절은 조용히 끝내지 않고 기존 빨강 알림 1건으로 알린다.
-
-활성화 시 plan의 motif source는 실제 렌더에 사용한 concrete motif ID로 동결한다. API→worker 문맥에는 이 정본을 보내지만 LLM 직전에는 `current_motif_N` 요청 로컬 alias로 치환하며 SVG, private motif ID, 과거 응답, provider 오류 원문은 모델 문맥에 넣지 않는다. 구성 patch 경로는 여기서 한 단계 더 좁혀 모티프 정체성이 빠진 구성 스냅샷만 보낸다. 과거 assistant 문맥은 semantic plan에서 만든 짧은 구조 설명과 사용한 모티프 이름만 포함한다.
-
-세션은 외부 worker 호출 전에 `active_generation_id`와 시작 시각, 사용자 턴, 토큰 차감을 한 트랜잭션으로 커밋한다. active run이 있으면 동시 요청을 거부하고 DB lock을 외부 호출 동안 유지하지 않는다. finalize job과 같은 명시적 stale window가 지난 run만 회수해 멱등 환불·assistant error turn을 남긴다. 성공·실패의 늦은 응답은 run ID와 세션 상태가 일치할 때만 active 상태를 끝낼 수 있다.
-
-최종 모티프는 최대 2개다. 사용자가 고른 exact motif는 모두 최종 intent에 정확히 한 번 들어가야 하며 하나라도 빠지면 성공으로 낮추지 않는다.
-
-만든 뒤 모티프를 바꾸는 경로는 문장 하나다: `motifs/search`가 카탈로그를 무과금으로 찾고, 없으면 `motifs/generate`가 세션 모티프 생성 예산으로 만들고, `motifs/activate`가 슬롯(최대 2)의 motif id만 바꿔 결정적으로 재렌더한다. activate는 모델을 호출하지 않으므로 토큰을 쓰지 않고 새 스텝만 남긴다.
-
-사용자 모티프 경로에서 worker는 DB 소유권을 만들지 않는다. `/motifs/import`와 텍스트·사진
-preview는 순수 변환 경계로 안전한 SVG와 identity만 반환하고, API가 사용자 advisory lock과
-단일 트랜잭션 안에서 `Motif(source=user_upload)` 및 `UserMotif` 링크를 저장한다. 생성형 공개
-catalog의 검색·upsert는 기존 worker resolver가 계속 소유하므로 private 라이브러리와 섞이지
-않는다.
-
-"같은 지시로 다시" 경로는 없다 — 되돌리기는 이력 썸네일 클릭(`steps/activate`)이 유일하다. 라이브러리에서 사용자 모티프 관계를 삭제해도 이미 생성된 intent와 턴의 불변 core motif는 유지한다. 아이디어 helper는 별도 rate limit을 적용하고 디자인 토큰·turn·intent·generation log를 쓰지 않는다.
-
-### 7.6 Finalize·export 흐름
-
-```mermaid
-sequenceDiagram
-    actor U as Customer
-    participant S as Store
-    participant A as API
-    participant DB as PostgreSQL
-    participant Q as Cloud Tasks
-    participant W as worker-finalize
-    participant G as GCS assets
-
-    U->>S: 원단 finalize 요청
-    S->>A: POST /design/sessions/{id}/finalize
-    A->>DB: budget 조건부 증가, queued job 생성
-    A->>Q: task name = finalize-{job_id}
-    Q->>W: OIDC push
-    W->>DB: lease + attempt로 claim
-    W->>W: SVG/label masks/weave/relief render
-    W->>G: content-hash create-only upload
-    W->>DB: attempt 조건부 succeeded
-    S->>A: job status polling
-    A-->>S: result_url
-```
-
-- task create 응답이 유실되어도 같은 이름으로 재시도하며 409 `ALREADY_EXISTS`를 전달 성공으로 본다.
-- local/test는 Cloud Tasks 대신 API가 worker의 finalize 경로를 직접 await한다. 비로컬 환경은 Cloud Tasks 필수 설정이 빠지면 기동하지 않는다.
-- worker가 이미 claim한 ambiguous enqueue는 환불/실패로 되돌리지 않는다.
-- API가 전달 실패와 budget 보상을 확정한 job에 늦은 task가 도착하면 실행하지 않고 ACK한다.
-- 960초 lease와 attempt 조건부 terminal write로 오래된 worker가 새 결과를 덮지 못한다.
-- 잘못된 intent·weave·colorway 같은 입력 오류만 terminal 2xx로 종료한다. 그 밖의 예외는 temporary marker를 기록하고 500으로 반환해 Cloud Tasks 재전송에 맡긴다.
-- `failed + temporary marker`는 다음 delivery가 즉시 다시 claim한다. 960초 lease는 `processing` 상태에서 응답이 끊긴 attempt를 회수할 때만 적용한다.
-- export는 작은 동기 작업이므로 API가 worker-finalize를 OIDC로 직접 호출하고 blob을 반환한다.
-
-```mermaid
-stateDiagram-v2
-    state "failed + temporary marker" as retryable_failed
-    state "failed terminal" as terminal_failed
-    [*] --> queued
-    queued --> processing: claim lease
-    processing --> succeeded: upload + conditional commit
-    processing --> retryable_failed: non-input error + 500
-    retryable_failed --> processing: next delivery
-    processing --> processing: lease expired, reclaim
-    processing --> terminal_failed: invalid input + 200
-    queued --> terminal_failed: dispatch window expired
-    succeeded --> [*]
-    terminal_failed --> [*]
-```
-
-### 7.7 Finalize 렌더
-
-- 승인한 승격 후보를 다시 합성해 source SVG를 고정한다.
-- color slot별 label raster를 한 번 만들고 material mask를 파생한다.
-- 번들된 7종 tileable weave를 wrap sampling으로 합성한다.
-- texture strength와 relief를 적용하되 seam을 흐리는 blur는 사용하지 않는다.
-- 기존 4~5회 compose/raster를 승계하지 않고 중간 산출물을 재사용해 최악 렌더 호출을 3회로 줄였다.
-- `print`는 하나의 twill weave를 균일 적용하고 `material_map`을 거부한다. `yarn_dyed`만 color slot별 material map과 relief를 적용한다.
-
-### 7.8 입력·출력 hardening
-
-- DTD/entity, script, event handler, 외부 href, `javascript:` URL을 거부한다.
-- 허용 element/attribute 목록과 `defusedxml` 기반 parsing을 사용한다.
-- SVG 2MB, raster 20M pixels, placement 수, layer/palette, tile size, DPI, 외부 응답 byte에 상한을 둔다.
-- NaN/Infinity와 signed-int64 범위를 벗어난 seed를 거부한다.
-- raster subprocess timeout은 120초다.
-- 명시적 모티프 생성의 GPT Image 응답은 inline base64 PNG만 수용하며 decoded byte를 10MB로 제한한다.
-- preview 업로드 실패는 디자인 합성까지 실패시키지 않고 URL을 비운 warning으로 강등한다.
+| intent 스키마, placement 4종, colorway, 엔진 상수·상한 | [worker-engine.md](./docs/api-spec/worker-engine.md) |
+| 모티프 정규화·content hash·GPT Image·임베딩·catalog grounding·색 불변 계약 | [worker-motifs.md](./docs/api-spec/worker-motifs.md) |
+| 래스터화, fabric finalize, worker HTTP 계약, patch·sidecar·과금 경계, 재시도·lease | [worker-pipeline.md](./docs/api-spec/worker-pipeline.md) |
+| Plan v3 저작·RAG 검색·승격 상태기계·관리자 저작 | [authoring-plan-v3.md](./docs/api-spec/authoring-plan-v3.md) |
+| `/design` 엔드포인트 표면 | [domains.md](./docs/api-spec/domains.md) §11 |
 
 ---
 
-## 8. CI/CD·운영·이관 순서
+## 7. CI/CD·운영
 
-### 8.1 CI gate
+### 7.1 CI gate
 
-PR과 main push에서 다음을 수행한다.
+PR과 main push에서 수행한다.
 
 1. `pnpm codegen` 재생성 후 git drift 확인
-2. Biome/harness lint, Vite production build, TypeScript typecheck, Vitest
+2. Biome/harness lint, `pnpm architecture:check`(모듈 경계·문서 링크), Vite production build, TypeScript typecheck, Vitest
 3. Ruff check/format, Pyright, pytest + 실제 PostgreSQL testcontainers
-4. Store 돈 경로와 Admin Playwright smoke
-5. OSV source scan. 외부 GitHub Action은 workflow에서 full commit SHA로 고정
+4. Schemathesis OpenAPI 계약 퍼징
+5. Store 돈 경로와 Admin Playwright smoke
+6. OSV source scan. 외부 GitHub Action은 workflow에서 full commit SHA로 고정
 
-2026-07-13 검증 스냅샷:
+### 7.2 배포 순서
 
-- Python 651 tests, Vitest 311 tests 통과
-- OpenAPI 128 paths / 147 HTTP operations, codegen drift 0
-- Biome 427 files, Ruff format 222 Python files, Pyright 0 errors/warnings
-- 별도 release 감사에서 OpenTofu validate, API/worker Docker build, store/admin/proxy Wrangler dry-run 통과
-
-정확한 최신 수치는 CI가 정본이며 고정된 제품 사양으로 취급하지 않는다.
-
-### 8.2 배포 순서
-
-```mermaid
-flowchart LR
-    Push[main push] --> CI[CI success]
-    CI --> Gate[same SHA 확인]
-    Gate --> Build[API/worker image build]
-    Build --> Registry[Artifact Registry push]
-    Registry --> Check[main tip 재확인]
-    Check --> Migrate[Alembic migrate job]
-    Migrate --> Run[Cloud Run 3 services]
-    Run --> CF[Cloudflare store/admin/proxy]
-    CF --> Smoke[proxy 200 · direct 403 smoke]
+```text
+main push → CI success → same SHA 확인 → image build → Artifact Registry push
+→ main tip 재확인 → Alembic migrate job → Cloud Run 3서비스 → Cloudflare 3워커
+→ proxy 200 · direct 403 smoke
 ```
 
-- 배포는 같은 repository의 `push/main` CI 성공이 발생시킨 `workflow_run`만 허용한다.
+- 배포는 같은 repository의 `push/main` CI 성공이 발생시킨 `workflow_run`만 허용한다. 수동 dispatch는 없다.
 - 배포 concurrency는 진행 중인 배포를 취소하지 않는 단일 queue다.
-- migration 직전까지 main tip이 대상 SHA인지 확인한다.
-- migration 시작이 point-of-no-return이다. 그 뒤 main이 전진해도 같은 SHA의 서비스와 프론트 배포를 끝낸다.
+- migration 직전까지 main tip이 대상 SHA인지 확인한다. **migration 시작이 point-of-no-return**이다.
 - migrate job은 `max_retries=0`이며 실패하면 전체 배포를 중단한다.
-- WIF를 사용하며 장기 GCP service-account key 파일은 없다.
+- WIF를 쓰며 장기 GCP service-account key 파일은 없다.
 
-현재 workflow와 IaC가 이 순서를 구현하지만 스테이징 프로젝트에는 아직 실행하지 않았다.
+실행 순서와 통과 판정은 [OPERATOR-CHECKLIST](./docs/OPERATOR-CHECKLIST.md), 명령은 [infra/README](./infra/README.md)가 정본이다.
 
-### 8.3 Health·readiness·관측
+### 7.3 Health·readiness·관측
 
 | 신호 | 목적 | 실패 처리 |
 |---|---|---|
 | `/healthz` | 프로세스 기동·event loop 생존 | Cloud Run startup/liveness가 재시작 판단 |
-| `/readyz` | API의 DB ping·연동 설정 capability, worker의 DB·GCS 확인 | 공개 uptime/deploy smoke가 503 판단, 프로세스는 재시작하지 않음 |
+| `/readyz` | API의 DB ping·연동 capability, worker의 DB·GCS 확인 | 공개 uptime/deploy smoke가 503 판단, 프로세스는 재시작하지 않음 |
 | request ID | browser/API/worker 요청 상관관계 | 구조화 로그와 응답 header에 전파 |
-| 디자인 생성 provider 진단 | OpenAI LLM·임베딩의 stage/provider/operation/reason/status/duration | 원문 prompt·provider 응답·인증 header 없이 worker JSON 로그와 `seamless_generation_logs.diagnostics`에 기록. 명시적 모티프 생성의 GPT Image 진단은 worker JSON 로그에만 기록 |
-| Sentry | 예외 추적 | store·api·worker instrumentation 구현, 프로젝트/DSN은 스테이징 전 주입 |
-| Budget alert | 비용 50/90/100% | OpenTofu 선언, 실제 apply 후 활성화 |
-| Uptime check | Cloudflare 경유 `/readyz` | OpenTofu 선언, 실제 apply 후 활성화 |
+| 생성 provider 진단 | stage/provider/operation/reason/status/duration | 원문 prompt·provider 응답·인증 header 없이 worker JSON 로그와 `seamless_generation_logs.diagnostics`에 기록 |
+| Sentry | 예외 추적 | store·api·worker instrumentation 구현. **admin에는 Sentry client가 없다** |
+| Budget alert | 비용 50/90/100% | OpenTofu 선언, apply 후 활성화 |
+| Uptime check | Cloudflare 경유 `/readyz` | OpenTofu 선언, apply 후 활성화 |
 
-Admin에는 현재 Sentry client가 없다. “전 프론트 구간 Sentry 통일”을 현재 완료 상태로 보지 않는다.
+API readiness는 Toss·Solapi·worker·OAuth/OIDC·secret의 **설정 모드**를 확인할 뿐 외부 provider를
+live ping하지 않는다. GCS·Tasks는 설정 누락 시 readiness 이전에 기동을 중단한다. worker readiness도
+OpenAI LLM·임베딩·GPT Image 상태를 조회하지 않는다.
 
-API readiness는 Toss·Solapi·worker·OAuth/OIDC·secret의 설정 모드를 확인하지만 외부 provider를 모두 live ping하지는 않는다. GCS·Tasks는 배포 설정 누락 시 readiness 이전에 기동을 중단한다. worker readiness도 OpenAI LLM·임베딩·GPT Image 상태를 조회하지 않는다.
+Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 generate turn과 연결한다. 되돌리기
+(`activate` 턴)와 finalize도 같은 `run_id` 등가 매칭으로 상관하며 별도 이벤트 테이블을 만들지 않는다.
 
-Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 generate turn과 연결한다. 되돌리기(`activate` 턴)와 finalize는 같은 `run_id` 등가 매칭으로 상관하고, 후속 재생성도 기존 turn/job을 읽어 투영하며 별도 이벤트 테이블을 만들지 않는다.
+### 7.4 배치 작업
 
-### 8.4 배치 작업
-
-Cloud Scheduler가 다음 bounded batch를 API `/batch/*`로 호출한다.
+Cloud Scheduler가 bounded batch **5종**을 API `/batch/*`로 호출한다(`infra/scheduler.tf`, KST).
 
 - 주문 자동 구매확정
 - stale pending 주문 취소
 - stale generation job 정리·보상
 - 만료 이미지 정리
+- authoring 승격 후보 선별 (매일 05:00)
 
-비로컬 batch는 audience와 호출 service account email을 모두 검증한다. 로컬에서만 개발 token 폴백을 허용한다.
-
-### 8.5 이관·개통 단계
-
-실행 상태의 정본은 [docs/CHECKLIST.md](./docs/CHECKLIST.md), 사람의 수동 순서는 [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md)다.
-
-1. **코드 골격·도메인 구현 — 완료**
-
-   모노레포, DB, API, worker, store/admin, tests, CI/IaC.
-
-2. **스테이징 bootstrap — 미완료**
-
-   별도 GCP 프로젝트, state bucket, target apply, secret version, 전체 apply.
-
-3. **Cloudflare/API proxy 선개통 — 미완료**
-
-   `api.essesion.shop` route, edge secret, WAF/rate limit, direct-origin 403 확인.
-
-4. **스테이징 배포·provider 연결 — 미완료**
-
-   migrate, 세 서비스, 두 프론트, Google/Kakao redirect, Toss/Solapi/GCS/Sentry/Tasks 검증.
-
-5. **데이터 리허설 — 미완료**
-
-   사용자 매칭 정책, 변환, 이미지 수동 등록, 금액/행/FK 대조, 개인정보 purge 검증.
-
-6. **프로덕션 컷오버 — 미완료**
-
-   쓰기 동결, 최종 변환, DNS 전환, 전원 재로그인, rollback rehearsal.
-
-7. **안정화·종료 — 미완료**
-
-   운영 관찰 후 기존 Supabase 프로젝트 해지.
-
-DNS 원복 한 줄만으로 rollback runbook을 완료 처리하지 않는다. trigger, 승인자, DB schema 호환성, 쓰기 동결 해제 조건, 명령과 데이터 보전 검증이 있어야 한다.
+비로컬 batch는 audience와 호출 service account email을 **모두** 검증한다. audience 불일치는 배치
+전원이 401로 조용히 실패하는 형태로 나타나므로 개통 시 반드시 대조한다. 로컬만 개발 token 폴백을 허용한다.
 
 ---
 
-## 9. 주요 결정과 남은 위험
+## 8. 주요 결정과 남은 위험
 
-### 9.1 Architecture decision record 요약
+### 8.1 Architecture decision record
 
 | 결정 | 선택 | 이유 / 기각한 대안 |
 |---|---|---|
@@ -795,39 +525,45 @@ DNS 원복 한 줄만으로 rollback runbook을 완료 처리하지 않는다. t
 | generate | 동기 HTTP | 사용자가 결과를 기다리는 interactive 작업 |
 | finalize | Cloud Tasks push | 작업 단위 retry·OIDC·deadline·결정적 task 이름이 필요 |
 | worker 배포 | 같은 코드, 두 서비스 | 계산 코드는 공유하고 resource/IAM/route는 분리 |
-| SVG renderer | librsvg 기준선 유지 | resvg가 형상은 같지만 edge AA byte parity를 만족하지 못함 |
+| SVG renderer | librsvg 기준선 유지 | resvg가 형상은 같지만 edge AA byte parity를 만족하지 못함 ([근거](./docs/reviews/resvg-parity.md)) |
 | Storage | public/private 두 버킷 | 공개 결과와 고객 개인정보 첨부의 IAM 경계 분리 |
-| DB 연결 | Cloud SQL volume + asyncpg Unix socket | Cloud Run의 단순한 연결 경로, 별도 connector 의존 불필요 |
+| DB 연결 | Cloud SQL volume + asyncpg Unix socket | Cloud Run의 단순한 연결 경로, 별도 connector 불필요 |
 | AI 실행 | 외부 provider, 로컬 GPU 없음 | 로컬 엔진은 좌표·SVG·Pillow 계산이며 GPU 추론이 없음 |
+| 비동기화 범위 | generate·작은 export는 동기 | 사용자가 대기하는 경로는 동기가 더 단순 |
+| 환경 분리 | 로컬 + 단일 production | 별도 staging 프로젝트의 운영·비용 부담이 이득보다 큼 |
 | 배포 인증 | GitHub WIF | 장기 service-account key 제거 |
-| IaC | OpenTofu | 스테이징/프로덕션 구성을 project 변수로 재사용 |
+| IaC | OpenTofu | 단일 production 프로젝트의 리소스·IAM·모니터링을 선언 |
 
-resvg 판정 근거는 [렌더 동등성 리뷰](./docs/reviews/resvg-parity.md)에 남긴다.
-
-### 9.2 남은 외부 gate
+### 8.2 남은 외부 gate
 
 | 위험/미완 | 현재 완화 | 완료 조건 |
 |---|---|---|
-| 실제 GCP/Cloudflare 미개통 | IaC·workflow·로컬 에뮬레이터 검증 | 스테이징 apply와 proxy/direct smoke |
+| 실제 GCP/Cloudflare 미개통 | IaC·workflow·로컬 에뮬레이터 검증 | production apply와 proxy/direct smoke |
 | Toss·OAuth·Solapi 실연동 미검증 | local DryRun과 adapter 테스트 | provider sandbox E2E |
 | Cloud Tasks OIDC 미검증 | audience/deadline/IAM 코드와 테스트 | 실제 queue→worker 전달·retry 관찰 |
 | Sentry DSN 미주입 | DSN 없으면 no-op | store/api/worker 프로젝트 생성·이벤트 확인 |
-| Apple·Naver OAuth 미구현 | Google·Kakao만 지원으로 명시 | provider 등록·callback·E2E |
-| 사용자 종속 데이터 이관 정책 미확정 | migration stub과 mapping 문서 | 사용자 매칭·대조 리허설 승인 |
-| 역사성 개인정보 retention 미승인 | production cutover 차단 | 필드별 TTL·purge·backup 정책 승인/검증 |
-| finalize 운영 메모리 미실측 | 600 DPI, 4 GiB, concurrency 2 상한 | 스테이징 RSS/latency/OOM 측정 후 조정 |
+| 소셜 콘솔 미등록 | 코드 4종 구현. 네이버는 store에서 "준비 중" 게이팅, 나머지는 `/readyz` capability로 노출 | Google·Kakao·Apple 콘솔 등록·callback·E2E (네이버는 이후 일정) |
+| 역사성 개인정보 retention 미승인 | 컷오버 차단 | 필드별 TTL·purge·backup 정책 승인/검증 |
+| finalize 운영 메모리 미실측 | dpi 600, 4 GiB, concurrency 2 상한 | production RSS/latency/OOM 측정 후 조정 |
 | API/worker DB role 공유 | 서비스별 IAM과 secret access는 분리 | DB role·grant까지 최소권한 분리 |
 | librsvg 패키지 버전 미고정 | 현재 환경의 fabric golden으로 회귀 감시 | base image digest와 renderer 패키지 버전 고정 |
 
-### 9.3 설계 정본
+DNS 원복 한 줄만으로 rollback runbook을 완료 처리하지 않는다. trigger, 승인자, DB schema 호환성,
+쓰기 동결 해제 조건, 명령과 데이터 보전 검증이 있어야 한다.
 
-- 전체 진행 상태: [docs/CHECKLIST.md](./docs/CHECKLIST.md)
-- 개통 runbook: [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md)
-- 기존→새 스키마: [db/MAPPING.md](./db/MAPPING.md)
-- 주문·결제·토큰: [docs/api-spec/money.md](./docs/api-spec/money.md)
-- worker 엔진: [docs/api-spec/worker-engine.md](./docs/api-spec/worker-engine.md)
-- worker pipeline: [docs/api-spec/worker-pipeline.md](./docs/api-spec/worker-pipeline.md)
-- motif resolve: [docs/api-spec/worker-motifs.md](./docs/api-spec/worker-motifs.md)
-- 전체 감사: [docs/reviews/repo-refactor-2026-07.md](./docs/reviews/repo-refactor-2026-07.md)
+### 8.3 설계 정본
 
-이 문서는 시스템 경계와 결정의 정본이다. 정확한 상태 문자열, 요청 필드, 금액 공식, 운영 명령은 위 도메인 명세와 runbook을 우선한다.
+| 주제 | 문서 |
+|---|---|
+| 진행 상태 | [docs/CHECKLIST.md](./docs/CHECKLIST.md) |
+| 개통 순서·판정 | [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md) |
+| 개통 명령 | [infra/README.md](./infra/README.md) |
+| 기존→새 스키마 | [db/MAPPING.md](./db/MAPPING.md) |
+| 도메인 동작·엔드포인트 | [docs/api-spec/domains.md](./docs/api-spec/domains.md) |
+| 주문·결제·토큰 | [docs/api-spec/money.md](./docs/api-spec/money.md) |
+| worker 엔진 | [docs/api-spec/worker-engine.md](./docs/api-spec/worker-engine.md) |
+| worker pipeline | [docs/api-spec/worker-pipeline.md](./docs/api-spec/worker-pipeline.md) |
+| motif resolve | [docs/api-spec/worker-motifs.md](./docs/api-spec/worker-motifs.md) |
+| Plan v3 저작·승격 | [docs/api-spec/authoring-plan-v3.md](./docs/api-spec/authoring-plan-v3.md) |
+| admin UI 계약 | [docs/admin-ui-contract.md](./docs/admin-ui-contract.md) |
+| 보안·동시성·공급망 감사 | [docs/reviews/repo-refactor-2026-07.md](./docs/reviews/repo-refactor-2026-07.md) |

@@ -1,4 +1,4 @@
-"""요청 의존성 — 인가 3규칙(ARCHITECTURE §5)의 집행 지점.
+"""요청 의존성 — 인가 3규칙(ARCHITECTURE §4)의 집행 지점.
 
 ① 상품·찜은 공개 조회(OptionalUser) ② 그 외 리소스는 owner-only(ensure_owner)
 ③ admin/manager는 전체 접근(AdminUser). 정책: 미인증 401 / 남의 것 403 / 없는 것 404.

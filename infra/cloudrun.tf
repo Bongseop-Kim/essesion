@@ -5,7 +5,7 @@ locals {
   # ---- 서비스 env 결선 — 시크릿 값 주입은 gcloud(README), 여기는 참조만 ----
   # 주의: 시크릿에 버전이 없으면 리비전이 기동 실패한다 — 부트스트랩은 2단계 apply(README).
   api_plain_env = merge({
-    ENV                              = "staging"
+    ENV                              = "production"
     GCS_UPLOAD_BUCKET                = google_storage_bucket.uploads.name
     GCS_ASSETS_BUCKET                = google_storage_bucket.assets.name
     GCP_PROJECT_ID                   = var.project_id
@@ -50,7 +50,7 @@ locals {
 
   # worker는 GCP_PROJECT_ID를 읽지 않는다 — GCS 클라이언트는 ADC 메타데이터로 프로젝트를 추론.
   worker_plain_env = {
-    ENV        = "staging"
+    ENV        = "production"
     GCS_BUCKET = google_storage_bucket.assets.name
   }
 
@@ -73,7 +73,7 @@ locals {
 resource "google_cloud_run_v2_service" "api" {
   name     = "api"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL" # 공개 — Cloudflare 프록시 경유 (ARCHITECTURE §2)
+  ingress  = "INGRESS_TRAFFIC_ALL" # 공개 — Cloudflare 프록시 경유 (ARCHITECTURE §1)
 
   template {
     service_account                  = google_service_account.api.email

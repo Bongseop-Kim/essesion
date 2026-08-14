@@ -1,5 +1,5 @@
 variable "project_id" {
-  description = "스테이징 전용 GCP 프로젝트 ID (프로덕션은 별도 프로젝트로 재사용 — ARCHITECTURE §8)"
+  description = "단일 production GCP 프로젝트 ID (별도 staging 프로젝트를 두지 않는다 — ARCHITECTURE §0)"
   type        = string
 }
 
@@ -41,7 +41,7 @@ variable "github_repository_id" {
 }
 
 variable "api_min_instances" {
-  description = "api 콜드스타트 제거는 프로덕션 요구(ARCHITECTURE §2) — 스테이징 기본 0으로 비용 절약"
+  description = "api 콜드스타트 제거는 프로덕션 요구(ARCHITECTURE §2.2) — 비용을 위해 기본 0, 지표가 나쁠 때만 1"
   type        = number
   default     = 0
 }
@@ -61,7 +61,7 @@ variable "public_api_origin" {
 }
 
 variable "db_tier" {
-  description = "스테이징은 최소 사양, 프로덕션에서 상향"
+  description = "초기는 최소 사양, 운영 지표를 보고 상향"
   type        = string
   default     = "db-g1-small"
 }

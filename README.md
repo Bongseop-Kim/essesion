@@ -2,7 +2,7 @@
 
 > 넥타이 커머스와 결정론적 seamless textile 엔진을 하나의 계약 중심 모노레포로 재설계한 프로젝트
 
-**현재 상태:** 애플리케이션 구현·로컬 검증 완료 · 배포 자동화/IaC 구현 완료 · **스테이징 개통 전**
+**현재 상태:** 애플리케이션 구현·로컬 검증 완료 · **production 미개통**
 
 ![벡터 반복 패턴이 직조 질감의 원단 콘셉트로 이어지는 ESSE SION 비주얼](./docs/assets/portfolio-hero.png)
 
@@ -26,20 +26,20 @@ ESSE SION은 기존 커머스 프론트엔드 **YeongSeon**과 독립 이미지 
 
 | 영역 | 구현 결과 |
 |---|---|
-| 계약 | OpenAPI **128 paths / 147 operations**, TypeScript SDK·TanStack Query 옵션·Zod 스키마 자동 생성, CI drift 차단 |
-| 품질 | Python 651 + Vitest 311 = **962 tests passed**, Ruff·Pyright·Biome·빌드·타입 검사 통과 (2026-07-13 로컬 검증) |
-| 이미지 엔진 | 25개 intent 골든, 대표 seed·candidate 변형, 대표 compose의 `PYTHONHASHSEED=0/1/12345` 교차 검증으로 byte-identical SVG 계약 보호 |
+| 계약 | OpenAPI **163 paths / 196 operations**, TypeScript SDK·TanStack Query 옵션·Zod 스키마 자동 생성, CI drift 차단 |
+| 품질 | Python **1,238** + Vitest **518** 테스트, Ruff·Pyright·Biome·빌드·타입 검사·모듈 경계 gate (전체 실행은 CI가 정본, 2026-08-14 기준) |
+| 이미지 엔진 | 25개 intent 골든, 대표 seed 변형, 대표 compose의 `PYTHONHASHSEED=0/1/12345` 교차 검증으로 byte-identical SVG 계약 보호 |
 | 데이터 | SQLAlchemy 모델을 정본으로 두고 모든 스키마 변경을 Alembic으로 관리, 실제 PostgreSQL 기반 인가·동시성 테스트 |
 | 운영 경계 | Cloudflare exact-secret, Cloud Run OIDC, Cloud Tasks 멱등 잡, 공개/비공개 GCS 버킷 분리, WIF 배포 파이프라인 구현 |
 
-최신 전체 검증 기록은 [2026-07 리팩터링 감사](./docs/reviews/repo-refactor-2026-07.md)에서 확인할 수 있습니다.
+보안·동시성·공급망 감사 기록은 [2026-07 리팩터링 감사](./docs/reviews/repo-refactor-2026-07.md)에 있습니다.
 
 ## 사용자 경험
 
 ```mermaid
 flowchart LR
-    A[자연어로 패턴 요청] --> B[SVG 후보 1~4개]
-    B --> C[후보 선택·배리에이션]
+    A[자연어로 패턴 요청] --> B[SVG 디자인 1개]
+    B --> C[문장으로 구성 수정·모티프 교체]
     C --> D[PNG/TIFF 내보내기]
     C --> E[원단 질감 finalize]
     E --> F[맞춤 주문에 첨부]
@@ -51,7 +51,7 @@ flowchart LR
 - 상품 탐색·상세, 게스트/회원 장바구니, 쿠폰, 배송지
 - 일반·수선·맞춤·샘플 주문과 Toss 결제
 - 토큰 구매·원장·환불, 주문·클레임·문의·견적·마이페이지
-- 자연어 패턴 생성, 후보 선택, 세션 복구, PNG/TIFF export, 원단 finalize
+- 자연어 패턴 생성, 문장 기반 구성 수정, 이력 되돌리기, PNG/TIFF export, 원단 finalize
 - 반응형 UI, 접근성·200% zoom·reduced motion 검증
 
 ### Admin
@@ -96,41 +96,24 @@ flowchart TB
     API -.-> External[Toss Payments · Solapi]
 ```
 
-프론트는 Vite로 빌드한 정적 자산을 Wrangler로 Cloudflare Workers에 배포합니다. API와 두 worker는 Cloud Run, DB는 Cloud SQL PostgreSQL, finalize 전달은 Cloud Tasks가 담당합니다. 현재 이 구성은 코드·OpenTofu·GitHub Actions까지 구현되어 있으며 실제 스테이징 리소스 개통은 남아 있습니다.
+프론트는 Vite로 빌드한 정적 자산을 Wrangler로 Cloudflare Workers에 배포합니다. API와 두 worker는 Cloud Run, DB는 Cloud SQL PostgreSQL, finalize 전달은 Cloud Tasks가 담당합니다. 별도 staging 프로젝트 없이 단일 production GCP 프로젝트만 운영합니다.
 
-자세한 설계, 신뢰 경계, 장애 복구 방식과 ADR은 [ARCHITECTURE.md](./ARCHITECTURE.md)를 참고하세요.
+핵심 설계 결정 여섯 가지입니다.
 
-## 핵심 설계 결정
+- **API 계약이 단일 정본** — FastAPI OpenAPI에서 프론트 SDK·쿼리 옵션·런타임 스키마를 생성하고, CI가 drift를 차단합니다.
+- **AI 판단과 출력 보장을 분리** — prompt authoring은 탐색적이어도 resolved intent 이후에는 seeded RNG·정렬·canonical hash만 사용합니다.
+- **부하 성격에 따라 worker를 분리** — 대기가 긴 generate는 동기 UX, CPU·메모리를 쓰는 finalize는 Cloud Tasks 비동기. 같은 코드베이스에 라우트·IAM·리소스만 다릅니다.
+- **돈 경로는 API가 단독 소유** — 주문·쿠폰·Toss 대사·토큰 원장을 DB 트랜잭션과 advisory lock 아래 처리하고 provider key·금액·상태를 재검증합니다.
+- **재시도를 정상 흐름으로 설계** — finalize task 이름을 job UUID로 고정하고 lease·attempt 조건부 갱신과 `if_generation_match=0` 생성을 씁니다.
+- **공개 결과와 고객 첨부를 물리적으로 분리** — public assets / private uploads 두 버킷을 두고, 완성 디자인을 주문에 쓸 때만 create-only 복사합니다.
 
-1. **API 계약을 단일 정본으로 사용**
-
-   FastAPI OpenAPI에서 프론트 SDK·쿼리 옵션·런타임 스키마를 생성합니다. API 스펙이 바뀌면 `pnpm codegen` 결과를 함께 커밋해야 하며 CI가 drift를 차단합니다.
-
-2. **AI 판단과 출력 보장을 분리**
-
-   prompt authoring은 탐색적이어도, resolved intent 이후에는 seeded RNG·정렬·canonical hash만 사용합니다. 같은 resolved intent·seed·colorway·엔진/레지스트리 버전은 같은 SVG를 만듭니다.
-
-3. **부하 성격에 따라 worker를 분리**
-
-   외부 API 대기가 긴 generate는 동기 UX로 유지하고, CPU·메모리를 많이 쓰는 finalize는 Cloud Tasks로 비동기화합니다. 두 서비스는 같은 코드베이스를 사용하되 라우트·IAM·리소스 프로필이 다릅니다.
-
-4. **돈 경로는 API가 단독 소유**
-
-   주문 생성, 쿠폰 예약, Toss 승인/취소 대사, 토큰 차감·환불을 DB 트랜잭션과 advisory lock 아래 처리합니다. provider key·금액·상태를 재검증해 중복 콜백과 웹훅에 안전하게 수렴합니다.
-
-5. **재시도를 정상 흐름으로 설계**
-
-   finalize task 이름은 job UUID로 고정하고, worker는 lease·attempt 조건부 갱신을 사용합니다. GCS에는 `if_generation_match=0`으로 생성해 다른 바이트의 덮어쓰기를 금지합니다.
-
-6. **공개 결과와 고객 첨부를 물리적으로 분리**
-
-   생성 preview·상품 이미지는 public assets 버킷, 수선·견적·주문 첨부는 private uploads 버킷에 둡니다. 완성 디자인을 주문에 쓸 때는 API가 public→private로 create-only 복사합니다.
+각 결정의 근거와 기각한 대안, 신뢰 경계와 장애 복구 방식은 [ARCHITECTURE.md](./ARCHITECTURE.md)에 있습니다.
 
 ## 기술 스택
 
 | 영역 | 기술 |
 |---|---|
-| Frontend | React 19, TypeScript 6, Vite 8, React Router 8, TanStack Query 5, Zustand, Zod, Tailwind CSS 4 |
+| Frontend | React 19, TypeScript 6, Vite 8, React Router 8, TanStack Query 5, Zod, Tailwind CSS 4 |
 | Design system | `packages/shared`, semantic tokens, dependency-free primitives/components, Vitest drift guards |
 | API | Python 3.13, FastAPI, Pydantic, SQLAlchemy 2 async, asyncpg, Authlib, JWT/Argon2 |
 | Image pipeline | Deterministic Python engine, Pillow, librsvg, pgvector, OpenAI LLM/embeddings, GPT Image |
@@ -153,10 +136,11 @@ essesion/
 │   ├── shared/         # 디자인 토큰·공용 UI
 │   └── tsconfig/
 ├── libs/               # Python 공용 observability·SVG safety
-├── db/                 # SQLAlchemy 모델·Alembic·이관 스크립트
+├── db/                 # SQLAlchemy 모델·Alembic
 ├── infra/              # OpenTofu·Cloudflare 설정
+├── scripts/            # 아키텍처·문서 gate 하네스
 ├── e2e/                # Store 돈 경로·Admin smoke
-└── docs/               # 명세·계획·감사·운영 문서
+└── docs/               # 명세·감사·운영 문서
 ```
 
 ## 로컬 실행
@@ -186,8 +170,12 @@ cp apps/admin/.env.example apps/admin/.env
 ```bash
 docker compose up -d --wait
 uv run alembic -c db/alembic.ini upgrade head
-uv run python apps/api/scripts/seed.py
+uv run python apps/api/scripts/seed.py                      # 계정·가격·설정
+uv run python apps/worker/scripts/seed_motifs.py            # 모티프 카탈로그
+uv run python apps/worker/scripts/seed_design_examples.py   # 디자인 첫 진입 갤러리
 ```
+
+시드는 전부 멱등이며 순서대로 실행해야 합니다. 뒤 두 개를 건너뛰면 `/design` 첫 진입이 빈 상태로 폴백합니다.
 
 ### 3. 개발 서버
 
@@ -207,8 +195,9 @@ pnpm --filter admin dev
 환경 파일을 채운 뒤 저장소 루트에서 실행합니다.
 
 ```bash
-pnpm codegen
+pnpm codegen                                    # 스펙 변경 시 생성물 drift 확인
 pnpm lint
+pnpm architecture:check                         # 모듈 경계·문서 링크
 pnpm build && pnpm typecheck && pnpm test
 
 uv run pytest
@@ -229,26 +218,30 @@ pnpm test:e2e
 
 - Store·Admin·API·worker·DB 마이그레이션 구현
 - Supabase 신규 런타임 의존 제거와 OpenAPI client 전환
+- 소셜 로그인 4종(Google·Kakao·Naver·Apple) 코드 경로
 - 로컬 통합 테스트·브라우저 smoke·CI/CD·OpenTofu 구성
-- Google·Kakao OAuth 코드 경로, 결제·문자 local DryRun과 GCS 로컬 에뮬레이터 경계
+- 결제·문자 local DryRun과 GCS 로컬 에뮬레이터 경계
 
 실제 공개 전 남은 작업:
 
-- 스테이징 GCP/OpenTofu apply, Cloudflare DNS·WAF·route 개통
+- GCP/OpenTofu apply, Cloudflare DNS·WAF·route 개통
 - Secret Manager·Sentry DSN·외부 provider 자격증명 연결
-- Google·Kakao redirect, Toss·Solapi·Cloud Tasks OIDC 실연동 리허설
-- Apple·Naver OAuth 구현
-- 운영 데이터 변환 검증과 개인정보 보존·익명화 정책 승인
+- 소셜 로그인 콘솔 등록·redirect(네이버는 이후 일정), Toss·Solapi·Cloud Tasks OIDC 실연동 확인
+- 개인정보 보존·익명화 정책 승인 (컷오버 차단 gate)
 - 프로덕션 컷오버·롤백 리허설 후 기존 Supabase 해지
 
-진행 상태는 [실행 체크리스트](./docs/CHECKLIST.md), 실제 개통 순서는 [운영자 체크리스트](./docs/OPERATOR-CHECKLIST.md)에서 추적합니다.
+진행 상태는 [실행 체크리스트](./docs/CHECKLIST.md), 개통 순서는 [운영자 체크리스트](./docs/OPERATOR-CHECKLIST.md)에서 추적합니다.
 
 ## 문서
 
-- [Architecture](./ARCHITECTURE.md) — 시스템 경계, 요청 흐름, 결정론, 장애 복구, ADR
-- [Execution checklist](./docs/CHECKLIST.md) — 구현·리허설·컷오버 진행 상태
-- [Operator checklist](./docs/OPERATOR-CHECKLIST.md) — GCP·Cloudflare·시크릿 개통 순서
-- [Schema mapping](./db/MAPPING.md) — 기존 Supabase 도메인과 새 PostgreSQL 모델 매핑
-- [Money path spec](./docs/api-spec/money.md) — 주문·쿠폰·결제·토큰 동작 계약
-- [Worker pipeline spec](./docs/api-spec/worker-pipeline.md) — generate·finalize·export 계약
-- [Repository audit](./docs/reviews/repo-refactor-2026-07.md) — 보안·동시성·공급망 감사와 검증 결과
+| 문서 | 역할 |
+|---|---|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | 시스템 경계, 요청 흐름, 신뢰 경계, ADR |
+| [docs/CHECKLIST.md](./docs/CHECKLIST.md) | 남은 작업 진행 상태 |
+| [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md) | 개통 순서와 통과 판정 |
+| [infra/README.md](./infra/README.md) | 개통 명령 정본 (gcloud·tofu·wrangler·시드) |
+| [db/MAPPING.md](./db/MAPPING.md) | 기존 Supabase 도메인 ↔ 새 PostgreSQL 모델 |
+| [docs/api-spec/](./docs/api-spec/domains.md) | 도메인·돈 경로·worker 엔진/파이프라인/모티프 계약 |
+| [docs/admin-ui-contract.md](./docs/admin-ui-contract.md) | admin 접근성·레이아웃 계약 |
+| [packages/shared/AGENTS.md](./packages/shared/AGENTS.md) | 디자인 시스템 사용 규칙 |
+| [AGENTS.md](./AGENTS.md) | 에이전트·기여자용 개발 하네스 |
