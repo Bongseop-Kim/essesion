@@ -33,7 +33,8 @@ jobs:
       - run: pnpm build
       - name: Reject local or placeholder frontend endpoints
         run: |
-          if grep -R -E 'http://localhost|api\.example\.invalid' apps/store/dist apps/admin/dist; then
+          # 포트까지 붙여야 한다 — 맨 http://localhost는 react-router 내부 더미 base URL과 오탐한다.
+          if grep -R -E 'http://localhost:[0-9]+|api\.example\.invalid' apps/store/dist apps/admin/dist; then
             echo 'frontend build contains a non-deployable endpoint' >&2
             exit 1
           fi

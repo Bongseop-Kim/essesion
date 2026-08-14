@@ -11,7 +11,7 @@
 | A1 | GCP 프로젝트 생성·청구 연결·tfstate 버킷 ([명령](../infra/README.md#부트스트랩)) | 사용자(gcloud) | 버킷 생성 성공. 예산 알림을 위해 실행 계정에 **Billing Account Administrator/Costs Manager** 필요 |
 | A2 | `production.tfvars` 작성 → 1차 target apply | 사용자(tofu) | 시크릿 컨테이너·Cloud SQL 사용자 생성 |
 | A3 | Sentry 프로젝트 3개 생성 → **전 시크릿 값 주입** ([명령](../infra/README.md#시크릿-값-주입)) | 사용자 | `gcloud secrets versions list`로 **13개 전부** 버전 ≥1. 하나라도 비면 A4의 서비스 리비전이 기동 실패 |
-| A4 | 전체 apply | 사용자(tofu) | Cloud Run 3서비스 + migrate job, Cloud SQL(PITR), Cloud Tasks, **Scheduler 배치 5종**, GCS, IAM/WIF, 예산 알림 + uptime check 생성. GCP가 보낸 알림 채널 **인증 메일을 클릭**해야 예산·uptime 알림이 실제로 도착한다 |
+| A4 | 전체 apply | 사용자(tofu) | Cloud Run 3서비스 + migrate job, Cloud SQL(PITR), Cloud Tasks, **Scheduler 배치 5종**, GCS, IAM/WIF, 예산 알림 + uptime check 생성. 알림 채널은 **실제 메일 도착으로** 판정한다(A5 전까지 uptime check가 실패해 알림이 오므로 그것으로 확인된다). 수신함에 아무것도 없으면 GCP 인증 메일을 확인 |
 | A5 | Cloudflare zone·api 프록시 **선개통** ([순서](../infra/README.md#cloudflare--api-프록시-선개통)) | 사용자(wrangler `login` 또는 `CLOUDFLARE_API_TOKEN`) | 프록시 배포 완료 + WAF·레이트리밋 설정. **이 단계를 건너뛰고 API를 배포하지 않는다** — deploy 워크플로우 마지막 스텝이 공개 `/readyz` 200을 요구하므로, 프록시 없이 main에 머지하면 migrate와 Cloud Run 3서비스 배포가 **이미 끝난 뒤** 워크플로우만 실패한다 |
 | A6 | GitHub vars/secrets 설정 ([명령](../infra/README.md#github-actions-연결-apply-후-1회)) | 사용자(gh) | `VITE_*` **5개** 전부 설정. Renovate GitHub App 설치가 아직이면 이때 함께 |
 
