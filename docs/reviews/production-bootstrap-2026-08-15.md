@@ -122,6 +122,38 @@ B-5(외부 콘솔 등록)를 앞두고 문서를 대조하다 2건을 찾았다.
 supabase DSN이 있던 `db/scripts/migrate_data.py`는 `aad48ea`에서 삭제됐고 그마저
 플레이스홀더였다. 컷오버 시 필요한 정보가 외부 콘솔과 사람 머릿속에만 있다는 뜻이다.
 
+## IaC 드리프트 — Solapi 템플릿 2종을 Cloud Run에 직접 넣었다
+
+`SOLAPI_TEMPLATE_PHONE_CODE`·`SOLAPI_TEMPLATE_PAYMENT_DONE`가 Cloud Run env에 없었다.
+나머지 Solapi 5종은 들어가 있었고, 이 둘만 `/readyz`의 solapi capability가 보는 required 7개에
+포함되지 않아 초록불인 채로 비어 있었다. 그동안 인증번호는 평문 SMS로 폴백하고 결제완료
+알림톡은 발송되지 않는 상태였다. 둘 다 store에서 실제로 쓰는 경로다
+(`phone-verify-modal.tsx` → `POST /auth/phone/send`, `payments/service.py` `_apply_confirmation`).
+
+정상 경로는 `production.tfvars`의 `api_extra_env` → `tofu apply`인데, **이 머신에
+`production.tfvars`도 `tofu` 바이너리도 없었다**(`infra/.terraform` init 흔적만 남아 있다).
+tfvars를 살아 있는 인프라에서 역으로 재구성해 apply하는 것은 값 하나만 잘못 유추해도 프로덕션
+전체에 반영되므로 택하지 않고, `gcloud run services update --update-env-vars`로 두 값만 넣었다.
+리비전 `api-00005-w9c`, `/readyz` 200 · solapi `real` 유지 확인.
+
+**이 상태는 드리프트다.** tfvars를 되찾거나 다시 만들어 apply하면 두 env가 지워진다. 복구 시
+`api_extra_env`에 함께 넣을 것:
+
+```hcl
+SOLAPI_TEMPLATE_PHONE_CODE   = "KA01TP221027002252645FPwAcO9SguY"
+SOLAPI_TEMPLATE_PAYMENT_DONE = "KA01TP260401050136256mqRqb0difkp"
+```
+
+템플릿 변수명 일치와 정보성/광고성 구분은 실제 발송 때만 드러난다
+([alimtalk-templates](./alimtalk-templates-2026-08-14.md)) — E-2에서 실제 번호로 2종 수신 확인이 필요하다.
+
+## production.tfvars 소재 불명 — 선행 위험
+
+위 드리프트보다 이게 더 크다. `*.tfvars`는 gitignore라 레포에 없고 이 머신에도 없다. 그런데 그
+파일이 **인프라 설정의 정본**이다(origin·CORS·OAuth client id·Solapi 값 전부). 분실 상태면
+다음 인프라 변경 때 전체를 다시 만들어야 하고, 그 과정에서 위 드리프트도 조용히 사라진다.
+이관 원본 접속 정보가 문서에 없는 것과 같은 종류의 공백이다.
+
 ## 남은 것
 
 - **상품 0행** — store 목록이 비어 있다. 상품은 실제 판매 데이터라 admin `/products`에서 직접 등록한다.
