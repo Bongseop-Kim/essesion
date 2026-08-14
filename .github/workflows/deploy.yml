@@ -89,8 +89,14 @@ jobs:
 
   frontend:
     needs: backend
+    # VITE_*는 빌드 시점 값 — 하나라도 비면 그 기능이 조용히 꺼진 채 배포된다. 배포 자체를 스킵한다.
     if: >-
       vars.CLOUDFLARE_ACCOUNT_ID != '' &&
+      vars.VITE_API_BASE_URL != '' &&
+      vars.VITE_TOSS_CLIENT_KEY != '' &&
+      vars.VITE_SENTRY_DSN != '' &&
+      vars.VITE_SENTRY_ENVIRONMENT != '' &&
+      vars.VITE_GA_MEASUREMENT_ID != '' &&
       needs.backend.result == 'success'
     runs-on: ubuntu-latest
     env:

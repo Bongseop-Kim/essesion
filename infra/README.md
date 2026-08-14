@@ -47,13 +47,13 @@ tofu -chdir=infra apply -var-file=production.tfvars
 
 ```bash
 # 외부에서 발급받아 수집하는 값 — 각 시크릿마다 따로 실행
-printf '%s' '<값>' | gcloud secrets versions add <시크릿ID> --data-file=- --project=ysindustry
+printf '%s' '<값>' | gcloud secrets versions add '<시크릿ID>' --data-file=- --project=ysindustry
 #   toss-secret-key  solapi-api-key  solapi-api-secret  openai-api-key
 #   google-client-secret  kakao-client-secret  naver-client-secret
 #   sentry-dsn-api  sentry-dsn-worker
 
 # apple-private-key만 .p8 파일을 통째로
-gcloud secrets versions add apple-private-key --data-file=<AuthKey.p8 경로> --project=ysindustry
+gcloud secrets versions add apple-private-key --data-file='<AuthKey.p8 경로>' --project=ysindustry
 
 # 새 환경마다 독립적으로 생성하는 값
 openssl rand -base64 48 | gcloud secrets versions add jwt-secret --data-file=- --project=ysindustry
@@ -205,8 +205,22 @@ unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
 `revoke-sessions`. 두 명령 모두 store 세션은 건드리지 않는다.
 
 ```bash
+# reset-password — 이메일·새 비밀번호 둘 다 필요
+printf 'Admin email: '
+read -r BOOTSTRAP_ADMIN_EMAIL
+printf 'New password (12+ chars): '
+read -rs BOOTSTRAP_ADMIN_PASSWORD
+printf '\n'
+export BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
 uv run python apps/api/scripts/bootstrap_admin.py reset-password
+unset BOOTSTRAP_ADMIN_EMAIL BOOTSTRAP_ADMIN_PASSWORD
+
+# revoke-sessions — 이메일만 필요
+printf 'Admin email: '
+read -r BOOTSTRAP_ADMIN_EMAIL
+export BOOTSTRAP_ADMIN_EMAIL
 uv run python apps/api/scripts/bootstrap_admin.py revoke-sessions
+unset BOOTSTRAP_ADMIN_EMAIL
 ```
 
 ## Production 데이터 시드
