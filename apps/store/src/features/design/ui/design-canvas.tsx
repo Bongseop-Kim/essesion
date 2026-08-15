@@ -17,7 +17,7 @@ export type DesignCanvasProps = {
   /** 디자인이 없을 때 안내 대신 그릴 콘텐츠 (첫 진입 예시 갤러리) */
   empty?: ReactNode;
   mode: DesignPreviewMode;
-  /** 좌상단 플로팅 pill (만드는 방법) */
+  /** 좌상단 플로팅 pill (Help) */
   topStart?: ReactNode;
   /** 우상단 플로팅 (토큰 pill · 뷰 세그먼트) */
   topEnd?: ReactNode;

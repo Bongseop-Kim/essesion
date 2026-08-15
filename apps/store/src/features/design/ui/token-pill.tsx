@@ -1,5 +1,4 @@
 import {
-  Flex,
   HStack,
   Icon,
   MenuContent,
@@ -12,6 +11,11 @@ import {
 import { CreditCardIcon } from "@heroicons/react/24/outline";
 
 import { krw } from "@/shared/lib/format";
+
+const compact = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
 export type TokenPillProps = {
   balance: number | null;
@@ -43,7 +47,7 @@ export function TokenPill({
           borderColor="stroke.neutral-weak"
           borderRadius="full"
           boxShadow="s1"
-          className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+          className="whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
         >
           <Icon
             svg={<CreditCardIcon />}
@@ -51,12 +55,12 @@ export function TokenPill({
             color="fg.neutral-muted"
             aria-label="토큰 잔액"
           />
-          <Text textStyle="labelSm">{format(balance)}토큰</Text>
+          <Text textStyle="labelSm">{formatBalance(balance)}토큰</Text>
         </HStack>
       </MenuTrigger>
       <MenuContent aria-label="토큰 잔액 상세">
         <VStack gap="x0_5" alignItems="stretch" px="x2" py="x1_5">
-          <Text textStyle="labelSm">잔액 {format(balance)}토큰</Text>
+          <Text textStyle="labelSm">잔액 {formatBalance(balance)}토큰</Text>
           <Text textStyle="captionSm" color="fg.neutral-subtle">
             처음 만들기 1회 {format(generateCost)}토큰 · 고치기 1회{" "}
             {format(editCost)}토큰 · 새 무늬 1회 {format(motifGenerateCost)}토큰
@@ -72,25 +76,13 @@ export function TokenPill({
   );
 }
 
-/** 잔액 pill을 열 수 없는 비로그인 상태 — 같은 자리에 안내만 남긴다. */
-export function TokenPillPlaceholder() {
-  return (
-    <Flex
-      px="x3_5"
-      py="x2"
-      bg="bg.layer-floating"
-      borderWidth={1}
-      borderColor="stroke.neutral-weak"
-      borderRadius="full"
-      boxShadow="s1"
-    >
-      <Text textStyle="labelSm" color="fg.neutral-subtle">
-        로그인 후 이용
-      </Text>
-    </Flex>
-  );
-}
-
 function format(value: number | null) {
   return value == null ? "—" : krw.format(value);
+}
+
+function formatBalance(value: number | null) {
+  const balance = value ?? 0;
+  return balance < 1_000
+    ? krw.format(balance)
+    : compact.format(balance).toLowerCase();
 }

@@ -13,6 +13,7 @@ resource "google_project_service" "apis" {
     "monitoring.googleapis.com",
     "billingbudgets.googleapis.com",
     "cloudscheduler.googleapis.com",
+    "containerscanning.googleapis.com",
     "aiplatform.googleapis.com",
   ])
   service            = each.value
@@ -52,6 +53,7 @@ resource "google_storage_bucket" "uploads" {
   name                        = "${var.project_id}-uploads"
   location                    = var.region
   uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
 
   cors {
     origin          = var.upload_cors_origins

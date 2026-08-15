@@ -5,13 +5,13 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 ## 필독
 
 - `ARCHITECTURE.md` — 모든 설계 결정·스택·이관 순서. 구조에 손대기 전 반드시 읽을 것.
-- `docs/CHECKLIST.md` — 실행 체크리스트. 작업 완료 시 체크 상태를 갱신할 것.
 - `docs/plans/`는 **아직 실행하지 않은** 플랜·제안만 둔다(지시서 형식 권장). 플랜을 실행 완료하면 결과를 `docs/reviews/`에 간단히 기록하고 plans에서 제거한다.
 - `packages/shared/AGENTS.md` — 디자인 시스템 하네스. admin·store UI 작업 전 반드시 읽을 것.
 - `.claude/skills/aside-browser/SKILL.md` — 브라우저 확인 하네스. 브라우저로 UI·플로우를 확인할 때는 반드시 Aside(MCP repl)를 사용할 것.
 
 ## 대원칙 (위반 금지)
 
+- **커밋·푸시는 항상 사람이 한다** — 에이전트는 작업 트리만 수정하고 `git commit`·`git push`를 실행하지 않는다. 명시적으로 요청받은 경우에만 예외.
 - 동작 명세는 `docs/api-spec/`이 정본 — 돈 경로·worker 계약은 명세와 달라지면 버그다. 개편이 필요하면 실행 전에 제안하고 명세를 함께 갱신할 것.
 - 스키마 변경은 Alembic(`db/`) 경유만 — DDL 직접 실행 금지. 설계 의도는 `db/README.md`.
 - 프론트에서 supabase-js 금지 — 서버 통신은 `packages/api-client`(OpenAPI 생성물)만 사용.
@@ -60,7 +60,7 @@ uv run python apps/worker/scripts/seed_motifs.py
 uv run python apps/worker/scripts/seed_design_examples.py
 ```
 
-기존 모티프 메타데이터 백필 — `OPENAI_API_KEY` 필요 (유료 호출, `user_upload` 제외)
+기존 모티프 메타데이터 백필 — 설명 없는 기존 행만 대상이라 신규 셋업은 건너뜀 (`seed_motifs.py`가 시드 행 메타데이터를 기록). `OPENAI_API_KEY` 필요 (유료 호출, `user_upload` 제외)
 
 ```bash
 uv run python apps/worker/scripts/backfill_motif_tags.py --confirm-live

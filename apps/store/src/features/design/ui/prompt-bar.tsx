@@ -1,5 +1,9 @@
-import { ActionButton, Flex, HStack, Icon } from "@essesion/shared";
-import { PaperAirplaneIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { ActionButton, Box, Flex, HStack, Icon } from "@essesion/shared";
+import {
+  PaperAirplaneIcon,
+  PlusIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
 import { useEffect, useRef } from "react";
 
 export type PromptBarProps = {
@@ -7,6 +11,8 @@ export type PromptBarProps = {
   onChange: (value: string) => void;
   onSubmit: () => void;
   onOpenIdeas: () => void;
+  onOpenTools: () => void;
+  toolsOpen: boolean;
   placeholder: string;
   /** 적용 중 — 입력을 잠그고 전송 버튼을 스피너로 바꾼다 */
   loading?: boolean;
@@ -24,6 +30,8 @@ export function PromptBar({
   onChange,
   onSubmit,
   onOpenIdeas,
+  onOpenTools,
+  toolsOpen,
   placeholder,
   loading = false,
   disabled = false,
@@ -54,6 +62,20 @@ export function PromptBar({
         onSubmit();
       }}
     >
+      <Box display={{ base: "block", md: "none" }}>
+        <ActionButton
+          variant="neutralWeak"
+          size="small"
+          iconOnly
+          aria-label="디자인 도구 열기"
+          aria-haspopup="dialog"
+          aria-expanded={toolsOpen}
+          onClick={onOpenTools}
+          className="rounded-full"
+        >
+          <Icon svg={<PlusIcon />} size={20} />
+        </ActionButton>
+      </Box>
       <input
         ref={inputRef}
         aria-label="무엇을 바꿀까요?"

@@ -88,3 +88,37 @@ resource "google_monitoring_alert_policy" "api_down" {
 
   notification_channels = [google_monitoring_notification_channel.email.id]
 }
+
+resource "google_monitoring_alert_policy" "security_changes" {
+  display_name = "security-sensitive configuration change"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "IAM, key, storage, or Cloud SQL security setting changed"
+
+    condition_matched_log {
+      filter = <<-EOT
+        log_id("cloudaudit.googleapis.com/activity") AND (
+          protoPayload.methodName:"SetIamPolicy" OR
+          protoPayload.methodName="google.iam.admin.v1.CreateServiceAccountKey" OR
+          protoPayload.methodName="google.iam.admin.v1.UploadServiceAccountKey" OR
+          protoPayload.methodName="google.iam.admin.v1.DeleteServiceAccountKey" OR
+          protoPayload.methodName="google.iam.admin.v1.DisableServiceAccountKey" OR
+          protoPayload.methodName="google.iam.admin.v1.EnableServiceAccountKey" OR
+          protoPayload.methodName="storage.buckets.update" OR
+          protoPayload.methodName="cloudsql.instances.update"
+        )
+      EOT
+    }
+  }
+
+  alert_strategy {
+    auto_close = "604800s"
+
+    notification_rate_limit {
+      period = "300s"
+    }
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.id]
+}

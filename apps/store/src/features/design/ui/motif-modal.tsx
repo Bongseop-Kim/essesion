@@ -125,21 +125,56 @@ export function MotifModal({
         />
       }
     >
-      {state.source === "search" ? (
-        <SearchBody state={state} />
-      ) : state.source === "library" ? (
-        <VStack gap="x4" alignItems="stretch">
-          <MotifResultGrid state={state} onDeleteMotif={onDeleteMotif} />
-          <ErrorCallout message={state.error} />
-        </VStack>
-      ) : state.source === "generate" ? (
-        <GenerateBody state={state} />
-      ) : state.source === "text" ? (
-        <TextBody state={state} />
-      ) : (
-        <PhotoBody state={state} />
-      )}
+      <VStack gap="x4" alignItems="stretch">
+        <SlotIndicator slot={state.slot} />
+        {state.source === "search" ? (
+          <SearchBody state={state} />
+        ) : state.source === "library" ? (
+          <VStack gap="x4" alignItems="stretch">
+            <MotifResultGrid state={state} onDeleteMotif={onDeleteMotif} />
+            <ErrorCallout message={state.error} />
+          </VStack>
+        ) : state.source === "generate" ? (
+          <GenerateBody state={state} />
+        ) : state.source === "text" ? (
+          <TextBody state={state} />
+        ) : (
+          <PhotoBody state={state} />
+        )}
+      </VStack>
     </Modal>
+  );
+}
+
+/** 지금 채우는 슬롯을 테두리로 짚어 준다 — 모달이 패널을 가려도 어느 칸인지 남는다. */
+function SlotIndicator({ slot }: { slot: 1 | 2 }) {
+  return (
+    <HStack gap="x2">
+      {([1, 2] as const).map((n) => (
+        <Flex
+          key={n}
+          align="center"
+          justify="center"
+          width={28}
+          height={28}
+          borderRadius="r2"
+          borderWidth={n === slot ? 2 : 1}
+          borderColor={n === slot ? "stroke.brand" : "stroke.neutral-weak"}
+          bg={n === slot ? "bg.brand-weak" : "bg.layer-default"}
+          aria-hidden
+        >
+          <Text
+            textStyle="captionSm"
+            color={n === slot ? "fg.neutral" : "fg.neutral-subtle"}
+          >
+            {n}
+          </Text>
+        </Flex>
+      ))}
+      <Text textStyle="captionSm" color="fg.neutral-subtle">
+        {slot}번째 모티프 자리
+      </Text>
+    </HStack>
   );
 }
 

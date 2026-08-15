@@ -21,9 +21,8 @@ React clients → generated OpenAPI client → FastAPI domain API
 |---|---|
 | Store·Admin·API·worker·DB | 구현·로컬 검증 완료 |
 | OpenAPI·CI/CD·OpenTofu | 구현 완료 (codegen drift, deploy 순서, IAM·리소스 선언 검증) |
-| GCP·Cloudflare production | **미개통** — `tofu apply`, DNS, WAF, Secret Manager 값 주입 필요 |
-| 외부 provider 실연동 | **미완료** — Toss·Solapi·OAuth redirect·Cloud Tasks OIDC·Sentry |
-| 운영 데이터 이관·컷오버 | **미완료** — 변환 검증, 개인정보 정책 승인, rollback rehearsal |
+| GCP·Cloudflare production | 개통 완료 — OpenTofu no-change, proxy/direct 경계와 worker·batch OIDC 확인 |
+| Production 전환 | 완료 — 새 GCP 런타임과 `essesion.shop` 연결 |
 
 정확한 테스트·계약 수치는 CI가 정본이다. 이 문서는 고정 수치를 싣지 않는다.
 
@@ -47,7 +46,7 @@ React clients → generated OpenAPI client → FastAPI domain API
 - 로컬 인프라는 PostgreSQL 17 + pgvector와 fake-gcs-server 둘만 실행한다. 나머지 GCP·Cloudflare 경계는 fail-closed다.
 - **별도 staging 프로젝트를 두지 않는다.** 로컬은 코드·도메인 검증, 단일 production 프로젝트는 클라우드 런타임과 운영 데이터를 소유한다.
 - 운영 데이터 이관은 사용자와 이미지까지 자동 보존한다고 가정하지 않는다.
-- 프로덕션 공개, provider 자격증명 연결, 법률·개인정보 승인은 코드 구현과 별도 gate다.
+- 운영 데이터 이관과 컷오버는 코드 구현과 별도 gate다.
 
 ---
 
@@ -370,7 +369,6 @@ production은 빈 Cloud SQL을 head까지 올리고 관리자·공개 motif·aut
 
 - Cloud SQL 선언은 자동 백업, PITR, deletion protection을 포함한다.
 - migration job은 자동 재시도하지 않는다. 실패 시 서비스 배포를 중단하고 사람이 원인을 판단한다.
-- 회원 탈퇴 후 주문 snapshot·클레임·견적·문의·디자인 prompt·로그·GCS·백업에 남는 역사성 개인정보의 보존 목적과 TTL은 privacy owner/법률 승인이 필요하다. 필드별 익명화·purge와 복구 불가성 검증은 **컷오버 차단 gate**다.
 
 ---
 
@@ -477,7 +475,7 @@ main push → CI success → same SHA 확인 → image build → Artifact Regist
 - migrate job은 `max_retries=0`이며 실패하면 전체 배포를 중단한다.
 - WIF를 쓰며 장기 GCP service-account key 파일은 없다.
 
-실행 순서와 통과 판정은 [OPERATOR-CHECKLIST](./docs/OPERATOR-CHECKLIST.md), 명령은 [infra/README](./infra/README.md)가 정본이다.
+배포·인프라 명령과 실행 순서는 [infra/README](./infra/README.md)가 정본이다.
 
 ### 7.3 Health·readiness·관측
 
@@ -534,29 +532,17 @@ Cloud Scheduler가 bounded batch **5종**을 API `/batch/*`로 호출한다(`inf
 | 배포 인증 | GitHub WIF | 장기 service-account key 제거 |
 | IaC | OpenTofu | 단일 production 프로젝트의 리소스·IAM·모니터링을 선언 |
 
-### 8.2 남은 외부 gate
+### 8.2 남은 기술 부채
 
 | 위험/미완 | 현재 완화 | 완료 조건 |
 |---|---|---|
-| 실제 GCP/Cloudflare 미개통 | IaC·workflow·로컬 에뮬레이터 검증 | production apply와 proxy/direct smoke |
-| Toss·OAuth·Solapi 실연동 미검증 | local DryRun과 adapter 테스트 | provider sandbox E2E |
-| Cloud Tasks OIDC 미검증 | audience/deadline/IAM 코드와 테스트 | 실제 queue→worker 전달·retry 관찰 |
-| Sentry DSN 미주입 | DSN 없으면 no-op | store/api/worker 프로젝트 생성·이벤트 확인 |
-| 소셜 콘솔 미등록 | 코드 4종 구현. 네이버는 store에서 "준비 중" 게이팅, 나머지는 `/readyz` capability로 노출 | Google·Kakao·Apple 콘솔 등록·callback·E2E (네이버는 이후 일정) |
-| 역사성 개인정보 retention 미승인 | 컷오버 차단 | 필드별 TTL·purge·backup 정책 승인/검증 |
-| finalize 운영 메모리 미실측 | dpi 600, 4 GiB, concurrency 2 상한 | production RSS/latency/OOM 측정 후 조정 |
 | API/worker DB role 공유 | 서비스별 IAM과 secret access는 분리 | DB role·grant까지 최소권한 분리 |
 | librsvg 패키지 버전 미고정 | 현재 환경의 fabric golden으로 회귀 감시 | base image digest와 renderer 패키지 버전 고정 |
-
-DNS 원복 한 줄만으로 rollback runbook을 완료 처리하지 않는다. trigger, 승인자, DB schema 호환성,
-쓰기 동결 해제 조건, 명령과 데이터 보전 검증이 있어야 한다.
 
 ### 8.3 설계 정본
 
 | 주제 | 문서 |
 |---|---|
-| 진행 상태 | [docs/CHECKLIST.md](./docs/CHECKLIST.md) |
-| 개통 순서·판정 | [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md) |
 | 개통 명령 | [infra/README.md](./infra/README.md) |
 | 스키마·마이그레이션 | [db/README.md](./db/README.md) |
 | 도메인 동작·엔드포인트 | [docs/api-spec/domains.md](./docs/api-spec/domains.md) |
@@ -565,5 +551,5 @@ DNS 원복 한 줄만으로 rollback runbook을 완료 처리하지 않는다. t
 | worker pipeline | [docs/api-spec/worker-pipeline.md](./docs/api-spec/worker-pipeline.md) |
 | motif resolve | [docs/api-spec/worker-motifs.md](./docs/api-spec/worker-motifs.md) |
 | Plan v3 저작·승격 | [docs/api-spec/authoring-plan-v3.md](./docs/api-spec/authoring-plan-v3.md) |
-| admin UI 계약 | [docs/admin-ui-contract.md](./docs/admin-ui-contract.md) |
+| admin UI 계약 | [apps/admin/AGENTS.md](./apps/admin/AGENTS.md) |
 | 보안·동시성·공급망 감사 | [docs/reviews/repo-refactor-2026-07.md](./docs/reviews/repo-refactor-2026-07.md) |

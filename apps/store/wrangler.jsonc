@@ -8,9 +8,10 @@
   },
   // 루트가 정본. app.은 컷오버 전 주소라 링크·북마크를 위해 유지한다.
   // custom_domain은 프로젝트당 배타적이라, 루트를 붙이기 전에 기존 프로젝트에서 먼저 떼야 한다.
+  // www는 여기 두지 않는다 — Cloudflare 레코드가 이미 루트로 301하고 있고,
+  // 그 레코드가 남은 채로 custom_domain을 걸면 등록이 충돌해 배포가 실패한다.
   "routes": [
     { "pattern": "essesion.shop", "custom_domain": true },
-    { "pattern": "www.essesion.shop", "custom_domain": true },
     { "pattern": "app.essesion.shop", "custom_domain": true }
   ]
 }

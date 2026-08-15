@@ -129,6 +129,13 @@ describe("HistoryCard stepper", () => {
     expect(
       screen.getByRole("button", { name: "1번째 디자인으로 되돌리기" }),
     ).toBeTruthy();
+    const previous = screen.getByRole("button", {
+      name: "1번째 디자인으로 되돌리기",
+    });
+    expect(previous.parentElement?.style.flexDirection).toBe("row");
+    expect(screen.getByRole("region", { name: "편집 이력" }).style.width).toBe(
+      "84px",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "2번째 디자인 · 전체 이력 보기" }),
     );

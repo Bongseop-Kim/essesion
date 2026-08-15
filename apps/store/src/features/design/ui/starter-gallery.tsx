@@ -1,5 +1,12 @@
 import type { DesignExampleOut } from "@essesion/api-client";
-import { Grid, ImageFrame, Text, VStack } from "@essesion/shared";
+import {
+  Box,
+  Grid,
+  ImageFrame,
+  ScrollFog,
+  Text,
+  VStack,
+} from "@essesion/shared";
 
 import { svgToDataUri } from "@/features/design/model/svg-preview";
 
@@ -10,7 +17,8 @@ export type StarterGalleryProps = {
   disabled?: boolean;
 };
 
-/** 카드 한 장의 폭 상한 — 그리드를 이 값으로 묶어 예시가 적어도 가운데에 모인다. */
+/** 모바일은 한 줄 스크롤, PC는 예시가 적어도 가운데에 모이는 4열 그리드. */
+const MOBILE_CARD_WIDTH = 130;
 const CARD_WIDTH = 176;
 
 /** 첫 진입 캔버스 — 빈 상태 대신 예시를 깔아 두고, 고르면 그 디자인에서 시작한다. */
@@ -19,19 +27,19 @@ export function StarterGallery({
   onSelect,
   disabled = false,
 }: StarterGalleryProps) {
-  const columns = {
-    base: Math.min(examples.length, 2),
-    md: Math.min(examples.length, 4),
-  };
+  const desktopColumns = Math.min(examples.length, 4);
   return (
     <VStack
       gap="x5"
       alignItems="center"
       width="full"
       maxWidth={720}
+      height={{ base: "full", md: "auto" }}
       minHeight={0}
+      pt={{ base: "x12", md: 0 }}
       overflowY="auto"
     >
+      <Box display={{ base: "block", md: "none" }} height={220} aria-hidden />
       <VStack gap="x1" alignItems="center">
         <Text as="h2" textStyle="title3">
           예시에서 시작해 보세요
@@ -41,24 +49,31 @@ export function StarterGallery({
           문장으로 고쳐 나가면 됩니다.
         </Text>
       </VStack>
-      <Grid
-        columns={columns}
-        gap="x3"
-        width="full"
-        maxWidth={{
-          base: columns.base * CARD_WIDTH,
-          md: columns.md * CARD_WIDTH,
-        }}
-      >
-        {examples.map((example) => (
-          <StarterCard
-            key={example.id}
-            example={example}
-            disabled={disabled}
-            onSelect={onSelect}
-          />
-        ))}
-      </Grid>
+      <Box width="full">
+        <ScrollFog className="snap-x snap-mandatory">
+          <Grid
+            columns={{ base: examples.length, md: desktopColumns }}
+            gap="x3"
+            width={{ base: "max-content", md: "full" }}
+            maxWidth={{ base: "max-content", md: desktopColumns * CARD_WIDTH }}
+            mx={{ base: 0, md: "auto" }}
+          >
+            {examples.map((example) => (
+              <Box
+                key={example.id}
+                width={{ base: MOBILE_CARD_WIDTH, md: "full" }}
+                className="snap-start"
+              >
+                <StarterCard
+                  example={example}
+                  disabled={disabled}
+                  onSelect={onSelect}
+                />
+              </Box>
+            ))}
+          </Grid>
+        </ScrollFog>
+      </Box>
     </VStack>
   );
 }
