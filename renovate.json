@@ -5,5 +5,12 @@
     "group:allNonMajor",
     ":timezone(Asia/Seoul)"
   ],
-  "lockFileMaintenance": { "enabled": true }
+  "lockFileMaintenance": { "enabled": true },
+  "packageRules": [
+    {
+      "description": "vtracer 0.6의 cp314 휠이 임포트 시 세그폴트한다 — vtracer 0.7 이후 해제",
+      "matchPackageNames": ["python"],
+      "allowedVersions": "<3.14"
+    }
+  ]
 }

@@ -95,10 +95,10 @@ describe("CustomersPage", () => {
     const searchInput = screen.getByLabelText("이름·이메일·전화번호 검색");
     const searchForm = searchInput.closest("form");
     expect(searchForm?.style.width).toBe("100%");
-    expect((searchForm?.firstElementChild as HTMLElement).style.flex).toBe(
+    expect((searchForm!.firstElementChild as HTMLElement).style.flex).toBe(
       "1 1 0%",
     );
-    expect((searchForm?.firstElementChild as HTMLElement).style.minWidth).toBe(
+    expect((searchForm!.firstElementChild as HTMLElement).style.minWidth).toBe(
       "0",
     );
 
