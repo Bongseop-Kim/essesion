@@ -5,7 +5,6 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 ## 필독
 
 - `ARCHITECTURE.md` — 모든 설계 결정·스택·이관 순서. 구조에 손대기 전 반드시 읽을 것.
-- `docs/CHECKLIST.md` — 실행 체크리스트. 작업 완료 시 체크 상태를 갱신할 것.
 - `docs/plans/`는 **아직 실행하지 않은** 플랜·제안만 둔다(지시서 형식 권장). 플랜을 실행 완료하면 결과를 `docs/reviews/`에 간단히 기록하고 plans에서 제거한다.
 - `packages/shared/AGENTS.md` — 디자인 시스템 하네스. admin·store UI 작업 전 반드시 읽을 것.
 - `.claude/skills/aside-browser/SKILL.md` — 브라우저 확인 하네스. 브라우저로 UI·플로우를 확인할 때는 반드시 Aside(MCP repl)를 사용할 것.
@@ -61,7 +60,7 @@ uv run python apps/worker/scripts/seed_motifs.py
 uv run python apps/worker/scripts/seed_design_examples.py
 ```
 
-기존 모티프 메타데이터 백필 — `OPENAI_API_KEY` 필요 (유료 호출, `user_upload` 제외)
+기존 모티프 메타데이터 백필 — 설명 없는 기존 행만 대상이라 신규 셋업은 건너뜀 (`seed_motifs.py`가 시드 행 메타데이터를 기록). `OPENAI_API_KEY` 필요 (유료 호출, `user_upload` 제외)
 
 ```bash
 uv run python apps/worker/scripts/backfill_motif_tags.py --confirm-live

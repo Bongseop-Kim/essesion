@@ -221,27 +221,16 @@ pnpm test:e2e
 - 소셜 로그인 4종(Google·Kakao·Naver·Apple) 코드 경로
 - 로컬 통합 테스트·브라우저 smoke·CI/CD·OpenTofu 구성
 - 결제·문자 local DryRun과 GCS 로컬 에뮬레이터 경계
-
-실제 공개 전 남은 작업:
-
-- GCP/OpenTofu apply, Cloudflare DNS·WAF·route 개통
-- Secret Manager·Sentry DSN·외부 provider 자격증명 연결
-- 소셜 로그인 콘솔 등록·redirect(네이버는 이후 일정), Toss·Solapi·Cloud Tasks OIDC 실연동 확인
-- 개인정보 보존·익명화 정책 승인 (컷오버 차단 gate)
-- 프로덕션 컷오버·롤백 리허설 후 기존 Supabase 해지
-
-진행 상태는 [실행 체크리스트](./docs/CHECKLIST.md), 개통 순서는 [운영자 체크리스트](./docs/OPERATOR-CHECKLIST.md)에서 추적합니다.
+- GCP/OpenTofu, Cloudflare custom domain, Secret Manager와 worker·batch OIDC 개통
 
 ## 문서
 
 | 문서 | 역할 |
 |---|---|
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 시스템 경계, 요청 흐름, 신뢰 경계, ADR |
-| [docs/CHECKLIST.md](./docs/CHECKLIST.md) | 남은 작업 진행 상태 |
-| [docs/OPERATOR-CHECKLIST.md](./docs/OPERATOR-CHECKLIST.md) | 개통 순서와 통과 판정 |
 | [infra/README.md](./infra/README.md) | 개통 명령 정본 (gcloud·tofu·wrangler·시드) |
 | [db/README.md](./db/README.md) | 스키마 규칙·마이그레이션·설계 의도 |
 | [docs/api-spec/](./docs/api-spec/domains.md) | 도메인·돈 경로·worker 엔진/파이프라인/모티프 계약 |
-| [docs/admin-ui-contract.md](./docs/admin-ui-contract.md) | admin 접근성·레이아웃 계약 |
+| [apps/admin/AGENTS.md](./apps/admin/AGENTS.md) | admin 접근성·상태 변경 계약 |
 | [packages/shared/AGENTS.md](./packages/shared/AGENTS.md) | 디자인 시스템 사용 규칙 |
 | [AGENTS.md](./AGENTS.md) | 에이전트·기여자용 개발 하네스 |
