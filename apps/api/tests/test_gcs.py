@@ -72,7 +72,7 @@ class _FakeBucket:
 class _FakeStorageClient:
     def __init__(self):
         self.buckets: dict[str, _FakeBucket] = {}
-        self._credentials = _FakeSigningCredentials()
+        self._credentials: Credentials = _FakeSigningCredentials()
 
     def bucket(self, name: str) -> _FakeBucket:
         return self.buckets.setdefault(name, _FakeBucket(name))
