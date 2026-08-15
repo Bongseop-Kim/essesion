@@ -18,7 +18,8 @@ const objectFits = {
 } as const;
 
 export type ImageFrameProps = Omit<ComponentPropsWithRef<"img">, "children"> & {
-  ratio?: number;
+  /** 숫자=고정 비율, "auto"=이미지 원본 비율대로 높이 자동(폴백은 4/3) */
+  ratio?: number | "auto";
   borderRadius?: keyof typeof radii;
   /** cover=꽉 채워 크롭(기본), contain=전체 보이게 레터박스(로고·썸네일) */
   fit?: keyof typeof objectFits;
@@ -54,7 +55,12 @@ export function ImageFrame({
         (fallback ?? <ImageFallback />)
       ) : (
         <img
-          className={cn("absolute inset-0 size-full", objectFits[fit])}
+          className={
+            // fill은 부모를 채우는 게 목적 — auto 비율이어도 원본 높이를 따르지 않는다.
+            ratio === "auto" && !fill
+              ? "block w-full"
+              : cn("absolute inset-0 size-full", objectFits[fit])
+          }
           src={src}
           alt={alt}
           {...props}
@@ -90,8 +96,25 @@ export function ImageFrame({
     );
   }
 
+  if (ratio === "auto" && !showFallback) {
+    return (
+      <div
+        className={cn(
+          "relative overflow-hidden",
+          radii[borderRadius],
+          className,
+        )}
+      >
+        {inner}
+      </div>
+    );
+  }
+
   return (
-    <AspectRatio ratio={ratio} className={cn(radii[borderRadius], className)}>
+    <AspectRatio
+      ratio={ratio === "auto" ? 4 / 3 : ratio}
+      className={cn(radii[borderRadius], className)}
+    >
       {inner}
     </AspectRatio>
   );

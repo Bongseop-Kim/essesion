@@ -155,6 +155,7 @@ function CustomOrderPageContent({
   const turnKnotRef = useRef<HTMLInputElement>(null);
   const contactNameRef = useRef<HTMLInputElement>(null);
   const contactValueRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLDivElement>(null);
   const profileDefaultsApplied = useRef(false);
   const attachmentHintShown = useRef(false);
   const wasQuoteMode = useRef(options.quantity >= 100);
@@ -270,15 +271,13 @@ function CustomOrderPageContent({
   const validate = () => {
     const invalid = invalidCustomOrderSection(options, contact, isQuoteMode);
     if (invalid) {
+      // 문구는 해당 필드에 붙고 포커스도 옮긴다 — 사라지는 알림으로 중복하지 않는다.
       setValidationError(invalid);
       focusInvalid(invalid);
-      snackbar(invalid.message);
       return false;
     }
-    if (!amount || !calculation.isCurrent) {
-      snackbar("예상 금액을 확인하는 중입니다.");
-      return false;
-    }
+    // 제출 버튼은 금액 계산이 끝나기 전까지 disabled다.
+    if (!amount || !calculation.isCurrent) return false;
     return true;
   };
 
@@ -305,7 +304,11 @@ function CustomOrderPageContent({
       return;
     }
     if (isQuoteMode && !address) {
-      snackbar("견적을 받을 배송지를 선택해 주세요.");
+      // 배송지 카드가 "등록해 주세요"를 상주로 말하고 있다 — 그 자리로 데려간다.
+      addressRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
       return;
     }
     if (isQuoteMode) setQuoteConfirmOpen(true);
@@ -1020,10 +1023,12 @@ function CustomOrderPageContent({
                     description="잠시 후 다시 시도해 주세요."
                   />
                 ) : (
-                  <ShippingAddressCard
-                    address={address}
-                    onChange={() => setAddressModalOpen(true)}
-                  />
+                  <Box ref={addressRef}>
+                    <ShippingAddressCard
+                      address={address}
+                      onChange={() => setAddressModalOpen(true)}
+                    />
+                  </Box>
                 )
               ) : null}
             </VStack>

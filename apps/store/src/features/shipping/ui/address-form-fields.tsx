@@ -2,6 +2,7 @@ import {
   ActionButton,
   Box,
   canonicalizePhoneNumber,
+  Field,
   HStack,
   PhoneField,
   snackbar,
@@ -86,32 +87,30 @@ export function AddressFormFields({
           />
         )}
       />
-      <HStack gap="x2" align="flex-end">
-        <Box flexGrow minWidth={0}>
-          <TextField
-            label="우편번호"
-            readOnly
-            errorMessage={errors.postal_code?.message}
-            {...register("postal_code")}
-          />
-        </Box>
-        <ActionButton
-          type="button"
-          variant="neutralOutline"
-          loading={postcode.loading}
-          onClick={() =>
-            void postcode
-              .search(({ zonecode, address }) => {
-                setValue("postal_code", zonecode, { shouldValidate: true });
-                setValue("address", address, { shouldValidate: true });
-                setValue("address_detail", "");
-              })
-              .catch(() => snackbar("주소 검색을 불러오지 못했습니다."))
-          }
-        >
-          주소 검색
-        </ActionButton>
-      </HStack>
+      {/* 에러 문구가 버튼 옆이 아니라 행 아래 한 줄로 오도록 Field가 라벨·에러를 맡는다. */}
+      <Field label="우편번호" errorMessage={errors.postal_code?.message}>
+        <HStack gap="x2">
+          <Box flexGrow minWidth={0}>
+            <TextField readOnly {...register("postal_code")} />
+          </Box>
+          <ActionButton
+            type="button"
+            variant="neutralOutline"
+            loading={postcode.loading}
+            onClick={() =>
+              void postcode
+                .search(({ zonecode, address }) => {
+                  setValue("postal_code", zonecode, { shouldValidate: true });
+                  setValue("address", address, { shouldValidate: true });
+                  setValue("address_detail", "");
+                })
+                .catch(() => snackbar("주소 검색을 불러오지 못했습니다."))
+            }
+          >
+            주소 검색
+          </ActionButton>
+        </HStack>
+      </Field>
       <TextField
         label="주소"
         readOnly

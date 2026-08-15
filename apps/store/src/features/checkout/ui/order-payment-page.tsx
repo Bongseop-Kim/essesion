@@ -8,7 +8,6 @@ import {
   ContentPlaceholder,
   Divider,
   Skeleton,
-  snackbar,
   Text,
   VStack,
 } from "@essesion/shared";
@@ -128,6 +127,7 @@ export function OrderPaymentPage({
       }
       payDisabled={!canPay}
       payLoading={payment.isPending}
+      blockedMessage={payment.blockedMessage}
       helperText={!address ? "배송지를 먼저 등록해 주세요." : undefined}
       onPay={(widget) => void payment.pay(widget)}
     >
@@ -214,7 +214,6 @@ export function OrderPaymentPage({
         onApply={async (next) => {
           setCoupon(next);
           setCouponModalOpen(false);
-          snackbar(next ? "쿠폰을 적용했습니다." : "쿠폰 적용을 해제했습니다.");
         }}
       />
     </CheckoutShell>

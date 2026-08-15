@@ -308,10 +308,30 @@ def _apply_stripe(raw: dict[str, Any], patch: StripePatch, *, tile: float, book:
         band["width_mm"] = round(min(float(band["width_mm"]), period), 6)
 
 
+def _cell_offset_fraction(placement: dict[str, Any]) -> tuple[float, float]:
+    """격자 위상을 셀 대비 비율로 — 두 모티프 슬롯이 엇갈린 정도(`set_motif_slot`)다."""
+
+    spec = placement.get("lattice") if placement.get("type") == "lattice" else None
+    if not isinstance(spec, dict):
+        return (0.0, 0.0)
+    cell_w = _positive_float(spec.get("cell_w_mm"))
+    cell_h = _positive_float(spec.get("cell_h_mm"))
+    if cell_w is None or cell_h is None:
+        return (0.0, 0.0)
+    offset_x = spec.get("offset_x_mm")
+    offset_y = spec.get("offset_y_mm")
+    return (
+        (float(offset_x) / cell_w) if isinstance(offset_x, int | float) else 0.0,
+        (float(offset_y) / cell_h) if isinstance(offset_y, int | float) else 0.0,
+    )
+
+
 def _apply_placement(raw: dict[str, Any], patch: PlacementPatch, *, tile: float) -> None:
     for layer in _layers(raw, "motif"):
         placement = layer.get("placement")
         placement = dict(placement) if isinstance(placement, dict) else {}
+        # 배치를 새로 만들면 위상이 0으로 돌아가 두 모티프가 정확히 포개진다 — 비율로 옮긴다.
+        offset_fraction = _cell_offset_fraction(placement)
         rotation = (
             patch.rotation_deg
             if patch.rotation_deg is not None
@@ -329,6 +349,10 @@ def _apply_placement(raw: dict[str, Any], patch: PlacementPatch, *, tile: float)
             placement = lattice_placement(
                 tile=tile, count=count, staggered=arrangement == "staggered"
             )
+            spec = placement["lattice"]
+            if any(offset_fraction):
+                spec["offset_x_mm"] = round(offset_fraction[0] * spec["cell_w_mm"], 6)
+                spec["offset_y_mm"] = round(offset_fraction[1] * spec["cell_h_mm"], 6)
         elif patch.count_per_axis is not None and placement.get("type") == "path_following":
             placement["spacing_mm"] = round(tile / count, 6)
         if rotation is not None:

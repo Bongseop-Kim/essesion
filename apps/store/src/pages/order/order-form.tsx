@@ -588,9 +588,6 @@ export function OrderFormPage() {
           try {
             await cartActions.applyCoupon(couponItem.item_id, coupon);
             setCouponItemId(null);
-            snackbar(
-              coupon ? "쿠폰을 적용했습니다." : "쿠폰 적용을 해제했습니다.",
-            );
           } catch {
             snackbar("쿠폰을 변경하지 못했습니다.");
           }

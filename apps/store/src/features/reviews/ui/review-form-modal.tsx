@@ -166,7 +166,6 @@ export function ReviewFormModal({
       });
       await invalidate(target.reviewId);
       setDeleteOpen(false);
-      snackbar("후기를 삭제했습니다.");
     } catch {
       snackbar("후기를 삭제하지 못했습니다. 다시 시도해 주세요.");
     }

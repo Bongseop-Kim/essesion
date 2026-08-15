@@ -62,7 +62,6 @@ export function ShippingPage() {
       await queryClient.invalidateQueries({
         queryKey: listAddressesQueryKey(),
       });
-      snackbar("기본 배송지를 변경했습니다.");
     } catch {
       snackbar("기본 배송지를 변경하지 못했습니다.");
     } finally {
@@ -78,7 +77,6 @@ export function ShippingPage() {
         queryKey: listAddressesQueryKey(),
       });
       setDeleteTarget(null);
-      snackbar("배송지를 삭제했습니다.");
     } catch {
       snackbar("배송지를 삭제하지 못했습니다.");
     }

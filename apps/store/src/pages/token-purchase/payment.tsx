@@ -92,6 +92,7 @@ export function TokenPaymentPage() {
       }
       payDisabled={!user}
       payLoading={payment.isPending}
+      blockedMessage={payment.blockedMessage}
       onPay={(widget) => void payment.pay(widget)}
     >
       <VStack gap="x6" alignItems="stretch">

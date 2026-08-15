@@ -4,6 +4,7 @@ import {
 } from "@essesion/api-client/query";
 import { ActionButton, HStack, snackbar, VStack } from "@essesion/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { useNavigate } from "react-router";
 
 import { RouteHeading } from "../../shared/ui/route-heading";
@@ -39,9 +40,12 @@ function createBody(value: ProductFormValue) {
 export function ProductNewPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // 저장 성공 후 navigate가 "저장하지 않은 변경" 다이얼로그를 띄우지 않도록 차단을 건너뛴다.
+  const savedRef = useRef(false);
   const mutation = useMutation({
     ...adminCreateProductMutation(),
     onSuccess: async (product) => {
+      savedRef.current = true;
       snackbar("상품을 등록했습니다.");
       await queryClient.invalidateQueries({
         queryKey: adminListProductsQueryKey(),
@@ -67,6 +71,7 @@ export function ProductNewPage() {
         mode="create"
         pending={mutation.isPending}
         error={mutation.error}
+        blockerBypassRef={savedRef}
         onSubmit={(value) => mutation.mutate({ body: createBody(value) })}
       />
     </VStack>

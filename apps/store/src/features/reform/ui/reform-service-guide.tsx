@@ -1,6 +1,7 @@
 import {
   AspectRatio,
   Box,
+  cn,
   Grid,
   HStack,
   ImageFrame,
@@ -281,9 +282,12 @@ function ReformVideo({
         loop={!reducedMotion}
         muted
         playsInline
-        controls
+        controls={reducedMotion}
         preload="metadata"
-        className="absolute inset-0 size-full object-cover"
+        className={cn(
+          "absolute inset-0 size-full object-cover",
+          !reducedMotion && "pointer-events-none",
+        )}
       />
     </AspectRatio>
   );

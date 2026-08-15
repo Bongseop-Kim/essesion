@@ -165,10 +165,8 @@ export function DesignOverlays({
       if (target.kind === "session") {
         await deleteSession.mutateAsync(target.id);
         onSessionDeleted(target.id);
-        snackbar("디자인을 삭제했습니다.");
       } else if (target.kind === "job") {
         await deleteJob.mutateAsync(target.id);
-        snackbar("완성본을 삭제했습니다.");
       } else {
         setMotifDeleting(true);
         await deleteUserMotif({
@@ -178,7 +176,6 @@ export function DesignOverlays({
         await queryClient.invalidateQueries({
           queryKey: listUserMotifsQueryKey(),
         });
-        snackbar("모티프를 삭제했습니다.");
       }
       closeConfirm(target);
     } catch (error) {

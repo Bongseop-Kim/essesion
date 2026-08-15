@@ -83,10 +83,8 @@ export function SampleOrderPage() {
   ) => setOptions((current) => ({ ...current, [key]: value }));
 
   const submit = async () => {
-    if (!totalCost || calculation.isPending || submitting) {
-      snackbar("샘플 금액을 확인하는 중입니다.");
-      return;
-    }
+    // 제출 버튼은 금액 계산이 끝나기 전까지 disabled다 — 방어 가드.
+    if (!totalCost || calculation.isPending || submitting) return;
     if (
       !requireAuth({
         path: "/sample-order",

@@ -49,7 +49,8 @@ def rasterize_svg(
         raise RasterLimitError(f"raster area exceeds {MAX_RASTER_PIXELS} pixels")
 
     if binary := which("rsvg-convert"):
-        cmd = [binary, "-w", str(width_px), "-h", str(height_px), "-f", "png", "-"]
+        # FILE 인자 없이 stdin — librsvg 2.54(bookworm/배포 이미지)는 "-"를 파일명으로 읽는다.
+        cmd = [binary, "-w", str(width_px), "-h", str(height_px), "-f", "png"]
     elif binary := which("resvg"):
         cmd = [binary, "-w", str(width_px), "-h", str(height_px), "-", "-c"]
     else:

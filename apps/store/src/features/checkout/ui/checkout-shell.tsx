@@ -1,4 +1,4 @@
-import { ActionButton, Box, Text, VStack } from "@essesion/shared";
+import { ActionButton, Box, Callout, Text, VStack } from "@essesion/shared";
 import { type ComponentProps, type ReactNode, useRef, useState } from "react";
 import { krw } from "@/shared/lib/format";
 import { ContentLayout } from "@/shared/ui/content-layout";
@@ -7,6 +7,7 @@ import { PaymentWidget, type PaymentWidgetHandle } from "./payment-widget";
 
 export function CheckoutShell({
   amount,
+  blockedMessage,
   breadcrumbs,
   children,
   customerKey,
@@ -17,6 +18,8 @@ export function CheckoutShell({
   summary,
 }: {
   amount: number;
+  /** 결제를 멈춘 이유 — 조치할 때까지 결제 버튼 위에 남는다. */
+  blockedMessage?: string | null;
   breadcrumbs: ComponentProps<typeof ContentLayout>["breadcrumbs"];
   children: ReactNode;
   customerKey: string | null;
@@ -47,6 +50,9 @@ export function CheckoutShell({
       }
       actionBar={
         <VStack gap="x2" alignItems="stretch">
+          {blockedMessage ? (
+            <Callout tone="critical" description={blockedMessage} />
+          ) : null}
           {helperText ? (
             <Text textStyle="caption" color="fg.neutral-muted" align="center">
               {helperText}

@@ -139,7 +139,6 @@ export function syncGuestCartToAccount(queryClient: QueryClient) {
     if (!isCurrentCartSession(session)) return false;
     queryClient.setQueryData(getCartQueryKey(), response.data);
     queryClient.setQueryData(guestCartQueryKey, []);
-    snackbar("장바구니를 계정에 동기화했습니다.");
     return true;
   });
   activeGuestSyncs.set(key, syncing);
