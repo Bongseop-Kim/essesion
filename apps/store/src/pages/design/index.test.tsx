@@ -37,6 +37,12 @@ const api = vi.hoisted(() => ({
   startFromExample: vi.fn(),
   deleteSession: vi.fn(),
 }));
+const ui = vi.hoisted(() => ({ snackbar: vi.fn() }));
+
+vi.mock("@essesion/shared", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@essesion/shared")>()),
+  snackbar: ui.snackbar,
+}));
 
 vi.mock("@essesion/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@essesion/api-client")>();
@@ -83,6 +89,7 @@ const session = {
 let sessionOverride: Record<string, unknown> = {};
 /** 첫 진입 예시 갤러리 응답 — 기본은 0건(기존 빈 상태 폴백). */
 let examples: Record<string, unknown>[] = [];
+let tokenBalance = 455;
 
 const step = (seq: number, runId: string, svg: string) => ({
   id: `turn-${seq}`,
@@ -162,7 +169,7 @@ vi.mock("@essesion/api-client/query", async (importOriginal) => ({
   getTokenBalanceOptions: () => ({
     queryKey: ["page-design-balance"],
     queryFn: async () => ({
-      total: 455,
+      total: tokenBalance,
       generate_cost: 3,
       edit_cost: 1,
       motif_generate_cost: 3,
@@ -207,6 +214,11 @@ async function waitForDialog(title: string) {
   await waitFor(() => expect(openDialogs()).toEqual([title]));
 }
 
+async function openMobileTools() {
+  fireEvent.click(screen.getByRole("button", { name: "디자인 도구 열기" }));
+  await waitForDialog("디자인 도구");
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -229,6 +241,7 @@ describe("DesignPage canvas shell", () => {
     vi.clearAllMocks();
     sessionOverride = {};
     examples = [];
+    tokenBalance = 455;
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
     localStorage.setItem(DESIGN_ONBOARDING_KEY, "1");
@@ -368,6 +381,7 @@ describe("DesignPage canvas shell", () => {
         screen.getByRole("button", { name: "1번째 디자인으로 되돌리기" }),
       ),
     ).toBe(true);
+    await openMobileTools();
     expect(disabled(screen.getByRole("button", { name: "내려받기" }))).toBe(
       true,
     );
@@ -396,7 +410,9 @@ describe("DesignPage canvas shell", () => {
     api.deleteSession.mockResolvedValue({ data: null });
     const queryClient = renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "내 디자인" }));
+    await screen.findByLabelText("무엇을 바꿀까요?");
+    await openMobileTools();
+    fireEvent.click(screen.getByRole("button", { name: "내 디자인" }));
     await waitForDialog("내 디자인");
     fireEvent.click(screen.getByRole("button", { name: /세션 삭제$/ }));
 
@@ -415,10 +431,28 @@ describe("DesignPage canvas shell", () => {
 
     // 예시 0건이면 갤러리 대신 기존 빈 상태 문구로 폴백한다.
     await screen.findByText("아직 만든 디자인이 없어요");
+    const motifSlot = screen.getByRole("button", {
+      name: "모티프 슬롯 1에 그림 추가",
+    });
+    expect(disabled(motifSlot)).toBe(false);
+    fireEvent.click(motifSlot);
+    expect(ui.snackbar).toHaveBeenCalledWith(
+      "예시를 선택하거나 채팅으로 먼저 시작해 주세요.",
+    );
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    await openMobileTools();
     expect(disabled(screen.getByRole("button", { name: "내려받기" }))).toBe(
       true,
     );
     expect(disabled(screen.getByRole("button", { name: "실사화" }))).toBe(true);
+    expect(screen.queryByText("로그인 후 이용")).toBeNull();
+    expect(disabled(screen.getByRole("button", { name: "내 디자인" }))).toBe(
+      false,
+    );
+    expect(disabled(screen.getByRole("button", { name: "완성본" }))).toBe(
+      false,
+    );
     expect(screen.queryByRole("button", { name: "참고 사진" })).toBeNull();
     queryClient.clear();
   });
@@ -668,12 +702,46 @@ describe("DesignPage canvas shell", () => {
   });
 
   // matchMedia가 min-width에 false라 이 스위트는 base 브레이크포인트(모바일 390) 렌더다.
-  it("모바일에서는 레일이 아이콘 1열이 되고 라벨과 모티프 메타가 사라진다", async () => {
+  it("천 토큰부터 k 단위로 줄이고 줄바꿈하지 않는다", async () => {
+    tokenBalance = 1_200;
     const queryClient = renderPage();
 
-    const rail = await screen.findByRole("navigation", { name: "디자인 도구" });
-    expect(rail.style.flexDirection).toBe("column");
-    expect(screen.getByText("내려받기").style.display).toBe("none");
+    const tokenButton = (await screen.findByText("1.2k토큰")).closest("button");
+    expect(tokenButton?.className).toContain("whitespace-nowrap");
+    queryClient.clear();
+  });
+
+  it("모바일에서는 토큰을 뷰 전환 아래에 두고 + 버튼으로 도구 시트를 연다", async () => {
+    tokenBalance = 0;
+    const queryClient = renderPage();
+
+    await screen.findByLabelText("무엇을 바꿀까요?");
+    const tokenButton = (await screen.findByText("0토큰")).closest("button");
+    expect(tokenButton?.parentElement?.style.position).toBe("absolute");
+    expect(tokenButton?.parentElement?.style.top).toBe("var(--spacing-x12)");
+    expect(tokenButton?.parentElement?.style.right).toBe("0px");
+    expect(
+      screen.queryByRole("navigation", { name: "디자인 도구" }),
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: "디자인 도구 열기" })
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+    await openMobileTools();
+    expect(
+      screen
+        .getByRole("button", { name: "디자인 도구 열기" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+    const menu = screen.getByRole("navigation", {
+      name: "모바일 디자인 도구",
+    });
+    expect(menu.style.gridTemplateColumns).toBe("repeat(4, minmax(0, 1fr))");
+    expect(within(menu).getByRole("button", { name: "내려받기" })).toBeTruthy();
+    expect(
+      within(menu).getByRole("button", { name: "새로 시작" }),
+    ).toBeTruthy();
     // 접기 토글·슬롯 메타는 모바일에서 숨어 접근성 트리에서도 빠진다(썸네일만 남는다).
     expect(
       screen.queryByRole("button", { name: "모티프 카드 접기" }),

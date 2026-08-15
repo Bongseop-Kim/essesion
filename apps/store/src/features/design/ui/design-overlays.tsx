@@ -198,7 +198,7 @@ export function DesignOverlays({
       <OnboardingDialog
         open={overlay === "onboarding"}
         onOpenChange={(open) => {
-          // 닫기·완료 모두 "봤음"으로 기록한다 — 다시 보려면 캔버스의 `만드는 방법`.
+          // 닫기·완료 모두 "봤음"으로 기록한다 — 다시 보려면 캔버스의 `Help`.
           if (!open) completeDesignOnboarding();
           change("onboarding")(open);
         }}

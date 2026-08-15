@@ -56,10 +56,7 @@ import { HistoryCard } from "@/features/design/ui/history-card";
 import { MotifPanel } from "@/features/design/ui/motif-panel";
 import { PromptBar } from "@/features/design/ui/prompt-bar";
 import { StarterGallery } from "@/features/design/ui/starter-gallery";
-import {
-  TokenPill,
-  TokenPillPlaceholder,
-} from "@/features/design/ui/token-pill";
+import { TokenPill } from "@/features/design/ui/token-pill";
 import { ToolRail } from "@/features/design/ui/tool-rail";
 import { ViewToggle } from "@/features/design/ui/view-toggle";
 import {
@@ -91,6 +88,7 @@ export function DesignPage() {
   const [historyCollapsed, setHistoryCollapsed] = useState(() =>
     isPanelCollapsed(HISTORY_CARD_COLLAPSED_KEY),
   );
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [motifHintSignal, setMotifHintSignal] = useState(0);
   const [pending, setPending] = useState(() => readPendingDesign());
 
@@ -277,30 +275,34 @@ export function DesignPage() {
           <ActionButton
             variant="neutralOutline"
             size="small"
-            className="rounded-full bg-bg-layer-floating shadow-s1"
+            className="whitespace-nowrap rounded-full bg-bg-layer-floating shadow-s1"
             onClick={() => setOverlay("onboarding")}
           >
             <Icon svg={<LightBulbIcon />} size={20} />
-            만드는 방법
+            Help
           </ActionButton>
         }
         topEnd={
-          <>
+          <Flex position="relative" alignItems="center" gap="x2">
             {authenticated ? (
-              <TokenPill
-                balance={balanceQuery.data?.total ?? null}
-                generateCost={balanceQuery.data?.generate_cost ?? null}
-                editCost={balanceQuery.data?.edit_cost ?? null}
-                motifGenerateCost={
-                  balanceQuery.data?.motif_generate_cost ?? null
-                }
-                onPurchase={() => navigate("/token/purchase")}
-              />
-            ) : (
-              <TokenPillPlaceholder />
-            )}
+              <Box
+                position={{ base: "absolute", md: "static" }}
+                top="x12"
+                style={{ right: 0 }}
+              >
+                <TokenPill
+                  balance={balanceQuery.data?.total ?? null}
+                  generateCost={balanceQuery.data?.generate_cost ?? null}
+                  editCost={balanceQuery.data?.edit_cost ?? null}
+                  motifGenerateCost={
+                    balanceQuery.data?.motif_generate_cost ?? null
+                  }
+                  onPurchase={() => navigate("/token/purchase")}
+                />
+              </Box>
+            ) : null}
             <ViewToggle mode={previewMode} onModeChange={setPreviewMode} />
-          </>
+          </Flex>
         }
         notice={
           <CanvasNoticeLayer
@@ -339,8 +341,15 @@ export function DesignPage() {
                 sessionQuery.data?.motif_generation_remaining ?? null
               }
               pendingSlot={motifs.pendingSlot}
+              activeSlot={overlay === "motifs" ? motifs.slot : null}
               hintSignal={motifHintSignal}
-              disabled={busy || !hasDesign}
+              onStartRequired={
+                hasDesign
+                  ? undefined
+                  : () =>
+                      snackbar("예시를 선택하거나 채팅으로 먼저 시작해 주세요.")
+              }
+              disabled={busy}
             />
             <HistoryCard
               cells={history.designCells}
@@ -361,15 +370,16 @@ export function DesignPage() {
           <ToolRail
             onExport={() => ensureAuth() && setOverlay("export")}
             onFinalize={() => ensureAuth() && setOverlay("finalize")}
-            onSessions={() => setOverlay("sessions")}
-            onFinalized={() => setOverlay("finalized")}
-            onNewSession={() => openSession(null, true)}
+            onSessions={() => ensureAuth() && setOverlay("sessions")}
+            onFinalized={() => ensureAuth() && setOverlay("finalized")}
+            onNewSession={() => ensureAuth() && openSession(null, true)}
             canExport={exportable}
             canFinalize={
               hasDesign && !busy && !(quota !== null && quota.remaining <= 0)
             }
-            authenticated={authenticated}
             busy={busy}
+            mobileOpen={mobileToolsOpen}
+            onMobileOpenChange={setMobileToolsOpen}
           />
         }
         bottom={
@@ -379,6 +389,8 @@ export function DesignPage() {
               onChange={editor.changePrompt}
               onSubmit={editor.submit}
               onOpenIdeas={() => ensureAuth() && setOverlay("ideas")}
+              onOpenTools={() => setMobileToolsOpen(true)}
+              toolsOpen={mobileToolsOpen}
               placeholder={
                 hasDesign
                   ? "무엇을 바꿀까요? 색, 줄무늬, 배치, 크기"

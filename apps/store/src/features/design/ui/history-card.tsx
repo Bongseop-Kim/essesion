@@ -67,7 +67,7 @@ export function HistoryCard({
       aria-label="편집 이력"
       alignItems="stretch"
       gap="x2"
-      width={{ base: 60, md: 152 }}
+      width={{ base: 84, md: 152 }}
       p={{ base: "x1_5", md: "x3" }}
       bg="bg.layer-floating"
       borderWidth={1}
@@ -136,9 +136,8 @@ export function HistoryCard({
           <Skeleton width="100%" radius="r2" style={{ aspectRatio: 1 }} />
         )}
 
-        {/* base(60px 컬럼)엔 화살표 둘을 나란히 놓을 폭이 없다 — 세로로 세운다. */}
         <Flex
-          direction={{ base: "column", md: "row" }}
+          direction="row"
           alignItems="center"
           justifyContent="space-between"
           gap="x1"

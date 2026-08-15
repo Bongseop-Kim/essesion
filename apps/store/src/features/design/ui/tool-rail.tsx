@@ -1,4 +1,4 @@
-import { Flex, Icon, Text, VStack } from "@essesion/shared";
+import { Box, Flex, Grid, Icon, Modal, Text, VStack } from "@essesion/shared";
 import {
   ArrowDownTrayIcon,
   BookmarkIcon,
@@ -6,7 +6,9 @@ import {
   PlusIcon,
   Squares2X2Icon,
 } from "@heroicons/react/24/outline";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
+
+const MOBILE_SHEET_EXIT_MS = 300;
 
 export type ToolRailProps = {
   onExport: () => void;
@@ -16,8 +18,9 @@ export type ToolRailProps = {
   onNewSession: () => void;
   canExport: boolean;
   canFinalize: boolean;
-  authenticated: boolean;
   busy: boolean;
+  mobileOpen: boolean;
+  onMobileOpenChange: (open: boolean) => void;
 };
 
 type RailItem = {
@@ -29,10 +32,10 @@ type RailItem = {
 };
 
 /**
- * 캔버스 우측 아이콘 레일. PC는 2열(왼쪽=현재 디자인으로 하는 일, 오른쪽=다음 요청 도구)
- * + 라벨, 모바일은 라벨 없이 아이콘 1열이다.
+ * PC는 캔버스 우측 레일, 모바일은 입력창의 + 버튼이 여는 하단 시트로 표시한다.
  */
 export function ToolRail(props: ToolRailProps) {
+  const mobileActionTimer = useRef<number | undefined>(undefined);
   const actions: RailItem[] = [
     {
       key: "export",
@@ -55,14 +58,12 @@ export function ToolRail(props: ToolRailProps) {
       label: "내 디자인",
       icon: <Icon svg={<FolderOpenIcon />} size={24} />,
       onClick: props.onSessions,
-      disabled: !props.authenticated,
     },
     {
       key: "finalized",
       label: "완성본",
       icon: <Icon svg={<BookmarkIcon />} size={24} />,
       onClick: props.onFinalized,
-      disabled: !props.authenticated,
     },
     {
       key: "new",
@@ -72,18 +73,57 @@ export function ToolRail(props: ToolRailProps) {
       disabled: props.busy,
     },
   ];
+  const items = [...actions, ...tools];
+
+  useEffect(() => () => window.clearTimeout(mobileActionTimer.current), []);
+
+  const runMobileAction = (item: RailItem) => {
+    props.onMobileOpenChange(false);
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    window.clearTimeout(mobileActionTimer.current);
+    mobileActionTimer.current = window.setTimeout(
+      item.onClick,
+      reducedMotion ? 0 : MOBILE_SHEET_EXIT_MS,
+    );
+  };
 
   return (
-    <Flex
-      as="nav"
-      aria-label="디자인 도구"
-      direction={{ base: "column", md: "row" }}
-      alignItems="flex-start"
-      gap="x2"
-    >
-      <RailColumn items={actions} />
-      <RailColumn items={tools} />
-    </Flex>
+    <>
+      <Flex
+        as="nav"
+        aria-label="디자인 도구"
+        display={{ base: "none", md: "flex" }}
+        alignItems="flex-start"
+        gap="x2"
+      >
+        <RailColumn items={actions} />
+        <RailColumn items={tools} />
+      </Flex>
+
+      <Box display={{ base: "block", md: "none" }}>
+        <Modal
+          open={props.mobileOpen}
+          onOpenChange={props.onMobileOpenChange}
+          title="디자인 도구"
+          size="small"
+        >
+          <Grid as="nav" aria-label="모바일 디자인 도구" columns={4} gap="x2">
+            {items.map((item) => {
+              const { key, ...button } = item;
+              return (
+                <RailButton
+                  key={key}
+                  {...button}
+                  onClick={() => runMobileAction(item)}
+                />
+              );
+            })}
+          </Grid>
+        </Modal>
+      </Box>
+    </>
   );
 }
 
@@ -110,7 +150,7 @@ function RailButton({
       direction="column"
       alignItems="center"
       gap="x1_5"
-      width={{ base: 40, md: 72 }}
+      width={72}
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
@@ -119,8 +159,8 @@ function RailButton({
       <Flex
         alignItems="center"
         justifyContent="center"
-        width={{ base: 40, md: 48 }}
-        height={{ base: 40, md: 48 }}
+        width={48}
+        height={48}
         borderRadius="full"
         borderWidth={1}
         borderColor="stroke.neutral-weak"
@@ -130,12 +170,7 @@ function RailButton({
       >
         {icon}
       </Flex>
-      <Text
-        textStyle="captionSm"
-        color="fg.neutral-muted"
-        align="center"
-        display={{ base: "none", md: "block" }}
-      >
+      <Text textStyle="captionSm" color="fg.neutral-muted" align="center">
         {label}
       </Text>
     </Flex>

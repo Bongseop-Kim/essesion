@@ -61,6 +61,10 @@ export type MotifPanelProps = {
   pendingSlot: 1 | 2 | null;
   /** 값이 증가할 때 피커 위치를 한 번 강조한다. */
   hintSignal?: number;
+  /** 지금 피커가 열려 있는 슬롯 — 어느 칸을 채우는 중인지 테두리로 알린다. */
+  activeSlot?: 1 | 2 | null;
+  /** 아직 디자인이 없을 때 슬롯을 눌러도 메뉴 대신 시작 방법을 안내한다. */
+  onStartRequired?: () => void;
   disabled?: boolean;
 };
 
@@ -78,6 +82,8 @@ export function MotifPanel({
   motifGenerationRemaining,
   pendingSlot,
   hintSignal = 0,
+  activeSlot = null,
+  onStartRequired,
   disabled = false,
 }: MotifPanelProps) {
   const slots = [1, 2] as const;
@@ -161,9 +167,11 @@ export function MotifPanel({
             motif={motifs[slot - 1]}
             disabled={disabled}
             pending={pendingSlot === slot}
+            active={activeSlot === slot}
             motifGenerationRemaining={motifGenerationRemaining}
             onPickSource={onPickSource}
             onPickFile={pickFile}
+            onStartRequired={onStartRequired}
           />
         ))}
       </VStack>
@@ -218,6 +226,7 @@ type SlotMenuProps = {
   motifGenerationRemaining: number | null;
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
   onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
+  onStartRequired?: () => void;
   children: MenuTriggerProps["children"];
 };
 
@@ -251,8 +260,12 @@ function SlotMenu({
   motifGenerationRemaining,
   onPickSource,
   onPickFile,
+  onStartRequired,
   children,
 }: SlotMenuProps) {
+  if (onStartRequired) {
+    return <Box onClick={onStartRequired}>{children}</Box>;
+  }
   const exhausted =
     motifGenerationRemaining !== null && motifGenerationRemaining <= 0;
   return (
@@ -319,19 +332,31 @@ function MotifSlotView({
   motif,
   disabled,
   pending,
+  active,
   motifGenerationRemaining,
   onPickSource,
   onPickFile,
+  onStartRequired,
 }: {
   slot: 1 | 2;
   motif: MotifPanelSlot | undefined;
   disabled: boolean;
   pending: boolean;
+  active: boolean;
   motifGenerationRemaining: number | null;
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
   onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
+  onStartRequired?: () => void;
 }) {
-  const menu = { slot, motifGenerationRemaining, onPickSource, onPickFile };
+  // 피커가 열려 있는 동안 어느 슬롯을 채우는 중인지 테두리로 남긴다.
+  const ring = active ? " outline-2 outline-offset-2 outline-stroke-brand" : "";
+  const menu = {
+    slot,
+    motifGenerationRemaining,
+    onPickSource,
+    onPickFile,
+    onStartRequired,
+  };
 
   if (pending) {
     return (
@@ -373,7 +398,8 @@ function MotifSlotView({
           borderRadius="r2"
           disabled={disabled}
           aria-label={`모티프 슬롯 ${slot}에 그림 추가`}
-          className="border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50"
+          aria-current={active ? "true" : undefined}
+          className={`border border-dashed border-stroke-neutral bg-bg-layer-default text-fg-neutral-subtle transition-colors duration-100 ease-standard hover:bg-bg-neutral-weak focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none disabled:opacity-50${ring}`}
           style={{ aspectRatio: 1 }}
         >
           <Icon svg={<PlusIcon />} size={22} />
@@ -401,7 +427,8 @@ function MotifSlotView({
           borderRadius="r2"
           disabled={disabled}
           aria-label={`${name} 바꾸기`}
-          className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none"
+          aria-current={active ? "true" : undefined}
+          className={`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none${ring}`}
         >
           <ImageFrame
             ratio={1}
