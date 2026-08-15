@@ -341,12 +341,7 @@ export function DesignPage() {
               pendingSlot={motifs.pendingSlot}
               activeSlot={overlay === "motifs" ? motifs.slot : null}
               hintSignal={motifHintSignal}
-              onStartRequired={
-                hasDesign
-                  ? undefined
-                  : () =>
-                      snackbar("예시를 선택하거나 채팅으로 먼저 시작해 주세요.")
-              }
+              startRequired={!hasDesign}
               disabled={busy}
             />
             <HistoryCard

@@ -127,6 +127,7 @@ export function OrderPaymentPage({
       }
       payDisabled={!canPay}
       payLoading={payment.isPending}
+      blockedMessage={payment.blockedMessage}
       helperText={!address ? "배송지를 먼저 등록해 주세요." : undefined}
       onPay={(widget) => void payment.pay(widget)}
     >

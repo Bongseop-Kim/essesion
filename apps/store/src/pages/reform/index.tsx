@@ -223,10 +223,8 @@ export function ReformPage() {
   // 수선 옵션은 추가·수정 모두 ReformSettingsModal에서 검증하므로 여기서는 사진만 확인한다.
   const validateSelected = () => {
     form.clearErrors();
-    if (selectedTies.length === 0) {
-      snackbar("접수할 넥타이를 선택해 주세요.");
-      return false;
-    }
+    // 제출 버튼은 선택이 없으면 disabled — 방어 가드라 안내 없이 멈춘다.
+    if (selectedTies.length === 0) return false;
     let firstInvalid: number | null = null;
     ties.forEach((tie, index) => {
       if (!selectedIds.has(tie.itemId)) return;
@@ -239,8 +237,7 @@ export function ReformPage() {
       }
     });
     if (firstInvalid != null) {
-      snackbar("사진을 확인해 주세요.");
-      // 첫 에러 항목으로 포커스 이동 — custom-order의 focusInvalid와 같은 지연(스크롤 완료 후 포커스)
+      // 누락 항목마다 필드 에러가 붙으므로 따로 알리지 않는다. 첫 에러 항목으로 포커스 이동 — custom-order의 focusInvalid와 같은 지연(스크롤 완료 후 포커스)
       const container = document.getElementById(`reform-tie-${firstInvalid}`);
       container?.scrollIntoView({ behavior: "smooth", block: "center" });
       window.setTimeout(() => {

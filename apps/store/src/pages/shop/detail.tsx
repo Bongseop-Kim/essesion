@@ -14,6 +14,7 @@ import {
   Box,
   ContentPlaceholder,
   Divider,
+  Field,
   Grid,
   HStack,
   Icon,
@@ -103,6 +104,8 @@ export function ShopDetailPage() {
   const productId = Number(id);
   const validProductId = Number.isInteger(productId) && productId > 0;
   const [selectedOptionId, setSelectedOptionId] = useState("");
+  // 옵션 없이 담기를 누른 뒤 상주하는 안내 — 옵션을 고르면 사라진다.
+  const [optionMissing, setOptionMissing] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [duplicateDraft, setDuplicateDraft] = useState<CartAddDraft | null>(
     null,
@@ -208,11 +211,14 @@ export function ShopDetailPage() {
   const validateCartDraft = (goCart: boolean): CartAddDraft | null => {
     if (!product || sessionStatus === "loading") return null;
     if (canSubmit) {
+      setOptionMissing(false);
       return { product, option: selectedOption ?? null, quantity, goCart };
     }
-    snackbar(
-      hasOptions ? "옵션을 선택해 주세요." : "구매할 수 없는 상품입니다.",
-    );
+    // 품절이면 버튼이 이미 disabled다 — 남는 경우는 옵션 미선택뿐.
+    setOptionMissing(hasOptions);
+    document
+      .getElementById("product-option-select")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
     return null;
   };
 
@@ -299,7 +305,11 @@ export function ShopDetailPage() {
             product={product}
             options={options}
             selectedOptionId={selectedOptionId}
-            onSelectedOptionChange={setSelectedOptionId}
+            onSelectedOptionChange={(value) => {
+              setSelectedOptionId(value);
+              setOptionMissing(false);
+            }}
+            optionMissing={optionMissing}
             quantity={quantity}
             onQuantityChange={setQuantity}
             selectedStock={selectedStock}
@@ -409,11 +419,13 @@ function ProductSummary({
   unitPrice,
   totalPrice,
   soldOut,
+  optionMissing,
 }: {
   product: ProductOut;
   options: ProductOptionOut[];
   selectedOptionId: string;
   onSelectedOptionChange: (value: string) => void;
+  optionMissing: boolean;
   quantity: number;
   onQuantityChange: (value: number) => void;
   selectedStock: number | null;
@@ -459,21 +471,27 @@ function ProductSummary({
           구매 옵션
         </Text>
         {hasOptions ? (
-          <SelectBox
-            value={selectedOptionId}
-            onValueChange={(value) => onSelectedOptionChange(String(value))}
-            aria-label={product.option_label ?? "옵션"}
-          >
-            {options.map((option) => (
-              <SelectBoxItem
-                key={option.id}
-                value={option.id}
-                label={optionLabel(option)}
-                description={optionDescription(option)}
-                disabled={option.stock === 0}
-              />
-            ))}
-          </SelectBox>
+          <Box id="product-option-select">
+            <Field
+              errorMessage={optionMissing ? "옵션을 선택해 주세요." : undefined}
+            >
+              <SelectBox
+                value={selectedOptionId}
+                onValueChange={(value) => onSelectedOptionChange(String(value))}
+                aria-label={product.option_label ?? "옵션"}
+              >
+                {options.map((option) => (
+                  <SelectBoxItem
+                    key={option.id}
+                    value={option.id}
+                    label={optionLabel(option)}
+                    description={optionDescription(option)}
+                    disabled={option.stock === 0}
+                  />
+                ))}
+              </SelectBox>
+            </Field>
+          </Box>
         ) : null}
 
         <HStack justify="space-between" gap="x4">

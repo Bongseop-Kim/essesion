@@ -434,12 +434,13 @@ describe("DesignPage canvas shell", () => {
     const motifSlot = screen.getByRole("button", {
       name: "모티프 슬롯 1에 그림 추가",
     });
-    expect(disabled(motifSlot)).toBe(false);
+    // 시작 전에는 슬롯이 잠기고, 이유는 패널에 상주한다.
+    expect(disabled(motifSlot)).toBe(true);
     fireEvent.click(motifSlot);
-    expect(ui.snackbar).toHaveBeenCalledWith(
-      "예시를 선택하거나 채팅으로 먼저 시작해 주세요.",
-    );
     expect(screen.queryByRole("menu")).toBeNull();
+    expect(
+      screen.getByText("예시를 고르거나 채팅으로 먼저 시작해 주세요."),
+    ).toBeTruthy();
 
     await openMobileTools();
     expect(disabled(screen.getByRole("button", { name: "내려받기" }))).toBe(

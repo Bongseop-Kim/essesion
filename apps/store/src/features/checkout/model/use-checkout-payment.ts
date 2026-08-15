@@ -150,6 +150,7 @@ export function useCheckoutPayment<T>({
   snapshot: T;
 }) {
   const [isPending, setPending] = useState(false);
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
   const submitting = useRef(false);
   const currentOwner = useRef(ownerUserId);
   const mounted = useRef(true);
@@ -167,21 +168,19 @@ export function useCheckoutPayment<T>({
 
   return {
     isPending,
+    /** 결제를 멈춘 이유 — 사라지면 안 되는 안내라 결제 버튼 위에 상주시킨다. */
+    blockedMessage,
     async pay(widget: PaymentWidgetHandle | null) {
       if (submitting.current) return;
-      if (!widget) {
-        snackbar("결제 수단을 불러오는 중입니다.");
-        return;
-      }
+      // 결제 버튼은 위젯이 준비되고 로그인이 확인되기 전까지 disabled — 방어 가드.
+      if (!widget) return;
 
       submitting.current = true;
       setPending(true);
+      setBlockedMessage(null);
       try {
         const paymentOwner = ownerUserId;
-        if (!paymentOwner) {
-          snackbar("로그인 정보를 확인하고 있습니다.");
-          return;
-        }
+        if (!paymentOwner) return;
         const signature = JSON.stringify(snapshot);
         const cached = readPendingCheckout<T>(storageKey, paymentOwner);
         const reusable = cached?.signature === signature ? cached : null;
@@ -209,7 +208,7 @@ export function useCheckoutPayment<T>({
           expectedAmount !== undefined &&
           payment.totalAmount !== expectedAmount
         ) {
-          snackbar(
+          setBlockedMessage(
             "결제 금액이 변경되었습니다. 장바구니를 다시 확인해 주세요.",
           );
           return;

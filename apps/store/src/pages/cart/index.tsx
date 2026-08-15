@@ -306,16 +306,14 @@ export function CartPage() {
   };
 
   const orderSelected = () => {
-    if (selectedIds.length === 0) {
-      snackbar("주문할 상품을 선택해 주세요.");
-      return;
-    }
+    // 주문 버튼은 선택이 없으면 disabled고 unavailable 항목은 selectable에서 빠진다 —
+    // 여기 두 가드는 방어일 뿐이라 안내 없이 멈춘다.
+    if (selectedIds.length === 0) return;
     if (
       items.some(
         (item) => item.unavailable && selectedIds.includes(item.input.item_id),
       )
     ) {
-      snackbar("확인이 필요한 항목을 수정해 주세요.");
       return;
     }
     if (
@@ -405,10 +403,8 @@ export function CartPage() {
               totalCount={selectableItemIds.length}
               onToggleAll={toggleAll}
               onRemoveSelected={() => {
-                if (selectedIds.length === 0) {
-                  snackbar("삭제할 항목을 선택해 주세요.");
-                  return;
-                }
+                // 선택 삭제 버튼은 selectedCount === 0이면 disabled다.
+                if (selectedIds.length === 0) return;
                 setDeleteTarget({
                   ids: selectedIds,
                   title: "선택 항목 삭제",
@@ -489,10 +485,8 @@ export function CartPage() {
         onApply={async ({ optionId, quantity }) => {
           if (!optionItem?.product) return;
           const option = selectedOption(optionItem.product, optionId);
-          if ((optionItem.product.options?.length ?? 0) > 0 && !option) {
-            snackbar("구매할 옵션을 선택해 주세요.");
-            return;
-          }
+          // 모달의 "변경" 버튼이 옵션 미선택이면 disabled다.
+          if ((optionItem.product.options?.length ?? 0) > 0 && !option) return;
           try {
             await cartActions.updateProductOption({
               itemId: optionItem.input.item_id,
