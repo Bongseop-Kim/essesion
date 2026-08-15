@@ -3,7 +3,36 @@
 from unittest.mock import ANY
 
 from api.integrations.gcs import RealGcsClient
+from google.auth.credentials import Credentials, Signing
 from google.cloud.exceptions import PreconditionFailed
+
+
+class _FakeSigningCredentials(Credentials, Signing):
+    @property
+    def signer_email(self) -> str:
+        return "local@example.test"
+
+    @property
+    def signer(self):
+        return self
+
+    def sign_bytes(self, message: bytes) -> bytes:
+        return message
+
+    def refresh(self, request) -> None:
+        self.token = "local-token"
+
+
+class _FakeComputeCredentials(Credentials):
+    service_account_email = "api@example.test"
+
+    def __init__(self):
+        super().__init__()
+        self.refresh_count = 0
+
+    def refresh(self, request) -> None:
+        self.refresh_count += 1
+        self.token = "metadata-token"
 
 
 class _FakeBlob:
@@ -43,6 +72,7 @@ class _FakeBucket:
 class _FakeStorageClient:
     def __init__(self):
         self.buckets: dict[str, _FakeBucket] = {}
+        self._credentials = _FakeSigningCredentials()
 
     def bucket(self, name: str) -> _FakeBucket:
         return self.buckets.setdefault(name, _FakeBucket(name))
@@ -95,6 +125,30 @@ async def test_signed_upload_url_signs_create_only_generation_precondition(monke
                 "x-goog-content-length-range": "1,10",
                 "x-goog-if-generation-match": "0",
             },
+            "service_account_email": None,
+            "access_token": None,
+        }
+    ]
+
+
+async def test_signed_upload_url_uses_iam_signing_for_cloud_run_credentials(monkeypatch):
+    storage = _FakeStorageClient()
+    credentials = _FakeComputeCredentials()
+    storage._credentials = credentials
+    monkeypatch.setattr("google.cloud.storage.Client", lambda: storage)
+
+    await RealGcsClient("private-uploads").signed_upload_url("image.png", "image/png")
+
+    assert credentials.refresh_count == 1
+    assert storage.bucket("private-uploads").blob("image.png").signed_url_calls == [
+        {
+            "version": "v4",
+            "expiration": ANY,
+            "method": "PUT",
+            "content_type": "image/png",
+            "headers": {},
+            "service_account_email": "api@example.test",
+            "access_token": "metadata-token",
         }
     ]
 

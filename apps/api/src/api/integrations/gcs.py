@@ -11,9 +11,11 @@ URL을 발급한다. 배포 환경에서 버킷이 빠지면 기동을 중단한
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Protocol
+from typing import Protocol, cast
 from urllib.parse import quote
 
+from google.auth.credentials import Credentials, Signing
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from starlette.concurrency import run_in_threadpool
 
 from api.config import Settings
@@ -106,6 +108,17 @@ class RealGcsClient:
         self._bucket_name = bucket_name
         self._bucket = self._client.bucket(bucket_name)
 
+    async def _signing_identity(self) -> tuple[str | None, str | None]:
+        credentials = cast(Credentials, self._client._credentials)
+        if isinstance(credentials, Signing):
+            return None, None
+        if not credentials.valid:
+            await run_in_threadpool(credentials.refresh, GoogleAuthRequest())
+        service_account_email = getattr(credentials, "service_account_email", None)
+        if not isinstance(service_account_email, str) or not isinstance(credentials.token, str):
+            raise RuntimeError("service account credentials are required for GCS URL signing")
+        return service_account_email, credentials.token
+
     def _emulator_url(self, bucket_name: str, object_key: str, *, upload: bool = False) -> str:
         url = f"{self._emulator_host}/{bucket_name}/{quote(object_key, safe='/')}"
         if upload:
@@ -136,6 +149,7 @@ class RealGcsClient:
             # The staging key must be immutable for the full signed-URL lifetime.
             # Signing this precondition makes a replayed PUT fail once generation 1 exists.
             headers["x-goog-if-generation-match"] = "0"
+        service_account_email, access_token = await self._signing_identity()
         return await run_in_threadpool(
             blob.generate_signed_url,
             version="v4",
@@ -143,17 +157,22 @@ class RealGcsClient:
             method="PUT",
             content_type=content_type,
             headers=headers,
+            service_account_email=service_account_email,
+            access_token=access_token,
         )
 
     async def signed_read_url(self, object_key: str) -> str:
         if self._emulator_host:
             return self._emulator_url(self._bucket_name, object_key)
         blob = self._bucket.blob(object_key)
+        service_account_email, access_token = await self._signing_identity()
         return await run_in_threadpool(
             blob.generate_signed_url,
             version="v4",
             expiration=READ_URL_TTL,
             method="GET",
+            service_account_email=service_account_email,
+            access_token=access_token,
         )
 
     async def delete_object(self, object_key: str, *, bucket_name: str | None = None) -> bool:
