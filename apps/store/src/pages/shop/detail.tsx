@@ -605,10 +605,9 @@ function ProductDetail({
           {detailImages.map((src, index) => (
             <ImageFrame
               key={`${src}-${index}`}
-              ratio={4 / 3}
+              ratio="auto"
               src={src}
               alt={`${product.name} 상세 이미지 ${index + 1}`}
-              fit="contain"
               borderRadius="r2"
               stroke
             />

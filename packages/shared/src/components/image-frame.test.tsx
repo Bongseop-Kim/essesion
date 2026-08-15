@@ -33,4 +33,12 @@ describe("ImageFrame", () => {
       "/renewed.webp",
     );
   });
+
+  it('ratio="auto"는 비율 박스 없이 이미지 원본 높이를 따른다', () => {
+    render(<ImageFrame ratio="auto" src="/tall.webp" alt="상세" />);
+
+    const img = screen.getByRole("img", { name: "상세" });
+    expect(img.className).toContain("w-full");
+    expect(img.className).not.toContain("absolute");
+  });
 });
