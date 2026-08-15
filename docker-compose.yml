@@ -14,7 +14,7 @@ services:
   # GCS 대체 — local/test api·worker의 기본값이 이 서버와 dev-* 버킷을 사용한다.
   # cors-headers는 브라우저 직접 PUT(putToSignedUrl)의 preflight에 필요.
   gcs:
-    image: fsouza/fake-gcs-server:1.55.0
+    image: fsouza/fake-gcs-server:1.55.1
     ports:
       - "4443:4443"
     entrypoint:
