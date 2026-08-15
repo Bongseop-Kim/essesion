@@ -3,7 +3,7 @@
 import pytest
 from worker.engine.compose import compose_design
 from worker.engine.constraints import ConstraintInvalid
-from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot
+from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot, set_motif_slot
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
@@ -146,6 +146,19 @@ def test_placement_patch_keeps_lattice_cells_dividing_the_tile():
         "drop_axis": "column",
     }
     assert 48 / placement["lattice"]["cell_w_mm"] == 6
+
+
+def test_placement_patch_keeps_the_two_motif_slots_staggered():
+    """배치를 바꿔도 슬롯 2의 반 칸 위상이 살아 있어야 한다 — 0이면 두 모티프가 정확히 포개진다."""
+    two_slots = set_motif_slot(_lattice_intent(), slot=2, motif_id="circle")
+    assert two_slots["layers"][2]["placement"]["lattice"]["offset_x_mm"] == 4.0
+
+    patched = apply_patch(two_slots, _patch(placement={"count_per_axis": 4}))
+
+    first, second = (layer["placement"]["lattice"] for layer in patched["layers"][1:3])
+    assert first.get("offset_x_mm", 0.0) == 0.0
+    assert second["offset_x_mm"] == first["cell_w_mm"] / 2
+    assert second["offset_y_mm"] == first["cell_h_mm"] / 2
 
 
 def test_rotation_only_patch_keeps_the_current_placement_type():
