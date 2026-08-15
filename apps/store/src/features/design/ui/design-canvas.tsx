@@ -5,6 +5,7 @@ import {
   Flex,
   HStack,
   Icon,
+  SnackbarAvoidOverlap,
   TieCanvas,
   VStack,
 } from "@essesion/shared";
@@ -72,9 +73,12 @@ export function DesignCanvas({
               ))
             )}
           </Flex>
-          <VStack alignItems="center" gap="x2_5" px="x4" pb="x5">
-            {bottom}
-          </VStack>
+          <SnackbarAvoidOverlap>
+            {/* 스낵바가 입력창을 가리지 않도록 높이를 등록한다 */}
+            <VStack alignItems="center" gap="x2_5" px="x4" pb="x5">
+              {bottom}
+            </VStack>
+          </SnackbarAvoidOverlap>
         </VStack>
 
         {/* 겹쳐 뜨는 컨트롤 — 래퍼는 클릭을 통과시키고 각 그룹만 받는다 */}
