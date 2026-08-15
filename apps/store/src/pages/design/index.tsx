@@ -128,10 +128,8 @@ export function DesignPage() {
     currentMotifs: motifSlots,
     motifGenerationRemaining:
       sessionQuery.data?.motif_generation_remaining ?? null,
-    onDone: (name) => {
-      setOverlay(null);
-      snackbar(`‘${name}’ 모티프로 바꿨어요.`);
-    },
+    // 교체 결과는 캔버스·모티프 패널에 바로 보인다 — 따로 알리지 않는다.
+    onDone: () => setOverlay(null),
     notify: snackbar,
   });
   const editor = usePromptGeneration({

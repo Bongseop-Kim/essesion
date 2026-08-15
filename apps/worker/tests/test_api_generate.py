@@ -161,6 +161,7 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
     texts = [
         "color #FFD700 is outside CMYK gamut",
         "motif bee dropped (unavailable)",
+        # 화면에 보이는 자동 맞춤·인프라 실패는 고객에게 말하지 않는다(로그·admin에만).
         "preview upload skipped",
         "spacing snapped to 8.0mm",
         "widths reduced to keep the background visible",
@@ -176,10 +177,6 @@ def test_customer_warnings_maps_every_code_once_in_diagnostic_order():
     assert [item["code"] for item in warnings] == [
         "color_out_of_gamut",
         "motif_dropped",
-        "preview_unavailable",
-        "spacing_snapped",
-        "stripe_coverage_reduced",
-        "motif_size_clamped",
         "named_color_unplaced",
         "motif_approximate_match",
     ]
@@ -206,7 +203,8 @@ def test_lattice_overlap_clamp_is_reported_as_a_warning(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["intent"]["layers"][1]["params"]["size_mm"] == 13.8
-    assert [w for w in body["warnings"] if w["code"] == "motif_size_clamped"]
+    # 클램프는 캔버스에서 보이는 조정이라 고객 경고로는 내려가지 않는다.
+    assert body["warnings"] == []
 
 
 def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
@@ -215,7 +213,8 @@ def test_raster_failure_yields_null_png_key_with_warning(monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["design"]["png_object_key"] is None
-    assert any(w["code"] == "preview_unavailable" for w in body["warnings"])
+    # 고객이 손쓸 수 없는 실패라 경고로 내려가지 않는다 — 진단은 로그·admin에 남는다.
+    assert body["warnings"] == []
 
 
 def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeypatch):
@@ -231,7 +230,7 @@ def test_preview_upload_failure_yields_null_key_without_failing_generate(monkeyp
     assert resp.status_code == 200
     body = resp.json()
     assert body["design"]["png_object_key"] is None
-    assert [w["code"] for w in body["warnings"]] == ["preview_unavailable"]
+    assert body["warnings"] == []
 
 
 def test_request_id_propagates_to_body_and_header(client):

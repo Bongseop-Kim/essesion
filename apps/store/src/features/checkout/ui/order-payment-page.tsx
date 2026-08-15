@@ -8,7 +8,6 @@ import {
   ContentPlaceholder,
   Divider,
   Skeleton,
-  snackbar,
   Text,
   VStack,
 } from "@essesion/shared";
@@ -214,7 +213,6 @@ export function OrderPaymentPage({
         onApply={async (next) => {
           setCoupon(next);
           setCouponModalOpen(false);
-          snackbar(next ? "쿠폰을 적용했습니다." : "쿠폰 적용을 해제했습니다.");
         }}
       />
     </CheckoutShell>

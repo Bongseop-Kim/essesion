@@ -300,7 +300,6 @@ export function CartPage() {
     try {
       await cartActions.removeItems(ids);
       setSelectedIds((current) => current.filter((id) => !ids.includes(id)));
-      snackbar("장바구니에서 삭제했습니다.");
     } catch {
       snackbar("삭제하지 못했습니다.");
     }
@@ -474,9 +473,6 @@ export function CartPage() {
           if (!couponItem) return;
           try {
             await cartActions.applyCoupon(couponItem.input.item_id, coupon);
-            snackbar(
-              coupon ? "쿠폰을 적용했습니다." : "쿠폰 적용을 해제했습니다.",
-            );
             setCouponItemId(null);
           } catch {
             snackbar("쿠폰을 변경하지 못했습니다.");
@@ -504,7 +500,6 @@ export function CartPage() {
               option,
               quantity,
             });
-            snackbar("옵션을 변경했습니다.");
             setOptionItemId(null);
           } catch {
             snackbar("옵션을 변경하지 못했습니다.");
@@ -535,7 +530,6 @@ export function CartPage() {
                   reformData: reformDataFromForm({ ...tie, ...values }),
                 },
               ]);
-              snackbar("수선 옵션을 변경했습니다.");
               setReformOptionItemId(null);
             } catch {
               snackbar("수선 옵션을 변경하지 못했습니다.");

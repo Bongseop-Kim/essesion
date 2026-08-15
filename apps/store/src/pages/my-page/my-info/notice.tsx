@@ -45,7 +45,6 @@ export function NoticePage() {
       });
       useSession.getState().setUser(me);
       await refreshMe();
-      snackbar(enabled ? "서비스 알림을 켰습니다." : "서비스 알림을 껐습니다.");
     } catch {
       snackbar("서비스 알림 설정을 변경하지 못했습니다.");
     }

@@ -1,6 +1,6 @@
 import { Flex, Icon, Text, VStack } from "@essesion/shared";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 export type CanvasNoticeTone = "warning" | "critical";
 
@@ -91,8 +91,22 @@ export function CanvasNoticeLayer({ notices }: CanvasNoticeLayerProps) {
   );
 }
 
+/** 경고는 읽을 시간만 머문다. 다음 생성·교체가 warnings를 비우면 언마운트돼 다시 뜬다. */
+const WARNING_VISIBLE_MS = 10_000;
+
 function NoticeChip({ notice }: { notice: CanvasNoticeItem }) {
   const tone = TONES[notice.tone];
+  const [expired, setExpired] = useState(false);
+
+  useEffect(() => {
+    // 거절·오류는 남긴다 — 다음 입력이 mutation을 리셋할 때까지가 수명이다.
+    if (notice.tone === "critical") return;
+    const timer = setTimeout(() => setExpired(true), WARNING_VISIBLE_MS);
+    return () => clearTimeout(timer);
+  }, [notice.tone]);
+
+  if (expired) return null;
+
   return (
     <Flex
       alignItems="flex-start"
