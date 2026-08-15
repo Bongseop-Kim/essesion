@@ -23,7 +23,6 @@ import {
   LanguageIcon,
   MagnifyingGlassIcon,
   PaintBrushIcon,
-  PencilSquareIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -422,48 +421,28 @@ function MotifSlotView({
   }
 
   const name = motif.name ?? "모티프";
+  // 미리보기 자체가 메뉴 진입점 — 이름 줄·편집 버튼은 같은 메뉴를 두 번 여는 중복이었다.
   return (
-    <VStack alignItems="stretch" gap="x2">
-      {/* base엔 편집 버튼 줄이 없다 — 미리보기 자체가 메뉴 진입점을 겸한다. */}
-      <SlotMenu {...menu}>
-        <Box
-          as="button"
-          type="button"
-          width="full"
+    <SlotMenu {...menu}>
+      <Box
+        as="button"
+        type="button"
+        width="full"
+        borderRadius="r2"
+        disabled={disabled}
+        aria-label={`${name} 바꾸기`}
+        aria-current={active ? "true" : undefined}
+        className={`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none${ring}`}
+      >
+        <ImageFrame
+          ratio={1}
           borderRadius="r2"
-          disabled={disabled}
-          aria-label={`${name} 바꾸기`}
-          aria-current={active ? "true" : undefined}
-          className={`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring disabled:pointer-events-none${ring}`}
-        >
-          <ImageFrame
-            ratio={1}
-            borderRadius="r2"
-            stroke
-            fit="contain"
-            src={svgToDataUri(motif.previewSvg)}
-            alt={name}
-          />
-        </Box>
-      </SlotMenu>
-      <HStack gap="x1_5" display={{ base: "none", md: "flex" }}>
-        <Text textStyle="captionSm" maxLines={1} minWidth={0}>
-          {name}
-        </Text>
-        <Box ml="auto">
-          <SlotMenu {...menu}>
-            <ActionButton
-              variant="neutralOutline"
-              size="xsmall"
-              disabled={disabled}
-              aria-label={`${name} 편집 메뉴`}
-            >
-              <Icon svg={<PencilSquareIcon />} size={14} />
-              편집
-            </ActionButton>
-          </SlotMenu>
-        </Box>
-      </HStack>
-    </VStack>
+          stroke
+          fit="contain"
+          src={svgToDataUri(motif.previewSvg)}
+          alt={name}
+        />
+      </Box>
+    </SlotMenu>
   );
 }
