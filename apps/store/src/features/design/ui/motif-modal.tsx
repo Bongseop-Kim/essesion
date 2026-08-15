@@ -149,7 +149,7 @@ export function MotifModal({
 /** 지금 채우는 슬롯을 테두리로 짚어 준다 — 모달이 패널을 가려도 어느 칸인지 남는다. */
 function SlotIndicator({ slot }: { slot: 1 | 2 }) {
   return (
-    <HStack gap="x2" aria-label={`${slot}번째 모티프 자리에 넣는 중`}>
+    <HStack gap="x2">
       {([1, 2] as const).map((n) => (
         <Flex
           key={n}
@@ -171,7 +171,7 @@ function SlotIndicator({ slot }: { slot: 1 | 2 }) {
           </Text>
         </Flex>
       ))}
-      <Text textStyle="captionSm" color="fg.neutral-subtle" aria-hidden>
+      <Text textStyle="captionSm" color="fg.neutral-subtle">
         {slot}번째 모티프 자리
       </Text>
     </HStack>

@@ -102,6 +102,9 @@ resource "google_monitoring_alert_policy" "security_changes" {
           protoPayload.methodName:"SetIamPolicy" OR
           protoPayload.methodName="google.iam.admin.v1.CreateServiceAccountKey" OR
           protoPayload.methodName="google.iam.admin.v1.UploadServiceAccountKey" OR
+          protoPayload.methodName="google.iam.admin.v1.DeleteServiceAccountKey" OR
+          protoPayload.methodName="google.iam.admin.v1.DisableServiceAccountKey" OR
+          protoPayload.methodName="google.iam.admin.v1.EnableServiceAccountKey" OR
           protoPayload.methodName="storage.buckets.update" OR
           protoPayload.methodName="cloudsql.instances.update"
         )

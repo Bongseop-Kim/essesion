@@ -227,6 +227,7 @@ type SlotMenuProps = {
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
   onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
   onStartRequired?: () => void;
+  disabled: boolean;
   children: MenuTriggerProps["children"];
 };
 
@@ -261,10 +262,14 @@ function SlotMenu({
   onPickSource,
   onPickFile,
   onStartRequired,
+  disabled,
   children,
 }: SlotMenuProps) {
   if (onStartRequired) {
-    return <Box onClick={onStartRequired}>{children}</Box>;
+    // 슬롯 버튼은 disabled에서 pointer-events가 죽어 클릭이 래퍼로 올라온다 — 안내도 같이 막는다.
+    return (
+      <Box onClick={disabled ? undefined : onStartRequired}>{children}</Box>
+    );
   }
   const exhausted =
     motifGenerationRemaining !== null && motifGenerationRemaining <= 0;
@@ -356,6 +361,7 @@ function MotifSlotView({
     onPickSource,
     onPickFile,
     onStartRequired,
+    disabled,
   };
 
   if (pending) {

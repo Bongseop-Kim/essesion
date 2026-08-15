@@ -5,10 +5,7 @@ import {
   Icon,
   snackbar,
 } from "@essesion/shared";
-import {
-  ArrowRightStartOnRectangleIcon,
-  Bars3Icon,
-} from "@heroicons/react/24/outline";
+import { Bars3Icon } from "@heroicons/react/24/outline";
 import { Link, useLocation } from "react-router";
 
 import {
@@ -50,18 +47,6 @@ export function AdminHeader() {
           onClick={handleLogout}
         >
           로그아웃
-        </ActionButton>
-      }
-      mobileActions={
-        <ActionButton
-          type="button"
-          variant="ghost"
-          size="medium"
-          iconOnly
-          aria-label="로그아웃"
-          onClick={handleLogout}
-        >
-          <Icon svg={<ArrowRightStartOnRectangleIcon />} size={20} />
         </ActionButton>
       }
       mobileMenuFooter={

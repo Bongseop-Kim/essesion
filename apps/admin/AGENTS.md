@@ -23,7 +23,7 @@ UI는 `@essesion/shared`로만 작성한다. 규칙 원본: `packages/shared/AGE
 - 숫자·금액·수량·날짜는 tabular numbers를 쓴다. 낮은 우선순위 column을 먼저 숨기고, `min-width: 0` container에 남는 가로 overflow만 접근 가능한 이름의 `ScrollFog`로 처리한다.
 - loading·최초 empty·filter empty·error·background refetch를 구분한다. stale row action을 막고 `aria-busy`와 polite live region으로 갱신을 알린다.
 - pagination은 labelled `nav`와 `aria-current="page"`를 쓰고 범위 끝의 이전·다음 button을 disable한다.
-- status·date·sort·page는 URL state로 둔다. 이름·email·전화번호는 component memory에만 두고 request body로 보낸다.
+- status·date·sort·page는 URL state로 둔다. 이름·email·전화번호 같은 식별자 검색은 URL에 남기지 않고 component memory에만 두며, 전송은 api-client 생성 시그니처를 따른다(GET 목록은 `query`, 계약이 POST면 `body`).
 - filter 변경 시 page를 초기화하고 이전 request를 cancel한다. background refresh 중에는 기존 결과를 busy 상태로 유지한다.
 - desktop filter는 list toolbar, mobile filter는 shared responsive modal/bottom sheet와 active-filter count를 쓴다.
 
@@ -48,7 +48,7 @@ UI는 `@essesion/shared`로만 작성한다. 규칙 원본: `packages/shared/AGE
 | product 저장 | product detail/list, public product query |
 | quote 저장/action | quote detail/list, dashboard recent quotes |
 | inquiry 답변 | inquiry detail/list, dashboard summary |
-| pricing/settings 일괄 저장 | 해당 complete allowlist query |
+| pricing/settings 일괄 저장 | `getAdminPricing` / `getAdminSettings` (전체 allowlist를 돌려주는 query) |
 
 ### 확인 범위
 
