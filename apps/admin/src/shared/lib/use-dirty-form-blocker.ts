@@ -26,11 +26,12 @@ export function useDirtyFormBlocker(
   useEffect(() => {
     if (!isDirty) return;
     const preventUnload = (event: BeforeUnloadEvent) => {
+      if (bypassRef?.current) return; // 저장 직후 — SPA 이동과 같은 기준으로 건너뛴다
       event.preventDefault();
     };
     window.addEventListener("beforeunload", preventUnload);
     return () => window.removeEventListener("beforeunload", preventUnload);
-  }, [isDirty]);
+  }, [isDirty, bypassRef]);
 
   return blocker;
 }

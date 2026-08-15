@@ -55,11 +55,12 @@ export function ImageFrame({
         (fallback ?? <ImageFallback />)
       ) : (
         <img
-          className={cn(
-            ratio === "auto"
+          className={
+            // fill은 부모를 채우는 게 목적 — auto 비율이어도 원본 높이를 따르지 않는다.
+            ratio === "auto" && !fill
               ? "block w-full"
-              : cn("absolute inset-0 size-full", objectFits[fit]),
-          )}
+              : cn("absolute inset-0 size-full", objectFits[fit])
+          }
           src={src}
           alt={alt}
           {...props}

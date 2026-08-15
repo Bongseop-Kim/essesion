@@ -99,11 +99,13 @@ function NoticeChip({ notice }: { notice: CanvasNoticeItem }) {
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
+    // 같은 id로 내용만 바뀌면 언마운트되지 않는다 — 새 문구는 다시 보이고 타이머도 새로.
+    setExpired(false);
     // 거절·오류는 남긴다 — 다음 입력이 mutation을 리셋할 때까지가 수명이다.
     if (notice.tone === "critical") return;
     const timer = setTimeout(() => setExpired(true), WARNING_VISIBLE_MS);
     return () => clearTimeout(timer);
-  }, [notice.tone]);
+  }, [notice.id, notice.message, notice.tone]);
 
   if (expired) return null;
 

@@ -214,11 +214,14 @@ export function ShopDetailPage() {
       setOptionMissing(false);
       return { product, option: selectedOption ?? null, quantity, goCart };
     }
-    // 품절이면 버튼이 이미 disabled다 — 남는 경우는 옵션 미선택뿐.
-    setOptionMissing(hasOptions);
-    document
-      .getElementById("product-option-select")
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // 품절·재고 부족이면 버튼이 이미 disabled다 — 남는 경우는 옵션 미선택뿐.
+    const missingOption = hasOptions && selectedOption == null;
+    setOptionMissing(missingOption);
+    if (missingOption) {
+      document
+        .getElementById("product-option-select")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
     return null;
   };
 
@@ -324,7 +327,11 @@ export function ShopDetailPage() {
             likes={product.likes ?? 0}
             likeLoading={likeProduct.isPending || unlikeProduct.isPending}
             cartLoading={cartActions.isPending}
-            disabled={sessionStatus === "loading" || soldOut}
+            disabled={
+              sessionStatus === "loading" ||
+              soldOut ||
+              (selectedStock != null && selectedStock < quantity)
+            }
             onLike={toggleLike}
             onAddToCart={() => addToCart(false)}
             onBuy={() => addToCart(true)}

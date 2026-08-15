@@ -41,4 +41,12 @@ describe("ImageFrame", () => {
     expect(img.className).toContain("w-full");
     expect(img.className).not.toContain("absolute");
   });
+
+  it('fill이면 ratio="auto"여도 부모를 채운다', () => {
+    render(<ImageFrame ratio="auto" fill src="/tall.webp" alt="채움" />);
+
+    const img = screen.getByRole("img", { name: "채움" });
+    expect(img.className).toContain("absolute");
+    expect(img.className).toContain("object-cover");
+  });
 });
