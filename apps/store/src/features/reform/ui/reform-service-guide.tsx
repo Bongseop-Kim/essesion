@@ -1,12 +1,12 @@
 import {
   AspectRatio,
   Box,
+  cn,
   Grid,
   HStack,
   ImageFrame,
   Text,
   VStack,
-  cn,
 } from "@essesion/shared";
 
 const HEIGHT_GUIDE = [
