@@ -17,7 +17,7 @@ describe("SubmittedMemorySearch", () => {
 
     const form = container.querySelector("form");
     expect(form?.style.width).toBe("100%");
-    expect((form?.firstElementChild as HTMLElement).style.flex).toBe("1 1 0%");
+    expect((form!.firstElementChild as HTMLElement).style.flex).toBe("1 1 0%");
   });
 
   it("외부 초기화 신호가 입력과 제출 상태를 함께 지운다", async () => {
