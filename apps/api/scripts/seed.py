@@ -17,6 +17,7 @@ from decimal import Decimal
 
 import httpx
 from api.config import get_settings
+from api.config_defaults import apply_config_defaults
 from api.db import build_engine
 from api.domains.auth.service import grant_initial_tokens
 from api.integrations.gcs import (
@@ -27,12 +28,10 @@ from api.integrations.gcs import (
 from api.security import password_hasher
 from db.models.auth import User
 from db.models.commerce import (
-    AdminSetting,
     Coupon,
     Order,
     OrderItem,
     OrderStatusLog,
-    PricingConstant,
     Product,
     ProductOption,
     RepairPickupRequest,
@@ -44,63 +43,6 @@ from db.models.tokens import DesignToken
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
-
-ADMIN_SETTINGS = {
-    "default_courier_company": "롯데택배",
-    # 1토큰 ≈ 1원 스케일. 단가 산정 근거·손익 가드는 money.md §6이 정본이다.
-    "design_token_initial_grant": "750",  # 생성 30회 체험
-    "design_token_cost_openai_render_standard": "25",
-    "design_edit_cost": "12",
-    "design_motif_generate_cost": "100",
-    "design_finalize_daily_limit": "10",
-}
-
-PRICING: dict[str, tuple[int, str]] = {
-    # reform
-    "REFORM_AUTOMATIC_COST": (16000, "reform"),
-    "REFORM_WIDTH_COST": (30000, "reform"),
-    "REFORM_RESTORATION_COST": (30000, "reform"),
-    "REFORM_AUTOMATIC_COMBINED_COST": (40000, "reform"),
-    "REFORM_WIDTH_RESTORATION_COST": (30000, "reform"),
-    "REFORM_SHIPPING_COST": (4500, "reform"),
-    "REFORM_PICKUP_FEE": (5000, "reform"),
-    # custom order
-    "START_COST": (50000, "custom_order"),
-    "SEWING_PER_COST": (4000, "custom_order"),
-    "AUTO_TIE_COST": (1000, "custom_order"),
-    "TRIANGLE_STITCH_COST": (500, "custom_order"),
-    "SIDE_STITCH_COST": (500, "custom_order"),
-    "BAR_TACK_COST": (300, "custom_order"),
-    "DIMPLE_COST": (700, "custom_order"),
-    "SPODERATO_COST": (800, "custom_order"),
-    "FOLD7_COST": (900, "custom_order"),
-    "WOOL_INTERLINING_COST": (600, "custom_order"),
-    "BRAND_LABEL_COST": (300, "custom_order"),
-    "CARE_LABEL_COST": (200, "custom_order"),
-    "YARN_DYED_DESIGN_COST": (30000, "custom_order"),
-    "FABRIC_PRINTING_POLY": (8000, "fabric"),
-    "FABRIC_PRINTING_SILK": (12000, "fabric"),
-    "FABRIC_YARN_DYED_POLY": (12000, "fabric"),
-    "FABRIC_YARN_DYED_SILK": (16000, "fabric"),
-    # sample
-    "SAMPLE_SEWING_COST": (50000, "custom_order"),
-    "SAMPLE_FABRIC_PRINTING_COST": (60000, "custom_order"),
-    "SAMPLE_FABRIC_YARN_DYED_COST": (80000, "custom_order"),
-    "SAMPLE_FABRIC_AND_SEWING_PRINTING_COST": (100000, "custom_order"),
-    "SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST": (120000, "custom_order"),
-    "sample_discount_sewing": (30000, "sample_discount"),
-    "sample_discount_fabric_printing": (30000, "sample_discount"),
-    "sample_discount_fabric_yarn_dyed": (40000, "sample_discount"),
-    "sample_discount_fabric_and_sewing_printing": (50000, "sample_discount"),
-    "sample_discount_fabric_and_sewing_yarn_dyed": (60000, "sample_discount"),
-    # token plans — 볼륨 할인은 보너스 토큰으로 드러난다 (money.md §6 표).
-    "token_plan_starter_price": (2500, "token"),
-    "token_plan_starter_amount": (2500, "token"),
-    "token_plan_popular_price": (6500, "token"),
-    "token_plan_popular_amount": (7500, "token"),
-    "token_plan_pro_price": (18000, "token"),
-    "token_plan_pro_amount": (25000, "token"),
-}
 
 PRODUCT_VARIANTS = [
     ("3F-SEED-001", "네이비 솔리드 쓰리폴드", 39000, "3fold", "navy", "solid", "silk"),
@@ -539,25 +481,8 @@ async def main() -> None:
             session, "customer@local", "로컬고객", "customer", "customer-local-password"
         )
 
-        # PRICING과 같은 do_update — 단가만 옛 값에 남으면 플랜 수량과 어긋난다.
-        for key, value in ADMIN_SETTINGS.items():
-            await session.execute(
-                pg_insert(AdminSetting)
-                .values(key=key, value=value)
-                .on_conflict_do_update(index_elements=[AdminSetting.key], set_={"value": value})
-            )
-        for key, (amount, category) in PRICING.items():
-            await session.execute(
-                pg_insert(PricingConstant)
-                .values(key=key, amount=amount, category=category)
-                .on_conflict_do_update(
-                    index_elements=[PricingConstant.key],
-                    set_={"amount": amount, "category": category},
-                )
-            )
-        await session.execute(
-            delete(PricingConstant).where(PricingConstant.key == "REFORM_BASE_COST")
-        )
+        # 로컬은 overwrite — 단가만 옛 값에 남으면 플랜 수량과 어긋난다.
+        await apply_config_defaults(session, overwrite=True)
 
         for spec in PRODUCTS:
             options = spec["options"]

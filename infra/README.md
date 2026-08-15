@@ -236,12 +236,20 @@ Secret Manager에서 주입한 운영자 환경에서 migrate 뒤 **순서대로
 같은 ID가 이미 있으면 DB에서 큐레이션한 내용과 활성 상태를 보존한다.
 
 ```bash
+uv run python apps/api/scripts/bootstrap_admin.py seed-config      # 무과금 — 설정·가격 초기행
 uv run python apps/worker/scripts/seed_motifs.py
 uv run python apps/worker/scripts/seed_design_examples.py            # 무과금 — 결정론 엔진, 외부 호출 없음
 uv run python apps/worker/scripts/index_motif_embeddings.py --confirm-live
 uv run python apps/worker/scripts/seed_authoring_examples.py --confirm-live
 uv run python apps/worker/scripts/eval_authoring.py --confirm-live
 ```
+
+`seed-config`를 **빠뜨리면 복구를 화면에서 못 한다** — 관리자 설정·가격 화면은 기존 행을 수정하는
+구조라(`domains/admin/configuration.py`) 행이 없으면 만들 수가 없고, `admin_settings`가 비면
+`/admin/settings`가 503, 단가 조회가 `token_cost_not_configured`, 견적이
+`pricing_not_configured`로 떨어진다. 기존 행은 덮지 않으므로(운영자가 화면에서 조정한 값 보존)
+재실행해도 안전하다. 값의 정본은 [money.md §6](../docs/api-spec/money.md)이고
+초기값은 `api/config_defaults.py`가 로컬 시드와 공유한다.
 
 `seed_design_examples.py`는 store 첫 진입 갤러리다. 빠뜨려도 장애는 아니지만 갤러리 섹션이
 통째로 비어 배포된다. `backfill_motif_tags.py`는 **production에서 실행하지 않는다** — 새 DB에는
