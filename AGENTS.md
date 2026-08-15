@@ -12,6 +12,7 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 
 ## 대원칙 (위반 금지)
 
+- **커밋·푸시는 항상 사람이 한다** — 에이전트는 작업 트리만 수정하고 `git commit`·`git push`를 실행하지 않는다. 명시적으로 요청받은 경우에만 예외.
 - 동작 명세는 `docs/api-spec/`이 정본 — 돈 경로·worker 계약은 명세와 달라지면 버그다. 개편이 필요하면 실행 전에 제안하고 명세를 함께 갱신할 것.
 - 스키마 변경은 Alembic(`db/`) 경유만 — DDL 직접 실행 금지. 설계 의도는 `db/README.md`.
 - 프론트에서 supabase-js 금지 — 서버 통신은 `packages/api-client`(OpenAPI 생성물)만 사용.
