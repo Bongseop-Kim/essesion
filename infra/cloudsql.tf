@@ -4,8 +4,10 @@ resource "google_sql_database_instance" "main" {
   region           = var.region
 
   settings {
-    edition = "ENTERPRISE"
-    tier    = var.db_tier
+    edition                     = "ENTERPRISE"
+    tier                        = var.db_tier
+    connector_enforcement       = "REQUIRED"
+    deletion_protection_enabled = true
 
     backup_configuration {
       enabled                        = true
@@ -14,6 +16,7 @@ resource "google_sql_database_instance" "main" {
 
     ip_configuration {
       ipv4_enabled = true # 접속은 cloud-sql-connector(IAM) 경유 — VPC 불요
+      ssl_mode     = "ENCRYPTED_ONLY"
     }
   }
 
