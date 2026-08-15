@@ -104,7 +104,14 @@ class RealGcsClient:
                 client_options={"api_endpoint": self._emulator_host},
             )
         else:
-            self._client = storage.Client()
+            import google.auth
+
+            # storage.Client() 기본 스코프는 devstorage.* 뿐이라 IAM signBlob이
+            # ACCESS_TOKEN_SCOPE_INSUFFICIENT로 거절된다 — cloud-platform으로 받는다.
+            credentials, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+            self._client = storage.Client(credentials=credentials)
         self._bucket_name = bucket_name
         self._bucket = self._client.bucket(bucket_name)
 

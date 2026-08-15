@@ -78,9 +78,23 @@ class _FakeStorageClient:
         return self.buckets.setdefault(name, _FakeBucket(name))
 
 
+def _install(monkeypatch, storage: _FakeStorageClient) -> list[list[str]]:
+    """SDK 기본 스코프(devstorage.*)로는 IAM signBlob이 403이라 스코프를 기록해 검증한다."""
+
+    requested: list[list[str]] = []
+
+    def _default(scopes=None, **kwargs):
+        requested.append(list(scopes or []))
+        return storage._credentials, "test-project"
+
+    monkeypatch.setattr("google.auth.default", _default)
+    monkeypatch.setattr("google.cloud.storage.Client", lambda **kwargs: storage)
+    return requested
+
+
 async def test_copy_from_bucket_is_create_only_and_existing_destination_is_success(monkeypatch):
     storage = _FakeStorageClient()
-    monkeypatch.setattr("google.cloud.storage.Client", lambda: storage)
+    _install(monkeypatch, storage)
     gcs = RealGcsClient("private-uploads")
 
     assert await gcs.copy_from_bucket(
@@ -103,7 +117,7 @@ async def test_copy_from_bucket_is_create_only_and_existing_destination_is_succe
 
 async def test_signed_upload_url_signs_create_only_generation_precondition(monkeypatch):
     storage = _FakeStorageClient()
-    monkeypatch.setattr("google.cloud.storage.Client", lambda: storage)
+    _install(monkeypatch, storage)
     gcs = RealGcsClient("private-uploads")
 
     url = await gcs.signed_upload_url(
@@ -135,10 +149,11 @@ async def test_signed_upload_url_uses_iam_signing_for_cloud_run_credentials(monk
     storage = _FakeStorageClient()
     credentials = _FakeComputeCredentials()
     storage._credentials = credentials
-    monkeypatch.setattr("google.cloud.storage.Client", lambda: storage)
+    scopes = _install(monkeypatch, storage)
 
     await RealGcsClient("private-uploads").signed_upload_url("image.png", "image/png")
 
+    assert scopes == [["https://www.googleapis.com/auth/cloud-platform"]]
     assert credentials.refresh_count == 1
     assert storage.bucket("private-uploads").blob("image.png").signed_url_calls == [
         {
@@ -155,7 +170,7 @@ async def test_signed_upload_url_uses_iam_signing_for_cloud_run_credentials(monk
 
 async def test_copy_from_bucket_reports_other_sdk_failures(monkeypatch):
     storage = _FakeStorageClient()
-    monkeypatch.setattr("google.cloud.storage.Client", lambda: storage)
+    _install(monkeypatch, storage)
     gcs = RealGcsClient("private-uploads")
     storage.bucket("public-assets").copy_error = RuntimeError("unavailable")
 
