@@ -7452,6 +7452,17 @@
             "title": "Motif Generation Used",
             "type": "integer"
           },
+          "preview_svg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Svg"
+          },
           "registry_version": {
             "anyOf": [
               {

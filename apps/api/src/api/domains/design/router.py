@@ -40,6 +40,8 @@ from pydantic import (
     model_validator,
 )
 from sqlalchemy import CursorResult, delete, func, or_, select, update
+from sqlalchemy import cast as sql_cast
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from svg_safety import SanitizeError, sanitize_svg
 
@@ -136,6 +138,8 @@ class DesignSessionOut(ORMModel):
     updated_at: datetime
     # 목록 전용 — 마지막 generate_request 턴의 프롬프트 (세션 구분용 요약)
     last_prompt: str | None = None
+    # 목록 전용 — 편집 포인터(마지막 activate 턴)의 디자인 SVG. 목록 썸네일이 쓴다.
+    preview_svg: str | None = None
     # 단건 GET 전용 — 계정 쿼터 (목록은 null, 설정 부재 시에도 null)
     finalize_quota: FinalizeQuotaOut | None = None
     # 단건 GET·스텝 이동 전용 — 남은 모티프 생성 횟수(예산 - motif_generation_used). 목록은 null.
@@ -804,14 +808,35 @@ async def list_design_sessions(session: SessionDep, user: CurrentUser) -> list[D
         .limit(1)
         .scalar_subquery()
     )
+    # 편집 포인터(마지막 activate 턴)의 런 — 목록 썸네일이 쓸 SVG를 여기서 끌어온다.
+    # ponytail: 세션마다 SVG 원문을 그대로 싣는다. 세션이 수십 개로 늘면 목록 페이징이나
+    # 별도 썸네일 컬럼으로 바꿀 것.
+    preview_svg = (
+        select(SeamlessGenerationLog.design["svg"].astext)
+        .select_from(DesignSessionTurn)
+        .join(
+            SeamlessGenerationLog,
+            SeamlessGenerationLog.id
+            == sql_cast(DesignSessionTurn.payload["run_id"].astext, PgUUID),
+        )
+        .where(
+            DesignSessionTurn.session_id == DesignSession.id,
+            DesignSessionTurn.payload["type"].astext == "activate",
+        )
+        .order_by(DesignSessionTurn.seq.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
     rows = await session.execute(
-        select(DesignSession, last_prompt)
+        select(DesignSession, last_prompt, preview_svg)
         .where(DesignSession.user_id == user.id)
         .order_by(DesignSession.created_at.desc())
     )
     return [
-        DesignSessionOut.model_validate(s).model_copy(update={"last_prompt": prompt})
-        for s, prompt in rows.all()
+        DesignSessionOut.model_validate(s).model_copy(
+            update={"last_prompt": prompt, "preview_svg": svg}
+        )
+        for s, prompt, svg in rows.all()
     ]
 
 

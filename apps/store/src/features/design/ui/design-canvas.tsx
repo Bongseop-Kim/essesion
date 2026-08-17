@@ -47,8 +47,26 @@ export function DesignCanvas({
   right,
   bottom,
 }: DesignCanvasProps) {
+  // 모바일 타일 모드만 여백 없이 화면을 꽉 채운다 — 컨트롤 뒤로 깔리는 풀블리드
+  // 레이어. PC(md~)는 기존처럼 1280 안의 정사각 캔버스를 유지한다.
+  const tiled = imageSrc !== null && mode === "repeat";
   return (
-    <Box flex={1} minHeight={0} overflow="hidden" bg="bg.layer-basement">
+    <Box
+      position="relative"
+      flex={1}
+      minHeight={0}
+      overflow="hidden"
+      bg="bg.layer-basement"
+    >
+      {tiled ? (
+        <Box
+          position="absolute"
+          inset={0}
+          display={{ base: "block", md: "none" }}
+        >
+          <TieCanvas imageSrc={imageSrc} mode={mode} surface="none" />
+        </Box>
+      ) : null}
       {/* 배경은 풀블리드, 콘텐츠는 다른 페이지(LayoutContent medium)와 같은 1280 최대폭 */}
       <Box position="relative" height="full" maxWidth={1280} mx="auto">
         <VStack height="full" alignItems="stretch">
@@ -60,7 +78,12 @@ export function DesignCanvas({
             p="x6"
           >
             {imageSrc ? (
-              <Box height="full" maxWidth="full" style={{ aspectRatio: 1 }}>
+              <Box
+                height="full"
+                maxWidth="full"
+                display={tiled ? { base: "none", md: "block" } : "block"}
+                style={{ aspectRatio: 1 }}
+              >
                 <TieCanvas imageSrc={imageSrc} mode={mode} surface="none" />
               </Box>
             ) : (

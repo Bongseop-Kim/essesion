@@ -358,6 +358,16 @@ async def test_session_list_returns_last_prompt(client, db_session, settings):
                 seed=42,
             ),
         ),
+        # 편집 포인터 — 목록 썸네일은 이 런의 SVG를 쓴다
+        (
+            "user",
+            {
+                "type": "activate",
+                "run_id": str(runs[2]),
+                "seed": 7,
+                "colorway_id": "default",
+            },
+        ),
     ]
     db_session.add_all(
         [
@@ -370,12 +380,22 @@ async def test_session_list_returns_last_prompt(client, db_session, settings):
             for index, (role, payload) in enumerate(payloads, start=1)
         ]
     )
+    db_session.add(
+        SeamlessGenerationLog(
+            id=runs[2],
+            input_type="prompt",
+            design={"svg": "<svg id='pointer'/>"},
+            status="success",
+        )
+    )
     await db_session.commit()
 
     sessions = (await client.get("/design/sessions", headers=headers)).json()
     by_id = {s["id"]: s for s in sessions}
     assert by_id[sid]["last_prompt"] == "네이비 스트라이프"
+    assert by_id[sid]["preview_svg"] == "<svg id='pointer'/>"
     assert by_id[without_prompt["id"]]["last_prompt"] is None
+    assert by_id[without_prompt["id"]]["preview_svg"] is None
 
 
 async def test_session_reports_current_motifs_including_catalog(client, db_session, settings):

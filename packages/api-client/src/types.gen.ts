@@ -4028,6 +4028,10 @@ export type DesignSessionOut = {
      */
     motif_generation_used: number;
     /**
+     * Preview Svg
+     */
+    preview_svg?: string | null;
+    /**
      * Registry Version
      */
     registry_version: string | null;

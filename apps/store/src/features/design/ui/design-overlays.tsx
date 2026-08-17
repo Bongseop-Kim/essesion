@@ -246,8 +246,8 @@ export function DesignOverlays({
         sessions={(sessionsQuery.data ?? []).map((session) => ({
           id: session.id,
           createdAt: session.created_at,
-          status: session.status,
           lastPrompt: session.last_prompt ?? null,
+          previewSvg: session.preview_svg ?? null,
         }))}
         selectedId={activeSessionId}
         loading={sessionsQuery.isPending}

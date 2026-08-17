@@ -87,7 +87,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 | 엔드포인트 | 역할 | 과금 |
 |---|---|---|
-| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`·`finalize_quota` 포함 | — |
+| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`·`finalize_quota`, 목록은 `last_prompt`·`preview_svg`(마지막 activate 런의 디자인 SVG) 포함 | — |
 | `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**) | 무료 |
 | `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음 | 무료 |
 | `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
