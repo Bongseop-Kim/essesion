@@ -348,6 +348,18 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
+  it("모바일에서 모티프 박스는 우측 하단으로 띄운다", async () => {
+    const queryClient = renderPage();
+
+    const panel = await screen.findByRole("region", { name: "모티프 선택" });
+    // 컨트롤 레이어(absolute inset)를 기준으로 우측 하단 — PC(md~)는 static으로 되돌아간다.
+    const wrapper = panel.parentElement as HTMLElement;
+    expect(wrapper.style.position).toBe("absolute");
+    expect(wrapper.style.bottom).toBe("0px");
+    expect(wrapper.style.right).toBe("0px");
+    queryClient.clear();
+  });
+
   it("안내할 시그널이 없는 거절은 상단 알림으로 알린다", async () => {
     api.generate.mockResolvedValue({ data: { rejected: "motif" } });
     const queryClient = renderPage();

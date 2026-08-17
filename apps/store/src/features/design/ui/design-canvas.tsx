@@ -70,32 +70,64 @@ export function DesignCanvas({
       {/* 배경은 풀블리드, 콘텐츠는 다른 페이지(LayoutContent medium)와 같은 1280 최대폭 */}
       <Box position="relative" height="full" maxWidth={1280} mx="auto">
         <VStack height="full" alignItems="stretch">
-          <Flex
-            flex={1}
-            minHeight={0}
-            alignItems="center"
-            justifyContent="center"
-            p="x6"
-          >
-            {imageSrc ? (
-              <Box
-                height="full"
-                maxWidth="full"
-                display={tiled ? { base: "none", md: "block" } : "block"}
-                style={{ aspectRatio: 1 }}
-              >
-                <TieCanvas imageSrc={imageSrc} mode={mode} surface="none" />
-              </Box>
-            ) : (
-              (empty ?? (
-                <ContentPlaceholder
-                  icon={<Icon svg={<SparklesIcon />} size={32} />}
-                  title="아직 만든 디자인이 없어요"
-                  description="원하는 넥타이를 한 문장으로 알려주세요. 만든 다음에는 여기서 계속 고쳐 나갈 수 있어요."
-                />
-              ))
-            )}
-          </Flex>
+          {/* 플로팅 컨트롤은 이 영역 안에만 뜬다 — 하단 정렬이 입력창을 가리지 않는다 */}
+          <Box position="relative" flex={1} minHeight={0}>
+            <Flex
+              height="full"
+              alignItems="center"
+              justifyContent="center"
+              p="x6"
+            >
+              {imageSrc ? (
+                <Box
+                  height="full"
+                  maxWidth="full"
+                  display={tiled ? { base: "none", md: "block" } : "block"}
+                  style={{ aspectRatio: 1 }}
+                >
+                  <TieCanvas imageSrc={imageSrc} mode={mode} surface="none" />
+                </Box>
+              ) : (
+                (empty ?? (
+                  <ContentPlaceholder
+                    icon={<Icon svg={<SparklesIcon />} size={32} />}
+                    title="아직 만든 디자인이 없어요"
+                    description="원하는 넥타이를 한 문장으로 알려주세요. 만든 다음에는 여기서 계속 고쳐 나갈 수 있어요."
+                  />
+                ))
+              )}
+            </Flex>
+
+            {/* 겹쳐 뜨는 컨트롤 — 래퍼는 클릭을 통과시키고 각 그룹만 받는다 */}
+            <Box
+              position="absolute"
+              inset="x5"
+              style={{ pointerEvents: "none" }}
+            >
+              <VStack height="full" alignItems="stretch" gap="x4">
+                <HStack
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  gap="x3"
+                >
+                  <Interactive>{topStart}</Interactive>
+                  <Interactive>
+                    <HStack gap="x2">{topEnd}</HStack>
+                  </Interactive>
+                </HStack>
+                <HStack
+                  alignItems="flex-start"
+                  justifyContent="space-between"
+                  gap="x3"
+                  flex={1}
+                  minHeight={0}
+                >
+                  <Interactive>{left}</Interactive>
+                  <Interactive>{right}</Interactive>
+                </HStack>
+              </VStack>
+            </Box>
+          </Box>
           <SnackbarAvoidOverlap>
             {/* 스낵바가 입력창을 가리지 않도록 높이를 등록한다 */}
             <VStack alignItems="center" gap="x2_5" px="x4" pb="x5">
@@ -103,32 +135,6 @@ export function DesignCanvas({
             </VStack>
           </SnackbarAvoidOverlap>
         </VStack>
-
-        {/* 겹쳐 뜨는 컨트롤 — 래퍼는 클릭을 통과시키고 각 그룹만 받는다 */}
-        <Box position="absolute" inset="x5" style={{ pointerEvents: "none" }}>
-          <VStack height="full" alignItems="stretch" gap="x4">
-            <HStack
-              alignItems="flex-start"
-              justifyContent="space-between"
-              gap="x3"
-            >
-              <Interactive>{topStart}</Interactive>
-              <Interactive>
-                <HStack gap="x2">{topEnd}</HStack>
-              </Interactive>
-            </HStack>
-            <HStack
-              alignItems="flex-start"
-              justifyContent="space-between"
-              gap="x3"
-              flex={1}
-              minHeight={0}
-            >
-              <Interactive>{left}</Interactive>
-              <Interactive>{right}</Interactive>
-            </HStack>
-          </VStack>
-        </Box>
 
         {notice ? (
           <Box

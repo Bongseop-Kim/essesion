@@ -312,37 +312,45 @@ export function DesignPage() {
         }
         left={
           <VStack alignItems="stretch" gap="x3">
-            <MotifPanel
-              motifs={motifSlots}
-              collapsed={collapsed}
-              onCollapsedChange={(next) => {
-                setCollapsed(next);
-                setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, next);
-              }}
-              onPickSource={(slot, source) => {
-                if (!ensureAuth()) return;
-                motifs.openSlot(slot, source);
-                setOverlay("motifs");
-              }}
-              onAddSvg={(slot, file) => {
-                if (!ensureAuth()) return;
-                void motifs.addSvgFile(slot, file);
-              }}
-              onAddPhoto={(slot, file) => {
-                if (!ensureAuth()) return;
-                motifs.openSlot(slot, "photo");
-                void motifs.addPhotoFile(file);
-                setOverlay("motifs");
-              }}
-              motifGenerationRemaining={
-                sessionQuery.data?.motif_generation_remaining ?? null
-              }
-              pendingSlot={motifs.pendingSlot}
-              activeSlot={overlay === "motifs" ? motifs.slot : null}
-              hintSignal={motifHintSignal}
-              startRequired={!hasDesign}
-              disabled={busy}
-            />
+            {/* 모바일은 우측 하단으로 띄운다(컨트롤 레이어 기준) — 좌측엔 이력 카드만 남고
+                PC(md~)는 static으로 돌아가 이력 카드 위 원래 자리를 지킨다. */}
+            <Box
+              position={{ base: "absolute", md: "static" }}
+              bottom={0}
+              right={0}
+            >
+              <MotifPanel
+                motifs={motifSlots}
+                collapsed={collapsed}
+                onCollapsedChange={(next) => {
+                  setCollapsed(next);
+                  setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, next);
+                }}
+                onPickSource={(slot, source) => {
+                  if (!ensureAuth()) return;
+                  motifs.openSlot(slot, source);
+                  setOverlay("motifs");
+                }}
+                onAddSvg={(slot, file) => {
+                  if (!ensureAuth()) return;
+                  void motifs.addSvgFile(slot, file);
+                }}
+                onAddPhoto={(slot, file) => {
+                  if (!ensureAuth()) return;
+                  motifs.openSlot(slot, "photo");
+                  void motifs.addPhotoFile(file);
+                  setOverlay("motifs");
+                }}
+                motifGenerationRemaining={
+                  sessionQuery.data?.motif_generation_remaining ?? null
+                }
+                pendingSlot={motifs.pendingSlot}
+                activeSlot={overlay === "motifs" ? motifs.slot : null}
+                hintSignal={motifHintSignal}
+                startRequired={!hasDesign}
+                disabled={busy}
+              />
+            </Box>
             <HistoryCard
               cells={history.designCells}
               currentIndex={history.currentIndex}
