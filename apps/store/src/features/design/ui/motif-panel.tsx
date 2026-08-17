@@ -113,7 +113,7 @@ export function MotifPanel({
       data-highlighted={highlighted}
       alignItems="stretch"
       gap="x3"
-      width={{ base: 60, md: 152 }}
+      width={{ base: 84, md: 152 }}
       p={{ base: "x1_5", md: "x3" }}
       bg="bg.layer-floating"
       borderWidth={1}
