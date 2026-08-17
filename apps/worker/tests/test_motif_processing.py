@@ -8,6 +8,7 @@ from PIL import Image
 from svg_safety import parse_svg_tree
 from worker.motifs.normalize import normalize_motif_svg
 from worker.motifs.photo_svg import (
+    PhotoInputError,
     canonicalize_vtracer_svg,
     decode_user_image,
     photo_to_svg,
@@ -107,21 +108,14 @@ def test_bundled_font_assets_match_documented_hashes():
 
 
 def test_photo_vectorization_removes_flat_border_and_returns_png_preview():
-    result = photo_to_svg(
-        _simple_photo(),
-        "image/png",
-        remove_background=True,
-    )
+    result = photo_to_svg(_simple_photo(), "image/png")
     assert result.background_confidence is not None and result.background_confidence >= 0.55
     assert "<path" in result.svg
     assert "#DD1122" in result.svg
     assert "#FFFFFF" not in result.svg
-    assert result.warnings
-    repeated = photo_to_svg(
-        _simple_photo(),
-        "image/png",
-        remove_background=True,
-    )
+    # 성공 경로는 경고가 없다 — 분리 한계는 실패 시 code로 말한다(영문 진단 노출 금지).
+    assert result.warnings == []
+    repeated = photo_to_svg(_simple_photo(), "image/png")
     assert result == repeated
     first = normalize_motif_svg(result.svg, id_prefix="upload", render_check=False)
     second = normalize_motif_svg(repeated.svg, id_prefix="upload", render_check=False)
@@ -136,29 +130,15 @@ def test_photo_vectorization_removes_flat_border_and_returns_png_preview():
         assert isinstance(pixel, tuple) and pixel[3] == 0
 
 
-def test_photo_vectorization_can_keep_background_and_flat_removal_fails_closed():
-    kept = photo_to_svg(
-        _simple_photo(),
-        "image/png",
-        remove_background=False,
-    )
-    assert kept.background_confidence is None
-    assert "#FFFFFF" in kept.svg and "#DD1122" in kept.svg
-
-    with pytest.raises(ValueError, match="empty or frame-filling"):
-        photo_to_svg(
-            _simple_photo(flat=True),
-            "image/png",
-            remove_background=True,
-        )
+def test_photo_vectorization_fails_closed_when_the_subject_fills_the_frame():
+    """배경 유지 경로는 없다 — 오려낼 수 없으면 코드를 실은 거절이 유일한 결과다."""
+    with pytest.raises(PhotoInputError, match="empty or frame-filling") as exc:
+        photo_to_svg(_simple_photo(flat=True), "image/png")
+    assert exc.value.code == "photo_background_unclear"
 
 
 def test_photo_vectorization_preserves_a_legitimate_eight_color_motif():
-    result = photo_to_svg(
-        _multicolor_photo(),
-        "image/png",
-        remove_background=True,
-    )
+    result = photo_to_svg(_multicolor_photo(), "image/png")
 
     fills = {
         value.lower()
@@ -275,18 +255,15 @@ def test_photo_vectorizer_snaps_synthesized_colors_back_to_quantized_palette(mon
             '<path fill="#F0F0F0" d="M0 0L0 1L1 1Z"/></svg>'
         ),
     )
-    result = photo_to_svg(
-        _simple_photo(),
-        "image/png",
-        remove_background=False,
-    )
+    result = photo_to_svg(_simple_photo(), "image/png")
 
     fills = {
         value
         for element in parse_svg_tree(result.svg).iter()
         if (value := element.get("fill")) is not None
     }
-    assert fills == {"#DD1122", "#FFFFFF"}
+    # 배경을 지운 뒤 남는 팔레트는 피사체 색 하나 — 합성색 둘이 모두 그리로 스냅된다.
+    assert fills == {"#DD1122"}
 
 
 def test_multicolor_standalone_preview_preserves_paints_and_identity():

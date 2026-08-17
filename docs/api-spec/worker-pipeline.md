@@ -44,7 +44,7 @@
 - `POST /api/v1/generate`: 입력 `{prompt?, reference_image?(≤12M chars), images?(≤8, 합 24M), canvas?, palette?, intent?, colorway?, seed?, session_id?, from_checkpoint?}` — 우선순위 intent > images > reference_image > prompt, 전부 없으면 422. **응답은 슬림**: 결과 배열 + warnings — svg·repro는 generation_logs에만. 원본의 결과 팬아웃(요청당 N개)과 그 개수 파라미터는 **미승계**다 — 재구현은 요청 1건 = 디자인 1개다(§5).
 - `POST /api/v1/finalize`: `{intent, colorway_id?, production_method?, weave="twill-45", material_map?, dpi?, texture_strength?, relief_strength?}` → `{request_id, image_url?, warnings}`. 업로드 키 `fabric/{sha256(png)[:16]}.png`(content-addressed, create-only).
 - `POST /api/v1/export`: `{svg(≤2M), format: png|tiff, dpi=300, width_mm(gt0), height_mm?}` → 바이너리. 클라이언트 SVG는 **scrub**(재직렬화 — 엔진 출력과 달리 신뢰 불가). 400: dpi>600, mm>2000, px>20000.
-- 세션 라우트(LangGraph): propose→select→commit→finalize, motif_candidates interrupt 게이트, confirm(generate_motif 승인/finalize), budget(motif generation 3/finalize 10). **재구현에서 세션 계층 전체 미승계** — 세션은 api 소유(design_sessions/turns), 게이트·모티프 생성 예산 의미는 api가 재현. finalize는 세션 예산 대신 계정당 24시간 쿼터로 대체(§5).
+- 세션 라우트(LangGraph): propose→select→commit→finalize, motif_candidates interrupt 게이트, confirm(generate_motif 승인/finalize), budget(motif generation 3/finalize 10). **재구현에서 세션 계층 전체 미승계** — 세션은 api 소유(design_sessions/turns), 게이트만 api가 재현. 세션 예산은 둘 다 승계하지 않는다: finalize는 계정당 24시간 쿼터로 대체(§5), 모티프 생성은 토큰 단가가 대신하며 횟수 상한이 없다.
 - 미들웨어: X-Request-ID(정규화: 비허용문자→`-`, 128자 캡), 인증 없음, CORS 없음. 에러 body `{detail, request_id}`.
 
 ## 5. worker 소유권 계약
@@ -62,7 +62,7 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 - `warnings`는 `[{code, message}]`다. 엔진·리졸버의 영문 진단 문자열은 로그·`diagnostics`의 정본으로 남기고, `worker.warnings.WARNING_MESSAGES`에 한글 문구가 있는 코드만 응답에 담는다(코드별 1건). 매핑에 없는 경고는 고객에게 노출하지 않는다. 문구를 두는 기준은 **요청과 다른 결과가 나왔고 화면만 보고는 알 수 없는 것**(색역·모티프 드랍·색 미배치·근사 매칭)이며, 캔버스에서 보이는 자동 맞춤(크기 클램프·간격 스냅·줄 너비 축소)과 고객이 손쓸 수 없는 실패(프리뷰 업로드)는 로그·admin `warning_groups`에만 남긴다.
 - 사용자 수정 가능한 422는 `{detail:{code,stage,message}}` 고정 계약이다. code는 `constraint_conflict|authoring_invalid|semantic_mismatch|intent_invalid|design_invalid`, stage는 각각 `constraints|authoring|authoring|intent|design`다. exact motif가 2개를 넘거나 strict request에 `reference_images` 같은 계약 밖 필드가 오면 worker 호출·과금 전에 일반 422로 거부한다. 원문 provider 오류는 노출하지 않고 code/stage별 한국어 메시지로 투영하며 과금 뒤 generate worker 실패는 기존과 같이 환불한다.
 - 프리뷰 PNG는 GCS `previews/{request_id}/{design_id}/{sha256(png)[:16]}.png`에 create-only 업로드(`if_generation_match=0`)한다(공개 assets 버킷, best-effort — 실패 시 key null+경고). 같은 내용의 기존 객체로 인한 412는 멱등 성공이며 덮어쓰지 않는다. 호출자가 `X-Request-ID`를 재사용해도 다른 PNG는 다른 키가 된다.
-- `POST /motifs/candidates` — 최대 200자의 문장을 그대로 카탈로그 검색에 사용해 재사용 후보를 나열한다(모델·GPT Image 미호출 → 무과금). api의 `motifs/search`가 이걸 부른다. 여기서 "후보"는 카탈로그 매칭 후보이며 폐기된 디자인 후보와 무관하다. `POST /motifs/generate` — 사용자가 검색 결과와 별개로 새로 만들기를 명시적으로 고를 때 GPT Image 생성을 실행한다. 예산 검사·차감은 **api가 세션 카운터(design_sessions.motif_generation_used)로 수행 후 호출**(worker는 검사 안 함, 세션당 3회).
+- `POST /motifs/candidates` — 최대 200자의 문장을 그대로 카탈로그 검색에 사용해 재사용 후보를 나열한다(모델·GPT Image 미호출 → 무과금). api의 `motifs/search`가 이걸 부른다. 여기서 "후보"는 카탈로그 매칭 후보이며 폐기된 디자인 후보와 무관하다. `POST /motifs/generate` — 사용자가 검색 결과와 별개로 새로 만들기를 명시적으로 고를 때 GPT Image 생성을 실행한다. 과금·차단은 **api가 토큰 선차감으로 수행 후 호출**(worker는 검사 안 함, 횟수 상한 없음).
 - `POST /motifs/import` — 모든 user SVG를 공통 sanitize/normalize/content-hash 경계로 처리하되 worker DB에는 쓰지 않고 `{motif_id,symbol,bbox,anchor,preview_svg}`를 반환한다. API가 Motif+사용자 소유 링크를 하나의 transaction으로 저장한다. `POST /motifs/text-preview`와 `/motifs/photo-preview`는 각각 번들 폰트 path 변환, 제한적 로컬 배경 분리+VTracer 결과를 concrete-color standalone SVG로 만들고 같은 import 경계로 넘긴다. CPU 작업은 thread pool에서 실행한다.
 - `POST /ideas` — 현재 prompt와 exact motifs를 LLM에 전달해 3~4개 편집 초안만 반환하며 이미지·intent·generation log를 만들지 않는다. helper의 rate limit·무료 정책은 api 소유다.
 - resolve가 끝난 모티프는 concrete-color symbol을 그대로 사용한다. Plan·intent·구성 patch는 모티프 색을 bind하거나 재색하지 않는다.
@@ -77,7 +77,7 @@ api의 design intent·turn JSON은 compact UTF-8 1MB 이하이면서 NaN/Infinit
 
 **DB 접근**: 워커는 motifs(R/W)·seamless_generation_logs(W)·generation_jobs(W, finalize만). SQLAlchemy async + essesion-db 모델 재사용(원본 psycopg 동기 → 스택 통일, ARCHITECTURE §2). 세션·과금 테이블은 api 전용.
 
-**과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등). worker는 과금을 모른다. 확정된 단가: 첫 생성 = `admin_settings.design_token_cost_openai_render_standard`, 구성 수정(patch) = `admin_settings.design_edit_cost`, 모티프 검색·교체 = 0(세션 모티프 생성 예산 3회만 쓰는 모티프 생성도 0), `scope_rejected`는 멱등 환불.
+**과금**: 토큰 차감/환불은 api 소유(`tokens.ledger.use_tokens/refund` — work_id 멱등). worker는 과금을 모른다. 확정된 단가: 첫 생성 = `admin_settings.design_token_cost_openai_render_standard`, 구성 수정(patch) = `admin_settings.design_edit_cost`, 모티프 검색·교체 = 0, 모티프 생성 = `admin_settings.design_motif_generate_cost`, `scope_rejected`는 멱등 환불.
 
 ## 6. 결정론 회귀 테스트
 

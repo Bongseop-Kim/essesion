@@ -86,7 +86,7 @@ from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
 from worker.motifs.normalize import normalize_motif_svg
-from worker.motifs.photo_svg import photo_to_svg
+from worker.motifs.photo_svg import PhotoInputError, photo_to_svg
 from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import (
     MotifGenerationBudget,
@@ -1036,13 +1036,13 @@ async def photo_motif_preview(
 ) -> PhotoMotifPreviewResponse:
     data = await _load_single_image(body.image, request.app.state.settings)
     try:
-        result = await run_in_threadpool(
-            photo_to_svg,
-            data,
-            body.image.content_type,
-            remove_background=body.remove_background,
-        )
+        result = await run_in_threadpool(photo_to_svg, data, body.image.content_type)
         svg = await _normalize_preview_svg(result.svg, request, id_prefix="photo-preview")
+    except PhotoInputError as exc:
+        # 사용자가 다른 사진으로 고칠 수 있는 거절 — code를 실어야 api가 고객 문구를 고른다.
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
     except (ValueError, TypeError, RecursionError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return PhotoMotifPreviewResponse(

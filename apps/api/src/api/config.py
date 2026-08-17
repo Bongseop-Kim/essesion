@@ -82,7 +82,6 @@ class Settings(BaseSettings):
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
     worker_finalize_oidc_audience: str = ""
     # finalize 상한은 계정당 24시간 쿼터 — admin_settings 'design_finalize_daily_limit'
-    design_motif_generation_budget: int = 3  # 세션당 모티프 생성 상한 (worker-motifs.md §5)
     gcp_project_id: str = ""
     gcp_region: str = "asia-northeast3"
     cloud_tasks_queue: str = "finalize"

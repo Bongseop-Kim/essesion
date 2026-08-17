@@ -126,8 +126,6 @@ export function DesignPage() {
   const motifs = useMotifSearch({
     sessionId,
     currentMotifs: motifSlots,
-    motifGenerationRemaining:
-      sessionQuery.data?.motif_generation_remaining ?? null,
     // 교체 결과는 캔버스·모티프 패널에 바로 보인다 — 따로 알리지 않는다.
     onDone: () => setOverlay(null),
     notify: snackbar,
@@ -335,15 +333,6 @@ export function DesignPage() {
                   if (!ensureAuth()) return;
                   void motifs.addSvgFile(slot, file);
                 }}
-                onAddPhoto={(slot, file) => {
-                  if (!ensureAuth()) return;
-                  motifs.openSlot(slot, "photo");
-                  void motifs.addPhotoFile(file);
-                  setOverlay("motifs");
-                }}
-                motifGenerationRemaining={
-                  sessionQuery.data?.motif_generation_remaining ?? null
-                }
                 pendingSlot={motifs.pendingSlot}
                 activeSlot={overlay === "motifs" ? motifs.slot : null}
                 hintSignal={motifHintSignal}

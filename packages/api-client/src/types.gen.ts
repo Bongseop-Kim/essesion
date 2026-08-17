@@ -4020,14 +4020,6 @@ export type DesignSessionOut = {
      */
     last_prompt?: string | null;
     /**
-     * Motif Generation Remaining
-     */
-    motif_generation_remaining?: number | null;
-    /**
-     * Motif Generation Used
-     */
-    motif_generation_used: number;
-    /**
      * Preview Svg
      */
     preview_svg?: string | null;
@@ -6460,10 +6452,6 @@ export type PhoneVerifyRequest = {
  * PhotoMotifPreviewRequest
  */
 export type PhotoMotifPreviewRequest = {
-    /**
-     * Remove Background
-     */
-    remove_background?: boolean;
     /**
      * Upload Id
      */

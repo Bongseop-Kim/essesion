@@ -40,6 +40,20 @@ MAX_PROCESSED_PREVIEW_BYTES = 2_000_000
 
 _PATH_COMMANDS = frozenset("MmLlHhVvCcSsQqTtAaZz")
 RGBA = tuple[int, int, int, int]
+
+
+class PhotoInputError(ValueError):
+    """사용자가 다른 사진으로 고칠 수 있는 거절 — api가 코드로 한국어 문구를 고른다.
+
+    ValueError 하위라 기존 `except ValueError` 경계(다른 호출자)는 그대로 동작한다.
+    영문 message는 로그·진단용이고 고객 문구는 api가 코드로 만든다(worker-motifs.md §7).
+    """
+
+    def __init__(self, message: str, *, code: str):
+        super().__init__(message)
+        self.code = code
+
+
 _VTRACER_MEDIUM_PARAMS = {
     "filter_speckle": 4,
     "color_precision": 6,
@@ -100,7 +114,10 @@ def remove_flat_border_background(image: Image.Image) -> tuple[Image.Image, floa
         foreground = sum(pixel[3] >= 16 for pixel in pixels)
         fraction = foreground / total
         if not 0.01 <= fraction <= 0.90:
-            raise ValueError("transparent image has an empty or frame-filling subject")
+            raise PhotoInputError(
+                "transparent image has an empty or frame-filling subject",
+                code="photo_background_unclear",
+            )
         return image, 1.0
 
     border_rgb = [pixels[index][:3] for index in border]
@@ -119,9 +136,10 @@ def remove_flat_border_background(image: Image.Image) -> tuple[Image.Image, floa
     uniformity = max(0.0, 1.0 - p90 / 80.0)
     confidence = round(0.65 * seed_fraction + 0.35 * uniformity, 4)
     if seed_fraction < 0.65 or confidence < 0.55:
-        raise ValueError(
+        raise PhotoInputError(
             "automatic separation supports flat border-connected backgrounds; "
-            f"background confidence {confidence:.2f} is too low"
+            f"background confidence {confidence:.2f} is too low",
+            code="photo_background_unclear",
         )
 
     background_mask = bytearray(total)
@@ -148,9 +166,10 @@ def remove_flat_border_background(image: Image.Image) -> tuple[Image.Image, floa
     foreground_count = total - sum(background_mask)
     foreground_fraction = foreground_count / total
     if not 0.01 <= foreground_fraction <= 0.90:
-        raise ValueError(
+        raise PhotoInputError(
             "automatic separation produced an empty or frame-filling subject; "
-            "use a flatter background or keep the background"
+            "use a flatter background or keep the background",
+            code="photo_background_unclear",
         )
     alpha = Image.new("L", image.size)
     alpha.putdata([0 if is_background else 255 for is_background in background_mask])
@@ -212,7 +231,9 @@ def _preview_png(image: Image.Image) -> bytes:
 
 def canonicalize_vtracer_svg(raw_svg: str, width: int, height: int) -> str:
     if len(raw_svg.encode("utf-8")) > MAX_VECTOR_SVG_BYTES:
-        raise ValueError(f"vectorized SVG exceeds {MAX_VECTOR_SVG_BYTES} bytes")
+        raise PhotoInputError(
+            f"vectorized SVG exceeds {MAX_VECTOR_SVG_BYTES} bytes", code="photo_too_detailed"
+        )
     root = parse_svg_tree(raw_svg)
     if root.tag != "svg":
         raise ValueError("vectorizer did not return an SVG root")
@@ -231,7 +252,10 @@ def canonicalize_vtracer_svg(raw_svg: str, width: int, height: int) -> str:
     }
     nodes = list(root.iter())
     if len(nodes) > MAX_VECTOR_NODES:
-        raise ValueError(f"vectorized SVG has {len(nodes)} nodes (max {MAX_VECTOR_NODES})")
+        raise PhotoInputError(
+            f"vectorized SVG has {len(nodes)} nodes (max {MAX_VECTOR_NODES})",
+            code="photo_too_detailed",
+        )
     paths = 0
     path_commands = 0
     for element in nodes:
@@ -250,14 +274,19 @@ def canonicalize_vtracer_svg(raw_svg: str, width: int, height: int) -> str:
     if paths == 0:
         raise ValueError("vectorizer produced no paths")
     if paths > MAX_VECTOR_PATHS:
-        raise ValueError(f"vectorized SVG has {paths} paths (max {MAX_VECTOR_PATHS})")
+        raise PhotoInputError(
+            f"vectorized SVG has {paths} paths (max {MAX_VECTOR_PATHS})", code="photo_too_detailed"
+        )
     if path_commands > MAX_VECTOR_PATH_COMMANDS:
-        raise ValueError(
-            f"vectorized SVG has {path_commands} path commands (max {MAX_VECTOR_PATH_COMMANDS})"
+        raise PhotoInputError(
+            f"vectorized SVG has {path_commands} path commands (max {MAX_VECTOR_PATH_COMMANDS})",
+            code="photo_too_detailed",
         )
     svg = ET.tostring(root, encoding="unicode")
     if len(svg.encode("utf-8")) > MAX_VECTOR_SVG_BYTES:
-        raise ValueError(f"vectorized SVG exceeds {MAX_VECTOR_SVG_BYTES} bytes")
+        raise PhotoInputError(
+            f"vectorized SVG exceeds {MAX_VECTOR_SVG_BYTES} bytes", code="photo_too_detailed"
+        )
     return svg
 
 
@@ -292,19 +321,15 @@ def trace_quantized_image(image: Image.Image) -> str:
     return ET.tostring(root, encoding="unicode")
 
 
-def photo_to_svg(
-    data: bytes,
-    declared_type: str,
-    *,
-    remove_background: bool,
-) -> PhotoMotifResult:
+def photo_to_svg(data: bytes, declared_type: str) -> PhotoMotifResult:
+    """배경은 항상 지운다 — 배경이 남은 모티프는 넥타이 패턴이 될 수 없다.
+
+    성공 경로에는 경고가 없다: 분리 한계는 실패 시 code로 말하고, 성공 화면은 store의
+    한글 캡션이 이미 무엇을 했는지 말한다. 영문 진단을 고객에게 띄우지 않는다.
+    """
     image = decode_user_image(data, declared_type)
     image.thumbnail((MAX_VECTOR_SIDE, MAX_VECTOR_SIDE), Image.Resampling.LANCZOS)
-    confidence: float | None = None
-    warnings: list[str] = []
-    if remove_background:
-        image, confidence = remove_flat_border_background(image)
-        warnings.append("automatic separation is limited to flat border-connected backgrounds")
+    image, confidence = remove_flat_border_background(image)
     image = quantize_intermediate_colors(image)
     preview = _preview_png(image)
     svg = trace_quantized_image(image)
@@ -312,5 +337,5 @@ def photo_to_svg(
         svg=svg,
         processed_preview_base64=base64.b64encode(preview).decode("ascii"),
         background_confidence=confidence,
-        warnings=warnings,
+        warnings=[],
     )

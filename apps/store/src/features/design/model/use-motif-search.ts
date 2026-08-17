@@ -4,7 +4,7 @@ import {
   listUserMotifsQueryKey,
 } from "@essesion/api-client/query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   importDesignMotifSvg,
@@ -15,12 +15,8 @@ import {
   previewPhotoMotif,
   previewTextMotif,
 } from "@/features/design/api/context-tools";
-import {
-  designErrorMessage,
-  parseDesignError,
-} from "@/features/design/model/errors";
+import { designErrorMessage } from "@/features/design/model/errors";
 import { MOTIF_CATEGORIES } from "@/features/design/model/motif-categories";
-import { designSessionQueryKey } from "@/features/design/model/queries";
 import { useActivateMotifSlot } from "@/features/design/model/use-steps";
 
 /** 그리드 한 칸 — 탐색 결과와 내 모티프만 그린다(만들기 결과는 결과 한 장으로 따로 본다). */
@@ -43,6 +39,9 @@ export type MotifFontWeight = 400 | 700;
 
 type Busy = "search" | "confirm" | "generate" | "text" | "photo" | null;
 
+/** 타이핑이 멎을 때까지 기다리는 시간 — 찾기 버튼 없이 입력만으로 검색한다. */
+const SEARCH_DEBOUNCE_MS = 300;
+
 export type MotifSearchInput = {
   sessionId: string | null;
   /** 세션의 `current_motifs` — 슬롯의 현재 그림을 카드로 세운다 */
@@ -51,8 +50,6 @@ export type MotifSearchInput = {
     name: string | null;
     previewSvg: string;
   }[];
-  /** 남은 생성 횟수(세션 예산). null이면 아직 모른다 — 문구에서 횟수를 뺀다 */
-  motifGenerationRemaining: number | null;
   /** 교체 성공 — 페이지가 모달을 닫고 결과를 알린다 */
   onDone: (name: string) => void;
   /** 모달 밖(SVG 직행)의 결과 알림 — Callout 자리가 없어 snackbar로만 말한다 */
@@ -66,7 +63,6 @@ export type MotifSearchInput = {
 export function useMotifSearch({
   sessionId,
   currentMotifs,
-  motifGenerationRemaining,
   onDone,
   notify,
 }: MotifSearchInput) {
@@ -80,6 +76,7 @@ export function useMotifSearch({
   /** SVG 직행 — 모달 없이 슬롯 자리에서 진행을 보여준다 */
   const [pendingSlot, setPendingSlot] = useState<1 | 2 | null>(null);
   const [query, setQuery] = useState("");
+  const lastSearched = useRef<string | null>(null);
   const [results, setResults] = useState<MotifCard[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [generatePrompt, setGeneratePrompt] = useState("");
@@ -148,7 +145,9 @@ export function useMotifSearch({
     });
 
   const runSearch = async (value: string) => {
-    if (!sessionId || !value || busy) return;
+    if (!sessionId || !value) return;
+    // 마지막으로 시작한 검색어. 디바운스 재실행을 막고, 늦게 온 이전 응답도 이걸로 버린다.
+    lastSearched.current = value;
     setBusy("search");
     setError(null);
     try {
@@ -157,6 +156,7 @@ export function useMotifSearch({
         body: { query: value },
         throwOnError: true,
       });
+      if (lastSearched.current !== value) return;
       setResults(
         data.results.map((result) => ({
           motifId: result.motif_id,
@@ -168,14 +168,24 @@ export function useMotifSearch({
       );
       setSelectedId(null);
     } catch (cause) {
+      if (lastSearched.current !== value) return;
       setResults(null);
       setError(designErrorMessage(cause, "모티프를 찾지 못했습니다."));
     } finally {
-      setBusy(null);
+      if (lastSearched.current === value) setBusy(null);
     }
   };
 
-  const search = () => runSearch(query.trim());
+  // 타이핑은 멎은 뒤에 한 번만 찾는다. 칩·시그널처럼 이미 즉시 검색한 값은 ref가 걸러낸다.
+  useEffect(() => {
+    const value = query.trim();
+    if (!value || value === lastSearched.current) return;
+    const timer = window.setTimeout(
+      () => void runSearch(value),
+      SEARCH_DEBOUNCE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [query, sessionId]);
 
   /** 칩 = 라벨이 그대로 검색어다 — 입력창에 넣어 칩 선택 표시까지 `query`에서 파생시킨다. */
   const selectCategory = (next: string) => {
@@ -275,7 +285,7 @@ export function useMotifSearch({
     }
   };
 
-  /** 사진은 생성 모티프와 같은 중간색 정리·VTracer medium 경로를 사용한다. */
+  /** 사진은 생성 모티프와 같은 중간색 정리·VTracer medium 경로를 쓰고 배경은 항상 지운다. */
   const addPhotoFile = async (file: File) => {
     if (!sessionId || busy) return;
     clearPhoto();
@@ -291,10 +301,7 @@ export function useMotifSearch({
     });
     try {
       const uploadId = await uploadDesignPhoto(file);
-      const preview = await previewPhotoMotif({
-        uploadId,
-        removeBackground: true,
-      });
+      const preview = await previewPhotoMotif({ uploadId });
       setPhotoResult((previous) =>
         previous?.sourceUrl === sourceUrl
           ? { ...previous, svg: preview.svg }
@@ -347,6 +354,12 @@ export function useMotifSearch({
 
   const addText = () => renderText({ fontId, fontWeight });
 
+  /** 글자를 고치면 앞서 만든 결과는 낡는다 — 비워서 CTA를 "만들기"로 되돌린다. */
+  const changeText = (next: string) => {
+    setText(next);
+    setTextResult(null);
+  };
+
   // 글꼴·굵기는 무료·결정적이라 확인 버튼 없이 결과를 곧바로 다시 그린다.
   const changeFont = (next: MotifFontId) => {
     setFontId(next);
@@ -392,19 +405,7 @@ export function useMotifSearch({
       await queryClient.invalidateQueries({
         queryKey: listUserMotifsQueryKey(),
       });
-      // 생성은 항상 예산을 소모한다 — 남은 횟수 표시를 서버 값으로 갱신.
-      await queryClient.invalidateQueries({
-        queryKey: designSessionQueryKey(sessionId),
-      });
     } catch (cause) {
-      // 예산 소진이면 서버가 진실 — 세션을 다시 읽어 입력이 스스로 잠긴다.
-      if (
-        parseDesignError(cause).code === "motif_generation_budget_exhausted"
-      ) {
-        await queryClient.invalidateQueries({
-          queryKey: designSessionQueryKey(sessionId),
-        });
-      }
       setGenerateError(
         designErrorMessage(cause, "문장을 조금 바꿔 다시 시도해 주세요."),
       );
@@ -434,7 +435,6 @@ export function useMotifSearch({
     openSlot,
     query,
     setQuery,
-    search,
     selectCategory,
     cards,
     selectedId,
@@ -447,13 +447,15 @@ export function useMotifSearch({
     photoResult,
     confirmPhoto,
     text,
-    setText,
+    setText: changeText,
     fontId,
     changeFont,
     fontWeight,
     changeFontWeight,
     textResult,
     addText,
+    /** 결과를 버리고 입력 상태로 — 푸터의 "이전"이 쓴다. */
+    discardText: () => setTextResult(null),
     applyText,
     generatePrompt,
     setGeneratePrompt,
@@ -478,10 +480,6 @@ export function useMotifSearch({
     busySource: busy,
     /** 디자인을 실제로 바꾸는 중 — 이력의 대기 칸과 입력창 잠금은 이것만 본다. */
     replacing: busy === "confirm" || activate.isPending || pendingSlot !== null,
-    /** 유료 경로 상태 — 남은 횟수를 모르면 null, 0이면 잠긴다. */
-    remaining: motifGenerationRemaining,
-    exhausted:
-      motifGenerationRemaining !== null && motifGenerationRemaining <= 0,
   };
 }
 

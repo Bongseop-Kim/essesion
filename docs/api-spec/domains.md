@@ -94,7 +94,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | `POST /design/generate` | 입력창 문장. 커밋된 디자인이 없으면 **첫 생성**(전체 저작), 있으면 **구성 수정**(patch). 처리하지 못한 모티프 요청은 `motif_intent` sidecar로 피커에 안내하며, 순수 모티프 요청은 무과금 `200 {rejected:"motif",motif_intent?}` | `design_token_cost_openai_render_standard` / `design_edit_cost` |
 | `POST /design/sessions/{id}/steps/activate` | 이력 썸네일 클릭 = 편집 포인터 이동(`{run_id}`). 이후 스텝은 그대로 남는다 | — |
 | `POST /design/sessions/{id}/motifs/search` | 문장으로 카탈로그 모티프 찾기 | 무료 |
-| `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(GPT Image) | 0토큰 · 세션 예산 3회 |
+| `POST /design/sessions/{id}/motifs/generate` | 문장으로 모티프 새로 만들기(GPT Image) | `design_motif_generate_cost` 토큰 |
 | `POST /design/sessions/{id}/motifs/activate` | 슬롯(≤2)의 모티프 교체 → 결정적 재렌더 | 무료 |
 | `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
 | `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` | 글자·사진 → SVG 변환 | 무료 |

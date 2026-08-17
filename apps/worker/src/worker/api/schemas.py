@@ -266,7 +266,6 @@ class TextMotifPreviewResponse(BaseModel):
 
 class PhotoMotifPreviewRequest(StrictRequest):
     image: ReferenceImageInput
-    remove_background: bool = True
 
 
 class PhotoMotifPreviewResponse(BaseModel):

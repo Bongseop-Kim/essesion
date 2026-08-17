@@ -7437,21 +7437,6 @@
             ],
             "title": "Last Prompt"
           },
-          "motif_generation_remaining": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Motif Generation Remaining"
-          },
-          "motif_generation_used": {
-            "title": "Motif Generation Used",
-            "type": "integer"
-          },
           "preview_svg": {
             "anyOf": [
               {
@@ -7506,7 +7491,6 @@
           "context_version",
           "active_generation_id",
           "active_generation_started_at",
-          "motif_generation_used",
           "created_at",
           "updated_at"
         ],
@@ -11938,11 +11922,6 @@
       "PhotoMotifPreviewRequest": {
         "additionalProperties": false,
         "properties": {
-          "remove_background": {
-            "default": true,
-            "title": "Remove Background",
-            "type": "boolean"
-          },
           "upload_id": {
             "format": "uuid",
             "title": "Upload Id",

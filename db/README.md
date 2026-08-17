@@ -14,7 +14,7 @@ uv run pytest tests/                                              # 마이그레
 
 접속 URL은 `DATABASE_URL` env(기본 = compose 값).
 
-현재 리비전 체인은 42개 테이블 베이스라인 `f8c3b2a19d47` → `6dbb8bb66939`(OpenAI 임베딩 전환) → `e71baf2532ce`(claim status cancel) → `a4d9c1e57b02`(motif variant group 드롭) → `b9e4f61a2c73`(motif view expression 드롭) → `c7a8d2f1b604`(생성 예산 컬럼 rename)이며 마지막이 현재 head다. 빈 DB와 중간까지 적용된 DB 모두 `upgrade head`로 전진한다. OpenAI 전환은 기존 provider 벡터를 무효화하므로 적용 뒤 `index_motif_embeddings.py --confirm-live`와 `seed_authoring_examples.py --confirm-live`로 임베딩을 다시 만든다.
+현재 리비전 체인은 42개 테이블 베이스라인 `f8c3b2a19d47` → `6dbb8bb66939`(OpenAI 임베딩 전환) → `e71baf2532ce`(claim status cancel) → `a4d9c1e57b02`(motif variant group 드롭) → `b9e4f61a2c73`(motif view expression 드롭) → `c7a8d2f1b604`(생성 예산 컬럼 rename) → `d4e9a71c3b58`(모티프 생성 상한 제거로 카운터 드롭)이며 마지막이 현재 head다. 빈 DB와 중간까지 적용된 DB 모두 `upgrade head`로 전진한다. OpenAI 전환은 기존 provider 벡터를 무효화하므로 적용 뒤 `index_motif_embeddings.py --confirm-live`와 `seed_authoring_examples.py --confirm-live`로 임베딩을 다시 만든다.
 
 main에 공개된 리비전은 운영 배포 전이라도 스쿼시·재작성하거나 id를 재사용하지 않는다. 실행 중인 DB를 자동 삭제하는 스크립트도 두지 않는다. 실제 운영 배포 이후에는 같은 원칙으로 새 리비전을 순서대로 누적한다.
 

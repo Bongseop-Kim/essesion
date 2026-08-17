@@ -13,6 +13,7 @@ import base64
 import hashlib
 import io
 import json
+import random
 from contextlib import asynccontextmanager
 
 import httpx
@@ -779,10 +780,7 @@ def test_photo_preview_fetches_the_private_image(monkeypatch):
 
     preview = client.post(
         "/motifs/photo-preview",
-        json={
-            "image": image_input,
-            "remove_background": True,
-        },
+        json={"image": image_input},
     )
     assert preview.status_code == 200, preview.text
     body = preview.json()
@@ -800,6 +798,43 @@ def test_photo_preview_fetches_the_private_image(monkeypatch):
         },
     )
     assert removed_options.status_code == 422
+
+
+@respx.mock
+def test_photo_preview_rejection_carries_a_code_for_the_api(monkeypatch):
+    """사용자가 다른 사진으로 고칠 수 있는 거절은 코드를 싣는다 — api가 고객 문구를 고른다.
+
+    사진처럼 배경이 고르지 않으면 평면 배경 분리가 불가능하다. 영문 message만 돌려주면
+    api가 사유를 잃고 "요청을 거부했습니다" 하나로 뭉개진다.
+    """
+    raw = io.BytesIO()
+    random.seed(11)
+    image = Image.new("RGB", (96, 96))
+    image.putdata(
+        [
+            (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            for _ in range(96 * 96)
+        ]
+    )
+    image.save(raw, "PNG")
+    image_bytes = raw.getvalue()
+    image_url = "https://storage.googleapis.example/private/noisy.png"
+    respx.get(image_url).mock(return_value=httpx.Response(200, content=image_bytes))
+    client = TestClient(_configure_app(monkeypatch))
+
+    response = client.post(
+        "/motifs/photo-preview",
+        json={
+            "image": {
+                "url": image_url,
+                "content_type": "image/png",
+                "size_bytes": len(image_bytes),
+            },
+        },
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "photo_background_unclear"
 
 
 def test_ideas_endpoint_passes_exact_motif_names_without_starting_generation(monkeypatch):

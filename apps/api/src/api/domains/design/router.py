@@ -1,8 +1,7 @@
 """디자인 세션·선택 문맥 — 상태는 api 소유(LangGraph 대체), worker는 stateless.
 
-모티프 생성 예산은 Postgres 공유 카운터(motif_generation_used) — 인스턴스 수와 무관하게 동작
-(ARCHITECTURE §6). finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션
-카운터·건당 환불 없음. 선택한 intent+plan만 선형 문맥으로 커밋한다.
+finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션 카운터·건당 환불 없음.
+선택한 intent+plan만 선형 문맥으로 커밋한다.
 """
 
 import asyncio
@@ -137,7 +136,6 @@ class DesignSessionOut(ORMModel):
     context_version: int
     active_generation_id: uuid.UUID | None
     active_generation_started_at: datetime | None
-    motif_generation_used: int
     created_at: datetime
     updated_at: datetime
     # 목록 전용 — 마지막 generate_request 턴의 프롬프트 (세션 구분용 요약)
@@ -146,9 +144,6 @@ class DesignSessionOut(ORMModel):
     preview_svg: str | None = None
     # 단건 GET 전용 — 계정 쿼터 (목록은 null, 설정 부재 시에도 null)
     finalize_quota: FinalizeQuotaOut | None = None
-    # 단건 GET·스텝 이동 전용 — 남은 모티프 생성 횟수(예산 - motif_generation_used). 목록은 null.
-    # 상한은 서버 설정이라 프론트가 계산할 수 없다 — 유료 행의 "N번 더 가능"이 이 값을 쓴다.
-    motif_generation_remaining: int | None = None
     # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
 
@@ -260,7 +255,6 @@ def _is_supported_text_motif_character(character: str) -> bool:
 
 class PhotoMotifPreviewRequest(StrictModel):
     upload_id: uuid.UUID
-    remove_background: bool = True
 
 
 class MotifPreviewOut(BaseModel):
@@ -574,17 +568,10 @@ def _user_motif_out(link: UserMotif, motif: Motif) -> UserMotifOut:
 async def _design_session_out(
     session: SessionDep,
     design_session: DesignSession,
-    motif_generation_budget: int,
 ) -> DesignSessionOut:
-    """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2) + 남은 생성 횟수."""
+    """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2)."""
 
-    out = DesignSessionOut.model_validate(design_session).model_copy(
-        update={
-            "motif_generation_remaining": max(
-                motif_generation_budget - design_session.motif_generation_used, 0
-            )
-        }
-    )
+    out = DesignSessionOut.model_validate(design_session)
     motif_ids = _intent_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
     if not motif_ids:
         return out
@@ -846,14 +833,12 @@ async def list_design_sessions(session: SessionDep, user: CurrentUser) -> list[D
 
 @router.get("/design/sessions/{session_id}", response_model=DesignSessionOut)
 async def get_design_session(
-    session_id: uuid.UUID, session: SessionDep, user: CurrentUser, settings: SettingsDep
+    session_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> DesignSessionOut:
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
-    out = await _design_session_out(
-        session, design_session, settings.design_motif_generation_budget
-    )
+    out = await _design_session_out(session, design_session)
     # 표시용 쿼터 — 설정 행이 없으면 null로 둔다(페이지를 깨지 않음). 소유자 검증
     # 이후에 계산해 authz 403/404 순서를 보존한다.
     limit = await load_finalize_limit(session)
@@ -1103,7 +1088,6 @@ async def activate_design_step(
     body: DesignStepActivateRequest,
     session: SessionDep,
     user: CurrentUser,
-    settings: SettingsDep,
 ) -> DesignSessionOut:
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     design_session = await session.scalar(
@@ -1162,9 +1146,7 @@ async def activate_design_step(
     )
     await session.commit()
     await session.refresh(design_session)
-    return await _design_session_out(
-        session, design_session, settings.design_motif_generation_budget
-    )
+    return await _design_session_out(session, design_session)
 
 
 async def _resolve_design_run(
@@ -2413,18 +2395,8 @@ async def generate_motif(
     assert design_session is not None
     # USER 락을 먼저 잡는다 — 생성 경로(_start_generation)와 같은 순서라야 교착이 없다.
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
-    # 예산 선차감(조건부 UPDATE — finalize와 동일 패턴) 후 커밋 — 이미지 생성이 길어
-    # 행 잠금을 들고 있지 않는다. 워커 실패면 보상 환급.
-    budget = request.app.state.settings.design_motif_generation_budget
-    claimed = await session.execute(
-        update(DesignSession)
-        .where(DesignSession.id == session_id, DesignSession.motif_generation_used < budget)
-        .values(motif_generation_used=DesignSession.motif_generation_used + 1)
-    )
-    if cast("CursorResult[Any]", claimed).rowcount == 0:
-        raise ConflictError(
-            "모티프 생성 예산을 모두 사용했습니다", code="motif_generation_budget_exhausted"
-        )
+    # 사용량 제한은 토큰 선차감 하나다 — 커밋 후 이미지 생성에 들어가 행 잠금을 들고
+    # 있지 않는다. 워커 실패면 보상 환급(money.md §6).
     run_id = uuid.uuid4()
     work_id = f"motif_generate_{run_id.hex}"
     charge = await ledger.use_tokens(
@@ -2435,7 +2407,6 @@ async def generate_motif(
         commit=False,
     )
     if not charge.success:
-        # 롤백이 예산 선차감까지 되돌린다 — 과금 실패는 예산을 쓰지 않은 것으로 본다.
         await session.rollback()
         detail = (
             "환불 심사 중에는 모티프를 만들 수 없습니다"
@@ -2454,7 +2425,6 @@ async def generate_motif(
             payload=payload,
             request=request,
             session=session,
-            session_id=session_id,
             user_id=user.id,
             name=body.prompt.strip()[:100],
             charge_work_id=work_id,
@@ -2491,23 +2461,15 @@ async def _dispatch_motif_generation(
     payload: dict[str, Any],
     request: Request,
     session: SessionDep,
-    session_id: uuid.UUID,
     user_id: uuid.UUID,
     name: str,
     charge_work_id: str,
     charge_cost: int,
 ) -> MotifGenerateOut:
-    """클라이언트가 끊겨도 선차감한 예산·토큰을 정합하게 되돌린다."""
+    """클라이언트가 끊겨도 선차감한 토큰을 정합하게 되돌린다."""
 
     async def _release() -> None:
-        await ledger.refund_failed_generation(
-            session,
-            user_id,
-            charge_cost,
-            charge_work_id,
-            commit=False,
-        )
-        await _release_motif_generation_budget(session, session_id)
+        await ledger.refund_failed_generation(session, user_id, charge_cost, charge_work_id)
 
     try:
         response = await request.app.state.worker.motif_generate(payload)
@@ -2655,15 +2617,6 @@ async def _dispatch_motif_activation(
         )
         logger.warning("motif activation failed", exc_info=True)
         raise UpstreamError("모티프를 바꾸지 못했습니다") from exc
-
-
-async def _release_motif_generation_budget(session: SessionDep, session_id: uuid.UUID) -> None:
-    await session.execute(
-        update(DesignSession)
-        .where(DesignSession.id == session_id)
-        .values(motif_generation_used=func.greatest(DesignSession.motif_generation_used - 1, 0))
-    )
-    await session.commit()
 
 
 async def _append_turn(
