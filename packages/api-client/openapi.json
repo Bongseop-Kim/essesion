@@ -7925,6 +7925,18 @@
             "title": "Motif Resolutions",
             "type": "array"
           },
+          "patch": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch"
+          },
           "patch_axes": {
             "items": {
               "type": "string"

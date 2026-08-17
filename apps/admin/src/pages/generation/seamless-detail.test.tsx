@@ -264,6 +264,10 @@ describe("SeamlessLogDetailPage", () => {
         ...log.diagnostics,
         mode: "patch",
         patch_axes: ["background", "motif_size_mm"],
+        patch: {
+          placement: { arrangement: "staggered", count_per_axis: 4 },
+          note: "간격을 넓히고 대각선으로 배치했습니다",
+        },
         prompt_revision: "design-plan-v1",
         authoring_ms: 121,
         compose_ms: 18,
@@ -311,6 +315,7 @@ describe("SeamlessLogDetailPage", () => {
     expect(screen.getByText("저작 121ms · 합성 18ms · 렌더 9ms")).toBeTruthy();
     expect(screen.getByText("구성 수정")).toBeTruthy();
     expect(screen.getByText("바탕색 · 무늬 크기")).toBeTruthy();
+    expect(screen.getByText("구성 patch 원본")).toBeTruthy();
     expect(screen.getByText("OpenAI 임베딩 · embed")).toBeTruthy();
     expect(screen.getByText("요청 한도 초과 (429)")).toBeTruthy();
     expect(

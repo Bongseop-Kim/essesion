@@ -2,7 +2,7 @@
 
 import pytest
 from worker.engine.compose import compose_design
-from worker.engine.constraints import ConstraintInvalid
+from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
 from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot, set_motif_slot
 
 from .intent_helpers import mvp_intent, register_test_motifs
@@ -159,6 +159,26 @@ def test_placement_patch_keeps_the_two_motif_slots_staggered():
     assert first.get("offset_x_mm", 0.0) == 0.0
     assert second["offset_x_mm"] == first["cell_w_mm"] / 2
     assert second["offset_y_mm"] == first["cell_h_mm"] / 2
+
+
+def test_placement_patch_yields_density_so_the_clamp_never_shrinks_the_motif():
+    """조사 3→4턴 재생 — 크기를 안 건드린 patch는 밀도를 낮춰 14mm를 지킨다."""
+    base = _lattice_intent()
+    base["layers"][1]["params"]["size_mm"] = 14.0
+
+    third = apply_patch(base, _patch(placement={"arrangement": "lattice", "count_per_axis": 10}))
+    fourth = apply_patch(third, _patch(placement={"arrangement": "staggered", "count_per_axis": 8}))
+
+    for patched in (third, fourth):
+        warnings: list[str] = []
+        constrained = apply_generation_constraints(patched, warnings=warnings)
+        # 클램프가 애초에 일어나지 않으므로 원래 크기가 그대로 남는다.
+        assert warnings == []
+        assert constrained["layers"][1]["params"]["size_mm"] == 14.0
+
+    # 크기를 함께 바꾼 patch는 지금처럼 요청한 밀도를 그대로 받는다.
+    dense = apply_patch(base, _patch(placement={"count_per_axis": 10}, motif_size_mm=[4.0]))
+    assert 48 / dense["layers"][1]["placement"]["lattice"]["cell_w_mm"] == 10
 
 
 def test_rotation_only_patch_keeps_the_current_placement_type():

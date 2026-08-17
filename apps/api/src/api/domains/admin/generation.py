@@ -110,6 +110,9 @@ _INTENT_ALLOWED_KEYS = frozenset(
         "cell_h_mm",
         "drop_fraction",
         "drop_axis",
+        # 격자 위상 — 두 모티프 슬롯이 반 칸 엇갈렸는지 화면에서 판단하는 유일한 값
+        "offset_x_mm",
+        "offset_y_mm",
         "scatter",
         "mode",
         "min_dist_mm",
@@ -124,6 +127,10 @@ _INTENT_DYNAMIC_MAP_KEYS = frozenset({"mapping"})
 _INTENT_OMIT = object()
 _MAX_INTENT_SEQUENCE = 10_000
 _MAX_INTENT_DEPTH = 12
+# worker의 DesignPatchV1 상한과 같은 값 — 초과분은 잘라낸다.
+_MAX_PATCH_BANDS = 4
+_MAX_PATCH_SLOTS = 16
+_MAX_PATCH_MOTIFS = 2
 
 
 class GenerationJobStatsOut(BaseModel):
@@ -236,6 +243,8 @@ class GenerationDiagnosticsOut(BaseModel):
     prompt_revision: str | None = None
     # 구성 수정에서 실제로 바뀐 축 — patch 런에서만 채워진다.
     patch_axes: list[str] = Field(default_factory=list)
+    # 저작 모델이 돌려준 patch 원본 — 같은 patch 런에서만 채워진다.
+    patch: dict[str, Any] | None = None
     authoring_attempts: int | None = None
     catalog_candidate_count: int | None = None
     resolved_count: int | None = None
@@ -395,6 +404,93 @@ def _safe_intent(value: Any) -> dict[str, Any] | None:
         return None
     projected = _safe_intent_value(value.get("design"))
     return projected if isinstance(projected, dict) and projected else None
+
+
+def _finite(value: Any) -> float | None:
+    return (
+        float(value)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        else None
+    )
+
+
+def _safe_hex(value: Any) -> str | None:
+    return value if isinstance(value, str) and _HEX_COLOR.fullmatch(value) else None
+
+
+def _drop_none(values: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in values.items() if value is not None}
+
+
+def _safe_patch(value: Any) -> dict[str, Any] | None:
+    """저작 모델이 돌려준 구성 patch 원본 — intent와 같은 화이트리스트 투영.
+
+    `note`는 모델이 쓴 자유 문장이므로 다른 문자열과 달리 `_safe_metadata`로 살균한다.
+    """
+    if not isinstance(value, dict):
+        return None
+    patch: dict[str, Any] = {}
+    if (note := _safe_metadata(value.get("note"), limit=200)) is not None:
+        patch["note"] = note
+    if value.get("out_of_scope") is True:
+        patch["out_of_scope"] = True
+
+    background = value.get("background")
+    if isinstance(background, dict) and (color := _safe_hex(background.get("color"))):
+        patch["background"] = {"color": color}
+
+    stripe = value.get("stripe")
+    if isinstance(stripe, dict):
+        projected = _drop_none(
+            {"angle": _finite(stripe.get("angle")), "period_mm": _finite(stripe.get("period_mm"))}
+        )
+        bands = stripe.get("bands")
+        if isinstance(bands, list):
+            projected["bands"] = [
+                {"offset_mm": offset, "width_mm": width, "color": band_color}
+                for band in bands[:_MAX_PATCH_BANDS]
+                if isinstance(band, dict)
+                and (offset := _finite(band.get("offset_mm"))) is not None
+                and (width := _finite(band.get("width_mm"))) is not None
+                and (band_color := _safe_hex(band.get("color"))) is not None
+            ]
+        if projected:
+            patch["stripe"] = projected
+
+    placement = value.get("placement")
+    if isinstance(placement, dict):
+        count = placement.get("count_per_axis")
+        projected = _drop_none(
+            {
+                "arrangement": _safe_token(placement.get("arrangement")),
+                "count_per_axis": (
+                    count if isinstance(count, int) and not isinstance(count, bool) else None
+                ),
+                "rotation_deg": _finite(placement.get("rotation_deg")),
+            }
+        )
+        if projected:
+            patch["placement"] = projected
+
+    sizes = value.get("motif_size_mm")
+    if isinstance(sizes, list):
+        patch["motif_size_mm"] = [
+            size for item in sizes[:_MAX_PATCH_MOTIFS] if (size := _finite(item)) is not None
+        ]
+
+    palette = value.get("palette")
+    slots = palette.get("slots") if isinstance(palette, dict) else None
+    if isinstance(slots, list):
+        patch["palette"] = {
+            "slots": [
+                {"id": slot_id, "hex": slot_hex}
+                for slot in slots[:_MAX_PATCH_SLOTS]
+                if isinstance(slot, dict)
+                and (slot_id := _safe_token(slot.get("id"))) is not None
+                and (slot_hex := _safe_hex(slot.get("hex"))) is not None
+            ]
+        }
+    return patch or None
 
 
 def _number_list(value: Any, *, size: int) -> list[float]:
@@ -746,6 +842,7 @@ def _safe_diagnostics(value: Any) -> GenerationDiagnosticsOut:
         model=_safe_token(raw.get("model")),
         prompt_revision=_safe_token(raw.get("prompt_revision")),
         patch_axes=patch_axes,
+        patch=_safe_patch(raw.get("patch")),
         authoring_attempts=count("authoring_attempts"),
         catalog_candidate_count=count("catalog_candidate_count"),
         resolved_count=count("resolved_count"),

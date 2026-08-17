@@ -4260,6 +4260,12 @@ export type GenerationDiagnosticsOut = {
      */
     motif_resolutions?: Array<MotifResolutionOut>;
     /**
+     * Patch
+     */
+    patch?: {
+        [key: string]: unknown;
+    } | null;
+    /**
      * Patch Axes
      */
     patch_axes?: Array<string>;
