@@ -11989,7 +11989,7 @@
             "items": {
               "$ref": "#/components/schemas/PricingUpdateItem"
             },
-            "maxItems": 40,
+            "maxItems": 34,
             "minItems": 1,
             "title": "Items",
             "type": "array"

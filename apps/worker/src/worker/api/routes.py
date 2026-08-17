@@ -962,17 +962,19 @@ async def ensure_authoring_promotion_embedding(
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
-    """문장을 그대로 카탈로그에서 검색한다. 이미지 생성 미호출이라 과금이 없다."""
-    adapters = request.app.state.adapters
+    """문장을 그대로 카탈로그에서 검색한다. 이미지 생성 미호출이라 과금이 없다.
+
+    시트는 **lexical 전용**이다 — `embedding_client=None`이 τ 벡터 다리를 끄고 prefix 매칭을
+    켠다. 0건이면 사용자가 단어를 바꿔 즉시 재검색하므로 임베딩 왕복이 값을 못 한다
+    (worker-motifs.md §5).
+    """
     registry_version = await registry_version_for(session)
-    # generate와 같은 spec을 써야 여기서 보여준 후보와 생성 경로의 재사용 판정이 일치한다.
     spec = {"subject": body.query, "scope": "whole"}
     candidates = await present_candidates(
         session,
         spec,
-        embedding_client=adapters.embedding,
+        embedding_client=None,
         top_k=body.top_k,
-        tau=request.app.state.settings.motif_similarity_tau,
     )
     return {
         "request_id": request_id_var.get(),

@@ -45,10 +45,11 @@
 ## 3. 맞춤 주문 (custom)
 
 가격 계산 (calculate_custom_order_amounts):
-- pricing_constants 키: `START_COST, SEWING_PER_COST, AUTO_TIE_COST, TRIANGLE_STITCH_COST, SIDE_STITCH_COST, BAR_TACK_COST, DIMPLE_COST, SPODERATO_COST, FOLD7_COST, WOOL_INTERLINING_COST, BRAND_LABEL_COST, CARE_LABEL_COST, YARN_DYED_DESIGN_COST` — 하나라도 없으면 오류.
+- pricing_constants 키: `SEWING_PER_COST, AUTO_TIE_COST, TRIANGLE_STITCH_COST, SIDE_STITCH_COST, BAR_TACK_COST, DIMPLE_COST, SPODERATO_COST, FOLD7_COST, WOOL_INTERLINING_COST, BRAND_LABEL_COST, CARE_LABEL_COST, SAMPLE_SEWING_COST, SAMPLE_FABRIC_PRINTING_COST, SAMPLE_FABRIC_YARN_DYED_COST` — 하나라도 없으면 오류.
+- **주문제작은 샘플비를 포함한 가격이다** — 봉제 없는 주문제작은 없으므로 봉제 샘플비가 항상 1회 들어가고, 원단을 우리가 만들면(fabric_provided=false) 원단 샘플비도 1회 들어간다. 별도의 시작비·세팅비 상수는 없다(§4의 샘플 주문과 같은 상수를 공유하며, 샘플을 먼저 산 고객에게는 §4의 후속 할인쿠폰으로 되돌려준다).
 - 옵션: `tie_type ∈ {'', 'AUTO'}`, `interlining ∈ {'', 'WOOL'}`, bool 9종(triangle_stitch, side_stitch, bar_tack, dimple, turn_knot, spoderato, fold7, brand_label, care_label). **dimple·turn_knot은 tie_type='AUTO'에서만** 선택 가능하며, turn_knot은 자동 타이 비용에 포함되어 별도 과금하지 않는다.
-- `sewing = (SEWING_PER_COST + 선택 옵션 상수 합) * qty + START_COST`
-- fabric: `fabric_provided=true → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + (design_type='YARN_DYED'? YARN_DYED_DESIGN_COST : 0)`. design/fabric_type null이면 오류.
+- `sewing = (SEWING_PER_COST + 선택 옵션 상수 합) * qty + SAMPLE_SEWING_COST`
+- fabric: `fabric_provided=true → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + SAMPLE_FABRIC_{design_type}_COST`. design/fabric_type null이면 오류.
 - total = sewing + fabric.
 
 주문 생성: quantity는 1~10,000. `base_unit = floor(total/qty)`, remainder는 item_data.pricing.unit_price_remainder에. 쿠폰은 §2와 동일(unit=base_unit). options 페이로드는 UTF-8 compact JSON 10KB, additional_notes는 500자 제한. reference_images는 최대 5개이며 `upload_id` 검증 후 images에 등록(entity_type='custom_order'). order_items: item_id=`custom-order-{order_id}`, item_type='custom', item_data=`{custom_order:true, quantity, options, reference_images, additional_notes, pricing:{sewing_cost,fabric_cost,total_cost,unit_price_remainder}}`. status='대기중'.
@@ -56,9 +57,9 @@
 ## 4. 샘플 주문 (sample)
 
 - `sample_type ∈ {fabric, sewing, fabric_and_sewing}`. fabric 계열이면 `design_type ∈ {PRINTING, YARN_DYED}` 필수.
-- 가격 키: sewing→`SAMPLE_SEWING_COST`, fabric+PRINTING→`SAMPLE_FABRIC_PRINTING_COST`, fabric+YD→`SAMPLE_FABRIC_YARN_DYED_COST`, both+PRINTING→`SAMPLE_FABRIC_AND_SEWING_PRINTING_COST`, both+YD→`SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST`. qty=1.
+- 가격 키: sewing→`SAMPLE_SEWING_COST`, fabric+PRINTING→`SAMPLE_FABRIC_PRINTING_COST`, fabric+YD→`SAMPLE_FABRIC_YARN_DYED_COST`, fabric_and_sewing→**두 상수의 합**(`SAMPLE_SEWING_COST + SAMPLE_FABRIC_{design_type}_COST`). qty=1. 원단+봉제를 묶는 별도 상수는 없다 — 묶음 할인이 없으므로 합산이 곧 정가다.
 - options는 UTF-8 compact JSON 10KB, additional_notes는 500자, reference_images는 최대 5개. 쿠폰 적용 가능(§2 규칙, qty=1). item_id=`sample-order-{order_id}`, item_type='sample'.
-- **샘플 할인 정책**: 샘플 주문 자체는 정가. **결제 확정 시 후속 정규주문용 할인쿠폰 자동 발급** — sample_type×design_type → (쿠폰명, pricing_constants 키) 매핑 5종(예: sewing→`('SAMPLE_DISCOUNT_SEWING','sample_discount_sewing')`). coupons를 `ON CONFLICT(name) DO UPDATE`로 동기화(fixed, value=상수값, max=값, expiry 2099-12-31) 후 user_coupons INSERT `ON CONFLICT DO NOTHING`.
+- **샘플 할인 정책**: 샘플 주문 자체는 정가. **결제 확정 시 후속 정규주문용 할인쿠폰 자동 발급** — sample_type×design_type → (쿠폰명, pricing_constants 키 목록) 매핑 5종(예: sewing→`('SAMPLE_DISCOUNT_SEWING',['sample_discount_sewing'])`). 할인액은 키 목록의 합이고, fabric_and_sewing은 가격과 같은 방식으로 `sample_discount_sewing + sample_discount_fabric_{printing|yarn_dyed}`를 합산한다. coupons를 `ON CONFLICT(name) DO UPDATE`로 동기화(fixed, value=상수값, max=값, expiry 2099-12-31) 후 user_coupons INSERT `ON CONFLICT DO NOTHING`.
 
 ## 5. 결제: lock → Toss confirm → confirm / unlock
 

@@ -21,6 +21,7 @@ from worker.adapters import AdapterClientError
 from worker.adapters.embedding import EmbeddingError, embed_query
 from worker.adapters.gpt_image import GPTImageError, generate_motif
 from worker.motifs import store
+from worker.motifs.categories import CATEGORY_WORDS
 from worker.motifs.store import MotifMeta, facets_from_spec
 
 logger = logging.getLogger(__name__)
@@ -248,11 +249,31 @@ def _tokens(value: str) -> set[str]:
     return tokens
 
 
-def _lexical_match(query_tokens: set[str], meta: MotifMeta) -> bool:
-    terms = _tokens(meta.subject or "")
+def _lexical_terms(meta: MotifMeta) -> tuple[set[str], set[str]]:
+    """(고유어, 카테고리어) — 카테고리 태그는 상위어라 매칭 tier를 나눠 쓴다.
+
+    "동물"·"바다" 같은 카테고리는 한 번에 수십 건을 끌어온다. 고유어와 같은 층에 두면
+    유사도 순위를 가진 벡터 결과를 밀어내고 ID(content-hash) 임의 순서가 그 자리를 차지한다.
+    """
+    own = _tokens(meta.subject or "")
+    category: set[str] = set()
     for tag in meta.tags:
-        terms |= _tokens(tag)
-    return bool(query_tokens & terms)
+        (category if store.normalize_facet(tag) in CATEGORY_WORDS else own).update(_tokens(tag))
+    return own, category
+
+
+# prefix 매칭 최소 길이 — 1자를 허용하면 한글 오매칭이 폭발한다("새"→새우, "말"→말랑).
+# 양방향으로 본다: "테니"→테니스, 그리고 한국어 복합어가 한 토큰이라 "바다동물"→바다.
+# 시트 전용이라 오매칭 한 장을 감수한다 (측정·근거: docs/reviews/motif-search-derag-2026-08-17.md).
+_PREFIX_MIN_LEN = 2
+
+
+def _prefix_match(query_tokens: set[str], terms: set[str]) -> bool:
+    tokens = [token for token in query_tokens if len(token) >= _PREFIX_MIN_LEN]
+    long_terms = [term for term in terms if len(term) >= _PREFIX_MIN_LEN]
+    return any(
+        term.startswith(token) or token.startswith(term) for term in long_terms for token in tokens
+    )
 
 
 async def retrieve_catalog(
@@ -263,7 +284,14 @@ async def retrieve_catalog(
     tau: float,
     top_k: int = 5,
 ) -> list[CatalogMatch]:
-    """공개 카탈로그에서 exact token 또는 τ 이상 vector 결과만 반환한다."""
+    """공개 카탈로그에서 lexical 일치 또는 τ 이상 vector 결과만 반환한다.
+
+    채우는 순서가 계약이다 — **고유어 → 벡터 → 카테고리**. 카테고리 상위어는 수십 건을
+    한 번에 끌어오므로 벡터가 답을 못 낼 때만 쓰는 폴백으로 내린다 (worker-motifs.md §5).
+
+    `embedding_client=None`(시트 전용)이면 벡터 다리 없이 lexical만 돌고, 각 tier의 exact
+    뒤에 같은 tier의 prefix 일치를 붙인다 — exact가 항상 앞선다.
+    """
     catalog = await _read_or(lambda: store.find_catalog(session), [], session, "find_catalog")
     if not catalog or not text.strip():
         return []
@@ -272,12 +300,25 @@ async def retrieve_catalog(
     ranked: list[CatalogMatch] = []
     seen: set[str] = set()
     query_tokens = _tokens(text)
-    for meta in catalog:
-        if _lexical_match(query_tokens, meta):
-            ranked.append(CatalogMatch(meta, 1.0, "exact_token"))
+    terms_by_id = {meta.id: _lexical_terms(meta) for meta in catalog}
+    prefix = embedding_client is None
+
+    def collect(pick, match_type: str) -> bool:
+        """조건에 맞는 모티프를 ID 순으로 담는다 — top_k가 차면 True."""
+        for meta in catalog:
+            if meta.id in seen or not pick(terms_by_id[meta.id]):
+                continue
+            ranked.append(CatalogMatch(meta, 1.0, match_type))
             seen.add(meta.id)
             if len(ranked) >= top_k:
-                return ranked
+                return True
+        return False
+
+    # tier 1 — 고유어(subject·파일명 토큰·한글 동의어).
+    if collect(lambda terms: query_tokens & terms[0], "exact_token"):
+        return ranked
+    if prefix and collect(lambda terms: _prefix_match(query_tokens, terms[0]), "prefix_token"):
+        return ranked
 
     try:
         query_vec = await embed_query(text, client=embedding_client)
@@ -300,7 +341,13 @@ async def retrieve_catalog(
             ranked.append(CatalogMatch(meta, match.similarity, "embedding"))
             seen.add(meta.id)
             if len(ranked) >= top_k:
-                break
+                return ranked
+
+    # tier 2 — 카테고리 상위어. 고유어도 벡터도 자리를 못 채웠을 때만 내려온다.
+    if collect(lambda terms: query_tokens & terms[1], "category_token"):
+        return ranked
+    if prefix:
+        collect(lambda terms: _prefix_match(query_tokens, terms[1]), "category_prefix")
     return ranked
 
 
@@ -408,7 +455,7 @@ async def present_candidates(
     top_k: int,
     tau: float = 0.40,
 ) -> list[dict]:
-    """게이트 UI용 read-only 후보. 같은 정확도 게이트를 쓰며 이미지는 생성하지 않는다."""
+    """모티프 시트용 read-only 후보. 이미지는 생성하지 않는다 — `tau`는 벡터 다리 전용."""
     matches = await retrieve_catalog(
         session,
         descriptor_text(spec),

@@ -143,8 +143,7 @@ export function DesignPage() {
     onMotifIntent: (intent) => {
       setCollapsed(false);
       setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, false);
-      motifs.openSlot(1, "search");
-      if (intent.subject) motifs.setQuery(intent.subject);
+      motifs.openSlot(1, "search", intent.subject ?? undefined);
       setMotifHintSignal((signal) => signal + 1);
       const named = intent.subject ? `‘${intent.subject}’ ` : "";
       snackbar(`${named}모티프는 왼쪽에서 찾거나 만들 수 있어요.`);

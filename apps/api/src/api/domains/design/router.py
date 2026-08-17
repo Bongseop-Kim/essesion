@@ -10,6 +10,7 @@ import base64
 import binascii
 import json
 import logging
+import re
 import unicodedata
 import uuid
 from collections.abc import Collection, Coroutine
@@ -77,7 +78,10 @@ MAX_PROCESSED_PREVIEW_BASE64_CHARS = 2_666_668
 MAX_DESIGN_IDEA_LENGTH = 180
 # 모티프 문장(찾기·만들기) 상한 — worker의 직접 subject 조회 상한과 같게 유지한다.
 MAX_MOTIF_QUERY_LENGTH = 200
-MOTIF_SEARCH_LIMIT = 4
+# 시트가 카테고리 칩으로 카탈로그를 훑는다 — 4개로는 브라우징이 안 된다. 워커의
+# `CandidatesRequest.top_k` 상한과 같은 값이어야 하고(넘기면 422), 응답에 모티프당 symbol이
+# 실려서(평균 1.5KB) payload가 상한을 정한다.
+MOTIF_SEARCH_LIMIT = 24
 SIGNED_INT64_MIN = -(2**63)
 SIGNED_INT64_MAX = 2**63 - 1
 
@@ -2312,6 +2316,18 @@ class WorkerMotifGenerateOut(BaseModel):
     motif_id: str
 
 
+_HANGUL_RE = re.compile(r"[가-힣]")
+
+
+def _motif_label(motif: Motif) -> str | None:
+    """카드 라벨 — 시드 subject는 파일명에서 온 영문("cat")이라 첫 한글 태그를 앞세운다.
+
+    태그 순서가 `[subject, 파일명 토큰…, 한글 동의어, 카테고리]`라(`seed_motifs.py::_tags_for`)
+    첫 한글 태그는 "고양이"이지 상위어 "동물"이 아니다.
+    """
+    return next((tag for tag in motif.tags or () if _HANGUL_RE.search(tag)), motif.subject)
+
+
 async def _motif_results(
     session: SessionDep,
     motif_ids: list[str],
@@ -2320,7 +2336,7 @@ async def _motif_results(
     current_ids: Collection[str] = (),
     allow_ids: Collection[str] = (),
 ) -> list[MotifResultOut]:
-    """카탈로그 행을 붙여 카드로 — 이름은 내 라이브러리 이름, 없으면 모티프 subject.
+    """카탈로그 행을 붙여 카드로 — 이름은 내 라이브러리 이름, 없으면 `_motif_label`.
 
     워커 응답을 그대로 노출하지 않는다 — 공개 카탈로그, 내 라이브러리 링크,
     명시적 allow_ids(방금 생성한 모티프)만 통과.
@@ -2346,7 +2362,7 @@ async def _motif_results(
     return [
         MotifResultOut(
             motif_id=motif_id,
-            name=by_id[motif_id][1] or by_id[motif_id][0].subject,
+            name=by_id[motif_id][1] or _motif_label(by_id[motif_id][0]),
             preview_svg=_motif_preview_svg(by_id[motif_id][0]),
             current=motif_id in current_ids,
         )

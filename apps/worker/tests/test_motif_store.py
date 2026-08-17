@@ -4,7 +4,7 @@ upsert 멱등 · get_motifs bbox/anchor 변환 · global nearest 안정 정렬 �
 공개 embedding 초기 인덱싱.
 """
 
-from db.models.design import UserMotif
+from db.models.design import DesignSession, DesignSessionTurn, UserMotif
 from db.models.seamless import Motif
 from sqlalchemy import text
 from worker.motifs import store
@@ -279,6 +279,47 @@ async def test_prune_stale_seeds_keeps_current_and_referenced(db_session):
     assert await store.approved_motif_ids(db_session) == [
         "fixture-seedcurrent0",
         "fixture-seedfaved00",
+    ]
+
+
+async def test_prune_stale_seeds_keeps_ids_referenced_only_from_json(db_session):
+    """세션 intent·plan·턴 payload의 motif id는 FK가 없다 — 텍스트로 훑어서 살려야 한다.
+
+    FK만 보고 지우면 살아 있는 세션의 디자인이 없는 모티프를 가리키게 된다.
+    """
+    for mid in ("fixture-jsonintent00", "fixture-jsonplan0000", "fixture-jsonturn0000"):
+        await _upsert(
+            db_session,
+            _motif(mid),
+            facets={"scope": "whole"},
+            source="seed",
+            status="approved",
+        )
+    user_id = await db_session.scalar(text("insert into users (name) values ('t') returning id"))
+    session_row = DesignSession(
+        user_id=user_id,
+        # 실제 intent와 같이 중첩 안쪽에 들어 있어야 한다 — 최상위 키만 보면 놓친다.
+        current_intent={"layers": [{"kind": "motif", "motif_id": "fixture-jsonintent00"}]},
+        current_plan={"motifs": [{"source": "catalog", "id": "fixture-jsonplan0000"}]},
+    )
+    db_session.add(session_row)
+    await db_session.flush()
+    db_session.add(
+        DesignSessionTurn(
+            session_id=session_row.id,
+            seq=1,
+            role="assistant",
+            payload={"intent": {"layers": [{"motif_id": "fixture-jsonturn0000"}]}},
+        )
+    )
+    await db_session.commit()
+
+    assert await store.prune_stale_seeds(db_session, ["fixture-unrelated0000"]) == 0
+    await db_session.commit()
+    assert await store.approved_motif_ids(db_session) == [
+        "fixture-jsonintent00",
+        "fixture-jsonplan0000",
+        "fixture-jsonturn0000",
     ]
 
 

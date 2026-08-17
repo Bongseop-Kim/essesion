@@ -433,7 +433,7 @@ function CustomOrderPageContent({
           <SummaryCard.Root>
             <SummaryCard.Section
               title={isQuoteMode ? "견적 요약" : "주문 요약"}
-              description="선택한 사양을 기준으로 서버가 계산한 예상 금액입니다."
+              description="선택한 사양을 기준으로 서버가 계산한 예상 금액입니다. 봉제·원단 샘플 제작비가 포함되어 있습니다."
             />
             <Divider />
             {summary.map((row) => (

@@ -16,6 +16,7 @@ from api.domains.design.router import (
     KNOWN_WEAVES,
     MAX_DESIGN_JSON_BYTES,
     MAX_DESIGN_PROMPT_LENGTH,
+    MOTIF_SEARCH_LIMIT,
     SIGNED_INT64_MIN,
     STALE_GENERATION_JOB_AFTER,
 )
@@ -2616,9 +2617,49 @@ async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_s
     assert f'href="#motif-{_CATALOG_MOTIF_ID}"' in results[0]["preview_svg"]
     assert worker.motif_calls[-1][1] == {
         "query": "꿀벌 한 마리",
-        "top_k": 4,
+        "top_k": MOTIF_SEARCH_LIMIT,
     }
     assert await _session_motif_generation_used(client, headers, sid) == 0
+
+
+async def test_motif_card_label_prefers_a_korean_tag_over_the_english_subject(
+    client, app, db_session, settings
+):
+    """시드 subject는 파일명에서 온 영문이다 — 카드는 한글 태그를 쓴다.
+
+    태그 순서가 `[subject, 파일명 토큰…, 한글 동의어, 카테고리]`라 첫 한글 태그는
+    상위어 "동물"이 아니라 "고양이"여야 한다.
+    """
+    motif_id = "seed-cat-catalog"
+    app.state.worker = MotifWorker(motif_id=motif_id)
+    db_session.add(
+        Motif(
+            id=motif_id,
+            symbol=(
+                f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
+                '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
+            ),
+            bbox=[-0.5, -0.5, 0.5, 0.5],
+            anchor=[0, 0],
+            source="seed",
+            subject="cat",
+            tags=["cat", "cat-head", "head", "고양이", "animal", "동물"],
+        )
+    )
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session = DesignSession(user_id=user.id)
+    db_session.add(design_session)
+    await db_session.commit()
+
+    res = await client.post(
+        f"/design/sessions/{design_session.id}/motifs/search",
+        json={"query": "동물"},
+        headers=headers,
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["results"][0]["name"] == "고양이"
 
 
 async def test_motif_generate_budget_exhaustion(client, app, db_session, settings):

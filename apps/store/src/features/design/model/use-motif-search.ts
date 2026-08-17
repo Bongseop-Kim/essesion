@@ -19,6 +19,7 @@ import {
   designErrorMessage,
   parseDesignError,
 } from "@/features/design/model/errors";
+import { MOTIF_CATEGORIES } from "@/features/design/model/motif-categories";
 import { designSessionQueryKey } from "@/features/design/model/queries";
 import { useActivateMotifSlot } from "@/features/design/model/use-steps";
 
@@ -146,28 +147,7 @@ export function useMotifSearch({
       return null;
     });
 
-  /** 슬롯이 바뀔 때만 처음부터 — 같은 슬롯에서 소스만 바꾸면 앞서 쓰던 입력이 남는다. */
-  const openSlot = (next: 1 | 2, nextSource: MotifSource) => {
-    if (next !== slot) {
-      setSlot(next);
-      setQuery("");
-      setResults(null);
-      setSelectedId(null);
-      setGeneratePrompt("");
-      setGenerated(null);
-      setGenerateError(null);
-      setText("");
-      setTextResult(null);
-      clearPhoto();
-    }
-    setSource(nextSource);
-    setBusy(null);
-    setError(null);
-    setWarnings([]);
-  };
-
-  const search = async () => {
-    const value = query.trim();
+  const runSearch = async (value: string) => {
     if (!sessionId || !value || busy) return;
     setBusy("search");
     setError(null);
@@ -193,6 +173,55 @@ export function useMotifSearch({
     } finally {
       setBusy(null);
     }
+  };
+
+  const search = () => runSearch(query.trim());
+
+  /** 칩 = 라벨이 그대로 검색어다 — 입력창에 넣어 칩 선택 표시까지 `query`에서 파생시킨다. */
+  const selectCategory = (next: string) => {
+    setQuery(next);
+    void runSearch(next);
+  };
+
+  /**
+   * 슬롯이 바뀔 때만 처음부터 — 같은 슬롯에서 소스만 바꾸면 앞서 쓰던 입력이 남는다.
+   *
+   * 탐색으로 열 때는 빈 그리드를 보여주지 않는다: `initialQuery`가 있으면 그 문장을,
+   * 없으면 첫 카테고리를 바로 검색해 둘러볼 거리를 깔아준다. 이미 보고 있던 결과가 있으면
+   * 덮지 않는다(소스를 오갔다 돌아온 경우).
+   */
+  const openSlot = (
+    next: 1 | 2,
+    nextSource: MotifSource,
+    initialQuery?: string,
+  ) => {
+    const cleared = next !== slot;
+    if (cleared) {
+      setSlot(next);
+      setQuery("");
+      setResults(null);
+      setSelectedId(null);
+      setGeneratePrompt("");
+      setGenerated(null);
+      setGenerateError(null);
+      setText("");
+      setTextResult(null);
+      clearPhoto();
+    }
+    setSource(nextSource);
+    setBusy(null);
+    setError(null);
+    setWarnings([]);
+    if (nextSource !== "search") return;
+    // 이미 보고 있던 결과는 건드리지 않는다 — 소스를 오갔다 돌아온 경우.
+    if (!cleared && results !== null) return;
+    // 앞서 채워둔 문장(모티프 시그널)이 있으면 그것을, 없으면 첫 카테고리를 검색한다.
+    // `cleared`면 방금 비운 입력이 아직 이 클로저에 낡은 값으로 남아 있어 무시한다.
+    selectCategory(
+      initialQuery?.trim() ||
+        (cleared ? "" : query.trim()) ||
+        MOTIF_CATEGORIES[0],
+    );
   };
 
   const replace = async (motifId: string, name: string) => {
@@ -406,6 +435,7 @@ export function useMotifSearch({
     query,
     setQuery,
     search,
+    selectCategory,
     cards,
     selectedId,
     setSelectedId,

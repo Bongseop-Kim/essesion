@@ -567,6 +567,41 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
+  it("탐색을 열면 첫 카테고리를 채우고, 칩을 누르면 그 라벨로 다시 찾는다", async () => {
+    api.searchMotifs.mockResolvedValue({ data: { results: [] } });
+    const queryClient = renderPage();
+
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^탐색/,
+    );
+    await waitForDialog("탐색");
+    // 빈 그리드로 열지 않는다 — 첫 카테고리를 바로 훑어준다.
+    await waitFor(() =>
+      expect(api.searchMotifs).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { query: "동물" },
+        throwOnError: true,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "바다" }));
+    await waitFor(() =>
+      expect(api.searchMotifs).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { query: "바다" },
+        throwOnError: true,
+      }),
+    );
+    // 칩 라벨이 그대로 검색어라 입력창에 들어간다 — 칩 선택 표시도 여기서 파생된다.
+    expect(
+      (screen.getByLabelText("어떤 그림을 넣을지") as HTMLInputElement).value,
+    ).toBe("바다");
+    screen.getByRole("button", { name: "바다", pressed: true });
+    queryClient.clear();
+  });
+
   it("검색 결과가 0건이면 안내만 남는다", async () => {
     api.searchMotifs.mockResolvedValue({ data: { results: [] } });
     const queryClient = renderPage();

@@ -32,6 +32,7 @@ import {
 import { useRef } from "react";
 
 import { DESIGN_PHOTO_ACCEPT } from "@/features/design/api/attachments";
+import { MOTIF_CATEGORIES } from "@/features/design/model/motif-categories";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
 import type {
   MotifCard,
@@ -281,9 +282,33 @@ function SearchBody({ state }: { state: MotifSearchState }) {
           void state.search();
         }}
       />
+      <CategoryChips state={state} />
       <MotifResultGrid state={state} />
       <ErrorCallout message={state.error} />
     </VStack>
+  );
+}
+
+/**
+ * 카탈로그가 100개 남짓이라 검색보다 훑는 게 빠르다 — 라벨이 그대로 검색어다.
+ * 가로 스크롤 대신 줄바꿈으로 둔다: 11개뿐이라 모바일에서도 서너 줄이고, 스크롤이면
+ * 뒤쪽 칩이 fog 너머에 숨어 "훑게 한다"는 목적과 어긋난다.
+ */
+function CategoryChips({ state }: { state: MotifSearchState }) {
+  return (
+    <Flex gap="x2" wrap="wrap">
+      {MOTIF_CATEGORIES.map((category) => (
+        <Chip
+          key={category}
+          size="small"
+          selected={state.query === category}
+          disabled={state.working}
+          onClick={() => state.selectCategory(category)}
+        >
+          {category}
+        </Chip>
+      ))}
+    </Flex>
   );
 }
 

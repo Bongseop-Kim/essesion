@@ -13,9 +13,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, cast
 
-from db.models.design import DesignTurnAttachment, UserMotif
+from db.models.design import (
+    DesignSession,
+    DesignSessionTurn,
+    DesignTurnAttachment,
+    UserMotif,
+)
 from db.models.seamless import EMBEDDING_DIM, Motif
-from sqlalchemy import CursorResult, delete, exists, func, select, update
+from sqlalchemy import CursorResult, Text, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -327,6 +332,12 @@ async def prune_stale_seeds(session: AsyncSession, seeded_ids: Iterable[str]) ->
     에셋 SVG를 고치면 content-hash id가 바뀌고 upsert는 ON CONFLICT DO NOTHING이라
     옛 행이 남는다. 방치하면 admin 카탈로그에 옛 geometry가 계속 노출된다.
     참조된 행은 남긴다 — 과거 세션 intent가 가리키는 모티프는 불변이어야 한다.
+
+    참조는 FK(user_motifs·design_turn_attachments) **와 JSON 본문** 양쪽을 본다. 세션의
+    resolved intent·plan과 턴 이력 payload는 motif id를 FK 없이 문자열로 들고 있어서,
+    FK만 보면 살아 있는 세션이 가리키는 행을 조용히 지운다(2026-08-17에 로컬에서 실제로
+    밟았다 — `docs/reviews/motif-search-derag-2026-08-17.md`). JSON은 `::text` 부분일치로
+    훑는다: 오탐은 행을 살려두는 안전한 방향이고, id가 어디에 중첩돼 있든 놓치지 않는다.
     """
     ids = list(seeded_ids)
     # 빈 집합이면 아무것도 지우지 않는다 — 빈 notin_은 항상 참이라 시드 전체를 지워버린다.
@@ -340,6 +351,13 @@ async def prune_stale_seeds(session: AsyncSession, seeded_ids: Iterable[str]) ->
                 Motif.id.notin_(ids),
                 ~exists().where(UserMotif.motif_id == Motif.id),
                 ~exists().where(DesignTurnAttachment.motif_id == Motif.id),
+                ~exists().where(
+                    or_(
+                        DesignSession.current_intent.cast(Text).contains(Motif.id),
+                        DesignSession.current_plan.cast(Text).contains(Motif.id),
+                    )
+                ),
+                ~exists().where(DesignSessionTurn.payload.cast(Text).contains(Motif.id)),
             )
         ),
     )

@@ -57,7 +57,6 @@ from api.pricing import get_pricing_constants
 KST = ZoneInfo("Asia/Seoul")
 
 CUSTOM_PRICING_KEYS = [
-    "START_COST",
     "SEWING_PER_COST",
     "AUTO_TIE_COST",
     "TRIANGLE_STITCH_COST",
@@ -69,15 +68,19 @@ CUSTOM_PRICING_KEYS = [
     "WOOL_INTERLINING_COST",
     "BRAND_LABEL_COST",
     "CARE_LABEL_COST",
-    "YARN_DYED_DESIGN_COST",
+    # 주문제작은 샘플비 포함가다 — 봉제는 항상, 원단은 우리가 만들 때만 (money.md §3).
+    "SAMPLE_SEWING_COST",
+    "SAMPLE_FABRIC_PRINTING_COST",
+    "SAMPLE_FABRIC_YARN_DYED_COST",
 ]
 
-SAMPLE_PRICING_KEY = {
-    ("sewing", None): "SAMPLE_SEWING_COST",
-    ("fabric", "PRINTING"): "SAMPLE_FABRIC_PRINTING_COST",
-    ("fabric", "YARN_DYED"): "SAMPLE_FABRIC_YARN_DYED_COST",
-    ("fabric_and_sewing", "PRINTING"): "SAMPLE_FABRIC_AND_SEWING_PRINTING_COST",
-    ("fabric_and_sewing", "YARN_DYED"): "SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST",
+# 원단+봉제는 두 상수의 합 — 묶음 할인이 없으므로 별도 상수를 두지 않는다 (money.md §4).
+SAMPLE_PRICING_KEYS = {
+    ("sewing", None): ["SAMPLE_SEWING_COST"],
+    ("fabric", "PRINTING"): ["SAMPLE_FABRIC_PRINTING_COST"],
+    ("fabric", "YARN_DYED"): ["SAMPLE_FABRIC_YARN_DYED_COST"],
+    ("fabric_and_sewing", "PRINTING"): ["SAMPLE_SEWING_COST", "SAMPLE_FABRIC_PRINTING_COST"],
+    ("fabric_and_sewing", "YARN_DYED"): ["SAMPLE_SEWING_COST", "SAMPLE_FABRIC_YARN_DYED_COST"],
 }
 
 
@@ -671,7 +674,7 @@ async def calculate_custom_amounts(
             sewing_per_unit += constants[key]
     if interlining == "WOOL":
         sewing_per_unit += constants["WOOL_INTERLINING_COST"]
-    sewing_cost = sewing_per_unit * quantity + constants["START_COST"]
+    sewing_cost = sewing_per_unit * quantity + constants["SAMPLE_SEWING_COST"]
 
     if options.get("fabric_provided"):
         fabric_cost = 0
@@ -692,8 +695,8 @@ async def calculate_custom_amounts(
             ) from exc
         # round-half-up (PG round와 동일) — 원단은 수량/4 단위 환산
         fabric_cost = (quantity * unit_fabric + 2) // 4
-        if design_type == "YARN_DYED":
-            fabric_cost += constants["YARN_DYED_DESIGN_COST"]
+        # FABRIC_ 조회를 통과했으므로 design_type은 PRINTING·YARN_DYED 중 하나다.
+        fabric_cost += constants[f"SAMPLE_FABRIC_{design_type}_COST"]
 
     return {
         "sewing_cost": sewing_cost,
@@ -782,20 +785,20 @@ async def create_custom_order(
 # ---- 샘플 주문 (sample) ----
 
 
-def sample_pricing_key(sample_type: str, design_type: str | None) -> str:
+def sample_pricing_keys(sample_type: str, design_type: str | None) -> list[str]:
     if sample_type == "sewing":
-        return SAMPLE_PRICING_KEY[("sewing", None)]
+        return SAMPLE_PRICING_KEYS[("sewing", None)]
     if design_type not in ("PRINTING", "YARN_DYED"):
         raise DomainError("Invalid design_type for sample order", code="invalid_options")
-    return SAMPLE_PRICING_KEY[(sample_type, design_type)]
+    return SAMPLE_PRICING_KEYS[(sample_type, design_type)]
 
 
 async def calculate_sample_amount(
     session: AsyncSession, sample_type: str, options: dict[str, Any]
 ) -> int:
-    key = sample_pricing_key(sample_type, options.get("design_type"))
+    keys = sample_pricing_keys(sample_type, options.get("design_type"))
     try:
-        return (await get_pricing_constants(session, [key]))[key]
+        return sum((await get_pricing_constants(session, keys)).values())
     except DomainError as exc:
         raise DomainError(
             "Sample pricing constant is not configured", code="pricing_not_configured"

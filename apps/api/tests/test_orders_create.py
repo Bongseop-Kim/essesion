@@ -300,7 +300,6 @@ async def test_custom_calculate_rules(client, db_session):
     await seed_pricing(
         db_session,
         {
-            "START_COST": 50000,
             "SEWING_PER_COST": 3000,
             "AUTO_TIE_COST": 1000,
             "TRIANGLE_STITCH_COST": 500,
@@ -312,7 +311,9 @@ async def test_custom_calculate_rules(client, db_session):
             "WOOL_INTERLINING_COST": 600,
             "BRAND_LABEL_COST": 200,
             "CARE_LABEL_COST": 100,
-            "YARN_DYED_DESIGN_COST": 30000,
+            "SAMPLE_SEWING_COST": 50000,
+            "SAMPLE_FABRIC_PRINTING_COST": 60000,
+            "SAMPLE_FABRIC_YARN_DYED_COST": 80000,
             "FABRIC_PRINTING_POLY": 8000,
             "FABRIC_PRINTING_SILK": 10000,
             "FABRIC_YARN_DYED_POLY": 12000,
@@ -334,7 +335,8 @@ async def test_custom_calculate_rules(client, db_session):
     assert res.status_code == 400
     assert res.json()["detail"] == "돌려묶기는 자동 봉제(AUTO)에서만 선택 가능합니다"
 
-    # sewing = (3000+1000+700)*10 + 50000 = 97000, fabric = round(10*10000/4) = 25000
+    # sewing = (3000+1000+700)*10 + 봉제샘플 50000 = 97000
+    # fabric = round(10*10000/4) + 날염 원단샘플 60000 = 85000
     res = await client.post(
         "/orders/custom/calculate",
         json={
@@ -349,10 +351,11 @@ async def test_custom_calculate_rules(client, db_session):
         },
     )
     assert res.status_code == 200
-    assert res.json() == {"sewing_cost": 97000, "fabric_cost": 25000, "total_cost": 122000}
+    assert res.json() == {"sewing_cost": 97000, "fabric_cost": 85000, "total_cost": 182000}
 
     # 폴리 원단 가격 키도 날염·선염 모두 계산 가능해야 한다.
-    for design_type, expected_fabric_cost in (("PRINTING", 8000), ("YARN_DYED", 42000)):
+    # 원단비 = round(4*단가/4) + 원단 샘플비 → 날염 8000+60000, 선염 12000+80000
+    for design_type, expected_fabric_cost in (("PRINTING", 68000), ("YARN_DYED", 92000)):
         res = await client.post(
             "/orders/custom/calculate",
             json={
@@ -370,6 +373,14 @@ async def test_custom_calculate_rules(client, db_session):
             "total_cost": 62000 + expected_fabric_cost,
         }
 
+    # 원단 지참이면 날염·선염 구분이 없으므로 원단 샘플비도 붙지 않는다 — 봉제 샘플비만 포함.
+    res = await client.post(
+        "/orders/custom/calculate",
+        json={"options": {"fabric_provided": True}, "quantity": 4},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"sewing_cost": 62000, "fabric_cost": 0, "total_cost": 62000}
+
 
 async def test_custom_order_creates_with_remainder(app, client, db_session, settings):
     user = await make_user(db_session)
@@ -377,7 +388,7 @@ async def test_custom_order_creates_with_remainder(app, client, db_session, sett
     await seed_pricing(
         db_session,
         {
-            "START_COST": 100,
+            "SAMPLE_SEWING_COST": 100,
             "SEWING_PER_COST": 3333,
             "AUTO_TIE_COST": 0,
             "TRIANGLE_STITCH_COST": 0,
@@ -389,7 +400,8 @@ async def test_custom_order_creates_with_remainder(app, client, db_session, sett
             "WOOL_INTERLINING_COST": 0,
             "BRAND_LABEL_COST": 0,
             "CARE_LABEL_COST": 0,
-            "YARN_DYED_DESIGN_COST": 0,
+            "SAMPLE_FABRIC_PRINTING_COST": 0,
+            "SAMPLE_FABRIC_YARN_DYED_COST": 0,
         },
     )
     headers = auth_headers(user, settings)
@@ -420,7 +432,7 @@ async def test_custom_order_creates_with_remainder(app, client, db_session, sett
         headers=headers,
     )
     assert res.status_code == 201, res.text
-    # total = 3333*3 + 100 = 10099, base_unit = 3366, remainder = 1
+    # total = 3333*3 + 봉제샘플 100 = 10099, base_unit = 3366, remainder = 1
     assert res.json()["total_amount"] == 10099
     detail = (await client.get(f"/orders/{res.json()['order_id']}", headers=headers)).json()
     item = detail["items"][0]
@@ -447,9 +459,10 @@ async def test_sample_order_pricing(client, db_session, settings):
 
 
 async def test_sample_order_calculate_is_public_and_has_no_order_side_effect(client, db_session):
+    # 원단+봉제는 두 상수의 합이다 — 묶음 전용 상수는 없다.
     await seed_pricing(
         db_session,
-        {"SAMPLE_FABRIC_AND_SEWING_PRINTING_COST": 90000},
+        {"SAMPLE_SEWING_COST": 90000, "SAMPLE_FABRIC_PRINTING_COST": 70000},
         category="custom_order",
     )
     res = await client.post(
@@ -460,7 +473,7 @@ async def test_sample_order_calculate_is_public_and_has_no_order_side_effect(cli
         },
     )
     assert res.status_code == 200, res.text
-    assert res.json() == {"total_cost": 90000}
+    assert res.json() == {"total_cost": 160000}
 
     assert await db_session.scalar(select(Order)) is None
 
