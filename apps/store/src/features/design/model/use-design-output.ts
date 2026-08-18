@@ -6,7 +6,11 @@ import type { ExportDialogValue } from "@/features/design/ui/export-dialog";
 import type { FinalizeDialogValue } from "@/features/design/ui/finalize-dialog";
 
 import { designErrorMessage, parseDesignError } from "./errors";
+import { renderTiePng } from "./tie-image";
 import { useCreateFinalizeJob, useFinalizeJobQuery } from "./use-finalize-job";
+
+/** 타일은 실측 크기 그대로라 픽셀 수가 작다 — 워커 상한(max_dpi)까지 올린다. */
+const TILE_DPI = 600;
 
 /** 내려받기 — 이미 만든 SVG의 형식 변환이라 토큰이 들지 않는다. */
 export function useDesignExport(options: {
@@ -20,21 +24,15 @@ export function useDesignExport(options: {
     if (!options.svg || exporting) return;
     setExporting(true);
     try {
-      const response = await exportDesign({
-        body: {
-          session_id: options.sessionId,
-          svg: options.svg,
-          format: value.format,
-          dpi: value.dpi,
-          width_mm: value.widthMm,
-        },
-        parseAs: "blob",
-        throwOnError: true,
-      });
-      if (!(response.data instanceof Blob)) {
-        throw new Error("내려받기 응답이 파일 형식이 아닙니다.");
-      }
-      download(response.data, `essesion-design.${value.format}`);
+      // 넥타이는 화면 미리보기와 같은 그림이라 브라우저에서 합성한다.
+      const file =
+        value.mode === "tie"
+          ? await renderTiePng(options.svg)
+          : await exportTilePng(options.svg, options.sessionId);
+      download(
+        file,
+        `essesion-design-${value.mode === "tie" ? "tie" : "tile"}.png`,
+      );
       options.onDone();
       snackbar("디자인 파일을 만들었습니다.");
     } catch (error) {
@@ -99,6 +97,25 @@ export function useFinalizeFlow(options: {
     loading: mutation.isPending,
     submit: (value: FinalizeDialogValue) => void submit(value),
   };
+}
+
+/** 타일은 이어붙일 수 있는 원본 — 디자인의 실측 크기(합성기가 쓰는 `width="48mm"`)로 래스터한다. */
+async function exportTilePng(svg: string, sessionId: string | null) {
+  const response = await exportDesign({
+    body: {
+      session_id: sessionId,
+      svg,
+      format: "png",
+      dpi: TILE_DPI,
+      width_mm: Number(svg.match(/width="([\d.]+)mm"/)?.[1]) || 100,
+    },
+    parseAs: "blob",
+    throwOnError: true,
+  });
+  if (!(response.data instanceof Blob)) {
+    throw new Error("내려받기 응답이 파일 형식이 아닙니다.");
+  }
+  return response.data;
 }
 
 function download(blob: Blob, filename: string) {
