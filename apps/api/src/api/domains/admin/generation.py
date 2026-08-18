@@ -446,7 +446,7 @@ def _safe_patch(value: Any) -> dict[str, Any] | None:
         )
         bands = stripe.get("bands")
         if isinstance(bands, list):
-            projected["bands"] = [
+            projected_bands = [
                 {"offset_mm": offset, "width_mm": width, "color": band_color}
                 for band in bands[:_MAX_PATCH_BANDS]
                 if isinstance(band, dict)
@@ -454,6 +454,10 @@ def _safe_patch(value: Any) -> dict[str, Any] | None:
                 and (width := _finite(band.get("width_mm"))) is not None
                 and (band_color := _safe_hex(band.get("color"))) is not None
             ]
+            # 빈 리스트는 "줄무늬를 지운다"는 뜻이다 — 모델이 준 밴드가 전부 걸러진 경우엔
+            # 지우라는 지시가 아니므로 필드를 빼서 기존 밴드를 유지한다.
+            if projected_bands or not bands:
+                projected["bands"] = projected_bands
         if projected:
             patch["stripe"] = projected
 

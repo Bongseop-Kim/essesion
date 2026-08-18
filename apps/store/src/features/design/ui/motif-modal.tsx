@@ -665,7 +665,7 @@ function MotifResultGrid({
           }
         : {
             title: "넣을 그림을 문장으로 알려주세요",
-            description: "예: 작은 벌 · 엔터를 누르면 찾아요.",
+            description: "예: 작은 벌 · 입력을 멈추면 바로 찾아요.",
           };
     return (
       <ContentPlaceholder

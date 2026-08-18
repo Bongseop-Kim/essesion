@@ -169,8 +169,11 @@ export function useMotifSearch({
       setSelectedId(null);
     } catch (cause) {
       if (lastSearched.current !== value) return;
+      // 실패한 검색어는 잊는다 — 그래야 같은 문장을 다시 입력했을 때 디바운스가 막지 않는다.
+      lastSearched.current = null;
       setResults(null);
       setError(designErrorMessage(cause, "모티프를 찾지 못했습니다."));
+      setBusy(null);
     } finally {
       if (lastSearched.current === value) setBusy(null);
     }

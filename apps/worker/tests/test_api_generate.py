@@ -808,11 +808,11 @@ def test_photo_preview_rejection_carries_a_code_for_the_api(monkeypatch):
     api가 사유를 잃고 "요청을 거부했습니다" 하나로 뭉개진다.
     """
     raw = io.BytesIO()
-    random.seed(11)
+    noise = random.Random(11)  # 전역 random을 건드리면 다른 테스트의 재현성을 흔든다
     image = Image.new("RGB", (96, 96))
     image.putdata(
         [
-            (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+            (noise.randint(0, 255), noise.randint(0, 255), noise.randint(0, 255))
             for _ in range(96 * 96)
         ]
     )

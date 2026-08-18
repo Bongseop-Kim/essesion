@@ -287,7 +287,13 @@ async def test_prune_stale_seeds_keeps_ids_referenced_only_from_json(db_session)
 
     FK만 보고 지우면 살아 있는 세션의 디자인이 없는 모티프를 가리키게 된다.
     """
-    for mid in ("fixture-jsonintent00", "fixture-jsonplan0000", "fixture-jsonturn0000"):
+    for mid in (
+        "fixture-jsonintent00",
+        "fixture-jsonplan0000",
+        "fixture-jsonturn0000",
+        # 어디서도 참조되지 않는 시드 — JSON 훑기가 과잉 보존하지 않는지 함께 본다.
+        "fixture-jsonorphan00",
+    ):
         await _upsert(
             db_session,
             _motif(mid),
@@ -314,7 +320,8 @@ async def test_prune_stale_seeds_keeps_ids_referenced_only_from_json(db_session)
     )
     await db_session.commit()
 
-    assert await store.prune_stale_seeds(db_session, ["fixture-unrelated0000"]) == 0
+    # 현재 시드 집합에 넷 다 없다 — JSON이 가리키는 셋만 살고 고아는 지워져야 한다.
+    assert await store.prune_stale_seeds(db_session, ["fixture-unrelated0000"]) == 1
     await db_session.commit()
     assert await store.approved_motif_ids(db_session) == [
         "fixture-jsonintent00",

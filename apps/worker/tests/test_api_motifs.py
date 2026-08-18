@@ -279,6 +279,21 @@ async def test_motifs_candidates_match_a_prefix_but_grounding_does_not(app, clie
     resp = await client.post("/motifs/candidates", json={"query": "t", "top_k": 4})
     assert resp.json()["candidates"] == []
 
+    # grounding은 같은 질의에도 prefix로 붙지 않는다 — 저작 모델에 후보를 넘기지 않는다.
+    grounded: list[list[str]] = []
+
+    class CapturingLLM:
+        async def author_design(self, _prompt, *, validate, motif_ids=(), **_kwargs):
+            grounded.append(list(motif_ids))
+            intent = _lattice_intent(mid)
+            assert validate(intent) is None
+            return AuthoredDesign(intent=intent)
+
+    app.state.adapters.llm = CapturingLLM()
+    resp = await client.post("/generate", json={"run_id": _RUN_ID, "prompt": "tennisball"})
+    assert resp.status_code == 200, resp.text
+    assert grounded == [[]]
+
 
 async def test_motifs_candidates_do_not_reverse_match_a_one_character_term(app, client, db_session):
     """1자 term의 역방향 prefix는 막는다 — "별"이 "별의별"·"별로"를 다 끌어온다."""
