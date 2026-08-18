@@ -87,6 +87,8 @@ const session = {
 
 /** 세션 응답을 케이스별로 덮어쓴다(예: 생성 예산 소진). beforeEach가 비운다. */
 let sessionOverride: Record<string, unknown> = {};
+/** 세션 목록 응답을 늦출 게이트 — 예시가 먼저 도착하는 상황을 재현한다. */
+let sessionsGate: Promise<unknown> = Promise.resolve();
 /** 첫 진입 예시 갤러리 응답 — 기본은 0건(기존 빈 상태 폴백). */
 let examples: Record<string, unknown>[] = [];
 let tokenBalance = 455;
@@ -128,9 +130,16 @@ const turns = [
 vi.mock("@/features/design/model/queries", () => ({
   designSessionsQueryOptions: (authenticated: boolean) => ({
     queryKey: ["page-design-sessions"],
-    queryFn: async () => [
-      { id: "session-1", created_at: "2026-07-31T00:00:00Z", status: "active" },
-    ],
+    queryFn: async () => {
+      await sessionsGate;
+      return [
+        {
+          id: "session-1",
+          created_at: "2026-07-31T00:00:00Z",
+          status: "active",
+        },
+      ];
+    },
     enabled: authenticated,
   }),
   designSessionQueryKey: (sessionId: string) => [
@@ -240,6 +249,7 @@ describe("DesignPage canvas shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionOverride = {};
+    sessionsGate = Promise.resolve();
     examples = [];
     tokenBalance = 455;
     vi.stubGlobal("localStorage", memoryStorage());
@@ -506,6 +516,41 @@ describe("DesignPage canvas shell", () => {
     await screen.findByRole("button", {
       name: "2번째 디자인 · 전체 이력 보기",
     });
+    queryClient.clear();
+  });
+
+  it("작업 중이던 세션이 있으면 예시 갤러리를 먼저 띄우지 않는다", async () => {
+    examples = [
+      {
+        id: "example-1",
+        name: "미드나잇 웨이브",
+        caption: "네이비 · 대각 스트라이프",
+        preview_svg: "<svg id='e1'/>",
+      },
+    ];
+    // 예시는 먼저, 세션 목록은 나중에 도착한다 — 깜빡임이 나던 순서.
+    let openGate = () => {};
+    sessionsGate = new Promise((resolve) => {
+      openGate = () => resolve(null);
+    });
+    const queryClient = renderPage();
+    const gallery = () =>
+      screen.queryByRole("button", {
+        name: "미드나잇 웨이브 예시로 시작하기",
+      });
+
+    await waitFor(() =>
+      expect(queryClient.getQueryData(["page-design-examples"])).toBeTruthy(),
+    );
+    expect(gallery()).toBeNull();
+
+    await act(async () => {
+      openGate();
+    });
+    await screen.findByRole("button", {
+      name: "2번째 디자인 · 전체 이력 보기",
+    });
+    expect(gallery()).toBeNull();
     queryClient.clear();
   });
 

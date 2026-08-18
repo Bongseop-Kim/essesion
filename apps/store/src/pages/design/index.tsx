@@ -5,6 +5,7 @@ import {
   type DesignPreviewMode,
   Flex,
   Icon,
+  Skeleton,
   snackbar,
   Text,
   VStack,
@@ -120,6 +121,16 @@ export function DesignPage() {
   const quota = sessionQuery.data?.finalize_quota ?? null;
 
   const examples = examplesQuery.data ?? [];
+  // 세션 복원이 끝나기 전에는 빈 캔버스를 그리지 않는다 — 예시 갤러리가 깜빡였다가
+  // 작업 중이던 디자인으로 교체되는 걸 막는다.
+  const restoring =
+    status === "loading" ||
+    (authenticated &&
+      !freshSession &&
+      (sessionsQuery.isPending ||
+        (!sessionId && !!sessionsQuery.data?.length) ||
+        sessionQuery.isLoading ||
+        turnsQuery.isLoading));
 
   const activateStep = useActivateDesignStep();
   const startExample = useStartDesignFromExample();
@@ -254,10 +265,11 @@ export function DesignPage() {
       <DesignCanvas
         imageSrc={history.currentSvg ? svgToDataUri(history.currentSvg) : null}
         empty={
-          !hasDesign &&
-          !busy &&
-          !sessionQuery.isLoading &&
-          examples.length > 0 ? (
+          restoring ? (
+            <Box height="full" maxWidth="full" style={{ aspectRatio: 1 }}>
+              <Skeleton width="full" height="full" radius="r4" />
+            </Box>
+          ) : !hasDesign && !busy && examples.length > 0 ? (
             <StarterGallery
               examples={examples}
               onSelect={(example) => void startFromExample(example)}
