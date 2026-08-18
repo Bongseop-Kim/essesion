@@ -18,7 +18,7 @@ from .factories import (
 from .fakes import FakeGcsClient, simulate_uploads
 
 CUSTOM_PRICING = {
-    "START_COST": 100,
+    "SAMPLE_SEWING_COST": 100,
     "SEWING_PER_COST": 3000,
     "AUTO_TIE_COST": 0,
     "TRIANGLE_STITCH_COST": 0,
@@ -30,7 +30,8 @@ CUSTOM_PRICING = {
     "WOOL_INTERLINING_COST": 0,
     "BRAND_LABEL_COST": 0,
     "CARE_LABEL_COST": 0,
-    "YARN_DYED_DESIGN_COST": 0,
+    "SAMPLE_FABRIC_PRINTING_COST": 0,
+    "SAMPLE_FABRIC_YARN_DYED_COST": 0,
 }
 
 

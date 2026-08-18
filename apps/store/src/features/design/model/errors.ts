@@ -13,7 +13,6 @@ export type DesignErrorKind =
   | "generation_in_progress"
   | "design_result_unavailable"
   | "design_not_started"
-  | "motif_generation_budget_exhausted"
   | "finalize_quota_exhausted"
   | "conflict"
   | "upstream_error"
@@ -40,7 +39,6 @@ export const DESIGN_ERROR_MESSAGES: Record<DesignErrorKind, string> = {
   design_result_unavailable:
     "그 스텝의 결과를 불러오지 못했어요. 다른 스텝을 골라 주세요.",
   design_not_started: "먼저 문장으로 디자인을 하나 만들어 주세요.",
-  motif_generation_budget_exhausted: "이번 디자인에서 더 만들 수 없어요.",
   // 서버 detail이 리셋까지 남은 시간을 함께 안내한다 — 이 문구는 폴백.
   finalize_quota_exhausted:
     "최근 24시간 실사화 한도를 모두 사용했어요. 잠시 후 다시 시도해 주세요.",

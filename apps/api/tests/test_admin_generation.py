@@ -169,6 +169,8 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                                 "lattice": {
                                     "cell_w_mm": 24,
                                     "cell_h_mm": 24,
+                                    "offset_x_mm": 12,
+                                    "offset_y_mm": 12,
                                     "drop_fraction": 0.5,
                                     "drop_axis": "row",
                                 },
@@ -198,6 +200,12 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                 "model": "gpt-5.6-luna",
                 "authoring_attempts": 1,
                 "patch_axes": ["background", "placement"],
+                "patch": {
+                    "background": {"color": "#112233"},
+                    "placement": {"arrangement": "staggered", "count_per_axis": 4},
+                    "note": "customer-secret@test.local",
+                    "provider_payload": "raw-provider-secret",
+                },
                 "resolved_count": 3,
                 "legacy_provider_calls": 3,
                 "reference_count": 1,
@@ -311,6 +319,8 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
                     "lattice": {
                         "cell_w_mm": 24,
                         "cell_h_mm": 24,
+                        "offset_x_mm": 12,
+                        "offset_y_mm": 12,
                         "drop_fraction": 0.5,
                         "drop_axis": "row",
                     },
@@ -326,6 +336,11 @@ async def test_seamless_detail_exposes_prompt_without_leaking_other_unsafe_paylo
         "model": "gpt-5.6-luna",
         "prompt_revision": None,
         "patch_axes": ["background", "placement"],
+        # note는 모델이 쓴 자유 문장 — email이 섞이면 통째로 떨어진다.
+        "patch": {
+            "background": {"color": "#112233"},
+            "placement": {"arrangement": "staggered", "count_per_axis": 4},
+        },
         "authoring_attempts": 1,
         "catalog_candidate_count": None,
         "resolved_count": 3,

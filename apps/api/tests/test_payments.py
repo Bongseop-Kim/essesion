@@ -407,6 +407,53 @@ async def test_sample_confirm_issues_followup_coupon(client, db_session, setting
     assert issued.terms_snapshot["expiry_date"] == coupon.expiry_date.isoformat()
 
 
+@respx.mock
+async def test_sample_confirm_sums_combined_followup_discount(client, db_session, settings):
+    """원단+봉제 샘플은 가격도 할인도 두 상수의 합이다 (money.md §4)."""
+    respx.post(TOSS_CONFIRM).mock(return_value=Response(200, json={"status": "DONE"}))
+    user = await make_user(db_session)
+    address = await make_address(db_session, user)
+    await seed_pricing(
+        db_session,
+        {"SAMPLE_SEWING_COST": 50000, "SAMPLE_FABRIC_PRINTING_COST": 70000},
+        category="custom_order",
+    )
+    await seed_pricing(
+        db_session,
+        {"sample_discount_sewing": 30000, "sample_discount_fabric_printing": 25000},
+        category="sample_discount",
+    )
+    headers = auth_headers(user, settings)
+    created = (
+        await client.post(
+            "/orders/sample",
+            json={
+                "shipping_address_id": str(address.id),
+                "sample_type": "fabric_and_sewing",
+                "options": {"design_type": "PRINTING"},
+            },
+            headers=headers,
+        )
+    ).json()
+    assert created["total_amount"] == 120000
+
+    res = await client.post(
+        "/payments/confirm",
+        json={
+            "payment_key": "smp-key-87654321",
+            "payment_group_id": created["payment_group_id"],
+            "amount": 120000,
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["orders"][0]["coupon_issued"] is True
+
+    mine = (await client.get("/coupons/mine", headers=headers)).json()
+    assert mine[0]["coupon"]["name"] == "SAMPLE_DISCOUNT_FABRIC_AND_SEWING_PRINTING"
+    assert int(float(mine[0]["coupon"]["discount_value"])) == 55000
+
+
 @respx.mock  # 라우트 미등록 — Toss 호출이 있으면 즉시 실패해 "승인 전 차단"을 보장
 async def test_sample_confirm_rejects_unsupported_sample_type_before_toss(
     client, db_session, settings

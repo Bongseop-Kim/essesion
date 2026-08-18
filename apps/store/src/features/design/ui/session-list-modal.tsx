@@ -1,6 +1,5 @@
 import {
   ActionButton,
-  Badge,
   Box,
   ContentPlaceholder,
   HStack,
@@ -15,6 +14,7 @@ import {
   FolderOpenIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import { svgTileStyle } from "@/features/design/model/svg-preview";
 import { formatDateTime } from "@/shared/lib/format";
 
 const formatDate = (value: string) =>
@@ -33,9 +33,10 @@ const formatDate = (value: string) =>
 export type DesignSessionSummary = {
   id: string;
   createdAt: string;
-  status: string;
   /** 마지막 생성 프롬프트 — 세션 구분용 요약 (프롬프트 턴이 없으면 null) */
   lastPrompt: string | null;
+  /** 현재 스텝 디자인 SVG — 목록 썸네일 (생성 전 세션이면 null) */
+  previewSvg: string | null;
 };
 
 export type SessionListModalProps = {
@@ -103,7 +104,6 @@ export function SessionListModal({
         <VStack gap="x3" alignItems="stretch">
           {sessions.map((session) => {
             const selected = session.id === selectedId;
-            const status = sessionStatus(session.status);
             return (
               <HStack
                 key={session.id}
@@ -115,11 +115,12 @@ export function SessionListModal({
                 pr={onDelete ? "x2" : undefined}
                 className="transition-colors duration-100 ease-standard hover:border-stroke-brand"
               >
-                <Box
+                <HStack
                   as="button"
                   type="button"
                   flex={1}
                   minWidth={0}
+                  gap="x3"
                   aria-pressed={selected}
                   onClick={() => onSelect(session)}
                   px="x4"
@@ -127,20 +128,29 @@ export function SessionListModal({
                   borderRadius="r3"
                   className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
                 >
-                  <VStack gap="x2" minWidth={0} alignItems="stretch">
+                  {session.previewSvg ? (
+                    <Box
+                      width={56}
+                      borderRadius="r2"
+                      borderWidth={1}
+                      borderColor="stroke.neutral-weak"
+                      className="shrink-0"
+                      style={svgTileStyle(session.previewSvg)}
+                      role="img"
+                      aria-label="디자인 미리보기"
+                    />
+                  ) : null}
+                  <VStack gap="x2" minWidth={0} alignItems="stretch" flex={1}>
                     <Text textStyle="labelSm">
                       {formatDate(session.createdAt)}
                     </Text>
                     {session.lastPrompt ? (
-                      <Text textStyle="caption" color="fg.neutral" maxLines={1}>
+                      <Text textStyle="caption" color="fg.neutral" maxLines={2}>
                         “{session.lastPrompt}”
                       </Text>
                     ) : null}
-                    <HStack gap="x2" wrap>
-                      <Badge tone={status.tone}>{status.label}</Badge>
-                    </HStack>
                   </VStack>
-                </Box>
+                </HStack>
                 {onDelete ? (
                   <ActionButton
                     type="button"
@@ -178,24 +188,15 @@ function SessionListSkeleton() {
           px="x4"
           py="x4"
         >
-          <VStack gap="x2" alignItems="stretch">
-            <Skeleton width="55%" height={19} />
-            <HStack gap="x2">
-              <Skeleton width={48} height={20} radius="full" />
-              <Skeleton width="45%" height={18} />
-            </HStack>
-          </VStack>
+          <HStack gap="x3" alignItems="flex-start">
+            <Skeleton width={56} height={56} radius="r2" />
+            <VStack gap="x2" alignItems="stretch" flex={1}>
+              <Skeleton width="55%" height={19} />
+              <Skeleton width="80%" height={18} />
+            </VStack>
+          </HStack>
         </Box>
       ))}
     </VStack>
   );
-}
-
-function sessionStatus(status: string): {
-  label: string;
-  tone: "neutral" | "brand" | "positive";
-} {
-  if (status === "active") return { label: "작업 중", tone: "brand" };
-  if (status === "finalized") return { label: "완성", tone: "positive" };
-  return { label: status, tone: "neutral" };
 }

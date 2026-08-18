@@ -36,6 +36,7 @@ const api = vi.hoisted(() => ({
   importMotif: vi.fn(),
   startFromExample: vi.fn(),
   deleteSession: vi.fn(),
+  previewTextMotif: vi.fn(),
 }));
 const ui = vi.hoisted(() => ({ snackbar: vi.fn() }));
 
@@ -57,6 +58,7 @@ vi.mock("@essesion/api-client", async (importOriginal) => {
     importUserMotif: api.importMotif,
     createDesignSessionFromExample: api.startFromExample,
     deleteDesignSession: api.deleteSession,
+    previewTextMotif: api.previewTextMotif,
   };
 });
 
@@ -75,8 +77,6 @@ const session = {
   current_motifs: [
     { motif_id: "catalog-bee", name: "벌", preview_svg: "<svg id='bee'/>" },
   ],
-  motif_generation_used: 1,
-  motif_generation_remaining: 2,
   context_version: 4,
   active_generation_id: null,
   active_generation_started_at: null,
@@ -348,6 +348,18 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
+  it("모바일에서 모티프 박스는 우측 하단으로 띄운다", async () => {
+    const queryClient = renderPage();
+
+    const panel = await screen.findByRole("region", { name: "모티프 선택" });
+    // 컨트롤 레이어(absolute inset)를 기준으로 우측 하단 — PC(md~)는 static으로 되돌아간다.
+    const wrapper = panel.parentElement as HTMLElement;
+    expect(wrapper.style.position).toBe("absolute");
+    expect(wrapper.style.bottom).toBe("0px");
+    expect(wrapper.style.right).toBe("0px");
+    queryClient.clear();
+  });
+
   it("안내할 시그널이 없는 거절은 상단 알림으로 알린다", async () => {
     api.generate.mockResolvedValue({ data: { rejected: "motif" } });
     const queryClient = renderPage();
@@ -534,7 +546,6 @@ describe("DesignPage canvas shell", () => {
     await waitForDialog("탐색");
     const input = screen.getByLabelText("어떤 그림을 넣을지");
     fireEvent.change(input, { target: { value: "작은 벌" } });
-    fireEvent.keyDown(input, { key: "Enter" });
 
     await waitFor(() =>
       expect(api.searchMotifs).toHaveBeenCalledWith({
@@ -567,6 +578,116 @@ describe("DesignPage canvas shell", () => {
     queryClient.clear();
   });
 
+  it("탐색을 열면 첫 카테고리를 채우고, 칩을 누르면 그 라벨로 다시 찾는다", async () => {
+    api.searchMotifs.mockResolvedValue({ data: { results: [] } });
+    const queryClient = renderPage();
+
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^탐색/,
+    );
+    await waitForDialog("탐색");
+    // 빈 그리드로 열지 않는다 — 첫 카테고리를 바로 훑어준다.
+    await waitFor(() =>
+      expect(api.searchMotifs).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { query: "동물" },
+        throwOnError: true,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "바다" }));
+    await waitFor(() =>
+      expect(api.searchMotifs).toHaveBeenCalledWith({
+        path: { session_id: "session-1" },
+        body: { query: "바다" },
+        throwOnError: true,
+      }),
+    );
+    // 칩 라벨이 그대로 검색어라 입력창에 들어간다 — 칩 선택 표시도 여기서 파생된다.
+    expect(
+      (screen.getByLabelText("어떤 그림을 넣을지") as HTMLInputElement).value,
+    ).toBe("바다");
+    screen.getByRole("button", { name: "바다", pressed: true });
+    queryClient.clear();
+  });
+
+  it("타이핑 중에는 찾지 않고, 멎은 뒤 마지막 문장만 한 번 찾는다", async () => {
+    api.searchMotifs.mockResolvedValue({ data: { results: [] } });
+    const queryClient = renderPage();
+
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^탐색/,
+    );
+    await waitForDialog("탐색");
+    const input = screen.getByLabelText("어떤 그림을 넣을지");
+    for (const value of ["고", "고양", "고양이"]) {
+      fireEvent.change(input, { target: { value } });
+    }
+
+    const typed = () =>
+      api.searchMotifs.mock.calls
+        .map(([call]) => call.body.query)
+        .filter((query: string) => query.startsWith("고"));
+    await waitFor(() => expect(typed()).toEqual(["고양이"]));
+    // 중간 글자로는 한 번도 요청하지 않는다 — 디바운스가 앞선 타이머를 취소한다.
+    expect(typed()).toEqual(["고양이"]);
+    queryClient.clear();
+  });
+
+  it("글자 넣기 CTA는 만들기→적용으로 바뀌고 이전·수정이 되돌린다", async () => {
+    api.previewTextMotif.mockResolvedValue({
+      data: { svg: "<svg id='text'/>", warnings: [] },
+    });
+    const queryClient = renderPage();
+
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^글자 넣기/,
+    );
+    await waitForDialog("글자 넣기");
+    const input = screen.getByLabelText("넣을 글자");
+    // 빈 입력이면 CTA만 있고 잠겨 있다 — 필드 안 만들기 버튼은 없다.
+    expect(
+      disabled(screen.getByRole("button", { name: "이 글자로 만들기" })),
+    ).toBe(true);
+
+    fireEvent.change(input, { target: { value: "영선" } });
+    fireEvent.click(screen.getByRole("button", { name: "이 글자로 만들기" }));
+
+    await screen.findByRole("button", { name: "이 그림 적용" });
+    fireEvent.click(screen.getByRole("button", { name: "이전" }));
+    screen.getByRole("button", { name: "이 글자로 만들기" });
+
+    // 글자를 고치면 낡은 결과가 비워져 CTA가 스스로 되돌아온다.
+    fireEvent.click(screen.getByRole("button", { name: "이 글자로 만들기" }));
+    await screen.findByRole("button", { name: "이 그림 적용" });
+    fireEvent.change(input, { target: { value: "영선산업" } });
+    screen.getByRole("button", { name: "이 글자로 만들기" });
+    queryClient.clear();
+  });
+
+  it("사진에서 따오기는 파일 선택창보다 모달을 먼저 열어 되는 사진을 안내한다", async () => {
+    const queryClient = renderPage();
+
+    pickSource(
+      await screen.findByRole("button", { name: "벌 바꾸기" }),
+      1,
+      /^사진에서 따오기/,
+    );
+    await waitForDialog("사진에서 따오기");
+
+    // 고르기 전에 조건을 말한다 — 파일 선택창이 먼저 열리면 이 안내를 볼 자리가 없다.
+    screen.getByText("이런 사진이 잘 돼요");
+    screen.getByText(/풍경·인물 사진은 배경을 지울 수 없어요/);
+    screen.getByRole("button", { name: "사진 고르기" });
+    queryClient.clear();
+  });
+
   it("검색 결과가 0건이면 안내만 남는다", async () => {
     api.searchMotifs.mockResolvedValue({ data: { results: [] } });
     const queryClient = renderPage();
@@ -579,7 +700,6 @@ describe("DesignPage canvas shell", () => {
     await waitForDialog("탐색");
     const input = screen.getByLabelText("어떤 그림을 넣을지");
     fireEvent.change(input, { target: { value: "없는 그림" } });
-    fireEvent.keyDown(input, { key: "Enter" });
 
     await screen.findByText("찾은 그림이 없어요");
     expect(
@@ -634,27 +754,6 @@ describe("DesignPage canvas shell", () => {
         throwOnError: true,
       }),
     );
-    queryClient.clear();
-  });
-
-  it("생성 예산이 없으면 메뉴의 AI 생성만 잠긴다", async () => {
-    sessionOverride = {
-      motif_generation_remaining: 0,
-      motif_generation_used: 3,
-    };
-    const queryClient = renderPage();
-
-    fireEvent.click(await screen.findByRole("button", { name: "벌 바꾸기" }));
-    const menu = screen.getByRole("menu", { name: "슬롯 1에 그림 넣는 방법" });
-
-    expect(
-      disabled(within(menu).getByRole("menuitem", { name: /^AI 생성/ })),
-    ).toBe(true);
-    within(menu).getByText("이번 디자인에서 더 만들 수 없어요");
-    // 무료 경로는 그대로 열린다 — 배지 없음이 곧 무료 표시다.
-    expect(
-      disabled(within(menu).getByRole("menuitem", { name: /^글자 넣기/ })),
-    ).toBe(false);
     queryClient.clear();
   });
 

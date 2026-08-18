@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from api.db import SessionDep
-from api.deps import AdminUser, CurrentUser, SettingsDep
+from api.deps import AdminUser, CurrentUser
 from api.domains.design.router import (
     DesignAssistantGenerationPayload,
     DesignSessionOut,
@@ -113,7 +113,6 @@ async def create_design_session_from_example(
     body: DesignExampleStartRequest,
     session: SessionDep,
     user: CurrentUser,
-    settings: SettingsDep,
 ) -> DesignSessionOut:
     """예시를 새 세션의 시작점으로 복원한다 — 렌더도 워커 호출도 없어 토큰이 들지 않는다."""
     example = await session.scalar(
@@ -165,9 +164,7 @@ async def create_design_session_from_example(
     )
     await session.commit()
     await session.refresh(design_session)
-    return await _design_session_out(
-        session, design_session, settings.design_motif_generation_budget
-    )
+    return await _design_session_out(session, design_session)
 
 
 def _admin_out(example: DesignExample, preview_svg: str) -> AdminDesignExampleOut:

@@ -20,19 +20,24 @@ _METADATA_IDENTITY_URL = (
 )
 _TOKEN_REFRESH_MARGIN_S = 60
 
-_WORKER_REJECTION_MESSAGES = {
-    "authoring_invalid": "디자인 구성을 만들지 못했습니다",
-    "constraint_conflict": "선택한 디자인 설정을 함께 적용할 수 없습니다",
-    "intent_invalid": "선택한 디자인 정보를 처리할 수 없습니다",
-    "candidate_invalid": "디자인 후보를 완성하지 못했습니다",
-    "semantic_mismatch": "요청한 주제와 맞는 모티프 구성을 만들지 못했습니다",
-}
-_WORKER_REJECTION_STAGES = {
-    "authoring_invalid": "authoring",
-    "constraint_conflict": "constraints",
-    "intent_invalid": "intent",
-    "candidate_invalid": "candidate",
-    "semantic_mismatch": "authoring",
+# 워커의 고정 오류 코드 → (고객 문구, 422 stage). stage=None이면 응답에 담지 않는다.
+# 사진 코드는 사용자가 다른 사진으로 고칠 수 있는 조건이라 문구가 무엇을 바꿔야 하는지 말한다.
+_WORKER_REJECTIONS: dict[str, tuple[str, str | None]] = {
+    "authoring_invalid": ("디자인 구성을 만들지 못했습니다", "authoring"),
+    "constraint_conflict": ("선택한 디자인 설정을 함께 적용할 수 없습니다", "constraints"),
+    "intent_invalid": ("선택한 디자인 정보를 처리할 수 없습니다", "intent"),
+    "candidate_invalid": ("디자인 후보를 완성하지 못했습니다", "candidate"),
+    "semantic_mismatch": ("요청한 주제와 맞는 모티프 구성을 만들지 못했습니다", "authoring"),
+    "photo_background_unclear": (
+        "배경이 고르지 않아 사진에서 그림만 오려내지 못했습니다. "
+        "배경이 단색에 가까운 사진을 골라 주세요",
+        None,
+    ),
+    "photo_too_detailed": (
+        "사진이 너무 복잡해 단순한 그림으로 바꾸지 못했습니다. "
+        "형태가 또렷하고 색이 적은 사진을 골라 주세요",
+        None,
+    ),
 }
 
 
@@ -157,7 +162,7 @@ class WorkerClient:
         if res.status_code in (400, 422):
             # 워커의 고정 오류 계약만 보존한다. 모델/검증 원문은 사용자 응답으로
             # 흘리지 않아 프롬프트·내부 경로·provider 세부정보 노출을 막는다.
-            if path == "/generate":
+            if path in ("/generate", "/motifs/photo-preview"):
                 raise _worker_rejection(res)
             raise WorkerRequestError("이미지 워커가 요청을 거부했습니다")
         if res.status_code >= 400:
@@ -184,10 +189,7 @@ def _worker_rejection(res: httpx.Response) -> WorkerRequestError:
         body = None
     detail = body.get("detail") if isinstance(body, dict) else None
     code = detail.get("code") if isinstance(detail, dict) else None
-    if code in _WORKER_REJECTION_MESSAGES:
-        return WorkerRequestError(
-            _WORKER_REJECTION_MESSAGES[code],
-            code=code,
-            stage=_WORKER_REJECTION_STAGES[code],
-        )
+    if code in _WORKER_REJECTIONS:
+        message, stage = _WORKER_REJECTIONS[code]
+        return WorkerRequestError(message, code=code, stage=stage)
     return WorkerRequestError()

@@ -28,7 +28,6 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
-  DESIGN_PHOTO_ACCEPT,
   DESIGN_SVG_ACCEPT,
   MAX_DESIGN_MOTIFS,
 } from "@/features/design/api/attachments";
@@ -41,7 +40,13 @@ export type MotifPanelSlot = {
 };
 
 /** 모달을 여는 소스 — SVG·사진은 파일 선택창이 먼저라 여기에 없다. */
-export type MotifPanelSource = "search" | "library" | "generate" | "text";
+export type MotifPanelSource =
+  | "search"
+  | "library"
+  | "generate"
+  | "text"
+  /** 사진은 모달을 먼저 연다 — 파일 선택창은 모달 안에 있다(되는 사진 안내가 먼저다). */
+  | "photo";
 
 export type MotifPanelProps = {
   /** 세션의 `current_motifs` — 레이어 순서, 최대 2 */
@@ -52,10 +57,6 @@ export type MotifPanelProps = {
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
   /** SVG는 모달을 건너뛴다 — 파일 선택 즉시 저장·교체 */
   onAddSvg: (slot: 1 | 2, file: File) => void;
-  /** 사진은 파일이 먼저, 확인 모달이 나중 */
-  onAddPhoto: (slot: 1 | 2, file: File) => void;
-  /** 남은 생성 횟수 — 유일한 유료 항목의 배지·잠금 */
-  motifGenerationRemaining: number | null;
   /** SVG를 넣는 중인 슬롯 — 썸네일 자리에 진행 표시 */
   pendingSlot: 1 | 2 | null;
   /** 값이 증가할 때 피커 위치를 한 번 강조한다. */
@@ -77,8 +78,6 @@ export function MotifPanel({
   onCollapsedChange,
   onPickSource,
   onAddSvg,
-  onAddPhoto,
-  motifGenerationRemaining,
   pendingSlot,
   hintSignal = 0,
   activeSlot = null,
@@ -87,7 +86,6 @@ export function MotifPanel({
 }: MotifPanelProps) {
   const slots = [1, 2] as const;
   const svgInput = useRef<HTMLInputElement>(null);
-  const photoInput = useRef<HTMLInputElement>(null);
   // 파일 선택창은 슬롯을 모른다 — 어느 슬롯이 열었는지 여기에 적어 둔다.
   const fileSlot = useRef<1 | 2>(1);
   const [highlighted, setHighlighted] = useState(false);
@@ -99,9 +97,9 @@ export function MotifPanel({
     return () => window.clearTimeout(timeout);
   }, [hintSignal]);
 
-  const pickFile = (kind: "svg" | "photo", slot: 1 | 2) => {
+  const pickSvgFile = (slot: 1 | 2) => {
     fileSlot.current = slot;
-    (kind === "svg" ? svgInput : photoInput).current?.click();
+    svgInput.current?.click();
   };
 
   return (
@@ -113,7 +111,7 @@ export function MotifPanel({
       data-highlighted={highlighted}
       alignItems="stretch"
       gap="x3"
-      width={{ base: 60, md: 152 }}
+      width={{ base: 84, md: 152 }}
       p={{ base: "x1_5", md: "x3" }}
       bg="bg.layer-floating"
       borderWidth={1}
@@ -168,9 +166,8 @@ export function MotifPanel({
             disabled={disabled || startRequired}
             pending={pendingSlot === slot}
             active={activeSlot === slot}
-            motifGenerationRemaining={motifGenerationRemaining}
             onPickSource={onPickSource}
-            onPickFile={pickFile}
+            onPickFile={pickSvgFile}
             startRequired={startRequired}
           />
         ))}
@@ -197,19 +194,6 @@ export function MotifPanel({
           if (file) onAddSvg(fileSlot.current, file);
         }}
       />
-      <input
-        ref={photoInput}
-        type="file"
-        accept={DESIGN_PHOTO_ACCEPT}
-        aria-label="모티프로 따올 사진 선택"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          if (file) onAddPhoto(fileSlot.current, file);
-        }}
-      />
     </VStack>
   );
 }
@@ -231,9 +215,8 @@ function MiniChip({ motif }: { motif: MotifPanelSlot | undefined }) {
 
 type SlotMenuProps = {
   slot: 1 | 2;
-  motifGenerationRemaining: number | null;
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
-  onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
+  onPickFile: (slot: 1 | 2) => void;
   startRequired: boolean;
   children: MenuTriggerProps["children"];
 };
@@ -265,7 +248,6 @@ function MenuGroup({
 /** 슬롯 하나의 소스 목록. 빈 슬롯·미리보기·편집 버튼이 모두 이 메뉴를 연다. */
 function SlotMenu({
   slot,
-  motifGenerationRemaining,
   onPickSource,
   onPickFile,
   startRequired,
@@ -273,8 +255,6 @@ function SlotMenu({
 }: SlotMenuProps) {
   // 디자인이 없으면 메뉴를 열지 않는다 — 이유는 패널 하단 안내가 상주로 말한다.
   if (startRequired) return <>{children}</>;
-  const exhausted =
-    motifGenerationRemaining !== null && motifGenerationRemaining <= 0;
   return (
     <MenuRoot>
       <MenuTrigger>{children}</MenuTrigger>
@@ -300,14 +280,7 @@ function SlotMenu({
           <MenuItem
             prefixIcon={<Icon svg={<PaintBrushIcon />} size={20} />}
             label="AI 생성"
-            description={
-              exhausted
-                ? "이번 디자인에서 더 만들 수 없어요"
-                : motifGenerationRemaining === null
-                  ? "문장 그대로 새로 만들어요"
-                  : `문장 그대로 새로 만들어요 · ${motifGenerationRemaining}번 남음`
-            }
-            disabled={exhausted}
+            description="문장 그대로 새로 만들어요"
             onClick={() => onPickSource(slot, "generate")}
           />
           <MenuItem
@@ -320,13 +293,13 @@ function SlotMenu({
             prefixIcon={<Icon svg={<CameraIcon />} size={20} />}
             label="사진에서 따오기"
             description="사진에서 배경을 지우고 색면을 정리해요"
-            onClick={() => onPickFile("photo", slot)}
+            onClick={() => onPickSource(slot, "photo")}
           />
           <MenuItem
             prefixIcon={<Icon svg={<ArrowUpTrayIcon />} size={20} />}
             label="SVG 올리기"
             description="가지고 있는 SVG 파일을 넣어요"
-            onClick={() => onPickFile("svg", slot)}
+            onClick={() => onPickFile(slot)}
           />
         </MenuGroup>
       </MenuContent>
@@ -340,7 +313,6 @@ function MotifSlotView({
   disabled,
   pending,
   active,
-  motifGenerationRemaining,
   onPickSource,
   onPickFile,
   startRequired,
@@ -350,16 +322,14 @@ function MotifSlotView({
   disabled: boolean;
   pending: boolean;
   active: boolean;
-  motifGenerationRemaining: number | null;
   onPickSource: (slot: 1 | 2, source: MotifPanelSource) => void;
-  onPickFile: (kind: "svg" | "photo", slot: 1 | 2) => void;
+  onPickFile: (slot: 1 | 2) => void;
   startRequired: boolean;
 }) {
   // 피커가 열려 있는 동안 어느 슬롯을 채우는 중인지 테두리로 남긴다.
   const ring = active ? " outline-2 outline-offset-2 outline-stroke-brand" : "";
   const menu = {
     slot,
-    motifGenerationRemaining,
     onPickSource,
     onPickFile,
     startRequired,

@@ -374,6 +374,12 @@ export function SeamlessLogDetailPage() {
             },
           ]}
         />
+        {log.diagnostics.patch == null ? null : (
+          <TechnicalDetails
+            title="구성 patch 원본"
+            json={log.diagnostics.patch}
+          />
+        )}
       </AdminCard>
 
       {motifResolutions.length > 0 && (

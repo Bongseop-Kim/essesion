@@ -238,6 +238,73 @@ async def test_motifs_candidates_searches_the_sentence_without_llm(app, client, 
     assert [candidate["motif_id"] for candidate in resp.json()["candidates"]] == [mid]
 
 
+async def test_motifs_candidates_never_embeds_the_query(app, client, db_session):
+    """시트 검색은 lexical 전용 — 임베딩 왕복 없이 답한다(worker-motifs.md §5).
+
+    "결과가 같다"가 아니라 "호출이 없다"를 검사한다. lexical이 우연히 top_k를 채우면
+    벡터 다리를 타지 않아, 결과 비교만으로는 회귀를 못 잡는다.
+    """
+    await _seed_dot(db_session)
+
+    class UnusedEmbedding:
+        model = "unused"
+
+        async def embed(self, _text: str):
+            raise AssertionError("motif sheet search must not call the embedding provider")
+
+    app.state.adapters.embedding = UnusedEmbedding()
+    # lexical이 0건인 질의라야 벡터 다리로 넘어갈 자리가 생긴다 — 이 경우에도 호출이 없어야 한다.
+    resp = await client.post("/motifs/candidates", json={"query": "전혀없는것", "top_k": 4})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["candidates"] == []
+
+
+async def test_motifs_candidates_match_a_prefix_but_grounding_does_not(app, client, db_session):
+    """prefix 매칭은 시트 전용이다. grounding(`/generate`)의 정확도 게이트는 그대로 둔다."""
+    mid = await _seed(db_session, _CIRCLE, "tennis")
+
+    resp = await client.post("/motifs/candidates", json={"query": "테니", "top_k": 4})
+    assert resp.status_code == 200, resp.text
+    assert [c["motif_id"] for c in resp.json()["candidates"]] == []  # 한글 tag가 없는 fixture
+
+    resp = await client.post("/motifs/candidates", json={"query": "tenn", "top_k": 4})
+    assert [c["motif_id"] for c in resp.json()["candidates"]] == [mid]
+
+    # 역방향 — 한국어 복합어는 붙여 써서 한 토큰이 된다("바다동물"). term이 토큰의
+    # prefix여도 잡는다.
+    resp = await client.post("/motifs/candidates", json={"query": "tennisball", "top_k": 4})
+    assert [c["motif_id"] for c in resp.json()["candidates"]] == [mid]
+
+    # 1자 토큰은 prefix 대상이 아니다 — "t"로 카탈로그가 통째로 끌려오면 안 된다.
+    resp = await client.post("/motifs/candidates", json={"query": "t", "top_k": 4})
+    assert resp.json()["candidates"] == []
+
+    # grounding은 같은 질의에도 prefix로 붙지 않는다 — 저작 모델에 후보를 넘기지 않는다.
+    grounded: list[list[str]] = []
+
+    class CapturingLLM:
+        async def author_design(self, _prompt, *, validate, motif_ids=(), **_kwargs):
+            grounded.append(list(motif_ids))
+            intent = _lattice_intent(mid)
+            assert validate(intent) is None
+            return AuthoredDesign(intent=intent)
+
+    app.state.adapters.llm = CapturingLLM()
+    resp = await client.post("/generate", json={"run_id": _RUN_ID, "prompt": "tennisball"})
+    assert resp.status_code == 200, resp.text
+    assert grounded == [[]]
+
+
+async def test_motifs_candidates_do_not_reverse_match_a_one_character_term(app, client, db_session):
+    """1자 term의 역방향 prefix는 막는다 — "별"이 "별의별"·"별로"를 다 끌어온다."""
+    await _seed(db_session, _CIRCLE, "별")
+
+    for query in ("별의별", "별로", "별거아닌"):
+        resp = await client.post("/motifs/candidates", json={"query": query, "top_k": 4})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["candidates"] == [], query
+
+
 async def test_motif_slot_replaces_the_layer_without_touching_a_model(client, db_session):
     dot = await _seed_dot(db_session)
     square = await _seed(

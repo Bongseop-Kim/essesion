@@ -106,6 +106,14 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 
 경계에 남은 기계는 격자 겹침 클램프 하나뿐이다: 격자 배치 모티프의 `size_mm`이 셀의 1.15배를
 넘으면 상한으로 줄이고 경고를 남긴다(저작 모델이 크기와 행·열을 서로 모르는 필드로 내보내므로).
+허용치가 1.15배이므로 **격자에서는 15%까지의 겹침이 정상값이다** — "겹치지 않게"라는 요청은
+격자 배치로 완전히 만족될 수 없고, 밀도를 낮추는 것이 유일한 응답이다.
+
+줄어든 크기는 셀을 되돌려도 복구되지 않으므로(다음 patch가 `motif_size_mm`을 안 쓰면 영구),
+**구성 patch는 크기 대신 밀도를 양보한다**: `placement`만 바꾸고 `motif_size_mm`을 건드리지
+않은 patch는 현재 크기가 셀에 들어가는 최대 축 개수로 `count_per_axis`를 낮춘다(엇갈림은
+짝수 축으로 올림되므로 상한도 짝수로 내린다). 두 축을 함께 바꾼 patch는 요청한 밀도를 그대로
+받고 크기 클램프가 적용된다.
 
 `seamless_generation_logs.intent`에는 `{design, resolved_plan}`(+구성 patch 런은 `patch`,
 모티프 슬롯 교체 런은 `motif_slot`)이 기록된다 — 전부 단수 키다.
@@ -114,7 +122,9 @@ frozen `ReproMeta{intent_version, seed, colorway_id, engine_version("0.1.0"), re
 
 Settings: max_placement_instances=50_000, max_svg_bytes=2_000_000, max_tile_mm=2000.0, max_dpi=600, stripe_max_band_coverage=0.75, preview_dpi=192, fabric_dpi=300, generate_cache_size=0(재구현에서 미승계 — stateless), motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True.
 
-상수: ENGINE_VERSION="0.1.0", REGISTRY_VERSION="0.1.0", ALLOWED_DPI=(150,300,600), DEFAULT_DPI=300, MM_PER_INCH=25.4, MAX_LANE_PERIOD_TILES=16(각도 스냅 분모 캡), mm_to_px=`round(mm/25.4·dpi)`.
+상수: ENGINE_VERSION="0.1.0", REGISTRY_VERSION="0.1.0", ALLOWED_DPI=(150,300,600), DEFAULT_DPI=300, MM_PER_INCH=25.4, MAX_LANE_PERIOD_TILES=16(각도 스냅 분모 캡), mm_to_px=`round(mm/25.4·dpi)`,
+LATTICE_OVERLAP_ALLOWANCE=1.15(격자 셀 대비 모티프 크기 상한 = 허용 겹침 15%, §7.1),
+patch 축 개수 범위 MIN_AXIS_COUNT=2 / MAX_AXIS_COUNT=10.
 
 ## 9. 재현 함정 (원본 코드가 명시한 것)
 

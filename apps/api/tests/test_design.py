@@ -16,6 +16,7 @@ from api.domains.design.router import (
     KNOWN_WEAVES,
     MAX_DESIGN_JSON_BYTES,
     MAX_DESIGN_PROMPT_LENGTH,
+    MOTIF_SEARCH_LIMIT,
     SIGNED_INT64_MIN,
     STALE_GENERATION_JOB_AFTER,
 )
@@ -265,7 +266,6 @@ async def test_session_lifecycle_and_turns(client, db_session, settings):
 
     session = (await client.post("/design/sessions", headers=headers)).json()
     assert session["status"] == "active"
-    assert session["motif_generation_used"] == 0
     # 계정 쿼터는 단건 GET 전용 — 생성/목록 응답과 설정 부재 시에는 null
     assert session["finalize_quota"] is None
 
@@ -358,6 +358,16 @@ async def test_session_list_returns_last_prompt(client, db_session, settings):
                 seed=42,
             ),
         ),
+        # 편집 포인터 — 목록 썸네일은 이 런의 SVG를 쓴다
+        (
+            "user",
+            {
+                "type": "activate",
+                "run_id": str(runs[2]),
+                "seed": 7,
+                "colorway_id": "default",
+            },
+        ),
     ]
     db_session.add_all(
         [
@@ -370,12 +380,22 @@ async def test_session_list_returns_last_prompt(client, db_session, settings):
             for index, (role, payload) in enumerate(payloads, start=1)
         ]
     )
+    db_session.add(
+        SeamlessGenerationLog(
+            id=runs[2],
+            input_type="prompt",
+            design={"svg": "<svg id='pointer'/>"},
+            status="success",
+        )
+    )
     await db_session.commit()
 
     sessions = (await client.get("/design/sessions", headers=headers)).json()
     by_id = {s["id"]: s for s in sessions}
     assert by_id[sid]["last_prompt"] == "네이비 스트라이프"
+    assert by_id[sid]["preview_svg"] == "<svg id='pointer'/>"
     assert by_id[without_prompt["id"]]["last_prompt"] is None
+    assert by_id[without_prompt["id"]]["preview_svg"] is None
 
 
 async def test_session_reports_current_motifs_including_catalog(client, db_session, settings):
@@ -427,10 +447,9 @@ async def test_session_reports_current_motifs_including_catalog(client, db_sessi
         f'href="#motif-{motif["motif_id"]}"' in motif["preview_svg"]
         for motif in fetched["current_motifs"]
     )
-    # 목록 응답은 N+1을 피해 빈 배열로 둔다. 남은 생성 횟수도 단건 전용이다.
+    # 목록 응답은 N+1을 피해 빈 배열로 둔다.
     listed = (await client.get("/design/sessions", headers=headers)).json()
     assert listed[0]["current_motifs"] == []
-    assert listed[0]["motif_generation_remaining"] is None
 
 
 async def test_generate_and_finalize_job(client, app, db_session, settings):
@@ -934,7 +953,6 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         "/design/motifs/photo-preview",
         json={
             "upload_id": str(photo.id),
-            "remove_background": True,
         },
         headers=owner_headers,
     )
@@ -960,7 +978,7 @@ async def test_design_helper_endpoints_preserve_context_ownership_and_do_not_cha
         "content_type",
         "size_bytes",
     }
-    assert set(worker.photo_preview_payloads[-1]) == {"image", "remove_background"}
+    assert set(worker.photo_preview_payloads[-1]) == {"image"}
     idea_payload = worker.idea_payloads[-1]
     assert "reference_images" not in idea_payload
     assert idea_payload["motif_ids"] == [motif.id]
@@ -2532,25 +2550,12 @@ async def test_seed_inputs_reject_outside_signed_int64_before_db_or_worker(
     assert persisted is not None
     await db_session.refresh(persisted)
     assert persisted.seed is None
-    assert persisted.motif_generation_used == 0
     assert worker.generate_payloads == []
     assert worker.motif_calls == []
 
 
-async def _session_motif_generation_used(client, headers, sid):
-    return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()[
-        "motif_generation_used"
-    ]
-
-
-async def _session_motif_generation_remaining(client, headers, sid):
-    return (await client.get(f"/design/sessions/{sid}", headers=headers)).json()[
-        "motif_generation_remaining"
-    ]
-
-
 async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_session, settings):
-    """문장 하나 → 최대 4개 카드. 이미지 생성 미호출이라 예산은 그대로다."""
+    """문장 하나 → 카드 목록. 이미지 생성을 부르지 않아 토큰이 줄지 않는다."""
     worker = MotifWorker()
     app.state.worker = worker
     await _seed_catalog_motif(db_session)
@@ -2596,44 +2601,78 @@ async def test_motif_search_is_free_and_returns_drawable_cards(client, app, db_s
     assert f'href="#motif-{_CATALOG_MOTIF_ID}"' in results[0]["preview_svg"]
     assert worker.motif_calls[-1][1] == {
         "query": "꿀벌 한 마리",
-        "top_k": 4,
+        "top_k": MOTIF_SEARCH_LIMIT,
     }
-    assert await _session_motif_generation_used(client, headers, sid) == 0
 
 
-async def test_motif_generate_budget_exhaustion(client, app, db_session, settings):
-    """생성 3회 후 4회째 409 — 조건부 UPDATE 예산."""
+async def test_motif_card_label_prefers_a_korean_tag_over_the_english_subject(
+    client, app, db_session, settings
+):
+    """시드 subject는 파일명에서 온 영문이다 — 카드는 한글 태그를 쓴다.
+
+    태그 순서가 `[subject, 파일명 토큰…, 한글 동의어, 카테고리]`라 첫 한글 태그는
+    상위어 "동물"이 아니라 "고양이"여야 한다.
+    """
+    motif_id = "seed-cat-catalog"
+    app.state.worker = MotifWorker(motif_id=motif_id)
+    db_session.add(
+        Motif(
+            id=motif_id,
+            symbol=(
+                f'<symbol id="motif-{motif_id}" viewBox="-0.5 -0.5 1 1">'
+                '<circle cx="0" cy="0" r="0.4" fill="#123456"/></symbol>'
+            ),
+            bbox=[-0.5, -0.5, 0.5, 0.5],
+            anchor=[0, 0],
+            source="seed",
+            subject="cat",
+            tags=["cat", "cat-head", "head", "고양이", "animal", "동물"],
+        )
+    )
+    user = await make_user(db_session)
+    headers = auth_headers(user, settings)
+    design_session = DesignSession(user_id=user.id)
+    db_session.add(design_session)
+    await db_session.commit()
+
+    res = await client.post(
+        f"/design/sessions/{design_session.id}/motifs/search",
+        json={"query": "동물"},
+        headers=headers,
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["results"][0]["name"] == "고양이"
+
+
+async def test_motif_generate_has_no_per_session_cap(client, app, db_session, settings):
+    """사용량 제한은 토큰뿐이다 — 잔액이 있으면 같은 세션에서 계속 만들 수 있다."""
     app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
-    await _fund(db_session, user)
+    await _fund(db_session, user, amount=12)  # 단가 3 × 4회
     headers = auth_headers(user, settings)
     sid = (await client.post("/design/sessions", headers=headers)).json()["id"]
     body = {"prompt": "꿀벌 한 마리"}
 
-    # 상한은 서버 설정이라 store가 계산할 수 없다 — 남은 횟수를 세션이 알려준다.
-    assert await _session_motif_generation_remaining(client, headers, sid) == 3
-
-    for _ in range(3):
+    for _ in range(4):
         res = await client.post(
             f"/design/sessions/{sid}/motifs/generate", json=body, headers=headers
         )
         assert res.status_code == 200, res.text
         assert res.json()["motif"]["preview_svg"]
-    assert await _session_motif_generation_used(client, headers, sid) == 3
-    assert await _session_motif_generation_remaining(client, headers, sid) == 0
 
-    blocked = await client.post(
+    drained = await client.post(
         f"/design/sessions/{sid}/motifs/generate", json=body, headers=headers
     )
-    assert blocked.status_code == 409
-    assert blocked.json()["code"] == "motif_generation_budget_exhausted"
+    assert drained.status_code == 400, drained.text
+    assert drained.json()["code"] == "insufficient_tokens"
 
 
-async def test_motif_generate_always_charges_budget_and_passes_provenance(
+async def test_motif_generate_always_charges_tokens_and_passes_provenance(
     client, app, db_session, settings
 ):
-    """생성은 항상 예산을 소모한다 — 재사용 환급 경로는 없다."""
+    """생성은 항상 과금한다 — 재사용 환급 경로는 없다."""
     app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
@@ -2655,7 +2694,6 @@ async def test_motif_generate_always_charges_budget_and_passes_provenance(
         "query": "꿀벌 한 마리",
         "motif_provenance": {"user_id": str(user.id), "session_id": sid},
     }
-    assert await _session_motif_generation_used(client, headers, sid) == 1
 
 
 async def test_motif_generate_saves_to_user_library_idempotently(client, app, db_session, settings):
@@ -2693,7 +2731,7 @@ async def test_motif_generate_saves_to_user_library_idempotently(client, app, db
 
 
 async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_session, settings):
-    """내 모티프가 가득 차면 저장만 건너뛴다 — 예산을 쓴 생성을 실패로 되돌리지 않는다."""
+    """내 모티프가 가득 차면 저장만 건너뛴다 — 과금한 생성을 실패로 되돌리지 않는다."""
     app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
@@ -2730,12 +2768,9 @@ async def test_motif_generate_over_library_limit_still_succeeds(client, app, db_
     assert res.status_code == 200, res.text
     assert res.json()["saved"] is False
     assert res.json()["motif"]["motif_id"] == _CATALOG_MOTIF_ID
-    assert await _session_motif_generation_used(client, headers, sid) == 1
 
 
-async def test_motif_generate_worker_failure_refunds_budget_and_tokens(
-    client, app, db_session, settings
-):
+async def test_motif_generate_worker_failure_refunds_tokens(client, app, db_session, settings):
     app.state.worker = MotifWorker(fail=True)
     user = await make_user(db_session)
     await _fund(db_session, user)
@@ -2748,15 +2783,14 @@ async def test_motif_generate_worker_failure_refunds_budget_and_tokens(
         headers=headers,
     )
     assert res.status_code == 502
-    assert await _session_motif_generation_used(client, headers, sid) == 0
     balance = (await client.get("/tokens/balance", headers=headers)).json()
     assert balance["total"] == 30
 
 
-async def test_motif_generate_without_tokens_keeps_the_session_budget(
+async def test_motif_generate_without_tokens_never_reaches_the_worker(
     client, app, db_session, settings
 ):
-    """과금 실패는 예산을 쓰지 않는다 — 선차감과 차감이 같은 트랜잭션이라 롤백이 둘을 되돌린다."""
+    """과금 실패는 provider를 부르기 전에 막는다 — 잔액 부족이 유일한 게이트다."""
     app.state.worker = MotifWorker()
     await _seed_catalog_motif(db_session)
     user = await make_user(db_session)
@@ -2772,7 +2806,6 @@ async def test_motif_generate_without_tokens_keeps_the_session_budget(
 
     assert res.status_code == 400, res.text
     assert res.json()["code"] == "insufficient_tokens"
-    assert await _session_motif_generation_used(client, headers, sid) == 0
     assert app.state.worker.motif_calls == []
 
 
@@ -3014,6 +3047,50 @@ async def test_worker_client_maps_statuses(settings):
 
     route.mock(return_value=httpx.Response(200, json={"ok": True}))
     assert await wc.generate({}) == {"ok": True}
+    await wc.aclose()
+
+
+@respx.mock
+async def test_worker_client_maps_photo_rejection_codes_to_actionable_messages(settings):
+    """사진 거절은 사용자가 고칠 수 있는 조건이다 — 무엇을 바꿔야 하는지 말해야 한다.
+
+    코드를 보존하지 않으면 "배경이 고르지 않다"와 실제 결함이 같은 문구로 뭉개진다.
+    """
+    from api.integrations.worker import WorkerClient
+
+    wc = WorkerClient(settings)
+    route = respx.post(f"{settings.worker_base_url}/motifs/photo-preview")
+
+    route.mock(
+        return_value=httpx.Response(
+            422,
+            json={
+                "detail": {
+                    "code": "photo_background_unclear",
+                    "message": "background confidence 0.42 is too low",
+                }
+            },
+        )
+    )
+    with pytest.raises(WorkerRequestError, match="배경이 단색에 가까운") as unclear:
+        await wc.motif_photo_preview({})
+    assert unclear.value.code == "photo_background_unclear"
+    # 워커의 영문 진단은 고객 응답으로 새지 않는다.
+    assert "confidence" not in unclear.value.detail
+
+    route.mock(
+        return_value=httpx.Response(
+            422, json={"detail": {"code": "photo_too_detailed", "message": "exceeds bytes"}}
+        )
+    )
+    with pytest.raises(WorkerRequestError, match="색이 적은 사진"):
+        await wc.motif_photo_preview({})
+
+    # 코드 없는 422는 예전처럼 일반 문구로 남는다.
+    route.mock(return_value=httpx.Response(422, json={"detail": "image could not be decoded"}))
+    with pytest.raises(WorkerRequestError, match="이미지 생성 요청") as bare:
+        await wc.motif_photo_preview({})
+    assert bare.value.code == "worker_rejected"
     await wc.aclose()
 
 

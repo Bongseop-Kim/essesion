@@ -32,6 +32,7 @@ import {
 import { useRef } from "react";
 
 import { DESIGN_PHOTO_ACCEPT } from "@/features/design/api/attachments";
+import { MOTIF_CATEGORIES } from "@/features/design/model/motif-categories";
 import { svgToDataUri } from "@/features/design/model/svg-preview";
 import type {
   MotifCard,
@@ -50,41 +51,36 @@ export type MotifModalProps = {
   motifGenerateCost: number | null;
 };
 
-/** 소스 하나 = 화면 하나. 다른 방법으로 바꾸려면 닫고 슬롯을 다시 누른다. */
+/**
+ * 소스 하나 = 화면 하나. 다른 방법으로 바꾸려면 닫고 슬롯을 다시 누른다.
+ * `hint`의 `{slot}`은 렌더에서 슬롯 번호로 바뀐다 — 탐색·AI 생성은 입력창과 버튼 문구가
+ * 이미 무엇을 하는 화면인지 말하므로 설명이 없다.
+ */
 const HEADERS: Record<
   MotifSource,
-  { title: string; hint: (slot: 1 | 2) => string; size: "small" | "medium" }
+  { title: string; hint?: string; size: "small" | "medium" }
 > = {
-  search: {
-    title: "탐색",
-    hint: (slot) => `슬롯 ${slot}에 넣을 그림을 문장으로 찾아요.`,
-    size: "medium",
-  },
+  search: { title: "탐색", size: "medium" },
   library: {
     title: "내 모티프",
-    hint: (slot) => `슬롯 ${slot}에 넣을 그림을 저장한 목록에서 골라요.`,
+    hint: "슬롯 {slot}에 넣을 그림을 저장한 목록에서 골라요.",
     size: "medium",
   },
-  generate: {
-    title: "AI 생성",
-    hint: (slot) => `슬롯 ${slot}에 넣을 그림을 문장 그대로 새로 만들어요.`,
-    size: "small",
-  },
-  text: {
-    title: "글자 넣기",
-    hint: (slot) => `슬롯 ${slot}에 넣을 글자를 그림으로 만들어요.`,
-    size: "small",
-  },
-  photo: {
-    title: "사진에서 따오기",
-    hint: (slot) =>
-      `사진에서 배경을 지우고 색면을 정리해 슬롯 ${slot}에 넣어요.`,
-    size: "small",
-  },
+  generate: { title: "AI 생성", size: "small" },
+  text: { title: "글자 넣기", size: "small" },
+  photo: { title: "사진에서 따오기", size: "small" },
 };
 
 const GENERATE_EXAMPLES = ["작은 벌", "네잎클로버", "종이비행기"];
 const MAX_MOTIF_QUERY_LENGTH = 200;
+
+/** 배경 분리가 되는 조건을 고르기 전에 말해 준다 — 워커는 평면 배경만 오려낼 수 있다. */
+const PHOTO_TIPS = [
+  "배경이 흰색처럼 한 가지 색인 사진",
+  "그림 하나만 가운데 있고 테두리까지 배경이 이어진 사진",
+  "형태가 또렷하고 색이 적은 것 — 로고·자수·아이콘",
+  "풍경·인물 사진은 배경을 지울 수 없어요",
+];
 
 const fileSize = (bytes: number) =>
   bytes >= 1_000_000
@@ -113,80 +109,42 @@ export function MotifModal({
         onOpenChange(next);
       }}
       title={header.title}
-      description={header.hint(state.slot)}
+      description={header.hint?.replace("{slot}", String(state.slot))}
       size={header.size}
       showCloseButton={!state.working}
       closeOnEscape={!state.working}
       footer={
-        <ModalFooter
-          state={state}
-          motifGenerateCost={motifGenerateCost}
-          onClose={() => onOpenChange(false)}
-        />
+        <ModalFooter state={state} motifGenerateCost={motifGenerateCost} />
       }
     >
-      <VStack gap="x4" alignItems="stretch">
-        <SlotIndicator slot={state.slot} />
-        {state.source === "search" ? (
-          <SearchBody state={state} />
-        ) : state.source === "library" ? (
-          <VStack gap="x4" alignItems="stretch">
-            <MotifResultGrid state={state} onDeleteMotif={onDeleteMotif} />
-            <ErrorCallout message={state.error} />
-          </VStack>
-        ) : state.source === "generate" ? (
-          <GenerateBody state={state} />
-        ) : state.source === "text" ? (
-          <TextBody state={state} />
-        ) : (
-          <PhotoBody state={state} />
-        )}
-      </VStack>
+      {/* 본문 하나 = 소스 하나. 각 Body가 자기 스택(alignItems="stretch")을 소유한다. */}
+      {state.source === "search" ? (
+        <SearchBody state={state} />
+      ) : state.source === "library" ? (
+        <VStack gap="x4" alignItems="stretch">
+          <MotifResultGrid state={state} onDeleteMotif={onDeleteMotif} />
+          <ErrorCallout message={state.error} />
+        </VStack>
+      ) : state.source === "generate" ? (
+        <GenerateBody state={state} />
+      ) : state.source === "text" ? (
+        <TextBody state={state} />
+      ) : (
+        <PhotoBody state={state} />
+      )}
     </Modal>
-  );
-}
-
-/** 지금 채우는 슬롯을 테두리로 짚어 준다 — 모달이 패널을 가려도 어느 칸인지 남는다. */
-function SlotIndicator({ slot }: { slot: 1 | 2 }) {
-  return (
-    <HStack gap="x2">
-      {([1, 2] as const).map((n) => (
-        <Flex
-          key={n}
-          align="center"
-          justify="center"
-          width={28}
-          height={28}
-          borderRadius="r2"
-          borderWidth={n === slot ? 2 : 1}
-          borderColor={n === slot ? "stroke.brand" : "stroke.neutral-weak"}
-          bg={n === slot ? "bg.brand-weak" : "bg.layer-default"}
-          aria-hidden
-        >
-          <Text
-            textStyle="captionSm"
-            color={n === slot ? "fg.neutral" : "fg.neutral-subtle"}
-          >
-            {n}
-          </Text>
-        </Flex>
-      ))}
-      <Text textStyle="captionSm" color="fg.neutral-subtle">
-        {slot}번째 모티프 자리
-      </Text>
-    </HStack>
   );
 }
 
 function ModalFooter({
   state,
   motifGenerateCost,
-  onClose,
 }: {
   state: MotifSearchState;
   motifGenerateCost: number | null;
-  onClose: () => void;
 }) {
+  // 사진 소스의 파일 선택창 — 푸터가 액션을 소유하므로 input도 여기 산다.
+  const photoInput = useRef<HTMLInputElement>(null);
   if (state.source === "search" || state.source === "library") {
     return (
       <Box
@@ -210,7 +168,7 @@ function ModalFooter({
           type="button"
           width="full"
           loading={state.working}
-          disabled={!state.generatePrompt.trim() || state.exhausted}
+          disabled={!state.generatePrompt.trim()}
           onClick={() => void state.generate()}
         >
           이 문장으로 만들기{cost}
@@ -225,12 +183,10 @@ function ModalFooter({
           variant="neutralOutline"
           width="full"
           loading={state.busySource === "generate"}
-          disabled={state.working || state.exhausted}
+          disabled={state.working}
           onClick={() => void state.generate()}
         >
-          {state.remaining === null
-            ? `다시 만들기${cost}`
-            : `다시 만들기${cost} · ${state.remaining}번 남음`}
+          다시 만들기{cost}
         </Box>
         <Box
           as={ActionButton}
@@ -246,77 +202,145 @@ function ModalFooter({
     );
   }
   if (state.source === "text") {
+    if (!state.textResult) {
+      return (
+        <Box
+          as={ActionButton}
+          type="button"
+          width="full"
+          loading={state.working}
+          disabled={!state.text.trim()}
+          onClick={() => void state.addText()}
+        >
+          이 글자로 만들기
+        </Box>
+      );
+    }
+    // 글꼴·굵기는 결과를 그대로 다시 그리므로 "다시 만들기"가 아니라 입력으로 되돌리는 문이다.
     return (
-      <Box
-        as={ActionButton}
-        type="button"
-        width="full"
-        loading={state.working}
-        disabled={!state.textResult}
-        onClick={() => void state.applyText()}
-      >
-        이 그림 적용
-      </Box>
+      <HStack gap="x2">
+        <Box
+          as={ActionButton}
+          type="button"
+          variant="neutralOutline"
+          width="full"
+          disabled={state.working}
+          onClick={state.discardText}
+        >
+          이전
+        </Box>
+        <Box
+          as={ActionButton}
+          type="button"
+          width="full"
+          loading={state.working}
+          onClick={() => void state.applyText()}
+        >
+          이 그림 적용
+        </Box>
+      </HStack>
     );
   }
-  // 사진 — 배경 제거 결과는 사진마다 갈려서 여기만 두 버튼이다.
+  // 사진 — 입력이 파일 선택창이라 "다시 고르기"는 글자 모달의 입력 수정에 해당한다.
+  const pick = () => photoInput.current?.click();
   return (
-    <HStack gap="x2">
-      <Box
-        as={ActionButton}
-        type="button"
-        variant="neutralOutline"
-        width="full"
-        disabled={state.working}
-        onClick={onClose}
-      >
-        취소
-      </Box>
-      <Box
-        as={ActionButton}
-        type="button"
-        width="full"
-        loading={state.working}
-        disabled={!state.photoResult?.svg}
-        onClick={() => void state.confirmPhoto()}
-      >
-        확정
-      </Box>
-    </HStack>
+    <>
+      {state.photoResult?.svg ? (
+        <HStack gap="x2">
+          <Box
+            as={ActionButton}
+            type="button"
+            variant="neutralOutline"
+            width="full"
+            disabled={state.working}
+            onClick={pick}
+          >
+            다른 사진
+          </Box>
+          <Box
+            as={ActionButton}
+            type="button"
+            width="full"
+            loading={state.working}
+            onClick={() => void state.confirmPhoto()}
+          >
+            이 그림 적용
+          </Box>
+        </HStack>
+      ) : (
+        <Box
+          as={ActionButton}
+          type="button"
+          width="full"
+          loading={state.working}
+          onClick={pick}
+        >
+          {state.photoResult ? "다른 사진 고르기" : "사진 고르기"}
+        </Box>
+      )}
+      <input
+        ref={photoInput}
+        type="file"
+        accept={DESIGN_PHOTO_ACCEPT}
+        aria-label="모티프로 따올 사진 선택"
+        className="sr-only"
+        tabIndex={-1}
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (file) void state.addPhotoFile(file);
+        }}
+      />
+    </>
   );
 }
 
 function SearchBody({ state }: { state: MotifSearchState }) {
   return (
-    <VStack gap="x4" alignItems="stretch">
-      <TextField
-        aria-label="어떤 그림을 넣을지"
-        placeholder="예: 작은 벌"
-        value={state.query}
-        maxLength={MAX_MOTIF_QUERY_LENGTH}
-        description="카탈로그에서 고르는 건 추가 비용이 없어요"
-        prefix={<Icon svg={<MagnifyingGlassIcon />} size={20} />}
-        suffix={
-          <ActionButton
-            type="button"
-            size="xsmall"
-            variant="neutralWeak"
-            disabled={!state.query.trim() || state.working}
-            onClick={() => void state.search()}
-          >
-            찾기
-          </ActionButton>
-        }
-        onChange={(event) => state.setQuery(event.currentTarget.value)}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter") return;
-          event.preventDefault();
-          void state.search();
-        }}
-      />
-      <MotifResultGrid state={state} />
-      <ErrorCallout message={state.error} />
+    <VStack gap={0} alignItems="stretch">
+      {/* 결과가 길어져도 검색창은 위에 붙어 있는다 — 스크롤을 가진 건 Modal 본문 Box이고,
+          아래로 지나가는 그리드를 가리려면 모달과 같은 면 색이 필요하다. 칩은 11개라
+          같이 붙이면 모바일에서 본문 절반을 먹어 스크롤에 맡긴다. */}
+      <Box position="sticky" top={0} zIndex={1} pb="x4" bg="bg.layer-floating">
+        {/* 찾기 버튼은 없다 — 타이핑이 멎으면 훅이 디바운스로 찾는다. */}
+        <TextField
+          aria-label="어떤 그림을 넣을지"
+          placeholder="예: 작은 벌"
+          value={state.query}
+          maxLength={MAX_MOTIF_QUERY_LENGTH}
+          prefix={<Icon svg={<MagnifyingGlassIcon />} size={20} />}
+          onChange={(event) => state.setQuery(event.currentTarget.value)}
+        />
+      </Box>
+      <VStack gap="x4" alignItems="stretch">
+        <CategoryChips state={state} />
+        <MotifResultGrid state={state} />
+        <ErrorCallout message={state.error} />
+      </VStack>
     </VStack>
+  );
+}
+
+/**
+ * 카탈로그가 100개 남짓이라 검색보다 훑는 게 빠르다 — 라벨이 그대로 검색어다.
+ * 가로 스크롤 대신 줄바꿈으로 둔다: 11개뿐이라 모바일에서도 서너 줄이고, 스크롤이면
+ * 뒤쪽 칩이 fog 너머에 숨어 "훑게 한다"는 목적과 어긋난다.
+ */
+function CategoryChips({ state }: { state: MotifSearchState }) {
+  return (
+    <Flex gap="x2" wrap="wrap">
+      {MOTIF_CATEGORIES.map((category) => (
+        <Chip
+          key={category}
+          size="small"
+          selected={state.query === category}
+          disabled={state.working}
+          onClick={() => state.selectCategory(category)}
+        >
+          {category}
+        </Chip>
+      ))}
+    </Flex>
   );
 }
 
@@ -329,18 +353,12 @@ function GenerateBody({ state }: { state: MotifSearchState }) {
         placeholder="예: 작은 벌"
         value={state.generatePrompt}
         maxLength={MAX_MOTIF_QUERY_LENGTH}
-        disabled={state.working || state.exhausted}
-        description={
-          state.exhausted
-            ? "이번 디자인에서 더 만들 수 없어요"
-            : state.remaining === null
-              ? `${state.generatePrompt.length}/${MAX_MOTIF_QUERY_LENGTH}`
-              : `이번 디자인에서 ${state.remaining}번 더 만들 수 있어요 · ${state.generatePrompt.length}/${MAX_MOTIF_QUERY_LENGTH}`
-        }
+        disabled={state.working}
+        description={`${state.generatePrompt.length}/${MAX_MOTIF_QUERY_LENGTH}`}
         onChange={(event) => state.setGeneratePrompt(event.currentTarget.value)}
       />
 
-      {!state.generated && !state.working && !state.exhausted ? (
+      {!state.generated && !state.working ? (
         <>
           <Flex wrap="wrap" gap="x2">
             {GENERATE_EXAMPLES.map((example) => (
@@ -401,31 +419,16 @@ function TextBody({ state }: { state: MotifSearchState }) {
   const font = FONTS.find((item) => item.id === state.fontId);
   return (
     <VStack gap="x4" alignItems="stretch">
+      {/* 만들기는 푸터 CTA가 소유한다 — 글자를 고치면 훅이 결과를 비워 CTA가 되돌아온다. */}
       <TextField
         aria-label="넣을 글자"
         placeholder="예: 영선"
         value={state.text}
         maxLength={20}
         disabled={state.working}
-        description={`추가 비용 없이 몇 번이든 · ${state.text.length}/20`}
+        description={`${state.text.length}/20`}
         prefix={<Icon svg={<LanguageIcon />} size={20} />}
-        suffix={
-          <ActionButton
-            type="button"
-            size="xsmall"
-            variant="neutralWeak"
-            disabled={!state.text.trim() || state.working}
-            onClick={() => void state.addText()}
-          >
-            만들기
-          </ActionButton>
-        }
         onChange={(event) => state.setText(event.currentTarget.value)}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter") return;
-          event.preventDefault();
-          void state.addText();
-        }}
       />
 
       <HStack gap="x2" alignItems="flex-end">
@@ -480,7 +483,6 @@ function TextBody({ state }: { state: MotifSearchState }) {
 }
 
 function PhotoBody({ state }: { state: MotifSearchState }) {
-  const photoInput = useRef<HTMLInputElement>(null);
   const photo = state.photoResult;
 
   return (
@@ -503,24 +505,26 @@ function PhotoBody({ state }: { state: MotifSearchState }) {
         </Box>
         <VStack gap="x0_5" alignItems="stretch" minWidth={0}>
           <Text textStyle="labelSm" maxLines={1}>
-            {photo?.name ?? "사진을 고르지 않았어요"}
+            {photo?.name ?? "사진을 골라 주세요"}
           </Text>
           <Text textStyle="captionSm" color="fg.neutral-subtle">
             {photo ? fileSize(photo.sizeBytes) : "10MB 이하 사진"}
           </Text>
         </VStack>
-        <Box ml="auto">
-          <ActionButton
-            type="button"
-            size="small"
-            variant="neutralOutline"
-            disabled={state.working}
-            onClick={() => photoInput.current?.click()}
-          >
-            {photo ? "다른 사진" : "사진 고르기"}
-          </ActionButton>
-        </Box>
       </HStack>
+
+      {/* 배경 분리는 테두리와 이어진 평면 배경만 지원한다 — 되는 사진을 먼저 말해 준다.
+          실패 문구는 사후 안내라 늦다(풍경·인물로 시도한 뒤에야 알게 된다). */}
+      {!photo && !state.working ? (
+        <VStack gap="x1" alignItems="stretch">
+          <Text textStyle="labelSm">이런 사진이 잘 돼요</Text>
+          {PHOTO_TIPS.map((tip) => (
+            <Text key={tip} textStyle="captionSm" color="fg.neutral-subtle">
+              · {tip}
+            </Text>
+          ))}
+        </VStack>
+      ) : null}
 
       {state.busySource === "photo" ? (
         <BusyBlock message="배경을 지우고 있어요 · 10초쯤 걸려요" />
@@ -540,20 +544,6 @@ function PhotoBody({ state }: { state: MotifSearchState }) {
       ) : null}
 
       <ErrorCallout message={state.error} />
-
-      <input
-        ref={photoInput}
-        type="file"
-        accept={DESIGN_PHOTO_ACCEPT}
-        aria-label="모티프로 따올 사진 선택"
-        className="sr-only"
-        tabIndex={-1}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = "";
-          if (file) void state.addPhotoFile(file);
-        }}
-      />
     </VStack>
   );
 }
@@ -675,7 +665,7 @@ function MotifResultGrid({
           }
         : {
             title: "넣을 그림을 문장으로 알려주세요",
-            description: "예: 작은 벌 · 엔터를 누르면 찾아요.",
+            description: "예: 작은 벌 · 입력을 멈추면 바로 찾아요.",
           };
     return (
       <ContentPlaceholder

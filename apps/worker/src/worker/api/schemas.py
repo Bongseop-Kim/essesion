@@ -224,7 +224,10 @@ class MotifQuery(StrictRequest):
 
 
 class CandidatesRequest(MotifQuery):
-    top_k: int = Field(default=5, ge=1, le=10)
+    # 상한은 api의 `MOTIF_SEARCH_LIMIT`(24)와 맞춘다 — 시트가 카테고리 칩으로 브라우징하므로
+    # 한 화면에 그리드를 채울 만큼 필요하다. 카탈로그를 메모리에서 스캔하는 lexical 경로라
+    # 24는 비용이 아니라 응답 payload(모티프당 symbol 평균 1.5KB) 문제다.
+    top_k: int = Field(default=5, ge=1, le=24)
 
 
 class MotifGenerateRequest(MotifQuery):
@@ -263,7 +266,6 @@ class TextMotifPreviewResponse(BaseModel):
 
 class PhotoMotifPreviewRequest(StrictRequest):
     image: ReferenceImageInput
-    remove_background: bool = True
 
 
 class PhotoMotifPreviewResponse(BaseModel):

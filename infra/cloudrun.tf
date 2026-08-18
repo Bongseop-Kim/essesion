@@ -87,7 +87,8 @@ resource "google_cloud_run_v2_service" "api" {
     containers {
       image = local.placeholder_image
       resources {
-        limits = { cpu = "1", memory = "512Mi" }
+        limits   = { cpu = "1", memory = "512Mi" }
+        cpu_idle = true # 요청 기반 과금 — 미지정 시 API 기본이 '항상 할당'이라 무료 티어를 못 받는다
       }
       # 프로세스 기동/교착만 Cloud Run이 판정한다. 외부 의존성은 공개 /readyz
       # uptime·배포 smoke가 판정해 DB 장애로 재시작 폭풍을 만들지 않는다.
@@ -223,7 +224,8 @@ resource "google_cloud_run_v2_service" "worker_generate" {
     containers {
       image = local.placeholder_image
       resources {
-        limits = { cpu = "1", memory = "1Gi" }
+        limits   = { cpu = "1", memory = "1Gi" }
+        cpu_idle = true # 요청 기반 과금
       }
       startup_probe {
         initial_delay_seconds = 0
@@ -306,7 +308,8 @@ resource "google_cloud_run_v2_service" "worker_finalize" {
     containers {
       image = local.placeholder_image
       resources {
-        limits = { cpu = "2", memory = "4Gi" }
+        limits   = { cpu = "2", memory = "4Gi" }
+        cpu_idle = true # 요청 기반 과금
       }
       startup_probe {
         initial_delay_seconds = 0

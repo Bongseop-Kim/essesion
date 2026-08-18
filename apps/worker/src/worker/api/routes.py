@@ -86,7 +86,7 @@ from worker.engine.seamless import assert_seamless_invariants
 from worker.integrations import content_key
 from worker.motifs.fingerprint import registry_version_for
 from worker.motifs.normalize import normalize_motif_svg
-from worker.motifs.photo_svg import photo_to_svg
+from worker.motifs.photo_svg import PhotoInputError, photo_to_svg
 from worker.motifs.registry import iter_motif_ids
 from worker.motifs.resolver import (
     MotifGenerationBudget,
@@ -962,17 +962,19 @@ async def ensure_authoring_promotion_embedding(
 async def motif_candidates(
     body: CandidatesRequest, request: Request, session: SessionDep
 ) -> dict[str, Any]:
-    """문장을 그대로 카탈로그에서 검색한다. 이미지 생성 미호출이라 과금이 없다."""
-    adapters = request.app.state.adapters
+    """문장을 그대로 카탈로그에서 검색한다. 이미지 생성 미호출이라 과금이 없다.
+
+    시트는 **lexical 전용**이다 — `embedding_client=None`이 τ 벡터 다리를 끄고 prefix 매칭을
+    켠다. 0건이면 사용자가 단어를 바꿔 즉시 재검색하므로 임베딩 왕복이 값을 못 한다
+    (worker-motifs.md §5).
+    """
     registry_version = await registry_version_for(session)
-    # generate와 같은 spec을 써야 여기서 보여준 후보와 생성 경로의 재사용 판정이 일치한다.
     spec = {"subject": body.query, "scope": "whole"}
     candidates = await present_candidates(
         session,
         spec,
-        embedding_client=adapters.embedding,
+        embedding_client=None,
         top_k=body.top_k,
-        tau=request.app.state.settings.motif_similarity_tau,
     )
     return {
         "request_id": request_id_var.get(),
@@ -1034,13 +1036,13 @@ async def photo_motif_preview(
 ) -> PhotoMotifPreviewResponse:
     data = await _load_single_image(body.image, request.app.state.settings)
     try:
-        result = await run_in_threadpool(
-            photo_to_svg,
-            data,
-            body.image.content_type,
-            remove_background=body.remove_background,
-        )
+        result = await run_in_threadpool(photo_to_svg, data, body.image.content_type)
         svg = await _normalize_preview_svg(result.svg, request, id_prefix="photo-preview")
+    except PhotoInputError as exc:
+        # 사용자가 다른 사진으로 고칠 수 있는 거절 — code를 실어야 api가 고객 문구를 고른다.
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
     except (ValueError, TypeError, RecursionError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return PhotoMotifPreviewResponse(

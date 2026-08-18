@@ -4020,13 +4020,9 @@ export type DesignSessionOut = {
      */
     last_prompt?: string | null;
     /**
-     * Motif Generation Remaining
+     * Preview Svg
      */
-    motif_generation_remaining?: number | null;
-    /**
-     * Motif Generation Used
-     */
-    motif_generation_used: number;
+    preview_svg?: string | null;
     /**
      * Registry Version
      */
@@ -4259,6 +4255,12 @@ export type GenerationDiagnosticsOut = {
      * Motif Resolutions
      */
     motif_resolutions?: Array<MotifResolutionOut>;
+    /**
+     * Patch
+     */
+    patch?: {
+        [key: string]: unknown;
+    } | null;
     /**
      * Patch Axes
      */
@@ -6450,10 +6452,6 @@ export type PhoneVerifyRequest = {
  * PhotoMotifPreviewRequest
  */
 export type PhotoMotifPreviewRequest = {
-    /**
-     * Remove Background
-     */
-    remove_background?: boolean;
     /**
      * Upload Id
      */

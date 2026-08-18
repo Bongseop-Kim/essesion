@@ -7437,20 +7437,16 @@
             ],
             "title": "Last Prompt"
           },
-          "motif_generation_remaining": {
+          "preview_svg": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Motif Generation Remaining"
-          },
-          "motif_generation_used": {
-            "title": "Motif Generation Used",
-            "type": "integer"
+            "title": "Preview Svg"
           },
           "registry_version": {
             "anyOf": [
@@ -7495,7 +7491,6 @@
           "context_version",
           "active_generation_id",
           "active_generation_started_at",
-          "motif_generation_used",
           "created_at",
           "updated_at"
         ],
@@ -7924,6 +7919,18 @@
             },
             "title": "Motif Resolutions",
             "type": "array"
+          },
+          "patch": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patch"
           },
           "patch_axes": {
             "items": {
@@ -11915,11 +11922,6 @@
       "PhotoMotifPreviewRequest": {
         "additionalProperties": false,
         "properties": {
-          "remove_background": {
-            "default": true,
-            "title": "Remove Background",
-            "type": "boolean"
-          },
           "upload_id": {
             "format": "uuid",
             "title": "Upload Id",
@@ -11966,7 +11968,7 @@
             "items": {
               "$ref": "#/components/schemas/PricingUpdateItem"
             },
-            "maxItems": 40,
+            "maxItems": 34,
             "minItems": 1,
             "title": "Items",
             "type": "array"

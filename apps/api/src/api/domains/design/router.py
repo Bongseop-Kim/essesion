@@ -1,8 +1,7 @@
 """디자인 세션·선택 문맥 — 상태는 api 소유(LangGraph 대체), worker는 stateless.
 
-모티프 생성 예산은 Postgres 공유 카운터(motif_generation_used) — 인스턴스 수와 무관하게 동작
-(ARCHITECTURE §6). finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션
-카운터·건당 환불 없음. 선택한 intent+plan만 선형 문맥으로 커밋한다.
+finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션 카운터·건당 환불 없음.
+선택한 intent+plan만 선형 문맥으로 커밋한다.
 """
 
 import asyncio
@@ -10,6 +9,7 @@ import base64
 import binascii
 import json
 import logging
+import re
 import unicodedata
 import uuid
 from collections.abc import Collection, Coroutine
@@ -40,6 +40,8 @@ from pydantic import (
     model_validator,
 )
 from sqlalchemy import CursorResult, delete, func, or_, select, update
+from sqlalchemy import cast as sql_cast
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from svg_safety import SanitizeError, sanitize_svg
 
@@ -75,7 +77,10 @@ MAX_PROCESSED_PREVIEW_BASE64_CHARS = 2_666_668
 MAX_DESIGN_IDEA_LENGTH = 180
 # 모티프 문장(찾기·만들기) 상한 — worker의 직접 subject 조회 상한과 같게 유지한다.
 MAX_MOTIF_QUERY_LENGTH = 200
-MOTIF_SEARCH_LIMIT = 4
+# 시트가 카테고리 칩으로 카탈로그를 훑는다 — 4개로는 브라우징이 안 된다. 워커의
+# `CandidatesRequest.top_k` 상한과 같은 값이어야 하고(넘기면 422), 응답에 모티프당 symbol이
+# 실려서(평균 1.5KB) payload가 상한을 정한다.
+MOTIF_SEARCH_LIMIT = 24
 SIGNED_INT64_MIN = -(2**63)
 SIGNED_INT64_MAX = 2**63 - 1
 
@@ -131,16 +136,14 @@ class DesignSessionOut(ORMModel):
     context_version: int
     active_generation_id: uuid.UUID | None
     active_generation_started_at: datetime | None
-    motif_generation_used: int
     created_at: datetime
     updated_at: datetime
     # 목록 전용 — 마지막 generate_request 턴의 프롬프트 (세션 구분용 요약)
     last_prompt: str | None = None
+    # 목록 전용 — 편집 포인터(마지막 activate 턴)의 디자인 SVG. 목록 썸네일이 쓴다.
+    preview_svg: str | None = None
     # 단건 GET 전용 — 계정 쿼터 (목록은 null, 설정 부재 시에도 null)
     finalize_quota: FinalizeQuotaOut | None = None
-    # 단건 GET·스텝 이동 전용 — 남은 모티프 생성 횟수(예산 - motif_generation_used). 목록은 null.
-    # 상한은 서버 설정이라 프론트가 계산할 수 없다 — 유료 행의 "N번 더 가능"이 이 값을 쓴다.
-    motif_generation_remaining: int | None = None
     # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
 
@@ -252,7 +255,6 @@ def _is_supported_text_motif_character(character: str) -> bool:
 
 class PhotoMotifPreviewRequest(StrictModel):
     upload_id: uuid.UUID
-    remove_background: bool = True
 
 
 class MotifPreviewOut(BaseModel):
@@ -566,17 +568,10 @@ def _user_motif_out(link: UserMotif, motif: Motif) -> UserMotifOut:
 async def _design_session_out(
     session: SessionDep,
     design_session: DesignSession,
-    motif_generation_budget: int,
 ) -> DesignSessionOut:
-    """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2) + 남은 생성 횟수."""
+    """세션 응답 + 현재 디자인의 모티프 슬롯(카탈로그 포함, 최대 2)."""
 
-    out = DesignSessionOut.model_validate(design_session).model_copy(
-        update={
-            "motif_generation_remaining": max(
-                motif_generation_budget - design_session.motif_generation_used, 0
-            )
-        }
-    )
+    out = DesignSessionOut.model_validate(design_session)
     motif_ids = _intent_motif_ids(design_session.current_intent)[:MAX_DESIGN_MOTIFS]
     if not motif_ids:
         return out
@@ -804,27 +799,46 @@ async def list_design_sessions(session: SessionDep, user: CurrentUser) -> list[D
         .limit(1)
         .scalar_subquery()
     )
+    # 편집 포인터(마지막 activate 턴)의 런 — 목록 썸네일이 쓸 SVG를 여기서 끌어온다.
+    # ponytail: 세션마다 SVG 원문을 그대로 싣는다. 세션이 수십 개로 늘면 목록 페이징이나
+    # 별도 썸네일 컬럼으로 바꿀 것.
+    preview_svg = (
+        select(SeamlessGenerationLog.design["svg"].astext)
+        .select_from(DesignSessionTurn)
+        .join(
+            SeamlessGenerationLog,
+            SeamlessGenerationLog.id
+            == sql_cast(DesignSessionTurn.payload["run_id"].astext, PgUUID),
+        )
+        .where(
+            DesignSessionTurn.session_id == DesignSession.id,
+            DesignSessionTurn.payload["type"].astext == "activate",
+        )
+        .order_by(DesignSessionTurn.seq.desc())
+        .limit(1)
+        .scalar_subquery()
+    )
     rows = await session.execute(
-        select(DesignSession, last_prompt)
+        select(DesignSession, last_prompt, preview_svg)
         .where(DesignSession.user_id == user.id)
         .order_by(DesignSession.created_at.desc())
     )
     return [
-        DesignSessionOut.model_validate(s).model_copy(update={"last_prompt": prompt})
-        for s, prompt in rows.all()
+        DesignSessionOut.model_validate(s).model_copy(
+            update={"last_prompt": prompt, "preview_svg": svg}
+        )
+        for s, prompt, svg in rows.all()
     ]
 
 
 @router.get("/design/sessions/{session_id}", response_model=DesignSessionOut)
 async def get_design_session(
-    session_id: uuid.UUID, session: SessionDep, user: CurrentUser, settings: SettingsDep
+    session_id: uuid.UUID, session: SessionDep, user: CurrentUser
 ) -> DesignSessionOut:
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
-    out = await _design_session_out(
-        session, design_session, settings.design_motif_generation_budget
-    )
+    out = await _design_session_out(session, design_session)
     # 표시용 쿼터 — 설정 행이 없으면 null로 둔다(페이지를 깨지 않음). 소유자 검증
     # 이후에 계산해 authz 403/404 순서를 보존한다.
     limit = await load_finalize_limit(session)
@@ -1074,7 +1088,6 @@ async def activate_design_step(
     body: DesignStepActivateRequest,
     session: SessionDep,
     user: CurrentUser,
-    settings: SettingsDep,
 ) -> DesignSessionOut:
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
     design_session = await session.scalar(
@@ -1133,9 +1146,7 @@ async def activate_design_step(
     )
     await session.commit()
     await session.refresh(design_session)
-    return await _design_session_out(
-        session, design_session, settings.design_motif_generation_budget
-    )
+    return await _design_session_out(session, design_session)
 
 
 async def _resolve_design_run(
@@ -2287,6 +2298,18 @@ class WorkerMotifGenerateOut(BaseModel):
     motif_id: str
 
 
+_HANGUL_RE = re.compile(r"[가-힣]")
+
+
+def _motif_label(motif: Motif) -> str | None:
+    """카드 라벨 — 시드 subject는 파일명에서 온 영문("cat")이라 첫 한글 태그를 앞세운다.
+
+    태그 순서가 `[subject, 파일명 토큰…, 한글 동의어, 카테고리]`라(`seed_motifs.py::_tags_for`)
+    첫 한글 태그는 "고양이"이지 상위어 "동물"이 아니다.
+    """
+    return next((tag for tag in motif.tags or () if _HANGUL_RE.search(tag)), motif.subject)
+
+
 async def _motif_results(
     session: SessionDep,
     motif_ids: list[str],
@@ -2295,7 +2318,7 @@ async def _motif_results(
     current_ids: Collection[str] = (),
     allow_ids: Collection[str] = (),
 ) -> list[MotifResultOut]:
-    """카탈로그 행을 붙여 카드로 — 이름은 내 라이브러리 이름, 없으면 모티프 subject.
+    """카탈로그 행을 붙여 카드로 — 이름은 내 라이브러리 이름, 없으면 `_motif_label`.
 
     워커 응답을 그대로 노출하지 않는다 — 공개 카탈로그, 내 라이브러리 링크,
     명시적 allow_ids(방금 생성한 모티프)만 통과.
@@ -2321,7 +2344,7 @@ async def _motif_results(
     return [
         MotifResultOut(
             motif_id=motif_id,
-            name=by_id[motif_id][1] or by_id[motif_id][0].subject,
+            name=by_id[motif_id][1] or _motif_label(by_id[motif_id][0]),
             preview_svg=_motif_preview_svg(by_id[motif_id][0]),
             current=motif_id in current_ids,
         )
@@ -2372,18 +2395,8 @@ async def generate_motif(
     assert design_session is not None
     # USER 락을 먼저 잡는다 — 생성 경로(_start_generation)와 같은 순서라야 교착이 없다.
     await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
-    # 예산 선차감(조건부 UPDATE — finalize와 동일 패턴) 후 커밋 — 이미지 생성이 길어
-    # 행 잠금을 들고 있지 않는다. 워커 실패면 보상 환급.
-    budget = request.app.state.settings.design_motif_generation_budget
-    claimed = await session.execute(
-        update(DesignSession)
-        .where(DesignSession.id == session_id, DesignSession.motif_generation_used < budget)
-        .values(motif_generation_used=DesignSession.motif_generation_used + 1)
-    )
-    if cast("CursorResult[Any]", claimed).rowcount == 0:
-        raise ConflictError(
-            "모티프 생성 예산을 모두 사용했습니다", code="motif_generation_budget_exhausted"
-        )
+    # 사용량 제한은 토큰 선차감 하나다 — 커밋 후 이미지 생성에 들어가 행 잠금을 들고
+    # 있지 않는다. 워커 실패면 보상 환급(money.md §6).
     run_id = uuid.uuid4()
     work_id = f"motif_generate_{run_id.hex}"
     charge = await ledger.use_tokens(
@@ -2394,7 +2407,6 @@ async def generate_motif(
         commit=False,
     )
     if not charge.success:
-        # 롤백이 예산 선차감까지 되돌린다 — 과금 실패는 예산을 쓰지 않은 것으로 본다.
         await session.rollback()
         detail = (
             "환불 심사 중에는 모티프를 만들 수 없습니다"
@@ -2413,7 +2425,6 @@ async def generate_motif(
             payload=payload,
             request=request,
             session=session,
-            session_id=session_id,
             user_id=user.id,
             name=body.prompt.strip()[:100],
             charge_work_id=work_id,
@@ -2450,23 +2461,15 @@ async def _dispatch_motif_generation(
     payload: dict[str, Any],
     request: Request,
     session: SessionDep,
-    session_id: uuid.UUID,
     user_id: uuid.UUID,
     name: str,
     charge_work_id: str,
     charge_cost: int,
 ) -> MotifGenerateOut:
-    """클라이언트가 끊겨도 선차감한 예산·토큰을 정합하게 되돌린다."""
+    """클라이언트가 끊겨도 선차감한 토큰을 정합하게 되돌린다."""
 
     async def _release() -> None:
-        await ledger.refund_failed_generation(
-            session,
-            user_id,
-            charge_cost,
-            charge_work_id,
-            commit=False,
-        )
-        await _release_motif_generation_budget(session, session_id)
+        await ledger.refund_failed_generation(session, user_id, charge_cost, charge_work_id)
 
     try:
         response = await request.app.state.worker.motif_generate(payload)
@@ -2614,15 +2617,6 @@ async def _dispatch_motif_activation(
         )
         logger.warning("motif activation failed", exc_info=True)
         raise UpstreamError("모티프를 바꾸지 못했습니다") from exc
-
-
-async def _release_motif_generation_budget(session: SessionDep, session_id: uuid.UUID) -> None:
-    await session.execute(
-        update(DesignSession)
-        .where(DesignSession.id == session_id)
-        .values(motif_generation_used=func.greatest(DesignSession.motif_generation_used - 1, 0))
-    )
-    await session.commit()
 
 
 async def _append_turn(

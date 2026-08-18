@@ -59,20 +59,24 @@ logger = logging.getLogger(__name__)
 PLAN_LABELS = {"starter": "Starter", "popular": "Popular", "pro": "Pro"}
 TOSS_PAYMENT_NOT_FOUND_CODE = "NOT_FOUND_PAYMENT"
 
+# (쿠폰명, 할인액 상수 키 목록) — 원단+봉제는 가격과 같이 두 상수의 합이다 (money.md §4).
 SAMPLE_FOLLOWUP_COUPON = {
-    ("sewing", None): ("SAMPLE_DISCOUNT_SEWING", "sample_discount_sewing"),
-    ("fabric", "PRINTING"): ("SAMPLE_DISCOUNT_FABRIC_PRINTING", "sample_discount_fabric_printing"),
+    ("sewing", None): ("SAMPLE_DISCOUNT_SEWING", ["sample_discount_sewing"]),
+    ("fabric", "PRINTING"): (
+        "SAMPLE_DISCOUNT_FABRIC_PRINTING",
+        ["sample_discount_fabric_printing"],
+    ),
     ("fabric", "YARN_DYED"): (
         "SAMPLE_DISCOUNT_FABRIC_YARN_DYED",
-        "sample_discount_fabric_yarn_dyed",
+        ["sample_discount_fabric_yarn_dyed"],
     ),
     ("fabric_and_sewing", "PRINTING"): (
         "SAMPLE_DISCOUNT_FABRIC_AND_SEWING_PRINTING",
-        "sample_discount_fabric_and_sewing_printing",
+        ["sample_discount_sewing", "sample_discount_fabric_printing"],
     ),
     ("fabric_and_sewing", "YARN_DYED"): (
         "SAMPLE_DISCOUNT_FABRIC_AND_SEWING_YARN_DYED",
-        "sample_discount_fabric_and_sewing_yarn_dyed",
+        ["sample_discount_sewing", "sample_discount_fabric_yarn_dyed"],
     ),
 }
 
@@ -741,8 +745,8 @@ async def _issue_sample_followup_coupon(session: AsyncSession, order: Order) -> 
     mapping_key = await _sample_followup_key(session, order)
     if mapping_key not in SAMPLE_FOLLOWUP_COUPON:
         raise DomainError("Unsupported sample_type", code="invalid_sample")
-    coupon_name, pricing_key = SAMPLE_FOLLOWUP_COUPON[mapping_key]
-    amount = (await get_pricing_constants(session, [pricing_key]))[pricing_key]
+    coupon_name, pricing_keys = SAMPLE_FOLLOWUP_COUPON[mapping_key]
+    amount = sum((await get_pricing_constants(session, pricing_keys)).values())
     coupon_expiry_date = date_type(2099, 12, 31)
 
     coupon_id = (

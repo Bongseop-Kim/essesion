@@ -34,7 +34,6 @@ PRICING: dict[str, tuple[int, str]] = {
     "REFORM_SHIPPING_COST": (4500, "reform"),
     "REFORM_PICKUP_FEE": (5000, "reform"),
     # custom order
-    "START_COST": (50000, "custom_order"),
     "SEWING_PER_COST": (4000, "custom_order"),
     "AUTO_TIE_COST": (1000, "custom_order"),
     "TRIANGLE_STITCH_COST": (500, "custom_order"),
@@ -46,22 +45,18 @@ PRICING: dict[str, tuple[int, str]] = {
     "WOOL_INTERLINING_COST": (600, "custom_order"),
     "BRAND_LABEL_COST": (300, "custom_order"),
     "CARE_LABEL_COST": (200, "custom_order"),
-    "YARN_DYED_DESIGN_COST": (30000, "custom_order"),
     "FABRIC_PRINTING_POLY": (8000, "fabric"),
     "FABRIC_PRINTING_SILK": (12000, "fabric"),
     "FABRIC_YARN_DYED_POLY": (12000, "fabric"),
     "FABRIC_YARN_DYED_SILK": (16000, "fabric"),
-    # sample
-    "SAMPLE_SEWING_COST": (50000, "custom_order"),
-    "SAMPLE_FABRIC_PRINTING_COST": (60000, "custom_order"),
-    "SAMPLE_FABRIC_YARN_DYED_COST": (80000, "custom_order"),
-    "SAMPLE_FABRIC_AND_SEWING_PRINTING_COST": (100000, "custom_order"),
-    "SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST": (120000, "custom_order"),
+    # 샘플비 — 샘플 주문의 정가이면서 주문제작 금액에도 그대로 포함된다 (money.md §3·§4).
+    # 원단+봉제는 두 상수의 합이라 별도 키를 두지 않는다.
+    "SAMPLE_SEWING_COST": (100000, "custom_order"),
+    "SAMPLE_FABRIC_PRINTING_COST": (100000, "custom_order"),
+    "SAMPLE_FABRIC_YARN_DYED_COST": (200000, "custom_order"),
     "sample_discount_sewing": (30000, "sample_discount"),
     "sample_discount_fabric_printing": (30000, "sample_discount"),
     "sample_discount_fabric_yarn_dyed": (40000, "sample_discount"),
-    "sample_discount_fabric_and_sewing_printing": (50000, "sample_discount"),
-    "sample_discount_fabric_and_sewing_yarn_dyed": (60000, "sample_discount"),
     # token plans — 가격과 수량은 다르다. 볼륨 할인은 보너스 토큰으로 드러난다 (money.md §6 표).
     "token_plan_starter_price": (2500, "token"),
     "token_plan_starter_amount": (2500, "token"),
@@ -71,8 +66,17 @@ PRICING: dict[str, tuple[int, str]] = {
     "token_plan_pro_amount": (25000, "token"),
 }
 
-# 이전 스키마의 잔재 — 남아 있으면 견적이 옛 키를 집는다.
-_RETIRED_PRICING_KEYS = ("REFORM_BASE_COST",)
+# 이전 스키마의 잔재 — 남아 있으면 견적이 옛 키를 집거나 관리자 화면에 유령 행이 남는다.
+_RETIRED_PRICING_KEYS = (
+    "REFORM_BASE_COST",
+    # 시작비·세팅비는 샘플비로 대체됐고, 원단+봉제는 두 상수의 합으로 계산한다.
+    "START_COST",
+    "YARN_DYED_DESIGN_COST",
+    "SAMPLE_FABRIC_AND_SEWING_PRINTING_COST",
+    "SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST",
+    "sample_discount_fabric_and_sewing_printing",
+    "sample_discount_fabric_and_sewing_yarn_dyed",
+)
 
 
 async def apply_config_defaults(session: AsyncSession, *, overwrite: bool) -> tuple[int, int]:

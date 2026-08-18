@@ -21,6 +21,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from worker.engine.constraints import (
+    LATTICE_OVERLAP_ALLOWANCE,
     ConstraintInvalid,
     lattice_placement,
     normalize_hex,
@@ -326,7 +327,33 @@ def _cell_offset_fraction(placement: dict[str, Any]) -> tuple[float, float]:
     )
 
 
-def _apply_placement(raw: dict[str, Any], patch: PlacementPatch, *, tile: float) -> None:
+def _density_cap(raw: dict[str, Any], tile: float) -> int:
+    """현재 모티프 크기가 셀에 들어가는 최대 축 개수 — 크기 대신 밀도를 양보한다.
+
+    `constraints._clamp_lattice_overlap`이 줄인 크기는 셀을 되돌려도 복구되지 않으므로,
+    크기를 안 건드린 patch에서는 밀도를 낮춰 크기를 지킨다. 크기는 사용자가 명시한 축이고
+    밀도는 "촘촘/넓게"라는 상대 표현이다.
+    """
+
+    sizes = [
+        size
+        for layer in _layers(raw, "motif")
+        if isinstance(layer.get("params"), dict)
+        and (size := _positive_float(layer["params"].get("size_mm"))) is not None
+    ]
+    if not sizes:
+        return MAX_AXIS_COUNT
+    fits = int(tile * LATTICE_OVERLAP_ALLOWANCE / max(sizes))
+    return max(MIN_AXIS_COUNT, min(MAX_AXIS_COUNT, fits))
+
+
+def _apply_placement(
+    raw: dict[str, Any],
+    patch: PlacementPatch,
+    *,
+    tile: float,
+    cap: int = MAX_AXIS_COUNT,
+) -> None:
     for layer in _layers(raw, "motif"):
         placement = layer.get("placement")
         placement = dict(placement) if isinstance(placement, dict) else {}
@@ -346,9 +373,10 @@ def _apply_placement(raw: dict[str, Any], patch: PlacementPatch, *, tile: float)
                 tile=tile, axis=count, count=max(4, round(count * count * 0.5))
             )
         elif arrangement is not None:
-            placement = lattice_placement(
-                tile=tile, count=count, staggered=arrangement == "staggered"
-            )
+            staggered = arrangement == "staggered"
+            # 엇갈림은 홀수 축을 올림하므로 상한도 짝수로 내린다 — 올림이 셀을 상한 밑으로 민다.
+            limit = cap - cap % 2 if staggered else cap
+            placement = lattice_placement(tile=tile, count=min(count, limit), staggered=staggered)
             spec = placement["lattice"]
             if any(offset_fraction):
                 spec["offset_x_mm"] = round(offset_fraction[0] * spec["cell_w_mm"], 6)
@@ -400,7 +428,9 @@ def apply_patch(intent: dict[str, Any], patch: DesignPatchV1) -> dict[str, Any]:
     if patch.stripe is not None:
         _apply_stripe(raw, patch.stripe, tile=tile, book=book)
     if patch.placement is not None:
-        _apply_placement(raw, patch.placement, tile=tile)
+        # 밀도 양보는 크기를 안 건드린 patch만 — 둘 다 바꾼 patch는 지금처럼 크기를 클램프한다.
+        cap = MAX_AXIS_COUNT if patch.motif_size_mm is not None else _density_cap(raw, tile)
+        _apply_placement(raw, patch.placement, tile=tile, cap=cap)
     if patch.motif_size_mm is not None:
         for layer, size in zip(_layers(raw, "motif"), patch.motif_size_mm, strict=False):
             requested = _positive_float(size)

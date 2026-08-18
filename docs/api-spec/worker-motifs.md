@@ -61,12 +61,17 @@ User description: {query}
 
 디자인 `/generate`의 카탈로그 경로는 **원문 retrieval → 정확도 게이트 → LLM grounding**에서 끝난다.
 
-1. prompt 원문의 NFC/casefold token과 `status=approved` 공개 motif subject/tag의 완전 token 일치를 ID 순으로 모은다.
-2. 승인된 공개 카탈로그 전체 pgvector cosine top-5를 구하고 **τ=0.40** 이상만 더한다(text-embedding-3-large 분포 기준 재캘리브레이션). 동점은 lowest ID다. `scope`는 필터로 사용하지 않고 `pending`·`rejected`·`user_upload`은 항상 제외한다.
-3. 후보는 실제 ID 없이 `catalog_ref`, subject, description, style로 LLM에 제공한다. compiler만 ref→ID를 변환한다.
-4. 후보가 있는데 검증되지 않은 source를 만들거나 후보를 모두 무시한 plan은 거부한다. 한 번 재저작 후에도 같으면 `semantic_mismatch`다. 후보가 없으면 모티프 없이 계속하며 GPT Image나 lowest-ID fallback을 호출하지 않는다.
+채우는 순서가 계약이다 — **고유어 → 벡터 → 카테고리**. 셋 다 top-k를 채우면 즉시 멈춘다.
 
-새 모티프 생성은 모티프 모달의 별도 계약이다. `POST /motifs/candidates`와 `POST /motifs/generate`는 `{query}`만 받고, 최대 200자의 `query`를 변환 없이 `{"subject": query, "scope": "whole"}`로 다룬다. 문장이 모티프의 유일한 입력이다 — 디자인 컨텍스트(플랜의 style 문구 등)를 숨은 힌트로 주입하지 않는다. `candidates`는 위와 같은 신뢰도 게이트의 catalog hit만 반환하고 GPT Image를 호출하지 않는다 — 비슷한 모티프 확인은 이 보이는 검색 단계가 수행한다. 사용자가 `generate`를 명시적으로 선택하면 `resolve_spec`이 카탈로그 확인 없이 **항상** GPT Image를 호출한다(숨은 재사용 판정 없음). 같은 문장 재클릭도 새 변형을 만들며, (subject, scope)가 같은 모티프가 쌓이는 것은 변형 풀 확충이다 — 품질·중복은 admin 승인 게이트가 거른다. 실제 provider 호출은 요청당 `motif_generate_per_request_limit`(기본 2)로 제한되고 API는 별도로 세션 예산 3회와 `design_motif_generate_cost` 토큰을 같은 트랜잭션에서 선차감하며 워커 실패 시에만 환급한다(money.md §6).
+1. prompt 원문의 NFC/casefold token과 `status=approved` 공개 motif의 **고유어**(subject·파일명 토큰·한글 동의어) 완전 token 일치를 ID 순으로 모은다. §9의 카테고리 태그는 여기 포함하지 않는다.
+2. 승인된 공개 카탈로그 전체 pgvector cosine top-5를 구하고 **τ=0.40** 이상만 더한다(text-embedding-3-large 분포 기준 재캘리브레이션). 동점은 lowest ID다. `scope`는 필터로 사용하지 않고 `pending`·`rejected`·`user_upload`은 항상 제외한다.
+3. 그래도 자리가 남으면 **카테고리 태그** 일치를 ID 순으로 채운다(`match_type=category_token`). 카테고리는 상위어라 한 번에 수십 건을 끌어온다 — 1번과 같은 층에 두면 유사도 순위를 가진 벡터 결과를 ID 임의 순서가 갈아치운다(2026-08-17 측정: "바다 느낌의 패턴"에 ship 2척이 끼고 crab·fish·whale이 밀려남). 폴백으로 내리면 그 후퇴 없이, 벡터도 τ에 못 미치던 상위어 프롬프트("동물이 반복되는 넥타이"·"스포츠 테마"·"과일이 흩어진 무늬" — 셋 다 0건이었다)를 살린다.
+4. 후보는 실제 ID 없이 `catalog_ref`, subject, description, style로 LLM에 제공한다. compiler만 ref→ID를 변환한다.
+5. 후보가 있는데 검증되지 않은 source를 만들거나 후보를 모두 무시한 plan은 거부한다. 한 번 재저작 후에도 같으면 `semantic_mismatch`다. 후보가 없으면 모티프 없이 계속하며 GPT Image나 lowest-ID fallback을 호출하지 않는다.
+
+새 모티프 생성은 모티프 모달의 별도 계약이다. `POST /motifs/candidates`와 `POST /motifs/generate`는 `{query}`만 받고, 최대 200자의 `query`를 변환 없이 `{"subject": query, "scope": "whole"}`로 다룬다. 문장이 모티프의 유일한 입력이다 — 디자인 컨텍스트(플랜의 style 문구 등)를 숨은 힌트로 주입하지 않는다. `candidates`는 카탈로그 hit만 반환하고 GPT Image를 호출하지 않는다 — 비슷한 모티프 확인은 이 보이는 검색 단계가 수행한다.
+
+**시트 검색은 lexical 전용이다** — `candidates`는 `embedding_client=None`으로 위 2번의 τ 벡터 다리를 타지 않는다. 대신 각 tier의 exact 뒤에 **prefix 일치**를 붙인다(고유어 exact → 고유어 prefix → 카테고리 exact → 카테고리 prefix). prefix는 양쪽 모두 짧은 쪽이 2자 이상일 때만 보고 방향은 둘 다다: 정방향 `term.startswith(token)`("테니"→테니스), 역방향 `token.startswith(term)`("바다동물"→바다). 한국어는 복합어를 붙여 써서 토크나이저가 한 토큰으로 보기 때문에 역방향이 없으면 통째로 miss한다(2026-08-17 측정: 복합어 8건 중 5건이 새로 잡히고 오매칭 유도 10건 중 1건만 걸린다). **grounding에서는 prefix를 켜지 않는다** — 시트는 원치 않는 카드 한 장이 그리드에 끼는 비용이고 사용자가 눈으로 거르지만, 재시도 루프가 없는 grounding에서는 같은 오매칭이 조용히 플랜에 박힌다. 근거는 miss 비용의 비대칭이다: 시트는 0건이면 사용자가 단어를 바꿔 즉시 재검색하지만, grounding에는 그 루프가 없어 miss가 조용히 사라진다. 2026-08-17 실측에서 벡터 다리는 상위어 질의("운동"·"과일"·"하늘")에 전부 0건을 냈고 쿼리당 250~280ms를 썼다 — 시트가 사줄 marginal recall이 없다. 상위어는 §9의 카테고리 태그가 대신 받는다. `top_k` 상한은 24이며 api의 `MOTIF_SEARCH_LIMIT`와 같아야 한다(시트가 카테고리 칩으로 카탈로그를 훑는다). 사용자가 `generate`를 명시적으로 선택하면 `resolve_spec`이 카탈로그 확인 없이 **항상** GPT Image를 호출한다(숨은 재사용 판정 없음). 같은 문장 재클릭도 새 변형을 만들며, (subject, scope)가 같은 모티프가 쌓이는 것은 변형 풀 확충이다 — 품질·중복은 admin 승인 게이트가 거른다. 실제 provider 호출은 요청당 `motif_generate_per_request_limit`(기본 2)로 제한되고 API는 `design_motif_generate_cost` 토큰을 선차감하며 워커 실패 시에만 환급한다 — 횟수 상한은 없다(money.md §6).
 
 정규화가 끝난 GPT Image 결과는 같은 OpenAI 키·LLM 모델의 비전 호출 한 번으로 `description`, 한·영 `tags`, `style(flat|outline)`을 만들고 기존 facet 살균을 통과시킨다. 실패하거나 의심스러운 출력이면 subject만으로 저장하는 fail-soft다. 결과는 `pending`으로 저장하며, 관리자 `POST /admin/motifs/{id}/review`가 `approved`로 바꾸기 전에는 다른 사용자의 lexical/pgvector 검색, LLM grounding, 임베딩 인덱싱·집계와 registry fingerprint에 포함되지 않는다. `PATCH /admin/motifs/{id}`는 admin만 subject/description/tags/style을 보정할 수 있고 실제 변경 시 임베딩을 NULL로 무효화한다. 같은 spec 재요청은 매번 GPT Image 비용이 들지만 byte-identical 결과의 content-hash upsert는 행 중복을 만들지 않는다.
 
@@ -109,10 +114,11 @@ resolver가 concrete motif ID를 확정한 뒤 intent는 `motif_id`와 `size_mm`
 
 `POST /motifs/photo-preview`는 모티프 모달에서 완료한 private staged upload의 signed URL을 사용한다. JPEG/PNG/WebP 실제 MIME, 장당 10MB, 20M픽셀을 확인하고 최대 1024px로 축소한 뒤 CPU 처리를 thread pool에서 실행한다.
 
-- 배경 제거는 별도 provider·대형 모델·GPU 없이 Pillow로 수행한다. 기존 alpha를 우선 사용하고, 아니면 테두리 median 색을 구한 뒤 유사색의 4-neighbor border-connected 영역만 제거한다. 균일한 테두리 confidence 0.55 미만, 빈 피사체, 프레임을 거의 채운 피사체는 명시 오류다. 복잡한 장면을 성공처럼 보이는 hidden fallback은 없다.
+- **배경은 항상 지운다 — 옵션이 없다.** 배경이 남은 모티프는 넥타이 패턴이 될 수 없고, 사진 같은 입력은 배경을 살려도 벡터 예산을 넘겨 실패하므로 켜 둘 수 있는 경로가 아니었다. 별도 provider·대형 모델·GPU 없이 Pillow로 수행한다: 기존 alpha를 우선 사용하고, 아니면 테두리 median 색을 구한 뒤 유사색의 4-neighbor border-connected 영역만 제거한다. 균일한 테두리 confidence 0.55 미만, 빈 피사체, 프레임을 거의 채운 피사체는 명시 오류다. 복잡한 장면을 성공처럼 보이는 hidden fallback은 없다 — **되는 사진 조건은 store 모달이 고르기 전에 안내한다**(`motif-modal.tsx::PHOTO_TIPS`).
 - GPT Image 생성 경로와 같은 중간색 정리 양자화와 VTracer `medium`을 사용한다. 색상 수는 제한하지 않고 모티프에 따라 달라진다. 원본/중간 파일은 worker가 저장하지 않고 결과 SVG만 기존 private motif import 경계로 전달한다.
 - 상한: vector SVG/processed PNG 각 2MB, node 2,048, path 1,024, path command 50,000. sanitizer/normalize도 저장 전에 다시 적용된다.
-- 응답은 `{svg,processed_preview_base64,background_confidence,warnings}`. 동일 입력과 옵션은 동일 SVG/PNG 바이트를 만든다. 배경 포함은 `remove_background=false`로 명시하며 실패 시 자동 전환하지 않는다. 공개 API에는 색상 수 옵션이 없다.
+- 응답은 `{svg,processed_preview_base64,background_confidence,warnings}`. 동일 입력은 동일 SVG/PNG 바이트를 만든다. 요청은 `{image}`뿐이다 — 배경 유지·색상 수 옵션이 없고, 성공 경로의 `warnings`는 항상 빈 배열이다(영문 진단을 고객에게 노출하지 않는다).
+- **사용자가 다른 사진으로 고칠 수 있는 거절은 코드를 싣는다** — `422 {detail:{code,message}}`, code는 `photo_background_unclear`(평면 배경 분리 불가: confidence 미달·빈 피사체·프레임 충전) 또는 `photo_too_detailed`(위 상한 초과). `message`는 영문 진단이라 고객에게 노출하지 않고, api가 코드로 한국어 문구를 고른다(`integrations/worker.py::_WORKER_REJECTIONS`, `/generate`와 같은 경로). 코드 없는 422(디코드 실패 등)는 일반 `worker_rejected`로 남는다. 코드를 싣지 않으면 "배경이 고르지 않다"와 실제 결함이 같은 문구로 뭉개져 사용자가 무엇을 바꿔야 할지 알 수 없다.
 
 `POST /motifs/import`는 DB를 쓰지 않는 pure normalization 경계다. `{motif_id,symbol,bbox,anchor,preview_svg}`를 반환하고, API가 quota 확인과 함께 `Motif(source=user_upload, embedding=null)` 및 사용자 소유 링크를 하나의 transaction에 저장한다. 따라서 API transaction 실패가 ownerless private motif를 남기지 않는다. `preview_svg`는 저장 symbol과 같은 concrete paint의 standalone 문서이며 재-import해도 같은 content-hash identity와 geometry를 얻는다.
 
@@ -132,8 +138,12 @@ resolver가 concrete motif ID를 확정한 뒤 intent는 `motif_id`와 `size_mm`
 
 `scripts/seed_head_catalog.py`: 모티프 5개(flower/whole ×3, leaf/whole ×2, 전부 style=flat, source="seed"). 멱등(content-hash id + ON CONFLICT DO NOTHING). 재구현 시 새 모노레포 시드로 이식.
 
-재구현 확장(원본 외): `apps/worker/scripts/seed_motifs.py`가 인라인 시드(위 5개 + `circle` 원반, style=flat)에 더해 `motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 글리프 91개 — 동물·마린·하늘·문장·과일·취미·식물, subject=파일명 첫 토큰, style=outline)를 concrete-color 기본 모티프로 `status=approved` 시드한다. 손으로 쓴 도형은 인라인에 둔다 — 에셋 라벨은 파일명 템플릿(`"{stem} outline icon"`)이라 글리프가 아닌 것에는 맞지 않는다. 파일명 stem/token은 tags에도 넣는다. 시드 뒤 `index_motif_embeddings.py --confirm-live`를 실행하고 출력의 `embedded=total`을 배포 gate로 확인한다.
+재구현 확장(원본 외): `apps/worker/scripts/seed_motifs.py`가 인라인 시드(위 5개 + `circle` 원반, style=flat)에 더해 `motif_assets/*.svg`(Flaticon UIcons regular-rounded 웹폰트에서 추출한 글리프 91개 — 동물·마린·하늘·문장·과일·취미·식물, subject=파일명 첫 토큰, style=outline)를 concrete-color 기본 모티프로 `status=approved` 시드한다. 손으로 쓴 도형은 인라인에 둔다 — 에셋 라벨은 파일명 템플릿(`"{stem} outline icon"`)이라 글리프가 아닌 것에는 맞지 않는다. 파일명 stem/token은 tags에도 넣는다.
+
+**카테고리 태그**: subject 어휘만으로는 상위어 질의가 전부 0건이라 `worker.motifs.categories`(정본)가 subject마다 카테고리를 태그로 더한다 — animal(동물) · bird(새·조류) · sea(바다·해양) · insect(곤충·벌레) · plant(식물) · fruit(과일) · sport(스포츠·운동) · vehicle(탈것·교통) · sky(하늘·날씨) · symbol(상징·문장) · music(음악). **스키마에 category 컬럼을 두지 않는다 — 카테고리는 그냥 태그다.** 버킷은 겹치되(kiwi=새+과일, ship=바다+탈것) 대체로 나뉘며, "동물"은 육상·상상 동물만 담는다(새·물고기·곤충은 각자 상위어가 있고, 동물이 97개를 다 끌어오면 칩으로서 쓸모가 없다). 이 목록은 store 모티프 시트의 브라우징 칩(`apps/store/src/features/design/model/motif-categories.ts`)과 **같은 문자열**이어야 한다 — 어긋나면 칩을 눌렀는데 0건이 나온다. resolver도 같은 모듈을 읽어 lexical tier를 가른다(§5 3번) — 카테고리 어휘를 시드 스크립트에만 두면 grounding이 상위어와 고유어를 구분하지 못한다.
+
+시드는 멱등이며 시드 행 tags를 의도값으로 재기록한다. 값이 **실제로 바뀐 행만** `embedding_openai`을 NULL로 만든다 — 임베딩 문서가 tags를 포함하므로 태그를 고치면 grounding 벡터가 낡는다. 시드 뒤 `index_motif_embeddings.py --confirm-live`를 실행하고 출력의 `embedded=total`을 배포 gate로 확인한다.
 
 ## 10. 설정값
 
-openai_api_key/base_url, llm_model(`gpt-5.6-luna`), embedding_model(`text-embedding-3-large`)/dimensions(1536), motif_similarity_tau=0.40(임베딩 모델 분포 기준 재캘리브레이션), motif_generate_per_request_limit=2, motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True. GPT Image 모델·quality·size와 VTracer 단순화는 검증된 제품 고정값이며 provider 선택 설정이 아니다. GPT Image 모티프의 색상 수는 고정하지 않는다. 비로컬 generate worker는 OpenAI secret을 사용하며 설정 누락을 가짜 성공으로 바꾸지 않는다.
+openai_api_key/base_url, llm_model(`gpt-5.6-luna`), embedding_model(`text-embedding-3-large`)/dimensions(1536), motif_similarity_tau=0.40(임베딩 모델 분포 기준 재캘리브레이션 — **디자인 grounding 전용**이다. 모티프 시트 검색은 벡터 다리를 타지 않아 이 값을 쓰지 않는다), motif_generate_per_request_limit=2, motif_max_aspect_ratio=20.0, motif_edge_seam_tol=2.0, motif_render_check=True. GPT Image 모델·quality·size와 VTracer 단순화는 검증된 제품 고정값이며 provider 선택 설정이 아니다. GPT Image 모티프의 색상 수는 고정하지 않는다. 비로컬 generate worker는 OpenAI secret을 사용하며 설정 누락을 가짜 성공으로 바꾸지 않는다.

@@ -126,8 +126,6 @@ export function DesignPage() {
   const motifs = useMotifSearch({
     sessionId,
     currentMotifs: motifSlots,
-    motifGenerationRemaining:
-      sessionQuery.data?.motif_generation_remaining ?? null,
     // 교체 결과는 캔버스·모티프 패널에 바로 보인다 — 따로 알리지 않는다.
     onDone: () => setOverlay(null),
     notify: snackbar,
@@ -143,8 +141,7 @@ export function DesignPage() {
     onMotifIntent: (intent) => {
       setCollapsed(false);
       setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, false);
-      motifs.openSlot(1, "search");
-      if (intent.subject) motifs.setQuery(intent.subject);
+      motifs.openSlot(1, "search", intent.subject ?? undefined);
       setMotifHintSignal((signal) => signal + 1);
       const named = intent.subject ? `‘${intent.subject}’ ` : "";
       snackbar(`${named}모티프는 왼쪽에서 찾거나 만들 수 있어요.`);
@@ -313,37 +310,36 @@ export function DesignPage() {
         }
         left={
           <VStack alignItems="stretch" gap="x3">
-            <MotifPanel
-              motifs={motifSlots}
-              collapsed={collapsed}
-              onCollapsedChange={(next) => {
-                setCollapsed(next);
-                setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, next);
-              }}
-              onPickSource={(slot, source) => {
-                if (!ensureAuth()) return;
-                motifs.openSlot(slot, source);
-                setOverlay("motifs");
-              }}
-              onAddSvg={(slot, file) => {
-                if (!ensureAuth()) return;
-                void motifs.addSvgFile(slot, file);
-              }}
-              onAddPhoto={(slot, file) => {
-                if (!ensureAuth()) return;
-                motifs.openSlot(slot, "photo");
-                void motifs.addPhotoFile(file);
-                setOverlay("motifs");
-              }}
-              motifGenerationRemaining={
-                sessionQuery.data?.motif_generation_remaining ?? null
-              }
-              pendingSlot={motifs.pendingSlot}
-              activeSlot={overlay === "motifs" ? motifs.slot : null}
-              hintSignal={motifHintSignal}
-              startRequired={!hasDesign}
-              disabled={busy}
-            />
+            {/* 모바일은 우측 하단으로 띄운다(컨트롤 레이어 기준) — 좌측엔 이력 카드만 남고
+                PC(md~)는 static으로 돌아가 이력 카드 위 원래 자리를 지킨다. */}
+            <Box
+              position={{ base: "absolute", md: "static" }}
+              bottom={0}
+              right={0}
+            >
+              <MotifPanel
+                motifs={motifSlots}
+                collapsed={collapsed}
+                onCollapsedChange={(next) => {
+                  setCollapsed(next);
+                  setPanelCollapsed(MOTIF_PANEL_COLLAPSED_KEY, next);
+                }}
+                onPickSource={(slot, source) => {
+                  if (!ensureAuth()) return;
+                  motifs.openSlot(slot, source);
+                  setOverlay("motifs");
+                }}
+                onAddSvg={(slot, file) => {
+                  if (!ensureAuth()) return;
+                  void motifs.addSvgFile(slot, file);
+                }}
+                pendingSlot={motifs.pendingSlot}
+                activeSlot={overlay === "motifs" ? motifs.slot : null}
+                hintSignal={motifHintSignal}
+                startRequired={!hasDesign}
+                disabled={busy}
+              />
+            </Box>
             <HistoryCard
               cells={history.designCells}
               currentIndex={history.currentIndex}

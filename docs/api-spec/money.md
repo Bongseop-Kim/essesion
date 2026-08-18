@@ -45,10 +45,11 @@
 ## 3. 맞춤 주문 (custom)
 
 가격 계산 (calculate_custom_order_amounts):
-- pricing_constants 키: `START_COST, SEWING_PER_COST, AUTO_TIE_COST, TRIANGLE_STITCH_COST, SIDE_STITCH_COST, BAR_TACK_COST, DIMPLE_COST, SPODERATO_COST, FOLD7_COST, WOOL_INTERLINING_COST, BRAND_LABEL_COST, CARE_LABEL_COST, YARN_DYED_DESIGN_COST` — 하나라도 없으면 오류.
+- pricing_constants 키: `SEWING_PER_COST, AUTO_TIE_COST, TRIANGLE_STITCH_COST, SIDE_STITCH_COST, BAR_TACK_COST, DIMPLE_COST, SPODERATO_COST, FOLD7_COST, WOOL_INTERLINING_COST, BRAND_LABEL_COST, CARE_LABEL_COST, SAMPLE_SEWING_COST, SAMPLE_FABRIC_PRINTING_COST, SAMPLE_FABRIC_YARN_DYED_COST` — 하나라도 없으면 오류.
+- **주문제작은 샘플비를 포함한 가격이다** — 봉제 없는 주문제작은 없으므로 봉제 샘플비가 항상 1회 들어가고, 원단을 우리가 만들면(fabric_provided=false) 원단 샘플비도 1회 들어간다. 별도의 시작비·세팅비 상수는 없다(§4의 샘플 주문과 같은 상수를 공유하며, 샘플을 먼저 산 고객에게는 §4의 후속 할인쿠폰으로 되돌려준다).
 - 옵션: `tie_type ∈ {'', 'AUTO'}`, `interlining ∈ {'', 'WOOL'}`, bool 9종(triangle_stitch, side_stitch, bar_tack, dimple, turn_knot, spoderato, fold7, brand_label, care_label). **dimple·turn_knot은 tie_type='AUTO'에서만** 선택 가능하며, turn_knot은 자동 타이 비용에 포함되어 별도 과금하지 않는다.
-- `sewing = (SEWING_PER_COST + 선택 옵션 상수 합) * qty + START_COST`
-- fabric: `fabric_provided=true → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + (design_type='YARN_DYED'? YARN_DYED_DESIGN_COST : 0)`. design/fabric_type null이면 오류.
+- `sewing = (SEWING_PER_COST + 선택 옵션 상수 합) * qty + SAMPLE_SEWING_COST`
+- fabric: `fabric_provided=true → 0`; 아니면 `round(qty * FABRIC_{design_type}_{fabric_type} / 4) + SAMPLE_FABRIC_{design_type}_COST`. design/fabric_type null이면 오류.
 - total = sewing + fabric.
 
 주문 생성: quantity는 1~10,000. `base_unit = floor(total/qty)`, remainder는 item_data.pricing.unit_price_remainder에. 쿠폰은 §2와 동일(unit=base_unit). options 페이로드는 UTF-8 compact JSON 10KB, additional_notes는 500자 제한. reference_images는 최대 5개이며 `upload_id` 검증 후 images에 등록(entity_type='custom_order'). order_items: item_id=`custom-order-{order_id}`, item_type='custom', item_data=`{custom_order:true, quantity, options, reference_images, additional_notes, pricing:{sewing_cost,fabric_cost,total_cost,unit_price_remainder}}`. status='대기중'.
@@ -56,9 +57,9 @@
 ## 4. 샘플 주문 (sample)
 
 - `sample_type ∈ {fabric, sewing, fabric_and_sewing}`. fabric 계열이면 `design_type ∈ {PRINTING, YARN_DYED}` 필수.
-- 가격 키: sewing→`SAMPLE_SEWING_COST`, fabric+PRINTING→`SAMPLE_FABRIC_PRINTING_COST`, fabric+YD→`SAMPLE_FABRIC_YARN_DYED_COST`, both+PRINTING→`SAMPLE_FABRIC_AND_SEWING_PRINTING_COST`, both+YD→`SAMPLE_FABRIC_AND_SEWING_YARN_DYED_COST`. qty=1.
+- 가격 키: sewing→`SAMPLE_SEWING_COST`, fabric+PRINTING→`SAMPLE_FABRIC_PRINTING_COST`, fabric+YD→`SAMPLE_FABRIC_YARN_DYED_COST`, fabric_and_sewing→**두 상수의 합**(`SAMPLE_SEWING_COST + SAMPLE_FABRIC_{design_type}_COST`). qty=1. 원단+봉제를 묶는 별도 상수는 없다 — 묶음 할인이 없으므로 합산이 곧 정가다.
 - options는 UTF-8 compact JSON 10KB, additional_notes는 500자, reference_images는 최대 5개. 쿠폰 적용 가능(§2 규칙, qty=1). item_id=`sample-order-{order_id}`, item_type='sample'.
-- **샘플 할인 정책**: 샘플 주문 자체는 정가. **결제 확정 시 후속 정규주문용 할인쿠폰 자동 발급** — sample_type×design_type → (쿠폰명, pricing_constants 키) 매핑 5종(예: sewing→`('SAMPLE_DISCOUNT_SEWING','sample_discount_sewing')`). coupons를 `ON CONFLICT(name) DO UPDATE`로 동기화(fixed, value=상수값, max=값, expiry 2099-12-31) 후 user_coupons INSERT `ON CONFLICT DO NOTHING`.
+- **샘플 할인 정책**: 샘플 주문 자체는 정가. **결제 확정 시 후속 정규주문용 할인쿠폰 자동 발급** — sample_type×design_type → (쿠폰명, pricing_constants 키 목록) 매핑 5종(예: sewing→`('SAMPLE_DISCOUNT_SEWING',['sample_discount_sewing'])`). 할인액은 키 목록의 합이고, fabric_and_sewing은 가격과 같은 방식으로 `sample_discount_sewing + sample_discount_fabric_{printing|yarn_dyed}`를 합산한다. coupons를 `ON CONFLICT(name) DO UPDATE`로 동기화(fixed, value=상수값, max=값, expiry 2099-12-31) 후 user_coupons INSERT `ON CONFLICT DO NOTHING`.
 
 ## 5. 결제: lock → Toss confirm → confirm / unlock
 
@@ -101,7 +102,7 @@
   | 구성 수정(patch) | `design_edit_cost` | 12 | 1.0원 | 7.6원 | 13% |
   | 새 모티프 생성 | `design_motif_generate_cost` | 100 | 12.4원 | 63.1원 | 20% |
   순수령은 표기가에서 VAT 10%와 카드 수수료 3.3%를 뺀 값이며(토큰당 starter 0.876 / popular 0.759 / **pro 0.631원** — 여유가 가장 적은 pro로 검사한다), 원가에는 provider 요금과 **Cloud Run 요청 시간**을 함께 넣는다(요청 기반 과금이라 LLM 대기 시간도 청구된다). 세 키 모두 관리자 설정 화면에서 1~1000으로 바꿀 수 있고 0이면 해당 요청이 503이다. 5/2/0이던 초기값은 첫 생성이 후보 이미지를 여러 장 굽던 시절의 잔재였다.
-  - **이미지 생성 손익 가드**: 모티프 생성은 유일하게 이미지 provider를 호출하는 경로다. 평균 12.4원(1.3장×8.4원 + 태깅 0.5원 + CPU 1.0원), 최악 19.4원(2장 + CPU 60s). 100토큰이면 pro 최악에서도 43.7원이 남는다. 이 계산을 뒤집는 것 3종: ① `adapters/gpt_image.py`의 `DEFAULT_QUALITY="low"` — `medium`은 장당 74원이라 요청당 최악 150원으로 확실한 적자이며 단가를 약 400토큰으로 함께 올려야 한다 ② worker `motif_generate_per_request_limit`(기본 2) — 올리면 최악 원가가 비례해 커진다 ③ gpt-image-2는 token-based billing이라 장당 단가가 프롬프트 길이에 따라 변동한다(`provider_usage` 로그 `operation=generate_motif` 50건으로 실측 교체할 것). 디자인 생성은 이미지 생성 provider를 호출하거나 모티프 생성 예산을 소비하지 않는다. 모티프 검색·교체는 무과금이고, 사용자가 모티프 모달에서 명시적으로 실행한 모티프 생성만 `design_motif_generate_cost` + 세션 모티프 생성 예산 3회를 쓴다 — 예산 선차감과 토큰 차감은 같은 트랜잭션이라 과금 실패(잔액 부족·환불 심사 중)면 예산도 쓰이지 않고, 워커 실패·결과 조회 실패면 둘 다 되돌린다(work_id `motif_generate_{run_id.hex}`). 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus/free(work_id `{work}_use_bonus`·`_use_bonus_0`·`_use_free`·`_use_free_0`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리하고, 재차감 여부는 이 다섯 키의 존재로 판정한다.
+  - **이미지 생성 손익 가드**: 모티프 생성은 유일하게 이미지 provider를 호출하는 경로다. 평균 12.4원(1.3장×8.4원 + 태깅 0.5원 + CPU 1.0원), 최악 19.4원(2장 + CPU 60s). 100토큰이면 pro 최악에서도 43.7원이 남는다. 이 계산을 뒤집는 것 3종: ① `adapters/gpt_image.py`의 `DEFAULT_QUALITY="low"` — `medium`은 장당 74원이라 요청당 최악 150원으로 확실한 적자이며 단가를 약 400토큰으로 함께 올려야 한다 ② worker `motif_generate_per_request_limit`(기본 2) — 올리면 최악 원가가 비례해 커진다 ③ gpt-image-2는 token-based billing이라 장당 단가가 프롬프트 길이에 따라 변동한다(`provider_usage` 로그 `operation=generate_motif` 50건으로 실측 교체할 것). 디자인 생성은 이미지 생성 provider를 호출하지 않는다. 모티프 검색·교체는 무과금이고, 사용자가 모티프 모달에서 명시적으로 실행한 모티프 생성만 `design_motif_generate_cost`를 쓴다 — **사용량 제한은 이 토큰 하나이며 세션·계정 단위 횟수 상한은 없다**. 워커 실패·결과 조회 실패면 되돌린다(work_id `motif_generate_{run_id.hex}`). 유저 `pg_advisory_xact_lock(hashtext(user_id))`. 진행 중 토큰환불 클레임(접수) 있으면 `refund_pending` 거부. 잔액(만료 제외: `expires_at IS NULL OR > now()`) < 비용 → `insufficient_tokens`. **유료 우선**: paid를 (source_order_id, expires_at) 그룹별 **만료 임박순**으로 배치 차감(work_id `{work}_use_paid_{i}`), 잔여는 bonus/free(work_id `{work}_use_bonus`·`_use_bonus_0`·`_use_free`·`_use_free_0`). 전부 ON CONFLICT(work_id) DO NOTHING으로 멱등 처리하고, 재차감 여부는 이 다섯 키의 존재로 판정한다.
 - **실패 환불 (refund)**: 내부 전용. 실제 차감 행마다 class·source_order_id·expires_at을 보존한 양수 반전 행을 INSERT한다. work_id는 각 `{work}_use_*_refund`로 필수 멱등. 토큰 환불 클레임 승인 경로는 class별로 `refund_{claim_id}_paid`·`refund_{claim_id}_bonus`를 쓴다.
 - **잔액**: `{total, paid, bonus(=bonus+free)}` — 만료 제외 합. `GET /tokens/balance`는 여기에 `generate_cost`·`edit_cost`·`motif_generate_cost`를 실어 store 토큰 pill이 세 단가를 그대로 보여주고, 모티프 생성 버튼도 누르는 자리에 단가를 표기한다.
 - **가입 지급**: 신규 유저 생성 시(소셜 가입) admin_settings `design_token_initial_grant`(기본 750 = 생성 30회 체험), type='grant', class='free', **만료 없음**.
