@@ -1,24 +1,15 @@
 import {
   ActionButton,
   Box,
-  Chip,
-  HStack,
+  type DesignPreviewMode,
   Modal,
   SelectBox,
   SelectBoxItem,
-  Text,
-  TextField,
-  VStack,
 } from "@essesion/shared";
 import { useId, useState } from "react";
 
-export type ExportFormat = "png" | "tiff";
-export type ExportDpi = 150 | 300 | 600;
-
 export type ExportDialogValue = {
-  format: ExportFormat;
-  dpi: ExportDpi;
-  widthMm: number;
+  mode: DesignPreviewMode;
 };
 
 export type ExportDialogProps = {
@@ -29,9 +20,7 @@ export type ExportDialogProps = {
   disabled?: boolean;
 };
 
-const DPI_OPTIONS: readonly ExportDpi[] = [150, 300, 600];
-
-/** 출력 형식은 다이얼로그 로컬 폼 상태다 — 요청 payload가 아니라 이 폼의 값이다. */
+/** 내려받을 모습(넥타이/타일)은 다이얼로그 로컬 폼 상태다. 형식·해상도는 고정. */
 export function ExportDialog({
   open,
   onOpenChange,
@@ -40,49 +29,27 @@ export function ExportDialog({
   disabled = false,
 }: ExportDialogProps) {
   const formId = useId();
-  const [format, onFormatChange] = useState<ExportFormat>("png");
-  const [dpi, onDpiChange] = useState<ExportDpi>(300);
-  const [widthMm, onWidthMmChange] = useState("100");
-  const numericWidth = Number(widthMm);
-  const validWidth =
-    widthMm.trim() !== "" && Number.isFinite(numericWidth) && numericWidth > 0;
-
-  const submit = () => {
-    if (!validWidth || disabled || loading) return;
-    onSubmit({ format, dpi, widthMm: numericWidth });
-  };
+  const [mode, onModeChange] = useState<DesignPreviewMode>("tie");
 
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="디자인 내려받기"
-      description="인쇄에 맞는 파일 형식과 해상도를 선택해 주세요."
+      description="어떤 모습으로 내려받을지 선택해 주세요."
       size="medium"
       showCloseButton
       footer={
-        <HStack gap="x2">
-          <Box
-            as={ActionButton}
-            type="button"
-            variant="neutralOutline"
-            width="full"
-            disabled={loading}
-            onClick={() => onOpenChange(false)}
-          >
-            취소
-          </Box>
-          <Box
-            as={ActionButton}
-            type="submit"
-            form={formId}
-            width="full"
-            loading={loading}
-            disabled={disabled || !validWidth}
-          >
-            파일 만들기
-          </Box>
-        </HStack>
+        <Box
+          as={ActionButton}
+          type="submit"
+          form={formId}
+          width="full"
+          loading={loading}
+          disabled={disabled}
+        >
+          파일 만들기
+        </Box>
       }
     >
       <Box
@@ -90,72 +57,29 @@ export function ExportDialog({
         id={formId}
         onSubmit={(event) => {
           event.preventDefault();
-          submit();
+          if (disabled || loading) return;
+          onSubmit({ mode });
         }}
       >
-        <VStack gap="x5" alignItems="stretch">
-          <VStack gap="x2" alignItems="stretch">
-            <Text textStyle="label">파일 형식</Text>
-            <SelectBox
-              value={format}
-              onValueChange={(value) => onFormatChange(value as ExportFormat)}
-              columns={2}
-              aria-label="파일 형식"
-            >
-              <SelectBoxItem
-                value="png"
-                label="PNG"
-                description="웹과 일반 인쇄에 적합"
-                disabled={disabled || loading}
-              />
-              <SelectBoxItem
-                value="tiff"
-                label="TIFF"
-                description="고품질 인쇄 원본에 적합"
-                disabled={disabled || loading}
-              />
-            </SelectBox>
-          </VStack>
-
-          <VStack gap="x2" alignItems="stretch">
-            <Text textStyle="label">해상도</Text>
-            <HStack gap="x2" role="group" aria-label="해상도">
-              {DPI_OPTIONS.map((option) => (
-                <Chip
-                  key={option}
-                  selected={dpi === option}
-                  disabled={disabled || loading}
-                  onClick={() => onDpiChange(option)}
-                  aria-label={`${option} DPI`}
-                >
-                  {option} DPI
-                </Chip>
-              ))}
-            </HStack>
-          </VStack>
-
-          <TextField
-            type="number"
-            inputMode="decimal"
-            min="1"
-            step="0.1"
-            label="출력 폭"
-            description="실제 인쇄할 디자인의 가로 폭을 입력해 주세요."
-            suffix="mm"
-            value={widthMm}
-            onChange={(event) => onWidthMmChange(event.currentTarget.value)}
-            errorMessage={
-              widthMm.trim() !== "" && !validWidth
-                ? "0보다 큰 값을 입력해 주세요."
-                : undefined
-            }
+        <SelectBox
+          value={mode}
+          onValueChange={(value) => onModeChange(value as DesignPreviewMode)}
+          columns={2}
+          aria-label="내려받을 모습"
+        >
+          <SelectBoxItem
+            value="tie"
+            label="넥타이"
+            description="넥타이에 적용한 모습"
             disabled={disabled || loading}
           />
-
-          <Text textStyle="caption" color="fg.neutral-muted">
-            PNG와 TIFF 내려받기는 토큰을 사용하지 않아요.
-          </Text>
-        </VStack>
+          <SelectBoxItem
+            value="repeat"
+            label="타일"
+            description="이어붙일 수 있는 타일 원본"
+            disabled={disabled || loading}
+          />
+        </SelectBox>
       </Box>
     </Modal>
   );

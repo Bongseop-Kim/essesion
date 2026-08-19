@@ -30,6 +30,7 @@ async def get_token_balance(session: SessionDep, user: CurrentUser) -> TokenBala
         generate_cost=await ledger.get_cost(session),
         edit_cost=await ledger.get_cost(session, ledger.DESIGN_EDIT_COST_SETTING),
         motif_generate_cost=await ledger.get_cost(session, ledger.MOTIF_GENERATE_COST_SETTING),
+        finalize_cost=await ledger.get_cost(session, ledger.DESIGN_FINALIZE_COST_SETTING),
     )
 
 

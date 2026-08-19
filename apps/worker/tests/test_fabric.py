@@ -9,20 +9,15 @@ import io
 import math
 from fractions import Fraction
 from shutil import which
-from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
 from PIL import Image, ImageChops, ImageStat
 from worker.config import get_settings
-from worker.db import get_session
 from worker.engine.validate import validate_intent
-from worker.main import create_app
 from worker.motifs.registry import MotifDef, register_motif
 from worker.render import fabric, inlay, motif_mask, weave
 from worker.render import segment as segment_mod
 
-from .conftest import FakeObjectStore
 from .intent_helpers import register_test_motifs
 
 register_test_motifs()
@@ -500,78 +495,3 @@ def test_gate_rejections(weaves):
     render_raises(_yarn_no_motif_intent(), weave="twill-0", material_map={"accent": "burlap"})
     # unknown colorway
     render_raises(_yarn_no_motif_intent(), weave="twill-0", colorway_id="missing")
-
-
-# --- 10. /tasks/finalize 통합 -----------------------------------------------
-
-
-class _FakeFinalizeSession:
-    """finalize 라우트가 쓰는 최소 세션 — 준비한 job을 FOR UPDATE 조회에 그대로 돌려준다."""
-
-    def __init__(self, job):
-        self.job = job
-
-    async def scalar(self, _stmt):
-        return self.job
-
-    async def scalars(self, _stmt):
-        # 모티프 카탈로그 조회용 — 빈 결과면 렌더는 전역 registry로 폴백한다
-        class _Empty:
-            def all(self):
-                return []
-
-        return _Empty()
-
-    async def commit(self):
-        pass
-
-
-def _finalize_app(monkeypatch, job):
-    app = create_app()
-    app.state.object_store = FakeObjectStore()
-
-    async def _session():
-        yield _FakeFinalizeSession(job)
-
-    app.dependency_overrides[get_session] = _session
-    return app
-
-
-def test_finalize_route_succeeds(weaves, monkeypatch):
-    import uuid
-
-    job = SimpleNamespace(
-        id=uuid.uuid4(),
-        kind="finalize",
-        status="queued",
-        attempts=0,
-        result=None,
-        error_message=None,
-        params={"intent": _yarn_motif_intent(), "weave": "twill-45", "dpi": 150},
-    )
-    client = TestClient(_finalize_app(monkeypatch, job))
-    resp = client.post("/tasks/finalize", json={"job_id": str(job.id)})
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "succeeded"
-    assert job.status == "succeeded"
-    assert job.result["object_key"].startswith("fabric/")
-
-
-def test_finalize_route_fabric_error_records_failed_and_returns_200(weaves, monkeypatch):
-    import uuid
-
-    job = SimpleNamespace(
-        id=uuid.uuid4(),
-        kind="finalize",
-        status="queued",
-        attempts=0,
-        result=None,
-        error_message=None,
-        params={"intent": _print_intent(), "weave": "check"},  # print + non-twill → FabricError
-    )
-    client = TestClient(_finalize_app(monkeypatch, job))
-    resp = client.post("/tasks/finalize", json={"job_id": str(job.id)})
-    assert resp.status_code == 200  # 영구 실패 — Cloud Tasks 재시도 안 함
-    assert resp.json()["status"] == "failed"
-    assert job.status == "failed"
-    assert job.error_message

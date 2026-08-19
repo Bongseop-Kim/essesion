@@ -1,24 +1,14 @@
 import logging
 import time
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from functools import wraps
 from typing import Any, Never, cast
 from urllib.parse import urlparse
 
 import httpx
-from db.models.design import (
-    FINALIZE_DISPATCH_FAILED_MESSAGE,
-    FINALIZE_TEMPORARY_FAILURE_CODE,
-    FINALIZE_TEMPORARY_FAILURE_MARKER,
-    FINALIZE_TEMPORARY_FAILURE_MESSAGE,
-    GenerationJob,
-)
 from db.models.seamless import EMBEDDING_DIM, SeamlessGenerationLog
 from fastapi import APIRouter, HTTPException, Request, Response
 from obs import request_id_var
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 from svg_safety import scrub_svg
@@ -36,7 +26,7 @@ from worker.api.schemas import (
     CandidatesRequest,
     DesignOut,
     ExportRequest,
-    FinalizeTaskRequest,
+    FinalizeRequest,
     GenerateRequest,
     GenerateResponse,
     GenerationWarning,
@@ -663,7 +653,7 @@ async def _generate_from_patch(
         )
 
     try:
-        patched = apply_patch(context.current_intent, patch)
+        patched = apply_patch(context.current_intent, patch, warnings=warnings)
         constrained_intent = apply_generation_constraints(patched, warnings=warnings)
     except ConstraintInvalid:
         _reject_generation(request, "constraint_conflict", "constraints")
@@ -1136,164 +1126,42 @@ async def export(body: ExportRequest, request: Request) -> Response:
     return Response(content=data, media_type=media)
 
 
-@finalize_router.post("/tasks/finalize")
-async def finalize_task(
-    body: FinalizeTaskRequest, request: Request, session: SessionDep
-) -> dict[str, Any]:
-    job = await session.scalar(
-        select(GenerationJob).where(GenerationJob.id == body.job_id).with_for_update()
-    )
-    if job is None:
-        await session.commit()
-        # DB에 없는 task는 재시도해도 생기지 않는다. 2xx로 ACK해 폐기한다.
-        return {"status": "ignored", "reason": "job_not_found"}
-    if job.kind != "finalize":
-        await session.commit()
-        return {"status": "ignored", "reason": "job_kind_is_not_finalize"}
-    if job.status == "succeeded":
-        await session.commit()
-        return {"status": "succeeded", "result": job.result}  # 멱등 — Cloud Tasks 재전송
-    if job.status == "canceled":
-        await session.commit()
-        # API가 취소를 확정하고 예산을 환불한 job — 늦게 도착한 task는 실행하지 않고 ACK.
-        return {"status": "canceled"}
-    if job.status == "failed" and job.error_message == FINALIZE_DISPATCH_FAILED_MESSAGE:
-        await session.commit()
-        # API가 전달 실패를 확정하고 예산을 환불한 job은 늦게 도착한 task가 실행하면 안 된다.
-        return {"status": "canceled"}
-    if job.status == "failed" and job.error_message != FINALIZE_TEMPORARY_FAILURE_MARKER:
-        await session.commit()
-        # 입력 오류와 원인이 분류되지 않은 실패는 재실행해도 안전하다는 근거가 없다.
-        # 명시적인 일시 실패 marker만 Cloud Tasks 재시도 대상으로 인정하고,
-        # terminal 상태는 2xx로 ACK해 재전송을 끝낸다.
-        return {"status": "failed"}
-    if job.status not in {"queued", "processing", "failed"}:
-        await session.commit()
-        return {"status": "ignored", "reason": "job_is_not_runnable"}
+@finalize_router.post("/finalize")
+async def finalize(body: FinalizeRequest, request: Request, session: SessionDep) -> dict[str, Any]:
+    """실사화 렌더 + GCS 업로드 — /export와 같은 stateless 동기 엔드포인트.
 
-    if job.status == "processing":
-        updated_at = job.updated_at
-        if updated_at is None:
-            lease_expired = False
-        else:
-            if updated_at.tzinfo is None:
-                updated_at = updated_at.replace(tzinfo=UTC)
-            lease_expired = datetime.now(UTC) - updated_at >= timedelta(
-                seconds=request.app.state.settings.finalize_lease_seconds
-            )
-        if not lease_expired:
-            await session.commit()
-            # Cloud Tasks must retry this delivery; acknowledging it could strand a job if the
-            # current worker dies. Queue backoff is configured to span the full lease.
-            raise HTTPException(status_code=409, detail="job is already processing")
-
-    # processing 전이를 먼저 커밋 — 수십 초 렌더 동안 행 잠금·트랜잭션을 잡고 있지 않는다
-    job.status = "processing"
-    job.attempts += 1
-    job.result = None
-    job.error_message = None
-    job.started_at = datetime.now(UTC)  # 재시도는 현재 attempt 기준으로 덮어쓴다
-    job.finished_at = None
-    attempt = job.attempts
-    params = dict(job.params)
-    await session.commit()
-
-    # generate와 동일하게 DB 모티프 카탈로그를 렌더에 공급 — 빈 카탈로그는 전역
-    # registry 폴백(테스트/시드 경로). 미등록 모티프는 render_fabric이 영구 실패 처리.
-    motif_catalog = await get_motifs(session, iter_motif_ids(params.get("intent"))) or None
-
-    try:
-        png = await run_in_threadpool(
-            render_fabric, params, request.app.state.settings, motif_catalog
-        )
-        key = content_key("fabric", png, "png")
-        await request.app.state.object_store.upload_bytes(key, png, "image/png")
-    except (FabricError, IntentInvalid, RasterLimitError):
-        # 영구 실패(잘못된 intent/weave/colorway 등) — failed 기록 후 200. 재렌더해도 같은
-        # 입력은 같은 실패라 Cloud Tasks 재시도가 무의미하다(예산·큐 낭비).
-        logger.warning(
-            "finalize input rejected (job_id=%s attempt=%s)",
-            body.job_id,
-            attempt,
-            exc_info=True,
-        )
-        finished = await _finish_job(
-            session,
-            body.job_id,
-            attempt=attempt,
-            status="failed",
-            error=f"{FINALIZE_INVALID_INPUT_CODE}: {FINALIZE_INVALID_INPUT_MESSAGE}",
-        )
-        if not finished:
-            return {"status": "superseded"}
-        return {
-            "status": "failed",
-            "error": {
+    잡 상태는 api가 소유한다(성공 시에만 GenerationJob 기록). 영구 실패는 422,
+    일시 실패(RasterError 등)는 5xx로 — api가 UpstreamError로 변환한다.
+    """
+    settings = request.app.state.settings
+    # /export와 같은 dpi 상한 — 같은 입력은 같은 실패라 영구 실패(422)로 과금을 되돌린다.
+    if body.dpi is not None and body.dpi > settings.max_dpi:
+        raise HTTPException(
+            status_code=422,
+            detail={
                 "code": FINALIZE_INVALID_INPUT_CODE,
                 "message": FINALIZE_INVALID_INPUT_MESSAGE,
             },
-        }
-    except Exception as exc:
-        # 일시 실패(RasterError 등) — 5xx로 Cloud Tasks 재시도에 위임.
-        logger.exception("finalize attempt failed (job_id=%s attempt=%s)", body.job_id, attempt)
-        finished = await _finish_job(
-            session,
-            body.job_id,
-            attempt=attempt,
-            status="failed",
-            error=FINALIZE_TEMPORARY_FAILURE_MARKER,
         )
-        if not finished:
-            return {"status": "superseded"}
+    params = body.model_dump(exclude_none=True)
+    # generate와 동일하게 DB 모티프 카탈로그를 렌더에 공급 — 빈 카탈로그는 전역
+    # registry 폴백(테스트/시드 경로). 미등록 모티프는 render_fabric이 영구 실패 처리.
+    motif_catalog = await get_motifs(session, iter_motif_ids(params.get("intent"))) or None
+    try:
+        png = await run_in_threadpool(render_fabric, params, settings, motif_catalog)
+    except (FabricError, IntentInvalid, RasterLimitError):
+        # 영구 실패(잘못된 intent/weave/colorway 등) — 같은 입력은 같은 실패라 재시도 무의미.
+        logger.warning("finalize input rejected", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=422,
             detail={
-                "code": FINALIZE_TEMPORARY_FAILURE_CODE,
-                "message": FINALIZE_TEMPORARY_FAILURE_MESSAGE,
+                "code": FINALIZE_INVALID_INPUT_CODE,
+                "message": FINALIZE_INVALID_INPUT_MESSAGE,
             },
-        ) from exc
-
-    finished = await _finish_job(
-        session,
-        body.job_id,
-        attempt=attempt,
-        status="succeeded",
-        result={"object_key": key},
-    )
-    if not finished:
-        return {"status": "superseded"}
-    return {"status": "succeeded", "result": {"object_key": key}}
-
-
-async def _finish_job(
-    session,
-    job_id: uuid.UUID,
-    *,
-    attempt: int,
-    status: str,
-    result: dict | None = None,
-    error: str | None = None,
-) -> bool:
-    job = await session.scalar(
-        select(GenerationJob)
-        .where(GenerationJob.id == job_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if job is None:
-        await session.commit()
-        return False
-    # A stale lease may have been reclaimed while this attempt was still rendering. Only the
-    # current processing attempt may publish a terminal state, so late success/failure is inert.
-    if job.status != "processing" or job.attempts != attempt:
-        await session.commit()
-        return False
-    job.status = status
-    job.result = result
-    job.error_message = error
-    job.finished_at = datetime.now(UTC)
-    await session.commit()
-    return True
+        ) from None
+    key = content_key("fabric", png, "png")
+    await request.app.state.object_store.upload_bytes(key, png, "image/png")
+    return {"object_key": key}
 
 
 router = APIRouter()

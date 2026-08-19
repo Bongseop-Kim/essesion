@@ -38,6 +38,7 @@ _WORKER_REJECTIONS: dict[str, tuple[str, str | None]] = {
         "형태가 또렷하고 색이 적은 사진을 골라 주세요",
         None,
     ),
+    "FINALIZE_INVALID_INPUT": ("디자인 정보를 실사화할 수 없습니다", None),
 }
 
 
@@ -79,8 +80,9 @@ class WorkerClient:
     async def generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/generate", payload)
 
-    async def finalize_job(self, job_id: str) -> dict[str, Any]:
-        return await self._post_json("/tasks/finalize", {"job_id": job_id}, finalize=True)
+    async def finalize(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """실사화 동기 렌더 — {"object_key": ...} 반환. 영구 실패는 WorkerRequestError."""
+        return await self._post_json("/finalize", payload, finalize=True)
 
     async def motif_candidates(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/motifs/candidates", payload)
@@ -162,7 +164,7 @@ class WorkerClient:
         if res.status_code in (400, 422):
             # 워커의 고정 오류 계약만 보존한다. 모델/검증 원문은 사용자 응답으로
             # 흘리지 않아 프롬프트·내부 경로·provider 세부정보 노출을 막는다.
-            if path in ("/generate", "/motifs/photo-preview"):
+            if path in ("/generate", "/motifs/photo-preview", "/finalize"):
                 raise _worker_rejection(res)
             raise WorkerRequestError("이미지 워커가 요청을 거부했습니다")
         if res.status_code >= 400:

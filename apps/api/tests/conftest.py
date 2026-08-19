@@ -17,7 +17,7 @@ from pydantic_settings import SettingsConfigDict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .fakes import FakeGcsClient, FakeTaskQueue
+from .fakes import FakeGcsClient
 
 TRUNCATE_SQL = "TRUNCATE {} RESTART IDENTITY CASCADE".format(
     ", ".join(t.name for t in Base.metadata.sorted_tables)
@@ -36,10 +36,9 @@ class _TestSettings(Settings):
 
 @pytest.fixture
 def fake_integrations(monkeypatch):
-    """lifespan이 실제 GCS 클라이언트·inline 큐를 만들지 않도록 builder 자체를 교체한다."""
+    """lifespan이 실제 GCS 클라이언트를 만들지 않도록 builder 자체를 교체한다."""
 
     monkeypatch.setattr("api.main.build_gcs_client", lambda _settings: FakeGcsClient())
-    monkeypatch.setattr("api.main.build_task_queue", lambda _settings, _worker: FakeTaskQueue())
 
 
 @pytest.fixture

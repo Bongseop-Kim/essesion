@@ -52,7 +52,6 @@ const CAPABILITY_LABELS = {
   toss: "Toss 결제",
   solapi: "Solapi 알림",
   worker: "이미지 생성 Worker",
-  finalize_tasks: "Finalize 작업 큐",
   batch_auth: "배치 OIDC 인증",
   oauth_google: "Google OAuth",
   oauth_kakao: "Kakao OAuth",

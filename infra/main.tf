@@ -4,7 +4,6 @@ resource "google_project_service" "apis" {
   for_each = toset([
     "run.googleapis.com",
     "sqladmin.googleapis.com",
-    "cloudtasks.googleapis.com",
     "artifactregistry.googleapis.com",
     "secretmanager.googleapis.com",
     "iam.googleapis.com",
@@ -62,24 +61,3 @@ resource "google_storage_bucket" "uploads" {
   }
 }
 
-# finalize 잡 큐 — 작업 단위 재시도 제어 (ARCHITECTURE §1)
-resource "google_cloud_tasks_queue" "finalize" {
-  name     = "finalize"
-  location = var.region
-
-  rate_limits {
-    max_concurrent_dispatches = 2 # finalize 동시성 1~2 (§7)
-  }
-
-  retry_config {
-    # max_retry_duration은 긴 dispatch에서 횟수 상한보다 먼저 재시도를
-    # 끊을 수 있어 생략한다. 실패 전달의 횟수 상한은 최초를 포함한
-    # max_attempts 4회만으로 제어한다.
-    max_attempts  = 4
-    min_backoff   = "10s"
-    max_backoff   = "60s"
-    max_doublings = 3
-  }
-
-  depends_on = [google_project_service.apis]
-}

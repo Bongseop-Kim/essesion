@@ -68,7 +68,6 @@ const capabilities: AdminCapabilitiesOut = {
   toss: "real",
   solapi: "real",
   worker: "real",
-  finalize_tasks: "real",
   batch_auth: "oidc",
   oauth_google: "ready",
   oauth_kakao: "ready",

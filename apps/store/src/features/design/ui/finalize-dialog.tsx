@@ -1,7 +1,6 @@
 import {
   ActionButton,
   Box,
-  Callout,
   HStack,
   Modal,
   SelectBox,
@@ -10,8 +9,6 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useState } from "react";
-
-import { formatDateTime } from "@/shared/lib/format";
 
 export type ProductionMethod = "print" | "yarn_dyed";
 
@@ -34,10 +31,8 @@ export type FinalizeDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (value: FinalizeDialogValue) => void;
-  /** 계정당 24시간 쿼터 남은 횟수 — null이면 미로드/설정 부재(막지 않음, 서버가 최종 방어) */
-  remaining: number | null;
-  /** 쿼터 소진 시 슬롯이 하나 풀리는 시각(ISO) — 카운트 0이면 null */
-  resetAt: string | null;
+  /** 실사화 1회 토큰 단가 — null이면 미로드(표기 생략, 서버가 최종 방어) */
+  cost: number | null;
   loading?: boolean;
   disabled?: boolean;
 };
@@ -87,21 +82,12 @@ const WEAVES = [
 
 const PRINT_WEAVES: readonly FabricWeave[] = ["twill-0", "twill-45"];
 
-const formatResetAt = (resetAt: string | null): string | null =>
-  formatDateTime(resetAt, {
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }) || null;
-
 /** 제작 방식·짜임은 다이얼로그 로컬 폼 상태다 — 캔버스가 들고 있을 값이 아니다. */
 export function FinalizeDialog({
   open,
   onOpenChange,
   onSubmit,
-  remaining,
-  resetAt,
+  cost,
   loading = false,
   disabled = false,
 }: FinalizeDialogProps) {
@@ -120,20 +106,14 @@ export function FinalizeDialog({
       ? WEAVES.filter((option) => PRINT_WEAVES.includes(option.value))
       : WEAVES;
   const validWeave = availableWeaves.some((option) => option.value === weave);
-  const exhausted = remaining !== null && remaining <= 0;
-  const submitDisabled = disabled || exhausted || !validWeave;
-  const resetAtLabel = formatResetAt(resetAt);
+  const submitDisabled = disabled || !validWeave;
+  const costLabel = cost == null ? "" : ` · ${cost}토큰`;
 
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
       title="실사화"
-      description={
-        remaining === null
-          ? undefined
-          : `최근 24시간 남은 횟수 ${Math.max(0, remaining)}회`
-      }
       size="medium"
       showCloseButton
       footer={
@@ -156,24 +136,12 @@ export function FinalizeDialog({
             disabled={submitDisabled}
             onClick={() => onSubmit({ productionMethod, weave, dpi: 300 })}
           >
-            실사화 만들기
+            실사화 만들기{costLabel}
           </Box>
         </HStack>
       }
     >
       <VStack gap="x5" alignItems="stretch">
-        {exhausted ? (
-          <Callout
-            tone="warning"
-            title="실사화 횟수를 모두 사용했어요"
-            description={
-              resetAtLabel
-                ? `최근 24시간 한도에 도달했어요. ${resetAtLabel} 이후 다시 만들 수 있어요.`
-                : "최근 24시간 한도에 도달했어요. 잠시 후 다시 시도해 주세요."
-            }
-          />
-        ) : null}
-
         <VStack gap="x2" alignItems="stretch">
           <Text textStyle="label">제작 방식</Text>
           <SelectBox
@@ -190,7 +158,7 @@ export function FinalizeDialog({
                 value={method.value}
                 label={method.label}
                 description={method.description}
-                disabled={disabled || loading || exhausted}
+                disabled={disabled || loading}
               />
             ))}
           </SelectBox>
@@ -210,7 +178,7 @@ export function FinalizeDialog({
                 value={option.value}
                 label={option.label}
                 description={option.description}
-                disabled={disabled || loading || exhausted}
+                disabled={disabled || loading}
               />
             ))}
           </SelectBox>

@@ -93,10 +93,6 @@ export type AdminCapabilitiesOut = {
      */
     edge_proxy: string;
     /**
-     * Finalize Tasks
-     */
-    finalize_tasks: string;
-    /**
      * Oauth Apple
      */
     oauth_apple: string;
@@ -2016,7 +2012,7 @@ export type AdminSettingOut = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_cost' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Updated At
      */
@@ -4010,7 +4006,6 @@ export type DesignSessionOut = {
     current_plan: {
         [key: string]: unknown;
     } | null;
-    finalize_quota?: FinalizeQuotaOut | null;
     /**
      * Id
      */
@@ -4127,30 +4122,6 @@ export type DesignWarningOut = {
      * Message
      */
     message: string;
-};
-
-/**
- * FinalizeQuotaOut
- *
- * 계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null).
- */
-export type FinalizeQuotaOut = {
-    /**
-     * Limit
-     */
-    limit: number;
-    /**
-     * Remaining
-     */
-    remaining: number;
-    /**
-     * Reset At
-     */
-    reset_at: string | null;
-    /**
-     * Used
-     */
-    used: number;
 };
 
 /**
@@ -7740,7 +7711,7 @@ export type SettingUpdateItem = {
     /**
      * Key
      */
-    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_daily_limit' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
+    key: 'default_courier_company' | 'design_edit_cost' | 'design_finalize_cost' | 'design_motif_generate_cost' | 'design_token_cost_openai_render_standard' | 'design_token_initial_grant';
     /**
      * Value
      */
@@ -7919,6 +7890,10 @@ export type TokenBalance = {
      * Edit Cost
      */
     edit_cost: number;
+    /**
+     * Finalize Cost
+     */
+    finalize_cost: number;
     /**
      * Generate Cost
      */
@@ -11658,22 +11633,6 @@ export type CleanupImagesResponses = {
 
 export type CleanupImagesResponse = CleanupImagesResponses[keyof CleanupImagesResponses];
 
-export type ReconcileStaleGenerationJobsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/batch/reconcile-stale-generation-jobs';
-};
-
-export type ReconcileStaleGenerationJobsResponses = {
-    /**
-     * Successful Response
-     */
-    200: BatchResult;
-};
-
-export type ReconcileStaleGenerationJobsResponse = ReconcileStaleGenerationJobsResponses[keyof ReconcileStaleGenerationJobsResponses];
-
 export type GetCartData = {
     body?: never;
     path?: never;
@@ -12051,66 +12010,6 @@ export type DeleteGenerationJobResponses = {
 };
 
 export type DeleteGenerationJobResponse = DeleteGenerationJobResponses[keyof DeleteGenerationJobResponses];
-
-export type GetGenerationJobData = {
-    body?: never;
-    path: {
-        /**
-         * Job Id
-         */
-        job_id: string;
-    };
-    query?: never;
-    url: '/design/jobs/{job_id}';
-};
-
-export type GetGenerationJobErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetGenerationJobError = GetGenerationJobErrors[keyof GetGenerationJobErrors];
-
-export type GetGenerationJobResponses = {
-    /**
-     * Successful Response
-     */
-    200: GenerationJobOut;
-};
-
-export type GetGenerationJobResponse = GetGenerationJobResponses[keyof GetGenerationJobResponses];
-
-export type CancelGenerationJobData = {
-    body?: never;
-    path: {
-        /**
-         * Job Id
-         */
-        job_id: string;
-    };
-    query?: never;
-    url: '/design/jobs/{job_id}/cancel';
-};
-
-export type CancelGenerationJobErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CancelGenerationJobError = CancelGenerationJobErrors[keyof CancelGenerationJobErrors];
-
-export type CancelGenerationJobResponses = {
-    /**
-     * Successful Response
-     */
-    200: GenerationJobOut;
-};
-
-export type CancelGenerationJobResponse = CancelGenerationJobResponses[keyof CancelGenerationJobResponses];
 
 export type CreateDesignOrderReferenceData = {
     body?: never;

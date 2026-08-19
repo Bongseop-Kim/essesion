@@ -13,7 +13,6 @@ from .factories import auth_headers, make_user
 async def test_generation_jobs_page_stats_and_safe_detail(app, client, db_session, settings):
     admin = await make_user(db_session, role="admin")
     owner = await make_user(db_session, email="owner-secret@test.local")
-    app.state.settings.gcp_project_id = "test-project"
     app.state.settings.gcs_assets_bucket = "configured-assets"
     now = datetime.now(UTC)
     succeeded = GenerationJob(

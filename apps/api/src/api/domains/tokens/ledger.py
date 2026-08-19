@@ -41,6 +41,8 @@ TOKEN_COST_SETTING = "design_token_cost_openai_render_standard"
 DESIGN_EDIT_COST_SETTING = "design_edit_cost"
 # 모티프 생성만 이미지 provider를 호출한다 — 실측 원가가 첫 생성의 6~11배라 별도 단가 (money.md §6).
 MOTIF_GENERATE_COST_SETTING = "design_motif_generate_cost"
+# 실사화는 외부 AI 없는 CPU 렌더 — 인프라 원가(회당 2.4~4.8원)만 커버하는 소액 단가 (money.md §6).
+DESIGN_FINALIZE_COST_SETTING = "design_finalize_cost"
 PLAN_KEYS = ("starter", "popular", "pro")
 TOKEN_DEBIT_ORDER = ("paid", "bonus", "free")
 

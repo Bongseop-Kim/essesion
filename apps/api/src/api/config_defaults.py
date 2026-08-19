@@ -21,8 +21,11 @@ ADMIN_SETTINGS = {
     "design_token_cost_openai_render_standard": "25",
     "design_edit_cost": "12",
     "design_motif_generate_cost": "100",
-    "design_finalize_daily_limit": "10",
+    "design_finalize_cost": "5",
 }
+
+# 이전 스키마의 admin_settings 잔재 — 남아 있으면 관리자 화면에 유령 행이 남는다.
+_RETIRED_ADMIN_SETTING_KEYS = ("design_finalize_daily_limit",)
 
 PRICING: dict[str, tuple[int, str]] = {
     # reform
@@ -107,5 +110,8 @@ async def apply_config_defaults(session: AsyncSession, *, overwrite: bool) -> tu
         )
     await session.execute(
         delete(PricingConstant).where(PricingConstant.key.in_(_RETIRED_PRICING_KEYS))
+    )
+    await session.execute(
+        delete(AdminSetting).where(AdminSetting.key.in_(_RETIRED_ADMIN_SETTING_KEYS))
     )
     return len(ADMIN_SETTINGS), len(PRICING)

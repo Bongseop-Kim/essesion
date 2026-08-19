@@ -39,7 +39,8 @@ export function StarterGallery({
       pt={{ base: "x12", md: 0 }}
       overflowY="auto"
     >
-      <Box display={{ base: "block", md: "none" }} height={220} aria-hidden />
+      {/* 상단 pill(Help·뷰·토큰) 아래로만 내린다 — 더 내리면 카드 라벨이 우하단 모티프 패널에 가린다 */}
+      <Box display={{ base: "block", md: "none" }} height={80} aria-hidden />
       <VStack gap="x1" alignItems="center">
         <Text as="h2" textStyle="title3">
           예시에서 시작해 보세요

@@ -1,9 +1,8 @@
 """디자인 세션·잡 — LangGraph checkpoint 대체, api 소유 (ARCHITECTURE §1).
 
 - 세션 상태(턴 이력·선택·게이트)는 api가 일반 테이블로 소유, 워커는 stateless.
-- finalize 제한은 세션 카운터가 아니라 계정당 24시간 윈도우 쿼터 —
-  generation_jobs 행을 직접 센다 (api/domains/design/quota.py).
-- generation_jobs = finalize/export 비동기 잡(Cloud Tasks) 상태 폴링용.
+- finalize는 동기 요청-응답 + 토큰 과금(design_finalize_cost) — generation_jobs는
+  완성본 레코드(성공만 INSERT)로, 보관함·order-reference·삭제의 키다.
 - current_intent/current_plan = 마지막 선택의 렌더/대화 정본.
 - active_generation_id = 외부 호출 동안 세션당 생성 1개를 보장하는 짧은 lease.
 """
@@ -16,15 +15,6 @@ from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, UniqueCon
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.models.base import Base, CreatedAtMixin, TimestampMixin, uuid_pk
-
-FINALIZE_DISPATCH_FAILED_MESSAGE = "finalize 작업 전달에 실패했습니다"
-FINALIZE_STALE_MESSAGE = "finalize 작업 처리 시간이 초과되었습니다"
-FINALIZE_CANCELED_MESSAGE = "사용자가 finalize 작업을 취소했습니다"
-FINALIZE_TEMPORARY_FAILURE_CODE = "FINALIZE_TEMPORARY_FAILURE"
-FINALIZE_TEMPORARY_FAILURE_MESSAGE = "finalize temporarily failed"
-FINALIZE_TEMPORARY_FAILURE_MARKER = (
-    f"{FINALIZE_TEMPORARY_FAILURE_CODE}: {FINALIZE_TEMPORARY_FAILURE_MESSAGE}"
-)
 
 
 class DesignSession(TimestampMixin, Base):

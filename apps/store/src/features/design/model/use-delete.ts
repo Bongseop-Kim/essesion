@@ -5,11 +5,7 @@ import {
 } from "@essesion/api-client/query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import {
-  designSessionQueryKey,
-  designTurnsQueryKey,
-  generationJobQueryKey,
-} from "./queries";
+import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 
 export function useDeleteDesignSession() {
   const queryClient = useQueryClient();
@@ -44,7 +40,6 @@ export function useDeleteFinalizedJob() {
         path: { job_id: jobId },
         throwOnError: true,
       });
-      queryClient.removeQueries({ queryKey: generationJobQueryKey(jobId) });
       await queryClient.invalidateQueries({
         queryKey: listGenerationJobsQueryKey(),
       });

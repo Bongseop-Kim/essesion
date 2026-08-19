@@ -17,6 +17,8 @@ export type TieCanvasProps = {
    * `none` = 면·라운드 없이 부모 배경에 바로 놓는다(풀블리드 캔버스).
    */
   surface?: "panel" | "none";
+  /** 타일 반복 배율 — SVG 루트의 물리 폭(tile_mm/48)에 비례시킨다. 기본 1. */
+  tileScale?: number;
   className?: string;
 };
 
@@ -30,6 +32,20 @@ const TIE_SHADOW = { width: 397, height: 864, top: -58 };
 const TIE_ART_HEIGHT = (TIE_FRAME.width * TIE_SHADOW.height) / TIE_SHADOW.width;
 const TIE_MASK_TOP = -TIE_SHADOW.top / TIE_ART_HEIGHT;
 const TIE_MASK_HEIGHT = TIE_FRAME.height / TIE_ART_HEIGHT;
+
+/**
+ * 미리보기 기하 — 화면과 같은 그림을 캔버스로 합성해 내려받을 때 함께 쓴다.
+ * 여기서 갈라지면 내려받은 파일이 화면과 달라진다. 비율은 아트 박스 기준.
+ */
+export const TIE_GEOMETRY = {
+  /** 아트 박스(그림자 포함) 폭 대비 높이. */
+  artAspect: TIE_ART_HEIGHT / TIE_FRAME.width,
+  /** 실루엣 마스크 박스 — 아트 박스 상단에서의 오프셋·높이 비율(폭은 아트 박스와 같다). */
+  maskTop: TIE_MASK_TOP,
+  maskHeight: TIE_MASK_HEIGHT,
+  /** 마스크 박스 폭 대비 타일 한 장의 폭. */
+  tileFraction: { tie: 0.16, repeat: 0.28 },
+} as const;
 
 const tieMaskStyle: CSSProperties = {
   maskImage: "url(/images/tie.svg)",
@@ -55,12 +71,13 @@ export function TieCanvas({
   mode,
   alt = "선택한 디자인 미리보기",
   surface = "panel",
+  tileScale = 1,
   className,
 }: TieCanvasProps) {
   const backgroundStyle = {
     backgroundImage: `url(${JSON.stringify(imageSrc)})`,
     backgroundRepeat: "repeat",
-    backgroundSize: `${mode === "repeat" ? 28 : 16}% auto`,
+    backgroundSize: `${TIE_GEOMETRY.tileFraction[mode] * tileScale * 100}% auto`,
     backgroundPosition: "center",
   } as const;
 

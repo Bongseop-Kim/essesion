@@ -5,6 +5,7 @@ import {
   type DesignPreviewMode,
   Flex,
   Icon,
+  Skeleton,
   snackbar,
   Text,
   VStack,
@@ -34,7 +35,10 @@ import {
   designTurnsQueryOptions,
 } from "@/features/design/model/queries";
 import { readDesignHistory } from "@/features/design/model/steps";
-import { svgToDataUri } from "@/features/design/model/svg-preview";
+import {
+  svgTileScale,
+  svgToDataUri,
+} from "@/features/design/model/svg-preview";
 import {
   useDesignExport,
   useFinalizeFlow,
@@ -117,9 +121,18 @@ export function DesignPage() {
     [sessionQuery.data?.current_motifs],
   );
   const hasDesign = !!sessionQuery.data?.current_intent;
-  const quota = sessionQuery.data?.finalize_quota ?? null;
 
   const examples = examplesQuery.data ?? [];
+  // 세션 복원이 끝나기 전에는 빈 캔버스를 그리지 않는다 — 예시 갤러리가 깜빡였다가
+  // 작업 중이던 디자인으로 교체되는 걸 막는다.
+  const restoring =
+    status === "loading" ||
+    (authenticated &&
+      !freshSession &&
+      (sessionsQuery.isPending ||
+        (!sessionId && !!sessionsQuery.data?.length) ||
+        sessionQuery.isLoading ||
+        turnsQuery.isLoading));
 
   const activateStep = useActivateDesignStep();
   const startExample = useStartDesignFromExample();
@@ -154,8 +167,15 @@ export function DesignPage() {
   });
   const finalize = useFinalizeFlow({
     sessionId,
-    authenticated,
-    onStarted: () => setOverlay(null),
+    // 응답이 곧 완성본 — 같은 뷰(완성본 모달)로 결과를 바로 보여준다.
+    // 모달 위 모달 금지: 다이얼로그 닫힘 모션이 끝난 뒤 목록 모달을 연다.
+    onDone: () => {
+      setOverlay(null);
+      const reduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      window.setTimeout(() => setOverlay("finalized"), reduced ? 0 : 250);
+    },
   });
   const busy = editor.pending || activateStep.isPending;
   const exportable = !!history.currentSvg && !busy;
@@ -253,11 +273,15 @@ export function DesignPage() {
 
       <DesignCanvas
         imageSrc={history.currentSvg ? svgToDataUri(history.currentSvg) : null}
+        tileScale={
+          history.currentSvg ? svgTileScale(history.currentSvg) : undefined
+        }
         empty={
-          !hasDesign &&
-          !busy &&
-          !sessionQuery.isLoading &&
-          examples.length > 0 ? (
+          restoring ? (
+            <Box height="full" maxWidth="full" style={{ aspectRatio: 1 }}>
+              <Skeleton width="full" height="full" radius="r4" />
+            </Box>
+          ) : !hasDesign && !busy && examples.length > 0 ? (
             <StarterGallery
               examples={examples}
               onSelect={(example) => void startFromExample(example)}
@@ -363,9 +387,7 @@ export function DesignPage() {
             onFinalized={() => ensureAuth() && setOverlay("finalized")}
             onNewSession={() => ensureAuth() && openSession(null, true)}
             canExport={exportable}
-            canFinalize={
-              hasDesign && !busy && !(quota !== null && quota.remaining <= 0)
-            }
+            canFinalize={hasDesign && !busy}
             busy={busy}
             mobileOpen={mobileToolsOpen}
             onMobileOpenChange={setMobileToolsOpen}
@@ -416,9 +438,8 @@ export function DesignPage() {
             userMotifIds: [],
           })
         }
-        finalizeRemaining={quota?.remaining ?? null}
         motifGenerateCost={balanceQuery.data?.motif_generate_cost ?? null}
-        finalizeResetAt={quota?.reset_at ?? null}
+        finalizeCost={balanceQuery.data?.finalize_cost ?? null}
         onFinalize={finalize.submit}
         finalizeLoading={finalize.loading}
         finalizeDisabled={!hasDesign || busy}

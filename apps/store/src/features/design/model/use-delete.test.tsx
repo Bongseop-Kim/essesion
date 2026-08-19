@@ -19,11 +19,7 @@ vi.mock("@essesion/api-client", () => ({
   deleteGenerationJob: api.deleteJob,
 }));
 
-import {
-  designSessionQueryKey,
-  designTurnsQueryKey,
-  generationJobQueryKey,
-} from "./queries";
+import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 import { useDeleteDesignSession, useDeleteFinalizedJob } from "./use-delete";
 
 function queryWrapper(queryClient: QueryClient) {
@@ -75,11 +71,8 @@ describe("design deletion cache updates", () => {
     });
   });
 
-  it("완성본 삭제 후 단건 캐시를 제거하고 잡 목록만 갱신한다", async () => {
+  it("완성본 삭제 후 잡 목록만 갱신한다", async () => {
     const queryClient = new QueryClient();
-    const removeQueries = vi
-      .spyOn(queryClient, "removeQueries")
-      .mockImplementation(() => {});
     const invalidateQueries = vi
       .spyOn(queryClient, "invalidateQueries")
       .mockResolvedValue(undefined);
@@ -95,10 +88,6 @@ describe("design deletion cache updates", () => {
     expect(api.deleteJob).toHaveBeenCalledWith({
       path: { job_id: jobId },
       throwOnError: true,
-    });
-    expect(removeQueries).toHaveBeenCalledOnce();
-    expect(removeQueries).toHaveBeenCalledWith({
-      queryKey: generationJobQueryKey(jobId),
     });
     expect(invalidateQueries).toHaveBeenCalledOnce();
     expect(invalidateQueries).toHaveBeenCalledWith({

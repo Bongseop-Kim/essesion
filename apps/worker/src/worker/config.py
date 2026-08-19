@@ -26,9 +26,6 @@ class Settings(BaseSettings):
     max_tile_mm: float = Field(default=2000.0, gt=0.0, allow_inf_nan=False)
     max_svg_bytes: int = Field(default=2_000_000, ge=1)
     max_placement_instances: int = Field(default=50_000, ge=1)
-    # Cloud Run finalize timeout is 900s. A lease must outlive one healthy request so a
-    # retry cannot execute the same job concurrently; Cloud Tasks retries span this value.
-    finalize_lease_seconds: int = Field(default=960, ge=1)
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
 
     # 빈 키 → LLM/임베딩 클라이언트 None(비활성). base_url은 테스트의 mock 주입 지점.
