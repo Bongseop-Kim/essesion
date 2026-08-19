@@ -1,13 +1,13 @@
 # 성능·비용 절감 플랜
 
 **전제**: 2026-08-19 점검(코드 스캔 4방향 + 로컬 브라우저 네트워크 실측) 결과로 만든
-순위표다. 1순위 전체와 2순위의 코드 완결 항목은 2026-08-19에 실행 완료 —
+순위표다. 1·2순위(1~9번)는 2026-08-19에 실행·apply 완료 —
 `docs/reviews/perf-cost-reduction-2026-08-19.md`. 아래는 남은 항목이며 번호는 원
 플랜 번호를 유지한다. 위에서부터 실행하고, 끝난 항목은 reviews에 기록하고 지운다.
 
 **실패 모드**: 절감 효과를 측정 없이 단정하는 것. 청구 BigQuery export가 아직 없어
 (`docs/reviews/gcp-cost-reduction-2026-08-17.md`의 남긴 과제) SKU 단위 전후 비교가
-불가능하다 — 비용 항목(6·7번)을 실행하기 전에 export부터 켜는 것을 권장.
+불가능하다 — 7번을 실행하기 전에 export부터 켜는 것을 권장.
 
 ## 왜 필요한가
 
@@ -30,18 +30,12 @@
 ## 실행 조건
 
 - 4순위(17~19번)는 확인 결과가 나오기 전에는 수정하지 않는다.
-- 6·7번(비용)은 청구 export 활성화 후 실행하면 전후 비교가 가능하다(권장이지 필수는 아님).
+- 7번(비용)은 청구 export 활성화 후 실행하면 전후 비교가 가능하다(권장이지 필수는 아님).
 
 ## 절차
 
 ### 2순위 — 비용 직결
 
-6. **GCS 버킷 소프트 삭제 off apply** — tf 선언은 완료(`infra/main.tf` 두 버킷의
-   `soft_delete_policy { retention_duration_seconds = 0 }`, `tofu validate` 통과).
-   남은 것: GCP 자격 증명으로 `tofu plan` — 두 버킷의 soft_delete_policy 변경만
-   뜨는지 확인 후 apply. 정리 배치 상한(`batch/router.py:21`의 `CLEANUP_BATCH_SIZE
-   = 100`, `scheduler.tf` 일 1회)은 운영에서 만료 발생량이 100건/일을 넘는지 관찰 —
-   넘으면 정리가 영구히 밀린다.
 7. **공개 이미지 앞에 Cloudflare 캐시 계층** — `gcs.py`의 `public_asset_url`이
    `https://storage.googleapis.com/{bucket}` 직통 서빙이라 조회마다 서울 리전 egress
    (~$0.12/GB) + Class B 오퍼레이션 + Storage DATA_READ 감사 로그(`infra/audit.tf:20-31`,
@@ -104,16 +98,15 @@
   수정 전 관찰값(진입 시 101개 동시 요청 등)이 사라졌는지 확인.
 - api 항목(12·13): 해당 도메인 pytest만 지정 실행 + 로컬 SQL 로그로 쿼리 수 전후 비교.
 - worker 항목(14·15): 해당 테스트 파일 지정 실행.
-- 인프라 항목(6·7): `tofu plan`으로 의도한 리소스만 변경되는지 확인 후 apply.
-  7번은 응답 헤더의 캐시 적중(`cf-cache-status: HIT`)과 Cloud Logging의 DATA_READ
-  볼륨 감소로 확인.
+- 인프라 항목(7): `tofu plan`으로 의도한 리소스만 변경되는지 확인 후 apply —
+  plan 전에 로컬 `production.tfvars`가 라이브와 정합인지 반드시 확인(gitignore 파일이라
+  드리프트 이력 있음, 리뷰의 "인프라 apply 기록" 참조). 응답 헤더의 캐시 적중
+  (`cf-cache-status: HIT`)과 Cloud Logging의 DATA_READ 볼륨 감소로 확인.
 - 공통: `pnpm build && pnpm typecheck && pnpm test`, `uv run ruff check .`,
   api 스펙이 바뀌는 항목(10번 등)은 `pnpm codegen` 후 생성물 동반 커밋.
 
 ## 되돌리는 법 / 상향 신호
 
-- 6번 소프트 삭제 off: `soft_delete_policy` 블록의 retention을 604800(7일)으로 되돌려
-  apply. 상향 신호: 실수 삭제 복구가 필요했던 사건 발생.
 - 실행 완료 항목의 롤백은 `docs/reviews/perf-cost-reduction-2026-08-19.md` 참조.
 
 ## 기각한 대안

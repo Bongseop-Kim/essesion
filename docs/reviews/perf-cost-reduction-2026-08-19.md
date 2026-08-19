@@ -25,11 +25,11 @@
    무한 성장 방지). 캐시 적중 시 IAM signBlob 네트워크 호출 생략.
 5. **`address-select-modal`에 `enabled: open`** — 닫힌 모달(비로그인 포함)이
    `GET /addresses`를 쏘지 않는다.
-6. **GCS 버킷 소프트 삭제 off 선언(tf만, apply 남음)** — `infra/main.tf` 두 버킷에
+6. **GCS 버킷 소프트 삭제 off (apply 완료)** — `infra/main.tf` 두 버킷에
    `soft_delete_policy { retention_duration_seconds = 0 }`. 나이 기준 자동 삭제는
    넣지 않음 — 만료·클레임 정리는 도메인 규칙을 아는 cleanup-images 배치가 담당.
    `main.tf:28`의 "Cloudflare 프록시 경유" 주석 드리프트도 사실대로 수정(7번의 문서
-   드리프트 하위 작업). `tofu validate` 통과 — **`tofu plan` 확인 후 apply는 사람이 실행**.
+   드리프트 하위 작업). 같은 날 apply 완료 — 아래 "인프라 apply 기록" 참조.
 7. **worker 저작 LLM 호출 예산** — `adapters/llm.py`에 `LLMCallBudget`(이미지 경로
    `MotifGenerationBudget`과 같은 패턴) 도입. `author_design` 요청 1건당 유료 chat
    호출 상한 6회(정상 자기수정 4회는 통과, 최악 4×4=16회 차단) + 마감 170초(api
@@ -65,9 +65,28 @@
 - LLM 예산: `_AUTHORING_CALL_LIMIT`/`_AUTHORING_DEADLINE_S` 상수 조정.
 - 소프트 삭제(apply 후): retention을 604800(7일)으로 되돌려 apply.
 
+## 인프라 apply 기록 (2026-08-19)
+
+첫 `tofu plan`에서 예상 밖 변경 2건이 발견돼 apply 전에 수정했다. 원인은 **로컬
+`production.tfvars` 드리프트** — 이 파일이 gitignore라 컴퓨터 2대의 사본이 어긋나
+있었고, 이 컴퓨터 사본에 이전 apply의 값이 빠져 있었다:
+
+- `db_tier` 부재 → 변수 기본값 `db-g1-small`로 **DB 역상향 + 재시작**이 plan에 떴다.
+  2026-08-17 다운그레이드 유지를 위해 `db_tier = "db-f1-micro"` 복원.
+- 루트 도메인(`https://essesion.shop`) 부재 → FRONTEND_ORIGIN·CORS_ORIGINS·
+  `upload_cors_origins`에서 빠져 **루트 도메인 store의 API 호출이 CORS로 깨질** plan.
+  store는 루트와 app 서브도메인 양쪽 서빙(`apps/store/wrangler.jsonc`)이라 복원.
+
+수정 후 plan은 `0 add, 4 change, 7 destroy` — 버킷 2개 soft_delete(이번 목적) +
+finalize 동기 전환 잔재 정리(api의 CLOUD_TASKS·GCP env 제거, worker-finalize
+timeout 900→240, Cloud Tasks 큐·tasks-invoker SA·IAM·cloudtasks API·reconcile
+스케줄러 destroy 7건 — `finalize-sync-token-pricing-2026-08-19.md`의 커밋분이
+미적용 상태였던 것)만 남아 apply. 사후 확인: `/readyz` 200, 루트 Origin으로
+`/products?limit=1` 200 + `access-control-allow-origin: https://essesion.shop`.
+
 ## 남긴 과제
 
-- 6번 apply: GCP 자격 증명으로 `cd infra && tofu plan` → 두 버킷의
-  soft_delete_policy 변경만 뜨는지 확인 후 apply.
-- 6번 하위: 만료 발생량이 100건/일(cleanup-images LIMIT)을 넘는지 운영에서 관찰.
+- 만료 발생량이 100건/일(cleanup-images LIMIT)을 넘는지 운영에서 관찰.
+- `production.tfvars` 드리프트 재발 방지 — 다른 컴퓨터에 수정본 복사, 또는 시크릿이
+  없는 파일이므로 저장소 커밋(gitignore 해제) 검토.
 - 7번 본체(Cloudflare Worker 캐시 프록시)와 3·4순위는 플랜 문서에 유지.
