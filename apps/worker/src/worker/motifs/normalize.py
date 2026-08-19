@@ -290,7 +290,7 @@ def _render_gate(motif: NormalizedMotif, *, edge_seam_tol: float) -> None:
         "</svg>"
     )
     try:
-        png, _media = rasterize_svg(document, width_mm=size, dpi=_GATE_RENDER_DPI)
+        png, _media = rasterize_svg(document, width_mm=size, dpi=_GATE_RENDER_DPI, stamp_dpi=False)
     except RasterError as exc:
         raise ValueError(f"motif failed to render: {exc}") from exc
     image = Image.open(io.BytesIO(png)).convert("RGBA")

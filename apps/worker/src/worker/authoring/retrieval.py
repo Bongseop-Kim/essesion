@@ -41,9 +41,11 @@ class RetrievalOutcome:
         ]
 
 
-def retrieval_query_document(prompt: str, *, available_motif_count: int) -> str:
-    lines = [prompt.strip(), f"available motif slots: {available_motif_count}"]
-    return "\n".join(line for line in lines if line)
+def retrieval_query_document(prompt: str) -> str:
+    # 슬롯 수 접미사를 붙이지 않는다 — 슬롯 적합성은 아래 _compatible이 걸러내고,
+    # 접미사가 카탈로그 경로(raw prompt)와 텍스트를 갈라 요청 스코프 임베딩 메모를
+    # 무효화해 같은 프롬프트를 요청당 2회 유료 임베딩하게 만들었다 (perf-cost-reduction 리뷰 14번).
+    return prompt.strip()
 
 
 def _compatible(match: store.ExampleMatch, *, available_motif_count: int) -> bool:
@@ -64,7 +66,7 @@ async def retrieve_examples(
 ) -> RetrievalOutcome:
     if embedding_client is None:
         return RetrievalOutcome(status="embedding_unavailable")
-    query = retrieval_query_document(prompt, available_motif_count=available_motif_count)
+    query = retrieval_query_document(prompt)
     try:
         embedding = await embed_query(query, client=embedding_client)
         if embedding is None:

@@ -63,6 +63,8 @@ def _render_svg_png(svg: str) -> bytes:
             width_mm=_TAG_RENDER_MM,
             height_mm=_TAG_RENDER_MM,
             dpi=_TAG_RENDER_DPI,
+            # 비전 입력용 — DPI 메타 불필요, 재인코딩 생략
+            stamp_dpi=False,
         )
     except RasterError as exc:
         raise MotifTaggingError(

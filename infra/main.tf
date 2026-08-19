@@ -23,11 +23,30 @@ resource "google_artifact_registry_repository" "docker" {
   format        = "DOCKER"
   location      = var.region
   depends_on    = [google_project_service.apis]
+
+  # 배포마다 이미지가 무한 누적돼 저장 요금이 붙는다 — 패키지별 최근 5개만 유지.
+  # 롤백은 최근 리비전으로만 하므로 5개면 충분. dry run 없이 바로 적용(회수 불가 삭제지만
+  # 이미지는 재빌드 가능).
+  cleanup_policy_dry_run = false
+  cleanup_policies {
+    id     = "keep-recent-5"
+    action = "KEEP"
+    most_recent_versions {
+      keep_count = 5
+    }
+  }
+  cleanup_policies {
+    id     = "delete-stale"
+    action = "DELETE"
+    condition {
+      older_than = "2592000s" # 30일
+    }
+  }
 }
 
 # 생성물 버킷 — 공개 + content-hash 키 (ARCHITECTURE §1). worker 전용.
-# 서빙은 현재 storage.googleapis.com 직통(api gcs.py public_asset_url) — Cloudflare
-# 프록시 캐시 도입은 docs/plans/perf-cost-reduction.md 7번.
+# 서빙: api env PUBLIC_ASSETS_ORIGIN이 설정되면 Cloudflare assets-proxy 캐시 경유,
+# 미설정이면 storage.googleapis.com 직통 (infra/cloudflare/README.md 개통 순서 참조).
 resource "google_storage_bucket" "assets" {
   name                        = "${var.project_id}-assets"
   location                    = var.region

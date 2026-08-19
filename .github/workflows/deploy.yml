@@ -163,6 +163,7 @@ jobs:
           pnpm -C apps/store exec wrangler deploy
           pnpm -C apps/admin exec wrangler deploy
           pnpm -C infra/cloudflare/api-proxy exec wrangler deploy --var "ORIGIN:$API_PROXY_ORIGIN"
+          pnpm -C infra/cloudflare/assets-proxy exec wrangler deploy
       - name: Verify public proxy and direct-origin boundary
         run: |
           ready_status=""

@@ -322,7 +322,8 @@ async def test_embedding_client_posts_and_parses(embedding_client):
     )
     assert await embedding_client.embed("dot") == [0.1, 0.2, 0.3]
     payload = json.loads(route.calls.last.request.content)
-    assert payload == {"model": "text-embedding-3-large", "input": "dot", "dimensions": 3}
+    # 단건도 배열 입력으로 보낸다 — embed는 embed_batch 위임이다.
+    assert payload == {"model": "text-embedding-3-large", "input": ["dot"], "dimensions": 3}
     assert route.calls.last.request.headers["Authorization"] == "Bearer test-key"
 
 

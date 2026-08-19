@@ -24,9 +24,9 @@ class _Tagging:
 
 
 class _Embedding:
-    async def embed(self, text: str) -> list[float]:
-        assert "푸른 원" in text
-        return [0.0, 1.0] + [0.0] * 1534
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        assert all("푸른 원" in text for text in texts)
+        return [[0.0, 1.0] + [0.0] * 1534 for _ in texts]
 
 
 def _motif(motif_id: str) -> NormalizedMotif:

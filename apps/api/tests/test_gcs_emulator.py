@@ -96,3 +96,26 @@ def test_public_asset_url_points_at_emulator_assets_bucket():
     assert public_asset_url(_TestSettings(env="local"), "fabric/default.png") == (
         "http://localhost:4443/dev-assets/fabric/default.png"
     )
+
+
+def test_public_asset_url_prefers_configured_proxy_origin():
+    settings = _TestSettings(
+        env="staging",
+        public_api_origin="https://api.example.com",
+        gcs_assets_bucket="prod-assets",
+        public_assets_origin="https://assets.example.com/",
+    )
+    # 프록시가 버킷을 알고 있으므로 경로에는 객체 키만 남는다 (끝 슬래시는 정규화).
+    assert (
+        public_asset_url(settings, "fabric/abc.png") == "https://assets.example.com/fabric/abc.png"
+    )
+
+    direct = _TestSettings(
+        env="staging",
+        public_api_origin="https://api.example.com",
+        gcs_assets_bucket="prod-assets",
+    )
+    # 미설정이면 종전 직통 URL 그대로 — 프록시 도입 전 동작 보존.
+    assert public_asset_url(direct, "fabric/abc.png") == (
+        "https://storage.googleapis.com/prod-assets/fabric/abc.png"
+    )

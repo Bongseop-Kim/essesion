@@ -34,8 +34,14 @@ def rasterize_svg(
     width_mm: float,
     height_mm: float | None = None,
     dpi: int = 300,
+    stamp_dpi: bool = True,
 ) -> tuple[bytes, str]:
-    """(바이너리, media_type) 반환. blocking — threadpool에서 호출."""
+    """(바이너리, media_type) 반환. blocking — threadpool에서 호출.
+
+    stamp_dpi=False는 Pillow 디코딩→재인코딩을 건너뛴다 — 결과를 곧바로 다시
+    디코딩하는 내부 소비자(compose·mask·게이트)용. 최종 산출물(export·프리뷰
+    업로드)은 인쇄 실측 크기 정보가 필요하므로 기본값(True)을 유지한다.
+    """
     media = _MEDIA.get(fmt)
     if media is None:
         raise RasterError(f"unsupported format: {fmt}")
@@ -68,6 +74,9 @@ def rasterize_svg(
         raise RasterError(f"rasterizer timed out after {RASTER_TIMEOUT_SECONDS}s") from exc
     if proc.returncode or not proc.stdout:
         raise RasterError(proc.stderr.decode(errors="replace") or "rasterizer returned no output")
+
+    if not stamp_dpi and fmt == "png":
+        return proc.stdout, media
 
     # 물리 DPI 메타 스탬프 — 렌더러 출력에는 없다
     image = Image.open(io.BytesIO(proc.stdout))

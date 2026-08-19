@@ -264,6 +264,21 @@ importers:
         specifier: 'catalog:'
         version: 4.123.0
 
+  infra/cloudflare/assets-proxy:
+    devDependencies:
+      '@essesion/tsconfig':
+        specifier: workspace:*
+        version: link:../../../packages/tsconfig
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.2.0)(jsdom@26.1.0)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
+      wrangler:
+        specifier: 'catalog:'
+        version: 4.123.0
+
   packages/api-client:
     devDependencies:
       '@essesion/tsconfig':

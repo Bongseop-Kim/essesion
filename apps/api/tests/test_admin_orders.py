@@ -318,18 +318,19 @@ async def test_dashboard_summary_and_recent_orders(client, db_session, settings)
     await db_session.commit()
     headers = auth_headers(admin, settings)
 
-    summary = await client.get(
-        "/admin/dashboard/summary",
+    overview = await client.get(
+        "/admin/dashboard/overview",
         params={"start_date": "2026-06-01", "end_date": "2026-06-01"},
         headers=headers,
     )
-    assert summary.status_code == 200
-    assert summary.json()["order_count"] == 3
-    assert summary.json()["order_amount"] == 13000
-    assert "revenue" not in summary.json()
-    assert summary.json()["open_claim_count"] == 1
-    assert summary.json()["unanswered_inquiry_count"] == 1
-    assert summary.json()["as_of"] is not None
+    assert overview.status_code == 200
+    summary_json = overview.json()["summary"]
+    assert summary_json["order_count"] == 3
+    assert summary_json["order_amount"] == 13000
+    assert "revenue" not in summary_json
+    assert summary_json["open_claim_count"] == 1
+    assert summary_json["unanswered_inquiry_count"] == 1
+    assert summary_json["as_of"] is not None
 
     recent = await client.get(
         "/admin/dashboard/recent-orders",
@@ -435,9 +436,7 @@ async def test_admin_order_reads_reject_customer(client, db_session, settings):
     headers = auth_headers(customer, settings)
 
     for path in (
-        "/admin/dashboard/summary",
-        "/admin/dashboard/timeseries",
-        "/admin/dashboard/top-products",
+        "/admin/dashboard/overview",
         "/admin/dashboard/recent-orders",
         "/admin/orders",
         f"/admin/orders/{order.id}",
@@ -534,12 +533,12 @@ async def test_dashboard_timeseries_kst_buckets_and_zero_fill(client, db_session
     await db_session.commit()
 
     res = await client.get(
-        "/admin/dashboard/timeseries",
+        "/admin/dashboard/overview",
         params={"start_date": "2026-06-09", "end_date": "2026-06-11"},
         headers=auth_headers(admin, settings),
     )
     assert res.status_code == 200
-    body = res.json()
+    body = res.json()["timeseries"]
     assert [p["day"] for p in body["points"]] == ["2026-06-09", "2026-06-10", "2026-06-11"]
     empty, mid, last = body["points"]
     assert empty == {
@@ -583,12 +582,12 @@ async def test_dashboard_timeseries_order_type_filter_scopes_order_series_only(
     await db_session.commit()
 
     res = await client.get(
-        "/admin/dashboard/timeseries",
+        "/admin/dashboard/overview",
         params={"start_date": "2026-06-10", "end_date": "2026-06-10", "order_type": "sale"},
         headers=auth_headers(admin, settings),
     )
     assert res.status_code == 200
-    point = res.json()["points"][0]
+    point = res.json()["timeseries"]["points"][0]
     assert point["order_count"] == 0  # token 주문은 sale 필터에서 제외
     assert point["new_customer_count"] == 1  # 주문 외 시리즈는 필터 무관
 
@@ -596,7 +595,7 @@ async def test_dashboard_timeseries_order_type_filter_scopes_order_series_only(
 async def test_dashboard_timeseries_range_guard(client, db_session, settings):
     admin = await make_admin(db_session)
     res = await client.get(
-        "/admin/dashboard/timeseries",
+        "/admin/dashboard/overview",
         params={"start_date": "2026-01-01", "end_date": "2026-04-03"},  # 93일
         headers=auth_headers(admin, settings),
     )
@@ -669,12 +668,12 @@ async def test_dashboard_top_products(client, db_session, settings):
     headers = auth_headers(admin, settings)
 
     res = await client.get(
-        "/admin/dashboard/top-products",
+        "/admin/dashboard/overview",
         params={"start_date": "2026-06-01", "end_date": "2026-06-30"},
         headers=headers,
     )
     assert res.status_code == 200
-    items = res.json()["items"]
+    items = res.json()["top_products"]["items"]
     assert [item["name"] for item in items] == ["많이 팔린 타이", "덜 팔린 스카프"]
     assert items[0] == {
         "product_id": tie.id,
@@ -685,17 +684,19 @@ async def test_dashboard_top_products(client, db_session, settings):
     assert items[1]["quantity"] == 1
 
     limited = await client.get(
-        "/admin/dashboard/top-products",
-        params={"start_date": "2026-06-01", "end_date": "2026-06-30", "limit": 1},
+        "/admin/dashboard/overview",
+        params={"start_date": "2026-06-01", "end_date": "2026-06-30", "top_limit": 1},
         headers=headers,
     )
-    assert len(limited.json()["items"]) == 1
+    assert len(limited.json()["top_products"]["items"]) == 1
     assert (
-        await client.get("/admin/dashboard/top-products", params={"limit": 21}, headers=headers)
+        await client.get(
+            "/admin/dashboard/overview", params={"top_limit": 21}, headers=headers
+        )
     ).status_code == 422
 
     too_wide = await client.get(
-        "/admin/dashboard/top-products",
+        "/admin/dashboard/overview",
         params={"start_date": "2026-01-01", "end_date": "2026-04-03"},  # 93일
         headers=headers,
     )

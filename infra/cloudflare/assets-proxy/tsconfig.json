@@ -1,0 +1,8 @@
+{
+  "extends": "@essesion/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "WebWorker"],
+    "jsx": "preserve"
+  },
+  "include": ["src"]
+}

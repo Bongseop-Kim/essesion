@@ -429,28 +429,67 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
         )
     ).all()
 
+    if not orders:
+        return []
+
     latest_completed_order_id = next((order.id for order in orders if order.status == "완료"), None)
+    order_ids = [order.id for order in orders]
+
+    # 주문 N건 × (부여분·클레임·사용 여부) 3회씩 조회하던 3N+1을 사용자 단위 3회로 배치.
+    purchase_tokens = (
+        await session.scalars(
+            select(DesignToken)
+            .where(
+                DesignToken.user_id == user_id,
+                DesignToken.type == "purchase",
+                DesignToken.token_class == "paid",
+            )
+            .order_by(DesignToken.created_at)
+        )
+    ).all()
+    order_by_work_id = {f"order_{order_id}": order_id for order_id in order_ids} | {
+        f"order_{order_id}_paid": order_id for order_id in order_ids
+    }
+    granted_by_order: dict[uuid.UUID, list[DesignToken]] = {
+        order_id: [] for order_id in order_ids
+    }
+    for token in purchase_tokens:
+        matched = (
+            token.source_order_id
+            if token.source_order_id in granted_by_order
+            else order_by_work_id.get(token.work_id or "")
+        )
+        if matched is not None:
+            granted_by_order[matched].append(token)
+
+    claim_rows = (
+        await session.execute(
+            select(Claim.order_id, Claim.id, Claim.status)
+            .where(
+                Claim.order_id.in_(order_ids),
+                Claim.type == "token_refund",
+                Claim.status.in_(("접수", "완료")),
+            )
+            .order_by(Claim.created_at.desc(), Claim.id.desc())
+        )
+    ).all()
+    latest_claim: dict[uuid.UUID, tuple[uuid.UUID | None, str | None]] = {}
+    for claim in claim_rows:
+        latest_claim.setdefault(claim.order_id, (claim.id, claim.status))
+
+    last_use_at = await session.scalar(
+        select(func.max(DesignToken.created_at)).where(
+            DesignToken.user_id == user_id, DesignToken.type == "use"
+        )
+    )
+
     results = []
     for order in orders:
-        granted = await _granted_rows(session, order)
+        granted = granted_by_order[order.id]
         paid_granted = sum(t.amount for t in granted)
         expires = granted[0].expires_at if granted else None
         granted_at = min((t.created_at for t in granted), default=None)
-
-        claim_row = (
-            await session.execute(
-                select(Claim.id, Claim.status)
-                .where(
-                    Claim.order_id == order.id,
-                    Claim.type == "token_refund",
-                    Claim.status.in_(("접수", "완료")),
-                )
-                .order_by(Claim.created_at.desc(), Claim.id.desc())
-                .limit(1)
-            )
-        ).first()
-        claim_id = claim_row.id if claim_row is not None else None
-        claim_status = claim_row.status if claim_row is not None else None
+        claim_id, claim_status = latest_claim.get(order.id, (None, None))
 
         reason: str | None = None
         if claim_status == "접수":
@@ -461,15 +500,7 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
             reason = "expired"
         elif order.id != latest_completed_order_id:
             reason = "not_latest"
-        elif granted_at is not None and await session.scalar(
-            select(
-                exists().where(
-                    DesignToken.user_id == user_id,
-                    DesignToken.type == "use",
-                    DesignToken.created_at > granted_at,
-                )
-            )
-        ):
+        elif granted_at is not None and last_use_at is not None and last_use_at > granted_at:
             reason = "tokens_used"
 
         results.append(

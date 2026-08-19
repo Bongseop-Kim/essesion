@@ -1,6 +1,6 @@
-import { createReadUrl } from "@essesion/api-client";
 import { AttachmentDisplayField } from "@essesion/shared";
 import { useQueries } from "@tanstack/react-query";
+import { signedReadUrlQueryOptions } from "@/shared/lib/signed-read-url";
 
 import { usePhotoUploadQueue } from "@/shared/lib/use-photo-upload-queue";
 import { REPAIR_PHOTO_ACCEPT, uploadRepairShippingPhoto } from "../api/upload";
@@ -35,17 +35,9 @@ export function RepairPhotoField({
   // 세션 복원 항목(previewUrl === null)은 read-url로 썸네일을 되살린다.
   const restoreTargets = photos.filter((photo) => photo.previewUrl === null);
   const restoreQueries = useQueries({
-    queries: restoreTargets.map((photo) => ({
-      queryKey: ["repair-shipping-photo", photo.objectKey],
-      queryFn: async () => {
-        const response = await createReadUrl({
-          body: { object_key: photo.objectKey },
-        });
-        if (!response.data) throw new Error("사진을 불러오지 못했습니다.");
-        return response.data.read_url;
-      },
-      staleTime: 10 * 60 * 1000,
-    })),
+    queries: restoreTargets.map((photo) =>
+      signedReadUrlQueryOptions(photo.objectKey),
+    ),
   });
   const restored = new Map<string, string>();
   restoreTargets.forEach((photo, index) => {

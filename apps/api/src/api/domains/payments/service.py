@@ -27,6 +27,7 @@ from db.models.commerce import (
     UserCoupon,
 )
 from db.models.tokens import DesignToken
+from fastapi import BackgroundTasks
 from obs import request_id_var
 from sqlalchemy import CursorResult, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -165,6 +166,7 @@ async def confirm_payment(
     *,
     solapi: SolapiClient | None = None,
     settings: Settings | None = None,
+    background: BackgroundTasks | None = None,
 ) -> PaymentConfirmResponse:
     if body.amount <= 0:
         raise DomainError("Invalid amount", code="invalid_amount")
@@ -288,6 +290,7 @@ async def confirm_payment(
                     post_map,
                     total,
                     operation_id=operation_id,
+                    background=background,
                     solapi=solapi,
                     settings=settings,
                 )
@@ -358,6 +361,7 @@ async def confirm_payment(
             operation_id=operation_id,
             solapi=solapi,
             settings=settings,
+            background=background,
         )
     except Exception as exc:
         logger.critical(
@@ -389,6 +393,7 @@ async def _recover_already_processed(
     total: int,
     *,
     operation_id: uuid.UUID,
+    background: BackgroundTasks | None = None,
     solapi: SolapiClient | None = None,
     settings: Settings | None = None,
 ) -> PaymentConfirmResponse | None:
@@ -415,6 +420,7 @@ async def _recover_already_processed(
         operation_id=operation_id,
         solapi=solapi,
         settings=settings,
+        background=background,
     )
 
 
@@ -428,6 +434,7 @@ async def _confirm(
     operation_id: uuid.UUID | None = None,
     solapi: SolapiClient | None = None,
     settings: Settings | None = None,
+    background: BackgroundTasks | None = None,
 ) -> PaymentConfirmResponse:
     orders = await _group_orders(session, group_id, for_update=True)
     if all(o.status == post_map[o.id] for o in orders):
@@ -452,6 +459,7 @@ async def _confirm(
         operation_id=operation_id,
         solapi=solapi,
         settings=settings,
+        background=background,
     )
     return PaymentConfirmResponse(orders=confirmed, token_amount=total_tokens)
 
@@ -570,6 +578,7 @@ async def _notify_payment_done(
     solapi: SolapiClient | None,
     settings: Settings | None,
     orders: list[Order],
+    background: BackgroundTasks | None = None,
 ) -> None:
     """결제 확정 알림톡 — best-effort. 실패·미설정은 로그만 남기고 결제에 영향을 주지 않는다.
 
@@ -587,18 +596,28 @@ async def _notify_payment_done(
         return
     order_number = orders[0].order_number  # 묶음 결제는 대표 주문 1건 기준
     amount = f"{sum(order.total_price for order in orders):,}"
-    try:
-        sent = await solapi.send_alimtalk(
-            user.phone,
-            settings.solapi_template_payment_done,
-            {"#{주문번호}": order_number, "#{결제금액}": amount},
-            PAYMENT_DONE_FALLBACK.format(order_number=order_number, amount=amount),
-        )
-    except Exception:
-        logger.exception("결제완료 알림톡 발송 예외: order_number=%s", order_number)
-        return
-    if not sent:
-        logger.warning("결제완료 알림톡 발송 실패: order_number=%s", order_number)
+    phone = user.phone
+
+    async def _send() -> None:
+        try:
+            sent = await solapi.send_alimtalk(
+                phone,
+                settings.solapi_template_payment_done,
+                {"#{주문번호}": order_number, "#{결제금액}": amount},
+                PAYMENT_DONE_FALLBACK.format(order_number=order_number, amount=amount),
+            )
+        except Exception:
+            logger.exception("결제완료 알림톡 발송 예외: order_number=%s", order_number)
+            return
+        if not sent:
+            logger.warning("결제완료 알림톡 발송 실패: order_number=%s", order_number)
+
+    if background is not None:
+        # solapi HTTP(최대 10초)를 응답 뒤로 미룬다 — quotes 접수 알림과 같은 패턴.
+        background.add_task(_send)
+    else:
+        # 웹훅·관리자 대사 경로 — 응답 지연이 문제되지 않아 인라인 유지.
+        await _send()
 
 
 async def _apply_confirmation(
@@ -611,6 +630,7 @@ async def _apply_confirmation(
     operation_id: uuid.UUID | None = None,
     solapi: SolapiClient | None = None,
     settings: Settings | None = None,
+    background: BackgroundTasks | None = None,
 ) -> tuple[list[ConfirmedOrder], int | None]:
     """결제중 → 결제후 상태 + 부수효과(토큰 지급·샘플 쿠폰·쿠폰 사용확정). 커밋 포함.
 
@@ -674,7 +694,7 @@ async def _apply_confirmation(
     # 커밋 뒤에 보낸다 — solapi 호출(최대 10초)이 FOR UPDATE로 잠긴 주문 row를 붙잡으면 안 된다.
     # 여기가 paid_at을 쓰는 유일한 지점이라 정상 confirm·웹훅 대사·관리자 대사가 한 번에 커버되고,
     # 위의 "결제중" 가드가 구조적으로 주문당 1회만 통과시키므로 재발송 방지 코드가 따로 필요 없다.
-    await _notify_payment_done(session, solapi, settings, orders)
+    await _notify_payment_done(session, solapi, settings, orders, background)
     return confirmed, total_tokens
 
 

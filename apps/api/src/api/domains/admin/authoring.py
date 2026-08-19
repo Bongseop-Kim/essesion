@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
@@ -163,6 +165,17 @@ class AuthoringExamplePreviewRequest(BaseModel):
 class AuthoringExamplePreviewOut(BaseModel):
     svg: str
     warnings: list[str]
+
+
+class AuthoringExamplePreviewBatchItem(BaseModel):
+    id: uuid.UUID
+    # 없는 id·렌더 실패는 svg 없이 돌려준다 — 목록은 실루엣 폴백으로 표시.
+    svg: str | None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class AuthoringExamplePreviewBatchOut(BaseModel):
+    previews: list[AuthoringExamplePreviewBatchItem]
 
 
 class _AuthoringExampleWriteFields(BaseModel):
@@ -795,6 +808,52 @@ async def list_authoring_examples(
     )
 
 
+# worker(Cloud Run) 요청 동시성이 2라 페이지 분량을 한꺼번에 쏘면 스파이크가 된다.
+_PREVIEW_RENDER_CONCURRENCY = 8
+
+_preview_logger = logging.getLogger(__name__)
+
+
+# `/examples/{example_id}`보다 먼저 선언한다 — 뒤에 두면 리터럴 경로가 uuid 파라미터에 먹힌다.
+@router.get("/examples/preview-batch", response_model=AuthoringExamplePreviewBatchOut)
+async def batch_authoring_example_previews(
+    request: Request,
+    session: SessionDep,
+    admin: AdminUser,
+    ids: Annotated[list[uuid.UUID], Query(min_length=1, max_length=100)],
+) -> AuthoringExamplePreviewBatchOut:
+    """목록 페이지의 타일 프리뷰를 한 번에 렌더한다.
+
+    행마다 요청을 쏘면 페이지 크기 100에서 워커 렌더 101건이 동시에 몰린다 —
+    한 요청으로 모아 렌더 동시성을 제한한다. 결과는 요청 순서를 보존한다.
+    """
+    unique_ids = list(dict.fromkeys(ids))
+    rows = (
+        await session.scalars(select(AuthoringExample).where(AuthoringExample.id.in_(unique_ids)))
+    ).all()
+    by_id = {row.id: row for row in rows}
+    semaphore = asyncio.Semaphore(_PREVIEW_RENDER_CONCURRENCY)
+
+    async def render(example_id: uuid.UUID) -> AuthoringExamplePreviewBatchItem:
+        # 없는 id·렌더 실패는 svg 없이 돌려준다 — 목록은 실루엣 폴백으로 표시.
+        row = by_id.get(example_id)
+        if row is None:
+            return AuthoringExamplePreviewBatchItem(id=example_id, svg=None)
+        try:
+            async with semaphore:
+                out = await _compiled_preview(
+                    request, {"plan": row.plan, "motif_ids": row.motif_ids, "tile_mm": 48.0}
+                )
+        except Exception:
+            _preview_logger.warning("authoring example preview render failed", exc_info=True)
+            return AuthoringExamplePreviewBatchItem(id=example_id, svg=None)
+        return AuthoringExamplePreviewBatchItem(id=example_id, svg=out.svg, warnings=out.warnings)
+
+    return AuthoringExamplePreviewBatchOut(
+        previews=list(await asyncio.gather(*(render(example_id) for example_id in unique_ids)))
+    )
+
+
 @router.get("/examples/{example_id}", response_model=AuthoringExampleDetailOut)
 async def get_authoring_example(
     example_id: uuid.UUID,
@@ -802,24 +861,6 @@ async def get_authoring_example(
     admin: AdminUser,
 ) -> AuthoringExampleDetailOut:
     return _example_detail(await _example_or_404(session, example_id))
-
-
-@router.get(
-    "/examples/{example_id}/preview",
-    response_model=AuthoringExamplePreviewOut,
-)
-async def get_authoring_example_preview(
-    example_id: uuid.UUID,
-    request: Request,
-    session: SessionDep,
-    admin: AdminUser,
-) -> AuthoringExamplePreviewOut:
-    """저장된 plan·모티프로 타일 프리뷰를 렌더한다 — 목록 썸네일용."""
-    row = await _example_or_404(session, example_id)
-    return await _compiled_preview(
-        request,
-        {"plan": row.plan, "motif_ids": row.motif_ids, "tile_mm": 48.0},
-    )
 
 
 @router.patch("/examples/{example_id}", response_model=AuthoringExampleDetailOut)

@@ -21,7 +21,9 @@ gcloud storage buckets create gs://essesion-tfstate \
 
 # 3. 변수 채우고 init
 brew install opentofu
-cp infra/production.tfvars.example infra/production.tfvars   # 값 채우기
+# tfvars 정본은 상태 버킷에 있다 — 최초 셋업이 아니면 example 대신 이걸 내려받는다.
+# (공개 레포라 gitignore. tfstate가 같은 값을 이미 담고 있어 버킷 민감도는 동일.)
+gsutil cp gs://essesion-tfstate/production.tfvars infra/production.tfvars
 tofu -chdir=infra init -backend-config="bucket=essesion-tfstate"
 
 # 3-1. 시크릿 컨테이너·DB 먼저 (시크릿 버전이 없으면 서비스 리비전이 기동 실패한다)
@@ -37,6 +39,16 @@ tofu -chdir=infra apply -var-file=production.tfvars \
 ```bash
 # 3-2. 전체 apply
 tofu -chdir=infra apply -var-file=production.tfvars
+```
+
+이후 모든 plan/apply의 규칙 — **plan 전 내려받고, 값을 바꿨으면 apply 후 올린다**.
+컴퓨터가 여러 대라 로컬 사본이 정본이 아니며, 낡은 tfvars로 apply하면 라이브 설정이
+소리 없이 되돌아간다(실제 사고 기록:
+`docs/reviews/perf-cost-reduction-2026-08-19.md`의 "인프라 apply 기록").
+
+```bash
+gsutil cp gs://essesion-tfstate/production.tfvars infra/production.tfvars  # plan 전
+gsutil cp infra/production.tfvars gs://essesion-tfstate/production.tfvars  # 값 변경 + apply 후
 ```
 
 `google_billing_budget`은 실행자에게 청구 계정 권한(Billing Account Administrator/Costs Manager)이 필요하다.

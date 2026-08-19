@@ -346,12 +346,18 @@ async def test_authored_example_preview_crud_permissions_and_optimistic_lock(
     assert listed.status_code == 200
     assert [item["id"] for item in listed.json()["items"]] == [authored["id"]]
 
+    # 목록 썸네일은 배치 렌더 — 없는 id는 svg 없이(폴백), 결과는 요청 순서를 보존한다
+    missing_id = str(uuid.uuid4())
     stored_preview = await client.get(
-        f"/admin/authoring/examples/{authored['id']}/preview",
+        "/admin/authoring/examples/preview-batch",
         headers=manager_headers,
+        params={"ids": [authored["id"], missing_id]},
     )
     assert stored_preview.status_code == 200, stored_preview.text
-    assert stored_preview.json()["svg"].startswith("<svg")
+    previews = stored_preview.json()["previews"]
+    assert [item["id"] for item in previews] == [authored["id"], missing_id]
+    assert previews[0]["svg"].startswith("<svg")
+    assert previews[1]["svg"] is None
     assert preview.await_args is not None
     assert preview.await_args.args[0]["motif_ids"] == ["studio-flower"]
 

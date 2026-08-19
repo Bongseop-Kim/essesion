@@ -6,7 +6,6 @@ import type {
   ShippingAddressOut,
   UserCouponOut,
 } from "@essesion/api-client";
-import { createReadUrl } from "@essesion/api-client";
 import {
   createOrderMutation,
   getReformPricingOptions,
@@ -62,6 +61,7 @@ import { useDaumPostcode } from "@/features/shipping/model/use-daum-postcode";
 import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
 import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/pages/shop/constants";
+import { signedReadUrlQueryOptions } from "@/shared/lib/signed-read-url";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
@@ -607,17 +607,8 @@ function OrderItemCard({
   const product = item.product;
   const reformData = item.reform_data;
   const reformImageQuery = useQuery({
-    queryKey: ["reform-image", reformData?.tie.image.object_key],
+    ...signedReadUrlQueryOptions(reformData?.tie.image.object_key ?? ""),
     enabled: item.item_type === "reform" && !!reformData,
-    queryFn: async () => {
-      if (!reformData) throw new Error("수선 이미지 정보가 없습니다.");
-      const response = await createReadUrl({
-        body: { object_key: reformData.tie.image.object_key },
-      });
-      if (!response.data) throw new Error("수선 이미지를 불러오지 못했습니다.");
-      return response.data.read_url;
-    },
-    staleTime: 10 * 60 * 1000,
   });
   const unitPrice = product
     ? productUnitPrice(product, item.selected_option)

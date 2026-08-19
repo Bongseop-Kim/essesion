@@ -60,6 +60,9 @@ def public_asset_url(settings: Settings, object_key: str) -> str:
     emulator_host = _emulator_host(settings)
     if emulator_host:
         base_url = f"{emulator_host.rstrip('/')}/{bucket}"
+    elif settings.public_assets_origin:
+        # Cloudflare assets-proxy가 버킷을 알고 있으므로 경로에는 객체 키만 남는다.
+        base_url = settings.public_assets_origin.rstrip("/")
     else:
         base_url = f"https://storage.googleapis.com/{bucket}"
     return f"{base_url}/{quote(object_key, safe='/')}"

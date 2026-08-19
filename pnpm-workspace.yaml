@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
   - infra/cloudflare/api-proxy
+  - infra/cloudflare/assets-proxy
 
 onlyBuiltDependencies:
   - esbuild

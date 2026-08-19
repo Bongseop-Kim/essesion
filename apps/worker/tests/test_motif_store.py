@@ -220,9 +220,9 @@ async def test_embedding_index_updates_only_public_null_rows_and_is_idempotent(d
         def __init__(self):
             self.texts: list[str] = []
 
-        async def embed(self, text: str) -> list[float]:
-            self.texts.append(text)
-            return _vec(1.0)
+        async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+            self.texts.extend(texts)
+            return [_vec(1.0) for _ in texts]
 
     client = _Embed()
     assert await index_missing_embeddings(db_session, client) == 1

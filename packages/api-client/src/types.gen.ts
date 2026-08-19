@@ -2572,6 +2572,34 @@ export type AuthoringExampleDetailOut = {
 };
 
 /**
+ * AuthoringExamplePreviewBatchItem
+ */
+export type AuthoringExamplePreviewBatchItem = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Svg
+     */
+    svg: string | null;
+    /**
+     * Warnings
+     */
+    warnings?: Array<string>;
+};
+
+/**
+ * AuthoringExamplePreviewBatchOut
+ */
+export type AuthoringExamplePreviewBatchOut = {
+    /**
+     * Previews
+     */
+    previews: Array<AuthoringExamplePreviewBatchItem>;
+};
+
+/**
  * AuthoringExamplePreviewOut
  */
 export type AuthoringExamplePreviewOut = {
@@ -3473,6 +3501,15 @@ export type CustomerSearchRequest = {
      * Status
      */
     status?: 'all' | 'active' | 'inactive';
+};
+
+/**
+ * DashboardOverviewOut
+ */
+export type DashboardOverviewOut = {
+    summary: DashboardSummaryOut;
+    timeseries: DashboardTimeseriesOut;
+    top_products: DashboardTopProductsOut;
 };
 
 /**
@@ -8435,6 +8472,36 @@ export type CreateAuthoringExampleResponses = {
 
 export type CreateAuthoringExampleResponse = CreateAuthoringExampleResponses[keyof CreateAuthoringExampleResponses];
 
+export type BatchAuthoringExamplePreviewsData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Ids
+         */
+        ids: Array<string>;
+    };
+    url: '/admin/authoring/examples/preview-batch';
+};
+
+export type BatchAuthoringExamplePreviewsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type BatchAuthoringExamplePreviewsError = BatchAuthoringExamplePreviewsErrors[keyof BatchAuthoringExamplePreviewsErrors];
+
+export type BatchAuthoringExamplePreviewsResponses = {
+    /**
+     * Successful Response
+     */
+    200: AuthoringExamplePreviewBatchOut;
+};
+
+export type BatchAuthoringExamplePreviewsResponse = BatchAuthoringExamplePreviewsResponses[keyof BatchAuthoringExamplePreviewsResponses];
+
 export type DeleteAuthoringExampleData = {
     body: AuthoringExampleDeleteRequest;
     path: {
@@ -8554,36 +8621,6 @@ export type SetAuthoringExampleActivationResponses = {
 };
 
 export type SetAuthoringExampleActivationResponse = SetAuthoringExampleActivationResponses[keyof SetAuthoringExampleActivationResponses];
-
-export type GetAuthoringExamplePreviewData = {
-    body?: never;
-    path: {
-        /**
-         * Example Id
-         */
-        example_id: string;
-    };
-    query?: never;
-    url: '/admin/authoring/examples/{example_id}/preview';
-};
-
-export type GetAuthoringExamplePreviewErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetAuthoringExamplePreviewError = GetAuthoringExamplePreviewErrors[keyof GetAuthoringExamplePreviewErrors];
-
-export type GetAuthoringExamplePreviewResponses = {
-    /**
-     * Successful Response
-     */
-    200: AuthoringExamplePreviewOut;
-};
-
-export type GetAuthoringExamplePreviewResponse = GetAuthoringExamplePreviewResponses[keyof GetAuthoringExamplePreviewResponses];
 
 export type PreviewAuthoringExampleData = {
     body: AuthoringExamplePreviewRequest;
@@ -9335,6 +9372,48 @@ export type ListAdminCustomerTokensResponses = {
 
 export type ListAdminCustomerTokensResponse = ListAdminCustomerTokensResponses[keyof ListAdminCustomerTokensResponses];
 
+export type GetDashboardOverviewData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Start Date
+         */
+        start_date?: string | null;
+        /**
+         * End Date
+         */
+        end_date?: string | null;
+        /**
+         * Order Type
+         */
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+        /**
+         * Top Limit
+         */
+        top_limit?: number;
+    };
+    url: '/admin/dashboard/overview';
+};
+
+export type GetDashboardOverviewErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetDashboardOverviewError = GetDashboardOverviewErrors[keyof GetDashboardOverviewErrors];
+
+export type GetDashboardOverviewResponses = {
+    /**
+     * Successful Response
+     */
+    200: DashboardOverviewOut;
+};
+
+export type GetDashboardOverviewResponse = GetDashboardOverviewResponses[keyof GetDashboardOverviewResponses];
+
 export type GetDashboardRecentOrdersData = {
     body?: never;
     path?: never;
@@ -9398,120 +9477,6 @@ export type GetDashboardRecentQuotesResponses = {
 };
 
 export type GetDashboardRecentQuotesResponse = GetDashboardRecentQuotesResponses[keyof GetDashboardRecentQuotesResponses];
-
-export type GetDashboardSummaryData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Start Date
-         */
-        start_date?: string | null;
-        /**
-         * End Date
-         */
-        end_date?: string | null;
-        /**
-         * Order Type
-         */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
-    };
-    url: '/admin/dashboard/summary';
-};
-
-export type GetDashboardSummaryErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetDashboardSummaryError = GetDashboardSummaryErrors[keyof GetDashboardSummaryErrors];
-
-export type GetDashboardSummaryResponses = {
-    /**
-     * Successful Response
-     */
-    200: DashboardSummaryOut;
-};
-
-export type GetDashboardSummaryResponse = GetDashboardSummaryResponses[keyof GetDashboardSummaryResponses];
-
-export type GetDashboardTimeseriesData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Start Date
-         */
-        start_date?: string | null;
-        /**
-         * End Date
-         */
-        end_date?: string | null;
-        /**
-         * Order Type
-         */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
-    };
-    url: '/admin/dashboard/timeseries';
-};
-
-export type GetDashboardTimeseriesErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetDashboardTimeseriesError = GetDashboardTimeseriesErrors[keyof GetDashboardTimeseriesErrors];
-
-export type GetDashboardTimeseriesResponses = {
-    /**
-     * Successful Response
-     */
-    200: DashboardTimeseriesOut;
-};
-
-export type GetDashboardTimeseriesResponse = GetDashboardTimeseriesResponses[keyof GetDashboardTimeseriesResponses];
-
-export type GetDashboardTopProductsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        /**
-         * Start Date
-         */
-        start_date?: string | null;
-        /**
-         * End Date
-         */
-        end_date?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-    };
-    url: '/admin/dashboard/top-products';
-};
-
-export type GetDashboardTopProductsErrors = {
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetDashboardTopProductsError = GetDashboardTopProductsErrors[keyof GetDashboardTopProductsErrors];
-
-export type GetDashboardTopProductsResponses = {
-    /**
-     * Successful Response
-     */
-    200: DashboardTopProductsOut;
-};
-
-export type GetDashboardTopProductsResponse = GetDashboardTopProductsResponses[keyof GetDashboardTopProductsResponses];
 
 export type ListAdminDesignExamplesData = {
     body?: never;
