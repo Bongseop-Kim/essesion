@@ -34,7 +34,6 @@ class AdminCapabilitiesOut(BaseModel):
     toss: str
     solapi: str
     worker: str
-    finalize_tasks: str
     batch_auth: str
     oauth_google: str
     oauth_kakao: str

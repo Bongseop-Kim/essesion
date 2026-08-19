@@ -93,10 +93,6 @@ export type AdminCapabilitiesOut = {
      */
     edge_proxy: string;
     /**
-     * Finalize Tasks
-     */
-    finalize_tasks: string;
-    /**
      * Oauth Apple
      */
     oauth_apple: string;

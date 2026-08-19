@@ -133,10 +133,6 @@
             "title": "Edge Proxy",
             "type": "string"
           },
-          "finalize_tasks": {
-            "title": "Finalize Tasks",
-            "type": "string"
-          },
           "oauth_apple": {
             "title": "Oauth Apple",
             "type": "string"
@@ -170,7 +166,6 @@
           "toss",
           "solapi",
           "worker",
-          "finalize_tasks",
           "batch_auth",
           "oauth_google",
           "oauth_kakao",

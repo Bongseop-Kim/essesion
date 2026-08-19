@@ -38,6 +38,7 @@ TOSS_CONFIRM = "https://api.tosspayments.com/v1/payments/confirm"
 TOKEN_COST = ("design_token_cost_openai_render_standard", "5")
 EDIT_COST = ("design_edit_cost", "2")
 MOTIF_COST = ("design_motif_generate_cost", "3")
+FINALIZE_COST = ("design_finalize_cost", "1")
 
 
 async def _create_sale_order(client, db_session, settings, user, *, coupon_id=None):
@@ -314,6 +315,7 @@ async def test_token_order_confirm_grants_tokens(client, db_session, settings):
     await seed_setting(db_session, *TOKEN_COST)
     await seed_setting(db_session, *EDIT_COST)
     await seed_setting(db_session, *MOTIF_COST)
+    await seed_setting(db_session, *FINALIZE_COST)
     headers = auth_headers(user, settings)
     created = (
         await client.post("/tokens/orders", json={"plan_key": "starter"}, headers=headers)
@@ -341,6 +343,7 @@ async def test_token_order_confirm_grants_tokens(client, db_session, settings):
         "generate_cost": 5,
         "edit_cost": 2,
         "motif_generate_cost": 3,
+        "finalize_cost": 1,
     }
 
     grant = await db_session.scalar(select(DesignToken).where(DesignToken.type == "purchase"))
@@ -685,6 +688,7 @@ async def test_webhook_syncs_dashboard_cancel_with_token_clawback(client, db_ses
     await seed_setting(db_session, *TOKEN_COST)
     await seed_setting(db_session, *EDIT_COST)
     await seed_setting(db_session, *MOTIF_COST)
+    await seed_setting(db_session, *FINALIZE_COST)
     headers = auth_headers(user, settings)
     created = (
         await client.post("/tokens/orders", json={"plan_key": "starter"}, headers=headers)
@@ -740,6 +744,7 @@ async def test_webhook_cancel_serializes_token_clawback_before_concurrent_use(
     await seed_setting(db_session, *TOKEN_COST)
     await seed_setting(db_session, *EDIT_COST)
     await seed_setting(db_session, *MOTIF_COST)
+    await seed_setting(db_session, *FINALIZE_COST)
     headers = auth_headers(user, settings)
     created = (
         await client.post("/tokens/orders", json={"plan_key": "starter"}, headers=headers)
