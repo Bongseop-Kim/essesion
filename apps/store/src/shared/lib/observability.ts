@@ -4,7 +4,9 @@ let initialized = false;
 let sentryModule: Promise<typeof import("@sentry/react")> | null = null;
 const loadSentry = () => (sentryModule ??= import("@sentry/react"));
 
-function withoutQuery(value: string | undefined) {
+/** 쿼리·프래그먼트 제거 — OAuth code·paymentKey가 URL을 타고 새는 것을 막는다.
+ * Sentry와 PostHog이 같은 규약을 공유한다. */
+export function withoutQuery(value: string | undefined) {
   if (value === undefined) return undefined;
   try {
     const url = new URL(value, window.location.origin);

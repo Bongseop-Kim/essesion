@@ -24,6 +24,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { AuthGuardProvider } from "@/features/auth/ui/auth-guard-provider";
 import { LogoutButton } from "@/features/auth/ui/logout-button";
 import { trackPageView } from "@/shared/lib/analytics";
+import { isReplayMaskedPath } from "@/shared/lib/product-analytics";
 import { useSession } from "@/shared/store/session";
 
 const STORE_NAV_ITEMS = [
@@ -255,6 +256,8 @@ export function AppLayout() {
   const isImmersive =
     location.pathname === "/design" || location.pathname === "/design/";
   const isFocusedRoute = isPaymentResult || isLogin || isImmersive;
+  // 개인정보가 렌더되는 화면은 세션 리플레이에서 통째로 가린다(규칙은 product-analytics).
+  const isPrivateRoute = isReplayMaskedPath(location.pathname);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -305,7 +308,11 @@ export function AppLayout() {
           overflow={isImmersive ? "hidden" : undefined}
           display="flex"
           flexDirection="column"
-          className="focus:outline-none"
+          className={
+            isPrivateRoute
+              ? "focus:outline-none ph-no-capture"
+              : "focus:outline-none"
+          }
         >
           <Outlet />
         </Box>

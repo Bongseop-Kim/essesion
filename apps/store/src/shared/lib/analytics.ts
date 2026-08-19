@@ -1,5 +1,13 @@
 /** GA4 계측 — gtag.js를 동적 로드한다(CSP nonce가 없어 인라인 스니펫 불가).
- * PII 금지: paymentKey·orderId 원문, 연락처, URL 쿼리를 이벤트에 넣지 않는다. */
+ * PII 금지: paymentKey·orderId 원문, 연락처, URL 쿼리를 이벤트에 넣지 않는다.
+ *
+ * 같은 이벤트를 PostHog에도 흘린다(`product-analytics.ts`). 호출부는 이 모듈만 알면 되고,
+ * 두 도구는 각자 환경변수로 독립적으로 꺼진다. 이벤트 스키마의 정본은 아래 `GaEvents`다. */
+
+import {
+  captureProductEvent,
+  captureProductPageView,
+} from "@/shared/lib/product-analytics";
 
 const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID?.trim();
 let initialized = false;
@@ -53,6 +61,7 @@ export function initAnalytics() {
 
 /** 쿼리스트링은 받지 않는다 — OAuth code·paymentKey 유출 방지. */
 export function trackPageView(pathname: string) {
+  captureProductPageView(pathname);
   if (!initialized) return;
   window.gtag?.("event", "page_view", {
     page_path: pathname,
@@ -64,6 +73,7 @@ export function trackEvent<K extends keyof GaEvents>(
   name: K,
   params: GaEvents[K],
 ) {
+  captureProductEvent(name, params);
   if (!initialized) return;
   window.gtag?.("event", name, params);
 }

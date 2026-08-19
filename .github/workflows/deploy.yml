@@ -107,6 +107,9 @@ jobs:
       VITE_SENTRY_ENVIRONMENT: ${{ vars.VITE_SENTRY_ENVIRONMENT }}
       VITE_SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
       VITE_GA_MEASUREMENT_ID: ${{ vars.VITE_GA_MEASUREMENT_ID }}
+      # 게이트(if)에는 넣지 않는다 — 비어도 제품 분석만 꺼지고 배포는 계속돼야 한다.
+      VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
+      VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
       API_PROXY_ORIGIN: ${{ needs.backend.outputs.api_origin }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
