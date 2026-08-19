@@ -26,6 +26,15 @@ import { useState } from "react";
 import { ViewToggle } from "@/features/design/ui/view-toggle";
 import { formatDateTime } from "@/shared/lib/format";
 
+/** 완성본의 물리 타일 폭(params.intent.canvas.tile_mm)/기준 48mm — 워커 렌더와 반복 배율을 맞춘다. */
+function jobTileScale(job: GenerationJobOut): number {
+  const intent = job.params.intent as
+    | { canvas?: { tile_mm?: unknown } }
+    | undefined;
+  const tileMm = intent?.canvas?.tile_mm;
+  return typeof tileMm === "number" && tileMm > 0 ? tileMm / 48 : 1;
+}
+
 const formatDate = (value: string) =>
   formatDateTime(
     value,
@@ -128,6 +137,7 @@ export function FinalizedListModal({
                   <TieCanvas
                     imageSrc={job.result_url}
                     mode={previewMode}
+                    tileScale={jobTileScale(job)}
                     alt={`완성본 ${index + 1}`}
                   />
                 ) : (

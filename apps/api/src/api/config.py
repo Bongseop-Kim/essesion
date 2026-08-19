@@ -82,8 +82,6 @@ class Settings(BaseSettings):
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
     worker_finalize_oidc_audience: str = ""
     # finalize 과금은 admin_settings 'design_finalize_cost' (money.md §6)
-    gcp_project_id: str = ""
-    gcp_region: str = "asia-northeast3"
     worker_finalize_url: str = ""
 
     # Cloud Scheduler → /batch/* — audience 설정 시 Google OIDC 검증(+ 발신 SA email 고정),

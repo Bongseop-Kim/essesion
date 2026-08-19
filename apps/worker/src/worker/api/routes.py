@@ -1133,14 +1133,22 @@ async def finalize(body: FinalizeRequest, request: Request, session: SessionDep)
     잡 상태는 api가 소유한다(성공 시에만 GenerationJob 기록). 영구 실패는 422,
     일시 실패(RasterError 등)는 5xx로 — api가 UpstreamError로 변환한다.
     """
+    settings = request.app.state.settings
+    # /export와 같은 dpi 상한 — 같은 입력은 같은 실패라 영구 실패(422)로 과금을 되돌린다.
+    if body.dpi is not None and body.dpi > settings.max_dpi:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": FINALIZE_INVALID_INPUT_CODE,
+                "message": FINALIZE_INVALID_INPUT_MESSAGE,
+            },
+        )
     params = body.model_dump(exclude_none=True)
     # generate와 동일하게 DB 모티프 카탈로그를 렌더에 공급 — 빈 카탈로그는 전역
     # registry 폴백(테스트/시드 경로). 미등록 모티프는 render_fabric이 영구 실패 처리.
     motif_catalog = await get_motifs(session, iter_motif_ids(params.get("intent"))) or None
     try:
-        png = await run_in_threadpool(
-            render_fabric, params, request.app.state.settings, motif_catalog
-        )
+        png = await run_in_threadpool(render_fabric, params, settings, motif_catalog)
     except (FabricError, IntentInvalid, RasterLimitError):
         # 영구 실패(잘못된 intent/weave/colorway 등) — 같은 입력은 같은 실패라 재시도 무의미.
         logger.warning("finalize input rejected", exc_info=True)

@@ -18,10 +18,13 @@ import type { FinalizeDialogValue } from "@/features/design/ui/finalize-dialog";
 
 import { designErrorMessage, parseDesignError } from "./errors";
 import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
+import { svgTileWidthMm } from "./svg-preview";
 import { renderTiePng } from "./tie-image";
 
 /** 타일은 실측 크기 그대로라 픽셀 수가 작다 — 워커 상한(max_dpi)까지 올린다. */
 const TILE_DPI = 600;
+/** 워커 rasterize의 면적 상한 — 큰 타일(192mm)은 600dpi가 이 값을 넘어 DPI를 낮춘다. */
+const MAX_RASTER_PIXELS = 20_000_000;
 
 /** 내려받기 — 이미 만든 SVG의 형식 변환이라 토큰이 들지 않는다. */
 export function useDesignExport(options: {
@@ -94,7 +97,10 @@ function useCreateFinalizeJob() {
         // 이력 기록 실패는 완성본 자체에 영향이 없다 — 조용히 넘어간다.
       }
 
-      await Promise.all([
+      return job;
+    },
+    onSuccess: (_job, input) =>
+      Promise.all([
         queryClient.invalidateQueries({
           queryKey: listDesignSessionsQueryKey(),
         }),
@@ -107,10 +113,7 @@ function useCreateFinalizeJob() {
         queryClient.invalidateQueries({
           queryKey: listGenerationJobsQueryKey(),
         }),
-      ]);
-
-      return job;
-    },
+      ]),
   });
 }
 
@@ -148,13 +151,19 @@ export function useFinalizeFlow(options: {
 
 /** 타일은 이어붙일 수 있는 원본 — 디자인의 실측 크기(합성기가 쓰는 `width="48mm"`)로 래스터한다. */
 async function exportTilePng(svg: string, sessionId: string | null) {
+  const widthMm = svgTileWidthMm(svg) ?? 100;
+  // 정사각 타일 픽셀 수(widthMm/25.4·dpi)²가 워커 면적 상한을 넘지 않는 최대 DPI.
+  const dpi = Math.min(
+    TILE_DPI,
+    Math.floor((25.4 * Math.sqrt(MAX_RASTER_PIXELS)) / widthMm),
+  );
   const response = await exportDesign({
     body: {
       session_id: sessionId,
       svg,
       format: "png",
-      dpi: TILE_DPI,
-      width_mm: Number(svg.match(/width="([\d.]+)mm"/)?.[1]) || 100,
+      dpi,
+      width_mm: widthMm,
     },
     parseAs: "blob",
     throwOnError: true,

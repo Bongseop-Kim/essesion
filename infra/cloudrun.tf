@@ -8,8 +8,6 @@ locals {
     ENV                              = "production"
     GCS_UPLOAD_BUCKET                = google_storage_bucket.uploads.name
     GCS_ASSETS_BUCKET                = google_storage_bucket.assets.name
-    GCP_PROJECT_ID                   = var.project_id
-    GCP_REGION                       = var.region
     WORKER_BASE_URL                  = google_cloud_run_v2_service.worker_generate.uri
     WORKER_OIDC_AUDIENCE             = google_cloud_run_v2_service.worker_generate.uri
     WORKER_FINALIZE_URL              = google_cloud_run_v2_service.worker_finalize.uri
@@ -46,7 +44,7 @@ locals {
     },
   )
 
-  # worker는 GCP_PROJECT_ID를 읽지 않는다 — GCS 클라이언트는 ADC 메타데이터로 프로젝트를 추론.
+  # GCP 프로젝트 env는 주입하지 않는다 — GCS 클라이언트는 ADC 메타데이터로 프로젝트를 추론.
   worker_plain_env = {
     ENV        = "production"
     GCS_BUCKET = google_storage_bucket.assets.name
@@ -296,8 +294,9 @@ resource "google_cloud_run_v2_service" "worker_finalize" {
   template {
     service_account                  = google_service_account.worker_finalize.email
     # 동기 요청-응답 — 실측 p95(로컬 최악 ~2s)에 Cloud Run 배수 여유. api 쪽
-    # worker_timeout_seconds(180s)보다 짧지 않게 유지한다.
-    timeout                          = "180s"
+    # worker_timeout_seconds(180s)가 먼저 만료해 환불 경로를 타도록, 그보다
+    # 여유 있게 길게 유지한다(generate의 180s < 300s와 같은 관계).
+    timeout                          = "240s"
     max_instance_request_concurrency = 2
 
     scaling {

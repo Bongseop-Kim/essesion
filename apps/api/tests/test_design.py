@@ -1242,7 +1242,6 @@ async def test_delete_session_removes_turns_but_keeps_finalize_results(
 
 
 async def test_delete_job_removes_row_and_result_object(client, app, db_session, settings):
-    settings.gcp_project_id = "test-project"
     user = await make_user(db_session)
     headers = auth_headers(user, settings)
     _, job = await _make_finalize_job(
@@ -1652,7 +1651,6 @@ def test_public_asset_url_uses_project_bucket_and_quotes_key():
 async def test_list_generation_jobs_filters_owner_kind_status_session_and_paginates(
     client, db_session, settings
 ):
-    settings.gcp_project_id = "test-project"
     settings.gcs_assets_bucket = "configured-assets"
     owner = await make_user(db_session)
     other = await make_user(db_session)
@@ -1763,7 +1761,6 @@ async def test_list_generation_jobs_filters_owner_kind_status_session_and_pagina
 async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     client, app, db_session, settings
 ):
-    settings.gcp_project_id = "test-project"
     owner = await make_user(db_session)
     other = await make_user(db_session)
     design_session = DesignSession(user_id=owner.id)
@@ -1846,7 +1843,6 @@ async def test_design_order_reference_deletes_copy_when_validation_fails(
         async def object_metadata(self, object_key, *, bucket_name=None):
             return GcsObjectMetadata(size_bytes=0, content_type="image/png")
 
-    settings.gcp_project_id = "test-project"
     app.state.gcs = InvalidMetadataGcs()
     owner = await make_user(db_session)
     design_session = DesignSession(user_id=owner.id)

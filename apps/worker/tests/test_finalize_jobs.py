@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from db.models.seamless import Motif
+from httpx import ASGITransport, AsyncClient
 from worker.api import routes
 from worker.engine.validate import IntentInvalid
 from worker.render.raster import RasterLimitError
@@ -111,15 +112,31 @@ async def test_finalize_deterministic_render_errors_are_permanent(client, monkey
     assert response.json()["detail"]["code"] == routes.FINALIZE_INVALID_INPUT_CODE
 
 
-async def test_finalize_transient_failure_is_5xx(client, monkeypatch):
+async def test_finalize_rejects_dpi_above_limit(client, app):
+    # /export와 같은 상한 — 극단 dpi는 렌더 전에 영구 실패(422)로 자른다.
+    response = await client.post(
+        "/finalize", json={"intent": {}, "dpi": app.state.settings.max_dpi + 1}
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == routes.FINALIZE_INVALID_INPUT_CODE
+
+
+async def test_finalize_transient_failure_is_5xx(app, monkeypatch):
+    secret = "internal-secret-from-storage"
+
     def _fail(_params, _settings, _motifs=None):
-        raise RuntimeError("internal-secret-from-storage")
+        raise RuntimeError(secret)
 
     monkeypatch.setattr(routes, "render_fabric", _fail)
 
-    # 처리되지 않은 예외 → 5xx — api가 UpstreamError로 변환해 과금을 환불한다.
-    with pytest.raises(RuntimeError):
-        await client.post("/finalize", json={"intent": {}})
+    # 처리되지 않은 예외 → 500 — api가 UpstreamError로 변환해 과금을 환불한다.
+    # 기본 client는 앱 예외를 다시 던지므로 HTTP 계약은 non-raising transport로 검증한다.
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/finalize", json={"intent": {}})
+
+    assert response.status_code == 500
+    assert secret not in response.text
 
 
 async def test_finalize_rejects_unknown_fields(client):

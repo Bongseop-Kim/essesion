@@ -270,7 +270,9 @@ apply 시 잡 **4종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).
 > **finalize 동기 전환 정리(1회)**: finalize가 Cloud Tasks 큐에서 동기 HTTP로 전환되면서
 > `google_cloud_tasks_queue.finalize`·`tasks-invoker` SA·`batch-reconcile-stale-generation-jobs`
 > 잡·`roles/cloudtasks.enqueuer`가 tf에서 제거됐다 — 다음 apply가 실제 리소스를 파괴한다.
-> apply 전에 큐에 미소진 task가 없는지 확인하고(`gcloud tasks queues describe finalize`),
+> apply 전에 구 프로듀서를 멈춘 뒤 **task 단위로** 큐가 비었는지 확인한다 —
+> `gcloud tasks list --queue=finalize --location=asia-northeast3` 출력이 비어 있어야 하며,
+> `gcloud tasks queues describe finalize`는 보조 정보일 뿐 task 잔량의 증거가 아니다.
 > 전환 배포 이후 `queued`/`processing`으로 남은 legacy `generation_jobs` 행은 폴링하는
 > 클라이언트가 없으므로 그대로 두거나 사용자가 완성본 화면에서 삭제하면 된다.
 

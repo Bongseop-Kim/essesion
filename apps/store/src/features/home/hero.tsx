@@ -1,5 +1,4 @@
 import {
-  ActionButton,
   Box,
   Flex,
   Float,
@@ -126,7 +125,6 @@ const SWIPE_THRESHOLD = 50; // px — 이 이상 끌면 슬라이드 이동
 /** 모바일 — 자동 넘김 + 스와이프 캐로셀(포그 없음). 조작 중 정지, reduced-motion 시 자동재생 끔. */
 function HeroCarousel() {
   const [index, setIndex] = useState(0);
-  const [userPaused, setUserPaused] = useState(false);
   const [interactionPaused, setInteractionPaused] = useState(false);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -138,7 +136,7 @@ function HeroCarousel() {
   const dx = useRef(0);
   const active = useRef(false);
   const moved = useRef(false);
-  const autoplayPaused = userPaused || interactionPaused || dragging;
+  const autoplayPaused = interactionPaused || dragging;
 
   useEffect(() => {
     if (!isMobile || autoplayPaused || reduced) return;
@@ -243,18 +241,6 @@ function HeroCarousel() {
             className="transition-all duration-(--duration-normal) ease-standard"
           />
         ))}
-      </HStack>
-      <HStack justify="center" pt="x2">
-        {!reduced && (
-          <ActionButton
-            type="button"
-            variant="ghost"
-            size="small"
-            onClick={() => setUserPaused((value) => !value)}
-          >
-            {userPaused ? "자동 넘김 재생" : "자동 넘김 일시정지"}
-          </ActionButton>
-        )}
       </HStack>
       <Text
         as="span"

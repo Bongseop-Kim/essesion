@@ -18,12 +18,18 @@ export function svgToDataUri(svg: string): string {
 // 별도 API 필드 없이 모든 소비자가 같은 값을 본다(docs/api-spec/worker-engine.md).
 const BASE_TILE_MM = 48;
 
-/** SVG 루트 width="Nmm"에서 반복 배율(N/48)을 읽는다 — 파싱 실패·비정상값은 1. */
-export function svgTileScale(svg: string): number {
+/** SVG 루트 width="Nmm"의 실측 폭(mm) — 파싱 실패·비정상값은 null. */
+export function svgTileWidthMm(svg: string): number | null {
   const width = Number.parseFloat(
     /<svg[^>]*\swidth="([\d.]+)mm"/.exec(svg)?.[1] ?? "",
   );
-  return Number.isFinite(width) && width > 0 ? width / BASE_TILE_MM : 1;
+  return Number.isFinite(width) && width > 0 ? width : null;
+}
+
+/** SVG 루트 width="Nmm"에서 반복 배율(N/48)을 읽는다 — 파싱 실패·비정상값은 1. */
+export function svgTileScale(svg: string): number {
+  const width = svgTileWidthMm(svg);
+  return width === null ? 1 : width / BASE_TILE_MM;
 }
 
 /** 정사각 타일 미리보기 — 시드 패턴이라 반복해 깔아야 무엇인지 읽힌다. */
