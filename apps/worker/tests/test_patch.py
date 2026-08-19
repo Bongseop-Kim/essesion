@@ -381,7 +381,7 @@ def test_off_grid_period_keeps_asymmetric_bands_verbatim():
 
 
 def test_scale_with_motif_size_keeps_the_motif_at_its_absolute_size():
-    """"줄무늬 굵게 + 모티프는 그대로" = scale + motif_size_mm=[현재값]."""
+    """ "줄무늬 굵게 + 모티프는 그대로" = scale + motif_size_mm=[현재값]."""
     patched = apply_patch(mvp_intent(), _patch(scale=1.5, motif_size_mm=[1.4, 5.0]))
 
     assert patched["canvas"]["tile_mm"] == 72.0

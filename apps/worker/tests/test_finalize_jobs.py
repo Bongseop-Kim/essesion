@@ -71,9 +71,7 @@ async def test_finalize_unknown_motif_is_permanent_failure(client, db_session):
     assert response.json()["detail"]["code"] == routes.FINALIZE_INVALID_INPUT_CODE
 
 
-async def test_finalize_invalid_input_exposes_only_stable_public_error(
-    client, monkeypatch, caplog
-):
+async def test_finalize_invalid_input_exposes_only_stable_public_error(client, monkeypatch, caplog):
     secret = "internal-secret-from-fabric"
 
     def _fail(_params, _settings, _motifs=None):

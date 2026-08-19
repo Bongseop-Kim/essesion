@@ -223,7 +223,7 @@ def _build_patch_prompt(
         "band colors, motif placement (arrangement, density, rotation), motif size, overall "
         "pattern scale, and palette slot colors.",
         "`scale` multiplies the whole pattern uniformly. Use it when the request grows or "
-        "shrinks everything at once (\"make the pattern bigger\", \"everything 1.5x\"). When the "
+        'shrinks everything at once ("make the pattern bigger", "everything 1.5x"). When the '
         "request changes only the stripe widths or spacing, use `stripe.bands` instead. The "
         "current composition's `scale` field shows the current factor and the remaining min/max "
         "this design can still take — never promise more than that range in the note.",
