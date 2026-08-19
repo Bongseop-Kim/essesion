@@ -75,7 +75,7 @@ async def list_products(
     material: Material | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     sort: SortOption = "latest",
-    limit: Annotated[int | None, Query(gt=0, le=100)] = None,
+    limit: Annotated[int, Query(gt=0, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ProductOut]:
     query, likes = _product_query(user)
@@ -98,8 +98,7 @@ async def list_products(
     query = query.order_by(*order_by)
     if offset:
         query = query.offset(offset)
-    if limit is not None:
-        query = query.limit(limit)
+    query = query.limit(limit)
     rows = (await session.execute(query)).all()
     options = await _load_options(session, [p.id for p, _, _ in rows])
     return [_to_out(p, likes, liked, options[p.id]) for p, likes, liked in rows]

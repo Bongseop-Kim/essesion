@@ -12,8 +12,9 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from collections.abc import Collection
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, Literal, TypeVar
 
 import httpx
@@ -43,6 +44,12 @@ _BASE_DELAY_S = 0.5
 # produce a near-valid plan first, then fix it once the rejection errors are fed back.
 # 2 rounds left too many prompts failing; extra rounds cost a call only when a prompt is failing.
 _MAX_AUTHORING_ATTEMPTS = 4
+# 요청 1건의 유료 chat 호출 상한 — 자기수정 4회는 통과시키고, HTTP 재시도와의 곱
+# 폭주(최악 4×4=16회)를 끊는다. 정상 요청은 도달하지 않는 값.
+_AUTHORING_CALL_LIMIT = 6
+# api의 worker 호출 타임아웃 180초(api config worker_timeout_seconds)보다 짧게 — api가
+# 이미 끊은 뒤 유료 호출을 계속하지 않는다. Cloud Run 타임아웃(300초)과 무관하게 여기서 끊는다.
+_AUTHORING_DEADLINE_S = 170.0
 # Per-request output ceiling (DoW guard). Generous for one structured plan; ideas are far smaller.
 # ponytail: single flat cap; split per call-site only if plans start truncating.
 MAX_OUTPUT_TOKENS = 8192
@@ -403,6 +410,28 @@ def _strict_json_schema(model: type[BaseModel], *, without: Collection[str] = ()
 # ---- 클라이언트 ----
 
 
+@dataclass
+class LLMCallBudget:
+    """요청 스코프 유료 호출 예산 — 이미지 경로의 MotifGenerationBudget과 같은 패턴.
+
+    자기수정 루프 × HTTP 재시도의 곱으로 유료 호출이 폭주하는 것과, 호출자(api)가
+    이미 타임아웃으로 끊은 뒤에도 계속 과금되는 것을 막는다.
+    """
+
+    limit: int
+    deadline_monotonic: float
+    used: int = 0
+
+    def reserve(self) -> str | None:
+        """예산이 남으면 차감하고 None, 아니면 소진 사유(reason_code)를 돌려준다."""
+        if time.monotonic() >= self.deadline_monotonic:
+            return "authoring_deadline_exceeded"
+        if self.used >= self.limit:
+            return "authoring_budget_exhausted"
+        self.used += 1
+        return None
+
+
 class LLMClient:
     """OpenAI chat/completions 호출 — API 키 인증, strict json_schema mode."""
 
@@ -440,6 +469,7 @@ class LLMClient:
         system_instruction: str | None = None,
         response_format: dict | None = None,
         usage_operation: str = "chat",
+        budget: LLMCallBudget | None = None,
     ) -> str:
         messages: list[dict[str, str]] = []
         if system_instruction:
@@ -456,6 +486,14 @@ class LLMClient:
 
         response: httpx.Response | None = None
         for attempt in range(_MAX_ATTEMPTS):
+            # HTTP 재시도도 유료 호출이 될 수 있으므로 시도 단위로 차감한다.
+            if budget is not None and (exhausted := budget.reserve()) is not None:
+                raise AdapterClientError(
+                    f"authoring call budget exhausted: {exhausted}",
+                    provider="openai",
+                    operation="chat_completions",
+                    reason_code=exhausted,
+                )
             try:
                 response = await self._http().post(
                     f"{self._base_url}/chat/completions", headers=headers, json=payload
@@ -546,11 +584,13 @@ class LLMClient:
         system_instruction: str | None = None,
         without_schema_variants: Collection[str] = (),
         usage_operation: str = "chat",
+        budget: LLMCallBudget | None = None,
     ) -> _ModelT:
         text = await self._chat(
             prompt,
             system_instruction=system_instruction,
             usage_operation=usage_operation,
+            budget=budget,
             response_format={
                 "type": "json_schema",
                 "json_schema": {
@@ -583,6 +623,10 @@ class LLMClient:
                 "compiler_revision": COMPILER_REVISION,
                 "authoring_mode": "initial",
             }
+        )
+        budget = LLMCallBudget(
+            limit=_AUTHORING_CALL_LIMIT,
+            deadline_monotonic=time.monotonic() + _AUTHORING_DEADLINE_S,
         )
         errors: list[str] | None = None
         last_errors = ["model did not produce one valid plan"]
@@ -618,6 +662,7 @@ class LLMClient:
                     system_instruction=AUTHORING_SYSTEM_INSTRUCTION,
                     without_schema_variants=withheld_source_variants,
                     usage_operation="author_design",
+                    budget=budget,
                 )
                 plan = normalize_requested_named_colors(
                     prompt,

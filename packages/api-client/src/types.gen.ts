@@ -13366,7 +13366,7 @@ export type ListProductsData = {
         /**
          * Limit
          */
-        limit?: number | null;
+        limit?: number;
         /**
          * Offset
          */

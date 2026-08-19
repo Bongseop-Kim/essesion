@@ -11,7 +11,7 @@ vi.mock("../../shared/session/admin-session", () => ({
 }));
 
 describe("admin query defaults", () => {
-  it("탭으로 돌아오면 30초 staleTime 안에서도 서버 상태를 다시 읽는다", () => {
+  it('탭 복귀 재요청은 staleTime(30초)을 존중한다 — "always"는 포커스마다 전부 재요청해 금지', () => {
     let refetchOnWindowFocus: unknown;
     function Probe() {
       refetchOnWindowFocus =
@@ -25,6 +25,6 @@ describe("admin query defaults", () => {
       </AppProviders>,
     );
 
-    expect(refetchOnWindowFocus).toBe("always");
+    expect(refetchOnWindowFocus).toBe(true);
   });
 });

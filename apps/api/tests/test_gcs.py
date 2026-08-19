@@ -168,6 +168,28 @@ async def test_signed_upload_url_uses_iam_signing_for_cloud_run_credentials(monk
     ]
 
 
+async def test_signed_read_url_memoizes_per_object_until_cache_ttl(monkeypatch):
+    # 서명 1건 = IAM signBlob 네트워크 호출 1건 — 같은 객체는 캐시 TTL 동안 재서명하지 않는다.
+    storage = _FakeStorageClient()
+    _install(monkeypatch, storage)
+    gcs = RealGcsClient("private-uploads")
+    now = 1000.0
+    monkeypatch.setattr("api.integrations.gcs.time.monotonic", lambda: now)
+
+    first = await gcs.signed_read_url("uploads/a.png")
+    assert await gcs.signed_read_url("uploads/a.png") == first
+    assert len(storage.bucket("private-uploads").blob("uploads/a.png").signed_url_calls) == 1
+
+    # 다른 객체는 캐시를 공유하지 않는다
+    await gcs.signed_read_url("uploads/b.png")
+    assert len(storage.bucket("private-uploads").blob("uploads/b.png").signed_url_calls) == 1
+
+    # 캐시 TTL(10분)이 지나면 재서명한다 — URL TTL(15분)보다 짧아 만료 임박 URL을 주지 않는다
+    now += 601
+    await gcs.signed_read_url("uploads/a.png")
+    assert len(storage.bucket("private-uploads").blob("uploads/a.png").signed_url_calls) == 2
+
+
 async def test_copy_from_bucket_reports_other_sdk_failures(monkeypatch):
     storage = _FakeStorageClient()
     _install(monkeypatch, storage)

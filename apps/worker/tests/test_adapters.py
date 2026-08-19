@@ -477,6 +477,23 @@ async def test_author_design_retries_when_the_single_plan_breaks_the_contract(ll
 
 
 @respx.mock
+async def test_author_design_stops_paid_calls_at_the_request_budget(llm):
+    # 자기수정 루프 × HTTP 재시도의 곱 폭주 방지 — 재시도 가능한 실패가 이어져도
+    # 요청 1건의 유료 호출은 _AUTHORING_CALL_LIMIT(6)에서 멈춘다 (최악 4×4=16회 차단).
+    route = _mock_chat(
+        httpx.Response(429),
+        httpx.Response(429),
+        httpx.Response(429),
+        _chat_response({"not_a_plan": "wrong shape"}),  # 1라운드: 계약 위반 → 재저작
+        *[httpx.Response(429)] * 4,  # 2라운드: 예산이 재시도보다 먼저 끊는다
+    )
+    with pytest.raises(AdapterClientError) as excinfo:
+        await llm.author_design("dots")
+    assert excinfo.value.reason_code == "authoring_budget_exhausted"
+    assert route.call_count == 6
+
+
+@respx.mock
 async def test_author_design_rejects_invalid_json_without_prose_fallback(llm):
     # 불변식: 재검(pydantic) 실패 시 프로즈 파싱 fallback 금지 — 재시도 후 거부만.
     route = _mock_chat(*([{"not_a_plan": "wrong shape"}] * 4))  # _MAX_AUTHORING_ATTEMPTS

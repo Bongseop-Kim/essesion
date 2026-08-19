@@ -40,7 +40,8 @@ export function AddressSelectModal({
   onSelect: (address: ShippingAddressOut) => void;
 }) {
   const queryClient = useQueryClient();
-  const addressesQuery = useQuery(listAddressesOptions());
+  // 항상 마운트되는 모달 — 닫혀 있을 때(비로그인 포함) GET /addresses를 쏘지 않는다.
+  const addressesQuery = useQuery({ ...listAddressesOptions(), enabled: open });
   const addresses = addressesQuery.data ?? [];
   const [creating, setCreating] = useState(false);
   const showForm =

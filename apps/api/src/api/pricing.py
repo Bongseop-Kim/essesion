@@ -7,11 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.errors import DomainError
 
 
-async def get_pricing_constants(session: AsyncSession, keys: list[str]) -> dict[str, int]:
+async def find_pricing_constants(session: AsyncSession, keys: list[str]) -> dict[str, int]:
+    """없는 키는 결과에서 빠진다 — 누락을 호출자가 구분 처리할 때 사용."""
     rows = await session.execute(
         select(PricingConstant.key, PricingConstant.amount).where(PricingConstant.key.in_(keys))
     )
-    found: dict[str, int] = {key: amount for key, amount in rows.all()}
+    return {key: amount for key, amount in rows.all()}
+
+
+async def get_pricing_constants(session: AsyncSession, keys: list[str]) -> dict[str, int]:
+    found = await find_pricing_constants(session, keys)
     for key in keys:
         if key not in found:
             raise DomainError(f"Missing pricing constant: {key}", code="pricing_not_configured")
