@@ -213,8 +213,17 @@ class ExportRequest(StrictRequest):
     height_mm: float | None = Field(default=None, gt=0)
 
 
-class FinalizeTaskRequest(StrictRequest):
-    job_id: uuid.UUID
+class FinalizeRequest(StrictRequest):
+    """실사화 렌더 입력 — GenerationJob.params와 동일 형태. 값 검증은 render_fabric이 최종 권위."""
+
+    intent: dict[str, Any]
+    colorway_id: str | None = None
+    production_method: str | None = None
+    dpi: int | None = Field(default=None, ge=1)
+    weave: str | None = None
+    material_map: dict[str, str] | None = None
+    texture_strength: float | None = Field(default=None, ge=0)
+    relief_strength: float | None = Field(default=None, ge=0)
 
 
 class MotifQuery(StrictRequest):

@@ -12,7 +12,7 @@
 ```text
 React clients → generated OpenAPI client → FastAPI domain API
                                              ├─ synchronous generate
-                                             └─ asynchronous fabric finalize
+                                             └─ synchronous fabric finalize
 ```
 
 ### 구현 상태
@@ -78,7 +78,6 @@ flowchart TB
         API[api<br/>FastAPI · Cloud Run]
         Generate[worker-generate<br/>Cloud Run]
         Finalize[worker-finalize<br/>Cloud Run]
-        Tasks[Cloud Tasks]
         Scheduler[Cloud Scheduler]
         Migrate[migrate<br/>Cloud Run Job]
         SQL[(Cloud SQL<br/>PostgreSQL 17 + pgvector)]
@@ -87,9 +86,7 @@ flowchart TB
 
         Proxy --> API
         API -->|OIDC synchronous generate| Generate
-        API -->|deterministic task name| Tasks
-        Tasks -->|OIDC push| Finalize
-        API -->|OIDC synchronous export| Finalize
+        API -->|OIDC synchronous finalize·export| Finalize
         Scheduler -->|OIDC /batch/*| API
         Migrate --> SQL
         API --> SQL
@@ -117,7 +114,7 @@ flowchart TB
 | API proxy | Cloudflare Worker | API origin 고정, edge secret 덮어쓰기, WAF 경계 | 공개 |
 | `api` | Cloud Run | Auth, 인가, 도메인 CRUD, 주문·결제·토큰, 디자인 세션·잡 | Cloudflare 경유 공개 |
 | `worker-generate` | Cloud Run | prompt authoring, 구성 patch, catalog grounding, 명시적 motif 생성, 디자인 SVG/preview | IAM private, API만 |
-| `worker-finalize` | Cloud Run | fabric finalize, PNG/TIFF export, task 소비 | IAM private, API/Cloud Tasks만 |
+| `worker-finalize` | Cloud Run | fabric finalize, PNG/TIFF export | IAM private, API만 |
 | `migrate` | Cloud Run Job | 배포 전 Alembic upgrade | 파이프라인 내부 |
 
 두 worker는 같은 `apps/worker` 이미지에서 `SERVICE_MODE=generate|finalize`로 라우트 표면을 나눈다.
@@ -171,11 +168,11 @@ Cloud SQL 접속에 `cloud-sql-python-connector`를 쓰지 않는다. Cloud Run�
 |---|---:|---:|---:|---|
 | `api` | 1 vCPU / 512 MiB | 20 | platform default | min=`api_min_instances`, max=10 |
 | `worker-generate` | 1 vCPU / 1 GiB | 2 | 300s | min=0, max=10 |
-| `worker-finalize` | 2 vCPU / 4 GiB | 2 | 900s | min=0, max=5 |
+| `worker-finalize` | 2 vCPU / 4 GiB | 2 | 180s | min=0, max=5 |
 
 - `api_min_instances` 기본값은 비용을 위해 0이다. cold start가 실제 사업 지표를 훼손할 때만 1로 올린다.
 - generate는 외부 API 대기가 크지만 요청당 preview 렌더를 최대 2개 병렬 수행하므로 concurrency도 2다.
-- finalize 메모리는 DPI 제곱에 비례한다. dpi 상한 600, request timeout 900초, DB lease 960초.
+- finalize 메모리는 DPI 제곱에 비례한다. dpi 상한 600. 동기 요청-응답이라 api 쪽 worker timeout(180초)이 상한을 정한다.
 - worker 둘은 scale-to-zero한다. 리소스 변경은 production의 latency·RSS·OOM 지표를 근거로 한다.
 
 ### 2.3 툴체인과 품질 gate
@@ -305,13 +302,12 @@ sequenceDiagram
 | Customer → API domain | JWT + owner check |
 | Admin → API domain | JWT role/capability + exact Origin |
 | API → worker | Google OIDC audience + service account IAM |
-| Cloud Tasks → finalize | queue 전용 service account OIDC |
 | Scheduler → batch | audience + invoker email을 함께 검증 |
 | GitHub Actions → GCP | repository ID·ref·workflow 조건이 있는 WIF |
 | Runtime → Secret | 서비스별 Secret Manager IAM |
 
 비로컬 환경은 필수 secret·audience·provider 설정이 없을 때 로컬 token이나 DryRun으로 조용히
-폴백하지 않는다. GCS·Cloud Tasks 누락은 기동을 중단하고, 그 밖의 provider 누락은 `/readyz`를
+폴백하지 않는다. GCS 누락은 기동을 중단하고, 그 밖의 provider 누락은 `/readyz`를
 503으로 만들거나 해당 mutation을 차단한다.
 
 검증은 실제 pgvector PostgreSQL testcontainer로 한다 — 익명 401, 타인 403/404, owner·admin 성공을
@@ -442,7 +438,7 @@ intent version + resolved intent + seed + colorway
 |---|---|
 | intent 스키마, placement 4종, colorway, 엔진 상수·상한 | [worker-engine.md](./docs/api-spec/worker-engine.md) |
 | 모티프 정규화·content hash·GPT Image·임베딩·catalog grounding·색 불변 계약 | [worker-motifs.md](./docs/api-spec/worker-motifs.md) |
-| 래스터화, fabric finalize, worker HTTP 계약, patch·sidecar·과금 경계, 재시도·lease | [worker-pipeline.md](./docs/api-spec/worker-pipeline.md) |
+| 래스터화, fabric finalize, worker HTTP 계약, patch·sidecar·과금 경계 | [worker-pipeline.md](./docs/api-spec/worker-pipeline.md) |
 | Plan v3 저작·RAG 검색·승격 상태기계·관리자 저작 | [authoring-plan-v3.md](./docs/api-spec/authoring-plan-v3.md) |
 | `/design` 엔드포인트 표면 | [domains.md](./docs/api-spec/domains.md) §11 |
 
@@ -490,7 +486,7 @@ main push → CI success → same SHA 확인 → image build → Artifact Regist
 | Uptime check | Cloudflare 경유 `/readyz` | OpenTofu 선언, apply 후 활성화 |
 
 API readiness는 Toss·Solapi·worker·OAuth/OIDC·secret의 **설정 모드**를 확인할 뿐 외부 provider를
-live ping하지 않는다. GCS·Tasks는 설정 누락 시 readiness 이전에 기동을 중단한다. worker readiness도
+live ping하지 않는다. GCS는 설정 누락 시 readiness 이전에 기동을 중단한다. worker readiness도
 OpenAI LLM·임베딩·GPT Image 상태를 조회하지 않는다.
 
 Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 generate turn과 연결한다. 되돌리기
@@ -498,11 +494,10 @@ Seamless admin 상세는 API가 부여한 `run_id`로 디자인 세션의 genera
 
 ### 7.4 배치 작업
 
-Cloud Scheduler가 bounded batch **5종**을 API `/batch/*`로 호출한다(`infra/scheduler.tf`, KST).
+Cloud Scheduler가 bounded batch **4종**을 API `/batch/*`로 호출한다(`infra/scheduler.tf`, KST).
 
 - 주문 자동 구매확정
 - stale pending 주문 취소
-- stale generation job 정리·보상
 - 만료 이미지 정리
 - authoring 승격 후보 선별 (매일 05:00)
 
@@ -521,13 +516,13 @@ Cloud Scheduler가 bounded batch **5종**을 API `/batch/*`로 호출한다(`inf
 | 프론트 계약 | OpenAPI 생성 client | 손으로 작성한 DTO·hook drift 제거 |
 | 세션 소유 | API 일반 테이블 | 현재 요구에 LangGraph checkpoint 복잡성이 불필요 |
 | generate | 동기 HTTP | 사용자가 결과를 기다리는 interactive 작업 |
-| finalize | Cloud Tasks push | 작업 단위 retry·OIDC·deadline·결정적 task 이름이 필요 |
+| finalize | 동기 HTTP | 렌더 p95가 수 초라 잡 큐·폴링·취소 기계의 복잡성이 불필요 (Cloud Tasks push에서 전환) |
 | worker 배포 | 같은 코드, 두 서비스 | 계산 코드는 공유하고 resource/IAM/route는 분리 |
 | SVG renderer | librsvg 기준선 유지 | resvg가 형상은 같지만 edge AA byte parity를 만족하지 못함 ([근거](./docs/reviews/resvg-parity.md)) |
 | Storage | public/private 두 버킷 | 공개 결과와 고객 개인정보 첨부의 IAM 경계 분리 |
 | DB 연결 | Cloud SQL volume + asyncpg Unix socket | Cloud Run의 단순한 연결 경로, 별도 connector 불필요 |
 | AI 실행 | 외부 provider, 로컬 GPU 없음 | 로컬 엔진은 좌표·SVG·Pillow 계산이며 GPU 추론이 없음 |
-| 비동기화 범위 | generate·작은 export는 동기 | 사용자가 대기하는 경로는 동기가 더 단순 |
+| 비동기화 범위 | generate·finalize·export 전부 동기 | 사용자가 대기하는 경로는 동기가 더 단순 |
 | 환경 분리 | 로컬 + 단일 production | 별도 staging 프로젝트의 운영·비용 부담이 이득보다 큼 |
 | 배포 인증 | GitHub WIF | 장기 service-account key 제거 |
 | IaC | OpenTofu | 단일 production 프로젝트의 리소스·IAM·모니터링을 선언 |

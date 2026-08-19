@@ -14,7 +14,6 @@ from sqlalchemy import select
 from api.db import SessionDep
 from api.deps import AdminOnly, AdminUser
 from api.domains.admin.operations import idempotent_result, record_operation
-from api.domains.design.quota import parse_finalize_limit
 from api.errors import ConflictError, DomainError
 
 router = APIRouter(prefix="/admin", tags=["admin-configuration"])
@@ -58,7 +57,7 @@ PRICE_CATEGORIES: dict[str, str] = {
 SettingKey = Literal[
     "default_courier_company",
     "design_edit_cost",
-    "design_finalize_daily_limit",
+    "design_finalize_cost",
     "design_motif_generate_cost",
     "design_token_cost_openai_render_standard",
     "design_token_initial_grant",
@@ -68,6 +67,7 @@ SETTING_KEYS: tuple[str, ...] = get_args(SettingKey)
 _COST_RANGE = (1, 1_000, "토큰 단가는 1에서 1000 사이 정수여야 합니다")
 _INT_SETTING_RANGES = {
     "design_edit_cost": _COST_RANGE,
+    "design_finalize_cost": _COST_RANGE,
     "design_motif_generate_cost": _COST_RANGE,
     "design_token_cost_openai_render_standard": _COST_RANGE,
     "design_token_initial_grant": (
@@ -229,15 +229,6 @@ def _validate_setting(key: str, value: str) -> str:
         if not clean:
             raise DomainError("기본 택배사를 입력해 주세요", code="invalid_setting", status=422)
         return clean
-    if key == "design_finalize_daily_limit":
-        limit = parse_finalize_limit(clean)
-        if limit is None:
-            raise DomainError(
-                "실사화 24시간 한도는 0에서 1000 사이 정수여야 합니다",
-                code="invalid_setting",
-                status=422,
-            )
-        return str(limit)
     low, high, message = _INT_SETTING_RANGES[key]
     if not clean.isdigit() or not low <= int(clean) <= high:
         raise DomainError(message, code="invalid_setting", status=422)

@@ -55,8 +55,8 @@ const settings: AdminSettingOut[] = [
     updated_by: "admin-1",
   },
   {
-    key: "design_finalize_daily_limit",
-    value: "10",
+    key: "design_finalize_cost",
+    value: "5",
     value_type: "non_negative_integer",
     updated_at: "2026-07-12T01:00:00Z",
     updated_by: "admin-1",
@@ -121,16 +121,16 @@ describe("SettingsPage", () => {
     expect(screen.queryByLabelText("택배사명")).toBeNull();
   });
 
-  it("실사화 한도 설정을 회 단위로 표시하고 전용 라벨로 편집한다", async () => {
+  it("실사화 단가 설정을 개 단위로 표시하고 전용 라벨로 편집한다", async () => {
     const user = userEvent.setup();
     api.getSettings.mockResolvedValue(settings);
     renderPage();
 
-    expect(await screen.findByText("실사화 24시간 한도")).toBeTruthy();
-    // 현재 값·시스템 기본값 모두 "10회" — 회 단위 포맷 확인
-    expect(screen.getAllByText("10회").length).toBeGreaterThan(0);
+    expect(await screen.findByText("실사화 토큰 단가")).toBeTruthy();
+    // 현재 값·시스템 기본값 모두 "5개" — 개 단위 포맷 확인
+    expect(screen.getAllByText("5개").length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "수정" })[2]!);
-    expect(await screen.findByLabelText("실사화 횟수")).toBeTruthy();
+    expect(await screen.findByLabelText("토큰 수량")).toBeTruthy();
   });
 
   it("숫자 설정별 서버 상한을 입력 힌트와 검증에 동일하게 적용한다", async () => {
@@ -141,11 +141,11 @@ describe("SettingsPage", () => {
     await user.click(
       (await screen.findAllByRole("button", { name: "수정" }))[2]!,
     );
-    const finalizeLimit = (await screen.findByLabelText(
-      "실사화 횟수",
+    const finalizeCost = (await screen.findByLabelText(
+      "토큰 수량",
     )) as HTMLInputElement;
-    await user.clear(finalizeLimit);
-    await user.type(finalizeLimit, "1001");
+    await user.clear(finalizeCost);
+    await user.type(finalizeCost, "1001");
     expect(screen.getByText("설정 값을 확인해 주세요")).toBeTruthy();
     expect(
       (

@@ -59,17 +59,23 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     inputLabel: "택배사명",
     impact: "변경 후 입력하는 새 배송·수거 송장에 기본값으로 제안됩니다.",
   },
-  design_finalize_daily_limit: {
-    title: "실사화 24시간 한도",
+  design_finalize_cost: {
+    title: "실사화 토큰 단가",
     description:
-      "계정마다 최근 24시간 동안 만들 수 있는 실사화 횟수 상한입니다.",
+      "디자인을 실제 원단 이미지로 만들 때 1회 차감하는 토큰입니다. 실패한 요청은 자동 환불됩니다.",
     scope: "이후의 새 실사화 요청",
-    defaultValue: "10회",
-    inputLabel: "실사화 횟수",
-    unit: "회",
+    defaultValue: "5개",
+    inputLabel: "토큰 수량",
+    unit: "개",
     max: 1_000,
+    min: 1,
     impact:
-      "이후의 새 실사화 요청부터 즉시 적용됩니다. 실패·취소한 요청은 횟수에 포함되지 않습니다.",
+      "이후의 새 실사화 요청부터 즉시 적용됩니다. store 실사화 다이얼로그에도 이 값이 그대로 표기됩니다.",
+    editWarning: {
+      title: "고객에게 보이는 가격입니다",
+      description:
+        "store 실사화 다이얼로그에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+    },
   },
   design_token_cost_openai_render_standard: {
     title: "디자인 첫 생성 단가",

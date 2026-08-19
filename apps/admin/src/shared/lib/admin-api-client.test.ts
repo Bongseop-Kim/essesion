@@ -175,22 +175,22 @@ describe("admin API session coordination", () => {
       },
       cleared: true,
     },
-  ])(
-    "관리자 403 이후 $name 결과에 맞게 세션을 보존한다",
-    async ({ result, cleared }) => {
-      api.getMe.mockResolvedValue(result);
-      const module = await import("./admin-api-client");
-      module.setAdminAccessToken("still-valid-admin-token", false);
-      const interceptor = client.interceptors.response.use.mock.calls[0]?.[0];
+  ])("관리자 403 이후 $name 결과에 맞게 세션을 보존한다", async ({
+    result,
+    cleared,
+  }) => {
+    api.getMe.mockResolvedValue(result);
+    const module = await import("./admin-api-client");
+    module.setAdminAccessToken("still-valid-admin-token", false);
+    const interceptor = client.interceptors.response.use.mock.calls[0]?.[0];
 
-      await interceptor(
-        new Response(null, { status: 403 }),
-        new Request("http://test/admin/orders"),
-      );
+    await interceptor(
+      new Response(null, { status: 403 }),
+      new Request("http://test/admin/orders"),
+    );
 
-      expect(await requestCarriesAuthorization()).toBe(!cleared);
-    },
-  );
+    expect(await requestCarriesAuthorization()).toBe(!cleared);
+  });
 
   it("토큰 없는 첫 요청은 refresh 완료를 기다렸다가 Authorization을 부착한다", async () => {
     api.adminRefreshTokens.mockResolvedValue({

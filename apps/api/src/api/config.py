@@ -81,11 +81,9 @@ class Settings(BaseSettings):
     worker_timeout_seconds: float = 180.0
     worker_oidc_audience: str = ""  # 비어 있으면 인증 없이 호출(로컬) — Cloud Run 프라이빗용
     worker_finalize_oidc_audience: str = ""
-    # finalize 상한은 계정당 24시간 쿼터 — admin_settings 'design_finalize_daily_limit'
+    # finalize 과금은 admin_settings 'design_finalize_cost' (money.md §6)
     gcp_project_id: str = ""
     gcp_region: str = "asia-northeast3"
-    cloud_tasks_queue: str = "finalize"
-    cloud_tasks_oidc_service_account: str = ""
     worker_finalize_url: str = ""
 
     # Cloud Scheduler → /batch/* — audience 설정 시 Google OIDC 검증(+ 발신 SA email 고정),

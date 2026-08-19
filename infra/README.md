@@ -168,7 +168,7 @@ for u in "$GENERATE_URL" "$FINALIZE_URL"; do
 done
 ```
 
-api `/readyz`에서 `database=ready`, `toss/solapi/finalize_tasks=real`, `worker=ready`,
+api `/readyz`에서 `database=ready`, `toss/solapi=real`, `worker=ready`,
 `batch_auth=oidc`, `oauth_google/oauth_kakao/oauth_naver/oauth_apple/auth_secrets/edge_proxy=ready`를
 모두 확인한다. 하나라도 `unavailable`이면 503이다. Toss·GCS mutation은 503으로 차단되고 Solapi
 알림은 가짜 성공으로 바뀌지 않고 outbox `failed`로 남는다.
@@ -263,9 +263,16 @@ admin Motif 상세에서 symbol의 concrete paint 표본을 확인한다. 인덱
 
 ## 배치 (Cloud Scheduler → api /batch/*)
 
-apply 시 잡 **5종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).
+apply 시 잡 **4종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).
 
-`batch-{auto-confirm-orders, cancel-stale-orders, reconcile-stale-generation-jobs, cleanup-images, authoring-promotion-candidates}`
+`batch-{auto-confirm-orders, cancel-stale-orders, cleanup-images, authoring-promotion-candidates}`
+
+> **finalize 동기 전환 정리(1회)**: finalize가 Cloud Tasks 큐에서 동기 HTTP로 전환되면서
+> `google_cloud_tasks_queue.finalize`·`tasks-invoker` SA·`batch-reconcile-stale-generation-jobs`
+> 잡·`roles/cloudtasks.enqueuer`가 tf에서 제거됐다 — 다음 apply가 실제 리소스를 파괴한다.
+> apply 전에 큐에 미소진 task가 없는지 확인하고(`gcloud tasks queues describe finalize`),
+> 전환 배포 이후 `queued`/`processing`으로 남은 legacy `generation_jobs` 행은 폴링하는
+> 클라이언트가 없으므로 그대로 두거나 사용자가 완성본 화면에서 삭제하면 된다.
 
 api의 검증 env(`BATCH_OIDC_AUDIENCE`, `BATCH_INVOKER_EMAIL`)는 tofu가 주입하므로 수동 조치가 없다.
 로컬 개발은 `batch_token` 폴백.

@@ -13,13 +13,7 @@ resource "google_service_account" "worker_finalize" {
   display_name = "Cloud Run worker-finalize"
 }
 
-resource "google_service_account" "tasks" {
-  account_id   = "tasks-invoker"
-  display_name = "Cloud Tasks -> worker-finalize OIDC"
-}
-
 # 롤 0건 — api가 공개(allUsers invoker)라 invoker 불요, 검증은 api 앱 레벨(email 클레임 고정).
-# tasks SA 재사용 금지: 배치 경로와 finalize 사칭 가능성을 분리.
 resource "google_service_account" "scheduler" {
   account_id   = "scheduler-invoker"
   display_name = "Cloud Scheduler -> api /batch OIDC"
@@ -33,7 +27,6 @@ resource "google_service_account" "deployer" {
 resource "google_project_iam_member" "api_roles" {
   for_each = toset([
     "roles/cloudsql.client",
-    "roles/cloudtasks.enqueuer",
   ])
   project = var.project_id
   role    = each.value
@@ -122,13 +115,6 @@ resource "google_storage_bucket_iam_member" "uploads_rw" {
 resource "google_service_account_iam_member" "api_sign" {
   service_account_id = google_service_account.api.name
   role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "serviceAccount:${google_service_account.api.email}"
-}
-
-# api가 tasks SA의 OIDC 토큰으로 잡을 등록할 수 있게 actAs 부여
-resource "google_service_account_iam_member" "api_actas_tasks" {
-  service_account_id = google_service_account.tasks.name
-  role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.api.email}"
 }
 

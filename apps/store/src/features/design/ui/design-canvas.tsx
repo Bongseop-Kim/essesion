@@ -18,6 +18,8 @@ export type DesignCanvasProps = {
   /** 디자인이 없을 때 안내 대신 그릴 콘텐츠 (첫 진입 예시 갤러리) */
   empty?: ReactNode;
   mode: DesignPreviewMode;
+  /** 타일 반복 배율 — svgTileScale(currentSvg). 기본 1. */
+  tileScale?: number;
   /** 좌상단 플로팅 pill (Help) */
   topStart?: ReactNode;
   /** 우상단 플로팅 (토큰 pill · 뷰 세그먼트) */
@@ -40,6 +42,7 @@ export function DesignCanvas({
   imageSrc,
   empty,
   mode,
+  tileScale,
   topStart,
   topEnd,
   notice,
@@ -64,7 +67,12 @@ export function DesignCanvas({
           inset={0}
           display={{ base: "block", md: "none" }}
         >
-          <TieCanvas imageSrc={imageSrc} mode={mode} surface="none" />
+          <TieCanvas
+            imageSrc={imageSrc}
+            mode={mode}
+            surface="none"
+            tileScale={tileScale}
+          />
         </Box>
       ) : null}
       {/* 배경은 풀블리드, 콘텐츠는 다른 페이지(LayoutContent medium)와 같은 1280 최대폭 */}
@@ -85,7 +93,12 @@ export function DesignCanvas({
                   display={tiled ? { base: "none", md: "block" } : "block"}
                   style={{ aspectRatio: 1 }}
                 >
-                  <TieCanvas imageSrc={imageSrc} mode={mode} surface="none" />
+                  <TieCanvas
+                    imageSrc={imageSrc}
+                    mode={mode}
+                    surface="none"
+                    tileScale={tileScale}
+                  />
                 </Box>
               ) : (
                 (empty ?? (

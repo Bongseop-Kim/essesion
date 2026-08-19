@@ -82,7 +82,6 @@ const session = {
   active_generation_started_at: null,
   created_at: "2026-07-31T00:00:00Z",
   updated_at: "2026-07-31T00:00:00Z",
-  finalize_quota: null,
 };
 
 /** 세션 응답을 케이스별로 덮어쓴다(예: 생성 예산 소진). beforeEach가 비운다. */

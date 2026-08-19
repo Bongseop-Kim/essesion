@@ -1,6 +1,4 @@
 import asyncio
-import uuid
-from typing import cast
 
 import pytest
 from api.config import Settings
@@ -12,9 +10,7 @@ from api.domains.auth.rate_limit import (
 from api.errors import RateLimitedError, ServiceUnavailableError
 from api.integrations.gcs import assets_bucket_name, build_gcs_client
 from api.integrations.solapi import UnavailableSolapiClient, build_solapi_client
-from api.integrations.tasks import InlineTaskQueue, build_task_queue
 from api.integrations.toss import UnavailableTossClient, build_toss_client
-from api.integrations.worker import WorkerClient
 from api.main import create_app
 from fastapi import Request
 from fastapi.testclient import TestClient
@@ -25,15 +21,6 @@ from pydantic_settings import SettingsConfigDict
 class _TestSettings(Settings):
     model_config = SettingsConfigDict(env_file=None)
     public_api_origin: str = "https://api.essesion.shop"
-
-
-class _FakeWorker:
-    def __init__(self) -> None:
-        self.job_ids: list[str] = []
-
-    async def finalize_job(self, job_id: str) -> dict[str, str]:
-        self.job_ids.append(job_id)
-        return {"status": "succeeded"}
 
 
 def test_auth_rate_limiter_expires_and_bounds_keys():
@@ -150,7 +137,7 @@ def test_request_id_context_security_headers_and_unhandled_error():
     assert "frame-ancestors 'none'" in failed.headers["content-security-policy"]
 
 
-def test_nonlocal_missing_storage_or_tasks_prevents_startup():
+def test_nonlocal_missing_storage_prevents_startup():
     settings = _TestSettings(
         env="staging",
         database_url="postgresql+asyncpg://essesion:essesion@127.0.0.1:1/essesion",
@@ -170,8 +157,6 @@ def test_nonlocal_missing_storage_or_tasks_prevents_startup():
 
     with pytest.raises(RuntimeError, match="GCS_UPLOAD_BUCKET"):
         build_gcs_client(settings)
-    with pytest.raises(RuntimeError, match="Cloud Tasks"):
-        build_task_queue(settings, cast(WorkerClient, _FakeWorker()))
 
     application = create_app(settings)
     with pytest.raises(RuntimeError, match="GCS_UPLOAD_BUCKET"):
@@ -188,7 +173,6 @@ def test_local_missing_provider_and_storage_settings_uses_local_defaults():
         "toss": "dry_run",
         "solapi": "dry_run",
         "worker": "local",
-        "finalize_tasks": "inline",
         "batch_auth": "shared_secret",
         "oauth_google": "optional",
         "oauth_kakao": "optional",
@@ -207,16 +191,6 @@ def test_local_private_gcs_without_assets_bucket_uses_fixed_assets_default():
         gcs_assets_bucket="",
     )
     assert assets_bucket_name(settings) == "dev-assets"
-
-
-def test_local_task_queue_awaits_worker_inline():
-    worker = _FakeWorker()
-    queue = build_task_queue(_TestSettings(env="local"), cast(WorkerClient, worker))
-    job_id = uuid.uuid4()
-
-    assert isinstance(queue, InlineTaskQueue)
-    asyncio.run(queue.enqueue_finalize(job_id))
-    assert worker.job_ids == [str(job_id)]
 
 
 def test_nonlocal_ordinary_http_requires_exact_trusted_edge_header(fake_integrations):

@@ -3,7 +3,6 @@
 from datetime import UTC, datetime, timedelta
 
 from db.models.commerce import Claim, Order
-from db.models.design import GenerationJob
 from db.models.images import Image
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
@@ -11,10 +10,6 @@ from sqlalchemy import and_, exists, func, not_, or_, select
 
 from api.db import SessionDep
 from api.deps import BatchAuth
-from api.domains.design.job_lifecycle import (
-    resolve_stale_finalize_jobs,
-    stale_finalize_clause,
-)
 from api.domains.orders.service import log_status, restore_reserved_order_coupons
 from api.domains.orders.status_machine import ACTIVE_CLAIM_STATUSES
 from api.integrations.gcs import assets_bucket_name
@@ -26,7 +21,6 @@ STALE_PENDING_AFTER = timedelta(minutes=30)
 CLEANUP_BATCH_SIZE = 100
 CLEANUP_RETRY_AFTER = timedelta(minutes=5)
 ORDER_BATCH_SIZE = 500
-GENERATION_JOB_BATCH_SIZE = 100
 
 
 class BatchResult(BaseModel):
@@ -97,25 +91,6 @@ async def cancel_stale_orders(session: SessionDep) -> BatchResult:
     await restore_reserved_order_coupons(session, orders)
     await session.commit()
     return BatchResult(processed=len(orders))
-
-
-@router.post("/reconcile-stale-generation-jobs", response_model=BatchResult)
-async def reconcile_stale_generation_jobs(session: SessionDep) -> BatchResult:
-    """Cloud Tasks 재시도 창을 넘긴 finalize job을 canceled로 종결한다 — 쿼터 슬롯 자동 해제."""
-    now = datetime.now(UTC)
-    jobs = (
-        await session.scalars(
-            select(GenerationJob)
-            .where(stale_finalize_clause(now))
-            .order_by(GenerationJob.created_at, GenerationJob.id)
-            .limit(GENERATION_JOB_BATCH_SIZE)
-            .with_for_update(skip_locked=True)
-        )
-    ).all()
-
-    resolve_stale_finalize_jobs(jobs)
-    await session.commit()
-    return BatchResult(processed=len(jobs))
 
 
 @router.post(

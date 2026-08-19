@@ -19,6 +19,8 @@ class TokenBalance(BaseModel):
     edit_cost: int
     # 새 모티프를 이미지 provider로 만드는 1회 단가
     motif_generate_cost: int
+    # 실사화(원단 렌더) 1회 단가
+    finalize_cost: int
 
 
 class TokenPlan(BaseModel):

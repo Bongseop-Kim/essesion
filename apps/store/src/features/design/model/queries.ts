@@ -2,8 +2,6 @@ import type { GenerationJobOut } from "@essesion/api-client";
 import {
   getDesignSessionOptions,
   getDesignSessionQueryKey,
-  getGenerationJobOptions,
-  getGenerationJobQueryKey,
   listDesignSessionsOptions,
   listDesignTurnsOptions,
   listDesignTurnsQueryKey,
@@ -69,21 +67,5 @@ export function finalizedJobsInfiniteQueryOptions(authenticated: boolean) {
       lastPage.length === FINALIZED_JOBS_PAGE_SIZE
         ? allPages.length * FINALIZED_JOBS_PAGE_SIZE
         : undefined,
-  };
-}
-
-export const generationJobQueryKey = (jobId: string) =>
-  getGenerationJobQueryKey({ path: { job_id: jobId } });
-
-export function generationJobQueryOptions({
-  jobId,
-  authenticated,
-}: {
-  authenticated: boolean;
-  jobId: string | null;
-}) {
-  return {
-    ...getGenerationJobOptions({ path: { job_id: jobId ?? "" } }),
-    enabled: authenticated && !!jobId,
   };
 }

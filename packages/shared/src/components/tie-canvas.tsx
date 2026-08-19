@@ -17,6 +17,8 @@ export type TieCanvasProps = {
    * `none` = 면·라운드 없이 부모 배경에 바로 놓는다(풀블리드 캔버스).
    */
   surface?: "panel" | "none";
+  /** 타일 반복 배율 — SVG 루트의 물리 폭(tile_mm/48)에 비례시킨다. 기본 1. */
+  tileScale?: number;
   className?: string;
 };
 
@@ -69,12 +71,13 @@ export function TieCanvas({
   mode,
   alt = "선택한 디자인 미리보기",
   surface = "panel",
+  tileScale = 1,
   className,
 }: TieCanvasProps) {
   const backgroundStyle = {
     backgroundImage: `url(${JSON.stringify(imageSrc)})`,
     backgroundRepeat: "repeat",
-    backgroundSize: `${TIE_GEOMETRY.tileFraction[mode] * 100}% auto`,
+    backgroundSize: `${TIE_GEOMETRY.tileFraction[mode] * tileScale * 100}% auto`,
     backgroundPosition: "center",
   } as const;
 

@@ -1,5 +1,7 @@
 import { TIE_GEOMETRY } from "@essesion/shared";
 
+import { svgTileScale } from "./svg-preview";
+
 const SILHOUETTE_URL = "/images/tie.svg";
 const SHADOW_URL = "/images/tie-shadow.png";
 // 아트 박스(넥타이+그림자) 폭. 1800×3919px — 그림자 원본(397px)을 넘게 확대하지만
@@ -18,7 +20,11 @@ export type TieLayout = {
 };
 
 /** 미리보기(TieCanvas)의 CSS 기하를 픽셀로 옮긴 것 — 화면과 같은 그림이 되는 근거. */
-export function tieLayout(width: number, silhouetteAspect: number): TieLayout {
+export function tieLayout(
+  width: number,
+  silhouetteAspect: number,
+  tileScale = 1,
+): TieLayout {
   const { artAspect, maskTop, maskHeight, tileFraction } = TIE_GEOMETRY;
   const height = width * artAspect;
   const mask = {
@@ -39,7 +45,7 @@ export function tieLayout(width: number, silhouetteAspect: number): TieLayout {
       width: silhouetteWidth,
       height: silhouetteHeight,
     },
-    tile: mask.width * tileFraction.tie,
+    tile: mask.width * tileFraction.tie * tileScale,
   };
 }
 
@@ -58,7 +64,11 @@ export async function renderTiePng(designSvg: string): Promise<Blob> {
   if (!viewBox?.[2] || !viewBox[3]) {
     throw new Error("넥타이 모양을 불러오지 못했습니다.");
   }
-  const layout = tieLayout(OUTPUT_WIDTH_PX, viewBox[2] / viewBox[3]);
+  const layout = tieLayout(
+    OUTPUT_WIDTH_PX,
+    viewBox[2] / viewBox[3],
+    svgTileScale(designSvg),
+  );
 
   // SVG는 intrinsic 크기를 목표 픽셀로 맞춰야 캔버스에서 선명하게 래스터된다.
   const [tile, silhouette, shadow] = await Promise.all([

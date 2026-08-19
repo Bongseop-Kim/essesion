@@ -87,7 +87,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 | 엔드포인트 | 역할 | 과금 |
 |---|---|---|
-| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`·`finalize_quota`, 목록은 `last_prompt`·`preview_svg`(마지막 activate 런의 디자인 SVG) 포함 | — |
+| `POST /design/sessions` · `GET /design/sessions` · `GET·DELETE /design/sessions/{id}` | 세션 CRUD. 단건 GET은 `current_motifs`, 목록은 `last_prompt`·`preview_svg`(마지막 activate 런의 디자인 SVG) 포함 | — |
 | `GET /design/examples` | 첫 진입 갤러리(게시된 큐레이션 예시, **공개 조회**) | 무료 |
 | `POST /design/sessions/from-example` | 예시 run을 새 세션의 시작점으로 복원(`{example_id}`) — 렌더·워커 호출 없음 | 무료 |
 | `GET·POST /design/sessions/{id}/turns` | 이력 조회·사용자 메모 턴 | — |
@@ -99,9 +99,9 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
 | `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` | 글자·사진 → SVG 변환 | 무료 |
 | `POST /design/ideas` | 편집 초안 문장 3~4개 (별도 rate limit) | 무료 |
-| `POST /design/sessions/{id}/finalize` | 실사화 job 생성 (계정당 24시간 쿼터) | job 단위 |
+| `POST /design/sessions/{id}/finalize` | 실사화 — 동기 요청-응답, 성공만 완성본 레코드로 남는다 | `design_finalize_cost` 토큰 |
 | `POST /design/export` | 이미 만든 SVG의 PNG/TIFF 변환 | 무료 |
-| `GET·DELETE /design/jobs`·`/design/jobs/{id}` · `POST /design/jobs/{id}/cancel`·`/order-reference` | job 상태·취소·주문 연결 | — |
+| `GET /design/jobs` · `DELETE /design/jobs/{id}` · `POST /design/jobs/{id}/order-reference` | 완성본 목록·삭제·주문 연결 | — |
 
 폐기된 엔드포인트: `POST /design/sessions/{id}/select`(→ `steps/activate`), `.../reroll`("같은 지시로 다시" 없음), `.../branch`(분기 트리 UI 없음).
 

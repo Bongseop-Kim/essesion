@@ -4,6 +4,8 @@ import pytest
 from worker.engine.compose import compose_design
 from worker.engine.constraints import ConstraintInvalid, apply_generation_constraints
 from worker.engine.patch import DesignPatchV1, apply_patch, composition_snapshot, set_motif_slot
+from worker.engine.seamless import assert_seamless_invariants
+from worker.engine.validate import validate_intent
 
 from .intent_helpers import mvp_intent, register_test_motifs
 
@@ -287,6 +289,105 @@ def test_unreferenced_slots_are_pruned_so_edits_do_not_grow_the_palette():
     assert "color_2" not in slot_ids  # 밴드만 쓰던 슬롯 — 참조가 끊겼다
     assert set(patched["colorways"][0]["mapping"]) == slot_ids
     assert len(slot_ids) == 2
+
+
+def test_scale_multiplies_every_length_without_triggering_the_period_resnap():
+    """seamless-log e20b99e9 재발 방지 — 균일 배율은 불변식을 보존해 재스냅이 안 걸린다."""
+    patched = apply_patch(mvp_intent(), _patch(scale=1.5))
+
+    assert patched["canvas"]["tile_mm"] == 72.0
+    stripe = patched["layers"][1]["params"]
+    assert stripe["period_mm"] == 14.4
+    assert stripe["bands"][0]["width_mm"] == 7.2
+    assert stripe["angle"] == -36.87  # 각도 불변
+    assert patched["layers"][2]["params"]["size_mm"] == 2.1
+    assert patched["layers"][2]["placement"]["spacing_mm"] == 9.0
+
+    result = validate_intent(patched)
+    assert result.warnings == []
+    assert_seamless_invariants(result.intent)
+
+
+def test_scale_keeps_lattice_invariants():
+    patched = apply_patch(_lattice_intent(), _patch(scale=1.5))
+
+    lattice = patched["layers"][1]["placement"]["lattice"]
+    assert patched["canvas"]["tile_mm"] == 72.0
+    assert lattice == {"cell_w_mm": 12.0, "cell_h_mm": 12.0}
+    result = validate_intent(patched)
+    assert result.warnings == []
+    assert_seamless_invariants(result.intent)
+
+
+def test_scale_clamps_cumulatively_at_the_tile_ceiling():
+    warnings: list[str] = []
+    once = apply_patch(mvp_intent(), _patch(scale=4.0), warnings=warnings)
+    assert once["canvas"]["tile_mm"] == 192.0
+    assert warnings == []
+
+    twice = apply_patch(once, _patch(scale=4.0), warnings=warnings)
+    assert twice["canvas"]["tile_mm"] == 192.0
+    assert len(warnings) == 1 and "192" in warnings[0]
+
+
+def test_changed_axes_includes_scale():
+    assert _patch(scale=1.5).changed_axes == ["scale"]
+
+
+def test_snapshot_exposes_the_scale_headroom():
+    snapshot = composition_snapshot(mvp_intent())
+    assert snapshot["scale"] == {"current": 1.0, "min": 0.25, "max": 4.0}
+
+    grown = apply_patch(mvp_intent(), _patch(scale=2.0))
+    assert composition_snapshot(grown)["scale"] == {"current": 2.0, "min": 0.25, "max": 2.0}
+
+
+def test_off_grid_period_scales_the_tile_instead_of_resnapping():
+    """백스톱 — 모델이 scale 대신 period로 확대를 표현해도 요청이 조용히 원복되지 않는다."""
+    patched = apply_patch(mvp_intent(), _patch(stripe={"period_mm": 14.4}))
+
+    # 14.4는 tile 48에서 off-grid(48/(k·5) ∉ {14.4}) — period가 아니라 tile이 1.5배 된다.
+    assert patched["canvas"]["tile_mm"] == 72.0
+    assert patched["layers"][1]["params"]["period_mm"] == 14.4
+    assert patched["layers"][2]["params"]["size_mm"] == 2.1  # 모티프도 함께 배율
+    result = validate_intent(patched)
+    assert result.warnings == []
+    assert_seamless_invariants(result.intent)
+
+
+def test_off_grid_period_keeps_asymmetric_bands_verbatim():
+    """밴드별 확대("빨간 밴드만 1.5배")가 전부-f배로 뭉개지지 않는다."""
+    patched = apply_patch(
+        mvp_intent(),
+        _patch(
+            stripe={
+                "period_mm": 14.4,
+                "bands": [
+                    {"offset_mm": 0.0, "width_mm": 7.2, "color": "#ef8a7a"},
+                    {"offset_mm": 7.2, "width_mm": 2.4, "color": "#D4AF37"},
+                ],
+            }
+        ),
+    )
+
+    assert patched["canvas"]["tile_mm"] == 72.0
+    bands = patched["layers"][1]["params"]["bands"]
+    assert [band["width_mm"] for band in bands] == [7.2, 2.4]
+    assert bands[1]["offset_mm"] == 7.2
+    result = validate_intent(patched)
+    # 다중 밴드가 되며 bare lane 정규화 경고는 남지만 period 재스냅은 없어야 한다.
+    assert not any("snapped" in warning for warning in result.warnings)
+    assert_seamless_invariants(result.intent)
+
+
+def test_scale_with_motif_size_keeps_the_motif_at_its_absolute_size():
+    """"줄무늬 굵게 + 모티프는 그대로" = scale + motif_size_mm=[현재값]."""
+    patched = apply_patch(mvp_intent(), _patch(scale=1.5, motif_size_mm=[1.4, 5.0]))
+
+    assert patched["canvas"]["tile_mm"] == 72.0
+    assert patched["layers"][1]["params"]["period_mm"] == 14.4
+    assert patched["layers"][2]["params"]["size_mm"] == 1.4
+    assert patched["layers"][3]["params"]["size_mm"] == 5.0
 
 
 def test_same_intent_and_patch_render_byte_identical_svg():

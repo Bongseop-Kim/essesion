@@ -18,7 +18,6 @@ describe("parseDesignError", () => {
     "generation_in_progress",
     "design_result_unavailable",
     "design_not_started",
-    "finalize_quota_exhausted",
     "conflict",
     "upstream_error",
   ] as const)("%s 코드를 사용자 분기로 변환한다", (code) => {

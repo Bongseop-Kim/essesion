@@ -1,13 +1,24 @@
-import { exportDesign } from "@essesion/api-client";
+import {
+  appendDesignTurn,
+  createFinalizeJob,
+  exportDesign,
+  type FinalizeRequest,
+  type GenerationJobOut,
+} from "@essesion/api-client";
+import {
+  listDesignSessionsQueryKey,
+  listGenerationJobsQueryKey,
+} from "@essesion/api-client/query";
 import { snackbar } from "@essesion/shared";
-import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import type { ExportDialogValue } from "@/features/design/ui/export-dialog";
 import type { FinalizeDialogValue } from "@/features/design/ui/finalize-dialog";
 
 import { designErrorMessage, parseDesignError } from "./errors";
+import { designSessionQueryKey, designTurnsQueryKey } from "./queries";
 import { renderTiePng } from "./tie-image";
-import { useCreateFinalizeJob, useFinalizeJobQuery } from "./use-finalize-job";
 
 /** 타일은 실측 크기 그대로라 픽셀 수가 작다 — 워커 상한(max_dpi)까지 올린다. */
 const TILE_DPI = 600;
@@ -48,36 +59,73 @@ export function useDesignExport(options: {
   };
 }
 
-/**
- * 실사화 — 비동기 잡이라 시작 후 종결까지 폴링하고 결과를 스낵바로 알린다.
- * 완성본 자체는 `완성본` 목록에 쌓인다.
- */
+export type CreateFinalizeJobInput = {
+  sessionId: string;
+  request: FinalizeRequest & { production_method: string; weave: string };
+};
+
+/** 실사화 생성 — 동기 요청-응답. 성공 시 finalize 턴을 이력에 남기고 목록 캐시를 갱신한다. */
+function useCreateFinalizeJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateFinalizeJobInput) => {
+      const { data: job } = await createFinalizeJob({
+        path: { session_id: input.sessionId },
+        body: input.request,
+        throwOnError: true,
+      });
+
+      try {
+        await appendDesignTurn({
+          path: { session_id: input.sessionId },
+          body: {
+            role: "user",
+            payload: {
+              type: "finalize",
+              job_id: job.id,
+              production_method: input.request.production_method,
+              weave: input.request.weave,
+            },
+          },
+          throwOnError: true,
+        });
+      } catch {
+        // 이력 기록 실패는 완성본 자체에 영향이 없다 — 조용히 넘어간다.
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: listDesignSessionsQueryKey(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: designSessionQueryKey(input.sessionId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: designTurnsQueryKey(input.sessionId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: listGenerationJobsQueryKey(),
+        }),
+      ]);
+
+      return job;
+    },
+  });
+}
+
+/** 실사화 — generate와 같은 동기 경로. 응답이 곧 완성본이라 폴링이 없다. */
 export function useFinalizeFlow(options: {
   sessionId: string | null;
-  authenticated: boolean;
-  onStarted: () => void;
+  onDone: (job: GenerationJobOut) => void;
 }) {
-  const [jobId, setJobId] = useState<string | null>(null);
   const mutation = useCreateFinalizeJob();
-  const jobQuery = useFinalizeJobQuery(jobId, options.authenticated);
-
-  useEffect(() => {
-    const job = jobQuery.data;
-    if (!job || job.id !== jobId) return;
-    if (job.status === "succeeded") {
-      snackbar("실사화가 끝났어요. 완성본에서 확인할 수 있어요.");
-      setJobId(null);
-    } else if (job.status === "failed" || job.status === "canceled") {
-      snackbar(job.error_message ?? "실사화를 완료하지 못했어요.");
-      setJobId(null);
-    }
-  }, [jobId, jobQuery.data]);
 
   const submit = async (value: FinalizeDialogValue) => {
     const sessionId = options.sessionId;
     if (!sessionId || mutation.isPending) return;
     try {
-      const result = await mutation.mutateAsync({
+      const job = await mutation.mutateAsync({
         sessionId,
         request: {
           production_method: value.productionMethod,
@@ -85,11 +133,10 @@ export function useFinalizeFlow(options: {
           dpi: value.dpi,
         },
       });
-      setJobId(result.job.id);
-      options.onStarted();
-      snackbar("실사화를 시작했어요. 끝나면 알려드릴게요.");
+      options.onDone(job);
+      snackbar("실사화를 완성했어요. 완성본에서 확인할 수 있어요.");
     } catch (error) {
-      snackbar(designErrorMessage(error, "실사화를 시작하지 못했습니다."));
+      snackbar(designErrorMessage(error, "실사화하지 못했습니다."));
     }
   };
 

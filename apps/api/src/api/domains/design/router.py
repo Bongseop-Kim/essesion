@@ -1,6 +1,6 @@
 """디자인 세션·선택 문맥 — 상태는 api 소유(LangGraph 대체), worker는 stateless.
 
-finalize 제한은 계정당 24시간 윈도우 쿼터(quota.py) — 세션 카운터·건당 환불 없음.
+finalize는 generate와 같은 동기 요청-응답 + 토큰 과금(design_finalize_cost) 경로다.
 선택한 intent+plan만 선형 문맥으로 커밋한다.
 """
 
@@ -15,11 +15,9 @@ import uuid
 from collections.abc import Collection, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal
 
 from db.models.design import (
-    FINALIZE_CANCELED_MESSAGE,
-    FINALIZE_DISPATCH_FAILED_MESSAGE,
     DesignSession,
     DesignSessionTurn,
     DesignTurnAttachment,
@@ -39,25 +37,14 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from sqlalchemy import CursorResult, delete, func, or_, select, update
 from sqlalchemy import cast as sql_cast
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from svg_safety import SanitizeError, sanitize_svg
 
 from api.db import USER_LOCK, SessionDep, advisory_xact_lock
 from api.deps import CurrentUser, SettingsDep, ensure_owner
-from api.domains.design.job_lifecycle import (
-    CANCELABLE_STATUSES,
-    STALE_GENERATION_JOB_AFTER,
-    resolve_stale_finalize_jobs,
-    stale_finalize_clause,
-)
-from api.domains.design.quota import (
-    acquire_finalize_quota,
-    get_finalize_quota,
-    load_finalize_limit,
-)
 from api.domains.images.service import MAX_ORDER_IMAGE_BYTES, order_upload_entity_type
 from api.domains.tokens import ledger
 from api.errors import ConflictError, DomainError, UpstreamError, WorkerRequestError
@@ -83,6 +70,9 @@ MAX_MOTIF_QUERY_LENGTH = 200
 MOTIF_SEARCH_LIMIT = 24
 SIGNED_INT64_MIN = -(2**63)
 SIGNED_INT64_MAX = 2**63 - 1
+# 외부 호출 lease를 넘긴 채 종결되지 못한 세션 생성을 회수하는 TTL
+# (_recover_stale_active_generation).
+STALE_GENERATION_JOB_AFTER = timedelta(minutes=75)
 
 
 def _bounded_design_json(value: dict[str, Any]) -> dict[str, Any]:
@@ -106,15 +96,6 @@ BoundedDesignJson = Annotated[dict[str, Any], AfterValidator(_bounded_design_jso
 ShortDesignString = Annotated[str, StringConstraints(max_length=100)]
 SignedInt64 = Annotated[int, Field(ge=SIGNED_INT64_MIN, le=SIGNED_INT64_MAX)]
 DesignIdea = Annotated[str, StringConstraints(max_length=MAX_DESIGN_IDEA_LENGTH)]
-
-
-class FinalizeQuotaOut(BaseModel):
-    """계정당 24시간 실사화 쿼터 — reset_at은 슬롯이 하나 풀리는 시각(카운트 0이면 null)."""
-
-    limit: int
-    used: int
-    remaining: int
-    reset_at: datetime | None
 
 
 class CurrentMotifOut(BaseModel):
@@ -142,8 +123,6 @@ class DesignSessionOut(ORMModel):
     last_prompt: str | None = None
     # 목록 전용 — 편집 포인터(마지막 activate 턴)의 디자인 SVG. 목록 썸네일이 쓴다.
     preview_svg: str | None = None
-    # 단건 GET 전용 — 계정 쿼터 (목록은 null, 설정 부재 시에도 null)
-    finalize_quota: FinalizeQuotaOut | None = None
     # 단건 GET·스텝 이동 전용 — current_intent의 모티프 슬롯(최대 2). 목록은 빈 배열.
     current_motifs: list[CurrentMotifOut] = Field(default_factory=list)
 
@@ -838,16 +817,7 @@ async def get_design_session(
     design_session = await session.get(DesignSession, session_id)
     ensure_owner(design_session, user)
     assert design_session is not None
-    out = await _design_session_out(session, design_session)
-    # 표시용 쿼터 — 설정 행이 없으면 null로 둔다(페이지를 깨지 않음). 소유자 검증
-    # 이후에 계산해 authz 403/404 순서를 보존한다.
-    limit = await load_finalize_limit(session)
-    if limit is not None:
-        quota = await get_finalize_quota(session, user.id, limit)
-        out = out.model_copy(
-            update={"finalize_quota": FinalizeQuotaOut.model_validate(quota, from_attributes=True)}
-        )
-    return out
+    return await _design_session_out(session, design_session)
 
 
 @router.delete("/design/sessions/{session_id}", status_code=204)
@@ -1941,74 +1911,91 @@ async def create_finalize_job(
                 code="finalize_intent_mismatch",
             )
 
-    # 계정 24시간 쿼터 — advisory lock으로 동시 요청 직렬화, 같은 트랜잭션에서
-    # job INSERT까지 커밋해야 다음 요청이 이 슬롯을 센다 (quota.py)
-    await acquire_finalize_quota(session, user.id)
-    job = GenerationJob(
-        user_id=user.id,
-        session_id=session_id,
-        kind="finalize",
-        params={
-            "intent": intent,
-            "colorway_id": body.colorway_id or design_session.colorway,
-            "production_method": body.production_method,
-            "dpi": body.dpi,
-            # yarn_dyed 텍스처 노브 — None은 제외해 워커 기본값을 살린다.
-            **{
-                k: v
-                for k, v in (
-                    ("run_id", str(run_id) if run_id is not None else None),
-                    ("weave", body.weave),
-                    ("material_map", body.material_map),
-                    ("texture_strength", body.texture_strength),
-                    ("relief_strength", body.relief_strength),
-                )
-                if v is not None
-            },
+    params = {
+        "intent": intent,
+        "colorway_id": body.colorway_id or design_session.colorway,
+        "production_method": body.production_method,
+        "dpi": body.dpi,
+        # yarn_dyed 텍스처 노브 — None은 제외해 워커 기본값을 살린다.
+        **{
+            k: v
+            for k, v in (
+                ("run_id", str(run_id) if run_id is not None else None),
+                ("weave", body.weave),
+                ("material_map", body.material_map),
+                ("texture_strength", body.texture_strength),
+                ("relief_strength", body.relief_strength),
+            )
+            if v is not None
         },
-        request_id=request_id_var.get(),
-    )
-    session.add(job)
-    await session.commit()
-    await session.refresh(job)
-    try:
-        await request.app.state.tasks.enqueue_finalize(job.id)
-        # 로컬 inline은 요청 안에서 워커가 job을 끝냈다 — 최종 상태를 반환한다.
-        await session.refresh(job)
-    except Exception as exc:
-        dispatch_failed = await _fail_finalize_dispatch(session, job.id)
-        if not dispatch_failed:
-            # 워커/task가 queued를 이미 claim했다 — Cloud Tasks면 create 응답만 유실된
-            # 경우고, inline이면 생성 자체가 실패한 경우다. 둘 다 전달은 성공한 것이므로
-            # 502로 거짓 보고하지 않고 job의 실제 상태를 돌려준다.
-            await session.refresh(job)
-            return _generation_job_out(job, request.app.state.settings)
-        if isinstance(exc, DomainError):
-            raise
-        raise UpstreamError("finalize 작업을 전달하지 못했습니다") from exc
-    return _generation_job_out(job, request.app.state.settings)
-
-
-async def _fail_finalize_dispatch(session: SessionDep, job_id: uuid.UUID) -> bool:
-    """큐 전달 전 실패한 queued job만 실패 처리한다.
-
-    failed job은 24시간 쿼터 카운트에서 빠지므로 슬롯은 자동 해제된다 — 환불 없음.
-    조건부 UPDATE는 워커가 이미 claim한 job(ambiguous enqueue)을 판별하는 용도로 유지.
-    """
-
-    await session.rollback()
-    failed = await session.execute(
-        update(GenerationJob)
-        .where(GenerationJob.id == job_id, GenerationJob.status == "queued")
-        .values(
-            status="failed",
-            error_message=FINALIZE_DISPATCH_FAILED_MESSAGE,
-            finished_at=datetime.now(UTC),
+    }
+    return await _shielded(
+        _run_finalize(
+            request=request,
+            session=session,
+            user_id=user.id,
+            design_session_id=session_id,
+            params=params,
         )
     )
-    dispatch_failed = cast("CursorResult[Any]", failed).rowcount > 0
-    await session.commit()
-    return dispatch_failed
+
+
+async def _run_finalize(
+    *,
+    request: Request,
+    session: SessionDep,
+    user_id: uuid.UUID,
+    design_session_id: uuid.UUID,
+    params: dict[str, Any],
+) -> GenerationJobOut:
+    """토큰 차지 → 워커 동기 렌더 → 성공 레코드 INSERT. 실패 시 환불 — 보관함에는 성공만 남는다."""
+    job_id = uuid.uuid4()
+    work_id = f"design_finalize_{job_id.hex}"
+    charge = await ledger.use_tokens(
+        session,
+        user_id,
+        work_id,
+        cost_key=ledger.DESIGN_FINALIZE_COST_SETTING,
+    )
+    if not charge.success:
+        detail = (
+            "환불 심사 중에는 실사화할 수 없습니다"
+            if charge.error == "refund_pending"
+            else "디자인 토큰이 부족합니다"
+        )
+        raise DomainError(detail, code=charge.error or "insufficient_tokens")
+
+    started_at = datetime.now(UTC)
+    try:
+        # run_id는 provenance 기록용 — 워커 렌더 입력이 아니다.
+        result = await request.app.state.worker.finalize(
+            {k: v for k, v in params.items() if k != "run_id"}
+        )
+        object_key = result.get("object_key")
+        if not isinstance(object_key, str) or not object_key:
+            raise UpstreamError("실사화 결과 형식이 올바르지 않습니다")
+        job = GenerationJob(
+            id=job_id,
+            user_id=user_id,
+            session_id=design_session_id,
+            kind="finalize",
+            status="succeeded",
+            params=params,
+            result={"object_key": object_key},
+            request_id=request_id_var.get(),
+            attempts=1,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+        )
+        session.add(job)
+        await session.commit()
+    except Exception:
+        # 동기 경로라 환불 지점은 여기뿐이다 — work_id 멱등이라 중복 환불 없음.
+        await session.rollback()
+        await ledger.refund_failed_generation(session, user_id, charge.cost, work_id)
+        raise
+    await session.refresh(job)
+    return _generation_job_out(job, request.app.state.settings)
 
 
 @router.get("/design/jobs", response_model=list[GenerationJobOut])
@@ -2036,71 +2023,6 @@ async def list_generation_jobs(
     return [_generation_job_out(job, settings) for job in rows]
 
 
-@router.get("/design/jobs/{job_id}", response_model=GenerationJobOut)
-async def get_generation_job(
-    job_id: uuid.UUID, session: SessionDep, user: CurrentUser, settings: SettingsDep
-) -> GenerationJobOut:
-    job = await session.get(GenerationJob, job_id)
-    ensure_owner(job, user)
-    assert job is not None
-    # TTL(75분)을 넘긴 채 종결되지 못한 job은 폴링 시점에 lazy 회수 — Cloud
-    # Scheduler가 없는 로컬에서도 동작하고, 배치 주기를 기다리지 않는다.
-    # 인메모리 사전 판정으로 통과 못 하면 잠금 시도 없이 바로 반환한다.
-    now = datetime.now(UTC)
-    may_be_stale = (
-        job.kind == "finalize"
-        and job.status in ("queued", "processing", "failed")
-        and job.created_at < now - STALE_GENERATION_JOB_AFTER
-    )
-    if may_be_stale:
-        stale = (
-            await session.scalars(
-                select(GenerationJob)
-                .where(GenerationJob.id == job_id, stale_finalize_clause(now))
-                .with_for_update(skip_locked=True)
-            )
-        ).first()
-        if stale is not None:
-            resolve_stale_finalize_jobs([stale])
-            await session.commit()
-            await session.refresh(job)
-    return _generation_job_out(job, settings)
-
-
-@router.post("/design/jobs/{job_id}/cancel", response_model=GenerationJobOut)
-async def cancel_generation_job(
-    job_id: uuid.UUID, session: SessionDep, user: CurrentUser, settings: SettingsDep
-) -> GenerationJobOut:
-    """진행 중인 finalize job을 취소한다 (멱등).
-
-    canceled job은 24시간 쿼터 카운트에서 빠지므로 슬롯은 자동 해제된다.
-    조건부 UPDATE가 전이의 원자성을 보장한다 — 워커가 먼저 종결하면
-    rowcount=0으로 지고, 늦게 도착한 워커 렌더 결과는 _finish_job의
-    processing 가드에 걸려 무효화된다.
-    """
-    job = await session.get(GenerationJob, job_id)
-    ensure_owner(job, user)
-    assert job is not None
-    if job.kind != "finalize":
-        raise ConflictError("취소할 수 있는 작업이 아닙니다")
-    canceled = await session.execute(
-        update(GenerationJob)
-        .where(GenerationJob.id == job_id, GenerationJob.status.in_(CANCELABLE_STATUSES))
-        .values(
-            status="canceled",
-            result=None,
-            error_message=FINALIZE_CANCELED_MESSAGE,
-            finished_at=datetime.now(UTC),
-        )
-    )
-    if cast("CursorResult[Any]", canceled).rowcount > 0:
-        await session.commit()
-    await session.refresh(job)
-    if job.status != "canceled":
-        raise ConflictError("이미 종료된 작업은 취소할 수 없습니다")
-    return _generation_job_out(job, settings)
-
-
 @router.delete("/design/jobs/{job_id}", status_code=204)
 async def delete_generation_job(
     job_id: uuid.UUID,
@@ -2109,17 +2031,14 @@ async def delete_generation_job(
     user: CurrentUser,
     settings: SettingsDep,
 ) -> None:
-    """종결된 잡을 삭제한다 — 진행 중이면 먼저 취소를 거쳐야 한다.
+    """완성본을 삭제한다 — 동기 전환 후 잡은 항상 종결 상태다(성공만 기록).
 
-    주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하다. 삭제된 행은
-    24시간 쿼터 카운트에서 빠져 슬롯이 풀린다 — 세션당 예산 시절의 "삭제해도
-    미환불" 정책을 의도적으로 뒤집은 것(결과물을 버려야 슬롯이 나와 남용 유인 약함).
+    주문은 산출물을 복사본(Image)으로 참조하므로 삭제와 무관하다. 토큰은 이미
+    소모된 것 — 삭제해도 환불하지 않는다(결과물은 이미 제공됐다).
     """
     job = await session.get(GenerationJob, job_id)
     ensure_owner(job, user)
     assert job is not None
-    if job.status not in ("succeeded", "failed", "canceled"):
-        raise ConflictError("진행 중인 작업은 취소한 뒤에 삭제할 수 있습니다")
     object_key = _job_object_key(job)
     await session.delete(job)
     await session.commit()

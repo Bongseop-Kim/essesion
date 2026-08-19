@@ -28,17 +28,27 @@ from worker.engine.constraints import (
     ordered_slot_refs,
     scatter_placement,
 )
+from worker.engine.units import snap_angle, stripe_tiles
 
 Arrangement = Literal["lattice", "staggered", "scatter"]
 
 MAX_PATCH_BANDS = 4
 MIN_AXIS_COUNT = 2
 MAX_AXIS_COUNT = 10
+# tile_mm은 물리 치수가 아니라 화면 배율 캐리어다(2026-08-19 확정) — 이 SVG는 그대로
+# 실물 출력에 들어가지 않는다. 프론트는 SVG 루트 width="Nmm"을 읽어 반복 배율을 비례시킨다.
+BASE_TILE_MM = 48.0  # authoring compiler의 DEFAULT_TILE_MM과 같은 값 — 프론트 svgTileScale의 분모
+SCALE_MIN, SCALE_MAX = 0.25, 4.0
+# 누적 클램프 — dpi 고정이라 래스터 픽셀 수가 tile²로 는다(300dpi에서 192mm ≈ 2268px,
+# fabric의 _MAX_INLAY_PIXELS 20M보다 한참 아래).
+MIN_TILE_MM = BASE_TILE_MM * SCALE_MIN
+MAX_TILE_MM = BASE_TILE_MM * SCALE_MAX
 PATCH_AXES = (
     "background",
     "stripe",
     "placement",
     "motif_size_mm",
+    "scale",
     "palette",
 )
 
@@ -91,6 +101,10 @@ class DesignPatchV1(_Patch):
     placement: PlacementPatch | None = None
     # 모티프 레이어 순서대로. 남는 값은 무시한다(모델이 레이어 수를 세지 못해도 안전).
     motif_size_mm: list[float] | None = Field(default=None, max_length=2)
+    # 전역 배율 — intent의 모든 길이(mm)를 tile_mm 포함해 일괄 f배. 균일 배율은 모든
+    # seamless 불변식을 보존하므로 재스냅이 걸리지 않는다. motif_size_mm은 배율 적용
+    # **후** 최종 프레임의 절대값으로 적용된다.
+    scale: float | None = Field(default=None, ge=SCALE_MIN, le=SCALE_MAX)
     palette: PalettePatch | None = None
     note: str = Field(min_length=1, max_length=200)
     # 요청이 이 계약으로 표현할 수 없는 축(모티프 정체성 등)일 때만 true.
@@ -125,6 +139,80 @@ def _positive_float(value: object) -> float | None:
 def _tile_mm(intent: dict[str, Any]) -> object:
     canvas = intent.get("canvas")
     return canvas.get("tile_mm") if isinstance(canvas, dict) else None
+
+
+def _scale_field(host: dict[str, Any], key: str, factor: float) -> None:
+    value = host.get(key)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return
+    scaled = float(value) * factor
+    if math.isfinite(scaled):
+        host[key] = round(scaled, 6)
+
+
+def _effective_scale(tile: float, factor: float, warnings: list[str]) -> float:
+    """누적 클램프 — 적용 후 tile이 [MIN, MAX]를 벗어나면 경계에 맞는 배율로 줄인다."""
+    target = tile * factor
+    clamped = min(max(target, MIN_TILE_MM), MAX_TILE_MM)
+    if clamped == target:
+        return factor
+    effective = clamped / tile
+    warnings.append(
+        f"scale {factor:g} would push tile_mm to {target:g} (allowed "
+        f"{MIN_TILE_MM:g}..{MAX_TILE_MM:g}); reduced to {effective:.4f}"
+    )
+    return effective
+
+
+def _apply_scale(raw: dict[str, Any], factor: float, *, include_stripes: bool = True) -> None:
+    """intent의 모든 길이(mm)를 일괄 f배 — 각도·비율·seed·dpi는 불변.
+
+    균일 배율은 seamless 불변식(tile == k·period·hypot, divides(tile, cell),
+    wave λ | closure, size ≤ tile)을 전부 보존한다. include_stripes=False는 off-grid
+    period 백스톱용 — 줄무늬 params는 모델이 낸 값을 verbatim 유지해야 밴드별로 다르게
+    낸 값이 살아남는다. 필드 목록은 engine.intent의 mm 단위 필드 전수와 대응한다.
+    """
+    canvas = raw.get("canvas")
+    if isinstance(canvas, dict):
+        _scale_field(canvas, "tile_mm", factor)
+    if include_stripes:
+        for layer in _layers(raw, "stripe"):
+            params = layer.get("params")
+            if not isinstance(params, dict):
+                continue
+            _scale_field(params, "period_mm", factor)
+            for band in params.get("bands", []):
+                if isinstance(band, dict):
+                    _scale_field(band, "offset_mm", factor)
+                    _scale_field(band, "width_mm", factor)
+    for layer in _layers(raw, "motif"):
+        params = layer.get("params")
+        if isinstance(params, dict):
+            _scale_field(params, "size_mm", factor)
+        placement = layer.get("placement")
+        if not isinstance(placement, dict):
+            continue
+        _scale_field(placement, "spacing_mm", factor)
+        _scale_field(placement, "phase_mm", factor)
+        path = placement.get("path")
+        if isinstance(path, dict):
+            _scale_field(path, "wavelength", factor)
+            _scale_field(path, "amplitude", factor)
+        lattice = placement.get("lattice")
+        if isinstance(lattice, dict):
+            for key in ("cell_w_mm", "cell_h_mm", "offset_x_mm", "offset_y_mm"):
+                _scale_field(lattice, key, factor)
+        scatter = placement.get("scatter")
+        if isinstance(scatter, dict):
+            _scale_field(scatter, "min_dist_mm", factor)
+        point_set = placement.get("point_set")
+        if isinstance(point_set, dict) and isinstance(point_set.get("points"), list):
+            point_set["points"] = [
+                [round(float(coord) * factor, 6) for coord in point]
+                if isinstance(point, list | tuple)
+                else point
+                for point in point_set["points"]
+            ]
 
 
 def _axis_count(placement: dict[str, Any], tile: float) -> int | None:
@@ -175,6 +263,14 @@ def composition_snapshot(intent: dict[str, Any]) -> dict[str, Any]:
 
     snapshot: dict[str, Any] = {
         "tile_mm": tile,
+        # 고객용 note는 클램프 **전에** 쓰인다 — 잔여 여유를 미리 알려 안내 불일치를 줄인다.
+        "scale": {
+            "current": round(tile / BASE_TILE_MM, 6),
+            "min": round(max(SCALE_MIN, MIN_TILE_MM / tile), 6),
+            "max": round(min(SCALE_MAX, MAX_TILE_MM / tile), 6),
+        }
+        if tile > 0
+        else None,
         "palette": {
             "slots": [
                 {"id": slot_id, "hex": slot_hex, "roles": roles[slot_id]}
@@ -249,7 +345,14 @@ class _SlotBook:
         return slot_id
 
 
-def _apply_stripe(raw: dict[str, Any], patch: StripePatch, *, tile: float, book: _SlotBook) -> None:
+def _apply_stripe(
+    raw: dict[str, Any],
+    patch: StripePatch,
+    *,
+    tile: float,
+    book: _SlotBook,
+    warnings: list[str],
+) -> None:
     layers: list[dict[str, Any]] = raw["layers"]
     stripes = _layers(raw, "stripe")
     if patch.bands is not None and not patch.bands:
@@ -291,6 +394,18 @@ def _apply_stripe(raw: dict[str, Any], patch: StripePatch, *, tile: float, book:
         if patch.angle is not None:
             params["angle"] = patch.angle
         if patch.period_mm is not None:
+            # off-grid 백스톱: period를 스냅하지 않고 tile을 배율한다 — 모델이 scale 대신
+            # period로 확대를 표현해도 요청이 조용히 원복(validate의 재스냅)되지 않는다.
+            # 줄무늬 params는 verbatim 유지("빨간 밴드만 1.5배" 같은 밴드별 값이 살아남는다),
+            # 나머지는 f = 요청/현재 배로 함께 커져 새 tile에서 요청 period가 같은 k로
+            # on-grid가 된다. 클램프로 f가 줄면 validate의 재스냅이 최후 방어선.
+            snapped = snap_angle(float(params["angle"]))
+            current = _positive_float(params.get("period_mm"))
+            if current and not stripe_tiles(tile, patch.period_mm, snapped.p, snapped.q):
+                factor = _effective_scale(tile, patch.period_mm / current, warnings)
+                if factor != 1.0:
+                    _apply_scale(raw, factor, include_stripes=False)
+                    tile = round(tile * factor, 6)
             params["period_mm"] = round(patch.period_mm, 6)
 
     if patch.bands:
@@ -390,9 +505,17 @@ def _apply_placement(
         layer["placement"] = placement
 
 
-def apply_patch(intent: dict[str, Any], patch: DesignPatchV1) -> dict[str, Any]:
-    """patch를 적용한 새 intent를 돌려준다 — 호출부의 intent는 건드리지 않는다."""
+def apply_patch(
+    intent: dict[str, Any], patch: DesignPatchV1, *, warnings: list[str] | None = None
+) -> dict[str, Any]:
+    """patch를 적용한 새 intent를 돌려준다 — 호출부의 intent는 건드리지 않는다.
 
+    적용 순서: scale(또는 off-grid period 백스톱)이 tile 프레임을 먼저 확정하고,
+    motif_size_mm은 그 뒤 최종 프레임의 절대값으로 적용된다 — "줄무늬 굵게 + 모티프는
+    그대로"를 scale + motif_size_mm=[현재값]으로 표현할 수 있다.
+    """
+
+    warnings = warnings if warnings is not None else []
     raw = copy.deepcopy(intent)
     tile = _positive_float(_tile_mm(raw))
     palette = raw.get("palette")
@@ -407,6 +530,11 @@ def apply_patch(intent: dict[str, Any], patch: DesignPatchV1) -> dict[str, Any]:
         raise ConstraintInvalid(["intent requires palette.slots, layers, and colorways"])
     book = _SlotBook(raw)
 
+    if patch.scale is not None:
+        factor = _effective_scale(tile, patch.scale, warnings)
+        if factor != 1.0:
+            _apply_scale(raw, factor)
+            tile = _positive_float(_tile_mm(raw)) or tile
     if patch.palette is not None:
         for slot in patch.palette.slots:
             book.recolor(slot.id, slot.hex)
@@ -426,7 +554,9 @@ def apply_patch(intent: dict[str, Any], patch: DesignPatchV1) -> dict[str, Any]:
             else:
                 book.recolor(slot_id, patch.background.color)
     if patch.stripe is not None:
-        _apply_stripe(raw, patch.stripe, tile=tile, book=book)
+        _apply_stripe(raw, patch.stripe, tile=tile, book=book, warnings=warnings)
+        # off-grid period 백스톱이 tile을 배율했을 수 있다
+        tile = _positive_float(_tile_mm(raw)) or tile
     if patch.placement is not None:
         # 밀도 양보는 크기를 안 건드린 patch만 — 둘 다 바꾼 patch는 지금처럼 크기를 클램프한다.
         cap = MAX_AXIS_COUNT if patch.motif_size_mm is not None else _density_cap(raw, tile)

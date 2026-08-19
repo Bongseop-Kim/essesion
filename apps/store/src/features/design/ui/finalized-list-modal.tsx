@@ -1,15 +1,17 @@
 import type { GenerationJobOut } from "@essesion/api-client";
 import {
   ActionButton,
+  AspectRatio,
   Callout,
   ContentPlaceholder,
+  type DesignPreviewMode,
   Grid,
   HStack,
   Icon,
-  ImageFrame,
   Modal,
   Skeleton,
   Text,
+  TieCanvas,
   VStack,
 } from "@essesion/shared";
 import {
@@ -19,6 +21,9 @@ import {
   SwatchIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import { useState } from "react";
+
+import { ViewToggle } from "@/features/design/ui/view-toggle";
 import { formatDateTime } from "@/shared/lib/format";
 
 const formatDate = (value: string) =>
@@ -65,6 +70,8 @@ export function FinalizedListModal({
   onOrder,
   onDelete,
 }: FinalizedListModalProps) {
+  // 실사화 PNG는 seamless 타일이라 캔버스와 같은 넥타이/타일 뷰가 그대로 동작한다.
+  const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
   return (
     <Modal
       open={open}
@@ -101,89 +108,96 @@ export function FinalizedListModal({
           description="실사화를 완성하면 여기에 모여요."
         />
       ) : (
-        <Grid columns={2} gap="x3" aria-label="내 완성본">
-          {jobs.map((job, index) => (
-            <VStack
-              key={job.id}
-              gap="x2"
-              alignItems="stretch"
-              borderWidth={1}
-              borderColor="stroke.neutral-weak"
-              borderRadius="r3"
-              p="x2"
-              bg="bg.layer-default"
-            >
-              <ImageFrame
-                ratio={1}
-                src={job.result_url ?? undefined}
-                alt={`완성본 ${index + 1}`}
-                fit="cover"
-                borderRadius="r2"
-                fallback={
-                  <VStack
-                    position="absolute"
-                    inset={0}
-                    align="center"
-                    justify="center"
-                    gap="x2"
-                    bg="bg.neutral-weak"
-                  >
-                    <Icon svg={<PhotoIcon />} size={28} />
-                    <Text textStyle="captionSm" color="fg.neutral-subtle">
-                      미리보기 없음
-                    </Text>
-                  </VStack>
-                }
-              />
-              <Text textStyle="captionSm" color="fg.neutral-muted" px="x1">
-                {formatDate(job.created_at)}
-              </Text>
-              <HStack gap="x1" justify="space-between">
-                <ActionButton
-                  type="button"
-                  size="small"
-                  variant="neutralWeak"
-                  onClick={() => onOrder(job)}
-                >
-                  <Icon svg={<ShoppingBagIcon />} size={16} />
-                  주문제작
-                </ActionButton>
-                <ActionButton
-                  type="button"
-                  size="small"
-                  variant="ghost"
-                  aria-label={`완성본 ${index + 1} 삭제`}
-                  onClick={() => onDelete(job)}
-                >
-                  <Icon svg={<TrashIcon />} size={16} />
-                </ActionButton>
-              </HStack>
-            </VStack>
-          ))}
-          {onLoadMore && (loadMoreError || hasMore) ? (
-            <VStack gridColumn="1 / -1" pt="x1" alignItems="stretch">
-              {loadMoreError ? (
-                <Callout
-                  tone="critical"
-                  title="이전 완성본을 불러오지 못했어요"
-                  description="눌러서 다시 시도해 주세요."
-                  onClick={onLoadMore}
-                />
-              ) : (
-                <HStack justify="center">
+        <VStack gap="x3" alignItems="stretch">
+          <HStack justify="flex-end">
+            <ViewToggle mode={previewMode} onModeChange={setPreviewMode} />
+          </HStack>
+          <Grid columns={2} gap="x3" aria-label="내 완성본">
+            {jobs.map((job, index) => (
+              <VStack
+                key={job.id}
+                gap="x2"
+                alignItems="stretch"
+                borderWidth={1}
+                borderColor="stroke.neutral-weak"
+                borderRadius="r3"
+                p="x2"
+                bg="bg.layer-default"
+              >
+                {job.result_url ? (
+                  <TieCanvas
+                    imageSrc={job.result_url}
+                    mode={previewMode}
+                    alt={`완성본 ${index + 1}`}
+                  />
+                ) : (
+                  <AspectRatio ratio={1}>
+                    <VStack
+                      position="absolute"
+                      inset={0}
+                      align="center"
+                      justify="center"
+                      gap="x2"
+                      bg="bg.neutral-weak"
+                      borderRadius="r2"
+                    >
+                      <Icon svg={<PhotoIcon />} size={28} />
+                      <Text textStyle="captionSm" color="fg.neutral-subtle">
+                        미리보기 없음
+                      </Text>
+                    </VStack>
+                  </AspectRatio>
+                )}
+                <Text textStyle="captionSm" color="fg.neutral-muted" px="x1">
+                  {formatDate(job.created_at)}
+                </Text>
+                <HStack gap="x1" justify="space-between">
                   <ActionButton
                     type="button"
-                    variant="neutralOutline"
-                    loading={loadingMore}
-                    onClick={onLoadMore}
+                    size="small"
+                    variant="neutralWeak"
+                    onClick={() => onOrder(job)}
                   >
-                    더 보기
+                    <Icon svg={<ShoppingBagIcon />} size={16} />
+                    주문제작
+                  </ActionButton>
+                  <ActionButton
+                    type="button"
+                    size="small"
+                    variant="ghost"
+                    aria-label={`완성본 ${index + 1} 삭제`}
+                    onClick={() => onDelete(job)}
+                  >
+                    <Icon svg={<TrashIcon />} size={16} />
                   </ActionButton>
                 </HStack>
-              )}
-            </VStack>
-          ) : null}
-        </Grid>
+              </VStack>
+            ))}
+            {onLoadMore && (loadMoreError || hasMore) ? (
+              <VStack gridColumn="1 / -1" pt="x1" alignItems="stretch">
+                {loadMoreError ? (
+                  <Callout
+                    tone="critical"
+                    title="이전 완성본을 불러오지 못했어요"
+                    description="눌러서 다시 시도해 주세요."
+                    onClick={onLoadMore}
+                  />
+                ) : (
+                  <HStack justify="center">
+                    <ActionButton
+                      type="button"
+                      variant="neutralOutline"
+                      loading={loadingMore}
+                      onClick={onLoadMore}
+                    >
+                      더 보기
+                    </ActionButton>
+                  </HStack>
+                )}
+              </VStack>
+            ) : null}
+          </Grid>
+        </VStack>
       )}
     </Modal>
   );

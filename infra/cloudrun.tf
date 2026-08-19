@@ -10,8 +10,6 @@ locals {
     GCS_ASSETS_BUCKET                = google_storage_bucket.assets.name
     GCP_PROJECT_ID                   = var.project_id
     GCP_REGION                       = var.region
-    CLOUD_TASKS_QUEUE                = google_cloud_tasks_queue.finalize.name
-    CLOUD_TASKS_OIDC_SERVICE_ACCOUNT = google_service_account.tasks.email
     WORKER_BASE_URL                  = google_cloud_run_v2_service.worker_generate.uri
     WORKER_OIDC_AUDIENCE             = google_cloud_run_v2_service.worker_generate.uri
     WORKER_FINALIZE_URL              = google_cloud_run_v2_service.worker_finalize.uri
@@ -289,7 +287,7 @@ resource "google_cloud_run_v2_service" "worker_generate" {
   ]
 }
 
-# CPU·메모리-바운드 — Cloud Tasks 푸시만 수신, 동시성 1~2, dpi 상한 600 (§7)
+# CPU·메모리-바운드 — api의 동기 호출만 수신, 동시성 1~2, dpi 상한 600 (§7)
 resource "google_cloud_run_v2_service" "worker_finalize" {
   name     = "worker-finalize"
   location = var.region
@@ -297,7 +295,9 @@ resource "google_cloud_run_v2_service" "worker_finalize" {
 
   template {
     service_account                  = google_service_account.worker_finalize.email
-    timeout                          = "900s"
+    # 동기 요청-응답 — 실측 p95(로컬 최악 ~2s)에 Cloud Run 배수 여유. api 쪽
+    # worker_timeout_seconds(180s)보다 짧지 않게 유지한다.
+    timeout                          = "180s"
     max_instance_request_concurrency = 2
 
     scaling {
@@ -385,13 +385,6 @@ resource "google_cloud_run_v2_service_iam_member" "generate_invoker_api" {
   location = var.region
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.api.email}"
-}
-
-resource "google_cloud_run_v2_service_iam_member" "finalize_invoker_tasks" {
-  name     = google_cloud_run_v2_service.worker_finalize.name
-  location = var.region
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.tasks.email}"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "finalize_invoker_api" {

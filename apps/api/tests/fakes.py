@@ -1,5 +1,3 @@
-import uuid
-
 from api.integrations.gcs import GcsObjectMetadata
 from db.models.images import Image
 from sqlalchemy import select
@@ -60,14 +58,3 @@ async def simulate_uploads(app) -> None:  # noqa: ANN001 â€” FastAPI app stateë§
         gcs.metadata[image.object_key] = GcsObjectMetadata(
             size_bytes=image.size_bytes or 1, content_type=image.content_type
         )
-
-
-class FakeTaskQueue:
-    capability_mode = "real"
-
-    def __init__(self) -> None:
-        self.job_ids: list[uuid.UUID] = []
-
-    async def enqueue_finalize(self, job_id: uuid.UUID) -> str | None:
-        self.job_ids.append(job_id)
-        return None

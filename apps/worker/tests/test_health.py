@@ -47,18 +47,18 @@ def _paths(mode: str) -> set[str]:
     return paths
 
 
-def test_generate_mode_excludes_finalize_task_routes():
+def test_generate_mode_excludes_finalize_routes():
     paths = _paths("generate")
     assert {"/generate", "/motifs/candidates", "/motifs/generate"} <= paths
-    assert not ({"/export", "/tasks/finalize"} & paths)
+    assert not ({"/export", "/finalize"} & paths)
 
 
-def test_finalize_mode_only_exposes_finalize_task_routes():
+def test_finalize_mode_only_exposes_finalize_routes():
     paths = _paths("finalize")
-    assert {"/export", "/tasks/finalize"} <= paths
+    assert {"/export", "/finalize"} <= paths
     assert not ({"/generate", "/motifs/candidates", "/motifs/generate"} & paths)
 
 
 def test_all_mode_exposes_both_local_route_sets():
     paths = _paths("all")
-    assert {"/generate", "/export", "/tasks/finalize"} <= paths
+    assert {"/generate", "/export", "/finalize"} <= paths

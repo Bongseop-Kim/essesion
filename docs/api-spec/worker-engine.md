@@ -32,6 +32,8 @@ Placement: `type ∈ {lattice, point_set, path_following, scatter}` + type별 sp
 
 `validate_intent`의 결정론적 repair(경고 발생): dpi→ALLOWED_DPI(150,300,600) 최근접, off-grid stripe period→`tile/(k·hypot(p,q))` 스냅(밴드 비례, round 6자리), 다중밴드 bare lane(start/center/end)→b0.*, ground-gap(coverage > 0.75) 축소·균등 배치. drop_fraction 허용값 `(0.5, 1/3, 0.25)`.
 
+**전역 배율(patch `scale`)**: intent의 모든 길이(mm)를 tile_mm 포함해 일괄 f배하는 균일 배율은 모든 seamless 불변식(tile == k·period·hypot, divides(tile, cell), wave λ | closure, size ≤ tile)을 정확히 보존한다 — 재스냅이 걸리지 않는다. patch 경유 tile_mm은 [12, 192]mm(기본 48의 ¼~4배)로 누적 클램프. **tile_mm은 물리 치수가 아니라 화면 배율 캐리어다**(2026-08-19 확정) — 이 SVG/래스터는 그대로 실물 출력에 들어가지 않으며, 프론트는 SVG 루트 `width="Nmm"`을 읽어 반복 배율(N/48)을 비례시킨다. off-grid period repair는 authoring 등 다른 진입로의 최후 방어선으로 유지한다(patch의 off-grid period는 `engine.patch`가 tile 배율로 먼저 흡수).
+
 ## 2. compose — SVG 합성
 
 문서 토폴로지(단일 라인, XML 선언·개행 없음):

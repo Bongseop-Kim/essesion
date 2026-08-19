@@ -72,9 +72,9 @@ export type DesignOverlaysProps = {
   prompt: string;
   onPromptChange: (prompt: string) => void;
   onRequestIdeas: () => Promise<string[]>;
-  finalizeRemaining: number | null;
   motifGenerateCost: number | null;
-  finalizeResetAt: string | null;
+  /** 실사화 1회 토큰 단가 — 다이얼로그 제출 버튼에 표기 */
+  finalizeCost: number | null;
   onFinalize: (value: FinalizeDialogValue) => void;
   finalizeLoading: boolean;
   finalizeDisabled: boolean;
@@ -102,9 +102,8 @@ export function DesignOverlays({
   prompt,
   onPromptChange,
   onRequestIdeas,
-  finalizeRemaining,
   motifGenerateCost,
-  finalizeResetAt,
+  finalizeCost,
   onFinalize,
   finalizeLoading,
   finalizeDisabled,
@@ -228,8 +227,7 @@ export function DesignOverlays({
         open={overlay === "finalize"}
         onOpenChange={change("finalize")}
         onSubmit={onFinalize}
-        remaining={finalizeRemaining}
-        resetAt={finalizeResetAt}
+        cost={finalizeCost}
         loading={finalizeLoading}
         disabled={finalizeDisabled}
       />

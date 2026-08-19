@@ -29,33 +29,35 @@ function wrapper(queryClient: QueryClient) {
 describe("payment confirm terminal failure", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it.each(["not_payable", "not_found", "forbidden", "ownership_conflict"])(
-    "%s 오류에서 pending 정리 콜백을 실행한다",
-    async (code) => {
-      api.confirm.mockRejectedValue({ code, detail: "terminal" });
-      const onTerminalFailure = vi.fn();
-      const queryClient = new QueryClient({
-        defaultOptions: { mutations: { retry: false } },
-      });
-      const { result } = renderHook(
-        () =>
-          usePaymentConfirm(async () => null, {
-            onTerminalFailure,
-          }),
-        { wrapper: wrapper(queryClient) },
-      );
+  it.each([
+    "not_payable",
+    "not_found",
+    "forbidden",
+    "ownership_conflict",
+  ])("%s 오류에서 pending 정리 콜백을 실행한다", async (code) => {
+    api.confirm.mockRejectedValue({ code, detail: "terminal" });
+    const onTerminalFailure = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    });
+    const { result } = renderHook(
+      () =>
+        usePaymentConfirm(async () => null, {
+          onTerminalFailure,
+        }),
+      { wrapper: wrapper(queryClient) },
+    );
 
-      await waitFor(() => expect(result.current.failed).toBe(true));
-      expect(onTerminalFailure).toHaveBeenCalledWith(
-        {
-          code,
-          detail: "terminal",
-        },
-        "group",
-      );
-      queryClient.clear();
-    },
-  );
+    await waitFor(() => expect(result.current.failed).toBe(true));
+    expect(onTerminalFailure).toHaveBeenCalledWith(
+      {
+        code,
+        detail: "terminal",
+      },
+      "group",
+    );
+    queryClient.clear();
+  });
 
   it("일시 오류에서는 pending 정리 콜백을 실행하지 않는다", async () => {
     api.confirm.mockRejectedValue({ code: "upstream_error" });

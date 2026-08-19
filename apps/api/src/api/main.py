@@ -19,7 +19,6 @@ from api.domains.auth.rate_limit import AuthRateLimiter, RecentKeyCache
 from api.errors import SECURITY_RESPONSE_HEADERS, register_error_handlers
 from api.integrations.gcs import build_gcs_client
 from api.integrations.solapi import build_solapi_client
-from api.integrations.tasks import build_task_queue
 from api.integrations.toss import build_toss_client
 from api.integrations.worker import WorkerClient
 
@@ -185,13 +184,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.solapi = build_solapi_client(settings)
         app.state.gcs = build_gcs_client(settings)
         app.state.worker = WorkerClient(settings)
-        app.state.tasks = build_task_queue(settings, app.state.worker)
         app.state.capabilities = {
             # gcs는 빠지면 build_gcs_client가 기동을 중단시키므로 capability로 노출하지 않는다.
             "toss": app.state.toss.capability_mode,
             "solapi": app.state.solapi.capability_mode,
             "worker": app.state.worker.capability_mode,
-            "finalize_tasks": app.state.tasks.capability_mode,
             "batch_auth": batch_auth_capability_mode(settings),
             "oauth_google": _capability(
                 settings.env, bool(settings.google_client_id and settings.google_client_secret)
