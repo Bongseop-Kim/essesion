@@ -51,7 +51,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: docker compose up -d --wait gcs
       # worker fabric/raster 테스트의 래스터라이저 — 없으면 해당 테스트가 skip돼 공백이 생긴다
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends librsvg2-bin
+      # azure 우분투 미러가 간헐적으로 행 — IPv4 강제·재시도·타임아웃으로 방어
+      - run: sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 update && sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 install -y --no-install-recommends librsvg2-bin
+        timeout-minutes: 5
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
@@ -132,7 +134,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: uv run alembic -c db/alembic.ini upgrade head
       - run: uv run python apps/api/scripts/seed.py
-      - run: pnpm exec playwright install --with-deps chromium
+      # --with-deps 내부 apt가 미러 행에 걸리면 잡이 몇 시간 멈춘다 — 타임아웃으로 빨리 실패시키고 1회 재시도
+      - run: timeout 300 pnpm exec playwright install --with-deps chromium || pnpm exec playwright install --with-deps chromium
+        timeout-minutes: 12
       - run: pnpm test:e2e
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ !cancelled() }}
