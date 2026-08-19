@@ -8,6 +8,7 @@ YeongSeon(커머스 프론트 + Supabase)과 seamless-tile(FastAPI 이미지 생
 - `docs/plans/`는 **아직 실행하지 않은** 플랜·제안만 둔다(지시서 형식 권장). 플랜을 실행 완료하면 결과를 `docs/reviews/`에 간단히 기록하고 plans에서 제거한다. 작성 요령은 `docs/plans/AGENTS.md` — 플랜 문서 하네스. 플랜을 쓰기 전 반드시 읽을 것.
 - `packages/shared/AGENTS.md` — 디자인 시스템 하네스. admin·store UI 작업 전 반드시 읽을 것.
 - `.claude/skills/aside-browser/SKILL.md` — 브라우저 확인 하네스. 브라우저로 UI·플로우를 확인할 때는 반드시 Aside(MCP repl)를 사용할 것.
+- `docs/analytics.md` — 계측(GA4·PostHog) 목적과 이벤트·UTM·PII 규약. 계측이나 유입 분석에 손대기 전 읽을 것.
 
 ## 대원칙 (위반 금지)
 
