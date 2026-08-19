@@ -690,9 +690,7 @@ async def test_dashboard_top_products(client, db_session, settings):
     )
     assert len(limited.json()["top_products"]["items"]) == 1
     assert (
-        await client.get(
-            "/admin/dashboard/overview", params={"top_limit": 21}, headers=headers
-        )
+        await client.get("/admin/dashboard/overview", params={"top_limit": 21}, headers=headers)
     ).status_code == 422
 
     too_wide = await client.get(

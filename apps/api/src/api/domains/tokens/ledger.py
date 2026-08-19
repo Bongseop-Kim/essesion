@@ -454,9 +454,7 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
             .order_by(DesignToken.created_at)
         )
     ).all()
-    granted_by_order: dict[uuid.UUID, list[DesignToken]] = {
-        order_id: [] for order_id in order_ids
-    }
+    granted_by_order: dict[uuid.UUID, list[DesignToken]] = {order_id: [] for order_id in order_ids}
     for token in purchase_tokens:
         matched = (
             token.source_order_id
