@@ -1,7 +1,7 @@
 {
   "name": "essesion",
   "private": true,
-  "packageManager": "pnpm@10.34.5",
+  "packageManager": "pnpm@11.22.0",
   "scripts": {
     "build": "pnpm -r --if-present build",
     "test": "pnpm -r --if-present test",
