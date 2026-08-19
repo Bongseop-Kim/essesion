@@ -1,7 +1,8 @@
 # 성능·비용 절감 플랜
 
 **전제**: 2026-08-19 점검(코드 스캔 4방향 + 로컬 브라우저 네트워크 실측) 결과로 만든
-순위표다. 항목은 효과 ÷ 난이도 순 — 위에서부터 실행하고, 항목 단위로 실행·검증할 수
+순위표다. 2026-08-19 코드 대조 재검증에서 항목별 `파일:라인`·산식이 전부 일치함을
+확인했다. 항목은 효과 ÷ 난이도 순 — 위에서부터 실행하고, 항목 단위로 실행·검증할 수
 있다. 끝난 항목은 `docs/reviews/`에 기록하고 이 문서에서 지운다.
 
 **실패 모드**: 절감 효과를 측정 없이 단정하는 것. 청구 BigQuery export가 아직 없어
@@ -27,12 +28,17 @@
   이미 실행 완료라 제외했다.
 - 토큰 단가 재조정 — `docs/plans/token-pricing-recalibration.md`가 소유. 여기서는
   원가(호출 수)만 줄이고 가격은 건드리지 않는다.
-- 기능·UX 변경 없음. 사용자가 보는 동작이 달라지는 항목은 이 플랜에 없다.
+- 기능·UX 변경 없음 — **예외는 1번 하나**: 공개 API의 무limit 응답이 전체 → 20건으로
+  바뀌는 외부 관찰 가능한 동작 변경이다. 자사 프론트는 호출부를 함께 고쳐 무영향이고,
+  서드파티 소비자는 없다(공개 회원가입 없는 서비스). 이 예외 외에 사용자가 보는 동작이
+  달라지는 항목은 없다.
 
 ## 실행 조건
 
 - 1순위 2번(전역 focus 정책)은 `apps/store/src/shared/lib/live-queries.ts`의 e2e-02
   회귀 주석을 먼저 읽고, admin에 동일 opt-in이 필요한 화면을 정한 뒤에 실행한다.
+  전제는 검증됨: `FOCUS_REFETCH`가 `staleTime: 0 + refetchOnWindowFocus: true`라
+  전역값을 `true`로 내려도 opt-in 경로는 동작이 유지된다.
 - 4순위(17~19번)는 확인 결과가 나오기 전에는 수정하지 않는다.
 - 6·7번(비용)은 청구 export 활성화 후 실행하면 전후 비교가 가능하다(권장이지 필수는 아님).
 
@@ -43,21 +49,24 @@
 1. **`GET /products`의 `limit` 기본값 None → 20** — `apps/api/src/api/domains/products/router.py:78`.
    공개 무인증 엔드포인트가 전체 테이블을 반환한다. 실측으로 store 홈이 파라미터 없이
    `GET /products`를 호출하는 것을 확인 — 프론트 호출부도 limit을 명시하도록 함께 수정.
-   같은 쿼리의 찜 수 상관 서브쿼리(`:29-42`)·`sort=popular` 정렬은 별도 후속(20번).
+   시그니처 기본값 변경은 OpenAPI에 반영되므로 **`pnpm codegen` 후 생성물 동반 커밋 필수**
+   (CI codegen-drift가 검사). 같은 쿼리의 찜 수 상관 서브쿼리(`:29-42`)·`sort=popular`
+   정렬은 별도 후속(20번).
 2. **전역 `refetchOnWindowFocus: "always"` → `true`** —
    `apps/store/src/shared/lib/query-client.ts:7`, `apps/admin/src/app/providers/app-providers.tsx:17`.
    `"always"`는 staleTime을 무시하고 탭 포커스마다 활성 쿼리 전부를 재요청한다. store에는
    이미 opt-in 헬퍼(`live-queries.ts:10`의 `FOCUS_REFETCH`)가 있으니 전역값만 내리고,
    admin에도 동일 opt-in이 필요한 화면(잡 모니터링 등)만 올린다.
 3. **admin seamless-list 무조건 30초 폴링 게이팅** —
-   `apps/admin/src/pages/generation/seamless-list.tsx:106,111`이 `hasActiveWork`에 리터럴
-   `true`를 넘겨 게이트가 무력화돼 있다. `jobs-list.tsx:120`과 같은 방식
+   `apps/admin/src/pages/generation/seamless-list.tsx:107,112`가 `hasActiveWork`에 리터럴
+   `true`를 넘겨 게이트가 무력화돼 있다. `jobs-list.tsx:123`과 같은 방식
    (`items.some(status ∈ {queued, processing})`)으로 통일. 탭을 열어두면 분당 4요청 무기한.
 4. **`signed_read_url`에 프로세스 로컬 메모이제이션** — `apps/api/src/api/integrations/gcs.py:171-183`.
    `READ_URL_TTL` 15분인데 같은 객체를 매번 새로 서명한다. 현재 서명 방식
    (`service_account_email` + `access_token`)은 서명 1건마다 IAM Credentials `signBlob`
    API를 네트워크 호출하는 경로라, 이미지가 보이는 화면마다 수십~수백 ms 지연이 붙는다.
-   TTL보다 짧은(예: 10분) dict 캐시 한 개면 대부분 해소된다.
+   TTL보다 짧은(예: 10분) 만료 기준 캐시로 대부분 해소된다. 단, 키가 content-hash 객체
+   키라 무한 성장하므로 **max size 상한(또는 시간 버킷 통삭제)을 반드시 함께** 둘 것.
 5. **`address-select-modal`에 `enabled: open` 가드** —
    `apps/store/src/features/shipping/ui/address-select-modal.tsx:43`. 항상 마운트되는 모달이
    비로그인 상태에서도 `GET /addresses`를 쏜다.
@@ -68,8 +77,8 @@
    lifecycle_rule·soft_delete_policy 없음. 생성 이미지가 STANDARD로 무한 누적되고,
    기본 소프트 삭제(7일) 탓에 삭제된 객체도 7일치 저장 요금이 붙는다. 단명 객체가 많은
    uploads 버킷은 `soft_delete_policy { retention_duration_seconds = 0 }`로 끄는 것부터.
-   정리 배치 상한(`batch/router.py:21`의 일 100건)도 함께 점검 — 만료 발생량이
-   100건/일을 넘으면 정리가 영구히 밀린다.
+   정리 배치 상한(`batch/router.py:21`의 `CLEANUP_BATCH_SIZE = 100`, `scheduler.tf:16`
+   일 1회)도 함께 점검 — 만료 발생량이 100건/일을 넘으면 정리가 영구히 밀린다.
 7. **공개 이미지 앞에 Cloudflare 캐시 계층** — `gcs.py:59`가
    `https://storage.googleapis.com/{bucket}` 직통 서빙이라 조회마다 서울 리전 egress
    (~$0.12/GB) + Class B 오퍼레이션 + Storage DATA_READ 감사 로그(`infra/audit.tf:20-31`,
@@ -77,17 +86,17 @@
    캐시 프록시를 앞에 두면 셋이 동시에 준다. `infra/main.tf:28` 주석은 이미 프록시
    경유라고 사실과 다르게 적혀 있음(문서 드리프트) — 함께 수정. 미루면 차선책으로
    `_Default` 로그 싱크에 공개 객체 GET 제외 필터만이라도.
-8. **worker 저작 LLM 호출 상한** — `apps/worker/src/worker/adapters/llm.py:40,45`.
-   요청 1건이 최악 자기수정 4 × HTTP 재시도 4 = 유료 chat 16회까지 가능하고 요청 단위
-   상한이 없다. 이미지 경로의 `MotifGenerationBudget`(`resolver.py:83`)과 같은 예산
+8. **worker 저작 LLM 호출 횟수 상한** — `apps/worker/src/worker/adapters/llm.py:40,45`.
+   요청 1건이 최악 자기수정 4 × HTTP 재시도 4 = 유료 chat 16회까지 가능하고 **호출 횟수**
+   상한이 없다(출력 토큰 상한 `MAX_OUTPUT_TOKENS`는 `llm.py:48`에 이미 있으니 예산 객체와의
+   관계만 정리하면 됨). 이미지 경로의 `MotifGenerationBudget`(`resolver.py:83`)과 같은 예산
    객체를 저작에도 도입. 아울러 회당 타임아웃 120초 × 4회가 api의 180초
    (`api/config.py:81`)를 넘겨 api가 끊은 뒤에도 유료 호출이 계속되는 문제
    (worker-generate Cloud Run 타임아웃 300초, `infra/cloudrun.tf:211`)를 예산·타임아웃
    정합으로 함께 해결.
-9. **pricing/admin_settings에 30~60초 TTL 프로세스 캐시** — `apps/api/src/api/pricing.py:10-22`.
-   돈 경로(주문 생성·수선 견적·토큰 과금·결제 확정)마다 매번 SELECT. admin 갱신은 이미
-   낙관적 락으로 보호되어 TTL 캐시와 상충 없음. `orders/service.py:690`의 같은 트랜잭션
-   내 원단 단가 중복 조회도 함께 제거.
+9. **주문 트랜잭션 내 원단 단가 중복 조회 제거** — `apps/api/src/api/domains/orders/service.py:690`.
+   같은 트랜잭션에서 동일 pricing_constants를 두 번 SELECT한다 — 한 번 조회해 넘긴다.
+   (pricing 전반의 TTL 캐시는 기각 — 아래 "기각한 대안" 참조.)
 
 ### 3순위 — 국소 리팩터
 
@@ -121,9 +130,10 @@
 ### 4순위 — 확인 후 판단
 
 17. **admin 쿼리 2회 호출의 원인 확인** — 실측에서 admin의 모든 API가 정확히 2회씩 나감.
-    dev StrictMode 이중 마운트면 프로덕션 무해로 종결, 아니면(예: 401 콜드스타트 재시도
-    경로) 원인 수정. 확인법: `pnpm --filter admin build` 프리뷰(프로덕션 번들)에서 같은
-    실측 반복.
+    `apps/admin/src/main.tsx:12`가 StrictMode로 감싸고 있어 **dev 이중 마운트 → 프로덕션
+    무해로 종결될 가능성이 높다** — 기대 결과를 이걸로 두고 확인한다. 아니면(예: 401
+    콜드스타트 재시도 경로) 원인 수정. 확인법: `pnpm --filter admin build` 프리뷰
+    (프로덕션 번들)에서 같은 실측 반복.
 18. **api DB 풀 vs f1-micro 상한** — `db.py:19-26` pool_size 5 × max 10 인스턴스 = 최대 50
     커넥션인데 f1-micro의 `max_connections`는 25(공식 기본값). max_instances를 낮추거나
     풀을 줄이거나 티어 재상향 신호로 삼을지 결정.
@@ -150,19 +160,24 @@
   7번은 응답 헤더의 캐시 적중(`cf-cache-status: HIT`)과 Cloud Logging의 DATA_READ
   볼륨 감소로 확인.
 - 공통: `pnpm build && pnpm typecheck && pnpm test`, `uv run ruff check .`,
-  api 스펙이 바뀌는 항목(10번 등)은 `pnpm codegen` 후 생성물 동반 커밋.
+  api 스펙이 바뀌는 항목(**1번**·10번 등)은 `pnpm codegen` 후 생성물 동반 커밋.
 
 ## 되돌리는 법 / 상향 신호
 
 - 6번 소프트 삭제 off: `soft_delete_policy` 블록의 retention을 604800(7일)으로 되돌려
   apply. 상향 신호: 실수 삭제 복구가 필요했던 사건 발생.
-- 9번 TTL 캐시: admin에서 가격 변경 후 반영이 TTL만큼 늦는 게 문제가 되면 TTL을 줄이거나
-  변경 시 무효화 훅 추가. 잘못되면 캐시 함수만 제거하면 원상복구.
+- 4번 서명 캐시: 캐시 만료 전 객체가 교체되는 사고가 나면(content-hash 키라 이론상 없음)
+  캐시 함수만 제거하면 원상복구.
 - 2번 focus 정책: 갱신 누락 리포트(admin에서 바꾼 값이 store에 안 보임)가 오면 해당
   쿼리에 `FOCUS_REFETCH`를 추가하는 것이 정답이지 전역값 원복이 아니다.
 
 ## 기각한 대안
 
+- **pricing/admin_settings 프로세스 TTL 캐시** — 인덱스 걸린 소형 테이블 SELECT라
+  요청당 비용이 사실상 0인데, 돈 경로에 최대 TTL만큼의 옛 가격 창이 생긴다. 낙관적
+  락은 admin 동시 쓰기 보호일 뿐 api의 stale 읽기와 무관하고, 돈 경로 동작은
+  `docs/api-spec/`이 정본이라 가격 반영 시점 변경은 스펙 검토 대상. 효과 ÷ 리스크가
+  안 맞아 기각 — pricing SELECT가 프로파일링에서 실제 병목으로 실측되면 재론.
 - **SA 개인키를 받아 서명 URL을 로컬 서명으로 전환** — signBlob 호출이 무료임이 확인돼
   이득이 지연 제거뿐인데, 키리스 원칙(audit.tf의 SA 키 알림,
   `docs/plans/cloud-security-hardening.md`)과 상충한다. 4번 캐시로 부족하면 재론.
