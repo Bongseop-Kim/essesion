@@ -273,8 +273,8 @@ apply 시 잡 **4종**이 생성된다(스케줄은 `scheduler.tf`, KST 기준).
 > apply 전에 구 프로듀서를 멈춘 뒤 **task 단위로** 큐가 비었는지 확인한다 —
 > `gcloud tasks list --queue=finalize --location=asia-northeast3` 출력이 비어 있어야 하며,
 > `gcloud tasks queues describe finalize`는 보조 정보일 뿐 task 잔량의 증거가 아니다.
-> 전환 배포 이후 `queued`/`processing`으로 남은 legacy `generation_jobs` 행은 폴링하는
-> 클라이언트가 없으므로 그대로 두거나 사용자가 완성본 화면에서 삭제하면 된다.
+> 전환 시점에 `queued`/`processing`으로 걸쳐 있던 `generation_jobs` 행은 마이그레이션
+> `b25371e22c3c`가 canceled로 종결한다 — 별도 수동 조치 없음.
 
 api의 검증 env(`BATCH_OIDC_AUDIENCE`, `BATCH_INVOKER_EMAIL`)는 tofu가 주입하므로 수동 조치가 없다.
 로컬 개발은 `batch_token` 폴백.
