@@ -68,8 +68,14 @@ class OpenAIEmbeddingClient:
             return []
         body = await self._request(list(texts))
         try:
-            # index가 없으면 정렬은 안정적이라 응답 순서(=입력 순서)가 그대로 유지된다.
-            rows = sorted(body["data"], key=lambda row: row.get("index", 0))
+            rows = list(body["data"])
+            indices = [row.get("index") for row in rows]
+            if any(index is not None for index in indices):
+                # 중복·누락·혼재·범위 밖이면 벡터가 엉뚱한 텍스트에 붙는다 — 조용히 정렬하지 않는다.
+                if None in indices or sorted(indices) != list(range(len(rows))):
+                    raise ValueError(f"invalid embedding indices: {indices}")
+                rows.sort(key=lambda row: row["index"])
+            # index가 전부 없으면 응답 순서(=입력 순서)를 그대로 쓴다.
             vectors = [[float(value) for value in row["embedding"]] for row in rows]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise EmbeddingError(

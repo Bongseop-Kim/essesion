@@ -368,6 +368,46 @@ async def test_embedding_client_retries_transient_status_then_succeeds(
 
 
 @respx.mock
+async def test_embedding_client_sorts_batch_by_index(embedding_client):
+    # OpenAI는 index로 입력 순서를 보장한다 — 응답이 뒤섞여도 입력 순서로 복원한다.
+    respx.post(_EMBED_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"index": 1, "embedding": [0.4, 0.5, 0.6]},
+                    {"index": 0, "embedding": [0.1, 0.2, 0.3]},
+                ]
+            },
+        )
+    )
+    assert await embedding_client.embed_batch(["a", "b"]) == [
+        [0.1, 0.2, 0.3],
+        [0.4, 0.5, 0.6],
+    ]
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    "indices",
+    [
+        [0, 0],  # 중복
+        [0, 2],  # 누락·범위 밖
+        [0, None],  # 혼재
+    ],
+)
+async def test_embedding_client_rejects_invalid_indices(embedding_client, indices):
+    # 벡터가 엉뚱한 텍스트에 붙는 조용한 오배정을 거부한다.
+    rows = [
+        {"embedding": [0.1, 0.2, 0.3]} | ({} if index is None else {"index": index})
+        for index in indices
+    ]
+    respx.post(_EMBED_URL).mock(return_value=httpx.Response(200, json={"data": rows}))
+    with pytest.raises(EmbeddingError, match="unexpected embedding payload"):
+        await embedding_client.embed_batch(["a", "b"])
+
+
+@respx.mock
 async def test_embedding_client_rejects_dimension_mismatch(embedding_client):
     # dimensions 요청 파라미터가 무시된 응답은 저장 전에 거부한다 — vector(1536) 계약.
     respx.post(_EMBED_URL).mock(

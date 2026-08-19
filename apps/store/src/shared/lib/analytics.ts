@@ -59,13 +59,22 @@ export function initAnalytics() {
   document.head.append(script);
 }
 
+/** 동적 경로의 UUID 세그먼트(주문 상세 등)를 치환한다 — orderId 원문 금지(위 PII 규약). */
+const UUID_SEGMENT =
+  /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi;
+
+export function redactPath(pathname: string) {
+  return pathname.replace(UUID_SEGMENT, "/:id");
+}
+
 /** 쿼리스트링은 받지 않는다 — OAuth code·paymentKey 유출 방지. */
 export function trackPageView(pathname: string) {
-  captureProductPageView(pathname);
+  const path = redactPath(pathname);
+  captureProductPageView(path);
   if (!initialized) return;
   window.gtag?.("event", "page_view", {
-    page_path: pathname,
-    page_location: window.location.origin + pathname,
+    page_path: path,
+    page_location: window.location.origin + path,
   });
 }
 
@@ -73,7 +82,12 @@ export function trackEvent<K extends keyof GaEvents>(
   name: K,
   params: GaEvents[K],
 ) {
-  captureProductEvent(name, params);
+  // transaction_id(주문번호)는 GA4 purchase dedup에만 필요하다 — PostHog에는 보내지 않는다.
+  const { transaction_id: _omitted, ...productParams } =
+    params as GaEvents[K] & {
+      transaction_id?: string;
+    };
+  captureProductEvent(name, productParams);
   if (!initialized) return;
   window.gtag?.("event", name, params);
 }

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const productAnalytics = vi.hoisted(() => ({
+  captureProductEvent: vi.fn(),
+  captureProductPageView: vi.fn(),
+}));
+vi.mock("@/shared/lib/product-analytics", () => productAnalytics);
+
 const GTAG_SCRIPT_SELECTOR = 'script[src^="https://www.googletagmanager.com"]';
 
 async function loadAnalytics(measurementId: string) {
@@ -44,5 +50,36 @@ describe("analytics", () => {
       transaction_id: "ORD-TEST-000001",
     });
     expect(window.dataLayer).toHaveLength(initialLength + 2);
+  });
+
+  it("transaction_id는 GA에만 가고 PostHog 전달에서는 제거된다", async () => {
+    const { initAnalytics, trackEvent } = await loadAnalytics("G-TEST1234");
+    initAnalytics();
+    trackEvent("purchase", {
+      currency: "KRW",
+      value: 10_000,
+      transaction_id: "ORD-TEST-000001",
+    });
+    expect(productAnalytics.captureProductEvent).toHaveBeenCalledWith(
+      "purchase",
+      { currency: "KRW", value: 10_000 },
+    );
+    const gaEvent = Array.from(window.dataLayer?.at(-1) as ArrayLike<unknown>);
+    expect(gaEvent[2]).toMatchObject({ transaction_id: "ORD-TEST-000001" });
+  });
+
+  it("동적 주문 경로의 UUID는 양쪽 모두에서 치환된다", async () => {
+    const { initAnalytics, trackPageView } = await loadAnalytics("G-TEST1234");
+    initAnalytics();
+    trackPageView(
+      "/order/3f0e2a1b-9c4d-4e5f-8a6b-7c8d9e0f1a2b/repair-shipping",
+    );
+    expect(productAnalytics.captureProductPageView).toHaveBeenCalledWith(
+      "/order/:id/repair-shipping",
+    );
+    const gaEvent = Array.from(window.dataLayer?.at(-1) as ArrayLike<unknown>);
+    expect(gaEvent[2]).toMatchObject({
+      page_path: "/order/:id/repair-shipping",
+    });
   });
 });

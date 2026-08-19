@@ -117,7 +117,7 @@
 
 - **고객 확정**: status ∈ {배송중, 배송완료}에서만, 활성 클레임 있으면 거부. → '완료'+confirmed_at, 로그 '고객 직접 구매확정'.
 - **자동 확정 (배치)**: `배송완료 AND delivered_at <= now-7d` 또는 `배송중 AND (repair? company_shipped_at : shipped_at) <= now-7d`, 활성 클레임 없음. FOR UPDATE SKIP LOCKED. changed_by=NULL, memo `자동 구매확정 (... 7일 경과)`.
-- **stale 취소 (배치)**: `대기중 AND created_at < now-30분` → '취소'. SKIP LOCKED. memo '자동 취소 (대기중 30분 초과)'. (원 스케줄 10분 주기.)
+- **stale 취소 (배치)**: `대기중 AND created_at < now-30분` → '취소'. SKIP LOCKED. memo '자동 취소 (대기중 30분 초과)'. (스케줄 30분 주기 — 최악 60분 내 정리, perf-cost-reduction 리뷰 20번.)
 - **환불 계산**: 허용 상태(sale: 대기중/결제중/진행중, custom·repair·sample: +접수, token: 대기중/결제중)에서 `refund = total_price` 전액.
 
 ## 8. 주문 상태기계 (admin)

@@ -62,6 +62,19 @@ export function PromptBar({
     el.style.height = `${el.scrollHeight}px`;
   }, [value]);
 
+  // 폭이 바뀌면(회전·리사이즈) 줄바꿈이 달라진다 — 값 편집 없이도 높이를 다시 잰다.
+  useEffect(() => {
+    const el = inputRef.current;
+    // jsdom(테스트)에는 ResizeObserver가 없다 — 없으면 값 변경 시 리사이즈만 동작.
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const locked = loading || disabled;
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {

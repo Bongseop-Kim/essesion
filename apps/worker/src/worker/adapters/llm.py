@@ -494,9 +494,17 @@ class LLMClient:
                     operation="chat_completions",
                     reason_code=exhausted,
                 )
+            # 시도 자체도 데드라인을 넘기지 못하게 클라이언트 타임아웃을 남은 예산으로 클램프.
+            attempt_timeout = self._timeout
+            if budget is not None:
+                remaining = budget.deadline_monotonic - time.monotonic()
+                attempt_timeout = min(self._timeout, max(0.001, remaining))
             try:
                 response = await self._http().post(
-                    f"{self._base_url}/chat/completions", headers=headers, json=payload
+                    f"{self._base_url}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=attempt_timeout,
                 )
             except httpx.TimeoutException as exc:
                 raise AdapterClientError(

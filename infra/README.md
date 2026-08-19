@@ -21,9 +21,11 @@ gcloud storage buckets create gs://essesion-tfstate \
 
 # 3. 변수 채우고 init
 brew install opentofu
-# tfvars 정본은 상태 버킷에 있다 — 최초 셋업이 아니면 example 대신 이걸 내려받는다.
+# tfvars 정본은 상태 버킷에 있다 — 기존 환경 재구성이면 이걸 내려받는다.
 # (공개 레포라 gitignore. tfstate가 같은 값을 이미 담고 있어 버킷 민감도는 동일.)
 gsutil cp gs://essesion-tfstate/production.tfvars infra/production.tfvars
+# 최초 부트스트랩(버킷에 파일이 아직 없음)일 때만 example을 복사해 채운다.
+# cp infra/production.tfvars.example infra/production.tfvars
 tofu -chdir=infra init -backend-config="bucket=essesion-tfstate"
 
 # 3-1. 시크릿 컨테이너·DB 먼저 (시크릿 버전이 없으면 서비스 리비전이 기동 실패한다)

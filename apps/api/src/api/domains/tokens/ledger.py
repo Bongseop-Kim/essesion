@@ -436,6 +436,9 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
     order_ids = [order.id for order in orders]
 
     # 주문 N건 × (부여분·클레임·사용 여부) 3회씩 조회하던 3N+1을 사용자 단위 3회로 배치.
+    order_by_work_id = {f"order_{order_id}": order_id for order_id in order_ids} | {
+        f"order_{order_id}_paid": order_id for order_id in order_ids
+    }
     purchase_tokens = (
         await session.scalars(
             select(DesignToken)
@@ -443,13 +446,14 @@ async def list_refundable_orders(session: AsyncSession, user_id: uuid.UUID) -> l
                 DesignToken.user_id == user_id,
                 DesignToken.type == "purchase",
                 DesignToken.token_class == "paid",
+                or_(
+                    DesignToken.source_order_id.in_(order_ids),
+                    DesignToken.work_id.in_(order_by_work_id),
+                ),
             )
             .order_by(DesignToken.created_at)
         )
     ).all()
-    order_by_work_id = {f"order_{order_id}": order_id for order_id in order_ids} | {
-        f"order_{order_id}_paid": order_id for order_id in order_ids
-    }
     granted_by_order: dict[uuid.UUID, list[DesignToken]] = {
         order_id: [] for order_id in order_ids
     }

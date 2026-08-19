@@ -44,6 +44,11 @@ variable "api_min_instances" {
   description = "api 콜드스타트 제거는 프로덕션 요구(ARCHITECTURE §2.2) — 비용을 위해 기본 0, 지표가 나쁠 때만 1"
   type        = number
   default     = 0
+
+  validation {
+    condition     = var.api_min_instances >= 0 && var.api_min_instances <= 3
+    error_message = "api_min_instances must be between 0 and the api max_instance_count (3)."
+  }
 }
 
 variable "public_api_origin" {
