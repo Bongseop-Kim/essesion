@@ -2783,6 +2783,9 @@ export const deleteGenerationJobMutation = (options?: Partial<Options<DeleteGene
  * Create Design Order Reference
  *
  * 소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.
+ *
+ * finalize 1건은 파일 2개(넥타이 실사 + 정본 타일)를 남긴다 — 화면은 여전히 카드
+ * 1개로 본다(DesignOrderReferenceOut 주석).
  */
 export const createDesignOrderReferenceMutation = (options?: Partial<Options<CreateDesignOrderReferenceData>>): UseMutationOptions<CreateDesignOrderReferenceResponse, CreateDesignOrderReferenceError, Options<CreateDesignOrderReferenceData>> => {
     const mutationOptions: UseMutationOptions<CreateDesignOrderReferenceResponse, CreateDesignOrderReferenceError, Options<CreateDesignOrderReferenceData>> = {

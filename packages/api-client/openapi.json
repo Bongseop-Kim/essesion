@@ -6472,7 +6472,7 @@
             "items": {
               "$ref": "#/components/schemas/OrderReferenceImageIn"
             },
-            "maxItems": 5,
+            "maxItems": 10,
             "title": "Reference Images",
             "type": "array"
           },
@@ -7293,7 +7293,7 @@
         "title": "DesignIdeasRequest",
         "type": "object"
       },
-      "DesignOrderReferenceOut": {
+      "DesignOrderReferenceItem": {
         "properties": {
           "object_key": {
             "title": "Object Key",
@@ -7314,6 +7314,23 @@
         },
         "required": [
           "object_key"
+        ],
+        "title": "DesignOrderReferenceItem",
+        "type": "object"
+      },
+      "DesignOrderReferenceOut": {
+        "description": "주문 인수물 — 넥타이 실사(고객 기대치 증빙)와 정본 타일(디자이너 작업 원본).\n\n파일 개수는 내부 계약이다. 화면의 첨부 아이템은 \"디자인 1개 = 카드 1개\"로 유지하고\n개수·경로를 노출하지 않는다. 레거시 finalize 행(object_key만)은 1개짜리 목록.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DesignOrderReferenceItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
         ],
         "title": "DesignOrderReferenceOut",
         "type": "object"
@@ -8132,6 +8149,17 @@
             ],
             "title": "Error Message"
           },
+          "fabric_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fabric Url"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -8195,6 +8223,28 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "tie_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tie Url"
+          },
+          "tile_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Url"
           },
           "updated_at": {
             "format": "date-time",
@@ -13773,7 +13823,7 @@
             "items": {
               "$ref": "#/components/schemas/OrderReferenceImageIn"
             },
-            "maxItems": 5,
+            "maxItems": 10,
             "title": "Reference Images",
             "type": "array"
           },
@@ -22613,7 +22663,7 @@
     },
     "/design/jobs/{job_id}/order-reference": {
       "post": {
-        "description": "소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.",
+        "description": "소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.\n\nfinalize 1건은 파일 2개(넥타이 실사 + 정본 타일)를 남긴다 — 화면은 여전히 카드\n1개로 본다(DesignOrderReferenceOut 주석).",
         "operationId": "create_design_order_reference",
         "parameters": [
           {

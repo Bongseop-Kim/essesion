@@ -52,5 +52,5 @@
 ## 배포 주의
 
 이 상태로 main 머지 시 finalize가 즉시 AI 경로가 된다(키 없으면 503, 있으면
-유료 편집 2회/건). **`finalize-ai-cutover.md`(과금 재산정·store 배선·명세 갱신)와
+유료 편집 2회/건). **`finalize-ai-cutover-2026-08-20.md`(과금 재산정·store 배선·명세 갱신)와
 같은 릴리스로 내보낼 것.**

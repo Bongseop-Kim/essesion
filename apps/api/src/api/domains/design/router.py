@@ -508,6 +508,11 @@ class GenerationJobOut(ORMModel):
     params: dict[str, Any]
     result: dict[str, Any] | None
     result_url: str | None
+    # finalize 삼중 산출물 — 넥타이 실사·원단 실사(고객 설득물)와 정본 타일(디자이너
+    # 인수물). 컷오버 전 레거시 행은 셋 다 null이고 result_url만 채워진다.
+    tie_url: str | None = None
+    fabric_url: str | None = None
+    tile_url: str | None = None
     error_message: str | None
     request_id: str | None
     attempts: int
@@ -515,9 +520,13 @@ class GenerationJobOut(ORMModel):
     updated_at: datetime
 
 
-class DesignOrderReferenceOut(BaseModel):
+class DesignOrderReferenceItem(BaseModel):
     object_key: str
     upload_id: uuid.UUID | None = None
+
+
+class DesignOrderReferenceOut(BaseModel):
+    items: list[DesignOrderReferenceItem]
 
 
 def _motif_preview_svg(motif: Motif) -> str:
@@ -1976,8 +1985,19 @@ async def _run_finalize(
         result = await request.app.state.worker.finalize(
             {k: v for k, v in params.items() if k != "run_id"}
         )
-        object_key = result.get("object_key")
-        if not isinstance(object_key, str) or not object_key:
+        # 삼중 산출물 + 레거시 별칭만 옮긴다 — worker 응답을 그대로 저장하지 않는다.
+        # object_key만 오는 응답(AI 편집 단계 우회 = 롤백 경로)도 그대로 성립한다.
+        stored = {
+            name: value
+            for name in (
+                "object_key",
+                "tie_object_key",
+                "fabric_object_key",
+                "tile_object_key",
+            )
+            if isinstance(value := result.get(name), str) and value
+        }
+        if "object_key" not in stored:
             raise UpstreamError("실사화 결과 형식이 올바르지 않습니다")
         job = GenerationJob(
             id=job_id,
@@ -1986,7 +2006,7 @@ async def _run_finalize(
             kind="finalize",
             status="succeeded",
             params=params,
-            result={"object_key": object_key},
+            result=stored,
             request_id=request_id_var.get(),
             attempts=1,
             started_at=started_at,
@@ -2044,16 +2064,24 @@ async def delete_generation_job(
     job = await session.get(GenerationJob, job_id)
     ensure_owner(job, user)
     assert job is not None
-    object_key = _job_object_key(job)
+    # 정본 타일(tile_object_key)은 지우지 않는다 — 결정론 렌더라 같은 디자인의 다른
+    # finalize 잡과 콘텐츠 주소를 공유한다. AI 실사 2장은 잡마다 고유하므로 정리 대상.
+    object_keys = {
+        key
+        for key in (
+            _job_result_key(job, "object_key"),
+            _job_result_key(job, "tie_object_key"),
+            _job_result_key(job, "fabric_object_key"),
+        )
+        if key is not None
+    }
     await session.delete(job)
     await session.commit()
     # 산출물 정리는 커밋 후 best-effort — 실패해도 사용자 상태는 이미 일관적이고,
     # 고아 객체는 로그로만 추적한다(멱등 delete_object라 재시도 부담 없음).
-    if (
-        isinstance(object_key, str)
-        and object_key.startswith("fabric/")
-        and ".." not in object_key.split("/")
-    ):
+    for object_key in object_keys:
+        if not object_key.startswith("fabric/") or ".." in object_key.split("/"):
+            continue
         deleted = await request.app.state.gcs.delete_object(
             object_key, bucket_name=assets_bucket_name(settings)
         )
@@ -2073,85 +2101,117 @@ async def create_design_order_reference(
     settings: SettingsDep,
     kind: Literal["custom_order", "quote_request"] = "custom_order",
 ) -> DesignOrderReferenceOut:
-    """소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다."""
+    """소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.
+
+    finalize 1건은 파일 2개(넥타이 실사 + 정본 타일)를 남긴다 — 화면은 여전히 카드
+    1개로 본다(DesignOrderReferenceOut 주석).
+    """
 
     job = await session.get(GenerationJob, job_id)
     ensure_owner(job, user)
     assert job is not None
-    source_key = _job_object_key(job)
-    if (
-        job.kind != "finalize"
-        or job.status != "succeeded"
-        or not isinstance(source_key, str)
-        or not source_key.startswith("fabric/")
-        or ".." in source_key.split("/")
-    ):
-        raise ConflictError("주문에 사용할 수 있는 완성 디자인이 아닙니다")
-    source_bucket = assets_bucket_name(settings)
-
-    destination_key = f"uploads/{kind}/design-{job.id}-{uuid.uuid4().hex}.png"
-    copied = await request.app.state.gcs.copy_from_bucket(
-        source_bucket,
-        source_key,
-        destination_key,
+    sources = (
+        _order_reference_sources(job)
+        if job.kind == "finalize" and job.status == "succeeded"
+        else []
     )
-    if not copied:
-        raise UpstreamError("완성 디자인을 주문 첨부로 준비하지 못했습니다")
+    if not sources:
+        raise ConflictError("주문에 사용할 수 있는 완성 디자인이 아닙니다")
+
+    gcs = request.app.state.gcs
+    source_bucket = assets_bucket_name(settings)
+    now = datetime.now(UTC)
+    copied: list[str] = []
+    staged: list[Image] = []
     try:
-        if kind == "quote_request":
-            staged_image = Image(
-                object_key=destination_key,
-                entity_type="quote_request_upload",
-                entity_id=destination_key,
-                uploaded_by=user.id,
-                content_type="image/png",
-                upload_completed_at=datetime.now(UTC),
-                expires_at=datetime.now(UTC) + timedelta(hours=24),
-            )
-        else:
-            metadata = await request.app.state.gcs.object_metadata(destination_key)
-            if metadata is None:
-                raise UpstreamError("복사된 주문 참고 이미지를 확인하지 못했습니다")
-            if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
-                raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
-            if metadata.content_type != "image/png":
-                raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
-            staged_image = Image(
-                object_key=destination_key,
-                entity_type=order_upload_entity_type(kind),
-                entity_id=destination_key,
-                uploaded_by=user.id,
-                content_type="image/png",
-                size_bytes=metadata.size_bytes,
-                upload_completed_at=datetime.now(UTC),
-                expires_at=datetime.now(UTC) + timedelta(hours=24),
-            )
-        session.add(staged_image)
+        for source_key in sources:
+            destination_key = f"uploads/{kind}/design-{job.id}-{uuid.uuid4().hex}.png"
+            if not await gcs.copy_from_bucket(source_bucket, source_key, destination_key):
+                raise UpstreamError("완성 디자인을 주문 첨부로 준비하지 못했습니다")
+            copied.append(destination_key)
+            if kind == "quote_request":
+                staged_image = Image(
+                    object_key=destination_key,
+                    entity_type="quote_request_upload",
+                    entity_id=destination_key,
+                    uploaded_by=user.id,
+                    content_type="image/png",
+                    upload_completed_at=now,
+                    expires_at=now + timedelta(hours=24),
+                )
+            else:
+                metadata = await gcs.object_metadata(destination_key)
+                if metadata is None:
+                    raise UpstreamError("복사된 주문 참고 이미지를 확인하지 못했습니다")
+                if not 0 < metadata.size_bytes <= MAX_ORDER_IMAGE_BYTES:
+                    raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
+                if metadata.content_type != "image/png":
+                    raise DomainError("이미지 형식이 일치하지 않습니다", code="invalid_image_type")
+                staged_image = Image(
+                    object_key=destination_key,
+                    entity_type=order_upload_entity_type(kind),
+                    entity_id=destination_key,
+                    uploaded_by=user.id,
+                    content_type="image/png",
+                    size_bytes=metadata.size_bytes,
+                    upload_completed_at=now,
+                    expires_at=now + timedelta(hours=24),
+                )
+            session.add(staged_image)
+            staged.append(staged_image)
         await session.flush()
         await session.commit()
     except Exception:
         await session.rollback()
-        try:
-            deleted = await request.app.state.gcs.delete_object(destination_key)
-        except Exception:
-            logger.exception("복사 후 실패한 주문 참고 이미지 정리 중 예외: %s", destination_key)
-        else:
-            if not deleted:
-                logger.error("복사 후 실패한 주문 참고 이미지 정리 실패: %s", destination_key)
+        for destination_key in copied:
+            try:
+                deleted = await gcs.delete_object(destination_key)
+            except Exception:
+                logger.exception(
+                    "복사 후 실패한 주문 참고 이미지 정리 중 예외: %s", destination_key
+                )
+            else:
+                if not deleted:
+                    logger.error("복사 후 실패한 주문 참고 이미지 정리 실패: %s", destination_key)
         raise
     return DesignOrderReferenceOut(
-        object_key=destination_key,
-        upload_id=staged_image.id if kind == "custom_order" else None,
+        items=[
+            DesignOrderReferenceItem(
+                object_key=image.object_key,
+                upload_id=image.id if kind == "custom_order" else None,
+            )
+            for image in staged
+        ]
     )
 
 
-def _job_object_key(job: GenerationJob) -> str | None:
-    key = job.result.get("object_key") if isinstance(job.result, dict) else None
+def _order_reference_sources(job: GenerationJob) -> list[str]:
+    """복사할 인수물 키 — 넥타이 실사 + 정본 타일. 레거시 행은 대표 이미지 1장.
+
+    접두는 worker의 content_key("fabric"|"tile", ...)와 결속한다.
+    """
+    names = ("tie_object_key", "tile_object_key")
+    keys = [k for n in names if (k := _job_result_key(job, n))] or [
+        _job_result_key(job, "object_key")
+    ]
+    return [
+        k
+        for k in keys
+        if k and k.startswith(("fabric/", "tile/")) and ".." not in k.split("/")
+    ]
+
+
+def _job_result_key(job: GenerationJob, name: str) -> str | None:
+    key = job.result.get(name) if isinstance(job.result, dict) else None
     return key if isinstance(key, str) and key else None
 
 
 def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # noqa: ANN001
-    object_key = _job_object_key(job)
+    def asset_url(name: str) -> str | None:
+        key = _job_result_key(job, name)
+        return public_asset_url(settings, key) if key else None
+
+    object_key = _job_result_key(job, "object_key")
     result_url = public_asset_url(settings, object_key) if object_key else None
     return GenerationJobOut(
         id=job.id,
@@ -2161,6 +2221,9 @@ def _generation_job_out(job: GenerationJob, settings) -> GenerationJobOut:  # no
         params=job.params,
         result=job.result,
         result_url=result_url,
+        tie_url=asset_url("tie_object_key"),
+        fabric_url=asset_url("fabric_object_key"),
+        tile_url=asset_url("tile_object_key"),
         error_message=job.error_message,
         request_id=job.request_id,
         attempts=job.attempts,

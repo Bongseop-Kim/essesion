@@ -190,7 +190,8 @@ export function FinalizeDialog({
         </VStack>
 
         <Text textStyle="caption" color="fg.neutral-muted">
-          실사화 이미지는 300 DPI로 생성돼요.
+          실제 제작물은 장인이 직조 방식을 최종 결정하며 이미지와 다를 수
+          있어요.
         </Text>
       </VStack>
     </Modal>

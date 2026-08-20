@@ -3934,9 +3934,9 @@ export type DesignIdeasRequest = {
 };
 
 /**
- * DesignOrderReferenceOut
+ * DesignOrderReferenceItem
  */
-export type DesignOrderReferenceOut = {
+export type DesignOrderReferenceItem = {
     /**
      * Object Key
      */
@@ -3945,6 +3945,21 @@ export type DesignOrderReferenceOut = {
      * Upload Id
      */
     upload_id?: string | null;
+};
+
+/**
+ * DesignOrderReferenceOut
+ *
+ * 주문 인수물 — 넥타이 실사(고객 기대치 증빙)와 정본 타일(디자이너 작업 원본).
+ *
+ * 파일 개수는 내부 계약이다. 화면의 첨부 아이템은 "디자인 1개 = 카드 1개"로 유지하고
+ * 개수·경로를 노출하지 않는다. 레거시 finalize 행(object_key만)은 1개짜리 목록.
+ */
+export type DesignOrderReferenceOut = {
+    /**
+     * Items
+     */
+    items: Array<DesignOrderReferenceItem>;
 };
 
 /**
@@ -4364,6 +4379,10 @@ export type GenerationJobOut = {
      */
     error_message: string | null;
     /**
+     * Fabric Url
+     */
+    fabric_url?: string | null;
+    /**
      * Id
      */
     id: string;
@@ -4399,6 +4418,14 @@ export type GenerationJobOut = {
      * Status
      */
     status: string;
+    /**
+     * Tie Url
+     */
+    tie_url?: string | null;
+    /**
+     * Tile Url
+     */
+    tile_url?: string | null;
     /**
      * Updated At
      */

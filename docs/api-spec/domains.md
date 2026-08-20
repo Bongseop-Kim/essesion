@@ -99,9 +99,13 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 | `POST /design/motifs` · `GET /design/motifs` · `DELETE /design/motifs/{id}` | 내 모티프 라이브러리(계정당 100개) | 무료 |
 | `POST /design/motifs/text-preview` · `/design/motifs/photo-preview` | 글자·사진 → SVG 변환 | 무료 |
 | `POST /design/ideas` | 편집 초안 문장 3~4개 (별도 rate limit) | 무료 |
-| `POST /design/sessions/{id}/finalize` | 실사화 — 동기 요청-응답, 성공만 완성본 레코드로 남는다 | `design_finalize_cost` 토큰 |
+| `POST /design/sessions/{id}/finalize` | 실사화 — 동기 요청-응답, 성공만 완성본 레코드로 남는다. 산출물 3장: 넥타이 실사·원단 실사(AI 편집 2회) + 정본 타일(결정론 렌더) → `tie_url`/`fabric_url`/`tile_url` | `design_finalize_cost` 토큰 |
 | `POST /design/export` | 이미 만든 SVG의 PNG/TIFF 변환 | 무료 |
-| `GET /design/jobs` · `DELETE /design/jobs/{id}` · `POST /design/jobs/{id}/order-reference` | 완성본 목록·삭제·주문 연결 | — |
+| `GET /design/jobs` · `DELETE /design/jobs/{id}` · `POST /design/jobs/{id}/order-reference` | 완성본 목록·삭제·주문 연결(인수물 = 넥타이 실사 + 정본 타일 2장, 화면 첨부 카드는 1개) | — |
+
+**역할 명시**: 정본은 intent JSON + 결정론 타일이다. AI 실사 이미지는 시각적 설득·참고물이다.
+직조 실현 가능성 판단은 원단 디자이너(사람)의 영역이며 시스템은 이를 자동 판정하지 않는다.
+파이프라인 2단 구조와 3곳 결속(weave)은 `worker-pipeline.md` §2.
 
 폐기된 엔드포인트: `POST /design/sessions/{id}/select`(→ `steps/activate`), `.../reroll`("같은 지시로 다시" 없음), `.../branch`(분기 트리 UI 없음).
 

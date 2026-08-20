@@ -163,7 +163,8 @@ function CustomOrderPageContent({
     () => [
       ...selectedDesigns.map((job, index) => ({
         id: `design:${job.id}`,
-        src: job.result_url ?? "",
+        // 썸네일은 넥타이 실사 — 레거시 finalize 행은 result_url로 폴백.
+        src: job.tie_url ?? job.result_url ?? "",
         alt: `AI 완성 디자인 ${index + 1}`,
       })),
       ...previewUrls.map(({ id, file, url }) => ({
@@ -318,6 +319,7 @@ function CustomOrderPageContent({
   const uploadOrderImages = async () => {
     const [uploads, imported] = await Promise.all([
       Promise.all(files.map((file) => uploadOrderImage(file, "custom_order"))),
+      // 디자인 1개 = 서버 파일 2개(넥타이 실사 + 정본 타일). 첨부 카드는 1개로 유지된다.
       Promise.all(
         selectedDesigns.map(async (job) => {
           const response = await createDesignOrderReference({
@@ -325,13 +327,17 @@ function CustomOrderPageContent({
             query: { kind: "custom_order" },
             throwOnError: true,
           });
-          if (!response.data.upload_id)
-            throw new Error("완성 디자인의 주문 업로드를 확인하지 못했습니다.");
-          return { upload_id: response.data.upload_id };
+          return response.data.items.map((item) => {
+            if (!item.upload_id)
+              throw new Error(
+                "완성 디자인의 주문 업로드를 확인하지 못했습니다.",
+              );
+            return { upload_id: item.upload_id };
+          });
         }),
       ),
     ]);
-    return [...uploads, ...imported];
+    return [...uploads, ...imported.flat()];
   };
 
   const uploadQuoteImages = async () => {
@@ -344,11 +350,13 @@ function CustomOrderPageContent({
             query: { kind: "quote_request" },
             throwOnError: true,
           });
-          return { object_key: response.data.object_key };
+          return response.data.items.map((item) => ({
+            object_key: item.object_key,
+          }));
         }),
       ),
     ]);
-    return [...uploads, ...imported];
+    return [...uploads, ...imported.flat()];
   };
 
   const submitOrderDraft = async () => {

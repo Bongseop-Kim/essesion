@@ -298,15 +298,16 @@ resource "google_cloud_run_v2_service" "worker_finalize" {
 
   template {
     service_account                  = google_service_account.worker_finalize.email
-    # 동기 요청-응답 — 실측 p95(로컬 최악 ~2s)에 Cloud Run 배수 여유. api 쪽
-    # worker_timeout_seconds(180s)가 먼저 만료해 환불 경로를 타도록, 그보다
-    # 여유 있게 길게 유지한다(generate의 180s < 300s와 같은 관계).
+    # 동기 요청-응답 — AI 실사화 편집 2회를 병렬로 돌려 실측 ~45s(quality=medium,
+    # finalize-ai-fabric 리뷰). api 쪽 worker_timeout_seconds(180s)가 먼저 만료해
+    # 환불 경로를 타도록, 그보다 여유 있게 길게 유지한다(generate의 180s < 300s와 같은 관계).
     timeout                          = "240s"
     max_instance_request_concurrency = 2
 
     scaling {
       min_instance_count = 0
-      # f1-micro 커넥션 예산(api DB_POOL_SIZE 주석) + 비용 상한. 동기 finalize p95 ≪ 타임아웃.
+      # f1-micro 커넥션 예산(api DB_POOL_SIZE 주석) + 비용 상한. finalize는 업스트림
+      # 편집 대기(I/O 바운드)라 인스턴스 1개로 동시 2건을 감당한다.
       max_instance_count = 1
     }
 
