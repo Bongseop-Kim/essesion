@@ -681,6 +681,14 @@ describe("OrderDetailPage", () => {
     renderPage();
 
     expect(await screen.findByText("수선")).toBeTruthy();
+    // 개요 탭 — 수기 주문 상세와 동일한 품목 표기
+    expect(screen.getByText("수선 품목")).toBeTruthy();
+    expect(screen.getByText("자동수선 · 폭수선 · 복원수선")).toBeTruthy();
+    expect(screen.getByText("지퍼 · 방 · 딤플")).toBeTruthy();
+    expect(screen.getByText("끈 · 돌려묶기 · 기본")).toBeTruthy();
+    expect(screen.getByText("175cm")).toBeTruthy();
+    expect(screen.getByText("7.5cm")).toBeTruthy();
+    expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "배송·수선" }));
     expect(screen.getByText("010-2222-3333")).toBeTruthy();
     expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();

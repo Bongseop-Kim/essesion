@@ -6472,7 +6472,7 @@
             "items": {
               "$ref": "#/components/schemas/OrderReferenceImageIn"
             },
-            "maxItems": 5,
+            "maxItems": 10,
             "title": "Reference Images",
             "type": "array"
           },
@@ -7293,7 +7293,7 @@
         "title": "DesignIdeasRequest",
         "type": "object"
       },
-      "DesignOrderReferenceOut": {
+      "DesignOrderReferenceItem": {
         "properties": {
           "object_key": {
             "title": "Object Key",
@@ -7314,6 +7314,22 @@
         },
         "required": [
           "object_key"
+        ],
+        "title": "DesignOrderReferenceItem",
+        "type": "object"
+      },
+      "DesignOrderReferenceOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DesignOrderReferenceItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
         ],
         "title": "DesignOrderReferenceOut",
         "type": "object"
@@ -8132,6 +8148,17 @@
             ],
             "title": "Error Message"
           },
+          "fabric_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fabric Url"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -8195,6 +8222,28 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "tie_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tie Url"
+          },
+          "tile_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tile Url"
           },
           "updated_at": {
             "format": "date-time",
@@ -8889,6 +8938,95 @@
         "title": "ManualAutomaticSpec",
         "type": "object"
       },
+      "ManualCustomSpec": {
+        "additionalProperties": false,
+        "description": "주문제작 — 종이 양식의 핵심 항목만(원단·봉제·규격·타이 폭·메모).\n\n키 이름·값은 store 맞춤 주문 options 어휘(fabric_provided, design_type,\nfabric_type, tie_type, size_type)를 따른다. 수량은 품목 공통 quantity를 쓴다.",
+        "properties": {
+          "design_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "PRINTING",
+                  "YARN_DYED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design Type"
+          },
+          "dimple": {
+            "default": false,
+            "title": "Dimple",
+            "type": "boolean"
+          },
+          "fabric_provided": {
+            "default": false,
+            "title": "Fabric Provided",
+            "type": "boolean"
+          },
+          "fabric_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "POLY",
+                  "SILK"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fabric Type"
+          },
+          "memo": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Memo",
+            "type": "string"
+          },
+          "size_type": {
+            "default": "ADULT",
+            "enum": [
+              "ADULT",
+              "CHILD"
+            ],
+            "title": "Size Type",
+            "type": "string"
+          },
+          "tie_type": {
+            "default": "MANUAL",
+            "enum": [
+              "MANUAL",
+              "AUTO"
+            ],
+            "title": "Tie Type",
+            "type": "string"
+          },
+          "tie_width_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tie Width Cm"
+          },
+          "turn_knot": {
+            "default": false,
+            "title": "Turn Knot",
+            "type": "boolean"
+          }
+        },
+        "title": "ManualCustomSpec",
+        "type": "object"
+      },
       "ManualOrderCreateRequest": {
         "properties": {
           "address": {
@@ -8968,12 +9106,22 @@
       },
       "ManualOrderItem": {
         "additionalProperties": false,
-        "description": "품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태.",
+        "description": "품목 — automatic/width/restoration/custom 존재 여부가 대분류 체크 상태.",
         "properties": {
           "automatic": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ManualAutomaticSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "custom": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManualCustomSpec"
               },
               {
                 "type": "null"
@@ -13773,7 +13921,7 @@
             "items": {
               "$ref": "#/components/schemas/OrderReferenceImageIn"
             },
-            "maxItems": 5,
+            "maxItems": 10,
             "title": "Reference Images",
             "type": "array"
           },
@@ -22613,7 +22761,7 @@
     },
     "/design/jobs/{job_id}/order-reference": {
       "post": {
-        "description": "소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.",
+        "description": "소유한 finalize 결과를 주문 첨부용 비공개 객체로 가져온다.\n\nfinalize 1건은 파일 2개(넥타이 실사 + 정본 타일)를 남긴다 — 화면은 여전히 카드\n1개로 본다(DesignOrderReferenceOut 주석).",
         "operationId": "create_design_order_reference",
         "parameters": [
           {

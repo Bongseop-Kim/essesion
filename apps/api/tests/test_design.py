@@ -180,7 +180,14 @@ class FakeWorker:
 
     async def finalize(self, payload):
         self.finalize_payloads.append(payload)
-        return {"object_key": f"fabric/fake-{len(self.finalize_payloads)}.png"}
+        n = len(self.finalize_payloads)
+        return {
+            "tie_object_key": f"fabric/fake-tie-{n}.png",
+            "fabric_object_key": f"fabric/fake-{n}.png",
+            "tile_object_key": f"tile/fake-{n}.png",
+            # 레거시 별칭 — 컷오버 전 행과 같은 표시 경로를 유지한다.
+            "object_key": f"fabric/fake-{n}.png",
+        }
 
     async def export(self, payload):
         self.export_payloads.append(payload)
@@ -463,7 +470,13 @@ async def test_generate_and_finalize_job(client, app, db_session, settings):
     # run_id는 provenance 기록용 — 워커 렌더 입력에는 실리지 않는다.
     assert len(app.state.worker.finalize_payloads) == 1
     assert "run_id" not in app.state.worker.finalize_payloads[0]
-    assert job.json()["result"]["object_key"].startswith("fabric/")
+    finalized = job.json()
+    assert finalized["result"]["object_key"].startswith("fabric/")
+    # 삼중 산출물이 각각 공개 URL로 노출된다(레거시 result_url은 원단 이미지로 유지).
+    assert finalized["tie_url"].endswith("fabric/fake-tie-1.png")
+    assert finalized["fabric_url"].endswith("fabric/fake-1.png")
+    assert finalized["tile_url"].endswith("tile/fake-1.png")
+    assert finalized["result_url"] == finalized["fabric_url"]
 
     listed = await client.get("/design/jobs", headers=headers)
     assert [row["id"] for row in listed.json()] == [job.json()["id"]]
@@ -1788,14 +1801,15 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
     headers = auth_headers(owner, settings)
     response = await client.post(f"/design/jobs/{job.id}/order-reference", headers=headers)
     assert response.status_code == 200
-    destination = response.json()["object_key"]
+    # 레거시 finalize 행(object_key만)은 인수물 1개.
+    (item,) = response.json()["items"]
+    destination = item["object_key"]
     prefix = f"uploads/custom_order/design-{job.id}-"
     assert destination.startswith(prefix)
     assert destination.endswith(".png")
     assert len(destination.removeprefix(prefix).removesuffix(".png")) == 32
-    assert response.json()["object_key"] == destination
-    assert response.json()["upload_id"] is not None
-    staged_order_image = await db_session.get(Image, uuid.UUID(response.json()["upload_id"]))
+    assert item["upload_id"] is not None
+    staged_order_image = await db_session.get(Image, uuid.UUID(item["upload_id"]))
     assert staged_order_image is not None
     assert staged_order_image.entity_type == "custom_order_upload"
     assert staged_order_image.upload_completed_at is not None
@@ -1803,7 +1817,7 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
 
     repeated = await client.post(f"/design/jobs/{job.id}/order-reference", headers=headers)
     assert repeated.status_code == 200
-    repeated_destination = repeated.json()["object_key"]
+    repeated_destination = repeated.json()["items"][0]["object_key"]
     assert repeated_destination.startswith(prefix)
     assert repeated_destination.endswith(".png")
     assert repeated_destination != destination
@@ -1817,7 +1831,7 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
         f"/design/jobs/{job.id}/order-reference?kind=quote_request", headers=headers
     )
     assert quote_reference.status_code == 200
-    quote_destination = quote_reference.json()["object_key"]
+    quote_destination = quote_reference.json()["items"][0]["object_key"]
     assert quote_destination.startswith(f"uploads/quote_request/design-{job.id}-")
     staged = await db_session.scalar(select(Image).where(Image.object_key == quote_destination))
     assert staged is not None
@@ -1834,6 +1848,43 @@ async def test_create_design_order_reference_copies_owned_succeeded_finalize(
         headers=auth_headers(other, settings),
     )
     assert forbidden.status_code == 403
+
+
+async def test_design_order_reference_copies_tie_photo_and_canonical_tile(
+    client, app, db_session, settings
+):
+    """삼중 산출물 행은 파일 2개(넥타이 실사 + 정본 타일)를 인수물로 남긴다 —
+    화면의 첨부 카드는 1개지만 디자이너는 작업 원본인 타일을 함께 받는다."""
+
+    owner = await make_user(db_session)
+    job = GenerationJob(
+        user_id=owner.id,
+        kind="finalize",
+        status="succeeded",
+        params={},
+        result={
+            "tie_object_key": "fabric/tie.png",
+            "fabric_object_key": "fabric/fabric.png",
+            "tile_object_key": "tile/canonical.png",
+            "object_key": "fabric/fabric.png",
+        },
+    )
+    db_session.add(job)
+    await db_session.commit()
+
+    response = await client.post(
+        f"/design/jobs/{job.id}/order-reference",
+        headers=auth_headers(owner, settings),
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 2
+    assert all(item["upload_id"] is not None for item in items)
+    # 원단 실사는 인수물이 아니다 — 고객 설득용이라 주문에 싣지 않는다.
+    assert [source for _, source, _ in app.state.gcs.copied] == [
+        "fabric/tie.png",
+        "tile/canonical.png",
+    ]
 
 
 async def test_design_order_reference_deletes_copy_when_validation_fails(

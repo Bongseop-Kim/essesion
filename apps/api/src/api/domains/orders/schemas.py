@@ -15,7 +15,9 @@ MAX_ITEM_ID_LENGTH = 200
 MAX_OPTION_ID_LENGTH = 64
 MAX_OPTIONS_BYTES = 10_000
 MAX_ADDITIONAL_NOTES_LENGTH = 500
-MAX_REFERENCE_IMAGES = 5
+# 화면 상한은 store의 MAX_IMAGES(첨부 카드 5개)다. 서버 상한은 남용 방지용이라
+# 한 카드가 여러 파일이 되는 내부 계약(AI 디자인 = 넥타이 실사 + 정본 타일)을 수용한다.
+MAX_REFERENCE_IMAGES = 10
 MAX_OBJECT_KEY_LENGTH = 1_024
 
 

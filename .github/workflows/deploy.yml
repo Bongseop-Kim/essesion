@@ -125,7 +125,17 @@ jobs:
       - name: Reject local or placeholder frontend endpoints
         run: |
           # 포트까지 붙여야 한다 — 맨 http://localhost는 react-router 내부 더미 base URL과 오탐한다.
-          if grep -R -E 'http://localhost:[0-9]+|api\.example\.invalid' apps/store/dist apps/admin/dist; then
+          # localhost:8969는 @sentry/react에 내장된 Spotlight 기본 sidecar URL(프로덕션에서 미사용)이라 제외.
+          scan_status=0
+          raw=$(grep -R -oE 'http://localhost:[0-9]+|api\.example\.invalid' apps/store/dist apps/admin/dist) || scan_status=$?
+          # grep 1 = 매치 없음(정상). 그 외 비-0(dist 디렉토리 누락 등)은 스캔 실패로 전파한다.
+          if [ "$scan_status" -gt 1 ]; then
+            echo "endpoint scan failed (grep exit $scan_status)" >&2
+            exit "$scan_status"
+          fi
+          matches=$(printf '%s' "$raw" | grep -v 'http://localhost:8969$' || true)
+          if [ -n "$matches" ]; then
+            echo "$matches"
             echo 'frontend build contains a non-deployable endpoint' >&2
             exit 1
           fi

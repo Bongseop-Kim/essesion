@@ -56,7 +56,7 @@ const settings: AdminSettingOut[] = [
   },
   {
     key: "design_finalize_cost",
-    value: "5",
+    value: "200",
     value_type: "non_negative_integer",
     updated_at: "2026-07-12T01:00:00Z",
     updated_by: "admin-1",
@@ -127,8 +127,8 @@ describe("SettingsPage", () => {
     renderPage();
 
     expect(await screen.findByText("실사화 토큰 단가")).toBeTruthy();
-    // 현재 값·시스템 기본값 모두 "5개" — 개 단위 포맷 확인
-    expect(screen.getAllByText("5개").length).toBeGreaterThan(0);
+    // 현재 값·시스템 기본값 모두 "200개" — 개 단위 포맷 확인
+    expect(screen.getAllByText("200개").length).toBeGreaterThan(0);
     await user.click(screen.getAllByRole("button", { name: "수정" })[2]!);
     expect(await screen.findByLabelText("토큰 수량")).toBeTruthy();
   });

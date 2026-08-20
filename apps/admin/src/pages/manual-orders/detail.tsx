@@ -37,6 +37,7 @@ function itemCategoryLabel(item: ManualOrderItemOut) {
     item.automatic != null && "자동수선",
     item.width != null && "폭수선",
     item.restoration != null && "복원수선",
+    item.custom != null && "주문제작",
   ].filter((value): value is string => typeof value === "string");
   return categories.length === 0 ? "-" : categories.join(" · ");
 }
@@ -71,6 +72,39 @@ function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
       label: "[복원] 내용",
       value: item.restoration.memo === "" ? "-" : item.restoration.memo,
     });
+  }
+  if (item.custom != null) {
+    items.push(
+      {
+        label: "[제작] 원단",
+        value: item.custom.fabric_provided
+          ? "원단 제공"
+          : `${item.custom.fabric_type === "SILK" ? "실크" : "폴리"} · ${
+              item.custom.design_type === "YARN_DYED" ? "선염" : "날염"
+            }`,
+      },
+      {
+        label: "[제작] 봉제",
+        value:
+          item.custom.tie_type === "AUTO"
+            ? `자동 · ${item.custom.turn_knot ? "돌려묶기" : "방"} · ${
+                item.custom.dimple ? "딤플" : "기본"
+              }`
+            : "수동",
+      },
+      {
+        label: "[제작] 규격",
+        value: item.custom.size_type === "CHILD" ? "아동용" : "성인용",
+      },
+    );
+    if (item.custom.tie_width_cm != null) {
+      items.push({
+        label: "[제작] 타이 폭",
+        value: `${item.custom.tie_width_cm}cm`,
+      });
+    }
+    const memo = item.custom.memo ?? "";
+    if (memo !== "") items.push({ label: "[제작] 내용", value: memo });
   }
   const note = item.note ?? "";
   if (note !== "") items.push({ label: "특이사항", value: note });
@@ -200,7 +234,7 @@ export function ManualOrderDetailPage() {
       </AdminCard>
 
       <AdminCard
-        title="수선 품목"
+        title="작업 품목"
         description={`총 ${order.items.length.toLocaleString("ko-KR")}개 품목`}
       >
         {order.items.length === 0 ? (

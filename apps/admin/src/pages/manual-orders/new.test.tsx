@@ -86,6 +86,7 @@ describe("ManualOrderNewPage", () => {
                 },
                 width: { target_width_cm: 8.5 },
                 restoration: null,
+                custom: null,
                 note: "지퍼 교체 요청",
               },
             ],
@@ -111,6 +112,76 @@ describe("ManualOrderNewPage", () => {
     expect(
       (screen.getByRole("radio", { name: "방" }) as HTMLInputElement).checked,
     ).toBe(true);
+  });
+
+  it("주문제작 대분류를 선택하면 custom payload를 보낸다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await pickDate(user, /날짜/, "2026-07-15");
+    await user.type(screen.getByLabelText(/이름/), "홍길동");
+    await user.type(screen.getByLabelText(/휴대폰/), "01012345678");
+    await user.type(screen.getByLabelText(/금액/), "30000");
+
+    await user.click(screen.getByRole("checkbox", { name: "주문제작" }));
+    await user.click(screen.getByRole("radio", { name: "실크" }));
+    await user.click(screen.getByRole("radio", { name: "선염" }));
+    await user.click(screen.getByRole("radio", { name: "자동" }));
+    await user.click(screen.getByRole("radio", { name: "돌려묶기" }));
+    await user.click(screen.getByRole("radio", { name: "딤플" }));
+    await user.click(screen.getByRole("radio", { name: "아동용" }));
+    await user.type(screen.getByLabelText(/\[제작\] 타이 폭/), "7.5");
+    await user.type(screen.getByLabelText("[제작] 내용"), "로고 자수");
+
+    await user.click(screen.getByRole("button", { name: "수기 주문 등록" }));
+
+    await waitFor(() =>
+      expect(api.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            items: [
+              {
+                quantity: 1,
+                automatic: null,
+                width: null,
+                restoration: null,
+                custom: {
+                  fabric_provided: false,
+                  fabric_type: "SILK",
+                  design_type: "YARN_DYED",
+                  tie_type: "AUTO",
+                  dimple: true,
+                  turn_knot: true,
+                  size_type: "CHILD",
+                  tie_width_cm: 7.5,
+                  memo: "로고 자수",
+                },
+                note: "",
+              },
+            ],
+          }),
+        }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("수동 봉제를 선택하면 [제작] 돌려묶기·딤플이 해제되고 비활성화된다", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("checkbox", { name: "주문제작" }));
+    await user.click(screen.getByRole("radio", { name: "자동" }));
+    await user.click(screen.getByRole("radio", { name: "돌려묶기" }));
+    await user.click(screen.getByRole("radio", { name: "딤플" }));
+    await user.click(screen.getByRole("radio", { name: "수동" }));
+
+    const turnKnot = screen.getByRole("radio", { name: "돌려묶기" });
+    const dimple = screen.getByRole("radio", { name: "딤플" });
+    expect((turnKnot as HTMLInputElement).checked).toBe(false);
+    expect((turnKnot as HTMLInputElement).disabled).toBe(true);
+    expect((dimple as HTMLInputElement).checked).toBe(false);
+    expect((dimple as HTMLInputElement).disabled).toBe(true);
   });
 
   it("앞 품목을 삭제해도 뒤 품목의 입력 DOM을 유지한다", async () => {

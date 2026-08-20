@@ -392,6 +392,7 @@ export function ProductForm({
                       },
                     ]
               }
+              previewable
               max={1}
               accept="image/jpeg,image/png,image/webp"
               addLabel="대표 이미지 추가"
@@ -410,6 +411,7 @@ export function ProductForm({
                 src: image.src,
                 alt: `상품 상세 이미지 ${index + 1}`,
               }))}
+              previewable
               max={20}
               accept="image/jpeg,image/png,image/webp"
               addLabel="상세 이미지 추가"

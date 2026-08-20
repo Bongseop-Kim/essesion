@@ -37,19 +37,60 @@ class ManualAutomaticSpec(StrictModel):
         return self
 
 
+class ManualCustomSpec(StrictModel):
+    """주문제작 — 종이 양식의 핵심 항목만(원단·봉제·규격·타이 폭·메모).
+
+    키 이름·값은 store 맞춤 주문 options 어휘(fabric_provided, design_type,
+    fabric_type, tie_type, size_type)를 따른다. 수량은 품목 공통 quantity를 쓴다.
+    """
+
+    fabric_provided: bool = False  # True=고객 원단 제공
+    fabric_type: Literal["POLY", "SILK"] | None = None
+    design_type: Literal["PRINTING", "YARN_DYED"] | None = None
+    tie_type: Literal["MANUAL", "AUTO"] = "MANUAL"
+    dimple: bool = False  # AUTO 전용
+    turn_knot: bool = False  # AUTO 전용
+    size_type: Literal["ADULT", "CHILD"] = "ADULT"
+    tie_width_cm: float | None = Field(default=None, gt=0)
+    memo: str = Field(default="", max_length=200)
+
+    @field_validator("memo")
+    @classmethod
+    def strip_memo(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_spec(self) -> "ManualCustomSpec":
+        if self.fabric_provided:
+            # 원단 제공이면 원단 선택은 무의미 — 저장분 재검증(_out)이 통과하도록 정규화
+            self.fabric_type = None
+            self.design_type = None
+        elif self.fabric_type is None or self.design_type is None:
+            raise ValueError("원단 제공이 아니면 원단·디자인 방식을 선택해주세요")
+        if self.tie_type != "AUTO" and (self.dimple or self.turn_knot):
+            raise ValueError("딤플·돌려묶기는 자동 봉제에서만 선택할 수 있습니다")
+        return self
+
+
 class ManualOrderItem(StrictModel):
-    """품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태."""
+    """품목 — automatic/width/restoration/custom 존재 여부가 대분류 체크 상태."""
 
     quantity: int = Field(ge=1, le=999)
     automatic: ManualAutomaticSpec | None = None
     width: WidthReform | None = None
     restoration: RestorationReform | None = None
+    custom: ManualCustomSpec | None = None
     note: str = Field(default="", max_length=500)  # 특이사항
 
     @model_validator(mode="after")
     def validate_category_selected(self) -> "ManualOrderItem":
-        if self.automatic is None and self.width is None and self.restoration is None:
-            raise ValueError("수선 대분류를 하나 이상 선택해주세요")
+        if (
+            self.automatic is None
+            and self.width is None
+            and self.restoration is None
+            and self.custom is None
+        ):
+            raise ValueError("대분류를 하나 이상 선택해주세요")
         return self
 
 

@@ -3934,9 +3934,9 @@ export type DesignIdeasRequest = {
 };
 
 /**
- * DesignOrderReferenceOut
+ * DesignOrderReferenceItem
  */
-export type DesignOrderReferenceOut = {
+export type DesignOrderReferenceItem = {
     /**
      * Object Key
      */
@@ -3945,6 +3945,16 @@ export type DesignOrderReferenceOut = {
      * Upload Id
      */
     upload_id?: string | null;
+};
+
+/**
+ * DesignOrderReferenceOut
+ */
+export type DesignOrderReferenceOut = {
+    /**
+     * Items
+     */
+    items: Array<DesignOrderReferenceItem>;
 };
 
 /**
@@ -4364,6 +4374,10 @@ export type GenerationJobOut = {
      */
     error_message: string | null;
     /**
+     * Fabric Url
+     */
+    fabric_url?: string | null;
+    /**
      * Id
      */
     id: string;
@@ -4399,6 +4413,14 @@ export type GenerationJobOut = {
      * Status
      */
     status: string;
+    /**
+     * Tie Url
+     */
+    tie_url?: string | null;
+    /**
+     * Tile Url
+     */
+    tile_url?: string | null;
     /**
      * Updated At
      */
@@ -4806,6 +4828,53 @@ export type ManualAutomaticSpec = {
 };
 
 /**
+ * ManualCustomSpec
+ *
+ * 주문제작 — 종이 양식의 핵심 항목만(원단·봉제·규격·타이 폭·메모).
+ *
+ * 키 이름·값은 store 맞춤 주문 options 어휘(fabric_provided, design_type,
+ * fabric_type, tie_type, size_type)를 따른다. 수량은 품목 공통 quantity를 쓴다.
+ */
+export type ManualCustomSpec = {
+    /**
+     * Design Type
+     */
+    design_type?: 'PRINTING' | 'YARN_DYED' | null;
+    /**
+     * Dimple
+     */
+    dimple?: boolean;
+    /**
+     * Fabric Provided
+     */
+    fabric_provided?: boolean;
+    /**
+     * Fabric Type
+     */
+    fabric_type?: 'POLY' | 'SILK' | null;
+    /**
+     * Memo
+     */
+    memo?: string;
+    /**
+     * Size Type
+     */
+    size_type?: 'ADULT' | 'CHILD';
+    /**
+     * Tie Type
+     */
+    tie_type?: 'MANUAL' | 'AUTO';
+    /**
+     * Tie Width Cm
+     */
+    tie_width_cm?: number | null;
+    /**
+     * Turn Knot
+     */
+    turn_knot?: boolean;
+};
+
+/**
  * ManualOrderCreateRequest
  */
 export type ManualOrderCreateRequest = {
@@ -4854,10 +4923,11 @@ export type ManualOrderCreateRequest = {
 /**
  * ManualOrderItem
  *
- * 품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태.
+ * 품목 — automatic/width/restoration/custom 존재 여부가 대분류 체크 상태.
  */
 export type ManualOrderItem = {
     automatic?: ManualAutomaticSpec | null;
+    custom?: ManualCustomSpec | null;
     /**
      * Note
      */

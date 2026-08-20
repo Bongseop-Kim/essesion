@@ -310,6 +310,7 @@ export function SampleOrderPage() {
                   src: url,
                   alt: file.name,
                 }))}
+                previewable
                 max={MAX_IMAGES}
                 accept={CUSTOM_IMAGE_ACCEPT}
                 onAddFiles={addFiles}
