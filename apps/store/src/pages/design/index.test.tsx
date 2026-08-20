@@ -206,7 +206,8 @@ function memoryStorage(): Storage {
 }
 
 function disabled(element: HTMLElement) {
-  return (element as HTMLButtonElement | HTMLInputElement).disabled;
+  return (element as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement)
+    .disabled;
 }
 
 /** 지금 열려 있는 오버레이의 제목들 — dialog 자식은 닫혀도 DOM에 남는다. */
@@ -331,7 +332,7 @@ describe("DesignPage canvas shell", () => {
         },
       },
     });
-    const select = vi.spyOn(HTMLInputElement.prototype, "select");
+    const select = vi.spyOn(HTMLTextAreaElement.prototype, "select");
     const queryClient = renderPage();
 
     const input = await screen.findByLabelText("무엇을 바꿀까요?");
@@ -340,7 +341,7 @@ describe("DesignPage canvas shell", () => {
 
     const panel = await screen.findByRole("region", { name: "모티프 선택" });
     await waitFor(() => expect(panel.dataset.highlighted).toBe("true"));
-    expect((input as HTMLInputElement).value).toBe("벌을 나비로 바꿔줘");
+    expect((input as HTMLTextAreaElement).value).toBe("벌을 나비로 바꿔줘");
     expect(select).toHaveBeenCalled();
     expect(screen.queryByText(/그림을 바꾸는 건 왼쪽 .*모티프/)).toBeNull();
 

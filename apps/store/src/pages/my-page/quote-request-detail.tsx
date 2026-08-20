@@ -1,4 +1,3 @@
-import { createReadUrl } from "@essesion/api-client";
 import { getQuoteOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -18,7 +17,6 @@ import {
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
-
 import { customOrderSummary } from "@/features/custom-order/model/options";
 import {
   formatQuoteAmount,
@@ -30,6 +28,7 @@ import {
   quoteReferenceImageKeys,
 } from "@/features/quote-request/model/snapshot";
 import { formatDate } from "@/shared/lib/format";
+import { signedReadUrlQueryOptions } from "@/shared/lib/signed-read-url";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { SummaryCard } from "@/shared/ui/summary-card";
 
@@ -45,16 +44,9 @@ export function QuoteRequestDetailPage() {
   const quote = quoteQuery.data;
   const imageKeys = quoteReferenceImageKeys(quote?.reference_images ?? []);
   const imageQueries = useQueries({
-    queries: imageKeys.map((objectKey) => ({
-      queryKey: ["quote-reference-image", objectKey],
-      queryFn: async () => {
-        const response = await createReadUrl({
-          body: { object_key: objectKey },
-          throwOnError: true,
-        });
-        return response.data.read_url;
-      },
-    })),
+    // staleTime 없이 전역 기본을 타던 유일한 서명 URL 쿼리 — 공유 헬퍼로 통일해
+    // 포커스마다 재발급 + 이미지 재다운로드되던 것을 없앤다.
+    queries: imageKeys.map((objectKey) => signedReadUrlQueryOptions(objectKey)),
   });
 
   if (!quoteId) return <Navigate to={LIST_PATH} replace />;

@@ -12,7 +12,7 @@ locals {
 
   batch_jobs = {
     auto-confirm-orders            = "10 4 * * *"   # 일 1회 — 배송완료 7일 경과 자동 구매확정
-    cancel-stale-orders            = "*/15 * * * *" # 대기중 30분 SLA — 최악 45분 내 정리
+    cancel-stale-orders            = "*/30 * * * *" # 대기중 30분 SLA — 최악 60분 내 정리 (호출 수 절반, perf-cost-reduction 리뷰 20번)
     cleanup-images                 = "40 4 * * *"   # 일 1회 — 만료·클레임 이미지 2단계 삭제(LIMIT 100)
     authoring-promotion-candidates = "0 5 * * *"    # 일 1회 — 승인 검토용 RAG 시범 후보 선별
   }

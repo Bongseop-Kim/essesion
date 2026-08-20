@@ -40,6 +40,18 @@ import {
 
 const SEAMLESS_STATUSES = ["success", "partial", "error"] as const;
 const SAFE_IDENTIFIER_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/;
+// 목록은 created_at desc — 첫 행이 최신. 이 안에 새 로그가 있으면 생성 활동 중으로 본다.
+const RECENT_ACTIVITY_WINDOW_MS = 5 * 60_000;
+
+function hasRecentSeamlessActivity(
+  items: SeamlessSummaryOut[] | undefined,
+): boolean {
+  const newest = items?.[0]?.created_at;
+  return (
+    !!newest &&
+    Date.now() - new Date(newest).getTime() < RECENT_ACTIVITY_WINDOW_MS
+  );
+}
 
 type SeamlessStatus = (typeof SEAMLESS_STATUSES)[number];
 
@@ -103,13 +115,20 @@ export function SeamlessLogsPage() {
       },
     }),
     placeholderData: keepPreviousData,
-    refetchInterval: () =>
-      autoRefreshPaused ? false : activeAdminPollingInterval(true),
+    refetchInterval: (query) =>
+      autoRefreshPaused
+        ? false
+        : activeAdminPollingInterval(
+            hasRecentSeamlessActivity(query.state.data?.items),
+          ),
   });
+  // seamless 로그는 종결 상태뿐이라(jobs의 queued/processing 같은 진행 중 신호 없음)
+  // "최근 로그 유입"을 활동 신호로 쓴다 — 유휴 상태에서 무기한 폴링하지 않기 위함.
+  const hasRecentActivity = hasRecentSeamlessActivity(listQuery.data?.items);
   const statsQuery = useQuery({
     ...getAdminSeamlessStatsOptions({ query: commonQuery }),
     refetchInterval: () =>
-      autoRefreshPaused ? false : activeAdminPollingInterval(true),
+      autoRefreshPaused ? false : activeAdminPollingInterval(hasRecentActivity),
   });
 
   useEffect(() => {

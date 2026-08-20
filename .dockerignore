@@ -9,6 +9,7 @@ __pycache__
 gha-creds-*.json
 apps/store
 apps/admin
+apps/*/tests
 packages
 infra
 docs

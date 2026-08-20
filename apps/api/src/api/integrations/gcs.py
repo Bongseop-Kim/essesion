@@ -9,6 +9,7 @@ URL을 발급한다. 배포 환경에서 버킷이 빠지면 기동을 중단한
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Protocol, cast
@@ -24,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 UPLOAD_URL_TTL = timedelta(minutes=15)
 READ_URL_TTL = timedelta(minutes=15)
+# 서명 1건 = IAM signBlob 네트워크 호출 1건이라 같은 객체를 매번 재서명하면 화면마다
+# 수십~수백 ms가 붙는다. URL TTL보다 짧게 캐시해 만료 임박 URL은 주지 않는다.
+READ_URL_CACHE_TTL_S = 600
+READ_URL_CACHE_MAX = 2048
 # worker(worker/integrations.py)·docker-compose.yml과 같은 값이어야 한다 — 포트를 바꾸면 세 곳 모두.
 LOCAL_GCS_EMULATOR_HOST = "http://localhost:4443"
 LOCAL_UPLOAD_BUCKET = "dev-uploads"
@@ -55,6 +60,9 @@ def public_asset_url(settings: Settings, object_key: str) -> str:
     emulator_host = _emulator_host(settings)
     if emulator_host:
         base_url = f"{emulator_host.rstrip('/')}/{bucket}"
+    elif settings.public_assets_origin:
+        # Cloudflare assets-proxy가 버킷을 알고 있으므로 경로에는 객체 키만 남는다.
+        base_url = settings.public_assets_origin.rstrip("/")
     else:
         base_url = f"https://storage.googleapis.com/{bucket}"
     return f"{base_url}/{quote(object_key, safe='/')}"
@@ -114,6 +122,7 @@ class RealGcsClient:
             self._client = storage.Client(credentials=credentials)
         self._bucket_name = bucket_name
         self._bucket = self._client.bucket(bucket_name)
+        self._read_url_cache: dict[str, tuple[float, str]] = {}
 
     async def _signing_identity(self) -> tuple[str | None, str | None]:
         credentials = cast(Credentials, self._client._credentials)
@@ -171,9 +180,13 @@ class RealGcsClient:
     async def signed_read_url(self, object_key: str) -> str:
         if self._emulator_host:
             return self._emulator_url(self._bucket_name, object_key)
+        now = time.monotonic()
+        cached = self._read_url_cache.get(object_key)
+        if cached and cached[0] > now:
+            return cached[1]
         blob = self._bucket.blob(object_key)
         service_account_email, access_token = await self._signing_identity()
-        return await run_in_threadpool(
+        url = await run_in_threadpool(
             blob.generate_signed_url,
             version="v4",
             expiration=READ_URL_TTL,
@@ -181,6 +194,12 @@ class RealGcsClient:
             service_account_email=service_account_email,
             access_token=access_token,
         )
+        if len(self._read_url_cache) >= READ_URL_CACHE_MAX:
+            # ponytail: 상한 도달 시 통삭제 — 키가 content-hash라 재적중이 빠르고,
+            # 적중률이 문제가 되면 LRU로 교체.
+            self._read_url_cache.clear()
+        self._read_url_cache[object_key] = (now + READ_URL_CACHE_TTL_S, url)
+        return url
 
     async def delete_object(self, object_key: str, *, bucket_name: str | None = None) -> bool:
         from google.cloud.exceptions import NotFound

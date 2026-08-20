@@ -80,7 +80,7 @@ def segment(intent: Intent, palette: Palette, *, dpi: int, tile_mm: float) -> Se
     label_palette = Palette(slots=label_slots, colorways=(label_cw,))
 
     svg = compose(intent, label_palette, DEFAULT_COLORWAY_ID)
-    png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi)
+    png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi, stamp_dpi=False)
     rgb = Image.open(io.BytesIO(png)).convert("RGB")
 
     pal_img = Image.new("P", (1, 1))

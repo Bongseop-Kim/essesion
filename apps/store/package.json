@@ -17,6 +17,7 @@
     "@sentry/react": "^10.65.0",
     "@tanstack/react-query": "catalog:",
     "@tosspayments/tosspayments-sdk": "catalog:",
+    "posthog-js": "^1.418.1",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-hook-form": "catalog:",

@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     solapi_template_payment_done: str = ""  # 비면 결제완료 알림을 건너뛴다
     gcs_upload_bucket: str = ""  # 비공개 업로드 버킷 (공개 생성물 assets와 분리 — ARCHITECTURE §5)
     gcs_assets_bucket: str = ""  # 공개 상품·생성물 버킷
+    # 공개 자산 서빙 origin — 설정하면 storage.googleapis.com 직통 대신 이 origin으로
+    # URL을 만든다 (Cloudflare assets-proxy 캐시, infra/cloudflare/README.md).
+    # 빈 값이면 직통 — 프록시 custom domain이 살아 있을 때만 설정할 것.
+    public_assets_origin: str = ""
     # local/test에서 비우면 builder가 docker compose의 fake-gcs-server를 사용한다.
     gcs_emulator_host: str = ""
     worker_base_url: str = "http://localhost:8001"

@@ -57,7 +57,7 @@ test("seed 관리자가 보호 목록·상세의 상태 변경을 실행하고 �
     isApiResponse(response, "POST", "/auth/admin/login"),
   );
   const dashboardResponsePromise = page.waitForResponse((response) =>
-    isApiResponse(response, "GET", "/admin/dashboard/summary"),
+    isApiResponse(response, "GET", "/admin/dashboard/overview"),
   );
   await page.getByRole("button", { name: "로그인", exact: true }).click();
 

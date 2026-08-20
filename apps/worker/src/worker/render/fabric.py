@@ -59,7 +59,7 @@ def _render_design(
     motifs: MotifCatalog | None = None,
 ) -> Image.Image:
     svg = compose(intent, palette, colorway_id, motifs)
-    png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi)
+    png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi, stamp_dpi=False)
     return Image.open(io.BytesIO(png)).convert("RGB")
 
 

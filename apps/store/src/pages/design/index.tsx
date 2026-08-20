@@ -402,10 +402,9 @@ export function DesignPage() {
               onOpenIdeas={() => ensureAuth() && setOverlay("ideas")}
               onOpenTools={() => setMobileToolsOpen(true)}
               toolsOpen={mobileToolsOpen}
+              // 여러 줄 입력창은 한 줄 높이에서 긴 문구를 잘라 보이므로 짧게 유지한다.
               placeholder={
-                hasDesign
-                  ? "무엇을 바꿀까요? 색, 줄무늬, 배치, 크기"
-                  : "원하는 색상, 무늬, 분위기를 입력하세요"
+                hasDesign ? "무엇을 바꿀까요?" : "원하는 넥타이를 알려주세요"
               }
               loading={busy}
               disabled={status === "loading"}

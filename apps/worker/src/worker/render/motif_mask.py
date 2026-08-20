@@ -77,7 +77,7 @@ def motif_coverage_mask(
     }
 
     svg = compose(intent, mask_palette, DEFAULT_COLORWAY_ID, mask_motifs)
-    png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi)
+    png, _ = raster.rasterize_svg(svg, fmt="png", width_mm=tile_mm, dpi=dpi, stamp_dpi=False)
     rendered = Image.open(io.BytesIO(png)).convert("RGBA")
     # 어떤 레이어도 덮지 않은 픽셀은 투명하다 — 검정 위에 합성해야 경계 AA가 커버리지
     # 비율 그대로 남는다(알파를 그냥 버리면 반투명 가장자리가 완전 불투명으로 읽힌다).

@@ -1,0 +1,15 @@
+{
+  "name": "essesion-assets-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  // 버킷 이름은 "<project>-assets"로 고정이라(시크릿 아님) 파일에 둔다 —
+  // api-proxy의 ORIGIN(run.app URL, 배포마다 조회)과 달리 --var 주입이 필요 없다.
+  "vars": { "BUCKET": "ysindustry-assets" },
+  // custom_domain — wrangler가 DNS 레코드와 인증서까지 만든다 (api-proxy와 동일).
+  "routes": [
+    {
+      "pattern": "assets.essesion.shop",
+      "custom_domain": true
+    }
+  ]
+}

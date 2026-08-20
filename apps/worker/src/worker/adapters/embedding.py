@@ -60,13 +60,59 @@ class OpenAIEmbeddingClient:
         return self._client
 
     async def embed(self, text: str) -> list[float]:
+        return (await self.embed_batch([text]))[0]
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """/embeddings 배열 입력 — 인덱싱·백필의 1건당 1 HTTP를 배치 1 HTTP로."""
+        if not texts:
+            return []
+        body = await self._request(list(texts))
+        try:
+            rows = list(body["data"])
+            indices = [row.get("index") for row in rows]
+            if any(index is not None for index in indices):
+                # 중복·누락·혼재·범위 밖이면 벡터가 엉뚱한 텍스트에 붙는다 — 조용히 정렬하지 않는다.
+                if None in indices or sorted(indices) != list(range(len(rows))):
+                    raise ValueError(f"invalid embedding indices: {indices}")
+                rows.sort(key=lambda row: row["index"])
+            # index가 전부 없으면 응답 순서(=입력 순서)를 그대로 쓴다.
+            vectors = [[float(value) for value in row["embedding"]] for row in rows]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise EmbeddingError(
+                "OpenAI returned an unexpected embedding payload",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="invalid_response",
+            ) from exc
+        if len(vectors) != len(texts):
+            raise EmbeddingError(
+                f"OpenAI embedding batch size mismatch: expected {len(texts)}, got {len(vectors)}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="invalid_response",
+            )
+        for vector in vectors:
+            self._check_dimensions(vector)
+        return vectors
+
+    def _check_dimensions(self, vector: list[float]) -> None:
+        if len(vector) != self.dimensions:
+            raise EmbeddingError(
+                "OpenAI embedding dimension mismatch: "
+                f"expected {self.dimensions}, got {len(vector)}",
+                provider="openai_embedding",
+                operation="embed",
+                reason_code="invalid_response",
+            )
+
+    async def _request(self, texts: list[str]) -> dict:
         response: httpx.Response | None = None
         for attempt in range(_MAX_ATTEMPTS):
             try:
                 response = await self._http().post(
                     f"{self._base_url}/embeddings",
                     headers={"Authorization": f"Bearer {self._api_key}"},
-                    json={"model": self.model, "input": text, "dimensions": self.dimensions},
+                    json={"model": self.model, "input": texts, "dimensions": self.dimensions},
                 )
             except httpx.TimeoutException as exc:
                 raise EmbeddingError(
@@ -100,30 +146,20 @@ class OpenAIEmbeddingClient:
             ) from exc
         try:
             body = response.json()
-            log_provider_usage(
-                body,
-                provider="openai_embedding",
-                operation="embed",
-                model=self.model,
-            )
-            values = body["data"][0]["embedding"]
-            vector = [float(value) for value in values]
-        except (KeyError, IndexError, TypeError, ValueError) as exc:
+        except ValueError as exc:
             raise EmbeddingError(
                 "OpenAI returned an unexpected embedding payload",
                 provider="openai_embedding",
                 operation="embed",
                 reason_code="invalid_response",
             ) from exc
-        if len(vector) != self.dimensions:
-            raise EmbeddingError(
-                "OpenAI embedding dimension mismatch: "
-                f"expected {self.dimensions}, got {len(vector)}",
-                provider="openai_embedding",
-                operation="embed",
-                reason_code="invalid_response",
-            )
-        return vector
+        log_provider_usage(
+            body,
+            provider="openai_embedding",
+            operation="embed",
+            model=self.model,
+        )
+        return body
 
     async def aclose(self) -> None:
         if self._client is not None and not self._client.is_closed:
@@ -137,9 +173,11 @@ class RequestScopedEmbedding:
         self.model = inner.model
 
     async def embed(self, text: str) -> list[float]:
-        if text not in self._memo:
-            self._memo[text] = asyncio.ensure_future(self._inner.embed(text))
-        return await self._memo[text]
+        # 공백 차이로 메모가 갈리지 않게 키만 정규화한다 — 전송 텍스트는 원문 유지.
+        key = text.strip()
+        if key not in self._memo:
+            self._memo[key] = asyncio.ensure_future(self._inner.embed(text))
+        return await self._memo[key]
 
 
 def request_scoped(client: SupportsEmbed | None) -> RequestScopedEmbedding | None:

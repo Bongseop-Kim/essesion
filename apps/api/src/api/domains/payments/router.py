@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 
 from api.db import SessionDep
 from api.deps import CurrentUser
@@ -16,7 +16,11 @@ router = APIRouter(tags=["payments"])
 
 @router.post("/payments/confirm", response_model=PaymentConfirmResponse)
 async def confirm_payment(
-    body: PaymentConfirmRequest, session: SessionDep, user: CurrentUser, request: Request
+    body: PaymentConfirmRequest,
+    session: SessionDep,
+    user: CurrentUser,
+    request: Request,
+    background: BackgroundTasks,
 ) -> PaymentConfirmResponse:
     return await service.confirm_payment(
         session,
@@ -25,6 +29,8 @@ async def confirm_payment(
         body,
         solapi=request.app.state.solapi,
         settings=request.app.state.settings,
+        # 알림톡 발송(solapi HTTP 최대 10초)을 응답 뒤로 미룬다
+        background=background,
     )
 
 

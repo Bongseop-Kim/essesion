@@ -27,20 +27,24 @@ router = APIRouter(tags=["products"])
 
 
 def _product_query(user: User | None):
-    # 상품별 찜 수 (상관 스칼라 서브쿼리) — SELECT 라벨과 popular 정렬에서 재사용.
-    likes = (
-        select(func.count())
-        .where(ProductLike.product_id == Product.id)
-        .correlate(Product)
-        .scalar_subquery()
+    # 상품별 찜 수 — 행마다 실행되던 상관 서브쿼리 대신 집계 한 번에 outer join.
+    # SELECT 라벨과 popular 정렬에서 재사용.
+    likes_agg = (
+        select(ProductLike.product_id, func.count().label("like_count"))
+        .group_by(ProductLike.product_id)
+        .subquery()
     )
+    likes = func.coalesce(likes_agg.c.like_count, 0)
     if user is not None:
         is_liked = exists().where(
             ProductLike.product_id == Product.id, ProductLike.user_id == user.id
         )
     else:
         is_liked = false()
-    return select(Product, likes.label("likes"), is_liked.label("is_liked")), likes
+    query = select(Product, likes.label("likes"), is_liked.label("is_liked")).outerjoin(
+        likes_agg, likes_agg.c.product_id == Product.id
+    )
+    return query, likes
 
 
 async def _load_options(session: AsyncSession, product_ids: list[int]) -> dict[int, list]:
@@ -75,7 +79,7 @@ async def list_products(
     material: Material | None = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     sort: SortOption = "latest",
-    limit: Annotated[int | None, Query(gt=0, le=100)] = None,
+    limit: Annotated[int, Query(gt=0, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[ProductOut]:
     query, likes = _product_query(user)
@@ -98,8 +102,7 @@ async def list_products(
     query = query.order_by(*order_by)
     if offset:
         query = query.offset(offset)
-    if limit is not None:
-        query = query.limit(limit)
+    query = query.limit(limit)
     rows = (await session.execute(query)).all()
     options = await _load_options(session, [p.id for p, _, _ in rows])
     return [_to_out(p, likes, liked, options[p.id]) for p, likes, liked in rows]

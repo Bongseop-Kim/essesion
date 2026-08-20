@@ -48,53 +48,43 @@ async def get_admin_capabilities(request: Request, admin: AdminUser) -> AdminCap
     return AdminCapabilitiesOut.model_validate(request.app.state.capabilities)
 
 
-@router.get("/dashboard/summary", response_model=DashboardSummaryOut)
-async def get_dashboard_summary(
+class DashboardOverviewOut(BaseModel):
+    summary: DashboardSummaryOut
+    timeseries: DashboardTimeseriesOut
+    top_products: DashboardTopProductsOut
+
+
+@router.get("/dashboard/overview", response_model=DashboardOverviewOut)
+async def get_dashboard_overview(
     session: SessionDep,
     admin: AdminUser,
     start_date: date | None = None,
     end_date: date | None = None,
     order_type: OrderTypeFilter = "all",
-) -> DashboardSummaryOut:
-    return await order_queries.dashboard_summary(
-        session,
-        start_date=start_date,
-        end_date=end_date,
-        order_type=order_type,
-    )
-
-
-@router.get("/dashboard/timeseries", response_model=DashboardTimeseriesOut)
-async def get_dashboard_timeseries(
-    session: SessionDep,
-    admin: AdminUser,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    order_type: OrderTypeFilter = "all",
-) -> DashboardTimeseriesOut:
-    return await order_queries.dashboard_timeseries(
-        session,
-        start_date=start_date,
-        end_date=end_date,
-        order_type=order_type,
-    )
-
-
-@router.get("/dashboard/top-products", response_model=DashboardTopProductsOut)
-async def get_dashboard_top_products(
-    session: SessionDep,
-    admin: AdminUser,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    limit: Annotated[
+    top_limit: Annotated[
         int, Query(ge=1, le=order_queries.MAX_TOP_PRODUCT_LIMIT)
     ] = order_queries.DEFAULT_TOP_PRODUCT_LIMIT,
-) -> DashboardTopProductsOut:
-    return await order_queries.dashboard_top_products(
-        session,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit,
+) -> DashboardOverviewOut:
+    """대시보드 요약·추이·인기 상품 — 같은 기간 파라미터를 쓰는 세 조회를 한 요청으로."""
+    return DashboardOverviewOut(
+        summary=await order_queries.dashboard_summary(
+            session,
+            start_date=start_date,
+            end_date=end_date,
+            order_type=order_type,
+        ),
+        timeseries=await order_queries.dashboard_timeseries(
+            session,
+            start_date=start_date,
+            end_date=end_date,
+            order_type=order_type,
+        ),
+        top_products=await order_queries.dashboard_top_products(
+            session,
+            start_date=start_date,
+            end_date=end_date,
+            limit=top_limit,
+        ),
     )
 
 

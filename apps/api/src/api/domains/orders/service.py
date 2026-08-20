@@ -52,7 +52,7 @@ from api.domains.reform.service import claim_reform_image, get_reform_pricing, r
 from api.errors import DomainError, ForbiddenError, NotFoundError
 from api.integrations.gcs import GcsClient
 from api.numbering import generate_number
-from api.pricing import get_pricing_constants
+from api.pricing import find_pricing_constants, get_pricing_constants
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -643,7 +643,6 @@ async def calculate_custom_amounts(
 ) -> dict[str, int]:
     if quantity <= 0:
         raise DomainError("Invalid quantity", code="invalid_quantity")
-    constants = await get_pricing_constants(session, CUSTOM_PRICING_KEYS)
 
     tie_type = options.get("tie_type") or ""
     interlining = options.get("interlining") or ""
@@ -657,6 +656,33 @@ async def calculate_custom_amounts(
         raise DomainError(
             "돌려묶기는 자동 봉제(AUTO)에서만 선택 가능합니다", code="invalid_options"
         )
+
+    fabric_key = None
+    design_type = None
+    if not options.get("fabric_provided"):
+        design_type, fabric_type = options.get("design_type"), options.get("fabric_type")
+        if not design_type or not fabric_type:
+            raise DomainError(
+                "fabric_provided=false이지만 design_type 또는 fabric_type이 null입니다",
+                code="invalid_options",
+            )
+        fabric_key = f"FABRIC_{design_type}_{fabric_type}"
+
+    # 같은 트랜잭션에서 두 번 SELECT하지 않도록 원단 키까지 한 번에 조회한다.
+    # 원단 키 누락은 사용자 입력 오류(invalid_options), 기본 키 누락은 시드 미실행
+    # (pricing_not_configured) — 구분을 위해 비검증 조회 후 각자 검사.
+    constants = await find_pricing_constants(
+        session,
+        CUSTOM_PRICING_KEYS if fabric_key is None else [*CUSTOM_PRICING_KEYS, fabric_key],
+    )
+    if fabric_key is not None and fabric_key not in constants:
+        raise DomainError(
+            "Unsupported design/fabric option for custom order pricing",
+            code="invalid_options",
+        )
+    for key in CUSTOM_PRICING_KEYS:
+        if key not in constants:
+            raise DomainError(f"Missing pricing constant: {key}", code="pricing_not_configured")
 
     sewing_per_unit = constants["SEWING_PER_COST"]
     sewing_per_unit += constants["AUTO_TIE_COST"] if tie_type == "AUTO" else 0
@@ -676,23 +702,10 @@ async def calculate_custom_amounts(
         sewing_per_unit += constants["WOOL_INTERLINING_COST"]
     sewing_cost = sewing_per_unit * quantity + constants["SAMPLE_SEWING_COST"]
 
-    if options.get("fabric_provided"):
+    if fabric_key is None:
         fabric_cost = 0
     else:
-        design_type, fabric_type = options.get("design_type"), options.get("fabric_type")
-        if not design_type or not fabric_type:
-            raise DomainError(
-                "fabric_provided=false이지만 design_type 또는 fabric_type이 null입니다",
-                code="invalid_options",
-            )
-        fabric_key = f"FABRIC_{design_type}_{fabric_type}"
-        try:
-            unit_fabric = (await get_pricing_constants(session, [fabric_key]))[fabric_key]
-        except DomainError as exc:
-            raise DomainError(
-                "Unsupported design/fabric option for custom order pricing",
-                code="invalid_options",
-            ) from exc
+        unit_fabric = constants[fabric_key]
         # round-half-up (PG round와 동일) — 원단은 수량/4 단위 환산
         fabric_cost = (quantity * unit_fabric + 2) // 4
         # FABRIC_ 조회를 통과했으므로 design_type은 PRINTING·YARN_DYED 중 하나다.

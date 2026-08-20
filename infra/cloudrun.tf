@@ -6,6 +6,9 @@ locals {
   # 주의: 시크릿에 버전이 없으면 리비전이 기동 실패한다 — 부트스트랩은 2단계 apply(README).
   api_plain_env = merge({
     ENV                              = "production"
+    # f1-micro max_connections 25 예산 (perf-cost-reduction 리뷰 18번 — 비용 우선, 티어 상향 없음):
+    # api 3×4 + generate 2×4 + finalize 1×4 = 24. 상향 신호: 커넥션 에러 로그.
+    DB_POOL_SIZE                     = "4"
     GCS_UPLOAD_BUCKET                = google_storage_bucket.uploads.name
     GCS_ASSETS_BUCKET                = google_storage_bucket.assets.name
     WORKER_BASE_URL                  = google_cloud_run_v2_service.worker_generate.uri
@@ -77,7 +80,8 @@ resource "google_cloud_run_v2_service" "api" {
 
     scaling {
       min_instance_count = var.api_min_instances
-      max_instance_count = 10
+      # f1-micro 커넥션 예산(위 DB_POOL_SIZE 주석) + 비용 상한. 동시 20×3=60 요청 여유.
+      max_instance_count = 3
     }
 
     containers {
@@ -214,7 +218,8 @@ resource "google_cloud_run_v2_service" "worker_generate" {
 
     scaling {
       min_instance_count = 0
-      max_instance_count = 10
+      # f1-micro 커넥션 예산(api DB_POOL_SIZE 주석) + 비용 상한. 동시 생성 2×2=4 여유.
+      max_instance_count = 2
     }
 
     containers {
@@ -301,7 +306,8 @@ resource "google_cloud_run_v2_service" "worker_finalize" {
 
     scaling {
       min_instance_count = 0
-      max_instance_count = 5
+      # f1-micro 커넥션 예산(api DB_POOL_SIZE 주석) + 비용 상한. 동기 finalize p95 ≪ 타임아웃.
+      max_instance_count = 1
     }
 
     containers {

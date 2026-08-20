@@ -16,9 +16,7 @@ import { renderAdminPage } from "../test/render-admin-page";
 
 const api = vi.hoisted(() => ({
   capabilities: vi.fn(),
-  summary: vi.fn(),
-  timeseries: vi.fn(),
-  topProducts: vi.fn(),
+  overview: vi.fn(),
   orders: vi.fn(),
   quotes: vi.fn(),
 }));
@@ -28,17 +26,9 @@ vi.mock("@essesion/api-client/query", () => ({
     queryKey: ["admin-capabilities"],
     queryFn: api.capabilities,
   }),
-  getDashboardSummaryOptions: (_options: unknown) => ({
-    queryKey: ["dashboard-summary"],
-    queryFn: api.summary,
-  }),
-  getDashboardTimeseriesOptions: (_options: unknown) => ({
-    queryKey: ["dashboard-timeseries"],
-    queryFn: api.timeseries,
-  }),
-  getDashboardTopProductsOptions: (_options: unknown) => ({
-    queryKey: ["dashboard-top-products"],
-    queryFn: api.topProducts,
+  getDashboardOverviewOptions: (_options: unknown) => ({
+    queryKey: ["dashboard-overview"],
+    queryFn: api.overview,
   }),
   getDashboardRecentOrdersOptions: (_options: unknown) => ({
     queryKey: ["dashboard-orders"],
@@ -170,9 +160,7 @@ describe("DashboardPage", () => {
   });
 
   it("로딩 중에도 route heading과 native table 의미론을 유지한다", () => {
-    api.summary.mockReturnValue(pendingPromise());
-    api.timeseries.mockReturnValue(pendingPromise());
-    api.topProducts.mockReturnValue(pendingPromise());
+    api.overview.mockReturnValue(pendingPromise());
     api.orders.mockReturnValue(pendingPromise());
     api.quotes.mockReturnValue(pendingPromise());
     api.capabilities.mockReturnValue(pendingPromise());
@@ -189,9 +177,11 @@ describe("DashboardPage", () => {
 
   it("지표와 최근 항목을 표시하고 한 번의 새로고침으로 모든 쿼리를 다시 요청한다", async () => {
     const user = userEvent.setup();
-    api.summary.mockResolvedValue(summary);
-    api.timeseries.mockResolvedValue(timeseries);
-    api.topProducts.mockResolvedValue(topProductsPage);
+    api.overview.mockResolvedValue({
+      summary,
+      timeseries,
+      top_products: topProductsPage,
+    });
     api.orders.mockResolvedValue(ordersPage);
     api.quotes.mockResolvedValue(quotesPage);
     api.capabilities.mockResolvedValue(capabilities);
@@ -204,9 +194,7 @@ describe("DashboardPage", () => {
     await user.click(screen.getByRole("button", { name: "새로고침" }));
 
     await waitFor(() => {
-      expect(api.summary).toHaveBeenCalledTimes(2);
-      expect(api.timeseries).toHaveBeenCalledTimes(2);
-      expect(api.topProducts).toHaveBeenCalledTimes(2);
+      expect(api.overview).toHaveBeenCalledTimes(2);
       expect(api.orders).toHaveBeenCalledTimes(2);
       expect(api.quotes).toHaveBeenCalledTimes(2);
       expect(api.capabilities).toHaveBeenCalledTimes(2);
@@ -214,9 +202,11 @@ describe("DashboardPage", () => {
   });
 
   it("일별 추이 차트 카드와 인기 상품 테이블을 렌더링한다", async () => {
-    api.summary.mockResolvedValue(summary);
-    api.timeseries.mockResolvedValue(timeseries);
-    api.topProducts.mockResolvedValue(topProductsPage);
+    api.overview.mockResolvedValue({
+      summary,
+      timeseries,
+      top_products: topProductsPage,
+    });
     api.orders.mockResolvedValue(ordersPage);
     api.quotes.mockResolvedValue(quotesPage);
     api.capabilities.mockResolvedValue(capabilities);
@@ -233,9 +223,11 @@ describe("DashboardPage", () => {
   });
 
   it("필수 연동 불가 상태를 운영자에게 경고한다", async () => {
-    api.summary.mockResolvedValue(summary);
-    api.timeseries.mockResolvedValue(timeseries);
-    api.topProducts.mockResolvedValue(topProductsPage);
+    api.overview.mockResolvedValue({
+      summary,
+      timeseries,
+      top_products: topProductsPage,
+    });
     api.orders.mockResolvedValue(ordersPage);
     api.quotes.mockResolvedValue(quotesPage);
     api.capabilities.mockResolvedValue({

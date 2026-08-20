@@ -166,9 +166,9 @@ Cloud SQL 접속에 `cloud-sql-python-connector`를 쓰지 않는다. Cloud Run�
 
 | 서비스 | CPU / Memory | Concurrency | Timeout | Scaling |
 |---|---:|---:|---:|---|
-| `api` | 1 vCPU / 512 MiB | 20 | platform default | min=`api_min_instances`, max=10 |
-| `worker-generate` | 1 vCPU / 1 GiB | 2 | 300s | min=0, max=10 |
-| `worker-finalize` | 2 vCPU / 4 GiB | 2 | 180s | min=0, max=5 |
+| `api` | 1 vCPU / 512 MiB | 20 | platform default | min=`api_min_instances`, max=3 |
+| `worker-generate` | 1 vCPU / 1 GiB | 2 | 300s | min=0, max=2 |
+| `worker-finalize` | 2 vCPU / 4 GiB | 2 | 240s | min=0, max=1 |
 
 - `api_min_instances` 기본값은 비용을 위해 0이다. cold start가 실제 사업 지표를 훼손할 때만 1로 올린다.
 - generate는 외부 API 대기가 크지만 요청당 preview 렌더를 최대 2개 병렬 수행하므로 concurrency도 2다.

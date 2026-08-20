@@ -4,7 +4,6 @@ import type {
   ReformPricingOut,
   UserCouponOut,
 } from "@essesion/api-client";
-import { createReadUrl } from "@essesion/api-client";
 import {
   getProductOptions,
   getReformPricingOptions,
@@ -55,6 +54,7 @@ import {
   type ReformSettingsValues,
 } from "@/features/reform/ui/bulk-apply-modal";
 import { krw, optionDescription, optionLabel } from "@/pages/shop/constants";
+import { signedReadUrlQueryOptions } from "@/shared/lib/signed-read-url";
 import { useSession } from "@/shared/store/session";
 import { ContentLayout } from "@/shared/ui/content-layout";
 import { QuantityStepper } from "@/shared/ui/quantity-stepper";
@@ -127,24 +127,11 @@ export function CartPage() {
   });
   const reformImageQueries = useQueries({
     queries: reformItems.map((item) => ({
-      queryKey: [
-        "reform-image",
-        item.reform_data?.tie.image.object_key,
+      ...signedReadUrlQueryOptions(
+        item.reform_data?.tie.image.object_key ?? "",
         item.reform_data?.tie.image.claim_token,
-      ],
-      queryFn: async () => {
-        if (!item.reform_data) throw new Error("수선 이미지 정보가 없습니다.");
-        const response = await createReadUrl({
-          body: {
-            object_key: item.reform_data.tie.image.object_key,
-            claim_token: item.reform_data.tie.image.claim_token,
-          },
-        });
-        if (!response.data)
-          throw new Error("수선 이미지를 불러오지 못했습니다.");
-        return response.data.read_url;
-      },
-      staleTime: 10 * 60 * 1000,
+      ),
+      enabled: !!item.reform_data,
     })),
   });
   const reformImages = useMemo(

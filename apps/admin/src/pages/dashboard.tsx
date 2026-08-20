@@ -5,11 +5,9 @@ import type {
 } from "@essesion/api-client";
 import {
   getAdminCapabilitiesOptions,
+  getDashboardOverviewOptions,
   getDashboardRecentOrdersOptions,
   getDashboardRecentQuotesOptions,
-  getDashboardSummaryOptions,
-  getDashboardTimeseriesOptions,
-  getDashboardTopProductsOptions,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
@@ -217,34 +215,25 @@ export function DashboardPage() {
     ? (requestedType as OrderType)
     : "all";
 
-  const summary = useQuery({
-    ...getDashboardSummaryOptions({
+  // 같은 기간 파라미터를 쓰는 요약·추이·인기 상품은 overview 한 요청으로 (perf 플랜 20번).
+  const overview = useQuery({
+    ...getDashboardOverviewOptions({
       query: {
         start_date: startDate,
         end_date: endDate,
         order_type: orderType,
+        top_limit: 5,
       },
     }),
     refetchInterval: (query) =>
       document.visibilityState === "visible" &&
-      (query.state.data?.open_payment_incident_count ?? 0) > 0
+      (query.state.data?.summary.open_payment_incident_count ?? 0) > 0
         ? 30_000
         : false,
   });
-  const timeseries = useQuery(
-    getDashboardTimeseriesOptions({
-      query: {
-        start_date: startDate,
-        end_date: endDate,
-        order_type: orderType,
-      },
-    }),
-  );
-  const topProducts = useQuery(
-    getDashboardTopProductsOptions({
-      query: { start_date: startDate, end_date: endDate, limit: 5 },
-    }),
-  );
+  const summary = { ...overview, data: overview.data?.summary };
+  const timeseries = { ...overview, data: overview.data?.timeseries };
+  const topProducts = { ...overview, data: overview.data?.top_products };
   const recentOrders = useQuery(
     getDashboardRecentOrdersOptions({
       query: { order_type: orderType, limit: 5 },
@@ -264,9 +253,7 @@ export function DashboardPage() {
 
   const refresh = () => {
     void Promise.all([
-      summary.refetch(),
-      timeseries.refetch(),
-      topProducts.refetch(),
+      overview.refetch(),
       recentOrders.refetch(),
       recentQuotes.refetch(),
       capabilities.refetch(),

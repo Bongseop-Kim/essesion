@@ -8,7 +8,7 @@
     "test:e2e": "playwright test",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "biome check . && node scripts/check-harness.mjs",
-    "architecture:check": "node scripts/gc/check-docs.mjs --check && node scripts/gc/check-module-roots.mjs --check && depcruise apps/admin/src apps/store/src packages/shared/src infra/cloudflare/api-proxy/src --config dependency-cruiser.config.mjs && uv run lint-imports --config .importlinter --no-cache",
+    "architecture:check": "node scripts/gc/check-docs.mjs --check && node scripts/gc/check-module-roots.mjs --check && depcruise apps/admin/src apps/store/src packages/shared/src infra/cloudflare/api-proxy/src infra/cloudflare/assets-proxy/src --config dependency-cruiser.config.mjs && uv run lint-imports --config .importlinter --no-cache",
     "format": "biome format --write .",
     "codegen": "uv run python apps/api/scripts/export_openapi.py && pnpm --filter @essesion/api-client generate"
   },

@@ -14,7 +14,9 @@ export function AppProviders({ children }: AppProvidersProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            refetchOnWindowFocus: "always",
+            // staleTime 30초라 탭 복귀 시 30초 지난 데이터만 재요청된다 —
+            // 잡 모니터링 화면도 이 주기면 충분해 별도 opt-in 없음.
+            refetchOnWindowFocus: true,
             retry: 1,
             staleTime: 30_000,
           },

@@ -322,7 +322,8 @@ async def test_embedding_client_posts_and_parses(embedding_client):
     )
     assert await embedding_client.embed("dot") == [0.1, 0.2, 0.3]
     payload = json.loads(route.calls.last.request.content)
-    assert payload == {"model": "text-embedding-3-large", "input": "dot", "dimensions": 3}
+    # 단건도 배열 입력으로 보낸다 — embed는 embed_batch 위임이다.
+    assert payload == {"model": "text-embedding-3-large", "input": ["dot"], "dimensions": 3}
     assert route.calls.last.request.headers["Authorization"] == "Bearer test-key"
 
 
@@ -364,6 +365,46 @@ async def test_embedding_client_retries_transient_status_then_succeeds(
     assert await embedding_client.embed("dot") == [0.1, 0.2, 0.3]
     assert route.call_count == 2
     assert delays == [0.5]
+
+
+@respx.mock
+async def test_embedding_client_sorts_batch_by_index(embedding_client):
+    # OpenAI는 index로 입력 순서를 보장한다 — 응답이 뒤섞여도 입력 순서로 복원한다.
+    respx.post(_EMBED_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"index": 1, "embedding": [0.4, 0.5, 0.6]},
+                    {"index": 0, "embedding": [0.1, 0.2, 0.3]},
+                ]
+            },
+        )
+    )
+    assert await embedding_client.embed_batch(["a", "b"]) == [
+        [0.1, 0.2, 0.3],
+        [0.4, 0.5, 0.6],
+    ]
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    "indices",
+    [
+        [0, 0],  # 중복
+        [0, 2],  # 누락·범위 밖
+        [0, None],  # 혼재
+    ],
+)
+async def test_embedding_client_rejects_invalid_indices(embedding_client, indices):
+    # 벡터가 엉뚱한 텍스트에 붙는 조용한 오배정을 거부한다.
+    rows = [
+        {"embedding": [0.1, 0.2, 0.3]} | ({} if index is None else {"index": index})
+        for index in indices
+    ]
+    respx.post(_EMBED_URL).mock(return_value=httpx.Response(200, json={"data": rows}))
+    with pytest.raises(EmbeddingError, match="unexpected embedding payload"):
+        await embedding_client.embed_batch(["a", "b"])
 
 
 @respx.mock
@@ -474,6 +515,23 @@ async def test_author_design_retries_when_the_single_plan_breaks_the_contract(ll
 
     assert design.plan is not None
     assert route.call_count == 2
+
+
+@respx.mock
+async def test_author_design_stops_paid_calls_at_the_request_budget(llm):
+    # 자기수정 루프 × HTTP 재시도의 곱 폭주 방지 — 재시도 가능한 실패가 이어져도
+    # 요청 1건의 유료 호출은 _AUTHORING_CALL_LIMIT(6)에서 멈춘다 (최악 4×4=16회 차단).
+    route = _mock_chat(
+        httpx.Response(429),
+        httpx.Response(429),
+        httpx.Response(429),
+        _chat_response({"not_a_plan": "wrong shape"}),  # 1라운드: 계약 위반 → 재저작
+        *[httpx.Response(429)] * 4,  # 2라운드: 예산이 재시도보다 먼저 끊는다
+    )
+    with pytest.raises(AdapterClientError) as excinfo:
+        await llm.author_design("dots")
+    assert excinfo.value.reason_code == "authoring_budget_exhausted"
+    assert route.call_count == 6
 
 
 @respx.mock

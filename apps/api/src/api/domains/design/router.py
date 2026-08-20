@@ -1690,26 +1690,31 @@ async def _resolve_user_motifs(
     session: SessionDep,
     user_id: uuid.UUID,
 ) -> list[tuple[UserMotif, Motif]]:
+    if not user_motif_ids:
+        return []
+    # 디자인 생성마다 타는 경로 — id별 SELECT 대신 in_() 한 방으로 조회.
+    rows = (
+        await session.execute(
+            select(UserMotif, Motif)
+            .join(Motif, Motif.id == UserMotif.motif_id)
+            .where(
+                UserMotif.id.in_(user_motif_ids),
+                UserMotif.user_id == user_id,
+                Motif.source == "user_upload",
+            )
+        )
+    ).all()
+    by_id = {row[0].id: (row[0], row[1]) for row in rows}
     motifs: list[tuple[UserMotif, Motif]] = []
     for user_motif_id in user_motif_ids:
-        row = (
-            await session.execute(
-                select(UserMotif, Motif)
-                .join(Motif, Motif.id == UserMotif.motif_id)
-                .where(
-                    UserMotif.id == user_motif_id,
-                    UserMotif.user_id == user_id,
-                    Motif.source == "user_upload",
-                )
-            )
-        ).first()
-        if row is None:
+        resolved = by_id.get(user_motif_id)
+        if resolved is None:
             raise DomainError(
                 "내 모티프를 찾을 수 없습니다",
                 code="invalid_user_motif",
                 status=409,
             )
-        motifs.append((row[0], row[1]))
+        motifs.append(resolved)
     return motifs
 
 

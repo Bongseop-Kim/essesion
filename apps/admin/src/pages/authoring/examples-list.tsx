@@ -1,8 +1,8 @@
-import type { AuthoringExampleSummaryOut } from "@essesion/api-client";
 import {
-  getAuthoringExamplePreviewOptions,
-  listAuthoringExamplesOptions,
-} from "@essesion/api-client/query";
+  type AuthoringExampleSummaryOut,
+  batchAuthoringExamplePreviews,
+} from "@essesion/api-client";
+import { listAuthoringExamplesOptions } from "@essesion/api-client/query";
 import {
   ActionButton,
   Badge,
@@ -46,22 +46,16 @@ const SOURCE_LABELS = {
 
 type ActiveFilter = keyof typeof ACTIVE_LABELS;
 
-function ExamplePreviewCell({ row }: { row: AuthoringExampleSummaryOut }) {
-  const options = getAuthoringExamplePreviewOptions({
-    path: { example_id: row.id },
-  });
-  const query = useQuery({
-    ...options,
-    /* plan 수정은 updated_at을 바꾼다 — 키에 넣어 편집 후 캐시를 무효화 */
-    queryKey: [
-      { ...options.queryKey[0], updated_at: row.updated_at },
-    ] as unknown as typeof options.queryKey,
-    staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
-  });
+function ExamplePreviewCell({
+  svg,
+  loading,
+}: {
+  svg: string | null | undefined;
+  loading: boolean;
+}) {
   return (
     <Box width={44}>
-      {query.isPending ? (
+      {loading ? (
         <Skeleton width={44} height={44} radius="r2" />
       ) : (
         <ImageFrame
@@ -69,9 +63,9 @@ function ExamplePreviewCell({ row }: { row: AuthoringExampleSummaryOut }) {
           fit="contain"
           stroke
           src={
-            query.data === undefined
+            svg == null
               ? undefined
-              : `data:image/svg+xml;utf8,${encodeURIComponent(query.data.svg)}`
+              : `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
           }
           alt="타일 프리뷰"
         />
@@ -79,64 +73,6 @@ function ExamplePreviewCell({ row }: { row: AuthoringExampleSummaryOut }) {
     </Box>
   );
 }
-
-const columns: readonly AdminTableColumn<AuthoringExampleSummaryOut>[] = [
-  {
-    key: "preview",
-    header: "프리뷰",
-    render: (row) => <ExamplePreviewCell row={row} />,
-  },
-  {
-    key: "example_id",
-    header: "시범",
-    render: (row) => (
-      <VStack gap="x0_5" alignItems="stretch">
-        <Text textStyle="bodySm" className="line-clamp-2">
-          {row.retrieval_text}
-        </Text>
-        <Text textStyle="caption" color="fg.neutral-muted">
-          {row.example_id}
-        </Text>
-      </VStack>
-    ),
-  },
-  {
-    key: "source",
-    header: "출처",
-    render: (row) => (
-      <Badge
-        tone={
-          row.source === "authored"
-            ? "positive"
-            : row.source === "promoted"
-              ? "informative"
-              : "neutral"
-        }
-      >
-        {SOURCE_LABELS[row.source]}
-      </Badge>
-    ),
-  },
-  {
-    key: "structure",
-    header: "구조",
-    visibility: "medium",
-    render: (row) => `${row.family} · motif ${row.motif_count}`,
-  },
-  {
-    key: "updated_at",
-    header: "최근 변경",
-    visibility: "large",
-    render: (row) => formatDateTime(row.updated_at),
-  },
-  {
-    key: "active",
-    header: "few-shot 주입",
-    render: (row) => (
-      <StatusBadge status={row.active ? "active" : "inactive"} />
-    ),
-  },
-];
 
 export function FewShotExamplesPage() {
   const navigate = useNavigate();
@@ -161,6 +97,94 @@ export function FewShotExamplesPage() {
     }),
     placeholderData: keepPreviousData,
   });
+
+  // 행당 프리뷰 요청(페이지 크기 100 → 101 동시 요청)을 배치 1회로 — plan 수정은
+  // updated_at을 바꾸므로 키에 넣어 편집 후 캐시를 무효화한다.
+  const items = query.data?.items;
+  const previewQuery = useQuery({
+    queryKey: [
+      "authoring-example-preview-batch",
+      items?.map((row) => `${row.id}:${row.updated_at}`) ?? [],
+    ],
+    queryFn: async () => {
+      const response = await batchAuthoringExamplePreviews({
+        query: { ids: (items ?? []).map((row) => row.id) },
+        throwOnError: true,
+      });
+      return response.data;
+    },
+    enabled: !!items?.length,
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+  });
+  const previews = new Map(
+    (previewQuery.data?.previews ?? []).map((preview) => [
+      preview.id,
+      preview.svg,
+    ]),
+  );
+  const columns: readonly AdminTableColumn<AuthoringExampleSummaryOut>[] = [
+    {
+      key: "preview",
+      header: "프리뷰",
+      render: (row) => (
+        <ExamplePreviewCell
+          svg={previews.get(row.id)}
+          loading={previewQuery.isPending}
+        />
+      ),
+    },
+    {
+      key: "example_id",
+      header: "시범",
+      render: (row) => (
+        <VStack gap="x0_5" alignItems="stretch">
+          <Text textStyle="bodySm" className="line-clamp-2">
+            {row.retrieval_text}
+          </Text>
+          <Text textStyle="caption" color="fg.neutral-muted">
+            {row.example_id}
+          </Text>
+        </VStack>
+      ),
+    },
+    {
+      key: "source",
+      header: "출처",
+      render: (row) => (
+        <Badge
+          tone={
+            row.source === "authored"
+              ? "positive"
+              : row.source === "promoted"
+                ? "informative"
+                : "neutral"
+          }
+        >
+          {SOURCE_LABELS[row.source]}
+        </Badge>
+      ),
+    },
+    {
+      key: "structure",
+      header: "구조",
+      visibility: "medium",
+      render: (row) => `${row.family} · motif ${row.motif_count}`,
+    },
+    {
+      key: "updated_at",
+      header: "최근 변경",
+      visibility: "large",
+      render: (row) => formatDateTime(row.updated_at),
+    },
+    {
+      key: "active",
+      header: "few-shot 주입",
+      render: (row) => (
+        <StatusBadge status={row.active ? "active" : "inactive"} />
+      ),
+    },
+  ];
 
   const totalPages = Math.max(
     1,
