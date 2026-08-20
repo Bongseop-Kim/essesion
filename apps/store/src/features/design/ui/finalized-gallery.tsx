@@ -1,6 +1,7 @@
 import type { GenerationJobOut } from "@essesion/api-client";
 import {
   ActionButton,
+  Box,
   Callout,
   ContentPlaceholder,
   type DesignPreviewMode,
@@ -15,6 +16,7 @@ import {
   VStack,
 } from "@essesion/shared";
 import {
+  ArrowLeftIcon,
   CheckIcon,
   ExclamationTriangleIcon,
   PhotoIcon,
@@ -22,7 +24,7 @@ import {
   SwatchIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ViewToggle } from "@/features/design/ui/view-toggle";
 import { formatDateTime } from "@/shared/lib/format";
@@ -68,6 +70,14 @@ export type FinalizedGalleryProps = {
     }
 );
 
+/** browse 카드 이미지 클릭으로 진입하는 인라인 확대 뷰의 대상. */
+type ExpandedView = {
+  id: string;
+  src: string;
+  index: number;
+  createdAt: string;
+};
+
 /**
  * 완성본 목록 본문 — 완성본 모달과 주문제작 디자인 피커가 공유한다.
  *
@@ -89,6 +99,19 @@ export function FinalizedGallery(props: FinalizedGalleryProps) {
   // AI 실사 2장(넥타이 / 원단) 사이의 토글 — 같은 타일의 두 렌더가 아니라 서로 다른
   // 두 이미지다. 토글 1개가 목록 전체에 동시 적용된다.
   const [previewMode, setPreviewMode] = useState<DesignPreviewMode>("tie");
+  // 인라인 확대 — 모달 위 모달 금지(overlay.md)라 새 오버레이 대신 콘텐츠를 전환한다.
+  // browse 카드에서만 진입하므로 select variant에는 도달하지 않는다.
+  const [expanded, setExpanded] = useState<ExpandedView | null>(null);
+  const expandTriggers = useRef(new Map<string, HTMLButtonElement>());
+  const restoreFocusId = useRef<string | null>(null);
+
+  // 뒤로 복귀 시 확대를 열었던 카드 버튼으로 포커스 복원 (확대 중에는 그리드가 언마운트).
+  useEffect(() => {
+    if (expanded == null && restoreFocusId.current != null) {
+      expandTriggers.current.get(restoreFocusId.current)?.focus();
+      restoreFocusId.current = null;
+    }
+  }, [expanded]);
 
   if (loading) return <FinalizedGallerySkeleton />;
   if (error)
@@ -120,6 +143,37 @@ export function FinalizedGallery(props: FinalizedGalleryProps) {
       />
     );
 
+  if (expanded != null)
+    return (
+      <VStack gap="x3" alignItems="stretch">
+        <HStack>
+          <ActionButton
+            type="button"
+            size="small"
+            variant="ghost"
+            // 콘텐츠 전환이라 dialog 포커스 이동이 없다 — 진입 포커스를 직접 준다.
+            autoFocus
+            onClick={() => {
+              restoreFocusId.current = expanded.id;
+              setExpanded(null);
+            }}
+          >
+            <Icon svg={<ArrowLeftIcon />} size={16} />
+            목록으로
+          </ActionButton>
+        </HStack>
+        <ImageFrame
+          ratio="auto"
+          borderRadius="r4"
+          src={expanded.src}
+          alt={`완성본 ${expanded.index + 1} 확대`}
+        />
+        <Text as="span" textStyle="captionSm" color="fg.neutral-muted" px="x1">
+          {formatDate(expanded.createdAt)}
+        </Text>
+      </VStack>
+    );
+
   return (
     <VStack gap="x3" alignItems="stretch">
       <HStack justify="flex-end">
@@ -137,6 +191,11 @@ export function FinalizedGallery(props: FinalizedGalleryProps) {
             index={index}
             previewMode={previewMode}
             actions={props}
+            onExpand={setExpanded}
+            registerExpandTrigger={(id, node) => {
+              if (node == null) expandTriggers.current.delete(id);
+              else expandTriggers.current.set(id, node);
+            }}
           />
         ))}
         {onLoadMore && (loadMoreError || hasMore) ? (
@@ -172,63 +231,66 @@ function FinalizedCard({
   index,
   previewMode,
   actions,
+  onExpand,
+  registerExpandTrigger,
 }: {
   job: GenerationJobOut;
   index: number;
   previewMode: DesignPreviewMode;
   actions: FinalizedGalleryProps;
+  onExpand: (view: ExpandedView) => void;
+  registerExpandTrigger: (id: string, node: HTMLButtonElement | null) => void;
 }) {
   const tie = previewMode === "tie";
   const checked = actions.variant === "select" && actions.selectedId === job.id;
-  const body = (
-    <>
-      <ImageFrame
-        ratio={1}
-        borderRadius="r4"
-        // 레거시 finalize 행(실사 URL 없음)은 원단 한 장으로 간주해 표시만 호환.
-        src={
-          (tie ? job.tie_url : job.fabric_url) ?? job.result_url ?? undefined
-        }
-        alt={`완성본 ${index + 1}`}
-        // 넥타이 실사의 원본은 베이스 사진 비율 2:3 — cover면 매듭·끝단이 잘린다.
-        fit={tie ? "contain" : "cover"}
-        className={tie ? "bg-bg-neutral-weak" : undefined}
-        fallback={
-          <VStack
-            position="absolute"
-            inset={0}
+  // 레거시 finalize 행(실사 URL 없음)은 원단 한 장으로 간주해 표시만 호환.
+  const src = (tie ? job.tie_url : job.fabric_url) ?? job.result_url ?? null;
+  const image = (
+    <ImageFrame
+      ratio={1}
+      borderRadius="r4"
+      src={src ?? undefined}
+      alt={`완성본 ${index + 1}`}
+      // 넥타이 실사의 원본은 베이스 사진 비율 2:3 — cover면 매듭·끝단이 잘린다.
+      fit={tie ? "contain" : "cover"}
+      className={tie ? "bg-bg-neutral-weak" : undefined}
+      fallback={
+        <VStack
+          position="absolute"
+          inset={0}
+          align="center"
+          justify="center"
+          gap="x2"
+          bg="bg.neutral-weak"
+        >
+          <Icon svg={<PhotoIcon />} size={28} />
+          <Text textStyle="captionSm" color="fg.neutral-subtle">
+            미리보기 없음
+          </Text>
+        </VStack>
+      }
+    >
+      {checked ? (
+        <Float placement="top-end" offsetX="x2" offsetY="x2">
+          <Flex
             align="center"
             justify="center"
-            gap="x2"
-            bg="bg.neutral-weak"
+            width={28}
+            height={28}
+            borderRadius="full"
+            bg="bg.brand-solid"
+            className="text-fg-contrast"
           >
-            <Icon svg={<PhotoIcon />} size={28} />
-            <Text textStyle="captionSm" color="fg.neutral-subtle">
-              미리보기 없음
-            </Text>
-          </VStack>
-        }
-      >
-        {checked ? (
-          <Float placement="top-end" offsetX="x2" offsetY="x2">
-            <Flex
-              align="center"
-              justify="center"
-              width={28}
-              height={28}
-              borderRadius="full"
-              bg="bg.brand-solid"
-              className="text-fg-contrast"
-            >
-              <Icon svg={<CheckIcon />} size={18} />
-            </Flex>
-          </Float>
-        ) : null}
-      </ImageFrame>
-      <Text as="span" textStyle="captionSm" color="fg.neutral-muted" px="x1">
-        {formatDate(job.created_at)}
-      </Text>
-    </>
+            <Icon svg={<CheckIcon />} size={18} />
+          </Flex>
+        </Float>
+      ) : null}
+    </ImageFrame>
+  );
+  const caption = (
+    <Text as="span" textStyle="captionSm" color="fg.neutral-muted" px="x1">
+      {formatDate(job.created_at)}
+    </Text>
   );
 
   // 셸 요소만 갈린다 — browse 카드는 안에 버튼이 있어 button으로 감쌀 수 없다.
@@ -249,7 +311,8 @@ function FinalizedCard({
         borderRadius="r3"
         p="x2"
       >
-        {body}
+        {image}
+        {caption}
       </VStack>
     );
 
@@ -263,7 +326,27 @@ function FinalizedCard({
       borderRadius="r3"
       p="x2"
     >
-      {body}
+      {src != null ? (
+        <Box
+          as="button"
+          type="button"
+          ref={(node: HTMLButtonElement | null) =>
+            registerExpandTrigger(job.id, node)
+          }
+          aria-label={`완성본 ${index + 1} 크게 보기`}
+          onClick={() =>
+            onExpand({ id: job.id, src, index, createdAt: job.created_at })
+          }
+          borderRadius="r4"
+          className="block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring"
+        >
+          {image}
+        </Box>
+      ) : (
+        // 레거시 행에 URL이 하나도 없으면(폴백 실루엣) 확대할 원본이 없다.
+        image
+      )}
+      {caption}
       <HStack gap="x1" justify="space-between">
         <ActionButton
           type="button"

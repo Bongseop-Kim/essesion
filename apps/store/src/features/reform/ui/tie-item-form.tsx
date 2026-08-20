@@ -76,6 +76,7 @@ export function TieItemForm({
           <VStack gap="x2" alignItems="flex-start">
             <Box position="relative">
               <AttachmentDisplayField
+                previewable
                 max={1}
                 accept={REFORM_IMAGE_ACCEPT}
                 addLabel="넥타이 사진 추가 (필수)"

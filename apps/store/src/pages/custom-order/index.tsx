@@ -993,6 +993,7 @@ function CustomOrderPageContent({
                   />
                 }
                 items={attachmentItems}
+                previewable
                 max={MAX_IMAGES}
                 accept={CUSTOM_IMAGE_ACCEPT}
                 onAddFiles={(selected) => {

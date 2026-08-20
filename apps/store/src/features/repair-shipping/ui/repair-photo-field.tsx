@@ -49,6 +49,7 @@ export function RepairPhotoField({
     <AttachmentDisplayField
       label="발송 사진"
       description={pendingCount > 0 ? "사진을 업로드하는 중입니다." : undefined}
+      previewable
       max={MAX_REPAIR_PHOTOS}
       accept={REPAIR_PHOTO_ACCEPT}
       addLabel="사진 추가"

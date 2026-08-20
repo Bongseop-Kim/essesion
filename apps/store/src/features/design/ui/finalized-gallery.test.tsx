@@ -80,6 +80,42 @@ describe("FinalizedGallery 이미지 배선", () => {
   });
 });
 
+describe("FinalizedGallery 인라인 확대", () => {
+  it("browse 카드 이미지를 클릭하면 확대 뷰로 전환하고 뒤로로 복귀한다", () => {
+    render(
+      <FinalizedGallery
+        variant="browse"
+        jobs={[job]}
+        onOrder={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "완성본 1 크게 보기" }));
+    // 확대 뷰: 현재 토글(넥타이)의 이미지 1장 + 뒤로만 남는다.
+    expect(image().src).toBe(job.tie_url);
+    expect(screen.queryByRole("button", { name: "주문제작" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "목록으로" }));
+    expect(screen.getByRole("button", { name: "주문제작" })).toBeTruthy();
+  });
+
+  it("URL이 전혀 없는 레거시 행은 확대 진입점을 만들지 않는다", () => {
+    render(
+      <FinalizedGallery
+        variant="browse"
+        jobs={[{ ...legacyJob, result_url: null }]}
+        onOrder={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "완성본 1 크게 보기" }),
+    ).toBeNull();
+  });
+});
+
 describe("FinalizedGallery 페이지네이션", () => {
   it("더 보기와 기존 주문·삭제 액션을 함께 제공한다", () => {
     const onLoadMore = vi.fn();
