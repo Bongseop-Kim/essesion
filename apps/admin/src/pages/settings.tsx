@@ -64,7 +64,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     description:
       "디자인을 실제 원단 이미지로 만들 때 1회 차감하는 토큰입니다. 실패한 요청은 자동 환불됩니다.",
     scope: "이후의 새 실사화 요청",
-    defaultValue: "5개",
+    defaultValue: "200개",
     inputLabel: "토큰 수량",
     unit: "개",
     max: 1_000,
@@ -72,9 +72,9 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     impact:
       "이후의 새 실사화 요청부터 즉시 적용됩니다. store 실사화 다이얼로그에도 이 값이 그대로 표기됩니다.",
     editWarning: {
-      title: "고객에게 보이는 가격입니다",
+      title: "손익이 걸린 단가입니다",
       description:
-        "store 실사화 다이얼로그에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+        "실사화는 이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. store 실사화 다이얼로그에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
     },
   },
   design_token_cost_openai_render_standard: {
@@ -116,7 +116,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
   design_motif_generate_cost: {
     title: "새 모티프 생성 단가",
     description:
-      "모티프 모달에서 문장으로 새 그림을 만들 때 1회 차감하는 토큰입니다. 세 단가 중 실제 원가가 가장 높은 경로입니다. 실패한 요청은 자동 환불됩니다.",
+      "모티프 모달에서 문장으로 새 그림을 만들 때 1회 차감하는 토큰입니다. 실패한 요청은 자동 환불됩니다.",
     scope: "이후의 새 모티프 생성 요청",
     defaultValue: "100개",
     inputLabel: "토큰 수량",
@@ -128,7 +128,7 @@ const SETTING_PRESENTATION: Record<string, SettingPresentation> = {
     editWarning: {
       title: "손익이 걸린 단가입니다",
       description:
-        "세 단가 중 유일하게 이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. store 토큰 잔액 상세와 모티프 생성 버튼에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
+        "이미지 생성 원가가 붙는 경로라, 내리면 요청 1건이 적자가 될 수 있습니다. store 토큰 잔액 상세와 모티프 생성 버튼에 그대로 표기되며, 진행 중인 요청의 차감액은 바뀌지 않습니다.",
     },
   },
   design_token_initial_grant: {

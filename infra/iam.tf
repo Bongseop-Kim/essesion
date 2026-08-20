@@ -78,7 +78,11 @@ resource "google_secret_manager_secret_iam_member" "worker_generate_secrets" {
 }
 
 resource "google_secret_manager_secret_iam_member" "worker_finalize_secrets" {
-  for_each  = toset(["sentry-dsn-worker"])
+  # openai-api-key: AI 실사화 컷오버(2026-08-20) — finalize가 gpt-image 편집을 호출한다.
+  for_each = toset([
+    "sentry-dsn-worker",
+    "openai-api-key",
+  ])
   project   = var.project_id
   secret_id = google_secret_manager_secret.app[each.value].secret_id
   role      = "roles/secretmanager.secretAccessor"

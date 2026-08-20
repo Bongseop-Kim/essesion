@@ -57,16 +57,13 @@ locals {
   worker_generate_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "generate" })
   worker_finalize_plain_env = merge(local.worker_plain_env, { SERVICE_MODE = "finalize" })
 
+  # AI 실사화 컷오버(2026-08-20)로 finalize도 gpt-image 편집을 호출한다 — OPENAI 키는
+  # 두 워커 공통(저작·임베딩 라우트는 여전히 generate 전용, routes.py).
   worker_secret_env = {
-    DATABASE_URL = google_secret_manager_secret.database_url.secret_id
-    SENTRY_DSN   = google_secret_manager_secret.app["sentry-dsn-worker"].secret_id
-  }
-
-  # 외부 API 키는 generate만 — finalize는 로컬 Pillow 연산뿐(최소 권한).
-  # 저작·임베딩 라우트(generate_router)는 전부 generate 서비스에만 있다(routes.py).
-  worker_generate_secret_env = merge(local.worker_secret_env, {
+    DATABASE_URL   = google_secret_manager_secret.database_url.secret_id
+    SENTRY_DSN     = google_secret_manager_secret.app["sentry-dsn-worker"].secret_id
     OPENAI_API_KEY = google_secret_manager_secret.app["openai-api-key"].secret_id
-  })
+  }
 }
 
 resource "google_cloud_run_v2_service" "api" {
@@ -256,7 +253,7 @@ resource "google_cloud_run_v2_service" "worker_generate" {
         }
       }
       dynamic "env" {
-        for_each = local.worker_generate_secret_env
+        for_each = local.worker_secret_env
         content {
           name = env.key
           value_source {
@@ -298,8 +295,8 @@ resource "google_cloud_run_v2_service" "worker_finalize" {
 
   template {
     service_account                  = google_service_account.worker_finalize.email
-    # 동기 요청-응답 — AI 실사화 편집 2회를 병렬로 돌려 실측 ~45s(quality=medium,
-    # finalize-ai-fabric 리뷰). api 쪽 worker_timeout_seconds(180s)가 먼저 만료해
+    # 동기 요청-응답 — AI 실사화 편집 2회를 병렬로 돌려 실측 ~25s(quality=low,
+    # 2026-08-20 실측). api 쪽 worker_timeout_seconds(180s)가 먼저 만료해
     # 환불 경로를 타도록, 그보다 여유 있게 길게 유지한다(generate의 180s < 300s와 같은 관계).
     timeout                          = "240s"
     max_instance_request_concurrency = 2

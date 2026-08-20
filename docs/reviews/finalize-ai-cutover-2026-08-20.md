@@ -45,14 +45,11 @@
   `finalized-gallery.test.tsx`로 재편(토글별 이미지 소스·레거시 폴백·페이지네이션·select variant).
   중복 2세트가 1세트로 줄었다.
 
-## 단가는 미확정 (후속 필수)
+## 단가는 미확정 (후속 필수) — 2026-08-20 해소
 
-finalize 1회 = gpt-image 편집 2회(quality=medium, 병렬, 실측 ~45s) + Cloud Run 시간이 되었다.
-캘리브레이션에서 usage 로그가 미포집돼 **실측 단가가 없다**. `design_finalize_cost`는 코드 기본값과
-운영 DB 양쪽 모두 **5**로 확인했고 이번 릴리스에서 바꾸지 않았다 — pro 순수령 3.2원이므로 적자
-가능성이 높다. 공식 요금표 + 운영 `provider_usage`(`operation=finalize`)로 확정한 뒤
-`admin_settings.design_finalize_cost`, `money.md` §6 표, `docs/plans/token-pricing-recalibration.md`를
-**함께** 갱신할 것. 세 문서 모두에 이 상태를 기록해 뒀다(한쪽만 고치면 드리프트).
+이 절이 요구한 재산정은 같은 날 실행됐다 — quality=low 전환 + 200토큰 확정. 근거·절차는
+`docs/reviews/finalize-pricing-low-quality-2026-08-20.md`, 정본은 `money.md` §6. usage 로그
+operation은 `finalize`가 아니라 `finalize_tie`·`finalize_fabric` 두 줄이다(당시 표기 오류).
 
 ## 타임아웃 — 상향 불필요
 

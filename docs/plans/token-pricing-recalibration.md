@@ -16,7 +16,7 @@ token-based billing이라, 이 항목이 실측 1순위다.
 
 ## 실행 조건 (둘 다 충족)
 
-1. **표본**: `operation=author_design` 로그 **200건 이상**, `author_patch`·`generate_motif`
+1. **표본**: `operation=author_design` 로그 **200건 이상**, `author_patch`·`generate_motif`·`finalize_tie`(+`finalize_fabric`)
    각 **50건 이상**. 근거: 저작은 재시도 횟수(1~4콜) 분산이 커서 p95를 보려면 100건 이상이
    필요하고, 200건이면 하루 몇십 건 규모에서 1~2주면 모인다. patch·모티프는 콜 수가 고정에
    가까워(1콜, 1~2장) 50건이면 평균이 안정된다.
@@ -41,7 +41,7 @@ token-based billing이라, 이 항목이 실측 1순위다.
    | 첫 생성 | 1.0~2.3원 | 25토큰 | 15.8원 |
    | 구성 수정 | 1.0원 | 12토큰 | 7.6원 |
    | 모티프 생성 | 12.4원 (최악 19.4원) | 100토큰 | 63.1원 |
-   | 실사화 | **무효** — AI 컷오버로 편집 2회 발생 | 5토큰 | 3.2원 |
+   | 실사화 | 21.9원 (2026-08-20 확정, quality=low) | 200토큰 | 126.2원 |
    | 아이디어 | 0.5원 | 무과금 (6회/분) | — |
 
    추정 원가에는 provider 요금과 Cloud Run 요청 시간이 함께 들어 있다. 실측에서도 두 축을
@@ -56,10 +56,10 @@ token-based billing이라, 이 항목이 실측 1순위다.
      디자인 생성은 넥타이 주문의 퍼널이라 생성 횟수를 조이는 것이 더 비싼 선택이다.
    - 모티프 단가는 `gpt_image.py`의 이미지 quality와 `motif_generate_per_request_limit`를
      같이 본다 — 최악 케이스(limit × 장당 원가 + CPU)가 단가 수익을 넘으면 안 된다.
-   - 실사화는 동기 전환과 함께 5토큰 과금으로 전환됐다(`design_finalize_cost`, 24시간 쿼터 폐기).
-     실측에서는 Cloud Run 소요 시간(`generation_jobs.started_at/finished_at`) 기준으로 원가를
-     재검증한다 — 구매 직전 단계라 단가 인상은 전환 손실을 함께 본다. 아이디어(1토큰 수준)는
-     실측 원가가 예상을 크게 넘으면 과금을 검토한다.
+   - 실사화 단가는 2026-08-20에 200토큰으로 확정됐다(quality=low와 한 몸 —
+     `docs/reviews/finalize-pricing-low-quality-2026-08-20.md`). 이 플랜에서는 추정 원가
+     21.9원을 `provider_usage`(`operation=finalize_tie`·`finalize_fabric`) 실측으로 교체만
+     한다. 아이디어(1토큰 수준)는 실측 원가가 예상을 크게 넘으면 과금을 검토한다.
    - 플랜 가격(2,500/6,500/18,000원)과 토큰 수량(2,500/7,500/25,000)은 건드리지 않는다.
      액션 단가만 조정한다 — 플랜 자체를 바꾸는 건 전환율 데이터가 필요한 별개 결정이다.
 5. **반영** — `apps/api/scripts/seed.py`의 `ADMIN_SETTINGS` 단가 키와 `docs/api-spec/money.md §6`
@@ -76,9 +76,7 @@ token-based billing이라, 이 항목이 실측 1순위다.
   compile 성공률이 유지되면 그게 가장 싼 절감이다(`eval_authoring.py`로 검증).
 - **프롬프트 캐시 적중률**: `cached=`가 0에 가깝다면 시스템+스키마 접두부가 매 콜 달라지고
   있다는 뜻이다. 접두부를 고정하는 것만으로 입력 단가가 내려간다.
-- **finalize 실사화(5토큰) — 이 플랜의 최우선 행**: AI 실사화 컷오버(2026-08-20)로 finalize 1회가
-  gpt-image **편집 2회**(quality=medium, 병렬, 실측 ~45s) + Cloud Run 시간이 되었다. "provider 비용
-  0" 전제와 2.4~4.8원 추정은 무효다. 캘리브레이션에서 usage 로그가 미포집돼 실측 단가가 없으므로
-  공식 요금표 + 운영 `provider_usage`(`operation=finalize`)로 확정한다. 현행 5토큰(pro 순수령
-  3.2원)은 적자 가능성이 높다 — "최악 원가 < 단가" 가드를 다시 세우고 `design_finalize_cost`와
-  `docs/api-spec/money.md` §6 표를 **함께** 갱신할 것(한쪽만 고치면 드리프트).
+- **finalize 실사화**: 단가는 2026-08-20에 200토큰으로 확정됐고(quality=low 전환과 동시 —
+  `docs/reviews/finalize-pricing-low-quality-2026-08-20.md`), 남은 것은 추정 원가 21.9원을
+  `provider_usage`(`operation=finalize_tie`·`finalize_fabric`, 요청 1건 = 로그 2줄) 50건으로
+  실측 교체하는 것뿐이다. 실측이 31.5원(pro 순수령 126.2원의 25%)을 넘으면 단가를 재조정한다.

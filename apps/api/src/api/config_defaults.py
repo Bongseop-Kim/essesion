@@ -17,11 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 ADMIN_SETTINGS = {
     "default_courier_company": "롯데택배",
     # 1토큰 ≈ 1원 스케일. 단가 산정 근거·손익 가드는 money.md §6이 정본이다.
-    "design_token_initial_grant": "750",  # 생성 30회 체험
+    "design_token_initial_grant": "750",  # 탐색(생성·수정·모티프) + 실사화 1회 완주(약 385토큰)
     "design_token_cost_openai_render_standard": "25",
     "design_edit_cost": "12",
     "design_motif_generate_cost": "100",
-    "design_finalize_cost": "5",
+    "design_finalize_cost": "200",
 }
 
 # 이전 스키마의 admin_settings 잔재 — 남아 있으면 관리자 화면에 유령 행이 남는다.
