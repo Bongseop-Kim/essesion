@@ -40,5 +40,9 @@ describe("SVG preview helpers", () => {
     );
     // center의 반칸 오프셋도 소수를 만든다 — 원점 정렬.
     expect(svgTileStyle(svgWithWidth("48mm")).backgroundPosition).toBe("0 0");
+    // 배율이 0px로 반올림돼 타일이 사라지지 않게 1px 하한.
+    expect(svgTileStyle(svgWithWidth("0.1mm")).backgroundSize).toBe(
+      "min(100%, 1px) min(100%, 1px)",
+    );
   });
 });

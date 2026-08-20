@@ -71,7 +71,11 @@ export function TokenPill({
             textStyle="labelSm"
             color={failed ? "fg.critical" : "fg.neutral"}
           >
-            {failed ? "잔액 확인 불가" : `${formatBalance(balance)}토큰`}
+            {failed
+              ? "잔액 확인 불가"
+              : balance === null
+                ? "잔액 확인 중"
+                : `${formatBalance(balance)}토큰`}
           </Text>
         </HStack>
       </MenuTrigger>
@@ -80,11 +84,13 @@ export function TokenPill({
           <Text textStyle="labelSm">
             {failed
               ? "잔액을 불러오지 못했어요"
-              : `잔액 ${formatBalance(balance)}토큰`}
+              : balance === null
+                ? "잔액을 확인하고 있어요"
+                : `잔액 ${formatBalance(balance)}토큰`}
           </Text>
           <Text textStyle="captionSm" color="fg.neutral-subtle">
             {failed
-              ? "잠시 뒤 다시 시도해 주세요. 실제 잔액은 그대로예요."
+              ? "지금은 잔액을 확인할 수 없어요. 잠시 뒤 다시 시도해 주세요."
               : `처음 만들기 1회 ${format(generateCost)}토큰 · 고치기 1회 ${format(editCost)}토큰 · 새 무늬 1회 ${format(motifGenerateCost)}토큰`}
           </Text>
         </VStack>
@@ -109,8 +115,7 @@ function format(value: number | null) {
   return value == null ? "—" : krw.format(value);
 }
 
-function formatBalance(value: number | null) {
-  const balance = value ?? 0;
+function formatBalance(balance: number) {
   return balance < 1_000
     ? krw.format(balance)
     : compact.format(balance).toLowerCase();

@@ -91,6 +91,8 @@ let sessionsGate: Promise<unknown> = Promise.resolve();
 /** 첫 진입 예시 갤러리 응답 — 기본은 0건(기존 빈 상태 폴백). */
 let examples: Record<string, unknown>[] = [];
 let tokenBalance = 455;
+/** 잔액 조회 실패 스위치 — 재조회만 실패시켜 캐시 유지를 확인한다. */
+let balanceFails = false;
 
 const step = (seq: number, runId: string, svg: string) => ({
   id: `turn-${seq}`,
@@ -176,12 +178,17 @@ vi.mock("@essesion/api-client/query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@essesion/api-client/query")>()),
   getTokenBalanceOptions: () => ({
     queryKey: ["page-design-balance"],
-    queryFn: async () => ({
-      total: tokenBalance,
-      generate_cost: 3,
-      edit_cost: 1,
-      motif_generate_cost: 3,
-    }),
+    queryFn: async () => {
+      if (balanceFails) {
+        throw new Error("balance unavailable");
+      }
+      return {
+        total: tokenBalance,
+        generate_cost: 3,
+        edit_cost: 1,
+        motif_generate_cost: 3,
+      };
+    },
   }),
   listDesignExamplesOptions: () => ({
     queryKey: ["page-design-examples"],
@@ -252,6 +259,7 @@ describe("DesignPage canvas shell", () => {
     sessionsGate = Promise.resolve();
     examples = [];
     tokenBalance = 455;
+    balanceFails = false;
     vi.stubGlobal("localStorage", memoryStorage());
     vi.stubGlobal("sessionStorage", memoryStorage());
     localStorage.setItem(DESIGN_ONBOARDING_KEY, "1");
@@ -853,6 +861,20 @@ describe("DesignPage canvas shell", () => {
 
     const tokenButton = (await screen.findByText("1.2k토큰")).closest("button");
     expect(tokenButton?.className).toContain("whitespace-nowrap");
+    queryClient.clear();
+  });
+
+  it("잔액 재조회가 실패해도 캐시된 잔액을 계속 보여준다", async () => {
+    const queryClient = renderPage();
+    await screen.findByText("455토큰");
+
+    balanceFails = true;
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ["page-design-balance"] });
+    });
+
+    expect(screen.getByText("455토큰")).toBeTruthy();
+    expect(screen.queryByText("잔액 확인 불가")).toBeNull();
     queryClient.clear();
   });
 

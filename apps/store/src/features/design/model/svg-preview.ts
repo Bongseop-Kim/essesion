@@ -46,7 +46,9 @@ export function svgTileScale(svg: string): number {
 const PREVIEW_TILE_PX = 116;
 
 export function svgTileStyle(svg: string): CSSProperties {
-  const tile = `min(100%, ${Math.round(PREVIEW_TILE_PX * svgTileScale(svg))}px)`;
+  // 배율이 극단적으로 작아도 0px(=타일 사라짐)로 내려가지 않게 1px 하한 — TieCanvas와 동일.
+  const px = Math.max(1, Math.round(PREVIEW_TILE_PX * svgTileScale(svg)));
+  const tile = `min(100%, ${px}px)`;
   return {
     aspectRatio: 1,
     backgroundImage: `url(${JSON.stringify(svgToDataUri(svg))})`,
