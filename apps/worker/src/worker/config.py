@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     max_placement_instances: int = Field(default=50_000, ge=1)
     stripe_max_band_coverage: float = Field(default=0.75, ge=0.1, le=1.0)
 
+    # AI 실사화(finalize) 편집 품질 — 단가·품질 트레이드오프, 캘리브레이션으로 조정.
+    finalize_image_quality: Literal["low", "medium", "high", "auto"] = "medium"
+
     # 빈 키 → LLM/임베딩 클라이언트 None(비활성). base_url은 테스트의 mock 주입 지점.
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"

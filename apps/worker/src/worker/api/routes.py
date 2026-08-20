@@ -86,7 +86,8 @@ from worker.motifs.resolver import (
 )
 from worker.motifs.store import get_motifs
 from worker.motifs.text_svg import text_to_svg
-from worker.render.fabric import FabricError, render_fabric
+from worker.render.fabric import FabricError
+from worker.render.photoreal import prepare_photoreal_inputs, render_photoreal
 from worker.render.raster import RasterError, RasterLimitError, rasterize_svg
 from worker.warnings import customer_warnings
 
@@ -96,6 +97,8 @@ logger = logging.getLogger(__name__)
 
 FINALIZE_INVALID_INPUT_CODE = "FINALIZE_INVALID_INPUT"
 FINALIZE_INVALID_INPUT_MESSAGE = "finalize input is invalid"
+FINALIZE_UPSTREAM_REJECTED_CODE = "FINALIZE_UPSTREAM_REJECTED"
+FINALIZE_UPSTREAM_REJECTED_MESSAGE = "finalize image edit was rejected upstream"
 
 GENERATION_ERROR_MESSAGES = {
     "authoring_invalid": "the design plan could not be authored",
@@ -1128,10 +1131,12 @@ async def export(body: ExportRequest, request: Request) -> Response:
 
 @finalize_router.post("/finalize")
 async def finalize(body: FinalizeRequest, request: Request, session: SessionDep) -> dict[str, Any]:
-    """실사화 렌더 + GCS 업로드 — /export와 같은 stateless 동기 엔드포인트.
+    """AI 실사화 — 결정론 렌더 → gpt-image 편집 2회(넥타이·원단) → GCS 업로드 3파일.
 
-    잡 상태는 api가 소유한다(성공 시에만 GenerationJob 기록). 영구 실패는 422,
-    일시 실패(RasterError 등)는 5xx로 — api가 UpstreamError로 변환한다.
+    /export와 같은 stateless 동기 엔드포인트. 잡 상태는 api가 소유한다(성공 시에만
+    GenerationJob 기록). 영구 실패(잘못된 입력·업스트림 콘텐츠 거절)는 422, 어댑터
+    미구성은 503, 일시 실패(RasterError·업스트림 5xx)는 5xx — api가 변환·환불한다.
+    편집 2회 중 1회만 성공해도 전체 실패다(부분 성공 상태 금지, finalize-ai-fabric.md §7).
     """
     settings = request.app.state.settings
     # /export와 같은 dpi 상한 — 같은 입력은 같은 실패라 영구 실패(422)로 과금을 되돌린다.
@@ -1143,12 +1148,18 @@ async def finalize(body: FinalizeRequest, request: Request, session: SessionDep)
                 "message": FINALIZE_INVALID_INPUT_MESSAGE,
             },
         )
+    gpt_image = request.app.state.adapters.gpt_image
+    if gpt_image is None:
+        # 어댑터 하드 에러 패턴(adapters/__init__.py) — 절차 렌더로의 조용한 폴백 금지.
+        raise HTTPException(status_code=503, detail="finalize image adapter is not configured")
     params = body.model_dump(exclude_none=True)
     # generate와 동일하게 DB 모티프 카탈로그를 렌더에 공급 — 빈 카탈로그는 전역
     # registry 폴백(테스트/시드 경로). 미등록 모티프는 render_fabric이 영구 실패 처리.
     motif_catalog = await get_motifs(session, iter_motif_ids(params.get("intent"))) or None
     try:
-        png = await run_in_threadpool(render_fabric, params, settings, motif_catalog)
+        inputs = await run_in_threadpool(
+            prepare_photoreal_inputs, params, settings, motif_catalog
+        )
     except (FabricError, IntentInvalid, RasterLimitError):
         # 영구 실패(잘못된 intent/weave/colorway 등) — 같은 입력은 같은 실패라 재시도 무의미.
         logger.warning("finalize input rejected", exc_info=True)
@@ -1159,9 +1170,41 @@ async def finalize(body: FinalizeRequest, request: Request, session: SessionDep)
                 "message": FINALIZE_INVALID_INPUT_MESSAGE,
             },
         ) from None
-    key = content_key("fabric", png, "png")
-    await request.app.state.object_store.upload_bytes(key, png, "image/png")
-    return {"object_key": key}
+    try:
+        tie_png, fabric_png = await render_photoreal(
+            inputs, gpt_image, quality=settings.finalize_image_quality
+        )
+    except AdapterNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except AdapterClientError as exc:
+        status = exc.status_code
+        if status is not None and 400 <= status < 500 and status not in (401, 403, 429):
+            # 업스트림이 이 입력을 거절(콘텐츠 정책 등) — 같은 입력은 같은 실패.
+            logger.warning("finalize edit rejected upstream", exc_info=True)
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": FINALIZE_UPSTREAM_REJECTED_CODE,
+                    "message": FINALIZE_UPSTREAM_REJECTED_MESSAGE,
+                },
+            ) from None
+        # 인증·레이트리밋·5xx·타임아웃 — 일시 실패, api가 UpstreamError로 변환·환불.
+        raise HTTPException(status_code=502, detail="finalize image edit failed") from exc
+
+    tie_key = content_key("fabric", tie_png, "png")
+    fabric_key = content_key("fabric", fabric_png, "png")
+    tile_key = content_key("tile", inputs.tile_png, "png")
+    store = request.app.state.object_store
+    await store.upload_bytes(tie_key, tie_png, "image/png")
+    await store.upload_bytes(fabric_key, fabric_png, "image/png")
+    await store.upload_bytes(tile_key, inputs.tile_png, "image/png")
+    return {
+        "tie_object_key": tie_key,
+        "fabric_object_key": fabric_key,
+        "tile_object_key": tile_key,
+        # 레거시 호환 별칭 — 컷오버 전의 api/_generation_job_out(result_url)이 읽는다.
+        "object_key": fabric_key,
+    }
 
 
 router = APIRouter()

@@ -37,6 +37,7 @@ DEFAULT_BASE_URL = "https://api.openai.com/v1"
 MAX_PNG_BYTES = 10_000_000
 
 _API_PATH = "/images/generations"
+_EDIT_API_PATH = "/images/edits"
 _RETRYABLE = frozenset({429, 500, 502, 503})
 _MAX_ATTEMPTS = 4
 _BASE_DELAY_S = 0.5
@@ -117,26 +118,73 @@ class GPTImageHTTPClient:
             "size": self._size,
             "n": 1,
         }
+        return await self._request_png(_API_PATH, operation="generate_motif", json=payload)
+
+    async def edit(
+        self,
+        prompt: str,
+        *,
+        images: list[bytes],
+        mask: bytes | None = None,
+        size: str,
+        quality: str | None = None,
+        operation: str = "finalize_photoreal",
+    ) -> bytes:
+        """`/images/edits` — 다중 참고 이미지(+선택 마스크, 첫 이미지에 적용) 편집.
+
+        멀티파트 폼: `image[]` 순서가 프롬프트의 "첫/두/세 번째 이미지" 지시와 결속된다.
+        """
+        if not images:
+            raise GPTImageError(
+                "edit requires at least one input image",
+                provider="openai_image",
+                operation=operation,
+                reason_code="invalid_request",
+            )
+        files: list[tuple[str, tuple[str, bytes, str]]] = [
+            ("image[]", (f"image-{index}.png", data, "image/png"))
+            for index, data in enumerate(images)
+        ]
+        if mask is not None:
+            files.append(("mask", ("mask.png", mask, "image/png")))
+        data = {
+            "model": self._model,
+            "prompt": prompt,
+            "size": size,
+            "quality": quality or self._quality,
+            "n": "1",
+        }
+        return await self._request_png(_EDIT_API_PATH, operation=operation, data=data, files=files)
+
+    async def _request_png(
+        self,
+        path: str,
+        *,
+        operation: str,
+        json: dict | None = None,
+        data: dict | None = None,
+        files: list | None = None,
+    ) -> bytes:
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         response: httpx.Response | None = None
         for attempt in range(_MAX_ATTEMPTS):
             try:
                 response = await self._http().post(
-                    f"{self._base_url}{_API_PATH}", headers=headers, json=payload
+                    f"{self._base_url}{path}", headers=headers, json=json, data=data, files=files
                 )
             except httpx.TimeoutException as exc:
                 raise GPTImageError(
                     "OpenAI image request timed out",
                     provider="openai_image",
-                    operation="generate_motif",
+                    operation=operation,
                     reason_code="timeout",
                 ) from exc
             except httpx.HTTPError as exc:
                 raise GPTImageError(
                     "OpenAI image transport error",
                     provider="openai_image",
-                    operation="generate_motif",
+                    operation=operation,
                     reason_code="transport_error",
                 ) from exc
             status = response.status_code
@@ -147,7 +195,7 @@ class GPTImageHTTPClient:
                 raise GPTImageError(
                     f"OpenAI image API HTTP {status}",
                     provider="openai_image",
-                    operation="generate_motif",
+                    operation=operation,
                     reason_code=adapter_http_reason(status),
                     status_code=status,
                 )
@@ -159,7 +207,7 @@ class GPTImageHTTPClient:
             log_provider_usage(
                 body,
                 provider="openai_image",
-                operation="generate_motif",
+                operation=operation,
                 model=self._model,
             )
             encoded = body["data"][0]["b64_json"]
@@ -183,7 +231,7 @@ class GPTImageHTTPClient:
             raise GPTImageError(
                 "OpenAI image API returned a malformed response",
                 provider="openai_image",
-                operation="generate_motif",
+                operation=operation,
                 reason_code="invalid_response",
             ) from exc
         return png
