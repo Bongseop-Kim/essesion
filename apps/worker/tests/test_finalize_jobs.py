@@ -35,9 +35,7 @@ def _fake_png(tag: str, size: str) -> bytes:
 class FakeGPTImage:
     """GPTImageHTTPClient.edit 프로토콜 대역 — 호출 기록 + 결정론 응답."""
 
-    def __init__(
-        self, fail_with: Exception | None = None, respond_size: str | None = None
-    ) -> None:
+    def __init__(self, fail_with: Exception | None = None, respond_size: str | None = None) -> None:
         self.calls: list[dict] = []
         self.fail_with = fail_with
         # 요청과 다른 크기로 응답 — 치수 검증 테스트용
@@ -99,9 +97,7 @@ async def _seed_golden_motif(db_session) -> dict:
     return intent
 
 
-async def test_finalize_renders_edits_and_uploads_three_artifacts(
-    client, gpt_image, db_session
-):
+async def test_finalize_renders_edits_and_uploads_three_artifacts(client, gpt_image, db_session):
     intent = await _seed_golden_motif(db_session)
 
     response = await client.post(

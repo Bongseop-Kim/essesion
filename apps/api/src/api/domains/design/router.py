@@ -2195,9 +2195,7 @@ def _order_reference_sources(job: GenerationJob) -> list[str]:
         _job_result_key(job, "object_key")
     ]
     return [
-        k
-        for k in keys
-        if k and k.startswith(("fabric/", "tile/")) and ".." not in k.split("/")
+        k for k in keys if k and k.startswith(("fabric/", "tile/")) and ".." not in k.split("/")
     ]
 
 

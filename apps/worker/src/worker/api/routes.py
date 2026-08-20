@@ -1157,9 +1157,7 @@ async def finalize(body: FinalizeRequest, request: Request, session: SessionDep)
     # registry 폴백(테스트/시드 경로). 미등록 모티프는 render_fabric이 영구 실패 처리.
     motif_catalog = await get_motifs(session, iter_motif_ids(params.get("intent"))) or None
     try:
-        inputs = await run_in_threadpool(
-            prepare_photoreal_inputs, params, settings, motif_catalog
-        )
+        inputs = await run_in_threadpool(prepare_photoreal_inputs, params, settings, motif_catalog)
     except (FabricError, IntentInvalid, RasterLimitError):
         # 영구 실패(잘못된 intent/weave/colorway 등) — 같은 입력은 같은 실패라 재시도 무의미.
         logger.warning("finalize input rejected", exc_info=True)
