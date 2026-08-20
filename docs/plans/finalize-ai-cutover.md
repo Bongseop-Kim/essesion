@@ -22,7 +22,7 @@
 
 ## 실행 조건
 
-- 캡슐 플랜의 검증 절(육안 기준 4항목) 통과 전에는 실행하지 않는다.
+- 캡슐 플랜의 검증 절(육안 기준 a~e 5항목) 통과 전에는 실행하지 않는다.
 - OpenAI 이미지 편집 실측 단가·평균 지연을 캘리브레이션에서 기록해 둘 것 —
   아래 3·4항의 입력값이다. 기억·추정 단가로 과금을 정하는 것이 이 플랜의
   대표적 오류원이다.
@@ -124,9 +124,12 @@ https://claude.ai/code/artifact/51999f7c-6cbe-4bc3-9d0e-404bc82a766c
      (피커 `FieldButton`의 짧은 형식은 그대로 둔다). ③ Skeleton 라운드 r4/r2 통일.
    - 그 외 store 변경은 실사화 다이얼로그 caption 한 줄과 7항의 첨부 복사뿐이다.
 6. **이미지 배선 (병합 후)** — `FinalizedGallery` 카드의 `TieCanvas` →
-   `ImageFrame ratio=1 borderRadius="r4" fit="cover"`, 이미지 소스를
-   `previewMode`에 따라 `tie_url` / `fabric_url`로. 레거시 행은 `result_url`로
-   폴백. **한 파일에서 끝난다.**
+   `ImageFrame`, 이미지 소스를 `previewMode`에 따라 `tie_url` / `fabric_url`로.
+   레거시 행은 `result_url`로 폴백. **한 파일에서 끝난다.**
+   비율 주의: 넥타이 실사의 원본은 베이스 사진 비율 **2:3**(1024×1536)이다 —
+   `ratio=1` + `fit="cover"`는 매듭이나 끝단을 잘라먹는다. 넥타이 뷰는
+   `ratio=1` + `fit="contain"` + `bg.neutral-weak` 바탕(현행 TieCanvas의 회색
+   패널 룩과 동일)으로, 원단 뷰는 `fit="cover"`로 배선한다.
    라벨 주의: "넥타이/타일"이 `view-toggle.tsx:21-22`에 하드코딩이고 디자인
    캔버스와 공유된다. 캔버스는 결정론 타일을 계속 보여주므로 "타일"이 맞고,
    갤러리만 "원단"이어야 한다 — `ViewToggle`에 두 번째 세그먼트 라벨 prop
