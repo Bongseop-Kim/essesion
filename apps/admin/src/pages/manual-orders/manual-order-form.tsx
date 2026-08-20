@@ -47,6 +47,17 @@ type ItemDraft = {
   targetWidthCm: string;
   hasRestoration: boolean;
   restorationMemo: string;
+  // 주문제작 — automatic의 dimple/turnKnot와 구분하려고 custom* 접두
+  hasCustom: boolean;
+  fabricProvided: boolean;
+  fabricType: "POLY" | "SILK";
+  designType: "PRINTING" | "YARN_DYED";
+  tieType: "MANUAL" | "AUTO";
+  customDimple: boolean;
+  customTurnKnot: boolean;
+  sizeType: "ADULT" | "CHILD";
+  tieWidthCm: string;
+  customMemo: string;
   note: string;
 };
 
@@ -81,6 +92,16 @@ function createItemDraft(
     targetWidthCm: "",
     hasRestoration: false,
     restorationMemo: "",
+    hasCustom: false,
+    fabricProvided: false,
+    fabricType: "POLY",
+    designType: "PRINTING",
+    tieType: "MANUAL",
+    customDimple: false,
+    customTurnKnot: false,
+    sizeType: "ADULT",
+    tieWidthCm: "",
+    customMemo: "",
     note: "",
     ...values,
   };
@@ -124,6 +145,19 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
           item.width == null ? "" : String(item.width.target_width_cm),
         hasRestoration: item.restoration != null,
         restorationMemo: item.restoration?.memo ?? "",
+        hasCustom: item.custom != null,
+        fabricProvided: item.custom?.fabric_provided ?? false,
+        fabricType: item.custom?.fabric_type ?? "POLY",
+        designType: item.custom?.design_type ?? "PRINTING",
+        tieType: item.custom?.tie_type ?? "MANUAL",
+        customDimple: item.custom?.dimple ?? false,
+        customTurnKnot: item.custom?.turn_knot ?? false,
+        sizeType: item.custom?.size_type ?? "ADULT",
+        tieWidthCm:
+          item.custom?.tie_width_cm == null
+            ? ""
+            : String(item.custom.tie_width_cm),
+        customMemo: item.custom?.memo ?? "",
         note: item.note ?? "",
       }),
     ),
@@ -131,7 +165,10 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
 }
 
 type ItemErrors = Partial<
-  Record<"quantity" | "category" | "totalLengthCm" | "targetWidthCm", string>
+  Record<
+    "quantity" | "category" | "totalLengthCm" | "targetWidthCm" | "tieWidthCm",
+    string
+  >
 >;
 type DraftErrors = Partial<
   Record<
@@ -164,14 +201,26 @@ function validateItem(item: ItemDraft): ItemErrors {
   if (quantity === undefined || quantity < 1) {
     errors.quantity = "1 이상의 정수를 입력해 주세요.";
   }
-  if (!item.hasAutomatic && !item.hasWidth && !item.hasRestoration) {
-    errors.category = "수선 대분류를 하나 이상 선택해 주세요.";
+  if (
+    !item.hasAutomatic &&
+    !item.hasWidth &&
+    !item.hasRestoration &&
+    !item.hasCustom
+  ) {
+    errors.category = "대분류를 하나 이상 선택해 주세요.";
   }
   if (item.hasAutomatic && positiveNumber(item.totalLengthCm) === undefined) {
     errors.totalLengthCm = "0보다 큰 총장(cm)을 입력해 주세요.";
   }
   if (item.hasWidth && positiveNumber(item.targetWidthCm) === undefined) {
     errors.targetWidthCm = "0보다 큰 폭(cm)을 입력해 주세요.";
+  }
+  if (
+    item.hasCustom &&
+    item.tieWidthCm.trim() !== "" &&
+    positiveNumber(item.tieWidthCm) === undefined
+  ) {
+    errors.tieWidthCm = "0보다 큰 타이 폭(cm)을 입력해 주세요.";
   }
   return errors;
 }
@@ -221,6 +270,20 @@ function itemBody(item: ItemDraft): ManualOrderItem {
       : null,
     restoration: item.hasRestoration
       ? { memo: item.restorationMemo.trim() }
+      : null,
+    custom: item.hasCustom
+      ? {
+          fabric_provided: item.fabricProvided,
+          fabric_type: item.fabricProvided ? null : item.fabricType,
+          design_type: item.fabricProvided ? null : item.designType,
+          tie_type: item.tieType,
+          dimple: item.tieType === "AUTO" && item.customDimple,
+          turn_knot: item.tieType === "AUTO" && item.customTurnKnot,
+          size_type: item.sizeType,
+          tie_width_cm:
+            item.tieWidthCm.trim() === "" ? null : Number(item.tieWidthCm),
+          memo: item.customMemo.trim(),
+        }
       : null,
     note: item.note.trim(),
   };
@@ -441,8 +504,8 @@ export function ManualOrderForm({
         </AdminCard>
 
         <AdminCard
-          title="수선 품목"
-          description="품목마다 대분류를 하나 이상 선택합니다. 끈 타입은 돌려묶기를 선택할 수 없습니다."
+          title="작업 품목"
+          description="품목마다 대분류를 하나 이상 선택합니다. 돌려묶기·딤플은 자동수선의 지퍼 타입, 주문제작의 자동 봉제에서만 선택할 수 있습니다."
         >
           <VStack gap="x4" alignItems="stretch">
             {attempted && errors.items !== undefined && (
@@ -526,6 +589,16 @@ export function ManualOrderForm({
                             onChange={(event) =>
                               updateItem(index, {
                                 hasRestoration: event.currentTarget.checked,
+                              })
+                            }
+                          />
+                          <Checkbox
+                            label="주문제작"
+                            checked={item.hasCustom}
+                            disabled={pending}
+                            onChange={(event) =>
+                              updateItem(index, {
+                                hasCustom: event.currentTarget.checked,
                               })
                             }
                           />
@@ -658,6 +731,208 @@ export function ManualOrderForm({
                           })
                         }
                       />
+                    )}
+
+                    {item.hasCustom && (
+                      <VStack gap="x4" alignItems="stretch">
+                        <Grid columns={{ base: 1, md: 2 }} gap="x4">
+                          <VStack gap="x2" alignItems="stretch">
+                            <Text as="h4" textStyle="labelSm">
+                              [제작] 원단 준비
+                            </Text>
+                            <SegmentedControl
+                              aria-label="주문제작 원단 준비"
+                              value={item.fabricProvided ? "provided" : "own"}
+                              onValueChange={(value) =>
+                                updateItem(index, {
+                                  fabricProvided: value === "provided",
+                                })
+                              }
+                            >
+                              <SegmentedControlItem value="own">
+                                자체 원단
+                              </SegmentedControlItem>
+                              <SegmentedControlItem value="provided">
+                                원단 제공
+                              </SegmentedControlItem>
+                            </SegmentedControl>
+                          </VStack>
+                          {!item.fabricProvided && (
+                            <VStack gap="x2" alignItems="stretch">
+                              <Text as="h4" textStyle="labelSm">
+                                [제작] 원단
+                              </Text>
+                              <SegmentedControl
+                                aria-label="주문제작 원단"
+                                value={item.fabricType}
+                                onValueChange={(value) =>
+                                  updateItem(index, {
+                                    fabricType:
+                                      value === "SILK" ? "SILK" : "POLY",
+                                  })
+                                }
+                              >
+                                <SegmentedControlItem value="POLY">
+                                  폴리
+                                </SegmentedControlItem>
+                                <SegmentedControlItem value="SILK">
+                                  실크
+                                </SegmentedControlItem>
+                              </SegmentedControl>
+                            </VStack>
+                          )}
+                          {!item.fabricProvided && (
+                            <VStack gap="x2" alignItems="stretch">
+                              <Text as="h4" textStyle="labelSm">
+                                [제작] 디자인
+                              </Text>
+                              <SegmentedControl
+                                aria-label="주문제작 디자인"
+                                value={item.designType}
+                                onValueChange={(value) =>
+                                  updateItem(index, {
+                                    designType:
+                                      value === "YARN_DYED"
+                                        ? "YARN_DYED"
+                                        : "PRINTING",
+                                  })
+                                }
+                              >
+                                <SegmentedControlItem value="PRINTING">
+                                  날염
+                                </SegmentedControlItem>
+                                <SegmentedControlItem value="YARN_DYED">
+                                  선염
+                                </SegmentedControlItem>
+                              </SegmentedControl>
+                            </VStack>
+                          )}
+                          <VStack gap="x2" alignItems="stretch">
+                            <Text as="h4" textStyle="labelSm">
+                              [제작] 봉제
+                            </Text>
+                            <SegmentedControl
+                              aria-label="주문제작 봉제"
+                              value={item.tieType}
+                              onValueChange={(value) =>
+                                updateItem(
+                                  index,
+                                  value === "AUTO"
+                                    ? { tieType: "AUTO" }
+                                    : {
+                                        tieType: "MANUAL",
+                                        customDimple: false,
+                                        customTurnKnot: false,
+                                      },
+                                )
+                              }
+                            >
+                              <SegmentedControlItem value="MANUAL">
+                                수동
+                              </SegmentedControlItem>
+                              <SegmentedControlItem value="AUTO">
+                                자동
+                              </SegmentedControlItem>
+                            </SegmentedControl>
+                          </VStack>
+                          <VStack gap="x2" alignItems="stretch">
+                            <Text as="h4" textStyle="labelSm">
+                              [제작] 마감
+                            </Text>
+                            <SegmentedControl
+                              aria-label="주문제작 마감"
+                              value={item.customTurnKnot ? "turnKnot" : "bang"}
+                              onValueChange={(value) =>
+                                updateItem(index, {
+                                  customTurnKnot: value === "turnKnot",
+                                })
+                              }
+                            >
+                              <SegmentedControlItem value="bang">
+                                방
+                              </SegmentedControlItem>
+                              <SegmentedControlItem
+                                value="turnKnot"
+                                disabled={item.tieType === "MANUAL"}
+                              >
+                                돌려묶기
+                              </SegmentedControlItem>
+                            </SegmentedControl>
+                          </VStack>
+                          <VStack gap="x2" alignItems="stretch">
+                            <Text as="h4" textStyle="labelSm">
+                              [제작] 딤플
+                            </Text>
+                            <SegmentedControl
+                              aria-label="주문제작 딤플"
+                              value={item.customDimple ? "dimple" : "basic"}
+                              onValueChange={(value) =>
+                                updateItem(index, {
+                                  customDimple: value === "dimple",
+                                })
+                              }
+                            >
+                              <SegmentedControlItem value="basic">
+                                기본
+                              </SegmentedControlItem>
+                              <SegmentedControlItem
+                                value="dimple"
+                                disabled={item.tieType === "MANUAL"}
+                              >
+                                딤플
+                              </SegmentedControlItem>
+                            </SegmentedControl>
+                          </VStack>
+                          <VStack gap="x2" alignItems="stretch">
+                            <Text as="h4" textStyle="labelSm">
+                              [제작] 규격
+                            </Text>
+                            <SegmentedControl
+                              aria-label="주문제작 규격"
+                              value={item.sizeType}
+                              onValueChange={(value) =>
+                                updateItem(index, {
+                                  sizeType:
+                                    value === "CHILD" ? "CHILD" : "ADULT",
+                                })
+                              }
+                            >
+                              <SegmentedControlItem value="ADULT">
+                                성인용
+                              </SegmentedControlItem>
+                              <SegmentedControlItem value="CHILD">
+                                아동용
+                              </SegmentedControlItem>
+                            </SegmentedControl>
+                          </VStack>
+                          <TextField
+                            type="number"
+                            min={1}
+                            label="[제작] 타이 폭"
+                            suffix="cm"
+                            value={item.tieWidthCm}
+                            errorMessage={itemErrors.tieWidthCm}
+                            disabled={pending}
+                            onChange={(event) =>
+                              updateItem(index, {
+                                tieWidthCm: event.currentTarget.value,
+                              })
+                            }
+                          />
+                        </Grid>
+                        <TextAreaField
+                          label="[제작] 내용"
+                          rows={2}
+                          maxLength={200}
+                          value={item.customMemo}
+                          disabled={pending}
+                          onChange={(event) =>
+                            updateItem(index, {
+                              customMemo: event.currentTarget.value,
+                            })
+                          }
+                        />
+                      </VStack>
                     )}
 
                     <TextAreaField

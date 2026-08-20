@@ -7319,7 +7319,6 @@
         "type": "object"
       },
       "DesignOrderReferenceOut": {
-        "description": "주문 인수물 — 넥타이 실사(고객 기대치 증빙)와 정본 타일(디자이너 작업 원본).\n\n파일 개수는 내부 계약이다. 화면의 첨부 아이템은 \"디자인 1개 = 카드 1개\"로 유지하고\n개수·경로를 노출하지 않는다. 레거시 finalize 행(object_key만)은 1개짜리 목록.",
         "properties": {
           "items": {
             "items": {
@@ -8939,6 +8938,95 @@
         "title": "ManualAutomaticSpec",
         "type": "object"
       },
+      "ManualCustomSpec": {
+        "additionalProperties": false,
+        "description": "주문제작 — 종이 양식의 핵심 항목만(원단·봉제·규격·타이 폭·메모).\n\n키 이름·값은 store 맞춤 주문 options 어휘(fabric_provided, design_type,\nfabric_type, tie_type, size_type)를 따른다. 수량은 품목 공통 quantity를 쓴다.",
+        "properties": {
+          "design_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "PRINTING",
+                  "YARN_DYED"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design Type"
+          },
+          "dimple": {
+            "default": false,
+            "title": "Dimple",
+            "type": "boolean"
+          },
+          "fabric_provided": {
+            "default": false,
+            "title": "Fabric Provided",
+            "type": "boolean"
+          },
+          "fabric_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "POLY",
+                  "SILK"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fabric Type"
+          },
+          "memo": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Memo",
+            "type": "string"
+          },
+          "size_type": {
+            "default": "ADULT",
+            "enum": [
+              "ADULT",
+              "CHILD"
+            ],
+            "title": "Size Type",
+            "type": "string"
+          },
+          "tie_type": {
+            "default": "MANUAL",
+            "enum": [
+              "MANUAL",
+              "AUTO"
+            ],
+            "title": "Tie Type",
+            "type": "string"
+          },
+          "tie_width_cm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tie Width Cm"
+          },
+          "turn_knot": {
+            "default": false,
+            "title": "Turn Knot",
+            "type": "boolean"
+          }
+        },
+        "title": "ManualCustomSpec",
+        "type": "object"
+      },
       "ManualOrderCreateRequest": {
         "properties": {
           "address": {
@@ -9018,12 +9106,22 @@
       },
       "ManualOrderItem": {
         "additionalProperties": false,
-        "description": "품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태.",
+        "description": "품목 — automatic/width/restoration/custom 존재 여부가 대분류 체크 상태.",
         "properties": {
           "automatic": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ManualAutomaticSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "custom": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManualCustomSpec"
               },
               {
                 "type": "null"

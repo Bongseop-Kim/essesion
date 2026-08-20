@@ -53,7 +53,7 @@ import {
 } from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
-import { DetailList } from "../../shared/ui/detail-list";
+import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
 import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
@@ -101,6 +101,50 @@ function snapshotLabel(item: OrderItemOut) {
       )
       .join(" · ") || "상품 정보 없음"
   );
+}
+
+// 수기 주문 상세(manual-orders/detail.tsx)의 품목 표기와 동일한 형식.
+// 스토어 수선은 총장 대신 착용자 키를 받고(reform 스키마), 품목별 특이사항이 없다.
+function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
+  const tie = record(record(item.item_data)?.tie);
+  const automatic = record(tie?.automatic);
+  const width = record(tie?.width);
+  const restoration = record(tie?.restoration);
+  const categories = [
+    automatic !== null && "자동수선",
+    width !== null && "폭수선",
+    restoration !== null && "복원수선",
+  ].filter((value): value is string => typeof value === "string");
+  const items: DetailItem[] = [
+    { label: "수량", value: `${item.quantity.toLocaleString("ko-KR")}개` },
+    {
+      label: "대분류",
+      value: categories.length === 0 ? "-" : categories.join(" · "),
+    },
+  ];
+  if (automatic !== null) {
+    items.push({
+      label: "[자동] 타입·마감",
+      value: `${automatic.mechanism === "string" ? "끈" : "지퍼"} · ${
+        automatic.turn_knot === true ? "돌려묶기" : "방"
+      } · ${automatic.dimple === true ? "딤플" : "기본"}`,
+    });
+    if (typeof automatic.wearer_height_cm === "number") {
+      items.push({
+        label: "[자동] 착용자 키",
+        value: `${automatic.wearer_height_cm}cm`,
+      });
+    }
+  }
+  if (width !== null && typeof width.target_width_cm === "number") {
+    items.push({ label: "[폭] 폭", value: `${width.target_width_cm}cm` });
+  }
+  if (restoration !== null) {
+    const memo =
+      typeof restoration.memo === "string" ? restoration.memo.trim() : "";
+    items.push({ label: "[복원] 내용", value: memo === "" ? "-" : memo });
+  }
+  return items;
 }
 
 function AdminOrderContent({
@@ -681,6 +725,35 @@ export function OrderDetailPage() {
                 ]}
               />
             </AdminCard>
+            {data.order_type === "repair" ? (
+              <AdminCard
+                title="수선 품목"
+                description={`총 ${orderItems.length.toLocaleString("ko-KR")}개 품목`}
+              >
+                {orderItems.length === 0 ? (
+                  <ContentPlaceholder title="등록된 품목이 없습니다" />
+                ) : (
+                  <VStack gap="x4" alignItems="stretch">
+                    {orderItems.map((item, index) => (
+                      <Box
+                        key={item.id}
+                        borderWidth={1}
+                        borderColor="stroke.neutral"
+                        borderRadius="r2"
+                        p="x4"
+                      >
+                        <VStack gap="x3" alignItems="stretch">
+                          <Text as="h3" textStyle="labelSm">
+                            품목 {index + 1}
+                          </Text>
+                          <DetailList items={repairItemDetailItems(item)} />
+                        </VStack>
+                      </Box>
+                    ))}
+                  </VStack>
+                )}
+              </AdminCard>
+            ) : null}
           </VStack>
         </TabContent>
 

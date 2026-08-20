@@ -148,7 +148,74 @@ async def test_manual_order_validation(client, db_session, settings):
         ),
         manual_order_body(amount=-1),
         manual_order_body(items=[{"quantity": 0, "width": {"target_width_cm": 8}}]),
+        manual_order_body(  # 원단 제공이 아닌데 원단 미선택
+            items=[{"quantity": 1, "custom": {"fabric_provided": False}}]
+        ),
+        manual_order_body(  # 수동 봉제 + 딤플 금지
+            items=[
+                {
+                    "quantity": 1,
+                    "custom": {
+                        "fabric_type": "POLY",
+                        "design_type": "PRINTING",
+                        "tie_type": "MANUAL",
+                        "dimple": True,
+                    },
+                }
+            ]
+        ),
+        manual_order_body(  # 타이 폭 0 금지
+            items=[
+                {
+                    "quantity": 1,
+                    "custom": {
+                        "fabric_type": "POLY",
+                        "design_type": "PRINTING",
+                        "tie_width_cm": 0,
+                    },
+                }
+            ]
+        ),
     ]
     for body in invalid_bodies:
         response = await client.post("/admin/manual-orders", json=body, headers=headers)
         assert response.status_code == 422, body
+
+
+async def test_manual_order_custom_item(client, db_session, settings):
+    headers = await admin_headers(db_session, settings)
+
+    body = manual_order_body(
+        items=[
+            {
+                "quantity": 3,
+                "custom": {
+                    "fabric_provided": False,
+                    "fabric_type": "SILK",
+                    "design_type": "YARN_DYED",
+                    "tie_type": "AUTO",
+                    "dimple": True,
+                    "turn_knot": True,
+                    "size_type": "CHILD",
+                    "tie_width_cm": 7.5,
+                    "memo": " 로고 자수 ",
+                },
+            },
+            {  # 수선 + 제작 혼합 품목
+                "quantity": 1,
+                "width": {"target_width_cm": 8},
+                "custom": {"fabric_provided": True, "fabric_type": "POLY"},
+            },
+        ]
+    )
+    created = await client.post("/admin/manual-orders", json=body, headers=headers)
+    assert created.status_code == 201, created.text
+    items = created.json()["items"]
+    assert items[0]["automatic"] is None
+    assert items[0]["custom"]["fabric_type"] == "SILK"
+    assert items[0]["custom"]["tie_width_cm"] == 7.5
+    assert items[0]["custom"]["memo"] == "로고 자수"
+    # 원단 제공이면 원단 선택은 None으로 정규화
+    assert items[1]["custom"]["fabric_provided"] is True
+    assert items[1]["custom"]["fabric_type"] is None
+    assert items[1]["width"]["target_width_cm"] == 8

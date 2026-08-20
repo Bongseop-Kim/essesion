@@ -3949,11 +3949,6 @@ export type DesignOrderReferenceItem = {
 
 /**
  * DesignOrderReferenceOut
- *
- * 주문 인수물 — 넥타이 실사(고객 기대치 증빙)와 정본 타일(디자이너 작업 원본).
- *
- * 파일 개수는 내부 계약이다. 화면의 첨부 아이템은 "디자인 1개 = 카드 1개"로 유지하고
- * 개수·경로를 노출하지 않는다. 레거시 finalize 행(object_key만)은 1개짜리 목록.
  */
 export type DesignOrderReferenceOut = {
     /**
@@ -4833,6 +4828,53 @@ export type ManualAutomaticSpec = {
 };
 
 /**
+ * ManualCustomSpec
+ *
+ * 주문제작 — 종이 양식의 핵심 항목만(원단·봉제·규격·타이 폭·메모).
+ *
+ * 키 이름·값은 store 맞춤 주문 options 어휘(fabric_provided, design_type,
+ * fabric_type, tie_type, size_type)를 따른다. 수량은 품목 공통 quantity를 쓴다.
+ */
+export type ManualCustomSpec = {
+    /**
+     * Design Type
+     */
+    design_type?: 'PRINTING' | 'YARN_DYED' | null;
+    /**
+     * Dimple
+     */
+    dimple?: boolean;
+    /**
+     * Fabric Provided
+     */
+    fabric_provided?: boolean;
+    /**
+     * Fabric Type
+     */
+    fabric_type?: 'POLY' | 'SILK' | null;
+    /**
+     * Memo
+     */
+    memo?: string;
+    /**
+     * Size Type
+     */
+    size_type?: 'ADULT' | 'CHILD';
+    /**
+     * Tie Type
+     */
+    tie_type?: 'MANUAL' | 'AUTO';
+    /**
+     * Tie Width Cm
+     */
+    tie_width_cm?: number | null;
+    /**
+     * Turn Knot
+     */
+    turn_knot?: boolean;
+};
+
+/**
  * ManualOrderCreateRequest
  */
 export type ManualOrderCreateRequest = {
@@ -4881,10 +4923,11 @@ export type ManualOrderCreateRequest = {
 /**
  * ManualOrderItem
  *
- * 품목 — automatic/width/restoration 존재 여부가 대분류 체크 상태.
+ * 품목 — automatic/width/restoration/custom 존재 여부가 대분류 체크 상태.
  */
 export type ManualOrderItem = {
     automatic?: ManualAutomaticSpec | null;
+    custom?: ManualCustomSpec | null;
     /**
      * Note
      */
