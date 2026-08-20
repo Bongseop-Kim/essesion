@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Box } from "./box";
 import { Flex } from "./flex";
@@ -74,12 +75,43 @@ export function TieCanvas({
   tileScale = 1,
   className,
 }: TieCanvasProps) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [frameWidth, setFrameWidth] = useState(0);
+
+  // repeat 모드의 타일 폭을 정수 px로 스냅하기 위한 실측 — %로 두면 타일 폭이 소수 px가
+  // 되고 반복마다 반올림 위상이 달라져 경계에 부모 배경이 비치는 흰 선이 생긴다.
+  useEffect(() => {
+    const el = frameRef.current;
+    // jsdom(테스트)에는 ResizeObserver가 없다 — 없으면 % 폴백을 그대로 쓴다.
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      setFrameWidth(el.getBoundingClientRect().width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const backgroundStyle = {
     backgroundImage: `url(${JSON.stringify(imageSrc)})`,
     backgroundRepeat: "repeat",
     backgroundSize: `${TIE_GEOMETRY.tileFraction[mode] * tileScale * 100}% auto`,
     backgroundPosition: "center",
   } as const;
+
+  // 정수 px 타일 + 원점 정렬(center의 반칸 오프셋도 소수를 만든다). 타일은 정사각이라
+  // 두 축에 같은 값을 줘 auto가 소수 높이를 만드는 경로까지 막는다.
+  const repeatTilePx = Math.max(
+    1,
+    Math.round(frameWidth * TIE_GEOMETRY.tileFraction.repeat * tileScale),
+  );
+  const repeatStyle =
+    frameWidth === 0
+      ? backgroundStyle
+      : {
+          ...backgroundStyle,
+          backgroundSize: `${repeatTilePx}px ${repeatTilePx}px`,
+          backgroundPosition: "0 0",
+        };
 
   return (
     <Box
@@ -90,6 +122,7 @@ export function TieCanvas({
       borderRadius={surface === "panel" ? "r4" : undefined}
       bg={surface === "panel" ? "bg.neutral-weak" : undefined}
       className={className}
+      ref={frameRef}
       // 부모가 높이를 정하면(미리보기 패널) 그 영역을 그대로 채우고,
       // 높이가 불확정이면(모달) aspectRatio가 적용되어 폭 기준 정사각이 된다.
       style={{ aspectRatio: 1 }}
@@ -100,8 +133,8 @@ export function TieCanvas({
           inset={0}
           role="img"
           aria-label={alt}
-          className="transition-all duration-100 ease-standard"
-          style={backgroundStyle}
+          // background 크기를 전환하면 중간 소수 값이 그려져 흰 선이 다시 보인다 — 전환 없음.
+          style={repeatStyle}
         />
       ) : (
         <Flex

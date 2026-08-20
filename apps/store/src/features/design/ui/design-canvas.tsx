@@ -38,6 +38,10 @@ export type DesignCanvasProps = {
  * 풀블리드 캔버스. 넥타이는 남은 높이의 가운데에 놓이고, 좌·우 패널은 상단 pill 아래
  * 상단 정렬로 겹쳐 뜬다. 겹치는 레이어는 포인터 이벤트를 통과시켜 캔버스 클릭을 막지 않는다.
  */
+// 풀블리드 모바일 캔버스는 폭이 화면 전체라 PC 정사각 캔버스와 같은 비율로 깔면 타일이
+// 잘게 보인다 — 모바일에서만 한 장을 더 크게 키운다.
+const MOBILE_TILE_ZOOM = 1.5;
+
 export function DesignCanvas({
   imageSrc,
   empty,
@@ -71,7 +75,7 @@ export function DesignCanvas({
             imageSrc={imageSrc}
             mode={mode}
             surface="none"
-            tileScale={tileScale}
+            tileScale={(tileScale ?? 1) * MOBILE_TILE_ZOOM}
           />
         </Box>
       ) : null}

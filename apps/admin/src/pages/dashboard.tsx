@@ -2,17 +2,21 @@ import type {
   AdminOrderSummaryOut,
   DashboardRecentQuoteOut,
   DashboardTopProductOut,
+  ManualOrderOut,
 } from "@essesion/api-client";
 import {
   getAdminCapabilitiesOptions,
   getDashboardOverviewOptions,
   getDashboardRecentOrdersOptions,
   getDashboardRecentQuotesOptions,
+  listManualOrdersOptions,
 } from "@essesion/api-client/query";
 import {
   ActionButton,
+  Badge,
   Callout,
   ContentPlaceholder,
+  formatPhoneNumber,
   Grid,
   HStack,
   Skeleton,
@@ -24,7 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
-import { formatDateTime, formatMoney } from "../shared/lib/format";
+import { formatDate, formatDateTime, formatMoney } from "../shared/lib/format";
 import { AdminCard } from "../shared/ui/admin-card";
 import { FilterSelect } from "../shared/ui/filter-select";
 import { RouteHeading } from "../shared/ui/route-heading";
@@ -42,6 +46,8 @@ const ORDER_TYPES = [
   { value: "repair", label: "수선" },
   { value: "token", label: "토큰" },
   { value: "sample", label: "샘플" },
+  // 수기 주문은 orders가 아닌 별도 장부 — 지표에는 합산되고 '최근 주문' 표는 비운다.
+  { value: "manual", label: "수기 주문" },
 ] as const;
 
 type OrderType = (typeof ORDER_TYPES)[number]["value"];
@@ -94,6 +100,51 @@ const orderColumns: readonly AdminTableColumn<AdminOrderSummaryOut>[] = [
     key: "status",
     header: "상태",
     render: (order) => <StatusBadge status={order.status} />,
+  },
+];
+
+const manualOrderColumns: readonly AdminTableColumn<ManualOrderOut>[] = [
+  {
+    key: "order_date",
+    header: "날짜",
+    render: (order) => formatDate(order.order_date),
+  },
+  {
+    key: "customer",
+    header: "고객",
+    render: (order) => (
+      <VStack gap="x0_5">
+        <Link to={`/manual-orders/${order.id}`}>{order.customer_name}</Link>
+        <Text textStyle="caption" color="fg.neutral-muted">
+          {formatPhoneNumber(order.phone)}
+        </Text>
+      </VStack>
+    ),
+  },
+  {
+    key: "amount",
+    header: "금액",
+    align: "end",
+    render: (order) => formatMoney(order.amount + order.shipping_fee),
+  },
+  {
+    key: "status",
+    header: "상태",
+    render: (order) => (
+      <HStack gap="x1" wrap>
+        {(
+          [
+            ["접수", order.is_received],
+            ["결제", order.is_paid],
+            ["확인", order.is_confirmed],
+          ] as const
+        ).map(([label, checked]) => (
+          <Badge key={label} tone={checked ? "positive" : "neutral"}>
+            {label}
+          </Badge>
+        ))}
+      </HStack>
+    ),
   },
 ];
 
@@ -239,6 +290,11 @@ export function DashboardPage() {
       query: { order_type: orderType, limit: 5 },
     }),
   );
+  // 수기 주문은 대시보드 지표에 합산되지만 orders 표에는 못 들어간다(주문번호·상태머신이
+  // 없는 별도 장부) — 기존 목록 엔드포인트를 그대로 재사용해 자기 표로 보여준다.
+  const recentManualOrders = useQuery(
+    listManualOrdersOptions({ query: { limit: 5 } }),
+  );
   const recentQuotes = useQuery(
     getDashboardRecentQuotesOptions({ query: { limit: 5 } }),
   );
@@ -255,6 +311,7 @@ export function DashboardPage() {
     void Promise.all([
       overview.refetch(),
       recentOrders.refetch(),
+      recentManualOrders.refetch(),
       recentQuotes.refetch(),
       capabilities.refetch(),
     ]);
@@ -577,6 +634,29 @@ export function DashboardPage() {
           }
           total={recentOrders.data?.total}
           onRetry={() => void recentOrders.refetch()}
+        />
+      </AdminCard>
+
+      <AdminCard
+        title="최근 수기 주문"
+        description="조회 기간과 무관한 최신 5건"
+        action={<Link to="/manual-orders">전체 보기</Link>}
+      >
+        <AdminTable
+          label="최근 수기 주문"
+          columns={manualOrderColumns}
+          rows={recentManualOrders.data?.items}
+          getRowKey={(row) => row.id}
+          onRowClick={(row) => navigate(`/manual-orders/${row.id}`)}
+          status={
+            recentManualOrders.isLoading
+              ? "loading"
+              : recentManualOrders.isError
+                ? "error"
+                : "success"
+          }
+          total={recentManualOrders.data?.total}
+          onRetry={() => void recentManualOrders.refetch()}
         />
       </AdminCard>
 

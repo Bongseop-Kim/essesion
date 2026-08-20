@@ -6762,7 +6762,8 @@
               "custom",
               "repair",
               "token",
-              "sample"
+              "sample",
+              "manual"
             ],
             "title": "Order Type",
             "type": "string"
@@ -6810,7 +6811,8 @@
               "custom",
               "repair",
               "token",
-              "sample"
+              "sample",
+              "manual"
             ],
             "title": "Order Type",
             "type": "string"
@@ -17581,7 +17583,8 @@
                 "custom",
                 "repair",
                 "token",
-                "sample"
+                "sample",
+                "manual"
               ],
               "title": "Order Type",
               "type": "string"
@@ -17649,7 +17652,8 @@
                 "custom",
                 "repair",
                 "token",
-                "sample"
+                "sample",
+                "manual"
               ],
               "title": "Order Type",
               "type": "string"

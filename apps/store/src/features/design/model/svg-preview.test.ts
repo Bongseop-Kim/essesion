@@ -30,9 +30,15 @@ describe("SVG preview helpers", () => {
     expect(svgTileScale("깨진 문자열")).toBe(1);
   });
 
-  it("썸네일 타일은 배율을 반영하되 100%에서 캡한다", () => {
-    expect(svgTileStyle(svgWithWidth("72mm")).backgroundSize).toBe("93% auto");
-    // scale 2 → 124%는 타일 1장이 카드보다 커져 단색처럼 보인다 — 100%로 캡.
-    expect(svgTileStyle(svgWithWidth("96mm")).backgroundSize).toBe("100% auto");
+  it("썸네일 타일은 정수 px + 100% 캡으로 배율을 반영한다", () => {
+    // 정수 px여야 반복 경계가 소수 위치에 떨어지지 않는다(타일 사이 흰 선의 원인).
+    expect(svgTileStyle(svgWithWidth("72mm")).backgroundSize).toBe(
+      "min(100%, 174px) min(100%, 174px)",
+    );
+    expect(svgTileStyle(svgWithWidth("48mm")).backgroundSize).toBe(
+      "min(100%, 116px) min(100%, 116px)",
+    );
+    // center의 반칸 오프셋도 소수를 만든다 — 원점 정렬.
+    expect(svgTileStyle(svgWithWidth("48mm")).backgroundPosition).toBe("0 0");
   });
 });

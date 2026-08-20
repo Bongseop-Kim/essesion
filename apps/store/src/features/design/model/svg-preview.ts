@@ -32,15 +32,26 @@ export function svgTileScale(svg: string): number {
   return width === null ? 1 : width / BASE_TILE_MM;
 }
 
-/** 정사각 타일 미리보기 — 시드 패턴이라 반복해 깔아야 무엇인지 읽힌다. */
+/**
+ * 정사각 타일 미리보기 — 시드 패턴이라 반복해 깔아야 무엇인지 읽힌다.
+ *
+ * 크기는 %가 아니라 **정수 px**다. 두 가지를 동시에 해결한다:
+ *   - 흰 선: %는 타일 폭이 소수 px가 되고 반복마다 반올림 위상이 달라져 경계에 부모
+ *     배경이 비친다. 정수 px면 모든 경계가 정확히 px에 떨어진다(원점 정렬도 같은 이유).
+ *   - 배율: px는 박스가 작을수록 상대적으로 더 확대돼 보인다 — 84px 모바일 카드가
+ *     152px PC 카드보다 자동으로 더 크게 나온다(반응형 분기 없이).
+ * 100% 캡은 타일이 박스를 넘지 않게 하고, 캡에 걸리면 타일 1장이 박스를 정확히 채워
+ * 경계가 아예 없다.
+ */
+const PREVIEW_TILE_PX = 116;
+
 export function svgTileStyle(svg: string): CSSProperties {
-  // 배율은 100%에서 캡 — scale 1.6부터 타일 1장이 카드보다 커져 단색처럼 보인다.
-  const size = Math.min(62 * svgTileScale(svg), 100);
+  const tile = `min(100%, ${Math.round(PREVIEW_TILE_PX * svgTileScale(svg))}px)`;
   return {
     aspectRatio: 1,
     backgroundImage: `url(${JSON.stringify(svgToDataUri(svg))})`,
     backgroundRepeat: "repeat",
-    backgroundSize: `${size}% auto`,
-    backgroundPosition: "center",
+    backgroundSize: `${tile} ${tile}`,
+    backgroundPosition: "0 0",
   };
 }

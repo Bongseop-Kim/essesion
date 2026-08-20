@@ -7,6 +7,12 @@
   production apps/api/scripts/bootstrap_admin.py seed-config
 
 값의 정본은 `docs/api-spec/money.md`다. 단가·플랜을 바꿀 때는 명세와 이 파일을 함께 고친다.
+
+**여기 키를 추가·변경하면 `db/migrations/`에 데이터 마이그레이션도 함께 넣는다** — 두 시드는
+빈 DB만 채우고 production `seed-config`는 수동이라, 이미 돌고 있는 DB는 마이그레이션으로만
+따라온다. 신규 키는 `on conflict do nothing` INSERT(a3f7d94c1e28), 값 변경은 UPDATE(f1c6a80b5d29).
+행이 없으면 조용히 넘어가지 않고 하드 에러가 난다 — `design_finalize_cost` 누락이
+`GET /tokens/balance` 전체를 400으로 죽인 적이 있다(2026-08-21).
 """
 
 from db.models.commerce import AdminSetting, PricingConstant

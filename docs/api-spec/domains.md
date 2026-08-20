@@ -78,6 +78,17 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - 송장 갱신: 일반(courier/tracking/shipped_at)·기업(company_*) 2종 부분 갱신. tracking 신규 입력 시 `shipped_at = coalesce(기존, now())`, 비우면 NULL. status ∈ {배송완료, 완료, 취소}면 거부.
 - 쿠폰 일괄 발급: user_coupons upsert(ON CONFLICT (user,coupon) DO UPDATE status='active' — 재활성화). 회수: **active만** revoked로 (id 목록 / 쿠폰×유저 목록 2종).
 - 통계: 오늘(주문 수·매출 합, 타입 필터 all|sale|custom|repair|token|sample), 기간(start≤end, created_at 범위).
+- **대시보드 집계 기준** (`/admin/dashboard/overview`, `/admin/dashboard/recent-orders`):
+  - 주문(`orders`)의 매출 시각은 `paid_at`이 유일한 기준이며 KST 일 단위로 버킷한다.
+  - **수기 주문(`manual_orders`)도 주문 수·매출 합·매출 추이에 합산한다.** 수기 주문에는
+    `paid_at`이 없으므로 `is_paid = true`인 행만, `order_date`(이미 KST date)를 매출일로 본다.
+    금액은 `amount + shipping_fee` — `orders.total_price`가 배송비를 포함하므로 같은 기준이다.
+  - 대시보드 타입 필터는 위 목록에 `manual`을 더한 7종이다. `manual`은 `orders.order_type`이
+    아니라 별도 장부를 가리키므로 **주문 목록(`/admin/orders`) 필터에는 없다**. `manual`을 고르면
+    `recent-orders`는 빈 페이지를 반환하고, 대시보드가 `/admin/manual-orders`를 따로 조회해
+    자기 표에 그린다.
+  - 인기 상품 TOP-N은 `order_items.product_id` 기준이라 커스텀·수선과 함께 수기 주문도 제외된다
+    (수기 주문 품목은 JSONB이고 product_id가 없다).
 - 상품 옵션 전체 교체(admin): DELETE 후 재삽입, **옵션 ≥1개면 products.stock=NULL 강제**(옵션 재고 관리로 전환).
 - 디자인 예시 큐레이션: `GET·POST /admin/design/examples`, `PATCH·DELETE /admin/design/examples/{id}`. 등록은 run 하나당 1개(unique)이고, intent가 `source='user_upload'` 모티프를 쓰면 409(`private_motif_example`). 등록 직후는 비게시 — `published`를 켜야 store 갤러리에 노출된다.
 

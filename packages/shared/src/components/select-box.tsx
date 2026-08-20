@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, use, useId } from "react";
 
 import type { ResponsiveValue } from "../breakpoint";
+import { Box } from "./box";
 import { Flex } from "./flex";
 import { Grid } from "./grid";
 import { CheckGlyph } from "./internal/glyphs";
@@ -125,6 +126,11 @@ export type SelectBoxItemProps = {
   value: string;
   label: ReactNode;
   description?: ReactNode;
+  /**
+   * 라벨 앞에 놓는 미리보기 조각(스와치·썸네일). 글로만 설명하기 어려운 옵션
+   * — 원단 짜임, 색·재질 — 에서 쓴다. 크기는 호출부가 정한다.
+   */
+  media?: ReactNode;
   disabled?: boolean;
 };
 
@@ -132,6 +138,7 @@ export function SelectBoxItem({
   value,
   label,
   description,
+  media,
   disabled = false,
 }: SelectBoxItemProps) {
   const { name, values, toggle, multiple } = useSelectBoxContext();
@@ -160,6 +167,7 @@ export function SelectBoxItem({
         aria-hidden
         className="pointer-events-none absolute inset-0 rounded-r3 outline outline-2 -outline-offset-1 outline-stroke-brand opacity-0 transition-opacity duration-(--duration-fast) ease-standard peer-checked:opacity-100"
       />
+      {media != null && <Box className="shrink-0">{media}</Box>}
       <VStack gap="x1" alignItems="stretch" className="min-w-0 flex-1">
         <Text textStyle="label" color={disabled ? "fg.disabled" : "fg.neutral"}>
           {label}

@@ -14,6 +14,10 @@ from api.domains.orders.schemas import (
 from api.schemas import ORMModel
 
 OrderTypeFilter = Literal["all", "sale", "custom", "repair", "token", "sample"]
+# 대시보드 전용 — "manual"은 Order.order_type이 아니라 manual_orders 테이블을 가리킨다.
+# 수기 주문은 Order 파이프라인과 무관한 별도 장부라, 주문 목록 필터(OrderTypeFilter)에는
+# 넣지 않고 집계에서만 유형처럼 취급한다 (docs/api-spec/domains.md §10).
+DashboardOrderTypeFilter = Literal["all", "sale", "custom", "repair", "token", "sample", "manual"]
 OrderStatusFilter = Literal[
     "all",
     "대기중",
@@ -80,7 +84,7 @@ class AdminOrderSummaryOut(BaseModel):
 class DashboardSummaryOut(BaseModel):
     start_date: date
     end_date: date
-    order_type: OrderTypeFilter
+    order_type: DashboardOrderTypeFilter
     order_count: int
     order_amount: int
     open_claim_count: int
@@ -107,7 +111,7 @@ class DashboardTimeseriesPointOut(BaseModel):
 class DashboardTimeseriesOut(BaseModel):
     start_date: date
     end_date: date
-    order_type: OrderTypeFilter
+    order_type: DashboardOrderTypeFilter
     points: list[DashboardTimeseriesPointOut]
     as_of: datetime
 

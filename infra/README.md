@@ -265,6 +265,11 @@ uv run python apps/worker/scripts/eval_authoring.py --confirm-live
 재실행해도 안전하다. 값의 정본은 [money.md §6](../docs/api-spec/money.md)이고
 초기값은 `api/config_defaults.py`가 로컬 시드와 공유한다.
 
+`seed-config`는 **첫 개통용**이다. 이미 돌고 있는 DB에 설정 키가 새로 추가될 때는 이 수동 절차에
+의존하지 않는다 — 잊히면 그 키를 읽는 경로가 하드 에러로 죽는다(2026-08-21에 `design_finalize_cost`
+누락으로 `GET /tokens/balance`가 전부 400). 신규·변경 키는 `db/migrations/`의 데이터
+마이그레이션으로 넣어 migrate job이 배포마다 자동 적용한다. 규칙은 `api/config_defaults.py` 독스트링.
+
 `seed_design_examples.py`는 store 첫 진입 갤러리다. 빠뜨려도 장애는 아니지만 갤러리 섹션이
 통째로 비어 배포된다. `backfill_motif_tags.py`는 **production에서 실행하지 않는다** — 새 DB에는
 백필할 기존 모티프가 없고 유료 호출만 발생한다.

@@ -15,6 +15,7 @@ from api.domains.admin.schemas import (
     AdminOrderDetailOut,
     AdminOrderReferenceImageOut,
     AdminOrderSummaryOut,
+    DashboardOrderTypeFilter,
     DashboardRecentOrdersPage,
     DashboardRecentQuotesPage,
     DashboardSummaryOut,
@@ -60,7 +61,7 @@ async def get_dashboard_overview(
     admin: AdminUser,
     start_date: date | None = None,
     end_date: date | None = None,
-    order_type: OrderTypeFilter = "all",
+    order_type: DashboardOrderTypeFilter = "all",
     top_limit: Annotated[
         int, Query(ge=1, le=order_queries.MAX_TOP_PRODUCT_LIMIT)
     ] = order_queries.DEFAULT_TOP_PRODUCT_LIMIT,
@@ -92,7 +93,7 @@ async def get_dashboard_overview(
 async def get_dashboard_recent_orders(
     session: SessionDep,
     admin: AdminUser,
-    order_type: OrderTypeFilter = "all",
+    order_type: DashboardOrderTypeFilter = "all",
     limit: Annotated[
         int, Query(ge=1, le=order_queries.MAX_RECENT_LIMIT)
     ] = order_queries.DEFAULT_RECENT_LIMIT,

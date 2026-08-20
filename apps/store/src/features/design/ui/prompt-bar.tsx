@@ -89,7 +89,9 @@ export function PromptBar({
   return (
     <Flex
       as="form"
-      alignItems="flex-end"
+      // 한 줄일 때 textarea 콘텐츠 박스(31px)가 행 여유 높이(38px)보다 작아, flex-end면
+      // 글자가 테두리 중앙보다 아래로 처진다. center면 글자·버튼 중심이 테두리 중심과 일치.
+      alignItems="center"
       gap="x1"
       width="full"
       px="x1_5"
