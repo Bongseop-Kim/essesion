@@ -240,13 +240,17 @@ def prepare_photoreal_inputs(
     )
 
 
-def _validated_png(data: bytes, *, operation: str) -> bytes:
+def _validated_png(data: bytes, *, operation: str, size: str) -> bytes:
+    """디코드 가능 + PNG + 요청 치수 일치 — 넥타이는 마스크·베이스 사진과 크기가 결속된다."""
+    expected = tuple(int(v) for v in size.split("x"))
     try:
         with Image.open(io.BytesIO(data)) as image:
+            if image.format != "PNG" or image.size != expected:
+                raise ValueError(f"expected {size} PNG, got {image.format} {image.size}")
             image.verify()
     except Exception as exc:
         raise AdapterClientError(
-            "OpenAI edit returned an undecodable image",
+            "OpenAI edit returned an invalid image",
             provider="openai_image",
             operation=operation,
             reason_code="invalid_response",
@@ -279,6 +283,6 @@ async def render_photoreal(
         ),
     )
     return (
-        _validated_png(tie_png, operation="finalize_tie"),
-        _validated_png(fabric_png, operation="finalize_fabric"),
+        _validated_png(tie_png, operation="finalize_tie", size=TIE_EDIT_SIZE),
+        _validated_png(fabric_png, operation="finalize_fabric", size=FABRIC_EDIT_SIZE),
     )

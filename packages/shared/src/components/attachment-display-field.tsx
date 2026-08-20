@@ -14,7 +14,8 @@ import { Text } from "./text";
 
 export type AttachmentItem = {
   id: string;
-  src: string;
+  /** 없으면 ImageFrame 실루엣 폴백 — 빈 문자열 대신 undefined로 전달할 것 */
+  src?: string;
   alt?: string;
 };
 

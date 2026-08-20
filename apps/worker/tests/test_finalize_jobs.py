@@ -23,20 +23,25 @@ from worker.render.raster import RasterLimitError
 GOLDEN = Path(__file__).parent / "golden"
 
 
-def _fake_png(tag: str) -> bytes:
+def _fake_png(tag: str, size: str) -> bytes:
     """대역 응답 PNG — 같은 tag는 같은 바이트(content-addressed 키 검증용)."""
     color = (sum(tag.encode()) % 256, 64, 128)
+    width, height = (int(v) for v in size.split("x"))
     buf = io.BytesIO()
-    Image.new("RGB", (2, 2), color).save(buf, "PNG")
+    Image.new("RGB", (width, height), color).save(buf, "PNG")
     return buf.getvalue()
 
 
 class FakeGPTImage:
     """GPTImageHTTPClient.edit 프로토콜 대역 — 호출 기록 + 결정론 응답."""
 
-    def __init__(self, fail_with: Exception | None = None) -> None:
+    def __init__(
+        self, fail_with: Exception | None = None, respond_size: str | None = None
+    ) -> None:
         self.calls: list[dict] = []
         self.fail_with = fail_with
+        # 요청과 다른 크기로 응답 — 치수 검증 테스트용
+        self.respond_size = respond_size
 
     async def edit(
         self,
@@ -60,7 +65,7 @@ class FakeGPTImage:
         )
         if self.fail_with is not None:
             raise self.fail_with
-        return _fake_png(operation)
+        return _fake_png(operation, self.respond_size or size)
 
 
 @pytest.fixture
@@ -113,6 +118,7 @@ async def test_finalize_renders_edits_and_uploads_three_artifacts(
     assert result["object_key"] == result["fabric_object_key"]
 
     # 편집 2회: 넥타이(베이스+렌더+직조, 마스크) / 원단(타일3×3+직조, 마스크 없음)
+    assert len(gpt_image.calls) == 2  # by_op가 중복 호출을 삼키지 않도록 먼저 핀
     by_op = {call["operation"]: call for call in gpt_image.calls}
     assert set(by_op) == {"finalize_tie", "finalize_fabric"}
     assert by_op["finalize_tie"]["n_images"] == 3
@@ -228,6 +234,18 @@ async def test_finalize_upstream_failures_map_by_permanence(
     assert response.status_code == expected_http
     if expected_http == 422:
         assert response.json()["detail"]["code"] == routes.FINALIZE_UPSTREAM_REJECTED_CODE
+
+
+async def test_finalize_wrong_dimension_edit_output_is_502(app, client, db_session):
+    # 요청 크기와 다른 응답은 invalid_response(status_code 없음) → 일시 실패 502, api가 환불.
+    intent = await _seed_golden_motif(db_session)
+    app.state.adapters.gpt_image = FakeGPTImage(respond_size="512x512")
+
+    response = await client.post(
+        "/finalize", json={"intent": intent, "dpi": 96, "production_method": "print"}
+    )
+
+    assert response.status_code == 502
 
 
 async def test_finalize_rejects_dpi_above_limit(client, app):

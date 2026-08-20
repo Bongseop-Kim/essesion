@@ -53,3 +53,13 @@ describe("AttachmentDisplayField 확대", () => {
     expect(screen.queryByRole("button", { name: "참고 1 확대" })).toBeNull();
   });
 });
+
+describe("AttachmentDisplayField src 부재", () => {
+  it("src가 없으면 img 없이 폴백을 렌더한다 (빈 src 요청 방지)", () => {
+    render(
+      <AttachmentDisplayField items={[{ id: "legacy", alt: "레거시" }]} />,
+    );
+
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+});

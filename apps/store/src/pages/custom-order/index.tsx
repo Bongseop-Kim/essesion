@@ -164,7 +164,8 @@ function CustomOrderPageContent({
       ...selectedDesigns.map((job, index) => ({
         id: `design:${job.id}`,
         // 썸네일은 넥타이 실사 — 레거시 finalize 행은 result_url로 폴백.
-        src: job.tie_url ?? job.result_url ?? "",
+        // 둘 다 없으면 undefined — ImageFrame 실루엣 폴백(빈 src는 페이지 URL 요청을 유발).
+        src: job.tie_url ?? job.result_url ?? undefined,
         alt: `AI 완성 디자인 ${index + 1}`,
       })),
       ...previewUrls.map(({ id, file, url }) => ({
