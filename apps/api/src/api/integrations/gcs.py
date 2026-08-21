@@ -24,7 +24,9 @@ from api.config import Settings
 logger = logging.getLogger(__name__)
 
 UPLOAD_URL_TTL = timedelta(minutes=15)
-READ_URL_TTL = timedelta(minutes=15)
+# 상세를 열어둔 채 작업지시서 PNG를 저장할 수 있어야 한다 — 캡처는 서명 URL을 다시
+# 내려받으므로 만료됐으면 사진이 빈 채로 찍힌다. 관리자 화면 체류 시간을 덮는 1시간.
+READ_URL_TTL = timedelta(hours=1)
 # 서명 1건 = IAM signBlob 네트워크 호출 1건이라 같은 객체를 매번 재서명하면 화면마다
 # 수십~수백 ms가 붙는다. URL TTL보다 짧게 캐시해 만료 임박 URL은 주지 않는다.
 READ_URL_CACHE_TTL_S = 600

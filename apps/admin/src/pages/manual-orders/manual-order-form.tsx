@@ -199,7 +199,8 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
         images: imageDraftsFrom(order, item.image_upload_ids ?? []),
       }),
     ),
-    // 주문 단위 첨부 = 어느 품목에도 속하지 않은 이미지
+    // 주문 단위 첨부는 UI에서 없앴다 — 기존 주문의 이미지는 저장 시 그대로 넘겨
+    // 링크를 유지한다(빼면 만료 처리돼 사라진다). ponytail: 표시·추가 경로는 품목뿐.
     images: imageDraftsFrom(
       order,
       order.images
@@ -1146,20 +1147,6 @@ export function ManualOrderForm({
               </ActionButton>
             </HStack>
           </VStack>
-        </AdminCard>
-
-        <AdminCard
-          title="첨부 이미지"
-          description="작업장에 넘길 사진입니다. 없어도 저장할 수 있습니다."
-        >
-          <ImageAttachments
-            label="사진"
-            description={`JPG · PNG · WebP, 10MB 이하, ${MAX_MANUAL_ORDER_IMAGES}장까지`}
-            images={draft.images}
-            disabled={pending}
-            manualOrderId={manualOrderId}
-            onChange={(images) => update("images", images)}
-          />
         </AdminCard>
 
         {error != null && (

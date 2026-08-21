@@ -141,7 +141,6 @@ function ManualOrderImage({
           {formatDateTime(image.created_at)}
         </>
       }
-      loading={mutation.isPending}
       error={mutation.isError}
       errorDescription="만료되었거나 이 주문에 속하지 않은 이미지입니다."
       onRequest={() =>
@@ -216,14 +215,6 @@ export function ManualOrderDetailPage() {
       </VStack>
     );
   }
-
-  const itemImageIds = order.items.flatMap(
-    (item) => item.image_upload_ids ?? [],
-  );
-  // 주문 단위 첨부 = 어느 품목에도 속하지 않은 이미지
-  const orderImages = order.images.filter(
-    (image) => !itemImageIds.includes(image.id),
-  );
 
   const statusFlags = [
     ["접수", order.is_received],
@@ -328,40 +319,28 @@ export function ManualOrderDetailPage() {
                         품목 {index + 1}
                       </Text>
                       <DetailList items={itemDetailItems(item)} />
-                      {order.images
-                        .filter((i) => item.image_upload_ids?.includes(i.id))
-                        .map((image, position) => (
-                          <ManualOrderImage
-                            key={image.id}
-                            manualOrderId={order.id}
-                            image={image}
-                            alt={`품목 ${index + 1} 사진 ${position + 1}`}
-                          />
-                        ))}
+                      {(item.image_upload_ids ?? []).length > 0 && (
+                        <HStack gap="x3" wrap alignItems="flex-start">
+                          {order.images
+                            .filter((i) =>
+                              item.image_upload_ids?.includes(i.id),
+                            )
+                            .map((image, position) => (
+                              <ManualOrderImage
+                                key={image.id}
+                                manualOrderId={order.id}
+                                image={image}
+                                alt={`품목 ${index + 1} 사진 ${position + 1}`}
+                              />
+                            ))}
+                        </HStack>
+                      )}
                     </VStack>
                   </Box>
                 ))}
               </VStack>
             )}
           </AdminCard>
-
-          {orderImages.length > 0 && (
-            <AdminCard
-              title="첨부 이미지"
-              description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
-            >
-              <VStack gap="x5" alignItems="stretch">
-                {orderImages.map((image, index) => (
-                  <ManualOrderImage
-                    key={image.id}
-                    manualOrderId={order.id}
-                    image={image}
-                    alt={`수기 주문 첨부 이미지 ${index + 1}`}
-                  />
-                ))}
-              </VStack>
-            </AdminCard>
-          )}
         </VStack>
       </Box>
 

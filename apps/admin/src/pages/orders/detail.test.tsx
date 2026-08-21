@@ -187,8 +187,8 @@ describe("OrderDetailPage", () => {
     ).toBe("true");
     expect(screen.getByRole("tabpanel", { name: "개요" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
-    // 작업지시서 캡처가 한 화면에서 끝나야 하므로 품목 표는 개요에 있다.
-    expect(screen.getByRole("table", { name: "주문 품목" })).toBeTruthy();
+    // 작업지시서 캡처가 한 화면에서 끝나야 하므로 품목 카드는 개요에 있다.
+    expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "결제·클레임" }));
 
@@ -303,7 +303,7 @@ describe("OrderDetailPage", () => {
     ).toBeTruthy();
   });
 
-  it("오류에서 다시 시도해 상세 heading과 native item table을 복구한다", async () => {
+  it("오류에서 다시 시도해 상세 heading과 품목 카드를 복구한다", async () => {
     const user = userEvent.setup();
     api.getOrder
       .mockRejectedValueOnce(new Error("상세 오류"))
@@ -320,11 +320,10 @@ describe("OrderDetailPage", () => {
       await screen.findByRole("heading", { name: "주문 ORDER-001", level: 1 }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
-    expect(screen.getByRole("table", { name: "주문 품목" })).toBeTruthy();
-    expect(
-      screen.getByRole("columnheader", { name: "거래 시점 상품·옵션" }),
-    ).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "클레임" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "주문 품목" })).toBeTruthy();
+    // 품목 카드가 수량·단가·클레임까지 안는다 — 같은 값을 표로 한 번 더 그리지 않는다.
+    expect(screen.getByText("단가")).toBeTruthy();
+    expect(screen.getByText("클레임")).toBeTruthy();
     expect(screen.getAllByText("취소 처리중")).toHaveLength(2);
     expect(screen.getByText("활성 클레임 CLM-001")).toBeTruthy();
     expect(api.getOrder).toHaveBeenCalledTimes(2);
@@ -513,6 +512,7 @@ describe("OrderDetailPage", () => {
     api.getReferenceImages.mockResolvedValue([
       {
         id: "11111111-1111-4111-8111-111111111111",
+        order_item_id: "item-1",
         content_type: "image/png",
         size_bytes: 2_048,
         created_at: "2026-07-12T01:00:00Z",
@@ -540,6 +540,12 @@ describe("OrderDetailPage", () => {
     const image = await screen.findByRole("img", {
       name: "주문 첨부 이미지 1",
     });
+    // 사진은 해당 품목 카드 안에 있다 — 별도 첨부 섹션으로 꺼내지 않는다.
+    expect(
+      screen
+        .getByRole("heading", { name: /맞춤 제작$/ })
+        .parentElement?.contains(image),
+    ).toBe(true);
     expect(image.getAttribute("src")).toBe("https://storage.test/signed-1");
     expect(api.createReferenceImageReadUrl).toHaveBeenCalledWith(
       {
@@ -551,14 +557,7 @@ describe("OrderDetailPage", () => {
       expect.anything(),
     );
     expect(document.body.textContent).not.toContain("https://storage.test");
-
-    await user.click(screen.getByRole("button", { name: "URL 재발급" }));
-    await waitFor(() =>
-      expect(api.createReferenceImageReadUrl).toHaveBeenCalledTimes(2),
-    );
-    await waitFor(() =>
-      expect(image.getAttribute("src")).toBe("https://storage.test/signed-2"),
-    );
+    expect(api.createReferenceImageReadUrl).toHaveBeenCalledTimes(1);
   });
 
   it("샘플 주문 유형을 거래 시점 데이터로 요약한다", async () => {
@@ -583,9 +582,8 @@ describe("OrderDetailPage", () => {
     ).toBeTruthy();
     expect(screen.getByText("원단")).toBeTruthy();
     expect(screen.getByText("폴리")).toBeTruthy();
-    expect(
-      await screen.findByText("등록된 첨부 이미지가 없습니다."),
-    ).toBeTruthy();
+    // 사진이 없으면 빈 섹션도 그리지 않는다.
+    expect(screen.queryByText(/사진|참고 이미지/)).toBeNull();
   });
 
   it("수선 주문의 항목별 사양과 배송·수거·발송 정보를 모두 표시한다", async () => {

@@ -2252,6 +2252,18 @@
             "title": "Id",
             "type": "string"
           },
+          "order_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Item Id"
+          },
           "size_bytes": {
             "anyOf": [
               {

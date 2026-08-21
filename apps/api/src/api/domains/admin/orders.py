@@ -754,15 +754,41 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
     )
 
 
+def _image_owner_index(
+    items: list[OrderItem],
+) -> tuple[dict[str, uuid.UUID], dict[str, uuid.UUID]]:
+    """(image_id → 품목, object_key → 품목).
+
+    이미지 행은 주문 단위로 링크되지만(entity_id = order_id) 품목별로 올린 사진이다.
+    맞춤·샘플은 item_data.reference_images에 image_id를, 수선은 tie.image.object_key를 남긴다.
+    """
+    by_id: dict[str, uuid.UUID] = {}
+    by_key: dict[str, uuid.UUID] = {}
+    for item in items:
+        data = item.item_data or {}
+        for ref in data.get("reference_images") or []:
+            image_id = ref.get("image_id") if isinstance(ref, dict) else None
+            if image_id:
+                by_id[str(image_id)] = item.id
+        image = (data.get("tie") or {}).get("image") or {}
+        object_key = image.get("object_key")
+        if object_key:
+            by_key[object_key] = item.id
+    return by_id, by_key
+
+
 async def list_order_reference_images(
     session: AsyncSession, order_id: uuid.UUID
 ) -> list[AdminOrderReferenceImageOut]:
     if await session.get(Order, order_id) is None:
         raise NotFoundError("Order not found")
     images = await list_linked_order_images(session, order_id, ADMIN_ORDER_IMAGE_TYPES)
+    items = list(await session.scalars(select(OrderItem).where(OrderItem.order_id == order_id)))
+    by_id, by_key = _image_owner_index(items)
     return [
         AdminOrderReferenceImageOut(
             id=image.id,
+            order_item_id=by_id.get(str(image.id)) or by_key.get(image.object_key),
             content_type=image.content_type,
             size_bytes=image.size_bytes,
             created_at=image.created_at,

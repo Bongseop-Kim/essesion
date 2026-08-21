@@ -59,10 +59,6 @@ import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import { ClaimStatusBadge, StatusBadge } from "../../shared/ui/status-badge";
 import { TechnicalDetails } from "../../shared/ui/technical-details";
-import {
-  AdminTable,
-  type AdminTableColumn,
-} from "../../widgets/admin-table/admin-table";
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null
@@ -143,9 +139,14 @@ function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
 function AdminOrderContent({
   orderType,
   item,
+  orderId,
+  images,
 }: {
   orderType: string;
   item: OrderItemOut;
+  orderId: string;
+  /** 이 품목에 올린 참고 이미지 — 라벨 번호는 주문 전체 기준이다. */
+  images: readonly { image: AdminOrderReferenceImageOut; index: number }[];
 }) {
   // 수선은 작업지시서 형식으로 그린다 — 같은 tie 데이터를 두 형식으로 중복 렌더하지 않는다.
   const content =
@@ -157,7 +158,24 @@ function AdminOrderContent({
           memo: undefined,
         }
       : decodeOrderItemContent(orderType, item.item_data, item.quantity);
-  if (!content) return null;
+  // 품목 표를 없앴으니 이 카드가 수량·금액·클레임의 유일한 노출 경로다.
+  const rows: DetailItem[] = [
+    ...(content?.rows ?? [
+      { label: "수량", value: `${item.quantity.toLocaleString("ko-KR")}개` },
+    ]),
+    { label: "단가", value: formatMoney(item.unit_price) },
+    ...(item.line_discount_amount > 0
+      ? [
+          {
+            label: "할인",
+            value: `-${formatMoney(item.line_discount_amount)}`,
+          },
+        ]
+      : []),
+    ...(item.claim
+      ? [{ label: "클레임", value: <ClaimStatusBadge claim={item.claim} /> }]
+      : []),
+  ];
   return (
     <Box
       borderWidth={1}
@@ -167,17 +185,18 @@ function AdminOrderContent({
     >
       <VStack gap="x3" alignItems="stretch">
         <Text as="h3" textStyle="label">
-          {snapshotLabel(item)} · {content.typeLabel}
+          {snapshotLabel(item)}
+          {content ? ` · ${content.typeLabel}` : ""}
         </Text>
-        {content.rows.length > 0 ? <DetailList items={content.rows} /> : null}
-        {content.tags.length > 0 ? (
+        <DetailList items={rows} />
+        {content != null && content.tags.length > 0 ? (
           <TagGroup>
             {content.tags.map((tag) => (
               <Tag key={tag}>{tag}</Tag>
             ))}
           </TagGroup>
         ) : null}
-        {content.memo ? (
+        {content?.memo ? (
           <VStack gap="x1">
             <Text textStyle="labelSm" color="fg.neutral-muted">
               요청사항
@@ -185,6 +204,18 @@ function AdminOrderContent({
             <Text textStyle="bodySm">{content.memo}</Text>
           </VStack>
         ) : null}
+        {images.length > 0 && (
+          <HStack gap="x3" wrap alignItems="flex-start">
+            {images.map(({ image, index }) => (
+              <OrderReferenceImage
+                key={image.id}
+                orderId={orderId}
+                image={image}
+                index={index}
+              />
+            ))}
+          </HStack>
+        )}
       </VStack>
     </Box>
   );
@@ -216,7 +247,6 @@ function OrderReferenceImage({
           {formatDateTime(image.created_at)}
         </>
       }
-      loading={mutation.isPending}
       error={mutation.isError}
       errorDescription="만료되었거나 이 주문에 속하지 않은 이미지입니다."
       onRequest={() =>
@@ -254,7 +284,6 @@ function RepairReceiptPhoto({
           {formatDateTime(image.created_at)}
         </>
       }
-      loading={mutation.isPending}
       error={mutation.isError}
       errorDescription="만료되었거나 이 접수에 속하지 않은 이미지입니다."
       onRequest={() =>
@@ -310,41 +339,6 @@ function RepairReceiptPhotos({
       ))}
     </VStack>
   );
-}
-
-function itemColumns(): readonly AdminTableColumn<OrderItemOut>[] {
-  return [
-    {
-      key: "item",
-      header: "거래 시점 상품·옵션",
-      render: snapshotLabel,
-    },
-    {
-      key: "claim",
-      header: "클레임",
-      render: (item) =>
-        item.claim ? <ClaimStatusBadge claim={item.claim} /> : "-",
-    },
-    {
-      key: "quantity",
-      header: "수량",
-      align: "end",
-      render: (item) => `${item.quantity}개`,
-    },
-    {
-      key: "unit_price",
-      header: "단가",
-      align: "end",
-      render: (item) => formatMoney(item.unit_price),
-    },
-    {
-      key: "discount",
-      header: "할인",
-      align: "end",
-      visibility: "medium",
-      render: (item) => formatMoney(item.line_discount_amount),
-    },
-  ];
 }
 
 export function OrderDetailPage() {
@@ -518,6 +512,15 @@ export function OrderDetailPage() {
     setValidationError(undefined);
   };
   const orderItems = data.items ?? [];
+  // 라벨 번호는 주문 전체 기준을 유지한다 — 품목별로 1번부터 다시 세지 않는다.
+  const referenceImages = (referenceImagesQuery.data ?? []).map(
+    (image, index) => ({ image, index }),
+  );
+  const itemIds = new Set(orderItems.map((item) => item.id));
+  const orphanImages = referenceImages.filter(
+    ({ image }) =>
+      image.order_item_id == null || !itemIds.has(image.order_item_id),
+  );
   const actionPanel = (
     <AdminCard title="운영 액션">
       <VStack gap="x4" alignItems="stretch">
@@ -746,63 +749,55 @@ export function OrderDetailPage() {
                   title="주문 품목"
                   description="상품·옵션·쿠폰은 주문 생성 시점 스냅샷을 우선합니다."
                 >
-                  <AdminTable
-                    label="주문 품목"
-                    columns={itemColumns()}
-                    rows={orderItems}
-                    getRowKey={(row) => row.id}
-                    status="success"
-                  />
                   <VStack gap="x4" alignItems="stretch">
                     {orderItems.map((item) => (
                       <AdminOrderContent
                         key={item.id}
                         orderType={data.order_type}
                         item={item}
+                        orderId={data.id}
+                        images={referenceImages.filter(
+                          ({ image }) => image.order_item_id === item.id,
+                        )}
                       />
                     ))}
+                    {hasOrderImages &&
+                      (referenceImagesQuery.isPending ? (
+                        <Skeleton preset="media" />
+                      ) : referenceImagesQuery.isError ? (
+                        <ContentPlaceholder
+                          title="참고 이미지를 불러오지 못했습니다"
+                          action={
+                            <ActionButton
+                              variant="neutralOutline"
+                              onClick={() =>
+                                void referenceImagesQuery.refetch()
+                              }
+                            >
+                              다시 시도
+                            </ActionButton>
+                          }
+                        />
+                      ) : orphanImages.length > 0 ? (
+                        // 품목 매칭에 실패한 과거 데이터 — 사진을 감추지는 않는다.
+                        <VStack gap="x2" alignItems="stretch">
+                          <Text textStyle="labelSm" color="fg.neutral-muted">
+                            품목 미지정 사진
+                          </Text>
+                          <HStack gap="x3" wrap alignItems="flex-start">
+                            {orphanImages.map(({ image, index }) => (
+                              <OrderReferenceImage
+                                key={image.id}
+                                orderId={data.id}
+                                image={image}
+                                index={index}
+                              />
+                            ))}
+                          </HStack>
+                        </VStack>
+                      ) : null)}
                   </VStack>
                 </AdminCard>
-
-                {hasOrderImages && (
-                  <AdminCard
-                    title="첨부 이미지"
-                    description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
-                  >
-                    {referenceImagesQuery.isPending ? (
-                      <Skeleton preset="media" />
-                    ) : referenceImagesQuery.isError ? (
-                      <ContentPlaceholder
-                        title="참고 이미지를 불러오지 못했습니다"
-                        action={
-                          <ActionButton
-                            variant="neutralOutline"
-                            onClick={() => void referenceImagesQuery.refetch()}
-                          >
-                            다시 시도
-                          </ActionButton>
-                        }
-                      />
-                    ) : (referenceImagesQuery.data ?? []).length === 0 ? (
-                      <Text color="fg.neutral-muted">
-                        등록된 첨부 이미지가 없습니다.
-                      </Text>
-                    ) : (
-                      <VStack gap="x5" alignItems="stretch">
-                        {(referenceImagesQuery.data ?? []).map(
-                          (image, index) => (
-                            <OrderReferenceImage
-                              key={image.id}
-                              orderId={data.id}
-                              image={image}
-                              index={index}
-                            />
-                          ),
-                        )}
-                      </VStack>
-                    )}
-                  </AdminCard>
-                )}
               </VStack>
             </Box>
 
