@@ -3626,7 +3626,7 @@ export type DashboardSummaryOut = {
     /**
      * Order Type
      */
-    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
     /**
      * Start Date
      */
@@ -3652,7 +3652,7 @@ export type DashboardTimeseriesOut = {
     /**
      * Order Type
      */
-    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+    order_type: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
     /**
      * Points
      */
@@ -9457,7 +9457,7 @@ export type GetDashboardOverviewData = {
         /**
          * Order Type
          */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
         /**
          * Top Limit
          */
@@ -9491,7 +9491,7 @@ export type GetDashboardRecentOrdersData = {
         /**
          * Order Type
          */
-        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample';
+        order_type?: 'all' | 'sale' | 'custom' | 'repair' | 'token' | 'sample' | 'manual';
         /**
          * Limit
          */

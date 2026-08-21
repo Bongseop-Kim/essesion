@@ -219,3 +219,69 @@ async def test_manual_order_custom_item(client, db_session, settings):
     assert items[1]["custom"]["fabric_provided"] is True
     assert items[1]["custom"]["fabric_type"] is None
     assert items[1]["width"]["target_width_cm"] == 8
+
+
+async def test_dashboard_counts_paid_manual_orders(client, db_session, settings):
+    """대시보드 지표·추이에 결제 완료 수기 주문이 합산된다 (미결제는 제외)."""
+    headers = await admin_headers(db_session, settings)
+
+    paid = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(
+            order_date="2026-07-15", amount=30000, shipping_fee=3000, is_paid=True
+        ),
+        headers=headers,
+    )
+    assert paid.status_code == 201
+    # 같은 날 미결제 1건 — 매출 인정 기준은 is_paid이므로 어디에도 세어지지 않아야 한다.
+    unpaid = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(
+            order_date="2026-07-15", amount=99000, shipping_fee=0, is_paid=False
+        ),
+        headers=headers,
+    )
+    assert unpaid.status_code == 201
+    # 조회 기간 밖 결제 건 — order_date가 매출일이므로 제외되어야 한다.
+    outside = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(order_date="2026-07-20", amount=50000, shipping_fee=0, is_paid=True),
+        headers=headers,
+    )
+    assert outside.status_code == 201
+
+    params = {"start_date": "2026-07-15", "end_date": "2026-07-15"}
+    overview = await client.get("/admin/dashboard/overview", params=params, headers=headers)
+    assert overview.status_code == 200
+    summary = overview.json()["summary"]
+    # 금액 = amount + shipping_fee (Order.total_price가 배송비를 포함하는 것과 같은 기준)
+    assert summary["order_count"] == 1
+    assert summary["order_amount"] == 33000
+
+    points = overview.json()["timeseries"]["points"]
+    assert [p["day"] for p in points] == ["2026-07-15"]
+    assert points[0]["order_count"] == 1
+    assert points[0]["order_amount"] == 33000
+
+    # order_type=manual — 수기 주문만 본다. Order 기반 '최근 주문' 표는 비운다.
+    only_manual = await client.get(
+        "/admin/dashboard/overview",
+        params={**params, "order_type": "manual"},
+        headers=headers,
+    )
+    assert only_manual.json()["summary"]["order_amount"] == 33000
+    recent = await client.get(
+        "/admin/dashboard/recent-orders",
+        params={"order_type": "manual"},
+        headers=headers,
+    )
+    assert recent.status_code == 200
+    assert recent.json()["items"] == []
+
+    # 특정 Order 유형을 고르면 수기 주문은 빠진다.
+    sale_only = await client.get(
+        "/admin/dashboard/overview",
+        params={**params, "order_type": "sale"},
+        headers=headers,
+    )
+    assert sale_only.json()["summary"]["order_amount"] == 0

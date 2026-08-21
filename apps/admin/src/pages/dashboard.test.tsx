@@ -7,6 +7,7 @@ import type {
   DashboardSummaryOut,
   DashboardTimeseriesOut,
   DashboardTopProductsOut,
+  ManualOrderOut,
 } from "@essesion/api-client";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -18,6 +19,7 @@ const api = vi.hoisted(() => ({
   capabilities: vi.fn(),
   overview: vi.fn(),
   orders: vi.fn(),
+  manualOrders: vi.fn(),
   quotes: vi.fn(),
 }));
 
@@ -37,6 +39,10 @@ vi.mock("@essesion/api-client/query", () => ({
   getDashboardRecentQuotesOptions: (_options: unknown) => ({
     queryKey: ["dashboard-quotes"],
     queryFn: api.quotes,
+  }),
+  listManualOrdersOptions: (_options: unknown) => ({
+    queryKey: ["dashboard-manual-orders"],
+    queryFn: api.manualOrders,
   }),
 }));
 
@@ -102,6 +108,29 @@ const ordersPage: DashboardRecentOrdersPage = {
   as_of: summary.as_of,
 };
 
+const manualOrder: ManualOrderOut = {
+  id: "manual-1",
+  order_date: "2026-07-12",
+  customer_name: "김수기",
+  phone: "01011112222",
+  address: null,
+  amount: 20_000,
+  shipping_fee: 3_000,
+  is_received: true,
+  is_paid: true,
+  is_confirmed: false,
+  items: [{ quantity: 1, width: { target_width_cm: 8 }, note: "" }],
+  created_at: "2026-07-12T01:00:00Z",
+  updated_at: "2026-07-12T01:00:00Z",
+};
+
+const manualOrdersPage = {
+  items: [manualOrder],
+  total: 1,
+  limit: 5,
+  offset: 0,
+};
+
 const quotesPage: DashboardRecentQuotesPage = {
   items: [quote],
   total: 1,
@@ -162,6 +191,7 @@ describe("DashboardPage", () => {
   it("로딩 중에도 route heading과 native table 의미론을 유지한다", () => {
     api.overview.mockReturnValue(pendingPromise());
     api.orders.mockReturnValue(pendingPromise());
+    api.manualOrders.mockReturnValue(pendingPromise());
     api.quotes.mockReturnValue(pendingPromise());
     api.capabilities.mockReturnValue(pendingPromise());
 
@@ -183,6 +213,7 @@ describe("DashboardPage", () => {
       top_products: topProductsPage,
     });
     api.orders.mockResolvedValue(ordersPage);
+    api.manualOrders.mockResolvedValue(manualOrdersPage);
     api.quotes.mockResolvedValue(quotesPage);
     api.capabilities.mockResolvedValue(capabilities);
     renderPage();
@@ -190,12 +221,16 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("ORDER-001")).toBeTruthy();
     expect(screen.getByText("QUOTE-001")).toBeTruthy();
     expect(screen.getAllByText("₩50,000")).toHaveLength(2);
+    // 수기 주문은 별도 표로 — 금액은 amount + shipping_fee
+    expect(screen.getByText("김수기")).toBeTruthy();
+    expect(screen.getByText("₩23,000")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: "새로고침" }));
 
     await waitFor(() => {
       expect(api.overview).toHaveBeenCalledTimes(2);
       expect(api.orders).toHaveBeenCalledTimes(2);
+      expect(api.manualOrders).toHaveBeenCalledTimes(2);
       expect(api.quotes).toHaveBeenCalledTimes(2);
       expect(api.capabilities).toHaveBeenCalledTimes(2);
     });
@@ -208,6 +243,7 @@ describe("DashboardPage", () => {
       top_products: topProductsPage,
     });
     api.orders.mockResolvedValue(ordersPage);
+    api.manualOrders.mockResolvedValue(manualOrdersPage);
     api.quotes.mockResolvedValue(quotesPage);
     api.capabilities.mockResolvedValue(capabilities);
     renderPage();
@@ -229,6 +265,7 @@ describe("DashboardPage", () => {
       top_products: topProductsPage,
     });
     api.orders.mockResolvedValue(ordersPage);
+    api.manualOrders.mockResolvedValue(manualOrdersPage);
     api.quotes.mockResolvedValue(quotesPage);
     api.capabilities.mockResolvedValue({
       ...capabilities,

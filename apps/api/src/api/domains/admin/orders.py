@@ -6,6 +6,7 @@ from db.models.auth import User
 from db.models.commerce import (
     Claim,
     Inquiry,
+    ManualOrder,
     Order,
     OrderItem,
     OrderStatusLog,
@@ -35,6 +36,7 @@ from api.domains.admin.schemas import (
     AdminOrderStatusLogOut,
     AdminOrderSummaryOut,
     AdminRelatedOrderOut,
+    DashboardOrderTypeFilter,
     DashboardRecentOrdersPage,
     DashboardRecentQuoteOut,
     DashboardRecentQuotesPage,
@@ -370,27 +372,57 @@ async def list_orders(
     )
 
 
+def _manual_order_filters(start: date, end: date) -> list[ColumnElement[bool]]:
+    """수기 주문의 매출 인정 조건 — 결제 완료분만, order_date를 매출일로 본다.
+
+    manual_orders에는 Order.paid_at에 대응하는 결제 시각이 없다(종이 작업지시서의 장부라
+    order_date(date)와 is_paid(bool)뿐). 그래서 이 두 값이 매출일·매출 인정의 유일한 기준이다.
+    """
+    return [
+        ManualOrder.is_paid.is_(True),
+        ManualOrder.order_date >= start,
+        ManualOrder.order_date <= end,
+    ]
+
+
+# 수기 주문 매출 = 금액 + 택배비. Order.total_price가 배송비를 포함하므로 같은 기준이다.
+_MANUAL_ORDER_AMOUNT = ManualOrder.amount + ManualOrder.shipping_fee
+
+
 async def dashboard_summary(
     session: AsyncSession,
     *,
     start_date: date | None,
     end_date: date | None,
-    order_type: OrderTypeFilter,
+    order_type: DashboardOrderTypeFilter,
 ) -> DashboardSummaryOut:
     start, end = _dashboard_dates(start_date, end_date)
     start_at, end_at = kst_day_bounds(start, end)
     assert start_at is not None and end_at is not None
-    filters: list[ColumnElement[bool]] = [
-        Order.paid_at >= start_at,
-        Order.paid_at < end_at,
-    ]
-    if order_type != "all":
-        filters.append(Order.order_type == order_type)
-    order_count, order_amount = (
-        await session.execute(
-            select(func.count(), func.coalesce(func.sum(Order.total_price), 0)).where(*filters)
-        )
-    ).one()
+    order_count, order_amount = 0, 0
+    # order_type="manual"은 수기 주문만 본다 — Order 쪽은 건너뛴다.
+    if order_type != "manual":
+        filters: list[ColumnElement[bool]] = [
+            Order.paid_at >= start_at,
+            Order.paid_at < end_at,
+        ]
+        if order_type != "all":
+            filters.append(Order.order_type == order_type)
+        order_count, order_amount = (
+            await session.execute(
+                select(func.count(), func.coalesce(func.sum(Order.total_price), 0)).where(*filters)
+            )
+        ).one()
+    if order_type in ("all", "manual"):
+        manual_count, manual_amount = (
+            await session.execute(
+                select(func.count(), func.coalesce(func.sum(_MANUAL_ORDER_AMOUNT), 0)).where(
+                    *_manual_order_filters(start, end)
+                )
+            )
+        ).one()
+        order_count += int(manual_count)
+        order_amount += int(manual_amount)
     open_claim_count = int(
         await session.scalar(
             select(func.count()).select_from(Claim).where(Claim.status.in_(ACTIVE_CLAIM_STATUSES))
@@ -434,7 +466,7 @@ async def dashboard_timeseries(
     *,
     start_date: date | None,
     end_date: date | None,
-    order_type: OrderTypeFilter,
+    order_type: DashboardOrderTypeFilter,
 ) -> DashboardTimeseriesOut:
     """지표 5종의 KST 일별 시계열. order_type 필터는 주문 시리즈에만 적용된다."""
     start, end = _dashboard_dates(start_date, end_date)
@@ -457,15 +489,30 @@ async def dashboard_timeseries(
         )
         return {row[0]: tuple(row[1:]) for row in rows.all()}
 
-    order_filters: list[Any] = []
-    if order_type != "all":
-        order_filters.append(Order.order_type == order_type)
-    orders = await by_day(
-        Order.paid_at,
-        func.count(),
-        func.coalesce(func.sum(Order.total_price), 0),
-        filters=order_filters,
-    )
+    orders: dict[date, tuple[Any, ...]] = {}
+    if order_type != "manual":
+        order_filters: list[Any] = []
+        if order_type != "all":
+            order_filters.append(Order.order_type == order_type)
+        orders = await by_day(
+            Order.paid_at,
+            func.count(),
+            func.coalesce(func.sum(Order.total_price), 0),
+            filters=order_filters,
+        )
+    # 수기 주문은 order_date가 이미 KST date라 타임존 변환 없이 그대로 버킷이다.
+    manual: dict[date, tuple[int, int]] = {}
+    if order_type in ("all", "manual"):
+        rows = await session.execute(
+            select(
+                ManualOrder.order_date,
+                func.count(),
+                func.coalesce(func.sum(_MANUAL_ORDER_AMOUNT), 0),
+            )
+            .where(*_manual_order_filters(start, end))
+            .group_by(ManualOrder.order_date)
+        )
+        manual = {row[0]: (int(row[1]), int(row[2])) for row in rows.all()}
     customers = await by_day(User.created_at, func.count(), filters=[User.role == "customer"])
     generations = await by_day(
         GenerationJob.created_at,
@@ -488,6 +535,9 @@ async def dashboard_timeseries(
     day = start
     while day <= end:
         order_count, order_amount = orders.get(day, (0, 0))
+        manual_count, manual_amount = manual.get(day, (0, 0))
+        order_count = int(order_count) + manual_count
+        order_amount = int(order_amount) + manual_amount
         generation_total, generation_failed = generations.get(day, (0, 0))
         points.append(
             DashboardTimeseriesPointOut(
@@ -557,8 +607,14 @@ async def dashboard_top_products(
 
 
 async def recent_orders(
-    session: AsyncSession, *, order_type: OrderTypeFilter, limit: int
+    session: AsyncSession, *, order_type: DashboardOrderTypeFilter, limit: int
 ) -> DashboardRecentOrdersPage:
+    # "manual"은 Order가 아닌 별도 장부다 — 이 표는 비우고, 수기 주문은 대시보드가
+    # /admin/manual-orders를 따로 조회해 자기 표에 그린다.
+    if order_type == "manual":
+        return DashboardRecentOrdersPage(
+            items=[], total=0, limit=limit, offset=0, as_of=datetime.now(UTC)
+        )
     page = await list_orders(
         session,
         order_type=order_type,

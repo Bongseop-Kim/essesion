@@ -80,6 +80,33 @@ const WEAVES = [
   description: string;
 }[];
 
+/**
+ * 짜임 스와치 — 워커가 실제 렌더에 쓰는 텍스처에서 뽑은 장식 이미지
+ * (`apps/worker/scripts/export_weave_swatches.py`, 파일명 = weave 값).
+ * 흰 원단이라 그대로 축소하면 결이 사라진다 — 스와치 자체가 확대 크롭이고,
+ * 표시 배율(2배)로 한 번 더 키워 결이 읽히게 한다.
+ */
+const SWATCH_PX = 72;
+
+function WeaveSwatch({ weave }: { weave: FabricWeave }) {
+  return (
+    <Box
+      aria-hidden
+      width={SWATCH_PX}
+      height={SWATCH_PX}
+      borderWidth={1}
+      borderColor="stroke.neutral-weak"
+      borderRadius="r2"
+      style={{
+        backgroundImage: `url(/images/weaves/${weave}.png)`,
+        backgroundSize: `${SWATCH_PX * 2}px ${SWATCH_PX * 2}px`,
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    />
+  );
+}
+
 const PRINT_WEAVES: readonly FabricWeave[] = ["twill-0", "twill-45"];
 
 /** 제작 방식·짜임은 다이얼로그 로컬 폼 상태다 — 캔버스가 들고 있을 값이 아니다. */
@@ -178,6 +205,7 @@ export function FinalizeDialog({
                 value={option.value}
                 label={option.label}
                 description={option.description}
+                media={<WeaveSwatch weave={option.value} />}
                 disabled={disabled || loading}
               />
             ))}

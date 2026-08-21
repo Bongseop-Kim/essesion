@@ -317,6 +317,8 @@ export function DesignPage() {
                     balanceQuery.data?.motif_generate_cost ?? null
                   }
                   onPurchase={() => navigate("/token/purchase")}
+                  failed={balanceQuery.isLoadingError}
+                  onRetry={() => void balanceQuery.refetch()}
                 />
               </Box>
             ) : null}

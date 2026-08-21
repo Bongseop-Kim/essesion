@@ -21,6 +21,8 @@ export type UseDialogReturn = {
   dialogRef: RefObject<HTMLDialogElement | null>;
   dialogProps: {
     ref: RefObject<HTMLDialogElement | null>;
+    /** 진입 포커스를 패널 자신이 받도록 — 자동 포커스 링 방지(showModal 직후 focus) */
+    tabIndex: number;
     onCancel: (event: SyntheticEvent<HTMLDialogElement>) => void;
     onClose: () => void;
     onPointerDown: (event: PointerEvent<HTMLDialogElement>) => void;
@@ -70,6 +72,11 @@ export function useDialog({
             : null;
         // 스크롤 잠금 중 레이아웃 시프트는 theme.css의 scrollbar-gutter가 방지
         dialog.showModal();
+        // showModal은 첫 포커서블(보통 닫기 버튼)을 자동 포커스하고 브라우저가 이를
+        // :focus-visible로 취급해 파란 링을 그린다 — 마우스로 열었는데 링이 뜬다.
+        // 포커스를 dialog 자신(tabIndex -1)으로 옮기면 링 없이 포커스 트랩은 유지되고,
+        // 첫 Tab에서 정상적으로 내부 첫 요소에 링이 생긴다. autofocus 지정은 존중한다.
+        if (!dialog.querySelector("[autofocus]")) dialog.focus();
       }
       return;
     }
@@ -93,6 +100,7 @@ export function useDialog({
     dialogRef,
     dialogProps: {
       ref: dialogRef,
+      tabIndex: -1,
       onCancel: (event) => {
         // <input type="file">의 선택 취소도 bubbles: true인 cancel을 올려보낸다 —
         // 내 dialog가 낸 것(ESC)만 닫힘으로 친다.
