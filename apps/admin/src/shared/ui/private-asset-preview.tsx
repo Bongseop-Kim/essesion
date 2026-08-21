@@ -1,19 +1,10 @@
-import {
-  ActionButton,
-  Box,
-  Callout,
-  HStack,
-  ImageFrame,
-  Text,
-  VStack,
-} from "@essesion/shared";
+import { Box, Callout, ImageFrame, Text, VStack } from "@essesion/shared";
 import { type ReactNode, useEffect, useRef } from "react";
 
 type PrivateAssetPreviewProps = {
   src?: string;
   alt: string;
   metadata: ReactNode;
-  loading: boolean;
   error: boolean;
   errorDescription: string;
   onRequest: () => void;
@@ -23,7 +14,6 @@ export function PrivateAssetPreview({
   src,
   alt,
   metadata,
-  loading,
   error,
   errorDescription,
   onRequest,
@@ -36,13 +26,14 @@ export function PrivateAssetPreview({
   request.current = onRequest;
   useEffect(() => {
     // 한 틱 미룬다 — 자식 effect는 부모보다 먼저 도는데, 호출자의 mutation 구독이
-    // 그 부모 effect에서 붙는다. 즉시 호출하면 완료 알림을 놓쳐 버튼이 계속 로딩이다.
+    // 그 부모 effect에서 붙는다. 즉시 호출하면 완료 알림을 놓쳐 URL이 안 꽂힌다.
     const handle = setTimeout(() => request.current(), 0);
     return () => clearTimeout(handle);
   }, []);
 
   return (
-    <VStack gap="x2" alignItems="stretch">
+    // ponytail: 모바일 한 손 폭에 맞춘 고정 상한 — 넓은 화면에서도 같은 크기다.
+    <VStack gap="x2" alignItems="stretch" maxWidth={280}>
       {src ? (
         <ImageFrame src={src} alt={alt} ratio={4 / 3} fit="contain" stroke />
       ) : (
@@ -59,20 +50,9 @@ export function PrivateAssetPreview({
           </Text>
         </Box>
       )}
-      <HStack gap="x2" justify="space-between" wrap>
-        <Text textStyle="caption" color="fg.neutral-muted">
-          {metadata}
-        </Text>
-        <ActionButton
-          size="small"
-          variant="neutralOutline"
-          loading={loading}
-          data-capture-hide
-          onClick={onRequest}
-        >
-          URL 재발급
-        </ActionButton>
-      </HStack>
+      <Text textStyle="caption" color="fg.neutral-muted">
+        {metadata}
+      </Text>
       {error && (
         <Callout
           role="alert"

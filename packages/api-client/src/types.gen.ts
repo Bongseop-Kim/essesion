@@ -1216,6 +1216,10 @@ export type AdminOrderReferenceImageOut = {
      */
     id: string;
     /**
+     * Order Item Id
+     */
+    order_item_id?: string | null;
+    /**
      * Size Bytes
      */
     size_bytes: number | null;

@@ -152,7 +152,6 @@ function QuoteImage({
           {image.content_type ?? "파일"} · {formatDateTime(image.created_at)}
         </>
       }
-      loading={mutation.isPending}
       error={mutation.isError}
       errorDescription="만료되었거나 이 견적에 속하지 않은 이미지입니다."
       onRequest={() =>

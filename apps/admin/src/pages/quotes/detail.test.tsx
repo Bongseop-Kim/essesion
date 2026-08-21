@@ -81,8 +81,7 @@ describe("QuoteDetailPage", () => {
     api.get.mockResolvedValue(quote);
   });
 
-  it("관계 ID로 참고 이미지 URL을 발급하고 실패한 재발급을 알린다", async () => {
-    const user = userEvent.setup();
+  it("관계 ID로 참고 이미지 URL을 발급한다", async () => {
     api.get.mockResolvedValue({
       ...quote,
       images: [
@@ -94,12 +93,14 @@ describe("QuoteDetailPage", () => {
         },
       ],
     });
-    api.readImage
-      .mockResolvedValueOnce({ read_url: "https://private.example/quote.webp" })
-      .mockRejectedValueOnce(new Error("만료된 이미지"));
+    api.readImage.mockResolvedValue({
+      read_url: "https://private.example/quote.webp",
+    });
     renderPage();
 
-    await user.click(await screen.findByRole("tab", { name: "참고 이미지" }));
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("tab", { name: "참고 이미지" }));
     // 미리보기 URL은 버튼 없이 자동 발급된다.
     expect(
       (await screen.findByAltText("견적 참고 자료")).getAttribute("src"),
@@ -108,12 +109,30 @@ describe("QuoteDetailPage", () => {
       { path: { quote_id: quote.id, image_id: "image-1" } },
       expect.anything(),
     );
+    expect(api.readImage).toHaveBeenCalledTimes(1);
+  });
 
-    await user.click(screen.getByRole("button", { name: "URL 재발급" }));
+  it("읽기 URL 발급이 실패하면 오류를 알린다", async () => {
+    api.get.mockResolvedValue({
+      ...quote,
+      images: [
+        {
+          id: "image-1",
+          content_type: "image/webp",
+          size_bytes: 1024,
+          created_at: "2026-07-12T01:00:00Z",
+        },
+      ],
+    });
+    api.readImage.mockRejectedValue(new Error("만료된 이미지"));
+    renderPage();
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("tab", { name: "참고 이미지" }));
     expect(
       await screen.findByText("이미지를 불러오지 못했습니다"),
     ).toBeTruthy();
-    expect(api.readImage).toHaveBeenCalledTimes(2);
   });
 
   it("stale 오류에도 금액·조건 입력과 expected_updated_at을 보존한다", async () => {

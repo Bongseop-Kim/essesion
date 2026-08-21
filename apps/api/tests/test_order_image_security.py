@@ -260,6 +260,8 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
     assert images.json() == [
         {
             "id": upload_id,
+            # 상세가 품목 카드 안에 그리려면 어느 품목 사진인지 알아야 한다.
+            "order_item_id": str(item.id),
             "content_type": "image/png",
             "size_bytes": 100,
             "created_at": images.json()[0]["created_at"],
@@ -271,7 +273,10 @@ async def test_admin_order_and_claim_hide_private_keys_and_verify_image_relation
         f"/orders/{order_id}/reference-images", headers=customer_headers
     )
     assert customer_images.status_code == 200, customer_images.text
-    assert customer_images.json() == images.json()
+    # 고객 응답에는 품목 링크가 없다 — admin 상세 표시용 필드다.
+    assert customer_images.json() == [
+        {key: value for key, value in images.json()[0].items() if key != "order_item_id"}
+    ]
     assert object_key not in customer_images.text
 
     customer_read_url = await client.post(
