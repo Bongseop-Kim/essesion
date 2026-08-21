@@ -1,6 +1,9 @@
 """수기 주문(무통장·전화 접수) admin CRUD 테스트."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
+
+from db.models.images import Image
 
 from .factories import auth_headers, make_admin
 from .fakes import simulate_uploads
@@ -409,6 +412,18 @@ async def test_manual_order_image_rejects_unstaged_and_duplicate_ids(
         headers=headers,
     )
     assert bad_type.status_code == 422
+
+    # 스테이징 만료(24h)가 지난 업로드는 링크되지 않는다.
+    staged = await db_session.get(Image, uuid.UUID(upload_id))
+    assert staged is not None
+    staged.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    await db_session.commit()
+    expired = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(image_upload_ids=[upload_id]),
+        headers=headers,
+    )
+    assert expired.status_code == 400, expired.text
 
 
 async def test_manual_order_item_images_link_and_survive_update(app, client, db_session, settings):

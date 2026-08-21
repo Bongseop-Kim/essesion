@@ -36,7 +36,8 @@ export function PrivateAssetPreview({
     requested.current = true;
     // 한 틱 미룬다 — 자식 effect는 부모보다 먼저 도는데, 호출자의 mutation 구독이
     // 그 부모 effect에서 붙는다. 즉시 호출하면 완료 알림을 놓쳐 버튼이 계속 로딩이다.
-    setTimeout(onRequest, 0);
+    const handle = setTimeout(onRequest, 0);
+    return () => clearTimeout(handle);
   }, [onRequest]);
 
   return (

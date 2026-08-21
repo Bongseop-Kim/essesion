@@ -18,7 +18,8 @@ from api.integrations.gcs import GcsClient
 OrderImageKind = Literal["custom_order", "sample_order"]
 
 MAX_ORDER_IMAGE_BYTES = 10 * 1024 * 1024
-ALLOWED_ORDER_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ORDER_IMAGE_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+ALLOWED_ORDER_IMAGE_TYPES = set(ORDER_IMAGE_EXTENSIONS)
 ORDER_UPLOAD_ENTITY_TYPES: dict[OrderImageKind, str] = {
     "custom_order": "custom_order_upload",
     "sample_order": "sample_order_upload",

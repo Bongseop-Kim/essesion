@@ -387,6 +387,9 @@ function ImageAttachments({
   // 저장된 이미지는 previewUrl이 없다 — 어느 사진을 지우는지 보이도록 읽기 URL을 발급한다.
   const [readUrls, setReadUrls] = useState<Record<string, string>>({});
   const requested = useRef(new Set<string>());
+  // 업로드 대기 중에도 제거는 열려 있다 — 완료 시점의 최신 목록에 붙여야 지운 사진이 되살아나지 않는다.
+  const latestImages = useRef(images);
+  latestImages.current = images;
 
   useEffect(() => {
     if (manualOrderId === undefined) return;
@@ -425,7 +428,7 @@ function ImageAttachments({
       setError(getErrorMessage(uploadError, "이미지를 업로드하지 못했습니다."));
     } finally {
       setUploading(false);
-      if (added.length > 0) onChange([...images, ...added]);
+      if (added.length > 0) onChange([...latestImages.current, ...added]);
     }
   };
 

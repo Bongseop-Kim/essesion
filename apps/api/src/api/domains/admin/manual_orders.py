@@ -17,6 +17,7 @@ from api.domains.admin.schemas import Page
 from api.domains.images.service import (
     ALLOWED_ORDER_IMAGE_TYPES,
     MAX_ORDER_IMAGE_BYTES,
+    ORDER_IMAGE_EXTENSIONS,
     verify_object_metadata,
 )
 from api.domains.reform.schemas import RestorationReform, WidthReform
@@ -33,8 +34,8 @@ IMAGE_UPLOAD_TYPE = "manual_order_upload"
 IMAGE_LINKED_TYPE = "manual_order"
 IMAGE_PREFIX = f"uploads/{IMAGE_UPLOAD_TYPE}/"
 IMAGE_UPLOAD_TTL = timedelta(hours=24)
-IMAGE_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 MAX_IMAGES = 5
+MAX_TOTAL_IMAGES = 50  # 주문 단위 + 품목 전체 상한 — 링크 1건당 GCS 메타데이터 조회가 붙는다.
 
 
 class ManualAutomaticSpec(StrictModel):
@@ -131,6 +132,8 @@ class ManualOrderCreateRequest(BaseModel):
         """한 이미지는 주문 단위든 품목이든 한 곳에만 붙는다 — 만료 판단이 갈린다."""
         if len(set(self.all_image_upload_ids)) != len(self.all_image_upload_ids):
             raise ValueError("첨부 이미지가 중복되었습니다")
+        if len(self.all_image_upload_ids) > MAX_TOTAL_IMAGES:
+            raise ValueError(f"첨부 이미지는 총 {MAX_TOTAL_IMAGES}장까지 가능합니다")
         return self
 
     @property
@@ -274,6 +277,7 @@ async def _sync_images(
             or image.entity_type != IMAGE_UPLOAD_TYPE
             or image.uploaded_by != admin.id
             or image.deleted_at is not None
+            or (image.expires_at is not None and image.expires_at <= datetime.now(UTC))
             or image.content_type not in ALLOWED_ORDER_IMAGE_TYPES
         ):
             raise DomainError("유효하지 않은 첨부 이미지입니다", code="invalid_manual_order_image")
@@ -358,7 +362,7 @@ async def create_manual_order_image_upload_url(
     admin: AdminUser,
     request: Request,
 ) -> ManualOrderImageUploadOut:
-    extension = IMAGE_EXTENSIONS.get(body.content_type)
+    extension = ORDER_IMAGE_EXTENSIONS.get(body.content_type)
     if extension is None:
         raise DomainError(
             "지원하지 않는 이미지 형식입니다", code="invalid_manual_order_image_type", status=422

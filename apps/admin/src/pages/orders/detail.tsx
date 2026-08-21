@@ -725,11 +725,13 @@ export function OrderDetailPage() {
                         ),
                       },
                       {
-                        label: "원금 − 할인 + 배송비 = 주문 금액",
+                        label: "원금 − 할인 + 배송·수거비 = 주문 금액",
+                        // 수거비(repair_pickup)도 주문 금액에 들어간다 — 빼면 합이 order_amount와 어긋난다.
                         value: formatAmountBreakdown(
                           data.original_price,
                           data.total_discount,
-                          data.shipping_cost,
+                          data.shipping_cost +
+                            (data.repair_pickup?.pickup_fee ?? 0),
                         ),
                       },
                       {
@@ -1053,7 +1055,7 @@ export function OrderDetailPage() {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${selectedAction?.label ?? "위험 작업"}을 실행할까요?`}
-        description={`주문 $data.order_number· 상태 $data.status→ $selectedAction?.target_status ?? "변경 없음"· 변경 사유: $memo.trim() || "없음"`}
+        description={`주문 ${data.order_number} · 상태 ${data.status} → ${selectedAction?.target_status ?? "변경 없음"} · 변경 사유: ${memo.trim() || "없음"}`}
         primaryActionProps={{
           children: selectedAction?.label ?? "주문 작업 실행",
           variant: "criticalSolid",
