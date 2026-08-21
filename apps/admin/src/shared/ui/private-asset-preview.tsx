@@ -30,15 +30,16 @@ export function PrivateAssetPreview({
 }: PrivateAssetPreviewProps) {
   // 발급은 서버 캐시 뒤에 있어 이미지당 GCS Class B 요청 1건 수준이다 — 버튼을 누르게
   // 할 이유가 없다. 호출자마다 반복하지 않도록 여기서 한 번만 자동 요청한다.
-  const requested = useRef(false);
+  // onRequest는 호출자마다 인라인 화살표라 매 렌더 새 값이다 — deps에 넣으면 재렌더의
+  // cleanup이 아래 타이머를 취소해 요청이 영원히 안 나간다. ref로 최신 값만 읽는다.
+  const request = useRef(onRequest);
+  request.current = onRequest;
   useEffect(() => {
-    if (requested.current) return;
-    requested.current = true;
     // 한 틱 미룬다 — 자식 effect는 부모보다 먼저 도는데, 호출자의 mutation 구독이
     // 그 부모 effect에서 붙는다. 즉시 호출하면 완료 알림을 놓쳐 버튼이 계속 로딩이다.
-    const handle = setTimeout(onRequest, 0);
+    const handle = setTimeout(() => request.current(), 0);
     return () => clearTimeout(handle);
-  }, [onRequest]);
+  }, []);
 
   return (
     <VStack gap="x2" alignItems="stretch">
