@@ -33,7 +33,13 @@ def stretch(image: Image.Image) -> Image.Image:
     """흰쪽을 고정한 채 어두운쪽만 늘린다 — 원단이 회색으로 변하지 않는다."""
     stddev = ImageStat.Stat(image).stddev[0]
     gain = min(MAX_GAIN, TARGET_STDDEV / stddev) if stddev > 0 else 1.0
-    return image.point(lambda v: max(0, min(255, round(255 - (255 - v) * gain))))
+
+    # 인자 타입을 명시해야 point()가 Callable[[int], float] 오버로드를 고른다
+    # (lambda면 ImagePointTransform으로 추론돼 round()가 타입 에러).
+    def curve(value: int) -> int:
+        return max(0, min(255, round(255 - (255 - value) * gain)))
+
+    return image.point(curve)
 
 
 def main() -> None:
