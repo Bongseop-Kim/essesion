@@ -29,6 +29,18 @@ export function formatMoney(
   return Number.isFinite(numeric) ? money.format(numeric) : emptyLabel;
 }
 
+/** 금액을 한 줄로 — `100,000 − 10,000 + 3,000 = ₩93,000` (작업지시서 표기). */
+export function formatAmountBreakdown(
+  original: number,
+  discount: number,
+  shipping: number,
+) {
+  const plain = (value: number) => value.toLocaleString("ko-KR");
+  return `${plain(original)} − ${plain(discount)} + ${plain(shipping)} = ${formatMoney(
+    original - discount + shipping,
+  )}`;
+}
+
 export function formatDateTime(value: string | Date | null | undefined) {
   if (value === null || value === undefined) return "-";
   const result = parsed(value);

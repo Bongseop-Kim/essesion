@@ -4891,6 +4891,14 @@ export type ManualOrderCreateRequest = {
      */
     customer_name: string;
     /**
+     * Discount
+     */
+    discount?: number;
+    /**
+     * Image Upload Ids
+     */
+    image_upload_ids?: Array<string>;
+    /**
      * Is Confirmed
      */
     is_confirmed?: boolean;
@@ -4921,6 +4929,66 @@ export type ManualOrderCreateRequest = {
 };
 
 /**
+ * ManualOrderImageOut
+ */
+export type ManualOrderImageOut = {
+    /**
+     * Content Type
+     */
+    content_type: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number | null;
+};
+
+/**
+ * ManualOrderImageUploadOut
+ */
+export type ManualOrderImageUploadOut = {
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Required Headers
+     */
+    required_headers: {
+        [key: string]: string;
+    };
+    /**
+     * Upload Id
+     */
+    upload_id: string;
+    /**
+     * Upload Url
+     */
+    upload_url: string;
+};
+
+/**
+ * ManualOrderImageUploadRequest
+ */
+export type ManualOrderImageUploadRequest = {
+    /**
+     * Content Type
+     */
+    content_type: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes: number;
+};
+
+/**
  * ManualOrderItem
  *
  * 품목 — automatic/width/restoration/custom 존재 여부가 대분류 체크 상태.
@@ -4928,6 +4996,10 @@ export type ManualOrderCreateRequest = {
 export type ManualOrderItem = {
     automatic?: ManualAutomaticSpec | null;
     custom?: ManualCustomSpec | null;
+    /**
+     * Image Upload Ids
+     */
+    image_upload_ids?: Array<string>;
     /**
      * Note
      */
@@ -4961,9 +5033,17 @@ export type ManualOrderOut = {
      */
     customer_name: string;
     /**
+     * Discount
+     */
+    discount: number;
+    /**
      * Id
      */
     id: string;
+    /**
+     * Images
+     */
+    images: Array<ManualOrderImageOut>;
     /**
      * Is Confirmed
      */
@@ -5015,9 +5095,17 @@ export type ManualOrderUpdateRequest = {
      */
     customer_name: string;
     /**
+     * Discount
+     */
+    discount?: number;
+    /**
      * Expected Updated At
      */
     expected_updated_at: string;
+    /**
+     * Image Upload Ids
+     */
+    image_upload_ids?: Array<string>;
     /**
      * Is Confirmed
      */
@@ -10133,6 +10221,31 @@ export type CreateManualOrderResponses = {
 
 export type CreateManualOrderResponse = CreateManualOrderResponses[keyof CreateManualOrderResponses];
 
+export type CreateManualOrderImageUploadUrlData = {
+    body: ManualOrderImageUploadRequest;
+    path?: never;
+    query?: never;
+    url: '/admin/manual-orders/images/upload-url';
+};
+
+export type CreateManualOrderImageUploadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateManualOrderImageUploadUrlError = CreateManualOrderImageUploadUrlErrors[keyof CreateManualOrderImageUploadUrlErrors];
+
+export type CreateManualOrderImageUploadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: ManualOrderImageUploadOut;
+};
+
+export type CreateManualOrderImageUploadUrlResponse = CreateManualOrderImageUploadUrlResponses[keyof CreateManualOrderImageUploadUrlResponses];
+
 export type DeleteManualOrderData = {
     body?: never;
     path: {
@@ -10222,6 +10335,40 @@ export type UpdateManualOrderResponses = {
 };
 
 export type UpdateManualOrderResponse = UpdateManualOrderResponses[keyof UpdateManualOrderResponses];
+
+export type CreateManualOrderImageReadUrlData = {
+    body?: never;
+    path: {
+        /**
+         * Manual Order Id
+         */
+        manual_order_id: string;
+        /**
+         * Image Id
+         */
+        image_id: string;
+    };
+    query?: never;
+    url: '/admin/manual-orders/{manual_order_id}/images/{image_id}/read-url';
+};
+
+export type CreateManualOrderImageReadUrlErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateManualOrderImageReadUrlError = CreateManualOrderImageReadUrlErrors[keyof CreateManualOrderImageReadUrlErrors];
+
+export type CreateManualOrderImageReadUrlResponses = {
+    /**
+     * Successful Response
+     */
+    200: SignedReadUrlOut;
+};
+
+export type CreateManualOrderImageReadUrlResponse = CreateManualOrderImageReadUrlResponses[keyof CreateManualOrderImageReadUrlResponses];
 
 export type ListAdminMotifsData = {
     body?: never;

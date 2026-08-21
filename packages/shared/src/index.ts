@@ -172,8 +172,5 @@ export type {
   TieCanvasProps,
 } from "./components/tie-canvas";
 export { TIE_GEOMETRY, TieCanvas } from "./components/tie-canvas";
-export type {
-  OrderContentRow,
-  OrderItemContent,
-} from "./order-content";
-export { decodeOrderItemContent } from "./order-content";
+export type { OrderContentRow, OrderItemContent } from "./order-content";
+export { decodeOrderItemContent, decodeTieSpec } from "./order-content";

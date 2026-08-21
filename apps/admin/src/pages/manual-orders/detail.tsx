@@ -1,5 +1,6 @@
 import type { ManualOrderOut } from "@essesion/api-client";
 import {
+  createManualOrderImageReadUrlMutation,
   deleteManualOrderMutation,
   getManualOrderOptions,
   listManualOrdersQueryKey,
@@ -18,16 +19,19 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
+import { downloadWorksheetPng } from "../../shared/lib/capture";
 import {
+  formatAmountBreakdown,
   formatDate,
   formatDateTime,
-  formatMoney,
+  formatFileSize,
 } from "../../shared/lib/format";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { type DetailItem, DetailList } from "../../shared/ui/detail-list";
+import { PrivateAssetPreview } from "../../shared/ui/private-asset-preview";
 import { RouteHeading } from "../../shared/ui/route-heading";
 
 type ManualOrderItemOut = ManualOrderOut["items"][number];
@@ -111,6 +115,44 @@ function itemDetailItems(item: ManualOrderItemOut): DetailItem[] {
   return items;
 }
 
+function ManualOrderImage({
+  manualOrderId,
+  image,
+  alt,
+}: {
+  manualOrderId: string;
+  image: ManualOrderOut["images"][number];
+  alt: string;
+}) {
+  const [readUrl, setReadUrl] = useState<string>();
+  const mutation = useMutation({
+    ...createManualOrderImageReadUrlMutation(),
+    onSuccess: (data) => setReadUrl(data.read_url),
+  });
+
+  return (
+    <PrivateAssetPreview
+      src={readUrl}
+      alt={alt}
+      metadata={
+        <>
+          {image.content_type ?? "이미지"} ·{" "}
+          {formatFileSize(image.size_bytes, "크기 미상")} ·{" "}
+          {formatDateTime(image.created_at)}
+        </>
+      }
+      loading={mutation.isPending}
+      error={mutation.isError}
+      errorDescription="만료되었거나 이 주문에 속하지 않은 이미지입니다."
+      onRequest={() =>
+        mutation.mutate({
+          path: { manual_order_id: manualOrderId, image_id: image.id },
+        })
+      }
+    />
+  );
+}
+
 function ManualOrderDetailLoading() {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
@@ -134,6 +176,7 @@ export function ManualOrderDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const captureRef = useRef<HTMLDivElement>(null);
   const query = useQuery({
     ...getManualOrderOptions({ path: { manual_order_id: manualOrderId } }),
     enabled: manualOrderId !== "",
@@ -174,6 +217,14 @@ export function ManualOrderDetailPage() {
     );
   }
 
+  const itemImageIds = order.items.flatMap(
+    (item) => item.image_upload_ids ?? [],
+  );
+  // 주문 단위 첨부 = 어느 품목에도 속하지 않은 이미지
+  const orderImages = order.images.filter(
+    (image) => !itemImageIds.includes(image.id),
+  );
+
   const statusFlags = [
     ["접수", order.is_received],
     ["결제", order.is_paid],
@@ -200,66 +251,119 @@ export function ManualOrderDetailPage() {
           >
             수정
           </ActionButton>
+          <ActionButton
+            onClick={() => {
+              const node = captureRef.current;
+              if (node === null) return;
+              void downloadWorksheetPng(
+                node,
+                `수기주문_${order.customer_name}_${order.order_date}.png`,
+              ).catch(() =>
+                snackbar("작업지시서 이미지를 저장하지 못했습니다."),
+              );
+            }}
+          >
+            작업지시서 이미지 저장
+          </ActionButton>
         </HStack>
       </HStack>
 
-      <AdminCard
-        title="주문 정보"
-        action={
-          <HStack gap="x2" wrap>
-            {statusFlags.map(([label, checked]) => (
-              <Badge key={label} tone={checked ? "positive" : "neutral"}>
-                {label}
-              </Badge>
-            ))}
-          </HStack>
-        }
-      >
-        <DetailList
-          items={[
-            { label: "날짜", value: formatDate(order.order_date) },
-            { label: "이름", value: order.customer_name },
-            { label: "휴대폰", value: formatPhoneNumber(order.phone) },
-            {
-              label: "주소",
-              value:
-                order.address === null || order.address === ""
-                  ? "-"
-                  : order.address,
-            },
-            { label: "금액", value: formatMoney(order.amount) },
-            { label: "택배비", value: formatMoney(order.shipping_fee) },
-          ]}
-        />
-      </AdminCard>
+      {/* 캡처 대상. 버튼은 래퍼 밖에 두어 PNG에 찍히지 않게 한다. */}
+      <Box ref={captureRef} data-capture>
+        <VStack gap="x6" alignItems="stretch">
+          <AdminCard
+            title="주문 정보"
+            action={
+              <HStack gap="x2" wrap>
+                {statusFlags.map(([label, checked]) => (
+                  <Badge key={label} tone={checked ? "positive" : "neutral"}>
+                    {label}
+                  </Badge>
+                ))}
+              </HStack>
+            }
+          >
+            <DetailList
+              items={[
+                { label: "날짜", value: formatDate(order.order_date) },
+                { label: "이름", value: order.customer_name },
+                { label: "휴대폰", value: formatPhoneNumber(order.phone) },
+                {
+                  label: "주소",
+                  value:
+                    order.address === null || order.address === ""
+                      ? "-"
+                      : order.address,
+                },
+                {
+                  label: "원금 − 할인 + 택배비 = 주문 금액",
+                  value: formatAmountBreakdown(
+                    order.amount,
+                    order.discount,
+                    order.shipping_fee,
+                  ),
+                },
+              ]}
+            />
+          </AdminCard>
 
-      <AdminCard
-        title="작업 품목"
-        description={`총 ${order.items.length.toLocaleString("ko-KR")}개 품목`}
-      >
-        {order.items.length === 0 ? (
-          <ContentPlaceholder title="등록된 품목이 없습니다" />
-        ) : (
-          <VStack gap="x4" alignItems="stretch">
-            {order.items.map((item, index) => (
-              <Box
-                key={index}
-                borderWidth={1}
-                borderColor="stroke.neutral"
-                borderRadius="r2"
-                p="x4"
-              >
-                <VStack gap="x3" alignItems="stretch">
-                  <Text as="h3" textStyle="labelSm">
-                    품목 {index + 1}
-                  </Text>
-                  <DetailList items={itemDetailItems(item)} />
-                </VStack>
-              </Box>
-            ))}
-          </VStack>
-        )}
-      </AdminCard>
+          <AdminCard
+            title="주문 품목"
+            description={`총 ${order.items.length.toLocaleString("ko-KR")}개 품목`}
+          >
+            {order.items.length === 0 ? (
+              <ContentPlaceholder title="등록된 품목이 없습니다" />
+            ) : (
+              <VStack gap="x4" alignItems="stretch">
+                {order.items.map((item, index) => (
+                  <Box
+                    key={index}
+                    borderWidth={1}
+                    borderColor="stroke.neutral"
+                    borderRadius="r2"
+                    p="x4"
+                  >
+                    <VStack gap="x3" alignItems="stretch">
+                      <Text as="h3" textStyle="labelSm">
+                        품목 {index + 1}
+                      </Text>
+                      <DetailList items={itemDetailItems(item)} />
+                      {order.images
+                        .filter((i) => item.image_upload_ids?.includes(i.id))
+                        .map((image, position) => (
+                          <ManualOrderImage
+                            key={image.id}
+                            manualOrderId={order.id}
+                            image={image}
+                            alt={`품목 ${index + 1} 사진 ${position + 1}`}
+                          />
+                        ))}
+                    </VStack>
+                  </Box>
+                ))}
+              </VStack>
+            )}
+          </AdminCard>
+
+          {orderImages.length > 0 && (
+            <AdminCard
+              title="첨부 이미지"
+              description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
+            >
+              <VStack gap="x5" alignItems="stretch">
+                {orderImages.map((image, index) => (
+                  <ManualOrderImage
+                    key={image.id}
+                    manualOrderId={order.id}
+                    image={image}
+                    alt={`수기 주문 첨부 이미지 ${index + 1}`}
+                  />
+                ))}
+              </VStack>
+            </AdminCard>
+          )}
+        </VStack>
+      </Box>
 
       <HStack justify="flex-end">
         <ActionButton

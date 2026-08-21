@@ -385,8 +385,9 @@ def _manual_order_filters(start: date, end: date) -> list[ColumnElement[bool]]:
     ]
 
 
-# 수기 주문 매출 = 금액 + 택배비. Order.total_price가 배송비를 포함하므로 같은 기준이다.
-_MANUAL_ORDER_AMOUNT = ManualOrder.amount + ManualOrder.shipping_fee
+# 수기 주문 매출 = 원금 − 할인 + 택배비(실수령액). Order.total_price가 배송비를 포함하므로
+# 같은 기준이다.
+_MANUAL_ORDER_AMOUNT = ManualOrder.amount - ManualOrder.discount + ManualOrder.shipping_fee
 
 
 async def dashboard_summary(

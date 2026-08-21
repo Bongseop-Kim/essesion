@@ -23,6 +23,7 @@ import {
   Callout,
   ContentPlaceholder,
   decodeOrderItemContent,
+  decodeTieSpec,
   formatPhoneNumber,
   HStack,
   Skeleton,
@@ -39,15 +40,15 @@ import {
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
+import { downloadWorksheetPng } from "../../shared/lib/capture";
 import {
+  formatAmountBreakdown,
   formatDateTime,
   formatFileSize,
-  formatIdentifier,
   formatMoney,
-  formatOrderType,
   formatRepairReceiptReason,
   getErrorMessage,
 } from "../../shared/lib/format";
@@ -69,13 +70,7 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-const ORDER_TABS = [
-  "overview",
-  "items",
-  "shipping",
-  "payment",
-  "activity",
-] as const;
+const ORDER_TABS = ["overview", "shipping", "payment", "activity"] as const;
 type OrderTab = (typeof ORDER_TABS)[number];
 
 function orderTabFrom(
@@ -106,14 +101,11 @@ function snapshotLabel(item: OrderItemOut) {
 // 수기 주문 상세(manual-orders/detail.tsx)의 품목 표기와 동일한 형식.
 // 스토어 수선은 총장 대신 착용자 키를 받고(reform 스키마), 품목별 특이사항이 없다.
 function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
-  const tie = record(record(item.item_data)?.tie);
-  const automatic = record(tie?.automatic);
-  const width = record(tie?.width);
-  const restoration = record(tie?.restoration);
+  const tie = decodeTieSpec(item.item_data);
   const categories = [
-    automatic !== null && "자동수선",
-    width !== null && "폭수선",
-    restoration !== null && "복원수선",
+    tie?.automatic != null && "자동수선",
+    tie?.width != null && "폭수선",
+    tie?.restoration != null && "복원수선",
   ].filter((value): value is string => typeof value === "string");
   const items: DetailItem[] = [
     { label: "수량", value: `${item.quantity.toLocaleString("ko-KR")}개` },
@@ -122,27 +114,28 @@ function repairItemDetailItems(item: OrderItemOut): DetailItem[] {
       value: categories.length === 0 ? "-" : categories.join(" · "),
     },
   ];
-  if (automatic !== null) {
+  if (tie?.automatic != null) {
     items.push({
       label: "[자동] 타입·마감",
-      value: `${automatic.mechanism === "string" ? "끈" : "지퍼"} · ${
-        automatic.turn_knot === true ? "돌려묶기" : "방"
-      } · ${automatic.dimple === true ? "딤플" : "기본"}`,
+      value: `${tie.automatic.mechanismLabel} · ${
+        tie.automatic.turnKnot ? "돌려묶기" : "방"
+      } · ${tie.automatic.dimple ? "딤플" : "기본"}`,
     });
-    if (typeof automatic.wearer_height_cm === "number") {
+    if (tie.automatic.wearerHeightCm !== null) {
       items.push({
         label: "[자동] 착용자 키",
-        value: `${automatic.wearer_height_cm}cm`,
+        value: `${tie.automatic.wearerHeightCm}cm`,
       });
     }
   }
-  if (width !== null && typeof width.target_width_cm === "number") {
-    items.push({ label: "[폭] 폭", value: `${width.target_width_cm}cm` });
+  if (tie?.width?.targetWidthCm != null) {
+    items.push({ label: "[폭] 폭", value: `${tie.width.targetWidthCm}cm` });
   }
-  if (restoration !== null) {
-    const memo =
-      typeof restoration.memo === "string" ? restoration.memo.trim() : "";
-    items.push({ label: "[복원] 내용", value: memo === "" ? "-" : memo });
+  if (tie?.restoration != null) {
+    items.push({
+      label: "[복원] 내용",
+      value: tie.restoration.memo || "-",
+    });
   }
   return items;
 }
@@ -154,11 +147,16 @@ function AdminOrderContent({
   orderType: string;
   item: OrderItemOut;
 }) {
-  const content = decodeOrderItemContent(
-    orderType,
-    item.item_data,
-    item.quantity,
-  );
+  // 수선은 작업지시서 형식으로 그린다 — 같은 tie 데이터를 두 형식으로 중복 렌더하지 않는다.
+  const content =
+    orderType === "repair"
+      ? {
+          typeLabel: "수선",
+          rows: repairItemDetailItems(item),
+          tags: [] as string[],
+          memo: undefined,
+        }
+      : decodeOrderItemContent(orderType, item.item_data, item.quantity);
   if (!content) return null;
   return (
     <Box
@@ -375,6 +373,7 @@ export function OrderDetailPage() {
   const [companyCourier, setCompanyCourier] = useState("");
   const [companyTracking, setCompanyTracking] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const captureRef = useRef<HTMLDivElement>(null);
   const [validationError, setValidationError] = useState<string>();
 
   const refresh = async () => {
@@ -412,9 +411,7 @@ export function OrderDetailPage() {
     data !== undefined &&
     (data.order_type !== "token" ||
       (data.shipping_address !== null && data.shipping_address !== undefined) ||
-      (data.repair_pickup !== null && data.repair_pickup !== undefined) ||
-      (data.repair_receipts ?? []).length > 0 ||
-      hasOrderImages);
+      (data.repair_pickup !== null && data.repair_pickup !== undefined));
   const tab = orderTabFrom(params, hasShippingTab);
 
   const setTab = (value: string) => {
@@ -643,11 +640,25 @@ export function OrderDetailPage() {
           title={`주문 ${data.order_number}`}
           description={`${data.customer.name} · ${formatMoney(data.order_amount)} · 주문 ${formatDateTime(data.created_at)} · 마지막 변경 ${formatDateTime(data.updated_at)}`}
         />
-        <HStack gap="x1" wrap>
+        <HStack gap="x2" wrap>
           <StatusBadge status={data.status} />
           {data.claim_summary ? (
             <ClaimStatusBadge claim={data.claim_summary} />
           ) : null}
+          <ActionButton
+            onClick={() => {
+              const node = captureRef.current;
+              if (node === null) return;
+              void downloadWorksheetPng(
+                node,
+                `주문_${data.order_number}_작업지시서.png`,
+              ).catch(() =>
+                snackbar("작업지시서 이미지를 저장하지 못했습니다."),
+              );
+            }}
+          >
+            작업지시서 이미지 저장
+          </ActionButton>
         </HStack>
       </HStack>
 
@@ -665,12 +676,9 @@ export function OrderDetailPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabList aria-label="주문 상세 메뉴">
           <TabTrigger value="overview">개요</TabTrigger>
-          <TabTrigger value="items" disabled={actionOpen}>
-            항목
-          </TabTrigger>
           {hasShippingTab ? (
             <TabTrigger value="shipping" disabled={actionOpen}>
-              배송·수선
+              배송
             </TabTrigger>
           ) : null}
           <TabTrigger value="payment" disabled={actionOpen}>
@@ -683,77 +691,190 @@ export function OrderDetailPage() {
 
         <TabContent value="overview">
           <VStack gap="x5" pt="x5" alignItems="stretch">
-            <AdminCard title="주문 정보">
-              <DetailList
-                items={[
-                  {
-                    label: "주문 유형",
-                    value: formatOrderType(data.order_type),
-                  },
-                  { label: "주문 상태", value: data.status },
-                  { label: "고객", value: data.customer.name },
-                  {
-                    label: "이메일",
-                    value: formatIdentifier(data.customer.email),
-                  },
-                  {
-                    label: "전화번호",
-                    value: formatIdentifier(
-                      data.customer.phone
-                        ? formatPhoneNumber(data.customer.phone)
-                        : null,
-                    ),
-                  },
-                  // 결제 금액이 어떻게 계산됐는지 읽히도록 원금 − 할인 + 배송비 순서로 나열
-                  { label: "원금", value: formatMoney(data.original_price) },
-                  {
-                    label: "할인",
-                    value: `− ${formatMoney(data.total_discount)}`,
-                  },
-                  {
-                    label: "배송비",
-                    value: `+ ${formatMoney(data.shipping_cost)}`,
-                  },
-                  {
-                    label: "주문 금액",
-                    value: `= ${formatMoney(data.order_amount)}`,
-                  },
-                  {
-                    label: "주문 시각",
-                    value: formatDateTime(data.created_at),
-                  },
-                ]}
-              />
-            </AdminCard>
-            {data.order_type === "repair" ? (
-              <AdminCard
-                title="수선 품목"
-                description={`총 ${orderItems.length.toLocaleString("ko-KR")}개 품목`}
-              >
-                {orderItems.length === 0 ? (
-                  <ContentPlaceholder title="등록된 품목이 없습니다" />
-                ) : (
+            {/* 캡처 대상 — 작업지시서 PNG에 들어갈 카드만. 버튼은 래퍼 밖에 둔다. */}
+            <Box ref={captureRef}>
+              <VStack gap="x5" alignItems="stretch">
+                <AdminCard title="주문 정보">
+                  <DetailList
+                    items={[
+                      // 물건이 실제로 가는 곳은 배송지의 수취인이다 — 개요만 보고 발송한다.
+                      {
+                        label: "수취인",
+                        value: data.shipping_address?.recipient_name ?? "-",
+                      },
+                      {
+                        label: "수취인 연락처",
+                        value: data.shipping_address?.recipient_phone
+                          ? formatPhoneNumber(
+                              data.shipping_address.recipient_phone,
+                            )
+                          : "-",
+                      },
+                      {
+                        label: "수취인 주소",
+                        value: data.shipping_address
+                          ? `${data.shipping_address.postal_code} ${data.shipping_address.address} ${data.shipping_address.address_detail ?? ""}`.trim()
+                          : "-",
+                      },
+                      {
+                        label: "회원",
+                        value: (
+                          <Link to={`/customers/${data.customer.id}`}>
+                            {data.customer.name}
+                          </Link>
+                        ),
+                      },
+                      {
+                        label: "원금 − 할인 + 배송비 = 주문 금액",
+                        value: formatAmountBreakdown(
+                          data.original_price,
+                          data.total_discount,
+                          data.shipping_cost,
+                        ),
+                      },
+                      {
+                        label: "주문 시각",
+                        value: formatDateTime(data.created_at),
+                      },
+                    ]}
+                  />
+                </AdminCard>
+
+                <AdminCard
+                  title="주문 품목"
+                  description="상품·옵션·쿠폰은 주문 생성 시점 스냅샷을 우선합니다."
+                >
+                  <AdminTable
+                    label="주문 품목"
+                    columns={itemColumns()}
+                    rows={orderItems}
+                    getRowKey={(row) => row.id}
+                    status="success"
+                  />
                   <VStack gap="x4" alignItems="stretch">
-                    {orderItems.map((item, index) => (
-                      <Box
+                    {orderItems.map((item) => (
+                      <AdminOrderContent
                         key={item.id}
-                        borderWidth={1}
-                        borderColor="stroke.neutral"
-                        borderRadius="r2"
-                        p="x4"
-                      >
-                        <VStack gap="x3" alignItems="stretch">
-                          <Text as="h3" textStyle="labelSm">
-                            품목 {index + 1}
-                          </Text>
-                          <DetailList items={repairItemDetailItems(item)} />
-                        </VStack>
-                      </Box>
+                        orderType={data.order_type}
+                        item={item}
+                      />
                     ))}
                   </VStack>
+                </AdminCard>
+
+                {hasOrderImages && (
+                  <AdminCard
+                    title="첨부 이미지"
+                    description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
+                  >
+                    {referenceImagesQuery.isPending ? (
+                      <Skeleton preset="media" />
+                    ) : referenceImagesQuery.isError ? (
+                      <ContentPlaceholder
+                        title="참고 이미지를 불러오지 못했습니다"
+                        action={
+                          <ActionButton
+                            variant="neutralOutline"
+                            onClick={() => void referenceImagesQuery.refetch()}
+                          >
+                            다시 시도
+                          </ActionButton>
+                        }
+                      />
+                    ) : (referenceImagesQuery.data ?? []).length === 0 ? (
+                      <Text color="fg.neutral-muted">
+                        등록된 첨부 이미지가 없습니다.
+                      </Text>
+                    ) : (
+                      <VStack gap="x5" alignItems="stretch">
+                        {(referenceImagesQuery.data ?? []).map(
+                          (image, index) => (
+                            <OrderReferenceImage
+                              key={image.id}
+                              orderId={data.id}
+                              image={image}
+                              index={index}
+                            />
+                          ),
+                        )}
+                      </VStack>
+                    )}
+                  </AdminCard>
                 )}
+              </VStack>
+            </Box>
+
+            {(data.repair_receipts ?? []).length > 0 ? (
+              <AdminCard title="수선 발송 접수">
+                <VStack gap="x3" alignItems="stretch">
+                  {(data.repair_receipts ?? []).map((receipt) => (
+                    <Box
+                      key={receipt.id}
+                      borderWidth={1}
+                      borderColor="stroke.neutral-weak"
+                      borderRadius="r2"
+                      p="x4"
+                    >
+                      <VStack gap="x3" alignItems="stretch">
+                        <DetailList
+                          items={[
+                            {
+                              label: "발송 방식",
+                              value:
+                                receipt.receipt_type === "tracking"
+                                  ? "송장 등록"
+                                  : "송장 없이 발송",
+                            },
+                            ...(receipt.reason
+                              ? [
+                                  {
+                                    label: "사유",
+                                    value: formatRepairReceiptReason(
+                                      receipt.reason,
+                                    ),
+                                  },
+                                ]
+                              : []),
+                            {
+                              label: "첨부 사진",
+                              value: `${receipt.photo_count}장`,
+                            },
+                            {
+                              label: "접수 시각",
+                              value: formatDateTime(receipt.created_at),
+                            },
+                          ]}
+                        />
+                        {receipt.memo ? (
+                          <VStack gap="x1">
+                            <Text textStyle="labelSm" color="fg.neutral-muted">
+                              발송 메모
+                            </Text>
+                            <Text textStyle="bodySm">{receipt.memo}</Text>
+                          </VStack>
+                        ) : null}
+                        {receipt.photo_count > 0 ? (
+                          <RepairReceiptPhotos receipt={receipt} />
+                        ) : null}
+                      </VStack>
+                    </Box>
+                  ))}
+                </VStack>
               </AdminCard>
             ) : null}
+
+            <TechnicalDetails
+              json={{
+                order_id: data.id,
+                items: orderItems.map((item) => ({
+                  row_id: item.id,
+                  item_id: item.item_id,
+                  product_id: item.product_id,
+                  selected_option_id: item.selected_option_id,
+                  applied_user_coupon_id: item.applied_user_coupon_id,
+                })),
+              }}
+            />
           </VStack>
         </TabContent>
 
@@ -763,26 +884,7 @@ export function OrderDetailPage() {
               <AdminCard title="배송 정보">
                 <DetailList
                   items={[
-                    {
-                      label: "받는 분",
-                      value: data.shipping_address?.recipient_name ?? "-",
-                    },
-                    ...(data.shipping_address?.recipient_phone
-                      ? [
-                          {
-                            label: "수령인 연락처",
-                            value: formatPhoneNumber(
-                              data.shipping_address.recipient_phone,
-                            ),
-                          },
-                        ]
-                      : []),
-                    {
-                      label: "배송 주소",
-                      value: data.shipping_address
-                        ? `${data.shipping_address.postal_code} ${data.shipping_address.address} ${data.shipping_address.address_detail ?? ""}`
-                        : "-",
-                    },
+                    // 수취인 이름·연락처·주소는 개요 카드에 있다 — 여기서 반복하지 않는다.
                     {
                       label: "고객 송장",
                       value:
@@ -845,148 +947,9 @@ export function OrderDetailPage() {
                   />
                 </AdminCard>
               ) : null}
-
-              {(data.repair_receipts ?? []).length > 0 ? (
-                <AdminCard title="수선 발송 접수">
-                  <VStack gap="x3" alignItems="stretch">
-                    {(data.repair_receipts ?? []).map((receipt) => (
-                      <Box
-                        key={receipt.id}
-                        borderWidth={1}
-                        borderColor="stroke.neutral-weak"
-                        borderRadius="r2"
-                        p="x4"
-                      >
-                        <VStack gap="x3" alignItems="stretch">
-                          <DetailList
-                            items={[
-                              {
-                                label: "발송 방식",
-                                value:
-                                  receipt.receipt_type === "tracking"
-                                    ? "송장 등록"
-                                    : "송장 없이 발송",
-                              },
-                              ...(receipt.reason
-                                ? [
-                                    {
-                                      label: "사유",
-                                      value: formatRepairReceiptReason(
-                                        receipt.reason,
-                                      ),
-                                    },
-                                  ]
-                                : []),
-                              {
-                                label: "첨부 사진",
-                                value: `${receipt.photo_count}장`,
-                              },
-                              {
-                                label: "접수 시각",
-                                value: formatDateTime(receipt.created_at),
-                              },
-                            ]}
-                          />
-                          {receipt.memo ? (
-                            <VStack gap="x1">
-                              <Text
-                                textStyle="labelSm"
-                                color="fg.neutral-muted"
-                              >
-                                발송 메모
-                              </Text>
-                              <Text textStyle="bodySm">{receipt.memo}</Text>
-                            </VStack>
-                          ) : null}
-                          {receipt.photo_count > 0 ? (
-                            <RepairReceiptPhotos receipt={receipt} />
-                          ) : null}
-                        </VStack>
-                      </Box>
-                    ))}
-                  </VStack>
-                </AdminCard>
-              ) : null}
-
-              {hasOrderImages && (
-                <AdminCard
-                  title="첨부 이미지"
-                  description="주문 관계를 검증한 뒤 발급되는 짧은 수명의 읽기 URL만 사용합니다."
-                >
-                  {referenceImagesQuery.isPending ? (
-                    <Skeleton preset="media" />
-                  ) : referenceImagesQuery.isError ? (
-                    <ContentPlaceholder
-                      title="참고 이미지를 불러오지 못했습니다"
-                      action={
-                        <ActionButton
-                          variant="neutralOutline"
-                          onClick={() => void referenceImagesQuery.refetch()}
-                        >
-                          다시 시도
-                        </ActionButton>
-                      }
-                    />
-                  ) : (referenceImagesQuery.data ?? []).length === 0 ? (
-                    <Text color="fg.neutral-muted">
-                      등록된 첨부 이미지가 없습니다.
-                    </Text>
-                  ) : (
-                    <VStack gap="x5" alignItems="stretch">
-                      {(referenceImagesQuery.data ?? []).map((image, index) => (
-                        <OrderReferenceImage
-                          key={image.id}
-                          orderId={data.id}
-                          image={image}
-                          index={index}
-                        />
-                      ))}
-                    </VStack>
-                  )}
-                </AdminCard>
-              )}
             </VStack>
           </TabContent>
         ) : null}
-
-        <TabContent value="items">
-          <VStack gap="x5" pt="x5" alignItems="stretch">
-            <AdminCard
-              title="주문 항목"
-              description="상품·옵션·쿠폰은 주문 생성 시점 스냅샷을 우선합니다."
-            >
-              <AdminTable
-                label="주문 항목"
-                columns={itemColumns()}
-                rows={orderItems}
-                getRowKey={(row) => row.id}
-                status="success"
-              />
-              <VStack gap="x3" alignItems="stretch">
-                {orderItems.map((item) => (
-                  <AdminOrderContent
-                    key={item.id}
-                    orderType={data.order_type}
-                    item={item}
-                  />
-                ))}
-              </VStack>
-            </AdminCard>
-
-            <TechnicalDetails
-              json={{
-                order_id: data.id,
-                items: orderItems.map((item) => ({
-                  row_id: item.id,
-                  item_id: item.item_id,
-                  product_id: item.product_id,
-                  selected_option_id: item.selected_option_id,
-                  applied_user_coupon_id: item.applied_user_coupon_id,
-                })),
-              }}
-            />
-          </VStack>
-        </TabContent>
 
         <TabContent value="payment">
           <VStack gap="x5" pt="x5" alignItems="stretch">
@@ -1090,7 +1053,7 @@ export function OrderDetailPage() {
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title={`${selectedAction?.label ?? "위험 작업"}을 실행할까요?`}
-        description={`주문 ${data.order_number} · 상태 ${data.status} → ${selectedAction?.target_status ?? "변경 없음"} · 변경 사유: ${memo.trim() || "없음"}`}
+        description={`주문 $data.order_number· 상태 $data.status→ $selectedAction?.target_status ?? "변경 없음"· 변경 사유: $memo.trim() || "없음"`}
         primaryActionProps={{
           children: selectedAction?.label ?? "주문 작업 실행",
           variant: "criticalSolid",
