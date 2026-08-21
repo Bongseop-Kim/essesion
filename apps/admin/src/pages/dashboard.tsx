@@ -125,7 +125,8 @@ const manualOrderColumns: readonly AdminTableColumn<ManualOrderOut>[] = [
     key: "amount",
     header: "금액",
     align: "end",
-    render: (order) => formatMoney(order.amount + order.shipping_fee),
+    render: (order) =>
+      formatMoney(order.amount - order.discount + order.shipping_fee),
   },
   {
     key: "status",

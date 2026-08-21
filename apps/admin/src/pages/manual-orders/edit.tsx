@@ -115,6 +115,7 @@ export function ManualOrderEditPage() {
 
       <ManualOrderForm
         initial={initialDraft}
+        manualOrderId={order.id}
         revision={order.updated_at}
         resetSignal={resetSignal}
         submitLabel="변경 저장"

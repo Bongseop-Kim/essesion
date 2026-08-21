@@ -113,3 +113,25 @@ GA4 측정 ID도, Search Console 링크도, 네이버 등록도 전부 이미 �
 
 `pnpm lint`·`pnpm typecheck`·`pnpm --filter store build`·`pnpm architecture:check` 통과.
 `product-analytics.test.ts` 4건, `analytics.test.ts` 2건 통과.
+
+## 배포 후 검증 — 에이전트 몫 (2026-08-21)
+
+`deploy.yml` 00:27Z 성공(main `fec6388`) 이후 프로덕션 `https://essesion.shop`에서 확인.
+플랜 §1의 1·2번과, 원래 사람 몫이던 3번의 코드 측면을 미리 확인했다.
+
+- **CSP 위반 0건.** 헤더에 `worker-src 'self' blob:`이 실제로 배포됐고
+  `securitypolicyviolation` 이벤트도 잡히지 않았다. `default-src 'none'` 폴백에 걸려
+  리플레이 워커가 죽는 시나리오는 발생하지 않았다.
+- **PostHog·GA4 전송 확인** (Resource Timing 실측): `us.i.posthog.com/i/v0/e/`,
+  `us.i.posthog.com/e/`, `google-analytics.com/g/collect?...tid=G-1V993D3825`.
+  리플레이 관련 `posthog-recorder.js`·`web-vitals.js`·`dead-clicks-autocapture.js`·
+  `surveys.js`가 모두 로드됐다. `/flags/`는 이번 로드에서 관찰되지 않았지만 remote
+  config(`array/<key>/config.js`)로 대체되는 경로라 문제 신호는 아니다.
+- **마스킹 클래스** — `product-analytics.ts`의 `REPLAY_MASKED_PREFIXES`
+  (`/order`·`/my-page`·`/login`·`/auth`)가 프로덕션 DOM에 반영됨: 세 경로 모두
+  `<main>`에 `ph-no-capture`가 붙고, `/shop`에는 붙지 않는다.
+- `window.posthog`는 undefined다(모듈 번들 스코프). 전역 유무로 SDK 생존을 판단하지 말 것 —
+  위 네트워크·스크립트 로드가 판단 근거다.
+
+**남은 것은 PostHog 로그인이 필요한 리플레이 실제 재생과 이벤트 활동 탭 대조뿐이다**
+(`docs/plans/analytics-posthog.md`). 클래스가 붙은 것과 녹화에서 실제로 가려지는 것은 다르다.

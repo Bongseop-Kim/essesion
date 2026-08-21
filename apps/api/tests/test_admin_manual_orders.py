@@ -1,8 +1,12 @@
 """수기 주문(무통장·전화 접수) admin CRUD 테스트."""
 
 import uuid
+from datetime import UTC, datetime, timedelta
+
+from db.models.images import Image
 
 from .factories import auth_headers, make_admin
+from .fakes import simulate_uploads
 
 
 def manual_order_body(**overrides) -> dict:
@@ -147,6 +151,8 @@ async def test_manual_order_validation(client, db_session, settings):
             ]
         ),
         manual_order_body(amount=-1),
+        manual_order_body(discount=-1),
+        manual_order_body(amount=10000, discount=10001),  # 할인 > 원금
         manual_order_body(items=[{"quantity": 0, "width": {"target_width_cm": 8}}]),
         manual_order_body(  # 원단 제공이 아닌데 원단 미선택
             items=[{"quantity": 1, "custom": {"fabric_provided": False}}]
@@ -249,19 +255,29 @@ async def test_dashboard_counts_paid_manual_orders(client, db_session, settings)
         headers=headers,
     )
     assert outside.status_code == 201
+    # 할인 있는 결제 건 — 매출은 실수령액(원금 − 할인 + 택배비)이어야 한다.
+    discounted = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(
+            order_date="2026-07-15", amount=20000, discount=5000, shipping_fee=1000, is_paid=True
+        ),
+        headers=headers,
+    )
+    assert discounted.status_code == 201
+    assert discounted.json()["discount"] == 5000
 
     params = {"start_date": "2026-07-15", "end_date": "2026-07-15"}
     overview = await client.get("/admin/dashboard/overview", params=params, headers=headers)
     assert overview.status_code == 200
     summary = overview.json()["summary"]
-    # 금액 = amount + shipping_fee (Order.total_price가 배송비를 포함하는 것과 같은 기준)
-    assert summary["order_count"] == 1
-    assert summary["order_amount"] == 33000
+    # 금액 = amount - discount + shipping_fee (Order.total_price가 배송비를 포함하는 것과 같은 기준)
+    assert summary["order_count"] == 2
+    assert summary["order_amount"] == 33000 + 16000
 
     points = overview.json()["timeseries"]["points"]
     assert [p["day"] for p in points] == ["2026-07-15"]
-    assert points[0]["order_count"] == 1
-    assert points[0]["order_amount"] == 33000
+    assert points[0]["order_count"] == 2
+    assert points[0]["order_amount"] == 33000 + 16000
 
     # order_type=manual — 수기 주문만 본다. Order 기반 '최근 주문' 표는 비운다.
     only_manual = await client.get(
@@ -269,7 +285,7 @@ async def test_dashboard_counts_paid_manual_orders(client, db_session, settings)
         params={**params, "order_type": "manual"},
         headers=headers,
     )
-    assert only_manual.json()["summary"]["order_amount"] == 33000
+    assert only_manual.json()["summary"]["order_amount"] == 33000 + 16000
     recent = await client.get(
         "/admin/dashboard/recent-orders",
         params={"order_type": "manual"},
@@ -285,3 +301,173 @@ async def test_dashboard_counts_paid_manual_orders(client, db_session, settings)
         headers=headers,
     )
     assert sale_only.json()["summary"]["order_amount"] == 0
+
+
+async def _staged_image_id(client, headers) -> str:
+    issued = await client.post(
+        "/admin/manual-orders/images/upload-url",
+        json={"content_type": "image/png", "size_bytes": 100},
+        headers=headers,
+    )
+    assert issued.status_code == 200, issued.text
+    assert issued.json()["required_headers"]["x-goog-if-generation-match"] == "0"
+    return issued.json()["upload_id"]
+
+
+async def test_manual_order_image_upload_link_and_read_url(app, client, db_session, settings):
+    """업로드 → 링크 → read-url. 남의 수기 주문 이미지로는 발급되지 않는다."""
+    headers = await admin_headers(db_session, settings)
+    upload_id = await _staged_image_id(client, headers)
+    await simulate_uploads(app)
+
+    created = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(image_upload_ids=[upload_id]),
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    order = created.json()
+    assert [image["id"] for image in order["images"]] == [upload_id]
+
+    detail = await client.get(f"/admin/manual-orders/{order['id']}", headers=headers)
+    assert [image["id"] for image in detail.json()["images"]] == [upload_id]
+
+    read_url = await client.post(
+        f"/admin/manual-orders/{order['id']}/images/{upload_id}/read-url", headers=headers
+    )
+    assert read_url.status_code == 200
+    assert read_url.json()["read_url"].startswith("https://")
+
+    # 수정 요청은 남길 이미지 전체 목록이다 — 기존 id를 그대로 보내면 유지된다.
+    kept = await client.put(
+        f"/admin/manual-orders/{order['id']}",
+        json=manual_order_body(
+            expected_updated_at=order["updated_at"], image_upload_ids=[upload_id]
+        ),
+        headers=headers,
+    )
+    assert kept.status_code == 200, kept.text
+    assert [image["id"] for image in kept.json()["images"]] == [upload_id]
+
+    # 목록에서 빠지면 만료돼 더는 조회·발급되지 않는다.
+    dropped = await client.put(
+        f"/admin/manual-orders/{order['id']}",
+        json=manual_order_body(expected_updated_at=kept.json()["updated_at"]),
+        headers=headers,
+    )
+    assert dropped.status_code == 200, dropped.text
+    assert dropped.json()["images"] == []
+    expired = await client.post(
+        f"/admin/manual-orders/{order['id']}/images/{upload_id}/read-url", headers=headers
+    )
+    assert expired.status_code == 404
+
+    # 다른 수기 주문의 이미지로는 발급되지 않는다.
+    other_upload_id = await _staged_image_id(client, headers)
+    await simulate_uploads(app)
+    other = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(image_upload_ids=[other_upload_id]),
+        headers=headers,
+    )
+    assert other.status_code == 201
+    foreign = await client.post(
+        f"/admin/manual-orders/{order['id']}/images/{other_upload_id}/read-url", headers=headers
+    )
+    assert foreign.status_code == 404
+
+
+async def test_manual_order_image_rejects_unstaged_and_duplicate_ids(
+    app, client, db_session, settings
+):
+    headers = await admin_headers(db_session, settings)
+    upload_id = await _staged_image_id(client, headers)
+
+    # 객체가 실제로 올라오지 않았으면 링크 시점 메타데이터 검증에서 막힌다.
+    missing_object = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(image_upload_ids=[upload_id]),
+        headers=headers,
+    )
+    assert missing_object.status_code == 400, missing_object.text
+
+    await simulate_uploads(app)
+    duplicated = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(image_upload_ids=[upload_id, upload_id]),
+        headers=headers,
+    )
+    assert duplicated.status_code == 422
+
+    unknown = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(image_upload_ids=[str(uuid.uuid4())]),
+        headers=headers,
+    )
+    assert unknown.status_code == 400
+
+    bad_type = await client.post(
+        "/admin/manual-orders/images/upload-url",
+        json={"content_type": "image/gif", "size_bytes": 100},
+        headers=headers,
+    )
+    assert bad_type.status_code == 422
+
+    # 스테이징 만료(24h)가 지난 업로드는 링크되지 않는다.
+    staged = await db_session.get(Image, uuid.UUID(upload_id))
+    assert staged is not None
+    staged.expires_at = datetime.now(UTC) - timedelta(minutes=1)
+    await db_session.commit()
+    expired = await client.post(
+        "/admin/manual-orders",
+        json=manual_order_body(image_upload_ids=[upload_id]),
+        headers=headers,
+    )
+    assert expired.status_code == 400, expired.text
+
+
+async def test_manual_order_item_images_link_and_survive_update(app, client, db_session, settings):
+    """품목별 첨부 이미지도 주문 단위와 같은 규칙으로 링크·유지된다."""
+    headers = await admin_headers(db_session, settings)
+    order_image = await _staged_image_id(client, headers)
+    item_image = await _staged_image_id(client, headers)
+    await simulate_uploads(app)
+
+    body = manual_order_body(image_upload_ids=[order_image])
+    body["items"][0]["image_upload_ids"] = [item_image]
+    created = await client.post("/admin/manual-orders", json=body, headers=headers)
+    assert created.status_code == 201, created.text
+    order = created.json()
+    assert sorted(image["id"] for image in order["images"]) == sorted([order_image, item_image])
+    assert order["items"][0]["image_upload_ids"] == [item_image]
+
+    read_url = await client.post(
+        f"/admin/manual-orders/{order['id']}/images/{item_image}/read-url", headers=headers
+    )
+    assert read_url.status_code == 200
+
+    # 같은 목록을 다시 보내면 유지된다.
+    kept_body = manual_order_body(
+        expected_updated_at=order["updated_at"], image_upload_ids=[order_image]
+    )
+    kept_body["items"][0]["image_upload_ids"] = [item_image]
+    kept = await client.put(f"/admin/manual-orders/{order['id']}", json=kept_body, headers=headers)
+    assert kept.status_code == 200, kept.text
+    assert kept.json()["items"][0]["image_upload_ids"] == [item_image]
+
+    # 품목에서 빼면 만료된다.
+    dropped = await client.put(
+        f"/admin/manual-orders/{order['id']}",
+        json=manual_order_body(
+            expected_updated_at=kept.json()["updated_at"], image_upload_ids=[order_image]
+        ),
+        headers=headers,
+    )
+    assert dropped.status_code == 200
+    assert [image["id"] for image in dropped.json()["images"]] == [order_image]
+
+    # 같은 이미지를 주문과 품목 양쪽에 붙이면 422.
+    reused = manual_order_body(image_upload_ids=[order_image])
+    reused["items"][0]["image_upload_ids"] = [order_image]
+    duplicated = await client.post("/admin/manual-orders", json=reused, headers=headers)
+    assert duplicated.status_code == 422

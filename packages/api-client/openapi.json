@@ -9054,6 +9054,21 @@
             "title": "Customer Name",
             "type": "string"
           },
+          "discount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Discount",
+            "type": "integer"
+          },
+          "image_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Image Upload Ids",
+            "type": "array"
+          },
           "is_confirmed": {
             "default": false,
             "title": "Is Confirmed",
@@ -9106,6 +9121,103 @@
         "title": "ManualOrderCreateRequest",
         "type": "object"
       },
+      "ManualOrderImageOut": {
+        "properties": {
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Type"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          }
+        },
+        "required": [
+          "id",
+          "content_type",
+          "size_bytes",
+          "created_at"
+        ],
+        "title": "ManualOrderImageOut",
+        "type": "object"
+      },
+      "ManualOrderImageUploadOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "required_headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Required Headers",
+            "type": "object"
+          },
+          "upload_id": {
+            "format": "uuid",
+            "title": "Upload Id",
+            "type": "string"
+          },
+          "upload_url": {
+            "title": "Upload Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "upload_url",
+          "required_headers",
+          "expires_at"
+        ],
+        "title": "ManualOrderImageUploadOut",
+        "type": "object"
+      },
+      "ManualOrderImageUploadRequest": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "size_bytes": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 10485760.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "ManualOrderImageUploadRequest",
+        "type": "object"
+      },
       "ManualOrderItem": {
         "additionalProperties": false,
         "description": "품목 — automatic/width/restoration/custom 존재 여부가 대분류 체크 상태.",
@@ -9129,6 +9241,15 @@
                 "type": "null"
               }
             ]
+          },
+          "image_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Image Upload Ids",
+            "type": "array"
           },
           "note": {
             "default": "",
@@ -9195,10 +9316,21 @@
             "title": "Customer Name",
             "type": "string"
           },
+          "discount": {
+            "title": "Discount",
+            "type": "integer"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/ManualOrderImageOut"
+            },
+            "title": "Images",
+            "type": "array"
           },
           "is_confirmed": {
             "title": "Is Confirmed",
@@ -9245,11 +9377,13 @@
           "phone",
           "address",
           "amount",
+          "discount",
           "shipping_fee",
           "is_received",
           "is_paid",
           "is_confirmed",
           "items",
+          "images",
           "created_at",
           "updated_at"
         ],
@@ -9281,10 +9415,25 @@
             "title": "Customer Name",
             "type": "string"
           },
+          "discount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Discount",
+            "type": "integer"
+          },
           "expected_updated_at": {
             "format": "date-time",
             "title": "Expected Updated At",
             "type": "string"
+          },
+          "image_upload_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Image Upload Ids",
+            "type": "array"
           },
           "is_confirmed": {
             "default": false,
@@ -19082,6 +19231,52 @@
         ]
       }
     },
+    "/admin/manual-orders/images/upload-url": {
+      "post": {
+        "operationId": "create_manual_order_image_upload_url",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualOrderImageUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOrderImageUploadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Manual Order Image Upload Url",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      }
+    },
     "/admin/manual-orders/{manual_order_id}": {
       "delete": {
         "operationId": "delete_manual_order",
@@ -19220,6 +19415,64 @@
           }
         ],
         "summary": "Update Manual Order",
+        "tags": [
+          "admin-manual-orders"
+        ]
+      }
+    },
+    "/admin/manual-orders/{manual_order_id}/images/{image_id}/read-url": {
+      "post": {
+        "operationId": "create_manual_order_image_read_url",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "manual_order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Manual Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "image_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Image Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedReadUrlOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Manual Order Image Read Url",
         "tags": [
           "admin-manual-orders"
         ]

@@ -100,9 +100,7 @@ describe("QuoteDetailPage", () => {
     renderPage();
 
     await user.click(await screen.findByRole("tab", { name: "참고 이미지" }));
-    await user.click(
-      await screen.findByRole("button", { name: "이미지 보기" }),
-    );
+    // 미리보기 URL은 버튼 없이 자동 발급된다.
     expect(
       (await screen.findByAltText("견적 참고 자료")).getAttribute("src"),
     ).toBe("https://private.example/quote.webp");

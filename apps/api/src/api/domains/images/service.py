@@ -18,7 +18,8 @@ from api.integrations.gcs import GcsClient
 OrderImageKind = Literal["custom_order", "sample_order"]
 
 MAX_ORDER_IMAGE_BYTES = 10 * 1024 * 1024
-ALLOWED_ORDER_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ORDER_IMAGE_EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+ALLOWED_ORDER_IMAGE_TYPES = set(ORDER_IMAGE_EXTENSIONS)
 ORDER_UPLOAD_ENTITY_TYPES: dict[OrderImageKind, str] = {
     "custom_order": "custom_order_upload",
     "sample_order": "sample_order_upload",
@@ -51,7 +52,7 @@ def _validate_staged_image(image: Image, user: User, kind: OrderImageKind) -> No
         raise DomainError("이미지는 10MB 이하여야 합니다", code="image_too_large")
 
 
-async def _verify_object_metadata(image: Image, gcs: GcsClient) -> None:
+async def verify_object_metadata(image: Image, gcs: GcsClient) -> None:
     metadata = await gcs.object_metadata(image.object_key)
     if metadata is None:
         raise DomainError("업로드된 주문 이미지를 찾을 수 없습니다", code="upload_not_found")
@@ -76,7 +77,7 @@ async def complete_order_image_upload(
         "custom_order" if image.entity_type == "custom_order_upload" else "sample_order"
     )
     _validate_staged_image(image, user, kind)
-    await _verify_object_metadata(image, gcs)
+    await verify_object_metadata(image, gcs)
     image.upload_completed_at = datetime.now(UTC)
     return image
 
@@ -107,7 +108,7 @@ async def claim_completed_order_images(
             raise DomainError("완료되지 않은 주문 이미지입니다", code="order_image_incomplete")
         # 완료 URL 발급 뒤 같은 signed PUT URL로 객체가 교체되는 경우도 주문 생성
         # 시점에 다시 잡는다.
-        await _verify_object_metadata(image, gcs)
+        await verify_object_metadata(image, gcs)
         ordered.append(image)
     return ordered
 

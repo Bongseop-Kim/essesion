@@ -181,24 +181,26 @@ describe("OrderDetailPage", () => {
     ).toBeTruthy();
     expect(screen.getByText(/홍길동.*₩50,000.*마지막 변경/)).toBeTruthy();
     const tablist = screen.getByRole("tablist", { name: "주문 상세 메뉴" });
-    expect(within(tablist).getAllByRole("tab")).toHaveLength(5);
+    expect(within(tablist).getAllByRole("tab")).toHaveLength(4);
     expect(
       screen.getByRole("tab", { name: "개요" }).getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getByRole("tabpanel", { name: "개요" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
-    expect(screen.queryByRole("table", { name: "주문 항목" })).toBeNull();
+    // 작업지시서 캡처가 한 화면에서 끝나야 하므로 품목 표는 개요에 있다.
+    expect(screen.getByRole("table", { name: "주문 품목" })).toBeTruthy();
 
-    await user.click(screen.getByRole("tab", { name: "항목" }));
+    await user.click(screen.getByRole("tab", { name: "결제·클레임" }));
 
     expect(screen.getByTestId("location-search").textContent).toBe(
-      "?tab=items",
+      "?tab=payment",
     );
     expect(
-      screen.getByRole("tab", { name: "항목" }).getAttribute("aria-selected"),
+      screen
+        .getByRole("tab", { name: "결제·클레임" })
+        .getAttribute("aria-selected"),
     ).toBe("true");
-    expect(screen.getByRole("tabpanel", { name: "항목" })).toBeTruthy();
-    expect(screen.getByRole("table", { name: "주문 항목" })).toBeTruthy();
+    expect(screen.getByRole("tabpanel", { name: "결제·클레임" })).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "개요" }));
     expect(screen.getByTestId("location-search").textContent).toBe("");
@@ -222,7 +224,7 @@ describe("OrderDetailPage", () => {
         .getAttribute("aria-selected"),
     ).toBe("true");
     expect(screen.getByRole("tabpanel", { name: "활동 이력" })).toBeTruthy();
-    expect(screen.queryByRole("tab", { name: "배송·수선" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "배송" })).toBeNull();
     expect(screen.getByText("기록된 상태 변경이 없습니다.")).toBeTruthy();
   });
 
@@ -288,7 +290,7 @@ describe("OrderDetailPage", () => {
       ),
     ).toBeTruthy();
 
-    await user.click(screen.getByRole("tab", { name: "항목" }));
+    await user.click(screen.getByRole("tab", { name: "개요" }));
     expect(screen.getByText("상품 정보 없음")).toBeTruthy();
     trigger = screen.getByRole("button", { name: "기술 정보" });
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
@@ -318,8 +320,7 @@ describe("OrderDetailPage", () => {
       await screen.findByRole("heading", { name: "주문 ORDER-001", level: 1 }),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "배송 시작" })).toBeTruthy();
-    await user.click(screen.getByRole("tab", { name: "항목" }));
-    expect(screen.getByRole("table", { name: "주문 항목" })).toBeTruthy();
+    expect(screen.getByRole("table", { name: "주문 품목" })).toBeTruthy();
     expect(
       screen.getByRole("columnheader", { name: "거래 시점 상품·옵션" }),
     ).toBeTruthy();
@@ -330,7 +331,6 @@ describe("OrderDetailPage", () => {
   });
 
   it("완료된 취소를 표시하고 차단된 운영 액션의 이유를 안내한다", async () => {
-    const user = userEvent.setup();
     api.getOrder.mockResolvedValue({
       ...order,
       claim_summary: { ...order.claim_summary!, status: "완료" },
@@ -358,7 +358,7 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    expect(await screen.findAllByText("취소 완료")).toHaveLength(1);
+    expect(await screen.findAllByText("취소 완료")).toHaveLength(2);
     expect(
       (
         screen.getByRole("button", {
@@ -378,9 +378,6 @@ describe("OrderDetailPage", () => {
         "배송중 상태로 진행: 취소 클레임이 완료되어 주문 상태를 변경할 수 없습니다",
       ),
     ).toBeTruthy();
-
-    await user.click(screen.getByRole("tab", { name: "항목" }));
-    expect(screen.getAllByText("취소 완료")).toHaveLength(2);
   });
 
   it("pending 중 중복 작업을 막고 실패 뒤에도 입력을 보존한다", async () => {
@@ -406,7 +403,8 @@ describe("OrderDetailPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "배송 시작" }));
     expect(
-      (screen.getByRole("tab", { name: "항목" }) as HTMLButtonElement).disabled,
+      (screen.getByRole("tab", { name: "결제·클레임" }) as HTMLButtonElement)
+        .disabled,
     ).toBe(true);
     expect(screen.getByText("현재 작업을 먼저 완료해 주세요")).toBeTruthy();
     const memo = screen.getByLabelText("변경 사유 (필수)");
@@ -525,7 +523,6 @@ describe("OrderDetailPage", () => {
       .mockResolvedValueOnce({ read_url: "https://storage.test/signed-2" });
     renderPage();
 
-    await user.click(await screen.findByRole("tab", { name: "항목" }));
     expect(
       await screen.findByRole("heading", { name: /맞춤 제작$/ }),
     ).toBeTruthy();
@@ -539,10 +536,7 @@ describe("OrderDetailPage", () => {
     });
     expect(document.body.textContent).not.toContain("uploads/custom_order");
 
-    await user.click(screen.getByRole("tab", { name: "배송·수선" }));
-    await user.click(
-      await screen.findByRole("button", { name: "이미지 보기" }),
-    );
+    // 미리보기 URL은 버튼 없이 마운트 시 자동 발급된다.
     const image = await screen.findByRole("img", {
       name: "주문 첨부 이미지 1",
     });
@@ -568,7 +562,6 @@ describe("OrderDetailPage", () => {
   });
 
   it("샘플 주문 유형을 거래 시점 데이터로 요약한다", async () => {
-    const user = userEvent.setup();
     api.getOrder.mockResolvedValue({
       ...order,
       order_type: "sample",
@@ -585,13 +578,11 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    await user.click(await screen.findByRole("tab", { name: "항목" }));
     expect(
       await screen.findByRole("heading", { name: /원단 \+ 봉제 샘플$/ }),
     ).toBeTruthy();
     expect(screen.getByText("원단")).toBeTruthy();
     expect(screen.getByText("폴리")).toBeTruthy();
-    await user.click(screen.getByRole("tab", { name: "배송·수선" }));
     expect(
       await screen.findByText("등록된 첨부 이미지가 없습니다."),
     ).toBeTruthy();
@@ -680,20 +671,18 @@ describe("OrderDetailPage", () => {
     });
     renderPage();
 
-    expect(await screen.findByText("수선")).toBeTruthy();
-    // 개요 탭 — 수기 주문 상세와 동일한 품목 표기
-    expect(screen.getByText("수선 품목")).toBeTruthy();
+    // 개요 한 화면 = 작업지시서. 품목·수취인·수선 발송 사진이 모두 여기 모인다.
+    expect(
+      await screen.findByRole("heading", { name: "주문 품목" }),
+    ).toBeTruthy();
     expect(screen.getByText("자동수선 · 폭수선 · 복원수선")).toBeTruthy();
     expect(screen.getByText("지퍼 · 방 · 딤플")).toBeTruthy();
     expect(screen.getByText("끈 · 돌려묶기 · 기본")).toBeTruthy();
     expect(screen.getByText("175cm")).toBeTruthy();
+    expect(screen.getByText("182cm")).toBeTruthy();
     expect(screen.getByText("7.5cm")).toBeTruthy();
     expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
-    await user.click(screen.getByRole("tab", { name: "배송·수선" }));
     expect(screen.getByText("010-2222-3333")).toBeTruthy();
-    expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();
-    expect(screen.getByText("오후 배송 희망")).toBeTruthy();
-    expect(screen.getByText("수거 고객 · 010-1111-2222")).toBeTruthy();
     expect(screen.getByText("송장 없이 발송")).toBeTruthy();
     expect(screen.getByText("송장 분실")).toBeTruthy();
     expect(screen.getByText("2장")).toBeTruthy();
@@ -705,9 +694,6 @@ describe("OrderDetailPage", () => {
       path: { receipt_id: "receipt-1" },
     });
 
-    await user.click(
-      await screen.findByRole("button", { name: "이미지 보기" }),
-    );
     expect(
       (
         await screen.findByRole("img", { name: "수선 발송 사진 1" })
@@ -720,11 +706,10 @@ describe("OrderDetailPage", () => {
       expect.anything(),
     );
 
-    await user.click(screen.getByRole("tab", { name: "항목" }));
-    expect(screen.getByText("175cm")).toBeTruthy();
-    expect(screen.getByText("182cm")).toBeTruthy();
-    expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
-    expect(screen.getByText("딤플")).toBeTruthy();
-    expect(screen.getByText("돌려묶기")).toBeTruthy();
+    // 배송 탭에는 물류 정보만 남는다.
+    await user.click(screen.getByRole("tab", { name: "배송" }));
+    expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();
+    expect(screen.getByText("오후 배송 희망")).toBeTruthy();
+    expect(screen.getByText("수거 고객 · 010-1111-2222")).toBeTruthy();
   });
 });

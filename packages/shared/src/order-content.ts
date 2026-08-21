@@ -89,6 +89,36 @@ function optionContent(
   return { rows, tags };
 }
 
+const MECHANISM_LABELS: Record<string, string> = {
+  zipper: "지퍼",
+  string: "끈",
+};
+
+/**
+ * 수선 품목의 `item_data.tie`를 읽는 **유일한** 지점 — store·admin은 표기만 달리 한다.
+ * `restoration.memo`는 trim 결과이며 비어 있을 수 있다(복원 선택 여부는 null로 구분).
+ */
+export function decodeTieSpec(itemData: unknown) {
+  const tie = record(record(itemData)?.tie);
+  if (tie === null) return null;
+  const automatic = record(tie.automatic);
+  const width = record(tie.width);
+  const restoration = record(tie.restoration);
+  const cm = (value: unknown) => (typeof value === "number" ? value : null);
+  return {
+    automatic: automatic && {
+      mechanismLabel: MECHANISM_LABELS[String(automatic.mechanism)] ?? "미지정",
+      wearerHeightCm: cm(automatic.wearer_height_cm),
+      turnKnot: automatic.turn_knot === true,
+      dimple: automatic.dimple === true,
+    },
+    width: width && { targetWidthCm: cm(width.target_width_cm) },
+    restoration: restoration && {
+      memo: typeof restoration.memo === "string" ? restoration.memo.trim() : "",
+    },
+  };
+}
+
 export function decodeOrderItemContent(
   orderType: string,
   itemData: unknown,
@@ -127,35 +157,25 @@ export function decodeOrderItemContent(
   }
 
   if (orderType !== "repair") return null;
-  const tie = record(data.tie);
+  const tie = decodeTieSpec(data);
   if (tie === null) return null;
-  const automatic = record(tie.automatic);
-  const width = record(tie.width);
-  const restoration = record(tie.restoration);
   const rows: OrderContentRow[] = [];
   const tags: string[] = [];
-  if (automatic) {
-    rows.push({
-      label: "자동 타이 방식",
-      value:
-        automatic.mechanism === "zipper"
-          ? "지퍼"
-          : automatic.mechanism === "string"
-            ? "끈"
-            : (visibleValue(automatic.mechanism) ?? "미지정"),
-    });
-    const height = visibleValue(automatic.wearer_height_cm);
-    if (height) rows.push({ label: "착용자 키", value: `${height}cm` });
-    if (automatic.dimple === true) tags.push("딤플");
-    if (automatic.turn_knot === true) tags.push("돌려묶기");
+  if (tie.automatic) {
+    rows.push({ label: "자동 타이 방식", value: tie.automatic.mechanismLabel });
+    if (tie.automatic.wearerHeightCm !== null) {
+      rows.push({
+        label: "착용자 키",
+        value: `${tie.automatic.wearerHeightCm}cm`,
+      });
+    }
+    if (tie.automatic.dimple) tags.push("딤플");
+    if (tie.automatic.turnKnot) tags.push("돌려묶기");
   }
-  const targetWidth = visibleValue(width?.target_width_cm);
-  if (targetWidth)
-    rows.push({ label: "희망 타이 폭", value: `${targetWidth}cm` });
-  const memo =
-    typeof restoration?.memo === "string" && restoration.memo.trim()
-      ? restoration.memo.trim()
-      : undefined;
+  if (tie.width?.targetWidthCm != null) {
+    rows.push({ label: "희망 타이 폭", value: `${tie.width.targetWidthCm}cm` });
+  }
+  const memo = tie.restoration?.memo || undefined;
   return rows.length > 0 || tags.length > 0 || memo
     ? { typeLabel: "수선", rows, tags, memo }
     : null;

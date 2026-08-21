@@ -66,6 +66,7 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 - 업로드: api가 GCS **서명 업로드 URL** 발급(엔드포인트가 object_key 결정) → 클라 업로드 → 도메인 엔티티에 재연결. 견적 이미지는 발급 시 본인 소유 스테이징 행을 만들고 선언 크기·10MiB PUT 상한을 서명하며 24시간 후 미귀속 행을 정리한다. 수선 사진은 비회원도 발급할 수 있으며 JPG/PNG/WebP·10MiB 상한, 15분 PUT URL, 24시간 claim token을 적용한다. 완료 등록에서 GCS metadata(size/content-type)를 검증하고, 로그인 장바구니 동기화 시 사용자 소유로 전환한다.
 - 등록 종류: reform_upload / repair_shipping_upload(entity_id=file key, 부분 unique upsert — 소유자만 갱신), 범용 등록(entity_type별 소유권 검증: product=admin, quote_request/custom_order/reform=해당 엔티티 소유자).
 - 재연결: 주문 생성 시 reform_upload→reform(entity_id=order_id), 수선 발송 제출 시 repair_shipping_upload→repair_shipping.
+- 수기 주문 첨부(admin 전용): `manual_order_upload`(`uploads/manual_order_upload/`, TTL 24h, JPG/PNG/WebP·10MiB, 발급자=admin 본인) → 저장 시 `manual_order`(entity_id=수기주문 id, expires_at=NULL). 주문 단위 목록(`image_upload_ids`)과 품목별 목록(`items[].image_upload_ids`)을 합쳐 최대 5장씩 받고, 한 이미지는 한 곳에만 붙는다(중복 422). 등록·수정 요청은 **남길 이미지 전체 목록**이며 빠진 이미지는 `expires_at = now()`로 만료된다(삭제도 동일). 링크 시점에 GCS metadata를 재검증하고, 읽기는 소속 검증 뒤 서명 읽기 URL만 발급한다(다른 주문 이미지는 404).
 - 만료: 미귀속 수선 업로드와 장바구니에서 제거·교체된 수선 업로드는 +24시간, 견적 확정·종료는 +90일(§7). 주문에 연결되거나 로그인 장바구니에서 사용 중인 수선 이미지는 NULL. 정리 배치: `deleted_at IS NULL AND (expires_at < now() OR deletion_claimed_at IS NOT NULL)` 배치 100건 — ①claim(deletion_claimed_at=now) ②GCS 삭제 ③성공분 deleted_at=now (2단계 멱등 삭제).
 
 ## 9. 수선 발송 제출 (고객)
@@ -82,7 +83,8 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
   - 주문(`orders`)의 매출 시각은 `paid_at`이 유일한 기준이며 KST 일 단위로 버킷한다.
   - **수기 주문(`manual_orders`)도 주문 수·매출 합·매출 추이에 합산한다.** 수기 주문에는
     `paid_at`이 없으므로 `is_paid = true`인 행만, `order_date`(이미 KST date)를 매출일로 본다.
-    금액은 `amount + shipping_fee` — `orders.total_price`가 배송비를 포함하므로 같은 기준이다.
+    금액은 `amount - discount + shipping_fee`(실수령액) — `orders.total_price`가 배송비를
+    포함하므로 같은 기준이다.
   - 대시보드 타입 필터는 위 목록에 `manual`을 더한 7종이다. `manual`은 `orders.order_type`이
     아니라 별도 장부를 가리키므로 **주문 목록(`/admin/orders`) 필터에는 없다**. `manual`을 고르면
     `recent-orders`는 빈 페이지를 반환하고, 대시보드가 `/admin/manual-orders`를 따로 조회해

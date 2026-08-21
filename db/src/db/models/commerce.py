@@ -645,7 +645,8 @@ class ManualOrder(TimestampMixin, Base):
     customer_name: Mapped[str]
     phone: Mapped[str]
     address: Mapped[str | None]
-    amount: Mapped[int]
+    amount: Mapped[int]  # 원금 — 할인 전 금액이다
+    discount: Mapped[int] = mapped_column(server_default=text("0"))
     shipping_fee: Mapped[int] = mapped_column(server_default=text("0"))
     is_received: Mapped[bool] = mapped_column(server_default=text("false"))  # 접수
     is_paid: Mapped[bool] = mapped_column(server_default=text("false"))  # 결제
@@ -654,6 +655,9 @@ class ManualOrder(TimestampMixin, Base):
 
     __table_args__ = (
         CheckConstraint("amount >= 0", name="amount"),
+        CheckConstraint("discount >= 0", name="discount"),
+        # 할인이 원금을 넘으면 실수령액이 음수가 되어 대시보드 매출이 깎인다.
+        CheckConstraint("discount <= amount", name="discount_within_amount"),
         CheckConstraint("shipping_fee >= 0", name="shipping_fee"),
         Index("ix_manual_orders_admin_list", "order_date", "id"),
     )

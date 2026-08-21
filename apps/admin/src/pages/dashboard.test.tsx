@@ -115,11 +115,13 @@ const manualOrder: ManualOrderOut = {
   phone: "01011112222",
   address: null,
   amount: 20_000,
+  discount: 0,
   shipping_fee: 3_000,
   is_received: true,
   is_paid: true,
   is_confirmed: false,
   items: [{ quantity: 1, width: { target_width_cm: 8 }, note: "" }],
+  images: [],
   created_at: "2026-07-12T01:00:00Z",
   updated_at: "2026-07-12T01:00:00Z",
 };

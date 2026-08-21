@@ -1,11 +1,13 @@
-import type {
-  ManualOrderCreateRequest,
-  ManualOrderItem,
-  ManualOrderOut,
+import {
+  createManualOrderImageReadUrl,
+  type ManualOrderCreateRequest,
+  type ManualOrderItem,
+  type ManualOrderOut,
 } from "@essesion/api-client";
 import {
   ActionButton,
   AlertDialog,
+  AttachmentDisplayField,
   Box,
   Callout,
   Checkbox,
@@ -30,10 +32,23 @@ import {
   useState,
 } from "react";
 
-import { getErrorMessage } from "../../shared/lib/format";
+import {
+  formatDateTime,
+  formatFileSize,
+  formatMoney,
+  getErrorMessage,
+} from "../../shared/lib/format";
 import { useDirtyFormBlocker } from "../../shared/lib/use-dirty-form-blocker";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { NumberField } from "../../shared/ui/number-field";
+import {
+  MANUAL_ORDER_IMAGE_ACCEPT,
+  MAX_MANUAL_ORDER_IMAGES,
+  uploadManualOrderImage,
+} from "./upload";
+
+// 신규 업로드는 previewUrl(objectURL)을, 이미 저장된 이미지는 label만 가진다.
+export type ImageDraft = { id: string; label: string; previewUrl?: string };
 
 type ItemDraft = {
   clientId: string;
@@ -59,6 +74,7 @@ type ItemDraft = {
   tieWidthCm: string;
   customMemo: string;
   note: string;
+  images: ImageDraft[];
 };
 
 export type ManualOrderDraft = {
@@ -67,11 +83,13 @@ export type ManualOrderDraft = {
   phone: string;
   address: string;
   amount: string;
+  discount: string;
   shippingFee: string;
   isReceived: boolean;
   isPaid: boolean;
   isConfirmed: boolean;
   items: ItemDraft[];
+  images: ImageDraft[];
 };
 
 let nextItemDraftId = 0;
@@ -103,6 +121,7 @@ function createItemDraft(
     tieWidthCm: "",
     customMemo: "",
     note: "",
+    images: [],
     ...values,
   };
 }
@@ -113,20 +132,38 @@ export const emptyManualOrderDraft: ManualOrderDraft = {
   phone: "",
   address: "",
   amount: "",
+  discount: "0",
   shippingFee: "0",
   isReceived: false,
   isPaid: false,
   isConfirmed: false,
   items: [createItemDraft()],
+  images: [],
 };
 
+function imageDraftsFrom(
+  order: ManualOrderOut,
+  ids: readonly string[],
+): ImageDraft[] {
+  return order.images
+    .filter((image) => ids.includes(image.id))
+    .map((image) => ({
+      id: image.id,
+      label: `${image.content_type ?? "이미지"} · ${formatFileSize(image.size_bytes, "크기 미상")} · ${formatDateTime(image.created_at)}`,
+    }));
+}
+
 export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
+  const itemImageIds = order.items.flatMap(
+    (item) => item.image_upload_ids ?? [],
+  );
   return {
     orderDate: order.order_date,
     customerName: order.customer_name,
     phone: order.phone,
     address: order.address ?? "",
     amount: String(order.amount),
+    discount: String(order.discount),
     shippingFee: String(order.shipping_fee),
     isReceived: order.is_received,
     isPaid: order.is_paid,
@@ -159,7 +196,15 @@ export function manualOrderDraftFrom(order: ManualOrderOut): ManualOrderDraft {
             : String(item.custom.tie_width_cm),
         customMemo: item.custom?.memo ?? "",
         note: item.note ?? "",
+        images: imageDraftsFrom(order, item.image_upload_ids ?? []),
       }),
+    ),
+    // 주문 단위 첨부 = 어느 품목에도 속하지 않은 이미지
+    images: imageDraftsFrom(
+      order,
+      order.images
+        .map((image) => image.id)
+        .filter((id) => !itemImageIds.includes(id)),
     ),
   };
 }
@@ -172,7 +217,13 @@ type ItemErrors = Partial<
 >;
 type DraftErrors = Partial<
   Record<
-    "orderDate" | "customerName" | "phone" | "amount" | "shippingFee" | "items",
+    | "orderDate"
+    | "customerName"
+    | "phone"
+    | "amount"
+    | "discount"
+    | "shippingFee"
+    | "items",
     string
   >
 > & { itemErrors: ItemErrors[] };
@@ -239,6 +290,12 @@ function validateDraft(draft: ManualOrderDraft): DraftErrors {
   if (nonNegativeInteger(draft.amount) === undefined) {
     errors.amount = "0 이상의 정수를 입력해 주세요.";
   }
+  const discount = nonNegativeInteger(draft.discount);
+  if (discount === undefined) {
+    errors.discount = "0 이상의 정수를 입력해 주세요.";
+  } else if (discount > (nonNegativeInteger(draft.amount) ?? 0)) {
+    errors.discount = "할인은 금액을 넘을 수 없습니다.";
+  }
   if (nonNegativeInteger(draft.shippingFee) === undefined) {
     errors.shippingFee = "0 이상의 정수를 입력해 주세요.";
   }
@@ -286,6 +343,7 @@ function itemBody(item: ItemDraft): ManualOrderItem {
         }
       : null,
     note: item.note.trim(),
+    image_upload_ids: item.images.map((image) => image.id),
   };
 }
 
@@ -298,17 +356,114 @@ export function manualOrderDraftBody(
     phone: canonicalizePhoneNumber(draft.phone),
     address: optionalText(draft.address),
     amount: Number(draft.amount),
+    discount: Number(draft.discount),
     shipping_fee: Number(draft.shippingFee),
     is_received: draft.isReceived,
     is_paid: draft.isPaid,
     is_confirmed: draft.isConfirmed,
     items: draft.items.map(itemBody),
+    image_upload_ids: draft.images.map((image) => image.id),
   };
+}
+
+function ImageAttachments({
+  label,
+  description,
+  images,
+  disabled,
+  manualOrderId,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  images: ImageDraft[];
+  disabled: boolean;
+  /** 수정 화면에서만 있다 — 이미 저장된 이미지의 썸네일을 발급하는 데 쓴다. */
+  manualOrderId?: string;
+  onChange: (images: ImageDraft[]) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string>();
+  // 저장된 이미지는 previewUrl이 없다 — 어느 사진을 지우는지 보이도록 읽기 URL을 발급한다.
+  const [readUrls, setReadUrls] = useState<Record<string, string>>({});
+  const requested = useRef(new Set<string>());
+  // 업로드 대기 중에도 제거는 열려 있다 — 완료 시점의 최신 목록에 붙여야 지운 사진이 되살아나지 않는다.
+  const latestImages = useRef(images);
+  latestImages.current = images;
+
+  useEffect(() => {
+    if (manualOrderId === undefined) return;
+    for (const image of images) {
+      if (image.previewUrl !== undefined) continue;
+      if (requested.current.has(image.id)) continue;
+      requested.current.add(image.id);
+      const imageId = image.id;
+      void createManualOrderImageReadUrl({
+        path: { manual_order_id: manualOrderId, image_id: imageId },
+        throwOnError: true,
+      })
+        .then((result) =>
+          setReadUrls((current) => ({
+            ...current,
+            [imageId]: result.data.read_url,
+          })),
+        )
+        .catch(() => undefined); // 썸네일이 없어도 제거·저장은 된다.
+    }
+  }, [manualOrderId, images]);
+
+  const add = async (files: File[]) => {
+    setError(undefined);
+    setUploading(true);
+    const added: ImageDraft[] = [];
+    try {
+      for (const file of files) {
+        added.push({
+          id: await uploadManualOrderImage(file),
+          label: `${file.type} · ${formatFileSize(file.size, "크기 미상")}`,
+          previewUrl: URL.createObjectURL(file),
+        });
+      }
+    } catch (uploadError) {
+      setError(getErrorMessage(uploadError, "이미지를 업로드하지 못했습니다."));
+    } finally {
+      setUploading(false);
+      if (added.length > 0) onChange([...latestImages.current, ...added]);
+    }
+  };
+
+  return (
+    <VStack gap="x2" alignItems="stretch">
+      {error !== undefined && (
+        <Callout role="alert" tone="critical" title={error} />
+      )}
+      <AttachmentDisplayField
+        label={label}
+        description={description}
+        items={images.map((image) => ({
+          id: image.id,
+          src: image.previewUrl ?? readUrls[image.id],
+          alt: image.label,
+        }))}
+        max={MAX_MANUAL_ORDER_IMAGES}
+        accept={MANUAL_ORDER_IMAGE_ACCEPT}
+        onRemove={(id) => onChange(images.filter((image) => image.id !== id))}
+        onAddFiles={disabled ? undefined : (files) => void add(files)}
+      />
+      {uploading && (
+        <Text textStyle="caption" color="fg.neutral-muted">
+          이미지를 업로드하고 있습니다…
+        </Text>
+      )}
+    </VStack>
+  );
 }
 
 export type ManualOrderFormProps = {
   initial: ManualOrderDraft;
   revision?: string;
+  /** 수정 화면에서만 넘긴다 — 저장된 첨부 이미지 썸네일 발급용. */
+  manualOrderId?: string;
   resetSignal: number;
   submitLabel: string;
   pending: boolean;
@@ -322,6 +477,7 @@ export type ManualOrderFormProps = {
 export function ManualOrderForm({
   initial,
   revision,
+  manualOrderId,
   resetSignal,
   submitLabel,
   pending,
@@ -342,6 +498,10 @@ export function ManualOrderForm({
     () => JSON.stringify(draft) !== JSON.stringify(baseDraft),
     [baseDraft, draft],
   );
+  const orderAmount =
+    (Number(draft.amount) || 0) -
+    (Number(draft.discount) || 0) +
+    (Number(draft.shippingFee) || 0);
   const blocker = useDirtyFormBlocker(dirty, blockerBypassRef);
 
   useEffect(() => {
@@ -459,6 +619,15 @@ export function ManualOrderForm({
                 onValueChange={(value) => update("amount", value)}
               />
               <NumberField
+                label="할인"
+                suffix="원"
+                groupThousands
+                value={draft.discount}
+                errorMessage={attempted ? errors.discount : undefined}
+                disabled={pending}
+                onValueChange={(value) => update("discount", value)}
+              />
+              <NumberField
                 label="택배비"
                 suffix="원"
                 groupThousands
@@ -468,6 +637,10 @@ export function ManualOrderForm({
                 onValueChange={(value) => update("shippingFee", value)}
               />
             </Grid>
+
+            <Text textStyle="bodySm" color="fg.neutral-muted">
+              원금 − 할인 + 택배비 = {formatMoney(orderAmount)}
+            </Text>
 
             <VStack gap="x2" alignItems="stretch">
               <Text as="h3" textStyle="labelSm">
@@ -504,7 +677,7 @@ export function ManualOrderForm({
         </AdminCard>
 
         <AdminCard
-          title="작업 품목"
+          title="주문 품목"
           description="품목마다 대분류를 하나 이상 선택합니다. 돌려묶기·딤플은 자동수선의 지퍼 타입, 주문제작의 자동 봉제에서만 선택할 수 있습니다."
         >
           <VStack gap="x4" alignItems="stretch">
@@ -750,7 +923,7 @@ export function ManualOrderForm({
                               }
                             >
                               <SegmentedControlItem value="own">
-                                자체 원단
+                                원단 제작
                               </SegmentedControlItem>
                               <SegmentedControlItem value="provided">
                                 원단 제공
@@ -945,6 +1118,15 @@ export function ManualOrderForm({
                         updateItem(index, { note: event.currentTarget.value })
                       }
                     />
+
+                    <ImageAttachments
+                      label={`품목 ${index + 1} 사진`}
+                      description={`시안·참고 사진을 ${MAX_MANUAL_ORDER_IMAGES}장까지`}
+                      images={item.images}
+                      disabled={pending}
+                      manualOrderId={manualOrderId}
+                      onChange={(images) => updateItem(index, { images })}
+                    />
                   </VStack>
                 </Box>
               );
@@ -964,6 +1146,20 @@ export function ManualOrderForm({
               </ActionButton>
             </HStack>
           </VStack>
+        </AdminCard>
+
+        <AdminCard
+          title="첨부 이미지"
+          description="작업장에 넘길 사진입니다. 없어도 저장할 수 있습니다."
+        >
+          <ImageAttachments
+            label="사진"
+            description={`JPG · PNG · WebP, 10MB 이하, ${MAX_MANUAL_ORDER_IMAGES}장까지`}
+            images={draft.images}
+            disabled={pending}
+            manualOrderId={manualOrderId}
+            onChange={(images) => update("images", images)}
+          />
         </AdminCard>
 
         {error != null && (
