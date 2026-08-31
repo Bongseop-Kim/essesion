@@ -125,7 +125,7 @@ export function RefundPolicyContent() {
           정책이 변경되면 적용일과 주요 내용을 공지사항에 안내합니다.
         </Text>
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: 2026년 7월 17일</Text>
+          <Text textStyle="labelSm">시행일: 2026년 8월 31일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>

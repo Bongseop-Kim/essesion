@@ -23,6 +23,16 @@ export function markNaverLoginUsed(): void {
   }
 }
 
+/** 명시적 로그아웃 뒤에는 사용자가 다시 네이버 로그인을 누르기 전까지 자동로그인하지 않는다. */
+export function suppressNaverAutologin(): void {
+  try {
+    localStorage.removeItem(USED_NAVER_KEY);
+    sessionStorage.removeItem(ATTEMPT_KEY);
+  } catch {
+    // storage 차단 환경 — 저장된 자동로그인 상태도 없음
+  }
+}
+
 /** 세션 부트스트랩이 비로그인으로 끝났을 때 1회 시도. 시도했으면 true(페이지 이탈). */
 export function attemptNaverAutologin(
   userAgent: string = navigator.userAgent,
@@ -41,12 +51,22 @@ export function attemptNaverAutologin(
 
 /** 콜백이 error를 받았을 때 — 자동로그인 시도였으면 true를 반환하고 소진 처리한다.
  *  true면 조용히 넘어가고(§5.1.5 오류 처리 방안), false면 사용자가 취소한 수동 로그인. */
-export function consumeNaverAutologinAttempt(): boolean {
+export function consumeNaverAutologinAttempt(provider: string | null): boolean {
   try {
+    if (provider !== "naver") return false;
     if (sessionStorage.getItem(ATTEMPT_KEY) !== "pending") return false;
     sessionStorage.setItem(ATTEMPT_KEY, "done");
     return true;
   } catch {
     return false;
+  }
+}
+
+export function clearNaverAutologinAttempt(provider: string | null): void {
+  if (provider !== "naver") return;
+  try {
+    sessionStorage.removeItem(ATTEMPT_KEY);
+  } catch {
+    // storage 차단 환경 — 지울 상태도 없음
   }
 }

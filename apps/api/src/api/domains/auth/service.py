@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from api.config import Settings
+from api.db import USER_LOCK, advisory_xact_lock
 from api.domains.auth.oauth import NaverPayAddress
 from api.errors import DomainError, UnauthorizedError
 from api.phone_numbers import normalize_mobile_phone
@@ -285,6 +286,7 @@ async def import_naver_payaddress(
     except ValueError:
         return  # 유선번호 등 — recipient_phone 형식을 만족 못 하면 수입하지 않는다
     try:
+        await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
         existing = await session.scalar(
             select(ShippingAddress.id).where(ShippingAddress.user_id == user.id).limit(1)
         )

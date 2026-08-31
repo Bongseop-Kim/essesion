@@ -4,7 +4,10 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
 import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
-import { consumeNaverAutologinAttempt } from "@/features/auth/model/naver-autologin";
+import {
+  clearNaverAutologinAttempt,
+  consumeNaverAutologinAttempt,
+} from "@/features/auth/model/naver-autologin";
 import { takeAuthReturn } from "@/features/auth/model/return-after-login";
 import { syncGuestCartToAccount } from "@/features/cart/model/use-cart";
 import { trackEvent } from "@/shared/lib/analytics";
@@ -30,9 +33,11 @@ export function AuthCallbackPage() {
 
     // api가 콜백 실패를 ?error=로 되돌린 경우 — 자동로그인 시도였으면 조용히 홈으로,
     // 아니면 사유별 안내 후 로그인으로.
-    const error = new URLSearchParams(window.location.search).get("error");
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+    const provider = params.get("provider");
     if (error !== null) {
-      if (consumeNaverAutologinAttempt()) {
+      if (consumeNaverAutologinAttempt(provider)) {
         navigate("/", { replace: true });
       } else {
         snackbar(OAUTH_ERROR_MESSAGES[error] ?? OAUTH_ERROR_FALLBACK);
@@ -40,6 +45,7 @@ export function AuthCallbackPage() {
       }
       return;
     }
+    clearNaverAutologinAttempt(provider);
 
     (async () => {
       const ok = await bootstrapSession(() => cancelled);

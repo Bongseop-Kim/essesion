@@ -73,6 +73,51 @@ async def test_rollback_requires_memo(client, db_session, settings):
     assert ok.status_code == 200
 
 
+async def test_repair_rollback_maps_preserved_legacy_pickup_state(client, db_session, settings):
+    admin = await make_admin(db_session)
+    user = await make_user(db_session)
+    order = await make_order(db_session, user, order_type="repair", status="접수")
+    db_session.add(
+        OrderStatusLog(
+            order_id=order.id,
+            previous_status="수거예정",
+            new_status="접수",
+            is_rollback=False,
+        )
+    )
+    await db_session.commit()
+
+    res = await _status_update(
+        client,
+        settings,
+        admin,
+        order.id,
+        {"new_status": "발송대기", "is_rollback": True, "memo": "legacy 복구"},
+    )
+
+    assert res.status_code == 200
+
+
+async def test_repair_rollback_is_suppressed_without_previous_state(client, db_session, settings):
+    admin = await make_admin(db_session)
+    user = await make_user(db_session)
+    order = await make_order(db_session, user, order_type="repair", status="접수")
+    headers = auth_headers(admin, settings)
+
+    detail = await client.get(f"/admin/orders/{order.id}", headers=headers)
+    assert detail.status_code == 200
+    assert "rollback" not in {action["kind"] for action in detail.json()["admin_actions"]}
+
+    res = await _status_update(
+        client,
+        settings,
+        admin,
+        order.id,
+        {"new_status": "발송중", "is_rollback": True, "memo": "근거 없음"},
+    )
+    assert res.status_code == 400
+
+
 async def test_active_claim_blocks_status_change(client, db_session, settings):
     admin = await make_admin(db_session)
     user = await make_user(db_session)

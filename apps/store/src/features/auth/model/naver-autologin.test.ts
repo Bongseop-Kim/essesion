@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   attemptNaverAutologin,
+  clearNaverAutologinAttempt,
   consumeNaverAutologinAttempt,
   markNaverLoginUsed,
+  suppressNaverAutologin,
 } from "./naver-autologin";
 
 const NAVER_APP_UA =
@@ -35,9 +37,27 @@ describe("naver autologin", () => {
   });
 
   it("자동로그인 시도(pending)만 1회 소진된다 — 수동 로그인 취소는 false", () => {
-    expect(consumeNaverAutologinAttempt()).toBe(false); // 시도 없음
+    expect(consumeNaverAutologinAttempt("naver")).toBe(false); // 시도 없음
     sessionStorage.setItem("essesion_naver_autologin", "pending");
-    expect(consumeNaverAutologinAttempt()).toBe(true);
-    expect(consumeNaverAutologinAttempt()).toBe(false); // done으로 소진됨
+    expect(consumeNaverAutologinAttempt("google")).toBe(false); // 다른 provider는 건드리지 않음
+    expect(consumeNaverAutologinAttempt("naver")).toBe(true);
+    expect(consumeNaverAutologinAttempt("naver")).toBe(false); // done으로 소진됨
+  });
+
+  it("명시적 로그아웃은 다시 네이버 로그인을 누를 때까지 자동로그인을 막는다", () => {
+    markNaverLoginUsed();
+    suppressNaverAutologin();
+    expect(localStorage.getItem("essesion_naver_login_used")).toBeNull();
+
+    markNaverLoginUsed();
+    expect(localStorage.getItem("essesion_naver_login_used")).toBe("1");
+  });
+
+  it("성공한 네이버 콜백만 pending 상태를 지운다", () => {
+    sessionStorage.setItem("essesion_naver_autologin", "pending");
+    clearNaverAutologinAttempt("kakao");
+    expect(sessionStorage.getItem("essesion_naver_autologin")).toBe("pending");
+    clearNaverAutologinAttempt("naver");
+    expect(sessionStorage.getItem("essesion_naver_autologin")).toBeNull();
   });
 });

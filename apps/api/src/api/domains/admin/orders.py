@@ -13,7 +13,6 @@ from db.models.commerce import (
     PaymentIncident,
     Product,
     QuoteRequest,
-    RepairShippingReceipt,
 )
 from db.models.design import GenerationJob
 from db.models.tokens import DesignToken, TokenPurchase
@@ -169,18 +168,7 @@ async def _repair_previous_statuses(
     ]
     if not candidate_ids:
         return {}
-    no_tracking_ids = set(
-        await session.scalars(
-            select(RepairShippingReceipt.order_id).where(
-                RepairShippingReceipt.order_id.in_(candidate_ids),
-                RepairShippingReceipt.receipt_type == "no_tracking",
-            )
-        )
-    )
-    return {
-        order_id: ("발송확인중" if order_id in no_tracking_ids else "발송중")
-        for order_id in candidate_ids
-    }
+    return await order_service.repair_previous_statuses(session, candidate_ids)
 
 
 def _status_action(

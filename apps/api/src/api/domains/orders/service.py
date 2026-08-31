@@ -996,18 +996,29 @@ async def _relink_repair_photos(
 # ---- 관리자 상태 변경 / 송장 ----
 
 
-async def repair_previous_status(session: AsyncSession, order: Order) -> str:
-    """repair 접수 롤백 대상 — no_tracking 영수증? 발송확인중 / else 발송중."""
-    if await session.scalar(
-        select(
-            exists().where(
-                RepairShippingReceipt.order_id == order.id,
-                RepairShippingReceipt.receipt_type == "no_tracking",
-            )
+async def repair_previous_statuses(
+    session: AsyncSession, order_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """접수 직전 발송 상태. 감사 로그가 없는 legacy 행은 롤백하지 않는다."""
+    if not order_ids:
+        return {}
+    rows = await session.execute(
+        select(OrderStatusLog.order_id, OrderStatusLog.previous_status)
+        .where(
+            OrderStatusLog.order_id.in_(order_ids),
+            OrderStatusLog.new_status == "접수",
+            OrderStatusLog.previous_status.in_(("발송대기", "발송중", "발송확인중", "수거예정")),
         )
-    ):
-        return "발송확인중"
-    return "발송중"
+        .order_by(OrderStatusLog.created_at.desc(), OrderStatusLog.id.desc())
+    )
+    previous: dict[uuid.UUID, str] = {}
+    for order_id, status in rows:
+        previous.setdefault(order_id, "발송대기" if status == "수거예정" else status)
+    return previous
+
+
+async def repair_previous_status(session: AsyncSession, order: Order) -> str | None:
+    return (await repair_previous_statuses(session, [order.id])).get(order.id)
 
 
 async def admin_update_status(

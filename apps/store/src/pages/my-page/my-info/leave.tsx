@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { suppressNaverAutologin } from "@/features/auth/model/naver-autologin";
 import { clearStoreSession } from "@/shared/lib/api-client";
 import { ContentLayout } from "@/shared/ui/content-layout";
 
@@ -25,6 +26,7 @@ export function LeavePage() {
   const leave = async () => {
     try {
       await removeAccount.mutateAsync({});
+      suppressNaverAutologin();
       clearStoreSession(true);
       queryClient.clear();
       snackbar("회원 탈퇴가 완료되었습니다.");

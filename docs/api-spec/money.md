@@ -134,7 +134,7 @@
 - sale: 결제중→대기중, 진행중→대기중
 - custom: 결제중→대기중, 접수→대기중, 제작중→접수, 제작완료→제작중
 - sample: 결제중→대기중, 접수→대기중, 제작중→접수
-- repair: 접수→(no_tracking 영수증? 발송확인중 : 발송중), 수선중→접수, 수선완료→수선중
+- repair: 접수→order_status_logs에 보존된 직전 발송 상태(legacy 수거예정은 발송대기, 판별 불가하면 롤백 없음), 수선중→접수, 수선완료→수선중
 - token: 결제중→대기중
 
 고객 액션(get_order_customer_actions): claim_cancel(sale{대기중,진행중}/custom{대기중,접수}/sample{대기중,접수}/repair{대기중,발송대기,발송중,발송확인중}/token{대기중}), claim_return·claim_exchange(sale {배송중,배송완료}만), confirm_purchase(비-token, {배송중,배송완료}, 활성 클레임 없음).

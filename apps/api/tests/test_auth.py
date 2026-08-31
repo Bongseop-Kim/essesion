@@ -847,9 +847,7 @@ async def test_oauth_unverified_email_does_not_link_existing_user(db_session):
 
 
 class _OAuthProfileClient:
-    def __init__(
-        self, *, token: dict, profile: dict | None = None, payaddress: dict | None = None
-    ):
+    def __init__(self, *, token: dict, profile: dict | None = None, payaddress: dict | None = None):
         self.token = token
         self.profile = profile
         self.payaddress = payaddress
@@ -1002,9 +1000,7 @@ async def test_import_naver_payaddress_creates_default_address_when_none(db_sess
     await import_naver_payaddress(db_session, user, _PAYADDRESS)
 
     rows = (
-        await db_session.scalars(
-            select(ShippingAddress).where(ShippingAddress.user_id == user.id)
-        )
+        await db_session.scalars(select(ShippingAddress).where(ShippingAddress.user_id == user.id))
     ).all()
     assert len(rows) == 1
     assert rows[0].recipient_name == "홍길동"
@@ -1022,9 +1018,7 @@ async def test_import_naver_payaddress_skips_when_address_exists(db_session):
     await import_naver_payaddress(db_session, user, _PAYADDRESS)
 
     rows = (
-        await db_session.scalars(
-            select(ShippingAddress).where(ShippingAddress.user_id == user.id)
-        )
+        await db_session.scalars(select(ShippingAddress).where(ShippingAddress.user_id == user.id))
     ).all()
     assert [row.id for row in rows] == [existing.id]  # 0건 가드 — 기존 배송지 불변
 
@@ -1045,6 +1039,21 @@ async def test_import_naver_payaddress_skips_non_mobile_phone(db_session):
         select(func.count()).select_from(ShippingAddress).where(ShippingAddress.user_id == user.id)
     )
     assert count == 0
+
+
+async def test_import_naver_payaddress_concurrent_callbacks_create_one_address(app, db_session):
+    user = await make_user(db_session)
+
+    async def import_address() -> None:
+        async with app.state.sessionmaker() as session:
+            await import_naver_payaddress(session, user, _PAYADDRESS)
+
+    await asyncio.gather(import_address(), import_address())
+
+    count = await db_session.scalar(
+        select(func.count()).select_from(ShippingAddress).where(ShippingAddress.user_id == user.id)
+    )
+    assert count == 1
 
 
 async def test_non_naver_provider_never_fetches_payaddress():
@@ -1154,7 +1163,7 @@ async def test_apple_callback_parses_real_form_post_body(client, db_session, set
     )
 
     assert res.status_code == 303
-    assert res.headers["location"] == f"{settings.frontend_origin}/auth/callback"
+    assert res.headers["location"] == f"{settings.frontend_origin}/auth/callback?provider=apple"
     assert REFRESH_COOKIE in res.cookies
     assert oauth_client.seen == {"code": "apple-code", "state": "apple-state"}
     user = await db_session.scalar(select(User).where(User.email == "apple@test.local"))
@@ -1178,7 +1187,8 @@ async def test_apple_callback_form_error_skips_token_exchange(client, settings, 
 
     assert res.status_code == 303
     assert (
-        res.headers["location"] == f"{settings.frontend_origin}/auth/callback?error=access_denied"
+        res.headers["location"]
+        == f"{settings.frontend_origin}/auth/callback?provider=apple&error=access_denied"
     )
 
 
@@ -1199,7 +1209,10 @@ async def test_oauth_callback_redirects_instead_of_leaking_json_on_unexpected_er
     res = await client.get("/auth/google/callback?code=x&state=y", follow_redirects=False)
 
     assert res.status_code == 303
-    assert res.headers["location"] == f"{settings.frontend_origin}/auth/callback?error=server_error"
+    assert (
+        res.headers["location"]
+        == f"{settings.frontend_origin}/auth/callback?provider=google&error=server_error"
+    )
 
 
 async def test_oauth_callback_marks_rejected_account_separately_from_cancel(
@@ -1225,7 +1238,7 @@ async def test_oauth_callback_marks_rejected_account_separately_from_cancel(
     assert res.status_code == 303
     assert (
         res.headers["location"]
-        == f"{settings.frontend_origin}/auth/callback?error=account_unavailable"
+        == f"{settings.frontend_origin}/auth/callback?provider=google&error=account_unavailable"
     )
 
 
