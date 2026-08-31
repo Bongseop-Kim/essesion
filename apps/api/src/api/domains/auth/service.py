@@ -1,24 +1,30 @@
 """인증 서비스 — id/pw 로그인(공개 가입 없음), refresh 회전, 소셜 유저 매칭."""
 
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from db.models.auth import RefreshToken, User, UserIdentity
-from db.models.commerce import AdminSetting
+from db.models.commerce import AdminSetting, ShippingAddress
 from db.models.tokens import DesignToken
 from sqlalchemy import func, select, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from api.config import Settings
+from api.db import USER_LOCK, advisory_xact_lock
+from api.domains.auth.oauth import NaverPayAddress
 from api.errors import DomainError, UnauthorizedError
+from api.phone_numbers import normalize_mobile_phone
 from api.security import hash_refresh_token, new_refresh_token, password_hasher
 
 LOGIN_FAILED = "이메일 또는 비밀번호가 올바르지 않습니다"
 SESSION_EXPIRED = "세션이 만료되었습니다. 다시 로그인해주세요"
 SessionKind = Literal["store", "admin"]
+
+logger = logging.getLogger(__name__)
 
 # argon2 더미 해시 — 존재하지 않는 계정에서도 verify 시간을 소모해 타이밍 차 제거
 _DUMMY_HASH = password_hasher.hash("dummy-password-for-timing")
@@ -264,3 +270,40 @@ async def _ensure_oauth_user(
     session.add(UserIdentity(user_id=user.id, provider=provider, provider_user_id=provider_user_id))
     await session.commit()
     return user
+
+
+async def import_naver_payaddress(
+    session: AsyncSession, user: User, payaddress: NaverPayAddress
+) -> None:
+    """네이버페이 대표 배송지를 저장 배송지가 0건인 사용자에게만 기본 배송지로 수입한다.
+
+    0건 가드가 멱등성을 보장한다 — 매 로그인마다 중복 생성되지 않고, 사용자가 지우면
+    다음 로그인에서 대표 배송지 최신본이 다시 들어온다(의도된 동작). 배송지는 부가
+    기능이라 어떤 실패도 로그인을 막지 않는다.
+    """
+    try:
+        recipient_phone = normalize_mobile_phone(payaddress.tel_no)
+    except ValueError:
+        return  # 유선번호 등 — recipient_phone 형식을 만족 못 하면 수입하지 않는다
+    try:
+        await advisory_xact_lock(session, USER_LOCK.format(user_id=user.id))
+        existing = await session.scalar(
+            select(ShippingAddress.id).where(ShippingAddress.user_id == user.id).limit(1)
+        )
+        if existing is not None:
+            return
+        session.add(
+            ShippingAddress(
+                user_id=user.id,
+                recipient_name=payaddress.receiver_name,
+                recipient_phone=recipient_phone,
+                postal_code=payaddress.postal_code,
+                address=payaddress.address,
+                address_detail=payaddress.address_detail,
+                is_default=True,
+            )
+        )
+        await session.commit()
+    except SQLAlchemyError:
+        logger.warning("네이버페이 배송지 수입 실패", exc_info=True)
+        await session.rollback()

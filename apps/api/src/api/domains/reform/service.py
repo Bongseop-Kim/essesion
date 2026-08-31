@@ -26,7 +26,6 @@ PRICING_KEYS = [
     "REFORM_AUTOMATIC_COMBINED_COST",
     "REFORM_WIDTH_RESTORATION_COST",
     "REFORM_SHIPPING_COST",
-    "REFORM_PICKUP_FEE",
 ]
 
 
@@ -39,7 +38,6 @@ async def get_reform_pricing(session: AsyncSession) -> ReformPricingOut:
         automatic_combined_cost=values["REFORM_AUTOMATIC_COMBINED_COST"],
         width_restoration_cost=values["REFORM_WIDTH_RESTORATION_COST"],
         shipping_cost=values["REFORM_SHIPPING_COST"],
-        pickup_fee=values["REFORM_PICKUP_FEE"],
     )
 
 

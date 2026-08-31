@@ -192,17 +192,6 @@ export function OrderDetailPage() {
             />
           ) : null}
 
-          {order.status === "수거예정" ? (
-            <Box bg="bg.neutral-weak" borderRadius="r3" p="x4">
-              <VStack gap="x1">
-                <Text textStyle="labelSm">방문 수거 예정</Text>
-                <Text textStyle="bodySm" color="fg.neutral-muted">
-                  기사님이 입력한 수거지에 방문해 수선품을 수거할 예정입니다.
-                </Text>
-              </VStack>
-            </Box>
-          ) : null}
-
           <ShipmentInfo
             title={
               order.order_type === "repair" ? "고객 발송 정보" : "배송 정보"
@@ -253,26 +242,6 @@ export function OrderDetailPage() {
                   }
                 />
               ) : null}
-            </VStack>
-          ) : null}
-
-          {order.repair_pickup ? (
-            <VStack gap="x3" alignItems="stretch">
-              <Text as="h2" textStyle="title3">
-                수거 요청
-              </Text>
-              <InfoRow
-                label="수거 대상"
-                value={`${order.repair_pickup.recipient_name} · ${formatPhoneNumber(order.repair_pickup.recipient_phone)}`}
-              />
-              <InfoRow
-                label="수거지"
-                value={`${order.repair_pickup.postal_code ?? ""} ${order.repair_pickup.address} ${order.repair_pickup.detail_address ?? ""}`.trim()}
-              />
-              <InfoRow
-                label="수거 비용"
-                value={`${krw.format(order.repair_pickup.pickup_fee)}원`}
-              />
             </VStack>
           ) : null}
 

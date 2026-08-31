@@ -12,7 +12,6 @@ PRICES = {
     "REFORM_AUTOMATIC_COMBINED_COST": 40000,
     "REFORM_WIDTH_RESTORATION_COST": 30000,
     "REFORM_SHIPPING_COST": 4500,
-    "REFORM_PICKUP_FEE": 5000,
 }
 
 PRICING = ReformPricingOut(
@@ -22,7 +21,6 @@ PRICING = ReformPricingOut(
     automatic_combined_cost=40000,
     width_restoration_cost=30000,
     shipping_cost=4500,
-    pickup_fee=5000,
 )
 
 

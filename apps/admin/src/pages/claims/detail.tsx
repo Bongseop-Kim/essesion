@@ -406,7 +406,6 @@ export function ClaimDetailPage() {
   };
 
   const shippingAddress = data.shipping.shipping_address;
-  const repairPickup = data.shipping.repair_pickup;
   const hasShippingTab = data.type === "return" || data.type === "exchange";
   const tab = claimTabFrom(params, hasShippingTab);
   const setTab = (next: string) => {
@@ -807,33 +806,6 @@ export function ClaimDetailPage() {
                           </HStack>
                         </VStack>
                       )}
-                    </VStack>
-                  )}
-                  {repairPickup !== null && (
-                    <VStack gap="x2" alignItems="stretch">
-                      <Text as="h3" textStyle="label">
-                        수선 수거 요청
-                      </Text>
-                      <DetailList
-                        items={[
-                          {
-                            label: "수거지",
-                            value: `${repairPickup.postal_code ?? ""} ${repairPickup.address} ${repairPickup.detail_address ?? ""}`,
-                          },
-                          {
-                            label: "수거 대상",
-                            value: `${repairPickup.recipient_name} · ${formatPhoneNumber(repairPickup.recipient_phone)}`,
-                          },
-                          {
-                            label: "수거 비용",
-                            value: formatMoney(repairPickup.pickup_fee),
-                          },
-                          {
-                            label: "요청 시각",
-                            value: formatDateTime(repairPickup.created_at),
-                          },
-                        ]}
-                      />
                     </VStack>
                   )}
                   {(data.shipping.repair_receipts ?? []).length > 0 && (

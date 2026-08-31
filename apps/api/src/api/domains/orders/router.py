@@ -209,9 +209,7 @@ async def get_order(order_id: uuid.UUID, session: SessionDep, user: CurrentUser)
         if address is not None:
             out.shipping_address = OrderShippingAddressOut.model_validate(address)
     if order.order_type == "repair":
-        out.repair_pickup, out.repair_receipts = await service.repair_shipping_read_model(
-            session, order.id
-        )
+        out.repair_receipts = await service.repair_receipts_read_model(session, order.id)
     out.customer_actions = customer_actions(
         order.order_type,
         order.status,

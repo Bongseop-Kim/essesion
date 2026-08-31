@@ -10,10 +10,10 @@ import pytest
 from api.config import Settings
 from api.domains.auth import phone as phone_service
 from api.domains.auth import service as auth_service
-from api.domains.auth.oauth import _apple_client_secret, fetch_profile
+from api.domains.auth.oauth import NaverPayAddress, _apple_client_secret, fetch_profile
 from api.domains.auth.rate_limit import AuthRateLimiter
 from api.domains.auth.router import REFRESH_COOKIE
-from api.domains.auth.service import ensure_oauth_user
+from api.domains.auth.service import ensure_oauth_user, import_naver_payaddress
 from api.errors import DomainError, RateLimitedError, UnauthorizedError
 from api.security import (
     SessionKind,
@@ -23,6 +23,7 @@ from api.security import (
     new_refresh_token,
 )
 from db.models.auth import PhoneVerification, RefreshToken, User, UserIdentity
+from db.models.commerce import ShippingAddress
 from db.models.tokens import DesignToken
 from httpx import ASGITransport, AsyncClient
 from joserfc import jwt as jose_jwt
@@ -31,7 +32,14 @@ from sqlalchemy import func, select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
-from .factories import auth_headers, make_order, make_product, make_user, seed_setting
+from .factories import (
+    auth_headers,
+    make_address,
+    make_order,
+    make_product,
+    make_user,
+    seed_setting,
+)
 
 
 def _access_token_without_session_kind(user_id: uuid.UUID, role: str, settings: Settings) -> str:
@@ -839,20 +847,22 @@ async def test_oauth_unverified_email_does_not_link_existing_user(db_session):
 
 
 class _OAuthProfileClient:
-    def __init__(self, *, token: dict, profile: dict | None = None):
+    def __init__(self, *, token: dict, profile: dict | None = None, payaddress: dict | None = None):
         self.token = token
         self.profile = profile
+        self.payaddress = payaddress
 
     async def authorize_access_token(self, request):
         return self.token
 
     async def get(self, path: str, *, token: dict):
-        profile = self.profile
+        # 네이버는 프로필(v1/nid/me)과 배송지(v1/nid/payaddress)를 각각 호출한다.
+        body = (self.payaddress or {}) if path.endswith("payaddress") else self.profile
 
         class _Response:
             def json(self) -> dict:
-                assert profile is not None
-                return profile
+                assert body is not None
+                return body
 
         return _Response()
 
@@ -925,6 +935,143 @@ async def test_naver_profile_trusts_only_naver_account_email(email, expected):
     assert profile.email_verified is expected
 
 
+_NAVER_PROFILE = {
+    "resultcode": "00",
+    "response": {"id": "naver-123", "email": "user@naver.com", "name": "네이버 유저"},
+}
+
+
+async def test_naver_profile_includes_payaddress():
+    client = _OAuthProfileClient(
+        token={},
+        profile=_NAVER_PROFILE,
+        payaddress={
+            "result": "success",
+            "data": {
+                "receiverName": "홍길동",
+                "zipCode": "16825",
+                "baseAddress": "경기도 성남시 불정로 7",
+                "detailAddress": "그린팩토리",
+                "roadNameYn": "Y",
+                "telNo": "010-0000-0000",
+            },
+        },
+    )
+
+    profile = await fetch_profile(client, "naver", cast("Request", object()))
+
+    assert profile.payaddress is not None
+    assert profile.payaddress.receiver_name == "홍길동"
+    assert profile.payaddress.postal_code == "16825"
+    assert profile.payaddress.address == "경기도 성남시 불정로 7"
+    assert profile.payaddress.address_detail == "그린팩토리"
+    assert profile.payaddress.tel_no == "010-0000-0000"
+
+
+@pytest.mark.parametrize(
+    "payaddress",
+    [
+        None,  # 호출 실패·빈 응답
+        {"resultcode": "024", "message": "Authentication failed"},  # 미동의(403)·에러 응답
+        {"result": "success", "data": {"receiverName": "홍길동"}},  # 필수 필드 누락
+    ],
+)
+async def test_naver_payaddress_failures_do_not_block_login(payaddress):
+    client = _OAuthProfileClient(token={}, profile=_NAVER_PROFILE, payaddress=payaddress)
+
+    profile = await fetch_profile(client, "naver", cast("Request", object()))
+
+    assert profile.provider_user_id == "naver-123"
+    assert profile.payaddress is None
+
+
+_PAYADDRESS = NaverPayAddress(
+    receiver_name="홍길동",
+    postal_code="16825",
+    address="경기도 성남시 불정로 7",
+    address_detail="그린팩토리",
+    tel_no="010-0000-0000",
+)
+
+
+async def test_import_naver_payaddress_creates_default_address_when_none(db_session):
+    user = await make_user(db_session)
+
+    await import_naver_payaddress(db_session, user, _PAYADDRESS)
+
+    rows = (
+        await db_session.scalars(select(ShippingAddress).where(ShippingAddress.user_id == user.id))
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].recipient_name == "홍길동"
+    assert rows[0].recipient_phone == "01000000000"  # 하이픈 제거 정규화
+    assert rows[0].postal_code == "16825"
+    assert rows[0].address == "경기도 성남시 불정로 7"
+    assert rows[0].address_detail == "그린팩토리"
+    assert rows[0].is_default is True
+
+
+async def test_import_naver_payaddress_skips_when_address_exists(db_session):
+    user = await make_user(db_session)
+    existing = await make_address(db_session, user)
+
+    await import_naver_payaddress(db_session, user, _PAYADDRESS)
+
+    rows = (
+        await db_session.scalars(select(ShippingAddress).where(ShippingAddress.user_id == user.id))
+    ).all()
+    assert [row.id for row in rows] == [existing.id]  # 0건 가드 — 기존 배송지 불변
+
+
+async def test_import_naver_payaddress_skips_non_mobile_phone(db_session):
+    user = await make_user(db_session)
+    landline = NaverPayAddress(
+        receiver_name="홍길동",
+        postal_code="16825",
+        address="경기도 성남시 불정로 7",
+        address_detail=None,
+        tel_no="02-123-4567",  # recipient_phone은 휴대폰 형식만 허용
+    )
+
+    await import_naver_payaddress(db_session, user, landline)
+
+    count = await db_session.scalar(
+        select(func.count()).select_from(ShippingAddress).where(ShippingAddress.user_id == user.id)
+    )
+    assert count == 0
+
+
+async def test_import_naver_payaddress_concurrent_callbacks_create_one_address(app, db_session):
+    user = await make_user(db_session)
+
+    async def import_address() -> None:
+        async with app.state.sessionmaker() as session:
+            await import_naver_payaddress(session, user, _PAYADDRESS)
+
+    await asyncio.gather(import_address(), import_address())
+
+    count = await db_session.scalar(
+        select(func.count()).select_from(ShippingAddress).where(ShippingAddress.user_id == user.id)
+    )
+    assert count == 1
+
+
+async def test_non_naver_provider_never_fetches_payaddress():
+    profile = await fetch_profile(
+        _OAuthProfileClient(
+            token={},
+            profile={
+                "id": 123,
+                "kakao_account": {"email": None, "profile": {"nickname": "Kakao User"}},
+            },
+        ),
+        "kakao",
+        cast("Request", object()),
+    )
+
+    assert profile.payaddress is None
+
+
 class _FormRequest:
     """Apple form_post 콜백 흉내 — request.form()의 user 필드만 제공."""
 
@@ -975,6 +1122,124 @@ async def test_apple_profile_reads_name_from_first_auth_form_user(raw_user, expe
     assert profile.name == expected
     assert profile.email is None
     assert profile.email_verified is False
+
+
+class _AppleFormPostClient:
+    """authlib의 form_post 분기와 같은 방식으로 POST 본문에서 code/state를 읽는 fake."""
+
+    def __init__(self, token: dict):
+        self.token = token
+        self.seen: dict[str, str] = {}
+
+    async def authorize_access_token(self, request: Request) -> dict:
+        async with request.form() as form:
+            self.seen = {"code": str(form.get("code")), "state": str(form.get("state"))}
+        return self.token
+
+
+async def test_apple_callback_parses_real_form_post_body(client, db_session, settings, monkeypatch):
+    """Apple만 response_mode=form_post — Starlette 실제 form 파서를 타는 유일한 경로.
+
+    python-multipart가 없으면 form 파싱이 AssertionError로 죽어 콜백 URL에 500 JSON이
+    노출된다(_FormRequest 스텁 테스트는 이 경로를 우회하므로 잡지 못한다).
+    """
+    await seed_setting(db_session, "design_token_initial_grant", "30")
+    oauth_client = _AppleFormPostClient(
+        {"userinfo": {"sub": "apple-sub", "email": "apple@test.local", "email_verified": "true"}}
+    )
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: oauth_client,
+    )
+
+    res = await client.post(
+        "/auth/apple/callback",
+        data={
+            "code": "apple-code",
+            "state": "apple-state",
+            "user": '{"name": {"lastName": "김", "firstName": "사과"}}',
+        },
+        follow_redirects=False,
+    )
+
+    assert res.status_code == 303
+    assert res.headers["location"] == f"{settings.frontend_origin}/auth/callback?provider=apple"
+    assert REFRESH_COOKIE in res.cookies
+    assert oauth_client.seen == {"code": "apple-code", "state": "apple-state"}
+    user = await db_session.scalar(select(User).where(User.email == "apple@test.local"))
+    assert user is not None
+    assert user.name == "김사과"  # 최초 인가 form의 user 필드에서만 오는 이름
+
+
+async def test_apple_callback_form_error_skips_token_exchange(client, settings, monkeypatch):
+    """authlib POST 분기는 error를 보지 않으므로 라우터가 직접 취소를 걸러낸다."""
+
+    def _unexpected(_request, _provider):
+        raise AssertionError("취소 콜백에서 토큰 교환을 시도했다")
+
+    monkeypatch.setattr("api.domains.auth.router.get_oauth_client", _unexpected)
+
+    res = await client.post(
+        "/auth/apple/callback",
+        data={"error": "user_cancelled_authorize", "state": "apple-state"},
+        follow_redirects=False,
+    )
+
+    assert res.status_code == 303
+    assert (
+        res.headers["location"]
+        == f"{settings.frontend_origin}/auth/callback?provider=apple&error=access_denied"
+    )
+
+
+async def test_oauth_callback_redirects_instead_of_leaking_json_on_unexpected_error(
+    client, settings, monkeypatch
+):
+    """콜백은 브라우저 최상위 내비게이션 종착지 — 예상 못 한 실패도 JSON을 노출하지 않는다."""
+
+    class _BrokenClient:
+        async def authorize_access_token(self, request: Request) -> dict:
+            raise RuntimeError("token endpoint down")
+
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: _BrokenClient(),
+    )
+
+    res = await client.get("/auth/google/callback?code=x&state=y", follow_redirects=False)
+
+    assert res.status_code == 303
+    assert (
+        res.headers["location"]
+        == f"{settings.frontend_origin}/auth/callback?provider=google&error=server_error"
+    )
+
+
+async def test_oauth_callback_marks_rejected_account_separately_from_cancel(
+    client, db_session, settings, monkeypatch
+):
+    """비고객 계정 거부는 취소와 다른 코드로 — 프론트 문구가 갈린다."""
+    await make_user(db_session, role="admin", email="admin-social@test.local")
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: _OAuthProfileClient(
+            token={
+                "userinfo": {
+                    "sub": "google-admin",
+                    "email": "admin-social@test.local",
+                    "email_verified": True,
+                }
+            }
+        ),
+    )
+
+    res = await client.get("/auth/google/callback?code=x&state=y", follow_redirects=False)
+
+    assert res.status_code == 303
+    assert (
+        res.headers["location"]
+        == f"{settings.frontend_origin}/auth/callback?provider=google&error=account_unavailable"
+    )
 
 
 async def test_oauth_same_identity_first_callback_race_reuses_winner(app, db_session):

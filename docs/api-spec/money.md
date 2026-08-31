@@ -14,9 +14,9 @@
 
 ## 2. 일반 주문 생성 (sale/repair — 구 create_order_txn)
 
-입력: 배송지 id, items[] `{item_id, item_type(product|reform), product_id, selected_option_id, reform_data, quantity, applied_user_coupon_id}`, repair_shipping `{method: direct|pickup, pickup:{recipient_name, recipient_phone, postal_code?, address, detail_address?}}`.
+입력: 배송지 id, items[] `{item_id, item_type(product|reform), product_id, selected_option_id, reform_data, quantity, applied_user_coupon_id}`. repair 주문의 수선품은 **항상 고객이 직접 발송한다** — 방문 수거 입력·요금은 2026-08-31에 제거됐다.
 
-검증: 아이템 최대 50개 / 요청 내 item_id 중복 불가·최대 200자 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity 1~10,000·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 돌려묶기 불가) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하 / pickup은 reform 아이템이 있어야 하고 수령인 3필드 필수(이름 100·전화 32·주소/상세 500·우편번호 20자 상한).
+검증: 아이템 최대 50개 / 요청 내 item_id 중복 불가·최대 200자 / reform_data 개당 64KB / 배송지 본인 소유 / product quantity 1~10,000·reform quantity=1 / product는 product_id 필수·존재 / reform은 사진+자동·폭·복원 중 하나 이상 필수 / 자동은 지퍼·끈 택1+착용자 키 필수(끈은 돌려묶기 불가) / 폭은 희망 폭 양수 필수 / 복원 메모는 선택·200자 이하.
 
 재고 (결제 전 물리 차감):
 - 옵션 선택 시 옵션 재고, 아니면 상품 재고. `FOR UPDATE` 후 `stock IS NOT NULL AND stock < qty`면 오류, 아니면 차감. **NULL = 무제한**.
@@ -34,7 +34,7 @@
 
 주문 분리: `payment_group_id = uuid4()` 하나에 product 주문(order_type=sale)과 repair 주문(order_type=repair)을 분리 생성.
 - sale: `shipping_cost=0` 고정(**무료배송 임계 없음**), total = original - discount.
-- repair: `shipping_cost=REFORM_SHIPPING_COST`, pickup이면 + `REFORM_PICKUP_FEE`(repair_pickup_requests에 스냅샷). total = original - discount + shipping + pickup_fee.
+- repair: `shipping_cost=REFORM_SHIPPING_COST`. total = original - discount + shipping.
 - 둘 다 status='대기중'. order_items에 unit_price/discount_amount/line_discount_amount 기록.
 - reform 이미지 재연결: images에서 완료된 `entity_type='reform_upload' AND entity_id=object_key AND uploaded_by=본인` → `entity_type='reform', entity_id=order_id`로 UPDATE. 0건이면 오류.
 
@@ -70,7 +70,7 @@
 4. 개별 status ∈ {대기중, 결제중} 아니면 409 `Order is not payable`.
 5. **금액 검증**: `Σ total_price != amount` → 400 `Amount mismatch`.
 5-1. **샘플 매핑 사전검증**: sample 주문은 sample_type의 후속 쿠폰 매핑(§4)이 존재해야 함 — 없으면 400 `invalid_sample`. Toss 승인 후에 터지면 "돈 받고 DB 미확정" 수동 개입 창이 생기므로 lock 전에 차단.
-6. **lock**: 대기중→결제중(+로그 'payment lock'); 결제중이면 already_locked; 결제후 상태({진행중,발송대기,발송중,수거예정,접수,완료})면 already_confirmed → Toss 호출 없이 200.
+6. **lock**: 대기중→결제중(+로그 'payment lock'); 결제중이면 already_locked; 결제후 상태({진행중,발송대기,발송중,접수,완료})면 already_confirmed → Toss 호출 없이 200.
 7. **Toss 승인**: `POST https://api.tosspayments.com/v1/payments/confirm`, 헤더 `Authorization: Basic base64(TOSS_SECRET_KEY+":")`, body `{paymentKey, orderId(=group id), amount(=DB 재계산 합)}`. 멱등키 헤더 미사용(멱등성은 DB 상태로).
 8. 실패 → **unlock**(결제중→대기중 + 쿠폰 reserved→active + 로그 'payment unlock: approval failed') 후 Toss 상태코드 전달. 네트워크 예외 → unlock 후 502.
 9. 성공 → **confirm**: 각 주문 `status='결제중'`에서만(아니면 오류) →
@@ -79,8 +79,7 @@
    | sale | 진행중 |
    | token | 완료 |
    | sample | 접수 |
-   | repair (pickup 요청 있음) | 수거예정 |
-   | repair (그 외) | 발송대기 |
+   | repair | 발송대기 |
    payment_key 저장(로그에는 `****`+뒤 8자 마스킹), 로그 memo `payment confirmed: <masked>`.
    - token 주문: order_items에서 `{token_amount, plan_key}` → design_tokens INSERT `{amount, type:'purchase', class:'paid', work_id:'order_'+order_id, source_order_id, expires_at: now+1년}` ON CONFLICT(work_id) DO NOTHING.
    - sample 주문: §4 후속 쿠폰 발급.
@@ -128,22 +127,21 @@
 - sale: 대기중→진행중→배송중→배송완료→완료. 취소 ← {대기중,결제중,진행중}
 - custom: 대기중→접수→제작중→제작완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,접수}
 - sample: 접수→제작중→배송중→배송완료→완료. 취소 ← {대기중,결제중,접수}
-- repair: {발송대기,발송중,발송확인중,수거예정}→접수→수선중→수선완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,발송대기,발송중,발송확인중,수거예정} — 발송대기→접수는 §9 의도적 추가(고객 미등록 입고 시 관리자 강제 접수)
+- repair: {발송대기,발송중,발송확인중}→접수→수선중→수선완료→배송중→배송완료→완료. 취소 ← {대기중,결제중,발송대기,발송중,발송확인중} — 발송대기→접수는 §9 의도적 추가(고객 미등록 입고 시 관리자 강제 접수)
 - token: 취소 ← {대기중,결제중}만. **완료는 결제 confirm 전용.**
 
 롤백 (현재 상태가 {배송중,배송완료,완료,취소,수거완료,재발송}이면 불가):
 - sale: 결제중→대기중, 진행중→대기중
 - custom: 결제중→대기중, 접수→대기중, 제작중→접수, 제작완료→제작중
 - sample: 결제중→대기중, 접수→대기중, 제작중→접수
-- repair: 접수→(pickup? 수거예정 : no_tracking 영수증? 발송확인중 : 발송중), 수선중→접수, 수선완료→수선중
+- repair: 접수→order_status_logs에 보존된 직전 발송 상태(legacy 수거예정은 발송대기, 판별 불가하면 롤백 없음), 수선중→접수, 수선완료→수선중
 - token: 결제중→대기중
 
-고객 액션(get_order_customer_actions): claim_cancel(sale{대기중,진행중}/custom{대기중,접수}/sample{대기중,접수}/repair{대기중,발송대기,발송중,발송확인중,수거예정}/token{대기중}), claim_return·claim_exchange(sale {배송중,배송완료}만), confirm_purchase(비-token, {배송중,배송완료}, 활성 클레임 없음).
+고객 액션(get_order_customer_actions): claim_cancel(sale{대기중,진행중}/custom{대기중,접수}/sample{대기중,접수}/repair{대기중,발송대기,발송중,발송확인중}/token{대기중}), claim_return·claim_exchange(sale {배송중,배송완료}만), confirm_purchase(비-token, {배송중,배송완료}, 활성 클레임 없음).
 
 ## 9. 재구현 시 결정 사항 (원문과 의도적 차이)
 
 - 스케줄러는 Cloud Scheduler → `POST /batch/*` (pg_cron 이미 제거된 상태였음).
-- confirm 멱등 사전체크의 repair 상태는 RPC 권위 매핑(수거예정/발송대기)으로 통일 (엣지의 '발송대기' 고정은 버그였음).
 - use_design_tokens의 p_quality 파라미터는 비용 미반영 vestigial — 제거.
 - Toss 호출 금액은 항상 DB 재계산 합(원 동작 유지). 클라이언트 amount는 사전 일치 검증만.
 - stale 대기중 주문 자동 취소 시 해당 주문 소유자의 예약 쿠폰을 `reserved→active`로 복원한다(원문은 쿠폰이 영구 잠기는 누락이 있었음).

@@ -2,7 +2,6 @@ import type {
   CartItemOut,
   OrderItemIn,
   ReformPricingOut,
-  RepairShippingIn,
   ShippingAddressOut,
   UserCouponOut,
 } from "@essesion/api-client";
@@ -19,18 +18,13 @@ import {
   Callout,
   Checkbox,
   ContentPlaceholder,
-  canonicalizePhoneNumber,
   Divider,
   Grid,
   HStack,
   ImageFrame,
-  PhoneField,
-  RadioGroup,
-  RadioGroupItem,
   Skeleton,
   snackbar,
   Text,
-  TextField,
   VStack,
 } from "@essesion/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -57,7 +51,6 @@ import {
   shipmentInvalidReason,
 } from "@/features/repair-shipping/model/shipment";
 import { RepairShipmentFields } from "@/features/repair-shipping/ui/repair-shipment-fields";
-import { useDaumPostcode } from "@/features/shipping/model/use-daum-postcode";
 import { AddressSelectModal } from "@/features/shipping/ui/address-select-modal";
 import { ShippingAddressCard } from "@/features/shipping/ui/shipping-address-card";
 import { krw } from "@/pages/shop/constants";
@@ -79,43 +72,20 @@ export function OrderFormPage() {
   const reformPricingQuery = useQuery(getReformPricingOptions());
   const pendingSnapshot = useMemo(
     () =>
-      readPendingCheckout<{
-        repairShipping?: RepairShippingIn | null;
-        repairShipmentDraft?: unknown;
-      }>(CHECKOUT_PENDING_KEY, user?.id ?? null)?.snapshot ?? null,
+      readPendingCheckout<{ repairShipmentDraft?: unknown }>(
+        CHECKOUT_PENDING_KEY,
+        user?.id ?? null,
+      )?.snapshot ?? null,
     [user?.id],
   );
-  const pendingRepair = pendingSnapshot?.repairShipping ?? null;
   const pendingDraft = isRepairShipmentDraft(
     pendingSnapshot?.repairShipmentDraft,
   )
     ? pendingSnapshot.repairShipmentDraft
     : null;
-  const postcode = useDaumPostcode();
   const [address, setAddress] = useState<ShippingAddressOut | null>(null);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [couponItemId, setCouponItemId] = useState<string | null>(null);
-  const [repairMethod, setRepairMethod] = useState<"direct" | "pickup">(
-    pendingRepair?.method ?? "direct",
-  );
-  const [pickupSameAsShipping, setPickupSameAsShipping] = useState(
-    pendingRepair?.method !== "pickup",
-  );
-  const [pickupName, setPickupName] = useState(
-    pendingRepair?.pickup?.recipient_name ?? "",
-  );
-  const [pickupPhone, setPickupPhone] = useState(
-    pendingRepair?.pickup?.recipient_phone ?? "",
-  );
-  const [pickupPostalCode, setPickupPostalCode] = useState(
-    pendingRepair?.pickup?.postal_code ?? "",
-  );
-  const [pickupAddress, setPickupAddress] = useState(
-    pendingRepair?.pickup?.address ?? "",
-  );
-  const [pickupDetailAddress, setPickupDetailAddress] = useState(
-    pendingRepair?.pickup?.detail_address ?? "",
-  );
   const [shipEnabled, setShipEnabled] = useState(!!pendingDraft);
   const [shipForm, setShipForm] = useState(() =>
     shipmentFormFromDraft(pendingDraft),
@@ -142,50 +112,13 @@ export function OrderFormPage() {
   const couponItem =
     items.find((item) => item.item_id === couponItemId) ?? null;
   const hasReformItems = items.some((item) => item.item_type === "reform");
-  const repairShipping = useMemo<RepairShippingIn | null>(() => {
-    if (!hasReformItems) return null;
-    if (repairMethod === "direct") return { method: "direct", pickup: null };
-    if (pickupSameAsShipping && address) {
-      return {
-        method: "pickup",
-        pickup: {
-          recipient_name: address.recipient_name,
-          recipient_phone: address.recipient_phone,
-          postal_code: address.postal_code,
-          address: address.address,
-          detail_address: address.address_detail,
-        },
-      };
-    }
-    return {
-      method: "pickup",
-      pickup: {
-        recipient_name: pickupName.trim(),
-        recipient_phone: canonicalizePhoneNumber(pickupPhone),
-        postal_code: pickupPostalCode.trim() || null,
-        address: pickupAddress.trim(),
-        detail_address: pickupDetailAddress.trim() || null,
-      },
-    };
-  }, [
-    address,
-    hasReformItems,
-    pickupAddress,
-    pickupDetailAddress,
-    pickupName,
-    pickupPhone,
-    pickupPostalCode,
-    pickupSameAsShipping,
-    repairMethod,
-  ]);
   const totals = useMemo(
     () =>
       calculateTotals(
         items,
         hasReformItems ? reformPricingQuery.data : undefined,
-        repairMethod === "pickup",
       ),
-    [hasReformItems, items, reformPricingQuery.data, repairMethod],
+    [hasReformItems, items, reformPricingQuery.data],
   );
   const orderItems = useMemo<OrderItemIn[]>(
     () =>
@@ -225,14 +158,11 @@ export function OrderFormPage() {
       ? (items[0]?.product?.name ?? "넥타이 수선")
       : `${items[0]?.product?.name ?? "넥타이 수선"} 외 ${items.length - 1}건`;
   const repairShipmentDraft =
-    hasReformItems && repairMethod === "direct" && shipEnabled
-      ? shipmentDraftFromForm(shipForm)
-      : null;
+    hasReformItems && shipEnabled ? shipmentDraftFromForm(shipForm) : null;
   const snapshot = {
     cartItemIds,
     shippingAddressId: address?.id ?? null,
     items: orderItems,
-    repairShipping,
     repairShipmentDraft,
   };
   const payment = useCheckoutPayment({
@@ -244,11 +174,7 @@ export function OrderFormPage() {
     createOrder: async () => {
       if (!address) throw new Error("shipping address is required");
       const result = await createOrder.mutateAsync({
-        body: {
-          shipping_address_id: address.id,
-          items: orderItems,
-          repair_shipping: repairShipping,
-        },
+        body: { shipping_address_id: address.id, items: orderItems },
       });
       return {
         paymentGroupId: result.payment_group_id,
@@ -310,25 +236,15 @@ export function OrderFormPage() {
     orderItems.length !== cartItemIds.length;
   if (invalidItems) return <Navigate to="/cart" replace />;
 
-  const pickupInvalid =
-    hasReformItems &&
-    repairMethod === "pickup" &&
-    (!repairShipping?.pickup?.recipient_name.trim() ||
-      !/^01\d{8,9}$/.test(repairShipping.pickup.recipient_phone) ||
-      !repairShipping.pickup.address.trim());
   const shipInvalidReason =
-    hasReformItems && repairMethod === "direct" && shipEnabled
+    hasReformItems && shipEnabled
       ? photosUploading
         ? "발송 사진을 업로드하는 중입니다."
         : shipmentInvalidReason(shipForm)
       : null;
   const pricingReady = !hasReformItems || !!reformPricingQuery.data;
   const canPay =
-    !!address &&
-    totals.total > 0 &&
-    pricingReady &&
-    !pickupInvalid &&
-    !shipInvalidReason;
+    !!address && totals.total > 0 && pricingReady && !shipInvalidReason;
 
   return (
     <CheckoutShell
@@ -355,12 +271,6 @@ export function OrderFormPage() {
             label="배송비"
             value={`${krw.format(totals.shipping)}원`}
           />
-          {totals.pickup > 0 ? (
-            <SummaryCard.Row
-              label="방문 수거비"
-              value={`${krw.format(totals.pickup)}원`}
-            />
-          ) : null}
           <SummaryCard.Total
             label="결제 예정 금액"
             value={`${krw.format(totals.total)}원`}
@@ -374,9 +284,7 @@ export function OrderFormPage() {
           ? "배송지를 먼저 등록해 주세요."
           : !pricingReady
             ? "수선 비용을 확인하는 중입니다."
-            : pickupInvalid
-              ? "수거지 이름, 연락처, 주소를 입력해 주세요."
-              : (shipInvalidReason ?? undefined)
+            : (shipInvalidReason ?? undefined)
       }
       onPay={(widget) => void payment.pay(widget)}
     >
@@ -420,7 +328,7 @@ export function OrderFormPage() {
                 수선품 보내는 방법
               </Text>
               <Text textStyle="caption" color="fg.neutral-muted">
-                직접 발송하거나 기사 방문 수거를 신청할 수 있습니다.
+                결제 후 수선품을 직접 택배로 발송해 주세요.
               </Text>
             </VStack>
             {reformPricingQuery.isError ? (
@@ -429,128 +337,31 @@ export function OrderFormPage() {
                 title="수선 배송비를 불러오지 못했습니다"
                 description="잠시 후 다시 시도해 주세요."
               />
-            ) : (
-              <RadioGroup
-                value={repairMethod}
-                onValueChange={(value) =>
-                  setRepairMethod(value as "direct" | "pickup")
-                }
-              >
-                <RadioGroupItem
-                  value="direct"
-                  label="직접 발송할게요"
-                  description="결제 후 수선품을 발송하고 발송 확인을 해주세요."
+            ) : null}
+            <Box
+              bg="bg.neutral-weak"
+              borderRadius="r3"
+              p={{ base: "x4", md: "x5" }}
+            >
+              <VStack gap="x4" alignItems="stretch">
+                <Checkbox
+                  label="이미 발송했어요"
+                  checked={shipEnabled}
+                  onChange={(event) =>
+                    setShipEnabled(event.currentTarget.checked)
+                  }
                 />
-                <RadioGroupItem
-                  value="pickup"
-                  label="방문 수거를 신청할게요"
-                  description={`기사님이 방문해 수거합니다. +${krw.format(
-                    reformPricingQuery.data?.pickup_fee ?? 0,
-                  )}원`}
-                />
-              </RadioGroup>
-            )}
-
-            {repairMethod === "pickup" ? (
-              <Box
-                bg="bg.neutral-weak"
-                borderRadius="r3"
-                p={{ base: "x4", md: "x5" }}
-              >
-                <VStack gap="x4" alignItems="stretch">
-                  <Checkbox
-                    label="배송지와 같은 주소에서 수거"
-                    checked={pickupSameAsShipping}
-                    onChange={(event) =>
-                      setPickupSameAsShipping(event.currentTarget.checked)
+                {shipEnabled ? (
+                  <RepairShipmentFields
+                    state={shipForm}
+                    onChange={(patch) =>
+                      setShipForm((form) => ({ ...form, ...patch }))
                     }
+                    onUploadingChange={setPhotosUploading}
                   />
-                  {!pickupSameAsShipping ? (
-                    <Grid columns={{ base: 1, md: 2 }} gap="x3">
-                      <TextField
-                        label="수거지 이름"
-                        required
-                        value={pickupName}
-                        onChange={(event) =>
-                          setPickupName(event.currentTarget.value)
-                        }
-                      />
-                      <PhoneField
-                        label="연락처"
-                        required
-                        value={pickupPhone}
-                        onValueChange={setPickupPhone}
-                      />
-                      <HStack gap="x2" align="flex-end">
-                        <Box flexGrow minWidth={0}>
-                          <TextField
-                            label="우편번호"
-                            readOnly
-                            value={pickupPostalCode}
-                          />
-                        </Box>
-                        <ActionButton
-                          type="button"
-                          variant="neutralOutline"
-                          loading={postcode.loading}
-                          onClick={() =>
-                            void postcode
-                              .search(({ zonecode, address: found }) => {
-                                setPickupPostalCode(zonecode);
-                                setPickupAddress(found);
-                                setPickupDetailAddress("");
-                              })
-                              .catch(() =>
-                                snackbar("주소 검색을 불러오지 못했습니다."),
-                              )
-                          }
-                        >
-                          주소 검색
-                        </ActionButton>
-                      </HStack>
-                      <TextField
-                        label="주소"
-                        required
-                        readOnly
-                        value={pickupAddress}
-                      />
-                      <TextField
-                        label="상세 주소"
-                        value={pickupDetailAddress}
-                        onChange={(event) =>
-                          setPickupDetailAddress(event.currentTarget.value)
-                        }
-                      />
-                    </Grid>
-                  ) : null}
-                </VStack>
-              </Box>
-            ) : (
-              <Box
-                bg="bg.neutral-weak"
-                borderRadius="r3"
-                p={{ base: "x4", md: "x5" }}
-              >
-                <VStack gap="x4" alignItems="stretch">
-                  <Checkbox
-                    label="이미 발송했어요"
-                    checked={shipEnabled}
-                    onChange={(event) =>
-                      setShipEnabled(event.currentTarget.checked)
-                    }
-                  />
-                  {shipEnabled ? (
-                    <RepairShipmentFields
-                      state={shipForm}
-                      onChange={(patch) =>
-                        setShipForm((form) => ({ ...form, ...patch }))
-                      }
-                      onUploadingChange={setPhotosUploading}
-                    />
-                  ) : null}
-                </VStack>
-              </Box>
-            )}
+                ) : null}
+              </VStack>
+            </Box>
           </VStack>
         ) : null}
 
@@ -676,7 +487,6 @@ function OrderItemCard({
 function calculateTotals(
   items: CartItemOut[],
   reformPricing?: ReformPricingOut,
-  pickup = false,
 ) {
   const lines = items.reduce(
     (totals, item) => {
@@ -695,13 +505,7 @@ function calculateTotals(
   );
   const hasReform = items.some((item) => item.item_type === "reform");
   const shipping = hasReform ? (reformPricing?.shipping_cost ?? 0) : 0;
-  const pickupFee = hasReform && pickup ? (reformPricing?.pickup_fee ?? 0) : 0;
-  return {
-    ...lines,
-    shipping,
-    pickup: pickupFee,
-    total: lines.total + shipping + pickupFee,
-  };
+  return { ...lines, shipping, total: lines.total + shipping };
 }
 
 function OrderItemPrice({

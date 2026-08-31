@@ -34,7 +34,6 @@ from db.models.commerce import (
     OrderStatusLog,
     Product,
     ProductOption,
-    RepairPickupRequest,
     RepairShippingReceipt,
     UserCoupon,
 )
@@ -410,17 +409,6 @@ async def _ensure_content_visibility_orders(session) -> None:
             },
             quantity=1,
             unit_price=41000,
-        )
-    )
-    session.add(
-        RepairPickupRequest(
-            order_id=repair.id,
-            recipient_name="로컬고객",
-            recipient_phone="01012345678",
-            postal_code="04524",
-            address="서울시 중구 로컬로 1",
-            detail_address="콘텐츠 확인",
-            pickup_fee=5000,
         )
     )
     session.add(

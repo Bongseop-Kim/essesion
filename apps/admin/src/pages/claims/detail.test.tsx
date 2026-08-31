@@ -108,7 +108,6 @@ const claim: AdminClaimDetailOut = {
     return_tracking_number: null,
     resend_courier_company: null,
     resend_tracking_number: null,
-    repair_pickup: null,
     repair_receipts: [],
   },
   refund_data: null,

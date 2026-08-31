@@ -4,9 +4,21 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
 import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
+import {
+  clearNaverAutologinAttempt,
+  consumeNaverAutologinAttempt,
+} from "@/features/auth/model/naver-autologin";
 import { takeAuthReturn } from "@/features/auth/model/return-after-login";
 import { syncGuestCartToAccount } from "@/features/cart/model/use-cart";
 import { trackEvent } from "@/shared/lib/analytics";
+
+/** api가 ?error=로 넘기는 콜백 실패 코드 (docs/api-spec/domains.md §2). */
+const OAUTH_ERROR_FALLBACK = "로그인에 실패했습니다. 다시 시도해 주세요.";
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  access_denied: "로그인이 취소되었습니다.",
+  account_unavailable: "이 계정으로는 로그인할 수 없습니다.",
+  server_error: OAUTH_ERROR_FALLBACK,
+};
 
 /**
  * OAuth 콜백 착지점. api가 refresh 쿠키를 심고 이 경로로 리다이렉트한다.
@@ -18,6 +30,23 @@ export function AuthCallbackPage() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // api가 콜백 실패를 ?error=로 되돌린 경우 — 자동로그인 시도였으면 조용히 홈으로,
+    // 아니면 사유별 안내 후 로그인으로.
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+    const provider = params.get("provider");
+    if (error !== null) {
+      if (consumeNaverAutologinAttempt(provider)) {
+        navigate("/", { replace: true });
+      } else {
+        snackbar(OAUTH_ERROR_MESSAGES[error] ?? OAUTH_ERROR_FALLBACK);
+        navigate("/login", { replace: true });
+      }
+      return;
+    }
+    clearNaverAutologinAttempt(provider);
+
     (async () => {
       const ok = await bootstrapSession(() => cancelled);
       if (cancelled) return;

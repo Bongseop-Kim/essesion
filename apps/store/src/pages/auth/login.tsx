@@ -15,6 +15,7 @@ import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { z } from "zod";
 
+import { markNaverLoginUsed } from "@/features/auth/model/naver-autologin";
 import {
   AUTH_PROVIDERS,
   type AuthProviderId,
@@ -99,6 +100,7 @@ export function LoginPage() {
     saveAuthReturnIfEmpty({
       path: typeof fallback === "string" ? fallback : "/",
     });
+    if (provider === "naver") markNaverLoginUsed(); // 네이버앱 자동로그인 대상 표시
     // OAuth는 SDK가 아니라 전체 페이지 이동 — api가 콜백에서 refresh 쿠키를 심는다.
     window.location.href = `${API_BASE_URL}/auth/${provider}/login`;
   };

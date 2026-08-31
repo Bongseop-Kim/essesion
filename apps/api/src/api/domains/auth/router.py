@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import Literal
 
@@ -23,6 +24,8 @@ from api.errors import UnauthorizedError
 from api.security import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+logger = logging.getLogger(__name__)
 
 REFRESH_COOKIE = "essesion_store_refresh"
 ADMIN_REFRESH_COOKIE = "admin_refresh_token"
@@ -164,31 +167,69 @@ OAuthProvider = Literal["google", "kakao", "naver", "apple"]
 
 
 @router.get("/{provider}/login", include_in_schema=False)
-async def oauth_login(provider: OAuthProvider, request: Request, settings: SettingsDep):
+async def oauth_login(
+    provider: OAuthProvider,
+    request: Request,
+    settings: SettingsDep,
+    auth_type: Literal["autologin"] | None = None,
+):
     client = get_oauth_client(request, provider)
     redirect_uri = (
         str(request.url_for("oauth_callback", provider=provider))
         if settings.env in ("local", "test")
         else f"{settings.public_api_origin}/auth/{provider}/callback"
     )
-    return await client.authorize_redirect(request, redirect_uri)
+    # 네이버앱 자동로그인(개발가이드 §5.1) — authorize URL에 auth_type=autologin을 붙인다.
+    # 네이버 전용 파라미터라 다른 provider에서는 무시한다.
+    extra = {"auth_type": auth_type} if provider == "naver" and auth_type else {}
+    return await client.authorize_redirect(request, redirect_uri, **extra)
+
+
+def _oauth_failure_redirect(settings: Settings, provider: str, code: str) -> RedirectResponse:
+    """콜백은 브라우저 최상위 내비게이션의 종착지 — 실패해도 JSON을 반환하지 않는다.
+
+    JSON을 반환하면 API 콜백 URL에 응답 본문이 그대로 화면에 노출된다. 실패 사유는
+    프론트가 문구를 고를 수 있는 코드로만 넘긴다 (docs/api-spec/domains.md §1).
+    """
+    return RedirectResponse(
+        f"{settings.frontend_origin}/auth/callback?provider={provider}&error={code}",
+        status_code=303,
+    )
 
 
 async def _complete_oauth(
     provider: str, request: Request, session, settings: Settings
 ) -> RedirectResponse:
-    client = get_oauth_client(request, provider)
-    profile = await fetch_profile(client, provider, request)
-    user = await service.ensure_oauth_user(
-        session,
-        provider,
-        profile.provider_user_id,
-        profile.email,
-        profile.name,
-        email_verified=profile.email_verified,
+    stage = "provider"
+    try:
+        client = get_oauth_client(request, provider)
+        profile = await fetch_profile(client, provider, request)
+        stage = "account"
+        user = await service.ensure_oauth_user(
+            session,
+            provider,
+            profile.provider_user_id,
+            profile.email,
+            profile.name,
+            email_verified=profile.email_verified,
+        )
+        if profile.payaddress is not None:
+            await service.import_naver_payaddress(session, user, profile.payaddress)
+        raw = await service.issue_refresh_token(session, user.id, settings)
+    except UnauthorizedError:
+        # provider 단계 = 동의창 취소·네이버앱 자동로그인 실패(§5.1.5) 등 error 콜백,
+        # account 단계 = 비활성·비고객 계정 거부. 둘은 프론트 문구가 달라야 한다.
+        return _oauth_failure_redirect(
+            settings,
+            provider,
+            "access_denied" if stage == "provider" else "account_unavailable",
+        )
+    except Exception:
+        logger.exception("oauth 콜백 실패 (provider=%s, stage=%s)", provider, stage)
+        return _oauth_failure_redirect(settings, provider, "server_error")
+    response = RedirectResponse(
+        f"{settings.frontend_origin}/auth/callback?provider={provider}", status_code=303
     )
-    raw = await service.issue_refresh_token(session, user.id, settings)
-    response = RedirectResponse(f"{settings.frontend_origin}/auth/callback", status_code=303)
     _set_refresh_cookie(response, raw, settings)
     return response
 
@@ -204,10 +245,16 @@ async def oauth_callback(
 
 
 # Apple은 name/email scope 요청 시 response_mode=form_post — 콜백이 POST로 온다.
+# POST 본문 파싱에는 python-multipart가 필요하다(urlencoded도 마찬가지).
 @router.post("/apple/callback", include_in_schema=False)
 async def apple_oauth_callback(
     request: Request, session: SessionDep, settings: SettingsDep
 ) -> RedirectResponse:
+    # authlib의 form_post 분기는 GET 분기와 달리 error 파라미터를 보지 않는다 —
+    # 동의창 취소(error=user_cancelled_authorize)를 여기서 걸러 토큰 교환 왕복을 막는다.
+    form = await request.form()
+    if form.get("error"):
+        return _oauth_failure_redirect(settings, "apple", "access_denied")
     return await _complete_oauth("apple", request, session, settings)
 
 

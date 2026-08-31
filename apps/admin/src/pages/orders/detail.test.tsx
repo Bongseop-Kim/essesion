@@ -586,7 +586,7 @@ describe("OrderDetailPage", () => {
     expect(screen.queryByText(/사진|참고 이미지/)).toBeNull();
   });
 
-  it("수선 주문의 항목별 사양과 배송·수거·발송 정보를 모두 표시한다", async () => {
+  it("수선 주문의 항목별 사양과 배송·발송 정보를 모두 표시한다", async () => {
     const user = userEvent.setup();
     api.getOrder.mockResolvedValue({
       ...order,
@@ -601,16 +601,6 @@ describe("OrderDetailPage", () => {
         address_detail: "202호",
         delivery_request: "경비실에 맡겨 주세요.",
         delivery_memo: "오후 배송 희망",
-      },
-      repair_pickup: {
-        id: "pickup-1",
-        recipient_name: "수거 고객",
-        recipient_phone: "010-1111-2222",
-        postal_code: "04524",
-        address: "서울시 중구",
-        detail_address: "101호",
-        pickup_fee: 5_000,
-        created_at: "2026-07-15T01:00:00Z",
       },
       repair_receipts: [
         {
@@ -708,6 +698,5 @@ describe("OrderDetailPage", () => {
     await user.click(screen.getByRole("tab", { name: "배송" }));
     expect(screen.getByText("경비실에 맡겨 주세요.")).toBeTruthy();
     expect(screen.getByText("오후 배송 희망")).toBeTruthy();
-    expect(screen.getByText("수거 고객 · 010-1111-2222")).toBeTruthy();
   });
 });

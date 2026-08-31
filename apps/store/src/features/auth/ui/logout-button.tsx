@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { suppressNaverAutologin } from "@/features/auth/model/naver-autologin";
 import { clearStoreSession } from "@/shared/lib/api-client";
 
 type LogoutButtonProps = Pick<
@@ -31,6 +32,7 @@ export function LogoutButton({
   const logout = useMutation({
     ...logoutMutation(),
     onSettled: () => {
+      suppressNaverAutologin();
       clearStoreSession(true);
       snackbar("로그아웃되었습니다.");
       navigate("/", { replace: true });

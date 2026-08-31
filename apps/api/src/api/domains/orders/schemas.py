@@ -6,7 +6,6 @@ from typing import Annotated, Any, Literal
 from pydantic import AfterValidator, BaseModel, Field, field_validator
 
 from api.domains.reform.schemas import ReformDataIn
-from api.phone_numbers import normalize_mobile_phone
 from api.schemas import ORMModel
 
 MAX_ORDER_ITEMS = 50
@@ -50,28 +49,9 @@ class OrderItemIn(BaseModel):
     applied_user_coupon_id: uuid.UUID | None = None
 
 
-class RepairPickupIn(BaseModel):
-    recipient_name: str = Field(max_length=100)
-    recipient_phone: str = Field(max_length=32)
-    address: str = Field(max_length=500)
-    postal_code: str | None = Field(default=None, max_length=20)
-    detail_address: str | None = Field(default=None, max_length=500)
-
-    @field_validator("recipient_phone")
-    @classmethod
-    def normalize_recipient_phone(cls, value: str) -> str:
-        return normalize_mobile_phone(value)
-
-
-class RepairShippingIn(BaseModel):
-    method: Literal["direct", "pickup"]
-    pickup: RepairPickupIn | None = None
-
-
 class OrderCreateRequest(BaseModel):
     shipping_address_id: uuid.UUID
     items: list[OrderItemIn] = Field(max_length=MAX_ORDER_ITEMS)
-    repair_shipping: RepairShippingIn | None = None
 
     @field_validator("items")
     @classmethod
@@ -214,17 +194,6 @@ class OrderShippingAddressOut(ORMModel):
     delivery_request: str | None
 
 
-class RepairPickupOut(ORMModel):
-    id: uuid.UUID
-    recipient_name: str
-    recipient_phone: str
-    postal_code: str | None
-    address: str
-    detail_address: str | None
-    pickup_fee: int
-    created_at: datetime
-
-
 class RepairShippingReceiptOut(BaseModel):
     id: uuid.UUID
     receipt_type: str
@@ -247,7 +216,6 @@ class OrderImageReadUrlOut(BaseModel):
 
 class OrderDetailOut(OrderOut):
     shipping_address: OrderShippingAddressOut | None = None
-    repair_pickup: RepairPickupOut | None = None
     repair_receipts: list[RepairShippingReceiptOut] = Field(default_factory=list)
 
 

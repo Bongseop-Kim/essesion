@@ -404,8 +404,7 @@ export function OrderDetailPage() {
   const hasShippingTab =
     data !== undefined &&
     (data.order_type !== "token" ||
-      (data.shipping_address !== null && data.shipping_address !== undefined) ||
-      (data.repair_pickup !== null && data.repair_pickup !== undefined));
+      (data.shipping_address !== null && data.shipping_address !== undefined));
   const tab = orderTabFrom(params, hasShippingTab);
 
   const setTab = (value: string) => {
@@ -728,13 +727,11 @@ export function OrderDetailPage() {
                         ),
                       },
                       {
-                        label: "원금 − 할인 + 배송·수거비 = 주문 금액",
-                        // 수거비(repair_pickup)도 주문 금액에 들어간다 — 빼면 합이 order_amount와 어긋난다.
+                        label: "원금 − 할인 + 배송비 = 주문 금액",
                         value: formatAmountBreakdown(
                           data.original_price,
                           data.total_discount,
-                          data.shipping_cost +
-                            (data.repair_pickup?.pickup_fee ?? 0),
+                          data.shipping_cost,
                         ),
                       },
                       {
@@ -918,32 +915,6 @@ export function OrderDetailPage() {
                   ]}
                 />
               </AdminCard>
-
-              {data.repair_pickup ? (
-                <AdminCard title="수선 수거 요청">
-                  <DetailList
-                    items={[
-                      {
-                        label: "수거 대상",
-                        value: `${data.repair_pickup.recipient_name} · ${formatPhoneNumber(data.repair_pickup.recipient_phone)}`,
-                      },
-                      {
-                        label: "수거지",
-                        value:
-                          `${data.repair_pickup.postal_code ?? ""} ${data.repair_pickup.address} ${data.repair_pickup.detail_address ?? ""}`.trim(),
-                      },
-                      {
-                        label: "수거 비용",
-                        value: formatMoney(data.repair_pickup.pickup_fee),
-                      },
-                      {
-                        label: "요청 시각",
-                        value: formatDateTime(data.repair_pickup.created_at),
-                      },
-                    ]}
-                  />
-                </AdminCard>
-              ) : null}
             </VStack>
           </TabContent>
         ) : null}

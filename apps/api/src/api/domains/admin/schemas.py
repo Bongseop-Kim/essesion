@@ -8,7 +8,6 @@ from api.domains.orders.schemas import (
     ClaimBadgeOut,
     OrderItemOut,
     OrderShippingAddressOut,
-    RepairPickupOut,
     RepairShippingReceiptOut,
 )
 from api.schemas import ORMModel
@@ -36,7 +35,6 @@ OrderStatusFilter = Literal[
     "발송대기",
     "발송중",
     "발송확인중",
-    "수거예정",
 ]
 OrderSort = Literal["created_at", "updated_at", "order_number", "order_amount", "status"]
 SortDirection = Literal["asc", "desc"]
@@ -202,5 +200,4 @@ class AdminOrderDetailOut(AdminOrderSummaryOut):
     status_logs: list[AdminOrderStatusLogOut] = Field(default_factory=list)
     active_claim: AdminActiveClaimOut | None = None
     related_orders: list[AdminRelatedOrderOut] = Field(default_factory=list)
-    repair_pickup: RepairPickupOut | None = None
     repair_receipts: list[RepairShippingReceiptOut] = Field(default_factory=list)

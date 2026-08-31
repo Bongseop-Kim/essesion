@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from db.models.commerce import RepairPickupRequest, RepairShippingReceipt
+from db.models.commerce import RepairShippingReceipt
 from db.models.images import Image
 from sqlalchemy import select
 
@@ -107,15 +107,6 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
     other = await make_user(db_session)
     admin = await make_admin(db_session)
     order = await make_order(db_session, owner, order_type="repair", status="발송확인중")
-    pickup = RepairPickupRequest(
-        order_id=order.id,
-        recipient_name="수거 고객",
-        recipient_phone="01012345678",
-        postal_code="04524",
-        address="서울시 중구",
-        detail_address="101호",
-        pickup_fee=5000,
-    )
     reform_key = "uploads/reform_upload/tie.png"
     receipt_key = "uploads/repair_shipping_upload/receipt.png"
     expired_reform_key = "uploads/reform_upload/expired.png"
@@ -170,7 +161,6 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
     )
     db_session.add_all(
         [
-            pickup,
             reform_image,
             receipt_image,
             expired_reform_image,
@@ -185,7 +175,6 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
     owner_headers = auth_headers(owner, settings)
     detail = await client.get(f"/orders/{order.id}", headers=owner_headers)
     assert detail.status_code == 200, detail.text
-    assert detail.json()["repair_pickup"]["recipient_name"] == "수거 고객"
     assert detail.json()["repair_receipts"][0] == {
         "id": str(receipt.id),
         "receipt_type": "no_tracking",
@@ -229,7 +218,6 @@ async def test_repair_detail_and_photos_are_visible_only_through_order_relation(
         f"/admin/orders/{order.id}", headers=auth_headers(admin, settings)
     )
     assert admin_detail.status_code == 200, admin_detail.text
-    assert admin_detail.json()["repair_pickup"]["recipient_phone"] == "01012345678"
     assert admin_detail.json()["repair_receipts"][0]["photo_count"] == 2
 
     admin_images = await client.get(

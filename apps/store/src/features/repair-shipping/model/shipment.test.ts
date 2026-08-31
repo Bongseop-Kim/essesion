@@ -223,12 +223,6 @@ describe("planRepairOutcome", () => {
     ).toEqual({ kind: "none" });
   });
 
-  it("수거예정 → pickup", () => {
-    expect(planRepairOutcome([order({ status: "수거예정" })], draft)).toEqual({
-      kind: "pickup",
-    });
-  });
-
   it("발송대기 + draft → auto-submit", () => {
     expect(planRepairOutcome([order({})], draft)).toEqual({
       kind: "auto-submit",

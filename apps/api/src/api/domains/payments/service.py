@@ -23,7 +23,6 @@ from db.models.commerce import (
     Order,
     OrderItem,
     PaymentIncident,
-    RepairPickupRequest,
     UserCoupon,
 )
 from db.models.tokens import DesignToken
@@ -91,16 +90,13 @@ def mask_payment_key(payment_key: str) -> str:
     return "****" if len(payment_key) <= 8 else "****" + payment_key[-8:]
 
 
-async def _post_status(session: AsyncSession, order: Order) -> str:
+def _post_status(order: Order) -> str:
     if order.order_type == "sale":
         return "진행중"
     if order.order_type == "token":
         return "완료"
     if order.order_type == "repair":
-        has_pickup = await session.scalar(
-            select(exists().where(RepairPickupRequest.order_id == order.id))
-        )
-        return "수거예정" if has_pickup else "발송대기"
+        return "발송대기"  # 고객이 직접 발송한다 — money.md §7
     return "접수"
 
 
@@ -233,7 +229,7 @@ async def confirm_payment(
             code="payment_reconciliation_required",
         )
     # 확정 시 기록할 결제후 상태 — lock으로 상태가 고정된 뒤 계산한다.
-    post_map = {o.id: await _post_status(session, o) for o in orders}
+    post_map = {o.id: _post_status(o) for o in orders}
     for order in orders:
         if order.status == "대기중":
             log_status(session, order, "결제중", changed_by=user.id, memo="payment lock")
@@ -478,7 +474,7 @@ async def reconcile_confirmed_payment(
     if not orders:
         await session.commit()
         return False, "missing_payment_group"
-    post_map = {order.id: await _post_status(session, order) for order in orders}
+    post_map = {order.id: _post_status(order) for order in orders}
     if all(order.status == post_map[order.id] for order in orders):
         if any(order.payment_key != payment_key for order in orders):
             await session.commit()
@@ -567,7 +563,7 @@ async def confirmed_payment_is_consistent(
     orders = await _group_orders(session, group_id, for_update=True)
     if not orders:
         return False
-    post_map = {order.id: await _post_status(session, order) for order in orders}
+    post_map = {order.id: _post_status(order) for order in orders}
     return all(
         order.status == post_map[order.id] and order.payment_key == payment_key for order in orders
     )
@@ -961,7 +957,7 @@ async def reconcile_from_webhook(
     orders = await _group_orders(session, group_id, for_update=True)
     if not orders:
         return {"handled": False, "reason": "unknown_order"}
-    post_map = {o.id: await _post_status(session, o) for o in orders}
+    post_map = {o.id: _post_status(o) for o in orders}
 
     if toss_status == "DONE":
         total = sum(o.total_price for o in orders)

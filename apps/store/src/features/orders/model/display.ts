@@ -21,7 +21,6 @@ const PROGRESS_STATUSES = new Set([
   "수선중",
   "발송중",
   "발송확인중",
-  "수거예정",
 ]);
 
 export function orderStatusTone(

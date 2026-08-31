@@ -277,7 +277,8 @@ sequenceDiagram
 - refresh token은 사용할 때마다 회전한다. 이미 사용한 token이 재등장하면 같은 사용자·같은 세션 종류(store/admin)의 활성 refresh token을 모두 폐기한다.
 - 비밀번호 계정은 Argon2id를 사용하며 **공개 회원가입이 없다**. 로컬 seed·운영자 bootstrap 용도다.
 - 소셜 로그인은 **Google·Kakao·Naver·Apple 4종이 모두 구현**되어 있다(`SUPPORTED_PROVIDERS`). Apple은 `.p8` 키로 서명한 ES256 client_secret JWT와 `response_mode=form_post` 크로스사이트 POST 콜백을 쓰므로 세션 쿠키가 비로컬에서 `SameSite=None`이다.
-- 콘솔 등록이 끝나지 않은 provider는 store가 `AUTH_PROVIDERS[].comingSoon` 문구로 게이팅해 OAuth로 보내지 않는다(현재 네이버). 서버 쪽 설정 상태는 `/readyz`의 `oauth_*` capability로 드러난다.
+- 콘솔 등록이 끝나지 않은 provider는 store가 `AUTH_PROVIDERS[].comingSoon` 문구로 게이팅해 OAuth로 보내지 않는다(현재 4종 모두 개통). 서버 쪽 설정 상태는 `/readyz`의 `oauth_*` capability로 드러난다.
+- 네이버는 로그인 외에 **네이버페이 배송지 1회 수입**(callback 시점, 저장 배송지 0건인 사용자만, 토큰 미저장)과 **네이버앱 자동로그인**(`auth_type=autologin`, 시도 조건은 store 판단)을 지원한다. 계약 상세는 `docs/api-spec/domains.md` §2.
 - OAuth 이메일 계정 연결은 provider가 검증한 이메일만 허용한다.
 - 운영 컷오버 시 기존 Supabase 세션은 이관하지 않고 전원 재로그인한다.
 

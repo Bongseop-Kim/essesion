@@ -10,9 +10,6 @@ export function useReformPricingTokens() {
     REFORM_SHIPPING_COST: pricingQuery.data
       ? krw.format(pricingQuery.data.shipping_cost)
       : "—",
-    REFORM_PICKUP_FEE: pricingQuery.data
-      ? krw.format(pricingQuery.data.pickup_fee)
-      : "—",
   };
   const pricingStatus = pricingQuery.isError
     ? "수선 배송 요금을 불러오지 못했습니다. 관련 금액은 —로 표시됩니다."
@@ -20,8 +17,6 @@ export function useReformPricingTokens() {
       ? "수선 배송 요금을 불러오는 중입니다. 관련 금액은 잠시 —로 표시됩니다."
       : null;
   const applyReformFees = (text: string) =>
-    text
-      .replaceAll("{{REFORM_SHIPPING_COST}}", fees.REFORM_SHIPPING_COST)
-      .replaceAll("{{REFORM_PICKUP_FEE}}", fees.REFORM_PICKUP_FEE);
+    text.replaceAll("{{REFORM_SHIPPING_COST}}", fees.REFORM_SHIPPING_COST);
   return { pricingStatus, applyReformFees };
 }

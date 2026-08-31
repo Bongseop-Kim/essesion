@@ -519,16 +519,6 @@
             ],
             "title": "Order Tracking Number"
           },
-          "repair_pickup": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RepairPickupOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "repair_receipts": {
             "items": {
               "$ref": "#/components/schemas/RepairShippingReceiptOut"
@@ -600,8 +590,7 @@
           "return_courier_company",
           "return_tracking_number",
           "resend_courier_company",
-          "resend_tracking_number",
-          "repair_pickup"
+          "resend_tracking_number"
         ],
         "title": "AdminClaimShippingOut",
         "type": "object"
@@ -2114,16 +2103,6 @@
             },
             "title": "Related Orders",
             "type": "array"
-          },
-          "repair_pickup": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RepairPickupOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "repair_receipts": {
             "items": {
@@ -10334,16 +10313,6 @@
             "title": "Items",
             "type": "array"
           },
-          "repair_shipping": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RepairShippingIn"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "shipping_address_id": {
             "format": "uuid",
             "title": "Shipping Address Id",
@@ -10514,16 +10483,6 @@
               }
             ],
             "title": "Payment Group Id"
-          },
-          "repair_pickup": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RepairPickupOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "repair_receipts": {
             "items": {
@@ -12296,7 +12255,7 @@
             "items": {
               "$ref": "#/components/schemas/PricingUpdateItem"
             },
-            "maxItems": 34,
+            "maxItems": 33,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -13055,10 +13014,6 @@
             "title": "Automatic Cost",
             "type": "integer"
           },
-          "pickup_fee": {
-            "title": "Pickup Fee",
-            "type": "integer"
-          },
           "restoration_cost": {
             "title": "Restoration Cost",
             "type": "integer"
@@ -13082,8 +13037,7 @@
           "restoration_cost",
           "automatic_combined_cost",
           "width_restoration_cost",
-          "shipping_cost",
-          "pickup_fee"
+          "shipping_cost"
         ],
         "title": "ReformPricingOut",
         "type": "object"
@@ -13401,147 +13355,6 @@
           "object_key"
         ],
         "title": "RepairPhotoIn",
-        "type": "object"
-      },
-      "RepairPickupIn": {
-        "properties": {
-          "address": {
-            "maxLength": 500,
-            "title": "Address",
-            "type": "string"
-          },
-          "detail_address": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail Address"
-          },
-          "postal_code": {
-            "anyOf": [
-              {
-                "maxLength": 20,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Postal Code"
-          },
-          "recipient_name": {
-            "maxLength": 100,
-            "title": "Recipient Name",
-            "type": "string"
-          },
-          "recipient_phone": {
-            "maxLength": 32,
-            "title": "Recipient Phone",
-            "type": "string"
-          }
-        },
-        "required": [
-          "recipient_name",
-          "recipient_phone",
-          "address"
-        ],
-        "title": "RepairPickupIn",
-        "type": "object"
-      },
-      "RepairPickupOut": {
-        "properties": {
-          "address": {
-            "title": "Address",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "detail_address": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail Address"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "pickup_fee": {
-            "title": "Pickup Fee",
-            "type": "integer"
-          },
-          "postal_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Postal Code"
-          },
-          "recipient_name": {
-            "title": "Recipient Name",
-            "type": "string"
-          },
-          "recipient_phone": {
-            "title": "Recipient Phone",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "recipient_name",
-          "recipient_phone",
-          "postal_code",
-          "address",
-          "detail_address",
-          "pickup_fee",
-          "created_at"
-        ],
-        "title": "RepairPickupOut",
-        "type": "object"
-      },
-      "RepairShippingIn": {
-        "properties": {
-          "method": {
-            "enum": [
-              "direct",
-              "pickup"
-            ],
-            "title": "Method",
-            "type": "string"
-          },
-          "pickup": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RepairPickupIn"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "method"
-        ],
-        "title": "RepairShippingIn",
         "type": "object"
       },
       "RepairShippingReceiptOut": {
@@ -19860,8 +19673,7 @@
                 "수선완료",
                 "발송대기",
                 "발송중",
-                "발송확인중",
-                "수거예정"
+                "발송확인중"
               ],
               "title": "Status",
               "type": "string"

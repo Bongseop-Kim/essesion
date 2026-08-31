@@ -101,7 +101,7 @@ export function RefundPolicyContent() {
       <PolicySection title="10. 수선 주문">
         <PolicyList
           items={[
-            "수선품 발송 또는 방문 수거 전에는 전액 취소할 수 있습니다.",
+            "수선품 발송 전에는 전액 취소할 수 있습니다.",
             "운송이 시작된 뒤에는 실제 발생한 왕복 배송비가 공제될 수 있습니다.",
             "수선 작업이 시작된 뒤에는 진행된 작업과 실제 비용을 기준으로 환불 가능 여부를 안내합니다.",
             "합의한 수선 내용과 다르거나 작업상 하자가 있는 경우 재수선 또는 환불을 협의합니다.",
@@ -125,7 +125,7 @@ export function RefundPolicyContent() {
           정책이 변경되면 적용일과 주요 내용을 공지사항에 안내합니다.
         </Text>
         <PolicyInfoBox>
-          <Text textStyle="labelSm">시행일: 2026년 7월 17일</Text>
+          <Text textStyle="labelSm">시행일: 2026년 8월 31일</Text>
         </PolicyInfoBox>
       </PolicySection>
     </PolicyDocument>

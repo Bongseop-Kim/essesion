@@ -196,20 +196,10 @@ describe("OrderDetailPage", () => {
     ).toBe("https://storage.test/custom.png");
   });
 
-  it("수선 사양과 수거·발송 접수 사진을 되읽는다", async () => {
+  it("수선 사양과 발송 접수 사진을 되읽는다", async () => {
     api.detail.mockResolvedValue({
       ...order,
       order_type: "repair",
-      repair_pickup: {
-        id: "pickup-1",
-        recipient_name: "수거 고객",
-        recipient_phone: "01012345678",
-        postal_code: "04524",
-        address: "서울시 중구",
-        detail_address: "101호",
-        pickup_fee: 5000,
-        created_at: "2026-07-15T01:00:00Z",
-      },
       repair_receipts: [
         {
           id: "receipt-1",
@@ -259,7 +249,6 @@ describe("OrderDetailPage", () => {
     expect(await screen.findByText("자동 타이 방식")).toBeTruthy();
     expect(screen.getByText("175cm")).toBeTruthy();
     expect(screen.getByText("원형을 유지해 주세요.")).toBeTruthy();
-    expect(screen.getByText("수거 고객 · 010-1234-5678")).toBeTruthy();
     expect(screen.getByText("송장 분실")).toBeTruthy();
     expect(screen.getByText("송장을 분실했습니다.")).toBeTruthy();
 
