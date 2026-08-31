@@ -29,14 +29,13 @@ const NOTICE_DATA = [
   {
     id: "reform-shipping-fees",
     category: "수선",
-    title: "수선품 배송 및 방문 수거 비용 안내",
+    title: "수선품 배송 비용 안내",
     content: `수선 주문의 배송 비용을 안내합니다.
 
 ■ 비용
 - 수선 완료품 반환 배송: {{REFORM_SHIPPING_COST}}원
-- 방문 수거 신청: {{REFORM_PICKUP_FEE}}원 추가
 
-직접 발송을 선택한 경우 고객이 수선품을 보내는 비용은 별도입니다. 제주 및 도서산간 지역은 추가 비용이 발생할 수 있습니다.`,
+수선품을 보내실 때의 발송 비용은 고객 부담입니다. 제주 및 도서산간 지역은 추가 비용이 발생할 수 있습니다.`,
     pinned: true,
     is_visible: true,
     published_at: "2026-07-10",

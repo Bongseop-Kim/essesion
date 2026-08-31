@@ -3,7 +3,6 @@ import type { RepairShipmentDraft } from "./shipment";
 
 export type RepairPostConfirmPlan =
   | { kind: "none" }
-  | { kind: "pickup" }
   | { kind: "submitted" }
   | { kind: "auto-submit"; orderId: string; draft: RepairShipmentDraft }
   | { kind: "register-cta"; orderId: string };
@@ -17,7 +16,6 @@ export function planRepairOutcome(
 ): RepairPostConfirmPlan {
   const repair = orders.find((order) => order.order_type === "repair");
   if (!repair) return { kind: "none" };
-  if (repair.status === "수거예정") return { kind: "pickup" };
   // 발송대기가 아니면 이미 등록됨(발송중·발송확인중) — 멱등 재confirm 시 재제출 방지
   if (repair.status !== "발송대기") return { kind: "submitted" };
   if (draft) return { kind: "auto-submit", orderId: repair.order_id, draft };

@@ -1115,6 +1115,120 @@ async def test_apple_profile_reads_name_from_first_auth_form_user(raw_user, expe
     assert profile.email_verified is False
 
 
+class _AppleFormPostClient:
+    """authlib의 form_post 분기와 같은 방식으로 POST 본문에서 code/state를 읽는 fake."""
+
+    def __init__(self, token: dict):
+        self.token = token
+        self.seen: dict[str, str] = {}
+
+    async def authorize_access_token(self, request: Request) -> dict:
+        async with request.form() as form:
+            self.seen = {"code": str(form.get("code")), "state": str(form.get("state"))}
+        return self.token
+
+
+async def test_apple_callback_parses_real_form_post_body(client, db_session, settings, monkeypatch):
+    """Apple만 response_mode=form_post — Starlette 실제 form 파서를 타는 유일한 경로.
+
+    python-multipart가 없으면 form 파싱이 AssertionError로 죽어 콜백 URL에 500 JSON이
+    노출된다(_FormRequest 스텁 테스트는 이 경로를 우회하므로 잡지 못한다).
+    """
+    await seed_setting(db_session, "design_token_initial_grant", "30")
+    oauth_client = _AppleFormPostClient(
+        {"userinfo": {"sub": "apple-sub", "email": "apple@test.local", "email_verified": "true"}}
+    )
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: oauth_client,
+    )
+
+    res = await client.post(
+        "/auth/apple/callback",
+        data={
+            "code": "apple-code",
+            "state": "apple-state",
+            "user": '{"name": {"lastName": "김", "firstName": "사과"}}',
+        },
+        follow_redirects=False,
+    )
+
+    assert res.status_code == 303
+    assert res.headers["location"] == f"{settings.frontend_origin}/auth/callback"
+    assert REFRESH_COOKIE in res.cookies
+    assert oauth_client.seen == {"code": "apple-code", "state": "apple-state"}
+    user = await db_session.scalar(select(User).where(User.email == "apple@test.local"))
+    assert user is not None
+    assert user.name == "김사과"  # 최초 인가 form의 user 필드에서만 오는 이름
+
+
+async def test_apple_callback_form_error_skips_token_exchange(client, settings, monkeypatch):
+    """authlib POST 분기는 error를 보지 않으므로 라우터가 직접 취소를 걸러낸다."""
+
+    def _unexpected(_request, _provider):
+        raise AssertionError("취소 콜백에서 토큰 교환을 시도했다")
+
+    monkeypatch.setattr("api.domains.auth.router.get_oauth_client", _unexpected)
+
+    res = await client.post(
+        "/auth/apple/callback",
+        data={"error": "user_cancelled_authorize", "state": "apple-state"},
+        follow_redirects=False,
+    )
+
+    assert res.status_code == 303
+    assert (
+        res.headers["location"] == f"{settings.frontend_origin}/auth/callback?error=access_denied"
+    )
+
+
+async def test_oauth_callback_redirects_instead_of_leaking_json_on_unexpected_error(
+    client, settings, monkeypatch
+):
+    """콜백은 브라우저 최상위 내비게이션 종착지 — 예상 못 한 실패도 JSON을 노출하지 않는다."""
+
+    class _BrokenClient:
+        async def authorize_access_token(self, request: Request) -> dict:
+            raise RuntimeError("token endpoint down")
+
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: _BrokenClient(),
+    )
+
+    res = await client.get("/auth/google/callback?code=x&state=y", follow_redirects=False)
+
+    assert res.status_code == 303
+    assert res.headers["location"] == f"{settings.frontend_origin}/auth/callback?error=server_error"
+
+
+async def test_oauth_callback_marks_rejected_account_separately_from_cancel(
+    client, db_session, settings, monkeypatch
+):
+    """비고객 계정 거부는 취소와 다른 코드로 — 프론트 문구가 갈린다."""
+    await make_user(db_session, role="admin", email="admin-social@test.local")
+    monkeypatch.setattr(
+        "api.domains.auth.router.get_oauth_client",
+        lambda _request, _provider: _OAuthProfileClient(
+            token={
+                "userinfo": {
+                    "sub": "google-admin",
+                    "email": "admin-social@test.local",
+                    "email_verified": True,
+                }
+            }
+        ),
+    )
+
+    res = await client.get("/auth/google/callback?code=x&state=y", follow_redirects=False)
+
+    assert res.status_code == 303
+    assert (
+        res.headers["location"]
+        == f"{settings.frontend_origin}/auth/callback?error=account_unavailable"
+    )
+
+
 async def test_oauth_same_identity_first_callback_race_reuses_winner(app, db_session):
     await seed_setting(db_session, "design_token_initial_grant", "30")
 

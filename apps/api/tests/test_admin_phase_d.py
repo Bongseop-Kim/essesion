@@ -20,7 +20,6 @@ from db.models.commerce import (
     OrderItem,
     OrderStatusLog,
     PaymentIncident,
-    RepairPickupRequest,
     RepairShippingReceipt,
 )
 from db.models.tokens import DesignToken
@@ -173,15 +172,6 @@ async def test_claim_list_detail_shipping_timeline_and_safe_photos(client, db_se
                 memo="배송 확인",
                 request_id="req-order",
             ),
-            RepairPickupRequest(
-                order_id=order.id,
-                recipient_name="수거인",
-                recipient_phone="01033334444",
-                postal_code="12345",
-                address="서울시 수거로 2",
-                detail_address="202호",
-                pickup_fee=4500,
-            ),
             RepairShippingReceipt(
                 order_id=order.id,
                 receipt_type="tracking",
@@ -261,7 +251,6 @@ async def test_claim_list_detail_shipping_timeline_and_safe_photos(client, db_se
     assert body["shipping"]["shipping_address"]["recipient_name"] == "거래시점 수령인"
     assert body["shipping"]["return_tracking_number"] == "RETURN-TRACK"
     assert body["shipping"]["resend_tracking_number"] == "RESEND-TRACK"
-    assert body["shipping"]["repair_pickup"]["pickup_fee"] == 4500
     assert body["shipping"]["repair_receipts"][0]["photo_count"] == 2
     assert "private/claim" not in detail.text
     assert body["status_logs"][0]["request_id"] == "req-claim"

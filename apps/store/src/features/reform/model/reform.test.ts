@@ -16,7 +16,6 @@ const pricing: ReformPricingOut = {
   automatic_combined_cost: 40000,
   width_restoration_cost: 30000,
   shipping_cost: 4500,
-  pickup_fee: 5000,
 };
 
 function tie(overrides: Partial<ReformTieForm> = {}): ReformTieForm {

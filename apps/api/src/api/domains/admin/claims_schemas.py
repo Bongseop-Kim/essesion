@@ -7,7 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.domains.orders.schemas import (
     OrderItemOut,
     OrderShippingAddressOut,
-    RepairPickupOut,
     RepairShippingReceiptOut,
 )
 from api.schemas import ORMModel
@@ -126,7 +125,6 @@ class AdminClaimShippingOut(BaseModel):
     return_tracking_number: str | None
     resend_courier_company: str | None
     resend_tracking_number: str | None
-    repair_pickup: RepairPickupOut | None
     repair_receipts: list[RepairShippingReceiptOut] = Field(default_factory=list)
 
 

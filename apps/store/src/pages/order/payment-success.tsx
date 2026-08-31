@@ -1,4 +1,3 @@
-import type { RepairShippingIn } from "@essesion/api-client";
 import {
   ActionButton,
   Box,
@@ -36,14 +35,12 @@ import { ResultPageLayout } from "@/shared/ui/result-page-layout";
 type CheckoutSnapshot = {
   cartItemIds?: string[];
   customOrder?: unknown;
-  repairShipping?: RepairShippingIn | null;
   repairShipmentDraft?: unknown;
   returnPath?: string;
   returnState?: unknown;
 };
 
 type RepairResultView =
-  | { kind: "pickup" }
   | { kind: "submitted" }
   | {
       kind: "register-cta";
@@ -119,7 +116,7 @@ export function PaymentSuccessPage() {
             prefill: plan.draft,
           };
         }
-      } else if (plan.kind === "pickup" || plan.kind === "submitted") {
+      } else if (plan.kind === "submitted") {
         view = { kind: plan.kind };
       } else if (plan.kind === "register-cta") {
         view = { kind: "register-cta", orderId: plan.orderId, prefill: null };
@@ -233,20 +230,16 @@ export function PaymentSuccessPage() {
         <ResultSection
           asset={<ResultEmoji emoji="🎉" />}
           title={
-            repairResult?.kind === "pickup"
-              ? "방문 수거 신청이 완료되었습니다"
-              : repairResult
-                ? "수선 접수가 완료되었습니다"
-                : "결제가 완료되었습니다"
+            repairResult
+              ? "수선 접수가 완료되었습니다"
+              : "결제가 완료되었습니다"
           }
           description={
-            repairResult?.kind === "pickup"
-              ? "기사님이 입력한 수거지에 방문할 예정입니다."
-              : repairResult?.kind === "submitted"
-                ? "발송 정보까지 등록되었습니다. 진행 상황은 주문 내역에서 확인할 수 있습니다."
-                : repairResult?.kind === "register-cta"
-                  ? "수선품을 발송한 뒤 발송 확인을 해주세요."
-                  : "주문이 정상적으로 접수되었습니다."
+            repairResult?.kind === "submitted"
+              ? "발송 정보까지 등록되었습니다. 진행 상황은 주문 내역에서 확인할 수 있습니다."
+              : repairResult?.kind === "register-cta"
+                ? "수선품을 발송한 뒤 발송 확인을 해주세요."
+                : "주문이 정상적으로 접수되었습니다."
           }
         />
         <VStack gap="x2" align="center">

@@ -211,7 +211,7 @@ class Order(TimestampMixin, Base):
         CheckConstraint(
             "status IN ('대기중', '결제중', '진행중', '배송중', '배송완료', '완료', '취소', "
             "'실패', '접수', '제작중', '제작완료', '수선중', '수선완료', '발송대기', '발송중', "
-            "'발송확인중', '수거예정')",
+            "'발송확인중')",
             name="status",
         ),
         CheckConstraint("total_price >= 0", name="total_price"),
@@ -490,21 +490,6 @@ class QuoteRequestStatusLog(CreatedAtMixin, Base):
     new_status: Mapped[str]
     memo: Mapped[str | None]
     request_id: Mapped[str | None]
-
-
-class RepairPickupRequest(CreatedAtMixin, Base):
-    __tablename__ = "repair_pickup_requests"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orders.id"), unique=True)
-    recipient_name: Mapped[str]
-    recipient_phone: Mapped[str]
-    postal_code: Mapped[str | None]
-    address: Mapped[str]
-    detail_address: Mapped[str | None]
-    pickup_fee: Mapped[int]
-
-    __table_args__ = (CheckConstraint("pickup_fee >= 0", name="pickup_fee"),)
 
 
 class RepairShippingReceipt(CreatedAtMixin, Base):

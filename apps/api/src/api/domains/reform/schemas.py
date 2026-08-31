@@ -12,7 +12,6 @@ class ReformPricingOut(StrictModel):
     automatic_combined_cost: int
     width_restoration_cost: int
     shipping_cost: int
-    pickup_fee: int
 
 
 class ReformImageIn(StrictModel):

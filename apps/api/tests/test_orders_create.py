@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from db.models.commerce import Order, ProductOption, RepairPickupRequest, UserCoupon
+from db.models.commerce import Order, ProductOption, UserCoupon
 from db.models.images import Image
 from sqlalchemy import select
 
@@ -25,7 +25,6 @@ REFORM_CONSTANTS = {
     "REFORM_AUTOMATIC_COMBINED_COST": 8000,
     "REFORM_WIDTH_RESTORATION_COST": 3000,
     "REFORM_SHIPPING_COST": 4500,
-    "REFORM_PICKUP_FEE": 5000,
 }
 
 
@@ -188,7 +187,7 @@ async def test_fixed_coupon_applies_once_per_line(client, db_session, settings):
     assert res.json()["total_amount"] == 20000 - 5000
 
 
-async def test_repair_order_with_pickup_splits_group(client, db_session, settings):
+async def test_repair_order_splits_group(client, db_session, settings):
     user, address, product = await _setup(db_session)
     await seed_pricing(db_session, REFORM_CONSTANTS, category="reform")
     object_key = "uploads/reform_upload/order-tie.png"
@@ -227,14 +226,6 @@ async def test_repair_order_with_pickup_splits_group(client, db_session, setting
                     },
                 },
             ],
-            "repair_shipping": {
-                "method": "pickup",
-                "pickup": {
-                    "recipient_name": "김수거",
-                    "recipient_phone": "01011112222",
-                    "address": "서울시",
-                },
-            },
         },
         headers=auth_headers(user, settings),
     )
@@ -242,14 +233,8 @@ async def test_repair_order_with_pickup_splits_group(client, db_session, setting
     body = res.json()
     types = {o["order_type"] for o in body["orders"]}
     assert types == {"sale", "repair"}  # 같은 결제 그룹에 분리 생성
-    # repair 합계: (5000+3000) - 0 + 4500(배송) + 5000(수거) = 17500, sale 10000
-    assert body["total_amount"] == 27500
-
-    repair_id = next(o["order_id"] for o in body["orders"] if o["order_type"] == "repair")
-    pickup = await db_session.scalar(
-        select(RepairPickupRequest).where(RepairPickupRequest.order_id == repair_id)
-    )
-    assert pickup is not None and pickup.pickup_fee == 5000
+    # repair 합계: (5000+3000) - 0 + 4500(배송) = 12500, sale 10000
+    assert body["total_amount"] == 22500
 
     orders = (await db_session.scalars(select(Order))).all()
     assert len({o.payment_group_id for o in orders}) == 1
@@ -561,7 +546,7 @@ async def test_order_rejects_duplicate_and_oversized_line_inputs_with_422(
     assert product.stock == 100
 
 
-async def test_custom_sample_and_pickup_inputs_have_schema_bounds(client, db_session, settings):
+async def test_custom_and_sample_inputs_have_schema_bounds(client, db_session, settings):
     user, address, product = await _setup(db_session)
     headers = auth_headers(user, settings)
     large_options = {"blob": "x" * 10_000}
@@ -601,22 +586,6 @@ async def test_custom_sample_and_pickup_inputs_have_schema_bounds(client, db_ses
                 "sample_type": "sewing",
                 "options": {},
                 "additional_notes": "n" * 501,
-            },
-            headers=headers,
-        ),
-        await client.post(
-            "/orders",
-            json={
-                "shipping_address_id": str(address.id),
-                "items": [_product_item(product)],
-                "repair_shipping": {
-                    "method": "pickup",
-                    "pickup": {
-                        "recipient_name": "n" * 101,
-                        "recipient_phone": "01012345678",
-                        "address": "서울",
-                    },
-                },
             },
             headers=headers,
         ),

@@ -25,7 +25,6 @@ PRICE_CATEGORIES: dict[str, str] = {
     "REFORM_AUTOMATIC_COMBINED_COST": "reform",
     "REFORM_WIDTH_RESTORATION_COST": "reform",
     "REFORM_SHIPPING_COST": "reform",
-    "REFORM_PICKUP_FEE": "reform",
     "SEWING_PER_COST": "custom_order",
     "AUTO_TIE_COST": "custom_order",
     "TRIANGLE_STITCH_COST": "custom_order",

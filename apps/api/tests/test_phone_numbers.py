@@ -2,7 +2,6 @@ from datetime import date
 
 import pytest
 from api.domains.admin.manual_orders import ManualOrderCreateRequest, ManualOrderItem
-from api.domains.orders.schemas import RepairPickupIn
 from api.domains.users.router import ShippingAddressIn
 from api.phone_numbers import normalize_mobile_phone
 from pydantic import ValidationError
@@ -33,11 +32,6 @@ def test_phone_write_models_store_canonical_digits() -> None:
         postal_code="12345",
         address="서울시 중구",
     )
-    pickup = RepairPickupIn(
-        recipient_name="홍길동",
-        recipient_phone="010 1234 5678",
-        address="서울시 중구",
-    )
     manual = ManualOrderCreateRequest(
         order_date=date(2026, 8, 13),
         customer_name="홍길동",
@@ -57,7 +51,6 @@ def test_phone_write_models_store_canonical_digits() -> None:
     )
 
     assert shipping.recipient_phone == "01012345678"
-    assert pickup.recipient_phone == "01012345678"
     assert manual.phone == "01012345678"
 
 

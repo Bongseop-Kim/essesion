@@ -312,7 +312,6 @@ export type AdminClaimShippingOut = {
      * Order Tracking Number
      */
     order_tracking_number: string | null;
-    repair_pickup: RepairPickupOut | null;
     /**
      * Repair Receipts
      */
@@ -1159,7 +1158,6 @@ export type AdminOrderDetailOut = {
      * Related Orders
      */
     related_orders?: Array<AdminRelatedOrderOut>;
-    repair_pickup?: RepairPickupOut | null;
     /**
      * Repair Receipts
      */
@@ -5549,7 +5547,6 @@ export type OrderCreateRequest = {
      * Items
      */
     items: Array<OrderItemIn>;
-    repair_shipping?: RepairShippingIn | null;
     /**
      * Shipping Address Id
      */
@@ -5635,7 +5632,6 @@ export type OrderDetailOut = {
      * Payment Group Id
      */
     payment_group_id: string | null;
-    repair_pickup?: RepairPickupOut | null;
     /**
      * Repair Receipts
      */
@@ -7109,10 +7105,6 @@ export type ReformPricingOut = {
      */
     automatic_cost: number;
     /**
-     * Pickup Fee
-     */
-    pickup_fee: number;
-    /**
      * Restoration Cost
      */
     restoration_cost: number;
@@ -7278,81 +7270,6 @@ export type RepairPhotoIn = {
      * Object Key
      */
     object_key: string;
-};
-
-/**
- * RepairPickupIn
- */
-export type RepairPickupIn = {
-    /**
-     * Address
-     */
-    address: string;
-    /**
-     * Detail Address
-     */
-    detail_address?: string | null;
-    /**
-     * Postal Code
-     */
-    postal_code?: string | null;
-    /**
-     * Recipient Name
-     */
-    recipient_name: string;
-    /**
-     * Recipient Phone
-     */
-    recipient_phone: string;
-};
-
-/**
- * RepairPickupOut
- */
-export type RepairPickupOut = {
-    /**
-     * Address
-     */
-    address: string;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Detail Address
-     */
-    detail_address: string | null;
-    /**
-     * Id
-     */
-    id: string;
-    /**
-     * Pickup Fee
-     */
-    pickup_fee: number;
-    /**
-     * Postal Code
-     */
-    postal_code: string | null;
-    /**
-     * Recipient Name
-     */
-    recipient_name: string;
-    /**
-     * Recipient Phone
-     */
-    recipient_phone: string;
-};
-
-/**
- * RepairShippingIn
- */
-export type RepairShippingIn = {
-    /**
-     * Method
-     */
-    method: 'direct' | 'pickup';
-    pickup?: RepairPickupIn | null;
 };
 
 /**
@@ -10533,7 +10450,7 @@ export type ListAllOrdersData = {
         /**
          * Status
          */
-        status?: 'all' | '대기중' | '결제중' | '진행중' | '배송중' | '배송완료' | '완료' | '취소' | '실패' | '접수' | '제작중' | '제작완료' | '수선중' | '수선완료' | '발송대기' | '발송중' | '발송확인중' | '수거예정';
+        status?: 'all' | '대기중' | '결제중' | '진행중' | '배송중' | '배송완료' | '완료' | '취소' | '실패' | '접수' | '제작중' | '제작완료' | '수선중' | '수선완료' | '발송대기' | '발송중' | '발송확인중';
         /**
          * Start Date
          */

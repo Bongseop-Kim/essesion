@@ -12,7 +12,6 @@ from db.models.commerce import (
     OrderItem,
     OrderStatusLog,
     PaymentIncident,
-    RepairPickupRequest,
     RepairShippingReceipt,
 )
 from sqlalchemy import ColumnElement, func, select
@@ -43,7 +42,7 @@ from api.domains.admin.operations import idempotent_result, record_operation
 from api.domains.admin.orders import safe_order_item_out
 from api.domains.admin.schemas import Page, SortDirection
 from api.domains.claims.service import FORWARD_CLAIM, REJECTABLE_FROM, ROLLBACK_CLAIM
-from api.domains.orders.schemas import RepairPickupOut, RepairShippingReceiptOut
+from api.domains.orders.schemas import RepairShippingReceiptOut
 from api.errors import DomainError, NotFoundError
 
 DEFAULT_PAGE_LIMIT = 20
@@ -456,9 +455,6 @@ async def get_claim_detail(
             .order_by(RepairShippingReceipt.created_at.asc(), RepairShippingReceipt.id.asc())
         )
     )
-    pickup = await session.scalar(
-        select(RepairPickupRequest).where(RepairPickupRequest.order_id == order.id)
-    )
     incidents = list(
         await session.scalars(
             select(PaymentIncident)
@@ -503,7 +499,6 @@ async def get_claim_detail(
             return_tracking_number=claim.return_tracking_number,
             resend_courier_company=claim.resend_courier_company,
             resend_tracking_number=claim.resend_tracking_number,
-            repair_pickup=RepairPickupOut.model_validate(pickup) if pickup else None,
             repair_receipts=[
                 RepairShippingReceiptOut(
                     id=receipt.id,

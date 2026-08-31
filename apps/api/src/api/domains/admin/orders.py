@@ -13,7 +13,6 @@ from db.models.commerce import (
     PaymentIncident,
     Product,
     QuoteRequest,
-    RepairPickupRequest,
     RepairShippingReceipt,
 )
 from db.models.design import GenerationJob
@@ -170,13 +169,6 @@ async def _repair_previous_statuses(
     ]
     if not candidate_ids:
         return {}
-    pickup_ids = set(
-        await session.scalars(
-            select(RepairPickupRequest.order_id).where(
-                RepairPickupRequest.order_id.in_(candidate_ids)
-            )
-        )
-    )
     no_tracking_ids = set(
         await session.scalars(
             select(RepairShippingReceipt.order_id).where(
@@ -186,13 +178,7 @@ async def _repair_previous_statuses(
         )
     )
     return {
-        order_id: (
-            "수거예정"
-            if order_id in pickup_ids
-            else "발송확인중"
-            if order_id in no_tracking_ids
-            else "발송중"
-        )
+        order_id: ("발송확인중" if order_id in no_tracking_ids else "발송중")
         for order_id in candidate_ids
     }
 
@@ -705,10 +691,10 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
             )
         )
     repair_previous = await _repair_previous_statuses(session, [order])
-    repair_pickup, repair_receipts = (
-        await order_service.repair_shipping_read_model(session, order.id)
+    repair_receipts = (
+        await order_service.repair_receipts_read_model(session, order.id)
         if order.order_type == "repair"
-        else (None, [])
+        else []
     )
     summary = _summary(
         order,
@@ -749,7 +735,6 @@ async def get_order_detail(session: AsyncSession, order_id: uuid.UUID) -> AdminO
             )
             for related in related_orders
         ],
-        repair_pickup=repair_pickup,
         repair_receipts=repair_receipts,
     )
 

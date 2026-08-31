@@ -20,7 +20,6 @@ from db.models.commerce import (
     OrderStatusLog,
     Product,
     ProductOption,
-    RepairPickupRequest,
     RepairShippingReceipt,
     ShippingAddress,
     UserCoupon,
@@ -41,7 +40,6 @@ from api.domains.orders.schemas import (
     OrderCreateRequest,
     OrderItemIn,
     RepairNoTrackingRequest,
-    RepairPickupOut,
     RepairShippingReceiptOut,
     RepairTrackingRequest,
     SampleOrderCreateRequest,
@@ -331,33 +329,25 @@ async def _relink_images(
     return cast("CursorResult[Any]", result).rowcount
 
 
-async def repair_shipping_read_model(
+async def repair_receipts_read_model(
     session: AsyncSession, order_id: uuid.UUID
-) -> tuple[RepairPickupOut | None, list[RepairShippingReceiptOut]]:
-    pickup = await session.scalar(
-        select(RepairPickupRequest).where(RepairPickupRequest.order_id == order_id)
+) -> list[RepairShippingReceiptOut]:
+    receipts = await session.scalars(
+        select(RepairShippingReceipt)
+        .where(RepairShippingReceipt.order_id == order_id)
+        .order_by(RepairShippingReceipt.created_at.asc(), RepairShippingReceipt.id.asc())
     )
-    receipts = list(
-        await session.scalars(
-            select(RepairShippingReceipt)
-            .where(RepairShippingReceipt.order_id == order_id)
-            .order_by(RepairShippingReceipt.created_at.asc(), RepairShippingReceipt.id.asc())
+    return [
+        RepairShippingReceiptOut(
+            id=receipt.id,
+            receipt_type=receipt.receipt_type,
+            reason=receipt.reason,
+            memo=receipt.memo,
+            photo_count=len(receipt.photos or []),
+            created_at=receipt.created_at,
         )
-    )
-    return (
-        RepairPickupOut.model_validate(pickup) if pickup else None,
-        [
-            RepairShippingReceiptOut(
-                id=receipt.id,
-                receipt_type=receipt.receipt_type,
-                reason=receipt.reason,
-                memo=receipt.memo,
-                photo_count=len(receipt.photos or []),
-                created_at=receipt.created_at,
-            )
-            for receipt in receipts
-        ],
-    )
+        for receipt in receipts
+    ]
 
 
 # ---- 일반 주문 (sale/repair) ----
@@ -442,8 +432,6 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
         raise DomainError("Too many items", code="too_many_items")
     address = await _get_owned_address(session, user, body.shipping_address_id)
 
-    method = body.repair_shipping.method if body.repair_shipping else None
-
     product_lines: list[_Line] = []
     reform_lines: list[_Line] = []
     used_coupons: set[uuid.UUID] = set()
@@ -494,9 +482,6 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
                 "coupon": applied.terms_snapshot,
             }
 
-    if method == "pickup" and not reform_lines:
-        raise DomainError("Pickup is only available for repair orders", code="invalid_pickup")
-
     payment_group_id = uuid.uuid4()
     created: list[Order] = []
 
@@ -517,21 +502,6 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
     if reform_lines:
         if reform_pricing is None:
             raise RuntimeError("Reform pricing is missing for reform order")
-        shipping_cost = reform_pricing.shipping_cost
-        pickup_fee = 0
-        pickup = body.repair_shipping.pickup if body.repair_shipping else None
-        if method == "pickup":
-            if pickup is None:
-                raise DomainError("Pickup info is required", code="invalid_pickup")
-            if not (
-                pickup.recipient_name.strip()
-                and pickup.recipient_phone.strip()
-                and pickup.address.strip()
-            ):
-                raise DomainError(
-                    "Pickup recipient name, phone and address are required", code="invalid_pickup"
-                )
-            pickup_fee = reform_pricing.pickup_fee
         order = await _create_group_order(
             session,
             user,
@@ -540,21 +510,8 @@ async def create_order(session: AsyncSession, user: User, body: OrderCreateReque
             "repair",
             payment_group_id,
             address=address,
-            shipping_cost=shipping_cost,
-            extra_fee=pickup_fee,
+            shipping_cost=reform_pricing.shipping_cost,
         )
-        if method == "pickup" and pickup is not None:
-            session.add(
-                RepairPickupRequest(
-                    order_id=order.id,
-                    recipient_name=pickup.recipient_name,
-                    recipient_phone=pickup.recipient_phone,
-                    postal_code=pickup.postal_code,
-                    address=pickup.address,
-                    detail_address=pickup.detail_address,
-                    pickup_fee=pickup_fee,
-                )
-            )
         await _relink_reform_images(session, user, reform_lines, order)
         created.append(order)
 
@@ -581,7 +538,6 @@ async def _create_group_order(
     *,
     address: ShippingAddress,
     shipping_cost: int,
-    extra_fee: int = 0,
 ) -> Order:
     original = sum(line.unit_price * line.item.quantity for line in lines)
     discount = sum(line.line_discount for line in lines)
@@ -595,7 +551,7 @@ async def _create_group_order(
         original_price=original,
         total_discount=discount,
         shipping_cost=shipping_cost,
-        total_price=original - discount + shipping_cost + extra_fee,
+        total_price=original - discount + shipping_cost,
         payment_group_id=payment_group_id,
     )
     session.add(order)
@@ -1041,9 +997,7 @@ async def _relink_repair_photos(
 
 
 async def repair_previous_status(session: AsyncSession, order: Order) -> str:
-    """repair 접수 롤백 대상 — pickup? 수거예정 / no_tracking 영수증? 발송확인중 / else 발송중."""
-    if await session.scalar(select(exists().where(RepairPickupRequest.order_id == order.id))):
-        return "수거예정"
+    """repair 접수 롤백 대상 — no_tracking 영수증? 발송확인중 / else 발송중."""
     if await session.scalar(
         select(
             exists().where(

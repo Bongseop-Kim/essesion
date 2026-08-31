@@ -375,7 +375,7 @@ export function ReformPage() {
             />
             <Callout
               title="발송 안내"
-              description="예상 수선 기간은 영업일 기준 7~14일입니다. 결제 후 직접 발송하거나 주문서에서 방문 수거를 신청할 수 있습니다."
+              description="예상 수선 기간은 영업일 기준 7~14일입니다. 결제 후 수선품을 택배로 발송해 주세요."
             />
             <Accordion type="single">
               <AccordionItem value="length-guide">

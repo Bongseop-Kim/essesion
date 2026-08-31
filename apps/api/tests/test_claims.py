@@ -94,7 +94,7 @@ async def test_claim_guards_match_customer_actions(client, db_session, settings)
         "sale": ("대기중", "진행중"),
         "custom": ("대기중", "접수"),
         "sample": ("대기중", "접수"),
-        "repair": ("대기중", "발송대기", "발송중", "발송확인중", "수거예정"),
+        "repair": ("대기중", "발송대기", "발송중", "발송확인중"),
         "token": ("대기중",),
     }
 

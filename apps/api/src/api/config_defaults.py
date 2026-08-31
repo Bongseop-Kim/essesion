@@ -42,7 +42,6 @@ PRICING: dict[str, tuple[int, str]] = {
     "REFORM_AUTOMATIC_COMBINED_COST": (40000, "reform"),
     "REFORM_WIDTH_RESTORATION_COST": (30000, "reform"),
     "REFORM_SHIPPING_COST": (4500, "reform"),
-    "REFORM_PICKUP_FEE": (5000, "reform"),
     # custom order
     "SEWING_PER_COST": (4000, "custom_order"),
     "AUTO_TIE_COST": (1000, "custom_order"),

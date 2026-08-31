@@ -54,7 +54,6 @@ const ORDER_STATUSES = [
   "발송대기",
   "발송중",
   "발송확인중",
-  "수거예정",
 ] as const;
 const ORDER_SORTS = [
   "created_at",

@@ -52,7 +52,6 @@ const PRICING_LABELS: Record<string, string> = {
   REFORM_AUTOMATIC_COMBINED_COST: "자동+폭·복원 결합 비용",
   REFORM_WIDTH_RESTORATION_COST: "폭+복원 결합 비용",
   REFORM_SHIPPING_COST: "수선 택배비",
-  REFORM_PICKUP_FEE: "방문 수거비",
   SEWING_PER_COST: "봉제 단가",
   AUTO_TIE_COST: "자동 타이",
   TRIANGLE_STITCH_COST: "삼각 봉제",
