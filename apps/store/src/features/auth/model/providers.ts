@@ -24,7 +24,6 @@ export const AUTH_PROVIDERS: {
     label: "네이버로 계속하기",
     logoSrc: "/icons/naver.svg",
     variant: "naver",
-    comingSoon: "네이버 로그인은 준비 중입니다.",
   },
   {
     id: "google",
