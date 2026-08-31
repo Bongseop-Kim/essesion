@@ -6,6 +6,7 @@ SameSite=None이어야 한다 (main.py의 SessionMiddleware 설정).
 """
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 
@@ -18,9 +19,22 @@ from api.errors import DomainError, UnauthorizedError
 
 SUPPORTED_PROVIDERS = ("google", "kakao", "naver", "apple")
 
+logger = logging.getLogger(__name__)
+
 # Apple client_secret JWT 수명. 최대 6개월 — Cloud Run 인스턴스 수명보다 훨씬 길어
 # 프로세스 기동 시 1회 생성으로 충분하다.
 _APPLE_SECRET_TTL_SECONDS = 180 * 86400
+
+
+@dataclass(frozen=True)
+class NaverPayAddress:
+    """네이버페이 대표 배송지 (GET v1/nid/payaddress data.*) — 필드명은 shipping_addresses 기준."""
+
+    receiver_name: str
+    postal_code: str
+    address: str
+    address_detail: str | None
+    tel_no: str
 
 
 @dataclass(frozen=True)
@@ -29,6 +43,8 @@ class OAuthProfile:
     email: str | None
     name: str | None
     email_verified: bool
+    # 네이버 로그인 시에만 채워진다 — 미동의(403)·네이버페이 비회원(404)·오류면 None.
+    payaddress: NaverPayAddress | None = None
 
 
 def _apple_client_secret(settings: Settings) -> str:
@@ -131,6 +147,43 @@ def _apple_name_from_form_user(raw_user: object) -> str | None:
     return joined or None
 
 
+async def _fetch_naver_payaddress(client, token: dict) -> NaverPayAddress | None:
+    """네이버페이 대표 배송지 조회 — 배송지는 부가 기능이라 어떤 실패도 로그인을 막지 않는다."""
+    try:
+        res = await client.get("v1/nid/payaddress", token=token)
+        body = res.json()
+    except Exception:  # noqa: BLE001 — 네트워크·파싱 실패 전부 조용히 포기
+        logger.warning("naver payaddress 조회 실패", exc_info=True)
+        return None
+    data = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(data, dict):
+        # 미동의(403)·비회원(404)·오류 응답 — data 없이 result/에러 코드만 온다
+        return None
+    receiver_name = data.get("receiverName")
+    postal_code = data.get("zipCode")
+    address = data.get("baseAddress")
+    tel_no = data.get("telNo")
+    if not (
+        isinstance(receiver_name, str)
+        and receiver_name
+        and isinstance(postal_code, str)
+        and postal_code
+        and isinstance(address, str)
+        and address
+        and isinstance(tel_no, str)
+        and tel_no
+    ):
+        return None
+    detail = data.get("detailAddress")
+    return NaverPayAddress(
+        receiver_name=receiver_name,
+        postal_code=postal_code,
+        address=address,
+        address_detail=detail if isinstance(detail, str) and detail else None,
+        tel_no=tel_no,
+    )
+
+
 async def fetch_profile(client, provider: str, request: Request) -> OAuthProfile:
     """Provider별 검증 claim을 보존한 프로필. 카카오는 이메일 미동의 가능."""
     try:
@@ -176,6 +229,7 @@ async def fetch_profile(client, provider: str, request: Request) -> OAuthProfile
             # 네이버는 검증 플래그가 없다. 본인 계정 주소(@naver.com)만 검증 취급 —
             # 외부 연락처 이메일은 소유 증빙이 없어 자동 링크(계정 탈취 벡터)에서 제외.
             email_verified=email is not None and email.lower().endswith("@naver.com"),
+            payaddress=await _fetch_naver_payaddress(client, token),
         )
 
     res = await client.get("v2/user/me", token=token)

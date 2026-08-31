@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
 import { bootstrapSession } from "@/features/auth/model/bootstrap-session";
+import { consumeNaverAutologinAttempt } from "@/features/auth/model/naver-autologin";
 import { takeAuthReturn } from "@/features/auth/model/return-after-login";
 import { syncGuestCartToAccount } from "@/features/cart/model/use-cart";
 import { trackEvent } from "@/shared/lib/analytics";
@@ -18,6 +19,19 @@ export function AuthCallbackPage() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // api가 provider 오류(동의창 취소·자동로그인 실패)를 ?error=로 되돌린 경우 —
+    // 자동로그인 시도였으면 조용히 홈으로, 사용자가 취소한 수동 로그인이면 안내 후 로그인으로.
+    if (new URLSearchParams(window.location.search).has("error")) {
+      if (consumeNaverAutologinAttempt()) {
+        navigate("/", { replace: true });
+      } else {
+        snackbar("로그인이 취소되었습니다.");
+        navigate("/login", { replace: true });
+      }
+      return;
+    }
+
     (async () => {
       const ok = await bootstrapSession(() => cancelled);
       if (cancelled) return;

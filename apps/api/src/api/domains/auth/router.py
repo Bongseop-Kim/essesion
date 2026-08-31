@@ -164,21 +164,36 @@ OAuthProvider = Literal["google", "kakao", "naver", "apple"]
 
 
 @router.get("/{provider}/login", include_in_schema=False)
-async def oauth_login(provider: OAuthProvider, request: Request, settings: SettingsDep):
+async def oauth_login(
+    provider: OAuthProvider,
+    request: Request,
+    settings: SettingsDep,
+    auth_type: Literal["autologin"] | None = None,
+):
     client = get_oauth_client(request, provider)
     redirect_uri = (
         str(request.url_for("oauth_callback", provider=provider))
         if settings.env in ("local", "test")
         else f"{settings.public_api_origin}/auth/{provider}/callback"
     )
-    return await client.authorize_redirect(request, redirect_uri)
+    # 네이버앱 자동로그인(개발가이드 §5.1) — authorize URL에 auth_type=autologin을 붙인다.
+    # 네이버 전용 파라미터라 다른 provider에서는 무시한다.
+    extra = {"auth_type": auth_type} if provider == "naver" and auth_type else {}
+    return await client.authorize_redirect(request, redirect_uri, **extra)
 
 
 async def _complete_oauth(
     provider: str, request: Request, session, settings: Settings
 ) -> RedirectResponse:
     client = get_oauth_client(request, provider)
-    profile = await fetch_profile(client, provider, request)
+    try:
+        profile = await fetch_profile(client, provider, request)
+    except UnauthorizedError:
+        # 동의창 취소·네이버앱 자동로그인 실패(§5.1.5) 등 provider가 error로 콜백한 경우 —
+        # JSON 401 대신 프론트 콜백으로 되돌려 store가 비로그인 상태로 이어가게 한다.
+        return RedirectResponse(
+            f"{settings.frontend_origin}/auth/callback?error=access_denied", status_code=303
+        )
     user = await service.ensure_oauth_user(
         session,
         provider,
@@ -187,6 +202,8 @@ async def _complete_oauth(
         profile.name,
         email_verified=profile.email_verified,
     )
+    if profile.payaddress is not None:
+        await service.import_naver_payaddress(session, user, profile.payaddress)
     raw = await service.issue_refresh_token(session, user.id, settings)
     response = RedirectResponse(f"{settings.frontend_origin}/auth/callback", status_code=303)
     _set_refresh_cookie(response, raw, settings)

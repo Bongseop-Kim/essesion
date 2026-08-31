@@ -10,10 +10,10 @@ import pytest
 from api.config import Settings
 from api.domains.auth import phone as phone_service
 from api.domains.auth import service as auth_service
-from api.domains.auth.oauth import _apple_client_secret, fetch_profile
+from api.domains.auth.oauth import NaverPayAddress, _apple_client_secret, fetch_profile
 from api.domains.auth.rate_limit import AuthRateLimiter
 from api.domains.auth.router import REFRESH_COOKIE
-from api.domains.auth.service import ensure_oauth_user
+from api.domains.auth.service import ensure_oauth_user, import_naver_payaddress
 from api.errors import DomainError, RateLimitedError, UnauthorizedError
 from api.security import (
     SessionKind,
@@ -23,6 +23,7 @@ from api.security import (
     new_refresh_token,
 )
 from db.models.auth import PhoneVerification, RefreshToken, User, UserIdentity
+from db.models.commerce import ShippingAddress
 from db.models.tokens import DesignToken
 from httpx import ASGITransport, AsyncClient
 from joserfc import jwt as jose_jwt
@@ -31,7 +32,14 @@ from sqlalchemy import func, select
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
 
-from .factories import auth_headers, make_order, make_product, make_user, seed_setting
+from .factories import (
+    auth_headers,
+    make_address,
+    make_order,
+    make_product,
+    make_user,
+    seed_setting,
+)
 
 
 def _access_token_without_session_kind(user_id: uuid.UUID, role: str, settings: Settings) -> str:
@@ -839,20 +847,24 @@ async def test_oauth_unverified_email_does_not_link_existing_user(db_session):
 
 
 class _OAuthProfileClient:
-    def __init__(self, *, token: dict, profile: dict | None = None):
+    def __init__(
+        self, *, token: dict, profile: dict | None = None, payaddress: dict | None = None
+    ):
         self.token = token
         self.profile = profile
+        self.payaddress = payaddress
 
     async def authorize_access_token(self, request):
         return self.token
 
     async def get(self, path: str, *, token: dict):
-        profile = self.profile
+        # 네이버는 프로필(v1/nid/me)과 배송지(v1/nid/payaddress)를 각각 호출한다.
+        body = (self.payaddress or {}) if path.endswith("payaddress") else self.profile
 
         class _Response:
             def json(self) -> dict:
-                assert profile is not None
-                return profile
+                assert body is not None
+                return body
 
         return _Response()
 
@@ -923,6 +935,132 @@ async def test_naver_profile_trusts_only_naver_account_email(email, expected):
 
     assert profile.provider_user_id == "naver-123"
     assert profile.email_verified is expected
+
+
+_NAVER_PROFILE = {
+    "resultcode": "00",
+    "response": {"id": "naver-123", "email": "user@naver.com", "name": "네이버 유저"},
+}
+
+
+async def test_naver_profile_includes_payaddress():
+    client = _OAuthProfileClient(
+        token={},
+        profile=_NAVER_PROFILE,
+        payaddress={
+            "result": "success",
+            "data": {
+                "receiverName": "홍길동",
+                "zipCode": "16825",
+                "baseAddress": "경기도 성남시 불정로 7",
+                "detailAddress": "그린팩토리",
+                "roadNameYn": "Y",
+                "telNo": "010-0000-0000",
+            },
+        },
+    )
+
+    profile = await fetch_profile(client, "naver", cast("Request", object()))
+
+    assert profile.payaddress is not None
+    assert profile.payaddress.receiver_name == "홍길동"
+    assert profile.payaddress.postal_code == "16825"
+    assert profile.payaddress.address == "경기도 성남시 불정로 7"
+    assert profile.payaddress.address_detail == "그린팩토리"
+    assert profile.payaddress.tel_no == "010-0000-0000"
+
+
+@pytest.mark.parametrize(
+    "payaddress",
+    [
+        None,  # 호출 실패·빈 응답
+        {"resultcode": "024", "message": "Authentication failed"},  # 미동의(403)·에러 응답
+        {"result": "success", "data": {"receiverName": "홍길동"}},  # 필수 필드 누락
+    ],
+)
+async def test_naver_payaddress_failures_do_not_block_login(payaddress):
+    client = _OAuthProfileClient(token={}, profile=_NAVER_PROFILE, payaddress=payaddress)
+
+    profile = await fetch_profile(client, "naver", cast("Request", object()))
+
+    assert profile.provider_user_id == "naver-123"
+    assert profile.payaddress is None
+
+
+_PAYADDRESS = NaverPayAddress(
+    receiver_name="홍길동",
+    postal_code="16825",
+    address="경기도 성남시 불정로 7",
+    address_detail="그린팩토리",
+    tel_no="010-0000-0000",
+)
+
+
+async def test_import_naver_payaddress_creates_default_address_when_none(db_session):
+    user = await make_user(db_session)
+
+    await import_naver_payaddress(db_session, user, _PAYADDRESS)
+
+    rows = (
+        await db_session.scalars(
+            select(ShippingAddress).where(ShippingAddress.user_id == user.id)
+        )
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].recipient_name == "홍길동"
+    assert rows[0].recipient_phone == "01000000000"  # 하이픈 제거 정규화
+    assert rows[0].postal_code == "16825"
+    assert rows[0].address == "경기도 성남시 불정로 7"
+    assert rows[0].address_detail == "그린팩토리"
+    assert rows[0].is_default is True
+
+
+async def test_import_naver_payaddress_skips_when_address_exists(db_session):
+    user = await make_user(db_session)
+    existing = await make_address(db_session, user)
+
+    await import_naver_payaddress(db_session, user, _PAYADDRESS)
+
+    rows = (
+        await db_session.scalars(
+            select(ShippingAddress).where(ShippingAddress.user_id == user.id)
+        )
+    ).all()
+    assert [row.id for row in rows] == [existing.id]  # 0건 가드 — 기존 배송지 불변
+
+
+async def test_import_naver_payaddress_skips_non_mobile_phone(db_session):
+    user = await make_user(db_session)
+    landline = NaverPayAddress(
+        receiver_name="홍길동",
+        postal_code="16825",
+        address="경기도 성남시 불정로 7",
+        address_detail=None,
+        tel_no="02-123-4567",  # recipient_phone은 휴대폰 형식만 허용
+    )
+
+    await import_naver_payaddress(db_session, user, landline)
+
+    count = await db_session.scalar(
+        select(func.count()).select_from(ShippingAddress).where(ShippingAddress.user_id == user.id)
+    )
+    assert count == 0
+
+
+async def test_non_naver_provider_never_fetches_payaddress():
+    profile = await fetch_profile(
+        _OAuthProfileClient(
+            token={},
+            profile={
+                "id": 123,
+                "kakao_account": {"email": None, "profile": {"nickname": "Kakao User"}},
+            },
+        ),
+        "kakao",
+        cast("Request", object()),
+    )
+
+    assert profile.payaddress is None
 
 
 class _FormRequest:

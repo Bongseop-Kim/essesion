@@ -20,7 +20,9 @@ Solapi 공통: `POST https://api.solapi.com/messages/v4/send`, 타임아웃 10�
 
 ## 2. 인증·프로필
 
-- 소셜 **4종 구현**(`SUPPORTED_PROVIDERS = google, kakao, naver, apple`). Apple은 `POST /auth/apple/callback` + client-secret JWT 생성 경로를 포함한다. 미등록 provider는 `/readyz`의 `oauth_*` capability로 드러난다. scope: kakao `profile_nickname account_email`, google `openid email`.
+- 소셜 **4종 구현**(`SUPPORTED_PROVIDERS = google, kakao, naver, apple`). Apple은 `POST /auth/apple/callback` + client-secret JWT 생성 경로를 포함한다. 미등록 provider는 `/readyz`의 `oauth_*` capability로 드러난다. scope: kakao `profile_nickname account_email`, google `openid email`. 네이버는 scope 파라미터가 없고 개발자센터 콘솔의 동의 항목(이름·이메일·네이버페이 배송지)이 제공 정보를 정한다.
+- **네이버페이 배송지 연계**: 네이버 OAuth callback에서 `GET openapi.naver.com/v1/nid/payaddress`(방금 발급된 access token)로 대표 배송지를 1회 조회해, **저장 배송지가 0건인 사용자에게만** 기본 배송지로 수입한다(매핑: receiverName→recipient_name, zipCode→postal_code, baseAddress→address, detailAddress→address_detail, telNo→recipient_phone 정규화). 미동의(403)·네이버페이 비회원(404)·유선번호·기타 실패는 전부 조용히 건너뛴다 — **배송지 실패가 로그인을 막으면 안 된다**. 네이버 토큰은 저장하지 않는다.
+- **네이버앱 자동로그인**(개발가이드 §5.1): `GET /auth/naver/login?auth_type=autologin` — authorize URL에 `auth_type=autologin`을 붙인다(네이버 전용, 타 provider는 무시). 시도 조건은 store가 판단: 네이버앱 UA(`NAVER(inapp; search;`) + 과거 네이버 로그인 이력(localStorage) + 브라우저 세션당 1회(sessionStorage). provider가 오류(동의 취소·자동로그인 실패)로 콜백하면 api는 JSON 401 대신 `{frontend_origin}/auth/callback?error=access_denied`로 303 — store는 자동로그인 시도였으면 조용히 홈으로, 수동 취소였으면 안내 후 로그인 페이지로.
 - 유저 생성 시 name 우선순위: 소셜 `name` → `full_name` → `nickname` → 이메일 로컬파트 → `'사용자'`. role은 항상 customer. 초기 토큰 지급(money.md §6, 실가입자만).
 - 관리자 로그인: **이메일/비밀번호 전용**, role ∈ {admin, manager} 아니면 거부(`관리자 권한이 없습니다.`).
 - 프로필 본인 수정 허용 필드: name, phone, birth, marketing_kakao_sms_consent만. phone_verified/notification_*/role은 전용 엔드포인트·관리자만.
