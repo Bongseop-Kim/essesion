@@ -613,9 +613,7 @@ async def calculate_custom_amounts(
             "돌려묶기는 자동 봉제(AUTO)에서만 선택 가능합니다", code="invalid_options"
         )
     if options.get("dimple") and not options.get("turn_knot"):
-        raise DomainError(
-            "딤플은 돌려묶기와 함께만 선택 가능합니다", code="invalid_options"
-        )
+        raise DomainError("딤플은 돌려묶기와 함께만 선택 가능합니다", code="invalid_options")
 
     fabric_key = None
     design_type = None
