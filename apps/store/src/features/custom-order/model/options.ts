@@ -68,8 +68,16 @@ export const DEFAULT_QUOTE_CONTACT: QuoteContact = {
   contactValue: "",
 };
 
+// 딤플은 자동 타이에서만·돌려묶기와 함께만 — 예전 임시 저장(draft) 조합도 맞춰 정규화.
+// 과금 요청(customOrderApiOptions)과 요약(customOrderSummary)이 공유한다.
+function normalizedTieOptions(options: CustomOrderOptions) {
+  const dimple = options.tieType === "AUTO" && options.dimple;
+  return { dimple, turnKnot: options.turnKnot || dimple };
+}
+
 export function customOrderApiOptions(options: CustomOrderOptions) {
   const noFabricCharge = options.fabricProvided;
+  const tie = normalizedTieOptions(options);
   return {
     fabric_provided: noFabricCharge,
     reorder: options.reorder,
@@ -83,9 +91,8 @@ export function customOrderApiOptions(options: CustomOrderOptions) {
     side_stitch: options.sideStitch,
     bar_tack: options.barTack,
     fold7: options.fold7,
-    dimple: options.dimple,
-    // 딤플은 돌려묶기와 함께만 — 저장된 임시 저장(draft)이 예전 조합이어도 맞춰 보낸다
-    turn_knot: options.turnKnot || options.dimple,
+    dimple: tie.dimple,
+    turn_knot: tie.turnKnot,
     spoderato: options.spoderato,
     brand_label: options.brandLabel,
     care_label: options.careLabel,
@@ -205,7 +212,7 @@ export function customOrderSummary(options: CustomOrderOptions) {
     {
       label: "타이",
       value: `${options.tieType === "AUTO" ? "자동 타이" : "수동 타이"}${
-        options.turnKnot ? " · 돌려묶기" : ""
+        normalizedTieOptions(options).turnKnot ? " · 돌려묶기" : ""
       }`,
     },
     {

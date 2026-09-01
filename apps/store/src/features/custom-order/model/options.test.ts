@@ -77,6 +77,15 @@ describe("custom order options", () => {
         turnKnot: false,
       }).turn_knot,
     ).toBe(true);
+    // 수동 타이의 예전 임시저장 딤플은 버리고 turn_knot도 강제하지 않는다
+    expect(
+      customOrderApiOptions({
+        ...DEFAULT_CUSTOM_ORDER_OPTIONS,
+        tieType: "MANUAL",
+        dimple: true,
+        turnKnot: false,
+      }),
+    ).toMatchObject({ dimple: false, turn_knot: false });
   });
 
   it("수량 상한과 견적 연락처 형식을 검증한다", () => {
