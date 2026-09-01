@@ -311,9 +311,7 @@ async def test_dashboard_timeseries_splits_manual_orders_by_category(client, db_
         "custom": {"fabric_provided": True, "tie_type": "MANUAL"},
     }
     repair_only = manual_order_body(amount=10000, shipping_fee=0, is_paid=True)
-    custom_only = manual_order_body(
-        amount=20000, shipping_fee=0, is_paid=True, items=[custom_item]
-    )
+    custom_only = manual_order_body(amount=20000, shipping_fee=0, is_paid=True, items=[custom_item])
     # 수선·제작이 섞인 주문 — 금액이 주문 단위라 배분하지 않고 주문제작 수기로 센다.
     mixed = manual_order_body(
         amount=40000,
