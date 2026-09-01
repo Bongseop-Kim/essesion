@@ -6833,6 +6833,10 @@
       },
       "DashboardTimeseriesPointOut": {
         "properties": {
+          "custom_amount": {
+            "title": "Custom Amount",
+            "type": "integer"
+          },
           "day": {
             "format": "date",
             "title": "Day",
@@ -6846,6 +6850,14 @@
             "title": "Generation Total",
             "type": "integer"
           },
+          "manual_custom_amount": {
+            "title": "Manual Custom Amount",
+            "type": "integer"
+          },
+          "manual_repair_amount": {
+            "title": "Manual Repair Amount",
+            "type": "integer"
+          },
           "new_customer_count": {
             "title": "New Customer Count",
             "type": "integer"
@@ -6856,6 +6868,22 @@
           },
           "order_count": {
             "title": "Order Count",
+            "type": "integer"
+          },
+          "repair_amount": {
+            "title": "Repair Amount",
+            "type": "integer"
+          },
+          "sale_amount": {
+            "title": "Sale Amount",
+            "type": "integer"
+          },
+          "sample_amount": {
+            "title": "Sample Amount",
+            "type": "integer"
+          },
+          "token_amount": {
+            "title": "Token Amount",
             "type": "integer"
           },
           "token_consumed": {
@@ -6871,6 +6899,13 @@
           "day",
           "order_count",
           "order_amount",
+          "sale_amount",
+          "custom_amount",
+          "repair_amount",
+          "sample_amount",
+          "token_amount",
+          "manual_custom_amount",
+          "manual_repair_amount",
           "new_customer_count",
           "generation_total",
           "generation_failed",

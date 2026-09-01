@@ -3670,6 +3670,10 @@ export type DashboardTimeseriesOut = {
  */
 export type DashboardTimeseriesPointOut = {
     /**
+     * Custom Amount
+     */
+    custom_amount: number;
+    /**
      * Day
      */
     day: string;
@@ -3682,6 +3686,14 @@ export type DashboardTimeseriesPointOut = {
      */
     generation_total: number;
     /**
+     * Manual Custom Amount
+     */
+    manual_custom_amount: number;
+    /**
+     * Manual Repair Amount
+     */
+    manual_repair_amount: number;
+    /**
      * New Customer Count
      */
     new_customer_count: number;
@@ -3693,6 +3705,22 @@ export type DashboardTimeseriesPointOut = {
      * Order Count
      */
     order_count: number;
+    /**
+     * Repair Amount
+     */
+    repair_amount: number;
+    /**
+     * Sale Amount
+     */
+    sale_amount: number;
+    /**
+     * Sample Amount
+     */
+    sample_amount: number;
+    /**
+     * Token Amount
+     */
+    token_amount: number;
     /**
      * Token Consumed
      */

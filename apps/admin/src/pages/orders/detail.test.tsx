@@ -664,8 +664,17 @@ describe("OrderDetailPage", () => {
       await screen.findByRole("heading", { name: "주문 품목" }),
     ).toBeTruthy();
     expect(screen.getByText("자동수선 · 폭수선 · 복원수선")).toBeTruthy();
-    expect(screen.getByText("지퍼 · 방 · 딤플")).toBeTruthy();
-    expect(screen.getByText("끈 · 돌려묶기 · 기본")).toBeTruthy();
+    // 타입·마감·딤플은 두 선택지를 모두 그리고 선택된 쪽만 표시한다 —
+    // 선택값만 나열하면 관리자가 나머지 선택지를 알 수 없다.
+    expect(screen.getByText("지퍼 선택됨")).toBeTruthy();
+    expect(screen.getByText("방 선택됨")).toBeTruthy();
+    expect(screen.getByText("딤플 선택됨")).toBeTruthy();
+    expect(screen.getByText("끈 선택됨")).toBeTruthy();
+    expect(screen.getByText("돌려묶기 선택됨")).toBeTruthy();
+    expect(screen.getByText("기본 선택됨")).toBeTruthy();
+    // 미선택도 화면에 남는다.
+    expect(screen.getByText("끈 선택 안 됨")).toBeTruthy();
+    expect(screen.getByText("돌려묶기 선택 안 됨")).toBeTruthy();
     expect(screen.getByText("175cm")).toBeTruthy();
     expect(screen.getByText("182cm")).toBeTruthy();
     expect(screen.getByText("7.5cm")).toBeTruthy();

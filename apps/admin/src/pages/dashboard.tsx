@@ -29,6 +29,10 @@ import type { ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { formatDate, formatDateTime, formatMoney } from "../shared/lib/format";
+import {
+  manualOrderKind,
+  manualOrderPath,
+} from "../shared/lib/manual-order-kind";
 import { AdminCard } from "../shared/ui/admin-card";
 import { FilterSelect } from "../shared/ui/filter-select";
 import { RouteHeading } from "../shared/ui/route-heading";
@@ -114,7 +118,9 @@ const manualOrderColumns: readonly AdminTableColumn<ManualOrderOut>[] = [
     header: "고객",
     render: (order) => (
       <VStack gap="x0_5">
-        <Link to={`/manual-orders/${order.id}`}>{order.customer_name}</Link>
+        <Link to={manualOrderPath(manualOrderKind(order), order.id)}>
+          {order.customer_name}
+        </Link>
         <Text textStyle="caption" color="fg.neutral-muted">
           {formatPhoneNumber(order.phone)}
         </Text>
@@ -185,6 +191,35 @@ const BRAND_COLOR = "var(--color-bg-brand-solid)";
 const POSITIVE_COLOR = "var(--color-bg-positive-solid)";
 const CRITICAL_COLOR = "var(--color-bg-critical-solid)";
 const INFORMATIVE_COLOR = "var(--color-bg-informative-solid)";
+
+/**
+ * 매출 추이 스택 막대의 구획 — 순서·색 슬롯은 주문 유형에 고정한다.
+ * 금액 순위를 따라 색이 바뀌면 같은 유형이 날마다 다른 색이 된다(palette.md).
+ * 7종의 합은 API가 보장하는 대로 order_amount와 같다.
+ */
+const AMOUNT_SERIES = (
+  [
+    { key: "sale_amount", label: "구매", color: "var(--color-bg-chart-1)" },
+    {
+      key: "custom_amount",
+      label: "주문제작",
+      color: "var(--color-bg-chart-2)",
+    },
+    {
+      key: "manual_custom_amount",
+      label: "주문제작 수기",
+      color: "var(--color-bg-chart-3)",
+    },
+    { key: "sample_amount", label: "샘플", color: "var(--color-bg-chart-4)" },
+    { key: "repair_amount", label: "수선", color: "var(--color-bg-chart-5)" },
+    {
+      key: "manual_repair_amount",
+      label: "수선 수기",
+      color: "var(--color-bg-chart-6)",
+    },
+    { key: "token_amount", label: "토큰", color: "var(--color-bg-chart-7)" },
+  ] as const
+).map((item) => ({ ...item, kind: "bar" as const, stackId: "amount" }));
 
 const topProductColumns: readonly AdminTableColumn<
   DashboardTopProductOut & { rank: number }
@@ -499,20 +534,17 @@ export function DashboardPage() {
           <ChartCard title="매출 추이" loading={timeseries.isLoading}>
             <TrendChart
               data={points}
-              series={[
-                {
-                  key: "order_amount",
-                  label: "주문 금액",
-                  color: BRAND_COLOR,
-                  kind: "bar",
-                },
-              ]}
+              series={AMOUNT_SERIES}
               tooltipRows={(point) => [
-                {
-                  label: "주문 금액",
-                  value: formatMoney(point.order_amount),
-                  color: BRAND_COLOR,
-                },
+                // 유형별 구획은 0원인 날을 빼서 툴팁이 7줄로 불어나지 않게 한다.
+                ...AMOUNT_SERIES.filter((series) => point[series.key] > 0).map(
+                  (series) => ({
+                    label: series.label,
+                    value: formatMoney(point[series.key]),
+                    color: series.color,
+                  }),
+                ),
+                { label: "합계", value: formatMoney(point.order_amount) },
                 { label: "주문 수", value: `${point.order_count}건` },
               ]}
             />
@@ -648,7 +680,9 @@ export function DashboardPage() {
           columns={manualOrderColumns}
           rows={recentManualOrders.data?.items}
           getRowKey={(row) => row.id}
-          onRowClick={(row) => navigate(`/manual-orders/${row.id}`)}
+          onRowClick={(row) =>
+            navigate(manualOrderPath(manualOrderKind(row), row.id))
+          }
           status={
             recentManualOrders.isLoading
               ? "loading"

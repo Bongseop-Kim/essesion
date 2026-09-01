@@ -14,9 +14,14 @@ import {
 } from "@essesion/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Navigate, useNavigate, useParams } from "react-router";
 
 import { formatDateTime } from "../../shared/lib/format";
+import {
+  type ManualOrderKind,
+  manualOrderKind,
+  manualOrderPath,
+} from "../../shared/lib/manual-order-kind";
 import { AdminCard } from "../../shared/ui/admin-card";
 import { RouteHeading } from "../../shared/ui/route-heading";
 import {
@@ -25,11 +30,16 @@ import {
   manualOrderDraftFrom,
 } from "./manual-order-form";
 
-function ManualOrderEditLoading() {
+const NOUN: Record<ManualOrderKind, string> = {
+  custom: "수기 주문",
+  repair: "수기 수선",
+};
+
+function ManualOrderEditLoading({ noun }: { noun: string }) {
   return (
     <VStack gap="x6" alignItems="stretch" aria-busy="true">
       <RouteHeading
-        title="수기 주문 수정"
+        title={`${noun} 수정`}
         description="작업지시서 내용을 불러오고 있습니다."
       />
       <AdminCard title="주문 정보">
@@ -43,8 +53,9 @@ function ManualOrderEditLoading() {
   );
 }
 
-export function ManualOrderEditPage() {
+function ManualOrderEdit({ kind }: { kind: ManualOrderKind }) {
   const { manualOrderId = "" } = useParams();
+  const noun = NOUN[kind];
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [resetSignal, setResetSignal] = useState(0);
@@ -58,7 +69,7 @@ export function ManualOrderEditPage() {
     ...updateManualOrderMutation(),
     onSuccess: async (order) => {
       savedRef.current = true;
-      snackbar("수기 주문을 저장했습니다.");
+      snackbar(`${noun}을 저장했습니다.`);
       queryClient.setQueryData(
         getManualOrderQueryKey({ path: { manual_order_id: manualOrderId } }),
         order,
@@ -66,7 +77,7 @@ export function ManualOrderEditPage() {
       await queryClient.invalidateQueries({
         queryKey: listManualOrdersQueryKey(),
       });
-      navigate(`/manual-orders/${manualOrderId}`);
+      navigate(manualOrderPath(kind, manualOrderId));
     },
   });
   const order = query.data;
@@ -75,18 +86,18 @@ export function ManualOrderEditPage() {
     [order],
   );
 
-  if (query.isLoading) return <ManualOrderEditLoading />;
+  if (query.isLoading) return <ManualOrderEditLoading noun={noun} />;
   // 편집 중 백그라운드 refetch가 실패해도(query.isError) 기존 데이터가 있으면
   // 폼을 유지한다. 편집할 데이터가 아예 없을 때만 에러 화면을 보여준다.
   if (order === undefined || initialDraft === undefined) {
     return (
       <VStack gap="x6" alignItems="stretch">
         <RouteHeading
-          title="수기 주문 수정"
+          title={`${noun} 수정`}
           description="작업지시서 내용을 수정합니다."
         />
         <ContentPlaceholder
-          title="수기 주문을 불러오지 못했습니다"
+          title={`${noun}을 불러오지 못했습니다`}
           description="주문 ID를 확인하거나 다시 시도해 주세요."
           action={
             <ActionButton onClick={() => void query.refetch()}>
@@ -98,22 +109,31 @@ export function ManualOrderEditPage() {
     );
   }
 
+  // 다른 계열의 주소로 들어왔으면 제 화면으로 보낸다 — 폼이 계열별로 다르다.
+  const actualKind = manualOrderKind(order);
+  if (actualKind !== kind) {
+    return (
+      <Navigate to={manualOrderPath(actualKind, order.id, "edit")} replace />
+    );
+  }
+
   return (
     <VStack gap="x6" alignItems="stretch">
       <HStack justify="space-between" align="flex-start" gap="x4" wrap>
         <RouteHeading
-          title={`${order.customer_name} 님의 수기 주문 수정`}
+          title={`${order.customer_name} 님의 ${noun} 수정`}
           description={`마지막 수정 ${formatDateTime(order.updated_at)}`}
         />
         <ActionButton
           variant="ghost"
-          onClick={() => navigate(`/manual-orders/${order.id}`)}
+          onClick={() => navigate(manualOrderPath(kind, order.id))}
         >
           상세로
         </ActionButton>
       </HStack>
 
       <ManualOrderForm
+        kind={kind}
         initial={initialDraft}
         manualOrderId={order.id}
         revision={order.updated_at}
@@ -151,4 +171,12 @@ export function ManualOrderEditPage() {
       />
     </VStack>
   );
+}
+
+export function ManualOrderEditPage() {
+  return <ManualOrderEdit kind="custom" />;
+}
+
+export function ManualRepairEditPage() {
+  return <ManualOrderEdit kind="repair" />;
 }

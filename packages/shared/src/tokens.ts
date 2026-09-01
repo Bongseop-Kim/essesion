@@ -45,6 +45,14 @@ export const bgRoles = [
   "informative-solid-hover",
   "informative-solid-pressed",
   "informative-weak",
+  // chart-categorical — 데이터 시각화 계열 식별 전용 (모노크롬 예외, 순서 고정)
+  "chart-1",
+  "chart-2",
+  "chart-3",
+  "chart-4",
+  "chart-5",
+  "chart-6",
+  "chart-7",
   // brand-login (OAuth) — 소셜 로그인 버튼 전용 브랜드색 (모노크롬 예외)
   "kakao",
   "kakao-hover",

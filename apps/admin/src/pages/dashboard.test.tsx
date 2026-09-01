@@ -141,6 +141,17 @@ const quotesPage: DashboardRecentQuotesPage = {
   as_of: summary.as_of,
 };
 
+// 유형별 매출 7종의 합은 order_amount와 같다(api-spec/domains.md §10).
+const noAmountByType = {
+  sale_amount: 0,
+  custom_amount: 0,
+  repair_amount: 0,
+  sample_amount: 0,
+  token_amount: 0,
+  manual_custom_amount: 0,
+  manual_repair_amount: 0,
+};
+
 const timeseries: DashboardTimeseriesOut = {
   start_date: "2026-07-11",
   end_date: "2026-07-12",
@@ -150,6 +161,7 @@ const timeseries: DashboardTimeseriesOut = {
       day: "2026-07-11",
       order_count: 0,
       order_amount: 0,
+      ...noAmountByType,
       new_customer_count: 0,
       generation_total: 0,
       generation_failed: 0,
@@ -160,6 +172,9 @@ const timeseries: DashboardTimeseriesOut = {
       day: "2026-07-12",
       order_count: 1,
       order_amount: 50_000,
+      ...noAmountByType,
+      sale_amount: 30_000,
+      manual_repair_amount: 20_000,
       new_customer_count: 2,
       generation_total: 4,
       generation_failed: 1,

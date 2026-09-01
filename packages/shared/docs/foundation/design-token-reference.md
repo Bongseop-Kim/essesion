@@ -53,6 +53,13 @@
 | `bg.informative-solid-hover` | `--color-bg-informative-solid-hover` | blue-800 `#135fcd` | `bg-bg-informative-solid-hover` |
 | `bg.informative-solid-pressed` | `--color-bg-informative-solid-pressed` | blue-900 `#0b4596` | `bg-bg-informative-solid-pressed` |
 | `bg.informative-weak` | `--color-bg-informative-weak` | blue-100 `#eff6ff` | `bg-bg-informative-weak` |
+| `bg.chart-1` | `--color-bg-chart-1` | `#2a78d6` (blue) | `bg-bg-chart-1` (데이터 시각화 전용) |
+| `bg.chart-2` | `--color-bg-chart-2` | `#d95926` (orange) | `bg-bg-chart-2` |
+| `bg.chart-3` | `--color-bg-chart-3` | `#199e70` (aqua) | `bg-bg-chart-3` |
+| `bg.chart-4` | `--color-bg-chart-4` | `#c98500` (yellow) | `bg-bg-chart-4` |
+| `bg.chart-5` | `--color-bg-chart-5` | `#d55181` (magenta) | `bg-bg-chart-5` |
+| `bg.chart-6` | `--color-bg-chart-6` | `#008300` (green) | `bg-bg-chart-6` |
+| `bg.chart-7` | `--color-bg-chart-7` | `#4a3aa7` (violet) | `bg-bg-chart-7` |
 | `bg.kakao` | `--color-bg-kakao` | `#fee500` (브랜드) | `bg-bg-kakao` (소셜 로그인 전용) |
 | `bg.kakao-hover` | `--color-bg-kakao-hover` | `#f2d900` | `bg-bg-kakao-hover` |
 | `bg.kakao-pressed` | `--color-bg-kakao-pressed` | `#e6ce00` | `bg-bg-kakao-pressed` |
